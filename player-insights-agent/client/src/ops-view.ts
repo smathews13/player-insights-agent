@@ -42,6 +42,7 @@ import {
   type HealthDependency,
   type OpsCostPayload,
   type OpsLatencyPayload,
+  type OpsTrafficPayload,
   type PlatformReading,
   type RouteLatency,
   type TelemetryState,
@@ -441,7 +442,8 @@ const EMPTY_COST_TILES: readonly CostTile[] = [
     label: 'Foundation model',
     resourceKind: 'serving-endpoint',
     population: 'Shared endpoint',
-    unavailable: 'Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.',
+    unavailable: 'Shared spend withheld',
+    evidence: { billingRows: null, astrolabeQueries: null },
   },
   { ...EMPTY_COST_TILE, id: 'sql-warehouse', label: 'SQL warehouse', resourceKind: 'sql-warehouse' },
   { ...EMPTY_COST_TILE, id: 'genie', label: 'Genie', resourceKind: 'genie-space' },
@@ -952,6 +954,42 @@ export function trafficCaption(series: TrafficBar[], singular: string, plural: s
   if (total === 0) return `No ${plural}`;
   const noun = total === 1 ? singular : plural;
   return runs > 0 ? `${count(total)} ${noun} out of ${count(runs)} recorded runs.` : `${count(total)} ${noun}.`;
+}
+
+export function activeMinutesDisplay(payload: OpsTrafficPayload): { title: string; note: string } {
+  const total = (payload.activeMinutesPerDay ?? []).reduce((sum, day) => sum + day.count, 0);
+  const title = `Active app minutes · ${count(total)} total`;
+  const from = payload.activeMinutesRecordedFrom ?? '';
+  const through = payload.activeMinutesRecordedThrough ?? '';
+  if (!from) return { title, note: 'Recording starts with this release; no backfill.' };
+  const timeZone = payload.activeMinutesTimeZone || undefined;
+  const format = (value: string) => {
+    const at = new Date(value);
+    if (!Number.isFinite(at.getTime())) return value;
+    return at.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone,
+      timeZoneName: 'short',
+    });
+  };
+  const firstDay = payload.activeMinutesPerDay?.[0]?.day ?? '';
+  const dayParts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .formatToParts(new Date(from))
+    .reduce<Record<string, string>>((parts, part) => ({ ...parts, [part.type]: part.value }), {});
+  const recordedStartDay = `${dayParts.year}-${dayParts.month}-${dayParts.day}`;
+  const prefix = firstDay && firstDay === recordedStartDay ? 'Partial coverage since' : 'Recorded since';
+  return {
+    title,
+    note: `${prefix} ${format(from)}${through ? ` · latest ${format(through)}` : ''}`,
+  };
 }
 
 /* ── Latency ─────────────────────────────────────────────────────────────── */

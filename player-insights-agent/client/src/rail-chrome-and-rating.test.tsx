@@ -144,11 +144,14 @@ describe('the release badge and the two controls beside it', () => {
 
 describe('a conversation with a run in flight', () => {
   it('wears the harness’s own live badge in the rail row', () => {
-    // The same component the inspector column draws, so the rail cannot end up
-    // with a second live chip written in its own hand.
+    // A dedicated rail component computes the badge from this conversation's
+    // own run, then seats the same RunStatusPill as the inspector.
     const row = HOME.slice(HOME.indexOf('<span className="conversation-item-head">'));
-    expect(row.slice(0, row.indexOf('</span>'))).toContain('<RunStatusPill status={runStatus} />');
-    expect(HOME).toContain('Boolean(readLiveAsk(conversation.id)?.inFlight)');
+    expect(row.slice(0, row.indexOf('</span>'))).toContain('<ConversationRailRunStatus');
+    expect(HOME).toContain('Boolean(streamedRun?.inFlight)');
+    expect(readFileSync(new URL('./ConversationRailRunStatus.tsx', import.meta.url), 'utf8')).toContain(
+      '<RunStatusPill'
+    );
   });
 
   it('breathes with the one animation the app has for this, not a second one', () => {

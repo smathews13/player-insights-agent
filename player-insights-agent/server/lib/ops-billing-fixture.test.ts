@@ -109,7 +109,7 @@ describe('billing SQL contract', () => {
 });
 
 describe('price join golden outputs', () => {
-  it('emits each exact component once so component amounts sum once', () => {
+  it('emits exact components once and withholds shared meters without an attribution denominator', () => {
     const tiles = buildTiles(IDS, [
       row({ component: 'serving-endpoint', spend: 1, billedDays: 1 }),
       row({ component: 'foundation-model', spend: 2, billedDays: 1 }),
@@ -119,8 +119,9 @@ describe('price join golden outputs', () => {
     ]);
     const measured = tiles.filter((tile) => tile.amount !== null);
     expect(new Set(measured.map((tile) => tile.id)).size).toBe(measured.length);
-    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(13);
+    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(10);
     expect(tiles.find((tile) => tile.id === 'foundation-model')?.amount).toBeNull();
+    expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.amount).toBeNull();
     expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
 
@@ -237,12 +238,12 @@ describe('coverage, shared meters, and Genie', () => {
     expect(coverage.propagation.find((item) => item.product === 'SQL')?.status).toBe('propagated');
   });
 
-  it('labels a whole-warehouse meter as a shared upper bound', () => {
+  it('withholds a warehouse meter until Query History proves the Astrolabe share', () => {
     const tile = buildTiles(IDS, [row({ component: 'sql-warehouse', spend: 50 })]).find(
       (item) => item.id === 'sql-warehouse'
     );
-    expect(tile?.population).toBe('Whole warehouse');
-    expect(tile?.attribution).toBe('shared-upper-bound');
+    expect(tile?.population).toBe('Astrolabe query share');
+    expect(tile?.attribution).toBe('unavailable');
   });
 
   it('keeps Genie space cards dollar-free and names LLM spend as not attributable', () => {

@@ -30,6 +30,7 @@ import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { BrandIcon } from './BrandIcon';
 import { parseAnswerMarkdown, type Block, type Inline } from './answer-markdown';
+import { EntityText } from './DataEntityLinks';
 import {
   chipRuns,
   collapsedName,
@@ -106,7 +107,7 @@ export function ChipText({ text }: { text: string }) {
  * a link out of it would claim the step named an entity the app tracks when all
  * the step did was mention a word.
  */
-function InlineRuns({ nodes }: { nodes: readonly Inline[] }) {
+function InlineRuns({ nodes, tables = [] }: { nodes: readonly Inline[]; tables?: readonly string[] }) {
   return (<>
       {nodes.map((node) => {
         switch (node.kind) {
@@ -115,19 +116,27 @@ function InlineRuns({ nodes }: { nodes: readonly Inline[] }) {
             // of prose is a span per sentence in the panel, and it is not carrying
             // anything -- the runs exist so a tracked entity can be linked, and
             // nothing links here.
-            return node.runs.map((run) => run.text).join('');
+            return tables.length > 0 ? (
+              <EntityText
+                key={node.start}
+                text={node.runs.map((run) => run.text).join('')}
+                sources={tables.map((name) => ({ name }))}
+              />
+            ) : (
+              node.runs.map((run) => run.text).join('')
+            );
           case 'code':
             return <Name key={node.start}>{node.runs.map((run) => run.text).join('')}</Name>;
           case 'strong':
             return (<strong key={node.start}>
-                <InlineRuns nodes={node.children} />
+                <InlineRuns nodes={node.children} tables={tables} />
               </strong>
             );
           case 'link':
             // Drawn as its text and not as a link. A step panel is the record of
             // what one call did; a link out of it would offer navigation the step
             // never performed.
-            return <InlineRuns key={node.start} nodes={node.children} />;
+            return <InlineRuns key={node.start} nodes={node.children} tables={tables} />;
           case 'break':
             return <br key={node.start} />;
         }
@@ -136,23 +145,23 @@ function InlineRuns({ nodes }: { nodes: readonly Inline[] }) {
   );
 }
 
-function MarkdownBlock({ block }: { block: Block }) {
+function MarkdownBlock({ block, tables = [] }: { block: Block; tables?: readonly string[] }) {
   switch (block.kind) {
     case 'heading':
       return (<strong className="dag-md-head">
-          <InlineRuns nodes={block.children} />
+          <InlineRuns nodes={block.children} tables={tables} />
         </strong>
       );
     case 'list':
       return block.ordered ? (<ol className="dag-md-list">
           {block.items.map((item) => (<li key={item.start}>
-              <InlineRuns nodes={item.children} />
+              <InlineRuns nodes={item.children} tables={tables} />
             </li>
           ))}
         </ol>
       ) : (<ul className="dag-md-list">
           {block.items.map((item) => (<li key={item.start}>
-              <InlineRuns nodes={item.children} />
+              <InlineRuns nodes={item.children} tables={tables} />
             </li>
           ))}
         </ul>
@@ -172,7 +181,7 @@ function MarkdownBlock({ block }: { block: Block }) {
             {block.header ? (<thead>
                 <tr>
                   {block.header.cells.map((cell, column) => (<th key={cell.start} scope="col" data-align={block.align[column]} data-wrap={block.wrap[column]}>
-                      <InlineRuns nodes={cell.children} />
+                      <InlineRuns nodes={cell.children} tables={tables} />
                     </th>
                   ))}
                 </tr>
@@ -181,7 +190,7 @@ function MarkdownBlock({ block }: { block: Block }) {
             <tbody>
               {block.rows.map((row) => (<tr key={row.start}>
                   {row.cells.map((cell, column) => (<td key={cell.start} data-align={block.align[column]} data-wrap={block.wrap[column]}>
-                      <InlineRuns nodes={cell.children} />
+                      <InlineRuns nodes={cell.children} tables={tables} />
                     </td>
                   ))}
                 </tr>
@@ -199,16 +208,16 @@ function MarkdownBlock({ block }: { block: Block }) {
       );
     case 'paragraph':
       return (<p>
-          <InlineRuns nodes={block.children} />
+          <InlineRuns nodes={block.children} tables={tables} />
         </p>
       );
   }
 }
 
 /** Markdown, where every shape that would not parse lands. */
-export function MarkdownText({ text }: { text: string }) {
+export function MarkdownText({ text, tables = [] }: { text: string; tables?: readonly string[] }) {
   return (<div className="dag-md">
-      {parseAnswerMarkdown(text).map((block) => <MarkdownBlock block={block} key={block.start} />)}
+      {parseAnswerMarkdown(text).map((block) => <MarkdownBlock block={block} tables={tables} key={block.start} />)}
     </div>
   );
 }

@@ -34,6 +34,7 @@ import {
   TrafficBody,
   type Block,
 } from './OpsPage';
+import { activeMinutesDisplay } from './ops-view';
 import { REFRESH_LABEL } from './refresh-state';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
@@ -771,7 +772,7 @@ describe('the cost block', () => {
    * cards' own borders. The one thing a reader acts on is whether the figure is
    * an apportionment, and that is one word in the block's own pill.
    */
-  it('badges an estimated figure and leaves a measured one bare', () => {
+  it('labels an estimated figure inline and leaves a measured one bare', () => {
     const payload = cost({
       tiles: [
         { ...cost().tiles[0], id: 'sql-warehouse', label: 'SQL warehouse', quality: 'estimate' },
@@ -779,10 +780,8 @@ describe('the cost block', () => {
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    // The badge, in the same pill the block's own "Experimental" uses: one on the
-    // warehouse, and the section badge above. Never a third on the endpoint.
-    expect([...markup.matchAll(/ast-pill ast-pill--warn ops-pill/g)]).toHaveLength(2);
-    expect(markup).toContain('Estimate');
+    expect([...markup.matchAll(/ast-pill ast-pill--warn ops-pill/g)]).toHaveLength(1);
+    expect(markup).toContain('estimated in range');
     expect(markup).not.toContain('Per token');
   });
 
@@ -795,7 +794,7 @@ describe('the cost block', () => {
    * neither the tone nor the absence of the chip on the other four cards is
    * something a reader would question by looking at the grid.
    */
-  it('badges the scope of a shared meter, quietly', () => {
+  it('does not add scope chips or footer explanations to a tile', () => {
     const payload = cost({
       tiles: [
         { ...cost().tiles[0], id: 'genie', label: 'Genie', quality: 'estimate', population: 'Whole workspace' },
@@ -803,8 +802,8 @@ describe('the cost block', () => {
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect(markup).toContain('ast-pill ast-pill--neutral-outline ops-pill">Whole workspace');
-    // The card whose meter is only ours states nothing about scope at all.
+    expect(markup).not.toContain('ast-pill ast-pill--neutral-outline ops-pill');
+    expect(markup).not.toContain('Whole workspace');
     expect(markup).not.toContain('This app');
     // A sentence, in either direction, is what the badge replaced.
     expect(markup).not.toMatch(/spend shared|not this app|includes other/i);
@@ -856,9 +855,8 @@ describe('the cost block', () => {
     expect(markup).toContain('per day');
   });
 
-  it('states the Astrolabe billing-tag filter beside the source', () => {
-    expect(render(<CostBody block={block(cost())} />)).toContain('system_billing');
-    expect(render(<CostBody block={block(cost())} />)).toContain('astrolabe');
+  it('keeps attribution methodology out of the simplified tile area', () => {
+    expect(render(<CostBody block={block(cost())} />)).not.toContain('system_billing');
     expect(render(<CostBody block={block(cost())} />)).not.toContain("custom_tags['astrolabe']");
   });
 
@@ -902,7 +900,7 @@ describe('the cost block', () => {
    * A configured resource with no billing identity is a state and a remedy,
    * never a zero.
    */
-  it('renders a missing resource identifier as a state and the fix for it', () => {
+  it('renders a missing resource identifier as a concise state without a footer remedy', () => {
     const payload = cost({
       tiles: [
         {
@@ -917,7 +915,7 @@ describe('the cost block', () => {
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('Resource identifier unavailable');
     expect(markup).not.toContain('Not attributable');
-    expect(markup).toContain('Set DATABRICKS_SERVING_ENDPOINT_NAME.');
+    expect(markup).not.toContain('Set DATABRICKS_SERVING_ENDPOINT_NAME.');
     expect(markup).not.toMatch(/cannot be told apart/);
     expect(markup).not.toContain('0.00');
   });
@@ -925,7 +923,7 @@ describe('the cost block', () => {
   it('keeps one model-serving average without inventing a combined per-question total', () => {
     const markup = render(<CostBody block={block(cost())} />);
     expect(markup).toContain('AVG. COST / QUESTION');
-    expect(markup).toContain('serving endpoint spend ÷ questions with recorded tokens');
+    expect(markup).not.toContain('serving endpoint spend ÷ questions with recorded tokens');
     expect(markup).not.toContain('Average model serving per question');
     expect(markup).not.toContain('token-apportions model-serving spend only');
     expect(markup).not.toContain('Per-question attribution');
@@ -991,7 +989,7 @@ describe('the cost block', () => {
     });
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('5.00 USD');
-    expect(markup).toContain('serving endpoint spend ÷ questions with recorded tokens');
+    expect(markup).not.toContain('serving endpoint spend ÷ questions with recorded tokens');
     expect(markup).not.toContain('token-apportioned');
     expect(markup).not.toContain('<table');
     expect(markup).not.toContain('Not knowable per question today');
@@ -1049,8 +1047,7 @@ describe('the cost block', () => {
     expect(markup).not.toContain('Index rebuild job');
     expect(markup).toContain('No billing rows');
     expect(markup).toContain('No billing rows matched an exact tracked resource');
-    expect(markup).toContain('system_billing');
-    expect(markup).toContain('astrolabe');
+    expect(markup).not.toContain('system_billing');
     expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(7);
   });
 
@@ -1159,19 +1156,54 @@ describe('the cost block', () => {
           ...cost().tiles[0],
           id: 'foundation-model',
           label: 'Foundation model',
+          resourceId: 'databricks-claude-sonnet-4-6',
+          resourceKind: 'serving-endpoint',
           amount: null,
           quality: 'unknown',
           population: 'Shared endpoint',
-          unavailable:
-            'Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.',
+          unavailable: 'Shared spend withheld',
+          evidence: { billingRows: null, astrolabeQueries: null },
         },
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
     expect(markup).toContain('Foundation model');
-    expect(markup).toContain('Whole shared endpoint spend is withheld');
+    expect(markup).toContain('Shared spend withheld');
+    expect(markup).toContain('databricks-claude-sonnet-4-6');
+    expect(markup).not.toContain('Billing rows withheld');
     expect(markup).toContain('ops-tile-mark');
     expect(markup).not.toMatch(/Budget in range/);
+  });
+
+  it('shows only concise row-count evidence under a SQL estimate', () => {
+    const payload = cost({
+      tiles: [
+        {
+          ...cost().tiles[0],
+          id: 'sql-warehouse',
+          label: 'SQL warehouse',
+          resourceId: 'warehouse-1',
+          resourceKind: 'sql-warehouse',
+          quality: 'estimate',
+          amount: 2.5,
+          evidence: {
+            billingRows: 4,
+            astrolabeQueries: 2,
+            warehouseQueries: 10,
+            queryHistoryComplete: true,
+          },
+          remedy: 'This must not render.',
+          note: 'This must not render either.',
+        },
+      ],
+    });
+    const markup = render(<CostBody block={block(payload)} />);
+    expect(markup).toContain('2.50 USD estimated in range');
+    expect(markup).toContain('4 billing rows · 2 Astrolabe queries of 10 warehouse queries');
+    expect(markup).not.toMatch(/ops-tile-evidence[^>]*>warehouse-1/);
+    expect(markup).not.toContain('This must not render');
+    expect(markup).not.toContain('ops-tile-foot');
+    expect(markup).not.toContain('ops-tile-formula');
   });
 
   it('draws a tile title as a hyperlink with the Databricks mark when it has a URL', () => {
@@ -1342,11 +1374,12 @@ describe('the cost block', () => {
     });
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('Genie LLM spend not attributable');
-    expect(markup).toContain('not the complete Genie cost');
+    expect(markup).toContain('space-data');
+    expect(markup).not.toContain('not the complete Genie cost');
     expect(markup).not.toContain('0.00');
   });
 
-  it('puts mapped coverage inside its product tile and removes the report below', () => {
+  it('removes mapped coverage explanations from the simplified product tile', () => {
     const payload = cost({
       coverage: {
         inventoryCount: 11,
@@ -1376,8 +1409,9 @@ describe('the cost block', () => {
       tiles: [{ ...cost().tiles[0], id: 'app-compute', label: 'App compute' }],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect(markup).toMatch(/App compute[\s\S]*?ops-tile-coverage[^>]*>Matched by app name/);
-    expect(markup).toContain('App tags are organizational.');
+    expect(markup).toContain('App compute');
+    expect(markup).not.toContain('ops-tile-coverage');
+    expect(markup).not.toContain('App tags are organizational.');
     expect(markup).not.toContain('Tracked cost components');
     expect(markup).not.toContain('11 tagged resources');
     expect(markup).not.toContain('semantic rebuild job');
@@ -1411,6 +1445,23 @@ describe('the cost block', () => {
 /* ── Traffic ─────────────────────────────────────────────────────────────── */
 
 describe('the traffic block', () => {
+  it('keeps the first local active-minute sample partial and on its Runtime calendar day', () => {
+    const payload = traffic({
+      activeMinutesPerDay: [{ day: '2026-08-27', count: 3 }],
+      activeMinutesTimeZone: 'America/Los_Angeles',
+      activeMinutesRecordedFrom: '2026-08-28T05:58:00Z',
+      activeMinutesRecordedThrough: '2026-08-28T06:00:00Z',
+    });
+    const summary = activeMinutesDisplay(payload);
+    expect(summary.title).toBe('Active app minutes · 3 total');
+    expect(summary.note).toContain('Partial coverage since Aug 27');
+    expect(summary.note).not.toContain('since Aug 28');
+
+    const markup = render(<TrafficBody block={block(payload)} />);
+    expect(markup).toContain('Active app minutes · 3 total');
+    expect(markup).toContain('Partial coverage since Aug 27');
+  });
+
   it('draws failures and refusals as two charts', () => {
     const markup = render(<TrafficBody block={block(traffic())} />);
     expect(markup).toContain('Failures by cause');
@@ -1488,7 +1539,7 @@ describe('the traffic block', () => {
     expect(markup).toContain('4');
     expect(markup).toContain('80');
     expect(markup).toContain('Distinct askers per day');
-    expect(markup).toContain('Recorded active app minutes per day');
+    expect(markup).toContain('Active app minutes · 80 total');
   });
 
   /**

@@ -35,6 +35,7 @@ const CSS = partial('connections.css');
  * it, and reading the recipe is the point: there is one copy to be right about.
  */
 const TOKENS = partial('astrolabe-tokens.css');
+const RESPONSIVE = partial('responsive.css');
 
 /**
  * One rule's body, by exact selector, and a failure rather than an empty string
@@ -182,9 +183,7 @@ describe('the parts a reader has to be able to use', () => {
     // connection on the page.
     expect(rule('.connections-table')).toMatch(/font-size:\s*var\(--text-base\)/);
     expect(rule('.connections-table th')).not.toMatch(/padding-block:\s*8px/);
-    expect(CSS).toMatch(
-      /\.connections-table th,\s*\n\s*\.connections-table td[\s\S]*?padding:\s*10px 16px/
-    );
+    expect(CSS).toMatch(/\.connections-table th,\s*\n\s*\.connections-table td[\s\S]*?padding:\s*10px 16px/);
     expect(rule('.connections-table tbody tr')).toMatch(/border-bottom:\s*1px solid var\(--border\)/);
     expect(rule('.connections-table tbody tr:hover')).toMatch(/background:\s*var\(--db-row-hover\)/);
     // The repeated catalog and schema are context; the table is the scanning
@@ -207,11 +206,28 @@ describe('the parts a reader has to be able to use', () => {
     expect(rule('.connections-table-filter')).toMatch(/position:\s*relative/);
     expect(rule('.connections-table-filter')).toMatch(/overflow:\s*visible/);
     expect(rule('.connection-block')).toMatch(/overflow:\s*visible/);
-    expect(rule('html:has(.connections-page) body[data-scroll-locked]')).toMatch(
-      /padding-right:\s*0\s*!important/
-    );
+    expect(rule('html:has(.connections-page) body[data-scroll-locked]')).toMatch(/padding-right:\s*0\s*!important/);
     expect(rule('.connections-table-detail')).toMatch(/white-space:\s*normal/);
     expect(rule('.connections-table-detail')).toMatch(/overflow-wrap:\s*anywhere/);
+  });
+
+  it('keeps table controls right-aligned in the header with a narrow fallback', () => {
+    expect(rule('.connection-block-head')).toMatch(/display:\s*flex/);
+    expect(rule('.connection-block-controls')).toMatch(/margin-left:\s*auto/);
+    expect(rule('.connection-block-controls')).toMatch(/flex:\s*0 0 auto/);
+    expect(RESPONSIVE).toMatch(/@media \(max-width: 800px\)[\s\S]*?\.connection-block-head\s*\{[^}]*flex-wrap:\s*wrap/);
+    expect(RESPONSIVE).toMatch(/\.connection-block-controls\s*\{[^}]*width:\s*100%/);
+    expect(RESPONSIVE).toMatch(/\.connection-block-controls \.connections-table-toolbar\s*\{[^}]*flex-wrap:\s*wrap/);
+  });
+
+  it('keeps Connections status badges compact and on one line', () => {
+    const resource = rule('.status-badge');
+    expect(resource).toMatch(/font-size:\s*var\(--ast-fs-11\)/);
+    expect(resource).toMatch(/padding:\s*1px 6px/);
+    expect(resource).toMatch(/white-space:\s*nowrap/);
+    const table = rule(".connections-table [data-slot='badge']");
+    expect(table).toMatch(/font-size:\s*var\(--ast-fs-11\)/);
+    expect(table).toMatch(/white-space:\s*nowrap/);
   });
 
   it('keeps Not checked and Configuration rows at Connected-resources density', () => {

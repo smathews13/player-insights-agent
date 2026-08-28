@@ -1831,13 +1831,3 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   max-width: 13rem;
   min-height: 30px;
 }
-
-@media (max-width: 680px) {
-  .sp-role-name-editor {
-    grid-template-columns: 1fr;
-  }
-
-  .sp-role-name-save {
-    justify-self: end;
-  }
-}

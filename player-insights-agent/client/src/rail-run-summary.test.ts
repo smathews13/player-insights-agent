@@ -22,6 +22,7 @@ import type { Run } from './app-types';
 const RAIL_CSS = partial('rail.css');
 const RUNS_CSS = partial('runs.css');
 const HOME_PAGE = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
+const RAIL_STATUS = readFileSync(new URL('ConversationRailRunStatus.tsx', import.meta.url), 'utf8');
 
 function withoutComments(css: string) {
   return css.replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -184,8 +185,8 @@ describe('the row is the run card, not a third style', () => {
     // never colour alone. The rail used to keep its own copy of that rule against
     // the retired db- washes, which is how one screen ends up a shade off the rest
     // the day somebody restyles the other.
-    expect(HOME_PAGE).toContain('ast-pill conversation-status');
-    expect(HOME_PAGE).toContain('summary.tone');
+    expect(RAIL_STATUS).toContain('ast-pill conversation-status');
+    expect(RAIL_STATUS).toContain('summary.tone');
     const recipe = body('.ast-pill', partial('astrolabe-tokens.css'));
     expect(recipe).toMatch(/border-radius:\s*var\(--ast-radius-control\)/);
     expect(recipe).toMatch(/font-size:\s*var\(--ast-fs-11\)/);
@@ -222,8 +223,8 @@ describe('the row is the run card, not a third style', () => {
   it('keeps the stored status word, even when the turn also recorded a deadline note', () => {
     // Truncated used to replace the stored word with Partial on every reopen.
     // A card that already answered stays Complete; the deadline stays a note.
-    expect(HOME_PAGE).not.toMatch(/summary\.truncated === true \? 'partial' : summary\.status/);
-    expect(HOME_PAGE).toMatch(/title=\{`Latest turn: \$\{summary\.status\}`\}/);
+    expect(RAIL_STATUS).not.toMatch(/summary\.truncated === true \? 'partial' : summary\.status/);
+    expect(RAIL_STATUS).toMatch(/title=\{`Latest turn: \$\{summary\.status\}`\}/);
     expect(HOME_PAGE).not.toContain('Truncated');
   });
 
@@ -377,8 +378,6 @@ describe('a badge on every conversation, not just the reader’s own', () => {
   });
 
   it('prefers the scoped read, which is the only one that knows the rating', () => {
-    expect(HOME_PAGE).toMatch(
-      /runSummaries\.get\(conversation\.id\) \?\? conversationRunSummary\(conversation\)/
-    );
+    expect(HOME_PAGE).toMatch(/runSummaries\.get\(conversation\.id\) \?\? conversationRunSummary\(conversation\)/);
   });
 });

@@ -35,6 +35,8 @@ import type { Run } from './app-types';
 export type RailStatusTone = 'ast-pill--pos' | 'ast-pill--neg' | 'ast-pill--warn' | 'ast-pill--neutral-outline';
 
 export interface RailRunSummary {
+  /** The exact answer/run row this verdict came from. */
+  runId: string | null;
   /** The store's own word for the status, unaltered. */
   status: string;
   tone: RailStatusTone;
@@ -100,6 +102,7 @@ export function railRunSummaries(runs: readonly Run[]): Map<string, RailRunSumma
   const summaries = new Map<string, RailRunSummary>();
   for (const [id, run] of latest) {
     summaries.set(id, {
+      runId: run.id,
       // 'unknown' rather than an empty pill: the row is only given a pill when a
       // run exists, and a run whose status column is null is a run whose status
       // is unknown, which is a different statement from having no run.
@@ -145,6 +148,9 @@ export function conversationRunSummary(conversation: {
   // rather than a summary reading 'unknown'.
   if (!status) return null;
   return {
+    // The conversation list does not identify the answer row it summarized, so
+    // this fallback can describe settled history but can never settle a Live run.
+    runId: null,
     status,
     tone: railStatusTone(status),
     durationMs:

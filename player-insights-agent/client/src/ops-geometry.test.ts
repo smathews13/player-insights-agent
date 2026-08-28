@@ -37,6 +37,17 @@ function rule(selector: string): string {
 }
 
 describe('the figures line up', () => {
+  it('keeps resource-status badges compact and never wraps the two-part label', () => {
+    expect(rule('.ops-pill')).toMatch(/font-size:\s*var\(--ast-fs-11\)/);
+    expect(rule('.ops-pill')).toMatch(/padding:\s*1px 6px/);
+    expect(rule('.ops-platform-pill')).toMatch(/display:\s*inline-flex/);
+    expect(rule('.ops-platform-pill')).toMatch(/flex-wrap:\s*nowrap/);
+    expect(rule('.ops-platform-pill')).toMatch(/white-space:\s*nowrap/);
+    expect(rule('td.ops-col-result .ops-platform-pill')).toMatch(/white-space:\s*nowrap/);
+    expect(rule('.ops-table-scroll')).toMatch(/overflow-x:\s*auto/);
+    expect(rule('.ops-health-table')).toMatch(/min-width:\s*680px/);
+  });
+
   /**
    * THE DEFECT THIS REPLACED, and it tested green for as long as it existed.
    *

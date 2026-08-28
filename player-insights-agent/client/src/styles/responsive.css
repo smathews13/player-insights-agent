@@ -199,6 +199,12 @@
   .runtime-entity-row {
     grid-template-columns: 1fr;
   }
+  .sp-role-name-editor {
+    grid-template-columns: 1fr;
+  }
+  .sp-role-name-save {
+    justify-self: end;
+  }
   /* The search box's own line is settled in the 1180px block above, which covers
      this band too. It was here, and 800px was too late: the row runs out of line
      around 1090px. Do not restate it here. */
@@ -316,6 +322,25 @@
      late costs them the identifiers. */
   .connection-pair {
     grid-template-columns: 1fr;
+  }
+  .connection-block-head {
+    flex-wrap: wrap;
+  }
+  .connection-block-head > .connection-block-summary {
+    flex-basis: 100%;
+  }
+  .connection-block-controls {
+    width: 100%;
+    margin-left: 0;
+    padding: 0 16px 10px;
+  }
+  .connection-block-controls .connections-table-toolbar {
+    flex-wrap: wrap;
+  }
+  .connection-block-controls .connections-table-search {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
   }
   .configuration-plane-row {
     grid-template-columns: 1fr;

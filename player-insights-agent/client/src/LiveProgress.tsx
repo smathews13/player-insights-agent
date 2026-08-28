@@ -23,6 +23,7 @@ import { buildLiveRun, nextFollowState, type LiveStep } from './live-progress';
 import { railTiming, stepNumber } from './agent-map';
 import { astPill } from './run-header';
 import { formatMs, toolNameFromId } from './trace-timeline';
+import { EntityText } from './DataEntityLinks';
 
 /**
  * One reported step.
@@ -47,9 +48,19 @@ function StepKindMark({ step }: { step: LiveStep }) {
   return <AstrolabeMark size={13} />;
 }
 
-function StepRow({ step, number, newest, elapsedMs }: { step: LiveStep; number: number; newest: boolean; elapsedMs: number | null }
-) {
-  return (<li
+function StepRow({
+  step,
+  number,
+  newest,
+  elapsedMs,
+}: {
+  step: LiveStep;
+  number: number;
+  newest: boolean;
+  elapsedMs: number | null;
+}) {
+  return (
+    <li
       className={`live-step ${step.status}${newest ? ' newest' : ''}`}
       style={step.depth ? ({ '--live-depth': step.depth } as CSSProperties) : undefined}
     >
@@ -67,7 +78,9 @@ function StepRow({ step, number, newest, elapsedMs }: { step: LiveStep; number: 
       </span>
       <div className="live-step-body">
         <p className="live-step-head">
-          <strong>{step.name}</strong>
+          <strong>
+            <EntityText text={step.name} sources={step.tables.map((name) => ({ name }))} />
+          </strong>
           <span className="live-step-type">{step.type}</span>
           {/* A step the endpoint has announced and not reported has no duration,
               and `durationMs` is 0 for that reason -- printing it would put
@@ -76,8 +89,10 @@ function StepRow({ step, number, newest, elapsedMs }: { step: LiveStep; number: 
               clock, and the offset into the run is left off: it is the one thing
               here that is not yet a measurement. */}
           <span className="live-step-timing">
-            {step.status === 'running' ? (railTiming({ duration: step.durationMs, status: step.status }, elapsedMs)
-            ) : (<>
+            {step.status === 'running' ? (
+              railTiming({ duration: step.durationMs, status: step.status }, elapsedMs)
+            ) : (
+              <>
                 {formatMs(step.durationMs)}
                 {step.startMs !== null && <> · +{formatMs(step.startMs)} into the run</>}
               </>
@@ -89,9 +104,14 @@ function StepRow({ step, number, newest, elapsedMs }: { step: LiveStep; number: 
             </Badge>
           )}
         </p>
-        {step.detail && <p className="live-step-detail">{step.detail}</p>}
-        {step.result && (<p className="live-step-result">
-            <span>returned</span> {step.result}
+        {step.detail && (
+          <p className="live-step-detail">
+            <EntityText text={step.detail} sources={step.tables.map((name) => ({ name }))} />
+          </p>
+        )}
+        {step.result && (
+          <p className="live-step-result">
+            <span>returned</span> <EntityText text={step.result} sources={step.tables.map((name) => ({ name }))} />
           </p>
         )}
       </div>
@@ -160,9 +180,12 @@ export function LiveProgress({
     view.scrollTo({ top: view.scrollHeight, behavior: abrupt ? 'auto' : 'smooth' });
   }, [run.steps.length]);
 
-  return (<div className="live-progress">
-      {run.steps.length > 0 && (<ol className="live-steps" ref={list} onScroll={onScroll}>
-          {run.steps.map((step, index) => (<StepRow
+  return (
+    <div className="live-progress">
+      {run.steps.length > 0 && (
+        <ol className="live-steps" ref={list} onScroll={onScroll}>
+          {run.steps.map((step, index) => (
+            <StepRow
               key={step.id}
               step={step}
               number={index + 1}

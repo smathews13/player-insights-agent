@@ -159035,6 +159035,16 @@ var init_request_latency = __esm({
 });
 
 // server/lib/app-activity.ts
+function validIanaTimeZone(value) {
+  const candidate = value.trim();
+  if (!candidate) return "";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format(0);
+    return candidate;
+  } catch {
+    return "";
+  }
+}
 async function recordAppActivityMinute(store, user) {
   await store.lakebase.query(RECORD_APP_ACTIVITY_QUERY, [user]);
 }
@@ -159052,10 +159062,23 @@ var init_app_activity = __esm({
 VALUES (lower($1), date_trunc('minute', now()))
 ON CONFLICT (user_email, active_minute) DO NOTHING`;
     ACTIVE_MINUTES_PER_DAY_QUERY = `
-  SELECT to_char(date_trunc('day', active_minute), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
-  FROM ${APP_ACTIVITY_TABLE}
-  GROUP BY 1
-  ORDER BY 1`;
+  WITH activity AS (
+    SELECT active_minute, active_minute AT TIME ZONE $1 AS local_minute
+    FROM ${APP_ACTIVITY_TABLE}
+  ),
+  per_day AS (
+    SELECT to_char(date_trunc('day', local_minute), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
+    FROM activity
+    GROUP BY 1
+  ),
+  bounds AS (
+    SELECT MIN(active_minute) AS recorded_from, MAX(active_minute) AS recorded_through
+    FROM activity
+  )
+  SELECT per_day.day, per_day.count, bounds.recorded_from, bounds.recorded_through
+  FROM bounds
+  LEFT JOIN per_day ON TRUE
+  ORDER BY per_day.day`;
   }
 });
 
@@ -174221,7 +174244,7 @@ var init_insights_routes = __esm({
     LIMIT 1
   ) verdict ON TRUE`;
     CONVERSATION_LIST_COLUMNS = "c.id, c.title, c.updated_at, c.user_email, verdict.status, verdict.truncated, verdict.duration_ms";
-    CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, updated_at, terminal_code
+    CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, updated_at, terminal_code, terminal_message_id
   FROM ${APP_SCHEMA}.runs
   WHERE conversation_id = $1 AND user_email = $2
   ORDER BY created_at DESC
@@ -180409,6 +180432,143 @@ var init_monitoring_routes = __esm({
   }
 });
 
+// server/lib/ops-query-history.ts
+function finiteMilliseconds(value) {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+function executionMilliseconds(row2) {
+  if (!row2.metrics || typeof row2.metrics !== "object") return null;
+  return finiteMilliseconds(row2.metrics.execution_time_ms);
+}
+function rowId(row2) {
+  return typeof row2.query_id === "string" ? row2.query_id.trim() : "";
+}
+function isAstrolabe(row2) {
+  return parseQueryTags(row2.query_tags).get("application") === "Astrolabe";
+}
+async function readWarehouseQueryAttribution(input) {
+  const warehouseId2 = input.warehouseId.trim();
+  if (!warehouseId2 || !Number.isFinite(input.startTimeMs) || !Number.isFinite(input.endTimeMs)) {
+    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION };
+  }
+  const rows = /* @__PURE__ */ new Map();
+  let complete = true;
+  let pageToken;
+  const usedTokens = /* @__PURE__ */ new Set();
+  for (let page = 0; page < MAX_QUERY_HISTORY_PAGES; page += 1) {
+    const response = await input.transport.listQueries({
+      warehouseId: warehouseId2,
+      startTimeMs: input.startTimeMs,
+      endTimeMs: input.endTimeMs,
+      pageToken,
+      maxResults: QUERY_HISTORY_PAGE_SIZE2
+    });
+    for (const row2 of Array.isArray(response.res) ? response.res : []) {
+      if (row2.warehouse_id !== void 0 && row2.warehouse_id !== warehouseId2) {
+        complete = false;
+        continue;
+      }
+      const id = rowId(row2);
+      if (!id) {
+        complete = false;
+        continue;
+      }
+      rows.set(id, row2);
+    }
+    const next = typeof response.next_page_token === "string" ? response.next_page_token.trim() : "";
+    if (!next) {
+      if (response.has_next_page) complete = false;
+      break;
+    }
+    if (usedTokens.has(next)) {
+      complete = false;
+      break;
+    }
+    usedTokens.add(next);
+    pageToken = next;
+    if (page === MAX_QUERY_HISTORY_PAGES - 1) complete = false;
+  }
+  let astrolabeQueries = 0;
+  let astrolabeExecutionMs = 0;
+  let totalExecutionMs = 0;
+  for (const row2 of rows.values()) {
+    const astrolabe = isAstrolabe(row2);
+    if (astrolabe) astrolabeQueries += 1;
+    const duration3 = executionMilliseconds(row2);
+    if (duration3 === null) {
+      complete = false;
+      continue;
+    }
+    totalExecutionMs += duration3;
+    if (astrolabe) astrolabeExecutionMs += duration3;
+  }
+  return {
+    complete,
+    astrolabeQueries,
+    totalQueries: rows.size,
+    astrolabeExecutionMs,
+    totalExecutionMs
+  };
+}
+function queryHistoryPage2(value) {
+  if (!value || typeof value !== "object") return {};
+  const record2 = value;
+  return {
+    res: Array.isArray(record2.res) ? record2.res : [],
+    ...typeof record2.next_page_token === "string" ? { next_page_token: record2.next_page_token } : {},
+    ...typeof record2.has_next_page === "boolean" ? { has_next_page: record2.has_next_page } : {}
+  };
+}
+function createDatabricksQueryHistoryTransport(client) {
+  return {
+    async listQueries({ warehouseId: warehouseId2, startTimeMs, endTimeMs, pageToken, maxResults }) {
+      const response = await client.request({
+        path: "/api/2.0/sql/history/queries",
+        method: "GET",
+        headers: new Headers({ Accept: "application/json" }),
+        raw: false,
+        query: {
+          filter_by: {
+            warehouse_ids: [warehouseId2],
+            query_start_time_range: { start_time_ms: startTimeMs, end_time_ms: endTimeMs }
+          },
+          include_metrics: true,
+          max_results: maxResults,
+          ...pageToken ? { page_token: pageToken } : {}
+        }
+      });
+      return queryHistoryPage2(response);
+    }
+  };
+}
+async function createWorkspaceQueryHistoryTransport(input) {
+  const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+  const client = new WorkspaceClient6({
+    host: input.host,
+    token: input.token,
+    authType: "pat"
+  });
+  return createDatabricksQueryHistoryTransport({
+    request: (options) => client.apiClient.request(options)
+  });
+}
+var QUERY_HISTORY_PAGE_SIZE2, MAX_QUERY_HISTORY_PAGES, EMPTY_WAREHOUSE_QUERY_ATTRIBUTION;
+var init_ops_query_history = __esm({
+  "server/lib/ops-query-history.ts"() {
+    init_warehouse_cancellation();
+    QUERY_HISTORY_PAGE_SIZE2 = 999;
+    MAX_QUERY_HISTORY_PAGES = 100;
+    EMPTY_WAREHOUSE_QUERY_ATTRIBUTION = {
+      complete: false,
+      astrolabeQueries: 0,
+      totalQueries: 0,
+      astrolabeExecutionMs: 0,
+      totalExecutionMs: 0
+    };
+  }
+});
+
 // server/lib/ops-billing.ts
 function workspaceEstimateRow(component) {
   return `${component}${WORKSPACE_ESTIMATE_SUFFIX}`;
@@ -180964,7 +181124,7 @@ function buildCoverage(input) {
     propagation: propagation2
   };
 }
-function buildTiles(ids, rows) {
+function buildTiles(ids, rows, warehouseAttribution = EMPTY_WAREHOUSE_QUERY_ATTRIBUTION) {
   const byComponent = new Map(
     rows.filter((row2) => (row2.kind ?? "component") === "component").map((row2) => [row2.component, row2])
   );
@@ -180974,7 +181134,7 @@ function buildTiles(ids, rows) {
       tiles.push(...genieSpaceTiles(ids));
       continue;
     }
-    tiles.push(componentTile(component, ids, byComponent));
+    tiles.push(componentTile(component, ids, byComponent, warehouseAttribution));
   }
   return tiles;
 }
@@ -180995,7 +181155,8 @@ function genieSpaceTiles(ids) {
         pricing: { ...EMPTY_PRICING },
         unavailable: GENIE_LLM_UNAVAILABLE,
         remedy: "Genie space identifier unavailable",
-        note: GENIE_SQL_NOT_COMPLETE
+        note: GENIE_SQL_NOT_COMPLETE,
+        evidence: { billingRows: null, astrolabeQueries: null }
       }
     ];
   }
@@ -181012,7 +181173,8 @@ function genieSpaceTiles(ids) {
     pricing: { ...EMPTY_PRICING },
     unavailable: GENIE_LLM_UNAVAILABLE,
     remedy: "",
-    note: GENIE_SQL_NOT_COMPLETE
+    note: GENIE_SQL_NOT_COMPLETE,
+    evidence: { billingRows: null, astrolabeQueries: null }
   }));
 }
 function appComputeAbsence(state) {
@@ -181037,7 +181199,7 @@ function appComputeAbsence(state) {
     note: `The app tag ${pair} could not be read; Apps billing is matched by app name.`
   };
 }
-function componentTile(component, ids, byComponent) {
+function componentTile(component, ids, byComponent, warehouseAttribution) {
   const description = DESCRIPTIONS[component];
   const base = {
     id: component,
@@ -181068,8 +181230,9 @@ function componentTile(component, ids, byComponent) {
       quality: "unknown",
       amount: null,
       note: "",
-      unavailable: "Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.",
-      remedy: ""
+      unavailable: "Shared spend withheld",
+      remedy: "",
+      evidence: { billingRows: null, astrolabeQueries: null }
     });
   }
   if (component === "serving-endpoint" && ids.endpointName && ids.endpointName === ids.foundationEndpoint) {
@@ -181079,8 +181242,9 @@ function componentTile(component, ids, byComponent) {
       population: "Shared endpoint",
       amount: null,
       note: "",
-      unavailable: "Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.",
-      remedy: ""
+      unavailable: "Shared spend withheld",
+      remedy: "",
+      evidence: { billingRows: null, astrolabeQueries: null }
     });
   }
   if (!canAsk(component, ids)) {
@@ -181093,7 +181257,8 @@ function componentTile(component, ids, byComponent) {
         pricing: pricing2,
         note: "",
         unavailable: base.resourceId ? "No billing rows" : "Vector Search index identifier unavailable",
-        remedy: ""
+        remedy: "",
+        evidence: { billingRows: ids.vectorEndpoint ? 0 : null, astrolabeQueries: null }
       });
     }
     return withMeta({
@@ -181103,12 +181268,44 @@ function componentTile(component, ids, byComponent) {
       pricing: pricing2,
       note: "",
       unavailable: "Resource identifier unavailable",
-      remedy: description.variable ? `Set ${description.variable}.` : ""
+      remedy: description.variable ? `Set ${description.variable}.` : "",
+      evidence: { billingRows: null, astrolabeQueries: null }
     });
   }
   const row2 = byComponent.get(component);
   const pricing = pricingFromRow(row2);
   const amount = spendAmountFor(row2, description.basis);
+  const billingRows = row2 ? (row2.pricedRows ?? 0) + (row2.unpricedRows ?? 0) : 0;
+  const evidence = {
+    billingRows,
+    astrolabeQueries: component === "sql-warehouse" ? warehouseAttribution.astrolabeQueries : null,
+    ...component === "sql-warehouse" ? {
+      warehouseQueries: warehouseAttribution.totalQueries,
+      queryHistoryComplete: warehouseAttribution.complete
+    } : {}
+  };
+  if (component === "sql-warehouse") {
+    if (amount === null || !warehouseAttribution.complete || warehouseAttribution.totalExecutionMs <= 0) {
+      return withMeta({
+        ...base,
+        amount: null,
+        pricing,
+        note: "",
+        unavailable: amount === null ? unpricedUnavailable(pricing) || "No billing rows" : "App spend withheld: complete Query History denominator unavailable",
+        remedy: "",
+        evidence
+      });
+    }
+    return withMeta({
+      ...base,
+      amount: amount * warehouseAttribution.astrolabeExecutionMs / warehouseAttribution.totalExecutionMs,
+      pricing,
+      note: "",
+      unavailable: "",
+      remedy: "",
+      evidence
+    });
+  }
   if (amount === null) {
     if (component === "app-compute" && pricing.match === "none") {
       const absence = appComputeAbsence(ids.appBillingTag);
@@ -181118,7 +181315,8 @@ function componentTile(component, ids, byComponent) {
         pricing,
         note: absence.note,
         unavailable: absence.unavailable,
-        remedy: absence.remedy
+        remedy: absence.remedy,
+        evidence
       });
     }
     return withMeta({
@@ -181127,10 +181325,11 @@ function componentTile(component, ids, byComponent) {
       pricing,
       note: "",
       unavailable: unpricedUnavailable(pricing) || "No billing rows",
-      remedy: ""
+      remedy: "",
+      evidence
     });
   }
-  return withMeta({ ...base, amount, pricing, note: "", unavailable: "", remedy: "" });
+  return withMeta({ ...base, amount, pricing, note: "", unavailable: "", remedy: "", evidence });
 }
 function unknownPart(id, label, unavailable4) {
   return { id, label, quality: "unknown", amount: null, unavailable: unavailable4 };
@@ -181207,6 +181406,7 @@ var COST_COMPONENTS, WORKSPACE_ESTIMATE_SUFFIX, MATCHERS, RANGE_ROW, BILLING_TAG
 var init_ops_billing = __esm({
   "server/lib/ops-billing.ts"() {
     init_billing_tag();
+    init_ops_query_history();
     COST_COMPONENTS = [
       "serving-endpoint",
       "foundation-model",
@@ -181259,7 +181459,7 @@ var init_ops_billing = __esm({
     TILED_PRODUCTS = /* @__PURE__ */ new Set(["MODEL_SERVING", "SQL", "VECTOR_SEARCH", "APPS"]);
     PRODUCT_REASONS = {
       MODEL_SERVING: "Measured only when an exact tracked endpoint name matches; tag coverage is reported separately.",
-      SQL: "Tracked as the SQL warehouse tile. This is a shared meter, not app-only spend.",
+      SQL: "Warehouse billing rows are allocated only by complete Astrolabe Query History execution-time share.",
       VECTOR_SEARCH: "Tracked as the Vector Search tile when the endpoint name matches.",
       APPS: "Measured by exact app name. App tag presence is a separate organizational signal.",
       GENIE: "Genie space cards stay dollar-free. Genie LLM spend is not attributable in this model.",
@@ -181302,7 +181502,7 @@ var init_ops_billing = __esm({
       "sql-warehouse": {
         label: "SQL warehouse",
         quality: "estimate",
-        population: "Whole warehouse",
+        population: "Astrolabe query share",
         basis: "total-in-range",
         variable: "DATABRICKS_SQL_WAREHOUSE_ID"
       },
@@ -181532,11 +181732,40 @@ async function costIdentifiersFor(appkit, req, extras) {
   ]);
   const states = resourceStates({ report, environment: appEnvironment(), stored });
   const configured = Object.fromEntries(states.map((state) => [state.resource.id, shownConnectionValue(state)]));
-  const configuration = report?.configuration?.length ? report.configuration : [
-    configured["genie-data"] ? { key: "data_genie_space_id", value: configured["genie-data"] } : null,
-    configured["genie-dictionary"] ? { key: "dictionary_genie_space_id", value: configured["genie-dictionary"] } : null,
-    configured["semantic-index"] ? { key: "semantic_index", value: configured["semantic-index"] } : null
-  ].filter((entry) => entry !== null);
+  const configuration = [...report?.configuration ?? []];
+  const configuredKeys = new Set(configuration.map((entry) => String(entry.key)));
+  for (const entry of [
+    configured["genie-data"] ? {
+      key: "data_genie_space_id",
+      value: configured["genie-data"],
+      env_var: "",
+      source: "connections",
+      mutability: "",
+      baked: false,
+      required: false
+    } : null,
+    configured["genie-dictionary"] ? {
+      key: "dictionary_genie_space_id",
+      value: configured["genie-dictionary"],
+      env_var: "",
+      source: "connections",
+      mutability: "",
+      baked: false,
+      required: false
+    } : null,
+    configured["semantic-index"] ? {
+      key: "semantic_index",
+      value: configured["semantic-index"],
+      env_var: "",
+      source: "connections",
+      mutability: "",
+      baked: false,
+      required: false
+    } : null
+  ]) {
+    if (!entry) continue;
+    if (!configuredKeys.has(entry.key)) configuration.push(entry);
+  }
   const { genieSpaces } = accessDependenciesFrom({ configuration, env: process.env });
   const spaces = genieSpaces.map((space) => ({ id: space.id.trim(), label: space.label.trim() || space.id.trim() }));
   const seen = new Set(spaces.map((space) => space.id));
@@ -181846,6 +182075,28 @@ function lagDays(rangeEnd, newestBillingDay) {
   if (!Number.isFinite(end) || !Number.isFinite(newest)) return null;
   return Math.max(0, Math.round((end - newest) / 864e5));
 }
+async function warehouseQueryAttribution(input) {
+  const startTimeMs = Date.parse(`${input.range.from}T00:00:00Z`);
+  const endTimeMs = Date.parse(`${input.range.to}T00:00:00Z`) + 864e5 - 1;
+  if (!input.host || !input.token || !input.warehouseId || !Number.isFinite(startTimeMs) || !Number.isFinite(endTimeMs)) {
+    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION };
+  }
+  try {
+    const transport = input.transport ?? await createWorkspaceQueryHistoryTransport({
+      host: input.host,
+      token: input.token
+    });
+    return await readWarehouseQueryAttribution({
+      warehouseId: input.warehouseId,
+      startTimeMs,
+      endTimeMs,
+      transport
+    });
+  } catch (error48) {
+    console.warn(`[ops] Query History attribution was withheld: ${error48.message}`);
+    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION };
+  }
+}
 function setupOpsRoutes(appkit, deps) {
   if (typeof deps?.isAdminRoute !== "function") {
     console.error(
@@ -181952,14 +182203,23 @@ function setupOpsRoutes(appkit, deps) {
         return;
       }
       try {
-        const outcome = await runStatement2({
-          host: workspace2,
-          token,
-          warehouseId: warehouse,
-          statement: built.statement,
-          parameters: built.parameters,
-          fetchImpl: deps.fetchImpl
-        });
+        const [outcome, queryAttribution] = await Promise.all([
+          runStatement2({
+            host: workspace2,
+            token,
+            warehouseId: warehouse,
+            statement: built.statement,
+            parameters: built.parameters,
+            fetchImpl: deps.fetchImpl
+          }),
+          warehouseQueryAttribution({
+            host: workspace2,
+            token,
+            warehouseId: warehouse,
+            range,
+            transport: deps.queryHistoryTransport
+          })
+        ]);
         const inventoryCount = resourceTagInventory({ environment: process.env, report: resolved.report }).length;
         if (!outcome.ok) {
           const denial = classifyDenial(outcome.message, "system.billing.usage");
@@ -181968,7 +182228,7 @@ function setupOpsRoutes(appkit, deps) {
               ...empty,
               state: "no-grant",
               grant: billingGrant(userEmail(req) || UNKNOWN_PRINCIPAL),
-              tiles: [],
+              tiles: buildTiles(ids, [], queryAttribution),
               reason: `You do not have ${denial.permission} on ${denial.object}, so no spend was read. Billing runs under your own grants rather than this app\u2019s, so being an administrator here does not grant it. SELECT is needed on both system.billing.usage and system.billing.list_prices.`
             });
             return;
@@ -181976,7 +182236,7 @@ function setupOpsRoutes(appkit, deps) {
           res.json({
             ...empty,
             state: "unreadable",
-            tiles: [],
+            tiles: buildTiles(ids, [], queryAttribution),
             reason: `Billing could not be read, so nothing about spend was established. Databricks said: ${outcome.message}`
           });
           return;
@@ -181993,7 +182253,7 @@ function setupOpsRoutes(appkit, deps) {
         const unpropagated = coverage2.propagation.filter((row2) => row2.status === "unpropagated");
         const delayed = coverage2.propagation.some((row2) => row2.status === "delayed");
         if (split.components.length === 0 && (!split.meta || split.meta.billedDays === 0)) {
-          const tiles2 = buildTiles(ids, []);
+          const tiles2 = buildTiles(ids, [], queryAttribution);
           const reason = unpropagated.length ? "Matching usage exists without the Astrolabe tag, but exact resource attribution remains available." : delayed ? "No exact tracked-resource billing rows in this range yet. Later days may still be filling." : "No billing rows matched an exact tracked resource in this range.";
           res.json({
             ...empty,
@@ -182008,7 +182268,7 @@ function setupOpsRoutes(appkit, deps) {
           });
           return;
         }
-        const tiles = buildTiles(ids, split.components);
+        const tiles = buildTiles(ids, split.components, queryAttribution);
         let perQuestion = {
           ...empty.perQuestion,
           reason: "Per-question attribution could not be read from the run ledger."
@@ -182043,19 +182303,22 @@ function setupOpsRoutes(appkit, deps) {
         });
       }
     });
-    app.get("/api/ops/traffic", async (_req, res) => {
+    app.get("/api/ops/traffic", async (req, res) => {
       const readAt = new Date(clock()).toISOString();
       try {
+        const runtime = await readRuntimeSettings(appkit);
+        const activeMinutesTimeZone = validIanaTimeZone(runtime.behavior.timezone) || validIanaTimeZone(queryText(req, "timeZone")) || "UTC";
         const [questions, askers, activeMinutes, outcomes, tools] = await Promise.allSettled([
           appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY),
           appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY),
-          appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY),
+          appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY, [activeMinutesTimeZone]),
           appkit.lakebase.query(RUN_OUTCOMES_QUERY),
           appkit.lakebase.query(TOOL_CALLS_QUERY)
         ]);
         const questionsPerDay = questions.status === "fulfilled" ? questions.value.rows.map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
         const distinctAskersPerDay = askers.status === "fulfilled" ? askers.value.rows.map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
-        const activeMinutesPerDay = activeMinutes.status === "fulfilled" ? activeMinutes.value.rows.map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
+        const activeMinutesPerDay = activeMinutes.status === "fulfilled" ? activeMinutes.value.rows.filter((row2) => Boolean(text18(row2.day))).map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
+        const activityBounds = activeMinutes.status === "fulfilled" ? activeMinutes.value.rows[0] : void 0;
         const failures = /* @__PURE__ */ new Map();
         const refusals = /* @__PURE__ */ new Map();
         let runsInRange = 0;
@@ -182096,6 +182359,9 @@ function setupOpsRoutes(appkit, deps) {
           questionsPerDay,
           distinctAskersPerDay,
           activeMinutesPerDay,
+          activeMinutesTimeZone,
+          activeMinutesRecordedFrom: text18(activityBounds?.recorded_from),
+          activeMinutesRecordedThrough: text18(activityBounds?.recorded_through),
           failuresByCause: toBars(failures),
           refusalsByCause: toBars(refusals),
           toolCalls,
@@ -182110,6 +182376,9 @@ function setupOpsRoutes(appkit, deps) {
           questionsPerDay: [],
           distinctAskersPerDay: [],
           activeMinutesPerDay: [],
+          activeMinutesTimeZone: "UTC",
+          activeMinutesRecordedFrom: "",
+          activeMinutesRecordedThrough: "",
           failuresByCause: [],
           refusalsByCause: [],
           toolCalls: [],
@@ -182184,6 +182453,8 @@ var init_ops_routes = __esm({
     init_request_latency();
     init_app_activity();
     init_cost_budgets();
+    init_ops_query_history();
+    init_runtime_settings_store();
     init_ops_contract();
     STATEMENT_TIMEOUT_MS2 = 45e3;
     ORG_ID_HEADER = "x-databricks-org-id";

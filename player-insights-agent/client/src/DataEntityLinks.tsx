@@ -246,6 +246,13 @@ function ProseRuns({
               <EntityParts text={run.text} entity={run.entity} />
             </EntityLink>
           );
+        if (run.emphasis && run.declaredTable) {
+          return (
+            <span className="entity-table-mark" key={run.start}>
+              <EntityParts text={run.text} entity={run.declaredTable} />
+            </span>
+          );
+        }
         if (run.emphasis) return <EntityMark key={run.start}>{run.text}</EntityMark>;
         if (!badges) return <PlainTextRun key={run.start} start={run.start} text={run.text} />;
         // The label list is the head of the leaf that follows the lead-in, so

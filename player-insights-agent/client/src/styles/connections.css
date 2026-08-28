@@ -608,10 +608,32 @@ html:has(.connections-page) body[data-scroll-locked] {
      this card and shoving the page. The summary still clips its own wash. */
   overflow: visible;
 }
+.connection-block-head {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: var(--radius-md);
+}
+.connection-block-head > .connection-block-summary {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+.connection-block-controls {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin-left: auto;
+  padding-right: 16px;
+}
 .connection-block-summary {
   border-radius: var(--radius-md);
 }
 .connection-block:has(.connection-block-body) .connection-block-summary {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.connection-block:has(.connection-block-body) .connection-block-head {
+  border-bottom: 1px solid var(--border);
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -713,6 +735,12 @@ html:has(.connections-page) body[data-scroll-locked] {
   background: var(--ast-fill-band);
   font-weight: 700;
   color: var(--muted-foreground);
+}
+.connections-table [data-slot='badge'] {
+  padding: 1px 6px;
+  font-size: var(--ast-fs-11);
+  line-height: 1.2;
+  white-space: nowrap;
 }
 .connections-table tbody tr {
   border-bottom: 1px solid var(--border);
@@ -828,9 +856,9 @@ html:has(.connections-page) body[data-scroll-locked] {
      the spec's own carve-out for a value badge: §2 sets an identifier inside a
      status chip at DM Mono 12px, which needs the extra vertical room to sit off
      the border. The mono family itself comes from `.ast-num`. */
-  padding: 2px 8px;
-  font-size: var(--ast-fs-12);
-  line-height: 1.4;
+  padding: 1px 6px;
+  font-size: var(--ast-fs-11);
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

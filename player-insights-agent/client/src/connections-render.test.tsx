@@ -1371,6 +1371,15 @@ describe('the Unity Catalog tables section', () => {
     expect(markup.indexOf('Filter tables by catalog')).toBeLessThan(markup.indexOf('Filter tables by schema'));
   });
 
+  it('puts search, Catalog, and Schema on the declared-count header line', () => {
+    const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />);
+    expect(markup).toMatch(
+      /class="connection-block-head"[\s\S]*?Unity Catalog tables[\s\S]*?declared[\s\S]*?class="connection-block-controls"[\s\S]*?Search tables[\s\S]*?Catalog[\s\S]*?Schema/
+    );
+    expect(markup.indexOf('connection-block-controls')).toBeLessThan(markup.indexOf('connection-block-body'));
+    expect(markup).not.toMatch(/connection-block-body[\s\S]*?connections-table-toolbar/);
+  });
+
   /**
    * Opening Catalog / Schema used to grow the toolbar (and, with a flex-growing
    * search, shove the page left). The menus sit in a positioned wrapper and

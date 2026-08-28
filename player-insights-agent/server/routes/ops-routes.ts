@@ -72,8 +72,16 @@ import { sqlQueryTags } from '../lib/sql-query-tags';
 import { isDataContractFallback, listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
 import { userEmail, type InsightsAppKit, type PreflightReport } from './insights-routes';
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
-import { ACTIVE_MINUTES_PER_DAY_QUERY } from '../lib/app-activity';
+import { ACTIVE_MINUTES_PER_DAY_QUERY, validIanaTimeZone } from '../lib/app-activity';
 import { attributableCostBudgets } from '../../shared/cost-budgets';
+import {
+  createWorkspaceQueryHistoryTransport,
+  EMPTY_WAREHOUSE_QUERY_ATTRIBUTION,
+  readWarehouseQueryAttribution,
+  type WarehouseQueryAttribution,
+  type WarehouseQueryHistoryTransport,
+} from '../lib/ops-query-history';
+import { readRuntimeSettings } from '../lib/runtime-settings-store';
 import type {
   AppMeasurement,
   DependencyResult,
@@ -270,15 +278,50 @@ async function costIdentifiersFor(
   ]);
   const states = resourceStates({ report, environment: appEnvironment(), stored });
   const configured = Object.fromEntries(states.map((state) => [state.resource.id, shownConnectionValue(state)]));
-  const configuration = report?.configuration?.length
-    ? report.configuration
-    : [
-        configured['genie-data'] ? { key: 'data_genie_space_id', value: configured['genie-data'] } : null,
-        configured['genie-dictionary']
-          ? { key: 'dictionary_genie_space_id', value: configured['genie-dictionary'] }
-          : null,
-        configured['semantic-index'] ? { key: 'semantic_index', value: configured['semantic-index'] } : null,
-      ].filter((entry): entry is { key: string; value: string } => entry !== null);
+  // A report may carry only part of the deployment configuration. Starting
+  // with it and filling each missing key from resourceStates preserves the
+  // exact configured/actual/intended values Connections shows instead of
+  // dropping every fallback as soon as any unrelated report entry exists.
+  const configuration = [...(report?.configuration ?? [])];
+  const configuredKeys = new Set(configuration.map((entry) => String(entry.key)));
+  for (const entry of [
+    configured['genie-data']
+      ? {
+          key: 'data_genie_space_id',
+          value: configured['genie-data'],
+          env_var: '',
+          source: 'connections',
+          mutability: '',
+          baked: false,
+          required: false,
+        }
+      : null,
+    configured['genie-dictionary']
+      ? {
+          key: 'dictionary_genie_space_id',
+          value: configured['genie-dictionary'],
+          env_var: '',
+          source: 'connections',
+          mutability: '',
+          baked: false,
+          required: false,
+        }
+      : null,
+    configured['semantic-index']
+      ? {
+          key: 'semantic_index',
+          value: configured['semantic-index'],
+          env_var: '',
+          source: 'connections',
+          mutability: '',
+          baked: false,
+          required: false,
+        }
+      : null,
+  ]) {
+    if (!entry) continue;
+    if (!configuredKeys.has(entry.key)) configuration.push(entry);
+  }
   const { genieSpaces } = accessDependenciesFrom({ configuration, env: process.env });
   const spaces = genieSpaces.map((space) => ({ id: space.id.trim(), label: space.label.trim() || space.id.trim() }));
   const seen = new Set(spaces.map((space) => space.id));
@@ -868,6 +911,43 @@ function lagDays(rangeEnd: string, newestBillingDay: string): number | null {
   return Math.max(0, Math.round((end - newest) / 86_400_000));
 }
 
+async function warehouseQueryAttribution(input: {
+  host: string;
+  token: string;
+  warehouseId: string;
+  range: { from: string; to: string };
+  transport?: WarehouseQueryHistoryTransport;
+}): Promise<WarehouseQueryAttribution> {
+  const startTimeMs = Date.parse(`${input.range.from}T00:00:00Z`);
+  const endTimeMs = Date.parse(`${input.range.to}T00:00:00Z`) + 86_400_000 - 1;
+  if (
+    !input.host ||
+    !input.token ||
+    !input.warehouseId ||
+    !Number.isFinite(startTimeMs) ||
+    !Number.isFinite(endTimeMs)
+  ) {
+    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION };
+  }
+  try {
+    const transport =
+      input.transport ??
+      (await createWorkspaceQueryHistoryTransport({
+        host: input.host,
+        token: input.token,
+      }));
+    return await readWarehouseQueryAttribution({
+      warehouseId: input.warehouseId,
+      startTimeMs,
+      endTimeMs,
+      transport,
+    });
+  } catch (error) {
+    console.warn(`[ops] Query History attribution was withheld: ${(error as Error).message}`);
+    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION };
+  }
+}
+
 /* ── Routes ──────────────────────────────────────────────────────────────── */
 
 /**
@@ -908,6 +988,8 @@ export interface OpsDeps {
   readAppBillingTag?: (appName: string) => Promise<AppBillingTagState>;
   /** Injected by route tests so recovered report resources are deterministic. */
   readOrchestratorReport?: () => Promise<{ report: PreflightReport | null }>;
+  /** Injected by tests; production uses the forwarded user token through the Workspace SDK. */
+  queryHistoryTransport?: WarehouseQueryHistoryTransport;
 }
 
 /**
@@ -1049,14 +1131,23 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       }
 
       try {
-        const outcome = await runStatement({
-          host: workspace,
-          token,
-          warehouseId: warehouse,
-          statement: built.statement,
-          parameters: built.parameters,
-          fetchImpl: deps.fetchImpl,
-        });
+        const [outcome, queryAttribution] = await Promise.all([
+          runStatement({
+            host: workspace,
+            token,
+            warehouseId: warehouse,
+            statement: built.statement,
+            parameters: built.parameters,
+            fetchImpl: deps.fetchImpl,
+          }),
+          warehouseQueryAttribution({
+            host: workspace,
+            token,
+            warehouseId: warehouse,
+            range,
+            transport: deps.queryHistoryTransport,
+          }),
+        ]);
         const inventoryCount = resourceTagInventory({ environment: process.env, report: resolved.report }).length;
 
         if (!outcome.ok) {
@@ -1066,7 +1157,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               ...empty,
               state: 'no-grant',
               grant: billingGrant(userEmail(req) || UNKNOWN_PRINCIPAL),
-              tiles: [],
+              tiles: buildTiles(ids, [], queryAttribution),
               reason:
                 `You do not have ${denial.permission} on ${denial.object}, so no spend was read. Billing ` +
                 'runs under your own grants rather than this app\u2019s, so being an administrator here ' +
@@ -1077,7 +1168,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           res.json({
             ...empty,
             state: 'unreadable',
-            tiles: [],
+            tiles: buildTiles(ids, [], queryAttribution),
             reason: `Billing could not be read, so nothing about spend was established. Databricks said: ${outcome.message}`,
           } satisfies OpsCostPayload);
           return;
@@ -1097,7 +1188,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
         // No exact component rows is its OWN state and not a missing grant.
         if (split.components.length === 0 && (!split.meta || split.meta.billedDays === 0)) {
-          const tiles = buildTiles(ids, []);
+          const tiles = buildTiles(ids, [], queryAttribution);
           const reason = unpropagated.length
             ? 'Matching usage exists without the Astrolabe tag, but exact resource attribution remains available.'
             : delayed
@@ -1117,7 +1208,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           return;
         }
 
-        const tiles = buildTiles(ids, split.components);
+        const tiles = buildTiles(ids, split.components, queryAttribution);
         let perQuestion: OpsCostPayload['perQuestion'] = {
           ...empty.perQuestion,
           reason: 'Per-question attribution could not be read from the run ledger.',
@@ -1156,16 +1247,19 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
     /* ── Traffic ─────────────────────────────────────────────────────────── */
 
-    app.get('/api/ops/traffic', async (_req: Request, res: Response) => {
+    app.get('/api/ops/traffic', async (req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
       try {
+        const runtime = await readRuntimeSettings(appkit);
+        const activeMinutesTimeZone =
+          validIanaTimeZone(runtime.behavior.timezone) || validIanaTimeZone(queryText(req, 'timeZone')) || 'UTC';
         // Settled rather than awaited together: the run ledger is newer than the
         // messages table and a deployment that has not created it yet should
         // still get its questions chart rather than an empty block.
         const [questions, askers, activeMinutes, outcomes, tools] = await Promise.allSettled([
           appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY),
           appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY),
-          appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY),
+          appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY, [activeMinutesTimeZone]),
           appkit.lakebase.query(RUN_OUTCOMES_QUERY),
           appkit.lakebase.query(TOOL_CALLS_QUERY),
         ]);
@@ -1180,8 +1274,11 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             : [];
         const activeMinutesPerDay =
           activeMinutes.status === 'fulfilled'
-            ? activeMinutes.value.rows.map((row) => ({ day: text(row.day), count: count(row.count) }))
+            ? activeMinutes.value.rows
+                .filter((row) => Boolean(text(row.day)))
+                .map((row) => ({ day: text(row.day), count: count(row.count) }))
             : [];
+        const activityBounds = activeMinutes.status === 'fulfilled' ? activeMinutes.value.rows[0] : undefined;
 
         const failures = new Map<string, number>();
         const refusals = new Map<string, number>();
@@ -1243,6 +1340,9 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           questionsPerDay,
           distinctAskersPerDay,
           activeMinutesPerDay,
+          activeMinutesTimeZone,
+          activeMinutesRecordedFrom: text(activityBounds?.recorded_from),
+          activeMinutesRecordedThrough: text(activityBounds?.recorded_through),
           failuresByCause: toBars(failures),
           refusalsByCause: toBars(refusals),
           toolCalls,
@@ -1257,6 +1357,9 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           questionsPerDay: [],
           distinctAskersPerDay: [],
           activeMinutesPerDay: [],
+          activeMinutesTimeZone: 'UTC',
+          activeMinutesRecordedFrom: '',
+          activeMinutesRecordedThrough: '',
           failuresByCause: [],
           refusalsByCause: [],
           toolCalls: [],

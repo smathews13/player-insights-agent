@@ -33,10 +33,23 @@ describe('conversation-keyed rail runs', () => {
 
     // A terminal status alone is not enough: the old Failed summary must remain
     // hidden until the fresh terminal `/api/runs` summary can replace it.
-    active = settleActiveConversationRun(active, 'conversation-a', false);
+    const terminal = {
+      ...runningA,
+      state: 'SUCCEEDED',
+      terminal_message_id: 'answer-a',
+      updated_at: '2026-08-27T20:01:00Z',
+    };
+    active = settleActiveConversationRun(active, 'conversation-a', terminal, null);
     expect(conversationIsLive(active, 'conversation-a')).toBe(true);
 
-    active = settleActiveConversationRun(active, 'conversation-a', true);
+    active = settleActiveConversationRun(active, 'conversation-a', terminal, {
+      runId: 'answer-a',
+      status: 'Complete',
+      tone: 'ast-pill--pos',
+      durationMs: 60_000,
+      rating: null,
+      truncated: false,
+    });
     expect(conversationIsLive(active, 'conversation-a')).toBe(false);
     expect(transcripts['conversation-b']).toEqual(['question B', 'answer B']);
   });
@@ -49,5 +62,26 @@ describe('conversation-keyed rail runs', () => {
 
     expect(afterFailedRead).toBe(active);
     expect(conversationIsLive(afterFailedRead, 'conversation-a')).toBe(true);
+  });
+
+  it('settles legacy terminal rows that predate terminal message ids', () => {
+    const active = trackActiveConversationRun(new Map(), 'conversation-a', runningA);
+    const settled = settleActiveConversationRun(
+      active,
+      'conversation-a',
+      {
+        ...runningA,
+        state: 'SUCCEEDED',
+        updated_at: '2026-08-27T20:01:00Z',
+      },
+      null
+    );
+
+    expect(conversationIsLive(settled, 'conversation-a')).toBe(false);
+    expect(settled.get('conversation-a')?.summary).toMatchObject({
+      runId: 'run-a',
+      status: 'Complete',
+      tone: 'ast-pill--pos',
+    });
   });
 });

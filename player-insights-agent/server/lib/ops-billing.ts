@@ -38,6 +38,7 @@
  */
 
 import { BILLING_TAG, billingTagPair, type AppBillingTagState } from '../../shared/billing-tag';
+import { EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, type WarehouseQueryAttribution } from './ops-query-history';
 import type {
   CostAttributionScope,
   CostCoverage,
@@ -240,7 +241,7 @@ export const GENIE_SQL_NOT_COMPLETE =
 const TILED_PRODUCTS = new Set(['MODEL_SERVING', 'SQL', 'VECTOR_SEARCH', 'APPS']);
 const PRODUCT_REASONS: Record<string, string> = {
   MODEL_SERVING: 'Measured only when an exact tracked endpoint name matches; tag coverage is reported separately.',
-  SQL: 'Tracked as the SQL warehouse tile. This is a shared meter, not app-only spend.',
+  SQL: 'Warehouse billing rows are allocated only by complete Astrolabe Query History execution-time share.',
   VECTOR_SEARCH: 'Tracked as the Vector Search tile when the endpoint name matches.',
   APPS: 'Measured by exact app name. App tag presence is a separate organizational signal.',
   GENIE: 'Genie space cards stay dollar-free. Genie LLM spend is not attributable in this model.',
@@ -1005,7 +1006,7 @@ const DESCRIPTIONS: Record<
   'sql-warehouse': {
     label: 'SQL warehouse',
     quality: 'estimate',
-    population: 'Whole warehouse',
+    population: 'Astrolabe query share',
     basis: 'total-in-range',
     variable: 'DATABRICKS_SQL_WAREHOUSE_ID',
   },
@@ -1048,7 +1049,11 @@ const DESCRIPTIONS: Record<
  * three-level name, so the title can open a real page rather than a guessed
  * endpoint URL.
  */
-export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile[] {
+export function buildTiles(
+  ids: CostIdentifiers,
+  rows: ComponentRow[],
+  warehouseAttribution: WarehouseQueryAttribution = EMPTY_WAREHOUSE_QUERY_ATTRIBUTION
+): CostTile[] {
   const byComponent = new Map(
     rows.filter((row) => (row.kind ?? 'component') === 'component').map((row) => [row.component, row])
   );
@@ -1059,7 +1064,7 @@ export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile
       tiles.push(...genieSpaceTiles(ids));
       continue;
     }
-    tiles.push(componentTile(component, ids, byComponent));
+    tiles.push(componentTile(component, ids, byComponent, warehouseAttribution));
   }
   return tiles;
 }
@@ -1082,6 +1087,7 @@ function genieSpaceTiles(ids: CostIdentifiers): CostTile[] {
         unavailable: GENIE_LLM_UNAVAILABLE,
         remedy: 'Genie space identifier unavailable',
         note: GENIE_SQL_NOT_COMPLETE,
+        evidence: { billingRows: null, astrolabeQueries: null },
       },
     ];
   }
@@ -1099,6 +1105,7 @@ function genieSpaceTiles(ids: CostIdentifiers): CostTile[] {
     unavailable: GENIE_LLM_UNAVAILABLE,
     remedy: '',
     note: GENIE_SQL_NOT_COMPLETE,
+    evidence: { billingRows: null, astrolabeQueries: null },
   }));
 }
 
@@ -1134,7 +1141,8 @@ function appComputeAbsence(state: AppBillingTagState): { unavailable: string; re
 function componentTile(
   component: Exclude<CostComponent, 'genie'>,
   ids: CostIdentifiers,
-  byComponent: Map<string, ComponentRow>
+  byComponent: Map<string, ComponentRow>,
+  warehouseAttribution: WarehouseQueryAttribution
 ): CostTile {
   const description = DESCRIPTIONS[component];
   const base = {
@@ -1170,8 +1178,9 @@ function componentTile(
       quality: 'unknown',
       amount: null,
       note: '',
-      unavailable: 'Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.',
+      unavailable: 'Shared spend withheld',
       remedy: '',
+      evidence: { billingRows: null, astrolabeQueries: null },
     });
   }
 
@@ -1182,8 +1191,9 @@ function componentTile(
       population: 'Shared endpoint',
       amount: null,
       note: '',
-      unavailable: 'Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.',
+      unavailable: 'Shared spend withheld',
       remedy: '',
+      evidence: { billingRows: null, astrolabeQueries: null },
     });
   }
 
@@ -1198,6 +1208,7 @@ function componentTile(
         note: '',
         unavailable: base.resourceId ? 'No billing rows' : 'Vector Search index identifier unavailable',
         remedy: '',
+        evidence: { billingRows: ids.vectorEndpoint ? 0 : null, astrolabeQueries: null },
       });
     }
     return withMeta({
@@ -1208,12 +1219,49 @@ function componentTile(
       note: '',
       unavailable: 'Resource identifier unavailable',
       remedy: description.variable ? `Set ${description.variable}.` : '',
+      evidence: { billingRows: null, astrolabeQueries: null },
     });
   }
 
   const row = byComponent.get(component);
   const pricing = pricingFromRow(row);
   const amount = spendAmountFor(row, description.basis);
+  const billingRows = row ? (row.pricedRows ?? 0) + (row.unpricedRows ?? 0) : 0;
+  const evidence = {
+    billingRows,
+    astrolabeQueries: component === 'sql-warehouse' ? warehouseAttribution.astrolabeQueries : null,
+    ...(component === 'sql-warehouse'
+      ? {
+          warehouseQueries: warehouseAttribution.totalQueries,
+          queryHistoryComplete: warehouseAttribution.complete,
+        }
+      : {}),
+  };
+  if (component === 'sql-warehouse') {
+    if (amount === null || !warehouseAttribution.complete || warehouseAttribution.totalExecutionMs <= 0) {
+      return withMeta({
+        ...base,
+        amount: null,
+        pricing,
+        note: '',
+        unavailable:
+          amount === null
+            ? unpricedUnavailable(pricing) || 'No billing rows'
+            : 'App spend withheld: complete Query History denominator unavailable',
+        remedy: '',
+        evidence,
+      });
+    }
+    return withMeta({
+      ...base,
+      amount: (amount * warehouseAttribution.astrolabeExecutionMs) / warehouseAttribution.totalExecutionMs,
+      pricing,
+      note: '',
+      unavailable: '',
+      remedy: '',
+      evidence,
+    });
+  }
   if (amount === null) {
     if (component === 'app-compute' && pricing.match === 'none') {
       const absence = appComputeAbsence(ids.appBillingTag);
@@ -1224,6 +1272,7 @@ function componentTile(
         note: absence.note,
         unavailable: absence.unavailable,
         remedy: absence.remedy,
+        evidence,
       });
     }
     return withMeta({
@@ -1233,10 +1282,11 @@ function componentTile(
       note: '',
       unavailable: unpricedUnavailable(pricing) || 'No billing rows',
       remedy: '',
+      evidence,
     });
   }
 
-  return withMeta({ ...base, amount, pricing, note: '', unavailable: '', remedy: '' });
+  return withMeta({ ...base, amount, pricing, note: '', unavailable: '', remedy: '', evidence });
 }
 
 /*

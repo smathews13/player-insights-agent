@@ -35,6 +35,8 @@ import { productForTool } from './brand-icons';
 import { stepNumber } from './agent-map';
 import { Badge } from './ui';
 import { MarkdownText } from './StepResult';
+import { EntityText } from './DataEntityLinks';
+import { stageTableEntities } from './live-progress';
 
 /** Which surface is drawing the panel. See file header. */
 export type TraceTimelineVariant = 'default' | 'explorer';
@@ -156,7 +158,7 @@ function KindKpis({ rows }: { rows: RollUpRow[] }) {
 /**
  * A recorded argument or result, laid out according to what it turned out to be.
  */
-export function PayloadView({ text }: { text: string }) {
+export function PayloadView({ text, tables = [] }: { text: string; tables?: readonly string[] }) {
   const [raw, setRaw] = useState(false);
   const payload = describePayload(text);
   if (payload.empty) return <span className="trace-empty">(none recorded)</span>;
@@ -194,16 +196,18 @@ export function PayloadView({ text }: { text: string }) {
                 field.key === 'sql' || field.key === 'query' ? (
                   <pre>{field.value}</pre>
                 ) : (
-                  <MarkdownText text={field.value} />
+                  <MarkdownText text={field.value} tables={tables} />
                 )
               ) : (
-                <span className="trace-payload-value">{field.value}</span>
+                <span className="trace-payload-value">
+                  <EntityText text={field.value} sources={tables.map((name) => ({ name }))} />
+                </span>
               )}
             </li>
           ))}
         </ul>
       ) : (
-        <MarkdownText text={payload.body} />
+        <MarkdownText text={payload.body} tables={tables} />
       )}
     </div>
   );
@@ -236,6 +240,8 @@ function GanttRow({
   eventCount: number | null;
 }) {
   const positioned = row.leftPct !== null && row.widthPct !== null;
+  const tables = stageTableEntities(row);
+  const sources = tables.map((name) => ({ name }));
   return (
     <>
       <tr
@@ -254,7 +260,7 @@ function GanttRow({
         <td className="trace-event">
           <button type="button" aria-expanded={expanded}>
             <span className="trace-event-label" title={eventLabel}>
-              {eventLabel}
+              <EntityText text={eventLabel} sources={sources} />
             </span>
             <ChevronDown aria-hidden="true" />
             {row.status !== 'complete' && <span className={`trace-status ${row.status}`}>{row.status}</span>}
@@ -290,9 +296,9 @@ function GanttRow({
                 <dd>{eventCount === null ? 'the steps below' : `${eventCount} step${eventCount === 1 ? '' : 's'}`}</dd>
                 <dt>Note</dt>
                 <dd>
-                  Run envelope, recorded as the agent&rsquo;s own elapsed at the moment the answer was assembled, on
-                  the same clock as every offset below. Model time before the first step and after the last is inside
-                  it, which is why this row is longer than the steps it spans and why it is left out of the roll-up.
+                  Run envelope, recorded as the agent&rsquo;s own elapsed at the moment the answer was assembled, on the
+                  same clock as every offset below. Model time before the first step and after the last is inside it,
+                  which is why this row is longer than the steps it spans and why it is left out of the roll-up.
                 </dd>
               </dl>
             ) : (
@@ -308,11 +314,11 @@ function GanttRow({
                 </dd>
                 <dt>Arguments</dt>
                 <dd>
-                  <PayloadView text={row.input} />
+                  <PayloadView text={row.input} tables={tables} />
                 </dd>
                 <dt>Result</dt>
                 <dd>
-                  <PayloadView text={row.output} />
+                  <PayloadView text={row.output} tables={tables} />
                 </dd>
               </dl>
             )}

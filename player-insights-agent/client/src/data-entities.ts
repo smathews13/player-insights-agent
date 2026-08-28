@@ -93,6 +93,8 @@ export interface ProseSegment {
    * first one a reader tries teaches them what the rest are worth.
    */
   emphasis?: true;
+  /** The declared table this run spells, even when it has no tracked link. */
+  declaredTable?: string;
 }
 
 /**
@@ -258,7 +260,7 @@ export function mentionedIdentifiers(texts: readonly string[]): string[] {
 }
 
 /** What a matched form makes of the run it covers. */
-type FormMark = { entity: string } | { emphasis: true };
+type FormMark = { entity: string } | { emphasis: true; declaredTable?: string };
 
 /**
  * Every accepted spelling in one map, longest first, links before emphasis.
@@ -270,14 +272,20 @@ type FormMark = { entity: string } | { emphasis: true };
  * claimed. A link beats a bold at the same position, since it carries the bold
  * with it and a destination as well.
  */
-function proseForms(linkable: readonly string[],
+function proseForms(
+  linkable: readonly string[],
   named: readonly string[],
   columns: readonly string[]
 ): Map<string, FormMark> {
   const marks = new Map<string, FormMark>();
   for (const [form, entity] of entityForms(linkable)) marks.set(form, { entity });
-  const emphasised = [...named.flatMap(surfaceForms), ...columns.filter((column) => column.includes('_'))];
-  for (const form of emphasised) {
+  for (const name of named) {
+    for (const form of surfaceForms(name)) {
+      const key = form.trim().toLowerCase();
+      if (key && !marks.has(key)) marks.set(key, { emphasis: true, declaredTable: name });
+    }
+  }
+  for (const form of columns.filter((column) => column.includes('_'))) {
     const key = form.trim().toLowerCase();
     if (key && !marks.has(key)) marks.set(key, { emphasis: true });
   }
@@ -316,7 +324,8 @@ function boundedAt(prose: string, index: number, length: number): boolean {
  * with nothing to declare passes nothing and gets exactly the segmentation this
  * function produced before columns existed.
  */
-export function linkifyEntities(prose: string,
+export function linkifyEntities(
+  prose: string,
   declared: readonly string[],
   tracked: readonly string[],
   columns: readonly string[] = []

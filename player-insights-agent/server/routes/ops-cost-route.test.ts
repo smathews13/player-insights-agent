@@ -116,6 +116,19 @@ describe('the ranged cost route', () => {
         now: () => Date.parse('2026-08-18T12:00:00Z'),
         fetchImpl,
         readAppBillingTag: () => Promise.resolve('matched'),
+        queryHistoryTransport: {
+          listQueries: () =>
+            Promise.resolve({
+              res: [
+                {
+                  query_id: 'astrolabe-query-1',
+                  warehouse_id: 'warehouse-1',
+                  query_tags: { application: 'Astrolabe', surface: 'benchmark', tool: 'genie_result' },
+                  metrics: { execution_time_ms: 100 },
+                },
+              ],
+            }),
+        },
       }
     );
 
@@ -242,6 +255,46 @@ describe('the ranged cost route', () => {
         now: () => Date.parse('2026-08-18T12:00:00Z'),
         fetchImpl,
         readAppBillingTag: () => Promise.resolve('matched'),
+        queryHistoryTransport: { listQueries: () => Promise.resolve({ res: [] }) },
+        readOrchestratorReport: () =>
+          Promise.resolve({
+            report: {
+              checked_at: '2026-08-18T12:00:00Z',
+              status: 'ok',
+              principal: 'app',
+              principal_resolved: true,
+              table_source: 'release',
+              build_sha: 'abc',
+              configuration: [
+                {
+                  key: 'llm_endpoint',
+                  env_var: 'PLAYER_INSIGHTS_LLM_ENDPOINT',
+                  value: 'shared-foundation',
+                  source: 'artifact',
+                  mutability: 'baked',
+                  baked: true,
+                  required: true,
+                },
+              ],
+              checks: [
+                {
+                  id: 'semantic-index-endpoint',
+                  kind: 'vector-endpoint',
+                  name: 'vs-endpoint-from-connections',
+                  label: 'Vector Search endpoint',
+                  status: 'ok',
+                  detail: 'Reachable.',
+                  checked_with: 'GET /api/2.0/vector-search/indexes',
+                  duration_ms: 2,
+                  error: '',
+                  remedy: null,
+                },
+              ],
+              assumptions: [],
+              counts: { ok: 0, failed: 0, unverified: 0 },
+              source: 'configuration',
+            },
+          }),
       }
     );
 
@@ -262,15 +315,17 @@ describe('the ranged cost route', () => {
     expect(genie.every((tile) => tile.unavailable === 'Genie LLM spend not attributable in this model')).toBe(true);
     expect(genie.every((tile) => tile.note.includes('not the complete Genie cost'))).toBe(true);
     expect(payload.tiles.find((tile) => tile.id === 'foundation-model')).toMatchObject({
+      resourceId: 'shared-foundation',
       amount: null,
       quality: 'unknown',
       population: 'Shared endpoint',
-      unavailable: 'Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.',
+      unavailable: 'Shared spend withheld',
     });
     expect(payload.tiles.find((tile) => tile.id === 'vector-search')).toMatchObject({
       resourceId: 'cat.schema.index',
       resourceKind: 'vector-index',
       unavailable: 'No billing rows',
+      evidence: { billingRows: 0 },
     });
     expect(payload.tiles.find((tile) => tile.id === 'app-compute')).toMatchObject({
       unavailable: 'No Apps billing rows matched this app in this range.',

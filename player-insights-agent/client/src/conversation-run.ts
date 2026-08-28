@@ -16,6 +16,14 @@ export interface ConversationRunStatus {
   updated_at: string;
   terminal_code: string | null;
   /**
+   * The stored response this terminal ledger row points at.
+   *
+   * Optional so a client can outlive a server that predates the field. A
+   * successful run without it stays Live rather than borrowing the previous
+   * turn's summary.
+   */
+  terminal_message_id?: string | null;
+  /**
    * The steps the run has reported so far, as the server recorded them.
    *
    * THE HALF THAT WAS MISSING. The state and the timestamps say a run is
@@ -34,9 +42,7 @@ export type WorkingConversationRun = ConversationRunStatus & {
   state: 'RECEIVED' | 'PLANNING' | 'RUNNING' | 'SYNTHESIZING';
 };
 
-export function isWorkingConversationRun(
-  status: ConversationRunStatus | null
-): status is WorkingConversationRun {
+export function isWorkingConversationRun(status: ConversationRunStatus | null): status is WorkingConversationRun {
   return status !== null && WORKING_STATES.has(status.state);
 }
 

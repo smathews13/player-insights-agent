@@ -295,6 +295,9 @@
  */
 .ops-pill {
   align-items: baseline;
+  padding: 1px 6px;
+  font-size: var(--ast-fs-11);
+  line-height: 1.2;
   white-space: nowrap;
 }
 
@@ -310,6 +313,13 @@
  * the one the handoff established for "label, separator, state", and the probe
  * rows now take it too.
  */
+.ops-platform-pill {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  max-width: none;
+  white-space: nowrap;
+}
+
 .ops-platform-pill-label {
   color: inherit;
   opacity: 0.85;
@@ -333,6 +343,11 @@
   font-size: var(--text-sm);
 }
 
+.ops-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .ops-table th,
 .ops-table td {
   text-align: left;
@@ -343,6 +358,7 @@
 
 .ops-health-table {
   font-size: var(--text-base);
+  min-width: 680px;
 }
 
 .ops-health-table th,
@@ -376,12 +392,8 @@
   width: 190px;
 }
 
-/* The one place a pill on this tab may wrap. `.ops-pill` forbids it because a
-   state word broken across two lines is unreadable; a pill carrying two phrases
-   in a fixed column has to break BETWEEN them, or a long resource name pushes the
-   Notes column off the table. */
 td.ops-col-result .ops-platform-pill {
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .ops-col-when {
@@ -736,6 +748,18 @@ a.ops-dependency-name:hover {
   margin: 0;
 }
 
+.ops-tile-evidence {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ast-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /*
  * The foot of a card: a badge, a remedy, or nothing at all.
  *
@@ -982,6 +1006,13 @@ a.ops-dependency-name:hover {
   font-size: var(--text-sm);
   font-weight: 700;
   margin: 0;
+}
+
+.ops-chart-freshness {
+  margin: -2px 0 4px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.35;
 }
 
 /*

@@ -42,7 +42,7 @@ describe('the harness column stays reserved when there is no run', () => {
   });
 
   it('is driven by the same condition the column draws its idle silhouette from', () => {
-    expect(HOME_PAGE).toContain("const inspectorIdle = railStages.length === 0 && !loading;");
+    expect(HOME_PAGE).toContain('const inspectorIdle = railStages.length === 0 && !loading;');
     expect(HOME_PAGE).toContain("data-inspector={inspectorIdle ? 'idle' : 'run'}");
   });
 });
@@ -94,10 +94,7 @@ describe('dark transcript surfaces do not stack frosted panes', () => {
    * that Ask's nested timeline is covered by the shared rule.
    */
   it('lets the run timeline inherit the answer card surface', () => {
-    for (const selector of [
-      "html[data-theme='dark'] .trace-timeline",
-      "html[data-theme='dark'] .trace-gantt",
-    ]) {
+    for (const selector of ["html[data-theme='dark'] .trace-timeline", "html[data-theme='dark'] .trace-gantt"]) {
       expect(groupedBody(selector, dark), `${selector} still paints its own pane`).toMatch(
         /background:\s*transparent[\s\S]*backdrop-filter:\s*none/
       );
@@ -107,9 +104,7 @@ describe('dark transcript surfaces do not stack frosted panes', () => {
     );
     // The wrapper Ask draws it in, and the absence of a wrapper-scoped twin that
     // would quietly stop covering the second surface.
-    expect(readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8')).toContain(
-      'className="run-process"'
-    );
+    expect(readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8')).toContain('className="run-process"');
     expect(withoutComments(dark)).not.toMatch(/\.run-process \.trace-(?:timeline|gantt|kpi)/);
   });
 
@@ -315,7 +310,9 @@ describe('the ask home is the geometry the mockup gives it', () => {
       // Blur softens what is behind the chrome. Any other filter function
       // RECOLOURS it, and the chrome's whole job is to be the same surface as
       // the page it sits on.
-      expect(rule, `${selector} does not recolour the sky it sits on`).not.toMatch(/saturate|contrast|brightness|hue-rotate/);
+      expect(rule, `${selector} does not recolour the sky it sits on`).not.toMatch(
+        /saturate|contrast|brightness|hue-rotate/
+      );
     }
     // The panes beside the transcript are deliberately untouched. Asserted so
     // that "make the chrome opaque" is not later applied to the whole group,
@@ -546,7 +543,9 @@ describe('the run says which of four things it is doing', () => {
     // would quietly reintroduce.
     expect(RUN_TONE_FAMILY['is-live']).toBe('ast-pill--neutral-outline');
     expect(RUN_TONE_FAMILY['is-waiting']).toBe('ast-pill--neutral-outline');
-    expect(new Set([RUN_TONE_FAMILY['is-ready'], RUN_TONE_FAMILY['is-failed'], RUN_TONE_FAMILY['is-live']]).size).toBe(3);
+    expect(new Set([RUN_TONE_FAMILY['is-ready'], RUN_TONE_FAMILY['is-failed'], RUN_TONE_FAMILY['is-live']]).size).toBe(
+      3
+    );
     // The chain that picks between them moved to `run-status.ts`, where it can be
     // called with each state rather than read for the strings it contains. The
     // page's own claim is now that it defers to it.
@@ -718,8 +717,9 @@ describe('the inspector while a run is still going', () => {
     expect(workingCheck).toBeGreaterThan(statusRead);
     expect(transcriptRead).toBeGreaterThan(workingCheck);
     expect(reconnect.match(/\/messages/g)).toHaveLength(1);
-    expect(reconnect).toContain("Promise.all([...activeConversationRuns.keys()].map((id) => pollOne(id)))");
-    expect(reconnect).toContain('await loadRunSummaries(runConversationId)');
+    expect(reconnect).toContain('Promise.all(runIds.map((id) => pollOne(id)))');
+    expect(reconnect).toContain('const summaries = await loadRunSummaries()');
+    expect(reconnect).toContain('terminalConversationRunSummary(status, summaries.get(runConversationId) ?? null)');
   });
 
   it('keeps the numbered constellation exclusively in the Live Agent harness', () => {
@@ -782,13 +782,13 @@ describe('the inspector while a run is still going', () => {
      * the rail falls back to the previous answer's trace.
      */
     expect(HOME_PAGE).toMatch(/const liveAsk = useLiveAsk\(conversationId\);/);
-    expect(HOME_PAGE).toMatch(
-      /liveAsk\?\.inFlight \|\| isWorkingConversationRun\(activeConversationRun\)/
-    );
+    expect(HOME_PAGE).toMatch(/liveAsk\?\.inFlight \|\| isWorkingConversationRun\(activeConversationRun\)/);
     expect(HOME_PAGE).toMatch(
       /\(loading \|\| Boolean\(displayedRunStopped\)\) && liveStages\.length > 0 \? railStages\.length - 1 : -1;/
     );
-    expect(HOME_PAGE).toMatch(/const stillInThisConversation = \(\) => activeConversationRef\.current === runConversationId;/);
+    expect(HOME_PAGE).toMatch(
+      /const stillInThisConversation = \(\) => activeConversationRef\.current === runConversationId;/
+    );
     expect(HOME_PAGE).toMatch(/if \(!stillInThisConversation\(\)\) return;/);
     expect(HOME_PAGE).toMatch(/setRunStopped\(null\);[\s\S]{0,240}setDurableRunOpenedAt\(null\);/);
     expect(HOME_PAGE).not.toMatch(/\(runningStep \|\| railStages\.length\) - 1/);

@@ -1,0 +1,201 @@
+import { parseQueryTags, type QueryHistoryPage, type QueryHistoryRow } from './warehouse-cancellation';
+
+const QUERY_HISTORY_PAGE_SIZE = 999;
+const MAX_QUERY_HISTORY_PAGES = 100;
+
+export interface WarehouseQueryAttribution {
+  /** True only when every page and every execution-time denominator was available. */
+  complete: boolean;
+  astrolabeQueries: number;
+  totalQueries: number;
+  astrolabeExecutionMs: number;
+  totalExecutionMs: number;
+}
+
+export const EMPTY_WAREHOUSE_QUERY_ATTRIBUTION: WarehouseQueryAttribution = {
+  complete: false,
+  astrolabeQueries: 0,
+  totalQueries: 0,
+  astrolabeExecutionMs: 0,
+  totalExecutionMs: 0,
+};
+
+export interface WarehouseQueryHistoryTransport {
+  listQueries(input: {
+    warehouseId: string;
+    startTimeMs: number;
+    endTimeMs: number;
+    pageToken?: string;
+    maxResults: number;
+  }): Promise<QueryHistoryPage>;
+}
+
+function finiteMilliseconds(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function executionMilliseconds(row: QueryHistoryRow): number | null {
+  if (!row.metrics || typeof row.metrics !== 'object') return null;
+  return finiteMilliseconds((row.metrics as Record<string, unknown>).execution_time_ms);
+}
+
+function rowId(row: QueryHistoryRow): string {
+  return typeof row.query_id === 'string' ? row.query_id.trim() : '';
+}
+
+function isAstrolabe(row: QueryHistoryRow): boolean {
+  return parseQueryTags(row.query_tags).get('application') === 'Astrolabe';
+}
+
+/**
+ * Read the complete Query History denominator for one warehouse and bounded range.
+ *
+ * The result contains counts and durations only. Query text and user identity are
+ * intentionally never copied out of the provider response.
+ */
+export async function readWarehouseQueryAttribution(input: {
+  warehouseId: string;
+  startTimeMs: number;
+  endTimeMs: number;
+  transport: WarehouseQueryHistoryTransport;
+}): Promise<WarehouseQueryAttribution> {
+  const warehouseId = input.warehouseId.trim();
+  if (!warehouseId || !Number.isFinite(input.startTimeMs) || !Number.isFinite(input.endTimeMs)) {
+    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION };
+  }
+
+  const rows = new Map<string, QueryHistoryRow>();
+  let complete = true;
+  let pageToken: string | undefined;
+  const usedTokens = new Set<string>();
+
+  for (let page = 0; page < MAX_QUERY_HISTORY_PAGES; page += 1) {
+    const response = await input.transport.listQueries({
+      warehouseId,
+      startTimeMs: input.startTimeMs,
+      endTimeMs: input.endTimeMs,
+      pageToken,
+      maxResults: QUERY_HISTORY_PAGE_SIZE,
+    });
+    for (const row of Array.isArray(response.res) ? response.res : []) {
+      if (row.warehouse_id !== undefined && row.warehouse_id !== warehouseId) {
+        complete = false;
+        continue;
+      }
+      const id = rowId(row);
+      if (!id) {
+        complete = false;
+        continue;
+      }
+      rows.set(id, row);
+    }
+
+    const next = typeof response.next_page_token === 'string' ? response.next_page_token.trim() : '';
+    if (!next) {
+      if (response.has_next_page) complete = false;
+      break;
+    }
+    if (usedTokens.has(next)) {
+      complete = false;
+      break;
+    }
+    usedTokens.add(next);
+    pageToken = next;
+    if (page === MAX_QUERY_HISTORY_PAGES - 1) complete = false;
+  }
+
+  let astrolabeQueries = 0;
+  let astrolabeExecutionMs = 0;
+  let totalExecutionMs = 0;
+  for (const row of rows.values()) {
+    const astrolabe = isAstrolabe(row);
+    if (astrolabe) astrolabeQueries += 1;
+    const duration = executionMilliseconds(row);
+    if (duration === null) {
+      complete = false;
+      continue;
+    }
+    totalExecutionMs += duration;
+    if (astrolabe) astrolabeExecutionMs += duration;
+  }
+
+  return {
+    complete,
+    astrolabeQueries,
+    totalQueries: rows.size,
+    astrolabeExecutionMs,
+    totalExecutionMs,
+  };
+}
+
+interface LowLevelApiRequest {
+  path: string;
+  method: 'GET';
+  headers: Headers;
+  raw: false;
+  query: {
+    filter_by: {
+      warehouse_ids: string[];
+      query_start_time_range: { start_time_ms: number; end_time_ms: number };
+    };
+    include_metrics: true;
+    max_results: number;
+    page_token?: string;
+  };
+}
+
+export interface DatabricksLowLevelQueryHistoryClient {
+  request(options: LowLevelApiRequest): Promise<unknown>;
+}
+
+function queryHistoryPage(value: unknown): QueryHistoryPage {
+  if (!value || typeof value !== 'object') return {};
+  const record = value as Record<string, unknown>;
+  return {
+    res: Array.isArray(record.res) ? (record.res as QueryHistoryRow[]) : [],
+    ...(typeof record.next_page_token === 'string' ? { next_page_token: record.next_page_token } : {}),
+    ...(typeof record.has_next_page === 'boolean' ? { has_next_page: record.has_next_page } : {}),
+  };
+}
+
+/** Adapt the same low-level Workspace SDK pattern used by warehouse cancellation. */
+export function createDatabricksQueryHistoryTransport(
+  client: DatabricksLowLevelQueryHistoryClient
+): WarehouseQueryHistoryTransport {
+  return {
+    async listQueries({ warehouseId, startTimeMs, endTimeMs, pageToken, maxResults }) {
+      const response = await client.request({
+        path: '/api/2.0/sql/history/queries',
+        method: 'GET',
+        headers: new Headers({ Accept: 'application/json' }),
+        raw: false,
+        query: {
+          filter_by: {
+            warehouse_ids: [warehouseId],
+            query_start_time_range: { start_time_ms: startTimeMs, end_time_ms: endTimeMs },
+          },
+          include_metrics: true,
+          max_results: maxResults,
+          ...(pageToken ? { page_token: pageToken } : {}),
+        },
+      });
+      return queryHistoryPage(response);
+    },
+  };
+}
+
+export async function createWorkspaceQueryHistoryTransport(input: {
+  host: string;
+  token: string;
+}): Promise<WarehouseQueryHistoryTransport> {
+  const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+  const client = new WorkspaceClient({
+    host: input.host,
+    token: input.token,
+    authType: 'pat',
+  });
+  return createDatabricksQueryHistoryTransport({
+    request: (options) => client.apiClient.request(options),
+  });
+}

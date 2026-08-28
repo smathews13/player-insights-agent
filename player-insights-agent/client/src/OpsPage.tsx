@@ -48,14 +48,13 @@ import { RefreshButton, RefreshControl } from './RefreshControl';
 import { ageAgo, checkedAgoLine } from './refresh-state';
 import { OUTCOME_PARAM } from './monitoring-filters';
 import { useWorkspaceHost } from './data-entity-state';
-import { BILLING_TAG } from '../../shared/billing-tag';
 import { databricksLink } from '../../shared/databricks-links';
 import { CostBudgetProvider, CostTileBudget, CostTotalBudget } from './CostBudgets';
 import {
+  activeMinutesDisplay,
   bars,
   costAbsence,
   costAbsenceReplacesGrid,
-  costCoverageLinesForTile,
   costHonestyLine,
   costTilesForDisplay,
   costTileWorkspaceObject,
@@ -71,7 +70,6 @@ import {
   p50BarWidths,
   productForCostTile,
   productForProbe,
-  QUESTION_COST_FORMULA,
   questionServingAverage,
   splitMethod,
   telemetryNotice,
@@ -378,34 +376,35 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                 Replacing the whole table with the sentence threw away the two
                 rows that were established. */}
             {rows.length > 0 ? (
-              <table className="ops-table ops-health-table">
-                <caption className="sr-only">
-                  Every resource this deployment runs on, and the state each was in when it was last checked.
-                </caption>
-                <thead>
-                  <tr>
-                    {/* Resource rather than Dependency. The app itself and the
+              <div className="ops-table-scroll">
+                <table className="ops-table ops-health-table">
+                  <caption className="sr-only">
+                    Every resource this deployment runs on, and the state each was in when it was last checked.
+                  </caption>
+                  <thead>
+                    <tr>
+                      {/* Resource rather than Dependency. The app itself and the
                         store it writes to are on this list now, and neither is
                         something the deployment depends ON from outside. */}
-                    <th scope="col">Resource</th>
-                    <th scope="col" className="ops-col-result">
-                      Result
-                    </th>
-                    <th scope="col" className="ops-col-when">
-                      Last check
-                    </th>
-                    <th scope="col">Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => {
-                    const object = healthResourceObject(row);
-                    const resourceHref = object ? databricksLink(host, object) : null;
-                    return (
-                      <tr key={row.id}>
-                        <th scope="row">
-                          <span className="ops-dependency">
-                            {/* The product's own mark, 16px, from the module that
+                      <th scope="col">Resource</th>
+                      <th scope="col" className="ops-col-result">
+                        Result
+                      </th>
+                      <th scope="col" className="ops-col-when">
+                        Last check
+                      </th>
+                      <th scope="col">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => {
+                      const object = healthResourceObject(row);
+                      const resourceHref = object ? databricksLink(host, object) : null;
+                      return (
+                        <tr key={row.id}>
+                          <th scope="row">
+                            <span className="ops-dependency">
+                              {/* The product's own mark, 16px, from the module that
                               owns the artwork. Decorative: the name is right
                               beside it, and a mark that announced itself would
                               make a screen reader say the product twice. Drawn
@@ -413,77 +412,78 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                               null draws nothing rather than a stand-in, because
                               the wrong mark on a failing row sends a reader to
                               the wrong service's console. */}
-                            {probeMark(row.kind)}
-                            {/* The row this dependency is documented on. Drawn only
+                              {probeMark(row.kind)}
+                              {/* The row this dependency is documented on. Drawn only
                               where the server said there is one: some probes have
                               no Connections row, and a link to nothing looks like
                               the page failing to find it. */}
-                            {row.connectionsId ? (
-                              <Link
-                                className="ops-dependency-label"
-                                to={`/connections?entity=${encodeURIComponent(row.connectionsId)}`}
-                              >
-                                {row.label}
-                              </Link>
-                            ) : (
-                              <span className="ops-dependency-label">{row.label}</span>
-                            )}
-                            {/* Databricks, beside Connections, and only where a
+                              {row.connectionsId ? (
+                                <Link
+                                  className="ops-dependency-label"
+                                  to={`/connections?entity=${encodeURIComponent(row.connectionsId)}`}
+                                >
+                                  {row.label}
+                                </Link>
+                              ) : (
+                                <span className="ops-dependency-label">{row.label}</span>
+                              )}
+                              {/* Databricks, beside Connections, and only where a
                               verified path exists. Architecture does the same
                               split: the in-app row always works, leaving the
                               workspace is a second control. */}
-                            {resourceHref && row.name && row.label.includes(row.name) ? (
-                              <a
-                                className="ops-resource-open"
-                                href={resourceHref}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={`Open ${row.label} in Databricks`}
-                              >
-                                <ExternalLink className="size-3.5" aria-hidden="true" />
-                                <span className="sr-only">Open in Databricks</span>
-                              </a>
-                            ) : null}
-                          </span>
-                          {/* The configured identifier, and only where the label is
+                              {resourceHref && row.name && row.label.includes(row.name) ? (
+                                <a
+                                  className="ops-resource-open"
+                                  href={resourceHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={`Open ${row.label} in Databricks`}
+                                >
+                                  <ExternalLink className="size-3.5" aria-hidden="true" />
+                                  <span className="sr-only">Open in Databricks</span>
+                                </a>
+                              ) : null}
+                            </span>
+                            {/* The configured identifier, and only where the label is
                             not already carrying it. Most probe labels are
                             "SQL warehouse · <id>" and the second line was the
                             same string again under the first. When a Databricks
                             URL can be built, this identifier is that link. */}
-                          {row.name && !row.label.includes(row.name) ? (
-                            resourceHref ? (
-                              <a
-                                className="ops-dependency-name"
-                                href={resourceHref}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={`Open ${row.name} in Databricks`}
-                              >
-                                {row.name}
-                              </a>
-                            ) : (
-                              <span className="ops-dependency-name">{row.name}</span>
-                            )
-                          ) : null}
-                        </th>
-                        <td className="ops-col-result">
-                          {/* The badge that used to sit in the band above, in the
+                            {row.name && !row.label.includes(row.name) ? (
+                              resourceHref ? (
+                                <a
+                                  className="ops-dependency-name"
+                                  href={resourceHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={`Open ${row.name} in Databricks`}
+                                >
+                                  {row.name}
+                                </a>
+                              ) : (
+                                <span className="ops-dependency-name">{row.name}</span>
+                              )
+                            ) : null}
+                          </th>
+                          <td className="ops-col-result">
+                            {/* The badge that used to sit in the band above, in the
                             row it is about. The words are the state; the class
                             only paints what they already said, so this reads the
                             same in monochrome and to a screen reader. */}
-                          <ResultPill pill={row.pill} />
-                        </td>
-                        <td className="ops-col-when">
-                          {row.lastCheckedAt ? (
-                            <time dateTime={row.lastCheckedAt}>{ageAgo(row.lastCheckedAt)}</time>
-                          ) : null}
-                        </td>
-                        <td className="ops-reason">{row.notes}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                            <ResultPill pill={row.pill} />
+                          </td>
+                          <td className="ops-col-when">
+                            {row.lastCheckedAt ? (
+                              <time dateTime={row.lastCheckedAt}>{ageAgo(row.lastCheckedAt)}</time>
+                            ) : null}
+                          </td>
+                          <td className="ops-reason">{row.notes}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             ) : null}
 
             {/* NO HEADING OVER THIS, and no section naming itself. The handoff's
@@ -579,45 +579,31 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
               <div className="ops-tiles">
                 {displayed.map((tile) => {
                   const view = tileView(tile, payload.currency);
+                  const title = tile.resourceId.trim() ? `${view.label} · ${tile.resourceId.trim()}` : view.label;
                   const product = productForCostTile(tile.id);
                   const object = costTileWorkspaceObject(tile);
                   const href = object ? databricksLink(host, object) : null;
-                  const coverage = costCoverageLinesForTile(tile.id, payload.coverage);
                   return (
                     <div key={tile.id} className="ops-tile">
                       <div className="ops-tile-head">
                         <p className="ops-tile-label">
                           {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
-                          <CostTileTitle label={view.label} href={href} />
+                          <CostTileTitle label={title} href={href} />
                         </p>
                         <ExperimentalBadge />
                       </div>
                       {view.figure ? (
                         <p className="ops-tile-figure">
                           <span className="ast-num">{view.figure}</span>{' '}
-                          <span className="ops-tile-basis">{view.basisLabel}</span>
+                          <span className="ops-tile-basis">
+                            {view.estimate ? `estimated ${view.basisLabel}` : view.basisLabel}
+                          </span>
                         </p>
                       ) : (
                         <p className="ops-tile-absent">{view.absence}</p>
                       )}
+                      <CostTileEvidence tile={tile} />
                       {tile.id === 'foundation-model' ? null : <CostTileBudget tile={tile} />}
-                      {view.estimate || view.sharedScope || view.remedy || view.note || coverage.length > 0 ? (
-                        <div className="ops-tile-foot">
-                          {view.estimate ? (
-                            <span className={astPill('warn', 'ops-pill')}>{view.qualityLabel}</span>
-                          ) : null}
-                          {view.sharedScope ? (
-                            <span className={astPill('neutral-outline', 'ops-pill')}>{view.population}</span>
-                          ) : null}
-                          {view.note ? <span className="ops-tile-note">{view.note}</span> : null}
-                          {view.remedy ? <span className="ops-tile-remedy">{view.remedy}</span> : null}
-                          {coverage.map((line) => (
-                            <span key={line} className="ops-tile-coverage">
-                              {line}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
                     </div>
                   );
                 })}
@@ -638,15 +624,34 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                 <ExternalLink className="size-3.5" aria-hidden="true" />
               </a>
             ) : null}
-            <p className="ops-source-filter">
-              Spend uses exact resource metadata. Tag coverage is tracked separately for{' '}
-              <code>{`"${BILLING_TAG.key}"`}</code> = <code>{`"${BILLING_TAG.value}"`}</code>.
-            </p>
           </CostBudgetProvider>
         ) : null}
       </BlockBody>
     </section>
   );
+}
+
+function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
+  const facts: string[] = [];
+  const evidence = tile.evidence;
+  if (evidence?.billingRows !== null && evidence?.billingRows !== undefined) {
+    facts.push(`${count(evidence.billingRows)} billing ${evidence.billingRows === 1 ? 'row' : 'rows'}`);
+  }
+  if (evidence?.astrolabeQueries !== null && evidence?.astrolabeQueries !== undefined) {
+    const astrolabe = `${count(evidence.astrolabeQueries)} Astrolabe ${
+      evidence.astrolabeQueries === 1 ? 'query' : 'queries'
+    }`;
+    const total =
+      evidence.warehouseQueries !== null && evidence.warehouseQueries !== undefined
+        ? ` of ${count(evidence.warehouseQueries)} warehouse ${evidence.warehouseQueries === 1 ? 'query' : 'queries'}`
+        : '';
+    facts.push(`${astrolabe}${total}${evidence.queryHistoryComplete === false ? ' · incomplete coverage' : ''}`);
+  }
+  return facts.length > 0 ? (
+    <p className="ops-tile-evidence" title={facts.join(' · ')}>
+      {facts.join(' · ')}
+    </p>
+  ) : null;
 }
 
 /**
@@ -700,7 +705,6 @@ function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
       ) : (
         <p className="ops-tile-absent">{reason}</p>
       )}
-      <p className="ops-tile-formula">{QUESTION_COST_FORMULA}</p>
     </div>
   );
 }
@@ -805,10 +809,12 @@ function DailyBars({
   title,
   days,
   empty,
+  freshness = '',
 }: {
   title: string;
   days: Array<{ day: string; count: number }>;
   empty: string;
+  freshness?: string;
 }) {
   const busiest = days.reduce((high, day) => Math.max(high, day.count), 0);
   const valued = days.length <= DAY_VALUE_LIMIT;
@@ -823,6 +829,7 @@ function DailyBars({
   return (
     <div className="ops-chart">
       <h4>{title}</h4>
+      {freshness ? <p className="ops-chart-freshness">{freshness}</p> : null}
       {days.length === 0 ? (
         <p className="ops-chart-empty">{empty}</p>
       ) : (
@@ -1262,6 +1269,7 @@ export function TrafficBody({
   runsHref?: () => string;
 }) {
   const payload = block.data;
+  const activity = payload ? activeMinutesDisplay(payload) : { title: 'Active app minutes', note: '' };
 
   if (block.failed) {
     return (
@@ -1319,9 +1327,10 @@ export function TrafficBody({
                   empty="No distinct askers have been recorded."
                 />
                 <DailyBars
-                  title="Recorded active app minutes per day"
+                  title={activity.title}
                   days={payload.activeMinutesPerDay ?? []}
                   empty="No recorded active app minutes yet. Recording starts with this release and does not backfill."
+                  freshness={activity.note}
                 />
               </div>
 
@@ -1462,6 +1471,16 @@ export function OpsPage() {
   costParams.set('from', range.from);
   costParams.set('to', range.to);
   const costSearch = `?${costParams.toString()}`;
+  const [browserTimeZone] = useState(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    } catch {
+      return '';
+    }
+  });
+  const trafficParams = new URLSearchParams();
+  if (browserTimeZone) trafficParams.set('timeZone', browserTimeZone);
+  const trafficSearch = trafficParams.size > 0 ? `?${trafficParams.toString()}` : '';
 
   // Four reads, started together on the first visit and finishing whenever
   // each finishes. Nothing below waits on anything else, which is the whole
@@ -1472,7 +1491,11 @@ export function OpsPage() {
   // a second range bug, not consistency.
   const health = useOpsBlock<OpsHealthPayload>('/api/ops/health', '');
   const cost = useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params));
-  const traffic = useOpsBlock<OpsTrafficPayload>('/api/ops/traffic', '');
+  const traffic = useOpsBlock<OpsTrafficPayload>(
+    '/api/ops/traffic',
+    trafficSearch,
+    `timezone:${browserTimeZone || 'local'}`
+  );
   const latency = useOpsBlock<OpsLatencyPayload>('/api/ops/latency', '');
 
   /** Monitoring narrowed to one all-time outcome. */

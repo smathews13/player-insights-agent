@@ -415,21 +415,26 @@ function Disclosure({
   onToggle,
   summary,
   aside,
+  controls,
   children,
 }: {
   open: boolean;
   onToggle: () => void;
   summary: string;
   aside?: string;
+  controls?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section className="connection-block">
-      <button type="button" className="connection-block-summary" aria-expanded={open} onClick={onToggle}>
-        <ChevronRight className={`size-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
-        <span className="connection-block-label">{summary}</span>
-        {aside ? <span className="connection-block-aside">{aside}</span> : null}
-      </button>
+      <div className="connection-block-head">
+        <button type="button" className="connection-block-summary" aria-expanded={open} onClick={onToggle}>
+          <ChevronRight className={`size-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+          <span className="connection-block-label">{summary}</span>
+          {aside ? <span className="connection-block-aside">{aside}</span> : null}
+        </button>
+        {controls ? <div className="connection-block-controls">{controls}</div> : null}
+      </div>
       {open ? <div className="connection-block-body">{children}</div> : null}
     </section>
   );
@@ -506,73 +511,97 @@ export function ConnectionsCounts({ counts }: { counts: ConnectionCounts }) {
  * disagree about case or trailing space, and disagreeing here means washing one row
  * and captioning another.
  */
+interface DeclaredTableFilters {
+  query: string;
+  catalog: string;
+  schema: string;
+}
+
+function DeclaredTableControls({
+  filters,
+  catalogs,
+  schemas,
+  onChange,
+}: {
+  filters: DeclaredTableFilters;
+  catalogs: readonly string[];
+  schemas: readonly string[];
+  onChange: (next: DeclaredTableFilters) => void;
+}) {
+  return (
+    <div className="connections-table-toolbar">
+      <div className="run-search connections-table-search">
+        <Search aria-hidden="true" />
+        <Input
+          type="search"
+          placeholder="Search tables"
+          aria-label="Search Unity Catalog tables"
+          value={filters.query}
+          onChange={(event) => onChange({ ...filters, query: event.target.value })}
+        />
+      </div>
+      {catalogs.length > 0 ? (
+        <div className="connections-table-filter">
+          <AppSelect
+            label="Catalog"
+            ariaLabel="Filter tables by catalog"
+            value={filters.catalog || 'all'}
+            options={[
+              { value: 'all', label: 'All catalogs' },
+              ...catalogs.map((name) => ({ value: name, label: name })),
+            ]}
+            onValueChange={(next) => onChange({ ...filters, catalog: next === 'all' ? '' : next, schema: '' })}
+            contentClassName="connections-table-filter-menu"
+            contentProps={{ position: 'popper' }}
+          />
+        </div>
+      ) : null}
+      {schemas.length > 0 ? (
+        <div className="connections-table-filter">
+          <AppSelect
+            label="Schema"
+            ariaLabel="Filter tables by schema"
+            value={filters.schema || 'all'}
+            options={[{ value: 'all', label: 'All schemas' }, ...schemas.map((name) => ({ value: name, label: name }))]}
+            onValueChange={(next) => onChange({ ...filters, schema: next === 'all' ? '' : next })}
+            contentClassName="connections-table-filter-menu"
+            contentProps={{ position: 'popper' }}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function DeclaredTablesTable({
   tableChecks,
   requestedEntity,
   checkedAt = '',
+  controlledFilters,
+  onFiltersChange,
+  showToolbar = true,
 }: {
   tableChecks: readonly PreflightCheck[];
   requestedEntity: string;
   checkedAt?: string;
+  controlledFilters?: DeclaredTableFilters;
+  onFiltersChange?: (next: DeclaredTableFilters) => void;
+  showToolbar?: boolean;
 }) {
-  const [query, setQuery] = useState('');
-  const [catalog, setCatalog] = useState('');
-  const [schema, setSchema] = useState('');
-  const { catalogs, schemas } = useMemo(() => declaredTableFilterOptions(tableChecks, catalog), [tableChecks, catalog]);
-  const visible = useMemo(
-    () => filterDeclaredTables(tableChecks, { query, catalog, schema }),
-    [tableChecks, query, catalog, schema]
+  const [localFilters, setLocalFilters] = useState<DeclaredTableFilters>({ query: '', catalog: '', schema: '' });
+  const filters = controlledFilters ?? localFilters;
+  const changeFilters = onFiltersChange ?? setLocalFilters;
+  const { catalogs, schemas } = useMemo(
+    () => declaredTableFilterOptions(tableChecks, filters.catalog),
+    [tableChecks, filters.catalog]
   );
+  const visible = useMemo(() => filterDeclaredTables(tableChecks, filters), [tableChecks, filters]);
 
   return (
     <div className="connections-table-wrap">
-      <div className="connections-table-toolbar">
-        <div className="run-search connections-table-search">
-          <Search aria-hidden="true" />
-          <Input
-            type="search"
-            placeholder="Search tables"
-            aria-label="Search Unity Catalog tables"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
-        {catalogs.length > 0 ? (
-          <div className="connections-table-filter">
-            <AppSelect
-              label="Catalog"
-              ariaLabel="Filter tables by catalog"
-              value={catalog || 'all'}
-              options={[
-                { value: 'all', label: 'All catalogs' },
-                ...catalogs.map((name) => ({ value: name, label: name })),
-              ]}
-              onValueChange={(next) => {
-                setCatalog(next === 'all' ? '' : next);
-                setSchema('');
-              }}
-              contentClassName="connections-table-filter-menu"
-              contentProps={{ position: 'popper' }}
-            />
-          </div>
-        ) : null}
-        {schemas.length > 0 ? (
-          <div className="connections-table-filter">
-            <AppSelect
-              label="Schema"
-              ariaLabel="Filter tables by schema"
-              value={schema || 'all'}
-              options={[
-                { value: 'all', label: 'All schemas' },
-                ...schemas.map((name) => ({ value: name, label: name })),
-              ]}
-              onValueChange={(next) => setSchema(next === 'all' ? '' : next)}
-              contentClassName="connections-table-filter-menu"
-              contentProps={{ position: 'popper' }}
-            />
-          </div>
-        ) : null}
-      </div>
+      {showToolbar ? (
+        <DeclaredTableControls filters={filters} catalogs={catalogs} schemas={schemas} onChange={changeFilters} />
+      ) : null}
       <Table className="connections-table">
         <TableHeader>
           <TableRow>
@@ -662,7 +691,7 @@ export function ConnectionEntityName({ name }: { name: string }) {
               ? 'schema'
               : 'table';
         return (
-          <span key={`${index}-${part}`}>
+          <span key={parts.slice(0, index + 1).join('.')}>
             {index > 0 ? <span className="connections-entity-separator">.</span> : null}
             <span className={`entity-token entity-${kind}`} data-entity-part={kind}>
               {part}
@@ -696,6 +725,11 @@ export function DeclaredTablesSection({
   checkedAt?: string;
 }) {
   const [open, setOpen] = useState(true);
+  const [filters, setFilters] = useState<DeclaredTableFilters>({ query: '', catalog: '', schema: '' });
+  const { catalogs, schemas } = useMemo(
+    () => declaredTableFilterOptions(tableChecks, filters.catalog),
+    [tableChecks, filters.catalog]
+  );
 
   return (
     <Disclosure
@@ -703,8 +737,20 @@ export function DeclaredTablesSection({
       onToggle={() => setOpen((was) => !was)}
       summary="Unity Catalog tables"
       aside={declaredTablesAside(tableChecks)}
+      controls={
+        open ? (
+          <DeclaredTableControls filters={filters} catalogs={catalogs} schemas={schemas} onChange={setFilters} />
+        ) : null
+      }
     >
-      <DeclaredTablesTable tableChecks={tableChecks} requestedEntity={requestedEntity} checkedAt={checkedAt} />
+      <DeclaredTablesTable
+        tableChecks={tableChecks}
+        requestedEntity={requestedEntity}
+        checkedAt={checkedAt}
+        controlledFilters={filters}
+        onFiltersChange={setFilters}
+        showToolbar={false}
+      />
     </Disclosure>
   );
 }
@@ -1459,9 +1505,7 @@ export function ConfigurationList({
 
   return (
     <section className="connection-group">
-      <h3 className="connection-group-title">
-        {group.title}
-      </h3>
+      <h3 className="connection-group-title">{group.title}</h3>
       <Card className="deployment-card">
         <div className="configuration-rows">
           {group.readings.map(({ row, resource }) => {

@@ -44,6 +44,8 @@ export interface LiveStep {
   detail: string;
   /** What came back, clamped for the rail. Empty when nothing was recorded. */
   result: string;
+  /** Tables structurally declared by this tool call, for shared entity rendering. */
+  tables: string[];
   calls: number;
   depth: number;
 }
@@ -92,6 +94,33 @@ function allFields(payload: string): string {
   if (described.empty) return '';
   if (!described.fields) return described.body.trim() === '{}' ? '' : described.body;
   return described.fields.map((entry) => `${entry.key}: ${entry.value}`).join(' \u00b7 ');
+}
+
+/**
+ * Tables a live stage structurally declared.
+ *
+ * This is intentionally not an identifier-word scan. Metadata tools name their
+ * table in `full_name`; SQL tools name tables only in FROM/JOIN clauses. That
+ * keeps model/tool names and underscore-heavy column identifiers out of the
+ * table-pill treatment while still recognizing three-part names before the
+ * final answer has sources.
+ */
+export function stageTableEntities(stage: Pick<TraceStage, 'id' | 'input'>): string[] {
+  const tool = toolNameFromId(stage.id);
+  if (tool === 'describe_table') {
+    const fullName = field(stage.input, 'full_name').trim();
+    return fullName ? [fullName] : [];
+  }
+  if (tool !== 'query_named_table' && tool !== 'run_sql') return [];
+  const sql = field(stage.input, 'sql');
+  const names: string[] = [];
+  for (const match of sql.matchAll(
+    /\b(?:from|join)\s+((?:`[^`]+`|[A-Za-z_][\w-]*)(?:\.(?:`[^`]+`|[A-Za-z_][\w-]*)){2})/gi
+  )) {
+    const name = match[1].replaceAll('`', '');
+    if (!names.some((held) => held.toLowerCase() === name.toLowerCase())) names.push(name);
+  }
+  return names;
 }
 
 /**
@@ -377,6 +406,7 @@ export function toLiveStep(stage: TraceStage, question = ''): LiveStep {
     startMs: stage.startMeasured === false ? null : stage.start,
     detail: describeStage(stage, question),
     result: describeResult(stage),
+    tables: stageTableEntities(stage),
     calls: stage.calls,
     depth: Math.min(stage.depth ?? 0, 3),
   };

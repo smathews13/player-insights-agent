@@ -95,19 +95,18 @@ import { useAgentReadiness } from './agent-readiness';
 import { runStatusFor } from './run-status';
 import { answerRunVerdict, withDisplayedStageStatus } from '../../shared/run-verdict';
 import { RunStatusPill } from './RunStatusPill';
-import {
-  isWorkingConversationRun,
-  readConversationRun,
-  replayedStages,
-} from './conversation-run';
+import { isWorkingConversationRun, readConversationRun, replayedStages } from './conversation-run';
 import {
   conversationIsLive,
   forgetActiveConversationRun,
   settleActiveConversationRun,
+  terminalConversationRunSummary,
   trackActiveConversationRun,
-  type ActiveConversationRuns,
+  updateActiveConversationRuns,
+  useActiveConversationRuns,
 } from './active-conversation-runs';
 import { AstrolabeMark } from './AstrolabeMark';
+import { ConversationRailRunStatus } from './ConversationRailRunStatus';
 import { ConceptFlicker } from './ConceptFlicker';
 import { WorkingInlineRow } from './WorkingInlineRow';
 import { elapsedSeconds, seatForTranscript, WORKING_LABEL } from './working-animation';
@@ -334,7 +333,7 @@ export function HomePage() {
    * exist. This is only the durable handle a returning view polls; it never
    * starts or resumes execution.
    */
-  const [activeConversationRuns, setActiveConversationRuns] = useState<ActiveConversationRuns>(new Map());
+  const activeConversationRuns = useActiveConversationRuns();
   const [conversationLoading, setConversationLoading] = useState(true);
   /**
    * What the rail's own emptiness means, taken from the response rather than
@@ -457,7 +456,7 @@ export function HomePage() {
    * given any.
    */
   const liveAsk = useLiveAsk(conversationId);
-  const activeConversationRun = activeConversationRuns.get(conversationId) ?? null;
+  const activeConversationRun = activeConversationRuns.get(conversationId)?.status ?? null;
   const liveStages = liveAsk?.stages ?? NO_LIVE_STAGES;
   /**
    * Busy belongs to the conversation on screen, not to this mounted page.
@@ -465,9 +464,7 @@ export function HomePage() {
    * The session registry follows streams across conversation and top-level
    * navigation; the durable row covers reloads and other browser tabs.
    */
-  const loading = Boolean(
-    liveAsk?.inFlight || isWorkingConversationRun(activeConversationRun)
-  );
+  const loading = Boolean(liveAsk?.inFlight || isWorkingConversationRun(activeConversationRun));
   const displayedStopNotice = stopNotice ?? liveAsk?.stopNotice ?? null;
   const displayedRunStopped =
     runStopped ??
@@ -764,7 +761,7 @@ export function HomePage() {
       setDraft('');
       const replayed = replayedStages(durableRun);
       if (isWorkingConversationRun(durableRun)) {
-        setActiveConversationRuns((current) => trackActiveConversationRun(current, id, durableRun));
+        updateActiveConversationRuns((current) => trackActiveConversationRun(current, id, durableRun));
         const started = Date.parse(durableRun.created_at);
         setAskStartedAt(Number.isFinite(started) ? started : Date.now());
         // Only as the fallback. A run this browser is still streaming reports its
@@ -823,7 +820,6 @@ export function HomePage() {
       setDraft('');
       setMessages([]);
       setAttachments([]);
-      setActiveConversationRuns((current) => forgetActiveConversationRun(current, id));
       setAttachmentsUnreadable(false);
       setError('This conversation could not be loaded. Start a new conversation or try again.');
     } finally {
@@ -882,12 +878,12 @@ export function HomePage() {
    * Called after a turn completes. The read on arrival is not this -- it is one
    * half of `startInitialRail`, which issues both lists at once.
    */
-  const loadRunSummaries = useCallback(async (conversationToSettle?: string) => {
+  const loadRunSummaries = useCallback(async () => {
     const summaries = await readRunSummaries();
     // An empty result is also the endpoint's failure shape. Never replace useful
     // rail state with it, and never use it as evidence that a live run failed.
     if (summaries.size > 0) setRunSummaries(summaries);
-    return conversationToSettle ? summaries.has(conversationToSettle) : summaries.size > 0;
+    return summaries;
   }, []);
 
   /**
@@ -897,10 +893,16 @@ export function HomePage() {
    * here: the browser has no authority to cancel the server's Model Serving
    * invocation, and reopening this page creates a fresh status read.
    */
+  const activeConversationRunIds = [...activeConversationRuns]
+    .filter(([, run]) => isWorkingConversationRun(run.status))
+    .map(([id]) => id)
+    .sort()
+    .join('\u0000');
   useEffect(() => {
-    if (activeConversationRuns.size === 0) return;
+    if (!activeConversationRunIds) return;
     let live = true;
     let timer: number | undefined;
+    const runIds = activeConversationRunIds.split('\u0000');
     const schedule = () => {
       timer = window.setTimeout(() => void poll(), 1500);
     };
@@ -913,7 +915,7 @@ export function HomePage() {
         // or Failed summary until somebody clicks back and forces another read.
         if (!live || !status) return;
         if (isWorkingConversationRun(status)) {
-          setActiveConversationRuns((current) => trackActiveConversationRun(current, runConversationId, status));
+          updateActiveConversationRuns((current) => trackActiveConversationRun(current, runConversationId, status));
           // The steps the run has taken since the last poll. This is what makes a
           // reconnected path GROW rather than sit at whatever the first read
           // caught: a browser that is not holding the stream learns about each
@@ -925,10 +927,12 @@ export function HomePage() {
           });
           return;
         }
-        // Keep Live until the terminal summary itself is readable. Removing the
-        // live overlay first exposes the conversation list's stale prior verdict
-        // (often Failed) during the gap between these two reads.
-        if (!(await loadRunSummaries(runConversationId)) || !live) return;
+        // Keep Live until the terminal summary for THIS run is readable. A
+        // missing/error response, or the previous turn's stale summary, is not
+        // evidence that the run ended.
+        const summaries = await loadRunSummaries();
+        if (!live) return;
+        if (!terminalConversationRunSummary(status, summaries.get(runConversationId) ?? null)) return;
         // The status row and its stages are the only data that can change while
         // work is in flight. The transcript includes every stored response JSON;
         // rereading and replacing that whole list every 1.5 seconds made a long
@@ -952,7 +956,9 @@ export function HomePage() {
             setStopNotice(readLiveAsk(runConversationId)?.stopNotice ?? 'Stopped');
           }
         }
-        setActiveConversationRuns((current) => settleActiveConversationRun(current, runConversationId, true));
+        updateActiveConversationRuns((current) =>
+          settleActiveConversationRun(current, runConversationId, status, summaries.get(runConversationId) ?? null)
+        );
         endLiveAsk(runConversationId);
       } catch {
         // A transient status-read failure is not evidence that the server work
@@ -960,7 +966,7 @@ export function HomePage() {
       }
     };
     const poll = async () => {
-      await Promise.all([...activeConversationRuns.keys()].map((id) => pollOne(id)));
+      await Promise.all(runIds.map((id) => pollOne(id)));
       if (live) schedule();
     };
     schedule();
@@ -968,7 +974,7 @@ export function HomePage() {
       live = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [activeConversationRuns, loadRunSummaries]);
+  }, [activeConversationRunIds, loadRunSummaries]);
 
   /**
    * The rail, in one round trip rather than two.
@@ -1103,7 +1109,24 @@ export function HomePage() {
       if (!streamed) {
         const completed = liveStages.filter((stage) => stage.status !== 'running').length;
         setRunStopped({ steps: completed });
-        setActiveConversationRuns((runs) => forgetActiveConversationRun(runs, current.conversationId));
+        const now = new Date().toISOString();
+        updateActiveConversationRuns((runs) =>
+          settleActiveConversationRun(
+            runs,
+            current.conversationId,
+            {
+              ...(activeConversationRun ?? {
+                run_id: current.correlationId,
+                created_at: now,
+                updated_at: now,
+                terminal_code: null,
+              }),
+              state: 'CANCELLED',
+              updated_at: now,
+            },
+            null
+          )
+        );
         endLiveAsk(current.conversationId);
       }
     } catch (stopError) {
@@ -1203,7 +1226,7 @@ export function HomePage() {
           onStart: (correlationId) => {
             currentAsk.correlationId = correlationId;
             const now = new Date().toISOString();
-            setActiveConversationRuns((runs) =>
+            updateActiveConversationRuns((runs) =>
               trackActiveConversationRun(runs, runConversationId, {
                 run_id: correlationId,
                 state: 'RUNNING',
@@ -1602,6 +1625,7 @@ export function HomePage() {
         throw new Error(payload?.message ?? 'This conversation could not be deleted.');
       }
       setConversations((items) => items.filter((item) => item.id !== id));
+      updateActiveConversationRuns((runs) => forgetActiveConversationRun(runs, id));
       setPendingDelete(null);
       setError(null);
       // Deleting the conversation that is open would otherwise leave its
@@ -1820,7 +1844,13 @@ export function HomePage() {
             // carries the reader's own rating, which the rail list cannot know.
             // The rail list answers for every OTHER row, which is every row
             // somebody else owns -- those used to draw no badge at all.
-            const summary = runSummaries.get(conversation.id) ?? conversationRunSummary(conversation);
+            const fallbackSummary = runSummaries.get(conversation.id) ?? conversationRunSummary(conversation);
+            const trackedRun = activeConversationRuns.get(conversation.id) ?? null;
+            const streamedRun = readLiveAsk(conversation.id);
+            const conversationStages = streamedRun?.stages.length
+              ? streamedRun.stages
+              : replayedStages(trackedRun?.status ?? null);
+            const summary = trackedRun?.summary ?? fallbackSummary;
             const duration = summary ? railDuration(summary.durationMs) : null;
             // A run in flight belongs to the open conversation. Seat the same
             // live pill as the agent-steps pane here, including its breathing
@@ -1828,7 +1858,7 @@ export function HomePage() {
             const runningConversation = conversationIsLive(
               activeConversationRuns,
               conversation.id,
-              Boolean(readLiveAsk(conversation.id)?.inFlight)
+              Boolean(streamedRun?.inFlight)
             );
             return (
               // Drawn from the entry rather than from the conversation, so the
@@ -1902,21 +1932,12 @@ export function HomePage() {
                         sent to this browser, both have no status to report, and the
                         line is then the date alone. */}
                     <span className="conversation-item-head">
-                      {runningConversation ? (
-                        <RunStatusPill status={runStatus} />
-                      ) : summary ? (
-                        <span
-                          className={`ast-pill conversation-status ${summary.tone}`}
-                          // The store's own word is short and unqualified. The
-                          // tooltip says what it is the status OF, which the pill
-                          // has no room to say and the row's title does not imply.
-                          // A deadline note is not a second verdict: it used to
-                          // paint Complete turns Partial on every reopen.
-                          title={`Latest turn: ${summary.status}`}
-                        >
-                          {summary.status}
-                        </span>
-                      ) : null}
+                      <ConversationRailRunStatus
+                        run={trackedRun}
+                        stages={conversationStages}
+                        streamed={Boolean(streamedRun?.inFlight)}
+                        fallback={fallbackSummary}
+                      />
                       <span className="conversation-age ast-num">{conversationAge(conversation.updated_at)}</span>
                     </span>
                     {/* The clamp is two lines, so a long label is cut on screen even

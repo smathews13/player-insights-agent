@@ -177,6 +177,18 @@ export interface CostTile {
   remedy: string;
   /** Extra FIGURE this tile carries beside its own, e.g. the run count. Never prose. */
   note: string;
+  /**
+   * Concise, non-dollar evidence for this resource.
+   *
+   * Counts only: no query text or execution identity may cross this boundary.
+   * Null means the source cannot be mapped safely at this resource grain.
+   */
+  evidence?: {
+    billingRows: number | null;
+    astrolabeQueries: number | null;
+    warehouseQueries?: number | null;
+    queryHistoryComplete?: boolean;
+  } | null;
 }
 
 /** A missing grant, in the shape the app already uses for one. */
@@ -544,10 +556,18 @@ export interface OpsTrafficPayload {
   /**
    * Visible app minutes observed by the authenticated heartbeat.
    *
-   * One signed-in person contributes at most one row per UTC minute. This starts
-   * with the release that creates the activity table and never implies backfill.
+   * One signed-in person contributes at most one stored UTC minute. Display
+   * buckets use the configured Runtime timezone (or browser/local fallback).
+   * This starts with the release that creates the activity table and never
+   * implies backfill.
    */
   activeMinutesPerDay: Array<{ day: string; count: number }>;
+  /** IANA zone used to bucket `activeMinutesPerDay`. */
+  activeMinutesTimeZone?: string;
+  /** Earliest recorded heartbeat, proving where non-backfilled coverage starts. */
+  activeMinutesRecordedFrom?: string;
+  /** Newest recorded heartbeat, so the chart does not imply fresher coverage. */
+  activeMinutesRecordedThrough?: string;
   /**
    * Failures and refusals, drawn as two charts and never one series.
    *

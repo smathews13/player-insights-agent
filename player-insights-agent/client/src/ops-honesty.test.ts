@@ -371,9 +371,7 @@ describe('an empty cost block', () => {
       'vector-search',
       'app-compute',
     ]);
-    expect(tiles.find((tile) => tile.id === 'foundation-model')?.unavailable).toContain(
-      'Whole shared endpoint spend is withheld'
-    );
+    expect(tiles.find((tile) => tile.id === 'foundation-model')?.unavailable).toBe('Shared spend withheld');
     expect(
       tiles.filter((tile) => tile.id !== 'foundation-model').every((tile) => tile.unavailable === 'No billing rows')
     ).toBe(true);

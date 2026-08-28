@@ -2109,7 +2109,7 @@ function conversationMessagesQuery(conversationId: string, email: string) {
  * is written before Model Serving starts and remains readable after the
  * original SSE connection is gone.
  */
-export const CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, updated_at, terminal_code
+export const CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, updated_at, terminal_code, terminal_message_id
   FROM ${APP_SCHEMA}.runs
   WHERE conversation_id = $1 AND user_email = $2
   ORDER BY created_at DESC

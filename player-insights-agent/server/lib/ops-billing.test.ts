@@ -179,24 +179,34 @@ describe('billing attribution', () => {
   });
 
   it('apportions serving by recorded tokens while keeping SQL an estimate', () => {
-    const tiles = buildTiles(IDS, [
+    const tiles = buildTiles(
+      IDS,
+      [
+        {
+          component: 'serving-endpoint',
+          spend: 12,
+          currency: 'USD',
+          billedDays: 2,
+          jobRuns: null,
+          lastDay: RANGE.to,
+        },
+        {
+          component: 'sql-warehouse',
+          spend: 9,
+          currency: 'USD',
+          billedDays: 2,
+          jobRuns: null,
+          lastDay: RANGE.to,
+        },
+      ],
       {
-        component: 'serving-endpoint',
-        spend: 12,
-        currency: 'USD',
-        billedDays: 2,
-        jobRuns: null,
-        lastDay: RANGE.to,
-      },
-      {
-        component: 'sql-warehouse',
-        spend: 9,
-        currency: 'USD',
-        billedDays: 2,
-        jobRuns: null,
-        lastDay: RANGE.to,
-      },
-    ]);
+        complete: true,
+        astrolabeQueries: 2,
+        totalQueries: 4,
+        astrolabeExecutionMs: 100,
+        totalExecutionMs: 100,
+      }
+    );
     const attribution = buildQuestionAttribution(
       [
         {
@@ -223,6 +233,83 @@ describe('billing attribution', () => {
     expect(parts.find((part) => part.id === 'genie')).toEqual(
       expect.objectContaining({ quality: 'unknown', amount: null })
     );
+  });
+
+  it('estimates SQL from Astrolabe execution-time share rather than whole-warehouse spend', () => {
+    const sql = buildTiles(
+      IDS,
+      [
+        {
+          component: 'sql-warehouse',
+          spend: 100,
+          currency: 'USD',
+          billedDays: 2,
+          jobRuns: null,
+          lastDay: RANGE.to,
+          pricedRows: 4,
+          unpricedRows: 0,
+          priceMatchStatus: 'priced',
+        },
+      ],
+      {
+        complete: true,
+        astrolabeQueries: 2,
+        totalQueries: 10,
+        astrolabeExecutionMs: 25,
+        totalExecutionMs: 100,
+      }
+    ).find((tile) => tile.id === 'sql-warehouse');
+
+    expect(sql).toMatchObject({
+      amount: 25,
+      quality: 'estimate',
+      population: 'Astrolabe query share',
+      attribution: 'deployment',
+      evidence: {
+        billingRows: 4,
+        astrolabeQueries: 2,
+        warehouseQueries: 10,
+        queryHistoryComplete: true,
+      },
+    });
+  });
+
+  it('withholds SQL dollars on an incomplete denominator while retaining query and billing counts', () => {
+    const sql = buildTiles(
+      IDS,
+      [
+        {
+          component: 'sql-warehouse',
+          spend: 100,
+          currency: 'USD',
+          billedDays: 2,
+          jobRuns: null,
+          lastDay: RANGE.to,
+          pricedRows: 4,
+          unpricedRows: 0,
+          priceMatchStatus: 'priced',
+        },
+      ],
+      {
+        complete: false,
+        astrolabeQueries: 2,
+        totalQueries: 9,
+        astrolabeExecutionMs: 25,
+        totalExecutionMs: 75,
+      }
+    ).find((tile) => tile.id === 'sql-warehouse');
+
+    expect(sql).toMatchObject({
+      amount: null,
+      unavailable: 'App spend withheld: complete Query History denominator unavailable',
+      evidence: {
+        billingRows: 4,
+        astrolabeQueries: 2,
+        warehouseQueries: 9,
+        queryHistoryComplete: false,
+      },
+    });
+    expect(sql?.amount).not.toBe(100);
   });
 
   it('does not substitute a workspace-wide total when an endpoint identifier is absent', () => {
@@ -267,7 +354,7 @@ describe('billing attribution', () => {
       quality: 'unknown',
       population: 'Shared endpoint',
     });
-    expect(foundation?.unavailable).toContain('app has not proven ownership');
+    expect(foundation?.unavailable).toBe('Shared spend withheld');
     expect(
       buildTiles({ ...IDS, foundationEndpoint: 'some-other-shared-endpoint' }, [
         {
