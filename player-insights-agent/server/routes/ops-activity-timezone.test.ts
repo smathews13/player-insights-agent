@@ -5,7 +5,7 @@ import { ACTIVE_MINUTES_PER_DAY_QUERY } from '../lib/app-activity';
 import { RUNTIME_SETTINGS_TABLE } from '../lib/runtime-settings-store';
 import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
 import type { OpsTrafficPayload } from '../../shared/ops-contract';
-import { setupOpsRoutes } from './ops-routes';
+import { DISTINCT_ASKERS_PER_DAY_QUERY, QUESTIONS_PER_DAY_QUERY, setupOpsRoutes } from './ops-routes';
 import type { InsightsAppKit } from './insights-routes';
 
 describe('Ops active-minute timezone and freshness', () => {
@@ -59,6 +59,8 @@ describe('Ops active-minute timezone and freshness', () => {
     );
 
     expect(query).toHaveBeenCalledWith(ACTIVE_MINUTES_PER_DAY_QUERY, ['America/Los_Angeles']);
+    expect(query).toHaveBeenCalledWith(QUESTIONS_PER_DAY_QUERY, ['America/Los_Angeles']);
+    expect(query).toHaveBeenCalledWith(DISTINCT_ASKERS_PER_DAY_QUERY, ['America/Los_Angeles']);
     expect(payload.activeMinutesPerDay).toEqual([{ day: '2026-08-27', count: 3 }]);
     expect(payload.activeMinutesTimeZone).toBe('America/Los_Angeles');
     expect(payload.activeMinutesRecordedFrom).toBe('2026-08-28T05:58:00.000Z');

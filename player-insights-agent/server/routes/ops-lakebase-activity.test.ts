@@ -103,8 +103,8 @@ describe('Ops activity without billed telemetry', () => {
     expect(payload.activeMinutesPerDay).toEqual([{ day: '2026-08-20', count: 18 }]);
     expect(calls.filter((call) => call.sql !== REQUEST_LATENCY_QUERY).map((call) => call.params)).toEqual([
       ['effective'],
-      [],
-      [],
+      ['UTC'],
+      ['UTC'],
       ['UTC'],
       [],
       [],

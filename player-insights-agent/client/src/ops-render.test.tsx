@@ -1814,7 +1814,7 @@ describe('Ops cost uses complete billing days', () => {
             element={
               <Outlet
                 context={{
-                  features: { benchmarkLab: false, egressControls: false, costEstimates: true },
+                  features: { benchmarkLab: false, egressControls: false, forecasting: false },
                   setFeature: () => {},
                   role: { state: 'admin', addedAdminsReadable: true },
                 }}
@@ -1840,7 +1840,8 @@ describe('Ops cost uses complete billing days', () => {
     expect(source).toContain("costParams.set('from', range.from)");
     expect(source).toContain("costParams.set('to', range.to)");
     expect(source).toContain("'/api/ops/cost',");
-    expect(source).toContain('costEstimatesShown');
+    expect(source).not.toContain('costEstimatesShown');
+    expect(source).toContain("useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params))");
     expect(source).toContain("useOpsBlock<OpsHealthPayload>('/api/ops/health', '')");
     expect(source).toContain('TimeRangeControl page="Ops cost"');
     expect(source).toContain("params.set('range', 'all')");

@@ -939,6 +939,180 @@ a.ops-dependency-name:hover {
   opacity: 0.75;
 }
 
+/* ── Forecasting ────────────────────────────────────────────────────────── */
+
+.ops-forecast-baseline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.ops-forecast-baseline p,
+.ops-forecast-caveat {
+  margin: 0;
+}
+
+.ops-forecast-baseline strong {
+  color: var(--ast-text-long);
+}
+
+.ops-forecast-partial {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--ast-warn-border);
+  background: color-mix(in srgb, var(--ast-warn-border) 22%, var(--card));
+  color: var(--ast-warn-text);
+  font-size: var(--text-sm);
+}
+
+.ops-forecast-assumptions {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--ast-radius-card);
+}
+
+.ops-forecast-assumptions > legend {
+  padding: 0 6px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ops-forecast-assumption-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 10px 12px;
+}
+
+.ops-forecast-assumption-grid > label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ast-text-long);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.ops-forecast-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ops-forecast-input-row input {
+  width: min(100%, 9rem);
+  height: 32px;
+  min-height: 32px;
+}
+
+.ops-forecast-input-row small {
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.ops-forecast-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.ops-forecast-horizons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ops-forecast-horizon {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--ast-radius-card);
+}
+
+.ops-forecast-horizon h4 {
+  margin: 0 0 8px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ops-forecast-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  margin: 0 0 10px;
+}
+
+.ops-forecast-total .ast-num {
+  font-size: var(--ast-fs-18);
+  font-weight: 700;
+}
+
+.ops-forecast-total > span:last-child {
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.ops-forecast-horizon ul,
+.ops-forecast-method ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ops-forecast-horizon li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.ops-forecast-horizon li span:last-child {
+  color: var(--ast-text-long);
+  white-space: nowrap;
+}
+
+.ops-forecast-method > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.ops-forecast-method p,
+.ops-forecast-method h5 {
+  margin: 0;
+}
+
+.ops-forecast-method h5 {
+  padding-top: 4px;
+  color: var(--ast-text-long);
+  font-size: var(--text-xs);
+}
+
+.ops-forecast-method li {
+  margin-top: 4px;
+}
+
 /* ── Traffic ─────────────────────────────────────────────────────────────── */
 
 /*

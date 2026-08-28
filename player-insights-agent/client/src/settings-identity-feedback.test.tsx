@@ -7,7 +7,7 @@ import { SettingsPage } from './SettingsPage';
 import { SpIdentityEditor } from './SpIdentityPanel';
 import { RosterRows } from './UserRoleEditor';
 
-const FEATURES = { benchmarkLab: true, egressControls: true, costEstimates: false };
+const FEATURES = { benchmarkLab: true, egressControls: true, forecasting: false };
 const SECTIONS = ['runtime', 'appearance', 'experimental', 'identity', 'environment', 'egress'] as const;
 const CSS = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 const PAGE = readFileSync(new URL('./SettingsPage.tsx', import.meta.url), 'utf8');

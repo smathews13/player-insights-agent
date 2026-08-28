@@ -83,7 +83,8 @@ import {
 import { opsCostRangeId, useOpsBlock } from './ops-session';
 import { TimeRangeControl } from './TimeRangeControl';
 import { rangeWindow } from './time-range';
-import { NO_EXPERIMENTS, showsCostEstimates } from './experimental-features';
+import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
+import { ForecastingBody } from './ForecastingPanel';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
 import type {
   DependencyResult,
@@ -609,11 +610,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                           <span className="ast-num">{count(activity.calls)}</span>{' '}
                           <span className="ops-tile-basis">
                             Astrolabe{' '}
-                            {activity.calls === 1
-                              ? activity.unit === 'queries'
-                                ? 'query'
-                                : 'request'
-                              : activity.unit}{' '}
+                            {activity.calls === 1 ? (activity.unit === 'queries' ? 'query' : 'request') : activity.unit}{' '}
                             in range
                           </span>
                         </p>
@@ -1486,7 +1483,7 @@ export function StopAllActiveRuns() {
 export function OpsPage() {
   const role = useRole();
   const features = useOutletContext<AppOutletContext | null>()?.features ?? NO_EXPERIMENTS;
-  const costEstimatesShown = showsCostEstimates(features);
+  const forecastingShown = showsForecasting(features);
   const [params] = useSearchParams();
   const [openedAt] = useState(() => Date.now());
   const selected = rangeWindow(params, openedAt);
@@ -1514,7 +1511,7 @@ export function OpsPage() {
   // the billing selector also bounded live health or all-time latency would be
   // a second range bug, not consistency.
   const health = useOpsBlock<OpsHealthPayload>('/api/ops/health', '');
-  const cost = useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params), costEstimatesShown);
+  const cost = useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params));
   const traffic = useOpsBlock<OpsTrafficPayload>(
     '/api/ops/traffic',
     trafficSearch,
@@ -1536,14 +1533,15 @@ export function OpsPage() {
     <div className="page-shell ops-page">
       <PageHeading title="Ops" />
       <div className="ops-page-controls">
-        {costEstimatesShown ? <TimeRangeControl page="Ops cost" /> : null}
+        <TimeRangeControl page="Ops cost" />
         {showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}
       </div>
 
-      {/* Each block reads itself. Three read times on one page rather than one,
-          because they were read at three different moments. */}
+      {/* Each measured block reads itself. Four read times on one page rather
+          than one, because they were read at four different moments. */}
       <HealthBody block={health} />
-      {costEstimatesShown ? <CostBody block={cost} /> : null}
+      <CostBody block={cost} />
+      {forecastingShown ? <ForecastingBody cost={cost} traffic={traffic} /> : null}
       <TrafficBody block={traffic} monitoringHref={monitoringHref} runsHref={runsHref} />
       <LatencyBody block={latency} />
     </div>

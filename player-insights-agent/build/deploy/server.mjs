@@ -182299,8 +182299,8 @@ function setupOpsRoutes(appkit, deps) {
         const runtime = await readRuntimeSettings(appkit);
         const activeMinutesTimeZone = validIanaTimeZone(runtime.behavior.timezone) || validIanaTimeZone(queryText(req, "timeZone")) || "UTC";
         const [questions, askers, activeMinutes, outcomes, tools] = await Promise.allSettled([
-          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY),
-          appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY),
+          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY, [activeMinutesTimeZone]),
+          appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY, [activeMinutesTimeZone]),
           appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY, [activeMinutesTimeZone]),
           appkit.lakebase.query(RUN_OUTCOMES_QUERY),
           appkit.lakebase.query(TOOL_CALLS_QUERY)
@@ -182450,13 +182450,13 @@ var init_ops_routes = __esm({
     ORG_ID_HEADER = "x-databricks-org-id";
     knownWorkspaceId = "";
     QUESTIONS_PER_DAY_QUERY = `
-  SELECT to_char(date_trunc('day', m.created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
+  SELECT to_char(date_trunc('day', m.created_at AT TIME ZONE $1), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
   FROM ${APP_SCHEMA}.messages m
   WHERE m.role = 'user'
   GROUP BY 1
   ORDER BY 1`;
     DISTINCT_ASKERS_PER_DAY_QUERY = `
-  SELECT to_char(date_trunc('day', m.created_at), 'YYYY-MM-DD') AS day,
+  SELECT to_char(date_trunc('day', m.created_at AT TIME ZONE $1), 'YYYY-MM-DD') AS day,
          COUNT(DISTINCT lower(c.user_email))::int AS count
   FROM ${APP_SCHEMA}.messages m
   JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id

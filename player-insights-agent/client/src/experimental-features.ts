@@ -52,14 +52,11 @@ export interface ExperimentalFeatures {
    */
   egressControls: boolean;
   /**
-   * The Ops cost estimate block. This remains a browser-local display choice:
-   * the server still authorizes `/api/ops/cost` independently, and enabling the
-   * surface cannot grant access to its data.
-   *
-   * OFF BY DEFAULT so opening Ops does not wake the SQL warehouse for a billing
-   * estimate nobody explicitly asked to see.
+   * The Ops forecasting scenario beneath Cost. This is display-only and
+   * browser-local: Cost remains visible and server-authorized for every admin,
+   * while this unfinished projection is opt-in per browser.
    */
-  costEstimates: boolean;
+  forecasting: boolean;
 }
 
 /**
@@ -69,14 +66,14 @@ export interface ExperimentalFeatures {
 export const EXPERIMENTAL_FEATURE_KEYS: Readonly<Record<keyof ExperimentalFeatures, string>> = {
   benchmarkLab: 'pia.experimental.benchmark-lab',
   egressControls: 'pia.experimental.egress-controls',
-  costEstimates: 'pia.experimental.cost-estimates',
+  forecasting: 'pia.experimental.forecasting',
 };
 
 /** What a browser that has never been asked gets. */
 export const NO_EXPERIMENTS: Readonly<ExperimentalFeatures> = {
   benchmarkLab: false,
   egressControls: false,
-  costEstimates: false,
+  forecasting: false,
 };
 
 /**
@@ -132,7 +129,7 @@ export function readExperimentalFeatures(
     return {
       benchmarkLab: enabled(store.getItem(EXPERIMENTAL_FEATURE_KEYS.benchmarkLab)),
       egressControls: enabled(store.getItem(EXPERIMENTAL_FEATURE_KEYS.egressControls)),
-      costEstimates: enabled(store.getItem(EXPERIMENTAL_FEATURE_KEYS.costEstimates)),
+      forecasting: enabled(store.getItem(EXPERIMENTAL_FEATURE_KEYS.forecasting)),
     };
   } catch {
     return { ...NO_EXPERIMENTS };
@@ -157,7 +154,7 @@ export function persistExperimentalFeatures(
   try {
     store.setItem(EXPERIMENTAL_FEATURE_KEYS.benchmarkLab, features.benchmarkLab ? ENABLED : 'false');
     store.setItem(EXPERIMENTAL_FEATURE_KEYS.egressControls, features.egressControls ? ENABLED : 'false');
-    store.setItem(EXPERIMENTAL_FEATURE_KEYS.costEstimates, features.costEstimates ? ENABLED : 'false');
+    store.setItem(EXPERIMENTAL_FEATURE_KEYS.forecasting, features.forecasting ? ENABLED : 'false');
     return true;
   } catch {
     return false;
@@ -189,12 +186,7 @@ export function showsEgressControls(features: ExperimentalFeatures): boolean {
   return features.egressControls;
 }
 
-/**
- * Whether Ops may draw and automatically load its cost estimate block.
- *
- * This is deliberately one decision for both rendering and fetching. Splitting
- * those checks would allow a hidden block to keep waking the warehouse.
- */
-export function showsCostEstimates(features: ExperimentalFeatures): boolean {
-  return features.costEstimates;
+/** Whether Ops draws the browser-local forecasting scenario beneath Cost. */
+export function showsForecasting(features: ExperimentalFeatures): boolean {
+  return features.forecasting;
 }

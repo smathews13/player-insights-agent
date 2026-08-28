@@ -5,8 +5,8 @@ import {
   persistExperimentalFeatures,
   readExperimentalFeatures,
   showsBenchmarkLab,
-  showsCostEstimates,
   showsEgressControls,
+  showsForecasting,
   type PreferenceStore,
 } from './experimental-features';
 import { LEGACY_SP_IDENTITIES_BROWSER_KEY } from './sp-identity-mode';
@@ -117,29 +117,39 @@ describe('recording an experiment for the next visit', () => {
   });
 });
 
-describe('the Ops cost estimate experiment', () => {
-  it('migrates an existing browser with no cost key to off', () => {
+describe('the Ops forecasting experiment', () => {
+  it('migrates an existing browser with no forecasting key to off', () => {
     const store = fakeStore({
       [EXPERIMENTAL_FEATURE_KEYS.benchmarkLab]: 'true',
       [EXPERIMENTAL_FEATURE_KEYS.egressControls]: 'true',
     });
     const features = readExperimentalFeatures(store);
 
-    expect(NO_EXPERIMENTS.costEstimates).toBe(false);
-    expect(features.costEstimates).toBe(false);
-    expect(showsCostEstimates(features)).toBe(false);
+    expect(NO_EXPERIMENTS.forecasting).toBe(false);
+    expect(features.forecasting).toBe(false);
+    expect(showsForecasting(features)).toBe(false);
   });
 
   it('persists both sides of the toggle without changing other experiments', () => {
     const store = fakeStore();
-    const on = { ...NO_EXPERIMENTS, costEstimates: true };
+    const on = { ...NO_EXPERIMENTS, forecasting: true };
 
     expect(persistExperimentalFeatures(on, store)).toBe(true);
     expect(readExperimentalFeatures(store)).toEqual(on);
 
-    persistExperimentalFeatures({ ...on, costEstimates: false }, store);
-    expect(store.written.get(EXPERIMENTAL_FEATURE_KEYS.costEstimates)).toBe('false');
+    persistExperimentalFeatures({ ...on, forecasting: false }, store);
+    expect(store.written.get(EXPERIMENTAL_FEATURE_KEYS.forecasting)).toBe('false');
     expect(readExperimentalFeatures(store)).toEqual(NO_EXPERIMENTS);
+  });
+
+  it('ignores and does not rewrite the retired Cost estimates key', () => {
+    const legacyKey = 'pia.experimental.cost-estimates';
+    const store = fakeStore({ [legacyKey]: 'true' });
+
+    expect(readExperimentalFeatures(store)).toEqual(NO_EXPERIMENTS);
+    persistExperimentalFeatures({ ...NO_EXPERIMENTS, forecasting: true }, store);
+    expect(store.written.get(legacyKey)).toBe('true');
+    expect(Object.values(EXPERIMENTAL_FEATURE_KEYS)).not.toContain(legacyKey);
   });
 });
 

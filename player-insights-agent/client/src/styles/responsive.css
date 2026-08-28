@@ -299,6 +299,9 @@
   .summary-grid {
     grid-template-columns: 1fr;
   }
+  .ops-forecast-horizons {
+    grid-template-columns: 1fr;
+  }
   /* The label and the value stop competing for one line: the value drops under
      the label rather than truncating to nothing on a phone. */
   .connection-row-summary {

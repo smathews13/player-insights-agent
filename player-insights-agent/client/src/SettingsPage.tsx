@@ -7,8 +7,8 @@ import { ResourceTagsPanel } from './ResourceTagsPanel';
 import {
   NO_EXPERIMENTS,
   showsBenchmarkLab,
-  showsCostEstimates,
   showsEgressControls,
+  showsForecasting,
   type ExperimentalFeatures,
 } from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
@@ -351,17 +351,17 @@ export function SettingsPage({
                       <ResourceTagsPanel />
                       <tr>
                         <td>
-                          <ExperimentalFeatureName>Cost estimates</ExperimentalFeatureName>
+                          <ExperimentalFeatureName>Forecasting</ExperimentalFeatureName>
                         </td>
                         <td className="exp-feature-status">
-                          <ExperimentalStatus on={showsCostEstimates(features)} onLabel="Shown" offLabel="Hidden" />
+                          <ExperimentalStatus on={showsForecasting(features)} onLabel="Shown" offLabel="Hidden" />
                         </td>
                         <td className="exp-feature-control">
                           <div className="exp-feature-control-inner">
                             <Switch
-                              checked={showsCostEstimates(features)}
-                              onCheckedChange={(enabled) => setFeature('costEstimates', enabled)}
-                              aria-label="Show Ops cost estimates"
+                              checked={showsForecasting(features)}
+                              onCheckedChange={(enabled) => setFeature('forecasting', enabled)}
+                              aria-label="Show Ops forecasting"
                             />
                           </div>
                         </td>

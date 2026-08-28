@@ -8,7 +8,7 @@ import { SettingsPage, SettingsPaneBoundary } from './SettingsPage';
 import { roleFrom, type RoleResolution } from './role';
 
 const NORMAL_IDENTITY = { signedInAs: '<your-username>', role: 'admin' };
-const FEATURES = { benchmarkLab: false, egressControls: true, costEstimates: false };
+const FEATURES = { benchmarkLab: false, egressControls: true, forecasting: false };
 const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 
 function render(
@@ -100,9 +100,9 @@ describe('Settings modal', () => {
     expect(markup).toContain('Idle');
     expect(markup).not.toContain('PII egress judge ·');
     expect(markup).not.toContain('SP identities ·');
-    expect(markup).toContain('Cost estimates');
+    expect(markup).toContain('Forecasting');
     expect(markup).not.toContain('Benchmarking ·');
-    expect(markup).toContain('aria-label="Show Ops cost estimates"');
+    expect(markup).toContain('aria-label="Show Ops forecasting"');
   });
 
   it('aligns every Experimental row through table cells and one control wrapper', () => {
@@ -124,7 +124,7 @@ describe('Settings modal', () => {
     expect(markup).toContain('PII egress judge');
     expect(markup).toContain('SP identities');
     expect(markup).toContain('Resource tags');
-    expect(markup).toContain('Cost estimates');
+    expect(markup).toContain('Forecasting');
     expect(markup).toContain('Benchmarking');
     expect(markup).not.toContain('Resource tags · Experimental');
   });
@@ -262,7 +262,7 @@ describe('Settings modal', () => {
     const on = renderToStaticMarkup(
       <SettingsPage
         initialSection="experimental"
-        features={{ benchmarkLab: true, egressControls: true, costEstimates: false }}
+        features={{ benchmarkLab: true, egressControls: true, forecasting: false }}
         setFeature={() => {}}
         role={roleFrom(NORMAL_IDENTITY)}
       />

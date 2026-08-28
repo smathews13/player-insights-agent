@@ -720,17 +720,17 @@ async function readDependencies(
 
 /* ── Traffic ─────────────────────────────────────────────────────────────── */
 
-/** Every recorded question, by the day it was asked. */
+/** Every recorded question, by the Runtime calendar day it was asked. */
 export const QUESTIONS_PER_DAY_QUERY = `
-  SELECT to_char(date_trunc('day', m.created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
+  SELECT to_char(date_trunc('day', m.created_at AT TIME ZONE $1), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
   FROM ${APP_SCHEMA}.messages m
   WHERE m.role = 'user'
   GROUP BY 1
   ORDER BY 1`;
 
-/** Signed-in people who stored at least one user question on each day. */
+/** Signed-in people who stored at least one user question on each Runtime calendar day. */
 export const DISTINCT_ASKERS_PER_DAY_QUERY = `
-  SELECT to_char(date_trunc('day', m.created_at), 'YYYY-MM-DD') AS day,
+  SELECT to_char(date_trunc('day', m.created_at AT TIME ZONE $1), 'YYYY-MM-DD') AS day,
          COUNT(DISTINCT lower(c.user_email))::int AS count
   FROM ${APP_SCHEMA}.messages m
   JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
@@ -1368,8 +1368,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         // messages table and a deployment that has not created it yet should
         // still get its questions chart rather than an empty block.
         const [questions, askers, activeMinutes, outcomes, tools] = await Promise.allSettled([
-          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY),
-          appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY),
+          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY, [activeMinutesTimeZone]),
+          appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY, [activeMinutesTimeZone]),
           appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY, [activeMinutesTimeZone]),
           appkit.lakebase.query(RUN_OUTCOMES_QUERY),
           appkit.lakebase.query(TOOL_CALLS_QUERY),
