@@ -1,9 +1,9 @@
 /**
- * Settings → Identity: personas and who is assigned which one.
+ * Settings → Identity: executable SP roles and who is assigned which one.
  *
- * Changes save immediately, like Roles. The pane is grayed until the
+ * Changes save immediately, like human roles. The pane is grayed until the
  * Experimental SP-identities switch is on — same pattern as Benchmarking.
- * There is no picker on Ask: an administrator assigns one persona per person.
+ * There is no picker on Ask: an administrator assigns one SP role per person.
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -25,44 +25,12 @@ export const EMPTY_SP_IDENTITY: SpIdentityAdminPayload = {
   roster: [],
 };
 
-/** Radix Select refuses an empty string; this is "no persona, stay on OAuth". */
+/** Radix Select refuses an empty string; this is "no SP role, stay on OAuth". */
 export const UNASSIGNED_PERSONA = 'oauth';
 
 function rosterRoleLabel(role: string): string {
   return role in ROLE_WORD ? ROLE_WORD[role as Role] : role;
 }
-
-/** Field-help and ghost examples on Add persona. Invented values, never a live id. */
-export const SP_PERSONA_FIELDS = [
-  {
-    key: 'displayName',
-    label: 'Display name',
-    ariaLabel: 'Persona display name',
-    help: 'Name users will see for this persona.',
-    placeholder: 'Analytics service principal',
-  },
-  {
-    key: 'clientId',
-    label: 'Application / client id',
-    ariaLabel: 'Service principal application id',
-    help: 'Application ID of the Databricks service principal.',
-    placeholder: '00000000-0000-4000-a000-000000000000',
-  },
-  {
-    key: 'secretScope',
-    label: 'Secret scope',
-    ariaLabel: 'Databricks secret scope',
-    help: 'Secret scope containing its OAuth client secret.',
-    placeholder: 'my-app-secrets',
-  },
-  {
-    key: 'secretKey',
-    label: 'Secret key',
-    ariaLabel: 'Databricks secret key',
-    help: 'Key holding the OAuth client secret.',
-    placeholder: 'client-secret',
-  },
-] as const;
 
 function serverDetail(body: unknown, fallback: string): string {
   if (!body || typeof body !== 'object') return fallback;
@@ -91,43 +59,14 @@ async function readPayload(response: Response, operation: string): Promise<SpIde
   } catch {
     throw new Error(
       response.ok
-        ? `Service-principal personas returned an unreadable response when ${operation}.`
-        : `Service-principal personas answered ${response.status} without an error message.`
+        ? `SP user roles returned an unreadable response when ${operation}.`
+        : `SP user roles answered ${response.status} without an error message.`
     );
   }
   if (!response.ok) {
-    throw new Error(serverDetail(body, `Service-principal personas answered ${response.status}.`));
+    throw new Error(serverDetail(body, `SP user roles answered ${response.status}.`));
   }
   return body as SpIdentityAdminPayload;
-}
-
-function PersonaDraftField({
-  field,
-  value,
-  onChange,
-}: {
-  field: (typeof SP_PERSONA_FIELDS)[number];
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const helpId = `sp-persona-${field.key}-help`;
-  return (
-    <label className="runtime-field">
-      <span className="runtime-field-label">{field.label}</span>
-      <span id={helpId} className="runtime-control-note">
-        {field.help}
-      </span>
-      <Input
-        type="text"
-        autoComplete="off"
-        aria-label={field.ariaLabel}
-        aria-describedby={helpId}
-        placeholder={field.placeholder}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
-  );
 }
 
 export function SpIdentityEditor({
@@ -135,40 +74,24 @@ export function SpIdentityEditor({
   payload,
   busy,
   error,
-  onAdd,
-  onRemove,
+  onRename,
   onAssign,
 }: {
   enabled: boolean;
   payload: SpIdentityAdminPayload;
   busy: boolean;
   error: string | null;
-  onAdd: (persona: { displayName: string; clientId: string; secretScope: string; secretKey: string }) => void;
-  onRemove: (id: string) => void;
+  onRename: (id: string, displayName: string) => void;
   onAssign: (email: string, personaId: string | null) => void;
 }) {
-  const [draft, setDraft] = useState({
-    displayName: '',
-    clientId: '',
-    secretScope: '',
-    secretKey: '',
-  });
-  const canAdd =
-    enabled &&
-    !busy &&
-    draft.displayName.trim() &&
-    draft.clientId.trim() &&
-    draft.secretScope.trim() &&
-    draft.secretKey.trim();
-
   const personaOptions = [
-    { value: UNASSIGNED_PERSONA, label: 'OAuth (signed-in user)' },
+    { value: UNASSIGNED_PERSONA, label: 'Signed-in user (OAuth)' },
     ...payload.personas.map((persona) => ({ value: persona.id, label: persona.displayName })),
   ];
 
   return (
     <fieldset className="sp-identity-cluster" disabled={!enabled} data-testid="sp-identity-pane">
-      <legend className="runtime-section-label">Service principal personas</legend>
+      <legend className="settings-section-title">SP user roles</legend>
       {!enabled ? <p className="settings-row-note">Turn SP identities on under Experimental</p> : null}
       <MintingNotice minting={payload.minting} />
       {error ? (
@@ -177,73 +100,8 @@ export function SpIdentityEditor({
         </p>
       ) : null}
 
-      <div className="sp-identity-add">
-        {SP_PERSONA_FIELDS.map((field) => (
-          <PersonaDraftField
-            key={field.key}
-            field={field}
-            value={draft[field.key]}
-            onChange={(value) => setDraft((current) => ({ ...current, [field.key]: value }))}
-          />
-        ))}
-        <Button
-          type="button"
-          data-variant="primary"
-          disabled={!canAdd}
-          onClick={() => {
-            onAdd({
-              displayName: draft.displayName.trim(),
-              clientId: draft.clientId.trim(),
-              secretScope: draft.secretScope.trim(),
-              secretKey: draft.secretKey.trim(),
-            });
-            setDraft({ displayName: '', clientId: '', secretScope: '', secretKey: '' });
-          }}
-        >
-          Add persona
-        </Button>
-      </div>
-
       {payload.personas.length > 0 ? (
-        <div className="sp-identity-table-frame">
-          <table className="settings-data-table sp-identity-personas">
-            <thead>
-              <tr>
-                <th scope="col">Display name</th>
-                <th scope="col">Application / client ID</th>
-                <th scope="col">Secret reference</th>
-                <th scope="col">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payload.personas.map((persona) => (
-                <tr key={persona.id}>
-                  <td className="sp-identity-persona-name">{persona.displayName}</td>
-                  <td className="sp-identity-persona-id">
-                    <code>{persona.clientId}</code>
-                  </td>
-                  <td className="sp-identity-secret-reference">
-                    <code>
-                      {persona.secretScope}/{persona.secretKey}
-                    </code>
-                  </td>
-                  <td className="sp-identity-actions">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      data-variant="outline"
-                      disabled={!enabled || busy}
-                      aria-label={`Remove ${persona.displayName}`}
-                      onClick={() => onRemove(persona.id)}
-                    >
-                      Remove
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SpRoleNameEditor personas={payload.personas} busy={busy || !enabled} onRename={onRename} />
       ) : null}
 
       <AssignmentRows
@@ -254,6 +112,68 @@ export function SpIdentityEditor({
         onAssign={onAssign}
       />
     </fieldset>
+  );
+}
+
+/**
+ * A frontend-only role cannot execute anything: the backend needs an existing
+ * client id and secret reference before it can mint an SP token. This editor
+ * therefore only renames identities that the backend already defines. It never
+ * POSTs invented credential placeholders and never deletes the stored identity.
+ */
+function SpRoleNameEditor({
+  personas,
+  busy,
+  onRename,
+}: {
+  personas: SpPersona[];
+  busy: boolean;
+  onRename: (id: string, displayName: string) => void;
+}) {
+  const [selectedId, setSelectedId] = useState(personas[0]?.id ?? '');
+  const selected = personas.find((persona) => persona.id === selectedId) ?? personas[0];
+  const [draftName, setDraftName] = useState(selected?.displayName ?? '');
+  if (!selected) return null;
+  const name = draftName.trim();
+  const canSave = !busy && name.length > 0 && name !== selected.displayName;
+  return (
+    <div className="sp-role-name-editor" data-testid="sp-role-name-editor">
+      <label className="runtime-field sp-role-picker">
+        <span className="runtime-field-label">Existing SP role</span>
+        <AppSelect
+          label="SP role"
+          ariaLabel="Existing SP role"
+          value={selected.id}
+          options={personas.map((persona) => ({ value: persona.id, label: persona.displayName }))}
+          disabled={busy}
+          onValueChange={(id) => {
+            const next = personas.find((persona) => persona.id === id);
+            setSelectedId(id);
+            setDraftName(next?.displayName ?? '');
+          }}
+          className="sp-role-picker-select"
+        />
+      </label>
+      <label className="runtime-field sp-role-name">
+        <span className="runtime-field-label">SP role name</span>
+        <Input
+          value={draftName}
+          aria-label="SP role name"
+          autoComplete="off"
+          onChange={(event) => setDraftName(event.target.value)}
+        />
+      </label>
+      <Button
+        type="button"
+        variant="outline"
+        data-variant="outline"
+        className="roster-control sp-role-name-save"
+        disabled={!canSave}
+        onClick={() => onRename(selected.id, name)}
+      >
+        Save role name
+      </Button>
+    </div>
   );
 }
 
@@ -285,31 +205,33 @@ function AssignmentRows({
   }
   const known = new Set(personas.map((persona) => persona.id));
   return (
-    <div className="sp-identity-table-frame sp-identity-assignments">
-      <table className="settings-data-table">
+    <div className="settings-table-frame sp-identity-table-frame sp-identity-assignments">
+      <table className="settings-data-table sp-role-table">
         <thead>
           <tr>
             <th scope="col">Email</th>
-            <th scope="col">Role</th>
-            <th scope="col">Persona</th>
+            <th scope="col">Human role</th>
+            <th scope="col">SP role</th>
           </tr>
         </thead>
         <tbody>
           {roster.map((row) => (
             <tr key={row.email}>
-              <td className="sp-identity-assignment-email">{row.email}</td>
+              <td className="sp-identity-assignment-email" title={row.email}>
+                {row.email}
+              </td>
               <td>
                 <span className="ast-pill ast-pill--neutral-outline">{rosterRoleLabel(row.role)}</span>
               </td>
               <td className="sp-identity-assignment-control">
                 <AppSelect
-                  label="Persona"
-                  ariaLabel={`Persona for ${row.email}`}
+                  label="SP role"
+                  ariaLabel={`SP role for ${row.email}`}
                   value={row.personaId && known.has(row.personaId) ? row.personaId : UNASSIGNED_PERSONA}
                   disabled={busy}
                   onValueChange={(value) => onAssign(row.email, value === UNASSIGNED_PERSONA ? null : value)}
                   options={options}
-                  className="sp-identity-assign-select"
+                  className="sp-role-select"
                 />
               </td>
             </tr>
@@ -356,12 +278,12 @@ export function SpIdentityPanel({ enabled }: { enabled: boolean }) {
       payload={payload}
       busy={busy}
       error={error}
-      onAdd={(persona) =>
+      onRename={(id, displayName) =>
         void run(async () => {
-          const response = await fetch('/api/admin/sp-identity/personas', {
-            method: 'POST',
+          const response = await fetch(`/api/admin/sp-identity/personas/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(persona),
+            body: JSON.stringify({ displayName }),
           });
           if (!response.ok) {
             let body: unknown = null;
@@ -370,18 +292,7 @@ export function SpIdentityPanel({ enabled }: { enabled: boolean }) {
             } catch {
               body = null;
             }
-            throw new Error(serverDetail(body, `Adding the persona answered ${response.status}.`));
-          }
-          await load();
-        })
-      }
-      onRemove={(id) =>
-        void run(async () => {
-          const response = await fetch(`/api/admin/sp-identity/personas/${encodeURIComponent(id)}`, {
-            method: 'DELETE',
-          });
-          if (!response.ok && response.status !== 204) {
-            throw new Error(`Removing the persona answered ${response.status}.`);
+            throw new Error(serverDetail(body, `Saving the SP role name answered ${response.status}.`));
           }
           await load();
         })

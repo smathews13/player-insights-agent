@@ -30,4 +30,14 @@ describe('Settings → Experimental benchmarking cluster', () => {
     expect(markup).not.toContain('disabled=""');
     expect(markup).not.toContain('build a dataset, score a Genie space');
   });
+
+  it('uses one Multi-turn judges table heading with aligned status and control columns', () => {
+    const markup = renderToStaticMarkup(<BenchmarkSettingsPanel enabled={true} />);
+    expect(markup.match(/>Multi-turn judges<\/th>/g) ?? []).toHaveLength(1);
+    expect(markup).not.toContain('>Multi-turn judges</p>');
+    const multiTurnTable = markup.slice(markup.indexOf('>Multi-turn judges</th>'));
+    expect(multiTurnTable).toContain('>Status</th>');
+    expect(multiTurnTable).toContain('>Control</th>');
+    expect(multiTurnTable).not.toContain('>Setting</th>');
+  });
 });

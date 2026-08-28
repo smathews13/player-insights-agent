@@ -124,6 +124,7 @@ export function BenchmarkSettingsPanel({
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load() writes the fetched settings
     void load();
   }, [load]);
 
@@ -188,9 +189,7 @@ export function BenchmarkSettingsPanel({
     >
       <fieldset className="benchmark-settings-cluster" disabled={!enabled}>
         <legend className="runtime-section-label">Evaluation path</legend>
-        {!enabled ? (
-          <p className="settings-row-note">Turn Benchmarking on above to edit these.</p>
-        ) : null}
+        {!enabled ? <p className="settings-row-note">Turn Benchmarking on above to edit these.</p> : null}
 
         <SettingField label="MLflow experiment" help="Experiment ID traces write to." helpId="bench-mlflow-help">
           <Input
@@ -271,11 +270,10 @@ export function BenchmarkSettingsPanel({
           </p>
         ) : null}
 
-        <p className="runtime-section-label">Multi-turn judges</p>
         <table className="exp-feature-table">
           <thead>
             <tr>
-              <th scope="col">Setting</th>
+              <th scope="col">Multi-turn judges</th>
               <th scope="col">Status</th>
               <th scope="col">Control</th>
             </tr>

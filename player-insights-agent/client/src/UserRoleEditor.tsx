@@ -22,7 +22,7 @@
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Lock, Trash2, UserPlus } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from './ui';
+import { Button, Input } from './ui';
 import { CopyableCommand } from './AdminListEditor';
 import { canSubmit, roleWord, rosterSummary, rowLocked, setOn, stepsDownFrom, type RosterEntry } from './user-roster';
 import { type Role, type RosterPayload } from '../../shared/user-roster-contract';
@@ -106,7 +106,7 @@ export function RosterRows({
         <CopyableCommand command={payload.pendingSchemaStatement} label="Add the role column" />
       ) : null}
 
-      <div className="roster-frame">
+      <div className="settings-table-frame roster-frame">
         <table className="settings-data-table roles-table">
           <thead>
             <tr>
@@ -124,7 +124,9 @@ export function RosterRows({
                 <tr key={entry.email} className="admin-row">
                   <td className="roster-email">
                     <span className="admin-row-email">
-                      {entry.email}
+                      <span className="admin-row-address" title={entry.email}>
+                        {entry.email}
+                      </span>
                       {entry.isYou ? <span className="admin-row-you">you</span> : null}
                     </span>
                   </td>
@@ -133,7 +135,7 @@ export function RosterRows({
                       <span title="Set at deployment. Edit the bundle variable to change it.">Deployment</span>
                     ) : (
                       <>
-                        <span>{entry.setBy || '—'}</span>
+                        <span title={entry.setBy || undefined}>{entry.setBy || '—'}</span>
                         {setDate ? <time dateTime={entry.setAt}>{setDate}</time> : null}
                       </>
                     )}
@@ -243,87 +245,82 @@ export function UserRoleEditor() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Roles</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {loading ? <p className="admin-list-note">Reading the roster.</p> : null}
+    <div className="identity-table-content">
+      {loading ? <p className="admin-list-note">Reading the roster.</p> : null}
 
-        {error ? (
-          <p className="admin-list-note admin-list-error">
-            The roster could not be read. Nobody has lost a role. Reload the page.
-          </p>
-        ) : null}
-
-        {payload ? (
-          <RosterRows
-            payload={payload}
-            busy={busy}
-            onChange={(entry, role) =>
-              void write({
-                url: `/api/users/${encodeURIComponent(entry.email)}`,
-                method: 'PATCH',
-                body: { role },
-                // The warning goes in the outcome line, before the panel this reader
-                // is standing on disappears from under them.
-                said: [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
-                  .filter(Boolean)
-                  .join(' '),
-              })
-            }
-            onRemove={(entry) =>
-              void write({
-                url: `/api/users/${encodeURIComponent(entry.email)}`,
-                method: 'DELETE',
-                body: {},
-                said: `${entry.email} is off the roster.`,
-              })
-            }
-            footer={
-              <tr className="roster-add-row">
-                <td>
-                  <Input
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    placeholder="name@example.com"
-                    aria-label="Email address to put on the roster"
-                  />
-                </td>
-                <td className="roster-add-help">Added by you</td>
-                <td>
-                  <AppSelect
-                    label="Role"
-                    ariaLabel="Role to give them"
-                    value={draftRole}
-                    disabled={busy}
-                    onValueChange={setDraftRole}
-                    options={ADDABLE_ROLES.map((role) => ({ value: role, label: roleWord(role) }))}
-                    className="roster-control roster-role-select"
-                  />
-                </td>
-                <td className="roster-action">
-                  <Button
-                    variant="outline"
-                    data-variant="outline"
-                    className="roster-control"
-                    disabled={!canSubmit(draft, busy)}
-                    onClick={() => void add()}
-                  >
-                    <UserPlus className="size-3.5" /> Add
-                  </Button>
-                </td>
-              </tr>
-            }
-          />
-        ) : null}
-
-        {/* One live region for both, because they are the same slot on screen and two
-            regions would be two announcements for one action. */}
-        <p className="admin-list-note admin-list-outcome" role="status" aria-live="polite">
-          {writeError || notice}
+      {error ? (
+        <p className="admin-list-note admin-list-error">
+          The roster could not be read. Nobody has lost a role. Reload the page.
         </p>
-      </CardContent>
-    </Card>
+      ) : null}
+
+      {payload ? (
+        <RosterRows
+          payload={payload}
+          busy={busy}
+          onChange={(entry, role) =>
+            void write({
+              url: `/api/users/${encodeURIComponent(entry.email)}`,
+              method: 'PATCH',
+              body: { role },
+              // The warning goes in the outcome line, before the panel this reader
+              // is standing on disappears from under them.
+              said: [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
+                .filter(Boolean)
+                .join(' '),
+            })
+          }
+          onRemove={(entry) =>
+            void write({
+              url: `/api/users/${encodeURIComponent(entry.email)}`,
+              method: 'DELETE',
+              body: {},
+              said: `${entry.email} is off the roster.`,
+            })
+          }
+          footer={
+            <tr className="roster-add-row">
+              <td>
+                <Input
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder="name@example.com"
+                  aria-label="Email address to put on the roster"
+                />
+              </td>
+              <td className="roster-add-help">Added by you</td>
+              <td>
+                <AppSelect<Role>
+                  label="Role"
+                  ariaLabel="Role to give them"
+                  value={draftRole}
+                  disabled={busy}
+                  onValueChange={setDraftRole}
+                  options={ADDABLE_ROLES.map((role) => ({ value: role, label: roleWord(role) }))}
+                  className="roster-control roster-role-select"
+                />
+              </td>
+              <td className="roster-action">
+                <Button
+                  variant="outline"
+                  data-variant="outline"
+                  className="roster-control"
+                  disabled={!canSubmit(draft, busy)}
+                  onClick={() => void add()}
+                >
+                  <UserPlus className="size-3.5" /> Add
+                </Button>
+              </td>
+            </tr>
+          }
+        />
+      ) : null}
+
+      {/* One live region for both, because they are the same slot on screen and two
+          regions would be two announcements for one action. */}
+      <p className="admin-list-note admin-list-outcome" role="status" aria-live="polite">
+        {writeError || notice}
+      </p>
+    </div>
   );
 }

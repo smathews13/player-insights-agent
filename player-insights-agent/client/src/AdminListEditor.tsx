@@ -13,9 +13,9 @@
  * So the card is user management. Roles are rows in Lakebase, and this screen adds
  * and removes them. Nothing here asks Unity Catalog for anything.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Copy, Trash2, UserPlus } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from './ui';
+import { Button, Input } from './ui';
 import { addedOn, canSubmit, listSummary, originLabel, type AdminListEntry } from './admin-list';
 import { reportEgress } from './egress-policy';
 import type { AdminListPayload } from '../../shared/admin-contract';
@@ -67,10 +67,12 @@ export function AdminRows({
   payload,
   busy,
   onRemove,
+  footer,
 }: {
   payload: AdminListPayload;
   busy: boolean;
   onRemove: (entry: AdminListEntry) => void;
+  footer?: ReactNode;
 }) {
   return (
     <>
@@ -82,41 +84,56 @@ export function AdminRows({
         })}
       </p>
 
-      <ul className="admin-list">
-        {payload.entries.map((entry) => (
-          <li key={entry.email} className="admin-row">
-            <div className="admin-row-head">
-              <div className="admin-row-who">
-                <p className="admin-row-email">
-                  {entry.email}
-                  {entry.isYou ? <span className="admin-row-you">You</span> : null}
-                </p>
-                <p className="admin-row-origin">
-                  {originLabel(entry)}
-                  {addedOn(entry) ? ` on ${addedOn(entry)}` : ''}
-                </p>
-              </div>
-              {/* Absent rather than disabled for a row that cannot be removed. A
-                  greyed button a reader can never enable is a permanent
-                  invitation to ask why, and the line above the row already says
-                  the row was set at deployment. */}
-              {entry.removable ? (
-                <Button
-                  variant="destructive"
-                  data-variant="destructive"
-                  className="roster-control settings-destructive"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => onRemove(entry)}
-                  aria-label={`Remove ${entry.email}`}
-                >
-                  <Trash2 className="size-3.5" /> Remove
-                </Button>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ul>
+      <div className="settings-table-frame admin-table-frame">
+        <table className="settings-data-table roles-table admin-roles-table">
+          <thead>
+            <tr>
+              <th scope="col">Email</th>
+              <th scope="col">Set by</th>
+              <th scope="col">Role</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payload.entries.map((entry) => (
+              <tr key={entry.email} className="admin-row">
+                <td className="roster-email">
+                  <span className="admin-row-email">
+                    <span className="admin-row-address" title={entry.email}>
+                      {entry.email}
+                    </span>
+                    {entry.isYou ? <span className="admin-row-you">You</span> : null}
+                  </span>
+                </td>
+                <td className="roster-set-by">
+                  <span>{originLabel(entry)}</span>
+                  {addedOn(entry) ? <span>{addedOn(entry)}</span> : null}
+                </td>
+                <td className="roster-role">
+                  <span className="ast-pill ast-pill--neutral-outline roster-role-status">Admin</span>
+                </td>
+                <td className="roster-action">
+                  {/* Absent rather than disabled when the server forbids removal. */}
+                  {entry.removable ? (
+                    <Button
+                      variant="destructive"
+                      data-variant="destructive"
+                      className="roster-control settings-destructive"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => onRemove(entry)}
+                      aria-label={`Remove ${entry.email}`}
+                    >
+                      <Trash2 className="size-3.5" /> Remove
+                    </Button>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          {footer ? <tfoot>{footer}</tfoot> : null}
+        </table>
+      </div>
     </>
   );
 }
@@ -202,43 +219,54 @@ export function AdminListEditor() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Roles</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {loading ? <p className="admin-list-note">Reading the list.</p> : null}
+    <div className="identity-table-content">
+      {loading ? <p className="admin-list-note">Reading the list.</p> : null}
 
-        {error ? (
-          <p className="admin-list-note admin-list-error">
-            The administrator list could not be read. Nobody has lost the role. Reload the page.
-          </p>
-        ) : null}
-
-        {payload ? <AdminRows payload={payload} busy={busy} onRemove={(entry) => void remove(entry)} /> : null}
-        <div className="admin-add">
-          <Input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="name@example.com"
-            aria-label="Email address of the administrator to add"
-          />
-          <Button
-            variant="outline"
-            data-variant="outline"
-            className="roster-control"
-            disabled={!canSubmit(draft, busy)}
-            onClick={() => void add()}
-          >
-            <UserPlus className="size-3.5" /> Add
-          </Button>
-        </div>
-        {/* One live region for both, because they are the same slot on screen and
-            two regions would be two announcements for one action. */}
-        <p className="admin-list-note admin-list-outcome" role="status" aria-live="polite">
-          {writeError || notice}
+      {error ? (
+        <p className="admin-list-note admin-list-error">
+          The administrator list could not be read. Nobody has lost the role. Reload the page.
         </p>
-      </CardContent>
-    </Card>
+      ) : null}
+
+      {payload ? (
+        <AdminRows
+          payload={payload}
+          busy={busy}
+          onRemove={(entry) => void remove(entry)}
+          footer={
+            <tr className="roster-add-row">
+              <td>
+                <Input
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder="name@example.com"
+                  aria-label="Email address of the administrator to add"
+                />
+              </td>
+              <td className="roster-add-help">Added by you</td>
+              <td>
+                <span className="ast-pill ast-pill--neutral-outline roster-role-status">Admin</span>
+              </td>
+              <td className="roster-action">
+                <Button
+                  variant="outline"
+                  data-variant="outline"
+                  className="roster-control"
+                  disabled={!canSubmit(draft, busy)}
+                  onClick={() => void add()}
+                >
+                  <UserPlus className="size-3.5" /> Add
+                </Button>
+              </td>
+            </tr>
+          }
+        />
+      ) : null}
+      {/* One live region for both, because they are the same slot on screen and
+          two regions would be two announcements for one action. */}
+      <p className="admin-list-note admin-list-outcome" role="status" aria-live="polite">
+        {writeError || notice}
+      </p>
+    </div>
   );
 }

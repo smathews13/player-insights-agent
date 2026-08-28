@@ -23,13 +23,12 @@ import {
 import { UserRoleEditor } from './UserRoleEditor';
 import { Button, Switch } from './ui';
 
-type SettingsSection = 'roles' | 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental';
+type SettingsSection = 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental';
 
 const noopClose = () => {};
 const noopSetFeature = () => {};
 
 const BASE_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
-  { id: 'roles', label: 'Roles' },
   { id: 'identity', label: 'Identity' },
   { id: 'runtime', label: 'Runtime' },
   { id: 'environment', label: 'Environment' },
@@ -195,6 +194,13 @@ export function SettingsPage({
           : undefined;
   const notice = saveNotice(saveState);
   const saving = saveInFlight(saveState);
+  /*
+   * Identity writes are deliberately immediate because each row has its own
+   * server-authorized mutation. Environment is read-only. Their disabled Save
+   * controls preserve the modal's stable action geometry without pretending
+   * there is a form to submit or a change that Cancel could roll back.
+   */
+  const saveDisabled = saving || !form;
 
   return (
     <div
@@ -240,19 +246,17 @@ export function SettingsPage({
           </nav>
           <div className="settings-modal-content">
             <SettingsPaneBoundary key={active} section={active}>
-              {active === 'roles' ? (
-                <div className="settings-pane settings-roles">
-                  <div className="settings-pane-heading">
-                    <h3>Roles</h3>
-                  </div>
-                  {showsUserRoster(role.state) ? <UserRoleEditor /> : <AdminListEditor />}
-                </div>
-              ) : null}
               {active === 'identity' ? (
-                <div className="settings-pane">
+                <div className="settings-pane settings-identity">
                   <div className="settings-pane-heading">
                     <h3>Identity</h3>
                   </div>
+                  <section className="settings-identity-section" aria-labelledby="human-roles-title">
+                    <h4 id="human-roles-title" className="settings-section-title">
+                      Human roles and admins
+                    </h4>
+                    {showsUserRoster(role.state) ? <UserRoleEditor /> : <AdminListEditor />}
+                  </section>
                   <SpIdentityPanel enabled={spIdentityEnabled} />
                 </div>
               ) : null}
@@ -260,7 +264,7 @@ export function SettingsPage({
                 <RuntimeSettingsPanel section={active} onSaveState={setSaveState} />
               ) : null}
               {active === 'environment' ? <EnvironmentPanel /> : null}
-              {active === 'egress' ? <EgressPanel /> : null}
+              {active === 'egress' ? <EgressPanel onSaveState={setSaveState} /> : null}
               {active === 'experimental' ? (
                 <div className="settings-pane">
                   <div className="settings-pane-heading">
@@ -398,20 +402,27 @@ export function SettingsPage({
             <Button variant="outline" data-variant="outline" className="settings-cancel" type="button" onClick={close}>
               Cancel
             </Button>
-            {form ? (
-              <Button
-                type="submit"
-                data-variant="primary"
-                className="settings-save"
-                form={form}
-                disabled={saving}
-                aria-busy={saving}
-                data-pressed={pressed ? 'true' : undefined}
-                onClick={() => setPressed(true)}
-              >
-                {saveButtonLabel(saveState)}
-              </Button>
-            ) : null}
+            <Button
+              type="submit"
+              data-variant="primary"
+              className="settings-save"
+              form={form}
+              disabled={saveDisabled}
+              aria-busy={saving}
+              data-pressed={pressed ? 'true' : undefined}
+              title={
+                active === 'identity'
+                  ? 'Identity changes save immediately'
+                  : active === 'environment'
+                    ? 'Environment details are read-only'
+                    : active === 'experimental' && !showsBenchmarkLab(features)
+                      ? 'Turn Benchmarking on to save benchmark settings'
+                      : undefined
+              }
+              onClick={() => setPressed(true)}
+            >
+              {saveButtonLabel(saveState)}
+            </Button>
           </div>
         </footer>
       </section>

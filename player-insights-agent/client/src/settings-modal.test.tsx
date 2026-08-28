@@ -12,7 +12,7 @@ const FEATURES = { benchmarkLab: false, egressControls: true };
 const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 
 function render(
-  section: 'roles' | 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental' = 'runtime',
+  section: 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental' = 'runtime',
   role: RoleResolution = roleFrom(NORMAL_IDENTITY)
 ) {
   return renderToStaticMarkup(
@@ -31,17 +31,10 @@ describe('Settings modal', () => {
     // the server enforce that, and neither needs announcing.
     expect(markup).not.toContain('Admin only');
     expect(markup).not.toContain('Enforced on the server');
-    for (const label of [
-      'Roles',
-      'Identity',
-      'Runtime',
-      'Environment',
-      'Appearance',
-      'Egress controls',
-      'Experimental',
-    ]) {
+    for (const label of ['Identity', 'Runtime', 'Environment', 'Appearance', 'Egress controls', 'Experimental']) {
       expect(markup).toContain(`>${label}</button>`);
     }
+    expect(markup).not.toContain('>Roles</button>');
     expect(markup).not.toContain('>Benchmarking</button>');
   });
 
@@ -60,18 +53,18 @@ describe('Settings modal', () => {
   });
 
   it('keeps Settings tab titles and drops the grey captions under them', () => {
-    const roles = render('roles');
     const identity = render('identity');
     const runtime = render('runtime');
     const appearance = render('appearance');
     const experimental = render('experimental');
-    expect(roles).toContain('<h3>Roles</h3>');
     expect(identity).toContain('<h3>Identity</h3>');
+    expect(identity).toContain('Human roles and admins');
+    expect(identity).toContain('SP user roles');
     expect(runtime).toContain('<h3>Runtime</h3>');
     expect(appearance).toContain('<h3>Appearance</h3>');
     expect(experimental).toContain('<h3>Experimental</h3>');
     expect(experimental).toContain('Benchmarking');
-    for (const markup of [roles, identity, runtime, appearance, experimental]) {
+    for (const markup of [identity, runtime, appearance, experimental]) {
       expect(markup).not.toContain('Who questions run as. Changes save immediately.');
       expect(markup).not.toContain('Identity and deployment roles. Changes save immediately.');
       expect(markup).not.toContain('Live behavior for the next ask.');
@@ -139,7 +132,7 @@ describe('Settings modal', () => {
     expect(off).toContain('disabled=""');
     expect(off).not.toContain('type="password"');
     expect(off).not.toMatch(/secret value/i);
-    expect(off).not.toContain('>Save</button>');
+    expect(off).toContain('>Save</button>');
 
     const on = renderToStaticMarkup(
       <SettingsPage
@@ -260,7 +253,7 @@ describe('Settings modal', () => {
     expect(off).not.toContain('Baseline vs candidate');
     expect(off).not.toContain('Eval set');
     expect(off).toContain('disabled=""');
-    expect(off).not.toContain('>Save</button>');
+    expect(off).toContain('>Save</button>');
 
     const on = renderToStaticMarkup(
       <SettingsPage
@@ -275,8 +268,8 @@ describe('Settings modal', () => {
     expect(on).not.toContain('>Benchmarking</button>');
   });
 
-  it('keeps one active-section Save in the modal footer', () => {
-    for (const section of ['runtime', 'appearance', 'egress'] as const) {
+  it('keeps one active-section Save and Cancel in the modal footer on every tab', () => {
+    for (const section of ['runtime', 'appearance', 'experimental', 'identity', 'environment', 'egress'] as const) {
       const markup = render(section);
       expect(markup.match(/>Save<\/button>/g) ?? []).toHaveLength(1);
       expect(markup).toContain('>Cancel</button>');
@@ -284,22 +277,14 @@ describe('Settings modal', () => {
   });
 
   it('renders every pane without router outlet context', () => {
-    for (const section of [
-      'roles',
-      'identity',
-      'runtime',
-      'environment',
-      'appearance',
-      'egress',
-      'experimental',
-    ] as const) {
+    for (const section of ['identity', 'runtime', 'environment', 'appearance', 'egress', 'experimental'] as const) {
       const markup = render(section);
       expect(markup).toContain('data-testid="settings-modal-overlay"');
       expect(markup).not.toContain('This view could not be displayed');
     }
   });
 
-  it('renders Roles for null, undefined, refused, failed, missing-role and service-principal identities', () => {
+  it('renders Identity for null, undefined, refused, failed, missing-role and service-principal identities', () => {
     const hostileIdentities: unknown[] = [
       null,
       undefined,
@@ -315,8 +300,9 @@ describe('Settings modal', () => {
       },
     ];
     for (const identity of hostileIdentities) {
-      const markup = render('roles', roleFrom(identityFromResponse(identity)));
-      expect(markup).toContain('<h3>Roles</h3>');
+      const markup = render('identity', roleFrom(identityFromResponse(identity)));
+      expect(markup).toContain('<h3>Identity</h3>');
+      expect(markup).toContain('Human roles and admins');
       expect(markup).not.toContain('This view could not be displayed');
     }
   });

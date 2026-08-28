@@ -555,13 +555,25 @@
 
 .admin-row-email {
   margin: 0;
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 500;
   display: flex;
   align-items: center;
   gap: 6px;
-  overflow-wrap: anywhere;
+}
+
+.admin-row-address {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-email {
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* "You", so the reader can see which row is theirs before they press Remove on
@@ -600,8 +612,7 @@
 
 /* Shared Settings table language: real headers, compact rows and one continuous
    divider. Roles and Identity both use this rather than card-like list rows. */
-.roster-frame,
-.sp-identity-table-frame {
+.settings-table-frame {
   min-width: 0;
   overflow-x: auto;
   border: 1px solid var(--border);
@@ -612,7 +623,7 @@
 .settings-data-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: auto;
+  table-layout: fixed;
 }
 
 .settings-data-table th,
@@ -624,7 +635,7 @@
 }
 
 .settings-data-table th {
-  background: var(--muted);
+  background: transparent;
   color: var(--ast-text-secondary);
   font-size: 10.5px;
   font-weight: 700;
@@ -642,19 +653,19 @@
 }
 
 .roles-table {
-  min-width: 520px;
+  min-width: 600px;
 }
 
 .roles-table th:first-child {
-  width: 34%;
+  width: 36%;
 }
 
 .roles-table th:nth-child(2) {
-  width: 25%;
+  width: 28%;
 }
 
 .roles-table th:nth-child(3) {
-  width: 25%;
+  width: 20%;
 }
 
 .roles-table th:last-child {
@@ -665,7 +676,7 @@
 .roles-table tfoot td {
   border-bottom: 0;
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  background: transparent;
 }
 
 .admin-add {
@@ -804,10 +815,14 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
   min-width: 0;
   color: var(--ast-text-long);
   font-size: 11.5px;
+  overflow: hidden;
 }
 
 .roster-set-by > * {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .roster-set-by time,
@@ -830,11 +845,11 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
 
 .settings-page.settings-modal {
   display: grid;
-  grid-template-rows: auto minmax(0, auto) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 0;
   width: min(780px, calc(100vw - 48px));
   max-width: 780px;
-  max-height: min(720px, calc(100vh - 48px));
+  height: min(720px, calc(100vh - 48px));
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -939,7 +954,6 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .settings-modal-body {
   min-height: 0;
-  max-height: calc(100vh - 164px);
   display: grid;
   grid-template-columns: 140px minmax(0, 1fr);
   overflow: hidden;
@@ -976,7 +990,9 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .settings-modal-content {
   min-width: 0;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px 20px;
 }
 
@@ -1000,12 +1016,18 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   box-shadow: none;
 }
 
-.settings-roles [data-slot='card-header'] {
-  display: none;
+.settings-identity-section,
+.identity-table-content {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
 }
 
-.settings-roles [data-slot='card-content'] {
-  padding: 0;
+.settings-section-title {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .settings-modal-footer {
@@ -1735,7 +1757,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   font-size: var(--text-sm);
 }
 
-/* Settings → Identity: personas and assignments. Grayed while the
+/* Settings → Identity: role names and user assignments. Grayed while the
    Experimental SP-identities switch is off; the fieldset disables the
    controls the same way Benchmarking's cluster does. */
 .sp-identity-cluster {
@@ -1752,90 +1774,70 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   pointer-events: none;
 }
 
-.sp-identity-add {
+.sp-role-name-editor {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: minmax(150px, 0.8fr) minmax(180px, 1fr) auto;
+  align-items: end;
   gap: 10px;
 }
 
-.sp-identity-add > [data-slot='button'] {
-  grid-column: 1 / -1;
-  justify-self: end;
-  min-height: 30px;
+.sp-role-picker-select,
+.sp-role-name [data-slot='input'] {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
 }
 
-.sp-identity-personas {
-  min-width: 650px;
-}
-
-.sp-identity-personas th:first-child {
-  width: 24%;
-}
-
-.sp-identity-personas th:nth-child(2) {
-  width: 31%;
-}
-
-.sp-identity-personas th:nth-child(3) {
-  width: 29%;
-}
-
-.sp-identity-personas th:last-child {
-  width: 16%;
-  text-align: right;
-}
-
-.sp-identity-persona-name {
-  font-weight: 500;
-}
-
-.sp-identity-persona-id,
-.sp-identity-secret-reference {
-  color: var(--muted-foreground);
-  font-size: 11px;
-  overflow-wrap: anywhere;
-}
-
-.sp-identity-actions {
-  text-align: right;
-}
-
-.sp-identity-actions [data-slot='button'] {
-  min-height: 30px;
+.sp-role-name-save {
+  margin-bottom: 0;
 }
 
 .sp-identity-assignments {
   margin-top: 2px;
 }
 
-.sp-identity-assignments table {
-  min-width: 480px;
+.sp-role-table {
+  min-width: 560px;
 }
 
-.sp-identity-assignments th:first-child {
-  width: 44%;
+.sp-role-table th:first-child {
+  width: 45%;
 }
 
-.sp-identity-assignments th:nth-child(2) {
+.sp-role-table th:nth-child(2) {
   width: 20%;
 }
 
-.sp-identity-assignments th:last-child {
-  width: 36%;
+.sp-role-table th:last-child {
+  width: 35%;
+  text-align: right;
 }
 
 .sp-identity-assignment-email {
   min-width: 0;
   font-family: var(--font-mono);
   font-size: 12px;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sp-identity-assignment-control {
   text-align: right;
 }
 
-.sp-identity-assign-select {
+.sp-role-select {
   width: 100%;
-  max-width: 14rem;
+  max-width: 13rem;
+  min-height: 30px;
+}
+
+@media (max-width: 680px) {
+  .sp-role-name-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .sp-role-name-save {
+    justify-self: end;
+  }
 }

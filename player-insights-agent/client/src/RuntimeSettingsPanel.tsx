@@ -512,8 +512,8 @@ export function RuntimeSettingsPanel({
               </div>
               <StateSwitch
                 checked={settings.colorScheme === 'dark'}
-                onLabel="Dark"
-                offLabel="Light"
+                onLabel="On"
+                offLabel="Off"
                 onCheckedChange={(on) => {
                   appearancePreviewed.current = true;
                   const colorScheme = previewColorScheme(on);
