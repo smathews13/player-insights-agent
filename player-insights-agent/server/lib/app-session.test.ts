@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
@@ -18,6 +19,27 @@ import {
   type AppSessionLakebase,
   type IdleTimeoutConfig,
 } from './app-session';
+
+const ACCESS_GUIDE_URL = new URL('../../../docs/Astrolabe_Access_Guide.md', import.meta.url);
+const ACCESS_GUIDE = existsSync(ACCESS_GUIDE_URL) ? readFileSync(ACCESS_GUIDE_URL, 'utf8') : null;
+
+function guideTextBlock(heading: string): string[] {
+  if (ACCESS_GUIDE === null) throw new Error('The internal access guide is not published in this checkout.');
+  const marker = `### ${heading}\n\n\`\`\`text\n`;
+  const start = ACCESS_GUIDE.indexOf(marker);
+  if (start < 0) throw new Error(`Access guide has no text block under "${heading}".`);
+  const bodyStart = start + marker.length;
+  const end = ACCESS_GUIDE.indexOf('\n```', bodyStart);
+  if (end < 0) throw new Error(`Access guide has no closing fence under "${heading}".`);
+  return ACCESS_GUIDE.slice(bodyStart, end).split('\n').filter(Boolean);
+}
+
+function sourceSet(file: string, constant: string): string[] {
+  const source = readFileSync(new URL(file, import.meta.url), 'utf8');
+  const block = new RegExp(`const ${constant} = new Set\\(\\[([\\s\\S]*?)\\]\\);`).exec(source)?.[1];
+  if (!block) throw new Error(`Could not read ${constant} from ${file}.`);
+  return [...block.matchAll(/'([^']+)'/g)].map((match) => match[1]).filter((value) => value.startsWith('/'));
+}
 
 interface StoredSession {
   subject: string;
@@ -343,6 +365,15 @@ describe('expiry and activity semantics', () => {
 });
 
 describe('request boundaries and cleanup', () => {
+  it.skipIf(ACCESS_GUIDE === null)('keeps the access guide aligned with source identity and session exemptions', () => {
+    expect(guideTextBlock('Identity-optional routes (enforced)')).toEqual(
+      sourceSet('../routes/insights-routes.ts', 'IDENTITY_OPTIONAL_ROUTES')
+    );
+    expect(guideTextBlock('App-session exemptions (enforced)')).toEqual(
+      sourceSet('./app-session.ts', 'EXEMPT_API_PATHS')
+    );
+  });
+
   it('rejects spoofed activity and accepts only matching same-origin requests', async () => {
     const running = await start();
     open.push(running.close);

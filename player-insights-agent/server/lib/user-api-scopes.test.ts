@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -9,6 +9,7 @@ import {
   scopesProbesNeed,
   tokenCarriesScope,
 } from './dependency-probes';
+import { OPTIONAL_USER_API_SCOPES, isOptionalUserApiScope } from '../../shared/optional-user-api-scopes';
 
 /**
  * The bundle must declare every scope the probes call with.
@@ -35,6 +36,19 @@ import {
 
 const REPO = join(__dirname, '..', '..', '..');
 const BUNDLE = join(REPO, 'databricks.yml');
+const ACCESS_GUIDE_PATH = join(REPO, 'docs', 'Astrolabe_Access_Guide.md');
+const ACCESS_GUIDE = existsSync(ACCESS_GUIDE_PATH) ? readFileSync(ACCESS_GUIDE_PATH, 'utf8') : null;
+
+function guideTextBlock(heading: string): string[] {
+  if (ACCESS_GUIDE === null) throw new Error('The internal access guide is not published in this checkout.');
+  const marker = `### ${heading}\n\n\`\`\`text\n`;
+  const start = ACCESS_GUIDE.indexOf(marker);
+  if (start < 0) throw new Error(`Access guide has no text block under "${heading}".`);
+  const bodyStart = start + marker.length;
+  const end = ACCESS_GUIDE.indexOf('\n```', bodyStart);
+  if (end < 0) throw new Error(`Access guide has no closing fence under "${heading}".`);
+  return ACCESS_GUIDE.slice(bodyStart, end).split('\n').filter(Boolean);
+}
 
 /** The `app_user_api_scopes:` block of one target, as raw lines. */
 function scopeBlock(target: string): string[] {
@@ -318,6 +332,15 @@ describe('the scopes the bundle declares against the scopes the probes call with
  * this list.
  */
 describe('the shared default every customer / T2 deployment inherits', () => {
+  it.skipIf(ACCESS_GUIDE === null)('keeps the access guide aligned with required and optional scope sources', () => {
+    expect(guideTextBlock('Required Ask OAuth scopes (enforced)')).toEqual(
+      defaultScopes().filter((scope) => !isOptionalUserApiScope(scope))
+    );
+    expect(guideTextBlock('Optional browse OAuth scopes (enforced classification)')).toEqual(
+      OPTIONAL_USER_API_SCOPES
+    );
+  });
+
   it('requests the catalog browse scopes, not just example', () => {
     const declared = defaultScopes();
     for (const scope of [

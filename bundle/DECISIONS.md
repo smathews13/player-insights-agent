@@ -397,6 +397,26 @@ It requires a customer-controlled OIDC/gateway architecture that owns every
 participating session and provides federated logout. The Astrolabe timeout
 protects only Astrolabe's application layer.
 
+### D16. Access boundaries fail closed and do not widen through a release
+
+**Decided 2026-08-28.** A release must preserve four independent boundaries:
+the human comes from the Apps proxy; governed work runs under the selected
+user/persona credential and never falls back to the app service principal;
+application roles do not widen data-plane grants; and conversation writes,
+attachments, and execution context remain owner-scoped even where an explicitly
+configured evaluation target shares conversation reads.
+
+The exact administrator prefixes, identity-optional diagnostics, app-session
+exemptions, and OAuth scope classifications live in source and are reproduced
+for operators in `docs/Astrolabe_Access_Guide.md`. Their consistency tests fail
+when the guide and source disagree. WAF, TLS, proxy CORS, proxy security
+headers, and token issuance policy are platform dependencies, not facts this
+repository certifies.
+
+**Enforced by application/security contract tests and release gates.** The
+external platform-control sentence is descriptive and requires separate
+deployment evidence.
+
 ---
 
 ## Decisions recorded elsewhere, not repeated here

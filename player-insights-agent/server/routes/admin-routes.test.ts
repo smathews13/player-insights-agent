@@ -16,6 +16,7 @@
  * can stop somebody being made an administrator.
  */
 import express from 'express';
+import { existsSync, readFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -25,6 +26,7 @@ import {
   ADMIN_ROUTE_PREFIXES,
   announceSeedAdmins,
   requireAdmin,
+  SUPER_ADMIN_ROUTE_PREFIXES,
   type AdminStore,
 } from '../lib/admin-roles';
 import { ADDED_ADMINS_TABLE, ADMIN_AUDIT_TABLE, ADMIN_GRANTS_TABLE } from '../lib/admin-roles-schema';
@@ -32,6 +34,19 @@ import { ADDED_ADMINS_TABLE, ADMIN_AUDIT_TABLE, ADMIN_GRANTS_TABLE } from '../li
 const BOSS = 'boss@example.com';
 const NEWCOMER = 'newcomer@example.com';
 const CONSUMER = 'consumer@example.com';
+const ACCESS_GUIDE_URL = new URL('../../../docs/Astrolabe_Access_Guide.md', import.meta.url);
+const ACCESS_GUIDE = existsSync(ACCESS_GUIDE_URL) ? readFileSync(ACCESS_GUIDE_URL, 'utf8') : null;
+
+function guideTextBlock(heading: string): string[] {
+  if (ACCESS_GUIDE === null) throw new Error('The internal access guide is not published in this checkout.');
+  const marker = `### ${heading}\n\n\`\`\`text\n`;
+  const start = ACCESS_GUIDE.indexOf(marker);
+  if (start < 0) throw new Error(`Access guide has no text block under "${heading}".`);
+  const bodyStart = start + marker.length;
+  const end = ACCESS_GUIDE.indexOf('\n```', bodyStart);
+  if (end < 0) throw new Error(`Access guide has no closing fence under "${heading}".`);
+  return ACCESS_GUIDE.slice(bodyStart, end).split('\n').filter(Boolean);
+}
 /**
  * A telemetry schema an earlier version of this app granted on.
  *
@@ -189,12 +204,19 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   delete process.env.DATABRICKS_SQL_WAREHOUSE_ID;
-  server?.closeAllConnections();
-  await new Promise((resolve) => server?.close(resolve));
+  if (server) {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server!.close(() => resolve()));
+  }
   server = undefined;
 });
 
 describe('a consumer is refused at the route', () => {
+  it.skipIf(ACCESS_GUIDE === null)('keeps the access guide aligned with authoritative role prefixes', () => {
+    expect(guideTextBlock('Administrator route prefixes (enforced)')).toEqual(ADMIN_ROUTE_PREFIXES);
+    expect(guideTextBlock('Super-administrator route prefixes (enforced)')).toEqual(SUPER_ADMIN_ROUTE_PREFIXES);
+  });
+
   it.each(ADMIN_ROUTE_PREFIXES)('answers 403 on %s', async (prefix) => {
     const app = await startApp(fakeLakebase());
 
