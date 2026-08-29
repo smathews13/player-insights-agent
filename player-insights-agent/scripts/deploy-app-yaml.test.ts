@@ -356,7 +356,7 @@ describe('the committed deploy tree names no administrator', () => {
       expect(INTERNAL_TREE,
         'build/deploy/app.yaml is missing from the internal tree, where it is tracked and is ' +
           'the file this guard reads. Put it back with: ' +
-          'git restore player-insights-agent/build/deploy/app.yaml'
+          'git restore -- ':(glob)*/build/deploy/app.yaml''
       ).toBe(false);
       return;
     }
@@ -368,7 +368,7 @@ describe('the committed deploy tree names no administrator', () => {
       'build/deploy/app.yaml carries administrator addresses. That file is tracked and is ' +
         'published to customers. This is what a release leaves behind and it must not be ' +
         'committed. The app was still deployed with the list, because the release uploads the ' +
-        'local tree directly. Put it back with: git restore player-insights-agent/build/deploy/app.yaml'
+        'local tree directly. Put it back with: git restore -- ':(glob)*/build/deploy/app.yaml''
     ).toBe('');
   });
 });

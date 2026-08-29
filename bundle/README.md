@@ -123,15 +123,15 @@ input fails validation when skipped; Genie sharing still requires review.
   **`build/deploy/app.yaml` is where the addresses actually land, and it is
   tracked.** The release uploads the local build tree directly, so the container
   gets the list without a commit. Do not commit it:
-  `git restore player-insights-agent/build/deploy/app.yaml`. The build prints
-  the same warning, and a test fails while the addresses are there:
+  `git restore -- ':(glob)*/build/deploy/app.yaml'`. The build prints
+  the same warning, and this root-relative check fails while deployment values are there:
 
   ```bash
-  cd player-insights-agent && npm test -- scripts/deploy-app-yaml.test.ts
+  git diff --exit-code HEAD -- ':(glob)*/build/deploy/app.yaml'
   ```
 
-  **That test is the only thing catching this before the commit**, so do not
-  weaken it to get one through. The mirror leak check still blocks on the
+  **That check catches this before the commit**, so do not
+  skip it to get one through. The mirror leak check still blocks on the
   addresses, but it gates the publication and no longer scans the internal tree,
   which puts it after the commit rather than before it.
 

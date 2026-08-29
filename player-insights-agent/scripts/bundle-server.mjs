@@ -345,7 +345,7 @@ async function main() {
         '        DO NOT COMMIT IT. That file is tracked and is published to customers, and\n' +
         '        an address is a personal name and an employer. The release uploads the\n' +
         '        local tree directly, so the container gets the list either way. Restore it\n' +
-        '        afterwards with:  git restore player-insights-agent/build/deploy/app.yaml'
+        '        afterwards with:  git restore -- ':(glob)*/build/deploy/app.yaml''
     );
   }
 
