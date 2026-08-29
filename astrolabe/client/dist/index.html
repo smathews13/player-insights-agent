@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" class="light" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#11171C" />
+    <!--
+      The body typeface, asked for before the stylesheet that names it has arrived.
+
+      A font is otherwise the LAST thing discovered on a cold load: the browser has to
+      fetch the entry script, then the stylesheet it imports, then parse the @font-face
+      in styles/fonts.css, and only then does it learn this file exists. Starting it here
+      collapses that chain, which is worth more than it looks -- fonts.css sets
+      `font-display: swap` deliberately, so until this lands the page is painted in the
+      fallback stack and then reflowed. Shortening the swap window is the point.
+
+      `crossorigin` is not optional even though the file is same-origin: font requests
+      are made in CORS mode, and a preload without it is a second, separate download
+      rather than a head start.
+
+      Only DM Sans, and only the variable file. It is the one face certain to be needed
+      on every page (all body text, at three weights from one file). DM Mono is
+      deliberately not here -- it carries identifiers and SQL, which most first paints
+      have none of, and preloading a face a page never uses spends bandwidth to save
+      nothing.
+
+      There is no `preconnect` or `dns-prefetch` anywhere in this file on purpose:
+      every request this app makes -- /api/*, the fonts, the icons, the JS -- is
+      same-origin, and Databricks Apps egress rules forbid the font CDN. A preconnect
+      to an origin the browser is already connected to buys nothing.
+    -->
+    <link
+      rel="preload"
+      href="/fonts/DMSans-variable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin="anonymous"
+    />
+    <title>astrolabe</title>
+    <script type="module" crossorigin src="/assets/index-BnYVaSbx.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-DGruFWvd.js">
+    <link rel="modulepreload" crossorigin href="/assets/appkit-ui-PcSoxiEb.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-CUxupNa0.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
