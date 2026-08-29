@@ -33098,8 +33098,8 @@ var require_instrumentation14 = __commonJS({
       _patchValidate() {
         const instrumentation = this;
         return function validate2(original) {
-          return function patchValidate(schema, documentAST, rules, options, typeInfo) {
-            return instrumentation._validate(this, original, schema, documentAST, rules, typeInfo, options);
+          return function patchValidate(schema2, documentAST, rules, options, typeInfo) {
+            return instrumentation._validate(this, original, schema2, documentAST, rules, typeInfo, options);
           };
         };
       }
@@ -33122,11 +33122,11 @@ var require_instrumentation14 = __commonJS({
           });
         });
       }
-      _validate(obj, original, schema, documentAST, rules, typeInfo, options) {
+      _validate(obj, original, schema2, documentAST, rules, typeInfo, options) {
         const span = this.tracer.startSpan(enum_1.SpanNames.VALIDATE, {});
         return api_1.context.with(api_1.trace.setSpan(api_1.context.active(), span), () => {
           return (0, instrumentation_1.safeExecuteInTheMiddle)(() => {
-            return original.call(obj, schema, documentAST, rules, options, typeInfo);
+            return original.call(obj, schema2, documentAST, rules, options, typeInfo);
           }, (err, errors) => {
             if (!documentAST.loc) {
               span.updateName(enum_1.SpanNames.SCHEMA_VALIDATE);
@@ -33170,13 +33170,13 @@ var require_instrumentation14 = __commonJS({
         }
         return span;
       }
-      _wrapExecuteArgs(schema, document2, rootValue, contextValue, variableValues, operationName, fieldResolver, typeResolver, defaultFieldResolved) {
+      _wrapExecuteArgs(schema2, document2, rootValue, contextValue, variableValues, operationName, fieldResolver, typeResolver, defaultFieldResolved) {
         if (!contextValue) {
           contextValue = {};
         }
         if (contextValue[symbols_1.OTEL_GRAPHQL_DATA_SYMBOL] || this.getConfig().ignoreResolveSpans) {
           return {
-            schema,
+            schema: schema2,
             document: document2,
             rootValue,
             contextValue,
@@ -33189,12 +33189,12 @@ var require_instrumentation14 = __commonJS({
         const isUsingDefaultResolver = fieldResolver == null;
         const fieldResolverForExecute = fieldResolver ?? defaultFieldResolved;
         fieldResolver = (0, utils_1.wrapFieldResolver)(this.tracer, () => this.getConfig(), fieldResolverForExecute, isUsingDefaultResolver);
-        if (schema) {
-          (0, utils_1.wrapFields)(schema.getQueryType(), this.tracer, () => this.getConfig());
-          (0, utils_1.wrapFields)(schema.getMutationType(), this.tracer, () => this.getConfig());
+        if (schema2) {
+          (0, utils_1.wrapFields)(schema2.getQueryType(), this.tracer, () => this.getConfig());
+          (0, utils_1.wrapFields)(schema2.getMutationType(), this.tracer, () => this.getConfig());
         }
         return {
-          schema,
+          schema: schema2,
           document: document2,
           rootValue,
           contextValue,
@@ -116145,8 +116145,8 @@ function mergeDefs(...defs) {
   }
   return Object.defineProperties({}, mergedDescriptors);
 }
-function cloneDef(schema) {
-  return mergeDefs(schema._zod.def);
+function cloneDef(schema2) {
+  return mergeDefs(schema2._zod.def);
 }
 function getElementAtPath(obj, path19) {
   if (!path19)
@@ -116283,14 +116283,14 @@ function optionalKeys(shape) {
     return shape[k]._zod.optin === "optional" && shape[k]._zod.optout === "optional";
   });
 }
-function pick(schema, mask) {
-  const currDef = schema._zod.def;
+function pick(schema2, mask) {
+  const currDef = schema2._zod.def;
   const checks = currDef.checks;
   const hasChecks = checks && checks.length > 0;
   if (hasChecks) {
     throw new Error(".pick() cannot be used on object schemas containing refinements");
   }
-  const def = mergeDefs(schema._zod.def, {
+  const def = mergeDefs(schema2._zod.def, {
     get shape() {
       const newShape = {};
       for (const key2 in mask) {
@@ -116306,18 +116306,18 @@ function pick(schema, mask) {
     },
     checks: []
   });
-  return clone(schema, def);
+  return clone(schema2, def);
 }
-function omit(schema, mask) {
-  const currDef = schema._zod.def;
+function omit(schema2, mask) {
+  const currDef = schema2._zod.def;
   const checks = currDef.checks;
   const hasChecks = checks && checks.length > 0;
   if (hasChecks) {
     throw new Error(".omit() cannot be used on object schemas containing refinements");
   }
-  const def = mergeDefs(schema._zod.def, {
+  const def = mergeDefs(schema2._zod.def, {
     get shape() {
-      const newShape = { ...schema._zod.def.shape };
+      const newShape = { ...schema2._zod.def.shape };
       for (const key2 in mask) {
         if (!(key2 in currDef.shape)) {
           throw new Error(`Unrecognized key: "${key2}"`);
@@ -116331,43 +116331,43 @@ function omit(schema, mask) {
     },
     checks: []
   });
-  return clone(schema, def);
+  return clone(schema2, def);
 }
-function extend(schema, shape) {
+function extend(schema2, shape) {
   if (!isPlainObject2(shape)) {
     throw new Error("Invalid input to extend: expected a plain object");
   }
-  const checks = schema._zod.def.checks;
+  const checks = schema2._zod.def.checks;
   const hasChecks = checks && checks.length > 0;
   if (hasChecks) {
-    const existingShape = schema._zod.def.shape;
+    const existingShape = schema2._zod.def.shape;
     for (const key2 in shape) {
       if (Object.getOwnPropertyDescriptor(existingShape, key2) !== void 0) {
         throw new Error("Cannot overwrite keys on object schemas containing refinements. Use `.safeExtend()` instead.");
       }
     }
   }
-  const def = mergeDefs(schema._zod.def, {
+  const def = mergeDefs(schema2._zod.def, {
     get shape() {
-      const _shape = { ...schema._zod.def.shape, ...shape };
+      const _shape = { ...schema2._zod.def.shape, ...shape };
       assignProp(this, "shape", _shape);
       return _shape;
     }
   });
-  return clone(schema, def);
+  return clone(schema2, def);
 }
-function safeExtend(schema, shape) {
+function safeExtend(schema2, shape) {
   if (!isPlainObject2(shape)) {
     throw new Error("Invalid input to safeExtend: expected a plain object");
   }
-  const def = mergeDefs(schema._zod.def, {
+  const def = mergeDefs(schema2._zod.def, {
     get shape() {
-      const _shape = { ...schema._zod.def.shape, ...shape };
+      const _shape = { ...schema2._zod.def.shape, ...shape };
       assignProp(this, "shape", _shape);
       return _shape;
     }
   });
-  return clone(schema, def);
+  return clone(schema2, def);
 }
 function merge(a, b) {
   const def = mergeDefs(a._zod.def, {
@@ -116384,16 +116384,16 @@ function merge(a, b) {
   });
   return clone(a, def);
 }
-function partial(Class2, schema, mask) {
-  const currDef = schema._zod.def;
+function partial(Class2, schema2, mask) {
+  const currDef = schema2._zod.def;
   const checks = currDef.checks;
   const hasChecks = checks && checks.length > 0;
   if (hasChecks) {
     throw new Error(".partial() cannot be used on object schemas containing refinements");
   }
-  const def = mergeDefs(schema._zod.def, {
+  const def = mergeDefs(schema2._zod.def, {
     get shape() {
-      const oldShape = schema._zod.def.shape;
+      const oldShape = schema2._zod.def.shape;
       const shape = { ...oldShape };
       if (mask) {
         for (const key2 in mask) {
@@ -116420,12 +116420,12 @@ function partial(Class2, schema, mask) {
     },
     checks: []
   });
-  return clone(schema, def);
+  return clone(schema2, def);
 }
-function required(Class2, schema, mask) {
-  const def = mergeDefs(schema._zod.def, {
+function required(Class2, schema2, mask) {
+  const def = mergeDefs(schema2._zod.def, {
     get shape() {
-      const oldShape = schema._zod.def.shape;
+      const oldShape = schema2._zod.def.shape;
       const shape = { ...oldShape };
       if (mask) {
         for (const key2 in mask) {
@@ -116451,7 +116451,7 @@ function required(Class2, schema, mask) {
       return shape;
     }
   });
-  return clone(schema, def);
+  return clone(schema2, def);
 }
 function aborted(x, startIndex = 0) {
   if (x.aborted === true)
@@ -116810,9 +116810,9 @@ var init_parse2 = __esm({
     init_core2();
     init_errors();
     init_util2();
-    _parse = (_Err) => (schema, value, _ctx, _params) => {
+    _parse = (_Err) => (schema2, value, _ctx, _params) => {
       const ctx = _ctx ? Object.assign(_ctx, { async: false }) : { async: false };
-      const result = schema._zod.run({ value, issues: [] }, ctx);
+      const result = schema2._zod.run({ value, issues: [] }, ctx);
       if (result instanceof Promise) {
         throw new $ZodAsyncError();
       }
@@ -116824,9 +116824,9 @@ var init_parse2 = __esm({
       return result.value;
     };
     parse2 = /* @__PURE__ */ _parse($ZodRealError);
-    _parseAsync = (_Err) => async (schema, value, _ctx, params) => {
+    _parseAsync = (_Err) => async (schema2, value, _ctx, params) => {
       const ctx = _ctx ? Object.assign(_ctx, { async: true }) : { async: true };
-      let result = schema._zod.run({ value, issues: [] }, ctx);
+      let result = schema2._zod.run({ value, issues: [] }, ctx);
       if (result instanceof Promise)
         result = await result;
       if (result.issues.length) {
@@ -116837,9 +116837,9 @@ var init_parse2 = __esm({
       return result.value;
     };
     parseAsync = /* @__PURE__ */ _parseAsync($ZodRealError);
-    _safeParse = (_Err) => (schema, value, _ctx) => {
+    _safeParse = (_Err) => (schema2, value, _ctx) => {
       const ctx = _ctx ? { ..._ctx, async: false } : { async: false };
-      const result = schema._zod.run({ value, issues: [] }, ctx);
+      const result = schema2._zod.run({ value, issues: [] }, ctx);
       if (result instanceof Promise) {
         throw new $ZodAsyncError();
       }
@@ -116849,9 +116849,9 @@ var init_parse2 = __esm({
       } : { success: true, data: result.value };
     };
     safeParse = /* @__PURE__ */ _safeParse($ZodRealError);
-    _safeParseAsync = (_Err) => async (schema, value, _ctx) => {
+    _safeParseAsync = (_Err) => async (schema2, value, _ctx) => {
       const ctx = _ctx ? Object.assign(_ctx, { async: true }) : { async: true };
-      let result = schema._zod.run({ value, issues: [] }, ctx);
+      let result = schema2._zod.run({ value, issues: [] }, ctx);
       if (result instanceof Promise)
         result = await result;
       return result.issues.length ? {
@@ -116860,40 +116860,40 @@ var init_parse2 = __esm({
       } : { success: true, data: result.value };
     };
     safeParseAsync = /* @__PURE__ */ _safeParseAsync($ZodRealError);
-    _encode = (_Err) => (schema, value, _ctx) => {
+    _encode = (_Err) => (schema2, value, _ctx) => {
       const ctx = _ctx ? Object.assign(_ctx, { direction: "backward" }) : { direction: "backward" };
-      return _parse(_Err)(schema, value, ctx);
+      return _parse(_Err)(schema2, value, ctx);
     };
     encode = /* @__PURE__ */ _encode($ZodRealError);
-    _decode = (_Err) => (schema, value, _ctx) => {
-      return _parse(_Err)(schema, value, _ctx);
+    _decode = (_Err) => (schema2, value, _ctx) => {
+      return _parse(_Err)(schema2, value, _ctx);
     };
     decode = /* @__PURE__ */ _decode($ZodRealError);
-    _encodeAsync = (_Err) => async (schema, value, _ctx) => {
+    _encodeAsync = (_Err) => async (schema2, value, _ctx) => {
       const ctx = _ctx ? Object.assign(_ctx, { direction: "backward" }) : { direction: "backward" };
-      return _parseAsync(_Err)(schema, value, ctx);
+      return _parseAsync(_Err)(schema2, value, ctx);
     };
     encodeAsync = /* @__PURE__ */ _encodeAsync($ZodRealError);
-    _decodeAsync = (_Err) => async (schema, value, _ctx) => {
-      return _parseAsync(_Err)(schema, value, _ctx);
+    _decodeAsync = (_Err) => async (schema2, value, _ctx) => {
+      return _parseAsync(_Err)(schema2, value, _ctx);
     };
     decodeAsync = /* @__PURE__ */ _decodeAsync($ZodRealError);
-    _safeEncode = (_Err) => (schema, value, _ctx) => {
+    _safeEncode = (_Err) => (schema2, value, _ctx) => {
       const ctx = _ctx ? Object.assign(_ctx, { direction: "backward" }) : { direction: "backward" };
-      return _safeParse(_Err)(schema, value, ctx);
+      return _safeParse(_Err)(schema2, value, ctx);
     };
     safeEncode = /* @__PURE__ */ _safeEncode($ZodRealError);
-    _safeDecode = (_Err) => (schema, value, _ctx) => {
-      return _safeParse(_Err)(schema, value, _ctx);
+    _safeDecode = (_Err) => (schema2, value, _ctx) => {
+      return _safeParse(_Err)(schema2, value, _ctx);
     };
     safeDecode = /* @__PURE__ */ _safeDecode($ZodRealError);
-    _safeEncodeAsync = (_Err) => async (schema, value, _ctx) => {
+    _safeEncodeAsync = (_Err) => async (schema2, value, _ctx) => {
       const ctx = _ctx ? Object.assign(_ctx, { direction: "backward" }) : { direction: "backward" };
-      return _safeParseAsync(_Err)(schema, value, ctx);
+      return _safeParseAsync(_Err)(schema2, value, ctx);
     };
     safeEncodeAsync = /* @__PURE__ */ _safeEncodeAsync($ZodRealError);
-    _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
-      return _safeParseAsync(_Err)(schema, value, _ctx);
+    _safeDecodeAsync = (_Err) => async (schema2, value, _ctx) => {
+      return _safeParseAsync(_Err)(schema2, value, _ctx);
     };
     safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync($ZodRealError);
   }
@@ -118720,8 +118720,8 @@ var init_schemas = __esm({
         for (const key2 of normalized.keys) {
           const id = ids[key2];
           const k = esc(key2);
-          const schema = shape[key2];
-          const isOptionalOut = schema?._zod?.optout === "optional";
+          const schema2 = shape[key2];
+          const isOptionalOut = schema2?._zod?.optout === "optional";
           doc.write(`const ${id} = ${parseStr(key2)};`);
           if (isOptionalOut) {
             doc.write(`
@@ -118815,10 +118815,10 @@ var init_schemas = __esm({
         }
         return void 0;
       });
-      const single = def.options.length === 1;
+      const single2 = def.options.length === 1;
       const first = def.options[0]._zod.run;
       inst._zod.parse = (payload, ctx) => {
-        if (single) {
+        if (single2) {
           return first(payload, ctx);
         }
         let async = false;
@@ -118847,10 +118847,10 @@ var init_schemas = __esm({
     $ZodXor = /* @__PURE__ */ $constructor("$ZodXor", (inst, def) => {
       $ZodUnion.init(inst, def);
       def.inclusive = false;
-      const single = def.options.length === 1;
+      const single2 = def.options.length === 1;
       const first = def.options[0]._zod.run;
       inst._zod.parse = (payload, ctx) => {
-        if (single) {
+        if (single2) {
           return first(payload, ctx);
         }
         let async = false;
@@ -125591,11 +125591,11 @@ var init_registries = __esm({
         this._map = /* @__PURE__ */ new WeakMap();
         this._idmap = /* @__PURE__ */ new Map();
       }
-      add(schema, ..._meta) {
+      add(schema2, ..._meta) {
         const meta3 = _meta[0];
-        this._map.set(schema, meta3);
+        this._map.set(schema2, meta3);
         if (meta3 && typeof meta3 === "object" && "id" in meta3) {
-          this._idmap.set(meta3.id, schema);
+          this._idmap.set(meta3.id, schema2);
         }
         return this;
       }
@@ -125604,26 +125604,26 @@ var init_registries = __esm({
         this._idmap = /* @__PURE__ */ new Map();
         return this;
       }
-      remove(schema) {
-        const meta3 = this._map.get(schema);
+      remove(schema2) {
+        const meta3 = this._map.get(schema2);
         if (meta3 && typeof meta3 === "object" && "id" in meta3) {
           this._idmap.delete(meta3.id);
         }
-        this._map.delete(schema);
+        this._map.delete(schema2);
         return this;
       }
-      get(schema) {
-        const p = schema._zod.parent;
+      get(schema2) {
+        const p = schema2._zod.parent;
         if (p) {
           const pm = { ...this.get(p) ?? {} };
           delete pm.id;
-          const f = { ...pm, ...this._map.get(schema) };
+          const f = { ...pm, ...this._map.get(schema2) };
           return Object.keys(f).length ? f : void 0;
         }
-        return this._map.get(schema);
+        return this._map.get(schema2);
       }
-      has(schema) {
-        return this._map.has(schema);
+      has(schema2) {
+        return this._map.has(schema2);
       }
     };
     (_a = globalThis).__zod_globalRegistry ?? (_a.__zod_globalRegistry = registry());
@@ -126268,11 +126268,11 @@ function _endsWith(suffix, params) {
   });
 }
 // @__NO_SIDE_EFFECTS__
-function _property(property, schema, params) {
+function _property(property, schema2, params) {
   return new $ZodCheckProperty({
     check: "property",
     property,
-    schema,
+    schema: schema2,
     ...normalizeParams(params)
   });
 }
@@ -126520,23 +126520,23 @@ function _promise(Class2, innerType) {
 function _custom(Class2, fn, _params) {
   const norm = normalizeParams(_params);
   norm.abort ?? (norm.abort = true);
-  const schema = new Class2({
+  const schema2 = new Class2({
     type: "custom",
     check: "custom",
     fn,
     ...norm
   });
-  return schema;
+  return schema2;
 }
 // @__NO_SIDE_EFFECTS__
 function _refine(Class2, fn, _params) {
-  const schema = new Class2({
+  const schema2 = new Class2({
     type: "custom",
     check: "custom",
     fn,
     ...normalizeParams(_params)
   });
-  return schema;
+  return schema2;
 }
 // @__NO_SIDE_EFFECTS__
 function _superRefine(fn) {
@@ -126701,40 +126701,40 @@ function initializeContext(params) {
     external: params?.external ?? void 0
   };
 }
-function process2(schema, ctx, _params = { path: [], schemaPath: [] }) {
+function process2(schema2, ctx, _params = { path: [], schemaPath: [] }) {
   var _a2;
-  const def = schema._zod.def;
-  const seen = ctx.seen.get(schema);
+  const def = schema2._zod.def;
+  const seen = ctx.seen.get(schema2);
   if (seen) {
     seen.count++;
-    const isCycle = _params.schemaPath.includes(schema);
+    const isCycle = _params.schemaPath.includes(schema2);
     if (isCycle) {
       seen.cycle = _params.path;
     }
     return seen.schema;
   }
   const result = { schema: {}, count: 1, cycle: void 0, path: _params.path };
-  ctx.seen.set(schema, result);
-  const overrideSchema = schema._zod.toJSONSchema?.();
+  ctx.seen.set(schema2, result);
+  const overrideSchema = schema2._zod.toJSONSchema?.();
   if (overrideSchema) {
     result.schema = overrideSchema;
   } else {
     const params = {
       ..._params,
-      schemaPath: [..._params.schemaPath, schema],
+      schemaPath: [..._params.schemaPath, schema2],
       path: _params.path
     };
-    if (schema._zod.processJSONSchema) {
-      schema._zod.processJSONSchema(ctx, result.schema, params);
+    if (schema2._zod.processJSONSchema) {
+      schema2._zod.processJSONSchema(ctx, result.schema, params);
     } else {
       const _json = result.schema;
       const processor = ctx.processors[def.type];
       if (!processor) {
         throw new Error(`[toJSONSchema]: Non-representable type encountered: ${def.type}`);
       }
-      processor(schema, ctx, _json, params);
+      processor(schema2, ctx, _json, params);
     }
-    const parent = schema._zod.parent;
+    const parent = schema2._zod.parent;
     if (parent) {
       if (!result.ref)
         result.ref = parent;
@@ -126742,21 +126742,21 @@ function process2(schema, ctx, _params = { path: [], schemaPath: [] }) {
       ctx.seen.get(parent).isParent = true;
     }
   }
-  const meta3 = ctx.metadataRegistry.get(schema);
+  const meta3 = ctx.metadataRegistry.get(schema2);
   if (meta3)
     Object.assign(result.schema, meta3);
-  if (ctx.io === "input" && isTransforming(schema)) {
+  if (ctx.io === "input" && isTransforming(schema2)) {
     delete result.schema.examples;
     delete result.schema.default;
   }
   if (ctx.io === "input" && result.schema._prefault)
     (_a2 = result.schema).default ?? (_a2.default = result.schema._prefault);
   delete result.schema._prefault;
-  const _result = ctx.seen.get(schema);
+  const _result = ctx.seen.get(schema2);
   return _result.schema;
 }
-function extractDefs(ctx, schema) {
-  const root = ctx.seen.get(schema);
+function extractDefs(ctx, schema2) {
+  const root = ctx.seen.get(schema2);
   if (!root)
     throw new Error("Unprocessed schema. This is a bug in Zod.");
   const idToSchema = /* @__PURE__ */ new Map();
@@ -126799,11 +126799,11 @@ function extractDefs(ctx, schema) {
     seen.def = { ...seen.schema };
     if (defId)
       seen.defId = defId;
-    const schema2 = seen.schema;
-    for (const key2 in schema2) {
-      delete schema2[key2];
+    const schema3 = seen.schema;
+    for (const key2 in schema3) {
+      delete schema3[key2];
     }
-    schema2.$ref = ref;
+    schema3.$ref = ref;
   };
   if (ctx.cycles === "throw") {
     for (const entry of ctx.seen.entries()) {
@@ -126817,13 +126817,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
   }
   for (const entry of ctx.seen.entries()) {
     const seen = entry[1];
-    if (schema === entry[0]) {
+    if (schema2 === entry[0]) {
       extractToDef(entry);
       continue;
     }
     if (ctx.external) {
       const ext = ctx.external.registry.get(entry[0])?.id;
-      if (schema !== entry[0] && ext) {
+      if (schema2 !== entry[0] && ext) {
         extractToDef(entry);
         continue;
       }
@@ -126845,16 +126845,16 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     }
   }
 }
-function finalize(ctx, schema) {
-  const root = ctx.seen.get(schema);
+function finalize(ctx, schema2) {
+  const root = ctx.seen.get(schema2);
   if (!root)
     throw new Error("Unprocessed schema. This is a bug in Zod.");
   const flattenRef = (zodSchema) => {
     const seen = ctx.seen.get(zodSchema);
     if (seen.ref === null)
       return;
-    const schema2 = seen.def ?? seen.schema;
-    const _cached = { ...schema2 };
+    const schema3 = seen.def ?? seen.schema;
+    const _cached = { ...schema3 };
     const ref = seen.ref;
     seen.ref = null;
     if (ref) {
@@ -126862,28 +126862,28 @@ function finalize(ctx, schema) {
       const refSeen = ctx.seen.get(ref);
       const refSchema = refSeen.schema;
       if (refSchema.$ref && (ctx.target === "draft-07" || ctx.target === "draft-04" || ctx.target === "openapi-3.0")) {
-        schema2.allOf = schema2.allOf ?? [];
-        schema2.allOf.push(refSchema);
+        schema3.allOf = schema3.allOf ?? [];
+        schema3.allOf.push(refSchema);
       } else {
-        Object.assign(schema2, refSchema);
+        Object.assign(schema3, refSchema);
       }
-      Object.assign(schema2, _cached);
+      Object.assign(schema3, _cached);
       const isParentRef = zodSchema._zod.parent === ref;
       if (isParentRef) {
-        for (const key2 in schema2) {
+        for (const key2 in schema3) {
           if (key2 === "$ref" || key2 === "allOf")
             continue;
           if (!(key2 in _cached)) {
-            delete schema2[key2];
+            delete schema3[key2];
           }
         }
       }
       if (refSchema.$ref && refSeen.def) {
-        for (const key2 in schema2) {
+        for (const key2 in schema3) {
           if (key2 === "$ref" || key2 === "allOf")
             continue;
-          if (key2 in refSeen.def && JSON.stringify(schema2[key2]) === JSON.stringify(refSeen.def[key2])) {
-            delete schema2[key2];
+          if (key2 in refSeen.def && JSON.stringify(schema3[key2]) === JSON.stringify(refSeen.def[key2])) {
+            delete schema3[key2];
           }
         }
       }
@@ -126893,13 +126893,13 @@ function finalize(ctx, schema) {
       flattenRef(parent);
       const parentSeen = ctx.seen.get(parent);
       if (parentSeen?.schema.$ref) {
-        schema2.$ref = parentSeen.schema.$ref;
+        schema3.$ref = parentSeen.schema.$ref;
         if (parentSeen.def) {
-          for (const key2 in schema2) {
+          for (const key2 in schema3) {
             if (key2 === "$ref" || key2 === "allOf")
               continue;
-            if (key2 in parentSeen.def && JSON.stringify(schema2[key2]) === JSON.stringify(parentSeen.def[key2])) {
-              delete schema2[key2];
+            if (key2 in parentSeen.def && JSON.stringify(schema3[key2]) === JSON.stringify(parentSeen.def[key2])) {
+              delete schema3[key2];
             }
           }
         }
@@ -126907,7 +126907,7 @@ function finalize(ctx, schema) {
     }
     ctx.override({
       zodSchema,
-      jsonSchema: schema2,
+      jsonSchema: schema3,
       path: seen.path ?? []
     });
   };
@@ -126925,7 +126925,7 @@ function finalize(ctx, schema) {
   } else {
   }
   if (ctx.external?.uri) {
-    const id = ctx.external.registry.get(schema)?.id;
+    const id = ctx.external.registry.get(schema2)?.id;
     if (!id)
       throw new Error("Schema is missing an `id` property");
     result.$id = ctx.external.uri(id);
@@ -126952,10 +126952,10 @@ function finalize(ctx, schema) {
     const finalized = JSON.parse(JSON.stringify(result));
     Object.defineProperty(finalized, "~standard", {
       value: {
-        ...schema["~standard"],
+        ...schema2["~standard"],
         jsonSchema: {
-          input: createStandardJSONSchemaMethod(schema, "input", ctx.processors),
-          output: createStandardJSONSchemaMethod(schema, "output", ctx.processors)
+          input: createStandardJSONSchemaMethod(schema2, "input", ctx.processors),
+          output: createStandardJSONSchemaMethod(schema2, "output", ctx.processors)
         }
       },
       enumerable: false,
@@ -127021,18 +127021,18 @@ var createToJSONSchemaMethod, createStandardJSONSchemaMethod;
 var init_to_json_schema = __esm({
   "node_modules/zod/v4/core/to-json-schema.js"() {
     init_registries();
-    createToJSONSchemaMethod = (schema, processors = {}) => (params) => {
+    createToJSONSchemaMethod = (schema2, processors = {}) => (params) => {
       const ctx = initializeContext({ ...params, processors });
-      process2(schema, ctx);
-      extractDefs(ctx, schema);
-      return finalize(ctx, schema);
+      process2(schema2, ctx);
+      extractDefs(ctx, schema2);
+      return finalize(ctx, schema2);
     };
-    createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) => {
+    createStandardJSONSchemaMethod = (schema2, io, processors = {}) => (params) => {
       const { libraryOptions, target } = params ?? {};
       const ctx = initializeContext({ ...libraryOptions ?? {}, target, io, processors });
-      process2(schema, ctx);
-      extractDefs(ctx, schema);
-      return finalize(ctx, schema);
+      process2(schema2, ctx);
+      extractDefs(ctx, schema2);
+      return finalize(ctx, schema2);
     };
   }
 });
@@ -127044,8 +127044,8 @@ function toJSONSchema(input, params) {
     const ctx2 = initializeContext({ ...params, processors: allProcessors });
     const defs = {};
     for (const entry of registry2._idmap.entries()) {
-      const [_, schema] = entry;
-      process2(schema, ctx2);
+      const [_, schema2] = entry;
+      process2(schema2, ctx2);
     }
     const schemas = {};
     const external = {
@@ -127055,9 +127055,9 @@ function toJSONSchema(input, params) {
     };
     ctx2.external = external;
     for (const entry of registry2._idmap.entries()) {
-      const [key2, schema] = entry;
-      extractDefs(ctx2, schema);
-      schemas[key2] = finalize(ctx2, schema);
+      const [key2, schema2] = entry;
+      extractDefs(ctx2, schema2);
+      schemas[key2] = finalize(ctx2, schema2);
     }
     if (Object.keys(defs).length > 0) {
       const defsSegment = ctx2.target === "draft-2020-12" ? "$defs" : "definitions";
@@ -127085,10 +127085,10 @@ var init_json_schema_processors = __esm({
       regex: ""
       // do not set
     };
-    stringProcessor = (schema, ctx, _json, _params) => {
+    stringProcessor = (schema2, ctx, _json, _params) => {
       const json2 = _json;
       json2.type = "string";
-      const { minimum, maximum, format: format2, patterns, contentEncoding } = schema._zod.bag;
+      const { minimum, maximum, format: format2, patterns, contentEncoding } = schema2._zod.bag;
       if (typeof minimum === "number")
         json2.minLength = minimum;
       if (typeof maximum === "number")
@@ -127117,9 +127117,9 @@ var init_json_schema_processors = __esm({
         }
       }
     };
-    numberProcessor = (schema, ctx, _json, _params) => {
+    numberProcessor = (schema2, ctx, _json, _params) => {
       const json2 = _json;
-      const { minimum, maximum, format: format2, multipleOf, exclusiveMaximum, exclusiveMinimum } = schema._zod.bag;
+      const { minimum, maximum, format: format2, multipleOf, exclusiveMaximum, exclusiveMinimum } = schema2._zod.bag;
       if (typeof format2 === "string" && format2.includes("int"))
         json2.type = "integer";
       else
@@ -127205,8 +127205,8 @@ var init_json_schema_processors = __esm({
         throw new Error("Date cannot be represented in JSON Schema");
       }
     };
-    enumProcessor = (schema, _ctx, json2, _params) => {
-      const def = schema._zod.def;
+    enumProcessor = (schema2, _ctx, json2, _params) => {
+      const def = schema2._zod.def;
       const values = getEnumValues(def.entries);
       if (values.every((v) => typeof v === "number"))
         json2.type = "number";
@@ -127214,8 +127214,8 @@ var init_json_schema_processors = __esm({
         json2.type = "string";
       json2.enum = values;
     };
-    literalProcessor = (schema, ctx, json2, _params) => {
-      const def = schema._zod.def;
+    literalProcessor = (schema2, ctx, json2, _params) => {
+      const def = schema2._zod.def;
       const vals = [];
       for (const val of def.values) {
         if (val === void 0) {
@@ -127259,22 +127259,22 @@ var init_json_schema_processors = __esm({
         throw new Error("NaN cannot be represented in JSON Schema");
       }
     };
-    templateLiteralProcessor = (schema, _ctx, json2, _params) => {
+    templateLiteralProcessor = (schema2, _ctx, json2, _params) => {
       const _json = json2;
-      const pattern = schema._zod.pattern;
+      const pattern = schema2._zod.pattern;
       if (!pattern)
         throw new Error("Pattern not found in template literal");
       _json.type = "string";
       _json.pattern = pattern.source;
     };
-    fileProcessor = (schema, _ctx, json2, _params) => {
+    fileProcessor = (schema2, _ctx, json2, _params) => {
       const _json = json2;
       const file2 = {
         type: "string",
         format: "binary",
         contentEncoding: "binary"
       };
-      const { minimum, maximum, mime } = schema._zod.bag;
+      const { minimum, maximum, mime } = schema2._zod.bag;
       if (minimum !== void 0)
         file2.minLength = minimum;
       if (maximum !== void 0)
@@ -127319,10 +127319,10 @@ var init_json_schema_processors = __esm({
         throw new Error("Set cannot be represented in JSON Schema");
       }
     };
-    arrayProcessor = (schema, ctx, _json, params) => {
+    arrayProcessor = (schema2, ctx, _json, params) => {
       const json2 = _json;
-      const def = schema._zod.def;
-      const { minimum, maximum } = schema._zod.bag;
+      const def = schema2._zod.def;
+      const { minimum, maximum } = schema2._zod.bag;
       if (typeof minimum === "number")
         json2.minItems = minimum;
       if (typeof maximum === "number")
@@ -127330,9 +127330,9 @@ var init_json_schema_processors = __esm({
       json2.type = "array";
       json2.items = process2(def.element, ctx, { ...params, path: [...params.path, "items"] });
     };
-    objectProcessor = (schema, ctx, _json, params) => {
+    objectProcessor = (schema2, ctx, _json, params) => {
       const json2 = _json;
-      const def = schema._zod.def;
+      const def = schema2._zod.def;
       json2.type = "object";
       json2.properties = {};
       const shape = def.shape;
@@ -127366,8 +127366,8 @@ var init_json_schema_processors = __esm({
         });
       }
     };
-    unionProcessor = (schema, ctx, json2, params) => {
-      const def = schema._zod.def;
+    unionProcessor = (schema2, ctx, json2, params) => {
+      const def = schema2._zod.def;
       const isExclusive = def.inclusive === false;
       const options = def.options.map((x, i) => process2(x, ctx, {
         ...params,
@@ -127379,8 +127379,8 @@ var init_json_schema_processors = __esm({
         json2.anyOf = options;
       }
     };
-    intersectionProcessor = (schema, ctx, json2, params) => {
-      const def = schema._zod.def;
+    intersectionProcessor = (schema2, ctx, json2, params) => {
+      const def = schema2._zod.def;
       const a = process2(def.left, ctx, {
         ...params,
         path: [...params.path, "allOf", 0]
@@ -127396,9 +127396,9 @@ var init_json_schema_processors = __esm({
       ];
       json2.allOf = allOf;
     };
-    tupleProcessor = (schema, ctx, _json, params) => {
+    tupleProcessor = (schema2, ctx, _json, params) => {
       const json2 = _json;
-      const def = schema._zod.def;
+      const def = schema2._zod.def;
       json2.type = "array";
       const prefixPath = ctx.target === "draft-2020-12" ? "prefixItems" : "items";
       const restPath = ctx.target === "draft-2020-12" ? "items" : ctx.target === "openapi-3.0" ? "items" : "additionalItems";
@@ -127432,15 +127432,15 @@ var init_json_schema_processors = __esm({
           json2.additionalItems = rest;
         }
       }
-      const { minimum, maximum } = schema._zod.bag;
+      const { minimum, maximum } = schema2._zod.bag;
       if (typeof minimum === "number")
         json2.minItems = minimum;
       if (typeof maximum === "number")
         json2.maxItems = maximum;
     };
-    recordProcessor = (schema, ctx, _json, params) => {
+    recordProcessor = (schema2, ctx, _json, params) => {
       const json2 = _json;
-      const def = schema._zod.def;
+      const def = schema2._zod.def;
       json2.type = "object";
       const keyType = def.keyType;
       const keyBag = keyType._zod.bag;
@@ -127474,10 +127474,10 @@ var init_json_schema_processors = __esm({
         }
       }
     };
-    nullableProcessor = (schema, ctx, json2, params) => {
-      const def = schema._zod.def;
+    nullableProcessor = (schema2, ctx, json2, params) => {
+      const def = schema2._zod.def;
       const inner = process2(def.innerType, ctx, params);
-      const seen = ctx.seen.get(schema);
+      const seen = ctx.seen.get(schema2);
       if (ctx.target === "openapi-3.0") {
         seen.ref = def.innerType;
         json2.nullable = true;
@@ -127485,31 +127485,31 @@ var init_json_schema_processors = __esm({
         json2.anyOf = [inner, { type: "null" }];
       }
     };
-    nonoptionalProcessor = (schema, ctx, _json, params) => {
-      const def = schema._zod.def;
+    nonoptionalProcessor = (schema2, ctx, _json, params) => {
+      const def = schema2._zod.def;
       process2(def.innerType, ctx, params);
-      const seen = ctx.seen.get(schema);
+      const seen = ctx.seen.get(schema2);
       seen.ref = def.innerType;
     };
-    defaultProcessor = (schema, ctx, json2, params) => {
-      const def = schema._zod.def;
+    defaultProcessor = (schema2, ctx, json2, params) => {
+      const def = schema2._zod.def;
       process2(def.innerType, ctx, params);
-      const seen = ctx.seen.get(schema);
+      const seen = ctx.seen.get(schema2);
       seen.ref = def.innerType;
       json2.default = JSON.parse(JSON.stringify(def.defaultValue));
     };
-    prefaultProcessor = (schema, ctx, json2, params) => {
-      const def = schema._zod.def;
+    prefaultProcessor = (schema2, ctx, json2, params) => {
+      const def = schema2._zod.def;
       process2(def.innerType, ctx, params);
-      const seen = ctx.seen.get(schema);
+      const seen = ctx.seen.get(schema2);
       seen.ref = def.innerType;
       if (ctx.io === "input")
         json2._prefault = JSON.parse(JSON.stringify(def.defaultValue));
     };
-    catchProcessor = (schema, ctx, json2, params) => {
-      const def = schema._zod.def;
+    catchProcessor = (schema2, ctx, json2, params) => {
+      const def = schema2._zod.def;
       process2(def.innerType, ctx, params);
-      const seen = ctx.seen.get(schema);
+      const seen = ctx.seen.get(schema2);
       seen.ref = def.innerType;
       let catchValue;
       try {
@@ -127519,36 +127519,36 @@ var init_json_schema_processors = __esm({
       }
       json2.default = catchValue;
     };
-    pipeProcessor = (schema, ctx, _json, params) => {
-      const def = schema._zod.def;
+    pipeProcessor = (schema2, ctx, _json, params) => {
+      const def = schema2._zod.def;
       const innerType = ctx.io === "input" ? def.in._zod.def.type === "transform" ? def.out : def.in : def.out;
       process2(innerType, ctx, params);
-      const seen = ctx.seen.get(schema);
+      const seen = ctx.seen.get(schema2);
       seen.ref = innerType;
     };
-    readonlyProcessor = (schema, ctx, json2, params) => {
-      const def = schema._zod.def;
+    readonlyProcessor = (schema2, ctx, json2, params) => {
+      const def = schema2._zod.def;
       process2(def.innerType, ctx, params);
-      const seen = ctx.seen.get(schema);
+      const seen = ctx.seen.get(schema2);
       seen.ref = def.innerType;
       json2.readOnly = true;
     };
-    promiseProcessor = (schema, ctx, _json, params) => {
-      const def = schema._zod.def;
+    promiseProcessor = (schema2, ctx, _json, params) => {
+      const def = schema2._zod.def;
       process2(def.innerType, ctx, params);
-      const seen = ctx.seen.get(schema);
+      const seen = ctx.seen.get(schema2);
       seen.ref = def.innerType;
     };
-    optionalProcessor = (schema, ctx, _json, params) => {
-      const def = schema._zod.def;
+    optionalProcessor = (schema2, ctx, _json, params) => {
+      const def = schema2._zod.def;
       process2(def.innerType, ctx, params);
-      const seen = ctx.seen.get(schema);
+      const seen = ctx.seen.get(schema2);
       seen.ref = def.innerType;
     };
-    lazyProcessor = (schema, ctx, _json, params) => {
-      const innerType = schema._zod.innerType;
+    lazyProcessor = (schema2, ctx, _json, params) => {
+      const innerType = schema2._zod.innerType;
       process2(innerType, ctx, params);
-      const seen = ctx.seen.get(schema);
+      const seen = ctx.seen.get(schema2);
       seen.ref = innerType;
     };
     allProcessors = {
@@ -127652,14 +127652,14 @@ var init_json_schema_generator = __esm({
        * Process a schema to prepare it for JSON Schema generation.
        * This must be called before emit().
        */
-      process(schema, _params = { path: [], schemaPath: [] }) {
-        return process2(schema, this.ctx, _params);
+      process(schema2, _params = { path: [], schemaPath: [] }) {
+        return process2(schema2, this.ctx, _params);
       }
       /**
        * Emit the final JSON Schema after processing.
        * Must call process() first.
        */
-      emit(schema, _params) {
+      emit(schema2, _params) {
         if (_params) {
           if (_params.cycles)
             this.ctx.cycles = _params.cycles;
@@ -127668,8 +127668,8 @@ var init_json_schema_generator = __esm({
           if (_params.external)
             this.ctx.external = _params.external;
         }
-        extractDefs(this.ctx, schema);
-        const result = finalize(this.ctx, schema);
+        extractDefs(this.ctx, schema2);
+        const result = finalize(this.ctx, schema2);
         const { "~standard": _, ...plainResult } = result;
         return plainResult;
       }
@@ -128459,8 +128459,8 @@ function date3(params) {
 function array(element, params) {
   return _array(ZodArray, element, params);
 }
-function keyof(schema) {
-  const shape = schema._zod.def.shape;
+function keyof(schema2) {
+  const shape = schema2._zod.def.shape;
   return _enum2(Object.keys(shape));
 }
 function object(shape, params) {
@@ -128757,8 +128757,8 @@ function json(params) {
   });
   return jsonSchema;
 }
-function preprocess(fn, schema) {
-  return pipe(transform(fn), schema);
+function preprocess(fn, schema2) {
+  return pipe(transform(fn), schema2);
 }
 var ZodType, _ZodString, ZodString, ZodStringFormat, ZodEmail, ZodGUID, ZodUUID, ZodURL, ZodEmoji, ZodNanoID, ZodCUID, ZodCUID2, ZodULID, ZodXID, ZodKSUID, ZodIPv4, ZodMAC, ZodIPv6, ZodCIDRv4, ZodCIDRv6, ZodBase64, ZodBase64URL, ZodE164, ZodJWT, ZodCustomStringFormat, ZodNumber, ZodNumberFormat, ZodBoolean, ZodBigInt, ZodBigIntFormat, ZodSymbol, ZodUndefined, ZodNull, ZodAny, ZodUnknown, ZodNever, ZodVoid, ZodDate, ZodArray, ZodObject, ZodUnion, ZodXor, ZodDiscriminatedUnion, ZodIntersection, ZodTuple, ZodRecord, ZodMap, ZodSet, ZodEnum, ZodLiteral, ZodFile, ZodTransform, ZodOptional, ZodExactOptional, ZodNullable, ZodDefault, ZodPrefault, ZodNonOptional, ZodSuccess, ZodCatch, ZodNaN, ZodPipe, ZodCodec, ZodReadonly, ZodTemplateLiteral, ZodLazy, ZodPromise, ZodFunction, ZodCustom, describe2, meta2, stringbool;
 var init_schemas2 = __esm({
@@ -129429,8 +129429,8 @@ var init_compat = __esm({
 });
 
 // node_modules/zod/v4/classic/from-json-schema.js
-function detectVersion(schema, defaultTarget) {
-  const $schema = schema.$schema;
+function detectVersion(schema2, defaultTarget) {
+  const $schema = schema2.$schema;
   if ($schema === "https://json-schema.org/draft/2020-12/schema") {
     return "draft-2020-12";
   }
@@ -129460,27 +129460,27 @@ function resolveRef(ref, ctx) {
   }
   throw new Error(`Reference not found: ${ref}`);
 }
-function convertBaseSchema(schema, ctx) {
-  if (schema.not !== void 0) {
-    if (typeof schema.not === "object" && Object.keys(schema.not).length === 0) {
+function convertBaseSchema(schema2, ctx) {
+  if (schema2.not !== void 0) {
+    if (typeof schema2.not === "object" && Object.keys(schema2.not).length === 0) {
       return z.never();
     }
     throw new Error("not is not supported in Zod (except { not: {} } for never)");
   }
-  if (schema.unevaluatedItems !== void 0) {
+  if (schema2.unevaluatedItems !== void 0) {
     throw new Error("unevaluatedItems is not supported");
   }
-  if (schema.unevaluatedProperties !== void 0) {
+  if (schema2.unevaluatedProperties !== void 0) {
     throw new Error("unevaluatedProperties is not supported");
   }
-  if (schema.if !== void 0 || schema.then !== void 0 || schema.else !== void 0) {
+  if (schema2.if !== void 0 || schema2.then !== void 0 || schema2.else !== void 0) {
     throw new Error("Conditional schemas (if/then/else) are not supported");
   }
-  if (schema.dependentSchemas !== void 0 || schema.dependentRequired !== void 0) {
+  if (schema2.dependentSchemas !== void 0 || schema2.dependentRequired !== void 0) {
     throw new Error("dependentSchemas and dependentRequired are not supported");
   }
-  if (schema.$ref) {
-    const refPath = schema.$ref;
+  if (schema2.$ref) {
+    const refPath = schema2.$ref;
     if (ctx.refs.has(refPath)) {
       return ctx.refs.get(refPath);
     }
@@ -129499,9 +129499,9 @@ function convertBaseSchema(schema, ctx) {
     ctx.processing.delete(refPath);
     return zodSchema2;
   }
-  if (schema.enum !== void 0) {
-    const enumValues = schema.enum;
-    if (ctx.version === "openapi-3.0" && schema.nullable === true && enumValues.length === 1 && enumValues[0] === null) {
+  if (schema2.enum !== void 0) {
+    const enumValues = schema2.enum;
+    if (ctx.version === "openapi-3.0" && schema2.nullable === true && enumValues.length === 1 && enumValues[0] === null) {
       return z.null();
     }
     if (enumValues.length === 0) {
@@ -129519,13 +129519,13 @@ function convertBaseSchema(schema, ctx) {
     }
     return z.union([literalSchemas[0], literalSchemas[1], ...literalSchemas.slice(2)]);
   }
-  if (schema.const !== void 0) {
-    return z.literal(schema.const);
+  if (schema2.const !== void 0) {
+    return z.literal(schema2.const);
   }
-  const type = schema.type;
+  const type = schema2.type;
   if (Array.isArray(type)) {
     const typeSchemas = type.map((t) => {
-      const typeSchema = { ...schema, type: t };
+      const typeSchema = { ...schema2, type: t };
       return convertBaseSchema(typeSchema, ctx);
     });
     if (typeSchemas.length === 0) {
@@ -129543,8 +129543,8 @@ function convertBaseSchema(schema, ctx) {
   switch (type) {
     case "string": {
       let stringSchema = z.string();
-      if (schema.format) {
-        const format2 = schema.format;
+      if (schema2.format) {
+        const format2 = schema2.format;
         if (format2 === "email") {
           stringSchema = stringSchema.check(z.email());
         } else if (format2 === "uri" || format2 === "uri-reference") {
@@ -129593,14 +129593,14 @@ function convertBaseSchema(schema, ctx) {
           stringSchema = stringSchema.check(z.ksuid());
         }
       }
-      if (typeof schema.minLength === "number") {
-        stringSchema = stringSchema.min(schema.minLength);
+      if (typeof schema2.minLength === "number") {
+        stringSchema = stringSchema.min(schema2.minLength);
       }
-      if (typeof schema.maxLength === "number") {
-        stringSchema = stringSchema.max(schema.maxLength);
+      if (typeof schema2.maxLength === "number") {
+        stringSchema = stringSchema.max(schema2.maxLength);
       }
-      if (schema.pattern) {
-        stringSchema = stringSchema.regex(new RegExp(schema.pattern));
+      if (schema2.pattern) {
+        stringSchema = stringSchema.regex(new RegExp(schema2.pattern));
       }
       zodSchema = stringSchema;
       break;
@@ -129608,24 +129608,24 @@ function convertBaseSchema(schema, ctx) {
     case "number":
     case "integer": {
       let numberSchema = type === "integer" ? z.number().int() : z.number();
-      if (typeof schema.minimum === "number") {
-        numberSchema = numberSchema.min(schema.minimum);
+      if (typeof schema2.minimum === "number") {
+        numberSchema = numberSchema.min(schema2.minimum);
       }
-      if (typeof schema.maximum === "number") {
-        numberSchema = numberSchema.max(schema.maximum);
+      if (typeof schema2.maximum === "number") {
+        numberSchema = numberSchema.max(schema2.maximum);
       }
-      if (typeof schema.exclusiveMinimum === "number") {
-        numberSchema = numberSchema.gt(schema.exclusiveMinimum);
-      } else if (schema.exclusiveMinimum === true && typeof schema.minimum === "number") {
-        numberSchema = numberSchema.gt(schema.minimum);
+      if (typeof schema2.exclusiveMinimum === "number") {
+        numberSchema = numberSchema.gt(schema2.exclusiveMinimum);
+      } else if (schema2.exclusiveMinimum === true && typeof schema2.minimum === "number") {
+        numberSchema = numberSchema.gt(schema2.minimum);
       }
-      if (typeof schema.exclusiveMaximum === "number") {
-        numberSchema = numberSchema.lt(schema.exclusiveMaximum);
-      } else if (schema.exclusiveMaximum === true && typeof schema.maximum === "number") {
-        numberSchema = numberSchema.lt(schema.maximum);
+      if (typeof schema2.exclusiveMaximum === "number") {
+        numberSchema = numberSchema.lt(schema2.exclusiveMaximum);
+      } else if (schema2.exclusiveMaximum === true && typeof schema2.maximum === "number") {
+        numberSchema = numberSchema.lt(schema2.maximum);
       }
-      if (typeof schema.multipleOf === "number") {
-        numberSchema = numberSchema.multipleOf(schema.multipleOf);
+      if (typeof schema2.multipleOf === "number") {
+        numberSchema = numberSchema.multipleOf(schema2.multipleOf);
       }
       zodSchema = numberSchema;
       break;
@@ -129640,15 +129640,15 @@ function convertBaseSchema(schema, ctx) {
     }
     case "object": {
       const shape = {};
-      const properties = schema.properties || {};
-      const requiredSet = new Set(schema.required || []);
+      const properties = schema2.properties || {};
+      const requiredSet = new Set(schema2.required || []);
       for (const [key2, propSchema] of Object.entries(properties)) {
         const propZodSchema = convertSchema(propSchema, ctx);
         shape[key2] = requiredSet.has(key2) ? propZodSchema : propZodSchema.optional();
       }
-      if (schema.propertyNames) {
-        const keySchema = convertSchema(schema.propertyNames, ctx);
-        const valueSchema = schema.additionalProperties && typeof schema.additionalProperties === "object" ? convertSchema(schema.additionalProperties, ctx) : z.any();
+      if (schema2.propertyNames) {
+        const keySchema = convertSchema(schema2.propertyNames, ctx);
+        const valueSchema = schema2.additionalProperties && typeof schema2.additionalProperties === "object" ? convertSchema(schema2.additionalProperties, ctx) : z.any();
         if (Object.keys(shape).length === 0) {
           zodSchema = z.record(keySchema, valueSchema);
           break;
@@ -129658,8 +129658,8 @@ function convertBaseSchema(schema, ctx) {
         zodSchema = z.intersection(objectSchema2, recordSchema);
         break;
       }
-      if (schema.patternProperties) {
-        const patternProps = schema.patternProperties;
+      if (schema2.patternProperties) {
+        const patternProps = schema2.patternProperties;
         const patternKeys = Object.keys(patternProps);
         const looseRecords = [];
         for (const pattern of patternKeys) {
@@ -129686,18 +129686,18 @@ function convertBaseSchema(schema, ctx) {
         break;
       }
       const objectSchema = z.object(shape);
-      if (schema.additionalProperties === false) {
+      if (schema2.additionalProperties === false) {
         zodSchema = objectSchema.strict();
-      } else if (typeof schema.additionalProperties === "object") {
-        zodSchema = objectSchema.catchall(convertSchema(schema.additionalProperties, ctx));
+      } else if (typeof schema2.additionalProperties === "object") {
+        zodSchema = objectSchema.catchall(convertSchema(schema2.additionalProperties, ctx));
       } else {
         zodSchema = objectSchema.passthrough();
       }
       break;
     }
     case "array": {
-      const prefixItems = schema.prefixItems;
-      const items = schema.items;
+      const prefixItems = schema2.prefixItems;
+      const items = schema2.items;
       if (prefixItems && Array.isArray(prefixItems)) {
         const tupleItems = prefixItems.map((item) => convertSchema(item, ctx));
         const rest = items && typeof items === "object" && !Array.isArray(items) ? convertSchema(items, ctx) : void 0;
@@ -129706,34 +129706,34 @@ function convertBaseSchema(schema, ctx) {
         } else {
           zodSchema = z.tuple(tupleItems);
         }
-        if (typeof schema.minItems === "number") {
-          zodSchema = zodSchema.check(z.minLength(schema.minItems));
+        if (typeof schema2.minItems === "number") {
+          zodSchema = zodSchema.check(z.minLength(schema2.minItems));
         }
-        if (typeof schema.maxItems === "number") {
-          zodSchema = zodSchema.check(z.maxLength(schema.maxItems));
+        if (typeof schema2.maxItems === "number") {
+          zodSchema = zodSchema.check(z.maxLength(schema2.maxItems));
         }
       } else if (Array.isArray(items)) {
         const tupleItems = items.map((item) => convertSchema(item, ctx));
-        const rest = schema.additionalItems && typeof schema.additionalItems === "object" ? convertSchema(schema.additionalItems, ctx) : void 0;
+        const rest = schema2.additionalItems && typeof schema2.additionalItems === "object" ? convertSchema(schema2.additionalItems, ctx) : void 0;
         if (rest) {
           zodSchema = z.tuple(tupleItems).rest(rest);
         } else {
           zodSchema = z.tuple(tupleItems);
         }
-        if (typeof schema.minItems === "number") {
-          zodSchema = zodSchema.check(z.minLength(schema.minItems));
+        if (typeof schema2.minItems === "number") {
+          zodSchema = zodSchema.check(z.minLength(schema2.minItems));
         }
-        if (typeof schema.maxItems === "number") {
-          zodSchema = zodSchema.check(z.maxLength(schema.maxItems));
+        if (typeof schema2.maxItems === "number") {
+          zodSchema = zodSchema.check(z.maxLength(schema2.maxItems));
         }
       } else if (items !== void 0) {
         const element = convertSchema(items, ctx);
         let arraySchema = z.array(element);
-        if (typeof schema.minItems === "number") {
-          arraySchema = arraySchema.min(schema.minItems);
+        if (typeof schema2.minItems === "number") {
+          arraySchema = arraySchema.min(schema2.minItems);
         }
-        if (typeof schema.maxItems === "number") {
-          arraySchema = arraySchema.max(schema.maxItems);
+        if (typeof schema2.maxItems === "number") {
+          arraySchema = arraySchema.max(schema2.maxItems);
         }
         zodSchema = arraySchema;
       } else {
@@ -129744,64 +129744,64 @@ function convertBaseSchema(schema, ctx) {
     default:
       throw new Error(`Unsupported type: ${type}`);
   }
-  if (schema.description) {
-    zodSchema = zodSchema.describe(schema.description);
+  if (schema2.description) {
+    zodSchema = zodSchema.describe(schema2.description);
   }
-  if (schema.default !== void 0) {
-    zodSchema = zodSchema.default(schema.default);
+  if (schema2.default !== void 0) {
+    zodSchema = zodSchema.default(schema2.default);
   }
   return zodSchema;
 }
-function convertSchema(schema, ctx) {
-  if (typeof schema === "boolean") {
-    return schema ? z.any() : z.never();
+function convertSchema(schema2, ctx) {
+  if (typeof schema2 === "boolean") {
+    return schema2 ? z.any() : z.never();
   }
-  let baseSchema = convertBaseSchema(schema, ctx);
-  const hasExplicitType = schema.type || schema.enum !== void 0 || schema.const !== void 0;
-  if (schema.anyOf && Array.isArray(schema.anyOf)) {
-    const options = schema.anyOf.map((s) => convertSchema(s, ctx));
+  let baseSchema = convertBaseSchema(schema2, ctx);
+  const hasExplicitType = schema2.type || schema2.enum !== void 0 || schema2.const !== void 0;
+  if (schema2.anyOf && Array.isArray(schema2.anyOf)) {
+    const options = schema2.anyOf.map((s) => convertSchema(s, ctx));
     const anyOfUnion = z.union(options);
     baseSchema = hasExplicitType ? z.intersection(baseSchema, anyOfUnion) : anyOfUnion;
   }
-  if (schema.oneOf && Array.isArray(schema.oneOf)) {
-    const options = schema.oneOf.map((s) => convertSchema(s, ctx));
+  if (schema2.oneOf && Array.isArray(schema2.oneOf)) {
+    const options = schema2.oneOf.map((s) => convertSchema(s, ctx));
     const oneOfUnion = z.xor(options);
     baseSchema = hasExplicitType ? z.intersection(baseSchema, oneOfUnion) : oneOfUnion;
   }
-  if (schema.allOf && Array.isArray(schema.allOf)) {
-    if (schema.allOf.length === 0) {
+  if (schema2.allOf && Array.isArray(schema2.allOf)) {
+    if (schema2.allOf.length === 0) {
       baseSchema = hasExplicitType ? baseSchema : z.any();
     } else {
-      let result = hasExplicitType ? baseSchema : convertSchema(schema.allOf[0], ctx);
+      let result = hasExplicitType ? baseSchema : convertSchema(schema2.allOf[0], ctx);
       const startIdx = hasExplicitType ? 0 : 1;
-      for (let i = startIdx; i < schema.allOf.length; i++) {
-        result = z.intersection(result, convertSchema(schema.allOf[i], ctx));
+      for (let i = startIdx; i < schema2.allOf.length; i++) {
+        result = z.intersection(result, convertSchema(schema2.allOf[i], ctx));
       }
       baseSchema = result;
     }
   }
-  if (schema.nullable === true && ctx.version === "openapi-3.0") {
+  if (schema2.nullable === true && ctx.version === "openapi-3.0") {
     baseSchema = z.nullable(baseSchema);
   }
-  if (schema.readOnly === true) {
+  if (schema2.readOnly === true) {
     baseSchema = z.readonly(baseSchema);
   }
   const extraMeta = {};
   const coreMetadataKeys = ["$id", "id", "$comment", "$anchor", "$vocabulary", "$dynamicRef", "$dynamicAnchor"];
   for (const key2 of coreMetadataKeys) {
-    if (key2 in schema) {
-      extraMeta[key2] = schema[key2];
+    if (key2 in schema2) {
+      extraMeta[key2] = schema2[key2];
     }
   }
   const contentMetadataKeys = ["contentEncoding", "contentMediaType", "contentSchema"];
   for (const key2 of contentMetadataKeys) {
-    if (key2 in schema) {
-      extraMeta[key2] = schema[key2];
+    if (key2 in schema2) {
+      extraMeta[key2] = schema2[key2];
     }
   }
-  for (const key2 of Object.keys(schema)) {
+  for (const key2 of Object.keys(schema2)) {
     if (!RECOGNIZED_KEYS.has(key2)) {
-      extraMeta[key2] = schema[key2];
+      extraMeta[key2] = schema2[key2];
     }
   }
   if (Object.keys(extraMeta).length > 0) {
@@ -129809,21 +129809,21 @@ function convertSchema(schema, ctx) {
   }
   return baseSchema;
 }
-function fromJSONSchema(schema, params) {
-  if (typeof schema === "boolean") {
-    return schema ? z.any() : z.never();
+function fromJSONSchema(schema2, params) {
+  if (typeof schema2 === "boolean") {
+    return schema2 ? z.any() : z.never();
   }
-  const version4 = detectVersion(schema, params?.defaultTarget);
-  const defs = schema.$defs || schema.definitions || {};
+  const version4 = detectVersion(schema2, params?.defaultTarget);
+  const defs = schema2.$defs || schema2.definitions || {};
   const ctx = {
     version: version4,
     defs,
     refs: /* @__PURE__ */ new Map(),
     processing: /* @__PURE__ */ new Set(),
-    rootSchema: schema,
+    rootSchema: schema2,
     registry: params?.registry ?? globalRegistry
   };
-  return convertSchema(schema, ctx);
+  return convertSchema(schema2, ctx);
 }
 var z, RECOGNIZED_KEYS;
 var init_from_json_schema = __esm({
@@ -159351,10 +159351,10 @@ function resolveAppSchema(env = process.env) {
   if (!fromEnv) return LEGACY_APP_SCHEMA;
   return fromEnv;
 }
-function adoptAppSchema(schema) {
-  const candidate2 = schema.trim();
+function adoptAppSchema(schema2) {
+  const candidate2 = schema2.trim();
   if (!POSTGRES_IDENTIFIER.test(candidate2)) {
-    throw new Error(`Refusing invalid Postgres schema identifier: ${JSON.stringify(schema)}`);
+    throw new Error(`Refusing invalid Postgres schema identifier: ${JSON.stringify(schema2)}`);
   }
   APP_SCHEMA = candidate2;
   return APP_SCHEMA;
@@ -163612,10 +163612,10 @@ var init_migrations = __esm({
 });
 
 // server/lib/schema-ownership-guard.ts
-function schemaWriteRefusal(schema, state) {
+function schemaWriteRefusal(schema2, state) {
   if (!state.schemaExists) return "";
   if (state.connectedRoleHoldsOwner) return "";
-  return `${schema} is owned by ${state.owner} and this server is connected as ${state.connectedRole}, which holds none of that role's rights. The boot DDL is NOT being run. Statements against the tables that already exist would be refused on ownership anyway, but any table this version has ADDED would be created successfully and owned by ${state.connectedRole} forever -- which is what blocks the next release, because ownership cannot be handed back: ALTER ... OWNER TO needs SET ROLE on the owner and Lakebase does not grant that. If this is a local development server, it is pointed at the deployed app's branch: give it a branch of its own and it will own its own schema. If this IS the deployed app, its Postgres role has changed since the schema was created, and the schema has to be recreated by the new role.`;
+  return `${schema2} is owned by ${state.owner} and this server is connected as ${state.connectedRole}, which holds none of that role's rights. The boot DDL is NOT being run. Statements against the tables that already exist would be refused on ownership anyway, but any table this version has ADDED would be created successfully and owned by ${state.connectedRole} forever -- which is what blocks the next release, because ownership cannot be handed back: ALTER ... OWNER TO needs SET ROLE on the owner and Lakebase does not grant that. If this is a local development server, it is pointed at the deployed app's branch: give it a branch of its own and it will own its own schema. If this IS the deployed app, its Postgres role has changed since the schema was created, and the schema has to be recreated by the new role.`;
 }
 function schemaOwnershipQuery() {
   return `SELECT to_regnamespace($1) IS NOT NULL AS schema_exists,
@@ -163695,8 +163695,8 @@ async function statementAlreadySatisfied(client, statement) {
   }
   return false;
 }
-function schemaVersionDdl(schema) {
-  return `CREATE TABLE IF NOT EXISTS ${schema}.${SCHEMA_VERSION_TABLE} (
+function schemaVersionDdl(schema2) {
+  return `CREATE TABLE IF NOT EXISTS ${schema2}.${SCHEMA_VERSION_TABLE} (
        version INTEGER PRIMARY KEY,
        name TEXT NOT NULL,
        statement_count INTEGER NOT NULL,
@@ -163705,10 +163705,10 @@ function schemaVersionDdl(schema) {
        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
      )`;
 }
-async function readAppliedVersions(client, schema) {
+async function readAppliedVersions(client, schema2) {
   try {
     const result = await client.lakebase.query(
-      `SELECT version FROM ${schema}.${SCHEMA_VERSION_TABLE} ORDER BY version ASC`,
+      `SELECT version FROM ${schema2}.${SCHEMA_VERSION_TABLE} ORDER BY version ASC`,
       []
     );
     const versions = [];
@@ -163725,12 +163725,12 @@ function failureCode(error48) {
   const raw2 = error48.code;
   return typeof raw2 === "string" || typeof raw2 === "number" ? String(raw2) : "";
 }
-async function ownershipRefusal(client, schema) {
+async function ownershipRefusal(client, schema2) {
   try {
-    const result = await client.lakebase.query(schemaOwnershipQuery(), [schema]);
+    const result = await client.lakebase.query(schemaOwnershipQuery(), [schema2]);
     const row2 = result.rows[0];
     if (!row2) return "";
-    return schemaWriteRefusal(schema, {
+    return schemaWriteRefusal(schema2, {
       schemaExists: row2.schema_exists === true,
       owner: identifierText(row2.owner) ?? "",
       connectedRole: identifierText(row2.connected_role) ?? "",
@@ -163738,7 +163738,7 @@ async function ownershipRefusal(client, schema) {
     });
   } catch (error48) {
     console.warn(
-      `[migrate] could not establish who owns ${schema}, so the migrations are being attempted as before: ${error48.message}`
+      `[migrate] could not establish who owns ${schema2}, so the migrations are being attempted as before: ${error48.message}`
     );
     return "";
   }
@@ -163746,7 +163746,7 @@ async function ownershipRefusal(client, schema) {
 async function runMigrations(client, options) {
   const mode = options.mode ?? "apply";
   const appliedBy = options.appliedBy ?? "unknown";
-  const { schema, migrations } = options;
+  const { schema: schema2, migrations } = options;
   const known = migrations.map((migration) => migration.version);
   const blank2 = (blocked) => ({
     mode,
@@ -163766,16 +163766,16 @@ async function runMigrations(client, options) {
     return blank2(fault);
   }
   if (mode === "apply") {
-    const refusal2 = await ownershipRefusal(client, schema);
+    const refusal2 = await ownershipRefusal(client, schema2);
     if (refusal2) {
       console.error(`[migrate] MIGRATIONS SKIPPED: ${refusal2}`);
       return blank2(refusal2);
     }
   }
-  const applied = await readAppliedVersions(client, schema);
+  const applied = await readAppliedVersions(client, schema2);
   if (applied === null) {
     console.warn(
-      `[migrate] VERSION UNKNOWN: ${schema}.${SCHEMA_VERSION_TABLE} could not be read, so what is already applied is unknown. ${mode === "verify" ? "Nothing was run, because this was a verification. On a deployment that has never been migrated the table does not exist yet, which is itself the answer: run the migration step." : "Every version is being attempted, because the statements are idempotent, and the table is created before the first version is recorded."}`
+      `[migrate] VERSION UNKNOWN: ${schema2}.${SCHEMA_VERSION_TABLE} could not be read, so what is already applied is unknown. ${mode === "verify" ? "Nothing was run, because this was a verification. On a deployment that has never been migrated the table does not exist yet, which is itself the answer: run the migration step." : "Every version is being attempted, because the statements are idempotent, and the table is created before the first version is recorded."}`
     );
   }
   const recorded2 = new Set(applied ?? []);
@@ -163821,10 +163821,10 @@ async function runMigrations(client, options) {
   let versionAfter = versionBefore;
   let versionTableReady = applied !== null;
   for (const migration of pending) {
-    const attempt = await applyOne(client, schema, migration, appliedBy, async () => {
+    const attempt = await applyOne(client, schema2, migration, appliedBy, async () => {
       if (versionTableReady) return;
       versionTableReady = true;
-      await bootstrapVersionTable(client, schema);
+      await bootstrapVersionTable(client, schema2);
     });
     attempts.push(attempt);
     if (attempt.outcome === "applied") {
@@ -163851,16 +163851,16 @@ async function runMigrations(client, options) {
   }
   return { mode, versionBefore, versionAfter, attempts, pending: stillPending, ahead, blocked: "", ok: ok2 };
 }
-async function bootstrapVersionTable(client, schema) {
+async function bootstrapVersionTable(client, schema2) {
   try {
-    await withoutReadTimeout(client, (query) => query(schemaVersionDdl(schema)));
+    await withoutReadTimeout(client, (query) => query(schemaVersionDdl(schema2)));
   } catch (error48) {
     console.warn(
-      `[migrate] ${schema}.${SCHEMA_VERSION_TABLE} could not be created (${failureCode(error48) || "no code"}): ${error48.message}. If it already exists this changed nothing; if it does not, the version below will be reported as applied-but-not-recorded.`
+      `[migrate] ${schema2}.${SCHEMA_VERSION_TABLE} could not be created (${failureCode(error48) || "no code"}): ${error48.message}. If it already exists this changed nothing; if it does not, the version below will be reported as applied-but-not-recorded.`
     );
   }
 }
-async function applyOne(client, schema, migration, appliedBy, ensureVersionTable) {
+async function applyOne(client, schema2, migration, appliedBy, ensureVersionTable) {
   const refused2 = [];
   const total = migration.statements.length;
   await withoutReadTimeout(client, async (query) => {
@@ -163896,7 +163896,7 @@ async function applyOne(client, schema, migration, appliedBy, ensureVersionTable
   await ensureVersionTable();
   try {
     await client.lakebase.query(
-      `INSERT INTO ${schema}.${SCHEMA_VERSION_TABLE} (version, name, statement_count, refused_but_satisfied, applied_by)
+      `INSERT INTO ${schema2}.${SCHEMA_VERSION_TABLE} (version, name, statement_count, refused_but_satisfied, applied_by)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (version) DO NOTHING`,
       [migration.version, migration.name, total, failures.length, appliedBy]
@@ -169505,8 +169505,8 @@ function namespaceInUse(checks) {
     if (parts.length === 3) prefixes.add(`${parts[0]}.${parts[1]}`);
   }
   if (prefixes.size !== 1) return null;
-  const [catalog, schema] = [...prefixes][0].split(".");
-  return { catalog, schema };
+  const [catalog2, schema2] = [...prefixes][0].split(".");
+  return { catalog: catalog2, schema: schema2 };
 }
 function displayValue(value) {
   if (Array.isArray(value)) {
@@ -172989,9 +172989,9 @@ var init_declared_scopes = __esm({
 });
 
 // shared/data-contract.ts
-function qualifyDataContractTables(catalog, schema, tables = DATA_CONTRACT_TABLES) {
-  const nsCatalog = catalog.trim();
-  const nsSchema = schema.trim();
+function qualifyDataContractTables(catalog2, schema2, tables = DATA_CONTRACT_TABLES) {
+  const nsCatalog = catalog2.trim();
+  const nsSchema = schema2.trim();
   if (!nsCatalog || !nsSchema) return [];
   return [
     ...new Set(
@@ -173270,13 +173270,13 @@ function matches(text21, markers) {
 function classifyDenial(message, table) {
   const text21 = message.toLowerCase();
   if (matches(text21, PERMISSION_MARKERS)) {
-    const catalog = CATALOG_REFUSED.exec(message);
-    if (catalog) {
-      return { kind: "no-grant", object: catalog[1], objectKind: "catalog", permission: "USE CATALOG" };
+    const catalog2 = CATALOG_REFUSED.exec(message);
+    if (catalog2) {
+      return { kind: "no-grant", object: catalog2[1], objectKind: "catalog", permission: "USE CATALOG" };
     }
-    const schema = SCHEMA_REFUSED.exec(message);
-    if (schema) {
-      return { kind: "no-grant", object: schema[1], objectKind: "schema", permission: "USE SCHEMA" };
+    const schema2 = SCHEMA_REFUSED.exec(message);
+    if (schema2) {
+      return { kind: "no-grant", object: schema2[1], objectKind: "schema", permission: "USE SCHEMA" };
     }
     return { kind: "no-grant", object: table, objectKind: "table", permission: "SELECT" };
   }
@@ -175496,11 +175496,11 @@ function recordedAccessMode(email3, gate = ACCESS_GATE_ENABLED) {
   return accessDecisionFor(email3)?.mode ?? null;
 }
 function executionIdentityColumns(email3, execution) {
-  const serving2 = observedServingPrincipal();
+  const serving3 = observedServingPrincipal();
   return [
     appServicePrincipal(),
-    serving2?.id ?? null,
-    serving2?.observedAt ?? null,
+    serving3?.id ?? null,
+    serving3?.observedAt ?? null,
     recordedAccessMode(email3),
     execution?.mode ?? null,
     execution?.verified ?? null
@@ -176807,7 +176807,7 @@ function setupInsightsRoutes(appkit, options = {}) {
           entitlements: appEntitlementLookup()
         }
       );
-      const serving2 = observedServingPrincipal();
+      const serving3 = observedServingPrincipal();
       if (!isVerified2(outcome)) {
         const genieDenied = (outcome.genie ?? []).filter((verdict) => verdict.status === "denied").length;
         console.warn(
@@ -176818,13 +176818,13 @@ function setupInsightsRoutes(appkit, options = {}) {
           verified: false,
           ...outcome,
           mode: accessModeFor(email3),
-          servingPrincipal: serving2
+          servingPrincipal: serving3
         });
         return;
       }
       const decision = recordVerifiedAccess(email3, verificationSummary(outcome));
       console.log(`[access] ${email3} \u2192 user-verified on warehouse ${warehouseId2} (${outcome.ok} tables)`);
-      res.json({ verified: true, ...outcome, decision, servingPrincipal: serving2 });
+      res.json({ verified: true, ...outcome, decision, servingPrincipal: serving3 });
     });
     app.get("/api/preflight", async (_req, res) => {
       const endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "";
@@ -177164,7 +177164,7 @@ function setupInsightsRoutes(appkit, options = {}) {
       const runIds = result.value.runs.map((run2) => run2.runId);
       const abortedHere = abortInProcessRuns(runIds);
       const durableRun = result.value.runs[0];
-      const warehouse = await cancelTaggedWarehouseQueries({
+      const warehouse2 = await cancelTaggedWarehouseQueries({
         req,
         scope: {
           mode: "owner",
@@ -177185,8 +177185,8 @@ function setupInsightsRoutes(appkit, options = {}) {
         cancelled: runIds.length,
         runIds,
         abortedHere,
-        failures: warehouse.failures,
-        warehouse: warehouse.result,
+        failures: warehouse2.failures,
+        warehouse: warehouse2.result,
         modelServing: "App-side stream consumption was stopped and no replacement invocation will be started. A model invocation already accepted by Model Serving may still finish server-side."
       });
     });
@@ -177219,12 +177219,12 @@ function setupInsightsRoutes(appkit, options = {}) {
         );
         failures.push("Active benchmark suites could not be marked for cancellation.");
       }
-      const warehouse = await cancelTaggedWarehouseQueries({
+      const warehouse2 = await cancelTaggedWarehouseQueries({
         req,
         scope: { mode: "admin" },
         transport: appkit.warehouseCancellationTransport
       });
-      failures.push(...warehouse.failures);
+      failures.push(...warehouse2.failures);
       await recordAdminAction(appkit.lakebase, {
         actor,
         action: "runs-cancelled",
@@ -177237,7 +177237,7 @@ function setupInsightsRoutes(appkit, options = {}) {
         runIds,
         abortedHere,
         failures,
-        warehouse: warehouse.result,
+        warehouse: warehouse2.result,
         benchmarkSuites,
         oneShot: true,
         deleted: 0,
@@ -179324,8 +179324,8 @@ function tablesFromListing(rows, denylist = []) {
   }
   return names2.sort();
 }
-function isDataContractFallback(tables, catalog, schema) {
-  const contract = qualifyDataContractTables(catalog, schema);
+function isDataContractFallback(tables, catalog2, schema2) {
+  const contract = qualifyDataContractTables(catalog2, schema2);
   if (contract.length === 0) return false;
   if (tables.length !== contract.length) return false;
   const listed = [...tables].map((table) => table.trim()).filter(Boolean).sort();
@@ -179335,18 +179335,18 @@ function unionTableNames(...lists) {
   return [...new Set(lists.flat().map((table) => table.trim()).filter(Boolean))].sort();
 }
 async function listDeclarableTablesInSchema(input) {
-  const catalog = input.catalog.trim();
-  const schema = input.schema.trim();
-  if (!catalog || !schema || !input.host || !input.token) return [];
-  if (UNDECLARABLE_SCHEMAS.has(schema)) return [];
+  const catalog2 = input.catalog.trim();
+  const schema2 = input.schema.trim();
+  if (!catalog2 || !schema2 || !input.host || !input.token) return [];
+  if (UNDECLARABLE_SCHEMAS.has(schema2)) return [];
   const call = input.fetchImpl ?? fetch;
   const timeoutMs = input.timeoutMs ?? 15e3;
   const found = [];
   let pageToken = "";
   for (let pages = 0; pages < 20; pages += 1) {
     const query = [
-      `catalog_name=${encodeURIComponent(catalog)}`,
-      `schema_name=${encodeURIComponent(schema)}`,
+      `catalog_name=${encodeURIComponent(catalog2)}`,
+      `schema_name=${encodeURIComponent(schema2)}`,
       "omit_columns=false",
       "max_results=100",
       pageToken ? `page_token=${encodeURIComponent(pageToken)}` : ""
@@ -179388,17 +179388,17 @@ var init_declared_tables = __esm({
 });
 
 // server/lib/semantic-index-name.ts
-function derivedSemanticIndexName(catalog, schema) {
-  const nsCatalog = catalog.trim();
-  const nsSchema = schema.trim();
+function derivedSemanticIndexName(catalog2, schema2) {
+  const nsCatalog = catalog2.trim();
+  const nsSchema = schema2.trim();
   if (!nsCatalog || !nsSchema) return "";
   return `${nsCatalog}.${nsSchema}.${SEMANTIC_LAYER_INDEX}`;
 }
-function resolveSemanticIndexValue(raw2, catalog, schema) {
+function resolveSemanticIndexValue(raw2, catalog2, schema2) {
   const value = raw2.trim();
   if (!value || value.toLowerCase() === "false") return "";
   if (value.toLowerCase() === DERIVE_SEMANTIC_INDEX) {
-    return derivedSemanticIndexName(catalog, schema) || value;
+    return derivedSemanticIndexName(catalog2, schema2) || value;
   }
   return value;
 }
@@ -179482,20 +179482,20 @@ function catalogSchemaOf(entries) {
     schema: asString2(entryValue(entries.find((entry) => entry.key === "schema")))
   };
 }
-function isDataContractManifest(entry, catalog, schema) {
+function isDataContractManifest(entry, catalog2, schema2) {
   if (entry.source === "data-contract") return true;
-  return isDataContractFallback(asStringList2(entry.value), catalog, schema);
+  return isDataContractFallback(asStringList2(entry.value), catalog2, schema2);
 }
 function mergeReleaseConfiguration(fromEnv, fromBaked) {
   const byKey = new Map(fromEnv.map((entry) => [entry.key, entry]));
-  const { catalog, schema } = catalogSchemaOf(fromEnv);
+  const { catalog: catalog2, schema: schema2 } = catalogSchemaOf(fromEnv);
   for (const baked of fromBaked) {
     const existing = byKey.get(baked.key);
     if (!existing || isEmptyValue(existing.value)) {
       byKey.set(baked.key, baked);
       continue;
     }
-    if (baked.key === "declared_manifest" && isDataContractManifest(existing, catalog, schema)) {
+    if (baked.key === "declared_manifest" && isDataContractManifest(existing, catalog2, schema2)) {
       const bakedList = asStringList2(baked.value);
       if (bakedList.length > asStringList2(existing.value).length) {
         byKey.set(baked.key, baked);
@@ -179920,8 +179920,8 @@ function telemetrySchema(raw2 = process.env[TELEMETRY_SCHEMA_ENV]) {
   }
   return parts.join(".");
 }
-function logsTable(schema) {
-  return schema ? `${schema}.${LOGS_TABLE}` : "";
+function logsTable(schema2) {
+  return schema2 ? `${schema2}.${LOGS_TABLE}` : "";
 }
 function grantFor(table, principal, permission = "SELECT") {
   const remedy = tableGrant(table, principal);
@@ -179943,9 +179943,9 @@ function offMeasurement(insightsHref) {
   };
 }
 function uncheckedMeasurement(insightsHref, note) {
-  const schema = telemetrySchema();
-  if (!schema) return offMeasurement(insightsHref);
-  const table = logsTable(schema);
+  const schema2 = telemetrySchema();
+  if (!schema2) return offMeasurement(insightsHref);
+  const table = logsTable(schema2);
   return {
     ...offMeasurement(insightsHref),
     telemetry: "unreadable",
@@ -180042,13 +180042,13 @@ function readTelemetryRows(dataArray2) {
 function hasHistory(figures) {
   return figures.requestsPerHour.length > 0 || figures.signInsPerDay.length > 0 || Boolean(figures.lastServedAt);
 }
-function buildExporterStatement(schema) {
+function buildExporterStatement(schema2) {
   const branches = EXPORTER_TABLES.map(
     (name2) => `SELECT '${name2}' AS name,
        CAST(COUNT(*) AS STRING) AS rows,
        CAST(MIN(time) AS STRING) AS first_at,
        CAST(MAX(time) AS STRING) AS last_at
-FROM ${schema}.${name2}`
+FROM ${schema2}.${name2}`
   );
   return `${branches.join("\nUNION ALL\n")}
 ORDER BY 1`;
@@ -180056,7 +180056,7 @@ ORDER BY 1`;
 function rowText2(value) {
   return typeof value === "string" ? value.trim() : "";
 }
-function readExporterRows(dataArray2, schema) {
+function readExporterRows(dataArray2, schema2) {
   const tables = [];
   if (Array.isArray(dataArray2)) {
     for (const raw2 of dataArray2) {
@@ -180077,15 +180077,15 @@ function readExporterRows(dataArray2, schema) {
     state: tables.length === 0 ? "unreadable" : written > 0 ? "exporting" : "silent",
     tables,
     error: tables.length === 0 ? "The warehouse answered the count with no rows at all, so nothing was established." : "",
-    schema
+    schema: schema2
   };
 }
-function exporterFailure(message, schema) {
+function exporterFailure(message, schema2) {
   return {
     state: "unreadable",
     tables: [],
     error: message.trim() || "the count did not complete",
-    schema
+    schema: schema2
   };
 }
 async function readExporter(input = {}) {
@@ -180113,11 +180113,11 @@ var init_ops_telemetry = __esm({
     WAREHOUSE_ENV = "DATABRICKS_SQL_WAREHOUSE_ID";
     EXPORTER_CACHE_MS = 5 * 60 * 1e3;
     workspaceExporterReader = async () => {
-      const schema = telemetrySchema();
-      if (!schema) return { ...NO_EXPORTER_READING };
-      const warehouse = (process.env[WAREHOUSE_ENV] ?? "").trim();
-      if (!warehouse) {
-        return exporterFailure(`No ${WAREHOUSE_ENV} is set, so there is nothing to run the count on.`, schema);
+      const schema2 = telemetrySchema();
+      if (!schema2) return { ...NO_EXPORTER_READING };
+      const warehouse2 = (process.env[WAREHOUSE_ENV] ?? "").trim();
+      if (!warehouse2) {
+        return exporterFailure(`No ${WAREHOUSE_ENV} is set, so there is nothing to run the count on.`, schema2);
       }
       try {
         const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
@@ -180131,8 +180131,8 @@ var init_ops_telemetry = __esm({
           // back as an unreadable table -- the exporter row reporting a read failure
           // it had caused itself.
           payload: {
-            warehouse_id: warehouse,
-            statement: buildExporterStatement(schema),
+            warehouse_id: warehouse2,
+            statement: buildExporterStatement(schema2),
             query_tags: sqlQueryTags({
               surface: "telemetry",
               tool: "ops_telemetry",
@@ -180149,12 +180149,12 @@ var init_ops_telemetry = __esm({
         if (state !== "SUCCEEDED") {
           return exporterFailure(
             rowText2(body?.status?.error?.message) || `the count ended in ${state || "an unknown state"}`,
-            schema
+            schema2
           );
         }
-        return readExporterRows(body?.result?.data_array ?? [], schema);
+        return readExporterRows(body?.result?.data_array ?? [], schema2);
       } catch (error48) {
-        return exporterFailure(error48?.message ?? "the count did not complete", schema);
+        return exporterFailure(error48?.message ?? "the count did not complete", schema2);
       }
     };
     cached2 = null;
@@ -180487,14 +180487,14 @@ function granteeFor(principal) {
 function connectionSubjects(input) {
   const value = (id) => (input.configured[id] ?? "").trim();
   const subjects = [];
-  const warehouse = value("sql-warehouse");
-  if (warehouse) {
+  const warehouse2 = value("sql-warehouse");
+  if (warehouse2) {
     subjects.push({
       id: "sql-warehouse",
       kind: "sql-warehouse",
-      name: warehouse,
-      label: `SQL warehouse \xB7 ${warehouse}`,
-      path: `/api/2.0/sql/warehouses/${encodeURIComponent(warehouse)}`,
+      name: warehouse2,
+      label: `SQL warehouse \xB7 ${warehouse2}`,
+      path: `/api/2.0/sql/warehouses/${encodeURIComponent(warehouse2)}`,
       proves: "It does not prove a statement would run: CAN_USE on the warehouse and SELECT on the tables are separate grants, and a stopped warehouse still answers this call.",
       observe: (body) => {
         const state = text12(body.state);
@@ -180509,7 +180509,7 @@ function connectionSubjects(input) {
         // has already been given rather than telling them anything they need in
         // order to run it.
         cli(
-          `databricks permissions update warehouses ${warehouse} --json '{"access_control_list":[{"user_name":"${principal || "<the signed-in user>"}","permission_level":"CAN_USE"}]}'`
+          `databricks permissions update warehouses ${warehouse2} --json '{"access_control_list":[{"user_name":"${principal || "<the signed-in user>"}","permission_level":"CAN_USE"}]}'`
         )
       )
     });
@@ -180544,14 +180544,14 @@ function connectionSubjects(input) {
       )
     });
   }
-  const catalog = value("catalog");
-  if (catalog) {
+  const catalog2 = value("catalog");
+  if (catalog2) {
     subjects.push({
       id: "catalog",
       kind: "catalog",
-      name: catalog,
-      label: `Catalog \xB7 ${catalog}`,
-      path: `/api/2.1/unity-catalog/catalogs/${encodeURIComponent(catalog)}`,
+      name: catalog2,
+      label: `Catalog \xB7 ${catalog2}`,
+      path: `/api/2.1/unity-catalog/catalogs/${encodeURIComponent(catalog2)}`,
       proves: "Every schema and table inside it is granted separately, so this covers the container only.",
       observe: (body) => {
         const owner = text12(body.owner);
@@ -180560,13 +180560,13 @@ function connectionSubjects(input) {
       grant: (principal) => (
         // No guidance. "It grants nothing on the schemas or tables inside it" is
         // the `proves` line above, said again beside the statement.
-        sql2(`GRANT USE CATALOG ON CATALOG ${catalog} TO ${granteeFor(principal)};`)
+        sql2(`GRANT USE CATALOG ON CATALOG ${catalog2} TO ${granteeFor(principal)};`)
       )
     });
   }
-  const schema = value("schema");
-  if (catalog && schema) {
-    const full = `${catalog}.${schema}`;
+  const schema2 = value("schema");
+  if (catalog2 && schema2) {
+    const full = `${catalog2}.${schema2}`;
     subjects.push({
       id: "schema",
       kind: "schema",
@@ -181483,22 +181483,22 @@ async function listCatalogs(options) {
   return listWithGuard("catalogs", apiPath, `${apiPath}?${query}`, options, catalogItems);
 }
 async function listSchemas(options) {
-  const catalog = options.catalog.trim();
-  if (!catalog) {
+  const catalog2 = options.catalog.trim();
+  if (!catalog2) {
     return failed2("schemas", "A catalog name is required to list schemas.");
   }
   const apiPath = "/api/2.1/unity-catalog/schemas";
-  const query = `catalog_name=${encodeURIComponent(catalog)}&${pageQuery(options.pageToken)}`;
+  const query = `catalog_name=${encodeURIComponent(catalog2)}&${pageQuery(options.pageToken)}`;
   return listWithGuard("schemas", apiPath, `${apiPath}?${query}`, options, schemaItems);
 }
 async function listTables(options) {
-  const catalog = options.catalog.trim();
-  const schema = options.schema.trim();
-  if (!catalog || !schema) {
+  const catalog2 = options.catalog.trim();
+  const schema2 = options.schema.trim();
+  if (!catalog2 || !schema2) {
     return failed2("tables", "A catalog and schema are required to list tables.");
   }
   const apiPath = "/api/2.1/unity-catalog/tables";
-  const query = `catalog_name=${encodeURIComponent(catalog)}&schema_name=${encodeURIComponent(schema)}&${pageQuery(options.pageToken)}`;
+  const query = `catalog_name=${encodeURIComponent(catalog2)}&schema_name=${encodeURIComponent(schema2)}&${pageQuery(options.pageToken)}`;
   return listWithGuard("tables", apiPath, `${apiPath}?${query}`, options, tableItems);
 }
 async function listWarehouses(options) {
@@ -181599,9 +181599,9 @@ function volumeItems(body) {
   return { items, next_page_token: text13(body.next_page_token) };
 }
 async function listVolumes(options) {
-  const catalog = options.catalog.trim();
-  const schema = options.schema.trim();
-  if (!catalog || !schema) {
+  const catalog2 = options.catalog.trim();
+  const schema2 = options.schema.trim();
+  if (!catalog2 || !schema2) {
     return failed2("volumes", "A catalog and schema are required to list volumes.");
   }
   const blocked = browseBlockedByScope({
@@ -181611,7 +181611,7 @@ async function listVolumes(options) {
   });
   if (blocked) return unavailable3("volumes", blocked);
   const apiPath = "/api/2.1/unity-catalog/volumes";
-  const query = `catalog_name=${encodeURIComponent(catalog)}&schema_name=${encodeURIComponent(schema)}&${pageQuery(options.pageToken)}`;
+  const query = `catalog_name=${encodeURIComponent(catalog2)}&schema_name=${encodeURIComponent(schema2)}&${pageQuery(options.pageToken)}`;
   if (!options.host) {
     return failed2("volumes", "This app was given no workspace host, so it does not know where to browse.");
   }
@@ -181818,11 +181818,11 @@ async function discoverConnectionTypes(options) {
     listVectorSearchEndpoints(options)
   ]);
   const catalogs = roots[0];
-  const schemas = catalogs.status === "ok" ? await Promise.all(catalogs.items.map((catalog) => listSchemas({ ...options, catalog: catalog.id }))) : [];
+  const schemas = catalogs.status === "ok" ? await Promise.all(catalogs.items.map((catalog2) => listSchemas({ ...options, catalog: catalog2.id }))) : [];
   const schemaParents = schemas.flatMap(
-    (response, catalogIndex) => response.status === "ok" ? response.items.map((schema) => ({
+    (response, catalogIndex) => response.status === "ok" ? response.items.map((schema2) => ({
       catalog: catalogs.status === "ok" ? catalogs.items[catalogIndex].id : "",
-      schema: schema.id
+      schema: schema2.id
     })) : []
   );
   const [tables, volumes] = await Promise.all([
@@ -182383,12 +182383,12 @@ function resourceTagInventory(input = {}) {
       });
     }
   }
-  const serving2 = text16(environment.DATABRICKS_SERVING_ENDPOINT_NAME);
-  if (serving2) {
+  const serving3 = text16(environment.DATABRICKS_SERVING_ENDPOINT_NAME);
+  if (serving3) {
     targets.push({
       kind: "serving-endpoint",
-      name: serving2,
-      label: `Serving endpoint \xB7 ${serving2}`,
+      name: serving3,
+      label: `Serving endpoint \xB7 ${serving3}`,
       action: "tag"
     });
   }
@@ -182434,12 +182434,12 @@ function resourceTagInventory(input = {}) {
       reason: "Databricks does not expose custom tags for Vector Search indexes. Nothing needs to be fixed on this index; Astrolabe tags its endpoint instead."
     });
   }
-  const warehouse = text16(environment.DATABRICKS_SQL_WAREHOUSE_ID);
-  if (warehouse) {
+  const warehouse2 = text16(environment.DATABRICKS_SQL_WAREHOUSE_ID);
+  if (warehouse2) {
     targets.push({
       kind: "sql-warehouse",
-      name: warehouse,
-      label: `SQL warehouse \xB7 ${warehouse}`,
+      name: warehouse2,
+      label: `SQL warehouse \xB7 ${warehouse2}`,
       action: "tag"
     });
   }
@@ -183499,15 +183499,15 @@ async function readReachability(req, input) {
         env: process.env
       }).tables
     ];
-    const catalog = configured.catalog ?? "";
-    const schema = configured.schema ?? "";
+    const catalog2 = configured.catalog ?? "";
+    const schema2 = configured.schema ?? "";
     const manifest = configuration.find((entry) => entry.key === "declared_manifest");
-    if (manifest?.source === "data-contract" || isDataContractFallback(tables, catalog, schema)) {
+    if (manifest?.source === "data-contract" || isDataContractFallback(tables, catalog2, schema2)) {
       const denylistEntry = configuration.find((entry) => entry.key === "catalog_denylist");
       const denylist = Array.isArray(denylistEntry?.value) ? denylistEntry.value.map((item) => String(item).trim()).filter(Boolean) : typeof denylistEntry?.value === "string" ? denylistEntry.value.split(",").map((item) => item.trim()).filter(Boolean) : [];
       const listed = await listDeclarableTablesInSchema({
-        catalog,
-        schema,
+        catalog: catalog2,
+        schema: schema2,
         host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
         token: executionToken(req) ?? "",
         denylist
@@ -186664,8 +186664,8 @@ async function costIdentifiersFor(appkit, req, extras) {
     });
   }
   const configuredGenie = accessDependenciesFrom({ configuration, env: process.env }).genieSpaces;
-  const dataGenie = configuredGenie.find((space) => space.role === "Data Genie space");
-  const dictionaryGenie = configuredGenie.find((space) => space.role === "Dictionary Genie space");
+  const dataGenie2 = configuredGenie.find((space) => space.role === "Data Genie space");
+  const dictionaryGenie2 = configuredGenie.find((space) => space.role === "Dictionary Genie space");
   const semanticEntry = report?.configuration.find((entry) => entry.key === "semantic_index");
   const semanticCheck = report?.checks.find((check3) => check3.id === "semantic-index");
   const endpointCheck = report?.checks.find((check3) => check3.id === "semantic-index-endpoint");
@@ -186691,13 +186691,13 @@ async function costIdentifiersFor(appkit, req, extras) {
       vectorIndex,
       genieSpaces: [
         {
-          id: dataGenie?.id || "",
+          id: dataGenie2?.id || "",
           label: "Data Genie",
           tool: "data_genie",
           tileId: "genie:data"
         },
         {
-          id: dictionaryGenie?.id || "",
+          id: dictionaryGenie2?.id || "",
           label: "Dictionary Genie",
           tool: "dictionary_genie",
           tileId: "genie:dictionary"
@@ -186826,15 +186826,15 @@ function platformReadings(input, extra = []) {
   ];
 }
 async function readAppMeasurement(req, insightsHref) {
-  const schema = telemetrySchema();
-  if (!schema) return offMeasurement(insightsHref);
-  const table = logsTable(schema);
+  const schema2 = telemetrySchema();
+  if (!schema2) return offMeasurement(insightsHref);
+  const table = logsTable(schema2);
   const base = offMeasurement(insightsHref);
   const workspace2 = host();
-  const warehouse = warehouseId();
+  const warehouse2 = warehouseId();
   const token = executionToken(req);
   const principal = userEmail(req) || UNKNOWN_PRINCIPAL;
-  if (!workspace2 || !warehouse || !token) {
+  if (!workspace2 || !warehouse2 || !token) {
     return uncheckedMeasurement(
       insightsHref,
       "this app has no warehouse, workspace address or forwarded sign-in to read it with."
@@ -186843,7 +186843,7 @@ async function readAppMeasurement(req, insightsHref) {
   const outcome = await runStatement2({
     host: workspace2,
     token,
-    warehouseId: warehouse,
+    warehouseId: warehouse2,
     statement: buildTelemetryStatement(table),
     parameters: []
   });
@@ -186887,15 +186887,15 @@ async function readDependencies(appkit, req, fetchImpl) {
     const configured = Object.fromEntries(states.map((state) => [state.resource.id, state.configured]));
     const configuration = report?.configuration ?? [];
     let tables = accessDependenciesFrom({ configuration, env: process.env }).tables;
-    const catalog = configured.catalog ?? "";
-    const schema = configured.schema ?? "";
+    const catalog2 = configured.catalog ?? "";
+    const schema2 = configured.schema ?? "";
     const manifest = configuration.find((entry) => entry.key === "declared_manifest");
-    if (manifest?.source === "data-contract" || isDataContractFallback(tables, catalog, schema)) {
+    if (manifest?.source === "data-contract" || isDataContractFallback(tables, catalog2, schema2)) {
       const denylistEntry = configuration.find((entry) => entry.key === "catalog_denylist");
       const denylist = Array.isArray(denylistEntry?.value) ? denylistEntry.value.map((item) => String(item).trim()).filter(Boolean) : typeof denylistEntry?.value === "string" ? denylistEntry.value.split(",").map((item) => item.trim()).filter(Boolean) : [];
       const listed = await listDeclarableTablesInSchema({
-        catalog,
-        schema,
+        catalog: catalog2,
+        schema: schema2,
         host: host(),
         token: executionToken(req) ?? "",
         denylist,
@@ -187069,12 +187069,12 @@ function setupOpsRoutes(appkit, deps) {
       const readAt = new Date(clock()).toISOString();
       const range = opsDayRange(queryText(req, "from"), queryText(req, "to"), clock());
       const workspace2 = host();
-      const warehouse = warehouseId();
+      const warehouse2 = warehouseId();
       const token = executionToken(req);
       const workspaceId = token ? await resolveWorkspaceId({ host: workspace2, token, fetchImpl: deps.fetchImpl }) : "";
       const resolved = await costIdentifiersFor(appkit, req, {
         workspaceId,
-        warehouse,
+        warehouse: warehouse2,
         fetchImpl: deps.fetchImpl,
         readAppBillingTag: deps.readAppBillingTag,
         readReport: deps.readOrchestratorReport
@@ -187104,7 +187104,7 @@ function setupOpsRoutes(appkit, deps) {
         budgets: costBudgets,
         budgetsReadable: storedBudgets.readable
       };
-      if (!workspace2 || !warehouse || !token) {
+      if (!workspace2 || !warehouse2 || !token) {
         res.json({
           ...empty,
           state: "no-warehouse",
@@ -187127,7 +187127,7 @@ function setupOpsRoutes(appkit, deps) {
           runStatement2({
             host: workspace2,
             token,
-            warehouseId: warehouse,
+            warehouseId: warehouse2,
             statement: built.statement,
             parameters: built.parameters,
             fetchImpl: deps.fetchImpl
@@ -187135,7 +187135,7 @@ function setupOpsRoutes(appkit, deps) {
           warehouseQueryAttribution({
             host: workspace2,
             token,
-            warehouseId: warehouse,
+            warehouseId: warehouse2,
             range,
             transport: deps.queryHistoryTransport
           })
@@ -187587,22 +187587,22 @@ function literal2(value) {
 function inList(values) {
   return `(${values.map(literal2).join(", ")})`;
 }
-function classificationStatements(catalog, schemas, tables) {
+function classificationStatements(catalog2, schemas, tables) {
   const scope = `WHERE schema_name IN ${inList(schemas)} AND table_name IN ${inList(tables)}`;
   return {
     tags: `SELECT schema_name, table_name, column_name, tag_name
-       FROM ${catalog}.information_schema.column_tags ${scope}`,
+       FROM ${catalog2}.information_schema.column_tags ${scope}`,
     masks: `SELECT schema_name, table_name, column_name
-       FROM ${catalog}.information_schema.column_masks ${scope}`,
+       FROM ${catalog2}.information_schema.column_masks ${scope}`,
     filters: `SELECT schema_name, table_name
-       FROM ${catalog}.information_schema.row_filters ${scope}`
+       FROM ${catalog2}.information_schema.row_filters ${scope}`
   };
 }
 function cells(row2) {
   return row2.map((cell) => String(cell ?? "").trim());
 }
-function key(schema, table) {
-  return `${schema.toLowerCase()}\0${table.toLowerCase()}`;
+function key(schema2, table) {
+  return `${schema2.toLowerCase()}\0${table.toLowerCase()}`;
 }
 function blank() {
   return { tags: /* @__PURE__ */ new Map(), masked: /* @__PURE__ */ new Set(), rowFilter: false, answered: false };
@@ -187630,8 +187630,8 @@ async function classifyTables(run2, tables, options = {}) {
     byCatalog.set(parts.catalog, group);
   }
   const gathered = /* @__PURE__ */ new Map();
-  for (const [catalog, group] of byCatalog) {
-    const statements = classificationStatements(catalog, [...group.schemas], [...group.tables]);
+  for (const [catalog2, group] of byCatalog) {
+    const statements = classificationStatements(catalog2, [...group.schemas], [...group.tables]);
     const tagRows = await run2(statements.tags);
     const maskRows = await run2(statements.masks);
     const filterRows = await run2(statements.filters);
@@ -187639,42 +187639,42 @@ async function classifyTables(run2, tables, options = {}) {
     if (!answered) {
       const refusal2 = [tagRows, maskRows, filterRows].find((outcome) => !outcome.ok);
       console.warn(
-        `[egress] The catalog could not be asked about ${catalog}: ${refusal2?.message ?? "no message"}. Every table in it is reported as not checked, which is what it is. It is NOT reported as carrying no personal data.`
+        `[egress] The catalog could not be asked about ${catalog2}: ${refusal2?.message ?? "no message"}. Every table in it is reported as not checked, which is what it is. It is NOT reported as carrying no personal data.`
       );
     }
     for (const table of group.tables) {
-      for (const schema of group.schemas) {
-        const entry = gathered.get(`${catalog}\0${key(schema, table)}`) ?? blank();
+      for (const schema2 of group.schemas) {
+        const entry = gathered.get(`${catalog2}\0${key(schema2, table)}`) ?? blank();
         entry.answered = answered;
-        gathered.set(`${catalog}\0${key(schema, table)}`, entry);
+        gathered.set(`${catalog2}\0${key(schema2, table)}`, entry);
       }
     }
     if (!answered) continue;
     for (const row2 of tagRows.rows ?? []) {
-      const [schema, table, column, tag] = cells(row2);
-      if (!schema || !table || !column || !tag) continue;
-      const entry = gathered.get(`${catalog}\0${key(schema, table)}`) ?? blank();
+      const [schema2, table, column, tag] = cells(row2);
+      if (!schema2 || !table || !column || !tag) continue;
+      const entry = gathered.get(`${catalog2}\0${key(schema2, table)}`) ?? blank();
       entry.answered = true;
       const tags = entry.tags.get(column) ?? /* @__PURE__ */ new Set();
       tags.add(tag);
       entry.tags.set(column, tags);
-      gathered.set(`${catalog}\0${key(schema, table)}`, entry);
+      gathered.set(`${catalog2}\0${key(schema2, table)}`, entry);
     }
     for (const row2 of maskRows.rows ?? []) {
-      const [schema, table, column] = cells(row2);
-      if (!schema || !table || !column) continue;
-      const entry = gathered.get(`${catalog}\0${key(schema, table)}`) ?? blank();
+      const [schema2, table, column] = cells(row2);
+      if (!schema2 || !table || !column) continue;
+      const entry = gathered.get(`${catalog2}\0${key(schema2, table)}`) ?? blank();
       entry.answered = true;
       entry.masked.add(column);
-      gathered.set(`${catalog}\0${key(schema, table)}`, entry);
+      gathered.set(`${catalog2}\0${key(schema2, table)}`, entry);
     }
     for (const row2 of filterRows.rows ?? []) {
-      const [schema, table] = cells(row2);
-      if (!schema || !table) continue;
-      const entry = gathered.get(`${catalog}\0${key(schema, table)}`) ?? blank();
+      const [schema2, table] = cells(row2);
+      if (!schema2 || !table) continue;
+      const entry = gathered.get(`${catalog2}\0${key(schema2, table)}`) ?? blank();
       entry.answered = true;
       entry.rowFilter = true;
-      gathered.set(`${catalog}\0${key(schema, table)}`, entry);
+      gathered.set(`${catalog2}\0${key(schema2, table)}`, entry);
     }
   }
   const classifications = considered.map((table) => {
@@ -188413,8 +188413,8 @@ function asRecord3(value) {
 }
 function columnNames(payload) {
   const manifest = asRecord3(payload.manifest);
-  const schema = asRecord3(manifest?.schema) ?? asRecord3(payload.schema) ?? asRecord3(asRecord3(payload.result)?.schema);
-  const columns = schema?.columns;
+  const schema2 = asRecord3(manifest?.schema) ?? asRecord3(payload.schema) ?? asRecord3(asRecord3(payload.result)?.schema);
+  const columns = schema2?.columns;
   if (Array.isArray(columns)) {
     return columns.map((entry, index) => {
       const column = asRecord3(entry);
@@ -190606,6 +190606,163 @@ var init_sp_permission_suggestions = __esm({
   }
 });
 
+// shared/default-sp-persona-templates.ts
+function single(resourceType, action, privilege, label, choiceLabel) {
+  return {
+    resourceType,
+    action,
+    privilege,
+    selector: { match: "single", labels: [label], choiceLabel }
+  };
+}
+function curatedTables(idSuffixes, choiceLabel) {
+  return {
+    resourceType: "TABLE",
+    action: "READ",
+    privilege: "SELECT",
+    selector: {
+      match: "all",
+      sources: ["declared"],
+      idSuffixes: [...idSuffixes],
+      choiceLabel
+    }
+  };
+}
+var analysisTables, marketingTables, warehouse, catalog, schema, dataGenie, dictionaryGenie, serving2, semanticIndex, analystGrants, marketingScientistGrants, DEFAULT_SP_PERSONA_TEMPLATES;
+var init_default_sp_persona_templates = __esm({
+  "shared/default-sp-persona-templates.ts"() {
+    analysisTables = [
+      "gold_player_180d_summary",
+      "gold_title_daily_summary",
+      "silver_gameplay_activity",
+      "silver_player_profiles"
+    ];
+    marketingTables = [...analysisTables, "silver_purchases"];
+    warehouse = single("SQL_WAREHOUSE", "USE", "CAN USE", "SQL warehouse", "Analysis SQL warehouse");
+    catalog = single("CATALOG", "USE", "USE CATALOG", "App catalog", "Governed analysis catalog");
+    schema = single("SCHEMA", "USE", "USE SCHEMA", "App schema", "Governed analysis schema");
+    dataGenie = single("GENIE_SPACE", "USE", "CAN RUN", "Data Genie space", "Data Genie space");
+    dictionaryGenie = single("GENIE_SPACE", "USE", "CAN RUN", "Dictionary Genie space", "Dictionary Genie space");
+    serving2 = single(
+      "SERVING_ENDPOINT",
+      "USE",
+      "CAN QUERY",
+      "Orchestrator serving endpoint",
+      "Astrolabe serving endpoint"
+    );
+    semanticIndex = single(
+      "VECTOR_SEARCH_INDEX",
+      "READ",
+      "SELECT",
+      "Vector Search index",
+      "Semantic discovery index"
+    );
+    analystGrants = [
+      warehouse,
+      catalog,
+      schema,
+      curatedTables(analysisTables, "Curated performance and player-analysis tables"),
+      dataGenie,
+      serving2
+    ];
+    marketingScientistGrants = [
+      warehouse,
+      catalog,
+      schema,
+      curatedTables(marketingTables, "Curated audience, marketing, purchase, and player-profile tables"),
+      dataGenie,
+      dictionaryGenie,
+      serving2
+    ];
+    DEFAULT_SP_PERSONA_TEMPLATES = [
+      {
+        id: "business-analyst",
+        displayName: "Business Analyst",
+        roleSummary: "Read-only analyst for governed performance and player investigation.",
+        purpose: "Investigate curated performance and player trends through Astrolabe without changing source data or administering platform resources.",
+        duties: [
+          "Run governed analytical questions and validate results against curated tables.",
+          "Use the Data Genie space for approved exploratory analysis.",
+          "Query the Astrolabe serving endpoint to obtain governed answers."
+        ],
+        dataBoundaries: [
+          "Only resources configured or declared by this Astrolabe deployment may be selected.",
+          "Table access is limited to the exact curated performance and player-analysis tables in the product data contract.",
+          "Semantic search is optional and remains discovery-only."
+        ],
+        exclusions: [
+          "No MODIFY, WRITE, CREATE, EDIT, MANAGE, or ownership privileges.",
+          "No uncurated catalogs, schemas, tables, Genie spaces, or endpoints.",
+          "No account, workspace, identity, secret, or permission administration."
+        ],
+        keyCapabilities: [
+          "Run governed SQL and Data Genie analysis",
+          "Read only exact curated performance and player tables",
+          "Optionally use semantic discovery"
+        ],
+        variants: [
+          {
+            id: "least-privilege",
+            label: "least-privilege profile",
+            description: "Read-only SQL, curated tables, Data Genie, and Astrolabe query access.",
+            leastPrivilege: true,
+            grants: analystGrants
+          },
+          {
+            id: "semantic-discovery",
+            label: "semantic discovery",
+            description: "The least-privilege plan plus read-only Vector Search discovery.",
+            leastPrivilege: false,
+            grants: [...analystGrants, semanticIndex]
+          }
+        ]
+      },
+      {
+        id: "marketing-scientist",
+        displayName: "Marketing Scientist",
+        roleSummary: "Read-only marketing scientist for governed audience, purchase, and player-profile analysis.",
+        purpose: "Analyze curated marketing, addressability, purchase, and player-profile data through Astrolabe without changing data or managing platform resources.",
+        duties: [
+          "Evaluate audience and campaign questions against approved curated data.",
+          "Use Data Genie for analysis and Dictionary Genie for governed metric definitions.",
+          "Query the Astrolabe serving endpoint for evidence-backed responses."
+        ],
+        dataBoundaries: [
+          "Only resources configured or declared by this Astrolabe deployment may be selected.",
+          "Table access is limited to the exact audience, marketing, purchase, and player-profile tables in the product data contract.",
+          "Semantic search is optional and remains discovery-only."
+        ],
+        exclusions: [
+          "No MODIFY, WRITE, CREATE, EDIT, MANAGE, or ownership privileges.",
+          "No raw identity, contact, payment, or uncurated behavioral data.",
+          "No account, workspace, identity, secret, or permission administration."
+        ],
+        keyCapabilities: [
+          "Run governed marketing and audience analysis",
+          "Use Data Genie and Dictionary Genie",
+          "Read only exact curated audience, purchase, and player-profile tables"
+        ],
+        variants: [
+          {
+            id: "least-privilege",
+            label: "least-privilege profile",
+            description: "Read-only SQL, curated audience and marketing tables, both Genie spaces, and Astrolabe query access.",
+            leastPrivilege: true,
+            grants: marketingScientistGrants
+          },
+          {
+            id: "semantic-discovery",
+            label: "semantic discovery",
+            description: "The least-privilege plan plus read-only Vector Search discovery.",
+            leastPrivilege: false,
+            grants: [...marketingScientistGrants, semanticIndex]
+          }
+        ]
+      }
+    ];
+  }
+});
+
 // shared/sp-persona-templates.ts
 var SP_PERSONA_TEMPLATES_ENV, TEXT_MAX, LIST_MAX, GRANT_INTENT_MAX, VARIANT_MAX, EXAMPLE_PROFILE_ACTIONS, SummaryListSchema, SpGrantResourceTypeSchema2, SpGrantActionSchema2, SpPersonaResourceSelectorSchema, SpPersonaGrantIntentSchema, SpPersonaTemplateVariantSchema, SpPersonaTemplateSchema, SpPersonaTemplatesSchema;
 var init_sp_persona_templates = __esm({
@@ -190709,10 +190866,18 @@ var init_sp_persona_templates = __esm({
 
 // server/lib/sp-persona-templates.ts
 function parseSpPersonaTemplates(raw2) {
-  if (!raw2?.trim()) return { templates: [], warning: null };
+  if (!raw2?.trim()) return { templates: DefaultTemplates, warning: null };
   try {
-    const parsed = SpPersonaTemplatesSchema.safeParse(JSON.parse(raw2));
-    if (parsed.success) return { templates: parsed.data, warning: null };
+    const parsed = SpPersonaTemplateOverrideSchema.safeParse(JSON.parse(raw2));
+    if (parsed.success) {
+      if (Array.isArray(parsed.data)) return { templates: parsed.data, warning: null };
+      if (parsed.data.mode === "replace") return { templates: parsed.data.templates, warning: null };
+      const defaultIds = new Set(DefaultTemplates.map((template) => template.id));
+      if (parsed.data.templates.some((template) => defaultIds.has(template.id)))
+        throw new Error("Template id collision.");
+      const extended = SpPersonaTemplatesSchema.safeParse([...DefaultTemplates, ...parsed.data.templates]);
+      if (extended.success) return { templates: extended.data, warning: null };
+    }
   } catch {
   }
   return {
@@ -190723,9 +190888,20 @@ function parseSpPersonaTemplates(raw2) {
 function configuredSpPersonaTemplates(env = process.env) {
   return parseSpPersonaTemplates(env[SP_PERSONA_TEMPLATES_ENV]);
 }
+var DefaultTemplates, SpPersonaTemplateOverrideSchema;
 var init_sp_persona_templates2 = __esm({
   "server/lib/sp-persona-templates.ts"() {
+    init_zod();
+    init_default_sp_persona_templates();
     init_sp_persona_templates();
+    DefaultTemplates = SpPersonaTemplatesSchema.parse(DEFAULT_SP_PERSONA_TEMPLATES);
+    SpPersonaTemplateOverrideSchema = external_exports.union([
+      SpPersonaTemplatesSchema,
+      external_exports.object({
+        mode: external_exports.enum(["replace", "extend"]),
+        templates: SpPersonaTemplatesSchema
+      }).strict()
+    ]);
   }
 });
 
@@ -195463,12 +195639,12 @@ var ArrowStreamProcessor = class ArrowStreamProcessor2 {
   * @param signal - Optional abort signal
   * @returns Raw concatenated IPC bytes with schema
   */
-  async processChunks(chunks, schema, signal) {
+  async processChunks(chunks, schema2, signal) {
     if (chunks.length === 0) throw ValidationError.missingField("chunks");
     const buffers = await this.downloadChunksRaw(chunks, signal);
     return {
       data: this.concatenateBuffers(buffers),
-      schema
+      schema: schema2
     };
   }
   /**
@@ -195864,10 +196040,10 @@ var SQLWarehouseConnector = class {
       try {
         const response = await workspaceClient2.statementExecution.getStatement({ statement_id: jobId }, this._createContext(signal));
         const chunks = response.result?.external_links;
-        const schema = response.manifest?.schema;
-        if (!chunks || !schema) throw ExecutionError.missingData("chunks or schema");
+        const schema2 = response.manifest?.schema;
+        if (!chunks || !schema2) throw ExecutionError.missingData("chunks or schema");
         span.setAttribute("arrow.chunk_count", chunks.length);
-        const result = await this.arrowProcessor.processChunks(chunks, schema, signal);
+        const result = await this.arrowProcessor.processChunks(chunks, schema2, signal);
         span.setAttribute("arrow.data_size_bytes", result.data.length);
         span.setStatus({ code: SpanStatusCode.OK });
         const duration3 = Date.now() - startTime;
@@ -196689,8 +196865,8 @@ function applyToolkitOptions(localName, pluginName, opts = {}) {
 
 // node_modules/@databricks/appkit/dist/core/agent/tools/json-schema.js
 init_zod();
-function toToolJSONSchema(schema) {
-  const { $schema: _ignored, ...rest } = toJSONSchema(schema);
+function toToolJSONSchema(schema2) {
+  const { $schema: _ignored, ...rest } = toJSONSchema(schema2);
   return rest;
 }
 
@@ -200525,11 +200701,11 @@ async function saveServingCache(cache9) {
 }
 
 // node_modules/@databricks/appkit/dist/type-generator/serving/converter.js
-function schemaToTypeString(schema, indent = 0) {
+function schemaToTypeString(schema2, indent = 0) {
   const pad = "  ".repeat(indent);
-  if (schema.oneOf) return schema.oneOf.map((s) => schemaToTypeString(s, indent)).join(" | ");
-  if (schema.enum) return schema.enum.map((v) => JSON.stringify(v)).join(" | ");
-  switch (schema.type) {
+  if (schema2.oneOf) return schema2.oneOf.map((s) => schemaToTypeString(s, indent)).join(" | ");
+  if (schema2.enum) return schema2.enum.map((v) => JSON.stringify(v)).join(" | ");
+  switch (schema2.type) {
     case "string":
       return "string";
     case "integer":
@@ -200538,16 +200714,16 @@ function schemaToTypeString(schema, indent = 0) {
     case "boolean":
       return "boolean";
     case "array": {
-      if (!schema.items) return "unknown[]";
-      const itemType = schemaToTypeString(schema.items, indent);
+      if (!schema2.items) return "unknown[]";
+      const itemType = schemaToTypeString(schema2.items, indent);
       if (itemType.includes(" | ") && !itemType.startsWith("{")) return `(${itemType})[]`;
       return `${itemType}[]`;
     }
     case "object": {
-      if (!schema.properties) return "Record<string, unknown>";
-      const required2 = new Set(schema.required ?? []);
+      if (!schema2.properties) return "Record<string, unknown>";
+      const required2 = new Set(schema2.required ?? []);
       return `{
-${Object.entries(schema.properties).map(([key2, prop]) => {
+${Object.entries(schema2.properties).map(([key2, prop]) => {
         const optional2 = !required2.has(key2) ? "?" : "";
         const nullable2 = prop.nullable ? " | null" : "";
         const typeStr = schemaToTypeString(prop, indent + 1);
@@ -200562,36 +200738,36 @@ ${pad}}`;
   }
 }
 function extractRequestKeys(operation) {
-  const schema = operation.requestBody?.content?.["application/json"]?.schema;
-  if (!schema?.properties) return [];
-  return Object.keys(schema.properties).filter((k) => k !== "stream");
+  const schema2 = operation.requestBody?.content?.["application/json"]?.schema;
+  if (!schema2?.properties) return [];
+  return Object.keys(schema2.properties).filter((k) => k !== "stream");
 }
 function convertRequestSchema(operation) {
-  const schema = operation.requestBody?.content?.["application/json"]?.schema;
-  if (!schema || !schema.properties) return "Record<string, unknown>";
-  const { stream: _stream, ...filteredProps } = schema.properties;
-  const filteredRequired = (schema.required ?? []).filter((r) => r !== "stream");
+  const schema2 = operation.requestBody?.content?.["application/json"]?.schema;
+  if (!schema2 || !schema2.properties) return "Record<string, unknown>";
+  const { stream: _stream, ...filteredProps } = schema2.properties;
+  const filteredRequired = (schema2.required ?? []).filter((r) => r !== "stream");
   return schemaToTypeString({
-    ...schema,
+    ...schema2,
     properties: filteredProps,
     required: filteredRequired.length > 0 ? filteredRequired : void 0
   });
 }
 function convertResponseSchema(operation) {
-  const schema = operation.responses?.["200"]?.content?.["application/json"]?.schema;
-  if (!schema) return "unknown";
-  return schemaToTypeString(schema);
+  const schema2 = operation.responses?.["200"]?.content?.["application/json"]?.schema;
+  if (!schema2) return "unknown";
+  return schemaToTypeString(schema2);
 }
 function deriveChunkType(operation) {
-  const schema = operation.responses?.["200"]?.content?.["application/json"]?.schema;
-  if (!schema?.properties) return null;
-  const choicesProp = schema.properties.choices;
+  const schema2 = operation.responses?.["200"]?.content?.["application/json"]?.schema;
+  if (!schema2?.properties) return null;
+  const choicesProp = schema2.properties.choices;
   if (!choicesProp || choicesProp.type !== "array" || !choicesProp.items) return null;
   const choiceItemProps = choicesProp.items.properties;
   if (!choiceItemProps?.message) return null;
   const messageSchema = choiceItemProps.message;
   const chunkProperties = {};
-  for (const [key2, prop] of Object.entries(schema.properties)) {
+  for (const [key2, prop] of Object.entries(schema2.properties)) {
     if (key2 === "usage") continue;
     if (key2 === "choices") {
       const chunkChoiceProps = {};

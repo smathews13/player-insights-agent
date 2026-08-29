@@ -326,7 +326,10 @@ async function main() {
   // role.
   const adminEmails = (process.env.PLAYER_INSIGHTS_ADMIN_EMAILS ?? '').trim();
   const organizations = (process.env.PLAYER_INSIGHTS_ORGANIZATIONS ?? '').trim();
-  const personaTemplates = (process.env.PLAYER_INSIGHTS_PERSONA_TEMPLATES ?? '').trim();
+  // Empty is intentional: the server bundle contains the validated public
+  // defaults. A deployment-provided array or explicit replace/extend object is
+  // carried into app.yaml and interpreted fail-closed by the server.
+  const personaTemplateOverride = (process.env.PLAYER_INSIGHTS_PERSONA_TEMPLATES ?? '').trim();
   // Passed through exactly. The server owns validation, clamping, and the
   // explicit `disabled` value; this build step only carries the target policy
   // into the dependency-free app artifact.
@@ -439,8 +442,8 @@ async function main() {
       ...(organizations
         ? [{ name: 'PLAYER_INSIGHTS_ORGANIZATIONS', value: `'${organizations.replaceAll("'", "''")}'` }]
         : []),
-      ...(personaTemplates
-        ? [{ name: 'PLAYER_INSIGHTS_PERSONA_TEMPLATES', value: `'${personaTemplates.replaceAll("'", "''")}'` }]
+      ...(personaTemplateOverride
+        ? [{ name: 'PLAYER_INSIGHTS_PERSONA_TEMPLATES', value: `'${personaTemplateOverride.replaceAll("'", "''")}'` }]
         : []),
     ],
   });

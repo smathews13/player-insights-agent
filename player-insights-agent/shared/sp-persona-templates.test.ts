@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_SP_PERSONA_TEMPLATES } from './default-sp-persona-templates';
 import { SpPersonaTemplatesSchema } from './sp-persona-templates';
 
 const profile = {
@@ -34,6 +35,25 @@ const profile = {
 };
 
 describe('deployment-configured SP persona template contract', () => {
+  it('validates the public Business Analyst and Marketing Scientist defaults', () => {
+    const parsed = SpPersonaTemplatesSchema.parse(DEFAULT_SP_PERSONA_TEMPLATES);
+    expect(parsed.map(({ id, displayName }) => ({ id, displayName }))).toEqual([
+      { id: 'business-analyst', displayName: 'Business Analyst' },
+      { id: 'marketing-scientist', displayName: 'Marketing Scientist' },
+    ]);
+    for (const template of parsed) {
+      expect(template.variants.map((variant) => variant.id)).toEqual(['least-privilege', 'semantic-discovery']);
+      for (const variant of template.variants) {
+        expect(variant.grants.map((grant) => grant.action)).not.toEqual(
+          expect.arrayContaining(['WRITE', 'CREATE', 'EDIT', 'MANAGE'])
+        );
+      }
+      const tableIntent = template.variants[0].grants.find((grant) => grant.resourceType === 'TABLE');
+      expect(tableIntent?.selector.idSuffixes?.length).toBeGreaterThan(0);
+      expect(tableIntent?.selector).not.toHaveProperty('labelIncludes');
+    }
+  });
+
   it('accepts canonical credential-free grant intents', () => {
     const parsed = SpPersonaTemplatesSchema.parse([profile]);
     expect(parsed[0].variants[0].grants[0]).toMatchObject({

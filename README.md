@@ -22,6 +22,11 @@ and returns an answer with figures, sources, SQL, caveats, and an MLflow trace.
 It is designed for analytical use cases where readers need to inspect how an
 answer was produced, not just read generated prose.
 
+See the [API access guide](API_ACCESS.md) for the differences between
+Apps-hosted agent `/responses`, custom Databricks App `/api` routes, the
+Databricks OpenAI Client, and Model Serving `ai_query()`. It also states which
+Astrolabe surfaces are supported today.
+
 ## Capabilities
 
 - Natural-language analytics backed by Databricks Genie and guarded SQL.

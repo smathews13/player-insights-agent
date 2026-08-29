@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_SP_PERSONA_TEMPLATES } from '../../shared/default-sp-persona-templates';
 import {
   activeSpPersonaUnresolved,
   changeSpGrantAction,
@@ -160,6 +161,57 @@ describe('structured persona grant editing', () => {
         { match: 'all', labelSegments: ['curated', 'table'], choiceLabel: 'Curated tables' }
       )
     ).toBe(false);
+  });
+
+  it('resolves public defaults only to exact curated table suffixes and preserves semantic variants', () => {
+    const configured = [
+      { type: 'SQL_WAREHOUSE' as const, id: 'warehouse-1', label: 'SQL warehouse', source: 'configured' as const },
+      { type: 'CATALOG' as const, id: 'main', label: 'App catalog', source: 'configured' as const },
+      { type: 'SCHEMA' as const, id: 'main.games', label: 'App schema', source: 'configured' as const },
+      { type: 'GENIE_SPACE' as const, id: 'data', label: 'Data Genie space', source: 'configured' as const },
+      {
+        type: 'GENIE_SPACE' as const,
+        id: 'dictionary',
+        label: 'Dictionary Genie space',
+        source: 'configured' as const,
+      },
+      {
+        type: 'SERVING_ENDPOINT' as const,
+        id: 'astrolabe',
+        label: 'Orchestrator serving endpoint',
+        source: 'configured' as const,
+      },
+      {
+        type: 'VECTOR_SEARCH_INDEX' as const,
+        id: 'main.games.semantic',
+        label: 'Vector Search index',
+        source: 'configured' as const,
+      },
+      ...[
+        'gold_player_180d_summary',
+        'gold_title_daily_summary',
+        'silver_gameplay_activity',
+        'silver_player_profiles',
+        'silver_purchases',
+        'silver_player_profiles_backup',
+      ].map((name) => ({
+        type: 'TABLE' as const,
+        id: `main.games.${name}`,
+        label: name,
+        source: 'declared' as const,
+      })),
+    ];
+    for (const template of DEFAULT_SP_PERSONA_TEMPLATES) {
+      const semantic = template.variants.find((variant) => variant.id === 'semantic-discovery');
+      if (!semantic) throw new Error('Default template must provide semantic discovery.');
+      const resolved = resolveSpPersonaTemplateVariant(semantic, configured);
+      expect(resolved.unresolved).toEqual([]);
+      expect(resolved.overflow).toEqual([]);
+      expect(resolved.grants).toContainEqual(
+        expect.objectContaining({ resourceType: 'VECTOR_SEARCH_INDEX', resource: 'main.games.semantic' })
+      );
+      expect(resolved.grants.map((grant) => grant.resource)).not.toContain('main.games.silver_player_profiles_backup');
+    }
   });
 
   it('preserves fixed semantic grants and reports exact overflow instead of truncating broad expansions', () => {

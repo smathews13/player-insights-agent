@@ -8,6 +8,7 @@ const repoRoot = path.resolve(__dirname, '..');
 const authored = readFileSync(path.join(repoRoot, 'app.yaml'), 'utf8');
 const bundleServer = readFileSync(path.join(repoRoot, 'scripts', 'bundle-server.mjs'), 'utf8');
 const appRelease = readFileSync(path.join(repoRoot, '..', 'bundle', 'app-release.sh'), 'utf8');
+const defaultPersonaTemplates = readFileSync(path.join(repoRoot, 'shared', 'default-sp-persona-templates.ts'), 'utf8');
 
 /** The deviations bundle-server.mjs applies. Kept here so the tests exercise the real shape. */
 const DEPLOY_OVERRIDES = {
@@ -261,15 +262,17 @@ describe('every authored variable reaches the deploy target', () => {
     expect(generated.match(/name: PLAYER_INSIGHTS_ADMIN_EMAILS/g)).toHaveLength(1);
   });
 
-  it('declares persona examples empty in source and carries deployment-private JSON only during release', () => {
+  it('embeds public defaults in the server and carries only explicit deployment overrides in app.yaml', () => {
     expect(envNames(authored)).toContain('PLAYER_INSIGHTS_PERSONA_TEMPLATES');
     expect(/- name: PLAYER_INSIGHTS_PERSONA_TEMPLATES\n\s+value: '?([^'\n]*)'?/.exec(authored)?.[1]).toBe('');
     expect(bundleServer).toContain('process.env.PLAYER_INSIGHTS_PERSONA_TEMPLATES');
     expect(bundleServer).toContain("name: 'PLAYER_INSIGHTS_PERSONA_TEMPLATES'");
     expect(appRelease).toContain('bundle/targets/$TARGET/persona-templates.json');
-    expect(appRelease).toContain('PLAYER_INSIGHTS_PERSONA_TEMPLATES="$PERSONA_TEMPLATES"');
+    expect(appRelease).toContain('PLAYER_INSIGHTS_PERSONA_TEMPLATES="$PERSONA_TEMPLATE_OVERRIDE"');
+    expect(defaultPersonaTemplates).toContain("id: 'business-analyst'");
+    expect(defaultPersonaTemplates).toContain("id: 'marketing-scientist'");
 
-    const configured = '[{"id":"fictional-reader"}]';
+    const configured = '{"mode":"extend","templates":[]}';
     const generated = renderDeployAppYaml(authored, {
       ...DEPLOY_OVERRIDES,
       env: [...DEPLOY_OVERRIDES.env, { name: 'PLAYER_INSIGHTS_PERSONA_TEMPLATES', value: `'${configured}'` }],
@@ -370,6 +373,7 @@ describe('unparseable config fails the build rather than vanishing', () => {
  * silent only where `mirror/` is gone, i.e. in the publication.
  */
 const DEPLOYED_APP_YAML = path.join(repoRoot, 'build/deploy/app.yaml');
+const DEPLOYED_SERVER = path.join(repoRoot, 'build/deploy/server.mjs');
 const INTERNAL_TREE = existsSync(path.join(repoRoot, '..', 'mirror', 'publish-exclude.txt'));
 
 describe('the committed deploy tree names no administrator', () => {
@@ -394,6 +398,21 @@ describe('the committed deploy tree names no administrator', () => {
         'committed. The app was still deployed with the list, because the release uploads the ' +
         'local tree directly. Put it back with: git restore -- ':(glob)*/build/deploy/app.yaml''
     ).toBe('');
+  });
+
+  it('embeds both public default persona profiles for Deploy from Git', () => {
+    if (!existsSync(DEPLOYED_SERVER)) {
+      expect(
+        INTERNAL_TREE,
+        'build/deploy/server.mjs is missing from the internal tree, where the public Git artifact is tracked'
+      ).toBe(false);
+      return;
+    }
+    const server = readFileSync(DEPLOYED_SERVER, 'utf8');
+    expect(server).toContain('business-analyst');
+    expect(server).toContain('Business Analyst');
+    expect(server).toContain('marketing-scientist');
+    expect(server).toContain('Marketing Scientist');
   });
 });
 
