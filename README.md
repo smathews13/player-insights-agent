@@ -1,14 +1,17 @@
 <!-- markdownlint-disable MD033 -->
-<h1 align="center">
-  <img src="assets/astrolabe-dpad.svg" alt="Astrolabe" width="112">
-</h1>
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/astrolabe-dpad-white.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/astrolabe-dpad.svg">
+    <img src="assets/astrolabe-dpad.svg" alt="Astrolabe logo" width="112">
+  </picture>
+  <br>
+  <h1>Astrolabe</h1>
+</div>
 <!-- markdownlint-enable MD033 -->
 
-> **Experimental**
-> Astrolabe is an experimental project. Interfaces, deployment steps, and
-> behavior may change between releases.
-
-<!-- -->
+[![Experimental](https://img.shields.io/badge/status-Experimental-F59E0B?style=flat-square)](#experimental-status-and-limitations)
+[![Deploy to Databricks](https://img.shields.io/badge/Deploy%20to-Databricks-FF3621?style=flat-square&logo=databricks&logoColor=white)](#install-and-deploy)
 
 > **⚠️ Not Official Databricks Software**
 > This application is built and maintained by the Databricks field engineering team and is **not an official Databricks product**. It is not covered by Databricks Support SLAs. Your Databricks account team can help you deploy, configure, and troubleshoot this app as part of your engagement.
@@ -139,17 +142,36 @@ An answer can be complete, partial, a plan awaiting approval, or a clarification
 request. Astrolabe does not turn missing access or ambiguous data into a
 plausible number.
 
+### Sign out and idle sessions
+
+Use **Sign out of Astrolabe** in the account menu when leaving the app. It ends
+Astrolabe's application session and opens the native same-origin App sign-out
+path. This is a partial logout: Databricks App and workspace sessions are
+separate, the native App session may persist or refresh for up to 24 hours, and
+federated logout is not supported. If the upstream workspace or identity
+provider session remains active, Databricks may authenticate you again without
+prompting. Workspace logout does not prove the App session ended.
+
+Astrolabe adds a server-enforced idle timeout for every protected API route. It
+defaults to 30 minutes and can be configured with
+`PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES` (`5`-`480`; only `disabled` turns it
+off). Background polling does not extend the timeout. On expiry, the app stops
+polling, clears user-data caches, and requires sign-out before a new app session
+can start. This control protects only the Astrolabe application layer; strict
+immediate coordinated logout requires a customer-controlled OIDC/gateway
+architecture.
+
 ## Update an existing deployment
 
 For app-code-only updates, use **Deploy from Git** on the existing Databricks
 App:
 
-| Setting | Value |
-| --- | --- |
-| Repository | `https://github.com/smathews13/astrolabe_public` |
-| Provider | GitHub |
-| Branch | `main` |
-| Source code path | `astrolabe` |
+| Setting          | Value                                            |
+| ---------------- | ------------------------------------------------ |
+| Repository       | `https://github.com/smathews13/astrolabe_public` |
+| Provider         | GitHub                                           |
+| Branch           | `main`                                           |
+| Source code path | `astrolabe`                                      |
 
 The public mirror publishes `astrolabe/` as a dependency-free app artifact with
 its runtime `app.yaml`. Do not leave the source path blank.
@@ -171,6 +193,9 @@ roles. Use the bundle scripts for resource or model changes.
   for analytical answers.
 - **Server-side administration.** Administrative APIs enforce roles even when
   a user navigates directly to an administrator route.
+- **Server-side idle enforcement.** A per-browser opaque app-session cookie is
+  checked against Lakebase on every protected API request; ordinary reads and
+  background refreshes do not extend it.
 - **Reviewable changes.** Runtime presentation settings cannot widen data
   access. Catalog scope, table manifests, prompts, guardrails, and Genie space
   identifiers require a model release.
@@ -181,6 +206,10 @@ Deployers remain responsible for data classification, grants, Genie curation,
 warehouse policy, retention, model endpoint selection, network controls, and
 reviewing generated results before operational use. Do not place credentials,
 tokens, workspace-specific IDs, or personal addresses in tracked files.
+Restrict the Databricks App's **CAN USE** permission to approved groups, retain
+Unity Catalog row filters and column masks on governed sources, and audit
+application actions without recording cookies, tokens, or raw authorization
+headers.
 
 ## Experimental status and limitations
 
@@ -197,6 +226,8 @@ tokens, workspace-specific IDs, or personal addresses in tracked files.
   Vector Search resources and is off until explicitly configured and released.
 - App-code, model, resource, and OAuth-scope changes have separate release
   paths.
+- Native App sign-out cannot invalidate or detect a separate workspace/IdP
+  logout, and an active upstream session may silently reauthenticate the app.
 - This repository currently publishes no formal contribution workflow or
   software license. Confirm permitted use and redistribution with your
   Databricks account team.

@@ -174,10 +174,14 @@ def test_the_calls_that_did_not_run_say_so_and_carry_the_real_answer():
 
     response = ask(build(llm, tools))
     shared = tool_stages(response)[1]
+    model_reply = tool_replies(llm)[1]["content"]
 
     assert shared["status"] == "complete"
     assert DEFINITION_TEXT in shared["output"], "the shared reply lost the space's answer"
-    assert "in one call" in shared["output"], "nothing said the call had been shared"
+    assert "in one call" in model_reply, "the model was not told that the call had been shared"
+    assert "in one call" not in shared["output"], (
+        "model-only call guidance reached the reader trace"
+    )
     assert "list_price_usd" in str(shared["input"]), (
         "the rail shows the combined question rather than what the model asked"
     )
@@ -282,12 +286,14 @@ def test_a_definition_asked_again_in_a_later_step_costs_no_call():
 
     response = ask(build(llm, tools))
     drawn = tool_stages(response)
+    model_reply = tool_replies(llm)[1]["content"]
 
     assert len(tools.named("dictionary_genie")) == 1, (
         "the second step asked the dictionary space something it had already answered"
     )
     assert DEFINITION_TEXT in drawn[1]["output"]
-    assert "no new call was made" in drawn[1]["output"]
+    assert "no new call was made" in model_reply
+    assert "no new call was made" not in drawn[1]["output"]
     assert drawn[1]["status"] == "complete"
 
 

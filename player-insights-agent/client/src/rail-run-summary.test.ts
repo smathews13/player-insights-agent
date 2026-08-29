@@ -314,15 +314,16 @@ describe('a star says what it is out of', () => {
     expect(ratingOutOf(4)).toBe('4/5');
   });
 
-  it('is the same sentence on all three surfaces that print one', () => {
-    // The rail row, the Explorer's card, and the Benchmark Lab's table. A bare
-    // `rating.value` beside a star on any of them is the defect coming back.
+  it('is the same sentence on the remaining score surfaces', () => {
+    // The rail row and Benchmark Lab still print a five-point score. Run Explorer
+    // now reports the feedback control's direction instead, so putting its old
+    // star back would erase helpful versus not helpful again.
     //
     // The expression may be wrapped in one element. The Benchmark Lab's rating
     // repeats down a table column, so the FIGURE is `.ast-num` while the star
     // beside it is a glyph and must not be; that puts a `<span>` between the two.
     // What is being asserted is what gets printed, not what it is wrapped in.
-    for (const file of ['HomePage.tsx', 'RunExplorer.tsx', 'BenchmarkLab.tsx']) {
+    for (const file of ['HomePage.tsx', 'BenchmarkLab.tsx']) {
       const source = readFileSync(new URL(file, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ');
       const stars = [...source.matchAll(/<Star[^>]*\/>\s*(?:<span[^>]*>\s*)?\{([^}]+)\}/g)].map((match) =>
         match[1].trim()
@@ -330,6 +331,9 @@ describe('a star says what it is out of', () => {
       expect(stars.length, `${file} draws no star`).toBeGreaterThan(0);
       for (const printed of stars) expect(printed).toMatch(/ratingOutOf\(/);
     }
+    const explorer = readFileSync(new URL('RunExplorer.tsx', import.meta.url), 'utf8');
+    expect(explorer).toContain('RunRatingBadge');
+    expect(explorer).not.toContain('<Star');
   });
 
   it('draws no star at all for a turn nobody rated', () => {

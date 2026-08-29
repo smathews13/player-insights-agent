@@ -34,15 +34,21 @@ describe('explicit binary control state', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('leaves bare switches only in table rows that already render a separate state cell', () => {
-    const directSwitchFiles = ['BenchmarkSettingsPanel.tsx', 'SettingsPage.tsx'];
+  it('leaves bare switches only in the feature table that has a separate state column', () => {
+    const directSwitchFiles = ['SettingsPage.tsx'];
     for (const name of directSwitchFiles) {
       const source = readFileSync(new URL(name, import.meta.url), 'utf8');
       expect(source).toContain('ExperimentalStatus');
       expect(source).toContain('<Switch');
     }
 
-    for (const name of ['AnswerCard.tsx', 'EgressPanel.tsx', 'RunDetails.tsx', 'RuntimeSettingsPanel.tsx']) {
+    for (const name of [
+      'AnswerCard.tsx',
+      'BenchmarkSettingsPanel.tsx',
+      'EgressPanel.tsx',
+      'RunDetails.tsx',
+      'RuntimeSettingsPanel.tsx',
+    ]) {
       const source = readFileSync(new URL(name, import.meta.url), 'utf8');
       expect(source).toContain('<StateSwitch');
       expect(source).not.toContain('<Switch');

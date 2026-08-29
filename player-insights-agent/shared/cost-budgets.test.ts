@@ -13,11 +13,11 @@ import {
 
 describe('nominal cost budgets', () => {
   it('treats a missing amount as unset rather than zero', () => {
-    expect(EMPTY_COST_BUDGETS.total).toBeNull();
-    expect(resourceBudget(EMPTY_COST_BUDGETS, 'app-compute')).toBeNull();
+    expect(EMPTY_COST_BUDGETS.total).toEqual({ value: null, unit: 'USD' });
+    expect(resourceBudget(EMPTY_COST_BUDGETS, 'app-compute')).toEqual({ value: null, unit: 'USD' });
     expect(CostBudgetsSchema.parse({ total: 0, resources: { 'app-compute': 0 } })).toEqual({
-      total: 0,
-      resources: { 'app-compute': 0 },
+      total: { value: 0, unit: 'USD' },
+      resources: { 'app-compute': { value: 0, unit: 'USD' } },
     });
   });
 
@@ -26,10 +26,10 @@ describe('nominal cost budgets', () => {
       total: 400,
       resources: { 'app-compute': 40, 'genie:space-data': 12.5 },
     });
-    expect(stored?.total).toBe(400);
-    expect(resourceBudget(stored!, 'app-compute')).toBe(40);
-    expect(resourceBudget(stored!, 'genie:space-data')).toBe(12.5);
-    expect(resourceBudget(stored!, 'sql-warehouse')).toBeNull();
+    expect(stored?.total).toEqual({ value: 400, unit: 'USD' });
+    expect(resourceBudget(stored!, 'app-compute')).toEqual({ value: 40, unit: 'USD' });
+    expect(resourceBudget(stored!, 'genie:space-data')).toEqual({ value: 12.5, unit: 'USD' });
+    expect(resourceBudget(stored!, 'sql-warehouse')).toEqual({ value: null, unit: 'USD' });
   });
 
   it('refuses a negative or non-finite amount rather than storing it', () => {
@@ -41,8 +41,11 @@ describe('nominal cost budgets', () => {
   it('drops keys that are no longer on the Cost grid', () => {
     const stored = withResourceBudget(withTotalBudget(EMPTY_COST_BUDGETS, 100), 'genie:old-space', 25);
     expect(budgetsForVisibleTiles(stored, ['app-compute', 'serving-endpoint'])).toEqual({
-      total: 100,
-      resources: { 'app-compute': null, 'serving-endpoint': null },
+      total: { value: 100, unit: 'USD' },
+      resources: {
+        'app-compute': { value: null, unit: 'USD' },
+        'serving-endpoint': { value: null, unit: 'USD' },
+      },
     });
   });
 
@@ -56,11 +59,14 @@ describe('nominal cost budgets', () => {
           'index-rebuild-job': 75,
         },
       })
-    ).toEqual({ total: 100, resources: { 'app-compute': 25 } });
+    ).toEqual({
+      total: { value: 100, unit: 'USD' },
+      resources: { 'app-compute': { value: 25, unit: 'USD' } },
+    });
   });
 
   it('keeps a typed amount inside the schema ceiling', () => {
-    expect(parseCostBudgets({ total: COST_BUDGET_MAX, resources: {} })?.total).toBe(COST_BUDGET_MAX);
+    expect(parseCostBudgets({ total: COST_BUDGET_MAX, resources: {} })?.total.value).toBe(COST_BUDGET_MAX);
     expect(parseCostBudgets({ total: COST_BUDGET_MAX + 1, resources: {} })).toBeNull();
   });
 });

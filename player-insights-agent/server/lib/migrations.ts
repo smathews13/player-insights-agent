@@ -2,6 +2,7 @@ import { APP_SCHEMA, appTable } from '../../shared/app-schema';
 import { DEPLOYMENT_DECISIONS_TABLE_NAME, deploymentDecisionsDdl } from './deployment-decisions';
 import { REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL } from './request-latency';
 import { APP_ACTIVITY_DDL, APP_ACTIVITY_TABLE } from './app-activity';
+import { APP_SESSION_TABLE } from './app-session';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -600,6 +601,53 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     down: [
       `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions DROP COLUMN IF EXISTS legacy_capabilities`,
       `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions DROP COLUMN IF EXISTS grants`,
+    ],
+  },
+  {
+    version: 21,
+    name: 'declared connection resource type',
+    /**
+     * The broad `kind` column cannot distinguish a catalog from a schema or
+     * table, or a Vector Search endpoint from an index. Keep legacy rows valid
+     * with an empty value; the client renders those with a neutral inferred
+     * category rather than inventing provenance or a more specific type.
+     */
+    statements: [
+      `ALTER TABLE ${APP_SCHEMA}.declared_connections
+         ADD COLUMN IF NOT EXISTS resource_type TEXT NOT NULL DEFAULT ''`,
+    ],
+    down: [`ALTER TABLE ${APP_SCHEMA}.declared_connections DROP COLUMN IF EXISTS resource_type`],
+  },
+  {
+    version: 22,
+    name: 'app idle sessions',
+    /**
+     * Browser cookies carry a random opaque identifier. Only its SHA-256 digest
+     * is persisted here, alongside the normalized proxy-authenticated subject
+     * and deployment that may use it. One browser gets one row; email alone is
+     * never a session key.
+     */
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ${APP_SESSION_TABLE} (
+         session_hash TEXT PRIMARY KEY,
+         subject TEXT NOT NULL,
+         deployment_key TEXT NOT NULL,
+         created_at TIMESTAMPTZ NOT NULL,
+         last_active_at TIMESTAMPTZ NOT NULL,
+         idle_expires_at TIMESTAMPTZ NOT NULL,
+         absolute_expires_at TIMESTAMPTZ NOT NULL,
+         retention_expires_at TIMESTAMPTZ NOT NULL,
+         revoked_at TIMESTAMPTZ
+       )`,
+      `CREATE INDEX IF NOT EXISTS app_sessions_retention_idx
+         ON ${APP_SESSION_TABLE} (retention_expires_at)`,
+      `CREATE INDEX IF NOT EXISTS app_sessions_subject_deployment_idx
+         ON ${APP_SESSION_TABLE} (subject, deployment_key)`,
+    ],
+    down: [
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.app_sessions_subject_deployment_idx`,
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.app_sessions_retention_idx`,
+      `DROP TABLE IF EXISTS ${APP_SESSION_TABLE}`,
     ],
   },
 ];

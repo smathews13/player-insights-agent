@@ -102,10 +102,12 @@ describe('billing SQL contract', () => {
     expect(query?.statement).toContain('COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END)');
   });
 
-  it('measures exact untagged resources while excluding shared Vector Search endpoint totals', () => {
+  it('measures exact untagged resources, including the configured Vector Search endpoint', () => {
     expect(query?.statement).toContain(`u.custom_tags['${BILLING_TAG_KEY}'] = 'astrolabe'`);
-    expect(query?.statement).not.toContain("u.billing_origin_product = 'VECTOR_SEARCH'");
-    expect(query?.statement).not.toContain(':vectorEndpoint');
+    expect(query?.statement).toContain(
+      "u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint"
+    );
+    expect(query?.parameters).toContainEqual({ name: 'vectorEndpoint', value: 'vs-endpoint', type: 'STRING' });
     expect(query?.statement).toContain(
       "OR (u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName)"
     );
@@ -124,7 +126,7 @@ describe('price join golden outputs', () => {
     ]);
     const measured = tiles.filter((tile) => tile.amount !== null);
     expect(new Set(measured.map((tile) => tile.id)).size).toBe(measured.length);
-    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(6);
+    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(10);
     expect(tiles.some((tile) => tile.id === 'foundation-model')).toBe(false);
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.amount).toBeNull();
     expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);

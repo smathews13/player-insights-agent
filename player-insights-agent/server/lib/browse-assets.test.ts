@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   browseBlockedByScope,
+  discoverConnectionTypes,
   interpretBrowseAnswer,
   lakebaseProjectParent,
   listCatalogs,
@@ -63,7 +64,7 @@ describe('browseBlockedByScope', () => {
         apiPath: '/api/2.1/unity-catalog/catalogs',
         token: tokenWith(['sql', 'dashboards.genie']),
         declaredScopes: [...CATALOG_SCOPES],
-      }),
+      })
     ).toBe('catalog.catalogs:read');
   });
 
@@ -73,7 +74,7 @@ describe('browseBlockedByScope', () => {
         apiPath: '/api/2.0/workspace/list',
         token: tokenWith(['sql', 'dashboards.genie']),
         declaredScopes: ['sql', 'dashboards.genie'],
-      }),
+      })
     ).toBe('workspace.workspace:read');
   });
 
@@ -83,7 +84,7 @@ describe('browseBlockedByScope', () => {
         apiPath: '/api/2.1/unity-catalog/catalogs',
         token: tokenWith(['unity-catalog']),
         declaredScopes: [...CATALOG_SCOPES],
-      }),
+      })
     ).toBeNull();
   });
 });
@@ -112,7 +113,10 @@ describe('interpretBrowseAnswer', () => {
         status: 403,
         body: { message: 'Provided OAuth token does not have required scopes: sql' },
       },
-      itemsFromBody: () => ({ items: [{ id: 'x', label: 'x', secondary: '', expandable: false }], next_page_token: '' }),
+      itemsFromBody: () => ({
+        items: [{ id: 'x', label: 'x', secondary: '', expandable: false }],
+        next_page_token: '',
+      }),
     });
     expect(isBrowseUnavailable(response)).toBe(true);
     if (response.status === 'unavailable') {
@@ -200,6 +204,60 @@ describe('listCatalogs', () => {
     });
     expect(isBrowseOk(response)).toBe(true);
     if (response.status === 'ok') expect(response.items).toEqual([]);
+  });
+});
+
+describe('discoverConnectionTypes', () => {
+  it('returns only categories with user-visible root resources and preserves empty versus denied', async () => {
+    const response = await discoverConnectionTypes({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES].filter((scope) => scope !== 'dashboards.genie')),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl: fetchFor({
+        '/api/2.1/unity-catalog/catalogs': {
+          status: 200,
+          body: { catalogs: [{ name: 'main' }] },
+        },
+        '/api/2.1/unity-catalog/schemas': {
+          status: 200,
+          body: { schemas: [{ name: 'analytics', full_name: 'main.analytics' }] },
+        },
+        '/api/2.1/unity-catalog/tables': {
+          status: 200,
+          body: { tables: [{ name: 'players', full_name: 'main.analytics.players', table_type: 'MANAGED' }] },
+        },
+        '/api/2.1/unity-catalog/volumes': {
+          status: 200,
+          body: { volumes: [{ name: 'uploads', full_name: 'main.analytics.uploads', volume_type: 'MANAGED' }] },
+        },
+        '/api/2.0/sql/warehouses': {
+          status: 200,
+          body: { warehouses: [{ id: 'wh-1', name: 'Analytics', state: 'RUNNING' }] },
+        },
+        '/api/2.0/serving-endpoints': {
+          status: 200,
+          body: { endpoints: [] },
+        },
+        '/api/2.0/vector-search/endpoints': {
+          status: 200,
+          body: { endpoints: [] },
+        },
+      }),
+    });
+    expect(response.available.map((entry) => entry.id)).toEqual([
+      'catalog',
+      'schema',
+      'table',
+      'volume',
+      'sql-warehouse',
+    ]);
+    expect(response.available).not.toContainEqual(expect.objectContaining({ id: 'genie-space' }));
+    expect(response.unavailable).toContainEqual(
+      expect.objectContaining({ rootKind: 'genie-spaces', status: 'denied' })
+    );
+    expect(response.unavailable).toContainEqual(
+      expect.objectContaining({ rootKind: 'serving-endpoints', status: 'empty' })
+    );
   });
 });
 
@@ -685,9 +743,7 @@ describe('Lakebase browse', () => {
     });
     expect(isBrowseOk(databases)).toBe(true);
     if (databases.status === 'ok') {
-      expect(databases.items[0].id).toBe(
-        'projects/demo/branches/production/databases/databricks-postgres',
-      );
+      expect(databases.items[0].id).toBe('projects/demo/branches/production/databases/databricks-postgres');
       expect(databases.items[0].label).toBe('databricks-postgres');
     }
   });

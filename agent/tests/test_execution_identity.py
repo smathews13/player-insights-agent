@@ -196,7 +196,9 @@ def test_an_assigned_persona_matching_the_invoker_is_admitted():
 
 def test_an_assigned_persona_that_does_not_match_the_invoker_is_a_mismatch():
     refusal = verify(
-        user_request(mode=ASSIGNED_SERVICE_PRINCIPAL, expected_user="ca9f730e-0000-0000-0000-000000004153"),
+        user_request(
+            mode=ASSIGNED_SERVICE_PRINCIPAL, expected_user="ca9f730e-0000-0000-0000-000000004153"
+        ),
         user_authorization=True,
         observed=ADA,
     )
@@ -337,9 +339,12 @@ def test_the_effective_mode_is_derived_and_not_taken_from_the_request():
     """A request cannot label itself as having executed as its user."""
 
     assert effective_mode(user_authorization=True, verified=True) == SIGNED_IN_USER
-    assert effective_mode(
-        user_authorization=True, verified=True, requested_mode=ASSIGNED_SERVICE_PRINCIPAL
-    ) == ASSIGNED_SERVICE_PRINCIPAL
+    assert (
+        effective_mode(
+            user_authorization=True, verified=True, requested_mode=ASSIGNED_SERVICE_PRINCIPAL
+        )
+        == ASSIGNED_SERVICE_PRINCIPAL
+    )
     assert effective_mode(user_authorization=True, verified=False) == SERVICE_PRINCIPAL
     assert effective_mode(user_authorization=False, verified=True) == SERVICE_PRINCIPAL
 

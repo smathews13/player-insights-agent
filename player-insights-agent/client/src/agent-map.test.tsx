@@ -15,6 +15,7 @@ import {
   railLane,
   railTiming,
   rawIo,
+  runContainerSummary,
   sqlLines,
   sqlTokens,
   stepNumber,
@@ -277,6 +278,56 @@ describe('the agent map fits the page it is drawn on', () => {
     // override is the assertion.
     expect(wholeRun).toMatch(/padding: 14px;/);
     expect(wholeRun).not.toMatch(/padding-(top|right|bottom|left)/);
+  });
+
+  it('opens the aggregate root as a real run summary, never a fake empty result', () => {
+    const stages = [
+      ...run.slice(0, -1),
+      stage({ id: 'synthesis', name: 'Prepared the answer', output: 'The requested answer is available.' }),
+    ];
+    const summary = runContainerSummary({
+      stages,
+      trace: { id: 'trace-summary-1', totalMs: 12_340, toolCalls: 3 },
+      activeIndex: -1,
+      runStatus: 'complete',
+      verdict: 'complete',
+    });
+    const markup = renderToStaticMarkup(
+      <StageDetail
+        stage={stage({ id: '__run__', name: 'Orchestrator run', duration: 12_340, calls: 3 })}
+        step={1}
+        origin={0}
+        id="run-summary"
+        runSummary={summary}
+      />
+    );
+    expect(markup).toContain('Run summary');
+    expect(markup).toContain('aria-label="Run summary evidence"');
+    expect(markup).toContain('8</span> stages');
+    expect(markup).toContain('3</span> tool calls');
+    expect(markup).toContain('12.34s</span> wall time');
+    expect(markup).toContain('<dt>Final answer</dt><dd>Available</dd>');
+    expect(markup).toContain('trace-summary-1');
+    expect(markup).not.toContain('<dt>Result</dt>');
+    expect(markup).not.toContain('(none recorded)');
+  });
+
+  it.each([
+    ['running', 'running', 'Pending'],
+    ['awaiting_approval', 'awaiting approval', 'Awaiting approval'],
+    ['cancelled', 'cancelled', 'Not recorded'],
+    ['failed', 'failed', 'Not recorded'],
+    ['partial', 'partial', 'Not recorded'],
+    ['complete', 'complete', 'Not recorded'],
+  ])('states a %s root truthfully', (stored, expected, answer) => {
+    const summary = runContainerSummary({
+      stages: run,
+      trace: { id: 'trace-state', totalMs: 12_340, toolCalls: 3 },
+      activeIndex: stored === 'running' ? 0 : -1,
+      runStatus: stored,
+    });
+    expect(summary.status).toBe(expected);
+    expect(summary.answerAvailability).toBe(answer);
   });
 });
 
@@ -922,11 +973,38 @@ describe('a node opens what its stage recorded', () => {
     expect(flat.rows).toHaveLength(4);
   });
 
-  it('says a field the run recorded nothing for, rather than leaving a blank', () => {
+  it('omits child argument and result rows the run recorded nothing for', () => {
     const markup = renderToStaticMarkup(
       <StageDetail stage={stage({ id: 'step-1' })} step={1} origin={0} id="detail" />
     );
-    expect(markup).toContain('(none recorded)');
+    expect(markup).not.toContain('<dt>Worked from</dt>');
+    expect(markup).not.toContain('<dt>Result</dt>');
+    expect(markup).not.toContain('(none recorded)');
+  });
+
+  it('keeps only the child fields that contain real evidence', () => {
+    const inputOnly = renderToStaticMarkup(
+      <StageDetail
+        stage={stage({ id: 'step-1', input: 'Choose the next governed step', output: '' })}
+        step={1}
+        origin={0}
+        id="input"
+      />
+    );
+    expect(inputOnly).toContain('<dt>Worked from</dt>');
+    expect(inputOnly).not.toContain('<dt>Result</dt>');
+
+    const resultOnly = renderToStaticMarkup(
+      <StageDetail
+        stage={stage({ id: 'step-1-1-run_sql', kind: 'tool', input: '', output: 'count|value\nplayers|12' })}
+        step={2}
+        origin={0}
+        id="result"
+      />
+    );
+    expect(resultOnly).not.toContain('<dt>Arguments</dt>');
+    expect(resultOnly).toContain('<dt>Result</dt>');
+    expect(resultOnly).toContain('<td>12</td>');
   });
 
   it('says a start was not recorded rather than printing it as zero', () => {

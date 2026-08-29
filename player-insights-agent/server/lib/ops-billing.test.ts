@@ -285,7 +285,46 @@ describe('billing attribution', () => {
     expect(tile?.resourceId).toBe('cat.schema.index');
     expect(tile?.secondaryResourceId).toBe('vs-endpoint');
     expect(tile?.resourceKind).toBe('vector-index');
-    expect(tile?.unavailable).toBe('Vector Search dollars unavailable');
+    expect(tile?.unavailable).toBe('No billing rows');
+  });
+
+  it('attributes measured Vector Search dollars and DBUs only after index-to-endpoint recovery', () => {
+    const ids = { ...IDS, vectorIndex: 'cat.schema.index', vectorEndpoint: 'vs-endpoint' };
+    const query = buildCostStatement(ids, RANGE)!;
+    expect(query.parameters).toContainEqual({ name: 'vectorEndpoint', value: 'vs-endpoint', type: 'STRING' });
+    expect(query.statement).toContain(
+      "u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint"
+    );
+
+    const vector = buildTiles(ids, [
+      {
+        component: 'vector-search',
+        spend: 14,
+        currency: 'USD',
+        billedDays: 2,
+        jobRuns: null,
+        lastDay: RANGE.to,
+        usageUnitCount: 1,
+        dbuQuantity: 6,
+      },
+    ]).find((item) => item.id === 'vector-search');
+    expect(vector).toMatchObject({ amount: 7, dbus: 3, basis: 'per-day', attribution: 'deployment' });
+  });
+
+  it('does not combine mixed usage units into a DBU figure', () => {
+    const vector = buildTiles({ ...IDS, vectorIndex: 'cat.schema.index', vectorEndpoint: 'vs-endpoint' }, [
+      {
+        component: 'vector-search',
+        spend: 14,
+        currency: 'USD',
+        billedDays: 2,
+        jobRuns: null,
+        lastDay: RANGE.to,
+        usageUnitCount: 2,
+        dbuQuantity: 6,
+      },
+    ]).find((item) => item.id === 'vector-search');
+    expect(vector?.dbus).toBeNull();
   });
 
   it('keeps the Vector Search index id when billing has no rows and the endpoint is unknown', () => {

@@ -395,14 +395,10 @@ export function cursorTrail(
   if (spec.levels.length <= 1) return [];
 
   if (spec.levels[0] === 'lakebase-projects') {
-    const trail: Array<{ label: string; cursor: PickerCursor }> = [
-      { label: 'All projects', cursor: PICKER_TOP },
-    ];
+    const trail: Array<{ label: string; cursor: PickerCursor }> = [{ label: 'All projects', cursor: PICKER_TOP }];
     const project = cursor.catalog.trim();
     if (!project) return trail;
-    const projectLabel = project.startsWith('projects/')
-      ? project.slice('projects/'.length)
-      : project;
+    const projectLabel = project.startsWith('projects/') ? project.slice('projects/'.length) : project;
     trail.push({ label: projectLabel, cursor: { catalog: project, schema: '' } });
     const branch = cursor.schema.trim();
     if (branch) {
@@ -415,9 +411,7 @@ export function cursorTrail(
   }
 
   if (spec.levels[0] === 'vector-search-endpoints') {
-    const trail: Array<{ label: string; cursor: PickerCursor }> = [
-      { label: 'All endpoints', cursor: PICKER_TOP },
-    ];
+    const trail: Array<{ label: string; cursor: PickerCursor }> = [{ label: 'All endpoints', cursor: PICKER_TOP }];
     const endpoint = cursor.catalog.trim();
     if (endpoint) trail.push({ label: endpoint, cursor: { catalog: endpoint, schema: '' } });
     return trail;
@@ -502,9 +496,7 @@ export function rowActions(spec: AssetPickerSpec, cursor: PickerCursor, item: Br
       kind: 'open',
       label: 'Open',
       cursor:
-        kind === 'catalogs' ||
-        kind === 'lakebase-projects' ||
-        kind === 'vector-search-endpoints'
+        kind === 'catalogs' || kind === 'lakebase-projects' || kind === 'vector-search-endpoints'
           ? { catalog: item.id.trim(), schema: '' }
           : { catalog: cursor.catalog, schema: item.id.trim() },
     });
@@ -518,7 +510,7 @@ export function rowActions(spec: AssetPickerSpec, cursor: PickerCursor, item: Br
         value: item.id.trim(),
         note: dataCatalogFormLabel('whole-catalog'),
       });
-    } else if (spec.field === 'catalog-allowlist' && kind === 'schemas') {
+    } else if ((spec.field === 'catalog-allowlist' || spec.field === 'add-schema') && kind === 'schemas') {
       actions.push({
         kind: 'pick',
         label: 'This schema',
@@ -613,6 +605,16 @@ export function filterItems(items: readonly BrowseItem[], query: string): Browse
   return items.filter((item) =>
     [item.label, item.id, item.secondary].some((part) => part.toLowerCase().includes(needle))
   );
+}
+
+/** Running warehouses first, preserving the API's order within each state. */
+export function orderPickerItems(kind: BrowseKind, items: readonly BrowseItem[]): BrowseItem[] {
+  if (kind !== 'warehouses') return [...items];
+  return [...items].sort((left, right) => {
+    const leftRunning = left.secondary.trim().toUpperCase() === 'RUNNING';
+    const rightRunning = right.secondary.trim().toUpperCase() === 'RUNNING';
+    return Number(rightRunning) - Number(leftRunning);
+  });
 }
 
 /**

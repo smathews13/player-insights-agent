@@ -14,7 +14,6 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-
 #: Compiled run budget, and the floor/ceiling `_integer` accepts for an override.
 #: 150s is Acme's measured default; 200s is the highest that still leaves
 #: synthesis and the trip home inside the app's 240s abandon.
@@ -101,7 +100,9 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
     started = time.perf_counter()
     raw = custom_inputs.get("runtime_settings")
     if not isinstance(raw, dict):
-        value = RuntimeSettings(eval_guidance=_string(custom_inputs.get("eval_guidance"), "", 8_000))
+        value = RuntimeSettings(
+            eval_guidance=_string(custom_inputs.get("eval_guidance"), "", 8_000)
+        )
         _current.set(value)
         _turn_started.set(started)
         _turn_deadline.set(started + value.loop.max_run_seconds)
@@ -139,9 +140,7 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
             max_charts=_integer(answer.get("maxCharts"), 1, 0, 6),
             max_figures=_integer(answer.get("maxFigures"), 6, 0, 12),
             max_caveats=_integer(answer.get("maxCaveats"), 0, 0, 20),
-            narrative_max_characters=_integer(
-                answer.get("narrativeMaxCharacters"), 0, 0, 12_000
-            ),
+            narrative_max_characters=_integer(answer.get("narrativeMaxCharacters"), 0, 0, 12_000),
             sources=sources if sources in {"compact", "standard", "detailed"} else "standard",
             takeaway_guidance=_string(answer.get("takeawayGuidance"), "", 2_000),
             narrative_guidance=_string(answer.get("narrativeGuidance"), "", 2_000),

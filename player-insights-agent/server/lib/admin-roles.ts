@@ -405,7 +405,7 @@ export const ADMIN_ROUTE_PREFIXES: readonly string[] = [
   // that a consumer is refused by the same middleware as every other admin surface
   // and a defect in the narrower guard cannot leave the roster open to everybody.
   '/api/users',
-  // The egress controls' WRITE side and classification. `/api/egress/admin` and
+  // The egress controls' writes, recent-record reads and classification. `/api/egress/admin` and
   // not `/api/egress`, and the narrowness is deliberate rather than an oversight:
   // `/api/egress/controls` and `/api/egress/events` have to stay open to every
   // signed-in reader, because a consumer's own browser is where the copy buttons

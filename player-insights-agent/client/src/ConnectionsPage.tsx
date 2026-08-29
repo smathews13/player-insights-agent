@@ -47,7 +47,6 @@ import {
   CircleAlert,
   CircleHelp,
   Clock,
-  Copy,
   ExternalLink,
   GitCommitHorizontal,
   Lock,
@@ -75,7 +74,6 @@ import { CopyButton, NOT_SET, StatusBadge, type StatusTone } from './StatusBadge
 // The egress record. This page keeps its own copy of the grant-statement panel,
 // so the call has to be made here too or the channel reports from one site and
 // not the other.
-import { reportEgress } from './egress-policy';
 // Build stamps are shortened consistently away from the markup, and so is the
 // reading that decides whether each half of the deployment is working.
 import { buildFacts, type BuildArtifact } from './connection-build';
@@ -86,7 +84,7 @@ import { buildFacts, type BuildArtifact } from './connection-build';
 import { deploymentRows, telemetryRows, type BuildRow } from './build-card';
 import { UserIdentityChip } from './UserIdentityChip';
 import { NO_APP_FACTS } from '../../shared/app-facts';
-import { EntityHighlight, VisitInDatabricks } from './DataEntityLinks';
+import { EntityHighlight, EntityParts, VisitInDatabricks } from './DataEntityLinks';
 import { entityRowProps, isRequestedEntity, useRequestedEntity } from './data-entity-state';
 import { entityRowId } from './data-entities';
 import {
@@ -219,32 +217,6 @@ const SEVERITY_ICON: Record<DriftSeverity, typeof CircleAlert> = {
 };
 
 /**
- * What the retired capability cards knew that the resource registry does not.
- *
- * Six of the seven cards named a dependency that is already a row here, joined
- * through `actualFromCheck`, and five of their descriptions were the resource's
- * own `purpose` in slightly different words. Only the example question was
- * genuinely theirs: it is the one line on either page that says what a
- * dependency is FOR in the reader's own terms, so it survives inside the row
- * rather than being lost with the card around it.
- */
-const CAPABILITY_EXAMPLES: Record<string, string[]> = {
-  'genie-data': ['How many active players did we have last week?'],
-  'genie-dictionary': ['What does \u201chighly engaged\u201d mean?'],
-  'sql-warehouse': ['Check null ratios in the latest partition.'],
-  'llm-endpoint': ['Why did retention move last month?'],
-  'agent-endpoint': ['Compare engagement by title.'],
-  // Both of Lakebase's, because the seventh card, "Knowledge files", had no
-  // check behind it and a permanent "Not checked" badge. It was not a seventh
-  // dependency: the uploads it described are stored in Lakebase, which is a row
-  // here with a live check, and the volume that once held published knowledge
-  // documents has read nothing at runtime since those were removed. So it folds
-  // in here, where its badge becomes a measured one instead of a grey word that
-  // could never change.
-  lakebase: ['Reopen a conversation from last week.', 'Explain the cross-brand identity rules.'],
-};
-
-/**
  * Where a resolved value came from, said plainly.
  *
  * `artifact` is the only answer that means the model version vouches for the
@@ -265,33 +237,6 @@ const SOURCE_WORDS: Record<string, string> = {
 
 function tierBadgeVariant(tier: ChangedBy) {
   return tier === 'app-runtime' ? ('default' as const) : ('outline' as const);
-}
-
-/**
- * A statement in the shape the handoff's code panel asks for: mono, on the code
- * wash, selectable whole, with the copy affordance beside it rather than over it.
- */
-function CopyableCommand({ command, label }: { command: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="connections-command">
-      <pre className="connections-code" aria-label={label}>
-        {command}
-      </pre>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          void navigator.clipboard?.writeText(command);
-          reportEgress({ channel: 'grant-statement', itemCount: 1 });
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 1500);
-        }}
-      >
-        <Copy className="size-3.5" /> {copied ? 'Copied' : 'Copy'}
-      </Button>
-    </div>
-  );
 }
 
 /**
@@ -680,26 +625,41 @@ export function DeclaredTablesTable({
  * weighted table cell.
  */
 export function ConnectionEntityName({ name }: { name: string }) {
-  const parts = name.split('.');
   return (
     <span className="connections-entity-name" title={name}>
-      {parts.map((part, index) => {
-        const kind =
-          index === 0 && parts.length >= 3
-            ? 'catalog'
-            : index === parts.length - 2 && parts.length >= 2
-              ? 'schema'
-              : 'table';
-        return (
-          <span key={parts.slice(0, index + 1).join('.')}>
-            {index > 0 ? <span className="connections-entity-separator">.</span> : null}
-            <span className={`entity-token entity-${kind}`} data-entity-part={kind}>
-              {part}
-            </span>
-          </span>
-        );
-      })}
+      <EntityParts text={name} entity={name} />
     </span>
+  );
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- pure parser shared with focused render tests
+export function declaredTableNames(configured: string): string[] {
+  return configured
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
+export function DeclaredTableList({ configured, initial = 6 }: { configured: string; initial?: number }) {
+  const [showAll, setShowAll] = useState(false);
+  const names = declaredTableNames(configured);
+  const shown = showAll ? names : names.slice(0, initial);
+  return (
+    <div className="declared-table-list">
+      <ul>
+        {shown.map((name) => (
+          <li key={name}>
+            <VisitInDatabricks name={name} />
+            <ConnectionEntityName name={name} />
+          </li>
+        ))}
+      </ul>
+      {!showAll && names.length > initial ? (
+        <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
+          Show all {names.length}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -1066,10 +1026,14 @@ export function ConnectionRow({
   // asked about this value; where nothing could, the row says there is nothing
   // to measure against rather than "not measured", which would invite a search
   // for a discrepancy that cannot exist.
-  const { row, check, problems, disagrees, remote, status, marker, summary, driftCount } = reading;
+  const { row, check, problems, disagrees, status, marker, summary, driftCount } = reading;
   const { resource } = row;
-  const displayValue = check?.display_name?.trim() || summary.value;
-  const rawValue = displayValue && displayValue !== summary.value ? summary.value : '';
+  const isDeclaredManifest = resource.id === 'declared-manifest';
+  const declaredTables = isDeclaredManifest ? declaredTableNames(row.configured) : [];
+  const displayValue = isDeclaredManifest
+    ? `${declaredTables.length} ${declaredTables.length === 1 ? 'table' : 'tables'}`
+    : check?.display_name?.trim() || summary.value;
+  const rawValue = !isDeclaredManifest && displayValue && displayValue !== summary.value ? summary.value : '';
   const canWrite = Boolean(allowMutations);
   // Open on arrival when a link named this row. The collapsed line carries the
   // value and its verdict; the reason for either is inside, and somebody who
@@ -1078,7 +1042,12 @@ export function ConnectionRow({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(row.intended ?? row.configured);
 
-  const examples = CAPABILITY_EXAMPLES[resource.id] ?? [];
+  const pendingState =
+    resource.changedBy === 'model-version'
+      ? 'Pending model release'
+      : resource.changedBy === 'app-redeploy'
+        ? 'Pending app redeploy'
+        : 'Pending deployment';
 
   /**
    * Whether THIS row is one a refresh will re-decide.
@@ -1143,7 +1112,7 @@ export function ConnectionRow({
           <StatusBadge
             value={restating ? 'Refreshing\u2026' : truncateHead(displayValue || NOT_SET)}
             tone={restating ? 'plain' : summary.value ? tone : 'plain'}
-            title={summary.value || NOT_SET}
+            title={isDeclaredManifest ? displayValue : summary.value || NOT_SET}
           />
           {!restating && rawValue ? (
             <code className="connection-row-raw-id" title={rawValue}>
@@ -1182,41 +1151,35 @@ export function ConnectionRow({
 
       {open ? (
         <div className="connection-row-detail">
-          <div className="connection-pair">
-            <div className="connection-tile">
-              <p className="connection-tile-label">Configured</p>
-              <p className="connection-tile-value">{row.configured || 'not set'}</p>
+          {isDeclaredManifest ? (
+            <div className="connection-configured-entity-list">
+              <DeclaredTableList configured={row.configured} />
               {row.configuredFrom ? (
-                <p className="connection-tile-note">{SOURCE_WORDS[row.configuredFrom] ?? row.configuredFrom}</p>
+                <p className="connection-tile-note">Source: {SOURCE_WORDS[row.configuredFrom] ?? row.configuredFrom}</p>
               ) : null}
             </div>
-            {/* Red only when the two readings disagree, which is the one case on
-                this page where a value is evidence of a fault rather than a
-                report of a state. */}
-            <div className="connection-tile" data-disagrees={disagrees ? 'true' : undefined}>
-              <p className="connection-tile-label">In use</p>
+          ) : (
+            <div className={`connection-pair ${row.actualObserved ? '' : 'connection-pair--single'}`}>
+              <div className="connection-tile">
+                <p className="connection-tile-label">Configured</p>
+                <p className="connection-tile-value">{row.configured || 'not set'}</p>
+                {row.configuredFrom ? (
+                  <p className="connection-tile-note">
+                    Source: {SOURCE_WORDS[row.configuredFrom] ?? row.configuredFrom}
+                  </p>
+                ) : null}
+              </div>
               {row.actualObserved ? (
-                <>
+                <div className="connection-tile" data-disagrees={disagrees ? 'true' : undefined}>
+                  <p className="connection-tile-label">Observed</p>
                   <p className="connection-tile-value">{row.actual}</p>
                   <p className="connection-tile-note">
-                    {disagrees ? 'differs from what is configured' : 'reached from inside the endpoint'}
+                    {disagrees ? 'Differs from configuration' : 'Observed from inside the endpoint'}
                   </p>
-                </>
-              ) : (
-                <>
-                  <p className="connection-tile-value connection-tile-unmeasured">
-                    {remote ? 'Not measured' : 'Nothing to measure it against'}
-                  </p>
-                  {/* Only the pending state. The check's own sentence used to be
-                      printed here, and its tail is the clause naming what a
-                      metadata read does not prove -- which the failure alert
-                      below already carries in full where it is a failure, and
-                      which is narration where it is a pass. */}
-                  {restating ? <p className="connection-tile-note">{'Refreshing this one now\u2026'}</p> : null}
-                </>
-              )}
+                </div>
+              ) : null}
             </div>
-          </div>
+          )}
 
           {/* The failure in the dependency's own words. The statement that fixes
               it is not repeated here: it is in What to fix at the top of the
@@ -1251,9 +1214,11 @@ export function ConnectionRow({
                     that began with a comma. The sentence is one child now, so
                     it is one row and wraps as prose. */}
                 <span>
-                  <strong>Intended: {row.intended}</strong>, recorded
+                  <strong>
+                    {pendingState}: {row.intended}
+                  </strong>
                   {row.intendedBy ? ` by ${row.intendedBy}` : ''}
-                  {row.intendedAt ? ` on ${formatCheckedAt(row.intendedAt)}` : ''}. Not applied.
+                  {row.intendedAt ? ` on ${formatCheckedAt(row.intendedAt)}` : ''}.
                 </span>
               </AlertDescription>
             </Alert>
@@ -1271,41 +1236,16 @@ export function ConnectionRow({
             );
           })}
 
-          {examples.length > 0 ? (
-            <div className="connection-row-examples">
-              <span>Try asking</span>
-              <ul>
-                {examples.map((example) => (
-                  <li key={example}>{example}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
           {/* The badge says what pressing the button below will do, because that
               is the question asked here; the tier that decides it keeps its own
               name at the head of the sentence beside it. A row the app cannot
               apply says so before it offers anything, and it never offers a
               control that claims otherwise. */}
-          {/* Chip, sentence and control on ONE line, with the control pushed to
-              the far end, which is the design's arrangement and reads as one
-              statement-and-its-consequence instead of three stacked blocks. The
-              button group is inside this row rather than under it precisely
-              because the badge is what says what pressing it will do: separated,
-              a reader had to hold "Recorded, not applied" in their head across a
-              paragraph to understand why the button did not say Save. The editor
-              is still its own block below, because it is a form and not an
-              affordance. */}
           <div className="connection-row-tier">
             <Badge variant={tierBadgeVariant(resource.changedBy)}>
               {row.editable ? <Pencil className="size-3" /> : <Lock className="size-3" />}
-              {!row.editable && canWrite ? 'Recorded, not applied' : row.changedByLabel}
+              {row.intended ? pendingState : row.changedByLabel}
             </Badge>
-            {!row.editable && canWrite ? (
-              <p className="connection-row-tier-note">
-                <strong>{row.changedByLabel}.</strong>
-              </p>
-            ) : null}
             {!editing && allowMutations && (canWrite || row.intended) ? (
               <div className="connection-row-tier-actions">
                 {canWrite ? (
@@ -1357,12 +1297,12 @@ export function ConnectionRow({
                   screen and only one of them will be in force. */}
               <p className="connection-row-tier-note">
                 {row.editable
-                  ? 'Applied immediately.'
+                  ? 'Applied when saved.'
                   : resource.changedBy === 'app-redeploy'
-                    ? 'Recorded only. Applied by the next app release.'
+                    ? 'Pending app redeploy after this intention is saved.'
                     : resource.changedBy === 'model-version'
-                      ? 'Recorded only. Applied by the next model version.'
-                      : 'Recorded only. Not applied until the change path below runs.'}
+                      ? 'Pending model release after this intention is saved.'
+                      : 'Pending deployment after this intention is saved.'}
               </p>
               <div className="flex gap-2">
                 <Button size="sm" disabled={saving || !draft.trim()} onClick={() => void commit()}>
@@ -1374,17 +1314,6 @@ export function ConnectionRow({
               </div>
             </div>
           ) : null}
-
-          {!row.editable ? (
-            <CopyableCommand command={resource.applyWith} label={`How to change ${resource.label}`} />
-          ) : null}
-
-          <p className="connection-row-arrival">
-            {resource.arrivesBy}{' '}
-            {resource.bundleVariable
-              ? `Bundle variable: ${resource.bundleVariable}.`
-              : 'No bundle variable configures this.'}
-          </p>
         </div>
       ) : null}
     </div>

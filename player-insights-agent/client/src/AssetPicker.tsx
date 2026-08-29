@@ -52,6 +52,7 @@ import {
   cursorTrail,
   filterItems,
   initialCursor,
+  orderPickerItems,
   pickerRowText,
   rowActions,
   alreadyHeld,
@@ -141,6 +142,37 @@ export function AssetPickerRow({
   const kind = cursorKind(spec, cursor);
   const text = pickerRowText(kind, item);
   const actions = rowActions(spec, cursor, item);
+  const warehousePick = kind === 'warehouses' ? actions.find((action) => action.kind === 'pick') : undefined;
+  const selected = warehousePick?.kind === 'pick' && current.trim() === warehousePick.value;
+  if (warehousePick?.kind === 'pick') {
+    return (
+      <li className="asset-picker-row asset-picker-row--warehouse" data-selected={selected ? 'true' : undefined}>
+        <label className="warehouse-picker-choice">
+          <input
+            type="radio"
+            name={`warehouse-${spec.field}`}
+            value={warehousePick.value}
+            checked={selected}
+            onChange={() => onPick(warehousePick.value, { item, cursor })}
+            aria-label={`Choose SQL warehouse ${text.primary}`}
+          />
+          <span className="asset-picker-row-names">
+            <span className="asset-picker-row-name">{text.primary}</span>
+            {text.identifier ? <code className="asset-picker-row-id">{text.identifier}</code> : null}
+          </span>
+          {text.secondary ? (
+            <span
+              className={`warehouse-picker-status ast-pill ${
+                text.secondary.trim().toUpperCase() === 'RUNNING' ? 'ast-pill--pos' : 'ast-pill--neutral'
+              }`}
+            >
+              {text.secondary}
+            </span>
+          ) : null}
+        </label>
+      </li>
+    );
+  }
   return (
     <li className="asset-picker-row" data-testid={`asset-picker-row-${item.id}`}>
       <span className="asset-picker-row-names">
@@ -231,7 +263,7 @@ export function AssetPickerPanel({
   const kind = cursorKind(spec, cursor);
   const trail = cursorTrail(spec, cursor);
   const items = response && response.status === 'ok' ? response.items : [];
-  const shown = filterItems(items, query);
+  const shown = orderPickerItems(kind, filterItems(items, query));
 
   return (
     <div className="asset-picker" data-testid={`asset-picker-${spec.field}`} data-kind={kind}>
@@ -283,11 +315,7 @@ export function AssetPickerPanel({
       {/* BROWSING CANNOT RUN. Not an empty list, and not a failure: the offer of
           the permission that would turn it on, and the way past it meanwhile. */}
       {!loading && response && response.status === 'unavailable' ? (
-        <BrowseGrantPrompt
-          scope={response.scope}
-          detail={response.detail}
-          reason={response.reason}
-        />
+        <BrowseGrantPrompt scope={response.scope} detail={response.detail} reason={response.reason} />
       ) : null}
 
       {/* THE CALL BROKE. The workspace's own words, and a retry, because a

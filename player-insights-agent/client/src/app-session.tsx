@@ -1,0 +1,326 @@
+/* eslint-disable react-refresh/only-export-components -- session state and its blocking boundary must share one latch */
+import { useEffect, useSyncExternalStore, useState, type ReactNode } from 'react';
+import { LogOut, RotateCcw } from 'lucide-react';
+import { forgetIdentityRequest } from './app-state';
+import { clearActiveConversationRuns } from './active-conversation-runs';
+import { abortActiveAsksForSessionEnd } from './ask-cancellation';
+import { forgetChecks } from './check-session';
+import { resetEgressPolicy } from './egress-policy';
+import { browserAcknowledgementStore, signOutOfAstrolabe, type AcknowledgementStore } from './first-open';
+import { resetLiveAsks } from './live-ask';
+import { forgetMonitoringSession } from './monitoring-session';
+import { forgetOpsSession } from './ops-session';
+import { forgetRunLabelOverrides } from './run-header-labels';
+import { forgetLiveRuntimeSettings } from './runtime-settings-live';
+import { clearSelectedConversation } from './selected-conversation';
+import { resetSessionChecks } from './session-checks';
+
+export const NATIVE_APP_SIGN_OUT_PATH = '/.auth/sign_out';
+export const APP_SESSION_BOOTSTRAP_PATH = '/api/app-session/bootstrap';
+export const APP_SESSION_ACTIVITY_PATH = '/api/app-session/activity';
+export const APP_SESSION_END_PATH = '/api/app-session/end';
+export const APP_IDLE_TIMEOUT_CODE = 'APP_IDLE_TIMEOUT';
+export const USER_ACTIVITY_THROTTLE_MS = 60_000;
+export const SIGN_OUT_END_WAIT_MS = 1_500;
+
+type AppSessionState = 'booting' | 'ready' | 'timed-out' | 'unavailable';
+type Listener = () => void;
+export type AppSessionFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+let state: AppSessionState = 'booting';
+let bootstrapPromise: Promise<void> | null = null;
+let fetchInstalled = false;
+const listeners = new Set<Listener>();
+
+function announce(): void {
+  for (const listener of [...listeners]) listener();
+}
+
+function setState(next: AppSessionState): void {
+  if (next === state) return;
+  state = next;
+  announce();
+}
+
+function subscribe(listener: Listener): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function currentState(): AppSessionState {
+  return state;
+}
+
+/**
+ * Remove every module-level cache that can hold user data. React state and all
+ * poll timers disappear when the session boundary unmounts the app shell; these
+ * are the stores that otherwise survive that unmount.
+ */
+export function clearSensitiveClientState(store = browserAcknowledgementStore()): void {
+  signOutOfAstrolabe(store);
+  clearSelectedConversation();
+  abortActiveAsksForSessionEnd();
+  clearActiveConversationRuns();
+  resetLiveAsks();
+  forgetIdentityRequest();
+  forgetChecks();
+  resetSessionChecks();
+  forgetMonitoringSession();
+  forgetOpsSession();
+  forgetLiveRuntimeSettings();
+  forgetRunLabelOverrides();
+  resetEgressPolicy();
+}
+
+export function markAppSessionTimedOut(store = browserAcknowledgementStore()): void {
+  if (state === 'timed-out') return;
+  clearSensitiveClientState(store);
+  setState('timed-out');
+}
+
+function requestPath(input: RequestInfo | URL): string {
+  try {
+    if (input instanceof Request) return new URL(input.url).pathname;
+    return new URL(String(input), window.location.origin).pathname;
+  } catch {
+    return '';
+  }
+}
+
+function allowedAfterTimeout(path: string): boolean {
+  return path === APP_SESSION_END_PATH || path === '/api/storage';
+}
+
+async function timeoutCode(response: Response): Promise<string> {
+  if (response.status !== 401) return '';
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) return '';
+  try {
+    const body = (await response.clone().json()) as { error?: unknown };
+    return typeof body.error === 'string' ? body.error : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * One guard for every existing fetch call. A timeout response is observed before
+ * its body reaches feature code, and once observed no later protected response
+ * can repopulate a cache while the shell is being unmounted.
+ */
+export function installAppSessionFetchGuard(target: typeof globalThis = globalThis): void {
+  if (fetchInstalled || typeof target.fetch !== 'function') return;
+  const nativeFetch = target.fetch.bind(target);
+  target.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = requestPath(input);
+    if (state === 'timed-out' && path.startsWith('/api/') && !allowedAfterTimeout(path)) {
+      return new Response(JSON.stringify({ error: APP_IDLE_TIMEOUT_CODE }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    const response = await nativeFetch(input, init);
+    if ((await timeoutCode(response)) === APP_IDLE_TIMEOUT_CODE) markAppSessionTimedOut();
+    if (state === 'timed-out' && path.startsWith('/api/') && !allowedAfterTimeout(path)) {
+      return new Response(JSON.stringify({ error: APP_IDLE_TIMEOUT_CODE }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    return response;
+  }) as typeof fetch;
+  fetchInstalled = true;
+}
+
+export function bootstrapAppSession(fetchImpl: AppSessionFetch = fetch): Promise<void> {
+  if (bootstrapPromise) return bootstrapPromise;
+  setState('booting');
+  bootstrapPromise = fetchImpl(APP_SESSION_BOOTSTRAP_PATH, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      'x-astrolabe-session-action': 'bootstrap',
+    },
+    body: '{}',
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        if ((await timeoutCode(response)) === APP_IDLE_TIMEOUT_CODE) {
+          markAppSessionTimedOut();
+          return;
+        }
+        throw new Error(`App-session bootstrap answered ${response.status}.`);
+      }
+      setState('ready');
+    })
+    .catch(() => {
+      if (state !== 'timed-out') setState('unavailable');
+      bootstrapPromise = null;
+    });
+  return bootstrapPromise;
+}
+
+export function retryAppSessionBootstrap(): void {
+  if (state === 'timed-out') return;
+  bootstrapPromise = null;
+  void bootstrapAppSession();
+}
+
+interface ActivityDocument {
+  addEventListener(type: string, listener: EventListener, options?: AddEventListenerOptions): void;
+  removeEventListener(type: string, listener: EventListener, options?: EventListenerOptions): void;
+}
+
+/**
+ * Only a physical interaction refreshes last_active_at. Visibility changes,
+ * timers, storage polling, run polling, and ordinary reads never call this.
+ */
+export function startExplicitUserActivity(
+  documentRef: ActivityDocument = document,
+  fetchImpl: AppSessionFetch = fetch,
+  now: () => number = Date.now
+): () => void {
+  let lastSentAt = 0;
+  const onActivity: EventListener = () => {
+    if (state !== 'ready') return;
+    const at = now();
+    if (lastSentAt && at - lastSentAt < USER_ACTIVITY_THROTTLE_MS) return;
+    lastSentAt = at;
+    void fetchImpl(APP_SESSION_ACTIVITY_PATH, {
+      method: 'POST',
+      credentials: 'same-origin',
+      keepalive: true,
+      headers: {
+        'content-type': 'application/json',
+        'x-astrolabe-session-action': 'activity',
+      },
+      body: '{}',
+    }).catch(() => {
+      // A protected request still performs the authoritative timeout check. A
+      // transient activity-write failure must not invent a timeout client-side.
+    });
+  };
+  for (const event of ['pointerdown', 'keydown', 'touchstart']) {
+    documentRef.addEventListener(event, onActivity, { passive: true });
+  }
+  return () => {
+    for (const event of ['pointerdown', 'keydown', 'touchstart']) {
+      documentRef.removeEventListener(event, onActivity);
+    }
+  };
+}
+
+export async function signOutAndEndAppSession(
+  options: {
+    fetchImpl?: AppSessionFetch;
+    navigate?: (path: string) => void;
+    store?: AcknowledgementStore | null;
+  } = {}
+): Promise<void> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const navigate = options.navigate ?? ((path: string) => window.location.assign(path));
+  clearSensitiveClientState(options.store === undefined ? browserAcknowledgementStore() : options.store);
+  try {
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, SIGN_OUT_END_WAIT_MS);
+      void fetchImpl(APP_SESSION_END_PATH, {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: {
+          'content-type': 'application/json',
+          'x-astrolabe-session-action': 'end',
+        },
+        body: '{}',
+      }).then(
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        () => {
+          clearTimeout(timer);
+          resolve();
+        }
+      );
+    });
+  } finally {
+    // Relative and same-origin by construction. Databricks clears its native app
+    // cookie here; no workspace host is guessed or embedded.
+    navigate(NATIVE_APP_SIGN_OUT_PATH);
+  }
+}
+
+function SessionTimedOut() {
+  const [leaving, setLeaving] = useState(false);
+  return (
+    <main className="app-session-block" role="alert" aria-labelledby="app-session-timeout-title">
+      <section className="app-session-card">
+        <h1 id="app-session-timeout-title">Session timed out</h1>
+        <p>
+          Astrolabe’s idle timeout ended this app session. It cannot detect or invalidate a separate Databricks
+          workspace session.
+        </p>
+        <p>
+          Signing out clears the native app cookie. If your workspace or identity-provider session remains active,
+          Databricks may authenticate you again without prompting.
+        </p>
+        <button
+          type="button"
+          disabled={leaving}
+          onClick={() => {
+            setLeaving(true);
+            void signOutAndEndAppSession();
+          }}
+        >
+          <LogOut aria-hidden="true" />
+          {leaving ? 'Signing out…' : 'Sign out of Astrolabe'}
+        </button>
+      </section>
+    </main>
+  );
+}
+
+function SessionUnavailable() {
+  return (
+    <main className="app-session-block" role="alert" aria-labelledby="app-session-unavailable-title">
+      <section className="app-session-card">
+        <h1 id="app-session-unavailable-title">Session unavailable</h1>
+        <p>Astrolabe could not verify its server-side session, so no protected data was loaded.</p>
+        <button type="button" onClick={retryAppSessionBootstrap}>
+          <RotateCcw aria-hidden="true" />
+          Try again
+        </button>
+      </section>
+    </main>
+  );
+}
+
+export function AppSessionBoundary({ children }: { children: ReactNode }) {
+  const current = useSyncExternalStore(subscribe, currentState, currentState);
+  useEffect(() => {
+    void bootstrapAppSession();
+  }, []);
+  useEffect(() => (current === 'ready' ? startExplicitUserActivity() : undefined), [current]);
+  if (current === 'timed-out') return <SessionTimedOut />;
+  if (current === 'unavailable') return <SessionUnavailable />;
+  if (current !== 'ready') {
+    return (
+      <main className="app-session-block" aria-busy="true" aria-label="Starting secure app session">
+        <section className="app-session-card">
+          <p>Starting secure app session…</p>
+        </section>
+      </main>
+    );
+  }
+  return children;
+}
+
+/** Test isolation for the module-level fetch/session latch. */
+export function resetAppSessionForTests(next: AppSessionState = 'booting'): void {
+  state = next;
+  bootstrapPromise = null;
+  fetchInstalled = false;
+  listeners.clear();
+}

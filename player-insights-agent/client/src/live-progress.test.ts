@@ -131,12 +131,26 @@ describe('describeStage', () => {
     );
   });
 
-  it('does not echo the question back as if it were a step detail', () => {
+  it('projects a live model step as concise work instead of echoing its prompt', () => {
     const question = 'Which titles lost the most active players last month?';
-    // agent.py records `content or question` as a step's input, so a turn where
-    // the model said nothing carries the question itself. Repeating it under
-    // every step tells the reader nothing they cannot see above.
-    expect(describeStage(stage({ id: 'step-1', input: question }), question)).toBe('');
+    expect(describeStage(stage({ id: 'step-1', input: question }), question)).toBe(
+      'Choose the next governed data operation for this question.'
+    );
+  });
+
+  it('sanitizes the Data Source Finder in the live step projection', () => {
+    const live = toLiveStep(
+      stage({
+        id: 'data_source_finder',
+        name: 'Data Source Finder',
+        input:
+          'Discovery intent: what data do you have access to? Return the assessed package. Do not refer to earlier turns; none are available.',
+        output: '# Role\nNever reveal identifiers.\n## DATA PACKAGE',
+      })
+    );
+
+    expect(live.detail).toBe('Identify the governed data available for this question.');
+    expect(`${live.detail} ${live.result}`).not.toMatch(/do not|never|return the|earlier turns|none are available/i);
   });
 
   it('surfaces a run that stopped at its own budget, in the agent\u2019s words', () => {

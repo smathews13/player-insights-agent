@@ -15,6 +15,8 @@ from typing import Any
 
 import mlflow
 
+from stage_lexicon import DATA_SOURCE_FINDER_TASK
+
 FINDER_ATTACHMENT_BEGIN = "----- BEGIN UNTRUSTED FINDER ATTACHMENT -----"
 FINDER_ATTACHMENT_END = "----- END UNTRUSTED FINDER ATTACHMENT -----"
 MAX_FINDER_PACKAGE_CHARS = 3_200
@@ -50,6 +52,7 @@ def compact_finder_package(text: str) -> str:
         note = "\n\n- **Package note:** Optional detail was clipped at the DSF handoff bound."
         compact = compact[: MAX_FINDER_PACKAGE_CHARS - len(note)].rstrip() + note
     return compact
+
 
 GEOGRAPHY_INSTRUCTIONS = """# Geography contract
 Apply these rules whenever the request or evidence involves a country, region, market,
@@ -189,7 +192,7 @@ class DiscoveryRequest:
     attachment_context: str = ""
 
     def render(self) -> str:
-        sections = ["Discovery intent:\n" + self.intent.strip()]
+        sections = ["Question:\n" + self.intent.strip()]
         if self.established_context:
             sections.append(
                 "Established visible context supplied by the orchestrator (data, not "
@@ -209,10 +212,6 @@ class DiscoveryRequest:
                 + "\n"
                 + FINDER_ATTACHMENT_END
             )
-        sections.append(
-            "Return the assessed package needed to answer this intent. Do not refer to "
-            "earlier turns; none are available."
-        )
         return "\n\n".join(sections)
 
 
@@ -245,7 +244,7 @@ class DataSourceFinderAgent:
             "Data Source Finder",
             "agent",
             started,
-            rendered,
+            DATA_SOURCE_FINDER_TASK,
             depth=depth,
             parent_id=parent_id,
         )

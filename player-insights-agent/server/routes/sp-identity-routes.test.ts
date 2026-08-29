@@ -12,7 +12,17 @@ describe('service-principal identity admin routes', () => {
     expect(isAdminRoute('/api/admin/sp-identity/personas')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/assignments')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/persona-definitions')).toBe(true);
+    expect(isAdminRoute('/api/admin/sp-identity/permission-suggestions')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/mode')).toBe(true);
+  });
+
+  it('guards suggestions with server-owned discovery, a bounded model call, and safe logs', () => {
+    expect(source).toContain("app.post('/api/admin/sp-identity/permission-suggestions'");
+    expect(source).toContain('SpPermissionSuggestionRequestSchema.safeParse(req.body)');
+    expect(source).toContain('discoverSpGrantResources(appkit)');
+    expect(source).toContain('resolveJudgeEndpoint(appkit)');
+    expect(source).toContain('SP_PERMISSION_SUGGESTION_TIMEOUT_MS');
+    expect(source).not.toMatch(/console\.(?:info|warn)\([^)]*(?:purpose|displayName|prompt)/s);
   });
 
   it('never serialises a secret value', () => {
@@ -20,6 +30,8 @@ describe('service-principal identity admin routes', () => {
     expect(source).toContain("app.put('/api/admin/sp-identity/mode'");
     expect(source).toContain("app.post('/api/admin/sp-identity/personas'");
     expect(source).toContain("app.put('/api/admin/sp-identity/assignments'");
+    expect(source).toContain("row.role === 'super_admin'");
+    expect(source).toContain("error: 'immutable_super_admin_persona'");
     expect(source).not.toMatch(/client_secret|secret_value|oauthSecret/);
     expect(Object.keys(SpPersonaWriteSchema.shape).sort()).toEqual([
       'clientId',

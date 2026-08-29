@@ -3,6 +3,7 @@
  */
 
 import { isAnswerProvenance, type AnswerProvenance } from '../../shared/answer-provenance';
+import { projectReaderStage } from '../../shared/stage-lexicon';
 import type { AnalyticalExecution } from './analytical-execution';
 
 export type StageStatus = 'complete' | 'partial' | 'failed' | 'running';
@@ -190,7 +191,7 @@ export function normalizeStage(raw: unknown, index: number): TraceStage {
   // that would be worse than drawing no bars at all. This flag lets the timeline
   // refuse to draw rather than draw a fiction.
   normalized.startMeasured = typeof stage.start === 'number' && Number.isFinite(stage.start);
-  return normalized;
+  return projectReaderStage(normalized);
 }
 
 export function normalizeTrace(raw: unknown): TraceSummary {

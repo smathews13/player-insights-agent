@@ -9,8 +9,8 @@
  * an incident out of the product behaving correctly.
  *
  * STATUS NEVER RIDES ON COLOUR ALONE. Every pill carries its word, the strip's
- * three-part tile is labelled "Answered · Refused · Failed" above the figures it
- * colours, and the conditioning note is body text with no tone at all.
+ * outcome tile labels all four figures above the values it colours, and the
+ * conditioning note is body text with no tone at all.
  */
 
 .monitoring-page {
@@ -23,8 +23,16 @@
 
 .monitoring-strip {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /*
+   * Six tracks for five cards: the outcome card takes two. Its four full labels
+   * are the only heading in this strip wider than an ordinary KPI card, and
+   * giving it real width keeps desktop text readable instead of shrinking it.
+   */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
+}
+.monitoring-outcomes-tile {
+  grid-column: span 2;
 }
 .monitoring-tile {
   border: 1px solid var(--ast-hairline);
@@ -42,6 +50,12 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ast-text-secondary);
+}
+.monitoring-outcomes-label {
+  /* The full accessible label remains visible. Narrow screens intentionally
+     release this rule in responsive.css and give the card a whole row. */
+  white-space: nowrap;
+  letter-spacing: 0.045em;
 }
 .monitoring-tile-value {
   margin: 0;
@@ -72,8 +86,8 @@
   color: var(--ast-text-secondary);
   line-height: 1.4;
 }
-/* The two halves of the one tile that carries three figures, and they must never
-   sum. The palette's own neutral and negative, which is what monitoring-ops.md
+/* The four figures remain separate and must never be merged. The palette's own
+   neutral and negative, which is what monitoring-ops.md
    names them as: refused #46596B, failed #A04A62.
 
    A refusal is not a failure and does not take a warning colour either. Something
@@ -851,46 +865,35 @@
 .monitoring-panel-tile-wide {
   grid-column: 1 / -1;
 }
-.monitoring-panel-tile-mono {
+.monitoring-tables-read {
+  gap: 8px;
+}
+.monitoring-table-ranking {
+  list-style: none;
   margin: 0;
-  font-weight: 500;
-  /*
-   * ONE LINE, ELLIPSIS, NEVER A MID-WORD BREAK. `min-width: 0` is here for the
-   * reason it is on `.status-badge` in connections.css: this paragraph is a grid
-   * item, an item's automatic minimum size is its min-content contribution, and
-   * with `nowrap` above that minimum is the whole name -- which outranks the
-   * ellipsis and hands the string to the drawer's own overflow to cut with no
-   * mark at all. The whole name is on `title`.
-   */
-  min-width: 0;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 0;
+  display: grid;
 }
-/* Deliberately NOT a flex row, unlike the grant lines: the mark sits in the text
-   flow so the ellipsis above applies to the name and the mark rather than to a
-   flex item that would take its own minimum width out of the line first. */
-.monitoring-panel-tile-mono > .brand-icon {
-  margin-right: 6px;
-  vertical-align: -2px;
-}
-/*
- * The tables tile's caption, held to the tile the same way, AND ONLY THAT ONE.
- *
- * It carries a SECOND fully-qualified table name, which is the other string on
- * this panel long enough to overflow a third of the drawer, and a table name is
- * one unbreakable word: nothing in CSS breaks it at the dots. Every other caption
- * on the panel is a run of ordinary words that wraps at a space, including the
- * Answer time tile's second line, and putting `nowrap` on all of them would trade
- * a fault on one tile for an ellipsis on four.
- */
-.monitoring-panel-tile-wide .monitoring-tile-caption {
+.monitoring-table-ranking li {
   min-width: 0;
-  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+}
+.monitoring-table-ranking li + li {
+  border-top: 1px solid var(--ast-hairline);
+}
+.monitoring-ranked-table {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+.monitoring-table-runs {
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: var(--text-sm);
+  color: var(--ast-text-secondary);
 }
 /*
  * The permissions section, which is badges and no prose.
@@ -995,10 +998,7 @@
 /*
  * There is no width query in this file, on purpose.
  *
- * The five-across strip, the three-across tile grid and the drawer all reshape on
- * a narrow window, and those rules are in responsive.css with every other
- * breakpoint in the app. This partial had its own `900px` block for exactly one
- * revision, which is the same width Architecture and Connections each invented for
- * themselves before the two sets of breakpoints were folded into one. The number
- * came from nowhere then and it would have come from nowhere here.
+ * The summary strip, tile grid and drawer all reshape in responsive.css with
+ * every other breakpoint in the app. The summary keeps the full outcome label
+ * on desktop there and intentionally releases it at the shared narrow band.
  */

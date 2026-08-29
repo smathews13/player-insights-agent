@@ -67,6 +67,12 @@ env:
   # needs a grant + data migration; the env alone does not move existing tables.
   - name: PLAYER_INSIGHTS_APP_SCHEMA
     value: 'player_insights'
+  # Application-controlled inactivity limit for protected API routes. The
+  # default is 30 minutes; whole numbers are clamped to 5-480. Only the literal
+  # value "disabled" turns this compensating control off. This does not alter
+  # the separate Databricks workspace or identity-provider session.
+  - name: PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES
+    value: '30'
   # Catalog and schema this release's data contract lives in. Empty in source so
   # a Git deploy ships no customer Unity Catalog names. bundle/app-release.sh
   # fills them from var.app_catalog / var.app_schema. Connections qualifies the
@@ -129,6 +135,11 @@ env:
   # that set this. The build prints the same warning and the leak check blocks
   # on it.
   - name: PLAYER_INSIGHTS_ADMIN_EMAILS
+    value: ''
+  # Optional deployment-private organization labels for the Identity roster.
+  # JSON only; customer domains belong in a pruned target overlay or an
+  # untracked deployment override, never in this published file.
+  - name: PLAYER_INSIGHTS_ORGANIZATIONS
     value: ''
   # The catalog and schema Databricks Apps writes this app's own telemetry into,
   # as `catalog.schema`. Read by the Ops tab, which reports what the app served,

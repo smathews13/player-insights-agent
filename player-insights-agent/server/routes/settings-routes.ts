@@ -22,11 +22,7 @@ import {
 } from './insights-routes';
 import { configurationForSettings } from '../lib/release-configuration';
 import { readBakedModelConfig } from '../lib/baked-model-config';
-import {
-  isDataContractFallback,
-  listDeclarableTablesInSchema,
-  unionTableNames,
-} from '../lib/declared-tables';
+import { isDataContractFallback, listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
 import type { StoredSetting } from '../lib/app-settings';
 import { lakebaseStorageCheck } from '../lib/lakebase-store';
 import {
@@ -51,7 +47,11 @@ import { checkExperimentAsApp } from '../lib/experiment-probe';
 import { executionToken } from '../lib/execution-credential';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { readPublishedDeclaration, type DeclarationRead } from '../lib/notebook-declaration-read';
-import { compareDeclaration, type DeclarationComparison } from '../../shared/notebook-declaration';
+import {
+  compareDeclaration,
+  DECLARED_RESOURCE_TYPES,
+  type DeclarationComparison,
+} from '../../shared/notebook-declaration';
 import {
   addFault,
   addedConnectionEffect,
@@ -128,6 +128,7 @@ const ConnectionBody = z.object({
   id: z.string().trim().max(80),
   label: z.string().trim().max(200).default(''),
   kind: z.string().trim().max(60),
+  resourceType: z.enum(DECLARED_RESOURCE_TYPES).optional(),
   value: z.string().trim().max(500),
   note: z.string().trim().max(500).default(''),
 });
@@ -379,14 +380,19 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
       try {
         const connection = await writeDeclaredConnection(appkit, {
           id: parsed.data.id,
-          label: parsed.data.label || parsed.data.id,
+          label: parsed.data.label,
           kind: parsed.data.kind as ResourceKind,
+          resourceType: parsed.data.resourceType,
           value: parsed.data.value,
           note: parsed.data.note,
           origin: 'app',
           changedBy: userEmail(req),
         });
-        res.status(201).json({ connection, effect: addedConnectionEffect() });
+        res.status(201).json({
+          connection,
+          impact: await impactFor(appkit, connection),
+          effect: addedConnectionEffect(),
+        });
       } catch (error) {
         console.error('[connections] The connection could not be added:', (error as Error).message);
         res.status(503).json({
@@ -950,7 +956,10 @@ async function readReachability(
       const denylist = Array.isArray(denylistEntry?.value)
         ? denylistEntry.value.map((item) => String(item).trim()).filter(Boolean)
         : typeof denylistEntry?.value === 'string'
-          ? denylistEntry.value.split(',').map((item) => item.trim()).filter(Boolean)
+          ? denylistEntry.value
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean)
           : [];
       const listed = await listDeclarableTablesInSchema({
         catalog,

@@ -754,6 +754,27 @@
   margin: 0;
   min-width: 0;
 }
+.trace-dag.map .run-summary .dag-detail-head > [data-slot='badge'] {
+  flex: none;
+  margin-left: auto;
+  text-transform: capitalize;
+}
+.trace-dag.map .run-summary > dl > dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.trace-dag.map .run-summary-execution {
+  color: var(--ast-text-long);
+}
+.trace-dag.map .run-summary code {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .trace-dag.map .dag-result-charts,
 .trace-dag.map .dag-chart-empty {
   margin: 0 0 10px;
@@ -952,6 +973,42 @@
   line-height: 1.5;
   background: var(--ast-fill-band);
   border-radius: 6px;
+}
+.trace-dag.map .dag-structured-table-result,
+.trace-payload .dag-structured-table-result {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.trace-dag.map .dag-structured-table-list,
+.trace-payload .dag-structured-table-list {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--ast-hairline);
+  border-radius: 6px;
+}
+.trace-dag.map .dag-structured-table-heading,
+.trace-payload .dag-structured-table-heading {
+  display: block;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--ast-hairline);
+  background: var(--ast-fill-band);
+  font-size: var(--ast-fs-12);
+}
+.trace-dag.map .dag-structured-table-list .entity-table-list,
+.trace-payload .dag-structured-table-list .entity-table-list {
+  padding: 8px 10px 10px;
+}
+.trace-dag.map .entity-table-list ul,
+.trace-payload .entity-table-list ul {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 23rem), 1fr));
+}
+.trace-dag.map .entity-table-list li,
+.trace-payload .entity-table-list li {
+  padding: 5px 7px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: 4px;
+  background: var(--ast-pane);
 }
 /* A table or column name wherever one appears in a sentence. The info family,
    which is what every other surface in the app sets an identifier in, and the two

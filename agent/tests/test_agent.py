@@ -2272,7 +2272,7 @@ def test_every_tool_the_loop_can_call_has_a_name_for_running_it():
     """A missing entry falls back to "Calling data_genie", which is the tool's
     own vocabulary and reads as debug output beside "Queried governed data"."""
 
-    assert set(agent._TOOL_STAGE_RUNNING) == set(agent._TOOL_STAGE_NAMES)
+    assert set(agent.TOOL_STAGE_RUNNING) == set(agent.TOOL_STAGE_NAMES)
 
 
 def test_each_stage_is_followed_by_an_event_that_carries_nothing():
@@ -2709,7 +2709,11 @@ def test_attachment_context_reaches_the_model_and_run_explorer_trace():
     recorded = stages(answered)
     attachment_stage = next(stage for stage in recorded if stage["id"] == "attachment")
     assert attachment_stage["name"] == "Included conversation attachment"
-    assert attachment_text in attachment_stage["output"]
+    assert attachment_stage["input"] == (
+        "Include the bounded attachment context supplied with this question."
+    )
+    assert attachment_stage["output"] == ("Bounded attachment context was available to this run.")
+    assert attachment_text not in json.dumps(recorded)
     assert answered.custom_outputs["answer"]["document_snippets"] == [
         {
             "filename": "notes.txt",
@@ -4676,8 +4680,9 @@ def test_an_attachment_cannot_close_its_own_quotation_and_keep_writing():
     )
     assert carrier["content"].count(ATTACHMENT_END) == 1
     assert carrier["content"].count(ATTACHMENT_BEGIN) == 1
-    assert carrier["content"].index(ATTACHMENT_END) < carrier["content"].index(
-        "Return the assessed package"
+    assert carrier["content"].rstrip().endswith("----- END UNTRUSTED FINDER ATTACHMENT -----")
+    assert carrier["content"].index(ATTACHMENT_END) < carrier["content"].rindex(
+        "----- END UNTRUSTED FINDER ATTACHMENT -----"
     )
     assert "[end-marker removed]" in carrier["content"]
 
@@ -4752,7 +4757,7 @@ def test_the_question_is_asked_once_when_the_last_turn_is_the_plan():
     messages = llm.loop_calls[0]["messages"]
     finder_requests = [m["content"] for m in messages if m["role"] == "user"]
     assert len(finder_requests) == 1
-    assert f"Discovery intent:\n{question}" in finder_requests[0]
+    assert f"Question:\n{question}" in finder_requests[0]
     assert "Here is the plan I propose." in finder_requests[0]
 
 
@@ -4776,7 +4781,7 @@ def test_a_repeated_question_earlier_in_the_conversation_is_kept():
     messages = llm.loop_calls[0]["messages"]
     finder_requests = [m["content"] for m in messages if m["role"] == "user"]
     assert len(finder_requests) == 1
-    assert f"Discovery intent:\n{question}" in finder_requests[0]
+    assert f"Question:\n{question}" in finder_requests[0]
     assert finder_requests[0].count(question) == 2
 
 

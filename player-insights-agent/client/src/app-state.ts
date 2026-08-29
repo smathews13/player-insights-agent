@@ -11,6 +11,7 @@
  */
 import { useEffect, useState } from 'react';
 import type { Identity, RunTrace } from './app-types';
+import { normalizeStage } from './answer-shape';
 import type { StorageHealth } from './storage-banner-copy';
 import { IDENTITY_RESOLVING, IDENTITY_UNAVAILABLE } from './user-initials';
 import { browserPollHost, pollWhileVisible } from './visibility-polling';
@@ -249,6 +250,18 @@ export type RunTraceState =
   | { status: 'missing' }
   | { status: 'error'; message: string };
 
+/** Normalize legacy stored stages at the Run Explorer read boundary. */
+export function normalizeRunTrace(trace: RunTrace): RunTrace {
+  if (!trace.trace) return trace;
+  return {
+    ...trace,
+    trace: {
+      ...trace.trace,
+      stages: trace.trace.stages.map(normalizeStage),
+    },
+  };
+}
+
 /**
  * The selected run's own trace, refetched whenever the selection changes.
  *
@@ -279,7 +292,7 @@ export function useRunTrace(runId: string | undefined, refreshToken = 0): RunTra
           return;
         }
         if (!response.ok) throw new Error('This run’s trace could not be read.');
-        settle({ status: 'ready', data: (await response.json()) as RunTrace });
+        settle({ status: 'ready', data: normalizeRunTrace((await response.json()) as RunTrace) });
       })
       .catch((error: Error) => {
         settle({ status: 'error', message: error.message });

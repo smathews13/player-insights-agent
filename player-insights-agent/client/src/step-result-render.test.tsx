@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { StageDetail } from './TraceDag';
-import { PayloadView } from './TraceTimeline';
+import { PayloadView, RawPayload } from './TraceTimeline';
+import { describePayload } from './trace-payload';
 import { partial } from './styles/stylesheet';
 import type { TraceStage } from './answer-shape';
 
@@ -124,6 +125,24 @@ const FINDINGS = [
   '',
   'Note: `player_id` is scoped per label, so a player under two labels is counted twice — let me know if you want ' +
     'the cross-label figure.',
+].join('\n');
+
+const DECLARED_TABLES = [
+  '<your_catalog>.<your_schema>.data_dictionary',
+  '<your_catalog>.<your_schema>.gold_player_180d_summary',
+  '<your_catalog>.<your_schema>.silver_player_profiles',
+];
+
+const DECLARED_TABLE_LIST = [
+  'DATA OVERVIEW',
+  '',
+  'Declared governed sources:',
+  'Declared tables:',
+  `${DECLARED_TABLES[0]} [franchise: untagged]`,
+  `${DECLARED_TABLES[1]} [franchise: Northwind]`,
+  `${DECLARED_TABLES[2]} [franchise: Contoso]`,
+  'This is the declared set in one listing. A missing franchise tag means untagged.',
+  'Call describe_table for columns, types, and comments.',
 ].join('\n');
 
 describe('dark step details keep one night-sky surface', () => {
@@ -305,12 +324,56 @@ describe('rendered markdown results', () => {
       })
     );
 
-    expect(markup).toContain('1</span> table assessed');
+    expect(markup).toContain('1</span> table declared');
     expect(markup).toContain('entity-table-mark');
     expect(markup).toContain('data-entity-part="catalog"');
     expect(markup).toContain('data-entity-part="schema"');
     expect(markup).toContain('data-entity-part="table"');
     expect(markup).not.toContain('>{}<');
+  });
+
+  it.each([
+    ['Data Source Finder', 'data_source_finder', 'agent'],
+    ['Prepared the answer', 'synthesis', 'agent'],
+    ['Listed available tables', 'inventory', 'discovery'],
+  ])('renders declared table blocks in %s as compact shared entities', (name, id, kind) => {
+    const markup = result(panel({ id, name, kind, input: 'what data is available?', output: DECLARED_TABLE_LIST }));
+    for (const table of DECLARED_TABLES) {
+      const [catalog, schema, object] = table.split('.');
+      expect(markup).toContain(`data-entity-part="catalog">${catalog}</span>`);
+      expect(markup).toContain(`data-entity-part="schema">${schema}</span>`);
+      expect(markup).toContain(`data-entity-part="table">${object}</span>`);
+    }
+    expect(markup).toContain('aria-label="Declared tables, 3 tables"');
+    expect(markup).toContain('3</span> tables declared');
+    expect(markup).toContain('entity-table-list-meta">franchise: untagged</span>');
+    expect(markup).toContain('entity-table-list-meta">franchise: Northwind</span>');
+    expect(markup).toContain('entity-table-list-meta">franchise: Contoso</span>');
+    expect(markup).toContain('This is the declared set in one listing.');
+    expect(markup).toContain('data-technical-entity="tool">describe_table</code>');
+  });
+
+  it('uses the same table-list renderer for live payloads and stored stage details', () => {
+    const live = renderToStaticMarkup(<PayloadView text={DECLARED_TABLE_LIST} />);
+    const stored = result(panel({ id: 'synthesis', kind: 'agent', output: DECLARED_TABLE_LIST }));
+    expect(live.match(/entity-table-mark/g)).toHaveLength(DECLARED_TABLES.length);
+    expect(stored.match(/entity-table-mark/g)).toHaveLength(DECLARED_TABLES.length);
+    expect(live).toContain('dag-structured-table-result');
+    expect(stored).toContain('dag-structured-table-result');
+  });
+
+  it('keeps the complete sanitized table payload in Raw', () => {
+    const raw = renderToStaticMarkup(<RawPayload payload={describePayload(DECLARED_TABLE_LIST)} />);
+    for (const line of DECLARED_TABLE_LIST.split('\n').filter(Boolean)) expect(raw).toContain(line);
+  });
+
+  it('does not promote ordinary dotted prose without a structural list heading', () => {
+    const prose =
+      'The release 2.4.1 was discussed in docs.example.com, but this sentence does not declare a governed table.';
+    const markup = result(panel({ id: 'synthesis', kind: 'agent', output: prose }));
+    expect(markup).toContain(prose);
+    expect(markup).not.toContain('dag-structured-table-result');
+    expect(markup).not.toContain('data-entity-part="table"');
   });
 
   it('renders a heading, markdown table, and bold answer instead of leftover syntax', () => {

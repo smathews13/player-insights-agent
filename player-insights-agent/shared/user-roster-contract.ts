@@ -1,3 +1,5 @@
+import type { OrganizationMapping } from './organization-mapping';
+
 /**
  * The three roles, and what the user roster sends over the wire.
  *
@@ -112,6 +114,8 @@ export interface RosterEntry {
 
 export interface RosterPayload {
   entries: RosterEntry[];
+  /** Deployment-configured labels only; unknown domains use a neutral fallback. */
+  organizations?: OrganizationMapping[];
   /** False when the stored half could not be read. The screen says so rather than drawing zero rows. */
   storedRosterReadable: boolean;
   /**
@@ -141,6 +145,7 @@ export interface RosterPayload {
 
 /** A refusal the roster routes make, named so the route and its test read one string. */
 export type RosterRefusal =
+  | 'immutable-super-admin'
   | 'seed-floor'
   | 'last-super-admin'
   | 'not-found'

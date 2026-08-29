@@ -16,6 +16,7 @@
 import type { TraceStage } from './answer-shape';
 import { stageType, toolNameFromId, type ToolType } from './trace-timeline';
 import { describePayload } from './trace-payload';
+import { projectReaderStage } from '../../shared/stage-lexicon';
 
 /**
  * How far a run has got, in terms of what the browser has actually seen.
@@ -194,26 +195,27 @@ export function stageToolNames(stage: Pick<TraceStage, 'id' | 'output'>): string
  * its real arguments rather than with nothing or with a guess at what it does.
  */
 export function describeStage(stage: TraceStage, question = ''): string {
-  const tool = toolNameFromId(stage.id);
-  if (isTableListingStage(stage)) {
-    const scope = allFields(stage.input);
+  const shown = projectReaderStage(stage);
+  const tool = toolNameFromId(shown.id);
+  if (isTableListingStage(shown)) {
+    const scope = allFields(shown.input);
     return scope ? `Listed the tables it may read under ${clamp(scope)}` : 'Listed every table it is permitted to read';
   }
   switch (tool) {
     case 'data_genie':
-      return quoted('Asked the governed data Genie space', field(stage.input, 'question'));
+      return quoted('Asked the governed data Genie space', field(shown.input, 'question'));
     case 'dictionary_genie':
-      return quoted('Asked the data dictionary Genie space', field(stage.input, 'question'));
+      return quoted('Asked the data dictionary Genie space', field(shown.input, 'question'));
     case 'run_sql':
-      return prefixed('Ran a read-only query', field(stage.input, 'sql'));
+      return prefixed('Ran a read-only query', field(shown.input, 'sql'));
     case 'query_named_table':
-      return prefixed('Queried the table it was given', allFields(stage.input));
+      return prefixed('Queried the table it was given', allFields(shown.input));
     case 'describe_table': {
-      const table = clamp(field(stage.input, 'full_name'));
+      const table = clamp(field(shown.input, 'full_name'));
       return table ? `Read the columns of ${table}` : 'Read a table\u2019s columns';
     }
     case 'search_tagged_assets': {
-      const asked = allFields(stage.input);
+      const asked = allFields(shown.input);
       return asked
         ? `Searched the catalog\u2019s tags for ${clamp(asked)}`
         : 'Searched the catalog\u2019s tags to see which exist';
@@ -223,19 +225,19 @@ export function describeStage(stage: TraceStage, question = ''): string {
       // The alternative is a row that says only its category, which is what
       // this change exists to get away from, and a tool added to the agent
       // must not silently degrade to that.
-      if (tool) return clamp(allFields(stage.input));
+      if (tool) return clamp(allFields(shown.input));
       break;
   }
 
-  if (stage.id.endsWith('-clarify')) {
-    return quoted('Stopped to ask you', field(stage.input, 'question') || stage.output);
+  if (shown.id.endsWith('-clarify')) {
+    return quoted('Stopped to ask you', field(shown.input, 'question') || shown.output);
   }
 
   // A model turn records the tool calls it decided on as its output, which is
   // the most useful thing on screen while the run is going: it names what is
   // about to happen, from the run's own record, before that work reports.
-  if (/^step-\d+$/.test(stage.id) && stage.output) {
-    const chose = stage.output
+  if (/^step-\d+$/.test(shown.id) && shown.output) {
+    const chose = shown.output
       .split(',')
       .map((name) => name.trim())
       .filter(Boolean);
@@ -246,9 +248,9 @@ export function describeStage(stage: TraceStage, question = ''): string {
 
   // Anything else: the recorded input, unless it is the question being asked,
   // which the reader is already looking at further up the page.
-  const input = clamp(stage.input);
+  const input = clamp(shown.input);
   if (input && input !== clamp(question)) return input;
-  return clamp(stage.output);
+  return clamp(shown.output);
 }
 
 function quoted(lead: string, value: string): string {
@@ -269,8 +271,9 @@ function prefixed(lead: string, value: string): string {
  * putting the answer in the progress rail spoils it and doubles it.
  */
 function describeResult(stage: TraceStage): string {
-  if (stage.kind !== 'tool') return '';
-  return clamp(stage.output, 140);
+  const shown = projectReaderStage(stage);
+  if (shown.kind !== 'tool') return '';
+  return clamp(shown.output, 140);
 }
 
 /**

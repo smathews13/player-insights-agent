@@ -14,6 +14,7 @@ import { applyColorScheme, type ColorScheme } from './color-scheme';
 import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import { AppSelect } from './AppSelect';
 import { adoptRuntimeEntityStyles } from './runtime-entity-styles';
+import { RuntimeLoopDiagram } from './RuntimeLoopDiagram';
 import { wholeNumberFrom } from './runtime-number';
 import {
   changedSettingKeys,
@@ -324,29 +325,39 @@ export function RuntimeSettingsPanel({
 
           <section className="runtime-section">
             <h4 className="runtime-section-label">Loop structure</h4>
-            <div className="runtime-loop-row">
-              {number('Max DSF steps', settings.loop.maxSteps, 1, 20, (value) => setLoop('maxSteps', value), {
-                labelClassName: 'runtime-loop-label runtime-loop-label--agent ast-pill',
-                help: 'Reasoning steps in one Ask.',
-                helpId: 'runtime-max-steps-help',
-              })}
-              {number('Max tool calls', settings.loop.maxToolCalls, 1, 40, (value) => setLoop('maxToolCalls', value), {
-                labelClassName: 'runtime-loop-label runtime-loop-label--tool ast-pill',
-                help: 'Tools it may call in one Ask.',
-                helpId: 'runtime-max-tool-calls-help',
-              })}
-              {number(
-                'Run budget (s)',
-                settings.loop.maxRunSeconds,
-                30,
-                200,
-                (value) => setLoop('maxRunSeconds', value),
-                {
-                  labelClassName: 'runtime-loop-label runtime-loop-label--budget ast-pill',
-                  help: 'Seconds before the run stops.',
-                  helpId: 'runtime-run-budget-help',
-                }
-              )}
+            <div className="runtime-loop-layout">
+              <div className="runtime-loop-row">
+                {number('Max DSF steps', settings.loop.maxSteps, 1, 20, (value) => setLoop('maxSteps', value), {
+                  labelClassName: 'runtime-loop-label runtime-loop-label--agent ast-pill',
+                  help: 'Reasoning steps in one Ask.',
+                  helpId: 'runtime-max-steps-help',
+                })}
+                {number(
+                  'Max tool calls',
+                  settings.loop.maxToolCalls,
+                  1,
+                  40,
+                  (value) => setLoop('maxToolCalls', value),
+                  {
+                    labelClassName: 'runtime-loop-label runtime-loop-label--tool ast-pill',
+                    help: 'Tools it may call in one Ask.',
+                    helpId: 'runtime-max-tool-calls-help',
+                  }
+                )}
+                {number(
+                  'Run budget (s)',
+                  settings.loop.maxRunSeconds,
+                  30,
+                  200,
+                  (value) => setLoop('maxRunSeconds', value),
+                  {
+                    labelClassName: 'runtime-loop-label runtime-loop-label--budget ast-pill',
+                    help: 'Seconds before the run stops.',
+                    helpId: 'runtime-run-budget-help',
+                  }
+                )}
+              </div>
+              <RuntimeLoopDiagram loop={settings.loop} />
             </div>
           </section>
 

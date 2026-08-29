@@ -4,12 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { APP_SCHEMA } from '../../shared/app-schema';
 import { EMPTY_COST_BUDGETS } from '../../shared/cost-budgets';
-import {
-  COST_BUDGETS_TABLE,
-  forgetCostBudgets,
-  readCostBudgets,
-  writeCostBudgets,
-} from './cost-budgets-store';
+import { COST_BUDGETS_TABLE, forgetCostBudgets, readCostBudgets, writeCostBudgets } from './cost-budgets-store';
 
 function client(rows: Record<string, unknown>[] = [], fail?: Error) {
   const calls: { sql: string; values?: unknown[] }[] = [];
@@ -43,8 +38,15 @@ describe('cost budget persistence', () => {
 
   it('prefers a stored valid row and writes JSON atomically', async () => {
     forgetCostBudgets();
-    const stored = { total: 250, resources: { 'app-compute': 40, 'serving-endpoint': 80 } };
-    expect((await readCostBudgets(client([{ settings: stored }]) as never, { maxAgeMs: 0 })).budgets).toEqual(stored);
+    const legacy = { total: 250, resources: { 'app-compute': 40, 'serving-endpoint': 80 } };
+    const stored = {
+      total: { value: 250, unit: 'USD' as const },
+      resources: {
+        'app-compute': { value: 40, unit: 'USD' as const },
+        'serving-endpoint': { value: 80, unit: 'USD' as const },
+      },
+    };
+    expect((await readCostBudgets(client([{ settings: legacy }]) as never, { maxAgeMs: 0 })).budgets).toEqual(stored);
 
     const writer = client();
     await writeCostBudgets(writer as never, stored, 'admin@example.com');
@@ -56,7 +58,7 @@ describe('cost budget persistence', () => {
     forgetCostBudgets();
     const result = await readCostBudgets(client([], new Error('permission denied')) as never, { maxAgeMs: 0 });
     expect(result).toEqual({ budgets: EMPTY_COST_BUDGETS, readable: false });
-    expect(result.budgets.total).toBeNull();
+    expect(result.budgets.total).toEqual({ value: null, unit: 'USD' });
     expect(result.budgets.resources).toEqual({});
   });
 

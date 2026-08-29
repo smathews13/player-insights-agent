@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Application, Request, Response } from 'express';
 
-import { forgetWorkspaceId, QUESTION_COST_RUNS_QUERY, RESOURCE_ACTIVITY_QUERY, setupOpsRoutes } from './ops-routes';
+import {
+  configuredResourceName,
+  forgetWorkspaceId,
+  QUESTION_COST_RUNS_QUERY,
+  RESOURCE_ACTIVITY_QUERY,
+  setupOpsRoutes,
+} from './ops-routes';
 import type { InsightsAppKit } from './insights-routes';
 import type { OpsCostPayload } from '../../shared/ops-contract';
 
@@ -55,6 +61,16 @@ afterEach(() => {
 });
 
 describe('the ranged cost route', () => {
+  it('reads the current model configuration resource descriptor shape', () => {
+    const configured = {
+      index_name: 'catalog.schema.semantic_index',
+      endpoint_name: 'semantic-endpoint',
+      status: 'ONLINE',
+    };
+    expect(configuredResourceName(configured, ['index_name', 'name'])).toBe('catalog.schema.semantic_index');
+    expect(configuredResourceName(configured, ['endpoint_name', 'endpoint'])).toBe('semantic-endpoint');
+  });
+
   it('attributes legacy Genie traces by configured space without double-counting current resource calls', () => {
     expect(RESOURCE_ACTIVITY_QUERY).toContain("trace->'genie_spaces'");
     expect(RESOURCE_ACTIVITY_QUERY).toContain("space->>'id' = c.resource_id");
@@ -165,7 +181,7 @@ describe('the ranged cost route', () => {
         expect.objectContaining({ id: 'genie', quality: 'unknown', amount: null }),
       ])
     );
-    expect(payload.budgets).toEqual({ total: null, resources: {} });
+    expect(payload.budgets).toEqual({ total: { value: null, unit: 'USD' }, resources: {} });
     expect(payload.budgetsReadable).toBe(true);
     expect(payload.honesty?.priceSource).toBe('list_prices');
     expect(payload.honesty?.contractRates).toBe('unavailable');
@@ -265,27 +281,18 @@ describe('the ranged cost route', () => {
                 {
                   key: 'semantic_index',
                   env_var: '',
-                  value: 'cat.schema.index',
+                  value: {
+                    index_name: 'cat.schema.index',
+                    endpoint_name: 'vs-endpoint-from-connections',
+                    status: 'ONLINE',
+                  },
                   source: 'artifact',
                   mutability: 'baked',
                   baked: true,
                   required: false,
                 },
               ],
-              checks: [
-                {
-                  id: 'semantic-index-endpoint',
-                  kind: 'vector-endpoint',
-                  name: 'vs-endpoint-from-connections',
-                  label: 'Vector Search endpoint',
-                  status: 'ok',
-                  detail: 'Reachable.',
-                  checked_with: 'GET /api/2.0/vector-search/indexes',
-                  duration_ms: 2,
-                  error: '',
-                  remedy: null,
-                },
-              ],
+              checks: [],
               assumptions: [],
               counts: { ok: 0, failed: 0, unverified: 0 },
               source: 'configuration',
@@ -314,8 +321,8 @@ describe('the ranged cost route', () => {
       resourceId: 'cat.schema.index',
       secondaryResourceId: 'vs-endpoint-from-connections',
       resourceKind: 'vector-index',
-      unavailable: 'Vector Search dollars unavailable',
-      evidence: { billingRows: null, activity: { calls: 5, observedCalls: 7, unit: 'queries' } },
+      unavailable: 'No billing rows',
+      evidence: { billingRows: 0, activity: { calls: 5, observedCalls: 7, unit: 'queries' } },
     });
     expect(payload.tiles.find((tile) => tile.id === 'app-compute')).toMatchObject({
       unavailable: 'No Apps billing rows matched this app.',
@@ -323,7 +330,10 @@ describe('the ranged cost route', () => {
       remedy: '',
     });
     expect(payload.tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
-    expect(payload.budgets).toEqual({ total: 250, resources: { 'app-compute': 40 } });
+    expect(payload.budgets).toEqual({
+      total: { value: 250, unit: 'USD' },
+      resources: { 'app-compute': { value: 40, unit: 'USD' } },
+    });
     expect(payload.budgetsReadable).toBe(true);
   });
 });

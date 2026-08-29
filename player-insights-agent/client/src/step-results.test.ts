@@ -25,11 +25,56 @@ import {
   noteBody,
   reportSections,
   semanticResult,
+  structuredTableResult,
   sqlClauseLines,
   sqlStatements,
   truncatedId,
   understoodAs,
 } from './step-results';
+
+describe('structured governed table lists', () => {
+  it('separates fully qualified names, metadata, and trailing prose', () => {
+    const parsed = structuredTableResult(
+      [
+        'DATA OVERVIEW',
+        '',
+        'Declared governed sources:',
+        'Declared tables:',
+        'catalog.schema.one [franchise: untagged]',
+        '- catalog.schema.two  [franchise: Contoso]',
+        'Access depends on the caller. Use describe_table to inspect a table.',
+      ].join('\n')
+    );
+    expect(parsed).toEqual({
+      tableCount: 2,
+      sections: [
+        { kind: 'prose', text: 'DATA OVERVIEW' },
+        {
+          kind: 'table-list',
+          heading: 'Declared tables',
+          tables: [
+            { name: 'catalog.schema.one', metadata: ['franchise: untagged'] },
+            { name: 'catalog.schema.two', metadata: ['franchise: Contoso'] },
+          ],
+        },
+        { kind: 'prose', text: 'Access depends on the caller. Use describe_table to inspect a table.' },
+      ],
+    });
+  });
+
+  it('handles more than one labelled list in one payload', () => {
+    const parsed = structuredTableResult(
+      'Declared tables:\n- a.b.one\n\nNotes stay here.\n\nAvailable tables:\n- a.b.two'
+    );
+    expect(parsed?.tableCount).toBe(2);
+    expect(parsed?.sections.filter((section) => section.kind === 'table-list')).toHaveLength(2);
+  });
+
+  it('refuses dotted prose and an unlabelled list', () => {
+    expect(structuredTableResult('Release 2.4.1 is on docs.example.com.')).toBeNull();
+    expect(structuredTableResult('- catalog.schema.table\n- catalog.schema.other')).toBeNull();
+  });
+});
 
 const DATA_GENIE = [
   'Asking Genie space Player Insights Data (d00dfeedd00dfeedd00dfeedd00dfeed).',

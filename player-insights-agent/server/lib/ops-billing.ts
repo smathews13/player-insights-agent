@@ -294,10 +294,10 @@ export function canAsk(component: CostComponent, ids: CostIdentifiers): boolean 
   // Genie billing has no space identifier. A workspace id is not a safe
   // substitute: it would attribute every space in the workspace to this app.
   if (component === 'genie') return false;
-  // Billing identifies only the Vector Search endpoint, which may serve other
-  // indexes and callers. Exact Astrolabe index usage comes from run telemetry;
-  // endpoint-wide dollars are never substituted for it.
-  if (component === 'vector-search') return false;
+  // Vector billing names the serving endpoint. Require both the configured index
+  // and the endpoint resolved from that index before treating the meter as this
+  // configured Vector Search resource.
+  if (component === 'vector-search') return Boolean(vectorIndexName(ids.vectorIndex) && ids.vectorEndpoint);
   return Boolean(ids[MATCHERS[component].parameter]);
 }
 
@@ -411,6 +411,11 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
   if (ids.appName) {
     resourcePredicates.push(`(u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName)`);
   }
+  if (canAsk('vector-search', ids)) {
+    resourcePredicates.push(
+      `(u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint)`
+    );
+  }
   const leakPredicate = resourcePredicates.length > 0 ? resourcePredicates.join('\n     OR ') : 'FALSE';
 
   const statement = `WITH tagged AS (
@@ -463,6 +468,7 @@ deduped AS (
     record_id,
     usage_date,
     usage_quantity,
+    usage_unit,
     sku_name,
     billing_origin_product,
     component,
@@ -473,7 +479,7 @@ deduped AS (
     MAX(currency_code) AS currency_code,
     MAX(CAST(price_start_time AS STRING)) AS price_start_time
   FROM price_hits
-  GROUP BY record_id, usage_date, usage_quantity, sku_name, billing_origin_product, component, record_type, tag_matches
+  GROUP BY record_id, usage_date, usage_quantity, usage_unit, sku_name, billing_origin_product, component, record_type, tag_matches
 ),
 priced AS (
   SELECT
@@ -515,7 +521,9 @@ SELECT
   COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
   MAX(price_start_time) AS price_effective_at,
   COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
-  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows
+  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
+  COUNT(DISTINCT usage_unit) AS usage_unit_count,
+  SUM(CASE WHEN usage_unit = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity
 FROM priced
 WHERE component IS NOT NULL
 GROUP BY component
@@ -546,7 +554,9 @@ SELECT
   COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
   MAX(price_start_time) AS price_effective_at,
   COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
-  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows
+  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
+  COUNT(DISTINCT usage_unit) AS usage_unit_count,
+  SUM(CASE WHEN usage_unit = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity
 FROM priced
 GROUP BY billing_origin_product
 UNION ALL
@@ -570,7 +580,9 @@ SELECT
   COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
   MAX(price_start_time) AS price_effective_at,
   COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
-  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows
+  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
+  COUNT(DISTINCT usage_unit) AS usage_unit_count,
+  SUM(CASE WHEN usage_unit = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity
 FROM priced
 UNION ALL
 SELECT
@@ -595,7 +607,9 @@ SELECT
   COUNT(*) FILTER (
     WHERE u.custom_tags['${BILLING_TAG.key}'] IS NULL
        OR u.custom_tags['${BILLING_TAG.key}'] <> '${BILLING_TAG.value}'
-  ) AS untagged_rows
+  ) AS untagged_rows,
+  CAST(0 AS BIGINT) AS usage_unit_count,
+  CAST(0 AS DOUBLE) AS dbu_quantity
 FROM system.billing.usage u
 WHERE u.usage_date >= :from_day
   AND u.usage_date <= :to_day
@@ -630,6 +644,8 @@ export interface ComponentRow {
   priceEffectiveAt?: string;
   taggedRows?: number;
   untaggedRows?: number;
+  usageUnitCount?: number;
+  dbuQuantity?: number;
 }
 
 function emptyRow(kind: ComponentRow['kind'], component: string): ComponentRow {
@@ -653,6 +669,8 @@ function emptyRow(kind: ComponentRow['kind'], component: string): ComponentRow {
     priceEffectiveAt: '',
     taggedRows: 0,
     untaggedRows: 0,
+    usageUnitCount: 0,
+    dbuQuantity: 0,
   };
 }
 
@@ -725,6 +743,8 @@ export function readComponentRows(dataArray: unknown): ComponentRow[] {
         priceEffectiveAt,
         taggedRows,
         untaggedRows,
+        usageUnitCount,
+        dbuQuantity,
       ] = cells;
       if (typeof component !== 'string' || typeof kind !== 'string') continue;
       rows.push({
@@ -747,6 +767,8 @@ export function readComponentRows(dataArray: unknown): ComponentRow[] {
         priceEffectiveAt: typeof priceEffectiveAt === 'string' ? priceEffectiveAt : '',
         taggedRows: asCount(taggedRows),
         untaggedRows: asCount(untaggedRows),
+        usageUnitCount: asCount(usageUnitCount),
+        dbuQuantity: asCount(dbuQuantity),
       });
       continue;
     }
@@ -830,6 +852,14 @@ export function spendAmountFor(row: ComponentRow | undefined, basis: CostTile['b
     return basis === 'per-day' ? row.spend / Math.max(row.billedDays, 1) : row.spend;
   }
   return null;
+}
+
+/** DBUs measured on attributable billing rows, never inferred from dollars. */
+export function dbuAmountFor(row: ComponentRow | undefined, basis: CostTile['basis']): number | null {
+  if (!row || row.usageUnitCount !== 1) return null;
+  const amount = row.dbuQuantity;
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) return null;
+  return basis === 'per-day' ? amount / Math.max(row.billedDays, 1) : amount;
 }
 
 export function unpricedUnavailable(pricing: CostTilePricing): string {
@@ -1076,6 +1106,7 @@ function genieSpaceTiles(
   activity: readonly ResourceActivity[]
 ): CostTile[] {
   const warehouseSpend = spendAmountFor(warehouseRow, 'total-in-range');
+  const warehouseDbus = dbuAmountFor(warehouseRow, 'total-in-range');
   const warehousePricing = pricingFromRow(warehouseRow);
   const billingRows = warehouseRow ? (warehouseRow.pricedRows ?? 0) + (warehouseRow.unpricedRows ?? 0) : 0;
   const representedSpaces = new Map<string, string>();
@@ -1088,13 +1119,17 @@ function genieSpaceTiles(
     const canAllocate =
       Boolean(spaceId) &&
       !representedBy &&
-      warehouseSpend !== null &&
+      (warehouseSpend !== null || warehouseDbus !== null) &&
       warehouseAttribution.complete &&
       warehouseAttribution.totalExecutionMs > 0 &&
       Boolean(generatedSql && generatedSql.executionMs > 0);
     const amount =
-      canAllocate && generatedSql
+      canAllocate && generatedSql && warehouseSpend !== null
         ? (warehouseSpend * generatedSql.executionMs) / warehouseAttribution.totalExecutionMs
+        : null;
+    const dbus =
+      canAllocate && generatedSql && warehouseDbus !== null
+        ? (warehouseDbus * generatedSql.executionMs) / warehouseAttribution.totalExecutionMs
         : null;
     const sqlGap = representedBy
       ? `This Genie space is already represented by ${representedBy}; cost is not repeated`
@@ -1118,6 +1153,7 @@ function genieSpaceTiles(
       resourceKind: spaceId ? ('genie-space' as const) : '',
       quality: amount === null ? ('unknown' as const) : ('estimate' as const),
       amount,
+      dbus,
       basis: 'total-in-range' as const,
       population: 'Generated SQL share',
       attribution: amount === null ? ('unavailable' as const) : ('deployment' as const),
@@ -1190,12 +1226,13 @@ function componentTile(
   ): CostTile => {
     const pricing = tile.pricing ?? EMPTY_PRICING;
     const amount = tile.amount;
+    const dbus = tile.dbus;
     const unpriced = unpricedUnavailable(pricing);
     return {
       ...tile,
       quality: unpriced ? 'unknown' : tile.quality,
       amount: unpriced ? null : amount,
-      attribution: attributionFor(tile.population, unpriced ? null : amount),
+      attribution: attributionFor(tile.population, unpriced ? (dbus ?? null) : (amount ?? dbus ?? null)),
       pricing,
       unavailable: tile.unavailable || unpriced,
       note: tile.note,
@@ -1236,7 +1273,10 @@ function componentTile(
   const row = byComponent.get(component);
   const pricing = pricingFromRow(row);
   const amount = spendAmountFor(row, description.basis);
+  const dbus = dbuAmountFor(row, description.basis);
   const billingRows = row ? (row.pricedRows ?? 0) + (row.unpricedRows ?? 0) : 0;
+  const measuredActivity =
+    component === 'vector-search' ? resourceActivity.find((item) => item.tileId === 'vector-search') : undefined;
   const evidence = {
     billingRows,
     astrolabeQueries: component === 'sql-warehouse' ? warehouseAttribution.astrolabeQueries : null,
@@ -1246,12 +1286,24 @@ function componentTile(
           queryHistoryComplete: warehouseAttribution.complete,
         }
       : {}),
+    ...(component === 'vector-search'
+      ? {
+          activity: measuredActivity
+            ? {
+                calls: measuredActivity.calls,
+                observedCalls: measuredActivity.observedCalls,
+                unit: 'queries' as const,
+              }
+            : null,
+        }
+      : {}),
   };
   if (component === 'sql-warehouse') {
     if (amount === null || !warehouseAttribution.complete || warehouseAttribution.totalExecutionMs <= 0) {
       return withMeta({
         ...base,
         amount: null,
+        dbus,
         pricing,
         note: '',
         unavailable: amount === null ? unpricedUnavailable(pricing) || 'No billing rows' : 'Incomplete Query History',
@@ -1262,6 +1314,10 @@ function componentTile(
     return withMeta({
       ...base,
       amount: (amount * warehouseAttribution.astrolabeExecutionMs) / warehouseAttribution.totalExecutionMs,
+      dbus:
+        dbus === null
+          ? null
+          : (dbus * warehouseAttribution.astrolabeExecutionMs) / warehouseAttribution.totalExecutionMs,
       pricing,
       note: '',
       unavailable: '',
@@ -1275,6 +1331,7 @@ function componentTile(
       return withMeta({
         ...base,
         amount: null,
+        dbus,
         pricing,
         note: absence.note,
         unavailable: absence.unavailable,
@@ -1285,6 +1342,7 @@ function componentTile(
     return withMeta({
       ...base,
       amount: null,
+      dbus,
       pricing,
       note: '',
       unavailable: unpricedUnavailable(pricing) || 'No billing rows',
@@ -1293,7 +1351,7 @@ function componentTile(
     });
   }
 
-  return withMeta({ ...base, amount, pricing, note: '', unavailable: '', remedy: '', evidence });
+  return withMeta({ ...base, amount, dbus, pricing, note: '', unavailable: '', remedy: '', evidence });
 }
 
 /*

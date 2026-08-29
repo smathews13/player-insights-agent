@@ -108,6 +108,23 @@ function borderX(selector: string): number {
   return px(selector, 'border') * 2;
 }
 
+function ruleBody(selector: string, css = CSS): string {
+  const rule = new RegExp(`${selector.replace(/[.[\]']/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css);
+  if (!rule) throw new Error(`no rule for ${selector}`);
+  return rule[1];
+}
+
+function mediaBody(maxWidth: number): string {
+  const marker = `@media (max-width: ${maxWidth}px)`;
+  // responsive.css is the final partial and owns the canonical breakpoint.
+  // A concurrent page partial carrying a stray query must not make this test
+  // inspect that earlier block instead of the responsive band under test.
+  const start = CSS.lastIndexOf(marker);
+  if (start < 0) throw new Error(`no media query for ${maxWidth}px`);
+  const next = CSS.indexOf('@media ', start + marker.length);
+  return CSS.slice(start, next < 0 ? undefined : next);
+}
+
 /* ── The row's preferred width ───────────────────────────────────────────── */
 
 /** The segmented control, including the group's own border and the separators. */
@@ -221,9 +238,9 @@ describe("Monitoring's filter row at three widths", () => {
    * otherwise empty line, which is the same orphan the other way round.
    */
   it('makes it full width there, not just unpinned', () => {
-    const band = new RegExp(
-      `@media\\s*\\(max-width:\\s*${searchOwnLineBreakpoint()}px\\)\\s*\\{[\\s\\S]*?\\n\\}`
-    ).exec(CSS);
+    const band = new RegExp(`@media\\s*\\(max-width:\\s*${searchOwnLineBreakpoint()}px\\)\\s*\\{[\\s\\S]*?\\n\\}`).exec(
+      CSS
+    );
 
     expect(band).not.toBeNull();
     const rule = /\.monitoring-search\s*\{([^}]*)\}/.exec(band?.[0] ?? '');
@@ -254,5 +271,28 @@ describe("Monitoring's filter row at three widths", () => {
 
     expect(headroom).toBeLessThan(180);
     expect(headroom).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("Monitoring's desktop outcome header", () => {
+  it('gives the four-label outcome card two of six desktop tracks', () => {
+    expect(ruleBody('.monitoring-strip')).toContain('grid-template-columns: repeat(6, minmax(0, 1fr))');
+    expect(ruleBody('.monitoring-outcomes-tile')).toContain('grid-column: span 2');
+  });
+
+  it('keeps the full label on one readable desktop line', () => {
+    const label = ruleBody('.monitoring-outcomes-label');
+    expect(label).toContain('white-space: nowrap');
+    expect(label).not.toMatch(/font-size:\s*(?:[0-9]|10px)/);
+
+    const laptop = mediaBody(1180);
+    expect(laptop).toContain("'questions threads outcomes outcomes'");
+    expect(laptop).toContain("'rated rated median median'");
+  });
+
+  it('intentionally releases the label to wrap only at the narrow breakpoint', () => {
+    const narrow = mediaBody(800);
+    expect(narrow).toMatch(/\.monitoring-outcomes-label\s*\{[^}]*white-space:\s*normal/);
+    expect(narrow).toContain("'outcomes outcomes'");
   });
 });

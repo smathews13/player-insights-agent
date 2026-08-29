@@ -37,7 +37,7 @@ Two things follow from that, and both are deliberate:
 - **Only some decisions are machine-checkable.** The rest are printed beside the
   configuration so that comparing them is one glance rather than a memory test.
   Which is which is stated per decision below, and the release readout says so
-  too. A decision marked *displayed* is not enforced by anything. Do not read the
+  too. A decision marked _displayed_ is not enforced by anything. Do not read the
   release passing as evidence that one was honoured.
 
 ## Changing a decision
@@ -209,7 +209,7 @@ typographic placeholder rather than a sentence.
 Unity Catalog rows and explained them in two halves. The first half was real work:
 it compared the scope Databricks named in its own refusal against the scope claim
 on the forwarded token, and returned `undetermined` with no remedy where it could
-not tell. Then a confident sentence about *why* the scope was absent was appended,
+not tell. Then a confident sentence about _why_ the scope was absent was appended,
 and a four-step remedy built on it. Nothing in the code could know that why. Three
 of the four steps were already done and verified working, and the reader did them
 again.
@@ -367,56 +367,35 @@ decision is for is the review comment "the guide asked for an icon here and ther
 isn't one" -- the answer is that the row it belongs to was never built, and
 building one to hold a logo is the mistake this records.
 
-### D15. The app holds no sign-in of its own, and follows the one Databricks hands it
+### D15. App and workspace sessions are separate; Astrolabe adds an app-only idle control
 
-**Decided 2026-08-19.** A reader's identity provider session timed out and asked
-him to sign in again, while this app went on showing him signed in. The two
-reflex fixes are to give the app its own session with a shorter clock, or a hook
-that ends the app's sign-in when the identity provider ends its own. Both are
-refused, for different reasons.
+**Revised 2026-08-28.** Native Databricks App sessions are separate from
+workspace sessions, may persist or refresh for up to 24 hours, and do not
+support federated logout. Workspace logout therefore does not invalidate or
+prove the absence of an App session, and Astrolabe must not claim otherwise.
 
-**There is no session here to shorten.** No session middleware, no cookie the app
-sets, nothing stored about a sign-in. Every request's identity is read off the
-`x-forwarded-email` and `x-forwarded-access-token` headers Databricks Apps puts
-on it, and read again on the next request. A deployed request that arrives
-without them is refused 401 `identity_unavailable` before a statement is composed
-(`requireIdentity` in `server/routes/insights-routes.ts`, pinned by
-`server/routes/identity-boundary.test.ts`), and a forwarded token past its own
-expiry is refused as `USER_AUTH_REJECTED` (`server/lib/identity-subject.ts`).
-Server side the app is already exactly as short-lived as the sign-in it is given.
-The one cookie in the tree is AppKit's `dev-tunnel-id`, which exists only in the
-development server, carries no credential and grants nothing.
+Astrolabe now adds a compensating application session. A random opaque
+per-browser identifier is held in a Secure, HttpOnly, SameSite cookie; Lakebase
+stores only its hash, normalized authenticated subject, deployment binding, and
+activity/expiry timestamps. Every protected API request checks that shared row.
+Only throttled physical interaction extends activity; background polling and
+ordinary reads do not.
 
-**What outlived the sign-in was a page, not a session.** `useIdentity` in
-`client/src/app-state.ts` reads `/api/identity` once when the app opens and holds
-that answer for the life of the loaded tab, so a tab left open all morning still
-shows the name it was given at breakfast. That is a display gone stale. Nothing
-that reads governed data believes it, and the first request that tab makes is
-authorised from headers or refused.
+The account menu ends the stored app session and navigates the same origin to
+`/.auth/sign_out`. This is explicitly partial: if the workspace or identity
+provider session remains active, Databricks can authenticate the App again
+without prompting. The app cannot see or revoke those upstream sessions.
 
-**And the app cannot see the identity provider.** Databricks Apps forwards a
-Databricks token and says nothing about the identity provider session behind it.
-An app that logged somebody out on the grounds that their identity provider had
-would be asserting something it never read, which is D10.
+The idle limit defaults to 30 minutes and is configurable with
+`PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES`; the only off switch is the literal
+`disabled`. Expiry leaves a tombstone until explicit sign-out, so reload and the
+next API request cannot silently create a replacement. `APP_IDLE_TIMEOUT`
+unmounts the app and clears client caches.
 
-**Where the clocks actually live,** because this is the question the complaint is
-really asking:
-
-- The identity provider's own session policy. Databricks defers to it: there is
-  no workspace setting for how long a browser session lasts.
-- The account-level OAuth token lifetime policy, `token_access_policy`, whose
-  `absolute_session_lifetime_in_minutes` is the cap on how long somebody stays
-  signed in without re-authenticating. An account admin sets it.
-- Nothing on the app. `databricks apps create` has no session or time-to-live
-  option, and neither has the app resource in the bundle.
-
-So aligning the two is an administrator changing the identity provider session
-policy and the Databricks OAuth session policy together. The app follows
-whatever those two agree on, which is the whole of its job here.
-
-**Displayed only.** Nothing can check for the absence of a session. What this
-entry is for is the change that adds `express-session` with a short `maxAge`, or
-an identity provider hook, in answer to this complaint.
+Strict immediate coordinated logout remains outside the native Apps contract.
+It requires a customer-controlled OIDC/gateway architecture that owns every
+participating session and provides federated logout. The Astrolabe timeout
+protects only Astrolabe's application layer.
 
 ---
 
@@ -425,17 +404,17 @@ an identity provider hook, in answer to this complaint.
 These are settled, and they live where the thing they govern lives. Linked rather
 than copied, so there is one copy to keep true.
 
-| Decision | Where it is recorded |
-| --- | --- |
-| The ten constraints that outrank everything else on the ask and answer surfaces | `docs/design-handoff-pia-dubois-revamp/pia-ui-spec.md` section 9 |
-| An empty admin list means nobody, not everybody | `README.md`, "Who can administer it", and `docs/admin-monitoring-ops-plan.md` section 2.4 |
-| The Architecture stat strip has four tiles, not five | `AS-COMMITTED.md`, "What was decided after the handoff" |
-| Every re-read control is labelled Refresh | `AS-COMMITTED.md`, same section |
-| Monitoring's filter row departs from anchor `#7a` in three ways | `AS-COMMITTED.md`, same section, and `monitoring-ops.md` |
-| Where the repository specification and the design handoff disagree, behaviour follows the specification and appearance follows the handoff | `AS-COMMITTED.md`, "What the repository overrides" |
-| No workspace-specific value is baked into the committed build tree | `README.md`, "Deploy the app from the browser" |
-| `serving.serving-endpoints-data-plane` is not to be declared by any target | `databricks.yml`, under `app_user_api_scopes` |
-| Hard knobs (Genie / warehouse / catalogs) become live only via Apply → new model version; Connections and notebooks stage intent; soft knobs may stay live without Apply | `bundle/apply-declaration.sh`, Connections Apply card |
+| Decision                                                                                                                                                                 | Where it is recorded                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| The ten constraints that outrank everything else on the ask and answer surfaces                                                                                          | `docs/design-handoff-pia-dubois-revamp/pia-ui-spec.md` section 9                          |
+| An empty admin list means nobody, not everybody                                                                                                                          | `README.md`, "Who can administer it", and `docs/admin-monitoring-ops-plan.md` section 2.4 |
+| The Architecture stat strip has four tiles, not five                                                                                                                     | `AS-COMMITTED.md`, "What was decided after the handoff"                                   |
+| Every re-read control is labelled Refresh                                                                                                                                | `AS-COMMITTED.md`, same section                                                           |
+| Monitoring's filter row departs from anchor `#7a` in three ways                                                                                                          | `AS-COMMITTED.md`, same section, and `monitoring-ops.md`                                  |
+| Where the repository specification and the design handoff disagree, behaviour follows the specification and appearance follows the handoff                               | `AS-COMMITTED.md`, "What the repository overrides"                                        |
+| No workspace-specific value is baked into the committed build tree                                                                                                       | `README.md`, "Deploy the app from the browser"                                            |
+| `serving.serving-endpoints-data-plane` is not to be declared by any target                                                                                               | `databricks.yml`, under `app_user_api_scopes`                                             |
+| Hard knobs (Genie / warehouse / catalogs) become live only via Apply → new model version; Connections and notebooks stage intent; soft knobs may stay live without Apply | `bundle/apply-declaration.sh`, Connections Apply card                                     |
 
 ## What this file is not
 

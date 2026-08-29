@@ -43,21 +43,22 @@ import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
 import { ExperimentalBadge } from './ExperimentalBadge';
-import { PageHeading } from './page-chrome';
+import { Disclosure, PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
 import { ageAgo, checkedAgoLine } from './refresh-state';
 import { OUTCOME_PARAM } from './monitoring-filters';
 import { useWorkspaceHost } from './data-entity-state';
 import { databricksLink } from '../../shared/databricks-links';
 import { CostBudgetProvider, CostResourceBudgets, CostSpendSummary, CostTotalBudget } from './CostBudgets';
+import { costSpendSummary } from './cost-budget-view';
 import {
   activeMinutesDisplay,
   bars,
   costAbsence,
   costAbsenceReplacesGrid,
-  costHonestyLine,
   costTilesForDisplay,
   costTileWorkspaceObject,
+  tileAttribution,
   count,
   errorFraming,
   healthResourceObject,
@@ -83,7 +84,7 @@ import {
 } from './ops-view';
 import { opsCostRangeId, useOpsBlock } from './ops-session';
 import { TimeRangeControl } from './TimeRangeControl';
-import { rangeWindow } from './time-range';
+import { rangeLabel, rangeWindow } from './time-range';
 import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
 import { ForecastingBody } from './ForecastingPanel';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
@@ -538,7 +539,7 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
 
 /* ── Cost ────────────────────────────────────────────────────────────────── */
 
-export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
+export function CostBody({ block, periodLabel = '7 days' }: { block: Block<OpsCostPayload>; periodLabel?: string }) {
   const payload = block.data;
   const host = useWorkspaceHost();
   const billingHref = databricksLink(host, { kind: 'table', table: 'system.billing.usage' });
@@ -565,7 +566,10 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
       <BlockHead
         id="ops-cost-heading"
         title="Cost"
-        badges={[{ word: 'Experimental', tone: astPill('warn', 'ops-pill') }]}
+        badges={[
+          { word: 'Experimental', tone: astPill('warn', 'ops-pill') },
+          { word: periodLabel, tone: astPill('neutral-outline', 'ops-pill ops-period-pill') },
+        ]}
         control={<RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />}
       />
 
@@ -624,22 +628,11 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                   );
                 })}
                 <QuestionCostAverage payload={payload} />
+                <TotalAppCostTile payload={payload} />
               </div>
             </div>
             {!replaceGrid && absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
-            <p className="ops-cost-honesty">{costHonestyLine(payload.honesty)}</p>
-            {billingHref ? (
-              <a
-                className="ops-external"
-                href={billingHref}
-                target="_blank"
-                rel="noreferrer"
-                title="Open system.billing.usage"
-              >
-                Open system.billing.usage
-                <ExternalLink className="size-3.5" aria-hidden="true" />
-              </a>
-            ) : null}
+            <CostMethodology payload={payload} billingHref={billingHref} />
           </CostBudgetProvider>
         ) : null}
       </BlockBody>
@@ -650,7 +643,11 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
 function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
   const evidence = tile.evidence;
   const billingRows = evidence?.billingRows ?? 0;
-  const fact = billingRows > 0 ? `${count(billingRows)} billing ${billingRows === 1 ? 'row' : 'rows'}` : '';
+  const facts = [
+    typeof tile.dbus === 'number' && Number.isFinite(tile.dbus) ? `${tile.dbus.toFixed(2)} DBU` : '',
+    billingRows > 0 ? `${count(billingRows)} billing ${billingRows === 1 ? 'row' : 'rows'}` : '',
+  ].filter(Boolean);
+  const fact = facts.join(' · ');
   return (
     <p className="ops-tile-evidence" title={fact || undefined} aria-hidden={fact ? undefined : true}>
       {fact || '\u00a0'}
@@ -711,6 +708,54 @@ function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
       )}
       <p className="ops-tile-formula">{QUESTION_COST_FORMULA}</p>
     </div>
+  );
+}
+
+function TotalAppCostTile({ payload }: { payload: OpsCostPayload }) {
+  const summary = costSpendSummary(payload);
+  return (
+    <div className="ops-tile" data-testid="ops-total-app-cost">
+      <div className="ops-tile-head">
+        <ExperimentalBadge />
+        <p className="ops-tile-label">
+          <span className="ops-tile-label-text" title="Total app cost">
+            Total app cost
+          </span>
+        </p>
+      </div>
+      {summary.amount === null ? (
+        <p className="ops-tile-absent">No attributable total</p>
+      ) : (
+        <p className="ops-tile-figure">
+          <span className="ast-num">{summary.label}</span>
+        </p>
+      )}
+      <p className="ops-tile-evidence">{summary.dbus === null ? '\u00a0' : `${summary.dbus.toFixed(2)} DBU`}</p>
+    </div>
+  );
+}
+
+function CostMethodology({ payload, billingHref }: { payload: OpsCostPayload; billingHref: string | null }) {
+  const missing = payload.tiles.filter((tile) => tileAttribution(tile) !== 'deployment' || tile.amount === null).length;
+  return (
+    <Disclosure summary="Cost methodology and limits" className="ops-cost-method">
+      <ul>
+        <li>Prices use Databricks list rates; contracted rates are not available.</li>
+        {missing > 0 ? (
+          <li>
+            {missing} {missing === 1 ? 'component has' : 'components have'} incomplete pricing or attribution and{' '}
+            {missing === 1 ? 'is' : 'are'} not totaled.
+          </li>
+        ) : null}
+        {payload.honesty?.rangeMayStillFill ? <li>Recent billing records may still be arriving.</li> : null}
+      </ul>
+      {billingHref ? (
+        <a className="ops-external" href={billingHref} target="_blank" rel="noreferrer" title="Open billing usage">
+          Billing source
+          <ExternalLink className="size-3.5" aria-hidden="true" />
+        </a>
+      ) : null}
+    </Disclosure>
   );
 }
 
@@ -1473,6 +1518,7 @@ export function OpsPage() {
   const [params] = useSearchParams();
   const [openedAt] = useState(() => Date.now());
   const selected = rangeWindow(params, openedAt);
+  const selectedPeriodLabel = rangeLabel(params);
   const range = opsDayRange(selected.from, selected.to, openedAt);
   const costParams = new URLSearchParams();
   costParams.set('from', range.from);
@@ -1526,8 +1572,8 @@ export function OpsPage() {
       {/* Each measured block reads itself. Four read times on one page rather
           than one, because they were read at four different moments. */}
       <HealthBody block={health} />
-      <CostBody block={cost} />
-      {forecastingShown ? <ForecastingBody cost={cost} traffic={traffic} /> : null}
+      <CostBody block={cost} periodLabel={selectedPeriodLabel} />
+      {forecastingShown ? <ForecastingBody cost={cost} traffic={traffic} periodLabel={selectedPeriodLabel} /> : null}
       <TrafficBody block={traffic} monitoringHref={monitoringHref} runsHref={runsHref} />
       <LatencyBody block={latency} />
     </div>

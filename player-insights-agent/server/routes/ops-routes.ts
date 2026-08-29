@@ -254,6 +254,18 @@ function shownConnectionValue(state: ResourceState): string {
   return (state.intended ?? (state.configured || state.actual)).trim();
 }
 
+/** Resource names in current model configuration may be scalars or descriptor objects. */
+export function configuredResourceName(value: unknown, keys: readonly string[]): string {
+  if (typeof value === 'string') return value.trim();
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  const record = value as Record<string, unknown>;
+  for (const key of keys) {
+    const candidate = record[key];
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  return '';
+}
+
 /**
  * The Genie spaces and Vector Search names Connections already lists.
  *
@@ -298,10 +310,20 @@ async function costIdentifiersFor(
   const configuredGenie = accessDependenciesFrom({ configuration, env: process.env }).genieSpaces;
   const dataGenie = configuredGenie.find((space) => space.role === 'Data Genie space');
   const dictionaryGenie = configuredGenie.find((space) => space.role === 'Dictionary Genie space');
+  const semanticEntry = report?.configuration.find((entry) => entry.key === 'semantic_index');
+  const semanticCheck = report?.checks.find((check) => check.id === 'semantic-index');
+  const endpointCheck = report?.checks.find((check) => check.id === 'semantic-index-endpoint');
   const vectorIndex = vectorIndexName(
-    configured['semantic-index'] || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '')
+    configured['semantic-index'] ||
+      configuredResourceName(semanticEntry?.value, ['index_name', 'full_name', 'name', 'value']) ||
+      semanticCheck?.name ||
+      (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '')
   );
-  let vectorEndpoint = queryText(req, 'vectorEndpoint') || configured['semantic-index-endpoint'];
+  let vectorEndpoint =
+    queryText(req, 'vectorEndpoint') ||
+    configured['semantic-index-endpoint'] ||
+    endpointCheck?.name ||
+    configuredResourceName(semanticEntry?.value, ['endpoint_name', 'endpoint']);
   if (!vectorEndpoint && vectorIndex) {
     vectorEndpoint = await lookupVectorEndpoint({
       host: host(),

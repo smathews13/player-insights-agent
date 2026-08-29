@@ -6,7 +6,6 @@ import {
   type MultiTurnJudgeId,
 } from '../../shared/eval-dataset';
 import { DEFAULT_BENCHMARK_SETTINGS, type BenchmarkSettings } from '../../shared/benchmark-settings';
-import { ExperimentalStatus } from './ExperimentalBadge';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
 import { notifyBenchmarkSettingsSaved } from './benchmark-settings-events';
 import { validateCustomJudgeDraft, type CustomJudgeDraft, type CustomJudgeDraftIssue } from './custom-judge-draft';
@@ -20,7 +19,8 @@ import {
   updateBenchmarkSettingsDraft,
 } from './benchmark-settings-draft';
 import { saveRetryAfterLoad, type SettingsLoadResult, type SettingsSaveState } from './settings-save-state';
-import { Button, Input, Switch, Textarea } from './ui';
+import { StateSwitch } from './StateSwitch';
+import { Button, Input, Textarea } from './ui';
 import type { Run, RunTrace } from './app-types';
 
 export const BENCHMARK_SETTINGS_FORM_ID = 'settings-benchmark-form';
@@ -97,11 +97,8 @@ function JudgeToggleRow({
         <span className="exp-feature-title">{name}</span>
         <p className="runtime-control-note">{help}</p>
       </td>
-      <td>
-        <ExperimentalStatus on={on} />
-      </td>
       <td className="exp-feature-control">
-        <Switch checked={on} disabled={disabled} onCheckedChange={onCheckedChange} aria-label={ariaLabel} />
+        <StateSwitch checked={on} disabled={disabled} onCheckedChange={onCheckedChange} aria-label={ariaLabel} />
       </td>
     </tr>
   );
@@ -319,12 +316,17 @@ export function BenchmarkSettingsPanel({
           />
         </SettingField>
 
-        <table className="exp-feature-table">
+        <table className="exp-feature-table judge-settings-table">
+          <colgroup>
+            <col />
+            <col className="judge-settings-control-column" />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">Setting</th>
-              <th scope="col">Status</th>
-              <th scope="col">Control</th>
+              <th scope="col" className="exp-feature-control">
+                Control
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -369,12 +371,17 @@ export function BenchmarkSettingsPanel({
           </p>
         ) : null}
 
-        <table className="exp-feature-table">
+        <table className="exp-feature-table judge-settings-table">
+          <colgroup>
+            <col />
+            <col className="judge-settings-control-column" />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">Multi-turn judges</th>
-              <th scope="col">Status</th>
-              <th scope="col">Control</th>
+              <th scope="col" className="exp-feature-control">
+                Control
+              </th>
             </tr>
           </thead>
           <tbody>

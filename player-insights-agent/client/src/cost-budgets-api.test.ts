@@ -18,12 +18,21 @@ describe('cost budget API responses', () => {
   it('loads stored budgets when the store answered', async () => {
     const budgets = { total: 90, resources: { 'app-compute': 12 } };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ budgets, readable: true })));
-    await expect(loadCostBudgets()).resolves.toEqual({ ok: true, budgets });
+    await expect(loadCostBudgets()).resolves.toEqual({
+      ok: true,
+      budgets: {
+        total: { value: 90, unit: 'USD' },
+        resources: { 'app-compute': { value: 12, unit: 'USD' } },
+      },
+    });
     vi.unstubAllGlobals();
   });
 
   it('turns an unreadable store into a failed load so Save can retry it', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ budgets: { total: null, resources: {} }, readable: false })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(json({ budgets: { total: null, resources: {} }, readable: false }))
+    );
     const result = await loadCostBudgets();
     expect(result.ok).toBe(false);
     expect(result.budgets).toBeNull();
@@ -34,13 +43,34 @@ describe('cost budget API responses', () => {
   it('surfaces the server detail on a failed save', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        json({ error: 'cost_budgets_store_unavailable', detail: 'The budgets were not saved: permission denied' }, 503)
-      )
+      vi
+        .fn()
+        .mockResolvedValue(
+          json(
+            { error: 'cost_budgets_store_unavailable', detail: 'The budgets were not saved: permission denied' },
+            503
+          )
+        )
     );
-    await expect(saveCostBudgets({ total: 10, resources: {} })).rejects.toThrow(
+    await expect(saveCostBudgets({ total: { value: 10, unit: 'DBU' }, resources: {} })).rejects.toThrow(
       'The budgets were not saved: permission denied'
     );
+    vi.unstubAllGlobals();
+  });
+
+  it('persists and reloads the selected unit without conversion', async () => {
+    const budgets = {
+      total: { value: 42, unit: 'DBU' as const },
+      resources: { 'app-compute': { value: 9, unit: 'USD' as const } },
+    };
+    const fetch = vi.fn().mockResolvedValue(json({ budgets, readable: true }));
+    vi.stubGlobal('fetch', fetch);
+    await expect(saveCostBudgets(budgets)).resolves.toEqual(budgets);
+    const request = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    const requestBody = request[1].body;
+    expect(typeof requestBody).toBe('string');
+    if (typeof requestBody !== 'string') throw new Error('Expected a JSON request body.');
+    expect(JSON.parse(requestBody)).toEqual(budgets);
     vi.unstubAllGlobals();
   });
 });

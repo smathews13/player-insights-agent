@@ -363,6 +363,8 @@ fi
 # while every admin route returns 403, including the editor that would appoint
 # the first administrator.
 ADMIN_EMAILS="${PLAYER_INSIGHTS_ADMIN_EMAILS:-$(bundle_var_or_empty admin_emails)}"
+ORGANIZATIONS="${PLAYER_INSIGHTS_ORGANIZATIONS:-$(bundle_var_or_empty organization_domains)}"
+IDLE_TIMEOUT="${PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES:-$(bundle_var_or_empty app_idle_timeout_minutes)}"
 if [[ -n "$ADMIN_EMAILS" ]]; then
   note "administrators       $ADMIN_EMAILS"
 else
@@ -433,6 +435,8 @@ step "Building the dependency-free deploy tree"
      PLAYER_INSIGHTS_TELEMETRY_SCHEMA="$TELEMETRY_SCHEMA" \
      PLAYER_INSIGHTS_USER_API_SCOPES="$DECLARED_SCOPES" \
      PLAYER_INSIGHTS_ADMIN_EMAILS="$ADMIN_EMAILS" \
+     PLAYER_INSIGHTS_ORGANIZATIONS="$ORGANIZATIONS" \
+     PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES="$IDLE_TIMEOUT" \
      PLAYER_INSIGHTS_APP_SCHEMA="$LAKEBASE_APP_SCHEMA" \
      npm run build:deploy)
 

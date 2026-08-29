@@ -95,11 +95,11 @@ describe('Settings modal', () => {
     expect(markup).toContain('>Feature</th>');
     expect(markup).toContain('>Status</th>');
     expect(markup).toContain('>Control</th>');
-    expect(markup).toContain('PII egress judge');
+    expect(markup).toContain('Egress controls panel');
     expect(markup).toContain('>On</span>');
     expect(markup).toContain('>Off</span>');
     expect(markup).toContain('Idle');
-    expect(markup).not.toContain('PII egress judge ·');
+    expect(markup).not.toContain('Egress controls panel ·');
     expect(markup).not.toContain('SP identities ·');
     expect(markup).toContain('Forecasting');
     expect(markup).not.toContain('Benchmarking ·');
@@ -128,7 +128,7 @@ describe('Settings modal', () => {
     const badges = markup.split('experimental-pane-badge').length - 1;
     expect(badges).toBe(5);
     const rows = markup.match(/<tr(?: [^>]*)?>[\s\S]*?<\/tr>/g) ?? [];
-    for (const feature of ['PII egress judge', 'SP identities', 'Resource tags', 'Forecasting', 'Benchmarking']) {
+    for (const feature of ['Egress controls panel', 'SP identities', 'Resource tags', 'Forecasting', 'Benchmarking']) {
       const row = rows.find((candidate) => candidate.includes(`>${feature}</span>`));
       expect(row, feature).toBeDefined();
       expect(row?.match(/class="exp-feature-name"/g) ?? [], feature).toHaveLength(1);
@@ -246,9 +246,9 @@ describe('Settings modal', () => {
     expect(source).not.toContain('go to Identity to assign');
   });
 
-  it('puts PII egress, SP identities, and resource tags above the benchmarking controls', () => {
+  it('puts egress controls, SP identities, and resource tags above the benchmarking controls', () => {
     const markup = render('experimental');
-    const pii = markup.indexOf('PII egress judge');
+    const pii = markup.indexOf('Egress controls panel');
     const identities = markup.indexOf('SP identities');
     const tags = markup.indexOf('Resource tags');
     const benchmarking = markup.indexOf('>Benchmarking<');

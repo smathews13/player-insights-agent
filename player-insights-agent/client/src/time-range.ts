@@ -57,6 +57,12 @@ export function rangeFromParams(params: ReadableParams): RangeKey {
   return RANGE_KEYS.has(raw) ? (raw as RangeKey) : DEFAULT_RANGE;
 }
 
+/** The exact label painted by TimeRangeControl for the selected range. */
+export function rangeLabel(params: ReadableParams): string {
+  const key = rangeFromParams(params);
+  return RANGE_SEGMENTS.find((segment) => segment.key === key)?.label ?? RANGE_SEGMENTS[1].label;
+}
+
 export interface RangeWindow {
   /** ISO timestamp of the start of the window. */
   from: string;

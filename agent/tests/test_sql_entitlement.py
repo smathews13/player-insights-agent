@@ -145,9 +145,14 @@ def test_the_model_is_told_the_other_sql_tools_are_already_refused():
     response = ask(build(llm, tools))
 
     refused = next(stage for stage in stages(response) if "REFUSED" in stage["output"])
-    assert "try a different surface" not in refused["output"]
-    assert "Do not retry it" in refused["output"]
-    assert "query_named_table" in refused["output"] and "run_sql" in refused["output"]
+    model_guidance = "\n".join(
+        str(message["content"]) for message in llm.transcript if message["role"] == "tool"
+    )
+    assert "try a different surface" not in model_guidance
+    assert "Do not retry it" in model_guidance
+    assert "query_named_table" in model_guidance and "run_sql" in model_guidance
+    assert "Do not retry it" not in refused["output"]
+    assert "query_named_table" not in refused["output"] and "run_sql" not in refused["output"]
     # The Genie wording belongs to the other classifier. A SQL refusal is not
     # about a Genie space and must not tell the reader to go and share one.
     assert "Genie" not in refused["output"]
@@ -167,5 +172,9 @@ def test_a_genie_refusal_still_gets_the_genie_wording():
     response = ask(build(llm, tools))
 
     refused = next(stage for stage in stages(response) if "REFUSED" in stage["output"])
-    assert "NOT grounded in the Genie space" in refused["output"]
+    model_guidance = "\n".join(
+        str(message["content"]) for message in llm.transcript if message["role"] == "tool"
+    )
+    assert "NOT grounded in the Genie space" in model_guidance
+    assert "NOT grounded in the Genie space" not in refused["output"]
     assert SQL_ACCESS_ENTITLEMENT not in refused["output"]

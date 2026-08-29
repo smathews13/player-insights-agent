@@ -29,8 +29,11 @@ import {
   classificationFacts,
   classificationPill,
   controlAccessibleName,
+  controlStatusPill,
+  EGRESS_JUDGE_COPY,
   ENFORCEMENT_PILL,
   ENFORCEMENT_SITE,
+  enforcementBoundary,
   enforcementPill,
   pathMeta,
   reportingNote,
@@ -63,6 +66,34 @@ describe('a switch says how far it reaches', () => {
     // button is gone, and it will still be there.
     expect(ENFORCEMENT_PILL.stored.label).not.toMatch(/enforc|block|prevent|stop|disabl/i);
     expect(ENFORCEMENT_PILL.stored.label).toBe('Recorded only');
+  });
+
+  it('reserves Enforced for a saved deny on a wired boundary', () => {
+    const workspaceLink = EGRESS_PATHS.find((path) => path.channel === 'workspace-link');
+    const generatedSql = EGRESS_PATHS.find((path) => path.channel === 'generated-sql');
+    expect(workspaceLink).toBeDefined();
+    expect(generatedSql).toBeDefined();
+    if (!workspaceLink || !generatedSql) return;
+
+    expect(controlStatusPill(workspaceLink, true, true, true).label).toBe('Enabled');
+    expect(controlStatusPill(workspaceLink, false, true, true).label).toBe('Pending save');
+    expect(controlStatusPill(workspaceLink, false, false, false).label).toBe('Status unavailable');
+    expect(controlStatusPill(workspaceLink, false, false, true).label).toBe('Enforced');
+    expect(controlStatusPill(generatedSql, false, false, true).label).toBe('Configured only');
+  });
+
+  it('states the real boundary and that no PII judge runs', () => {
+    expect(EGRESS_JUDGE_COPY).toMatch(/no pii or egress judge runs/i);
+    expect(EGRESS_JUDGE_COPY).toMatch(/prompts, tool calls, model output or responses/i);
+    expect(enforcementBoundary(EGRESS_PATHS.find((path) => path.channel === 'workspace-link')!)).toMatch(
+      /replace.*urls with null before json is sent/i
+    );
+    expect(enforcementBoundary(EGRESS_PATHS.find((path) => path.channel === 'chart-image')!)).toMatch(
+      /figure data already reached the browser/i
+    );
+    expect(enforcementBoundary(EGRESS_PATHS.find((path) => path.channel === 'generated-sql')!)).toMatch(
+      /copy action is not intercepted/i
+    );
   });
 
   it('does not congratulate itself with a positive chip on any control', () => {
@@ -105,13 +136,11 @@ describe('what the panel lists', () => {
     expect(PANEL_SOURCE).not.toContain('offLabel=');
   });
 
-  it('does not draw the uncontrollable status rows or the egress log', () => {
-    // Those were a reporting surface with no control behind them. The registry
-    // still names the paths; Settings no longer lists them or "What has left".
+  it('does not draw uncontrollable status rows but offers the bounded records viewer', () => {
     expect(PANEL_SOURCE).not.toContain('UncontrollableRow');
-    expect(PANEL_SOURCE).not.toContain('What has left');
-    expect(PANEL_SOURCE).not.toContain('/api/egress/admin/events');
     expect(PANEL_SOURCE).not.toMatch(/Cannot be stopped/);
+    expect(PANEL_SOURCE).toContain('View records');
+    expect(PANEL_SOURCE).toContain('fetchEgressRecordsPage');
   });
 });
 
@@ -239,14 +268,16 @@ describe('the house style the design asks for', () => {
     }
   });
 
-  it('appends the blocked state with the specified middle dot', () => {
-    expect(PANEL_SOURCE).toContain("' · Blocked by the server'");
+  it('does not claim a staged or enabled switch is already enforced', () => {
+    expect(PANEL_SOURCE).toContain('effectiveAllowed=');
+    expect(PANEL_SOURCE).toContain('policyLoaded=');
     expect(PANEL_SOURCE).not.toMatch(/—|–/);
   });
 
-  it('draws distinct enforced and recorded-only mode chips', () => {
+  it('draws state chips from saved policy truth rather than static capability', () => {
     expect(PANEL_SOURCE).toContain('egress-mode');
-    expect(PANEL_SOURCE).toContain('egress-mode-${path.enforcement}');
+    expect(PANEL_SOURCE).toContain('egress-mode-${pill.tone}');
+    expect(PANEL_SOURCE).toContain('controlStatusPill');
   });
 
   it('never claims the data is synthetic', () => {

@@ -2,11 +2,12 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { SpIdentityEditor } from './SpIdentityPanel';
+import { ResourceBrowser, SpIdentityEditor } from './SpIdentityPanel';
 import { isSpPersonaDefinitionComplete } from './sp-persona-definition';
 import { EMPTY_SP_IDENTITY, UNASSIGNED_PERSONA } from './identity-settings-api';
 import { SP_IDENTITY_MINTING_UNAVAILABLE, type SpIdentityAdminPayload } from '../../shared/sp-identity';
 import { failSpIdentityRead, finishSpIdentityRead, INITIAL_SP_IDENTITY_READ_STATE } from './sp-identity-read-state';
+import { AppSelect } from './AppSelect';
 
 const PAYLOAD: SpIdentityAdminPayload = {
   ...EMPTY_SP_IDENTITY,
@@ -135,7 +136,7 @@ describe('Settings → Identity', () => {
     expect(empty).not.toContain('sp-personas-table');
   });
 
-  it('renders a truthful structured grant builder with no generic free-text row', () => {
+  it('renders a clean staged-plan builder and a truthful external SP link', () => {
     const markup = renderToStaticMarkup(
       <SpIdentityEditor
         enabled={true}
@@ -151,15 +152,57 @@ describe('Settings → Identity', () => {
     expect(markup).toContain('Define a persona');
     expect(markup).toContain('aria-label="Persona name"');
     expect(markup).toContain('aria-label="Persona purpose"');
-    expect(markup).toContain('Resource type for permission 1: Table or view');
-    expect(markup).toContain('Resource for permission 1: Players · main.games.players');
-    expect(markup).toContain('Permission for grant 1: Read — SELECT');
-    expect(markup).toContain('Operator-ready grant plan');
-    expect(markup).toContain('Table or view main.games.players — SELECT');
+    expect(markup).not.toContain('Resource type for permission 1');
+    expect(markup).not.toContain('Operator-ready grant plan');
+    expect(markup).not.toContain('catalog.schema.table');
+    expect(markup).not.toContain('choose a resource');
     expect(markup).not.toContain('Databricks object — permission');
-    expect(markup).toContain('>Generate SP</button>');
-    expect(markup).toContain('apply the plan externally');
+    expect(markup).toContain('>Save plan</button>');
+    expect(markup).toContain('Open Account Console');
+    expect(markup).not.toContain('Generate SP');
+    expect(markup).toContain('target="_blank"');
+    expect(markup).toContain('rel="noopener noreferrer"');
+    expect(markup).toContain('data-account-console-link="true"');
+    expect(markup).toContain('lucide-external-link');
+    expect(markup).not.toMatch(/service principal (created|provisioned)/i);
     expect(markup).not.toMatch(/client id|secret scope|secret key/i);
+  });
+
+  it('browses grouped configured resources and keeps manual entry secondary', () => {
+    const markup = renderToStaticMarkup(
+      <ResourceBrowser
+        grant={{ resourceType: 'TABLE', resource: '', action: 'READ', privilege: 'SELECT' }}
+        resources={PAYLOAD.grantResourceDiscovery?.resources ?? []}
+        discovery={PAYLOAD.grantResourceDiscovery}
+        loading={false}
+        busy={false}
+        index={0}
+        onPick={() => {}}
+        onManual={() => {}}
+        onRefresh={() => {}}
+      />
+    );
+    expect(markup).toContain('Browse configured resources for permission 1');
+    expect(markup).toContain('Table or view');
+    expect(markup).toContain('SQL warehouse');
+    expect(markup).toContain('main.games.players');
+    expect(markup).toContain('Enter identifier');
+    expect(markup).not.toContain('Resource identifier for permission 1');
+  });
+
+  it('renders canonical privileges as code in closed and open select values', () => {
+    const markup = renderToStaticMarkup(
+      <AppSelect
+        label="Permission"
+        ariaLabel="Permission"
+        value="READ"
+        options={[{ value: 'READ', label: 'Read', code: 'SELECT' }]}
+        onValueChange={() => {}}
+      />
+    );
+    expect(markup).toContain('<code>SELECT</code>');
+    expect(markup).toContain('aria-label="Permission: Read — SELECT"');
+    expect(readFileSync(new URL('AppSelect.tsx', import.meta.url), 'utf8')).toContain('<code>{option.code}</code>');
   });
 
   it('reports a completed definition write without implying that an account SP was provisioned', () => {
@@ -283,31 +326,25 @@ describe('Settings → Identity', () => {
   });
 
   it('keeps resource discovery loading, empty, and error states distinct', () => {
-    const renderDiscovery = (payload: SpIdentityAdminPayload, loading = false) =>
+    const renderDiscovery = (discovery: SpIdentityAdminPayload['grantResourceDiscovery'], loading = false) =>
       renderToStaticMarkup(
-        <SpIdentityEditor
-          enabled={true}
-          payload={payload}
+        <ResourceBrowser
+          grant={{ resourceType: 'TABLE', resource: '', action: 'READ', privilege: 'SELECT' }}
+          resources={discovery?.resources ?? []}
+          discovery={discovery}
           loading={loading}
-          hasLastGoodPayload={!loading}
           busy={false}
-          readError={null}
-          onRename={() => {}}
+          index={0}
+          onPick={() => {}}
+          onManual={() => {}}
+          onRefresh={() => {}}
         />
       );
-    expect(renderDiscovery(EMPTY_SP_IDENTITY, true)).toContain('Loading configured resources');
-    expect(
-      renderDiscovery({
-        ...EMPTY_SP_IDENTITY,
-        grantResourceDiscovery: { status: 'ready', resources: [], detail: '' },
-      })
-    ).toContain('No configured resources were found');
-    expect(
-      renderDiscovery({
-        ...EMPTY_SP_IDENTITY,
-        grantResourceDiscovery: { status: 'error', resources: [], detail: 'Discovery was refused.' },
-      })
-    ).toContain('Discovery was refused.');
+    expect(renderDiscovery(undefined, true)).toContain('Loading configured resources');
+    expect(renderDiscovery({ status: 'ready', resources: [], detail: '' })).toContain('No configured resources found');
+    const error = renderDiscovery({ status: 'error', resources: [], detail: 'Discovery was refused.' });
+    expect(error).toContain('Discovery was refused.');
+    expect(error).toContain('Refresh');
   });
 
   it('keeps last-good definitions visible and actionable after a refresh failure', () => {

@@ -21,6 +21,7 @@
  */
 
 import { z } from 'zod';
+import type { OrganizationMapping } from './organization-mapping';
 
 /** Lakebase / identity-payload flag: the whole app uses assigned SP tokens. */
 export const SP_IDENTITY_ENABLED_SETTING = 'sp-identity-enabled';
@@ -293,6 +294,9 @@ export interface SpIdentityAdminPayload {
   personaDefinitions?: SpPersonaDefinition[];
   /** Absent while loading or when an older server has not implemented discovery. */
   grantResourceDiscovery?: SpGrantResourceDiscovery;
+  /** Official generic Account Console landing page for this deployment's cloud. */
+  accountConsoleUrl?: string;
+  organizations?: OrganizationMapping[];
   assignments: SpAssignment[];
   roster: SpIdentityRosterRow[];
 }
@@ -401,6 +405,32 @@ const SpGrantsSchema = z
   .refine((grants) => new Set(grants.map(spGrantKey)).size === grants.length, {
     message: 'The grant plan contains an exact duplicate.',
   });
+
+export const SpPermissionSuggestionRequestSchema = z
+  .object({
+    displayName: z.string().trim().max(NAME_MAX).default(''),
+    purpose: z.string().trim().min(1).max(DESCRIPTION_MAX),
+  })
+  .strict();
+
+export const SpPermissionPlanSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    rationale: z.string().trim().min(1).max(240),
+    grants: SpGrantsSchema.min(1),
+  })
+  .strict();
+
+export const SpPermissionSuggestionsSchema = z
+  .object({
+    plans: z.array(SpPermissionPlanSchema).min(2).max(4),
+  })
+  .strict();
+
+export type SpPermissionSuggestionRequest = z.infer<typeof SpPermissionSuggestionRequestSchema>;
+export type SpPermissionPlan = z.infer<typeof SpPermissionPlanSchema>;
+export type SpPermissionSuggestions = z.infer<typeof SpPermissionSuggestionsSchema>;
+
 const SpPersonaDefinitionFields = z.object({
   displayName: z.string().trim().min(1).max(NAME_MAX),
   description: z.string().trim().max(DESCRIPTION_MAX).default(''),

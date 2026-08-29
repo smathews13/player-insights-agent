@@ -124,6 +124,24 @@ describe('a list the workspace answered', () => {
     expect(shown).toContain('RUNNING');
   });
 
+  it('renders warehouses as keyboard-selectable radio rows with status', () => {
+    const markup = render(
+      <AssetPickerRow
+        spec={spec('sql-warehouse')}
+        cursor={PICKER_TOP}
+        item={item({ id: 'abc123', label: 'Analytics', secondary: 'RUNNING' })}
+        current="abc123"
+        onOpen={() => {}}
+        onPick={() => {}}
+      />
+    );
+    expect(markup).toContain('type="radio"');
+    expect(markup).toContain('checked');
+    expect(markup).toContain('aria-label="Choose SQL warehouse Analytics"');
+    expect(markup).toContain('warehouse-picker-status');
+    expect(text(markup)).toContain('Analytics abc123 RUNNING');
+  });
+
   it('names an endpoint and reports the task it serves', () => {
     const markup = panel(
       'llm-endpoint',

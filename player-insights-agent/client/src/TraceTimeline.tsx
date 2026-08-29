@@ -34,7 +34,8 @@ import { BrandIcon } from './BrandIcon';
 import { productForTool } from './brand-icons';
 import { stepNumber } from './agent-map';
 import { Badge } from './ui';
-import { MarkdownText } from './StepResult';
+import { MarkdownText, StructuredTableResultView } from './StepResult';
+import { structuredTableResult } from './step-results';
 import { EntityText, TableEntityList } from './DataEntityLinks';
 import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
 
@@ -179,6 +180,7 @@ export function PayloadView({
   }
 
   const size = payloadSize(payload);
+  const tableResult = structuredTableResult(payload.body);
   return (
     <div className="trace-payload">
       <div className="trace-payload-meta ast-num">
@@ -202,6 +204,8 @@ export function PayloadView({
       </div>
       {raw ? (
         <RawPayload payload={payload} />
+      ) : tableResult ? (
+        <StructuredTableResultView result={tableResult} />
       ) : tableListing ? (
         <TableEntityList tables={tables} />
       ) : payload.fields ? (

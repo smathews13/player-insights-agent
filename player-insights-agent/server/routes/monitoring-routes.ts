@@ -71,6 +71,9 @@ import { normalizeWorkspaceHost } from '../../shared/databricks-links';
  */
 export const QUESTION_READ_LIMIT = 2000;
 
+/** The compact person panel shows no more than this many recorded source tables. */
+export const MONITORING_TOP_TABLE_LIMIT = 5;
+
 /**
  * What a caller is told when they ask for a page starting part way in.
  *
@@ -124,8 +127,9 @@ export function pageFrom(req: Request): { limit: number; offset: number; refusal
  * Questions in a range, with the answer that followed each and how it was rated.
  *
  * `$1` is the plan-approval sentinel, which is a stored user message and is not a
- * question anybody asked. `$2` and `$3` bound the range. `$4` is the page size
- * and `$5` how far into the range the page starts.
+ * question anybody asked. `$2` and `$3` bound the range. `$4` is the page size,
+ * `$5` how far into the range the page starts, and `$6` optionally scopes the
+ * same read to one person.
  *
  * An answer is an assistant message that CARRIES A TRACE, which is the same
  * definition `RUNS_QUERY` uses in insights-routes.ts, and the reason this reads
@@ -210,7 +214,8 @@ export function pageFrom(req: Request): { limit: number; offset: number; refusal
  *
  * ── WHAT THE TOTALS COST, AND WHY THEY ARE IN HERE ──
  *
- * `range_totals` counts the range and lists its askers. It was two further round
+ * `range_totals` counts the range's questions and distinct conversation threads,
+ * and lists its askers. It was two further round
  * trips (`MONITORING_TOTALS_QUERY` and `MONITORING_PEOPLE_QUERY`, both deleted),
  * folded in here so a Monitoring refresh is one statement rather than three.
  *
@@ -242,19 +247,21 @@ export const MONITORING_QUESTIONS_QUERY = `
     JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
+      AND ($6 = '' OR lower(c.user_email) = lower($6))
     ORDER BY u.created_at DESC
     LIMIT $4 OFFSET $5
   ),
   range_totals AS (
     SELECT COUNT(*)::int AS asked_total,
-           COUNT(DISTINCT c.user_email)::int AS people_total,
+           COUNT(DISTINCT u.conversation_id)::int AS thread_total,
            COALESCE(array_agg(DISTINCT c.user_email), ARRAY[]::text[]) AS people_list
     FROM ${APP_SCHEMA}.messages u
     JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
+      AND ($6 = '' OR lower(c.user_email) = lower($6))
   )
-  SELECT t.asked_total, t.people_total, t.people_list,
+  SELECT t.asked_total, t.thread_total, t.people_list,
          q.question_id, q.conversation_id, q.question, q.asked_at, q.user_email,
          a.id AS answer_id, a.trace_id,
          a.execution_mode, a.execution_identity_verified, a.access_mode,
@@ -394,6 +401,62 @@ export const MONITORING_PERSON_SEEN_QUERY = `
 `;
 
 /**
+ * The most-read recorded source tables for one person over the whole selected
+ * period, independent of the question-list page cap.
+ *
+ * `$1` is the approval sentinel, `$2`/`$3` are the half-open period, `$4` is the
+ * person, and `$5` is the compact result cap. A repeated source entry contributes
+ * once because the final count is distinct by answer id and normalized table
+ * name. Configured tables never enter this query.
+ */
+export const MONITORING_PERSON_TABLES_QUERY = `
+  WITH asked AS (
+    SELECT u.id AS question_id, u.conversation_id, u.created_at AS asked_at
+    FROM ${APP_SCHEMA}.messages u
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
+    WHERE u.role = 'user' AND u.content <> $1
+      AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
+      AND lower(c.user_email) = lower($4)
+  ),
+  answered AS (
+    SELECT q.question_id, a.id AS answer_id, a.response_json
+    FROM asked q
+    JOIN LATERAL (
+      SELECT m.id, m.response_json
+      FROM ${APP_SCHEMA}.messages m
+      WHERE m.conversation_id = q.conversation_id
+        AND m.role = 'assistant'
+        AND jsonb_typeof(m.response_json->'trace') = 'object'
+        AND m.created_at >= q.asked_at
+        AND m.created_at < COALESCE(
+              (SELECT MIN(u.created_at) FROM ${APP_SCHEMA}.messages u
+                WHERE u.conversation_id = q.conversation_id AND u.role = 'user'
+                  AND u.content <> $1 AND u.created_at > q.asked_at),
+              'infinity'::timestamptz)
+      ORDER BY (m.response_json->'trace'->>'totalMs') IS NOT NULL DESC,
+               m.created_at DESC
+      LIMIT 1
+    ) a ON TRUE
+  ),
+  source_runs AS (
+    SELECT lower(source->>'name') AS table_key,
+           MIN(source->>'name') AS table_name,
+           COUNT(DISTINCT a.answer_id)::int AS runs
+    FROM answered a
+    CROSS JOIN LATERAL jsonb_array_elements(
+      CASE WHEN jsonb_typeof(a.response_json->'sources') = 'array'
+           THEN a.response_json->'sources' ELSE '[]'::jsonb END
+    ) source
+    WHERE source->>'name' ~ '^[^.]+[.][^.]+[.][^.]+$'
+    GROUP BY lower(source->>'name')
+  )
+  SELECT table_name, runs
+  FROM source_runs
+  ORDER BY runs DESC, table_name ASC
+  LIMIT $5
+`;
+
+/**
  * The tables PIA is configured to read, which is what the grants table lists.
  *
  * Through the access gate's own resolver rather than reading an environment
@@ -460,16 +523,19 @@ function stamp(value: unknown): string {
 
 function tableList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  const seen = new Set<string>();
+  const seen = new Map<string, string>();
   for (const entry of value) {
     const name = text(entry).trim();
     // Fully qualified or nothing. A bare table name is the tail of an object
     // rather than an object, it cannot be probed for a grant, and it cannot be
     // linked. Counting one would put a row on the grants table that no GRANT
     // statement could clear.
-    if (name.split('.').filter((part) => part.length > 0).length === 3) seen.add(name);
+    if (name.split('.').filter((part) => part.length > 0).length === 3) {
+      const normalized = name.toLowerCase();
+      if (!seen.has(normalized)) seen.set(normalized, name);
+    }
   }
-  return [...seen];
+  return [...seen.values()];
 }
 
 /**
@@ -551,16 +617,17 @@ export function questionRows(rows: Record<string, unknown>[]): Record<string, un
 export function rangeTotalsFrom(
   row: Record<string, unknown> | undefined,
   page: MonitoringQuestion[]
-): { asked: number; people: number; peopleList: string[] } {
+): { asked: number; threads: number; peopleList: string[] } {
   const asked = integer(row?.asked_total);
-  const people = integer(row?.people_total);
+  const threads = integer(row?.thread_total);
   const listed = Array.isArray(row?.people_list)
     ? (row.people_list as unknown[]).map((entry) => text(entry)).filter((email) => email !== '')
     : null;
   const fromPage = [...new Set(page.map((question) => question.askedBy).filter((email) => email !== ''))].sort();
+  const threadsFromPage = new Set(page.map((question) => question.conversationId).filter(Boolean)).size;
   return {
     asked: asked !== null && asked >= page.length ? asked : page.length,
-    people: people ?? fromPage.length,
+    threads: threads !== null && threads >= 0 ? threads : threadsFromPage,
     peopleList: listed === null ? fromPage : [...listed].sort(),
   };
 }
@@ -608,7 +675,7 @@ export function questionFromRow(row: Record<string, unknown>, ledger: Map<string
  * number the range holds. The two differ only on a partial read, where the
  * response carries both and the strip says which it is showing.
  */
-export function summarize(questions: MonitoringQuestion[], peopleAsking: number): MonitoringSummary {
+export function summarize(questions: MonitoringQuestion[], userThreads: number): MonitoringSummary {
   const buckets: Record<QuestionOutcome, number> = { completed: 0, partial: 0, refused: 0, failed: 0 };
   let ratedUp = 0;
   let ratedTotal = 0;
@@ -626,7 +693,7 @@ export function summarize(questions: MonitoringQuestion[], peopleAsking: number)
   durations.sort((a, b) => a - b);
   return {
     questionsAsked: questions.length,
-    peopleAsking,
+    userThreads,
     completed: buckets.completed,
     partial: buckets.partial,
     refused: buckets.refused,
@@ -636,6 +703,37 @@ export function summarize(questions: MonitoringQuestion[], peopleAsking: number)
     medianMs: durations.length > 0 ? durations[Math.floor((durations.length - 1) / 2)] : null,
     timedCount: durations.length,
   };
+}
+
+/**
+ * Rank the tables a person's selected-period runs recorded.
+ *
+ * The pair key is question id plus case-insensitive table name, so a source
+ * repeated in one answer, or a duplicate copy of the same run row, contributes
+ * once. Unity Catalog identifiers are case-insensitive; the first recorded
+ * spelling is retained for display.
+ */
+export function rankTablesRead(
+  questions: MonitoringQuestion[],
+  limit = MONITORING_TOP_TABLE_LIMIT
+): { table: string; runs: number }[] {
+  const counted = new Set<string>();
+  const totals = new Map<string, { table: string; runs: number }>();
+  for (const question of questions) {
+    for (const table of question.tables) {
+      const normalized = table.trim().toLowerCase();
+      if (!normalized) continue;
+      const pair = `${question.id}\u0000${normalized}`;
+      if (counted.has(pair)) continue;
+      counted.add(pair);
+      const current = totals.get(normalized);
+      if (current) current.runs += 1;
+      else totals.set(normalized, { table: table.trim(), runs: 1 });
+    }
+  }
+  return [...totals.values()]
+    .sort((left, right) => right.runs - left.runs || left.table.localeCompare(right.table))
+    .slice(0, Math.max(0, limit));
 }
 
 /* ── Reads ───────────────────────────────────────────────────────────────── */
@@ -802,6 +900,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         range.to,
         page.limit,
         page.offset,
+        '',
       ]);
       // Sifted BEFORE `chooseRows`, not after. The statement joins a one-row
       // totals aggregate to the page, so it answers with a row whatever the
@@ -842,7 +941,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       // the one a range holding nothing still returns.
       const totals = rangeTotalsFrom(stored.rows[0], all);
       const found = totals.asked;
-      const people = totals.people;
+      const threads = totals.threads;
       const peopleList = totals.peopleList;
 
       // Resolved once for this admin over this range's distinct tables, and
@@ -862,7 +961,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         readAt,
         // Over the rows that were read, always, and the two counts below say so
         // when those are fewer than the range holds.
-        summary: summarize(all, people),
+        summary: summarize(all, threads),
         ...(partial ? { countedQuestions: all.length, foundQuestions: found } : {}),
         // The whole range, unfiltered. The filter row narrows what is on screen
         // in the browser, which is what lets it stay usable during a read and
@@ -987,6 +1086,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         range.to,
         page.limit,
         page.offset,
+        person,
       ]);
       if (!stored.available) {
         res.status(503).json({ error: 'storage_unavailable' });
@@ -998,6 +1098,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       const answerIds = mine.map((row) => text(row.answer_id)).filter((id) => id !== '');
       const ledger = await readLedger(appkit, answerIds);
       const questions = mine.map((row) => questionFromRow(row, ledger));
+      const totals = rangeTotalsFrom(stored.rows[0], questions);
 
       // Tokens, and the runs the total covers. A run the model reported no usage
       // for records zero, and a zero is indistinguishable from an unknown inside
@@ -1046,13 +1147,25 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         else if (cause === 'agent-rules') refusedAgentRules += 1;
       }
 
-      const counts = new Map<string, number>();
-      for (const question of questions) {
-        for (const table of question.tables) counts.set(table, (counts.get(table) ?? 0) + 1);
-      }
-      const tablesReadMost = [...counts.entries()]
-        .map(([table, runs]) => ({ table, runs }))
-        .sort((a, b) => b.runs - a.runs || a.table.localeCompare(b.table));
+      // Unlike the visible question list, this ranking covers the entire
+      // selected period. A person can have more questions than the list cap,
+      // and their older runs must still be able to place a table in the top five.
+      const tableResult = await appkit.lakebase.query(MONITORING_PERSON_TABLES_QUERY, [
+        PLAN_APPROVAL_SENTINEL,
+        range.from,
+        range.to,
+        person,
+        MONITORING_TOP_TABLE_LIMIT,
+      ]);
+      const tablesReadMost = tableResult.rows
+        .map((row) => {
+          const table = tableList([row.table_name])[0] ?? '';
+          const runs = integer(row.runs);
+          return table && runs !== null && runs > 0 ? { table, runs } : null;
+        })
+        .filter((entry): entry is { table: string; runs: number } => entry !== null)
+        .sort((left, right) => right.runs - left.runs || left.table.localeCompare(right.table))
+        .slice(0, MONITORING_TOP_TABLE_LIMIT);
 
       // Live, as the application, for the named person. Null where nothing could
       // be read at all, and the panel says the read could not run rather than
@@ -1090,7 +1203,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         email: person,
         firstSeen,
         lastSeen,
-        summary: summarize(questions, 1),
+        summary: summarize(questions, totals.threads),
         durationsMs: questions.map((question) => question.durationMs).filter((ms): ms is number => ms !== null),
         tokens: { total: tokenTotal, metredRuns, totalRuns: questions.length },
         // Null until the endpoint's list price is configured. A zero here would

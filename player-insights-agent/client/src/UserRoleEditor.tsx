@@ -21,14 +21,16 @@
  * of the role, so it is no longer on this screen.
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Lock, Trash2, UserPlus } from 'lucide-react';
+import { Trash2, UserPlus } from 'lucide-react';
 import { Button, Input } from './ui';
 import { CopyableCommand } from './AdminListEditor';
-import { canSubmit, roleWord, rowLocked, setOn, stepsDownFrom, type RosterEntry } from './user-roster';
+import { canSubmit, roleWord, setOn, stepsDownFrom, type RosterEntry } from './user-roster';
 import { isRole, type Role, type RosterPayload } from '../../shared/user-roster-contract';
 import type { SpIdentityAdminPayload, SpPersona } from '../../shared/sp-identity';
 import { AppSelect } from './AppSelect';
 import { roleOptions } from './user-role-options';
+import { RoleBadge } from './RoleBadge';
+import { organizationForEmail } from '../../shared/organization-mapping';
 import {
   assignSpPersona,
   changeHumanRole,
@@ -67,6 +69,7 @@ function rosterFromSpIdentity(payload: SpIdentityAdminPayload): RosterPayload {
     pendingSchemaStatement: '',
     superAdminCount: entries.filter((entry) => entry.role === 'super_admin').length,
     recoveryStatement: '',
+    organizations: payload.organizations ?? [],
   };
 }
 
@@ -89,6 +92,7 @@ function RoleControl({
   busy: boolean;
   onChange: (entry: RosterEntry, role: Role) => void;
 }) {
+  if (entry.role === 'super_admin') return <RoleBadge state="super_admin" />;
   if (entry.assignable.length === 0) {
     return <span className="ast-pill ast-pill--neutral-outline roster-role-status">{roleWord(entry.role)}</span>;
   }
@@ -112,13 +116,16 @@ function PersonaControl({
   personas,
   disabled,
   onChange,
+  owner = false,
 }: {
   email: string;
   personaId: string | null;
   personas: SpPersona[];
   disabled: boolean;
   onChange?: (email: string, personaId: string | null) => void;
+  owner?: boolean;
 }) {
+  if (owner) return <span className="ast-pill roster-owner-badge">Owner</span>;
   const options = [
     { value: UNASSIGNED_PERSONA, label: 'No persona' },
     ...personas.map((persona) => ({ value: persona.id, label: persona.displayName })),
@@ -203,14 +210,24 @@ export function RosterRows({
           </thead>
           <tbody>
             {payload.entries.map((entry) => {
-              const locked = rowLocked(entry, payload);
               const setDate = setOn(entry);
+              const organization = organizationForEmail(entry.email, payload.organizations ?? []);
               return (
                 <tr key={entry.email} className="admin-row">
                   <td className="roster-email">
                     <span className="admin-row-email">
-                      <span className="admin-row-address" title={entry.email}>
-                        {entry.email}
+                      <span
+                        className="roster-organization-mark"
+                        aria-label={`Organization: ${organization.name}`}
+                        title={organization.name}
+                      >
+                        {organization.monogram}
+                      </span>
+                      <span className="roster-email-details">
+                        <span className="admin-row-address" title={entry.email}>
+                          {entry.email}
+                        </span>
+                        <span className="roster-organization-name">{organization.name}</span>
                       </span>
                       {entry.isYou ? <span className="admin-row-you">you</span> : null}
                     </span>
@@ -242,6 +259,7 @@ export function RosterRows({
                         personas={personas}
                         disabled={busy || personaDisabled}
                         onChange={onPersonaChange}
+                        owner={entry.role === 'super_admin'}
                       />
                     </td>
                   ) : null}
@@ -259,8 +277,6 @@ export function RosterRows({
                         >
                           <Trash2 className="size-3.5" /> Remove
                         </Button>
-                      ) : locked ? (
-                        <Lock className="roster-row-lock" aria-label={locked} />
                       ) : null}
                     </td>
                   ) : null}

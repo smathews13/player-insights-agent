@@ -85,8 +85,8 @@ export function questionsAskedTile(summary: MonitoringSummary): TileValue {
   return tile(count(summary.questionsAsked), '');
 }
 
-export function peopleAskingTile(summary: MonitoringSummary): TileValue {
-  return tile(count(summary.peopleAsking), '');
+export function userThreadsTile(summary: MonitoringSummary): TileValue {
+  return tile(count(summary.userThreads), '');
 }
 
 /**
@@ -250,27 +250,6 @@ export function ratedTile(up: number, down: number): TileValue {
   return tile(count(total), `${count(up)} up · ${count(down)} down`);
 }
 
-/**
- * The tables one person's questions read most.
- *
- * Absent rather than empty when nothing recorded a source, because an answer
- * that recorded no source is not an answer that read no table.
- */
-export function tablesReadTile(rows: { table: string; runs: number }[]): TileValue & { table: string | null } {
-  if (rows.length === 0) {
-    return {
-      ...absent('No sources recorded', ''),
-      table: null,
-    };
-  }
-  const [first, ...rest] = rows;
-  const tail = rest.length > 0 ? ` · ${rest[0].table} ${count(rest[0].runs)}` : '';
-  return {
-    ...tile('', `${count(first.runs)} runs${tail}`),
-    table: first.table,
-  };
-}
-
 /* ── The states, and the three empties that are not the same empty ───────── */
 
 export type MonitoringState =
@@ -358,8 +337,8 @@ export function monitoringState(input: {
  */
 export function partialSentence(counted: number, found: number | null): string {
   return found !== null && found > counted
-    ? `Counted ${count(counted)} of ${count(found)} questions. Everything above is over the ${count(counted)} that were read.`
-    : `Counted ${count(counted)} questions. Everything above is over those ${count(counted)}.`;
+    ? `Counted ${count(counted)} of ${count(found)} questions. All figures above except User threads are over the ${count(counted)} that were read; User threads covers the full selected range.`
+    : `Counted ${count(counted)} questions. All figures above except User threads are over those ${count(counted)}; User threads covers the full selected range.`;
 }
 
 /** The one line above the list when the permissions check could not run. */

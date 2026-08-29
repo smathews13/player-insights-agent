@@ -22,12 +22,12 @@ describe('Benchmark settings save refresh', () => {
 
   it('emits after the save response succeeds and makes mounted Benchmark Lab reload settings', () => {
     const parsedSave = SETTINGS.indexOf("benchmarkSettingsFromResponse(response, 'saved')");
-    const notify = SETTINGS.indexOf('notifyBenchmarkSettingsSaved()', parsedSave);
+    const refreshHook = SETTINGS.indexOf('onRefresh: notifyBenchmarkSettingsSaved', parsedSave);
     const refusedSave = SETTINGS.indexOf('} catch (caught)', parsedSave);
 
     expect(parsedSave).toBeGreaterThan(-1);
-    expect(notify).toBeGreaterThan(parsedSave);
-    expect(notify).toBeLessThan(refusedSave);
+    expect(refreshHook).toBeGreaterThan(parsedSave);
+    expect(refreshHook).toBeLessThan(refusedSave);
     expect(LAB).toContain('onBenchmarkSettingsSaved(loadBenchmarkSettings)');
   });
 });

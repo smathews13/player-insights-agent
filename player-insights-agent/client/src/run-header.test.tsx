@@ -150,7 +150,8 @@ describe('the run header sums the run up in one line', () => {
     const markup = header();
     expect(markup).toContain('run-detail-meta ast-num">73.2s');
     expect(markup).toContain('Tools · <span class="ast-num">12</span>');
-    expect(markup).toContain('Rated');
+    expect(markup).toContain('aria-label="Rated helpful"');
+    expect(markup).toContain('lucide-thumbs-up');
   });
 
   it('takes the rating’s scale from the one place that knows it', () => {

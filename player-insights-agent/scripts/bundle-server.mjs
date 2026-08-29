@@ -259,7 +259,7 @@ async function main() {
   if (!buildSha) {
     throw new Error(
       'No app build stamp could be resolved. Build from a Git checkout or set ' +
-      'PLAYER_INSIGHTS_SOURCE_SHA to the source commit before creating the deploy artifact.'
+        'PLAYER_INSIGHTS_SOURCE_SHA to the source commit before creating the deploy artifact.'
     );
   }
 
@@ -325,6 +325,11 @@ async function main() {
   // this value is ignored. A stale or absent value can never change an existing
   // role.
   const adminEmails = (process.env.PLAYER_INSIGHTS_ADMIN_EMAILS ?? '').trim();
+  const organizations = (process.env.PLAYER_INSIGHTS_ORGANIZATIONS ?? '').trim();
+  // Passed through exactly. The server owns validation, clamping, and the
+  // explicit `disabled` value; this build step only carries the target policy
+  // into the dependency-free app artifact.
+  const idleTimeout = (process.env.PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES ?? '').trim();
   if (!adminEmails) {
     console.log(
       '\n  note  PLAYER_INSIGHTS_ADMIN_EMAILS not set: a genuinely empty Lakebase roster\n' +
@@ -394,9 +399,7 @@ async function main() {
       // ...and losing it also loses the NODE_ENV that script was setting.
       { name: 'NODE_ENV', value: 'production' },
       ...(bundleTarget ? [{ name: 'PLAYER_INSIGHTS_TARGET', value: `'${bundleTarget}'` }] : []),
-      ...(indexRebuildJobId
-        ? [{ name: 'PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID', value: `'${indexRebuildJobId}'` }]
-        : []),
+      ...(indexRebuildJobId ? [{ name: 'PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID', value: `'${indexRebuildJobId}'` }] : []),
       // The MLflow experiment is per-workspace, so app.yaml declares the variable
       // without a value and the release supplies it. bundle/app-release.sh reads
       // it out of the bundle target being deployed. Absent here means the authored
@@ -409,12 +412,11 @@ async function main() {
       ...(buildSha ? [{ name: 'PLAYER_INSIGHTS_BUILD_SHA', value: `'${buildSha}'` }] : []),
       ...(buildAncestors ? [{ name: 'PLAYER_INSIGHTS_BUILD_ANCESTORS', value: `'${buildAncestors}'` }] : []),
       ...(appSchema ? [{ name: 'PLAYER_INSIGHTS_APP_SCHEMA', value: `'${appSchema}'` }] : []),
+      ...(idleTimeout ? [{ name: 'PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES', value: `'${idleTimeout}'` }] : []),
       ...(catalog ? [{ name: 'PLAYER_INSIGHTS_CATALOG', value: `'${catalog}'` }] : []),
       ...(schema ? [{ name: 'PLAYER_INSIGHTS_SCHEMA', value: `'${schema}'` }] : []),
       ...(dataGenieId ? [{ name: 'PLAYER_INSIGHTS_DATA_GENIE_ID', value: `'${dataGenieId}'` }] : []),
-      ...(dictionaryGenieId
-        ? [{ name: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID', value: `'${dictionaryGenieId}'` }]
-        : []),
+      ...(dictionaryGenieId ? [{ name: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID', value: `'${dictionaryGenieId}'` }] : []),
       ...(llmEndpoint ? [{ name: 'PLAYER_INSIGHTS_LLM_ENDPOINT', value: `'${llmEndpoint}'` }] : []),
       ...(judgeEndpoint ? [{ name: 'PLAYER_INSIGHTS_JUDGE_ENDPOINT', value: `'${judgeEndpoint}'` }] : []),
       // Whether the rail is shared is per-deployment, so app.yaml authors the
@@ -433,6 +435,9 @@ async function main() {
       // release supplies the App resource's exact declaration.
       ...(declaredScopes ? [{ name: 'PLAYER_INSIGHTS_USER_API_SCOPES', value: `'${declaredScopes}'` }] : []),
       ...(adminEmails ? [{ name: 'PLAYER_INSIGHTS_ADMIN_EMAILS', value: `'${adminEmails}'` }] : []),
+      ...(organizations
+        ? [{ name: 'PLAYER_INSIGHTS_ORGANIZATIONS', value: `'${organizations.replaceAll("'", "''")}'` }]
+        : []),
     ],
   });
 

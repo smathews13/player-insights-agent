@@ -77,18 +77,16 @@ describe('the deployment cannot be left with no super admin', () => {
       stored: [stored(DEPUTY, 'super_admin')],
       roleColumnPresent: true,
     });
-    expect(refusal).toBe('last-super-admin');
+    expect(refusal).toBe('immutable-super-admin');
   });
 
   it('refuses removing the only one', () => {
     expect(removalRefusal({ email: DEPUTY, seed: NO_SEED, stored: [stored(DEPUTY, 'super_admin')] })).toBe(
-      'last-super-admin'
+      'immutable-super-admin'
     );
   });
 
-  it('allows a super admin to demote themselves once there are two', () => {
-    // The self-removal decision, asserted rather than described: it is allowed, and
-    // the last-super-admin refusal is the only thing standing in front of it.
+  it('refuses demoting a super admin even when there are two', () => {
     const refusal = roleChangeRefusal({
       email: DEPUTY,
       role: 'consumer',
@@ -96,16 +94,16 @@ describe('the deployment cannot be left with no super admin', () => {
       stored: [stored(DEPUTY, 'super_admin'), stored(ANALYST, 'super_admin')],
       roleColumnPresent: true,
     });
-    expect(refusal).toBe('');
+    expect(refusal).toBe('immutable-super-admin');
   });
 
-  it('counts a seeded super admin as one, so the last stored one can go', () => {
+  it('refuses removing a stored super admin even when a seeded owner remains', () => {
     const refusal = removalRefusal({
       email: DEPUTY,
       seed: LEAD_SEEDED,
       stored: [stored(DEPUTY, 'super_admin')],
     });
-    expect(refusal).toBe('');
+    expect(refusal).toBe('immutable-super-admin');
   });
 
   it('counts one address named by both halves once', () => {
@@ -122,12 +120,12 @@ describe('a seed row cannot be lowered from inside the app', () => {
       stored: [],
       roleColumnPresent: true,
     });
-    expect(refusal).toBe('seed-floor');
+    expect(refusal).toBe('immutable-super-admin');
   });
 
   it('refuses removing a seeded row', () => {
     expect(removalRefusal({ email: LEAD, seed: LEAD_SEEDED, stored: [stored(LEAD, 'super_admin')] })).toBe(
-      'seed-floor'
+      'immutable-super-admin'
     );
   });
 
@@ -351,7 +349,9 @@ describe('an unrecognised stored role', () => {
     // it is not evidence of the top of the hierarchy either.
     const store: AdminStore = {
       query: () =>
-        Promise.resolve({ rows: [{ email: DEPUTY, role: 'owner', added_by: LEAD, added_at: '2026-08-17T00:00:00.000Z' }] }),
+        Promise.resolve({
+          rows: [{ email: DEPUTY, role: 'owner', added_by: LEAD, added_at: '2026-08-17T00:00:00.000Z' }],
+        }),
     };
     const roster = await readRoster(store);
     expect(roster.rows[0].role).toBe('admin');

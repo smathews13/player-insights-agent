@@ -119,11 +119,11 @@ describe('the #24a roster row', () => {
         }),
       ],
     });
-    expect(text(markup)).toContain(`${LEAD} you Deployment Super admin`);
+    expect(text(markup)).toContain(LEAD);
+    expect(text(markup)).toContain('you Deployment Super admin');
     expect(markup).toContain('title="Set at deployment. Edit the bundle variable to change it."');
-    expect(markup).toContain('roster-role-status');
-    expect(markup).toContain('ast-pill--neutral-outline');
-    expect(markup).toContain('roster-row-lock');
+    expect(markup).toContain('data-role-state="super_admin"');
+    expect(markup).not.toContain('roster-row-lock');
   });
 
   /**
@@ -387,11 +387,11 @@ describe("the controls are the app's own", () => {
     expect(base).toMatch(/\.app-select-trigger \{[^}]*border: 1px solid var\(--ast-border-input\)/);
   });
 
-  it('puts the immutable-row lock in Actions', () => {
+  it('leaves immutable-row Actions empty', () => {
     const markup = rows({ entries: [entry({ email: LEAD, role: 'super_admin', seedFloor: 'super_admin' })] });
-    const role = markup.indexOf('roster-role-status');
-    const lock = markup.indexOf('roster-row-lock');
-    expect(lock).toBeGreaterThan(role);
+    expect(markup).not.toContain('roster-row-lock');
+    expect(markup).not.toContain('lucide-lock');
+    expect(markup).not.toContain(`Remove ${LEAD}`);
   });
 
   /**
@@ -400,18 +400,18 @@ describe("the controls are the app's own", () => {
    * One quiet field language covers the dropdown, the lock, Add and Remove;
    * Remove stays destructive by ink, not by a filled slab.
    */
-  it('shares one quiet control language across the roster, with Remove as an outline', () => {
+  it('keeps compact fields and uses a filled destructive Remove control', () => {
     expect(css).toMatch(/\.roster-control \{[^}]*height:\s*30px/);
     expect(css).toMatch(/\.roster-control \{[^}]*border:\s*1px solid var\(--ast-border-input\)/);
     expect(css).toMatch(/\.roster-control \{[^}]*background:\s*var\(--card\)/);
     expect(css).toMatch(
-      /\.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*background:\s*transparent/
+      /\.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*background:\s*var\(--db-red-700\)/
     );
     expect(css).toMatch(
-      /html\[data-theme='dark'\] \.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*background:\s*transparent/
+      /html\[data-theme='dark'\] \.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*background:\s*var\(--ast-destructive-control\)/
     );
     expect(css).toMatch(
-      /html\[data-theme='dark'\] \.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*color:\s*var\(--ast-destructive-control\)/
+      /html\[data-theme='dark'\] \.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*color:\s*var\(--destructive-foreground\)/
     );
 
     const markup = rows({

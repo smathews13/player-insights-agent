@@ -26,9 +26,9 @@
  * mechanism that broke the app, and the first fix anybody reached for would be to
  * remove the mechanism.
  *
- * The events table is still written by {@link recordEgress}. Nothing in the app
- * reads it back into a UI any more; the table stays so live deployments keep
- * their history and a future surface can without a destructive migration.
+ * The events table is read only through the fixed, paginated query at the end of
+ * this file. Callers can choose a page size and an opaque cursor; they cannot
+ * provide a statement, table, column, predicate or sort order.
  */
 
 import { APP_SCHEMA } from '../../shared/app-schema';
@@ -41,14 +41,32 @@ import {
   type EgressChannel,
   type EgressControls,
   type EgressEvent,
+  type EgressEventsPayload,
   type EgressOutcome,
   type EgressReport,
+  type EgressStorageMetadata,
 } from '../../shared/egress-contract';
 import { readStored, type LakebaseReader } from './lakebase-store';
 
 /** The tables, named once. */
 export const EGRESS_EVENTS_TABLE = `${APP_SCHEMA}.egress_events`;
 export const EGRESS_CONTROLS_TABLE = `${APP_SCHEMA}.egress_controls`;
+
+/** The largest recent-records page the admin endpoint will return. */
+export const EGRESS_EVENTS_PAGE_LIMIT = 50;
+
+/** Storage copy is returned by the API, so the panel never guesses its backend. */
+export function egressStorageMetadata(): EgressStorageMetadata {
+  return {
+    store: 'Lakebase (Postgres)',
+    eventsTable: EGRESS_EVENTS_TABLE,
+    controlsTable: EGRESS_CONTROLS_TABLE,
+    retained:
+      'Events retain time, signed-in email, path, outcome, app surface, optional run/conversation pointers and item count. Controls retain allowed state, changer and change time.',
+    retention: 'No automatic expiry is configured in this app.',
+    identityScope: 'Rows are scoped to this app deployment; actors and changers are the signed-in request email.',
+  };
+}
 
 /**
  * The SQLSTATE for a table that is not there.
@@ -138,11 +156,7 @@ export async function readEgressControls(
     return { controls: cached.controls, stored: cached.stored };
   }
 
-  const read = await readStored(
-    client,
-    'egress controls',
-    `SELECT channel, allowed FROM ${EGRESS_CONTROLS_TABLE}`
-  );
+  const read = await readStored(client, 'egress controls', `SELECT channel, allowed FROM ${EGRESS_CONTROLS_TABLE}`);
   if (!read.available) {
     if (read.code !== UNDEFINED_TABLE) {
       console.warn(
@@ -293,8 +307,7 @@ export async function recordEgress(
   input: { actor: string; report: EgressReport; controls: EgressControls; now?: Date }
 ): Promise<RecordedEgress> {
   const path = egressPath(input.report.channel);
-  const outcome: EgressOutcome =
-    path && egressAllowed(input.controls, path.channel) ? 'left' : 'refused';
+  const outcome: EgressOutcome = path && egressAllowed(input.controls, path.channel) ? 'left' : 'refused';
   const occurredAt = input.now ?? new Date();
   const event: EgressEvent = {
     id: crypto.randomUUID(),
@@ -303,7 +316,7 @@ export async function recordEgress(
     // A channel this build does not know cannot reach here: the route validates
     // it before calling. The fallback keeps the type honest rather than covering
     // for a caller.
-    channel: path?.channel ?? (input.report.channel),
+    channel: path?.channel ?? input.report.channel,
     shape: path?.shape ?? 'prose',
     outcome,
     surface: clamp(input.report.surface, SURFACE_MAX),
@@ -341,4 +354,122 @@ export async function recordEgress(
     );
     return { event, written: false };
   }
+}
+
+/* ── Reading recent event metadata ─────────────────────────────────────────── */
+
+export interface EgressEventsCursor {
+  occurredAt: string;
+  id: string;
+}
+
+function rowText(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function rowCount(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+}
+
+function rowInstant(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  return rowText(value);
+}
+
+function eventFromRow(row: Record<string, unknown>): EgressEvent | null {
+  const path = egressPath(rowText(row.channel));
+  if (!path) return null;
+  return {
+    id: rowText(row.id),
+    occurredAt: rowInstant(row.occurred_at),
+    actor: rowText(row.actor),
+    channel: path.channel,
+    shape: path.shape,
+    outcome: rowText(row.outcome) === 'refused' ? 'refused' : 'left',
+    surface: rowText(row.surface),
+    runId: rowText(row.run_id) || null,
+    conversationId: rowText(row.conversation_id) || null,
+    itemCount: rowCount(row.item_count),
+  };
+}
+
+/** Decode an opaque keyset cursor without ever turning it into SQL text. */
+export function parseEgressEventsCursor(raw: string): EgressEventsCursor | null {
+  if (!raw || raw.length > 512) return null;
+  try {
+    const decoded = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as {
+      occurredAt?: unknown;
+      id?: unknown;
+    };
+    const occurredAt = typeof decoded.occurredAt === 'string' ? decoded.occurredAt : '';
+    const id = typeof decoded.id === 'string' ? decoded.id : '';
+    if (!occurredAt || !Number.isFinite(Date.parse(occurredAt)) || !id || id.length > IDENTIFIER_MAX) {
+      return null;
+    }
+    return { occurredAt: new Date(occurredAt).toISOString(), id };
+  } catch {
+    return null;
+  }
+}
+
+function cursorFromRow(row: Record<string, unknown>): string | null {
+  const occurredAt = rowInstant(row.occurred_at);
+  const id = rowText(row.id);
+  if (!occurredAt || !Number.isFinite(Date.parse(occurredAt)) || !id) return null;
+  return Buffer.from(JSON.stringify({ occurredAt: new Date(occurredAt).toISOString(), id })).toString('base64url');
+}
+
+/**
+ * Read one newest-first page using one of two fixed statements.
+ *
+ * The cursor values and limit are parameters. No caller-controlled text is ever
+ * interpolated into either statement, which keeps this endpoint a ledger viewer
+ * rather than a SQL execution surface.
+ */
+export async function readEgressEventsPage(
+  client: LakebaseReader,
+  options: { limit?: number; cursor?: EgressEventsCursor | null; now?: number } = {}
+): Promise<EgressEventsPayload> {
+  const pageSize =
+    Number.isFinite(options.limit) && (options.limit ?? 0) > 0
+      ? Math.min(Math.trunc(options.limit as number), EGRESS_EVENTS_PAGE_LIMIT)
+      : 20;
+  const cursor = options.cursor ?? null;
+  const readAt = new Date(options.now ?? Date.now()).toISOString();
+  const columns = 'id, occurred_at, actor, channel, shape, outcome, surface, run_id, conversation_id, item_count';
+  const statement = cursor
+    ? `SELECT ${columns}
+       FROM ${EGRESS_EVENTS_TABLE}
+       WHERE occurred_at < $1 OR (occurred_at = $1 AND id < $2)
+       ORDER BY occurred_at DESC, id DESC
+       LIMIT $3`
+    : `SELECT ${columns}
+       FROM ${EGRESS_EVENTS_TABLE}
+       ORDER BY occurred_at DESC, id DESC
+       LIMIT $1`;
+  const params = cursor ? [cursor.occurredAt, cursor.id, pageSize + 1] : [pageSize + 1];
+  const read = await readStored(client, 'GET /api/egress/admin/events', statement, params);
+  if (!read.available) {
+    return {
+      events: [],
+      readState: read.code === UNDEFINED_TABLE ? 'not-migrated' : 'unavailable',
+      pageSize,
+      nextCursor: null,
+      readAt,
+      storage: egressStorageMetadata(),
+    };
+  }
+
+  const pageRows = read.rows.slice(0, pageSize);
+  const events = pageRows.map(eventFromRow).filter((event): event is EgressEvent => event !== null);
+  return {
+    events,
+    readState: 'read',
+    pageSize,
+    nextCursor: read.rows.length > pageSize ? cursorFromRow(pageRows[pageRows.length - 1] ?? {}) : null,
+    readAt,
+    storage: egressStorageMetadata(),
+  };
 }

@@ -195,7 +195,7 @@ describe('flipping it is wired to something', () => {
     expect(source).toMatch(/persistSpIdentityMode/);
     expect(source).toMatch(/loadSpIdentityAdmin/);
     expect(source).toMatch(/spIdentityEnabledFromPayload/);
-    const rows = ['PII egress judge', 'SP identities', '<ResourceTagsPanel />', '>Forecasting<', 'Benchmarking'];
+    const rows = ['Egress controls panel', 'SP identities', '<ResourceTagsPanel />', '>Forecasting<', 'Benchmarking'];
     const positions = rows.map((row) => source.indexOf(row));
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((left, right) => left - right));

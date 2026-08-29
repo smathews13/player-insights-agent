@@ -18,8 +18,8 @@
  * ordinary removal still offers "Put back", permanent removal is explicit, and
  * adding still grants nobody anything.
  */
-import { useId, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { useEffect, useId, useState } from 'react';
+import { ChevronRight, Trash2 } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { BrandIcon } from './BrandIcon';
 import { RESOURCE_PRODUCT } from './connections-view';
@@ -39,6 +39,36 @@ import {
 import type { ConnectionEntry } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import { StatusBadge } from './StatusBadge';
+import { UserIdentityChip } from './UserIdentityChip';
+import { connectionValueError, createDeclaredConnection, derivedConnectionKey } from './declared-connection-form';
+import type { ConnectionTypesResponse } from '../../shared/browse-contract';
+import type { DeclaredResourceType } from '../../shared/notebook-declaration';
+
+function ConnectionProvenance({ connection }: { connection: ConnectionEntry['connection'] }) {
+  const created = connection.createdAt ? new Date(connection.createdAt) : null;
+  const validCreated = created && !Number.isNaN(created.getTime()) ? created : null;
+  if (!connection.createdBy && !validCreated) {
+    return <span className="connection-provenance-badge">Added previously</span>;
+  }
+  return (
+    <span className="connection-provenance">
+      {connection.createdBy ? (
+        <span className="connection-provenance-badge">
+          Added by <UserIdentityChip identity={connection.createdBy} compact />
+        </span>
+      ) : null}
+      {validCreated ? (
+        <time
+          className="connection-provenance-badge"
+          dateTime={connection.createdAt}
+          title={validCreated.toLocaleString()}
+        >
+          Added {validCreated.toLocaleDateString()}
+        </time>
+      ) : null}
+    </span>
+  );
+}
 
 export interface DeclaredConnectionsCardProps {
   entries?: ConnectionEntry[];
@@ -46,7 +76,7 @@ export interface DeclaredConnectionsCardProps {
   storeAvailable?: boolean;
   /** Administrators only may add, withdraw or forget. Consumers still see the list. */
   allowMutations?: boolean;
-  onChanged: () => void;
+  onChanged: () => void | Promise<void>;
 }
 
 export function DeclaredConnectionsCard({
@@ -56,12 +86,16 @@ export function DeclaredConnectionsCard({
   onChanged,
 }: DeclaredConnectionsCardProps) {
   const [adding, setAdding] = useState(false);
-  const [id, setId] = useState('');
+  const [keyOverride, setKeyOverride] = useState('');
   const [label, setLabel] = useState('');
-  const [kindChoice, setKindChoice] = useState(ADDABLE_KINDS[0].id);
+  const [kindChoice, setKindChoice] = useState<DeclaredResourceType>('catalog');
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [manual, setManual] = useState(false);
+  const [typeDiscovery, setTypeDiscovery] = useState<ConnectionTypesResponse | null>(null);
+  const [typeDiscoveryError, setTypeDiscoveryError] = useState('');
+  const [instantEntries, setInstantEntries] = useState<ConnectionEntry[]>([]);
   /** The id awaiting a confirmed removal, so the impact is read before it happens. */
   const [confirming, setConfirming] = useState('');
   /** The id awaiting permanent deletion, kept separate from recoverable removal. */
@@ -70,7 +104,37 @@ export function DeclaredConnectionsCard({
   const [justAdded, setJustAdded] = useState('');
   const formId = useId();
 
-  const ordered = orderConnections(entries ?? []);
+  useEffect(() => {
+    if (!adding || typeDiscovery || typeDiscoveryError) return;
+    let live = true;
+    fetch('/api/browse/connection-types')
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`the discovery endpoint answered ${response.status}`);
+        return response.json() as Promise<ConnectionTypesResponse>;
+      })
+      .then(
+        (response) => {
+          if (!live) return;
+          setTypeDiscovery(response);
+          const first = response.available[0]?.id;
+          if (first) setKindChoice(first);
+        },
+        (caught: unknown) => {
+          if (live) setTypeDiscoveryError((caught as Error).message || 'Resource types could not be listed.');
+        }
+      );
+    return () => {
+      live = false;
+    };
+  }, [adding, typeDiscovery, typeDiscoveryError]);
+
+  useEffect(() => {
+    const persisted = new Set((entries ?? []).map((entry) => entry.connection.id));
+    setInstantEntries((current) => current.filter((entry) => !persisted.has(entry.connection.id)));
+  }, [entries]);
+
+  const merged = [...(entries ?? []), ...instantEntries];
+  const ordered = orderConnections(merged);
   // The row just added sits at the foot of the list, immediately above the
   // control that added it, which is where a reader is already looking.
   const listed = justAdded
@@ -84,9 +148,17 @@ export function DeclaredConnectionsCard({
   const identifierLabel = picker.typeLabel
     .replace(/^Or type (an?|a) /i, '')
     .replace(/^./, (letter) => letter.toUpperCase());
-  const emptyBrowseNote = ['tables', 'catalogs', 'volumes'].includes(chosenKind.browse)
-    ? 'No catalogs are visible.'
-    : `No ${chosenKind.label.toLowerCase()} are visible.`;
+  const discoveredIds = new Set(typeDiscovery?.available.map((entry) => entry.id) ?? []);
+  const typeChoices = manual ? ADDABLE_KINDS : ADDABLE_KINDS.filter((entry) => discoveredIds.has(entry.id));
+  const selectedId = derivedConnectionKey(
+    chosenKind.id,
+    value.trim(),
+    merged.map((entry) => entry.connection.id)
+  );
+  const baseConnectionId = derivedConnectionKey(chosenKind.id, value.trim(), []);
+  const keyCollision = merged.some((entry) => entry.connection.id === baseConnectionId);
+  const connectionId = keyOverride.trim() || selectedId;
+  const valueError = connectionValueError(chosenKind.id, value);
   // Only workspace-minted hexadecimal ids need a second, human-facing name.
   // A table, catalog, volume, index or endpoint already carries a readable name
   // in its identifier, so showing another blank name box asks for the same fact
@@ -95,9 +167,11 @@ export function DeclaredConnectionsCard({
   const disabledReason = !storeAvailable
     ? 'The connection store is not answering.'
     : !value.trim()
-      ? `Enter or choose a ${identifierLabel.toLowerCase()}.`
-      : !id.trim()
-        ? 'Enter a connection key.'
+      ? kindChoice === 'sql-warehouse'
+        ? 'Choose a warehouse first.'
+        : `Choose a ${chosenKind.label.toLowerCase()} first.`
+      : valueError
+        ? valueError
         : busy
           ? 'Adding this connection.'
           : '';
@@ -116,22 +190,27 @@ export function DeclaredConnectionsCard({
     setBusy(true);
     setError('');
     try {
-      const response = await fetch('/api/settings/connections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: id.trim(), label: label.trim(), kind: chosenKind.kind, value: value.trim() }),
+      const result = await createDeclaredConnection({
+        id: connectionId,
+        label: label.trim(),
+        kind: chosenKind.kind,
+        resourceType: chosenKind.id,
+        value: value.trim(),
       });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { detail?: string };
-        setError(body.detail ?? 'The asset was not added.');
+      if (!result.ok) {
+        setError(result.detail);
         return;
       }
-      setJustAdded(id.trim());
-      setId('');
+      setInstantEntries((current) => [
+        ...current.filter((entry) => entry.connection.id !== result.entry.connection.id),
+        result.entry,
+      ]);
+      setJustAdded(result.entry.connection.id);
+      setKeyOverride('');
       setLabel('');
       setValue('');
       setAdding(false);
-      onChanged();
+      await onChanged();
     } finally {
       setBusy(false);
     }
@@ -151,7 +230,7 @@ export function DeclaredConnectionsCard({
       }
       setConfirming('');
       setForgetting('');
-      onChanged();
+      await onChanged();
     } finally {
       setBusy(false);
     }
@@ -167,42 +246,32 @@ export function DeclaredConnectionsCard({
 
       {allowMutations && adding ? (
         <div className="plane-form">
-          {/* THE DECISION COMES FIRST. The old row asked for a name before it
-              said what was being named, then changed the meaning of the value
-              box several controls later. Kind now leads both visual and
-              keyboard order, and changing it clears values that belong to the
-              previous kind rather than offering to submit a table as a model. */}
           <div className="plane-kind-field">
-            <AppSelect
-              label="Kind"
-              ariaLabel="Kind"
-              value={kindChoice}
-              onValueChange={(next) => {
-                setKindChoice(next);
-                setId('');
-                setLabel('');
-                setValue('');
-                setError('');
-              }}
-              options={ADDABLE_KINDS.map((entry) => ({ value: entry.id, label: entry.label }))}
-              className="plane-field-select"
-            />
+            {typeChoices.length > 0 ? (
+              <AppSelect
+                label="Resource type"
+                ariaLabel="Resource type"
+                value={kindChoice}
+                onValueChange={(next) => {
+                  setKindChoice(next);
+                  setKeyOverride('');
+                  setLabel('');
+                  setValue('');
+                  setError('');
+                }}
+                options={typeChoices.map((entry) => ({ value: entry.id, label: entry.label }))}
+                className="plane-field-select"
+              />
+            ) : typeDiscoveryError ? (
+              <span className="plane-error">Resource types could not be listed: {typeDiscoveryError}</span>
+            ) : typeDiscovery ? (
+              <span className="plane-note">No resource categories returned visible items for your sign-in.</span>
+            ) : (
+              <span className="plane-note">Finding resources your sign-in can see…</span>
+            )}
           </div>
 
-          <div className="plane-identifier-field">
-            <label className="plane-field-label" htmlFor={`${formId}-identifier`}>
-              {identifierLabel}
-            </label>
-            <input
-              id={`${formId}-identifier`}
-              className="plane-field ast-mono"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              placeholder={picker.typeLabel.replace(/^Or type (an?|a) /i, '')}
-            />
-            {/* The browser is an alternative to typing, not a prerequisite.
-                It follows the manual field so a missing optional browse grant
-                never stands between the reader and the control that works. */}
+          {typeChoices.length > 0 && !manual ? (
             <div className="plane-picker">
               <AssetPicker
                 key={chosenKind.id}
@@ -220,46 +289,55 @@ export function DeclaredConnectionsCard({
                   // reader. The picked row already carries the human name.
                   const named = addedConnectionLabel(stored, row?.item.label);
                   setLabel((current) => current || named);
-                  setId(
-                    (current) =>
-                      current || `${chosenKind.id}-${stored.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-|-$/g, '')}`
-                  );
                 }}
               />
-              <p className="plane-picker-empty-note">{emptyBrowseNote}</p>
             </div>
-          </div>
+          ) : null}
 
-          {/* These names are not aliases. The display name is what a person
-              sees in the list; the connection key is the stable id used when a
-              saved row is removed or restored. Naming both jobs prevents the
-              two blank "name" and "label" boxes from looking redundant while
-              preserving the payload the server already accepts. */}
-          <div className="plane-form-pair">
-            {needsDisplayName ? (
-              <label className="plane-field-group" htmlFor={`${formId}-label`}>
-                <span className="plane-field-label">Display name (optional)</span>
-                <input
-                  id={`${formId}-label`}
-                  className="plane-field"
-                  value={label}
-                  onChange={(event) => setLabel(event.target.value)}
-                  placeholder="Name shown in this list"
-                />
-              </label>
-            ) : null}
+          <button type="button" className="plane-manual-toggle" onClick={() => setManual((shown) => !shown)}>
+            {manual ? 'Use visible resources' : 'Enter an identifier manually'}
+          </button>
+
+          {manual ? (
+            <label className="plane-field-group" htmlFor={`${formId}-identifier`}>
+              <span className="plane-field-label">{identifierLabel}</span>
+              <input
+                id={`${formId}-identifier`}
+                className="plane-field ast-mono"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                placeholder={picker.typeLabel.replace(/^Or type (an?|a) /i, '')}
+              />
+            </label>
+          ) : null}
+
+          {needsDisplayName ? (
+            <label className="plane-field-group plane-display-name" htmlFor={`${formId}-label`}>
+              <span className="plane-field-label">Display name (optional)</span>
+              <input
+                id={`${formId}-label`}
+                className="plane-field"
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+                placeholder="Name shown in this list"
+              />
+            </label>
+          ) : null}
+
+          {value && keyCollision ? (
             <label className="plane-field-group" htmlFor={`${formId}-key`}>
               <span className="plane-field-label">Connection key</span>
               <input
                 id={`${formId}-key`}
                 className="plane-field ast-mono"
-                value={id}
-                onChange={(event) => setId(event.target.value)}
-                placeholder={`${chosenKind.id}-name`}
+                value={keyOverride}
+                onChange={(event) => setKeyOverride(event.target.value)}
+                placeholder={selectedId}
               />
             </label>
-          </div>
-          <div className="plane-form-actions">
+          ) : null}
+
+          <div className="plane-form-actions" data-sticky="true">
             <button
               type="button"
               className="plane-button"
@@ -267,7 +345,18 @@ export function DeclaredConnectionsCard({
               aria-describedby={disabledReason ? `${formId}-add-reason` : undefined}
               onClick={() => void add()}
             >
-              Add
+              {busy ? `Adding ${chosenKind.label.toLowerCase()}…` : `Add ${chosenKind.label.toLowerCase()}`}
+            </button>
+            <button
+              type="button"
+              className="plane-button-quiet"
+              disabled={busy}
+              onClick={() => {
+                setAdding(false);
+                setError('');
+              }}
+            >
+              Cancel
             </button>
             {disabledReason ? (
               <span className="plane-add-reason" id={`${formId}-add-reason`}>
@@ -284,76 +373,71 @@ export function DeclaredConnectionsCard({
         const removed = entry.connection.state === 'withdrawn';
         const row = connectionRowView(entry.connection);
         return (
-          <div key={entry.connection.id} className="plane-stack">
-            <div className="plane-row" data-state={entry.connection.state}>
-              {/* READS LIKE THE ROWS ABOVE IT. The connected-resources list
-                  names its product, shows the value as a pill and puts the raw
-                  id beside it. These rows printed one string, which for an
-                  asset picked from a list of Genie spaces was the space's hex
-                  id and nothing else. */}
-              <span className="plane-row-name">
+          <div key={entry.connection.id} className="connection-row plane-stack">
+            <details className="connection-accordion" data-state={entry.connection.state}>
+              <summary className="connection-row-summary">
+                <ChevronRight className="connection-row-chevron" aria-hidden="true" />
                 <BrandIcon product={RESOURCE_PRODUCT[entry.connection.kind]} className="plane-row-product" />
-                <span className="plane-row-kind">{row.kindLabel}</span>
+                <span className="connection-row-kind">{row.kindLabel}</span>
                 {row.name ? (
-                  <span className="plane-row-title" title={row.name}>
+                  <span className="connection-row-title" title={row.name}>
                     <StatusBadge value={row.name} tone="plain" title={row.name} />
                   </span>
                 ) : null}
-                {/* Said on the row somebody just added, because the list it
-                    joins is long enough that a new entry at the foot of it is
-                    otherwise indistinguishable from the rest. */}
                 {entry.connection.id === justAdded ? <span className="plane-row-new">{JUST_ADDED_LABEL}</span> : null}
-              </span>
-              <span className="plane-row-value ast-mono" title={row.fullIdentifier}>
-                {row.identifier}
-              </span>
-              {/* A removed asset keeps its way back. This app is usually mid
-                  demonstration when somebody removes the wrong thing, so the
-                  row stays and offers "Put back" rather than disappearing. */}
-              {allowMutations ? (
-                <span className="plane-row-actions">
-                  {removed ? (
-                    <button
-                      type="button"
-                      className="plane-button-quiet"
-                      disabled={busy || !storeAvailable}
-                      onClick={() => void act(entry.connection.id, 'POST', '/restore')}
-                    >
-                      {RESTORE_LABEL}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="plane-button-quiet"
-                      disabled={busy || !storeAvailable}
-                      onClick={() => {
-                        setForgetting('');
-                        setConfirming(entry.connection.id);
-                      }}
-                    >
-                      {REMOVE_LABEL}
-                    </button>
-                  )}
-                  {/* Permanent deletion is a distinct control, not a second
+                <span className="connection-row-value ast-mono" title={row.fullIdentifier}>
+                  {row.identifier}
+                </span>
+                <StatusBadge value={removed ? 'Withdrawn' : 'Declared'} tone="plain" />
+              </summary>
+              <div className="connection-row-detail">
+                <ConnectionProvenance connection={entry.connection} />
+                {entry.connection.note ? <p className="connection-row-note">{entry.connection.note}</p> : null}
+                {allowMutations ? (
+                  <div className="plane-row-actions">
+                    {removed ? (
+                      <button
+                        type="button"
+                        className="plane-button-quiet"
+                        disabled={busy || !storeAvailable}
+                        onClick={() => void act(entry.connection.id, 'POST', '/restore')}
+                      >
+                        {RESTORE_LABEL}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="plane-button-quiet"
+                        disabled={busy || !storeAvailable}
+                        onClick={() => {
+                          setForgetting('');
+                          setConfirming(entry.connection.id);
+                        }}
+                      >
+                        {REMOVE_LABEL}
+                      </button>
+                    )}
+                    {/* Permanent deletion is a distinct control, not a second
                       meaning hidden behind Remove. The ordinary action keeps a
                       restorable row; this one deletes the Lakebase record and
                       therefore asks its own irreversible question first. */}
-                  <button
-                    type="button"
-                    className="plane-row-forget"
-                    disabled={busy || !storeAvailable}
-                    aria-label={`${REMOVE_FOREVER_LABEL}: ${row.name || row.kindLabel}`}
-                    title={REMOVE_FOREVER_LABEL}
-                    onClick={() => {
-                      setConfirming('');
-                      setForgetting(entry.connection.id);
-                    }}
-                  >
-                    <Trash2 aria-hidden="true" />
-                  </button>
-                </span>
-              ) : null}
-            </div>
+                    <button
+                      type="button"
+                      className="plane-row-forget"
+                      disabled={busy || !storeAvailable}
+                      aria-label={`${REMOVE_FOREVER_LABEL}: ${row.name || row.kindLabel}`}
+                      title={REMOVE_FOREVER_LABEL}
+                      onClick={() => {
+                        setConfirming('');
+                        setForgetting(entry.connection.id);
+                      }}
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </details>
 
             {allowMutations && confirming === entry.connection.id ? (
               <div className="plane-confirm">

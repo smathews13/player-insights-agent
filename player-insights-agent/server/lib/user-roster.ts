@@ -83,8 +83,7 @@ export const ROLE_COLUMN = 'role';
  * is refused with this statement on screen.
  */
 export const ADD_ROLE_COLUMN_STATEMENT =
-  `ALTER TABLE ${ADDED_ADMINS_TABLE} ` +
-  `ADD COLUMN IF NOT EXISTS ${ROLE_COLUMN} TEXT NOT NULL DEFAULT 'admin'`;
+  `ALTER TABLE ${ADDED_ADMINS_TABLE} ` + `ADD COLUMN IF NOT EXISTS ${ROLE_COLUMN} TEXT NOT NULL DEFAULT 'admin'`;
 
 /**
  * Postgres for "that column is not there".
@@ -248,7 +247,10 @@ export function effectiveRole(input: { seed: SeedRoles; stored: readonly StoredR
 }
 
 /** Every address either half knows, effective role attached, seed rows first. */
-export function everyKnownUser(input: { seed: SeedRoles; stored: readonly StoredRole[] }): { email: string; role: Role }[] {
+export function everyKnownUser(input: {
+  seed: SeedRoles;
+  stored: readonly StoredRole[];
+}): { email: string; role: Role }[] {
   const seen = new Set<string>();
   const out: { email: string; role: Role }[] = [];
   for (const email of [...input.seed.superAdmins, ...input.seed.admins]) {
@@ -306,6 +308,7 @@ export function roleChangeRefusal(input: {
   const desired = input.role;
   const current = effectiveRole({ seed: input.seed, stored: input.stored, email: target });
   if (desired === current) return 'already-holds';
+  if (current === 'super_admin') return 'immutable-super-admin';
   // The floor. Lowering below it would be undone by the environment on the next
   // request, and a control that appears to work and does not is worse than none.
   if (ROLE_RANK[desired] < ROLE_RANK[seedFloorFor(input.seed, target)]) return 'seed-floor';
@@ -324,6 +327,9 @@ export function removalRefusal(input: {
 }): RosterRefusal | '' {
   const target = normalizeAdminEmail(input.email);
   if (!input.stored.some((entry) => entry.email === target)) return 'not-found';
+  if (effectiveRole({ seed: input.seed, stored: input.stored, email: target }) === 'super_admin') {
+    return 'immutable-super-admin';
+  }
   if (seedFloorFor(input.seed, target) !== 'consumer') return 'seed-floor';
   if (leavesNoSuperAdmin({ ...input, target, desired: 'consumer' })) return 'last-super-admin';
   return '';
@@ -344,9 +350,7 @@ function leavesNoSuperAdmin(input: {
 }): boolean {
   const after = input.stored
     .filter((entry) => entry.email !== input.target)
-    .concat(
-      input.desired === 'consumer' ? [] : [{ email: input.target, role: input.desired, setBy: '', setAt: '' }]
-    );
+    .concat(input.desired === 'consumer' ? [] : [{ email: input.target, role: input.desired, setBy: '', setAt: '' }]);
   return countSuperAdmins({ seed: input.seed, stored: after }) === 0;
 }
 
@@ -359,10 +363,9 @@ function leavesNoSuperAdmin(input: {
  * permission model was designed.
  */
 export const REFUSAL_DETAIL: Readonly<Record<RosterRefusal, string>> = {
-  'seed-floor':
-    'That role is set in this deployment\'s configuration and cannot be lowered here. It can be raised.',
-  'last-super-admin':
-    'That is the only super admin. Appoint another one first.',
+  'immutable-super-admin': 'Super admins are deployment owners and cannot be changed or removed here.',
+  'seed-floor': "That role is set in this deployment's configuration and cannot be lowered here. It can be raised.",
+  'last-super-admin': 'That is the only super admin. Appoint another one first.',
   'not-found': 'That address is not on the roster.',
   'already-holds': 'That address already holds that role.',
   'no-role-column': `This deployment's roster cannot record that role yet. Run: ${ADD_ROLE_COLUMN_STATEMENT}`,

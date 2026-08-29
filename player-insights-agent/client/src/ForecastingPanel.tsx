@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ExperimentalBadge } from './ExperimentalBadge';
+import { astPill } from './astrolabe-pill';
 import {
   calculateForecast,
   deriveForecastBaseline,
@@ -79,11 +80,31 @@ function exampleRangeText(
   return `Example range: ${formatted(range.min)}–${formatted(range.max)} ${field.exampleUnit}`;
 }
 
-function methodologyEvidence(item: ForecastSuggestionEvidence): string {
-  const range = item.range
-    ? ` · ${item.range.label} ${item.range.min.toLocaleString()}–${item.range.max.toLocaleString()}`
-    : '';
-  return `${item.calculation}${item.period ? ` · ${item.period}` : ''}${range}`;
+const VISIBLE_LIMITS = 3;
+
+function formulaText(component: { id: string; formula: string }): string {
+  if (component.id === 'serving-endpoint') {
+    return 'Daily questions × observed serving cost per question × assumed-to-observed token ratio';
+  }
+  if (component.id === 'sql-warehouse') return 'Daily questions × observed attributed SQL cost per question';
+  if (component.id === 'app-compute') {
+    return 'Users × active minutes per user per day × observed app cost per active minute';
+  }
+  if (component.id === 'vector-search') return 'Measured daily spend, held fixed';
+  return 'Measured attributable daily spend, held fixed';
+}
+
+function methodologyLimits(caveats: readonly string[], exclusions: readonly { reason: string }[]): string[] {
+  const seen = new Set<string>();
+  const activeMinuteExcluded = exclusions.some((item) => item.reason.toLowerCase().includes('active-minute'));
+  return caveats.filter((caveat) => {
+    const key = caveat.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!key || seen.has(key)) return false;
+    if (key.includes('databricks list prices')) return false;
+    if (activeMinuteExcluded && key.includes('active-minute')) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function AssumptionGrid({
@@ -132,14 +153,17 @@ function AssumptionGrid({
 export function ForecastingBody({
   cost,
   traffic,
+  periodLabel = '7 days',
 }: {
   cost: ForecastBlock<OpsCostPayload>;
   traffic: ForecastBlock<OpsTrafficPayload>;
+  periodLabel?: string;
 }) {
   const [saved, setSaved] = useState<ForecastAssumptions | null>(readForecastAssumptions);
   const baseline = deriveForecastBaseline(cost.data, traffic.data);
   const assumptions = saved ?? baseline.defaults;
   const result = calculateForecast(baseline, assumptions);
+  const limits = methodologyLimits(baseline.caveats, baseline.exclusions);
   const unavailable =
     cost.failed && !cost.data
       ? `Cost could not be read: ${cost.failed}`
@@ -166,7 +190,7 @@ export function ForecastingBody({
         <div className="ops-block-head-text">
           <ExperimentalBadge />
           <h3 id="ops-forecast-heading">Forecasting</h3>
-          <span className="ops-block-meta">List-price scenario</span>
+          <span className={astPill('neutral-outline', 'ops-pill ops-period-pill')}>{periodLabel}</span>
         </div>
       </div>
       <div className="ops-block-body">
@@ -182,23 +206,6 @@ export function ForecastingBody({
           </div>
         ) : (
           <>
-            <div className="ops-forecast-baseline">
-              <p>
-                <strong>Baseline:</strong> {baseline.window.from} to {baseline.window.to} ({baseline.window.days}{' '}
-                complete {baseline.window.days === 1 ? 'day' : 'days'})
-              </p>
-              <p>
-                <strong>Source:</strong> {baseline.source}
-              </p>
-              <p>List-price estimate only — not contracted rates, an invoice, a budget, or a commitment.</p>
-            </div>
-
-            {partial ? (
-              <p className="ops-forecast-partial" role="status">
-                Partial estimate: only priced, deployment-attributable components with a defensible denominator are
-                summed.
-              </p>
-            ) : null}
             {traffic.failed ? (
               <p className="ops-forecast-partial" role="status">
                 Traffic refresh failed; the last available payload is used where present. {traffic.failed}
@@ -230,41 +237,51 @@ export function ForecastingBody({
             </div>
 
             <Disclosure summary="Methodology, formulas, and exclusions" className="ops-forecast-method">
-              <div>
-                <p>
-                  Serving = daily stored questions × observed serving cost/stored question × assumed tokens ÷ observed
-                  average tokens.
-                </p>
-                <p>Astrolabe SQL = daily stored questions × observed attributed SQL cost/stored question.</p>
-                <p>App compute = users × active minutes/user/day × observed app cost/active minute.</p>
-                <p>Vector Search = the configured resource’s measured daily Cost baseline, held fixed.</p>
-                <p>Other attributable measured daily costs stay fixed.</p>
-                <h5>Assumption baselines</h5>
-                <ul>
-                  {ASSUMPTION_FIELDS.map((field) => (
-                    <li key={field.key}>
-                      <strong>{field.label}:</strong> {methodologyEvidence(baseline.evidence[field.key])}
-                    </li>
-                  ))}
-                </ul>
+              <div className="ops-forecast-method-sections">
+                <section>
+                  <h5>How totals are calculated</h5>
+                  <dl className="ops-forecast-formulas">
+                    {result.components.map((component) => (
+                      <div key={component.id}>
+                        <dt>{component.label}</dt>
+                        <dd>{formulaText(component)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
                 {baseline.exclusions.length > 0 ? (
-                  <>
-                    <h5>Excluded from totals</h5>
-                    <ul>
+                  <section>
+                    <h5>Not included</h5>
+                    <ul className="ops-forecast-not-included">
                       {baseline.exclusions.map((item) => (
                         <li key={`${item.component}-${item.reason}`}>
-                          <strong>{item.component}:</strong> {item.reason}
+                          <strong>{item.component}</strong>
+                          <span>{item.reason}</span>
                         </li>
                       ))}
                     </ul>
-                  </>
+                  </section>
                 ) : null}
-                <h5>Caveats</h5>
-                <ul>
-                  {baseline.caveats.map((caveat) => (
-                    <li key={caveat}>{caveat}</li>
-                  ))}
-                </ul>
+                {limits.length > 0 ? (
+                  <section>
+                    <h5>Limits</h5>
+                    <ul className="ops-forecast-limits">
+                      {limits.slice(0, VISIBLE_LIMITS).map((limit) => (
+                        <li key={limit}>{limit}</li>
+                      ))}
+                    </ul>
+                    {limits.length > VISIBLE_LIMITS ? (
+                      <details className="ops-forecast-more-limits">
+                        <summary>{limits.length - VISIBLE_LIMITS} more</summary>
+                        <ul>
+                          {limits.slice(VISIBLE_LIMITS).map((limit) => (
+                            <li key={limit}>{limit}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+                  </section>
+                ) : null}
               </div>
             </Disclosure>
           </>

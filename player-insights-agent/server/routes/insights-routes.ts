@@ -15,6 +15,12 @@ import {
 import { describeSql, runMigrations, type SchemaStatementFailure } from '../lib/migration-runner';
 import { buildMigrations } from '../lib/migrations';
 import { recordAppActivityMinute } from '../lib/app-activity';
+import {
+  registerAppSessionControls,
+  resolveIdleTimeout,
+  startAppSessionCleanup,
+  type IdleTimeoutConfig,
+} from '../lib/app-session';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { REPRESENTATIVE_ANSWER_CAVEAT } from '../../shared/representative-answer';
 import {
@@ -3207,7 +3213,7 @@ async function prepareStore(appkit: InsightsAppKit): Promise<void> {
  */
 export function setupInsightsRoutes(
   appkit: InsightsAppKit,
-  options: { rolesReady?: () => Promise<void> } = {}
+  options: { rolesReady?: () => Promise<void>; appSessionConfig?: IdleTimeoutConfig } = {}
 ): Promise<{ storeReady: Promise<void> }> {
   // BEFORE `prepareStore`, not after, and that ordering is load-bearing rather
   // than tidy. `prepareStore` asks the store whether this deployment recorded a
@@ -3218,6 +3224,7 @@ export function setupInsightsRoutes(
   announceSharedConversationRail(resolveSharedConversationRail(process.env[SHARED_CONVERSATION_RAIL_ENV]));
 
   const storeReady = prepareStore(appkit);
+  const idleConfig = options.appSessionConfig ?? resolveIdleTimeout();
 
   // Reads are what the pages depend on, and a `CREATE TABLE IF NOT EXISTS` that
   // succeeds says nothing about whether the store still answers minutes later.
@@ -3244,6 +3251,14 @@ export function setupInsightsRoutes(
     // throws instead of rejecting into an unhandled promise and exiting Node.
     answerRatherThanExit(app);
     app.use(requireIdentity);
+    // Bootstrap/end sit before the guard they support. Every other API route
+    // registered here or by a later module is checked against Lakebase without
+    // the read itself extending activity.
+    registerAppSessionControls(app, {
+      lakebase: appkit.lakebase,
+      identity: userEmail,
+      config: idleConfig,
+    });
     app.use(executionCredentialMiddleware(appkit));
     if (options.rolesReady) {
       app.use((req, _res, next) => {
@@ -5538,6 +5553,13 @@ export function setupInsightsRoutes(
       res.status(202).json(started.body);
     });
   });
+
+  if (idleConfig.enabled) {
+    void storeReady.then(
+      () => void startAppSessionCleanup(appkit.lakebase),
+      () => undefined
+    );
+  }
 
   // Handed back rather than awaited. See the note on this function: awaiting it
   // here would be the cold-start block this arrangement exists to remove.

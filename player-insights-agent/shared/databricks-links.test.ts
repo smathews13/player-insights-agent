@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { databricksLink, normalizeWorkspaceHost, workspacePath } from './databricks-links';
+import {
+  accountConsoleUrlForWorkspace,
+  databricksLink,
+  normalizeWorkspaceHost,
+  workspacePath,
+} from './databricks-links';
 
 const HOST = 'https://example-workspace.invalid';
 
@@ -19,16 +24,35 @@ describe('normalizeWorkspaceHost', () => {
   });
 });
 
+describe('accountConsoleUrlForWorkspace', () => {
+  it('derives the official cloud console without a customer account id', () => {
+    expect(accountConsoleUrlForWorkspace('https://demo.cloud.databricks.com')).toBe(
+      'https://accounts.cloud.databricks.com'
+    );
+    expect(accountConsoleUrlForWorkspace('https://demo.azuredatabricks.net')).toBe(
+      'https://accounts.azuredatabricks.net'
+    );
+    expect(accountConsoleUrlForWorkspace('https://demo.gcp.databricks.com')).toBe(
+      'https://accounts.gcp.databricks.com'
+    );
+    expect(accountConsoleUrlForWorkspace(undefined)).toBe('https://accounts.cloud.databricks.com');
+  });
+});
+
 describe('workspacePath', () => {
   it('builds a path for each object it knows', () => {
     expect(workspacePath({ kind: 'serving-endpoint', name: 'an-endpoint' })).toBe('/ml/endpoints/an-endpoint');
     expect(workspacePath({ kind: 'genie-space', spaceId: '01ab' })).toBe('/genie/rooms/01ab');
     expect(workspacePath({ kind: 'sql-warehouse', warehouseId: 'wh1' })).toBe('/sql/warehouses/wh1');
     expect(workspacePath({ kind: 'catalog', catalog: 'a_catalog' })).toBe('/explore/data/a_catalog');
-    expect(workspacePath({ kind: 'schema', catalog: 'a_catalog', schema: 'a_schema' })).toBe('/explore/data/a_catalog/a_schema');
+    expect(workspacePath({ kind: 'schema', catalog: 'a_catalog', schema: 'a_schema' })).toBe(
+      '/explore/data/a_catalog/a_schema'
+    );
     expect(workspacePath({ kind: 'experiment', experimentId: '123' })).toBe('/ml/experiments/123');
     expect(workspacePath({ kind: 'vector-index', index: 'a.b.c' })).toBe('/explore/data/a/b/c');
-    expect(workspacePath({ kind: 'table', table: 'a_catalog.a_schema.a_table' })).toBe('/explore/data/a_catalog/a_schema/a_table');
+    expect(workspacePath({ kind: 'table', table: 'a_catalog.a_schema.a_table' })).toBe(
+      '/explore/data/a_catalog/a_schema/a_table'
+    );
     expect(workspacePath({ kind: 'app', name: 'astrolabe' })).toBe('/apps/astrolabe');
     expect(workspacePath({ kind: 'job', jobId: '123' })).toBe('/jobs/123');
   });
@@ -116,7 +140,9 @@ describe('databricksLink', () => {
   });
 
   it('normalises the host it was handed', () => {
-    expect(databricksLink('example-workspace.invalid/', { kind: 'genie-space', spaceId: '01ab' })).toBe(`${HOST}/genie/rooms/01ab`);
+    expect(databricksLink('example-workspace.invalid/', { kind: 'genie-space', spaceId: '01ab' })).toBe(
+      `${HOST}/genie/rooms/01ab`
+    );
   });
 
   // The rule the whole module exists for. A link built without a host lands the
@@ -134,7 +160,8 @@ describe('databricksLink', () => {
   it('opens a cited table in Catalog Explorer', () => {
     // The link the source row under an answer offers. It is the object the
     // answer says it read, in the workspace the app was told it runs in.
-    expect(databricksLink(HOST, { kind: 'table', table: 'a_catalog.a_schema.gold_title_daily_summary' })).toBe(`${HOST}/explore/data/a_catalog/a_schema/gold_title_daily_summary`
+    expect(databricksLink(HOST, { kind: 'table', table: 'a_catalog.a_schema.gold_title_daily_summary' })).toBe(
+      `${HOST}/explore/data/a_catalog/a_schema/gold_title_daily_summary`
     );
   });
 });

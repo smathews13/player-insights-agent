@@ -88,8 +88,7 @@ export function classifyOutcome(input: {
   proseOnlyDegraded?: boolean;
 }): QuestionOutcome {
   const state = (input.runState ?? '').trim().toUpperCase();
-  const writerMissed =
-    state === 'DEADLINE_EXCEEDED' || input.synthesisIncomplete === true;
+  const writerMissed = state === 'DEADLINE_EXCEEDED' || input.synthesisIncomplete === true;
   if (input.answerLanded && writerMissed && state !== 'REFUSED') {
     return 'partial';
   }
@@ -109,10 +108,7 @@ export function classifyOutcome(input: {
  * An administrator's stored outcome, when one exists. Classification is
  * unchanged; this is the same word every surface must show after a pencil save.
  */
-export function applyAdminOutcome(
-  classified: QuestionOutcome,
-  overlayStatus?: string | null
-): QuestionOutcome {
+export function applyAdminOutcome(classified: QuestionOutcome, overlayStatus?: string | null): QuestionOutcome {
   const word = (overlayStatus ?? '').trim().toLowerCase();
   if (word === 'complete' || word === 'completed') return 'completed';
   if (word === 'partial') return 'partial';
@@ -175,9 +171,7 @@ export function refusalSentence(code: string | null | undefined): string | null 
 
 /** The codes behind one refusal tile, for its `title`. Sorted, so it is stable. */
 export function codesForCause(cause: RefusalCause): FailureCode[] {
-  return (Object.keys(FAILURE_TAXONOMY) as FailureCode[])
-    .filter((code) => classifyRefusal(code) === cause)
-    .sort();
+  return (Object.keys(FAILURE_TAXONOMY) as FailureCode[]).filter((code) => classifyRefusal(code) === cause).sort();
 }
 
 /** One row in the question list. Every field is what a store recorded. */
@@ -218,7 +212,12 @@ export interface MonitoringQuestion {
  */
 export interface MonitoringSummary {
   questionsAsked: number;
-  peopleAsking: number;
+  /**
+   * Distinct conversation threads containing a real user question in the
+   * selected period. This is not a distinct-user count: one person can start
+   * several threads in the same period.
+   */
+  userThreads: number;
   completed: number;
   partial: number;
   refused: number;
@@ -367,6 +366,12 @@ export interface PersonPanelPayload {
   tokenCostUsd: number | null;
   ratedUp: number;
   ratedDown: number;
+  /**
+   * The top recorded source tables in this person's runs for the selected
+   * period. Ranked by run count descending, then table name, and capped by the
+   * server. A run contributes at most once to a table even if its source list
+   * repeated that table.
+   */
   tablesReadMost: { table: string; runs: number }[];
   /** Which identity executed their runs, counted. */
   executionSplit: { asThemselves: number; asApplication: number; unrecorded: number };

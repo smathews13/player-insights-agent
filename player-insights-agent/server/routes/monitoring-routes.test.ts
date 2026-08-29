@@ -2,10 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   MONITORING_DETAIL_QUERY,
+  MONITORING_PERSON_TABLES_QUERY,
   MONITORING_QUESTIONS_QUERY,
   MONITORING_ROUTES,
   questionFromRow,
+  rangeTotalsFrom,
   rangeFrom,
+  rankTablesRead,
   setupMonitoringRoutes,
   summarize,
   tokenCost,
@@ -113,8 +116,39 @@ describe('the query reads questions rather than answers', () => {
     expect(MONITORING_QUESTIONS_QUERY).toContain("u.role = 'user'");
     expect(MONITORING_QUESTIONS_QUERY).toContain('u.content <> $1');
     expect(MONITORING_QUESTIONS_QUERY).toContain('u.created_at >= $2::timestamptz');
+    expect(MONITORING_QUESTIONS_QUERY).toContain('u.created_at < $3::timestamptz');
     expect(MONITORING_QUESTIONS_QUERY).toContain('LIMIT $4');
     expect(QUESTION_READ_LIMIT).toBeGreaterThan(0);
+  });
+
+  it('counts distinct conversation threads inside the same half-open period', () => {
+    expect(MONITORING_QUESTIONS_QUERY).toContain('COUNT(DISTINCT u.conversation_id)::int AS thread_total');
+    const totals = rangeTotalsFrom({ asked_total: 4, thread_total: 2, people_list: ['one@example.test'] }, [
+      questionFromRow(row({ question_id: 'q1', conversation_id: 'thread-a' }), ledger()),
+      questionFromRow(row({ question_id: 'q2', conversation_id: 'thread-a' }), ledger()),
+    ]);
+
+    expect(totals.asked).toBe(4);
+    expect(totals.threads).toBe(2);
+  });
+
+  it('uses an inclusive start and exclusive end for thread-period membership', () => {
+    const start = Date.parse('2026-08-01T00:00:00Z');
+    const end = Date.parse('2026-08-08T00:00:00Z');
+    const represented = [
+      { thread: 'at-start', askedAt: start },
+      { thread: 'inside', askedAt: end - 1 },
+      { thread: 'at-end', askedAt: end },
+      { thread: 'before', askedAt: start - 1 },
+    ].filter((question) => question.askedAt >= start && question.askedAt < end);
+
+    expect(represented.map((question) => question.thread)).toEqual(['at-start', 'inside']);
+    expect(MONITORING_QUESTIONS_QUERY.match(/u\.created_at >= \$2::timestamptz/g)).toHaveLength(2);
+    expect(MONITORING_QUESTIONS_QUERY.match(/u\.created_at < \$3::timestamptz/g)).toHaveLength(2);
+  });
+
+  it('applies the same person scope to the page and its period totals', () => {
+    expect(MONITORING_QUESTIONS_QUERY.match(/\(\$6 = '' OR lower\(c\.user_email\) = lower\(\$6\)\)/g)).toHaveLength(2);
   });
 
   /**
@@ -245,12 +279,8 @@ describe('one row, from what the stores recorded', () => {
     expect(questionFromRow(row(), ledger()).outcome).toBe('completed');
     expect(questionFromRow(row({ trace_partial: true }), ledger()).outcome).toBe('partial');
     expect(questionFromRow(row({ trace_failed: true }), ledger()).outcome).toBe('failed');
-    expect(
-      questionFromRow(row({ trace_failed: true, answer_landed: true }), ledger()).outcome
-    ).toBe('completed');
-    expect(
-      questionFromRow(row({ synthesis_incomplete: true, answer_landed: true }), ledger()).outcome
-    ).toBe('partial');
+    expect(questionFromRow(row({ trace_failed: true, answer_landed: true }), ledger()).outcome).toBe('completed');
+    expect(questionFromRow(row({ synthesis_incomplete: true, answer_landed: true }), ledger()).outcome).toBe('partial');
   });
 
   it('calls a finished catalog listing Completed even when a step was stored partial', () => {
@@ -318,6 +348,17 @@ describe('one row, from what the stores recorded', () => {
     expect(question.tables).toEqual(['a_catalog.a_schema.a_table']);
   });
 
+  it('deduplicates a repeated table within one run case-insensitively', () => {
+    const question = questionFromRow(
+      row({
+        sources: ['a_catalog.a_schema.a_table', 'A_CATALOG.A_SCHEMA.A_TABLE', 'a_catalog.a_schema.b_table'],
+      }),
+      ledger()
+    );
+
+    expect(question.tables).toEqual(['a_catalog.a_schema.a_table', 'a_catalog.a_schema.b_table']);
+  });
+
   /**
    * The thumbs are stored as a score. AnswerCard.tsx calls `saveFeedback(5)` for
    * thumbs up and `saveFeedback(2)` for thumbs down, and the ask route writes
@@ -346,6 +387,21 @@ describe('one row, from what the stores recorded', () => {
 });
 
 describe('the summary counts what it read', () => {
+  it('carries distinct thread count separately from question and person counts', () => {
+    const summary = summarize(
+      [
+        questionFromRow(row({ question_id: '1', conversation_id: 'thread-a' }), ledger()),
+        questionFromRow(row({ question_id: '2', conversation_id: 'thread-a' }), ledger()),
+        questionFromRow(row({ question_id: '3', conversation_id: 'thread-b' }), ledger()),
+      ],
+      2
+    );
+
+    expect(summary.questionsAsked).toBe(3);
+    expect(summary.userThreads).toBe(2);
+    expect(Object.keys(summary)).not.toContain('peopleAsking');
+  });
+
   it('counts the four outcomes separately and never their sum', () => {
     const summary = summarize(
       [
@@ -404,6 +460,49 @@ describe('the summary counts what it read', () => {
 
   it('reports no median at all when nothing recorded a time', () => {
     expect(summarize([questionFromRow(row({ total_ms: null }), ledger())], 1).medianMs).toBeNull();
+  });
+});
+
+describe('the per-person table ranking', () => {
+  function asked(id: string, tables: string[]) {
+    return questionFromRow(row({ question_id: id, conversation_id: id, sources: tables }), ledger());
+  }
+
+  it('sorts by run count then name and caps the compact list at five', () => {
+    const ranked = rankTablesRead([
+      asked('r1', ['c.s.z_table', 'c.s.a_table', 'c.s.b_table', 'c.s.c_table', 'c.s.d_table', 'c.s.e_table']),
+      asked('r2', ['c.s.z_table', 'c.s.b_table']),
+      asked('r3', ['c.s.a_table']),
+    ]);
+
+    expect(ranked).toEqual([
+      { table: 'c.s.a_table', runs: 2 },
+      { table: 'c.s.b_table', runs: 2 },
+      { table: 'c.s.z_table', runs: 2 },
+      { table: 'c.s.c_table', runs: 1 },
+      { table: 'c.s.d_table', runs: 1 },
+    ]);
+  });
+
+  it('counts the same run and table only once even if its row or source repeats', () => {
+    const duplicated = asked('same-run', ['c.s.table_a', 'c.s.table_a']);
+    expect(rankTablesRead([duplicated, duplicated, asked('other-run', ['C.S.TABLE_A'])])).toEqual([
+      { table: 'c.s.table_a', runs: 2 },
+    ]);
+  });
+
+  it('returns no configured-table substitute when no run recorded a source', () => {
+    expect(rankTablesRead([asked('r1', [])])).toEqual([]);
+  });
+
+  it('aggregates the whole person-period independently of the visible page', () => {
+    expect(MONITORING_PERSON_TABLES_QUERY).toContain('u.created_at >= $2::timestamptz');
+    expect(MONITORING_PERSON_TABLES_QUERY).toContain('u.created_at < $3::timestamptz');
+    expect(MONITORING_PERSON_TABLES_QUERY).toContain('lower(c.user_email) = lower($4)');
+    expect(MONITORING_PERSON_TABLES_QUERY).toContain('COUNT(DISTINCT a.answer_id)::int AS runs');
+    expect(MONITORING_PERSON_TABLES_QUERY).toContain("GROUP BY lower(source->>'name')");
+    expect(MONITORING_PERSON_TABLES_QUERY).toContain('ORDER BY runs DESC, table_name ASC');
+    expect(MONITORING_PERSON_TABLES_QUERY).toContain('LIMIT $5');
   });
 });
 

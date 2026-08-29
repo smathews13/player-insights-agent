@@ -93,9 +93,7 @@ def test_a_timeout_is_not_a_refusal():
     """
 
     assert genie_access_denial(TimeoutError("Genie did not answer within 45s"), SPACE) is None
-    assert (
-        genie_access_denial(RuntimeError("failed to reach COMPLETED, got FAILED"), SPACE) is None
-    )
+    assert genie_access_denial(RuntimeError("failed to reach COMPLETED, got FAILED"), SPACE) is None
     assert genie_access_denial(sdk_error(status=500), SPACE) is None
     assert genie_access_denial(sdk_error(status=429, code="REQUEST_LIMIT_EXCEEDED"), SPACE) is None
 
@@ -224,9 +222,9 @@ def test_a_refused_genie_space_names_its_baked_title_in_the_caveat():
         "An answer.",
     )
 
-    answer = ask(
-        build(llm, tools, data_genie_space_title="Player Insights Data")
-    ).custom_outputs["answer"]
+    answer = ask(build(llm, tools, data_genie_space_title="Player Insights Data")).custom_outputs[
+        "answer"
+    ]
 
     caveats = " ".join(answer["caveats"])
     assert "Player Insights Data (data)" in caveats
@@ -283,9 +281,14 @@ def test_the_model_is_not_invited_to_route_around_a_refusal():
     response = ask(build(llm, tools))
 
     refused = next(stage for stage in stages(response) if "REFUSED" in stage["output"])
-    assert "try a different surface" not in refused["output"]
-    assert "Do not retry it" in refused["output"]
-    assert "NOT grounded in the Genie space" in refused["output"]
+    model_guidance = "\n".join(
+        str(message["content"]) for message in llm.transcript if message["role"] == "tool"
+    )
+    assert "try a different surface" not in model_guidance
+    assert "Do not retry it" in model_guidance
+    assert "NOT grounded in the Genie space" in model_guidance
+    assert "Do not retry it" not in refused["output"]
+    assert "NOT grounded in the Genie space" not in refused["output"]
 
 
 def test_the_synthesis_package_separates_a_refusal_from_a_failure():

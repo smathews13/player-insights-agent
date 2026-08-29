@@ -31,6 +31,21 @@
  */
 import type { ResourceKind } from './deployment-config';
 
+/** The concrete resource shape shown by the Connections add flow. */
+export const DECLARED_RESOURCE_TYPES = [
+  'catalog',
+  'schema',
+  'table',
+  'sql-warehouse',
+  'serving-endpoint',
+  'genie-space',
+  'vector-search-endpoint',
+  'vector-search-index',
+  'volume',
+] as const;
+
+export type DeclaredResourceType = (typeof DECLARED_RESOURCE_TYPES)[number];
+
 /**
  * What publishing a value in a notebook actually achieves.
  *
@@ -47,10 +62,7 @@ export type DeclarationFlow =
   | 'refused';
 
 /** The sentence each outcome owes a reader, and whether it is already in force. */
-export const DECLARATION_FLOW: Record<
-  DeclarationFlow,
-  { label: string; note: string; inForce: boolean }
-> = {
+export const DECLARATION_FLOW: Record<DeclarationFlow, { label: string; note: string; inForce: boolean }> = {
   flows: {
     label: 'In force',
     note: 'The app reads this on every request, so the published value is already being used.',
@@ -172,6 +184,13 @@ export interface DeclaredConnection {
   id: string;
   label: string;
   kind: ResourceKind;
+  /**
+   * The concrete resource category selected by the publisher.
+   *
+   * Optional for declarations and stored rows written before the category was
+   * persisted. Readers infer a safe label from `kind`/`value` in that case.
+   */
+  resourceType?: DeclaredResourceType;
   /** The identifier as published, e.g. a three-part table name. */
   value: string;
   /** Free text the publisher left. Shown as given, never parsed. */
@@ -253,6 +272,10 @@ function isDeclarableKind(value: unknown): value is ResourceKind {
   return typeof value === 'string' && (DECLARABLE_KINDS as readonly string[]).includes(value);
 }
 
+function isDeclaredResourceType(value: unknown): value is DeclaredResourceType {
+  return typeof value === 'string' && (DECLARED_RESOURCE_TYPES as readonly string[]).includes(value);
+}
+
 /**
  * A string field of an untrusted document, bounded.
  *
@@ -316,6 +339,9 @@ export function parseDeclaration(raw: unknown): NotebookDeclaration | null {
         id,
         label: field(record.label, 200) || id,
         kind: record.kind,
+        resourceType: isDeclaredResourceType(record.resourceType ?? record.resource_type)
+          ? ((record.resourceType ?? record.resource_type) as DeclaredResourceType)
+          : undefined,
         value,
         note: field(record.note),
       });

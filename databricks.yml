@@ -156,6 +156,12 @@ variables:
       in the git-ignored
       `.databricks/bundle/<target>/variable-overrides.json`. Do not put addresses
       in this tracked file or in a target block.
+  organization_domains:
+    description: >-
+      Optional JSON array of domain-to-organization display mappings for the
+      Identity roster. Keep customer mappings in a private target overlay or
+      git-ignored variable overrides, never in published source.
+    default: ""
   allow_unattributed_figures:
     description: >-
       Whether the agent may return figures it cannot trace to a governed read.
@@ -232,6 +238,13 @@ variables:
       Changing it requires an app release, grants on the new schema, and any
       required data migration.
     default: player_insights
+  app_idle_timeout_minutes:
+    description: >-
+      App-layer inactivity limit for protected API routes. Defaults to 30
+      minutes. Whole numbers are clamped to 5-480; only the literal `disabled`
+      turns the control off. This does not change the separate Databricks
+      workspace or identity-provider session.
+    default: "30"
   # Derived resource names for the existing Lakebase objects.
   postgres_branch_name:
     description: Full Lakebase branch resource name (derived).

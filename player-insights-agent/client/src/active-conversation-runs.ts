@@ -223,8 +223,11 @@ export function useActiveConversationRuns(): ActiveConversationRuns {
   );
 }
 
-/** Test isolation only. Navigation deliberately never clears this registry. */
-export function resetActiveConversationRunsForTests(): void {
+/** Clear run summaries when their browser/app session ends. */
+export function clearActiveConversationRuns(): void {
   snapshot = new Map();
   listeners.clear();
 }
+
+/** Test isolation alias. */
+export const resetActiveConversationRunsForTests = clearActiveConversationRuns;

@@ -35,11 +35,11 @@ import { NotebookCard } from './NotebookCard';
 import { EXPERIMENTAL_PANE_HINT } from './ExperimentalBadge';
 import { notebookPathView, persistNotebookPath } from './notebook-card-state';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
+import { connectionValueError, createDeclaredConnection, derivedConnectionKey } from './declared-connection-form';
 import { DECLARABLE_KEYS, DECLARABLE_KINDS } from '../../shared/notebook-declaration';
 import type { ConnectionEntry, DeclarationComparisonRow, NotebookPanel } from './connection-model';
 
 const CARD_SOURCE = readFileSync(new URL('./DeclaredConnectionsCard.tsx', import.meta.url), 'utf8');
-const CONNECTIONS_CSS = readFileSync(new URL('./styles/connections.css', import.meta.url), 'utf8');
 
 function comparison(overrides: Partial<DeclarationComparisonRow> = {}): DeclarationComparisonRow {
   return {
@@ -325,6 +325,76 @@ describe('the list of assets the agent may consider', () => {
     expect(markup).not.toContain('plane-card-head');
   });
 
+  it('uses the standard accordion row and persisted provenance', () => {
+    const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[entry()]} onChanged={() => {}} />);
+    expect(markup).toContain('connection-row-summary');
+    expect(markup).toContain('connection-row-detail');
+    expect(markup).toContain('Added by');
+    expect(markup).toContain('analyst@example.invalid');
+    expect(markup).toContain('dateTime="2026-08-17T18:00:00.000Z"');
+  });
+
+  it('labels legacy rows without inventing a creator or date', () => {
+    const markup = renderToStaticMarkup(
+      <DeclaredConnectionsCard entries={[entry({ createdAt: undefined, createdBy: undefined })]} onChanged={() => {}} />
+    );
+    expect(markup).toContain('Added previously');
+    expect(markup).not.toContain('Added by');
+  });
+
+  it('derives stable keys and resolves collisions', () => {
+    const first = derivedConnectionKey('sql-warehouse', 'wh-01', []);
+    expect(first).toBe('sql-warehouse-wh-01');
+    expect(derivedConnectionKey('sql-warehouse', 'wh-01', [first])).toBe('sql-warehouse-wh-01-2');
+  });
+
+  it('validates structured identifiers before submission', () => {
+    expect(connectionValueError('schema', 'catalog_only')).toBe('Use catalog.schema.');
+    expect(connectionValueError('table', 'catalog.schema')).toBe('Use catalog.schema.name.');
+    expect(connectionValueError('volume', 'catalog.schema.volume')).toBe('Use /Volumes/catalog/schema/volume.');
+    expect(connectionValueError('table', 'catalog.schema.table')).toBe('');
+  });
+
+  it('keeps server provenance on successful create and returns no phantom entry on failure', async () => {
+    const persisted = entry({
+      id: 'sql-warehouse-wh-01',
+      resourceType: 'sql-warehouse',
+      kind: 'sql-warehouse',
+      value: 'wh-01',
+    });
+    const successFetch = vi.fn((_url: string, init?: RequestInit) => {
+      if (typeof init?.body !== 'string') throw new Error('expected a JSON request body');
+      expect(JSON.parse(init.body)).toMatchObject({ resourceType: 'sql-warehouse', value: 'wh-01' });
+      return Promise.resolve(new Response(JSON.stringify(persisted), { status: 201 }));
+    });
+    const success = await createDeclaredConnection(
+      {
+        id: persisted.connection.id,
+        label: 'Analytics',
+        kind: 'sql-warehouse',
+        resourceType: 'sql-warehouse',
+        value: 'wh-01',
+      },
+      successFetch as typeof fetch
+    );
+    expect(success.ok && success.entry.connection.createdBy).toBe('analyst@example.invalid');
+
+    const failure = await createDeclaredConnection(
+      {
+        id: 'sql-warehouse-wh-02',
+        label: '',
+        kind: 'sql-warehouse',
+        resourceType: 'sql-warehouse',
+        value: 'wh-02',
+      },
+      vi.fn(() =>
+        Promise.resolve(new Response(JSON.stringify({ detail: 'Warehouse wh-02 is unavailable.' }), { status: 409 }))
+      )
+    );
+    expect(failure).toEqual({ ok: false, detail: 'Warehouse wh-02 is unavailable.' });
+    expect(failure).not.toHaveProperty('entry');
+  });
+
   it('never claims the asset is granted, connected or accessible', () => {
     const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[entry()]} onChanged={() => {}} />);
     for (const forbidden of ['grants you', 'now readable', 'access granted']) {
@@ -338,8 +408,8 @@ describe('the list of assets the agent may consider', () => {
     }
   });
 
-  it('starts its extensible picker registry with tables, Genie spaces and catalogs', () => {
-    expect(ADDABLE_KINDS.slice(0, 3).map((option) => option.label)).toEqual(['Tables', 'Genie spaces', 'Catalogs']);
+  it('offers precise singular resource types', () => {
+    expect(ADDABLE_KINDS.slice(0, 3).map((option) => option.label)).toEqual(['Catalog', 'Schema', 'Table or view']);
     const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[]} allowMutations onChanged={() => {}} />);
     expect(markup).toContain('+ Add a new connection');
     expect(markup).toContain('data-testid="add-connection-row"');
@@ -426,8 +496,8 @@ describe('every addable kind browses', () => {
     ['catalog', 'catalogs'],
     ['sql-warehouse', 'warehouses'],
     ['volume', 'volumes'],
-    ['vector-search', 'vector-search-indexes'],
-    ['model', 'serving-endpoints'],
+    ['vector-search-index', 'vector-search-indexes'],
+    ['serving-endpoint', 'serving-endpoints'],
   ])('opens the %s picker on the %s list', (kindId, leaf) => {
     const spec = pickerForAddKind(kindId);
     expect(spec).not.toBeNull();
@@ -445,8 +515,8 @@ describe('every addable kind browses', () => {
    * it. Source order is keyboard order here because the form uses no tabindex
    * overrides and CSS does not reorder its children.
    */
-  it('puts kind before every field whose meaning depends on kind', () => {
-    const kind = CARD_SOURCE.indexOf('label="Kind"');
+  it('puts resource type before every field whose meaning depends on it', () => {
+    const kind = CARD_SOURCE.indexOf('label="Resource type"');
     expect(kind).toBeGreaterThan(0);
     for (const field of ['-identifier`}', '-label`}', '-key`}']) {
       expect.soft(CARD_SOURCE.indexOf(field), field).toBeGreaterThan(kind);
@@ -465,23 +535,18 @@ describe('every addable kind browses', () => {
    * action above the manual field. It now disappears from both visual and
    * accessibility order, while the short fallback line remains.
    */
-  it('hides an empty browser and leaves a short blank', () => {
-    expect(CONNECTIONS_CSS).toMatch(
-      /\.plane-picker:has\(\.asset-picker-empty\) > \.asset-picker\s*\{[\s\S]*display:\s*none/
-    );
-    expect(CONNECTIONS_CSS).toMatch(
-      /\.plane-picker:has\(\.asset-picker-empty\) > \.plane-picker-empty-note\s*\{[\s\S]*display:\s*block/
-    );
-    expect(CARD_SOURCE).toContain('No catalogs are visible.');
-    expect(CARD_SOURCE).not.toContain('no Unity Catalog grants');
-    expect(CARD_SOURCE).not.toContain('still enter the name manually');
+  it('keeps manual entry secondary to user-scoped discovery', () => {
+    expect(CARD_SOURCE).toContain("fetch('/api/browse/connection-types')");
+    expect(CARD_SOURCE).toContain('Enter an identifier manually');
+    expect(CARD_SOURCE).toMatch(/typeChoices\.length > 0 && !manual[\s\S]*<AssetPicker/);
+    expect(CARD_SOURCE).toMatch(/\{manual \? \([\s\S]*plane-field ast-mono/);
   });
 
   it('associates the disabled Add reason with the button that needs it', () => {
     expect(CARD_SOURCE).toContain('aria-describedby={disabledReason ? `${formId}-add-reason` : undefined}');
     expect(CARD_SOURCE).toContain('id={`${formId}-add-reason`}');
-    expect(CARD_SOURCE).toMatch(/!value\.trim\(\)[\s\S]*Enter or choose a/);
-    expect(CARD_SOURCE).toMatch(/!id\.trim\(\)[\s\S]*Enter a connection key/);
+    expect(CARD_SOURCE).toMatch(/!value\.trim\(\)[\s\S]*Choose a warehouse first/);
+    expect(CARD_SOURCE).not.toMatch(/!id\.trim\(\)[\s\S]*Enter a connection key/);
   });
 
   /** Two kinds share the catalog chain, so the field ids must still be distinct. */

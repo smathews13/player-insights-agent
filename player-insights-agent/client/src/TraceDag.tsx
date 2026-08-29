@@ -70,14 +70,24 @@ import { reportEgress } from './egress-policy';
 import type { TraceStage, TraceSummary } from './answer-shape';
 import { takeawayWhenTablesLanded, withDisplayedStageStatus, type RunVerdict } from '../../shared/run-verdict';
 import { describePayload, payloadSize, type Payload } from './trace-payload';
-import { buildTimeline, runOrigin, toolNameFromId } from './trace-timeline';
-import { AgentReport, ChipText, EntityName, GenieCard, MarkdownText, ResultSource, SemanticCard } from './StepResult';
+import { buildTimeline, formatMs, runOrigin, toolNameFromId } from './trace-timeline';
+import {
+  AgentReport,
+  ChipText,
+  EntityName,
+  GenieCard,
+  MarkdownText,
+  ResultSource,
+  SemanticCard,
+  StructuredTableResultView,
+} from './StepResult';
 import {
   argumentLabel,
   genieResult,
   reportSections,
   resultShape,
   semanticResult,
+  structuredTableResult,
   type ResultShape,
 } from './step-results';
 import { astPill } from './run-header';
@@ -93,11 +103,13 @@ import {
   railGlyph,
   railTiming,
   rawIo,
+  runContainerSummary,
   sqlLines,
   sqlTokens,
   stepNumber,
   RAIL_CONNECTOR_HEIGHT,
   type RailGlyph,
+  type RunContainerSummary,
 } from './agent-map';
 
 /**
@@ -400,6 +412,8 @@ function RenderedResult({
   tables?: readonly string[];
   tableListing?: boolean;
 }) {
+  const tableResult = structuredTableResult(text);
+  if (tableResult) return <StructuredTableResultView result={tableResult} />;
   if (tableListing) return <TableEntityList tables={tables} />;
   // A shape that will not parse FALLS THROUGH rather than rendering markdown here,
   // and the difference matters: a `data_genie` result that is a bare grid instead
@@ -541,6 +555,67 @@ function SqlBlock({ sql }: { sql: string }) {
   );
 }
 
+function RunSummaryDetail({ stage, summary, id }: { stage: TraceStage; summary: RunContainerSummary; id: string }) {
+  return (
+    <div className={`dag-detail run-summary ${summary.status.replaceAll(' ', '-')}`} id={id}>
+      <div className="dag-detail-head">
+        <KindChip stage={stage} />
+        <strong>Run summary</strong>
+        <Badge variant="outline" className={astPill(summary.status)}>
+          {summary.status}
+        </Badge>
+      </div>
+      <dl aria-label="Run summary evidence">
+        <dt>Execution</dt>
+        <dd className="run-summary-execution">
+          <span className="ast-num">{summary.stageCount}</span> {summary.stageCount === 1 ? 'stage' : 'stages'}
+          {' · '}
+          <span className="ast-num">{summary.agentStepCount}</span>{' '}
+          {summary.agentStepCount === 1 ? 'agent step' : 'agent steps'}
+          {summary.toolCalls !== null ? (
+            <>
+              {' · '}
+              <span className="ast-num">{summary.toolCalls}</span>{' '}
+              {summary.toolCalls === 1 ? 'tool call' : 'tool calls'}
+            </>
+          ) : null}
+          {summary.wallTimeMs !== null ? (
+            <>
+              {' · '}
+              <span className="ast-num">{formatMs(summary.wallTimeMs)}</span> wall time
+            </>
+          ) : null}
+        </dd>
+        <dt>Final stage</dt>
+        <dd>
+          {summary.finalStage ? (
+            <>
+              <span>{summary.finalStage.name}</span>
+              <Badge variant="outline" className={astPill(summary.finalStage.status)}>
+                {summary.finalStage.status}
+              </Badge>
+            </>
+          ) : (
+            'No stage recorded yet'
+          )}
+        </dd>
+        <dt>Final answer</dt>
+        <dd>{summary.answerAvailability}</dd>
+        {summary.traceId ? (
+          <>
+            <dt>Trace</dt>
+            <dd>
+              <code className="dag-detail-mono" title={summary.traceId}>
+                {summary.traceId}
+              </code>
+            </dd>
+          </>
+        ) : null}
+      </dl>
+    </div>
+  );
+}
+
 /**
  * What one stage recorded, opened from its node on the map.
  *
@@ -575,15 +650,18 @@ export function StageDetail({
   origin,
   id,
   charts,
+  runSummary = null,
 }: {
   stage: TraceStage;
   step: number;
   origin: number;
   id: string;
   charts?: Chart[];
+  runSummary?: RunContainerSummary | null;
 }) {
   const failed = stage.status === 'failed';
   const [raw, setRaw] = useState(failed);
+  if (runSummary) return <RunSummaryDetail stage={stage} summary={runSummary} id={id} />;
   // The tool's real name, which the stage id carries verbatim. `_TOOL_STAGE_NAMES`
   // in agent.py gives a tool a reader's label ("Queried governed data") and falls
   // back to "Called {name}" for one it has no label for, so this is the only place
@@ -599,6 +677,9 @@ export function StageDetail({
   const shape = resultShape(stage.kind, tool);
   const tables = stageTableEntities(stage);
   const tableListing = isTableListingStage(stage);
+  const argumentFields = args.fields?.filter((field) => field.key !== (sql?.key ?? null)) ?? null;
+  const hasArguments = !args.empty && (argumentFields === null || argumentFields.length > 0);
+  const hasResult = !result.empty || (tableListing && tables.length > 0) || stage.name === 'Built the charts';
   return (
     <div className={`dag-detail ${stage.status}`} id={id}>
       <div className="dag-detail-head">
@@ -623,67 +704,75 @@ export function StageDetail({
             <dd className="dag-detail-mono">{stage.id}</dd>
           </>
         )}
-        <dt>{argumentLabel(shape, askedField(args, sql?.key ?? null) !== null)}</dt>
-        <dd>
-          <ArgumentBlock payload={args} skipKey={sql?.key ?? null} />
-        </dd>
-        <dt>Result</dt>
-        <dd>
-          {stage.name === 'Built the charts' ? (
-            charts?.length ? (
-              <div className="dag-result-charts">
-                <AnswerCharts charts={charts} />
-              </div>
-            ) : (
-              <p className="dag-chart-empty">
-                {charts
-                  ? 'This step completed without a chart.'
-                  : 'The chart payload is unavailable for this stored run.'}
-              </p>
-            )
-          ) : null}
-          {result.empty ? (
-            tableListing ? (
-              <TableEntityList tables={tables} />
-            ) : (
-              <Absent />
-            )
-          ) : (
-            <>
-              <div className="dag-result-meta">
-                {/* What answered, read off the same parse the body is drawn from,
+        {hasArguments ? (
+          <>
+            <dt>{argumentLabel(shape, askedField(args, sql?.key ?? null) !== null)}</dt>
+            <dd>
+              <ArgumentBlock payload={args} skipKey={sql?.key ?? null} />
+            </dd>
+          </>
+        ) : null}
+        {hasResult ? (
+          <>
+            <dt>Result</dt>
+            <dd>
+              {stage.name === 'Built the charts' ? (
+                charts?.length ? (
+                  <div className="dag-result-charts">
+                    <AnswerCharts charts={charts} />
+                  </div>
+                ) : (
+                  <p className="dag-chart-empty">
+                    {charts
+                      ? 'This step completed without a chart.'
+                      : 'The chart payload is unavailable for this stored run.'}
+                  </p>
+                )
+              ) : null}
+              {result.empty ? (
+                tableListing ? (
+                  <TableEntityList tables={tables} />
+                ) : (
+                  <Absent />
+                )
+              ) : (
+                <>
+                  <div className="dag-result-meta">
+                    {/* What answered, read off the same parse the body is drawn from,
                     so this line cannot name a Genie space the card below did not
                     come from. Absent for a shape with no source to name, and for
                     one whose parse refused. */}
-                <ResultSource shape={shape} text={result.body} />
-                {result.truncated && <Clipped />}
-                {/* Two states of one control, so it is a group of pressed
+                    <ResultSource shape={shape} text={result.body} />
+                    {result.truncated && <Clipped />}
+                    {/* Two states of one control, so it is a group of pressed
                     buttons rather than two independent ones. A radio group
                     would announce a form field; this changes how one value is
                     drawn and changes nothing about the run. */}
-                <span className="dag-seg" role="group" aria-label="How to show this result">
-                  <button type="button" aria-pressed={!raw} onClick={() => setRaw(false)}>
-                    Rendered
-                  </button>
-                  {/* The size moves onto the Raw segment, which is the only place
+                    <span className="dag-seg" role="group" aria-label="How to show this result">
+                      <button type="button" aria-pressed={!raw} onClick={() => setRaw(false)}>
+                        Rendered
+                      </button>
+                      {/* The size moves onto the Raw segment, which is the only place
                       it means anything: it is the measure of what pressing that
                       button shows, and above a rendered card it was the length of
                       a payload the reader was no longer looking at. The character
                       count stays in the title rather than on the label, which the
                       design keeps to the line count. */}
-                  <button type="button" aria-pressed={raw} onClick={() => setRaw(true)} title={payloadSize(result)}>
-                    Raw{result.lines > 1 ? ` · ${result.lines.toLocaleString()} lines` : ''}
-                  </button>
-                </span>
-              </div>
-              {raw ? (
-                <pre className="dag-block">{result.body}</pre>
-              ) : (
-                <RenderedResult shape={shape} text={result.body} tables={tables} tableListing={tableListing} />
+                      <button type="button" aria-pressed={raw} onClick={() => setRaw(true)} title={payloadSize(result)}>
+                        Raw{result.lines > 1 ? ` · ${result.lines.toLocaleString()} lines` : ''}
+                      </button>
+                    </span>
+                  </div>
+                  {raw ? (
+                    <pre className="dag-block">{result.body}</pre>
+                  ) : (
+                    <RenderedResult shape={shape} text={result.body} tables={tables} tableListing={tableListing} />
+                  )}
+                </>
               )}
-            </>
-          )}
-        </dd>
+            </dd>
+          </>
+        ) : null}
       </dl>
       {sql && <SqlBlock sql={sql.value} />}
     </div>
@@ -733,6 +822,7 @@ export function TraceDag({
   trace = null,
   question = '',
   verdict,
+  runStatus,
 }: {
   stages: TraceStage[];
   activeIndex: number;
@@ -758,6 +848,8 @@ export function TraceDag({
    * native PARTIAL is shown Complete, matching Ask.
    */
   verdict?: RunVerdict;
+  /** Stored run state, including waiting/cancelled states outside answer verdicts. */
+  runStatus?: string | null;
 }) {
   const shownStages = [...withDisplayedStageStatus(stages, verdict)];
   const envelope =
@@ -775,6 +867,9 @@ export function TraceDag({
         output: envelope.output,
         startMeasured: true,
       }
+    : null;
+  const summary = envelopeStage
+    ? runContainerSummary({ stages: shownStages, trace, activeIndex, runStatus, verdict })
     : null;
   const displayedStages = envelopeStage ? [envelopeStage, ...shownStages] : shownStages;
   const displayedActiveIndex = envelopeStage && activeIndex >= 0 ? activeIndex + 1 : activeIndex;
@@ -813,7 +908,9 @@ export function TraceDag({
         const next = displayedStages[index + 1];
         const isOpen = open?.id === item.id;
         const runEnvelope = item.id === '__run__';
-        const nodeClass = `dag-node ${item.status} ${displayedActiveIndex === index ? 'active' : ''}`;
+        const itemStatus = runEnvelope && summary ? summary.status : item.status;
+        const statusClass = itemStatus.replaceAll(' ', '-');
+        const nodeClass = `dag-node ${statusClass} ${displayedActiveIndex === index ? 'active' : ''}`;
         return (
           <div
             key={item.id}
@@ -897,9 +994,9 @@ export function TraceDag({
                     <Badge variant="outline" className="dag-metric-badge dag-call-badge ast-num">
                       {cardCalls(item, runEnvelope)}
                     </Badge>
-                    {item.status !== 'complete' && (
-                      <Badge variant="outline" className={`dag-status-badge ${astPill(item.status)}`}>
-                        {item.status}
+                    {itemStatus !== 'complete' && (
+                      <Badge variant="outline" className={`dag-status-badge ${astPill(itemStatus)}`}>
+                        {itemStatus}
                       </Badge>
                     )}
                   </span>
@@ -934,7 +1031,15 @@ export function TraceDag({
           have. `key` is the stage, so opening a different step gets a panel that
           starts on Rendered rather than one that kept the last step's segment. */}
       {!compact && open && (
-        <StageDetail key={open.id} stage={open} step={openIndex + 1} origin={origin} id={panelId} charts={charts} />
+        <StageDetail
+          key={open.id}
+          stage={open}
+          step={openIndex + 1}
+          origin={origin}
+          id={panelId}
+          charts={charts}
+          runSummary={open.id === '__run__' ? summary : null}
+        />
       )}
       {!compact && stages.length > 0 && <RawIo stages={stages} />}
     </div>

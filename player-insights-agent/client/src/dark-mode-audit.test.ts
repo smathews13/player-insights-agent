@@ -568,9 +568,9 @@ describe('dark mode covers the shipped surfaces', () => {
       settingsRules,
       "html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive"
     );
-    expect(remove).toMatch(/background:\s*transparent/);
+    expect(remove).toMatch(/background:\s*var\(--ast-destructive-control\)/);
     expect(remove).toMatch(/border-color:\s*var\(--ast-destructive-control\)/);
-    expect(remove).toMatch(/color:\s*var\(--ast-destructive-control\)/);
+    expect(remove).toMatch(/color:\s*var\(--destructive-foreground\)/);
     for (const component of ['AdminListEditor.tsx', 'UserRoleEditor.tsx']) {
       expect(source(component), `${component} does not identify Remove as destructive`).toContain(
         'data-variant="destructive"'

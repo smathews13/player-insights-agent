@@ -137,11 +137,13 @@ describe('an alert description breaks where a sentence does, or not at all', () 
     expect(splits).toEqual([]);
   });
 
-  it('keeps the recorded-intention sentence inside one wrapper', () => {
+  it('keeps the pending-intention sentence inside one wrapper', () => {
     // The first of the two that shipped split. Named directly as well as caught by
     // the rule above, because the rule reads the absence of a defect and this reads
     // the presence of the fix.
-    expect(CONNECTIONS).toMatch(/<span>\s*<strong>Intended: \{row\.intended\}<\/strong>, recorded/);
+    expect(CONNECTIONS).toMatch(
+      /<span>\s*<strong>\s*\{pendingState\}: \{row\.intended\}\s*<\/strong>\s*\{row\.intendedBy[\s\S]*?<\/span>/
+    );
   });
 
   /**
@@ -166,7 +168,7 @@ describe('an alert description breaks where a sentence does, or not at all', () 
     // alerts with it. A `block` on something further in is fine, and one of these
     // alerts uses one to put each of two error sentences on its own line.
     expect([...CONNECTIONS.matchAll(/<AlertDescription\b[^>]*>/g)].map(([tag]) => tag)).toEqual(
-      Array(descriptions(CONNECTIONS).length).fill('<AlertDescription>'),
+      Array(descriptions(CONNECTIONS).length).fill('<AlertDescription>')
     );
   });
 });

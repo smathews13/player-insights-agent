@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import type { Identity } from './app-types';
 import { AccountMenuPanel } from './AccountMenu';
 import { accountSlackHref } from './account-slack-links';
-import { FIRST_OPEN_KEY, FIRST_OPEN_OUTCOME_KEY, signOutOfAstrolabe } from './first-open';
 
 const IDENTITY: Identity = {
   signedInAs: 'jordan.lee@example.com',
@@ -23,14 +22,15 @@ describe('account menu', () => {
       'Report feedback',
       'Escalate to Super Admin',
       'Back to Databricks Apps',
-      'Sign out of',
-      'astrolabe',
+      'Sign out of Astrolabe',
+      'App and workspace sessions are separate.',
+      'What sign-out does',
     ];
     for (const label of labels) expect(markup).toContain(label);
     for (let index = 1; index < labels.length; index += 1) {
       expect(markup.indexOf(labels[index - 1])).toBeLessThan(markup.indexOf(labels[index]));
     }
-    expect(markup).toContain('account-menu-astrolabe');
+    expect(markup).toContain('account-menu-signout-label');
     expect(markup).not.toMatch(/Slack[^<]*astrolabe|astrolabe[^<]*Slack/);
   });
 
@@ -76,9 +76,7 @@ describe('account menu', () => {
     const source = readFileSync(new URL('./AccountMenu.tsx', import.meta.url), 'utf8');
     expect(source).toContain('<RoleBadgePill state={role} />');
     expect(source).not.toContain('<RoleBadge ');
-    const markup = renderToStaticMarkup(
-      <AccountMenuPanel identity={IDENTITY} role="admin" onSignOut={() => {}} />
-    );
+    const markup = renderToStaticMarkup(<AccountMenuPanel identity={IDENTITY} role="admin" onSignOut={() => {}} />);
     expect(markup).not.toContain('aria-live');
   });
 
@@ -90,19 +88,21 @@ describe('account menu', () => {
     expect(source).toContain("event.key !== 'Escape'");
   });
 
-  it('ends only the Astrolabe tab session', () => {
-    const removed: string[] = [];
-    signOutOfAstrolabe({
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: (key) => removed.push(key),
-    });
-    expect(removed).toEqual([FIRST_OPEN_OUTCOME_KEY, FIRST_OPEN_KEY]);
-
+  it('uses the coordinated app and native-cookie sign-out path', () => {
     const source = readFileSync(new URL('./AccountMenu.tsx', import.meta.url), 'utf8');
-    expect(source).toContain('signOutOfAstrolabe()');
-    expect(source).toContain('window.location.reload()');
-    expect(source).not.toContain('/api/account/logout');
+    expect(source).toContain('signOutAndEndAppSession()');
+    expect(source).not.toContain('window.location.reload()');
+    expect(source).not.toMatch(/https?:\/\/[^'"]+\/\.auth\/sign_out/);
+  });
+
+  it('states the platform limitation without promising workspace or federated logout', () => {
+    const markup = renderToStaticMarkup(
+      <AccountMenuPanel identity={IDENTITY} role="super_admin" onSignOut={() => {}} />
+    );
+    expect(markup).toContain('App and workspace sessions are separate.');
+    expect(markup).toContain('may authenticate you again without prompting');
+    expect(markup).toContain('Federated logout is not supported');
+    expect(markup).not.toMatch(/signs? you out of (?:the )?workspace|federated logout (?:is )?(?:complete|supported)/i);
   });
 
   it('keeps the gear wired to the existing settings modal', () => {

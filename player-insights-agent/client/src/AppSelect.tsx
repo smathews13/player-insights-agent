@@ -4,6 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from './ui';
 export interface AppSelectOption<T extends string = string> {
   value: T;
   label: string;
+  /** Canonical machine value shown with code typography after the friendly label. */
+  code?: string;
 }
 
 interface AppSelectProps<T extends string> {
@@ -40,12 +42,25 @@ export function AppSelect<T extends string>({
   contentProps,
 }: AppSelectProps<T>) {
   const selected = options.find((option) => option.value === value) ?? options[0];
+  const optionContent = (option: AppSelectOption<T> | undefined) =>
+    option ? (
+      <>
+        <span>{option.label}</span>
+        {option.code ? (
+          <>
+            <span aria-hidden="true"> — </span>
+            <code>{option.code}</code>
+          </>
+        ) : null}
+      </>
+    ) : null;
+  const accessibleValue = selected ? `${selected.label}${selected.code ? ` — ${selected.code}` : ''}` : '';
 
   return (
     <Select value={value} disabled={disabled} onValueChange={(next) => onValueChange(next as T)}>
       <SelectTrigger
         className={`app-select-trigger ${className}`.trim()}
-        aria-label={`${ariaLabel}: ${selected?.label ?? ''}`}
+        aria-label={`${ariaLabel}: ${accessibleValue}`}
       >
         {showLabel ? <span className="app-select-label">{label}</span> : null}
         {showLabel ? (
@@ -53,7 +68,7 @@ export function AppSelect<T extends string>({
             ·
           </span>
         ) : null}
-        <span className="app-select-value">{selected?.label ?? ''}</span>
+        <span className="app-select-value">{optionContent(selected)}</span>
       </SelectTrigger>
       <SelectContent
         className={`app-select-content ${contentClassName}`.trim()}
@@ -63,7 +78,7 @@ export function AppSelect<T extends string>({
       >
         {options.map((option) => (
           <SelectItem key={option.value} value={option.value}>
-            {option.label}
+            {optionContent(option)}
           </SelectItem>
         ))}
       </SelectContent>

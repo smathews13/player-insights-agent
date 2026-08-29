@@ -44,6 +44,26 @@ export function workspaceAppsUrl(host: string, workspaceId?: string | null): str
   return org ? `${base}/apps-v2?o=${encodeURIComponent(org)}` : `${base}/apps-v2`;
 }
 
+/**
+ * Stable Account Console landing page for the deployment's cloud.
+ *
+ * Account Console's nested User management route is not a documented stable
+ * deep link. Landing at the official cloud-specific console is preferable to a
+ * customer/account-id URL that can become wrong or disclose deployment data.
+ */
+export function accountConsoleUrlForWorkspace(host: string | undefined | null): string {
+  const hostname = (() => {
+    try {
+      return new URL(normalizeWorkspaceHost(host)).hostname.toLocaleLowerCase();
+    } catch {
+      return '';
+    }
+  })();
+  if (hostname.endsWith('.azuredatabricks.net')) return 'https://accounts.azuredatabricks.net';
+  if (hostname.endsWith('.gcp.databricks.com')) return 'https://accounts.gcp.databricks.com';
+  return 'https://accounts.cloud.databricks.com';
+}
+
 /** What kind of workspace object a link points at. */
 export type DatabricksObject =
   | { kind: 'serving-endpoint'; name: string }

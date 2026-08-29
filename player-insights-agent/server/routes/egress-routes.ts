@@ -1,14 +1,15 @@
 /**
  * The API for watching and restricting what leaves this app.
  *
- * ── FOUR ROUTES, AND THE SPLIT BETWEEN THEM IS THE PERMISSION MODEL ──
+ * ── FIVE ROUTES, AND THE SPLIT BETWEEN THEM IS THE PERMISSION MODEL ──
  *
- * Two are open to any signed-in reader and two are administrators only, and the
+ * Two are open to any signed-in reader and three are administrators only, and the
  * split is not a convenience:
  *
  *   GET  /api/egress/controls        Any signed-in reader. WHAT IS PERMITTED.
  *   POST /api/egress/events         Any signed-in reader. RECORD MY OWN EXPORT.
  *   PUT  /api/egress/admin/controls Administrators. CHANGE WHAT IS PERMITTED.
+ *   GET  /api/egress/admin/events   Administrators. RECENT EVENT METADATA.
  *   GET  /api/egress/admin/classification Administrators. WHAT THE CATALOG SAYS.
  *
  * The open pair has to be open. A consumer's browser is where the affordances
@@ -20,7 +21,7 @@
  * action against the caller's own address, which the server takes from the
  * request rather than from the body.
  *
- * The admin pair is under `/api/egress/admin`, which is one prefix in
+ * The administrator routes are under `/api/egress/admin`, which is one prefix in
  * `ADMIN_ROUTE_PREFIXES`. A route added under it later inherits the refusal
  * without anybody remembering to wrap it, which is the whole reason this app
  * guards by prefix. {@link setupEgressRoutes} registers NOTHING if the prefix
@@ -51,7 +52,14 @@ import {
   type EgressClassificationPayload,
   type EgressControlsPayload,
 } from '../../shared/egress-contract';
-import { readEgressControls, recordEgress, writeEgressControl } from '../lib/egress-store';
+import {
+  egressStorageMetadata,
+  parseEgressEventsCursor,
+  readEgressControls,
+  readEgressEventsPage,
+  recordEgress,
+  writeEgressControl,
+} from '../lib/egress-store';
 import { classifyTables, NO_TOKEN_REASON, NO_WAREHOUSE_REASON } from '../lib/egress-classification';
 import { accessRunner, type SqlRunner } from '../lib/admin-access';
 import { accessDependenciesFrom } from './access-verification';
@@ -62,6 +70,7 @@ import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 /** The paths that must be behind the admin guard, checked at registration. */
 export const EGRESS_ADMIN_ROUTES: readonly string[] = [
   '/api/egress/admin/controls',
+  '/api/egress/admin/events',
   '/api/egress/admin/classification',
 ];
 
@@ -128,6 +137,13 @@ const ControlBody = z
   })
   .strict();
 
+const EventsQuery = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    cursor: z.string().trim().max(512).optional(),
+  })
+  .strict();
+
 export function setupEgressRoutes(appkit: InsightsAppKit, deps: EgressDeps) {
   if (typeof deps?.isAdminRoute !== 'function') {
     console.error(
@@ -175,6 +191,7 @@ export function setupEgressRoutes(appkit: InsightsAppKit, deps: EgressDeps) {
         controls: reading.controls,
         stored: reading.stored,
         paths: EGRESS_PATHS,
+        storage: egressStorageMetadata(),
       } satisfies EgressControlsPayload);
     });
 
@@ -229,6 +246,39 @@ export function setupEgressRoutes(appkit: InsightsAppKit, deps: EgressDeps) {
     });
 
     /**
+     * Recent event metadata. Administrators only.
+     *
+     * The caller may choose only a bounded page size and an opaque keyset cursor.
+     * The store owns both fixed statements and binds every cursor value; this is
+     * intentionally not a general query endpoint.
+     */
+    app.get('/api/egress/admin/events', async (req: Request, res: Response) => {
+      const parsed = EventsQuery.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json({
+          error: 'invalid_egress_events_query',
+          detail: 'Use only a page limit from 1 to 50 and the cursor returned by the previous page.',
+        });
+        return;
+      }
+      const cursor = parsed.data.cursor ? parseEgressEventsCursor(parsed.data.cursor) : null;
+      if (parsed.data.cursor && !cursor) {
+        res.status(400).json({
+          error: 'invalid_egress_events_cursor',
+          detail: 'The records cursor is invalid or expired. Refresh to start from the newest records.',
+        });
+        return;
+      }
+      res.json(
+        await readEgressEventsPage(appkit, {
+          limit: parsed.data.limit,
+          cursor,
+          now: clock(),
+        })
+      );
+    });
+
+    /**
      * Move one switch. Administrators only.
      *
      * One path per request rather than the whole set. A single switch is what an
@@ -272,6 +322,7 @@ export function setupEgressRoutes(appkit: InsightsAppKit, deps: EgressDeps) {
         controls: reading.controls,
         stored: reading.stored,
         paths: EGRESS_PATHS,
+        storage: egressStorageMetadata(),
       } satisfies EgressControlsPayload);
     });
 

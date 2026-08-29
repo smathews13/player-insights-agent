@@ -27,6 +27,18 @@ export function resetActiveAsks(): void {
   activeAsks.clear();
 }
 
+/**
+ * End every browser stream when the app session ends. This is intentionally not
+ * a server-side run cancellation: a lost browser session must not mutate durable
+ * work, but it must stop receiving and retaining that work in this tab.
+ */
+export function abortActiveAsksForSessionEnd(): void {
+  for (const active of activeAsks.values()) {
+    active.controller.abort(new DOMException('Astrolabe app session ended', 'AbortError'));
+  }
+  activeAsks.clear();
+}
+
 export interface CancelRunResponse {
   targeted: number;
   cancelled: number;

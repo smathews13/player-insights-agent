@@ -15,12 +15,7 @@ const DEPLOY_OVERRIDES = {
   command: "['node', 'server.mjs']",
   env: [{ name: 'NODE_ENV', value: 'production' }],
 };
-const REQUIRED_ASK_SCOPES = [
-  'serving.serving-endpoints',
-  'model-serving',
-  'sql',
-  'dashboards.genie',
-];
+const REQUIRED_ASK_SCOPES = ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboards.genie'];
 const GIT_DEPLOY_SCOPES = [...REQUIRED_ASK_SCOPES, 'workspace.workspace:read', 'postgres'];
 const OPTIONAL_BROWSE_SCOPES = [
   'catalog.catalogs:read',
@@ -33,8 +28,7 @@ const OPTIONAL_BROWSE_SCOPES = [
 ];
 
 function declaredScopes(yaml: string): string[] {
-  const value =
-    /- name: PLAYER_INSIGHTS_USER_API_SCOPES\n\s+value: '?([^'\n]*)'?/.exec(yaml)?.[1] ?? '';
+  const value = /- name: PLAYER_INSIGHTS_USER_API_SCOPES\n\s+value: '?([^'\n]*)'?/.exec(yaml)?.[1] ?? '';
   return value.split(',').filter(Boolean);
 }
 
@@ -55,7 +49,8 @@ describe('every authored variable reaches the deploy target', () => {
 
     expect(envNames(authored).length).toBeGreaterThan(0);
     for (const name of envNames(authored)) {
-      expect(generated,
+      expect(
+        generated,
         `${name} is declared in app.yaml but missing from the generated deploy app.yaml. ` +
           'The deployed app will not receive it, and nothing else will report that.'
       ).toContain(`name: ${name}`);
@@ -65,7 +60,8 @@ describe('every authored variable reaches the deploy target', () => {
   it('does not carry a workspace-specific experiment id in the authored file', () => {
     const authoredId = /- name: PLAYER_INSIGHTS_EXPERIMENT_ID\n\s+value: '?(\d+)'?/.exec(authored);
 
-    expect(authoredId,
+    expect(
+      authoredId,
       'app.yaml names a literal MLflow experiment id. That id belongs to one workspace and ' +
         'ships in every build, so a customer following the Run Explorer link lands on an ' +
         'experiment that does not exist in their account. The release supplies it instead.'
@@ -95,7 +91,8 @@ describe('every authored variable reaches the deploy target', () => {
   it('ships every Git deploy with ask-path and workspace browse scopes', () => {
     const generated = renderDeployAppYaml(authored, DEPLOY_OVERRIDES);
 
-    expect(declaredScopes(generated),
+    expect(
+      declaredScopes(generated),
       'A plain build produces build/deploy/app.yaml, which Deploy from Git runs. Leaving this ' +
         'empty makes the login gate say Astrolabe needs no serving, SQL, or Genie scopes.'
     ).toEqual(GIT_DEPLOY_SCOPES);
@@ -116,10 +113,7 @@ describe('every authored variable reaches the deploy target', () => {
     const resolved = [...REQUIRED_ASK_SCOPES, ...OPTIONAL_BROWSE_SCOPES].join(',');
     const generated = renderDeployAppYaml(authored, {
       ...DEPLOY_OVERRIDES,
-      env: [
-        ...DEPLOY_OVERRIDES.env,
-        { name: 'PLAYER_INSIGHTS_USER_API_SCOPES', value: `'${resolved}'` },
-      ],
+      env: [...DEPLOY_OVERRIDES.env, { name: 'PLAYER_INSIGHTS_USER_API_SCOPES', value: `'${resolved}'` }],
     });
 
     expect(declaredScopes(generated)).toEqual([...REQUIRED_ASK_SCOPES, ...OPTIONAL_BROWSE_SCOPES]);
@@ -128,13 +122,13 @@ describe('every authored variable reaches the deploy target', () => {
 
   it('ships the shared conversation rail switched off', () => {
     const generated = renderDeployAppYaml(authored, DEPLOY_OVERRIDES);
-    const authoredValue =
-      /- name: PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL\n\s+value: '?([^'\n]*)'?/.exec(generated);
+    const authoredValue = /- name: PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL\n\s+value: '?([^'\n]*)'?/.exec(generated);
 
     // A build that resolved no value must not be the thing that opens one
     // stakeholder's conversations to another, so the authored default is the
     // safe one and the release has to say otherwise explicitly.
-    expect(authoredValue?.[1],
+    expect(
+      authoredValue?.[1],
       'app.yaml must default the shared rail to off. Anything but "false" here means a plain ' +
         '`npm run build:deploy`, with no release to resolve the variable, ships a widened rail.'
     ).toBe('false');
@@ -150,6 +144,21 @@ describe('every authored variable reaches the deploy target', () => {
     // Replaced in place, not declared twice. A duplicate would leave the
     // container's value depending on which entry the platform read last.
     expect(generated.match(/name: PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL/g)).toHaveLength(1);
+  });
+
+  it('ships the conservative app idle timeout and lets a release override it', () => {
+    const authoredTimeout = /- name: PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES\n\s+value: '?([^'\n]*)'?/.exec(authored)?.[1];
+    expect(authoredTimeout).toBe('30');
+    expect(appRelease).toContain('bundle_var_or_empty app_idle_timeout_minutes');
+    expect(appRelease).toContain('PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES="$IDLE_TIMEOUT"');
+    expect(bundleServer).toContain('process.env.PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES');
+
+    const generated = renderDeployAppYaml(authored, {
+      ...DEPLOY_OVERRIDES,
+      env: [...DEPLOY_OVERRIDES.env, { name: 'PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES', value: "'disabled'" }],
+    });
+    expect(generated).toContain("name: PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES\n    value: 'disabled'");
+    expect(generated.match(/name: PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES/g)).toHaveLength(1);
   });
 
   it('carries no build stamp in the authored file', () => {
@@ -182,10 +191,7 @@ describe('every authored variable reaches the deploy target', () => {
 
     const generated = renderDeployAppYaml(authored, {
       ...DEPLOY_OVERRIDES,
-      env: [
-        ...DEPLOY_OVERRIDES.env,
-        { name: 'PLAYER_INSIGHTS_JUDGE_ENDPOINT', value: "'databricks-claude-opus-4'" },
-      ],
+      env: [...DEPLOY_OVERRIDES.env, { name: 'PLAYER_INSIGHTS_JUDGE_ENDPOINT', value: "'databricks-claude-opus-4'" }],
     });
     expect(generated).toContain("name: PLAYER_INSIGHTS_JUDGE_ENDPOINT\n    value: 'databricks-claude-opus-4'");
   });
@@ -220,14 +226,12 @@ describe('every authored variable reaches the deploy target', () => {
     expect(generated).toContain("name: PLAYER_INSIGHTS_SCHEMA\n    value: 'example_schema'");
     expect(generated).toContain("name: PLAYER_INSIGHTS_DATA_GENIE_ID\n    value: 'space-data'");
     expect(generated).toContain("name: PLAYER_INSIGHTS_DICTIONARY_GENIE_ID\n    value: 'space-dict'");
-    expect(generated).toContain(
-      "name: PLAYER_INSIGHTS_LLM_ENDPOINT\n    value: 'databricks-claude-sonnet-4-6'"
-    );
+    expect(generated).toContain("name: PLAYER_INSIGHTS_LLM_ENDPOINT\n    value: 'databricks-claude-sonnet-4-6'");
     expect(generated.match(/name: PLAYER_INSIGHTS_CATALOG/g)).toHaveLength(1);
   });
 
   it('carries the bundle foundation model into a target release without baking it into public source', () => {
-    expect(bundleServer).toContain("process.env.PLAYER_INSIGHTS_LLM_ENDPOINT");
+    expect(bundleServer).toContain('process.env.PLAYER_INSIGHTS_LLM_ENDPOINT');
     expect(bundleServer).toContain("name: 'PLAYER_INSIGHTS_LLM_ENDPOINT'");
     expect(appRelease).toContain('LLM_ENDPOINT="$(bundle_var llm_endpoint)"');
     expect(appRelease).toContain('PLAYER_INSIGHTS_LLM_ENDPOINT="$LLM_ENDPOINT"');
@@ -240,7 +244,8 @@ describe('every authored variable reaches the deploy target', () => {
     // employees into every build of a repo customers deploy from.
     const authoredList = /- name: PLAYER_INSIGHTS_ADMIN_EMAILS\n\s+value: '?([^'\n]*)'?/.exec(authored);
 
-    expect(authoredList?.[1],
+    expect(
+      authoredList?.[1],
       'app.yaml names a literal administrator. The list belongs in the git-ignored ' +
         '.databricks/bundle/<target>/variable-overrides.json, and the release supplies it.'
     ).toBe('');
@@ -353,7 +358,8 @@ const INTERNAL_TREE = existsSync(path.join(repoRoot, '..', 'mirror', 'publish-ex
 describe('the committed deploy tree names no administrator', () => {
   it('carries an empty administrator list, or none at all', () => {
     if (!existsSync(DEPLOYED_APP_YAML)) {
-      expect(INTERNAL_TREE,
+      expect(
+        INTERNAL_TREE,
         'build/deploy/app.yaml is missing from the internal tree, where it is tracked and is ' +
           'the file this guard reads. Put it back with: ' +
           'git restore -- ':(glob)*/build/deploy/app.yaml''
@@ -364,7 +370,8 @@ describe('the committed deploy tree names no administrator', () => {
     const deployed = readFileSync(DEPLOYED_APP_YAML, 'utf8');
     const list = /- name: PLAYER_INSIGHTS_ADMIN_EMAILS\n\s+value: '?([^'\n]*)'?/.exec(deployed);
 
-    expect(list?.[1] ?? '',
+    expect(
+      list?.[1] ?? '',
       'build/deploy/app.yaml carries administrator addresses. That file is tracked and is ' +
         'published to customers. This is what a release leaves behind and it must not be ' +
         'committed. The app was still deployed with the list, because the release uploads the ' +
@@ -389,7 +396,8 @@ describe('the bundler derives rather than reconstructs', () => {
   it('has no literal env block of its own', () => {
     const withoutComments = bundler.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
-    expect(withoutComments,
+    expect(
+      withoutComments,
       'bundle-server.mjs is writing app.yaml env from a literal again. That is a second source ' +
         'of truth, and it drops whatever app.yaml adds.'
     ).not.toMatch(/env:\s*\\n\s*-\s*name:|`command:[\s\S]*?\nenv:/);
@@ -406,7 +414,8 @@ describe('the bundler derives rather than reconstructs', () => {
 
     expect(resolved, 'bundle-server.mjs no longer resolves a build stamp').toBeGreaterThan(-1);
     expect(destroyed, 'bundle-server.mjs no longer clears outDir').toBeGreaterThan(-1);
-    expect(resolved,
+    expect(
+      resolved,
       'the build stamp is resolved after build/deploy is rewritten, so the build measures its ' +
         'own output as source dirt and stamps +dirty from a clean checkout.'
     ).toBeLessThan(destroyed);

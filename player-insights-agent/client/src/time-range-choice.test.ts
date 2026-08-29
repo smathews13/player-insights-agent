@@ -5,6 +5,7 @@ import {
   normalizeTimeRangeSearch,
   RANGE_PARAM,
   rangeFromParams,
+  rangeLabel,
   rangeWindow,
   withRange,
 } from './time-range';
@@ -30,6 +31,15 @@ const at = (search: string) => new URLSearchParams(search);
 const NOON = Date.parse('2026-08-17T12:00:00.000Z');
 
 describe('the supported preset windows', () => {
+  it('uses the exact segmented-control label in Cost and Forecasting', () => {
+    expect([
+      rangeLabel(at('?range=24h')),
+      rangeLabel(at('')),
+      rangeLabel(at('?range=30d')),
+      rangeLabel(at('?range=all')),
+    ]).toEqual(['24h', '7 days', '30 days', 'All time']);
+  });
+
   it('maps every preset to its documented bounds and label', () => {
     const cases = [
       ['', 7, 'last 7 days'],

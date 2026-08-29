@@ -78,13 +78,41 @@ function syntheticStore() {
       id,
       user_email: `person${index % PEOPLE}@example.test`,
       messages: [
-        { id: `${id}-q`, conversation_id: id, role: 'user', content: `Question ${index}`, created_at: at, traced: false },
+        {
+          id: `${id}-q`,
+          conversation_id: id,
+          role: 'user',
+          content: `Question ${index}`,
+          created_at: at,
+          traced: false,
+        },
         // The proposed plan: assistant, NO trace. Whichever way the pairing runs,
         // landing here is the bug that served a plan's timeline as the answer's.
-        { id: `${id}-plan`, conversation_id: id, role: 'assistant', content: 'plan', created_at: at + 1_000, traced: false },
+        {
+          id: `${id}-plan`,
+          conversation_id: id,
+          role: 'assistant',
+          content: 'plan',
+          created_at: at + 1_000,
+          traced: false,
+        },
         // The approval: a USER message, and not a question.
-        { id: `${id}-ok`, conversation_id: id, role: 'user', content: PLAN_APPROVAL_MESSAGE, created_at: at + 2_000, traced: false },
-        { id: `${id}-a`, conversation_id: id, role: 'assistant', content: 'answer', created_at: at + 3_000, traced: true },
+        {
+          id: `${id}-ok`,
+          conversation_id: id,
+          role: 'user',
+          content: PLAN_APPROVAL_MESSAGE,
+          created_at: at + 2_000,
+          traced: false,
+        },
+        {
+          id: `${id}-a`,
+          conversation_id: id,
+          role: 'assistant',
+          content: 'answer',
+          created_at: at + 3_000,
+          traced: true,
+        },
       ],
     };
     conversations.push(conversation);
@@ -181,7 +209,8 @@ function executor() {
       // answers read, no jsonb touched.
       examined += inRange.length;
       const people = [...new Set(inRange.map((entry) => entry.conversation.user_email))].sort();
-      const totals = { asked_total: inRange.length, people_total: people.length, people_list: people };
+      const threads = new Set(inRange.map((entry) => entry.conversation.id)).size;
+      const totals = { asked_total: inRange.length, thread_total: threads, people_list: people };
       // The page: LIMIT/OFFSET off the index, so only these rows are read.
       const page = inRange.slice(offset, offset + limit);
       examined += page.length;
@@ -284,8 +313,13 @@ async function callRoute(engine: ReturnType<typeof executor>, query: Record<stri
   let body: Record<string, unknown> = {};
   let status = 200;
   const res = {
-    json: (payload: Record<string, unknown>) => { body = payload; },
-    status: (code: number) => { status = code; return res; },
+    json: (payload: Record<string, unknown>) => {
+      body = payload;
+    },
+    status: (code: number) => {
+      status = code;
+      return res;
+    },
     setHeader: () => res,
   } as unknown as Response;
   const started = performance.now();
@@ -324,6 +358,7 @@ describe('the Monitoring list over a 100,000-message store', () => {
     expect(body.foundQuestions).toBe(CONVERSATIONS);
     expect(body.countedQuestions).toBe(2000);
     expect((body.people as string[]).length).toBe(PEOPLE);
+    expect((body.summary as { userThreads: number }).userThreads).toBe(CONVERSATIONS);
 
     // Two round trips for the whole page: the page-and-totals statement, and the
     // ledger. It was four before -- page, totals, people, ledger.

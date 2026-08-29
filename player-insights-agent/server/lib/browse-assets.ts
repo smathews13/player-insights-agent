@@ -15,19 +15,13 @@ import {
   type BrowseOk,
   type BrowseResponse,
   type BrowseUnavailable,
+  type ConnectionTypeAvailability,
+  type ConnectionTypesResponse,
 } from '../../shared/browse-contract';
 import { declaredUserApiScopes } from '../../shared/declared-scopes';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
-import {
-  looksLikeMissingScope,
-  scopesFromToken,
-} from '../routes/access-verification';
-import {
-  refusalCause,
-  scopeForPath,
-  scopesFromRefusal,
-  tokenScopeVerdict,
-} from './dependency-probes';
+import { looksLikeMissingScope, scopesFromToken } from '../routes/access-verification';
+import { refusalCause, scopeForPath, scopesFromRefusal, tokenScopeVerdict } from './dependency-probes';
 
 /** How long one browse call may take. Same order as a metadata probe. */
 export const BROWSE_TIMEOUT_MS = 15_000;
@@ -100,12 +94,7 @@ function failed(kind: BrowseKind, detail: string, error = ''): BrowseFailed {
   return { status: 'failed', kind, detail, error };
 }
 
-function ok(
-  kind: BrowseKind,
-  items: BrowseItem[],
-  nextPageToken = '',
-  path = '',
-): BrowseOk {
+function ok(kind: BrowseKind, items: BrowseItem[], nextPageToken = '', path = ''): BrowseOk {
   return {
     status: 'ok',
     kind,
@@ -129,10 +118,7 @@ type WorkspaceAnswer =
   | { kind: 'timeout' }
   | { kind: 'unreachable'; message: string };
 
-async function workspaceGet(
-  pathAndQuery: string,
-  options: BrowseCallOptions,
-): Promise<WorkspaceAnswer> {
+async function workspaceGet(pathAndQuery: string, options: BrowseCallOptions): Promise<WorkspaceAnswer> {
   const call = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? BROWSE_TIMEOUT_MS;
   try {
@@ -165,8 +151,7 @@ export function browseBlockedByScope(input: {
   const scope = scopeForBrowsePath(input.apiPath);
   if (!scope) return null;
 
-  const declared =
-    input.declaredScopes === undefined ? declaredUserApiScopes() : input.declaredScopes;
+  const declared = input.declaredScopes === undefined ? declaredUserApiScopes() : input.declaredScopes;
   // App does not ask for it: no sign-in it hands out can carry it.
   if (declared && !declared.includes(scope)) {
     return scope;
@@ -199,18 +184,10 @@ export function interpretBrowseAnswer(input: {
   const { kind, apiPath, answer } = input;
 
   if (answer.kind === 'timeout') {
-    return failed(
-      kind,
-      'The workspace did not answer in time, so nothing about this list was established.',
-      'timeout',
-    );
+    return failed(kind, 'The workspace did not answer in time, so nothing about this list was established.', 'timeout');
   }
   if (answer.kind === 'unreachable') {
-    return failed(
-      kind,
-      'The workspace could not be asked for this list, so nothing was established.',
-      answer.message,
-    );
+    return failed(kind, 'The workspace could not be asked for this list, so nothing was established.', answer.message);
   }
 
   const { status, body } = answer;
@@ -234,7 +211,7 @@ export function interpretBrowseAnswer(input: {
         kind,
         `The workspace refused this list: HTTP ${status}${code ? ` ${code}` : ''}. ` +
           'Your sign-in carries the API permission, so this is likely a grant on the object.',
-        message || `HTTP ${status}`,
+        message || `HTTP ${status}`
       );
     }
     // Scope named by the workspace, or a bare catalog 403 when the token does
@@ -252,14 +229,14 @@ export function interpretBrowseAnswer(input: {
       kind,
       `The workspace refused this list: HTTP ${status}${code ? ` ${code}` : ''}. ` +
         'That may be a grant on the object rather than a missing sign-in permission.',
-      message || `HTTP ${status}`,
+      message || `HTTP ${status}`
     );
   }
 
   return failed(
     kind,
     `The workspace refused this list: HTTP ${status}${code ? ` ${code}` : ''}.`,
-    message || `HTTP ${status}`,
+    message || `HTTP ${status}`
   );
 }
 
@@ -280,19 +257,13 @@ async function listWithGuard(
     items: BrowseItem[];
     next_page_token: string;
   },
-  listedPath = '',
+  listedPath = ''
 ): Promise<BrowseResponse> {
   if (!options.host) {
-    return failed(
-      kind,
-      'This app was given no workspace host, so it does not know where to browse.',
-    );
+    return failed(kind, 'This app was given no workspace host, so it does not know where to browse.');
   }
   if (!options.token) {
-    return failed(
-      kind,
-      'This request carried no signed-in user token, so browsing as you is not possible.',
-    );
+    return failed(kind, 'This request carried no signed-in user token, so browsing as you is not possible.');
   }
 
   const blocked = browseBlockedByScope({
@@ -428,8 +399,7 @@ function servingEndpointItems(body: Record<string, unknown>) {
     const name = text(record.name);
     if (!name) continue;
     const state = record.state;
-    const ready =
-      state && typeof state === 'object' ? text((state as Record<string, unknown>).ready) : '';
+    const ready = state && typeof state === 'object' ? text((state as Record<string, unknown>).ready) : '';
     items.push({
       id: name,
       label: name,
@@ -463,16 +433,14 @@ function notebookItems(body: Record<string, unknown>) {
   return { items, next_page_token: '' };
 }
 
-export async function listCatalogs(
-  options: BrowseCallOptions & { pageToken?: string },
-): Promise<BrowseResponse> {
+export async function listCatalogs(options: BrowseCallOptions & { pageToken?: string }): Promise<BrowseResponse> {
   const apiPath = '/api/2.1/unity-catalog/catalogs';
   const query = pageQuery(options.pageToken);
   return listWithGuard('catalogs', apiPath, `${apiPath}?${query}`, options, catalogItems);
 }
 
 export async function listSchemas(
-  options: BrowseCallOptions & { catalog: string; pageToken?: string },
+  options: BrowseCallOptions & { catalog: string; pageToken?: string }
 ): Promise<BrowseResponse> {
   const catalog = options.catalog.trim();
   if (!catalog) {
@@ -484,7 +452,7 @@ export async function listSchemas(
 }
 
 export async function listTables(
-  options: BrowseCallOptions & { catalog: string; schema: string; pageToken?: string },
+  options: BrowseCallOptions & { catalog: string; schema: string; pageToken?: string }
 ): Promise<BrowseResponse> {
   const catalog = options.catalog.trim();
   const schema = options.schema.trim();
@@ -499,28 +467,18 @@ export async function listTables(
   return listWithGuard('tables', apiPath, `${apiPath}?${query}`, options, tableItems);
 }
 
-export async function listWarehouses(
-  options: BrowseCallOptions & { pageToken?: string },
-): Promise<BrowseResponse> {
+export async function listWarehouses(options: BrowseCallOptions & { pageToken?: string }): Promise<BrowseResponse> {
   const apiPath = '/api/2.0/sql/warehouses';
   const parts = [`page_size=${BROWSE_PAGE_SIZE}`];
   if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
   return listWithGuard('warehouses', apiPath, `${apiPath}?${parts.join('&')}`, options, warehouseItems);
 }
 
-export async function listGenieSpaces(
-  options: BrowseCallOptions & { pageToken?: string },
-): Promise<BrowseResponse> {
+export async function listGenieSpaces(options: BrowseCallOptions & { pageToken?: string }): Promise<BrowseResponse> {
   const apiPath = '/api/2.0/genie/spaces';
   const parts = [`page_size=${BROWSE_PAGE_SIZE}`];
   if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
-  return listWithGuard(
-    'genie-spaces',
-    apiPath,
-    `${apiPath}?${parts.join('&')}`,
-    options,
-    genieItems,
-  );
+  return listWithGuard('genie-spaces', apiPath, `${apiPath}?${parts.join('&')}`, options, genieItems);
 }
 
 /**
@@ -532,19 +490,13 @@ export async function listGenieSpaces(
  * token is passed through anyway rather than assumed absent.
  */
 export async function listServingEndpoints(
-  options: BrowseCallOptions & { pageToken?: string },
+  options: BrowseCallOptions & { pageToken?: string }
 ): Promise<BrowseResponse> {
   const apiPath = '/api/2.0/serving-endpoints';
   const parts: string[] = [];
   if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
   const query = parts.length ? `?${parts.join('&')}` : '';
-  return listWithGuard(
-    'serving-endpoints',
-    apiPath,
-    `${apiPath}${query}`,
-    options,
-    servingEndpointItems,
-  );
+  return listWithGuard('serving-endpoints', apiPath, `${apiPath}${query}`, options, servingEndpointItems);
 }
 
 /**
@@ -553,23 +505,14 @@ export async function listServingEndpoints(
  * `path` is required. The route defaults it to the signed-in user's home when
  * the client omits it. There is no page token; open a directory via its path.
  */
-export async function listNotebooks(
-  options: BrowseCallOptions & { path: string },
-): Promise<BrowseResponse> {
+export async function listNotebooks(options: BrowseCallOptions & { path: string }): Promise<BrowseResponse> {
   const path = options.path.trim();
   if (!path) {
     return failed('notebooks', 'A workspace path is required to list notebooks.');
   }
   const apiPath = '/api/2.0/workspace/list';
   const query = `path=${encodeURIComponent(path)}`;
-  return listWithGuard(
-    'notebooks',
-    apiPath,
-    `${apiPath}?${query}`,
-    options,
-    notebookItems,
-    path,
-  );
+  return listWithGuard('notebooks', apiPath, `${apiPath}?${query}`, options, notebookItems, path);
 }
 
 export type NotebookPathValidation =
@@ -585,7 +528,7 @@ export type NotebookPathValidation =
  */
 export async function validateNotebookPath(
   pathInput: string,
-  options: BrowseCallOptions,
+  options: BrowseCallOptions
 ): Promise<NotebookPathValidation> {
   const path = pathInput.trim();
   if (!path.startsWith('/') || path.length > 1024) {
@@ -605,10 +548,9 @@ export async function validateNotebookPath(
         detail: `Your sign-in does not carry ${missingScope}, so this notebook cannot be validated.`,
       };
     }
-    const suffix =
-      apiPath.endsWith('/export')
-        ? `path=${encodeURIComponent(path)}&format=SOURCE`
-        : `path=${encodeURIComponent(path)}`;
+    const suffix = apiPath.endsWith('/export')
+      ? `path=${encodeURIComponent(path)}&format=SOURCE`
+      : `path=${encodeURIComponent(path)}`;
     const answer = await workspaceGet(`${apiPath}?${suffix}`, options);
     if (answer.kind !== 'http') {
       return {
@@ -674,7 +616,7 @@ function volumeItems(body: Record<string, unknown>) {
  * the permission that got the reader into this schema in the first place.
  */
 export async function listVolumes(
-  options: BrowseCallOptions & { catalog: string; schema: string; pageToken?: string },
+  options: BrowseCallOptions & { catalog: string; schema: string; pageToken?: string }
 ): Promise<BrowseResponse> {
   const catalog = options.catalog.trim();
   const schema = options.schema.trim();
@@ -697,16 +639,10 @@ export async function listVolumes(
   // path itself and interpret the answer (a scope-worded 403 still becomes
   // unavailable via interpretBrowseAnswer).
   if (!options.host) {
-    return failed(
-      'volumes',
-      'This app was given no workspace host, so it does not know where to browse.',
-    );
+    return failed('volumes', 'This app was given no workspace host, so it does not know where to browse.');
   }
   if (!options.token) {
-    return failed(
-      'volumes',
-      'This request carried no signed-in user token, so browsing as you is not possible.',
-    );
+    return failed('volumes', 'This request carried no signed-in user token, so browsing as you is not possible.');
   }
   const answer = await workspaceGet(`${apiPath}?${query}`, options);
   return interpretBrowseAnswer({
@@ -727,12 +663,8 @@ function vectorSearchEndpointItems(body: Record<string, unknown>) {
     const name = text(record.name);
     if (!name) continue;
     const status = record.endpoint_status;
-    const state =
-      status && typeof status === 'object'
-        ? text((status as Record<string, unknown>).state)
-        : '';
-    const count =
-      typeof record.num_indexes === 'number' ? `${record.num_indexes} indexes` : '';
+    const state = status && typeof status === 'object' ? text((status as Record<string, unknown>).state) : '';
+    const count = typeof record.num_indexes === 'number' ? `${record.num_indexes} indexes` : '';
     items.push({
       id: name,
       label: name,
@@ -767,30 +699,21 @@ function vectorSearchIndexItems(body: Record<string, unknown>) {
 }
 
 export async function listVectorSearchEndpoints(
-  options: BrowseCallOptions & { pageToken?: string },
+  options: BrowseCallOptions & { pageToken?: string }
 ): Promise<BrowseResponse> {
   const apiPath = '/api/2.0/vector-search/endpoints';
   const parts: string[] = [];
   if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
   const query = parts.length ? `?${parts.join('&')}` : '';
-  return listWithGuard(
-    'vector-search-endpoints',
-    apiPath,
-    `${apiPath}${query}`,
-    options,
-    vectorSearchEndpointItems,
-  );
+  return listWithGuard('vector-search-endpoints', apiPath, `${apiPath}${query}`, options, vectorSearchEndpointItems);
 }
 
 export async function listVectorSearchIndexes(
-  options: BrowseCallOptions & { endpoint: string; pageToken?: string },
+  options: BrowseCallOptions & { endpoint: string; pageToken?: string }
 ): Promise<BrowseResponse> {
   const endpoint = options.endpoint.trim();
   if (!endpoint) {
-    return failed(
-      'vector-search-indexes',
-      'A Vector Search endpoint name is required to list indexes.',
-    );
+    return failed('vector-search-indexes', 'A Vector Search endpoint name is required to list indexes.');
   }
   const apiPath = '/api/2.0/vector-search/indexes';
   const parts = [`endpoint_name=${encodeURIComponent(endpoint)}`];
@@ -800,7 +723,7 @@ export async function listVectorSearchIndexes(
     apiPath,
     `${apiPath}?${parts.join('&')}`,
     options,
-    vectorSearchIndexItems,
+    vectorSearchIndexItems
   );
 }
 
@@ -813,10 +736,7 @@ function lakebaseProjectItems(body: Record<string, unknown>) {
     const name = text(record.name);
     if (!name) continue;
     const status = record.status;
-    const display =
-      status && typeof status === 'object'
-        ? text((status as Record<string, unknown>).display_name)
-        : '';
+    const display = status && typeof status === 'object' ? text((status as Record<string, unknown>).display_name) : '';
     const short = name.startsWith('projects/') ? name.slice('projects/'.length) : name;
     items.push({
       id: name,
@@ -836,14 +756,9 @@ function lakebaseBranchItems(body: Record<string, unknown>) {
     const record = row as Record<string, unknown>;
     const name = text(record.name);
     if (!name) continue;
-    const short = name.includes('/branches/')
-      ? name.slice(name.lastIndexOf('/branches/') + '/branches/'.length)
-      : name;
+    const short = name.includes('/branches/') ? name.slice(name.lastIndexOf('/branches/') + '/branches/'.length) : name;
     const status = record.status;
-    const state =
-      status && typeof status === 'object'
-        ? text((status as Record<string, unknown>).state)
-        : '';
+    const state = status && typeof status === 'object' ? text((status as Record<string, unknown>).state) : '';
     items.push({
       id: name,
       label: short,
@@ -883,22 +798,16 @@ export function lakebaseProjectParent(project: string): string {
 }
 
 export async function listLakebaseProjects(
-  options: BrowseCallOptions & { pageToken?: string },
+  options: BrowseCallOptions & { pageToken?: string }
 ): Promise<BrowseResponse> {
   const apiPath = '/api/2.0/postgres/projects';
   const parts = [`page_size=${BROWSE_PAGE_SIZE}`];
   if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
-  return listWithGuard(
-    'lakebase-projects',
-    apiPath,
-    `${apiPath}?${parts.join('&')}`,
-    options,
-    lakebaseProjectItems,
-  );
+  return listWithGuard('lakebase-projects', apiPath, `${apiPath}?${parts.join('&')}`, options, lakebaseProjectItems);
 }
 
 export async function listLakebaseBranches(
-  options: BrowseCallOptions & { project: string; pageToken?: string },
+  options: BrowseCallOptions & { project: string; pageToken?: string }
 ): Promise<BrowseResponse> {
   const parent = lakebaseProjectParent(options.project);
   if (!parent) {
@@ -913,12 +822,12 @@ export async function listLakebaseBranches(
     '/api/2.0/postgres/projects',
     `${apiPath}?${parts.join('&')}`,
     options,
-    lakebaseBranchItems,
+    lakebaseBranchItems
   );
 }
 
 export async function listLakebaseDatabases(
-  options: BrowseCallOptions & { branch: string; pageToken?: string },
+  options: BrowseCallOptions & { branch: string; pageToken?: string }
 ): Promise<BrowseResponse> {
   const branch = options.branch.trim();
   if (!branch) {
@@ -928,7 +837,7 @@ export async function listLakebaseDatabases(
   if (!parent || !parent.includes('/branches/')) {
     return failed(
       'lakebase-databases',
-      'A full branch resource name (projects/.../branches/...) is required to list databases.',
+      'A full branch resource name (projects/.../branches/...) is required to list databases.'
     );
   }
   const apiPath = `/api/2.0/postgres/${parent}/databases`;
@@ -939,7 +848,7 @@ export async function listLakebaseDatabases(
     '/api/2.0/postgres/projects',
     `${apiPath}?${parts.join('&')}`,
     options,
-    lakebaseDatabaseItems,
+    lakebaseDatabaseItems
   );
 }
 
@@ -955,18 +864,106 @@ export function listExperiments(
   _options: BrowseCallOptions & { pageToken?: string } = {
     host: '',
     token: '',
-  },
+  }
 ): Promise<BrowseResponse> {
   return Promise.resolve(unavailableNoAppsScope('experiments', 'MLflow'));
 }
 
 /** Host + token from the request environment, shared by every browse route. */
-export function browseRequestContext(input: {
-  token: string | null;
-  host?: string;
-}): { host: string; token: string } {
+export function browseRequestContext(input: { token: string | null; host?: string }): { host: string; token: string } {
   return {
     host: normalizeWorkspaceHost(input.host ?? process.env.DATABRICKS_HOST ?? ''),
     token: input.token?.trim() ?? '',
   };
+}
+
+/**
+ * Discover addable connection categories through the signed-in user's token.
+ *
+ * The five independent roots are deliberately concurrent. Catalog-backed
+ * categories share the catalog root and Vector Search index shares its endpoint
+ * root; their leaf pickers still report an honest empty/denied/failed result
+ * when opened. No service-principal fallback is permitted here.
+ */
+export async function discoverConnectionTypes(options: BrowseCallOptions): Promise<ConnectionTypesResponse> {
+  const roots = await Promise.all([
+    listCatalogs(options),
+    listWarehouses(options),
+    listGenieSpaces(options),
+    listServingEndpoints(options),
+    listVectorSearchEndpoints(options),
+  ]);
+  const catalogs = roots[0];
+  const schemas =
+    catalogs.status === 'ok'
+      ? await Promise.all(catalogs.items.map((catalog) => listSchemas({ ...options, catalog: catalog.id })))
+      : [];
+  const schemaParents = schemas.flatMap((response, catalogIndex) =>
+    response.status === 'ok'
+      ? response.items.map((schema) => ({
+          catalog: catalogs.status === 'ok' ? catalogs.items[catalogIndex].id : '',
+          schema: schema.id,
+        }))
+      : []
+  );
+  const [tables, volumes] = await Promise.all([
+    Promise.all(schemaParents.map((parent) => listTables({ ...options, ...parent }))),
+    Promise.all(schemaParents.map((parent) => listVolumes({ ...options, ...parent }))),
+  ]);
+  const vectorEndpoints = roots[4];
+  const vectorIndexes =
+    vectorEndpoints.status === 'ok'
+      ? await Promise.all(
+          vectorEndpoints.items.map((endpoint) => listVectorSearchIndexes({ ...options, endpoint: endpoint.id }))
+        )
+      : [];
+  const hasVisible = (responses: readonly BrowseResponse[]) =>
+    responses.some((response) => response.status === 'ok' && response.items.length > 0);
+  const byKind = new Map(roots.map((response) => [response.kind, response]));
+  const definitions: ConnectionTypeAvailability[] = [
+    { id: 'catalog', label: 'Catalog', rootKind: 'catalogs' },
+    { id: 'schema', label: 'Schema', rootKind: 'catalogs' },
+    { id: 'table', label: 'Table or view', rootKind: 'catalogs' },
+    { id: 'volume', label: 'Volume', rootKind: 'catalogs' },
+    { id: 'sql-warehouse', label: 'SQL warehouse', rootKind: 'warehouses' },
+    { id: 'genie-space', label: 'Genie space', rootKind: 'genie-spaces' },
+    { id: 'serving-endpoint', label: 'Serving endpoint', rootKind: 'serving-endpoints' },
+    {
+      id: 'vector-search-endpoint',
+      label: 'Vector Search endpoint',
+      rootKind: 'vector-search-endpoints',
+    },
+    {
+      id: 'vector-search-index',
+      label: 'Vector Search index',
+      rootKind: 'vector-search-endpoints',
+    },
+  ];
+  const available = definitions.filter((definition) => {
+    if (definition.id === 'schema') return hasVisible(schemas);
+    if (definition.id === 'table') return hasVisible(tables);
+    if (definition.id === 'volume') return hasVisible(volumes);
+    if (definition.id === 'vector-search-index') return hasVisible(vectorIndexes);
+    const response = byKind.get(definition.rootKind);
+    return response?.status === 'ok' && response.items.length > 0;
+  });
+  const leafResponses = [
+    ...(available.some((entry) => entry.id === 'schema') ? [] : schemas),
+    ...(available.some((entry) => entry.id === 'table') ? [] : tables),
+    ...(available.some((entry) => entry.id === 'volume') ? [] : volumes),
+    ...(available.some((entry) => entry.id === 'vector-search-index') ? [] : vectorIndexes),
+  ];
+  const unavailable = [...roots, ...leafResponses]
+    .filter((response) => response.status !== 'ok' || response.items.length === 0)
+    .map((response) => ({
+      rootKind: response.kind,
+      status:
+        response.status === 'unavailable'
+          ? ('denied' as const)
+          : response.status === 'failed'
+            ? ('failed' as const)
+            : ('empty' as const),
+      detail: response.status === 'ok' ? 'No visible resources were returned.' : response.detail,
+    }));
+  return { available, unavailable };
 }

@@ -733,26 +733,43 @@ export function EntityText({
 export function TableEntityList({
   tables,
   empty = 'No tables were returned by this discovery step.',
+  countVerb = 'assessed',
 }: {
-  tables: readonly string[];
+  tables: readonly (string | { name: string; metadata?: readonly string[] })[];
   empty?: string;
+  countVerb?: string;
 }) {
-  const names = tables
-    .map((name) => name.trim())
+  const items = tables
+    .map((table) =>
+      typeof table === 'string'
+        ? { name: table.trim(), metadata: [] as readonly string[] }
+        : { name: table.name.trim(), metadata: table.metadata ?? [] }
+    )
     .filter(
-      (name, index, entries) =>
-        name.length > 0 && entries.findIndex((candidate) => candidate.toLowerCase() === name.toLowerCase()) === index
+      (table, index, entries) =>
+        table.name.length > 0 &&
+        entries.findIndex((candidate) => candidate.name.toLowerCase() === table.name.toLowerCase()) === index
     );
-  if (names.length === 0) return <p className="entity-table-list-empty">{empty}</p>;
+  if (items.length === 0) return <p className="entity-table-list-empty">{empty}</p>;
   return (
     <div className="entity-table-list">
       <p className="entity-table-list-count">
-        <span className="ast-num">{names.length}</span> table{names.length === 1 ? '' : 's'} assessed
+        <span className="ast-num">{items.length}</span> table{items.length === 1 ? '' : 's'} {countVerb}
       </p>
       <ul>
-        {names.map((name) => (
-          <li key={name}>
-            <EntityText text={name} sources={[{ name }]} />
+        {items.map((table) => (
+          <li key={table.name}>
+            <span className="entity-table-list-name">
+              <EntityText text={table.name} sources={[{ name: table.name }]} />
+            </span>
+            {table.metadata.map((metadata) => (
+              <span
+                className="ast-pill ast-pill--neutral-outline entity-table-list-meta"
+                key={`${table.name}-${metadata}`}
+              >
+                {metadata}
+              </span>
+            ))}
           </li>
         ))}
       </ul>

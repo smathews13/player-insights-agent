@@ -12,7 +12,8 @@
  * no branch that substitutes a zero for a measurement nobody took.
  */
 import { formatMs, toolNameFromId } from './trace-timeline';
-import type { TraceStage } from './answer-shape';
+import type { TraceStage, TraceSummary } from './answer-shape';
+import type { RunVerdict } from '../../shared/run-verdict';
 
 /**
  * The step's place in the run, two digits.
@@ -52,6 +53,89 @@ export function isOrchestratorStep(stage: Pick<TraceStage, 'id' | 'name'>): bool
   return /^step-\d+$/.test(stage.id) && stage.name === 'Chose the next step';
 }
 
+export type RunSummaryStatus = 'running' | 'awaiting approval' | 'cancelled' | 'failed' | 'partial' | 'complete';
+
+export interface RunContainerSummary {
+  status: RunSummaryStatus;
+  stageCount: number;
+  agentStepCount: number;
+  toolCalls: number | null;
+  wallTimeMs: number | null;
+  finalStage: { name: string; status: string } | null;
+  answerAvailability: 'Available' | 'Pending' | 'Awaiting approval' | 'Not recorded';
+  traceId: string | null;
+}
+
+function recordedRunStatus(value: string | null | undefined): RunSummaryStatus | null {
+  const status = (value ?? '').trim().toLowerCase().replace(/[_-]+/g, ' ');
+  if (!status) return null;
+  if (status.includes('await') && status.includes('approval')) return 'awaiting approval';
+  if (status === 'cancelled' || status === 'canceled') return 'cancelled';
+  if (['failed', 'error', 'refused'].includes(status)) return 'failed';
+  if (['partial', 'truncated'].includes(status)) return 'partial';
+  if (['complete', 'completed', 'succeeded', 'answered'].includes(status)) return 'complete';
+  if (['running', 'in progress', 'pending', 'queued'].includes(status)) return 'running';
+  return null;
+}
+
+/**
+ * Evidence shown when the synthetic run envelope is selected.
+ *
+ * The aggregate row is a container, not a stage. Its summary therefore comes
+ * from the selected run and its real children rather than from the synthetic
+ * envelope's empty input/output fields.
+ */
+export function runContainerSummary({
+  stages,
+  trace,
+  activeIndex,
+  runStatus,
+  verdict,
+}: {
+  stages: readonly TraceStage[];
+  trace: Pick<TraceSummary, 'id' | 'totalMs' | 'toolCalls'> | null | undefined;
+  activeIndex: number;
+  runStatus?: string | null;
+  verdict?: RunVerdict;
+}): RunContainerSummary {
+  const status =
+    recordedRunStatus(runStatus) ??
+    (activeIndex >= 0 || stages.some((stage) => stage.status === 'running')
+      ? 'running'
+      : (verdict ??
+        (stages.some((stage) => stage.status === 'failed')
+          ? 'failed'
+          : stages.some((stage) => stage.status === 'partial')
+            ? 'partial'
+            : 'complete')));
+  const finalStage = stages.at(-1) ?? null;
+  const answerStage = [...stages]
+    .reverse()
+    .find((stage) => stage.id === 'synthesis' || /prepared (?:the )?answer/i.test(stage.name));
+  const answerAvailable = Boolean(
+    answerStage?.output.trim() && !/^this question was not answered\.?$/i.test(answerStage.output.trim())
+  );
+  const answerAvailability =
+    status === 'awaiting approval'
+      ? 'Awaiting approval'
+      : answerAvailable
+        ? 'Available'
+        : status === 'running'
+          ? 'Pending'
+          : 'Not recorded';
+
+  return {
+    status,
+    stageCount: stages.length,
+    agentStepCount: stages.filter((stage) => stage.kind === 'agent').length,
+    toolCalls: typeof trace?.toolCalls === 'number' && Number.isFinite(trace.toolCalls) ? trace.toolCalls : null,
+    wallTimeMs: typeof trace?.totalMs === 'number' && Number.isFinite(trace.totalMs) ? trace.totalMs : null,
+    finalStage: finalStage ? { name: finalStage.name, status: finalStage.status } : null,
+    answerAvailability,
+    traceId: trace?.id?.trim() || null,
+  };
+}
+
 /**
  * The panel's right-pinned line: when the stage started, how long it took, and
  * how many calls it was.
@@ -63,8 +147,7 @@ export function isOrchestratorStep(stage: Pick<TraceStage, 'id' | 'name'>): bool
  * number, and the first stage of every run legitimately starts at zero.
  */
 export function detailTiming(stage: TraceStage, origin: number): string {
-  const started =
-    stage.startMeasured === false ? 'start not recorded' : `started +${formatMs(stage.start - origin)}`;
+  const started = stage.startMeasured === false ? 'start not recorded' : `started +${formatMs(stage.start - origin)}`;
   const calls = `${stage.calls} call${stage.calls === 1 ? '' : 's'}`;
   return `${started} · took ${formatMs(stage.duration)} · ${calls}`;
 }
@@ -77,8 +160,7 @@ export function detailTiming(stage: TraceStage, origin: number): string {
  * children, each numbered, so "· 3" beside the parent would be counting the
  * three cards underneath it a second time.
  */
-export function railTiming(stage: Pick<TraceStage, 'duration' | 'status'>, elapsedMs: number | null = null
-): string {
+export function railTiming(stage: Pick<TraceStage, 'duration' | 'status'>, elapsedMs: number | null = null): string {
   if (stage.status !== 'running') return formatMs(stage.duration);
   // A step that has been announced and has not reported has no duration to
   // print, and `stage.duration` is 0 for exactly that reason. `elapsedMs` is the

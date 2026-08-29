@@ -42,6 +42,7 @@ from charts import (
     new_plot,
 )
 
+
 def test_chart_gate_matches_word_boundaries_not_geography():
     """'graph' sits inside geography, demographic and paragraph."""
 

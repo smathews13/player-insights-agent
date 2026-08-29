@@ -36,7 +36,7 @@ describe('app-wide dropdown recipe', () => {
     // shared class it inherited AppKit's translucent popover and the run list
     // showed through the options. The search hint is the short copy that fits.
     const explorer = source('RunExplorer.tsx');
-    expect(explorer).toMatch(/<SelectContent[\s\S]*className="app-select-content"/);
+    expect(explorer).toMatch(/<SelectContent[\s\S]*className="app-select-content(?:\s[^"]*)?"/);
     expect(explorer).toContain('placeholder="Search across runs"');
     expect(explorer).not.toContain('Search conversations, prompts, or people');
   });

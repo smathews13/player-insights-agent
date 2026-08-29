@@ -28,6 +28,7 @@
 import { astPill } from './astrolabe-pill';
 import type { BrandProduct } from './brand-icons';
 import type { DatabricksObject } from '../../shared/databricks-links';
+import { normalizeCostBudget, type CostBudgetInput } from '../../shared/cost-budgets';
 import {
   COST_QUALITY_LABEL,
   DEPENDENCY_RESULT_LABEL,
@@ -99,28 +100,31 @@ export function tileAttribution(tile: Pick<CostTile, 'amount' | 'population' | '
 }
 
 export function spendVersusBudget(
-  tile: Pick<CostTile, 'amount' | 'quality' | 'population' | 'attribution' | 'pricing'>,
-  budget: number | null,
+  tile: Pick<CostTile, 'amount' | 'dbus' | 'quality' | 'population' | 'attribution' | 'pricing'>,
+  inputBudget: CostBudgetInput,
   currency: string
 ): SpendVersusBudget {
-  if (budget === null || !Number.isFinite(budget)) return { kind: 'none' };
-  const budgetLabel = money(budget, currency);
+  const budget = normalizeCostBudget(inputBudget);
+  if (budget.value === null || !Number.isFinite(budget.value)) return { kind: 'none' };
+  const budgetLabel = budget.unit === 'DBU' ? `${budget.value.toFixed(2)} DBU` : money(budget.value, currency);
+  const observed = budget.unit === 'DBU' ? (tile.dbus ?? null) : tile.amount;
   const match = tile.pricing?.match;
   const unusable =
-    tile.quality === 'unknown' ||
-    match === 'unpriced' ||
-    match === 'duplicate' ||
-    match === 'mixed-currency' ||
-    match === 'partial';
-  if (unusable || tile.amount === null || !Number.isFinite(tile.amount)) {
+    budget.unit === 'USD' &&
+    (tile.quality === 'unknown' ||
+      match === 'unpriced' ||
+      match === 'duplicate' ||
+      match === 'mixed-currency' ||
+      match === 'partial');
+  if (unusable || observed === null || !Number.isFinite(observed)) {
     return { kind: 'budget-only', budgetLabel };
   }
-  const spendLabel = money(tile.amount, currency);
+  const spendLabel = budget.unit === 'DBU' ? `${observed.toFixed(2)} DBU` : money(observed, currency);
   if (!spendLabel || !budgetLabel) return { kind: 'budget-only', budgetLabel };
   if (tileAttribution(tile) === 'shared-upper-bound' || SHARED_POPULATIONS.has(tile.population)) {
     return { kind: 'shared-meter', spendLabel, budgetLabel };
   }
-  return { kind: 'compared', spendLabel, budgetLabel, over: tile.amount > budget };
+  return { kind: 'compared', spendLabel, budgetLabel, over: observed > budget.value };
 }
 
 /**
@@ -129,10 +133,22 @@ export function spendVersusBudget(
  * Cost does not add tiles: their qualities do not mix. The amount is for the
  * same Cost window the tiles already show, not a separate monthly calendar.
  */
-export function totalBudgetView(budget: number | null, currency: string): SpendVersusBudget {
-  if (budget === null || !Number.isFinite(budget)) return { kind: 'none' };
-  const budgetLabel = money(budget, currency);
-  return budgetLabel ? { kind: 'budget-only', budgetLabel } : { kind: 'none' };
+export function totalBudgetView(
+  inputBudget: CostBudgetInput,
+  currency: string,
+  observed: { USD: number | null; DBU: number | null } = { USD: null, DBU: null }
+): SpendVersusBudget {
+  const budget = normalizeCostBudget(inputBudget);
+  if (budget.value === null || !Number.isFinite(budget.value)) return { kind: 'none' };
+  const budgetLabel = budget.unit === 'DBU' ? `${budget.value.toFixed(2)} DBU` : money(budget.value, currency);
+  const actual = observed[budget.unit];
+  if (!budgetLabel || actual === null || !Number.isFinite(actual)) {
+    return budgetLabel ? { kind: 'budget-only', budgetLabel } : { kind: 'none' };
+  }
+  const spendLabel = budget.unit === 'DBU' ? `${actual.toFixed(2)} DBU` : money(actual, currency);
+  return spendLabel
+    ? { kind: 'compared', spendLabel, budgetLabel, over: actual > budget.value }
+    : { kind: 'budget-only', budgetLabel };
 }
 
 /* ── Cost tiles ──────────────────────────────────────────────────────────── */

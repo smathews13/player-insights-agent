@@ -114,6 +114,21 @@ export type ReportSection =
   | { kind: 'facts'; facts: Fact[] }
   | { kind: 'note'; text: string };
 
+export interface StructuredTableItem {
+  name: string;
+  /** Bracketed qualifiers carried beside the name, never folded into it. */
+  metadata: string[];
+}
+
+export type StructuredTableSection =
+  | { kind: 'prose'; text: string }
+  | { kind: 'table-list'; heading: string; tables: StructuredTableItem[] };
+
+export interface StructuredTableResult {
+  sections: StructuredTableSection[];
+  tableCount: number;
+}
+
 /** A run of a sentence, and whether it names a table or a column. */
 export interface ChipRun {
   text: string;
@@ -234,6 +249,100 @@ function blocksOf(text: string): string[] {
     .split(/\n\s*\n/)
     .map((block) => block.trim())
     .filter((block) => block.length > 0);
+}
+
+/**
+ * Headings the agent uses before a structural list of governed tables.
+ *
+ * A heading is required. That is the safety boundary which stops an ordinary
+ * sentence containing `one.two.three` from being promoted into a table list.
+ */
+const TABLE_LIST_HEADING =
+  /^(?:declared(?: governed)? (?:sources|tables)|tables available|available tables|governed tables|source tables):?$/i;
+
+const QUALIFIED_TABLE = /^(?:`?[^.`\s]+`?\.){2}`?[^.`\s]+`?$/;
+
+function tableHeading(line: string): string | null {
+  const plain = line
+    .trim()
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/^\*\*(.+)\*\*$/, '$1')
+    .trim();
+  return TABLE_LIST_HEADING.test(plain) ? plain.replace(/:$/, '') : null;
+}
+
+function structuredTableLine(line: string): StructuredTableItem | null {
+  const withoutBullet = line.trim().replace(/^(?:[-*•]|\d+[.)])\s+/, '');
+  const firstBracket = withoutBullet.indexOf('[');
+  const name = (firstBracket === -1 ? withoutBullet : withoutBullet.slice(0, firstBracket)).trim().replaceAll('`', '');
+  if (!QUALIFIED_TABLE.test(name)) return null;
+  const remainder = firstBracket === -1 ? '' : withoutBullet.slice(firstBracket).trim();
+  const metadata = [...remainder.matchAll(/\[([^\]\n]+)\]/g)].map((match) => match[1].trim());
+  if (remainder.replace(/\[[^\]\n]+\]/g, '').trim()) return null;
+  return { name, metadata };
+}
+
+/**
+ * Structural table-list blocks inside a stage payload.
+ *
+ * The parser is deliberately line- and heading-bound. It accepts both the
+ * bulleted `Listed available tables` result and the unbulleted
+ * `Declared governed sources` package shown by the finder/writer stages, keeps
+ * any number of blocks, and leaves every explanatory line in prose sections.
+ * Raw still uses the original payload and never calls this function.
+ */
+export function structuredTableResult(text: string): StructuredTableResult | null {
+  const lines = text.split(/\r?\n/);
+  const sections: StructuredTableSection[] = [];
+  const prose: string[] = [];
+  let tableCount = 0;
+
+  const flushProse = () => {
+    const value = prose.join('\n').trim();
+    prose.length = 0;
+    if (value) sections.push({ kind: 'prose', text: value });
+  };
+
+  for (let index = 0; index < lines.length; ) {
+    let heading = tableHeading(lines[index]);
+    if (!heading) {
+      prose.push(lines[index]);
+      index += 1;
+      continue;
+    }
+
+    let cursor = index + 1;
+    while (cursor < lines.length && lines[cursor].trim() === '') cursor += 1;
+    while (cursor < lines.length) {
+      const nested = tableHeading(lines[cursor]);
+      if (!nested) break;
+      heading = nested;
+      cursor += 1;
+      while (cursor < lines.length && lines[cursor].trim() === '') cursor += 1;
+    }
+
+    const tables: StructuredTableItem[] = [];
+    while (cursor < lines.length) {
+      const entry = structuredTableLine(lines[cursor]);
+      if (!entry) break;
+      tables.push(entry);
+      cursor += 1;
+    }
+
+    if (tables.length === 0) {
+      prose.push(lines[index]);
+      index += 1;
+      continue;
+    }
+
+    flushProse();
+    sections.push({ kind: 'table-list', heading, tables });
+    tableCount += tables.length;
+    index = cursor;
+  }
+
+  flushProse();
+  return tableCount > 0 ? { sections, tableCount } : null;
 }
 
 /**

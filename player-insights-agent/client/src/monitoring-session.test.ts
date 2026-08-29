@@ -40,7 +40,7 @@ function payload(readAt = '2026-08-24T12:00:00.000Z'): MonitoringQuestionsPayloa
     readAt,
     summary: {
       questionsAsked: 1,
-      peopleAsking: 1,
+      userThreads: 1,
       completed: 1,
       partial: 0,
       refused: 0,

@@ -25,7 +25,6 @@
 import { useState } from 'react';
 import { Badge } from './ui';
 import { Check, Pencil } from 'lucide-react';
-import { ratingLabel } from './benchmark-summary';
 import { astPill, shortRunId, statusFamily } from './run-header';
 import { runLabel } from './run-label';
 import { reportEgress } from './egress-policy';
@@ -34,6 +33,7 @@ import { UserIdentityChip } from './UserIdentityChip';
 import { abbreviatedConversationId } from './display-id';
 import { CopyIdChip } from './CopyIdChip';
 import { RunHeaderLabelEditor } from './RunHeaderLabelEditor';
+import { RunRatingBadge } from './RunRatingBadge';
 import {
   persistRunLabels,
   railOutcomeValue,
@@ -75,7 +75,6 @@ export function RunHeader({
   const [labelErrorState, setLabelError] = useState<string | null>(null);
   const editing = editingProp ?? editingState;
   const labelError = labelErrorProp ?? labelErrorState;
-  const rating = ratingLabel(run?.rating);
   const displayedStatus = run?.status;
   const family = statusFamily(displayedStatus);
 
@@ -172,11 +171,11 @@ export function RunHeader({
                     onRating={(value: RailRating) => saveOverlay({ rating: value })}
                   />
                 ) : (
-                  <OutcomeRatingChips displayedStatus={displayedStatus} family={family} rated={rating.rated} />
+                  <OutcomeRatingChips displayedStatus={displayedStatus} family={family} rating={run.rating} />
                 )}
               </>
             ) : (
-              <OutcomeRatingChips displayedStatus={displayedStatus} family={family} rated={rating.rated} />
+              <OutcomeRatingChips displayedStatus={displayedStatus} family={family} rating={run.rating} />
             )}
           </div>
         )}
@@ -220,11 +219,11 @@ export function RunHeader({
 function OutcomeRatingChips({
   displayedStatus,
   family,
-  rated,
+  rating,
 }: {
   displayedStatus: string | null | undefined;
   family: ReturnType<typeof statusFamily>;
-  rated: boolean;
+  rating: number | null | undefined;
 }) {
   return (
     <>
@@ -235,9 +234,7 @@ function OutcomeRatingChips({
         {family === 'pos' && <Check aria-hidden="true" />}
         {displayedStatus ?? 'unknown'}
       </Badge>
-      <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
-        {rated ? 'Rated' : 'Not rated'}
-      </Badge>
+      <RunRatingBadge rating={rating} showUnrated />
     </>
   );
 }

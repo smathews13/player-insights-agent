@@ -57,9 +57,17 @@ describe('cost budget route permissions', () => {
     );
 
     expect(body).toMatchObject({
-      budgets: { total: 100, resources: { 'app-compute': 25 } },
+      budgets: {
+        total: { value: 100, unit: 'USD' },
+        resources: { 'app-compute': { value: 25, unit: 'USD' } },
+      },
       readable: true,
     });
-    expect(writes[0].params[1]).toBe(JSON.stringify({ total: 100, resources: { 'app-compute': 25 } }));
+    expect(writes[0].params[1]).toBe(
+      JSON.stringify({
+        total: { value: 100, unit: 'USD' },
+        resources: { 'app-compute': { value: 25, unit: 'USD' } },
+      })
+    );
   });
 });

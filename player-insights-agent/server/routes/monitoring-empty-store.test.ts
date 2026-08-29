@@ -23,7 +23,7 @@ import type { Application, Request, Response } from 'express';
 const ROUTE = 'GET /api/monitoring/questions';
 
 /** The shape the statement returns for a range holding no questions. */
-const TOTALS_ONLY_ROW = { asked_total: 0, people_total: 0, people_list: [] as string[] };
+const TOTALS_ONLY_ROW = { asked_total: 0, thread_total: 0, people_list: [] as string[] };
 
 function routeUnder(rows: Record<string, unknown>[]) {
   let handler: ((req: Request, res: Response) => Promise<void>) | null = null;
@@ -37,8 +37,7 @@ function routeUnder(rows: Record<string, unknown>[]) {
   setupMonitoringRoutes(
     {
       lakebase: {
-        query: (text: string) =>
-          Promise.resolve(text === MONITORING_QUESTIONS_QUERY ? { rows } : { rows: [] }),
+        query: (text: string) => Promise.resolve(text === MONITORING_QUESTIONS_QUERY ? { rows } : { rows: [] }),
       },
       server: { extend: (fn: (target: Application) => void) => fn(app) },
     } as unknown as InsightsAppKit,
@@ -94,7 +93,7 @@ describe('the Monitoring list over a store that holds nothing', () => {
       {
         ...TOTALS_ONLY_ROW,
         asked_total: 1,
-        people_total: 1,
+        thread_total: 1,
         people_list: ['someone@example.test'],
         question_id: 'q1',
         conversation_id: 'c1',

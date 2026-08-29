@@ -353,55 +353,61 @@ html body[data-scroll-locked] {
   min-width: 0;
   overflow-x: clip;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 .run-list [data-slot='card-title'] {
   font-size: var(--text-h-sub);
   font-weight: 700;
 }
 /*
- * "All conversations" is the longer closed label. Equal `flex: 1 1 0` plus
- * `min-width: 0` let that control shrink under its chevron; AppKit then clips
- * the glyph and the focus ring with `overflow: hidden`. Username is the short
- * control and can give way. The label ellipsizes; the chevron does not.
+ * Two bounded tracks inside the fixed 340px rail.
+ *
+ * Intrinsic select width must never size either track: a question or email can
+ * be hundreds of characters, but changing it is state, not page geometry.
+ * `minmax(0, …)` and `min-width: 0` make the labels give way while the chevrons,
+ * gap, search field and detail pane stay exactly where they were.
  */
 .run-list-filters {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
   gap: 8px;
   align-items: stretch;
-  overflow: visible;
+  width: 100%;
+  min-width: 0;
 }
-.run-list-filters > *:first-child {
-  flex: 1 1 auto;
-  min-width: 11rem;
-  overflow: visible;
-}
-.run-list-filters > *:last-child {
-  flex: 0 1 auto;
-  min-width: 6rem;
-  overflow: visible;
+.run-filter-field {
+  min-width: 0;
+  max-width: 100%;
 }
 .run-conversation-filter,
 .run-username-filter {
+  box-sizing: border-box;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   justify-content: space-between;
   gap: 6px;
   padding-right: 8px;
-}
-.run-conversation-filter {
-  overflow: visible;
-}
-.run-username-filter {
-  overflow: visible;
+  overflow: hidden;
 }
 .run-list-filters [data-slot='select-trigger'] > svg {
   flex: none;
 }
 .run-filter-label {
+  display: block;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.run-filter-menu {
+  width: max-content;
+  max-width: min(30rem, calc(100vw - 24px));
+  max-height: min(22rem, var(--radix-select-content-available-height));
+}
+.run-filter-menu [data-slot='select-item'] {
+  max-width: 100%;
 }
 /* The search field's leading icon sits in the field rather than beside it, so
    the 340px column spends none of its width on a second box. */
@@ -538,23 +544,44 @@ html body[data-scroll-locked] {
   background: var(--db-amber-wash);
   color: var(--db-warn-600);
 }
-/* A run's own rating, which is the only evaluation on this list. Amber fills the
-   glyph and ink outlines it, which is what makes a 1.90:1 fill readable; the
-   number beside it is body text and does not borrow the fill. */
-/* The score takes the face on the element, for the reason `.run-item-date` gives
-   at length. The star and the separator are not figures and do not. */
-.run-item-rating {
+/*
+ * Stored answer feedback, using the answer card's exact selected treatments.
+ * Direction is also present as the badge's accessible name and tooltip; the
+ * semantic colour is reinforcement, never the only signal.
+ */
+.run-rating-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  color: var(--foreground);
+  justify-content: center;
+  min-width: 24px;
+  min-height: 20px;
+  padding: 2px 6px;
 }
-.run-item-rating svg {
-  width: 13px;
-  height: 13px;
-  fill: var(--db-amber);
-  stroke: var(--db-ink);
-  stroke-width: 1.5;
+.run-rating-badge > svg,
+.run-rating-unknown-icons > svg {
+  width: 12px;
+  height: 12px;
+}
+.run-rating-badge--up {
+  border-color: var(--ast-pos-border);
+  background: var(--ast-pos-fill);
+  color: var(--ast-pos-text);
+}
+.run-rating-badge--down {
+  border-color: var(--ast-neg-border);
+  background: var(--ast-neg-fill);
+  color: var(--ast-neg-text);
+}
+.run-rating-badge--unknown,
+.run-rating-badge--none {
+  border-color: var(--ast-border-input);
+  background: transparent;
+  color: var(--ast-text-secondary);
+}
+.run-rating-unknown-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 /* ---- the detail side ----

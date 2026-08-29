@@ -1,0 +1,66 @@
+.app-session-block {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 20%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 42%),
+    var(--background);
+  color: var(--foreground);
+}
+
+.app-session-card {
+  display: grid;
+  width: min(480px, 100%);
+  gap: 14px;
+  padding: 28px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  box-shadow: 0 18px 48px color-mix(in oklab, var(--db-ink-deep) 16%, transparent);
+}
+
+.app-session-card h1,
+.app-session-card p {
+  margin: 0;
+}
+
+.app-session-card h1 {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.app-session-card p {
+  color: var(--ast-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.app-session-card button {
+  display: inline-flex;
+  width: max-content;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.app-session-card button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.app-session-card button svg {
+  width: 15px;
+  height: 15px;
+}

@@ -48,10 +48,12 @@ def test_discovery_request_is_one_self_contained_message_not_chat_history():
 
     rendered = request.render()
 
-    assert rendered.startswith("Discovery intent:")
+    assert rendered.startswith("Question:")
     assert "Established visible context supplied by the orchestrator" in rendered
     assert "window_days=30" in rendered
-    assert "none are available" in rendered
+    assert "earlier turns" not in rendered
+    assert "none are available" not in rendered
+    assert "Return the assessed package" not in rendered
 
 
 def test_finder_invocation_gets_no_role_bearing_conversation_history():
@@ -80,7 +82,7 @@ def test_finder_invocation_gets_no_role_bearing_conversation_history():
     # request, never messages the model can treat as its own conversation.
     user_messages = [message for message in messages if message["role"] == "user"]
     assert len(user_messages) == 1
-    assert "Discovery intent:\nCompare retained players." in user_messages[0]["content"]
+    assert "Question:\nCompare retained players." in user_messages[0]["content"]
     assert '"content": "Use a 30-day window."' in user_messages[0]["content"]
 
 
@@ -176,6 +178,34 @@ def test_a_simple_data_question_still_invokes_the_finder():
     assert system_text(llm.loop_calls[0]["messages"][0]["content"]).startswith(
         "# Role\nYou are the Data Source Finder"
     )
+
+
+def test_new_trace_stores_reader_projections_not_finder_prompts():
+    question = "Explain why the governed phrase 'never churned' appears in retention."
+    llm = ScriptedLlm(
+        [Call("data_genie", {"question": question})],
+        "## DATA PACKAGE\n- **Findings / data:** The phrase is a governed retention state.",
+        charts=False,
+    )
+
+    response = execute(build(llm, FakeTools()), question)
+    stages = response.custom_outputs["answer"]["trace"]["stages"]
+    finder = next(stage for stage in stages if stage["id"] == "data_source_finder")
+    orchestrator = next(stage for stage in stages if stage["id"] == "orchestrator")
+    synthesis = next(stage for stage in stages if stage["id"] == "synthesis")
+
+    assert orchestrator["input"] == question
+    assert finder["input"] == "Identify the governed data available for this question."
+    assert finder["output"] == "Prepared an assessed data package from governed sources."
+    assert synthesis["input"] == "Prepare the final answer from assessed findings."
+    trace_text = "\n".join(
+        field
+        for stage in stages
+        for field in (stage["input"], stage["output"])
+        if not stage["id"].startswith("step-1-1-") and stage["id"] != "orchestrator"
+    ).lower()
+    for phrase in ("do not", "none are available", "earlier turns", "return the assessed"):
+        assert phrase not in trace_text
 
 
 def test_orchestrator_delegates_discovery_tools_only_through_finder():

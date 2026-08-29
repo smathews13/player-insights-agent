@@ -19,6 +19,7 @@ import {
   filterItems,
   initialCursor,
   namesOpaqueIds,
+  orderPickerItems,
   pickerForField,
   pickerRowText,
   rowActions,
@@ -107,17 +108,21 @@ describe('which fields get a browser', () => {
   });
 
   it('maps Lakebase, volume, VS and experiment fields to their chains', () => {
-    expect(spec('lakebase').levels).toEqual([
-      'lakebase-projects',
-      'lakebase-branches',
-      'lakebase-databases',
-    ]);
+    expect(spec('lakebase').levels).toEqual(['lakebase-projects', 'lakebase-branches', 'lakebase-databases']);
     expect(spec('assets-volume').levels).toEqual(['catalogs', 'schemas', 'volumes']);
     expect(spec('semantic-index-endpoint').levels).toEqual(['vector-search-endpoints']);
-    expect(spec('semantic-index').levels).toEqual([
-      'vector-search-endpoints',
-      'vector-search-indexes',
+    expect(spec('semantic-index').levels).toEqual(['vector-search-endpoints', 'vector-search-indexes']);
+  });
+});
+
+describe('warehouse ordering', () => {
+  it('puts running warehouses first without hiding stopped warehouses', () => {
+    const ordered = orderPickerItems('warehouses', [
+      item({ id: 'stopped', secondary: 'STOPPED' }),
+      item({ id: 'running', secondary: 'RUNNING' }),
+      item({ id: 'starting', secondary: 'STARTING' }),
     ]);
+    expect(ordered.map((entry) => entry.id)).toEqual(['running', 'stopped', 'starting']);
   });
 });
 
@@ -307,11 +312,14 @@ describe('workspace notebook navigation', () => {
     });
     expect(browseUrl('notebooks', PICKER_TOP)).toBe('/api/browse/notebooks');
     expect(browseUrl('notebooks', { catalog: '/Shared/demos', schema: '' })).toBe(
-      '/api/browse/notebooks?path=%2FShared%2Fdemos',
+      '/api/browse/notebooks?path=%2FShared%2Fdemos'
     );
-    expect(
-      cursorTrail(NOTEBOOK_SPEC, { catalog: '/Shared/demos', schema: '' }).map((step) => step.label),
-    ).toEqual(['Notebook home', 'Workspace root', 'Shared', 'demos']);
+    expect(cursorTrail(NOTEBOOK_SPEC, { catalog: '/Shared/demos', schema: '' }).map((step) => step.label)).toEqual([
+      'Notebook home',
+      'Workspace root',
+      'Shared',
+      'demos',
+    ]);
   });
 
   it('opens folders and selects only notebook rows', () => {
@@ -319,15 +327,15 @@ describe('workspace notebook navigation', () => {
       rowActions(
         NOTEBOOK_SPEC,
         { catalog: '/Shared', schema: '' },
-        item({ id: '/Shared/demos', label: 'demos', expandable: true }),
-      ),
+        item({ id: '/Shared/demos', label: 'demos', expandable: true })
+      )
     ).toEqual([{ kind: 'open', label: 'Open', cursor: { catalog: '/Shared/demos', schema: '' } }]);
     expect(
       rowActions(
         NOTEBOOK_SPEC,
         { catalog: '/Shared/demos', schema: '' },
-        item({ id: '/Shared/demos/player-insights', label: 'player-insights' }),
-      ),
+        item({ id: '/Shared/demos/player-insights', label: 'player-insights' })
+      )
     ).toEqual([{ kind: 'pick', label: 'Use', value: '/Shared/demos/player-insights', note: '' }]);
   });
 });

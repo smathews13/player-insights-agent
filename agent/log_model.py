@@ -366,6 +366,9 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
             # cannot load is worse than a red test.
             str(ROOT / "semantic_layer.py"),
             str(ROOT / "semantic_retrieval.py"),
+            # Reader-facing stage copy is a separate projection from the model
+            # transcript. agent.py imports it at load time for every trace.
+            str(ROOT / "stage_lexicon.py"),
             str(ROOT / "tool_repetition.py"),
             str(ROOT / "tools.py"),
             str(ROOT / "unattributed_figures.py"),

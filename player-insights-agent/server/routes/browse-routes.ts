@@ -16,6 +16,7 @@ import type { InsightsAppKit } from './insights-routes';
 import { executionToken } from '../lib/execution-credential';
 import {
   browseRequestContext,
+  discoverConnectionTypes,
   listCatalogs,
   listExperiments,
   listGenieSpaces,
@@ -54,6 +55,11 @@ async function sendBrowse(
 
 export function setupBrowseRoutes(appkit: InsightsAppKit): void {
   appkit.server.extend((app) => {
+    app.get('/api/browse/connection-types', async (req, res) => {
+      const ctx = browseRequestContext({ token: executionToken(req) });
+      res.status(200).json(await discoverConnectionTypes(ctx));
+    });
+
     app.get('/api/browse/catalogs', async (req, res) => {
       await sendBrowse(req, res, (ctx) =>
         listCatalogs({ ...ctx, pageToken: queryString(req, 'page_token') || undefined })

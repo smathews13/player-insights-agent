@@ -91,9 +91,10 @@ class Derivation(BaseModel):
 class TraceStage(BaseModel):
     """One step of a run, as the timeline reads it.
 
-    `input` and `output` are the tool's real arguments and real result, uncapped
-    here: the cap lives in `agent.py`, where the whole payload's size can be
-    reasoned about at once.
+    `input` and `output` are the allowlisted reader projection. Tool stages keep
+    their arguments and concrete result, with agent-only retry and safety
+    guidance removed. Agent stages keep only a compact task and outcome, never
+    their model prompt or internal handoff. The size cap lives in `agent.py`.
 
     `depth` and `parent_id` express nesting. A tool-calling loop is a tree, and a
     flat list of siblings misrepresents it as a sequence of equals.
@@ -110,10 +111,9 @@ class TraceStage(BaseModel):
     output: str = ""
     #: Fully-qualified table names this discovery step enumerated.
     #:
-    #: Separate from ``output`` on purpose. The output is the honest raw tool
-    #: result; this small allowlisted projection is what live/replayed clients can
-    #: render without treating an empty arguments object as the result or
-    #: persisting unrelated tool payload fields.
+    #: Separate from ``output`` on purpose. This small structured projection lets
+    #: live/replayed clients render an honest table inventory without parsing
+    #: prose.
     tables: list[str] = Field(default_factory=list)
     #: 0 for a top-level step, 1 for a tool call made inside one. Defaulted so a
     #: stage from a model version that predates nesting reads as top-level.

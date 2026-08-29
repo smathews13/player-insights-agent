@@ -1,4 +1,5 @@
 import type { ResourceKind } from '../../shared/deployment-config';
+import type { DeclaredResourceType } from '../../shared/notebook-declaration';
 import type { SpGrantResource, SpGrantResourceType } from '../../shared/sp-identity';
 import type { LakebaseReader } from './lakebase-store';
 import { readDeclaredConnections } from './declared-connections';
@@ -28,12 +29,26 @@ function unityCatalogType(value: string): SpGrantResourceType | null {
   return null;
 }
 
+const DECLARED_GRANT_RESOURCE_TYPES: Readonly<Record<DeclaredResourceType, SpGrantResourceType>> = {
+  catalog: 'CATALOG',
+  schema: 'SCHEMA',
+  table: 'TABLE',
+  'sql-warehouse': 'SQL_WAREHOUSE',
+  'serving-endpoint': 'SERVING_ENDPOINT',
+  'genie-space': 'GENIE_SPACE',
+  'vector-search-endpoint': 'VECTOR_SEARCH_ENDPOINT',
+  'vector-search-index': 'VECTOR_SEARCH_INDEX',
+  volume: 'VOLUME',
+};
+
 export function declaredGrantResourceType(input: {
   kind: ResourceKind;
+  resourceType?: DeclaredResourceType;
   id: string;
   label: string;
   value: string;
 }): SpGrantResourceType | null {
+  if (input.resourceType) return DECLARED_GRANT_RESOURCE_TYPES[input.resourceType];
   switch (input.kind) {
     case 'agent':
     case 'model':

@@ -27,6 +27,7 @@ import {
 import type { PreflightCheck } from './preflight';
 import type { ConnectedResource, ResourceKind } from '../../shared/deployment-config';
 import type { AppFacts } from '../../shared/app-facts';
+import type { DeclaredResourceType } from '../../shared/notebook-declaration';
 
 /**
  * Whether the notebook declaration table is offered as a connection editor.
@@ -157,14 +158,15 @@ export interface ConnectionEntry {
     id: string;
     label: string;
     kind: ResourceKind;
+    resourceType?: DeclaredResourceType;
     value: string;
     note: string;
     state: 'declared' | 'withdrawn';
     origin: 'app' | 'notebook';
-    createdAt: string;
-    createdBy: string;
-    changedAt: string;
-    changedBy: string;
+    createdAt?: string;
+    createdBy?: string;
+    changedAt?: string;
+    changedBy?: string;
   };
   impact: {
     headline: string;
@@ -222,7 +224,8 @@ export function hasRemoteEnd(row: ResourceRow, check?: PreflightCheck): boolean 
  * check still wins where both exist: it is the only one of the two that
  * observed what was USED, as opposed to what was configured and can be reached.
  */
-export function checkFor(resource: ConnectedResource,
+export function checkFor(
+  resource: ConnectedResource,
   checksById: ReadonlyMap<string, PreflightCheck>
 ): PreflightCheck | undefined {
   const named = resource.actualFromCheck ? checksById.get(resource.actualFromCheck) : undefined;
@@ -240,9 +243,7 @@ export function indexChecks(checks: readonly PreflightCheck[]): Map<string, Pref
  * `indexChecks`, on the same reasoning as `checkFor`: where both answered about
  * one resource, only one of them watched it being used.
  */
-export function allChecks(payload: SettingsPayload | null,
-  reported: readonly PreflightCheck[]
-): PreflightCheck[] {
+export function allChecks(payload: SettingsPayload | null, reported: readonly PreflightCheck[]): PreflightCheck[] {
   return [...(payload?.checks ?? []), ...reported];
 }
 
@@ -314,9 +315,7 @@ export interface ConnectionReading {
  * configured value in the first place, so the two readings would be the same
  * string.
  */
-function connectionSummary(row: ResourceRow,
-  check: PreflightCheck | undefined
-): { value: string; measured: boolean } {
+function connectionSummary(row: ResourceRow, check: PreflightCheck | undefined): { value: string; measured: boolean } {
   const summary = inUseSummary(row);
   if (summary.value) return summary;
   const observed = check?.name?.trim() ?? '';
@@ -359,7 +358,8 @@ export function readConnection(input: {
  * The single entry point both pages use, so neither can index a check or group
  * a finding its own way.
  */
-export function readConnections(payload: SettingsPayload | null,
+export function readConnections(
+  payload: SettingsPayload | null,
   checks: readonly PreflightCheck[]
 ): ConnectionReading[] {
   if (!payload) return [];
@@ -498,8 +498,7 @@ export function groupConnections(readings: readonly ConnectionReading[]): Connec
     return {
       key: group.key,
       title: group.title,
-      aside:
-        group.key === 'not-checked' ? `${count} ${count === 1 ? 'dependency' : 'dependencies'}` : '',
+      aside: group.key === 'not-checked' ? `${count} ${count === 1 ? 'dependency' : 'dependencies'}` : '',
       readings,
     };
   });

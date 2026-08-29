@@ -125,6 +125,38 @@ export interface BrowseFailed {
 
 export type BrowseResponse = BrowseOk | BrowseUnavailable | BrowseFailed;
 
+/**
+ * One concrete category the signed-in reader can enumerate.
+ *
+ * A category is returned only when its user-scoped root API answered with at
+ * least one visible resource. Denied, failed and genuinely empty roots stay in
+ * `unavailable`, where the add form can explain why they are absent without
+ * pretending the workspace has no resources.
+ */
+export interface ConnectionTypeAvailability {
+  id:
+    | 'catalog'
+    | 'schema'
+    | 'table'
+    | 'sql-warehouse'
+    | 'serving-endpoint'
+    | 'genie-space'
+    | 'vector-search-endpoint'
+    | 'vector-search-index'
+    | 'volume';
+  label: string;
+  rootKind: BrowseKind;
+}
+
+export interface ConnectionTypesResponse {
+  available: ConnectionTypeAvailability[];
+  unavailable: Array<{
+    rootKind: BrowseKind;
+    status: 'empty' | 'denied' | 'failed';
+    detail: string;
+  }>;
+}
+
 /** Type guard the picker uses before reading `items`. */
 export function isBrowseOk(response: BrowseResponse): response is BrowseOk {
   return response.status === 'ok';

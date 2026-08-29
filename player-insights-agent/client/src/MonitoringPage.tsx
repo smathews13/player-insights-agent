@@ -42,6 +42,7 @@ import { UnavailablePanel } from './UnavailablePanel';
 import { unavailableNotice } from './unavailable-copy';
 import { AnswerCard } from './AnswerCard';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
+import { SourceEntityName, VisitInDatabricks } from './DataEntityLinks';
 import { UserIdentityChip } from './UserIdentityChip';
 import { identityName, possessiveName } from './user-identity';
 import type { Answer, FeedbackEntry } from './app-types';
@@ -62,14 +63,13 @@ import {
   OUTCOME_TONE,
   outcomeTile,
   partialSentence,
-  peopleAskingTile,
   questionsAskedTile,
   ratedHelpfulTile,
   ratedTile,
   readScopes,
-  tablesReadTile,
   tokenCostTile,
   tokensTile,
+  userThreadsTile,
   whenLabel,
   type EmptyState,
   type MonitoringState,
@@ -106,9 +106,9 @@ import { UsedThisRun } from './UsedThisRun';
 /* ── The summary strip ───────────────────────────────────────────────────── */
 
 /** One hairline tile. A tile never renders blank and never renders both. */
-export function SummaryTile({ label, tile }: { label: string; tile: TileValue }) {
+export function SummaryTile({ label, tile, className = '' }: { label: string; tile: TileValue; className?: string }) {
   return (
-    <div className="monitoring-tile">
+    <div className={['monitoring-tile', className].filter(Boolean).join(' ')}>
       <p className="monitoring-tile-label">{label}</p>
       {tile.value !== null ? (
         <p className="monitoring-tile-value ast-num">{tile.value}</p>
@@ -135,10 +135,18 @@ export function SummaryStrip({ payload }: { payload: MonitoringQuestionsPayload;
   const outcomes = outcomeTile(payload.summary);
   return (
     <div className="monitoring-strip" aria-label="Summary for the selected range">
-      <SummaryTile label="Questions asked" tile={questionsAskedTile(payload.summary)} />
-      <SummaryTile label="People asking" tile={peopleAskingTile(payload.summary)} />
-      <div className="monitoring-tile">
-        <p className="monitoring-tile-label">Completed · Partial · Refused · Failed</p>
+      <SummaryTile
+        label="Questions asked"
+        tile={questionsAskedTile(payload.summary)}
+        className="monitoring-summary-questions"
+      />
+      <SummaryTile
+        label="User threads"
+        tile={userThreadsTile(payload.summary)}
+        className="monitoring-summary-threads"
+      />
+      <div className="monitoring-tile monitoring-outcomes-tile">
+        <p className="monitoring-tile-label monitoring-outcomes-label">Completed · Partial · Refused · Failed</p>
         <p className="monitoring-tile-value ast-num">
           <span>{outcomes.completed}</span>
           <span className="monitoring-partial"> · {outcomes.partial}</span>
@@ -147,8 +155,16 @@ export function SummaryStrip({ payload }: { payload: MonitoringQuestionsPayload;
         </p>
         {outcomes.caption ? <p className="monitoring-tile-caption">{outcomes.caption}</p> : null}
       </div>
-      <SummaryTile label="Rated helpful" tile={ratedHelpfulTile(payload.summary)} />
-      <SummaryTile label="Median answer time" tile={medianAnswerTimeTile(payload.summary)} />
+      <SummaryTile
+        label="Rated helpful"
+        tile={ratedHelpfulTile(payload.summary)}
+        className="monitoring-summary-rated"
+      />
+      <SummaryTile
+        label="Median answer time"
+        tile={medianAnswerTimeTile(payload.summary)}
+        className="monitoring-summary-median"
+      />
     </div>
   );
 }
@@ -874,41 +890,47 @@ export function QuestionDrawer({
  * of a 620px drawer is not enough for one: at a third it wrapped mid-word, which
  * is the one break a reader cannot tell from the end of a name.
  */
-function PanelTile({
-  label,
-  tile,
-  mono,
-  wide,
-}: {
-  label: string;
-  tile: TileValue;
-  mono?: string | null;
-  wide?: boolean;
-}) {
+function PanelTile({ label, tile }: { label: string; tile: TileValue }) {
   return (
-    <div className={wide ? 'monitoring-panel-tile monitoring-panel-tile-wide' : 'monitoring-panel-tile'}>
+    <div className="monitoring-panel-tile">
       <p className="monitoring-panel-tile-label">{label}</p>
-      {mono ? (
-        // The mono value on this tile is a Unity Catalog table name -- it is the
-        // "Tables read most" tile and nothing else passes `mono` -- so it gets
-        // the product's mark before it, as the grant rows below do. `title`
-        // carries the whole name, because the line truncates with an ellipsis
-        // rather than breaking inside a word.
-        <p className="monitoring-mono monitoring-panel-tile-mono" title={mono}>
-          <BrandIcon product="unity-catalog" size={14} />
-          {mono}
-        </p>
-      ) : tile.value !== null ? (
+      {tile.value !== null ? (
         <p className="monitoring-panel-tile-value ast-num">{tile.value}</p>
       ) : (
         <p className="monitoring-tile-absent">{tile.absence}</p>
       )}
-      {tile.caption ? (
-      <p className="monitoring-tile-caption" title={wide ? tile.caption : undefined}>
-        {tile.caption}
-      </p>
-      ) : null}
+      {tile.caption ? <p className="monitoring-tile-caption">{tile.caption}</p> : null}
     </div>
+  );
+}
+
+/**
+ * The ranked source tables recorded by this person's runs in the selected
+ * period. Nothing configured is borrowed to fill an empty list: these rows are
+ * evidence from the runs, and the server has already deduplicated and capped
+ * them.
+ */
+export function TablesReadMost({ rows }: { rows: PersonPanelPayload['tablesReadMost'] }) {
+  if (rows.length === 0) return null;
+  return (
+    <section className="monitoring-panel-tile monitoring-panel-tile-wide monitoring-tables-read">
+      <p className="monitoring-panel-tile-label">Tables read most</p>
+      <ol className="monitoring-table-ranking">
+        {rows.map((row) => (
+          <li key={row.table}>
+            <span className="monitoring-ranked-table" title={row.table}>
+              <VisitInDatabricks name={row.table} />
+              <span className="source-name-pill" data-tone="queried">
+                <SourceEntityName name={row.table} />
+              </span>
+            </span>
+            <span className="monitoring-table-runs ast-num">
+              {row.runs.toLocaleString()} {row.runs === 1 ? 'run' : 'runs'}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 
@@ -936,7 +958,6 @@ export function PersonPanel({
   onOpenQuestion: (question: MonitoringQuestion) => void;
 }) {
   const times = answerTimeTile(panel.durationsMs);
-  const tables = tablesReadTile(panel.tablesReadMost);
   const outcomes = outcomeTile(panel.summary);
   const scopes = readScopes(panel);
   return (
@@ -991,7 +1012,7 @@ export function PersonPanel({
           <p className="monitoring-tile-caption">{times.tail}</p>
         </div>
         <PanelTile label="Rated" tile={ratedTile(panel.ratedUp, panel.ratedDown)} />
-        <PanelTile label="Tables read most" tile={tables} mono={tables.table} wide />
+        <TablesReadMost rows={panel.tablesReadMost} />
       </div>
 
       <h4 className="monitoring-eyebrow">What they can read · permissions, not data</h4>
@@ -1051,9 +1072,7 @@ export function PersonPanel({
                 {/* What a filter or a mask IS, never what it did to a run. A
                   filtered query succeeds and returns fewer rows, and nothing in
                   the result says a filter ran. */}
-                {grant.rowFilter ? (
-                  <p className="monitoring-grant-note">Row filter applied.</p>
-                ) : null}
+                {grant.rowFilter ? <p className="monitoring-grant-note">Row filter applied.</p> : null}
                 {grant.maskedColumns && grant.maskedColumns.length > 0 ? (
                   <p className="monitoring-grant-note">{`Column mask on ${grant.maskedColumns.join(', ')}.`}</p>
                 ) : null}

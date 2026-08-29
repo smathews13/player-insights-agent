@@ -166,6 +166,25 @@ describe('normalizeStage', () => {
       ).tables
     ).toEqual(['<your_catalog>.<your_schema>.gold_title_daily']);
   });
+
+  it('normalizes legacy stored stage prompts before any renderer receives them', () => {
+    const stage = normalizeStage(
+      {
+        id: 'data_source_finder',
+        name: 'Data Source Finder',
+        kind: 'agent',
+        status: 'complete',
+        input:
+          'Discovery intent: what data do you have access to? Return the assessed package. Do not refer to earlier turns; none are available.',
+        output: '# Role\nNever expose identifiers.\n## DATA PACKAGE',
+      },
+      0
+    );
+
+    expect(stage.input).toBe('Identify the governed data available for this question.');
+    expect(stage.output).toBe('Prepared an assessed data package from governed sources.');
+    expect(`${stage.input} ${stage.output}`).not.toMatch(/do not|never|return the|earlier turns|none are available/i);
+  });
 });
 
 /**

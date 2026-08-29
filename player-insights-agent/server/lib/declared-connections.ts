@@ -22,6 +22,8 @@
 import { APP_SCHEMA } from '../../shared/app-schema';
 import {
   DECLARABLE_KINDS,
+  DECLARED_RESOURCE_TYPES,
+  type DeclaredResourceType,
   type DeclaredConnection,
 } from '../../shared/notebook-declaration';
 import { CONNECTED_RESOURCES, type ResourceKind } from '../../shared/deployment-config';
@@ -43,24 +45,25 @@ export interface StoredDeclaredConnection extends DeclaredConnection {
 }
 
 export const DECLARED_CONNECTIONS_QUERY = `
-  SELECT id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by
+  SELECT id, label, kind, resource_type, value, note, state, origin, created_at, created_by, changed_at, changed_by
   FROM ${APP_SCHEMA}.declared_connections
   ORDER BY created_at, id`;
 
 export const UPSERT_DECLARED_CONNECTION_QUERY = `
   INSERT INTO ${APP_SCHEMA}.declared_connections
-    (id, label, kind, value, note, state, origin, created_by, changed_by, changed_at)
-  VALUES ($1, $2, $3, $4, $5, 'declared', $6, $7, $7, now())
+    (id, label, kind, resource_type, value, note, state, origin, created_by, changed_by, changed_at)
+  VALUES ($1, $2, $3, $4, $5, $6, 'declared', $7, $8, $8, now())
   ON CONFLICT (id) DO UPDATE
     SET label = EXCLUDED.label,
         kind = EXCLUDED.kind,
+        resource_type = EXCLUDED.resource_type,
         value = EXCLUDED.value,
         note = EXCLUDED.note,
         state = 'declared',
         origin = EXCLUDED.origin,
         changed_by = EXCLUDED.changed_by,
         changed_at = now()
-  RETURNING id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
+  RETURNING id, label, kind, resource_type, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
 
 /**
  * Withdraw a declaration, keeping the row.
@@ -73,13 +76,13 @@ export const WITHDRAW_DECLARED_CONNECTION_QUERY = `
   UPDATE ${APP_SCHEMA}.declared_connections
      SET state = 'withdrawn', changed_by = $2, changed_at = now()
    WHERE id = $1 AND state = 'declared'
-  RETURNING id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
+  RETURNING id, label, kind, resource_type, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
 
 export const RESTORE_DECLARED_CONNECTION_QUERY = `
   UPDATE ${APP_SCHEMA}.declared_connections
      SET state = 'declared', changed_by = $2, changed_at = now()
    WHERE id = $1 AND state = 'withdrawn'
-  RETURNING id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
+  RETURNING id, label, kind, resource_type, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
 
 /**
  * Forget one stored declaration rather than merely withdrawing it.
@@ -108,15 +111,17 @@ function timestamp(value: unknown): string {
 
 function storedFromRow(row: Record<string, unknown>): StoredDeclaredConnection {
   const kind = text(row.kind);
+  const resourceType = text(row.resource_type);
   return {
     id: text(row.id),
     label: text(row.label),
     // Read through the allowlist rather than cast. A kind that is no longer one
     // this build declares would otherwise reach the client as an icon lookup that
     // silently renders nothing.
-    kind: (DECLARABLE_KINDS as readonly string[]).includes(kind)
-      ? (kind as ResourceKind)
-      : 'unity-catalog',
+    kind: (DECLARABLE_KINDS as readonly string[]).includes(kind) ? (kind as ResourceKind) : 'unity-catalog',
+    resourceType: (DECLARED_RESOURCE_TYPES as readonly string[]).includes(resourceType)
+      ? (resourceType as DeclaredResourceType)
+      : undefined,
     value: text(row.value),
     note: text(row.note),
     state: row.state === 'withdrawn' ? 'withdrawn' : 'declared',
@@ -136,9 +141,7 @@ function storedFromRow(row: Record<string, unknown>): StoredDeclaredConnection {
  * out why the rest of the app is degraded, and failing its read would take that
  * page down too. The caller reports the store's own state beside this.
  */
-export async function readDeclaredConnections(
-  client: LakebaseReader
-): Promise<StoredDeclaredConnection[]> {
+export async function readDeclaredConnections(client: LakebaseReader): Promise<StoredDeclaredConnection[]> {
   try {
     const result = await client.lakebase.query(DECLARED_CONNECTIONS_QUERY);
     return (result?.rows ?? []).map(storedFromRow).filter((entry) => entry.id !== '');
@@ -154,6 +157,7 @@ export async function writeDeclaredConnection(
     id: string;
     label: string;
     kind: ResourceKind;
+    resourceType?: DeclaredResourceType;
     value: string;
     note: string;
     origin: DeclarationOrigin;
@@ -164,6 +168,7 @@ export async function writeDeclaredConnection(
     connection.id,
     connection.label,
     connection.kind,
+    connection.resourceType ?? '',
     connection.value,
     connection.note,
     connection.origin,
@@ -210,11 +215,7 @@ const ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,60}$/;
  * declaration that reused `sql-warehouse` would render two rows claiming the same
  * key, one of which the app resolves from the artifact and one from this table.
  */
-export function addFault(input: {
-  id: string;
-  kind: string;
-  value: string;
-}): string | null {
+export function addFault(input: { id: string; kind: string; resourceType?: string; value: string }): string | null {
   if (!ID_PATTERN.test(input.id)) {
     return 'A name may use lower-case letters, digits and hyphens, must start with a letter or digit, and is between 2 and 61 characters.';
   }
@@ -224,8 +225,40 @@ export function addFault(input: {
   if (!(DECLARABLE_KINDS as readonly string[]).includes(input.kind)) {
     return `${input.kind} is not a kind of asset that can be added here.`;
   }
+  if (input.resourceType) {
+    const expectedKind: Record<DeclaredResourceType, ResourceKind> = {
+      catalog: 'unity-catalog',
+      schema: 'unity-catalog',
+      table: 'unity-catalog',
+      volume: 'volume',
+      'sql-warehouse': 'sql-warehouse',
+      'serving-endpoint': 'model',
+      'genie-space': 'genie-space',
+      'vector-search-endpoint': 'vector-search',
+      'vector-search-index': 'vector-search',
+    };
+    if (!(DECLARED_RESOURCE_TYPES as readonly string[]).includes(input.resourceType)) {
+      return `${input.resourceType} is not a resource type that can be added here.`;
+    }
+    if (expectedKind[input.resourceType as DeclaredResourceType] !== input.kind) {
+      return `${input.resourceType} does not match the submitted connection kind.`;
+    }
+  }
   if (!input.value.trim()) {
     return 'An asset needs an identifier, such as a three-part table name.';
+  }
+  const value = input.value.trim();
+  if (input.resourceType === 'schema' && value.split('.').filter(Boolean).length !== 2) {
+    return 'A schema identifier must be catalog.schema.';
+  }
+  if (
+    (input.resourceType === 'table' || input.resourceType === 'vector-search-index') &&
+    value.split('.').filter(Boolean).length !== 3
+  ) {
+    return 'This resource identifier must have three parts: catalog.schema.name.';
+  }
+  if (input.resourceType === 'volume' && !/^\/Volumes\/[^/]+\/[^/]+\/[^/]+$/.test(value)) {
+    return 'A volume identifier must be /Volumes/catalog/schema/volume.';
   }
   return null;
 }
@@ -266,13 +299,8 @@ export interface RemovalImpact {
  * a row whose value is also one of the deployment's live resources gets the
  * stronger warning, and everything else gets the true, milder one.
  */
-export function removalImpact(
-  connection: StoredDeclaredConnection,
-  liveValues: readonly string[]
-): RemovalImpact {
-  const consequences: string[] = [
-    'The agent stops being offered this asset when it chooses where to look.',
-  ];
+export function removalImpact(connection: StoredDeclaredConnection, liveValues: readonly string[]): RemovalImpact {
+  const consequences: string[] = ['The agent stops being offered this asset when it chooses where to look.'];
   const normalised = connection.value.trim().toLowerCase();
   const alsoLive = liveValues.some((value) => value.trim().toLowerCase() === normalised);
   if (alsoLive) {
@@ -285,9 +313,7 @@ export function removalImpact(
     );
   }
   if (connection.origin === 'notebook') {
-    consequences.push(
-      'It was published from a notebook, so publishing again will add it back.'
-    );
+    consequences.push('It was published from a notebook, so publishing again will add it back.');
   }
   return {
     headline: alsoLive

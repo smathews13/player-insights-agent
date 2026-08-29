@@ -272,9 +272,7 @@ export const EGRESS_PATHS: readonly EgressPath[] = [
   },
 ];
 
-const BY_CHANNEL: ReadonlyMap<EgressChannel, EgressPath> = new Map(
-  EGRESS_PATHS.map((path) => [path.channel, path])
-);
+const BY_CHANNEL: ReadonlyMap<EgressChannel, EgressPath> = new Map(EGRESS_PATHS.map((path) => [path.channel, path]));
 
 /** One path, or null for a channel this build does not know. */
 export function egressPath(channel: string): EgressPath | null {
@@ -300,9 +298,9 @@ export function controllablePaths(): readonly EgressPath[] {
 /**
  * The paths something in the app actually reports.
  *
- * Empty is a legitimate and, today, the correct answer. A caller that treats
- * empty as an error has misread it: the honest consequence of no producers is
- * that the log means nothing, which is a thing to SAY rather than a fault.
+ * Empty remains legitimate for a build with no producers. In this build the
+ * generated-SQL, identifier and grant-statement copy paths report; the image and
+ * link enforcement paths do not.
  */
 export function reportingPaths(): readonly EgressPath[] {
   return EGRESS_PATHS.filter((path) => path.reported);
@@ -427,6 +425,34 @@ export interface EgressEvent {
   itemCount: number | null;
 }
 
+/** What the app can establish about one read of its egress event ledger. */
+export type EgressEventReadState = 'read' | 'unavailable' | 'not-migrated';
+
+/**
+ * Deployment-local storage provenance shown to administrators.
+ *
+ * These are logical Lakebase names and retention semantics only. Connection
+ * details and credentials never belong in this payload.
+ */
+export interface EgressStorageMetadata {
+  store: 'Lakebase (Postgres)';
+  eventsTable: string;
+  controlsTable: string;
+  retained: string;
+  retention: string;
+  identityScope: string;
+}
+
+/** One fixed-query page of recent event metadata. */
+export interface EgressEventsPayload {
+  events: readonly EgressEvent[];
+  readState: EgressEventReadState;
+  pageSize: number;
+  nextCursor: string | null;
+  readAt: string;
+  storage: EgressStorageMetadata;
+}
+
 /**
  * What a client sends to record one export. The server decides the rest.
  *
@@ -453,6 +479,7 @@ export interface EgressControlsPayload {
    */
   stored: boolean;
   paths: readonly EgressPath[];
+  storage: EgressStorageMetadata;
 }
 
 /* ── What the catalog says, and what it does not ───────────────────────────── */

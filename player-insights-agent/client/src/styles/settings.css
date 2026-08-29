@@ -103,6 +103,10 @@
   width: 140px;
 }
 
+.judge-settings-control-column {
+  width: 104px;
+}
+
 .exp-feature-table th,
 .exp-feature-table td {
   height: 52px;
@@ -567,23 +571,52 @@
   margin: 0;
   min-width: 0;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 500;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
 }
 
 .admin-row-address {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .roster-email {
   min-width: 0;
-  overflow: hidden;
+}
+
+.roster-email-details {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.roster-organization-mark {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  color: var(--ast-text-secondary);
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.roster-organization-name {
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.2;
 }
 
 /* "You", so the reader can see which row is theirs before they press Remove on
@@ -791,12 +824,7 @@
   margin-left: auto;
 }
 
-/*
- * Shared quiet field language: the locked Super-admin plaque, the role
- * dropdown, Add, and Remove all sit at 32px with the same hairline as the
- * rest of Settings. Remove stays clearly destructive by ink, not by a solid
- * fill that outshouts the pane.
- */
+/* Shared compact control language for editable roster fields. */
 .roster-control {
   height: 30px;
   padding: 0 9px;
@@ -817,35 +845,41 @@
   white-space: nowrap;
 }
 
-/*
- * Roles is the only Settings pane with deletion, so the class remains a
- * page-local backstop beside the shared `data-variant="destructive"` route.
- * Outline rather than a filled slab: the rest of Settings is frost and
- * hairlines, and a solid fire-engine Remove was the loudest object in the
- * pane. Negative prose still keeps the lighter `--destructive`.
- */
+.roster-role > .role-badge,
+.roster-owner-badge {
+  width: fit-content;
+  min-height: 24px;
+}
+
+.roster-owner-badge {
+  background: var(--ast-info-fill);
+  color: var(--ast-info-text);
+  font-weight: 600;
+}
+
+/* Destructive roster actions use the same filled treatment as Stop all. */
 .settings-page [data-slot='button'].settings-destructive {
-  border-color: var(--destructive);
-  background: transparent;
-  color: var(--destructive);
+  border-color: var(--db-red-700);
+  background: var(--db-red-700);
+  color: var(--destructive-foreground);
 }
 
 .settings-page [data-slot='button'].settings-destructive:hover:not(:disabled) {
-  border-color: var(--destructive);
-  background: color-mix(in srgb, var(--destructive) 12%, transparent);
-  color: var(--destructive);
+  border-color: color-mix(in srgb, var(--db-red-700) 82%, white);
+  background: color-mix(in srgb, var(--db-red-700) 82%, white);
+  color: var(--destructive-foreground);
 }
 
 html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive {
   border-color: var(--ast-destructive-control);
-  background: transparent;
-  color: var(--ast-destructive-control);
+  background: var(--ast-destructive-control);
+  color: var(--destructive-foreground);
 }
 
 html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive:hover:not(:disabled) {
-  border-color: var(--ast-destructive-control);
-  background: color-mix(in srgb, var(--ast-destructive-control) 16%, transparent);
-  color: var(--ast-destructive-control);
+  border-color: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
+  background: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
+  color: var(--destructive-foreground);
 }
 
 .admin-add [data-slot='button'] {
@@ -1166,6 +1200,14 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   color: var(--muted-foreground);
 }
 
+.runtime-loop-layout {
+  display: grid;
+  grid-template-columns: 354px minmax(300px, 1fr);
+  align-items: end;
+  gap: 18px;
+  min-width: 0;
+}
+
 .runtime-loop-row {
   display: grid;
   grid-template-columns: repeat(3, 110px);
@@ -1196,6 +1238,98 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   border-color: var(--ast-blue);
   background: color-mix(in srgb, var(--ast-blue) 14%, var(--card));
   color: var(--ast-blue);
+}
+
+/*
+ * Runtime's controls explain the numbers; this drawing explains their scope.
+ * It follows Architecture's card + accent-edge vocabulary, but is deliberately
+ * still: the loop is topology, not a claim that a run is currently moving.
+ */
+.runtime-loop-diagram {
+  display: block;
+  width: 100%;
+  max-width: 380px;
+  min-width: 0;
+  justify-self: end;
+  color: var(--foreground);
+  overflow: visible;
+}
+
+.runtime-loop-diagram__budget-frame {
+  fill: color-mix(in srgb, var(--ast-blue) 3%, transparent);
+  stroke: var(--ast-blue);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.runtime-loop-diagram__budget-label,
+.runtime-loop-diagram__deadline-note {
+  fill: var(--ast-blue);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.runtime-loop-diagram__budget-label {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.runtime-loop-diagram__deadline-note {
+  fill: var(--muted-foreground);
+}
+
+.runtime-loop-diagram__edge {
+  fill: none;
+  stroke: var(--ast-border-input);
+  stroke-width: 1.3;
+}
+
+.runtime-loop-diagram__edge--loop {
+  stroke: var(--db-teal-600);
+}
+
+.runtime-loop-diagram__arrowhead {
+  fill: var(--ast-border-input);
+}
+
+.runtime-loop-diagram__node rect {
+  fill: var(--card);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.runtime-loop-diagram__node text {
+  fill: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.runtime-loop-diagram__node .runtime-loop-diagram__node-value {
+  fill: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.runtime-loop-diagram__node-accent {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.runtime-loop-diagram__node--agent .runtime-loop-diagram__node-accent {
+  stroke: var(--ast-primary-control-border);
+}
+
+.runtime-loop-diagram__node--tool .runtime-loop-diagram__node-accent {
+  stroke: var(--db-teal-600);
+}
+
+.runtime-loop-diagram__node--ask rect,
+.runtime-loop-diagram__node--answer rect {
+  stroke: var(--ast-blue);
 }
 
 .runtime-field {
@@ -1962,6 +2096,20 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   font-size: 12px;
 }
 
+.sp-capability-actions,
+.sp-persona-builder-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.sp-suggest-button {
+  border-color: var(--ast-primary-control);
+  background: var(--ast-primary-control);
+  color: var(--primary-foreground);
+}
+
 .sp-structured-grant {
   min-width: 0;
   display: grid;
@@ -1989,6 +2137,112 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   gap: 4px;
 }
 
+.sp-resource-browser {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.sp-resource-popover {
+  position: relative;
+  min-width: 0;
+}
+
+.sp-resource-trigger {
+  width: 100%;
+  min-width: 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.sp-resource-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.sp-resource-trigger > span,
+.sp-resource-trigger > code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-resource-trigger code,
+.sp-resource-option code,
+.sp-suggestion-plan code,
+.sp-grant-select code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.sp-resource-menu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 4px);
+  left: 0;
+  width: min(440px, calc(100vw - 64px));
+  max-height: 340px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--popover);
+  box-shadow: var(--shadow-lg);
+}
+
+.sp-resource-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sp-resource-search [data-slot='input'] {
+  flex: 1;
+}
+
+.sp-resource-group {
+  display: grid;
+  gap: 2px;
+}
+
+.sp-resource-group > strong {
+  padding: 4px 6px 2px;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
+
+.sp-resource-option {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sp-resource-option:hover,
+.sp-resource-option:focus-visible {
+  background: var(--accent);
+  outline: none;
+}
+
+.sp-resource-option code {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  text-overflow: ellipsis;
+}
+
+.sp-manual-resource {
+  justify-self: start;
+}
+
 .sp-grant-resource [data-slot='input'] {
   font-family: var(--font-mono);
   font-size: 11.5px;
@@ -2009,6 +2263,42 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .sp-grant-error {
   color: var(--destructive);
+}
+
+.sp-suggestion-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--destructive);
+  font-size: var(--text-xs);
+}
+
+.sp-suggestion-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+}
+
+.sp-suggestion-plan {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.sp-suggestion-plan p,
+.sp-suggestion-plan ul {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
+
+.sp-suggestion-plan ul {
+  padding-left: 16px;
 }
 
 .sp-legacy-grant {
@@ -2032,28 +2322,6 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   height: 30px;
   font-family: var(--font-mono);
   font-size: 11.5px;
-}
-
-.sp-operator-summary {
-  display: grid;
-  gap: 3px;
-  padding: 8px 10px;
-  border-left: 2px solid var(--ast-primary-control);
-  background: color-mix(in srgb, var(--ast-primary-control) 5%, transparent);
-  color: var(--muted-foreground);
-  font-size: 11px;
-}
-
-.sp-operator-summary strong {
-  color: var(--foreground);
-}
-
-.sp-operator-summary code {
-  overflow: hidden;
-  color: var(--foreground);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .sp-icon-button {

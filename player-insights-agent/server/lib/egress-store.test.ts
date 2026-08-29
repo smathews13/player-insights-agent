@@ -24,8 +24,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   EGRESS_CONTROLS_TABLE,
   EGRESS_EVENTS_TABLE,
+  egressStorageMetadata,
   forgetEgressControls,
+  parseEgressEventsCursor,
   readEgressControls,
+  readEgressEventsPage,
   recordEgress,
   workspaceLinksAllowed,
   writeEgressControl,
@@ -164,6 +167,84 @@ describe('what the record is allowed to hold', () => {
   });
 });
 
+describe('the administrator recent-records read', () => {
+  const eventRow = (id: string, occurredAt: string) => ({
+    id,
+    occurred_at: new Date(occurredAt),
+    actor: ANALYST,
+    channel: 'identifier',
+    shape: 'identifier',
+    outcome: 'left',
+    surface: '/runs',
+    run_id: null,
+    conversation_id: null,
+    item_count: 1,
+  });
+
+  it('uses a fixed bounded query and returns an opaque next cursor', async () => {
+    const store = fakeStore({
+      events: [
+        eventRow('event-3', '2026-08-28T03:00:00.000Z'),
+        eventRow('event-2', '2026-08-28T02:00:00.000Z'),
+        eventRow('event-1', '2026-08-28T01:00:00.000Z'),
+      ],
+    });
+
+    const page = await readEgressEventsPage(store, { limit: 2, now: 1 });
+
+    expect(page.events.map((event) => event.id)).toEqual(['event-3', 'event-2']);
+    expect(page.nextCursor).toBeTruthy();
+    expect(page.pageSize).toBe(2);
+    const read = store.calls.find((call) => call.sql.includes('ORDER BY occurred_at DESC'));
+    expect(read?.params).toEqual([3]);
+    expect(read?.sql).toContain('LIMIT $1');
+  });
+
+  it('binds cursor values instead of interpolating them into SQL', async () => {
+    const hostileId = "event-2'; DROP TABLE egress_events; --";
+    const raw = Buffer.from(JSON.stringify({ occurredAt: '2026-08-28T02:00:00.000Z', id: hostileId })).toString(
+      'base64url'
+    );
+    const cursor = parseEgressEventsCursor(raw);
+    expect(cursor).not.toBeNull();
+    const store = fakeStore({ events: [] });
+
+    await readEgressEventsPage(store, { limit: 20, cursor });
+
+    const read = store.calls.find((call) => call.sql.includes('WHERE occurred_at'));
+    expect(read?.sql).not.toContain(hostileId);
+    expect(read?.sql).toContain('id < $2');
+    expect(read?.params).toEqual(['2026-08-28T02:00:00.000Z', hostileId, 21]);
+  });
+
+  it('rejects malformed cursors before they can become query inputs', () => {
+    expect(parseEgressEventsCursor('not-base64-json')).toBeNull();
+    expect(
+      parseEgressEventsCursor(
+        Buffer.from(JSON.stringify({ occurredAt: 'not-a-time', id: 'event-1' })).toString('base64url')
+      )
+    ).toBeNull();
+  });
+
+  it('separates an unavailable store from a missing migration', async () => {
+    const unavailable = await readEgressEventsPage(fakeStore({ events: refusal('57P03') }));
+    const notMigrated = await readEgressEventsPage(fakeStore({ events: refusal('42P01') }));
+    expect(unavailable.readState).toBe('unavailable');
+    expect(notMigrated.readState).toBe('not-migrated');
+    expect(unavailable.events).toEqual([]);
+  });
+
+  it('reports exact logical tables, retained fields, identity scope and no automatic expiry', () => {
+    const metadata = egressStorageMetadata();
+    expect(metadata.eventsTable).toBe(`${EGRESS_EVENTS_TABLE}`);
+    expect(metadata.controlsTable).toBe(`${EGRESS_CONTROLS_TABLE}`);
+    expect(metadata.retained).toMatch(/signed-in email/i);
+    expect(metadata.retained).not.toMatch(/payload|content|credential|host/i);
+    expect(metadata.identityScope).toMatch(/app deployment/i);
+    expect(metadata.retention).toBe('No automatic expiry is configured in this app.');
+  });
+});
+
 describe('deciding whether an export was permitted', () => {
   /**
    * The client reports an attempt; the server decides the outcome. A browser
@@ -234,9 +315,7 @@ describe('reading the controls', () => {
   });
 
   it('folds a stored row over the default it replaces', async () => {
-    const reading = await readEgressControls(
-      fakeStore({ controls: [{ channel: 'generated-sql', allowed: false }] })
-    );
+    const reading = await readEgressControls(fakeStore({ controls: [{ channel: 'generated-sql', allowed: false }] }));
     expect(reading.controls['generated-sql']).toBe(false);
     expect(reading.controls['identifier']).toBe(true);
   });
@@ -343,9 +422,9 @@ describe('the one control that is wired', () => {
   });
 
   it('withholds them once an administrator has turned that path off', async () => {
-    expect(
-      await workspaceLinksAllowed(fakeStore({ controls: [{ channel: 'workspace-link', allowed: false }] }))
-    ).toBe(false);
+    expect(await workspaceLinksAllowed(fakeStore({ controls: [{ channel: 'workspace-link', allowed: false }] }))).toBe(
+      false
+    );
   });
 
   /**
@@ -389,9 +468,7 @@ describe('the registry the controls are read against', () => {
   it('always permits the paths it cannot control, whatever is stored', () => {
     const uncontrollable = EGRESS_PATHS.filter((path) => path.enforcement === 'uncontrollable');
     expect(uncontrollable.length).toBeGreaterThan(0);
-    const controls = egressControlsFrom(
-      uncontrollable.map((path) => ({ channel: path.channel, allowed: false }))
-    );
+    const controls = egressControlsFrom(uncontrollable.map((path) => ({ channel: path.channel, allowed: false })));
     for (const path of uncontrollable) {
       expect(controls[path.channel], path.channel).toBe(true);
       expect(path.allowedByDefault, path.channel).toBe(true);

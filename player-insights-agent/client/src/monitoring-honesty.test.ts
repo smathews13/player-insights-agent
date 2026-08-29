@@ -17,7 +17,6 @@ import {
   ratedHelpfulTile,
   ratedTile,
   readScopes,
-  tablesReadTile,
   tokenCostTile,
   tokensTile,
 } from './monitoring-view';
@@ -37,7 +36,7 @@ import type { MonitoringSummary } from '../../shared/monitoring-contract';
 function summary(overrides: Partial<MonitoringSummary> = {}): MonitoringSummary {
   return {
     questionsAsked: 0,
-    peopleAsking: 0,
+    userThreads: 0,
     completed: 0,
     partial: 0,
     refused: 0,
@@ -146,14 +145,6 @@ describe('a rate never renders without its population', () => {
     expect(ratedTile(0, 0).value).toBeNull();
     // Up and down, never netted into one number.
     expect(ratedTile(7, 2).caption).toBe('7 up · 2 down');
-  });
-
-  it('says no sources were recorded rather than showing no tables', () => {
-    const tile = tablesReadTile([]);
-
-    expect(tile.table).toBeNull();
-    expect(tile.absence).toBe('No sources recorded');
-    expect(tile.caption).toBe('');
   });
 });
 
@@ -343,7 +334,8 @@ describe('the two empties are different sentences', () => {
   it('says what a partial read counted and what it found', () => {
     expect(partialSentence(2000, 5312)).toContain('Counted 2,000 of 5,312 questions');
     // Never a count with no denominator at all.
-    expect(partialSentence(2000, null)).toContain('those 2,000');
+    expect(partialSentence(2000, null)).toContain('over those 2,000');
+    expect(partialSentence(2000, 5312)).toContain('User threads covers the full selected range');
   });
 });
 

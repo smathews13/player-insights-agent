@@ -323,7 +323,7 @@ export function SettingsPage({
                     <tbody>
                       <tr>
                         <td>
-                          <ExperimentalFeatureName>PII egress judge</ExperimentalFeatureName>
+                          <ExperimentalFeatureName>Egress controls panel</ExperimentalFeatureName>
                         </td>
                         <td className="exp-feature-status">
                           <ExperimentalStatus on={showsEgressControls(draftFeatures)} />

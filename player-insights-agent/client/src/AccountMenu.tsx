@@ -1,23 +1,16 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { LogOut, ShieldPlus, UserRound } from 'lucide-react';
 import type { Identity } from './app-types';
-import { AstrolabeMark } from './AstrolabeMark';
 import { BrandIcon } from './BrandIcon';
 import { DATABRICKS_SYMBOL } from './brand-icons';
-import { signOutOfAstrolabe } from './first-open';
+import { signOutAndEndAppSession } from './app-session';
 import { accountSlackHref } from './account-slack-links';
 import { RoleBadgePill } from './RoleBadge';
 import type { RoleState } from './role';
 import { identityName } from './user-identity';
 
 function DatabricksSymbol({ className }: { className?: string }) {
-  return (
-    <span
-      className={className}
-      aria-hidden="true"
-      dangerouslySetInnerHTML={{ __html: DATABRICKS_SYMBOL }}
-    />
-  );
+  return <span className={className} aria-hidden="true" dangerouslySetInnerHTML={{ __html: DATABRICKS_SYMBOL }} />;
 }
 
 export function AccountMenuPanel({
@@ -70,10 +63,17 @@ export function AccountMenuPanel({
         </a>
         <button type="button" role="menuitem" onClick={onSignOut}>
           <LogOut aria-hidden="true" />
-          <span>Sign out of</span>
-          <AstrolabeMark size={13} className="account-menu-astrolabe" />
-          <span>astrolabe</span>
+          <span className="account-menu-signout-label">Sign out of Astrolabe</span>
         </button>
+        <p className="account-menu-session-note">App and workspace sessions are separate.</p>
+        <details className="account-menu-session-details">
+          <summary>What sign-out does</summary>
+          <p>
+            Astrolabe clears its app session and native app cookie. If the upstream workspace or identity-provider
+            session is still active, Databricks may authenticate you again without prompting. Federated logout is not
+            supported.
+          </p>
+        </details>
       </div>
     </div>
   );
@@ -105,8 +105,7 @@ export function AccountMenu({ identity, role }: { identity: Identity; role: Role
   }, [open]);
 
   const signOut = () => {
-    signOutOfAstrolabe();
-    window.location.reload();
+    void signOutAndEndAppSession();
   };
 
   return (

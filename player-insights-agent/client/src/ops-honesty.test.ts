@@ -111,7 +111,7 @@ function costPayload(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
       limited: false,
       reason: '',
     },
-    budgets: { total: null, resources: {} },
+    budgets: { total: { value: null, unit: 'USD' }, resources: {} },
     budgetsReadable: true,
     ...overrides,
   };

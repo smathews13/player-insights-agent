@@ -70,8 +70,8 @@ describe('the status on a truncated run', () => {
   it('keeps the tool-call count and rating state in the same badge row', () => {
     const markup = rowMarkup(RUN);
     expect(markup).toMatch(/run-item-pills[\s\S]*Tools · <span class="ast-num">7<\/span>/);
-    expect(markup).toMatch(/run-item-pills[\s\S]*Not rated/);
-    expect(rowMarkup({ ...RUN, rating: 4 })).toMatch(/run-item-pills[\s\S]*Rated/);
+    expect(markup).not.toContain('run-rating-badge');
+    expect(rowMarkup({ ...RUN, rating: 4 })).toMatch(/run-item-pills[\s\S]*aria-label="Rated helpful"/);
   });
 });
 

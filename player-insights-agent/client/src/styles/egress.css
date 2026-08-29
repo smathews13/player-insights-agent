@@ -51,3 +51,181 @@
   color: var(--ast-text-secondary);
   max-width: 60ch;
 }
+
+.egress-mode-info {
+  border-color: var(--ast-info-fill);
+  background: var(--ast-info-fill);
+  color: var(--ast-info-text);
+}
+
+.egress-mode-warn {
+  border-color: var(--ast-warn-border);
+  background: var(--ast-warn-fill);
+  color: var(--ast-warn-text);
+}
+
+.egress-mode-neutral {
+  border-color: var(--border);
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.egress-boundary {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: var(--ast-fs-12);
+}
+
+.egress-boundary summary {
+  width: max-content;
+  cursor: pointer;
+  color: var(--foreground);
+}
+
+.egress-boundary p,
+.egress-compact-note,
+.egress-ledger-head p,
+.egress-record-state p {
+  margin: 4px 0 0;
+  max-width: 78ch;
+  color: var(--muted-foreground);
+  font-size: var(--ast-fs-12);
+}
+
+.egress-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.egress-summary > div {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+}
+
+.egress-summary span,
+.egress-storage dt {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.egress-summary strong {
+  font-size: var(--ast-fs-12);
+  font-weight: 600;
+}
+
+.egress-ledger {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.egress-ledger h4 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.egress-storage {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.egress-storage > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  padding: 7px 9px;
+  border-top: 1px solid var(--border);
+}
+
+.egress-storage > div:first-child {
+  border-top: 0;
+}
+
+.egress-storage dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--ast-fs-12);
+  overflow-wrap: anywhere;
+}
+
+.egress-storage code,
+.egress-record-table {
+  font-family: var(--font-mono);
+}
+
+.egress-records,
+.egress-record-state {
+  display: grid;
+  gap: 8px;
+}
+
+.egress-record-actions,
+.egress-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.egress-record-actions {
+  justify-content: space-between;
+}
+
+.egress-record-button {
+  width: max-content;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: var(--ast-fs-12);
+}
+
+.egress-record-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.egress-record-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.egress-record-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.egress-record-table th,
+.egress-record-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.egress-record-table th {
+  background: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 10px;
+}
+
+.egress-record-table tr:last-child td {
+  border-bottom: 0;
+}

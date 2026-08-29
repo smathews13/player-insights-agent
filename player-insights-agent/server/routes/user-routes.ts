@@ -59,6 +59,7 @@ import {
 import { runnerFor } from './admin-routes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import type { Request, Response } from 'express';
+import { parseOrganizationMappings } from '../../shared/organization-mapping';
 
 const RoleBody = z.object({ role: z.string().trim().max(32) });
 const AddBody = RoleBody.extend({ email: z.string().trim().max(320) });
@@ -159,6 +160,7 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
         roleColumnPresent,
         reader: userEmail(req),
       });
+      payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
       res.json(payload);
     });
 

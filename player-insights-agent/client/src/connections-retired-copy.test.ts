@@ -23,6 +23,7 @@ const RETIRED = [
   'table list from',
   'modified working tree',
   'uncommitted tracked changes at build time',
+  'Recorded, not applied',
 ];
 
 function sources(): Map<string, string> {

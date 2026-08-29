@@ -146,7 +146,7 @@ describe('the demo workspace Identity feedback', () => {
   });
 
   it('prevents email and setter cells from wrapping character-by-character', () => {
-    expect(CSS).toMatch(/\.admin-row-address \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
+    expect(CSS).toMatch(/\.admin-row-address \{[^}]*overflow-wrap:\s*anywhere[^}]*white-space:\s*normal/s);
     expect(CSS).toMatch(/\.roster-set-by > \* \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
     expect(CSS).toMatch(/\.settings-data-table \{[^}]*table-layout:\s*fixed/s);
   });
@@ -161,7 +161,7 @@ describe('the demo workspace Identity feedback', () => {
     );
   });
 
-  it('shows exactly No persona for an unassigned human', () => {
+  it('shows Owner for the immutable super admin with no persona or action control', () => {
     const markup = renderToStaticMarkup(
       <RosterRows
         payload={humanRoles}
@@ -175,9 +175,62 @@ describe('the demo workspace Identity feedback', () => {
         onPersonaChange={() => {}}
       />
     );
-    expect(markup).toContain('<span class="app-select-value">No persona</span>');
-    expect(markup).not.toContain('Persona ·');
-    expect(markup).not.toContain('Signed-in user (OAuth)');
+    expect(markup).toContain('roster-owner-badge">Owner</span>');
+    expect(markup).toContain('data-role-state="super_admin"');
+    expect(markup).not.toContain('Persona for long.identity.owner@example.invalid');
+    expect(markup).not.toContain('lucide-lock');
+    expect(markup).not.toContain('roster-row-lock');
+  });
+
+  it('keeps an ordinary admin role and persona editable', () => {
+    const admin = {
+      ...humanRoles,
+      entries: [
+        {
+          ...humanRoles.entries[0],
+          role: 'admin' as const,
+          seedFloor: 'consumer' as const,
+          assignable: ['consumer' as const],
+          canRemove: true,
+        },
+      ],
+    };
+    const markup = renderToStaticMarkup(
+      <RosterRows
+        payload={admin}
+        busy={false}
+        onChange={() => {}}
+        onRemove={() => {}}
+        personas={spRoles.personas}
+        personaByEmail={new Map([['long.identity.owner@example.invalid', null]])}
+        personaDisabled={false}
+        showPersona={true}
+        onPersonaChange={() => {}}
+      />
+    );
+    expect(markup).toContain('User role for long.identity.owner@example.invalid');
+    expect(markup).toContain('Persona for long.identity.owner@example.invalid: No persona');
+    expect(markup).toContain('data-variant="destructive"');
+  });
+
+  it('renders a configured organization icon before the full email address', () => {
+    const email = 'avery.long.address@studio.example.org';
+    const markup = renderToStaticMarkup(
+      <RosterRows
+        payload={{
+          ...humanRoles,
+          entries: [{ ...humanRoles.entries[0], email }],
+          organizations: [{ domain: 'example.org', name: 'Example Studio', monogram: 'ES' }],
+        }}
+        busy={false}
+        onChange={() => {}}
+        onRemove={() => {}}
+      />
+    );
+    expect(markup).toContain('aria-label="Organization: Example Studio"');
+    expect(markup).toContain('roster-organization-mark');
+    expect(markup).toContain(`title="${email}">${email}</span>`);
+    expect(markup.indexOf('roster-organization-mark')).toBeLessThan(markup.indexOf(`title="${email}"`));
   });
 
   it('pins every row control to the same 30px geometry', () => {

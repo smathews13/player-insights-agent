@@ -45,12 +45,11 @@ import {
   TabsList,
   TabsTrigger,
 } from './ui';
-import { CircleAlert, Search, Star, Workflow } from 'lucide-react';
+import { CircleAlert, Search, Workflow } from 'lucide-react';
 import { conversationHref } from './conversation-links';
 import { readConversationList } from './initial-rail';
 import { RunDetails } from './RunDetails';
 import { FinalAnswer } from './FinalAnswer';
-import { ratingLabel, ratingOutOf } from './benchmark-summary';
 import { useRunTrace, type RunTraceState } from './app-state';
 import { PageHeading } from './page-chrome';
 import { RunHeader } from './RunHeader';
@@ -61,6 +60,8 @@ import { TraceTimeline } from './TraceTimeline';
 import { formatMs } from './trace-timeline';
 import type { Conversation, Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
+import { RunRatingBadge } from './RunRatingBadge';
+import { runRatingDirection } from './run-rating';
 import {
   conversationFilterOptions,
   conversationRunNumber,
@@ -152,6 +153,90 @@ const ABSENT = 'not set';
  */
 function tileValue(absent: boolean): string {
   return absent ? 'ast-num tile-absent' : 'ast-num';
+}
+
+export function RunExplorerFilters({
+  conversationFilter,
+  usernameFilter,
+  conversationOptions,
+  usernameOptions,
+  conversationsUnreadable = false,
+  onConversationChange,
+  onUsernameChange,
+}: {
+  conversationFilter: string;
+  usernameFilter: string;
+  conversationOptions: Array<{ id: string; label: string }>;
+  usernameOptions: Array<{ value: string; label: string }>;
+  conversationsUnreadable?: boolean;
+  onConversationChange: (value: string) => void;
+  onUsernameChange: (value: string) => void;
+}) {
+  const conversationLabel = conversationsUnreadable
+    ? 'Conversations could not be read'
+    : (conversationOptions.find((option) => option.id === conversationFilter)?.label ?? 'All conversations');
+  const usernameLabel = usernameOptions.find((option) => option.value === usernameFilter)?.label ?? 'All users';
+
+  return (
+    <div className="run-list-filters">
+      <div className="run-filter-field">
+        <Select
+          value={conversationFilter || 'all'}
+          onValueChange={(value) => onConversationChange(value === 'all' ? '' : value)}
+        >
+          <SelectTrigger
+            className="run-conversation-filter"
+            aria-label={`Filter runs by conversation: ${conversationLabel}`}
+            title={conversationLabel}
+          >
+            <span className="run-filter-label">{conversationLabel}</span>
+          </SelectTrigger>
+          <SelectContent
+            className="app-select-content run-filter-menu"
+            position="popper"
+            align="start"
+            sideOffset={4}
+            collisionPadding={12}
+          >
+            <SelectItem value="all">All conversations</SelectItem>
+            {conversationOptions.map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="run-filter-field">
+        <Select
+          value={usernameFilter || 'all'}
+          onValueChange={(value) => onUsernameChange(value === 'all' ? '' : value)}
+        >
+          <SelectTrigger
+            className="run-username-filter"
+            aria-label={`Filter runs by username: ${usernameLabel}`}
+            title={usernameLabel}
+          >
+            <span className="run-filter-label">{usernameLabel}</span>
+          </SelectTrigger>
+          <SelectContent
+            className="app-select-content run-filter-menu"
+            position="popper"
+            align="start"
+            sideOffset={4}
+            collisionPadding={12}
+          >
+            <SelectItem value="all">All users</SelectItem>
+            {usernameOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
 }
 
 export function RunExplorer() {
@@ -326,17 +411,13 @@ export function RunExplorer() {
       ? `${tokens.prompt_tokens.toLocaleString()} in / ${tokens.completion_tokens.toLocaleString()} out`
       : null;
   const ratePath = selected?.conversation_id ? conversationHref(selected.conversation_id, selected.id) : null;
-  const displayed = selected ? applyRunLabelOverride(selected, labelOverlay) : null;
-  const displayedRating = ratingLabel(displayed?.rating);
+  const displayed = selected ? applyRunLabelOverride(selected, canEdit ? labelOverlay : null) : null;
+  const displayedRating = runRatingDirection(displayed?.rating);
 
   useEffect(() => {
-    if (!canEdit || !selected?.id) {
-      setLabelOverlay(null);
-      return;
-    }
+    if (!canEdit || !selected?.id) return;
     const runId = selected.id;
     let live = true;
-    setLabelOverlay(null);
     void readRunLabelOverride(runId).then((overlay) => {
       if (!live) return;
       setLabelOverlay(overlay);
@@ -377,65 +458,15 @@ export function RunExplorer() {
         <Card className="run-list">
           <CardHeader>
             <CardTitle>Recent runs</CardTitle>
-            <div className="run-list-filters">
-              <div>
-                <Select
-                  value={conversationFilter || 'all'}
-                  onValueChange={(value) => setConversationFilter(value === 'all' ? '' : value)}
-                >
-                  <SelectTrigger className="run-conversation-filter" aria-label="Filter runs by conversation">
-                    {/* An unreadable conversation list says so here rather than
-                        standing as "All conversations" over a store nobody could
-                        reach. The runs below are unaffected and still listed: what
-                        is missing is the list of threads to narrow them by. */}
-                    <span className="run-filter-label">
-                      {conversationsUnreadable
-                        ? 'Conversations could not be read'
-                        : (conversationOptions.find((option) => option.id === conversationFilter)?.label ??
-                          'All conversations')}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent
-                    className="app-select-content"
-                    position="popper"
-                    align="start"
-                    sideOffset={4}
-                  >
-                    <SelectItem value="all">All conversations</SelectItem>
-                    {conversationOptions.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Select
-                  value={usernameFilter || 'all'}
-                  onValueChange={(value) => setUsernameFilter(value === 'all' ? '' : value)}
-                >
-                  <SelectTrigger className="run-username-filter" aria-label="Filter runs by username">
-                    <span className="run-filter-label">
-                      {usernameOptions.find((option) => option.value === usernameFilter)?.label ?? 'All users'}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent
-                    className="app-select-content"
-                    position="popper"
-                    align="start"
-                    sideOffset={4}
-                  >
-                    <SelectItem value="all">All users</SelectItem>
-                    {usernameOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <RunExplorerFilters
+              conversationFilter={conversationFilter}
+              usernameFilter={usernameFilter}
+              conversationOptions={conversationOptions}
+              usernameOptions={usernameOptions}
+              conversationsUnreadable={conversationsUnreadable}
+              onConversationChange={setConversationFilter}
+              onUsernameChange={setUsernameFilter}
+            />
             <div className="run-search">
               <Search />
               <Input
@@ -478,7 +509,10 @@ export function RunExplorer() {
                   key={run.id}
                   run={run.id === displayed?.id && displayed ? displayed : run}
                   active={run.id === selected?.id}
-                  onSelect={() => setSelectedId(run.id)}
+                  onSelect={() => {
+                    setLabelOverlay(null);
+                    setSelectedId(run.id);
+                  }}
                 />
               ))
             )}
@@ -516,9 +550,7 @@ export function RunExplorer() {
               <TabsTrigger value="details">Details</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-4 pt-4">
-              {selected && traceState.status === 'ready' ? (
-                <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
-              ) : null}
+              {selected && traceState.status === 'ready' ? <UsedThisRun used={runTrace?.runtimeUsed ?? null} /> : null}
               <div className="summary-grid">
                 <Card>
                   <CardContent>
@@ -558,13 +590,13 @@ export function RunExplorer() {
                 </Card>
                 <Card>
                   <CardContent>
-                    <span>User rating</span>
-                    {/* In words, and with the way to supply one. A run nobody has
-                        rated is a normal state: the agent never rates itself. */}
-                    <strong className={tileValue(!displayedRating.rated)}>
-                      {displayedRating.rated ? ratingOutOf(displayedRating.value) : 'Not rated'}
-                    </strong>
-                    {!displayedRating.rated && ratePath && (
+                    <span>User feedback</span>
+                    {displayedRating === 'none' ? (
+                      <strong className={tileValue(true)}>Not rated</strong>
+                    ) : (
+                      <RunRatingBadge rating={displayed?.rating} />
+                    )}
+                    {displayedRating === 'none' && ratePath && (
                       <Link className="tile-link" to={ratePath}>
                         Rate this run
                       </Link>
@@ -594,9 +626,7 @@ export function RunExplorer() {
               ) : null}
             </TabsContent>
             <TabsContent value="map" className="space-y-4 pt-5">
-              {selected && traceState.status === 'ready' ? (
-                <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
-              ) : null}
+              {selected && traceState.status === 'ready' ? <UsedThisRun used={runTrace?.runtimeUsed ?? null} /> : null}
               {stages.length > 0 ? (
                 <TraceDag
                   stages={stages}
@@ -605,6 +635,7 @@ export function RunExplorer() {
                   trace={runTrace?.trace}
                   question={runTrace?.prompt ?? ''}
                   verdict={answerVerdict}
+                  runStatus={displayed?.status}
                 />
               ) : (
                 <TraceUnavailable state={traceState} />
@@ -650,7 +681,6 @@ export function RunExplorer() {
  * every row was previously unreachable from a test.
  */
 export function RunListItem({ run, active, onSelect }: { run: Run; active: boolean; onSelect: () => void }) {
-  const runRating = ratingLabel(run.rating);
   const displayedStatus = run.status;
   return (
     <button type="button" onClick={onSelect} aria-pressed={active} className={`run-item ${active ? 'active' : ''}`}>
@@ -664,9 +694,7 @@ export function RunListItem({ run, active, onSelect }: { run: Run; active: boole
               Tools · <span className="ast-num">{run.tool_calls.toLocaleString()}</span>
             </Badge>
           )}
-          <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
-            {runRating.rated ? 'Rated' : 'Not rated'}
-          </Badge>
+          <RunRatingBadge rating={run.rating} />
         </span>
         {/* The one figure in the row that stacks into a real column: the head is
             a space-between row, so every date in the list sits on the same right
@@ -688,22 +716,6 @@ export function RunListItem({ run, active, onSelect }: { run: Run; active: boole
             ''
           )}
         </span>
-        {/* Only when somebody rated it. An empty star reads as a rating of zero,
-            which is a claim nobody made. */}
-        {/* `.ast-num` on the wrapper rather than on the score, which is the one
-            place in this row it can go: the star and the figure beside it are one
-            sentence that three surfaces have to print identically, and
-            rail-run-summary.test.ts reads them as `<Star /> {ratingOutOf(...)}`.
-            A span around the figure would satisfy §3 here and break that reading
-            in a file this lane does not own. Nothing else inside is a glyph the
-            face changes -- a middot and an SVG. */}
-        {runRating.rated && (
-          <span className="run-item-rating ast-num">
-            {/* With its scale, because a star and a bare number read as a count
-                of something rather than as a score. */}
-            · <Star /> {ratingOutOf(runRating.value)}
-          </span>
-        )}
       </span>
     </button>
   );

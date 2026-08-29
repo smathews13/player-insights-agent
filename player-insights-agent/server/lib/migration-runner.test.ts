@@ -261,6 +261,22 @@ describe('the recorded app activity migration', () => {
   });
 });
 
+describe('the app idle-session migration', () => {
+  it('stores only a session hash with per-browser, subject, deployment, and expiry fields', () => {
+    const migration = MIGRATIONS.find((entry) => entry.name === 'app idle sessions');
+    expect(migration?.version).toBe(22);
+    const ddl = migration?.statements.join('\n') ?? '';
+    expect(ddl).toContain('session_hash TEXT PRIMARY KEY');
+    expect(ddl).toContain('subject TEXT NOT NULL');
+    expect(ddl).toContain('deployment_key TEXT NOT NULL');
+    expect(ddl).toContain('last_active_at TIMESTAMPTZ NOT NULL');
+    expect(ddl).toContain('idle_expires_at TIMESTAMPTZ NOT NULL');
+    expect(ddl).toContain('absolute_expires_at TIMESTAMPTZ NOT NULL');
+    expect(ddl).toContain('retention_expires_at');
+    expect(ddl).not.toMatch(/\btoken\b|raw_cookie|authorization/i);
+  });
+});
+
 describe('a fresh database', () => {
   it('applies every version in order and records each one', async () => {
     const store = fakeStore();

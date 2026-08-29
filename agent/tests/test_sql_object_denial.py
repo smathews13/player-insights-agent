@@ -289,7 +289,7 @@ ARRIVALS = [
 ]
 
 
-def denied_run(error):
+def denied_run(error, *, with_llm=False):
     """One turn whose only tool call is refused by the warehouse on privileges."""
 
     tools = FakeTools(run_sql=error)
@@ -297,7 +297,8 @@ def denied_run(error):
         [Call("run_sql", {"sql": f"SELECT * FROM cat.{PROBE_SCHEMA}.{PROBE_TABLE}"})],
         "No rows could be read, so no figure is reported.",
     )
-    return ask(build(llm, tools))
+    response_ = ask(build(llm, tools))
+    return (response_, llm) if with_llm else response_
 
 
 @pytest.mark.parametrize("_shape,error", ARRIVALS)
@@ -352,13 +353,16 @@ def test_the_model_is_not_invited_to_ask_a_second_surface_for_denied_data(_shape
     is an outage, not a refusal, so the data may well be readable another way."
     """
 
-    refused = next(
-        stage for stage in stages(denied_run(error)) if "REFUSED" in stage["output"]
+    response_, llm = denied_run(error, with_llm=True)
+    refused = next(stage for stage in stages(response_) if "REFUSED" in stage["output"])
+    model_guidance = "\n".join(
+        str(message["content"]) for message in llm.transcript if message["role"] == "tool"
     )
 
-    assert "Do NOT ask another surface" in refused["output"]
-    assert "not a refusal" not in refused["output"]
-    assert "readable another way" not in refused["output"]
+    assert "Do NOT ask another surface" in model_guidance
+    assert "not a refusal" not in model_guidance
+    assert "readable another way" not in model_guidance
+    assert "Do NOT ask another surface" not in refused["output"]
     # And the entitlement's blanket instruction, which would be wrong here: a
     # grant is per object, so the next table may well be readable.
     assert "do not call another one" not in refused["output"]
@@ -398,5 +402,9 @@ def test_the_entitlement_refusal_still_gets_the_entitlement_wording():
     response_ = ask(build(llm, tools))
 
     refused = next(stage for stage in stages(response_) if "REFUSED" in stage["output"])
+    model_guidance = "\n".join(
+        str(message["content"]) for message in llm.transcript if message["role"] == "tool"
+    )
     assert SQL_ACCESS_ENTITLEMENT in refused["output"]
-    assert "do not call another one" in refused["output"]
+    assert "do not call another one" in model_guidance
+    assert "do not call another one" not in refused["output"]

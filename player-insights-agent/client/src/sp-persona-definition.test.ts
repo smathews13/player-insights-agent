@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   changeSpGrantAction,
   changeSpGrantType,
+  canSuggestSpPermissions,
   grantsFromLegacy,
   isSpPersonaDefinitionComplete,
+  mergeSuggestedSpGrants,
   newSpGrant,
 } from './sp-persona-definition';
 
@@ -63,5 +65,18 @@ describe('structured persona grant editing', () => {
         legacyCapabilities: [],
       })
     ).toBe(false);
+  });
+
+  it('enables suggestions only for a stated purpose and available inventory', () => {
+    expect(canSuggestSpPermissions('', 2)).toBe(false);
+    expect(canSuggestSpPermissions('   ', 2)).toBe(false);
+    expect(canSuggestSpPermissions('Read player metrics', 0)).toBe(false);
+    expect(canSuggestSpPermissions('Read player metrics', 2)).toBe(true);
+  });
+
+  it('stages a selected suggestion without duplicates', () => {
+    const read = newSpGrant(resources);
+    const write = changeSpGrantAction(read, 'WRITE');
+    expect(mergeSuggestedSpGrants([read], [read, write])).toEqual([read, write]);
   });
 });

@@ -152,6 +152,12 @@ export interface CostTile {
   quality: CostQuality;
   /** Spend, or null where it could not be sourced. */
   amount: number | null;
+  /**
+   * Attributable usage when every contributing billing row is measured in DBUs.
+   * Null means the component cannot be compared with a DBU budget; dollars are
+   * never converted into DBUs.
+   */
+  dbus?: number | null;
   /** Whether `amount` is the total over the range or a per-day rate. */
   basis: 'total-in-range' | 'per-day';
   /**

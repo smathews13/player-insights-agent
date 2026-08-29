@@ -13,20 +13,37 @@ import { z } from 'zod';
 export const COST_BUDGET_MAX = 1_000_000_000_000;
 
 const AmountSchema = z.number().finite().nonnegative().max(COST_BUDGET_MAX).nullable();
+export const CostBudgetUnitSchema = z.enum(['USD', 'DBU']);
+export type CostBudgetUnit = z.infer<typeof CostBudgetUnitSchema>;
+
+export const CostBudgetSchema = z.preprocess(
+  (raw) => (typeof raw === 'number' || raw === null ? { value: raw, unit: 'USD' } : raw),
+  z.strictObject({
+    value: AmountSchema,
+    unit: CostBudgetUnitSchema,
+  })
+);
+export type CostBudget = z.infer<typeof CostBudgetSchema>;
+export type CostBudgetInput = CostBudget | number | null;
+
+export function normalizeCostBudget(budget: CostBudgetInput): CostBudget {
+  return typeof budget === 'number' || budget === null ? { value: budget, unit: 'USD' } : budget;
+}
 
 export const CostBudgetsSchema = z.strictObject({
   /** App-wide cap. Null means unset, which is not zero. */
-  total: AmountSchema,
+  total: CostBudgetSchema,
   /**
    * Per-tile amounts, keyed by the Cost tile id (`app-compute`, `genie:<space>`).
    * Null on a key is an explicit clear. A missing key is also unset.
    */
-  resources: z.record(z.string().min(1).max(200), AmountSchema),
+  resources: z.record(z.string().min(1).max(200), CostBudgetSchema),
 });
 
 export type CostBudgets = z.infer<typeof CostBudgetsSchema>;
 
-export const EMPTY_COST_BUDGETS: CostBudgets = { total: null, resources: {} };
+export const EMPTY_COST_BUDGET: CostBudget = { value: null, unit: 'USD' };
+export const EMPTY_COST_BUDGETS: CostBudgets = { total: EMPTY_COST_BUDGET, resources: {} };
 
 /**
  * Tiles that are visible for context but cannot own a budget.
@@ -56,10 +73,9 @@ export function parseCostBudgets(raw: unknown): CostBudgets | null {
   return parsed.success ? attributableCostBudgets(parsed.data) : null;
 }
 
-export function resourceBudget(budgets: CostBudgets, tileId: string): number | null {
-  if (!Object.prototype.hasOwnProperty.call(budgets.resources, tileId)) return null;
-  const amount = budgets.resources[tileId];
-  return typeof amount === 'number' && Number.isFinite(amount) ? amount : null;
+export function resourceBudget(budgets: CostBudgets, tileId: string): CostBudget {
+  if (!Object.prototype.hasOwnProperty.call(budgets.resources, tileId)) return EMPTY_COST_BUDGET;
+  return budgets.resources[tileId] ?? EMPTY_COST_BUDGET;
 }
 
 /**
@@ -77,13 +93,13 @@ export function budgetsForVisibleTiles(budgets: CostBudgets, tileIds: readonly s
   return { total: budgets.total, resources };
 }
 
-export function withResourceBudget(budgets: CostBudgets, tileId: string, amount: number | null): CostBudgets {
+export function withResourceBudget(budgets: CostBudgets, tileId: string, budget: CostBudgetInput): CostBudgets {
   return {
     total: budgets.total,
-    resources: { ...budgets.resources, [tileId]: amount },
+    resources: { ...budgets.resources, [tileId]: normalizeCostBudget(budget) },
   };
 }
 
-export function withTotalBudget(budgets: CostBudgets, amount: number | null): CostBudgets {
-  return { total: amount, resources: budgets.resources };
+export function withTotalBudget(budgets: CostBudgets, budget: CostBudgetInput): CostBudgets {
+  return { total: normalizeCostBudget(budget), resources: budgets.resources };
 }

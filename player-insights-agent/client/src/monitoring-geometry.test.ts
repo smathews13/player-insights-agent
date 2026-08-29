@@ -33,42 +33,28 @@ function rule(selector: string): string {
   return body;
 }
 
-describe('a fully-qualified table name is never cut mid-word', () => {
+describe('a fully-qualified table name remains readable beside its count', () => {
   /**
-   * A table name is ONE WORD as far as CSS is concerned: nothing breaks it at the
-   * dots. So there are exactly two honest options for a name too long for its
-   * box, an ellipsis or more box, and `overflow-wrap: anywhere` is neither -- it
-   * breaks inside the word, which is the one truncation a reader cannot tell from
-   * the end of the name.
+   * Every catalog, schema and table segment is a shared unbroken entity token.
+   * The surrounding name may wrap between those tokens instead of clipping the
+   * evidence or pushing the count off the row.
    */
   it('gives the tile carrying a table name the whole grid row', () => {
     expect(rule('.monitoring-panel-tile-wide')).toMatch(/grid-column:\s*1\s*\/\s*-1/);
   });
 
-  it('truncates the name with an ellipsis rather than breaking inside it', () => {
-    const mono = rule('.monitoring-panel-tile-mono');
+  it('wraps between shared entity segments rather than clipping the table name', () => {
+    const name = rule('.monitoring-ranked-table');
 
-    expect(mono).toMatch(/text-overflow:\s*ellipsis/);
-    expect(mono).toMatch(/white-space:\s*nowrap/);
-    expect(mono).toMatch(/overflow:\s*hidden/);
-    // THE FAULT IN THE SCREENSHOT. This is what broke the name in half.
-    expect(mono).not.toMatch(/overflow-wrap:\s*anywhere/);
-    expect(mono).not.toMatch(/word-break/);
+    expect(name).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(name).not.toMatch(/overflow:\s*hidden/);
+    expect(name).not.toMatch(/text-overflow:\s*ellipsis/);
   });
 
-  /**
-   * The ellipsis cannot fire on an item that is not allowed to shrink.
-   *
-   * This is `.status-badge`'s fault from connections.css, on a grid item instead
-   * of a flex one: the automatic minimum size of an item is its min-content
-   * contribution, and with `nowrap` that contribution is the whole name. It
-   * outranks the `max-width` beside it, so the paragraph overflows and the
-   * ellipsis never applies.
-   */
-  it('lets the name shrink, so its ellipsis can fire', () => {
-    expect(rule('.monitoring-panel-tile-mono')).toMatch(/min-width:\s*0/);
-    expect(rule('.monitoring-panel-tile-mono')).toMatch(/max-width:\s*100%/);
-    // And the tile itself, which is the grid item the paragraph sits in.
+  /** The flexible name column gives before the compact run count does. */
+  it('lets each ranked name shrink beside its count', () => {
+    expect(rule('.monitoring-ranked-table')).toMatch(/min-width:\s*0/);
+    expect(rule('.monitoring-table-ranking li')).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/);
     expect(rule('.monitoring-panel-tile')).toMatch(/min-width:\s*0/);
   });
 
@@ -91,16 +77,8 @@ describe('a fully-qualified table name is never cut mid-word', () => {
     expect(rule('.monitoring-grants')).toMatch(/overflow:\s*hidden/);
   });
 
-  /**
-   * Only the tables tile's caption is held to one line.
-   *
-   * That caption carries a SECOND table name. Every other caption on the panel is
-   * a run of ordinary words that wraps at a space -- the Answer time tile's second
-   * line is a whole sentence -- and putting `nowrap` on all of them would trade a
-   * fault on one tile for an ellipsis on four.
-   */
-  it('holds the tables caption to one line and leaves the other captions wrapping', () => {
-    expect(rule('.monitoring-panel-tile-wide .monitoring-tile-caption')).toMatch(/text-overflow:\s*ellipsis/);
+  it('keeps each run count intact while ordinary captions remain free to wrap', () => {
+    expect(rule('.monitoring-table-runs')).toMatch(/white-space:\s*nowrap/);
     expect(rule('.monitoring-tile-caption')).not.toMatch(/white-space:\s*nowrap/);
   });
 });
@@ -249,7 +227,7 @@ describe('the figures line up and the palette is the palette', () => {
     const claiming = [...RULES.matchAll(/\{([^}]*font-variant-numeric[^}]*)\}/g)].map((match) => match[1]);
     for (const body of claiming) {
       expect(body, `a rule asks for tabular figures without a mono family: ${body.trim()}`).toMatch(
-        /font-family:\s*var\(--font-mono\)/,
+        /font-family:\s*var\(--font-mono\)/
       );
     }
   });

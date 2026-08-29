@@ -29,6 +29,7 @@
 import { isMlflowTraceId } from './mlflow-trace-id';
 import { takeawayWhenTablesLanded, UNANSWERED_LINE } from './run-verdict';
 import { DEGRADED_ANSWER_MARKER } from './setup-remedies';
+import { projectReaderStage } from './stage-lexicon';
 
 /**
  * Said above the answer, in red, rather than fifth under "What to keep in mind".
@@ -38,8 +39,7 @@ import { DEGRADED_ANSWER_MARKER } from './setup-remedies';
  * reader looking at a narrative with no figures under it cannot tell "the agent
  * had nothing to show" from "this app dropped them".
  */
-export const PROSE_ONLY_ANSWER_CAVEAT =
-  `${DEGRADED_ANSWER_MARKER} no structured result arrived and no tool steps were recorded.`;
+export const PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} no structured result arrived and no tool steps were recorded.`;
 
 /**
  * The caveat when a run did take steps and still produced no result contract.
@@ -79,7 +79,7 @@ export type RecordedStage = {
 
 function asRecordedStage(stage: Record<string, unknown>): RecordedStage {
   const status = stage.status;
-  return {
+  return projectReaderStage({
     ...stage,
     id: typeof stage.id === 'string' ? stage.id : '',
     name: typeof stage.name === 'string' ? stage.name : '',
@@ -95,7 +95,7 @@ function asRecordedStage(stage: Record<string, unknown>): RecordedStage {
     output: typeof stage.output === 'string' ? stage.output : '',
     depth: typeof stage.depth === 'number' && Number.isFinite(stage.depth) ? stage.depth : 0,
     parent_id: typeof stage.parent_id === 'string' ? stage.parent_id : '',
-  };
+  });
 }
 
 export function foldRecordedStages(stages: readonly unknown[]): {
@@ -247,7 +247,13 @@ export function readerFacingFindings(findings: string): ReaderFacingFindings {
   }
 
   if (sections.length === 0) {
-    return { narrative: preamble.filter((line) => !line.trimStart().startsWith('#')).join('\n').trim(), caveats: [] };
+    return {
+      narrative: preamble
+        .filter((line) => !line.trimStart().startsWith('#'))
+        .join('\n')
+        .trim(),
+      caveats: [],
+    };
   }
 
   const bodiesOf = (wanted: string[]): string[] => {
@@ -269,7 +275,10 @@ export function readerFacingFindings(findings: string): ReaderFacingFindings {
     // One caveat per line: the finder writes these as its own nested bullets,
     // and the card is what makes them a list, so the markers come off.
     for (const entry of body.split('\n')) {
-      const stripped = entry.trim().replace(/^[-*]+/, '').trim();
+      const stripped = entry
+        .trim()
+        .replace(/^[-*]+/, '')
+        .trim();
       if (stripped) caveats.push(stripped);
     }
   }
@@ -335,7 +344,10 @@ export function proseOnlyAnswer(id: string, prose: string, recordedStages: reado
    * section happened to be, which is the internal report being promoted rather
    * than removed.
    */
-  const firstLine = prose.split('\n').map((line) => line.trim()).find((line) => line.length > 0);
+  const firstLine = prose
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
   const reader = readerFacingFindings(prose);
   const usableFirst = firstLine && !isCannedFirstLine(firstLine) ? firstLine : '';
   const usableNarrative = reader.narrative.trim();

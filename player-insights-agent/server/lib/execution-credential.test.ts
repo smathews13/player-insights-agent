@@ -17,7 +17,7 @@ vi.mock('./sp-identity-store', () => ({
   isSpIdentityEnabled: vi.fn(),
   assignmentForEmail: vi.fn(),
   readSpPersona: vi.fn(),
-  listSpPersonas: vi.fn(async () => []),
+  listSpPersonas: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock('./sp-token', () => ({
@@ -25,9 +25,14 @@ vi.mock('./sp-token', () => ({
   mintPersonaToken: vi.fn(),
 }));
 
+vi.mock('./admin-roles', () => ({
+  resolveRole: vi.fn(() => Promise.resolve({ role: 'consumer', addedAdminsReadable: true, seedAdminCount: 0 })),
+}));
+
 import { forwardedUserToken } from '../routes/access-verification';
 import { assignmentForEmail, isSpIdentityEnabled, readSpPersona } from './sp-identity-store';
 import { mintPersonaToken } from './sp-token';
+import { resolveRole } from './admin-roles';
 
 const PERSONA = {
   id: 'persona-1',
@@ -45,7 +50,7 @@ function req(email = 'ada@example.com'): Request {
   } as Request;
 }
 
-const store = { lakebase: { query: async () => ({ rows: [] }) } };
+const store = { lakebase: { query: () => Promise.resolve({ rows: [] }) } };
 
 describe('executionToken', () => {
   beforeEach(() => {
@@ -54,6 +59,7 @@ describe('executionToken', () => {
     vi.mocked(assignmentForEmail).mockReset();
     vi.mocked(readSpPersona).mockReset();
     vi.mocked(mintPersonaToken).mockReset();
+    vi.mocked(resolveRole).mockResolvedValue({ role: 'consumer', addedAdminsReadable: true, seedAdminCount: 0 });
   });
   it('is the forwarded OAuth token while the pivot is off', async () => {
     vi.mocked(isSpIdentityEnabled).mockResolvedValue(false);
@@ -69,6 +75,15 @@ describe('executionToken', () => {
     const request = req();
     const credential = await resolveExecutionCredential(request, store as never);
     expect(credential).toEqual({ kind: 'oauth', token: 'user-oauth-token' });
+    expect(mintPersonaToken).not.toHaveBeenCalled();
+  });
+
+  it('keeps a super admin on the immutable Owner OAuth identity', async () => {
+    vi.mocked(isSpIdentityEnabled).mockResolvedValue(true);
+    vi.mocked(resolveRole).mockResolvedValue({ role: 'super_admin', addedAdminsReadable: true, seedAdminCount: 1 });
+    const credential = await resolveExecutionCredential(req(), store as never);
+    expect(credential).toEqual({ kind: 'oauth', token: 'user-oauth-token' });
+    expect(assignmentForEmail).not.toHaveBeenCalled();
     expect(mintPersonaToken).not.toHaveBeenCalled();
   });
 

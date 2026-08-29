@@ -18,7 +18,9 @@
 import {
   CLASSIFICATION_LABEL,
   CLASSIFICATION_TONE,
+  EGRESS_PATHS,
   type EgressEnforcement,
+  type EgressEvent,
   type EgressPath,
   type TableClassification,
 } from '../../shared/egress-contract';
@@ -73,6 +75,41 @@ export function enforcementPill(path: EgressPath): Pill {
   return ENFORCEMENT_PILL[path.enforcement];
 }
 
+/**
+ * The state of the saved policy, not the position of the staged switch.
+ *
+ * "Enforced" is reserved for a saved deny that a wired boundary is applying.
+ * An enabled path is merely enabled, and an unsaved edit is merely pending.
+ */
+export function controlStatusPill(
+  path: EgressPath,
+  draftAllowed: boolean,
+  effectiveAllowed: boolean,
+  policyLoaded: boolean
+): Pill {
+  if (!policyLoaded) return { label: 'Status unavailable', tone: 'warn' };
+  if (draftAllowed !== effectiveAllowed) return { label: 'Pending save', tone: 'neutral' };
+  if (effectiveAllowed) return { label: 'Enabled', tone: 'neutral' };
+  if (path.enforcement === 'enforced') return { label: 'Enforced', tone: 'info' };
+  return { label: 'Configured only', tone: 'warn' };
+}
+
+/**
+ * The actual boundary for each controllable path.
+ *
+ * No path invokes a PII/egress judge. The two wired paths gate a browser
+ * affordance or a response field; the remaining switches only store policy.
+ */
+export function enforcementBoundary(path: EgressPath): string {
+  if (path.channel === 'workspace-link') {
+    return 'When off, run and monitoring API handlers replace workspace and MLflow URLs with null before JSON is sent. The links do not reach the browser; model calls, tools and answer content are unchanged.';
+  }
+  if (path.channel === 'chart-image') {
+    return "When off, the browser removes Plotly's PNG download button before a chart renders. The figure data already reached the browser, so screenshots, selection and network access remain outside this boundary.";
+  }
+  return 'The preference and reported copy attempt are stored, but the copy action is not intercepted. Model calls, tools and response content are not blocked.';
+}
+
 /** Where the affordance is, and how far the switch reaches. No sentence, no prose. */
 export function pathMeta(path: EgressPath): string[] {
   const facts = [path.where];
@@ -94,6 +131,28 @@ export function pathMeta(path: EgressPath): string[] {
 export function reportingNote(path: EgressPath): string {
   if (path.enforcement === 'uncontrollable' || path.reported) return '';
   return 'Not recorded yet';
+}
+
+export const EGRESS_JUDGE_COPY =
+  'No PII or egress judge runs on prompts, tool calls, model output or responses. Enforcement is limited to the listed browser and API boundaries.';
+
+export const EGRESS_OBSERVATION_COPY =
+  'Generated SQL, identifier and grant-statement copies report metadata after the action. Chart downloads and workspace links are not observed by this ledger.';
+
+export const EGRESS_OUTCOME_LABEL = {
+  left: 'Reported',
+  refused: 'Policy denied · action not intercepted',
+} as const;
+
+/** Compact facts for one stored record; never includes exported content. */
+export function eventFacts(event: EgressEvent): string[] {
+  const path = EGRESS_PATHS.find((candidate) => candidate.channel === event.channel);
+  const facts = [path?.label ?? event.channel];
+  if (event.surface) facts.push(event.surface);
+  if (event.itemCount !== null) facts.push(`${event.itemCount} item${event.itemCount === 1 ? '' : 's'}`);
+  if (event.runId) facts.push('Run linked');
+  if (event.conversationId) facts.push('Conversation linked');
+  return facts;
 }
 
 /* ── What the catalog says ─────────────────────────────────────────────────── */

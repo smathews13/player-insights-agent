@@ -5929,7 +5929,7 @@ var require_utils_webcrypto = __commonJS({
     var nodeCrypto = __require("crypto");
     module2.exports = {
       postgresMd5PasswordHash,
-      randomBytes,
+      randomBytes: randomBytes2,
       deriveKey,
       sha256: sha2562,
       hashByName,
@@ -5939,7 +5939,7 @@ var require_utils_webcrypto = __commonJS({
     var webCrypto = nodeCrypto.webcrypto || globalThis.crypto;
     var subtleCrypto = webCrypto.subtle;
     var textEncoder = new TextEncoder();
-    function randomBytes(length) {
+    function randomBytes2(length) {
       return webCrypto.getRandomValues(Buffer.alloc(length));
     }
     async function md52(string4) {
@@ -9195,7 +9195,7 @@ var require_utils_webcrypto2 = __commonJS({
     var nodeCrypto = __require("crypto");
     module2.exports = {
       postgresMd5PasswordHash,
-      randomBytes,
+      randomBytes: randomBytes2,
       deriveKey,
       sha256: sha2562,
       hashByName,
@@ -9205,7 +9205,7 @@ var require_utils_webcrypto2 = __commonJS({
     var webCrypto = nodeCrypto.webcrypto || globalThis.crypto;
     var subtleCrypto = webCrypto.subtle;
     var textEncoder = new TextEncoder();
-    function randomBytes(length) {
+    function randomBytes2(length) {
       return webCrypto.getRandomValues(Buffer.alloc(length));
     }
     async function md52(string4) {
@@ -42601,7 +42601,7 @@ var require_instrumentation37 = __commonJS({
       }
       _patchCallbackQuery(endSpan) {
         return (originalCallback) => {
-          return function(err, rowCount, rows) {
+          return function(err, rowCount2, rows) {
             endSpan(err);
             return originalCallback.apply(this, arguments);
           };
@@ -132651,7 +132651,7 @@ var require_websocket = __commonJS({
     var http = __require("http");
     var net2 = __require("net");
     var tls = __require("tls");
-    var { randomBytes, createHash: createHash8 } = __require("crypto");
+    var { randomBytes: randomBytes2, createHash: createHash9 } = __require("crypto");
     var { Duplex, Readable: Readable4 } = __require("stream");
     var { URL: URL3 } = __require("url");
     var PerMessageDeflate = require_permessage_deflate();
@@ -133178,7 +133178,7 @@ var require_websocket = __commonJS({
         }
       }
       const defaultPort = isSecure ? 443 : 80;
-      const key2 = randomBytes(16).toString("base64");
+      const key2 = randomBytes2(16).toString("base64");
       const request = isSecure ? https.request : http.request;
       const protocolSet = /* @__PURE__ */ new Set();
       let perMessageDeflate;
@@ -133308,7 +133308,7 @@ var require_websocket = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash8("sha1").update(key2 + GUID).digest("base64");
+        const digest = createHash9("sha1").update(key2 + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -133675,7 +133675,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter = __require("events");
     var http = __require("http");
     var { Duplex } = __require("stream");
-    var { createHash: createHash8 } = __require("crypto");
+    var { createHash: createHash9 } = __require("crypto");
     var extension = require_extension();
     var PerMessageDeflate = require_permessage_deflate();
     var subprotocol = require_subprotocol();
@@ -133972,7 +133972,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash8("sha1").update(key2 + GUID).digest("base64");
+        const digest = createHash9("sha1").update(key2 + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -159082,6 +159082,414 @@ ON CONFLICT (user_email, active_minute) DO NOTHING`;
   }
 });
 
+// server/lib/app-session.ts
+import { createHash as createHash5, randomBytes } from "node:crypto";
+function stringColumn(value) {
+  return typeof value === "string" ? value : "";
+}
+function finiteInteger(raw2) {
+  if (!/^\d+$/.test(raw2)) return null;
+  const parsed = Number(raw2);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+function resolveIdleTimeout(env = process.env) {
+  const raw2 = (env[APP_IDLE_TIMEOUT_ENV] ?? "").trim().toLowerCase();
+  if (!raw2) return { enabled: true, minutes: DEFAULT_IDLE_TIMEOUT_MINUTES, source: "default" };
+  if (raw2 === "disabled") return { enabled: false, minutes: 0, source: "disabled" };
+  const parsed = finiteInteger(raw2);
+  if (parsed === null) {
+    return { enabled: true, minutes: DEFAULT_IDLE_TIMEOUT_MINUTES, source: "invalid-default" };
+  }
+  if (parsed < MIN_IDLE_TIMEOUT_MINUTES) {
+    return { enabled: true, minutes: MIN_IDLE_TIMEOUT_MINUTES, source: "clamped-min" };
+  }
+  if (parsed > MAX_IDLE_TIMEOUT_MINUTES) {
+    return { enabled: true, minutes: MAX_IDLE_TIMEOUT_MINUTES, source: "clamped-max" };
+  }
+  return { enabled: true, minutes: parsed, source: "configured" };
+}
+function normalizeSessionSubject(value) {
+  return value.trim().toLowerCase();
+}
+function appSessionDeployment(env = process.env) {
+  const app = (env.DATABRICKS_APP_NAME ?? "").trim();
+  const workspace2 = (env.DATABRICKS_WORKSPACE_ID ?? "").trim();
+  if (app && workspace2) return `${workspace2}:${app}`;
+  if ((env.NODE_ENV ?? "").trim().toLowerCase() === "production") return null;
+  return `local:${app || "astrolabe"}`;
+}
+function createOpaqueSessionId() {
+  return randomBytes(SESSION_ID_BYTES).toString("base64url");
+}
+function hashSessionId(sessionId) {
+  return createHash5("sha256").update(sessionId, "utf8").digest("base64url");
+}
+function appSessionCookie(sessionId) {
+  if (!SESSION_ID_PATTERN.test(sessionId)) throw new Error("Refusing to set a malformed app-session identifier.");
+  return [
+    `${APP_SESSION_COOKIE}=${sessionId}`,
+    "Path=/",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+    `Max-Age=${APP_SESSION_ABSOLUTE_SECONDS}`
+  ].join("; ");
+}
+function clearAppSessionCookie() {
+  return [
+    `${APP_SESSION_COOKIE}=`,
+    "Path=/",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+    "Max-Age=0",
+    "Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+  ].join("; ");
+}
+function requestCookie(req) {
+  const header = req.header("cookie") ?? "";
+  for (const part of header.split(";")) {
+    const at = part.indexOf("=");
+    if (at < 0 || part.slice(0, at).trim() !== APP_SESSION_COOKIE) continue;
+    const value = part.slice(at + 1).trim();
+    return SESSION_ID_PATTERN.test(value) ? value : null;
+  }
+  return null;
+}
+function forwardedHost(req) {
+  return (req.header("x-forwarded-host") ?? req.header("host") ?? "").split(",", 1)[0]?.trim().toLowerCase() ?? "";
+}
+function sessionMutationRefusal(req, action) {
+  if (req.header(MUTATION_HEADER) !== action) return "The required same-origin session action header is missing.";
+  const fetchSite = (req.header("sec-fetch-site") ?? "").trim().toLowerCase();
+  if (fetchSite === "cross-site") return "Cross-site session requests are not accepted.";
+  const origin = (req.header("origin") ?? "").trim();
+  if (!origin) return "The request origin is required.";
+  try {
+    const originHost = new URL(origin).host.toLowerCase();
+    const host2 = forwardedHost(req);
+    return host2 && originHost === host2 ? "" : "The request origin does not match this app host.";
+  } catch {
+    return "The request origin is invalid.";
+  }
+}
+function shouldProtectWithAppSession(path19) {
+  const normalized = path19.toLowerCase();
+  return normalized.startsWith("/api/") && !EXEMPT_API_PATHS.has(normalized);
+}
+async function insertSession(lakebase2, binding, idleMinutes) {
+  await lakebase2.query(
+    `INSERT INTO ${APP_SESSION_TABLE}
+       (session_hash, subject, deployment_key, created_at, last_active_at,
+        idle_expires_at, absolute_expires_at, retention_expires_at)
+     VALUES ($1, $2, $3, NOW(), NOW(),
+             NOW() + ($4 * INTERVAL '1 minute'),
+             NOW() + INTERVAL '24 hours',
+             NOW() + ($4 * INTERVAL '1 minute') + INTERVAL '${APP_SESSION_RETENTION_HOURS} hours')`,
+    [binding.sessionHash, binding.subject, binding.deployment, idleMinutes]
+  );
+}
+async function readSessionState(lakebase2, binding) {
+  const result = await lakebase2.query(
+    `SELECT subject, deployment_key,
+            CASE
+              WHEN revoked_at IS NOT NULL THEN 'revoked'
+              WHEN idle_expires_at <= NOW() THEN 'idle_expired'
+              WHEN absolute_expires_at <= NOW() THEN 'absolute_expired'
+              ELSE 'active'
+            END AS session_state
+       FROM ${APP_SESSION_TABLE}
+      WHERE session_hash = $1`,
+    [binding.sessionHash]
+  );
+  const row2 = result.rows[0];
+  if (!row2) return "missing";
+  if (normalizeSessionSubject(stringColumn(row2.subject)) !== binding.subject) return "mismatch";
+  if (stringColumn(row2.deployment_key) !== binding.deployment) return "mismatch";
+  const state = stringColumn(row2.session_state);
+  return state === "active" || state === "idle_expired" || state === "absolute_expired" || state === "revoked" ? state : "mismatch";
+}
+async function revokeSession(lakebase2, sessionHash) {
+  await lakebase2.query(
+    `UPDATE ${APP_SESSION_TABLE}
+        SET revoked_at = COALESCE(revoked_at, NOW()),
+            retention_expires_at = LEAST(retention_expires_at, NOW() + INTERVAL '${APP_SESSION_RETENTION_HOURS} hours')
+      WHERE session_hash = $1`,
+    [sessionHash]
+  );
+}
+async function refreshSession(lakebase2, binding, idleMinutes) {
+  await lakebase2.query(
+    `UPDATE ${APP_SESSION_TABLE}
+        SET last_active_at = NOW(),
+            idle_expires_at = NOW() + ($4 * INTERVAL '1 minute'),
+            retention_expires_at = LEAST(
+              absolute_expires_at + INTERVAL '${APP_SESSION_RETENTION_HOURS} hours',
+              NOW() + ($4 * INTERVAL '1 minute') + INTERVAL '${APP_SESSION_RETENTION_HOURS} hours'
+            )
+      WHERE session_hash = $1
+        AND subject = $2
+        AND deployment_key = $3
+        AND revoked_at IS NULL
+        AND idle_expires_at > NOW()
+        AND absolute_expires_at > NOW()
+        AND last_active_at <= NOW() - INTERVAL '${APP_SESSION_ACTIVITY_THROTTLE_SECONDS} seconds'`,
+    [binding.sessionHash, binding.subject, binding.deployment, idleMinutes]
+  );
+}
+function refusal(res, status, error48, detail) {
+  res.status(status).json({ error: error48, detail });
+}
+function subjectFor(req, controls) {
+  try {
+    const subject = normalizeSessionSubject(controls.identity(req));
+    return subject || null;
+  } catch {
+    return null;
+  }
+}
+function bindingFor(req, controls) {
+  const sessionId = requestCookie(req);
+  const deployment = appSessionDeployment(controls.env);
+  const subject = subjectFor(req, controls);
+  if (!sessionId || !deployment || !subject) return null;
+  try {
+    return {
+      sessionHash: hashSessionId(sessionId),
+      subject,
+      deployment
+    };
+  } catch {
+    return null;
+  }
+}
+async function requireVerifiedSession(req, res, controls, config2) {
+  const sessionId = requestCookie(req);
+  const deployment = appSessionDeployment(controls.env);
+  if (!deployment) {
+    refusal(
+      res,
+      503,
+      APP_SESSION_UNAVAILABLE_CODE,
+      "This deployed app cannot verify which deployment owns the session."
+    );
+    return false;
+  }
+  if (!sessionId) {
+    refusal(res, 401, APP_SESSION_REQUIRED_CODE, "Start a new Astrolabe app session from the application entry page.");
+    return false;
+  }
+  const subject = subjectFor(req, controls);
+  if (!subject) {
+    refusal(res, 401, APP_SESSION_REQUIRED_CODE, "This request carries no authenticated subject for the app session.");
+    return false;
+  }
+  let binding;
+  try {
+    binding = {
+      sessionHash: hashSessionId(sessionId),
+      subject,
+      deployment
+    };
+  } catch {
+    refusal(res, 401, APP_SESSION_REQUIRED_CODE, "This request carries no authenticated subject for the app session.");
+    return false;
+  }
+  try {
+    const state = await readSessionState(controls.lakebase, binding);
+    if (state === "active") return true;
+    if (state === "idle_expired" || state === "absolute_expired" || state === "revoked") {
+      try {
+        await revokeSession(controls.lakebase, binding.sessionHash);
+      } catch {
+      }
+      refusal(
+        res,
+        401,
+        APP_IDLE_TIMEOUT_CODE,
+        `This Astrolabe app session ended after ${config2.minutes} minutes without explicit user activity.`
+      );
+      return false;
+    }
+    res.setHeader("Set-Cookie", clearAppSessionCookie());
+    refusal(
+      res,
+      401,
+      APP_SESSION_REQUIRED_CODE,
+      "This app-session identifier is not valid for this user and deployment."
+    );
+    return false;
+  } catch {
+    refusal(
+      res,
+      503,
+      APP_SESSION_UNAVAILABLE_CODE,
+      "Astrolabe cannot verify app-session state, so protected data is unavailable."
+    );
+    return false;
+  }
+}
+function registerAppSessionControls(app, controls) {
+  const config2 = controls.config ?? resolveIdleTimeout(controls.env);
+  if (!config2.enabled) {
+    const disabled = (action, status) => (req, res) => {
+      const csrf = sessionMutationRefusal(req, action);
+      if (csrf) {
+        refusal(res, 403, "APP_SESSION_CSRF", csrf);
+        return;
+      }
+      res.setHeader("Set-Cookie", clearAppSessionCookie());
+      if (status === 204) res.status(204).send();
+      else res.json({ enabled: false, idleTimeoutMinutes: 0 });
+    };
+    app.post("/api/app-session/bootstrap", disabled("bootstrap", 200));
+    app.post("/api/app-session/end", disabled("end", 204));
+    app.post("/api/app-session/activity", disabled("activity", 204));
+    return config2;
+  }
+  app.post("/api/app-session/bootstrap", async (req, res) => {
+    const csrf = sessionMutationRefusal(req, "bootstrap");
+    if (csrf) {
+      refusal(res, 403, "APP_SESSION_CSRF", csrf);
+      return;
+    }
+    const deployment = appSessionDeployment(controls.env);
+    if (!deployment) {
+      refusal(
+        res,
+        503,
+        APP_SESSION_UNAVAILABLE_CODE,
+        "This deployed app cannot establish which deployment owns the session."
+      );
+      return;
+    }
+    const existing = requestCookie(req);
+    if (existing) {
+      const verified = await requireVerifiedSession(req, res, controls, config2);
+      if (verified) res.json({ enabled: true, idleTimeoutMinutes: config2.minutes });
+      return;
+    }
+    const subject = subjectFor(req, controls);
+    if (!subject) {
+      refusal(
+        res,
+        401,
+        APP_SESSION_REQUIRED_CODE,
+        "This request carries no authenticated subject for the app session."
+      );
+      return;
+    }
+    const sessionId = createOpaqueSessionId();
+    const binding = {
+      sessionHash: hashSessionId(sessionId),
+      subject,
+      deployment
+    };
+    try {
+      await insertSession(controls.lakebase, binding, config2.minutes);
+      res.setHeader("Set-Cookie", appSessionCookie(sessionId));
+      res.status(201).json({ enabled: true, idleTimeoutMinutes: config2.minutes });
+    } catch {
+      refusal(
+        res,
+        503,
+        APP_SESSION_UNAVAILABLE_CODE,
+        "Astrolabe cannot persist a new app session, so protected data remains unavailable."
+      );
+    }
+  });
+  app.post("/api/app-session/end", (req, res) => {
+    const csrf = sessionMutationRefusal(req, "end");
+    if (csrf) {
+      refusal(res, 403, "APP_SESSION_CSRF", csrf);
+      return;
+    }
+    res.setHeader("Set-Cookie", clearAppSessionCookie());
+    const binding = bindingFor(req, controls);
+    if (binding) {
+      void revokeSession(controls.lakebase, binding.sessionHash).catch(() => {
+      });
+    }
+    res.status(204).send();
+  });
+  app.use((req, res, next) => {
+    if (!shouldProtectWithAppSession(req.path)) {
+      next();
+      return;
+    }
+    void requireVerifiedSession(req, res, controls, config2).then((verified) => void (verified && next()), next);
+  });
+  app.post("/api/app-session/activity", async (req, res) => {
+    const csrf = sessionMutationRefusal(req, "activity");
+    if (csrf) {
+      refusal(res, 403, "APP_SESSION_CSRF", csrf);
+      return;
+    }
+    const binding = bindingFor(req, controls);
+    if (!binding) {
+      refusal(res, 401, APP_SESSION_REQUIRED_CODE, "No app session is available to refresh.");
+      return;
+    }
+    try {
+      await refreshSession(controls.lakebase, binding, config2.minutes);
+      res.status(204).send();
+    } catch {
+      refusal(res, 503, APP_SESSION_UNAVAILABLE_CODE, "Astrolabe cannot verify or refresh app-session state.");
+    }
+  });
+  return config2;
+}
+async function cleanupExpiredAppSessions(lakebase2, limit = 500) {
+  const bounded = Math.max(1, Math.min(2e3, Math.trunc(limit)));
+  const result = await lakebase2.query(
+    `WITH expired AS (
+       SELECT session_hash
+         FROM ${APP_SESSION_TABLE}
+        WHERE retention_expires_at <= NOW()
+        ORDER BY retention_expires_at
+        LIMIT $1
+     )
+     DELETE FROM ${APP_SESSION_TABLE} sessions
+      USING expired
+      WHERE sessions.session_hash = expired.session_hash
+      RETURNING sessions.session_hash`,
+    [bounded]
+  );
+  return result.rows.length;
+}
+function startAppSessionCleanup(lakebase2, intervalMs = APP_SESSION_CLEANUP_INTERVAL_MS) {
+  const run2 = () => {
+    void cleanupExpiredAppSessions(lakebase2).catch(() => {
+    });
+  };
+  const timer = setInterval(run2, intervalMs);
+  timer.unref();
+  return () => clearInterval(timer);
+}
+var APP_IDLE_TIMEOUT_ENV, APP_SESSION_COOKIE, APP_IDLE_TIMEOUT_CODE, APP_SESSION_REQUIRED_CODE, APP_SESSION_UNAVAILABLE_CODE, DEFAULT_IDLE_TIMEOUT_MINUTES, MIN_IDLE_TIMEOUT_MINUTES, MAX_IDLE_TIMEOUT_MINUTES, APP_SESSION_ABSOLUTE_SECONDS, APP_SESSION_ACTIVITY_THROTTLE_SECONDS, APP_SESSION_RETENTION_HOURS, APP_SESSION_CLEANUP_INTERVAL_MS, APP_SESSION_TABLE, SESSION_ID_BYTES, SESSION_ID_PATTERN, MUTATION_HEADER, EXEMPT_API_PATHS;
+var init_app_session = __esm({
+  "server/lib/app-session.ts"() {
+    init_app_schema();
+    APP_IDLE_TIMEOUT_ENV = "PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES";
+    APP_SESSION_COOKIE = "__Host-astrolabe_session";
+    APP_IDLE_TIMEOUT_CODE = "APP_IDLE_TIMEOUT";
+    APP_SESSION_REQUIRED_CODE = "APP_SESSION_REQUIRED";
+    APP_SESSION_UNAVAILABLE_CODE = "APP_SESSION_UNAVAILABLE";
+    DEFAULT_IDLE_TIMEOUT_MINUTES = 30;
+    MIN_IDLE_TIMEOUT_MINUTES = 5;
+    MAX_IDLE_TIMEOUT_MINUTES = 480;
+    APP_SESSION_ABSOLUTE_SECONDS = 24 * 60 * 60;
+    APP_SESSION_ACTIVITY_THROTTLE_SECONDS = 45;
+    APP_SESSION_RETENTION_HOURS = 24;
+    APP_SESSION_CLEANUP_INTERVAL_MS = 15 * 60 * 1e3;
+    APP_SESSION_TABLE = appTable("app_sessions");
+    SESSION_ID_BYTES = 32;
+    SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+    MUTATION_HEADER = "x-astrolabe-session-action";
+    EXEMPT_API_PATHS = /* @__PURE__ */ new Set(["/api/app-session/bootstrap", "/api/app-session/end", "/api/health", "/api/storage"]);
+  }
+});
+
 // server/lib/migrations.ts
 function buildMigrations(baselineStatements) {
   return [
@@ -159132,6 +159540,7 @@ var init_migrations = __esm({
     init_deployment_decisions();
     init_request_latency();
     init_app_activity();
+    init_app_session();
     BASELINE_VERSION = 1;
     BASELINE_NAME = "baseline schema";
     LATER_MIGRATIONS = [
@@ -159635,6 +160044,53 @@ var init_migrations = __esm({
           `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions DROP COLUMN IF EXISTS legacy_capabilities`,
           `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions DROP COLUMN IF EXISTS grants`
         ]
+      },
+      {
+        version: 21,
+        name: "declared connection resource type",
+        /**
+         * The broad `kind` column cannot distinguish a catalog from a schema or
+         * table, or a Vector Search endpoint from an index. Keep legacy rows valid
+         * with an empty value; the client renders those with a neutral inferred
+         * category rather than inventing provenance or a more specific type.
+         */
+        statements: [
+          `ALTER TABLE ${APP_SCHEMA}.declared_connections
+         ADD COLUMN IF NOT EXISTS resource_type TEXT NOT NULL DEFAULT ''`
+        ],
+        down: [`ALTER TABLE ${APP_SCHEMA}.declared_connections DROP COLUMN IF EXISTS resource_type`]
+      },
+      {
+        version: 22,
+        name: "app idle sessions",
+        /**
+         * Browser cookies carry a random opaque identifier. Only its SHA-256 digest
+         * is persisted here, alongside the normalized proxy-authenticated subject
+         * and deployment that may use it. One browser gets one row; email alone is
+         * never a session key.
+         */
+        statements: [
+          `CREATE TABLE IF NOT EXISTS ${APP_SESSION_TABLE} (
+         session_hash TEXT PRIMARY KEY,
+         subject TEXT NOT NULL,
+         deployment_key TEXT NOT NULL,
+         created_at TIMESTAMPTZ NOT NULL,
+         last_active_at TIMESTAMPTZ NOT NULL,
+         idle_expires_at TIMESTAMPTZ NOT NULL,
+         absolute_expires_at TIMESTAMPTZ NOT NULL,
+         retention_expires_at TIMESTAMPTZ NOT NULL,
+         revoked_at TIMESTAMPTZ
+       )`,
+          `CREATE INDEX IF NOT EXISTS app_sessions_retention_idx
+         ON ${APP_SESSION_TABLE} (retention_expires_at)`,
+          `CREATE INDEX IF NOT EXISTS app_sessions_subject_deployment_idx
+         ON ${APP_SESSION_TABLE} (subject, deployment_key)`
+        ],
+        down: [
+          `DROP INDEX IF EXISTS ${APP_SCHEMA}.app_sessions_subject_deployment_idx`,
+          `DROP INDEX IF EXISTS ${APP_SCHEMA}.app_sessions_retention_idx`,
+          `DROP TABLE IF EXISTS ${APP_SESSION_TABLE}`
+        ]
       }
     ];
   }
@@ -159795,10 +160251,10 @@ async function runMigrations(client, options) {
     return blank2(fault);
   }
   if (mode === "apply") {
-    const refusal = await ownershipRefusal(client, schema);
-    if (refusal) {
-      console.error(`[migrate] MIGRATIONS SKIPPED: ${refusal}`);
-      return blank2(refusal);
+    const refusal2 = await ownershipRefusal(client, schema);
+    if (refusal2) {
+      console.error(`[migrate] MIGRATIONS SKIPPED: ${refusal2}`);
+      return blank2(refusal2);
     }
   }
   const applied = await readAppliedVersions(client, schema);
@@ -159990,6 +160446,18 @@ function workspaceAppsUrl(host2, workspaceId) {
   if (!base) return "";
   const org = (workspaceId ?? "").trim();
   return org ? `${base}/apps-v2?o=${encodeURIComponent(org)}` : `${base}/apps-v2`;
+}
+function accountConsoleUrlForWorkspace(host2) {
+  const hostname3 = (() => {
+    try {
+      return new URL(normalizeWorkspaceHost(host2)).hostname.toLocaleLowerCase();
+    } catch {
+      return "";
+    }
+  })();
+  if (hostname3.endsWith(".azuredatabricks.net")) return "https://accounts.azuredatabricks.net";
+  if (hostname3.endsWith(".gcp.databricks.com")) return "https://accounts.gcp.databricks.com";
+  return "https://accounts.cloud.databricks.com";
 }
 function unityCatalogPath(name2, part, segment = "") {
   const parts = name2.trim().split(".").filter((piece) => piece.length > 0);
@@ -160266,6 +160734,131 @@ var init_run_verdict = __esm({
   }
 });
 
+// shared/stage-lexicon.ts
+function toolNameFromStageId(id) {
+  return TOOL_STAGE_ID.exec(id)?.[1] ?? "";
+}
+function projectSemanticOutput(value) {
+  if (value.startsWith("SEMANTIC SEARCH UNAVAILABLE")) {
+    return value.split(" This is discovery, not data", 1)[0]?.trim() ?? "";
+  }
+  return value.split("\n\n").map((paragraph) => paragraph.trim()).filter(
+    (paragraph) => paragraph && !paragraph.startsWith("SEMANTIC SEARCH RESULTS.") && !paragraph.startsWith("What appears above was filtered by a cached snapshot")
+  ).map((paragraph) => {
+    if (paragraph.startsWith("No semantic entries matched.")) return "No semantic entries matched.";
+    return paragraph.split(" Search again with a narrower question", 1)[0]?.trim() ?? "";
+  }).filter(Boolean).join("\n\n");
+}
+function projectNamedToolOutput(value, tool) {
+  if (tool === "search_semantics") return projectSemanticOutput(value);
+  if (tool === "list_data_assets") {
+    return value.split(/\r?\n/).filter((line) => !line.startsWith("Access note:")).join("\n").trim();
+  }
+  if (tool === "search_tagged_assets") {
+    if (value.startsWith("TAG SEARCH UNAVAILABLE")) {
+      return value.split(" This is discovery, not data", 1)[0]?.trim() ?? "";
+    }
+    return value.split(" Use list_data_assets", 1)[0]?.trim() ?? "";
+  }
+  if (tool === "resolve_table" && value.startsWith("AMBIGUOUS:")) {
+    const [heading, remainder = ""] = value.split(". Do not ", 2);
+    const listed = remainder.includes(":\n") ? remainder.split(":\n").slice(1).join(":\n") : "";
+    return `${heading}.
+${listed}`.trim();
+  }
+  if (tool === "describe_table") {
+    for (const marker of [". Call resolve_table", ". That is definitive:"]) {
+      if (value.includes(marker)) return `${value.split(marker, 1)[0]?.trim()}.`;
+    }
+  }
+  if (tool === "dictionary_genie" && value.includes("Definition note:")) {
+    return value.split(/\r?\n/).map(
+      (line) => line.startsWith("Definition note:") ? "The dictionary space answered without reading the dictionary table; this is the space's account, not a governed entry." : line
+    ).join("\n").trim();
+  }
+  return value;
+}
+function projectToolOutput(text21, tool = "") {
+  const value = text21.trim();
+  if (!value) return "";
+  if (TOOL_OUTPUT_NOTES.some((lead) => value.startsWith(lead))) {
+    return value.includes("\n\n") ? value.split("\n\n").slice(1).join("\n\n").trim() : "";
+  }
+  if (value.startsWith("REFUSED:")) return value.split("\n\n", 1)[0]?.trim() ?? "";
+  if (!value.startsWith("ERROR:")) return projectNamedToolOutput(text21, tool);
+  const first = value.split("\n\n", 1)[0]?.trim() ?? "";
+  let cut = first.length;
+  for (const marker of ERROR_INSTRUCTION_MARKERS) {
+    const at = first.indexOf(marker);
+    if (at >= 0) cut = Math.min(cut, at + 1);
+  }
+  return first.slice(0, cut).trim();
+}
+function projectInput(stage) {
+  if (typeof stage.input !== "string" || !stage.input) return "";
+  if (stage.id === "data_source_finder") return READER_STAGE_TASKS.data_source_finder;
+  if (stage.id === "attachment") return READER_STAGE_TASKS.attachment;
+  if (stage.id === "synthesis") return READER_STAGE_TASKS.synthesis;
+  if (MODEL_STEP_ID.test(stage.id)) return READER_STAGE_TASKS.reasoning;
+  return stage.input;
+}
+function projectOutput(stage) {
+  if (typeof stage.output !== "string" || !stage.output) return "";
+  if (stage.id === "data_source_finder") {
+    if (stage.status === "failed") return "Governed data discovery could not complete.";
+    if (stage.status === "partial" || stage.status === "running") {
+      return "Governed data discovery ended with unresolved gaps.";
+    }
+    if (stage.output.includes("## DATA OVERVIEW")) {
+      return "Identified the governed data available for this question.";
+    }
+    return "Prepared an assessed data package from governed sources.";
+  }
+  if (stage.id === "attachment") return "Bounded attachment context was available to this run.";
+  if (MODEL_STEP_ID.test(stage.id)) {
+    const calls = stage.output.split(",").map((item) => item.trim()).filter(Boolean);
+    if (calls.length > 0 && calls.length === stage.output.split(",").length && calls.every((item) => /^[a-z_][a-z0-9_]*$/.test(item))) {
+      return calls.join(", ");
+    }
+    return stage.status === "failed" ? "The reasoning step did not complete." : "Prepared assessed findings from governed sources.";
+  }
+  const tool = toolNameFromStageId(stage.id);
+  if (tool || stage.id === "inventory") return projectToolOutput(stage.output, tool || "list_data_assets");
+  return stage.output;
+}
+function projectReaderStage(stage) {
+  const input = projectInput(stage);
+  const output = projectOutput(stage);
+  return input === stage.input && output === stage.output ? stage : { ...stage, input, output };
+}
+var DATA_SOURCE_FINDER_TASK, READER_STAGE_TASKS, TOOL_STAGE_ID, MODEL_STEP_ID, TOOL_OUTPUT_NOTES, ERROR_INSTRUCTION_MARKERS;
+var init_stage_lexicon = __esm({
+  "shared/stage-lexicon.ts"() {
+    DATA_SOURCE_FINDER_TASK = "Identify the governed data available for this question.";
+    READER_STAGE_TASKS = {
+      attachment: "Include the bounded attachment context supplied with this question.",
+      data_source_finder: DATA_SOURCE_FINDER_TASK,
+      reasoning: "Choose the next governed data operation for this question.",
+      synthesis: "Prepare the final answer from assessed findings."
+    };
+    TOOL_STAGE_ID = /^step-\d+-\d+-(.+)$/;
+    MODEL_STEP_ID = /^step-\d+$/;
+    TOOL_OUTPUT_NOTES = [
+      "Asked together with the other definition questions in this step,",
+      "Already asked in this run."
+    ];
+    ERROR_INSTRUCTION_MARKERS = [
+      ". Do not ",
+      ". Do NOT ",
+      ". Report this ",
+      ". Call ",
+      ". Ask ",
+      ". Answer ",
+      ". This is an outage"
+    ];
+  }
+});
+
 // shared/prose-only-answer.ts
 function proseOnlyCaveat(stageCount2) {
   if (stageCount2 <= 0) return PROSE_ONLY_ANSWER_CAVEAT;
@@ -160274,7 +160867,7 @@ function proseOnlyCaveat(stageCount2) {
 }
 function asRecordedStage(stage) {
   const status = stage.status;
-  return {
+  return projectReaderStage({
     ...stage,
     id: typeof stage.id === "string" ? stage.id : "",
     name: typeof stage.name === "string" ? stage.name : "",
@@ -160287,7 +160880,7 @@ function asRecordedStage(stage) {
     output: typeof stage.output === "string" ? stage.output : "",
     depth: typeof stage.depth === "number" && Number.isFinite(stage.depth) ? stage.depth : 0,
     parent_id: typeof stage.parent_id === "string" ? stage.parent_id : ""
-  };
+  });
 }
 function foldRecordedStages(stages) {
   const folded = [];
@@ -160343,7 +160936,10 @@ function readerFacingFindings(findings) {
     }
   }
   if (sections.length === 0) {
-    return { narrative: preamble.filter((line) => !line.trimStart().startsWith("#")).join("\n").trim(), caveats: [] };
+    return {
+      narrative: preamble.filter((line) => !line.trimStart().startsWith("#")).join("\n").trim(),
+      caveats: []
+    };
   }
   const bodiesOf = (wanted) => {
     const found = [];
@@ -160413,6 +161009,7 @@ var init_prose_only_answer = __esm({
     init_mlflow_trace_id();
     init_run_verdict();
     init_setup_remedies();
+    init_stage_lexicon();
     PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} no structured result arrived and no tool steps were recorded.`;
     PROSE_ONLY_FALLBACK_TAKEAWAY = "The agent did not return a structured result.";
     CANNED_FIRST_LINE = [
@@ -163880,7 +164477,7 @@ async function runCase(deps, runId, resolved) {
   let turns = 0;
   let answer = null;
   let clarification = null;
-  let refusal = null;
+  let refusal2 = null;
   let failure = null;
   try {
     turns = 1;
@@ -163899,21 +164496,21 @@ async function runCase(deps, runId, resolved) {
     }
     if (turn.type === "answer") answer = turn.answer;
     else if (turn.type === "clarification") clarification = { question: turn.question, traceId: turn.traceId };
-    else if (turn.type === "refused") refusal = { code: turn.code, message: turn.message, detail: turn.detail };
+    else if (turn.type === "refused") refusal2 = { code: turn.code, message: turn.message, detail: turn.detail };
     else if (turn.type === "plan") failure = `The agent proposed plan ${turn.planId} again after it was approved, so the case never ran.`;
     else failure = turn.detail;
   } catch (error48) {
     failure = error48.message;
   }
   const elapsed = now() - started;
-  if (refusal) {
-    const fatal = endsTheSuite(refusal.code);
+  if (refusal2) {
+    const fatal = endsTheSuite(refusal2.code);
     return {
       result: {
         ...base,
         outcome: "errored",
         errorStage: "identity",
-        error: refusal.code,
+        error: refusal2.code,
         durationMs: elapsed,
         agentTotalMs: null,
         turns,
@@ -163925,10 +164522,10 @@ async function runCase(deps, runId, resolved) {
         // return restricted data, which is the behaviour this product exists to
         // demonstrate, and counting it as an error would report the agent's best
         // moment as its worst.
-        scores: score(null, fatal ? "unavailable" : "refusal", { code: refusal.code, message: refusal.message }),
-        note: `The agent refused this turn with ${refusal.code} rather than answering it${refusal.message ? `: "${refusal.message}"` : ""}. Recorded as unscored. ` + (fatal ? "This is a fact about the credential the whole run is executing under, not about this question, so the suite stopped here rather than asking the rest and being refused identically each time." : "This is a fact about the data this question needed and the grants of the person who started the run, so the remaining cases were still attempted.")
+        scores: score(null, fatal ? "unavailable" : "refusal", { code: refusal2.code, message: refusal2.message }),
+        note: `The agent refused this turn with ${refusal2.code} rather than answering it${refusal2.message ? `: "${refusal2.message}"` : ""}. Recorded as unscored. ` + (fatal ? "This is a fact about the credential the whole run is executing under, not about this question, so the suite stopped here rather than asking the rest and being refused identically each time." : "This is a fact about the data this question needed and the grants of the person who started the run, so the remaining cases were still attempted.")
       },
-      fatal: fatal ? { code: refusal.code, detail: refusal.detail } : null
+      fatal: fatal ? { code: refusal2.code, detail: refusal2.detail } : null
     };
   }
   if (clarification) {
@@ -165181,7 +165778,7 @@ function experimentVerdict(input) {
   }
   if (input.read.kind === "refused") {
     const { status, code, message } = input.read;
-    const refusal = `HTTP ${status}${code ? ` ${code}` : ""}`;
+    const refusal2 = `HTTP ${status}${code ? ` ${code}` : ""}`;
     return {
       ...base,
       // FAILED RATHER THAN UNVERIFIED, and the difference is the identity. A
@@ -165191,8 +165788,8 @@ function experimentVerdict(input) {
       // has nowhere to land -- a fact about the deployment, not about anybody's
       // permissions.
       status: "failed",
-      detail: `${refusal}: ${message || "the workspace gave no message"}. Read as the application, not as you.`,
-      error: message || refusal
+      detail: `${refusal2}: ${message || "the workspace gave no message"}. Read as the application, not as you.`,
+      error: message || refusal2
     };
   }
   const observed = describes(input.read.body);
@@ -166124,14 +166721,22 @@ var init_egress_contract = __esm({
         where: "Outside the app"
       }
     ];
-    BY_CHANNEL = new Map(
-      EGRESS_PATHS.map((path19) => [path19.channel, path19])
-    );
+    BY_CHANNEL = new Map(EGRESS_PATHS.map((path19) => [path19.channel, path19]));
   }
 });
 
 // server/lib/egress-store.ts
 import crypto9 from "node:crypto";
+function egressStorageMetadata() {
+  return {
+    store: "Lakebase (Postgres)",
+    eventsTable: EGRESS_EVENTS_TABLE,
+    controlsTable: EGRESS_CONTROLS_TABLE,
+    retained: "Events retain time, signed-in email, path, outcome, app surface, optional run/conversation pointers and item count. Controls retain allowed state, changer and change time.",
+    retention: "No automatic expiry is configured in this app.",
+    identityScope: "Rows are scoped to this app deployment; actors and changers are the signed-in request email."
+  };
+}
 function forgetEgressControls() {
   controlsCache = /* @__PURE__ */ new WeakMap();
 }
@@ -166142,11 +166747,7 @@ async function readEgressControls(client, options = {}) {
   if (cached3 && maxAge > 0 && now - cached3.at < maxAge) {
     return { controls: cached3.controls, stored: cached3.stored };
   }
-  const read2 = await readStored(
-    client,
-    "egress controls",
-    `SELECT channel, allowed FROM ${EGRESS_CONTROLS_TABLE}`
-  );
+  const read2 = await readStored(client, "egress controls", `SELECT channel, allowed FROM ${EGRESS_CONTROLS_TABLE}`);
   if (!read2.available) {
     if (read2.code !== UNDEFINED_TABLE) {
       console.warn(
@@ -166249,7 +166850,91 @@ async function recordEgress(client, input) {
     return { event, written: false };
   }
 }
-var EGRESS_EVENTS_TABLE, EGRESS_CONTROLS_TABLE, UNDEFINED_TABLE, SURFACE_MAX, IDENTIFIER_MAX, EGRESS_CONTROLS_TTL_MS, controlsCache;
+function rowText(value) {
+  return typeof value === "string" ? value : "";
+}
+function rowCount(value) {
+  if (value === null || value === void 0) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+}
+function rowInstant(value) {
+  if (value instanceof Date) return value.toISOString();
+  return rowText(value);
+}
+function eventFromRow(row2) {
+  const path19 = egressPath(rowText(row2.channel));
+  if (!path19) return null;
+  return {
+    id: rowText(row2.id),
+    occurredAt: rowInstant(row2.occurred_at),
+    actor: rowText(row2.actor),
+    channel: path19.channel,
+    shape: path19.shape,
+    outcome: rowText(row2.outcome) === "refused" ? "refused" : "left",
+    surface: rowText(row2.surface),
+    runId: rowText(row2.run_id) || null,
+    conversationId: rowText(row2.conversation_id) || null,
+    itemCount: rowCount(row2.item_count)
+  };
+}
+function parseEgressEventsCursor(raw2) {
+  if (!raw2 || raw2.length > 512) return null;
+  try {
+    const decoded = JSON.parse(Buffer.from(raw2, "base64url").toString("utf8"));
+    const occurredAt = typeof decoded.occurredAt === "string" ? decoded.occurredAt : "";
+    const id = typeof decoded.id === "string" ? decoded.id : "";
+    if (!occurredAt || !Number.isFinite(Date.parse(occurredAt)) || !id || id.length > IDENTIFIER_MAX) {
+      return null;
+    }
+    return { occurredAt: new Date(occurredAt).toISOString(), id };
+  } catch {
+    return null;
+  }
+}
+function cursorFromRow(row2) {
+  const occurredAt = rowInstant(row2.occurred_at);
+  const id = rowText(row2.id);
+  if (!occurredAt || !Number.isFinite(Date.parse(occurredAt)) || !id) return null;
+  return Buffer.from(JSON.stringify({ occurredAt: new Date(occurredAt).toISOString(), id })).toString("base64url");
+}
+async function readEgressEventsPage(client, options = {}) {
+  const pageSize = Number.isFinite(options.limit) && (options.limit ?? 0) > 0 ? Math.min(Math.trunc(options.limit), EGRESS_EVENTS_PAGE_LIMIT) : 20;
+  const cursor = options.cursor ?? null;
+  const readAt = new Date(options.now ?? Date.now()).toISOString();
+  const columns = "id, occurred_at, actor, channel, shape, outcome, surface, run_id, conversation_id, item_count";
+  const statement = cursor ? `SELECT ${columns}
+       FROM ${EGRESS_EVENTS_TABLE}
+       WHERE occurred_at < $1 OR (occurred_at = $1 AND id < $2)
+       ORDER BY occurred_at DESC, id DESC
+       LIMIT $3` : `SELECT ${columns}
+       FROM ${EGRESS_EVENTS_TABLE}
+       ORDER BY occurred_at DESC, id DESC
+       LIMIT $1`;
+  const params = cursor ? [cursor.occurredAt, cursor.id, pageSize + 1] : [pageSize + 1];
+  const read2 = await readStored(client, "GET /api/egress/admin/events", statement, params);
+  if (!read2.available) {
+    return {
+      events: [],
+      readState: read2.code === UNDEFINED_TABLE ? "not-migrated" : "unavailable",
+      pageSize,
+      nextCursor: null,
+      readAt,
+      storage: egressStorageMetadata()
+    };
+  }
+  const pageRows = read2.rows.slice(0, pageSize);
+  const events = pageRows.map(eventFromRow).filter((event) => event !== null);
+  return {
+    events,
+    readState: "read",
+    pageSize,
+    nextCursor: read2.rows.length > pageSize ? cursorFromRow(pageRows[pageRows.length - 1] ?? {}) : null,
+    readAt,
+    storage: egressStorageMetadata()
+  };
+}
+var EGRESS_EVENTS_TABLE, EGRESS_CONTROLS_TABLE, EGRESS_EVENTS_PAGE_LIMIT, UNDEFINED_TABLE, SURFACE_MAX, IDENTIFIER_MAX, EGRESS_CONTROLS_TTL_MS, controlsCache;
 var init_egress_store = __esm({
   "server/lib/egress-store.ts"() {
     init_app_schema();
@@ -166257,6 +166942,7 @@ var init_egress_store = __esm({
     init_lakebase_store();
     EGRESS_EVENTS_TABLE = `${APP_SCHEMA}.egress_events`;
     EGRESS_CONTROLS_TABLE = `${APP_SCHEMA}.egress_controls`;
+    EGRESS_EVENTS_PAGE_LIMIT = 50;
     UNDEFINED_TABLE = "42P01";
     SURFACE_MAX = 64;
     IDENTIFIER_MAX = 128;
@@ -166978,6 +167664,7 @@ function roleChangeRefusal(input) {
   const desired = input.role;
   const current = effectiveRole({ seed: input.seed, stored: input.stored, email: target });
   if (desired === current) return "already-holds";
+  if (current === "super_admin") return "immutable-super-admin";
   if (ROLE_RANK[desired] < ROLE_RANK[seedFloorFor(input.seed, target)]) return "seed-floor";
   if (!input.roleColumnPresent && desired !== "admin") return "no-role-column";
   if (leavesNoSuperAdmin({ ...input, target, desired })) return "last-super-admin";
@@ -166986,14 +167673,15 @@ function roleChangeRefusal(input) {
 function removalRefusal(input) {
   const target = normalizeAdminEmail(input.email);
   if (!input.stored.some((entry) => entry.email === target)) return "not-found";
+  if (effectiveRole({ seed: input.seed, stored: input.stored, email: target }) === "super_admin") {
+    return "immutable-super-admin";
+  }
   if (seedFloorFor(input.seed, target) !== "consumer") return "seed-floor";
   if (leavesNoSuperAdmin({ ...input, target, desired: "consumer" })) return "last-super-admin";
   return "";
 }
 function leavesNoSuperAdmin(input) {
-  const after = input.stored.filter((entry) => entry.email !== input.target).concat(
-    input.desired === "consumer" ? [] : [{ email: input.target, role: input.desired, setBy: "", setAt: "" }]
-  );
+  const after = input.stored.filter((entry) => entry.email !== input.target).concat(input.desired === "consumer" ? [] : [{ email: input.target, role: input.desired, setBy: "", setAt: "" }]);
   return countSuperAdmins({ seed: input.seed, stored: after }) === 0;
 }
 function rosterPayload(input) {
@@ -167047,6 +167735,7 @@ var init_user_roster = __esm({
     ADD_ROLE_COLUMN_STATEMENT = `ALTER TABLE ${ADDED_ADMINS_TABLE} ADD COLUMN IF NOT EXISTS ${ROLE_COLUMN} TEXT NOT NULL DEFAULT 'admin'`;
     UNDEFINED_COLUMN = "42703";
     REFUSAL_DETAIL = {
+      "immutable-super-admin": "Super admins are deployment owners and cannot be changed or removed here.",
       "seed-floor": "That role is set in this deployment's configuration and cannot be lowered here. It can be raised.",
       "last-super-admin": "That is the only super admin. Appoint another one first.",
       "not-found": "That address is not on the roster.",
@@ -167395,7 +168084,7 @@ var init_admin_roles = __esm({
       // that a consumer is refused by the same middleware as every other admin surface
       // and a defect in the narrower guard cannot leave the roster open to everybody.
       "/api/users",
-      // The egress controls' WRITE side and classification. `/api/egress/admin` and
+      // The egress controls' writes, recent-record reads and classification. `/api/egress/admin` and
       // not `/api/egress`, and the narrowness is deliberate rather than an oversight:
       // `/api/egress/controls` and `/api/egress/events` have to stay open to every
       // signed-in reader, because a consumer's own browser is where the copy buttons
@@ -167437,9 +168126,9 @@ var init_admin_roles = __esm({
 });
 
 // server/lib/run-request-hash.ts
-import { createHash as createHash5 } from "node:crypto";
+import { createHash as createHash6 } from "node:crypto";
 function sha256(value) {
-  return createHash5("sha256").update(value, "utf8").digest("hex");
+  return createHash6("sha256").update(value, "utf8").digest("hex");
 }
 function normaliseText(value) {
   return value.replace(/\s+/g, " ").trim();
@@ -168811,12 +169500,12 @@ var init_data_contract = __esm({
 });
 
 // server/lib/sql-query-tags.ts
-import { createHash as createHash6 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 function safeSqlTagIdentifier(value) {
   const trimmed = value.trim();
   if (!trimmed) return "";
   if (trimmed.length <= SQL_QUERY_TAG_TEXT_LIMIT && SAFE_IDENTIFIER.test(trimmed)) return trimmed;
-  return `id_${createHash6("sha256").update(trimmed).digest("hex")}`;
+  return `id_${createHash7("sha256").update(trimmed).digest("hex")}`;
 }
 function sqlQueryTags(input) {
   const tags = [
@@ -169928,11 +170617,11 @@ function executionIdentityClaim(decision) {
 function refusedIdentityClaim() {
   return { mode: SIGNED_IN_USER, verified: false };
 }
-function describeRefusal(refusal) {
-  return `[identity] REFUSED ${refusal.code} (${refusal.correlationId}): ${refusal.detail}.`;
+function describeRefusal(refusal2) {
+  return `[identity] REFUSED ${refusal2.code} (${refusal2.correlationId}): ${refusal2.detail}.`;
 }
-function disclosableRefusal(refusal) {
-  return refusal.code === "IDENTITY_MISMATCH" ? "The signed-in user could not be matched to the credential this request carried." : "This request carried no identity the app could execute it as.";
+function disclosableRefusal(refusal2) {
+  return refusal2.code === "IDENTITY_MISMATCH" ? "The signed-in user could not be matched to the credential this request carried." : "This request carried no identity the app could execute it as.";
 }
 function authorizationFailureFor(status) {
   if (status === 401) return "USER_AUTH_REJECTED";
@@ -169991,7 +170680,7 @@ function spGrantKey(grant) {
 function spGrantSummary(grant) {
   return `${SP_GRANT_MATRIX[grant.resourceType].label} ${grant.resource} \u2014 ${grant.privilege}`;
 }
-var SP_IDENTITY_ENABLED_SETTING, SP_EXECUTION_OAUTH, SP_EXECUTION_SERVICE_PRINCIPAL, ASSIGNED_SERVICE_PRINCIPAL2, SP_IDENTITY_MINTING_UNAVAILABLE, SP_GRANT_RESOURCE_TYPES, SP_GRANT_ACTIONS, SP_GRANT_MATRIX, NAME_MAX, DESCRIPTION_MAX, CAPABILITY_MAX, CAPABILITY_COUNT_MAX, GRANT_COUNT_MAX, SECRET_REF_MAX, CLIENT_ID_MAX, SpPersonaWriteSchema, SpPersonaPatchSchema, SpCapabilitySchema, SpCapabilitiesSchema, SpGrantResourceTypeSchema, SpGrantActionSchema, SpGrantSchema, SpGrantsSchema, SpPersonaDefinitionFields, uniqueCapabilities, SpPersonaDefinitionWriteSchema, SpPersonaDefinitionPatchSchema, SpIdentityModeSchema, SpAssignmentWriteSchema;
+var SP_IDENTITY_ENABLED_SETTING, SP_EXECUTION_OAUTH, SP_EXECUTION_SERVICE_PRINCIPAL, ASSIGNED_SERVICE_PRINCIPAL2, SP_IDENTITY_MINTING_UNAVAILABLE, SP_GRANT_RESOURCE_TYPES, SP_GRANT_ACTIONS, SP_GRANT_MATRIX, NAME_MAX, DESCRIPTION_MAX, CAPABILITY_MAX, CAPABILITY_COUNT_MAX, GRANT_COUNT_MAX, SECRET_REF_MAX, CLIENT_ID_MAX, SpPersonaWriteSchema, SpPersonaPatchSchema, SpCapabilitySchema, SpCapabilitiesSchema, SpGrantResourceTypeSchema, SpGrantActionSchema, SpGrantSchema, SpGrantsSchema, SpPermissionSuggestionRequestSchema, SpPermissionPlanSchema, SpPermissionSuggestionsSchema, SpPersonaDefinitionFields, uniqueCapabilities, SpPersonaDefinitionWriteSchema, SpPersonaDefinitionPatchSchema, SpIdentityModeSchema, SpAssignmentWriteSchema;
 var init_sp_identity = __esm({
   "shared/sp-identity.ts"() {
     init_zod();
@@ -170173,6 +170862,18 @@ var init_sp_identity = __esm({
     SpGrantsSchema = external_exports.array(SpGrantSchema).max(GRANT_COUNT_MAX).refine((grants2) => new Set(grants2.map(spGrantKey)).size === grants2.length, {
       message: "The grant plan contains an exact duplicate."
     });
+    SpPermissionSuggestionRequestSchema = external_exports.object({
+      displayName: external_exports.string().trim().max(NAME_MAX).default(""),
+      purpose: external_exports.string().trim().min(1).max(DESCRIPTION_MAX)
+    }).strict();
+    SpPermissionPlanSchema = external_exports.object({
+      name: external_exports.string().trim().min(1).max(80),
+      rationale: external_exports.string().trim().min(1).max(240),
+      grants: SpGrantsSchema.min(1)
+    }).strict();
+    SpPermissionSuggestionsSchema = external_exports.object({
+      plans: external_exports.array(SpPermissionPlanSchema).min(2).max(4)
+    }).strict();
     SpPersonaDefinitionFields = external_exports.object({
       displayName: external_exports.string().trim().min(1).max(NAME_MAX),
       description: external_exports.string().trim().max(DESCRIPTION_MAX).default(""),
@@ -170677,6 +171378,9 @@ async function resolveExecutionCredential(req, store, deps = {}) {
   if (!enabled2) return { kind: "oauth", token: userToken };
   const email3 = signedInEmail(req);
   if (!email3) return { kind: "oauth", token: userToken };
+  if ((await resolveRole(store.lakebase, email3)).role === "super_admin") {
+    return { kind: "oauth", token: userToken };
+  }
   const assignment = await assignmentForEmail(store, email3);
   if (!assignment) return { kind: "oauth", token: userToken };
   const persona = await readSpPersona(store, assignment.personaId);
@@ -170748,7 +171452,7 @@ async function describeSpIdentity(req, store, deps = {}) {
   const enabled2 = await isSpIdentityEnabled(store);
   const email3 = signedInEmail(req);
   let assigned = null;
-  if (email3) {
+  if (email3 && (await resolveRole(store.lakebase, email3)).role !== "super_admin") {
     const assignment = await assignmentForEmail(store, email3);
     if (assignment) {
       const persona = await readSpPersona(store, assignment.personaId);
@@ -170787,6 +171491,7 @@ var init_execution_credential = __esm({
   "server/lib/execution-credential.ts"() {
     init_sp_identity();
     init_admin_identity();
+    init_admin_roles();
     init_identity_binding();
     init_access_verification();
     init_sp_identity_store();
@@ -172386,6 +173091,7 @@ async function prepareStore(appkit) {
 function setupInsightsRoutes(appkit, options = {}) {
   announceSharedConversationRail(resolveSharedConversationRail(process.env[SHARED_CONVERSATION_RAIL_ENV]));
   const storeReady = prepareStore(appkit);
+  const idleConfig = options.appSessionConfig ?? resolveIdleTimeout();
   startLakebaseWatchdog(appkit);
   if (isDeployed()) {
     console.log(
@@ -172399,6 +173105,11 @@ function setupInsightsRoutes(appkit, options = {}) {
   appkit.server.extend((app) => {
     answerRatherThanExit(app);
     app.use(requireIdentity);
+    registerAppSessionControls(app, {
+      lakebase: appkit.lakebase,
+      identity: userEmail,
+      config: idleConfig
+    });
     app.use(executionCredentialMiddleware(appkit));
     if (options.rolesReady) {
       app.use((req, _res, next) => {
@@ -173949,6 +174660,12 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
       res.status(202).json(started.body);
     });
   });
+  if (idleConfig.enabled) {
+    void storeReady.then(
+      () => void startAppSessionCleanup(appkit.lakebase),
+      () => void 0
+    );
+  }
   return Promise.resolve({ storeReady });
 }
 var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, ResourceCallSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, NO_WAREHOUSE_CANCELLATION, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
@@ -173962,6 +174679,7 @@ var init_insights_routes = __esm({
     init_migration_runner();
     init_migrations();
     init_app_activity();
+    init_app_session();
     init_databricks_links();
     init_representative_answer();
     init_mlflow_trace_id();
@@ -174760,6 +175478,9 @@ function declarationFlow(key2) {
 function isDeclarableKind(value) {
   return typeof value === "string" && DECLARABLE_KINDS.includes(value);
 }
+function isDeclaredResourceType(value) {
+  return typeof value === "string" && DECLARED_RESOURCE_TYPES.includes(value);
+}
 function field2(value, limit = 500) {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";
 }
@@ -174795,6 +175516,7 @@ function parseDeclaration(raw2) {
         id,
         label: field2(record2.label, 200) || id,
         kind: record2.kind,
+        resourceType: isDeclaredResourceType(record2.resourceType ?? record2.resource_type) ? record2.resourceType ?? record2.resource_type : void 0,
         value,
         note: field2(record2.note)
       });
@@ -174833,9 +175555,20 @@ function compareDeclaration(declaration, live) {
     };
   });
 }
-var DECLARABLE_KEYS, SCOPES_KEY, MAX_DECLARATION_BYTES, MAX_DECLARED_CONNECTIONS, DECLARABLE_KINDS;
+var DECLARED_RESOURCE_TYPES, DECLARABLE_KEYS, SCOPES_KEY, MAX_DECLARATION_BYTES, MAX_DECLARED_CONNECTIONS, DECLARABLE_KINDS;
 var init_notebook_declaration = __esm({
   "shared/notebook-declaration.ts"() {
+    DECLARED_RESOURCE_TYPES = [
+      "catalog",
+      "schema",
+      "table",
+      "sql-warehouse",
+      "serving-endpoint",
+      "genie-space",
+      "vector-search-endpoint",
+      "vector-search-index",
+      "volume"
+    ];
     DECLARABLE_KEYS = {
       catalog_allowlist: {
         label: "Readable scopes",
@@ -175805,7 +176538,7 @@ FROM ${schema}.${name2}`
   return `${branches.join("\nUNION ALL\n")}
 ORDER BY 1`;
 }
-function rowText(value) {
+function rowText2(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function readExporterRows(dataArray2, schema) {
@@ -175814,13 +176547,13 @@ function readExporterRows(dataArray2, schema) {
     for (const raw2 of dataArray2) {
       if (!Array.isArray(raw2) || raw2.length < 4) continue;
       const [name2, rows, firstAt, lastAt] = raw2;
-      const table = rowText(name2);
+      const table = rowText2(name2);
       if (!table) continue;
       tables.push({
         table,
         rows: Number(rows ?? 0) || 0,
-        firstAt: rowText(firstAt),
-        lastAt: rowText(lastAt)
+        firstAt: rowText2(firstAt),
+        lastAt: rowText2(lastAt)
       });
     }
   }
@@ -175897,10 +176630,10 @@ var init_ops_telemetry = __esm({
           },
           raw: false
         });
-        const state = rowText(body?.status?.state);
+        const state = rowText2(body?.status?.state);
         if (state !== "SUCCEEDED") {
           return exporterFailure(
-            rowText(body?.status?.error?.message) || `the count ended in ${state || "an unknown state"}`,
+            rowText2(body?.status?.error?.message) || `the count ended in ${state || "an unknown state"}`,
             schema
           );
         }
@@ -176565,7 +177298,7 @@ function probeVerdict(input) {
     const tokenScopes = input.tokenScopes ?? null;
     const scopeHeld = tokenScopes === null ? null : tokenScopeVerdict(tokenScopes, scope);
     const cause = refusalCause({ message, code, scope, scopeHeld });
-    const refusal = `HTTP ${status}${code ? ` ${code}` : ""}`;
+    const refusal2 = `HTTP ${status}${code ? ` ${code}` : ""}`;
     if (cause.kind === "scope") {
       const declarable = scope || cause.scope;
       const diagnosis = scopeRefusalDiagnosis({
@@ -176579,8 +177312,8 @@ function probeVerdict(input) {
         return check2(subject, {
           status: "failed",
           duration_ms: durationMs,
-          detail: `${refusal}. ${diagnosis.explanation}`,
-          error: message || refusal,
+          detail: `${refusal2}. ${diagnosis.explanation}`,
+          error: message || refusal2,
           remedy: subject.grant?.(principal) ?? null
         });
       }
@@ -176604,8 +177337,8 @@ function probeVerdict(input) {
         // The workspace's own words first, because that is the evidence, then
         // the verdict reached from it. A reader who disagrees with the second
         // can still see the first.
-        detail: `${refusal}. ${diagnosis.explanation}`,
-        error: message || refusal,
+        detail: `${refusal2}. ${diagnosis.explanation}`,
+        error: message || refusal2,
         remedy: diagnosis.remedy
       });
     }
@@ -176620,8 +177353,8 @@ function probeVerdict(input) {
         // page has just spent an evening proving what a confident wrong remedy
         // costs, and the two candidates here are fixed by different people. A
         // row that says which two they are is worth more than one that picks.
-        detail: `The workspace refused the call${who} and did not say why: ${refusal}, with no message and no scopes readable off the token. That is one of two things and this cannot tell which: either ${principal || "the signed-in user"} lacks a grant on the object, or the app's forwarded token lacks the \`${scope || "required"}\` scope. Check the token's scopes first -- it is the cheaper of the two to rule out, and it is the one that would make every other row on this page wrong in the same way.`,
-        error: message || refusal,
+        detail: `The workspace refused the call${who} and did not say why: ${refusal2}, with no message and no scopes readable off the token. That is one of two things and this cannot tell which: either ${principal || "the signed-in user"} lacks a grant on the object, or the app's forwarded token lacks the \`${scope || "required"}\` scope. Check the token's scopes first -- it is the cheaper of the two to rule out, and it is the one that would make every other row on this page wrong in the same way.`,
+        error: message || refusal2,
         // No remedy on purpose. Either candidate printed here would be a guess
         // wearing the clothes of an instruction.
         remedy: null
@@ -176633,8 +177366,8 @@ function probeVerdict(input) {
       // Said in as many words, because the two failures have different remedies
       // and this is the one a GRANT fixes. A reader who takes a refusal for an
       // absence goes looking for a resource that is sitting right there.
-      detail: `The workspace refused this identity${who}: ${refusal}. The object exists as far as this call can tell; what was established is that this identity cannot reach it -- ${cause.evidence}. A grant fixes this.`,
-      error: message || refusal,
+      detail: `The workspace refused this identity${who}: ${refusal2}. The object exists as far as this call can tell; what was established is that this identity cannot reach it -- ${cause.evidence}. A grant fixes this.`,
+      error: message || refusal2,
       remedy: subject.grant?.(principal) ?? null
     });
   }
@@ -177032,18 +177765,10 @@ function browseBlockedByScope(input) {
 function interpretBrowseAnswer(input) {
   const { kind, apiPath, answer } = input;
   if (answer.kind === "timeout") {
-    return failed2(
-      kind,
-      "The workspace did not answer in time, so nothing about this list was established.",
-      "timeout"
-    );
+    return failed2(kind, "The workspace did not answer in time, so nothing about this list was established.", "timeout");
   }
   if (answer.kind === "unreachable") {
-    return failed2(
-      kind,
-      "The workspace could not be asked for this list, so nothing was established.",
-      answer.message
-    );
+    return failed2(kind, "The workspace could not be asked for this list, so nothing was established.", answer.message);
   }
   const { status, body } = answer;
   if (status >= 200 && status < 300) {
@@ -177091,16 +177816,10 @@ function pageQuery(pageToken, pageSize = BROWSE_PAGE_SIZE) {
 }
 async function listWithGuard(kind, apiPath, pathAndQuery, options, itemsFromBody, listedPath = "") {
   if (!options.host) {
-    return failed2(
-      kind,
-      "This app was given no workspace host, so it does not know where to browse."
-    );
+    return failed2(kind, "This app was given no workspace host, so it does not know where to browse.");
   }
   if (!options.token) {
-    return failed2(
-      kind,
-      "This request carried no signed-in user token, so browsing as you is not possible."
-    );
+    return failed2(kind, "This request carried no signed-in user token, so browsing as you is not possible.");
   }
   const blocked = browseBlockedByScope({
     apiPath,
@@ -177277,26 +177996,14 @@ async function listGenieSpaces(options) {
   const apiPath = "/api/2.0/genie/spaces";
   const parts = [`page_size=${BROWSE_PAGE_SIZE}`];
   if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
-  return listWithGuard(
-    "genie-spaces",
-    apiPath,
-    `${apiPath}?${parts.join("&")}`,
-    options,
-    genieItems
-  );
+  return listWithGuard("genie-spaces", apiPath, `${apiPath}?${parts.join("&")}`, options, genieItems);
 }
 async function listServingEndpoints(options) {
   const apiPath = "/api/2.0/serving-endpoints";
   const parts = [];
   if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
   const query = parts.length ? `?${parts.join("&")}` : "";
-  return listWithGuard(
-    "serving-endpoints",
-    apiPath,
-    `${apiPath}${query}`,
-    options,
-    servingEndpointItems
-  );
+  return listWithGuard("serving-endpoints", apiPath, `${apiPath}${query}`, options, servingEndpointItems);
 }
 async function listNotebooks(options) {
   const path19 = options.path.trim();
@@ -177305,14 +178012,7 @@ async function listNotebooks(options) {
   }
   const apiPath = "/api/2.0/workspace/list";
   const query = `path=${encodeURIComponent(path19)}`;
-  return listWithGuard(
-    "notebooks",
-    apiPath,
-    `${apiPath}?${query}`,
-    options,
-    notebookItems,
-    path19
-  );
+  return listWithGuard("notebooks", apiPath, `${apiPath}?${query}`, options, notebookItems, path19);
 }
 async function validateNotebookPath(pathInput, options) {
   const path19 = pathInput.trim();
@@ -177398,16 +178098,10 @@ async function listVolumes(options) {
   const apiPath = "/api/2.1/unity-catalog/volumes";
   const query = `catalog_name=${encodeURIComponent(catalog)}&schema_name=${encodeURIComponent(schema)}&${pageQuery(options.pageToken)}`;
   if (!options.host) {
-    return failed2(
-      "volumes",
-      "This app was given no workspace host, so it does not know where to browse."
-    );
+    return failed2("volumes", "This app was given no workspace host, so it does not know where to browse.");
   }
   if (!options.token) {
-    return failed2(
-      "volumes",
-      "This request carried no signed-in user token, so browsing as you is not possible."
-    );
+    return failed2("volumes", "This request carried no signed-in user token, so browsing as you is not possible.");
   }
   const answer = await workspaceGet(`${apiPath}?${query}`, options);
   return interpretBrowseAnswer({
@@ -177461,21 +178155,12 @@ async function listVectorSearchEndpoints(options) {
   const parts = [];
   if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
   const query = parts.length ? `?${parts.join("&")}` : "";
-  return listWithGuard(
-    "vector-search-endpoints",
-    apiPath,
-    `${apiPath}${query}`,
-    options,
-    vectorSearchEndpointItems
-  );
+  return listWithGuard("vector-search-endpoints", apiPath, `${apiPath}${query}`, options, vectorSearchEndpointItems);
 }
 async function listVectorSearchIndexes(options) {
   const endpoint = options.endpoint.trim();
   if (!endpoint) {
-    return failed2(
-      "vector-search-indexes",
-      "A Vector Search endpoint name is required to list indexes."
-    );
+    return failed2("vector-search-indexes", "A Vector Search endpoint name is required to list indexes.");
   }
   const apiPath = "/api/2.0/vector-search/indexes";
   const parts = [`endpoint_name=${encodeURIComponent(endpoint)}`];
@@ -177555,13 +178240,7 @@ async function listLakebaseProjects(options) {
   const apiPath = "/api/2.0/postgres/projects";
   const parts = [`page_size=${BROWSE_PAGE_SIZE}`];
   if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
-  return listWithGuard(
-    "lakebase-projects",
-    apiPath,
-    `${apiPath}?${parts.join("&")}`,
-    options,
-    lakebaseProjectItems
-  );
+  return listWithGuard("lakebase-projects", apiPath, `${apiPath}?${parts.join("&")}`, options, lakebaseProjectItems);
 }
 async function listLakebaseBranches(options) {
   const parent = lakebaseProjectParent(options.project);
@@ -177614,6 +178293,72 @@ function browseRequestContext(input) {
     host: normalizeWorkspaceHost(input.host ?? process.env.DATABRICKS_HOST ?? ""),
     token: input.token?.trim() ?? ""
   };
+}
+async function discoverConnectionTypes(options) {
+  const roots = await Promise.all([
+    listCatalogs(options),
+    listWarehouses(options),
+    listGenieSpaces(options),
+    listServingEndpoints(options),
+    listVectorSearchEndpoints(options)
+  ]);
+  const catalogs = roots[0];
+  const schemas = catalogs.status === "ok" ? await Promise.all(catalogs.items.map((catalog) => listSchemas({ ...options, catalog: catalog.id }))) : [];
+  const schemaParents = schemas.flatMap(
+    (response, catalogIndex) => response.status === "ok" ? response.items.map((schema) => ({
+      catalog: catalogs.status === "ok" ? catalogs.items[catalogIndex].id : "",
+      schema: schema.id
+    })) : []
+  );
+  const [tables, volumes] = await Promise.all([
+    Promise.all(schemaParents.map((parent) => listTables({ ...options, ...parent }))),
+    Promise.all(schemaParents.map((parent) => listVolumes({ ...options, ...parent })))
+  ]);
+  const vectorEndpoints = roots[4];
+  const vectorIndexes = vectorEndpoints.status === "ok" ? await Promise.all(
+    vectorEndpoints.items.map((endpoint) => listVectorSearchIndexes({ ...options, endpoint: endpoint.id }))
+  ) : [];
+  const hasVisible = (responses) => responses.some((response) => response.status === "ok" && response.items.length > 0);
+  const byKind = new Map(roots.map((response) => [response.kind, response]));
+  const definitions = [
+    { id: "catalog", label: "Catalog", rootKind: "catalogs" },
+    { id: "schema", label: "Schema", rootKind: "catalogs" },
+    { id: "table", label: "Table or view", rootKind: "catalogs" },
+    { id: "volume", label: "Volume", rootKind: "catalogs" },
+    { id: "sql-warehouse", label: "SQL warehouse", rootKind: "warehouses" },
+    { id: "genie-space", label: "Genie space", rootKind: "genie-spaces" },
+    { id: "serving-endpoint", label: "Serving endpoint", rootKind: "serving-endpoints" },
+    {
+      id: "vector-search-endpoint",
+      label: "Vector Search endpoint",
+      rootKind: "vector-search-endpoints"
+    },
+    {
+      id: "vector-search-index",
+      label: "Vector Search index",
+      rootKind: "vector-search-endpoints"
+    }
+  ];
+  const available = definitions.filter((definition) => {
+    if (definition.id === "schema") return hasVisible(schemas);
+    if (definition.id === "table") return hasVisible(tables);
+    if (definition.id === "volume") return hasVisible(volumes);
+    if (definition.id === "vector-search-index") return hasVisible(vectorIndexes);
+    const response = byKind.get(definition.rootKind);
+    return response?.status === "ok" && response.items.length > 0;
+  });
+  const leafResponses = [
+    ...available.some((entry) => entry.id === "schema") ? [] : schemas,
+    ...available.some((entry) => entry.id === "table") ? [] : tables,
+    ...available.some((entry) => entry.id === "volume") ? [] : volumes,
+    ...available.some((entry) => entry.id === "vector-search-index") ? [] : vectorIndexes
+  ];
+  const unavailable4 = [...roots, ...leafResponses].filter((response) => response.status !== "ok" || response.items.length === 0).map((response) => ({
+    rootKind: response.kind,
+    status: response.status === "unavailable" ? "denied" : response.status === "failed" ? "failed" : "empty",
+    detail: response.status === "ok" ? "No visible resources were returned." : response.detail
+  }));
+  return { available, unavailable: unavailable4 };
 }
 var BROWSE_TIMEOUT_MS, BROWSE_PAGE_SIZE, BROWSE_SCOPE_BY_PATH;
 var init_browse_assets = __esm({
@@ -177763,6 +178508,7 @@ function timestamp2(value) {
 }
 function storedFromRow2(row2) {
   const kind = text14(row2.kind);
+  const resourceType = text14(row2.resource_type);
   return {
     id: text14(row2.id),
     label: text14(row2.label),
@@ -177770,6 +178516,7 @@ function storedFromRow2(row2) {
     // this build declares would otherwise reach the client as an icon lookup that
     // silently renders nothing.
     kind: DECLARABLE_KINDS.includes(kind) ? kind : "unity-catalog",
+    resourceType: DECLARED_RESOURCE_TYPES.includes(resourceType) ? resourceType : void 0,
     value: text14(row2.value),
     note: text14(row2.note),
     state: row2.state === "withdrawn" ? "withdrawn" : "declared",
@@ -177794,6 +178541,7 @@ async function writeDeclaredConnection(client, connection) {
     connection.id,
     connection.label,
     connection.kind,
+    connection.resourceType ?? "",
     connection.value,
     connection.note,
     connection.origin,
@@ -177827,8 +178575,37 @@ function addFault(input) {
   if (!DECLARABLE_KINDS.includes(input.kind)) {
     return `${input.kind} is not a kind of asset that can be added here.`;
   }
+  if (input.resourceType) {
+    const expectedKind = {
+      catalog: "unity-catalog",
+      schema: "unity-catalog",
+      table: "unity-catalog",
+      volume: "volume",
+      "sql-warehouse": "sql-warehouse",
+      "serving-endpoint": "model",
+      "genie-space": "genie-space",
+      "vector-search-endpoint": "vector-search",
+      "vector-search-index": "vector-search"
+    };
+    if (!DECLARED_RESOURCE_TYPES.includes(input.resourceType)) {
+      return `${input.resourceType} is not a resource type that can be added here.`;
+    }
+    if (expectedKind[input.resourceType] !== input.kind) {
+      return `${input.resourceType} does not match the submitted connection kind.`;
+    }
+  }
   if (!input.value.trim()) {
     return "An asset needs an identifier, such as a three-part table name.";
+  }
+  const value = input.value.trim();
+  if (input.resourceType === "schema" && value.split(".").filter(Boolean).length !== 2) {
+    return "A schema identifier must be catalog.schema.";
+  }
+  if ((input.resourceType === "table" || input.resourceType === "vector-search-index") && value.split(".").filter(Boolean).length !== 3) {
+    return "This resource identifier must have three parts: catalog.schema.name.";
+  }
+  if (input.resourceType === "volume" && !/^\/Volumes\/[^/]+\/[^/]+\/[^/]+$/.test(value)) {
+    return "A volume identifier must be /Volumes/catalog/schema/volume.";
   }
   return null;
 }
@@ -177836,9 +178613,7 @@ function addedConnectionEffect() {
   return "Recorded as an asset the agent may consider. It grants nobody access: whether a person can read it is decided by their own Unity Catalog grants.";
 }
 function removalImpact(connection, liveValues) {
-  const consequences = [
-    "The agent stops being offered this asset when it chooses where to look."
-  ];
+  const consequences = ["The agent stops being offered this asset when it chooses where to look."];
   const normalised = connection.value.trim().toLowerCase();
   const alsoLive = liveValues.some((value) => value.trim().toLowerCase() === normalised);
   if (alsoLive) {
@@ -177847,9 +178622,7 @@ function removalImpact(connection, liveValues) {
     );
   }
   if (connection.origin === "notebook") {
-    consequences.push(
-      "It was published from a notebook, so publishing again will add it back."
-    );
+    consequences.push("It was published from a notebook, so publishing again will add it back.");
   }
   return {
     headline: alsoLive ? `Remove ${connection.label} from the list. The running agent is configured with this value and keeps using it.` : `Remove ${connection.label} from the assets the agent may consider.`,
@@ -177864,33 +178637,34 @@ var init_declared_connections = __esm({
     init_notebook_declaration();
     init_deployment_config();
     DECLARED_CONNECTIONS_QUERY = `
-  SELECT id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by
+  SELECT id, label, kind, resource_type, value, note, state, origin, created_at, created_by, changed_at, changed_by
   FROM ${APP_SCHEMA}.declared_connections
   ORDER BY created_at, id`;
     UPSERT_DECLARED_CONNECTION_QUERY = `
   INSERT INTO ${APP_SCHEMA}.declared_connections
-    (id, label, kind, value, note, state, origin, created_by, changed_by, changed_at)
-  VALUES ($1, $2, $3, $4, $5, 'declared', $6, $7, $7, now())
+    (id, label, kind, resource_type, value, note, state, origin, created_by, changed_by, changed_at)
+  VALUES ($1, $2, $3, $4, $5, $6, 'declared', $7, $8, $8, now())
   ON CONFLICT (id) DO UPDATE
     SET label = EXCLUDED.label,
         kind = EXCLUDED.kind,
+        resource_type = EXCLUDED.resource_type,
         value = EXCLUDED.value,
         note = EXCLUDED.note,
         state = 'declared',
         origin = EXCLUDED.origin,
         changed_by = EXCLUDED.changed_by,
         changed_at = now()
-  RETURNING id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
+  RETURNING id, label, kind, resource_type, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
     WITHDRAW_DECLARED_CONNECTION_QUERY = `
   UPDATE ${APP_SCHEMA}.declared_connections
      SET state = 'withdrawn', changed_by = $2, changed_at = now()
    WHERE id = $1 AND state = 'declared'
-  RETURNING id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
+  RETURNING id, label, kind, resource_type, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
     RESTORE_DECLARED_CONNECTION_QUERY = `
   UPDATE ${APP_SCHEMA}.declared_connections
      SET state = 'declared', changed_by = $2, changed_at = now()
    WHERE id = $1 AND state = 'withdrawn'
-  RETURNING id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
+  RETURNING id, label, kind, resource_type, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
     FORGET_DECLARED_CONNECTION_QUERY = `
   DELETE FROM ${APP_SCHEMA}.declared_connections
    WHERE id = $1
@@ -178652,7 +179426,7 @@ __export(settings_routes_exports, {
   setupSettingsRoutes: () => setupSettingsRoutes,
   validateAndStoreNotebookPath: () => validateAndStoreNotebookPath
 });
-import { createHash as createHash7, randomUUID as randomUUID6 } from "node:crypto";
+import { createHash as createHash8, randomUUID as randomUUID6 } from "node:crypto";
 async function validateAndStoreNotebookPath(input) {
   const validate2 = input.validate ?? validateNotebookPath;
   const validation = await validate2(input.path, {
@@ -178812,14 +179586,19 @@ function setupSettingsRoutes(appkit) {
       try {
         const connection = await writeDeclaredConnection(appkit, {
           id: parsed.data.id,
-          label: parsed.data.label || parsed.data.id,
+          label: parsed.data.label,
           kind: parsed.data.kind,
+          resourceType: parsed.data.resourceType,
           value: parsed.data.value,
           note: parsed.data.note,
           origin: "app",
           changedBy: userEmail(req)
         });
-        res.status(201).json({ connection, effect: addedConnectionEffect() });
+        res.status(201).json({
+          connection,
+          impact: await impactFor(appkit, connection),
+          effect: addedConnectionEffect()
+        });
       } catch (error48) {
         console.error("[connections] The connection could not be added:", error48.message);
         res.status(503).json({
@@ -179110,7 +179889,7 @@ function releaseDeclaration(plan) {
 ${canonicalSettings(settings)}`;
   return {
     source: "connections-apply",
-    revision: `sha256:${createHash7("sha256").update(body).digest("hex")}`,
+    revision: `sha256:${createHash8("sha256").update(body).digest("hex")}`,
     settings
   };
 }
@@ -179281,6 +180060,7 @@ var init_settings_routes = __esm({
       id: external_exports.string().trim().max(80),
       label: external_exports.string().trim().max(200).default(""),
       kind: external_exports.string().trim().max(60),
+      resourceType: external_exports.enum(DECLARED_RESOURCE_TYPES).optional(),
       value: external_exports.string().trim().max(500),
       note: external_exports.string().trim().max(500).default("")
     });
@@ -179324,6 +180104,10 @@ async function sendBrowse(req, res, run2) {
 }
 function setupBrowseRoutes(appkit) {
   appkit.server.extend((app) => {
+    app.get("/api/browse/connection-types", async (req, res) => {
+      const ctx = browseRequestContext({ token: executionToken(req) });
+      res.status(200).json(await discoverConnectionTypes(ctx));
+    });
     app.get("/api/browse/catalogs", async (req, res) => {
       await sendBrowse(
         req,
@@ -179776,13 +180560,13 @@ function setupAdminRoutes(appkit) {
         });
         return;
       }
-      const refusal = removalRefusal2({ email: email3, seed: seedAdminEmails(), added });
-      if (refusal === "not-found") {
+      const refusal2 = removalRefusal2({ email: email3, seed: seedAdminEmails(), added });
+      if (refusal2 === "not-found") {
         res.status(404).json({ error: "no_such_admin", detail: REMOVAL_REFUSAL_DETAIL["not-found"] });
         return;
       }
-      if (refusal) {
-        res.status(409).json({ error: `removal_refused_${refusal.replace("-", "_")}`, detail: REMOVAL_REFUSAL_DETAIL[refusal] });
+      if (refusal2) {
+        res.status(409).json({ error: `removal_refused_${refusal2.replace("-", "_")}`, detail: REMOVAL_REFUSAL_DETAIL[refusal2] });
         return;
       }
       try {
@@ -179824,6 +180608,29 @@ var init_admin_routes = __esm({
   }
 });
 
+// shared/organization-mapping.ts
+function parseOrganizationMappings(raw2) {
+  if (!raw2?.trim()) return [];
+  try {
+    const parsed = OrganizationMappingsSchema.safeParse(JSON.parse(raw2));
+    return parsed.success ? parsed.data : [];
+  } catch {
+    return [];
+  }
+}
+var OrganizationMappingSchema, OrganizationMappingsSchema;
+var init_organization_mapping = __esm({
+  "shared/organization-mapping.ts"() {
+    init_zod();
+    OrganizationMappingSchema = external_exports.object({
+      domain: external_exports.string().trim().min(1).max(253).transform((value) => value.toLocaleLowerCase()),
+      name: external_exports.string().trim().min(1).max(120),
+      monogram: external_exports.string().trim().min(1).max(4)
+    }).strict();
+    OrganizationMappingsSchema = external_exports.array(OrganizationMappingSchema).max(50);
+  }
+});
+
 // server/routes/user-routes.ts
 var user_routes_exports = {};
 __export(user_routes_exports, {
@@ -179838,15 +180645,15 @@ async function read(store) {
     return { rows: [], readable: false, roleColumnPresent: true };
   }
 }
-function statusFor(refusal) {
-  if (refusal === "not-found") return 404;
-  if (refusal === "unknown-role") return 400;
+function statusFor(refusal2) {
+  if (refusal2 === "not-found") return 404;
+  if (refusal2 === "unknown-role") return 400;
   return 409;
 }
-function refuse(res, refusal) {
-  res.status(statusFor(refusal)).json({
-    error: `roster_refused_${refusal.replace(/-/g, "_")}`,
-    detail: REFUSAL_DETAIL[refusal]
+function refuse(res, refusal2) {
+  res.status(statusFor(refusal2)).json({
+    error: `roster_refused_${refusal2.replace(/-/g, "_")}`,
+    detail: REFUSAL_DETAIL[refusal2]
   });
 }
 async function withdrawOnDemotion(input) {
@@ -179872,6 +180679,7 @@ function setupUserRoutes(appkit) {
         roleColumnPresent,
         reader: userEmail(req)
       });
+      payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
       res.json(payload);
     });
     app.post("/api/users", async (req, res) => {
@@ -179911,9 +180719,9 @@ function setupUserRoutes(appkit) {
         });
         return;
       }
-      const refusal = removalRefusal({ email: email3, seed, stored: rows });
-      if (refusal) {
-        refuse(res, refusal);
+      const refusal2 = removalRefusal({ email: email3, seed, stored: rows });
+      if (refusal2) {
+        refuse(res, refusal2);
         return;
       }
       const from = effectiveRole({ seed, stored: rows, email: email3 });
@@ -179947,9 +180755,9 @@ function setupUserRoutes(appkit) {
         });
         return;
       }
-      const refusal = roleChangeRefusal({ email: email3, role, seed, stored: rows, roleColumnPresent });
-      if (refusal) {
-        refuse(res, refusal);
+      const refusal2 = roleChangeRefusal({ email: email3, role, seed, stored: rows, roleColumnPresent });
+      if (refusal2) {
+        refuse(res, refusal2);
         return;
       }
       const to = role;
@@ -179995,6 +180803,7 @@ var init_user_routes = __esm({
     init_user_roster_contract();
     init_admin_routes();
     init_insights_routes();
+    init_organization_mapping();
     RoleBody = external_exports.object({ role: external_exports.string().trim().max(32) });
     AddBody2 = RoleBody.extend({ email: external_exports.string().trim().max(320) });
   }
@@ -180242,8 +181051,10 @@ __export(monitoring_routes_exports, {
   MONITORING_DETAIL_QUERY: () => MONITORING_DETAIL_QUERY,
   MONITORING_LEDGER_QUERY: () => MONITORING_LEDGER_QUERY,
   MONITORING_PERSON_SEEN_QUERY: () => MONITORING_PERSON_SEEN_QUERY,
+  MONITORING_PERSON_TABLES_QUERY: () => MONITORING_PERSON_TABLES_QUERY,
   MONITORING_QUESTIONS_QUERY: () => MONITORING_QUESTIONS_QUERY,
   MONITORING_ROUTES: () => MONITORING_ROUTES,
+  MONITORING_TOP_TABLE_LIMIT: () => MONITORING_TOP_TABLE_LIMIT,
   OFFSET_REFUSAL: () => OFFSET_REFUSAL,
   QUESTION_READ_LIMIT: () => QUESTION_READ_LIMIT,
   pageFrom: () => pageFrom,
@@ -180251,6 +181062,7 @@ __export(monitoring_routes_exports, {
   questionRows: () => questionRows2,
   rangeFrom: () => rangeFrom,
   rangeTotalsFrom: () => rangeTotalsFrom,
+  rankTablesRead: () => rankTablesRead,
   setupMonitoringRoutes: () => setupMonitoringRoutes,
   summarize: () => summarize,
   tokenCost: () => tokenCost
@@ -180289,12 +181101,15 @@ function stamp(value) {
 }
 function tableList(value) {
   if (!Array.isArray(value)) return [];
-  const seen = /* @__PURE__ */ new Set();
+  const seen = /* @__PURE__ */ new Map();
   for (const entry of value) {
     const name2 = text17(entry).trim();
-    if (name2.split(".").filter((part) => part.length > 0).length === 3) seen.add(name2);
+    if (name2.split(".").filter((part) => part.length > 0).length === 3) {
+      const normalized = name2.toLowerCase();
+      if (!seen.has(normalized)) seen.set(normalized, name2);
+    }
   }
-  return [...seen];
+  return [...seen.values()];
 }
 function sentiment(value, usefulness) {
   const word = text17(value).trim().toLowerCase();
@@ -180322,12 +181137,13 @@ function questionRows2(rows) {
 }
 function rangeTotalsFrom(row2, page) {
   const asked = integer2(row2?.asked_total);
-  const people = integer2(row2?.people_total);
+  const threads = integer2(row2?.thread_total);
   const listed = Array.isArray(row2?.people_list) ? row2.people_list.map((entry) => text17(entry)).filter((email3) => email3 !== "") : null;
   const fromPage = [...new Set(page.map((question) => question.askedBy).filter((email3) => email3 !== ""))].sort();
+  const threadsFromPage = new Set(page.map((question) => question.conversationId).filter(Boolean)).size;
   return {
     asked: asked !== null && asked >= page.length ? asked : page.length,
-    people: people ?? fromPage.length,
+    threads: threads !== null && threads >= 0 ? threads : threadsFromPage,
     peopleList: listed === null ? fromPage : [...listed].sort()
   };
 }
@@ -180363,7 +181179,7 @@ function questionFromRow(row2, ledger) {
     tables: tableList(row2.sources)
   };
 }
-function summarize(questions, peopleAsking) {
+function summarize(questions, userThreads) {
   const buckets = { completed: 0, partial: 0, refused: 0, failed: 0 };
   let ratedUp = 0;
   let ratedTotal = 0;
@@ -180381,7 +181197,7 @@ function summarize(questions, peopleAsking) {
   durations.sort((a, b) => a - b);
   return {
     questionsAsked: questions.length,
-    peopleAsking,
+    userThreads,
     completed: buckets.completed,
     partial: buckets.partial,
     refused: buckets.refused,
@@ -180391,6 +181207,23 @@ function summarize(questions, peopleAsking) {
     medianMs: durations.length > 0 ? durations[Math.floor((durations.length - 1) / 2)] : null,
     timedCount: durations.length
   };
+}
+function rankTablesRead(questions, limit = MONITORING_TOP_TABLE_LIMIT) {
+  const counted = /* @__PURE__ */ new Set();
+  const totals = /* @__PURE__ */ new Map();
+  for (const question of questions) {
+    for (const table of question.tables) {
+      const normalized = table.trim().toLowerCase();
+      if (!normalized) continue;
+      const pair = `${question.id}\0${normalized}`;
+      if (counted.has(pair)) continue;
+      counted.add(pair);
+      const current = totals.get(normalized);
+      if (current) current.runs += 1;
+      else totals.set(normalized, { table: table.trim(), runs: 1 });
+    }
+  }
+  return [...totals.values()].sort((left, right) => right.runs - left.runs || left.table.localeCompare(right.table)).slice(0, Math.max(0, limit));
 }
 function rangeFrom(req, now = Date.now()) {
   const from = Date.parse(queryString2(req.query.from));
@@ -180468,7 +181301,8 @@ function setupMonitoringRoutes(appkit, deps) {
         range.from,
         range.to,
         page.limit,
-        page.offset
+        page.offset,
+        ""
       ]);
       const { rows, substitution } = chooseRows(
         "GET /api/monitoring/questions",
@@ -180493,7 +181327,7 @@ function setupMonitoringRoutes(appkit, deps) {
       const all = rows.map((row2) => questionFromRow(row2, ledger));
       const totals = rangeTotalsFrom(stored.rows[0], all);
       const found = totals.asked;
-      const people = totals.people;
+      const threads = totals.threads;
       const peopleList = totals.peopleList;
       const distinctTables = [...new Set(all.flatMap((question) => question.tables))].sort();
       const grants2 = await resolveGrants({
@@ -180508,7 +181342,7 @@ function setupMonitoringRoutes(appkit, deps) {
         readAt,
         // Over the rows that were read, always, and the two counts below say so
         // when those are fewer than the range holds.
-        summary: summarize(all, people),
+        summary: summarize(all, threads),
         ...partial2 ? { countedQuestions: all.length, foundQuestions: found } : {},
         // The whole range, unfiltered. The filter row narrows what is on screen
         // in the browser, which is what lets it stay usable during a read and
@@ -180616,7 +181450,8 @@ function setupMonitoringRoutes(appkit, deps) {
         range.from,
         range.to,
         page.limit,
-        page.offset
+        page.offset,
+        person
       ]);
       if (!stored.available) {
         res.status(503).json({ error: "storage_unavailable" });
@@ -180628,6 +181463,7 @@ function setupMonitoringRoutes(appkit, deps) {
       const answerIds = mine.map((row2) => text17(row2.answer_id)).filter((id) => id !== "");
       const ledger = await readLedger(appkit, answerIds);
       const questions = mine.map((row2) => questionFromRow(row2, ledger));
+      const totals = rangeTotalsFrom(stored.rows[0], questions);
       let tokenTotal = 0;
       let metredRuns = 0;
       for (const row2 of mine) {
@@ -180658,11 +181494,18 @@ function setupMonitoringRoutes(appkit, deps) {
         if (cause === "missing-grant") refusedMissingGrant += 1;
         else if (cause === "agent-rules") refusedAgentRules += 1;
       }
-      const counts = /* @__PURE__ */ new Map();
-      for (const question of questions) {
-        for (const table of question.tables) counts.set(table, (counts.get(table) ?? 0) + 1);
-      }
-      const tablesReadMost = [...counts.entries()].map(([table, runs]) => ({ table, runs })).sort((a, b) => b.runs - a.runs || a.table.localeCompare(b.table));
+      const tableResult = await appkit.lakebase.query(MONITORING_PERSON_TABLES_QUERY, [
+        PLAN_APPROVAL_SENTINEL,
+        range.from,
+        range.to,
+        person,
+        MONITORING_TOP_TABLE_LIMIT
+      ]);
+      const tablesReadMost = tableResult.rows.map((row2) => {
+        const table = tableList([row2.table_name])[0] ?? "";
+        const runs = integer2(row2.runs);
+        return table && runs !== null && runs > 0 ? { table, runs } : null;
+      }).filter((entry) => entry !== null).sort((left, right) => right.runs - left.runs || left.table.localeCompare(right.table)).slice(0, MONITORING_TOP_TABLE_LIMIT);
       const wanted = manifestTables();
       let grants2 = null;
       if (wanted.length > 0) {
@@ -180691,7 +181534,7 @@ function setupMonitoringRoutes(appkit, deps) {
         email: person,
         firstSeen,
         lastSeen,
-        summary: summarize(questions, 1),
+        summary: summarize(questions, totals.threads),
         durationsMs: questions.map((question) => question.durationMs).filter((ms) => ms !== null),
         tokens: { total: tokenTotal, metredRuns, totalRuns: questions.length },
         // Null until the endpoint's list price is configured. A zero here would
@@ -180722,7 +181565,7 @@ function tokenCost(totalTokens2) {
   if (!Number.isFinite(price) || price < 0) return null;
   return totalTokens2 / 1e6 * price;
 }
-var QUESTION_READ_LIMIT, OFFSET_REFUSAL, MONITORING_QUESTIONS_QUERY, MONITORING_LEDGER_QUERY, MONITORING_DETAIL_QUERY, MONITORING_PERSON_SEEN_QUERY, PLAN_APPROVAL_SENTINEL, MONITORING_ROUTES;
+var QUESTION_READ_LIMIT, MONITORING_TOP_TABLE_LIMIT, OFFSET_REFUSAL, MONITORING_QUESTIONS_QUERY, MONITORING_LEDGER_QUERY, MONITORING_DETAIL_QUERY, MONITORING_PERSON_SEEN_QUERY, MONITORING_PERSON_TABLES_QUERY, PLAN_APPROVAL_SENTINEL, MONITORING_ROUTES;
 var init_monitoring_routes = __esm({
   "server/routes/monitoring-routes.ts"() {
     init_app_schema();
@@ -180739,6 +181582,7 @@ var init_monitoring_routes = __esm({
     init_app_settings();
     init_databricks_links();
     QUESTION_READ_LIMIT = 2e3;
+    MONITORING_TOP_TABLE_LIMIT = 5;
     OFFSET_REFUSAL = `This list cannot be paged with an offset. Questions are ordered by the time they were asked, and two questions asked in the same instant have no defined order between them, so a later page can skip a row the earlier page never showed. Ask for a bigger page instead, up to ${QUESTION_READ_LIMIT}.`;
     MONITORING_QUESTIONS_QUERY = `
   WITH page AS (
@@ -180748,19 +181592,21 @@ var init_monitoring_routes = __esm({
     JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
+      AND ($6 = '' OR lower(c.user_email) = lower($6))
     ORDER BY u.created_at DESC
     LIMIT $4 OFFSET $5
   ),
   range_totals AS (
     SELECT COUNT(*)::int AS asked_total,
-           COUNT(DISTINCT c.user_email)::int AS people_total,
+           COUNT(DISTINCT u.conversation_id)::int AS thread_total,
            COALESCE(array_agg(DISTINCT c.user_email), ARRAY[]::text[]) AS people_list
     FROM ${APP_SCHEMA}.messages u
     JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
+      AND ($6 = '' OR lower(c.user_email) = lower($6))
   )
-  SELECT t.asked_total, t.people_total, t.people_list,
+  SELECT t.asked_total, t.thread_total, t.people_list,
          q.question_id, q.conversation_id, q.question, q.asked_at, q.user_email,
          a.id AS answer_id, a.trace_id,
          a.execution_mode, a.execution_identity_verified, a.access_mode,
@@ -180877,6 +181723,52 @@ var init_monitoring_routes = __esm({
   FROM ${APP_SCHEMA}.messages u
   JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
   WHERE u.role = 'user' AND u.content <> $1 AND c.user_email = $2
+`;
+    MONITORING_PERSON_TABLES_QUERY = `
+  WITH asked AS (
+    SELECT u.id AS question_id, u.conversation_id, u.created_at AS asked_at
+    FROM ${APP_SCHEMA}.messages u
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
+    WHERE u.role = 'user' AND u.content <> $1
+      AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
+      AND lower(c.user_email) = lower($4)
+  ),
+  answered AS (
+    SELECT q.question_id, a.id AS answer_id, a.response_json
+    FROM asked q
+    JOIN LATERAL (
+      SELECT m.id, m.response_json
+      FROM ${APP_SCHEMA}.messages m
+      WHERE m.conversation_id = q.conversation_id
+        AND m.role = 'assistant'
+        AND jsonb_typeof(m.response_json->'trace') = 'object'
+        AND m.created_at >= q.asked_at
+        AND m.created_at < COALESCE(
+              (SELECT MIN(u.created_at) FROM ${APP_SCHEMA}.messages u
+                WHERE u.conversation_id = q.conversation_id AND u.role = 'user'
+                  AND u.content <> $1 AND u.created_at > q.asked_at),
+              'infinity'::timestamptz)
+      ORDER BY (m.response_json->'trace'->>'totalMs') IS NOT NULL DESC,
+               m.created_at DESC
+      LIMIT 1
+    ) a ON TRUE
+  ),
+  source_runs AS (
+    SELECT lower(source->>'name') AS table_key,
+           MIN(source->>'name') AS table_name,
+           COUNT(DISTINCT a.answer_id)::int AS runs
+    FROM answered a
+    CROSS JOIN LATERAL jsonb_array_elements(
+      CASE WHEN jsonb_typeof(a.response_json->'sources') = 'array'
+           THEN a.response_json->'sources' ELSE '[]'::jsonb END
+    ) source
+    WHERE source->>'name' ~ '^[^.]+[.][^.]+[.][^.]+$'
+    GROUP BY lower(source->>'name')
+  )
+  SELECT table_name, runs
+  FROM source_runs
+  ORDER BY runs DESC, table_name ASC
+  LIMIT $5
 `;
     PLAN_APPROVAL_SENTINEL = PLAN_APPROVAL_MESSAGE;
     MONITORING_ROUTES = [
@@ -181072,7 +181964,7 @@ function workspaceEstimateRow(component) {
 function canAsk(component, ids) {
   if (!ids.workspaceId) return false;
   if (component === "genie") return false;
-  if (component === "vector-search") return false;
+  if (component === "vector-search") return Boolean(vectorIndexName(ids.vectorIndex) && ids.vectorEndpoint);
   return Boolean(ids[MATCHERS[component].parameter]);
 }
 function resourceIdFor(component, ids) {
@@ -181149,6 +182041,11 @@ function buildCostStatement(ids, range) {
   if (ids.appName) {
     resourcePredicates.push(`(u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName)`);
   }
+  if (canAsk("vector-search", ids)) {
+    resourcePredicates.push(
+      `(u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint)`
+    );
+  }
   const leakPredicate = resourcePredicates.length > 0 ? resourcePredicates.join("\n     OR ") : "FALSE";
   const statement = `WITH tagged AS (
   SELECT
@@ -181200,6 +182097,7 @@ deduped AS (
     record_id,
     usage_date,
     usage_quantity,
+    usage_unit,
     sku_name,
     billing_origin_product,
     component,
@@ -181210,7 +182108,7 @@ deduped AS (
     MAX(currency_code) AS currency_code,
     MAX(CAST(price_start_time AS STRING)) AS price_start_time
   FROM price_hits
-  GROUP BY record_id, usage_date, usage_quantity, sku_name, billing_origin_product, component, record_type, tag_matches
+  GROUP BY record_id, usage_date, usage_quantity, usage_unit, sku_name, billing_origin_product, component, record_type, tag_matches
 ),
 priced AS (
   SELECT
@@ -181252,7 +182150,9 @@ SELECT
   COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
   MAX(price_start_time) AS price_effective_at,
   COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
-  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows
+  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
+  COUNT(DISTINCT usage_unit) AS usage_unit_count,
+  SUM(CASE WHEN usage_unit = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity
 FROM priced
 WHERE component IS NOT NULL
 GROUP BY component
@@ -181283,7 +182183,9 @@ SELECT
   COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
   MAX(price_start_time) AS price_effective_at,
   COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
-  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows
+  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
+  COUNT(DISTINCT usage_unit) AS usage_unit_count,
+  SUM(CASE WHEN usage_unit = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity
 FROM priced
 GROUP BY billing_origin_product
 UNION ALL
@@ -181307,7 +182209,9 @@ SELECT
   COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
   MAX(price_start_time) AS price_effective_at,
   COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
-  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows
+  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
+  COUNT(DISTINCT usage_unit) AS usage_unit_count,
+  SUM(CASE WHEN usage_unit = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity
 FROM priced
 UNION ALL
 SELECT
@@ -181332,7 +182236,9 @@ SELECT
   COUNT(*) FILTER (
     WHERE u.custom_tags['${BILLING_TAG.key}'] IS NULL
        OR u.custom_tags['${BILLING_TAG.key}'] <> '${BILLING_TAG.value}'
-  ) AS untagged_rows
+  ) AS untagged_rows,
+  CAST(0 AS BIGINT) AS usage_unit_count,
+  CAST(0 AS DOUBLE) AS dbu_quantity
 FROM system.billing.usage u
 WHERE u.usage_date >= :from_day
   AND u.usage_date <= :to_day
@@ -181362,7 +182268,9 @@ function emptyRow(kind, component) {
     duplicateMatches: 0,
     priceEffectiveAt: "",
     taggedRows: 0,
-    untaggedRows: 0
+    untaggedRows: 0,
+    usageUnitCount: 0,
+    dbuQuantity: 0
   };
 }
 function asNumber(value) {
@@ -181410,7 +182318,9 @@ function readComponentRows(dataArray2) {
         duplicateMatches,
         priceEffectiveAt,
         taggedRows,
-        untaggedRows
+        untaggedRows,
+        usageUnitCount,
+        dbuQuantity
       ] = cells2;
       if (typeof component2 !== "string" || typeof kind2 !== "string") continue;
       rows.push({
@@ -181432,7 +182342,9 @@ function readComponentRows(dataArray2) {
         duplicateMatches: asCount(duplicateMatches),
         priceEffectiveAt: typeof priceEffectiveAt === "string" ? priceEffectiveAt : "",
         taggedRows: asCount(taggedRows),
-        untaggedRows: asCount(untaggedRows)
+        untaggedRows: asCount(untaggedRows),
+        usageUnitCount: asCount(usageUnitCount),
+        dbuQuantity: asCount(dbuQuantity)
       });
       continue;
     }
@@ -181502,6 +182414,12 @@ function spendAmountFor(row2, basis) {
     return basis === "per-day" ? row2.spend / Math.max(row2.billedDays, 1) : row2.spend;
   }
   return null;
+}
+function dbuAmountFor(row2, basis) {
+  if (!row2 || row2.usageUnitCount !== 1) return null;
+  const amount = row2.dbuQuantity;
+  if (typeof amount !== "number" || !Number.isFinite(amount)) return null;
+  return basis === "per-day" ? amount / Math.max(row2.billedDays, 1) : amount;
 }
 function unpricedUnavailable(pricing) {
   if (pricing.match === "duplicate") return "Duplicate list prices; spend withheld";
@@ -181625,6 +182543,7 @@ function buildTiles(ids, rows, warehouseAttribution = EMPTY_WAREHOUSE_QUERY_ATTR
 }
 function genieSpaceTiles(ids, warehouseRow, warehouseAttribution, activity) {
   const warehouseSpend = spendAmountFor(warehouseRow, "total-in-range");
+  const warehouseDbus = dbuAmountFor(warehouseRow, "total-in-range");
   const warehousePricing = pricingFromRow(warehouseRow);
   const billingRows = warehouseRow ? (warehouseRow.pricedRows ?? 0) + (warehouseRow.unpricedRows ?? 0) : 0;
   const representedSpaces = /* @__PURE__ */ new Map();
@@ -181634,8 +182553,9 @@ function genieSpaceTiles(ids, warehouseRow, warehouseAttribution, activity) {
     if (spaceId && !representedBy) representedSpaces.set(spaceId, space.label);
     const measured = activity.find((item) => item.tileId === space.tileId);
     const generatedSql = warehouseAttribution.genieSpaces.find((item) => item.spaceId === spaceId);
-    const canAllocate = Boolean(spaceId) && !representedBy && warehouseSpend !== null && warehouseAttribution.complete && warehouseAttribution.totalExecutionMs > 0 && Boolean(generatedSql && generatedSql.executionMs > 0);
-    const amount = canAllocate && generatedSql ? warehouseSpend * generatedSql.executionMs / warehouseAttribution.totalExecutionMs : null;
+    const canAllocate = Boolean(spaceId) && !representedBy && (warehouseSpend !== null || warehouseDbus !== null) && warehouseAttribution.complete && warehouseAttribution.totalExecutionMs > 0 && Boolean(generatedSql && generatedSql.executionMs > 0);
+    const amount = canAllocate && generatedSql && warehouseSpend !== null ? warehouseSpend * generatedSql.executionMs / warehouseAttribution.totalExecutionMs : null;
+    const dbus = canAllocate && generatedSql && warehouseDbus !== null ? warehouseDbus * generatedSql.executionMs / warehouseAttribution.totalExecutionMs : null;
     const sqlGap = representedBy ? `This Genie space is already represented by ${representedBy}; cost is not repeated` : !spaceId ? "Resource identifier unavailable" : warehouseSpend === null ? unpricedUnavailable(warehousePricing) || "Generated SQL cost unavailable: no priced SQL warehouse billing rows" : !warehouseAttribution.complete ? "Generated SQL cost unavailable: incomplete Query History" : warehouseAttribution.totalExecutionMs <= 0 ? "Generated SQL cost unavailable: Query History has no execution-time denominator" : !generatedSql || generatedSql.executionMs <= 0 ? "Generated SQL cost unavailable: no Query History execution matched this Genie space" : "";
     const unavailable4 = sqlGap ? `${sqlGap}. ${GENIE_LLM_UNAVAILABLE}` : GENIE_LLM_UNAVAILABLE;
     return {
@@ -181645,6 +182565,7 @@ function genieSpaceTiles(ids, warehouseRow, warehouseAttribution, activity) {
       resourceKind: spaceId ? "genie-space" : "",
       quality: amount === null ? "unknown" : "estimate",
       amount,
+      dbus,
       basis: "total-in-range",
       population: "Generated SQL share",
       attribution: amount === null ? "unavailable" : "deployment",
@@ -181698,12 +182619,13 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
   const withMeta = (tile) => {
     const pricing2 = tile.pricing ?? EMPTY_PRICING;
     const amount2 = tile.amount;
+    const dbus2 = tile.dbus;
     const unpriced = unpricedUnavailable(pricing2);
     return {
       ...tile,
       quality: unpriced ? "unknown" : tile.quality,
       amount: unpriced ? null : amount2,
-      attribution: attributionFor(tile.population, unpriced ? null : amount2),
+      attribution: attributionFor(tile.population, unpriced ? dbus2 ?? null : amount2 ?? dbus2 ?? null),
       pricing: pricing2,
       unavailable: tile.unavailable || unpriced,
       note: tile.note
@@ -181742,13 +182664,22 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
   const row2 = byComponent.get(component);
   const pricing = pricingFromRow(row2);
   const amount = spendAmountFor(row2, description.basis);
+  const dbus = dbuAmountFor(row2, description.basis);
   const billingRows = row2 ? (row2.pricedRows ?? 0) + (row2.unpricedRows ?? 0) : 0;
+  const measuredActivity = component === "vector-search" ? resourceActivity.find((item) => item.tileId === "vector-search") : void 0;
   const evidence = {
     billingRows,
     astrolabeQueries: component === "sql-warehouse" ? warehouseAttribution.astrolabeQueries : null,
     ...component === "sql-warehouse" ? {
       warehouseQueries: warehouseAttribution.totalQueries,
       queryHistoryComplete: warehouseAttribution.complete
+    } : {},
+    ...component === "vector-search" ? {
+      activity: measuredActivity ? {
+        calls: measuredActivity.calls,
+        observedCalls: measuredActivity.observedCalls,
+        unit: "queries"
+      } : null
     } : {}
   };
   if (component === "sql-warehouse") {
@@ -181756,6 +182687,7 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
       return withMeta({
         ...base,
         amount: null,
+        dbus,
         pricing,
         note: "",
         unavailable: amount === null ? unpricedUnavailable(pricing) || "No billing rows" : "Incomplete Query History",
@@ -181766,6 +182698,7 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
     return withMeta({
       ...base,
       amount: amount * warehouseAttribution.astrolabeExecutionMs / warehouseAttribution.totalExecutionMs,
+      dbus: dbus === null ? null : dbus * warehouseAttribution.astrolabeExecutionMs / warehouseAttribution.totalExecutionMs,
       pricing,
       note: "",
       unavailable: "",
@@ -181779,6 +182712,7 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
       return withMeta({
         ...base,
         amount: null,
+        dbus,
         pricing,
         note: absence.note,
         unavailable: absence.unavailable,
@@ -181789,6 +182723,7 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
     return withMeta({
       ...base,
       amount: null,
+      dbus,
       pricing,
       note: "",
       unavailable: unpricedUnavailable(pricing) || "No billing rows",
@@ -181796,7 +182731,7 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
       evidence
     });
   }
-  return withMeta({ ...base, amount, pricing, note: "", unavailable: "", remedy: "", evidence });
+  return withMeta({ ...base, amount, dbus, pricing, note: "", unavailable: "", remedy: "", evidence });
 }
 function unknownPart(id, label, unavailable4) {
   return { id, label, quality: "unknown", amount: null, unavailable: unavailable4 };
@@ -182014,22 +182949,31 @@ function parseCostBudgets(raw2) {
   const parsed = CostBudgetsSchema.safeParse(raw2);
   return parsed.success ? attributableCostBudgets(parsed.data) : null;
 }
-var COST_BUDGET_MAX, AmountSchema, CostBudgetsSchema, EMPTY_COST_BUDGETS, COST_BUDGET_WITHHELD_TILE_IDS;
+var COST_BUDGET_MAX, AmountSchema, CostBudgetUnitSchema, CostBudgetSchema, CostBudgetsSchema, EMPTY_COST_BUDGET, EMPTY_COST_BUDGETS, COST_BUDGET_WITHHELD_TILE_IDS;
 var init_cost_budgets = __esm({
   "shared/cost-budgets.ts"() {
     init_zod();
     COST_BUDGET_MAX = 1e12;
     AmountSchema = external_exports.number().finite().nonnegative().max(COST_BUDGET_MAX).nullable();
+    CostBudgetUnitSchema = external_exports.enum(["USD", "DBU"]);
+    CostBudgetSchema = external_exports.preprocess(
+      (raw2) => typeof raw2 === "number" || raw2 === null ? { value: raw2, unit: "USD" } : raw2,
+      external_exports.strictObject({
+        value: AmountSchema,
+        unit: CostBudgetUnitSchema
+      })
+    );
     CostBudgetsSchema = external_exports.strictObject({
       /** App-wide cap. Null means unset, which is not zero. */
-      total: AmountSchema,
+      total: CostBudgetSchema,
       /**
        * Per-tile amounts, keyed by the Cost tile id (`app-compute`, `genie:<space>`).
        * Null on a key is an explicit clear. A missing key is also unset.
        */
-      resources: external_exports.record(external_exports.string().min(1).max(200), AmountSchema)
+      resources: external_exports.record(external_exports.string().min(1).max(200), CostBudgetSchema)
     });
-    EMPTY_COST_BUDGETS = { total: null, resources: {} };
+    EMPTY_COST_BUDGET = { value: null, unit: "USD" };
+    EMPTY_COST_BUDGETS = { total: EMPTY_COST_BUDGET, resources: {} };
     COST_BUDGET_WITHHELD_TILE_IDS = /* @__PURE__ */ new Set(["foundation-model", "index-rebuild-job"]);
   }
 });
@@ -182103,6 +183047,7 @@ __export(ops_routes_exports, {
   RUN_OUTCOMES_QUERY: () => RUN_OUTCOMES_QUERY,
   TOOL_CALLS_QUERY: () => TOOL_CALLS_QUERY,
   causeLabel: () => causeLabel,
+  configuredResourceName: () => configuredResourceName,
   forgetWorkspaceId: () => forgetWorkspaceId,
   lakebaseReading: () => lakebaseReading,
   platformReadings: () => platformReadings,
@@ -182168,6 +183113,16 @@ async function lookupVectorEndpoint(input) {
 function shownConnectionValue(state) {
   return (state.intended ?? (state.configured || state.actual)).trim();
 }
+function configuredResourceName(value, keys) {
+  if (typeof value === "string") return value.trim();
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  const record2 = value;
+  for (const key2 of keys) {
+    const candidate2 = record2[key2];
+    if (typeof candidate2 === "string" && candidate2.trim()) return candidate2.trim();
+  }
+  return "";
+}
 async function costIdentifiersFor(appkit, req, extras) {
   const appName = (process.env.DATABRICKS_APP_NAME ?? "").trim();
   const [{ report }, stored, appBillingTag] = await Promise.all([
@@ -182196,10 +183151,13 @@ async function costIdentifiersFor(appkit, req, extras) {
   const configuredGenie = accessDependenciesFrom({ configuration, env: process.env }).genieSpaces;
   const dataGenie = configuredGenie.find((space) => space.role === "Data Genie space");
   const dictionaryGenie = configuredGenie.find((space) => space.role === "Dictionary Genie space");
+  const semanticEntry = report?.configuration.find((entry) => entry.key === "semantic_index");
+  const semanticCheck = report?.checks.find((check3) => check3.id === "semantic-index");
+  const endpointCheck = report?.checks.find((check3) => check3.id === "semantic-index-endpoint");
   const vectorIndex = vectorIndexName(
-    configured["semantic-index"] || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? "")
+    configured["semantic-index"] || configuredResourceName(semanticEntry?.value, ["index_name", "full_name", "name", "value"]) || semanticCheck?.name || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? "")
   );
-  let vectorEndpoint = queryText(req, "vectorEndpoint") || configured["semantic-index-endpoint"];
+  let vectorEndpoint = queryText(req, "vectorEndpoint") || configured["semantic-index-endpoint"] || endpointCheck?.name || configuredResourceName(semanticEntry?.value, ["endpoint_name", "endpoint"]);
   if (!vectorEndpoint && vectorIndex) {
     vectorEndpoint = await lookupVectorEndpoint({
       host: host(),
@@ -183164,9 +184122,9 @@ async function classifyTables(run2, tables, options = {}) {
     const filterRows = await run2(statements.filters);
     const answered = tagRows.ok && maskRows.ok && filterRows.ok;
     if (!answered) {
-      const refusal = [tagRows, maskRows, filterRows].find((outcome) => !outcome.ok);
+      const refusal2 = [tagRows, maskRows, filterRows].find((outcome) => !outcome.ok);
       console.warn(
-        `[egress] The catalog could not be asked about ${catalog}: ${refusal?.message ?? "no message"}. Every table in it is reported as not checked, which is what it is. It is NOT reported as carrying no personal data.`
+        `[egress] The catalog could not be asked about ${catalog}: ${refusal2?.message ?? "no message"}. Every table in it is reported as not checked, which is what it is. It is NOT reported as carrying no personal data.`
       );
     }
     for (const table of group.tables) {
@@ -183288,7 +184246,8 @@ function setupEgressRoutes(appkit, deps) {
       res.json({
         controls: reading.controls,
         stored: reading.stored,
-        paths: EGRESS_PATHS
+        paths: EGRESS_PATHS,
+        storage: egressStorageMetadata()
       });
     });
     app.post("/api/egress/events", async (req, res) => {
@@ -183325,6 +184284,31 @@ function setupEgressRoutes(appkit, deps) {
         recorded: recorded2.written
       });
     });
+    app.get("/api/egress/admin/events", async (req, res) => {
+      const parsed = EventsQuery.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json({
+          error: "invalid_egress_events_query",
+          detail: "Use only a page limit from 1 to 50 and the cursor returned by the previous page."
+        });
+        return;
+      }
+      const cursor = parsed.data.cursor ? parseEgressEventsCursor(parsed.data.cursor) : null;
+      if (parsed.data.cursor && !cursor) {
+        res.status(400).json({
+          error: "invalid_egress_events_cursor",
+          detail: "The records cursor is invalid or expired. Refresh to start from the newest records."
+        });
+        return;
+      }
+      res.json(
+        await readEgressEventsPage(appkit, {
+          limit: parsed.data.limit,
+          cursor,
+          now: clock()
+        })
+      );
+    });
     app.put("/api/egress/admin/controls", async (req, res) => {
       const parsed = ControlBody.safeParse(req.body);
       if (!parsed.success) {
@@ -183357,7 +184341,8 @@ function setupEgressRoutes(appkit, deps) {
       res.json({
         controls: reading.controls,
         stored: reading.stored,
-        paths: EGRESS_PATHS
+        paths: EGRESS_PATHS,
+        storage: egressStorageMetadata()
       });
     });
     app.get("/api/egress/admin/classification", async (req, res) => {
@@ -183372,7 +184357,7 @@ function setupEgressRoutes(appkit, deps) {
     });
   });
 }
-var EGRESS_ADMIN_ROUTES, EGRESS_OPEN_ROUTES, ReportBody, ControlBody;
+var EGRESS_ADMIN_ROUTES, EGRESS_OPEN_ROUTES, ReportBody, ControlBody, EventsQuery;
 var init_egress_routes = __esm({
   "server/routes/egress-routes.ts"() {
     init_zod();
@@ -183386,6 +184371,7 @@ var init_egress_routes = __esm({
     init_databricks_links();
     EGRESS_ADMIN_ROUTES = [
       "/api/egress/admin/controls",
+      "/api/egress/admin/events",
       "/api/egress/admin/classification"
     ];
     EGRESS_OPEN_ROUTES = ["/api/egress/controls", "/api/egress/events"];
@@ -183399,6 +184385,10 @@ var init_egress_routes = __esm({
     ControlBody = external_exports.object({
       channel: external_exports.string().trim().max(64),
       allowed: external_exports.boolean()
+    }).strict();
+    EventsQuery = external_exports.object({
+      limit: external_exports.coerce.number().int().min(1).max(50).default(20),
+      cursor: external_exports.string().trim().max(512).optional()
     }).strict();
   }
 });
@@ -185969,6 +186959,7 @@ function unityCatalogType(value) {
   return null;
 }
 function declaredGrantResourceType(input) {
+  if (input.resourceType) return DECLARED_GRANT_RESOURCE_TYPES[input.resourceType];
   switch (input.kind) {
     case "agent":
     case "model":
@@ -186025,15 +187016,85 @@ async function discoverSpGrantResources(client, env = process.env) {
     (left, right) => left.type.localeCompare(right.type) || left.label.localeCompare(right.label)
   );
 }
+var DECLARED_GRANT_RESOURCE_TYPES;
 var init_sp_grant_resources = __esm({
   "server/lib/sp-grant-resources.ts"() {
     init_declared_connections();
+    DECLARED_GRANT_RESOURCE_TYPES = {
+      catalog: "CATALOG",
+      schema: "SCHEMA",
+      table: "TABLE",
+      "sql-warehouse": "SQL_WAREHOUSE",
+      "serving-endpoint": "SERVING_ENDPOINT",
+      "genie-space": "GENIE_SPACE",
+      "vector-search-endpoint": "VECTOR_SEARCH_ENDPOINT",
+      "vector-search-index": "VECTOR_SEARCH_INDEX",
+      volume: "VOLUME"
+    };
+  }
+});
+
+// server/lib/sp-permission-suggestions.ts
+function suggestionPrompt(request, resources) {
+  const inventory = resources.map(({ type, id, label }) => ({ type, id, label }));
+  const matrix = Object.fromEntries(
+    Object.entries(SP_GRANT_MATRIX).map(([type, definition]) => [
+      type,
+      definition.options.map(({ action, privilege, label }) => ({ action, privilege, label }))
+    ])
+  );
+  return [
+    "Suggest 2 to 4 conservative Databricks permission plans for this service-principal persona.",
+    "Use only exact resources and exact action/privilege pairs from the supplied JSON.",
+    'Prefer least privilege. Return JSON only: {"plans":[{"name":"...","rationale":"...","grants":[...]}]}.',
+    JSON.stringify({
+      persona: { name: request.displayName, purpose: request.purpose },
+      allowlisted_resources: inventory,
+      canonical_privilege_matrix: matrix
+    })
+  ].join("\n");
+}
+function jsonBody(raw2) {
+  const trimmed = raw2.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  return JSON.parse(trimmed);
+}
+async function suggestSpPermissions(input) {
+  if (input.resources.length === 0) throw new Error("No configured resources are available for suggestions.");
+  const raw2 = await input.invoke({
+    messages: [{ role: "user", content: suggestionPrompt(input.request, input.resources) }],
+    temperature: 0,
+    max_tokens: 2400
+  });
+  const content = extractJudgeContent(raw2);
+  if (!content) throw new Error("The model returned no permission suggestions.");
+  const parsed = SpPermissionSuggestionsSchema.safeParse(jsonBody(content));
+  if (!parsed.success) throw new Error("The model returned an invalid permission-plan shape.");
+  const allowed = new Set(
+    input.resources.map((resource) => `${resource.type}\0${resource.id.toLocaleLowerCase()}`)
+  );
+  for (const plan of parsed.data.plans) {
+    if (new Set(plan.grants.map(spGrantKey)).size !== plan.grants.length) {
+      throw new Error("The model returned a plan with duplicate permissions.");
+    }
+    for (const grant of plan.grants) {
+      if (!allowed.has(`${grant.resourceType}\0${grant.resource.toLocaleLowerCase()}`)) {
+        throw new Error("The model suggested a resource outside the configured allowlist.");
+      }
+    }
+  }
+  return parsed.data;
+}
+var init_sp_permission_suggestions = __esm({
+  "server/lib/sp-permission-suggestions.ts"() {
+    init_sp_identity();
+    init_mlflow_judges();
   }
 });
 
 // server/routes/sp-identity-routes.ts
 var sp_identity_routes_exports = {};
 __export(sp_identity_routes_exports, {
+  SP_PERMISSION_SUGGESTION_TIMEOUT_MS: () => SP_PERMISSION_SUGGESTION_TIMEOUT_MS,
   setupSpIdentityRoutes: () => setupSpIdentityRoutes
 });
 async function adminPayload(appkit) {
@@ -186053,7 +187114,7 @@ async function adminPayload(appkit) {
   const roster = rosterRead.rows.map((row2) => ({
     email: row2.email,
     role: row2.role,
-    personaId: assignedByEmail.get(row2.email) ?? null
+    personaId: row2.role === "super_admin" ? null : assignedByEmail.get(row2.email) ?? null
   }));
   for (const assignment of assignments) {
     if (roster.some((row2) => row2.email === assignment.email)) continue;
@@ -186066,6 +187127,8 @@ async function adminPayload(appkit) {
     personas,
     personaDefinitions,
     grantResourceDiscovery,
+    accountConsoleUrl: accountConsoleUrlForWorkspace(process.env.DATABRICKS_HOST),
+    organizations: parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS),
     assignments,
     roster
   };
@@ -186080,6 +187143,50 @@ function setupSpIdentityRoutes(appkit) {
           error: "sp_identity_unreadable",
           detail: `Service-principal personas could not be read: ${error48.message}`
         });
+      }
+    });
+    app.post("/api/admin/sp-identity/permission-suggestions", async (req, res) => {
+      const parsed = SpPermissionSuggestionRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_permission_suggestion", detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      const started = Date.now();
+      const cancellation = new AbortController();
+      req.once("aborted", () => cancellation.abort(new Error("The suggestion request was cancelled.")));
+      try {
+        const resources = await discoverSpGrantResources(appkit);
+        const endpoint = await resolveJudgeEndpoint(appkit);
+        const suggestions = await suggestSpPermissions({
+          request: parsed.data,
+          resources,
+          invoke: (payload) => invokeServing(
+            appkit,
+            payload,
+            void 0,
+            SP_PERMISSION_SUGGESTION_TIMEOUT_MS,
+            void 0,
+            endpoint,
+            cancellation.signal
+          )
+        });
+        console.info(
+          `[sp-permissions] Suggested ${suggestions.plans.length} plans for ${actor || "an administrator"} from ${resources.length} allowlisted resources via ${endpoint} in ${Date.now() - started} ms.`
+        );
+        res.json(suggestions);
+      } catch (error48) {
+        const message = error48.message;
+        const timedOut = /did not answer within/i.test(message);
+        console.warn(
+          `[sp-permissions] Suggestion failed for ${actor || "an administrator"} after ${Date.now() - started} ms: ${message}`
+        );
+        if (!res.headersSent) {
+          res.status(timedOut ? 504 : 502).json({
+            error: timedOut ? "sp_permission_suggestion_timeout" : "sp_permission_suggestion_failed",
+            detail: timedOut ? "Permission suggestions timed out. Try again." : "Permission suggestions could not be validated. Try again."
+          });
+        }
       }
     });
     app.put("/api/admin/sp-identity/mode", async (req, res) => {
@@ -186282,6 +187389,15 @@ function setupSpIdentityRoutes(appkit) {
       }
       const actor = userEmail(req);
       try {
+        const email3 = normalizeAdminEmail(parsed.data.email);
+        const roster = await readRoster(appkit.lakebase);
+        if (roster.rows.some((row2) => row2.email === email3 && row2.role === "super_admin")) {
+          res.status(409).json({
+            error: "immutable_super_admin_persona",
+            detail: "A super admin always uses the Owner persona."
+          });
+          return;
+        }
         const assignment = await writeSpAssignment(appkit, parsed.data.email, parsed.data.personaId, actor);
         if (parsed.data.personaId && !assignment) {
           res.status(404).json({ error: "sp_persona_missing", detail: "That persona is not defined." });
@@ -186303,16 +187419,22 @@ function setupSpIdentityRoutes(appkit) {
     });
   });
 }
+var SP_PERMISSION_SUGGESTION_TIMEOUT_MS;
 var init_sp_identity_routes = __esm({
   "server/routes/sp-identity-routes.ts"() {
     init_zod();
     init_sp_identity();
+    init_databricks_links();
+    init_organization_mapping();
     init_admin_roles();
+    init_app_settings();
     init_sp_token();
     init_sp_grant_resources();
+    init_sp_permission_suggestions();
     init_sp_identity_store();
     init_user_roster();
     init_insights_routes();
+    SP_PERMISSION_SUGGESTION_TIMEOUT_MS = 3e4;
   }
 });
 
@@ -190932,12 +192054,12 @@ var SQLWarehouseConnector = class {
             throw ExecutionError.unknownState(String(status?.state ?? "unknown"));
         }
         const resultData = result.result;
-        const rowCount = resultData?.data?.length ?? resultData?.data_array?.length ?? 0;
-        if (rowCount > 0) span.setAttribute("db.result.row_count", rowCount);
+        const rowCount2 = resultData?.data?.length ?? resultData?.data_array?.length ?? 0;
+        if (rowCount2 > 0) span.setAttribute("db.result.row_count", rowCount2);
         const duration3 = Date.now() - startTime;
         logger15.event()?.setContext("sql-warehouse", {
           warehouse_id: input.warehouse_id,
-          rows_returned: rowCount,
+          rows_returned: rowCount2,
           query_duration_ms: duration3
         });
         success2 = true;

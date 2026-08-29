@@ -2,7 +2,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import { FilterRow, MonitoringBody, MonitoringPage, PersonPanel, QuestionDrawer, SummaryStrip } from './MonitoringPage';
+import {
+  FilterRow,
+  MonitoringBody,
+  MonitoringPage,
+  PersonPanel,
+  QuestionDrawer,
+  SummaryStrip,
+  TablesReadMost,
+} from './MonitoringPage';
 import { GRANTS_UNRESOLVED_LINE, LIVE_VERSUS_RECORDED } from './monitoring-view';
 import { NO_FILTERS, type MonitoringFilters } from './monitoring-filters';
 import type {
@@ -79,7 +87,7 @@ function payload(overrides: Partial<MonitoringQuestionsPayload> = {}): Monitorin
     readAt: '2026-08-15T11:58:00Z',
     summary: {
       questionsAsked: 214,
-      peopleAsking: 23,
+      userThreads: 17,
       completed: 190,
       partial: 6,
       refused: 11,
@@ -136,11 +144,20 @@ describe('who asked, in the list', () => {
     // A `td` given `display: flex` leaves the table's column sizing, which is
     // the trap the question column next door is commented for. The layout lives
     // on a span inside the cell.
-    expect(body('ready')).toMatch(/<td class="monitoring-asker"[^>]*><span class="identity-chip[^"]*monitoring-asker-who"/);
+    expect(body('ready')).toMatch(
+      /<td class="monitoring-asker"[^>]*><span class="identity-chip[^"]*monitoring-asker-who"/
+    );
   });
 });
 
 describe('the summary strip', () => {
+  it('labels and counts distinct conversation threads, not distinct people', () => {
+    const rendered = text(render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />));
+
+    expect(rendered).toContain('User threads 17');
+    expect(rendered).not.toContain('People asking');
+  });
+
   it('shows the four outcomes separately and never their total', () => {
     const rendered = text(render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />));
 
@@ -863,10 +880,14 @@ describe('the detail modal', () => {
    * `<your-username>'` and not `<your-username>'s`, because the name already ends in s;
    * `first.person's` above, because it does not.
    */
-  it("names the asker in the activity link, apostrophe alone on a name ending in s", () => {
+  it('names the asker in the activity link, apostrophe alone on a name ending in s', () => {
     const rendered = text(
       render(
-        <QuestionDrawer detail={detail({ askedBy: '<your-username>@example.test' })} onClose={() => {}} onOpenPerson={() => {}} />
+        <QuestionDrawer
+          detail={detail({ askedBy: '<your-username>@example.test' })}
+          onClose={() => {}}
+          onOpenPerson={() => {}}
+        />
       )
     );
 
@@ -921,7 +942,7 @@ function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload 
     lastSeen: '2026-08-15T10:00:00Z',
     summary: {
       questionsAsked: 41,
-      peopleAsking: 1,
+      userThreads: 6,
       completed: 34,
       partial: 2,
       refused: 3,
@@ -965,6 +986,26 @@ function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload 
 }
 
 describe('the per-user panel', () => {
+  it('renders each ranked source table as a counted governed entity', () => {
+    const rows = [
+      { table: '<your_catalog>.<your_schema>.gold_title_daily_summary', runs: 20 },
+      { table: '<your_catalog>.<your_schema>.data_dictionary', runs: 9 },
+    ];
+    const markup = render(<TablesReadMost rows={rows} />);
+    const rendered = text(markup);
+
+    expect(rendered).toContain('Tables read most');
+    expect(rendered).toContain('gold_title_daily_summary 20 runs');
+    expect(rendered).toContain('data_dictionary 9 runs');
+    expect(markup.match(/data-entity-part="catalog"/g)).toHaveLength(2);
+    expect(markup.match(/data-entity-part="schema"/g)).toHaveLength(2);
+    expect(markup.match(/data-entity-part="table"/g)).toHaveLength(2);
+  });
+
+  it('omits the ranked-table module when no run recorded a source', () => {
+    expect(render(<TablesReadMost rows={[]} />)).toBe('');
+  });
+
   /**
    * The floor rule is not restated under the tiles.
    *
@@ -975,7 +1016,9 @@ describe('the per-user panel', () => {
    */
   it('does not restate the percentile floor rule under the tiles', () => {
     const rendered = text(
-      render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />)
+      render(
+        <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+      )
     );
 
     expect(rendered).toContain('at the 95th percentile');
@@ -988,7 +1031,9 @@ describe('the per-user panel', () => {
     // control that narrowed it. Both sections that count something over the
     // range now name the range, so a figure on this panel is never read as an
     // all-time one.
-    const markup = render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 30 days" onClose={() => {}} onOpenQuestion={() => {}} />);
+    const markup = render(
+      <PersonPanel panel={panel()} now={NOW} rangeLabel="last 30 days" onClose={() => {}} onOpenQuestion={() => {}} />
+    );
     const headings = [...markup.matchAll(/<h4 class="monitoring-eyebrow">([\s\S]*?)<\/h4>/g)].map((match) => match[1]);
     for (const heading of headings.filter((heading) => /What they asked|Their questions/.test(heading))) {
       expect(heading, 'the heading carries the range').toContain('last 30 days');
@@ -998,7 +1043,9 @@ describe('the per-user panel', () => {
   });
 
   it('uses the shared identity chip for the person panel too', () => {
-    const markup = render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />);
+    const markup = render(
+      <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+    );
 
     expect(markup).toContain('class="identity-chip"');
     expect(markup).toContain('lucide-user-round');
@@ -1007,7 +1054,9 @@ describe('the per-user panel', () => {
 
   it('shows the two refusal causes as separate counts and never their total', () => {
     const rendered = text(
-      render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />)
+      render(
+        <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+      )
     );
 
     expect(rendered).toContain('Refused for a missing grant');
@@ -1019,7 +1068,9 @@ describe('the per-user panel', () => {
   });
 
   it('names the codes behind each refusal count', () => {
-    const markup = render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />);
+    const markup = render(
+      <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+    );
 
     expect(markup).toContain('USER_NOT_AUTHORIZED');
     expect(markup).toContain('ASSET_NOT_IN_MANIFEST');
@@ -1027,7 +1078,9 @@ describe('the per-user panel', () => {
 
   it('says what a row filter is, not what it did to a run', () => {
     const rendered = text(
-      render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />)
+      render(
+        <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+      )
     );
 
     expect(rendered).toContain('Row filter applied.');
@@ -1039,7 +1092,17 @@ describe('the per-user panel', () => {
 
   it('does not close with a live-versus-recorded lecture', () => {
     expect(
-      text(render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />))
+      text(
+        render(
+          <PersonPanel
+            panel={panel()}
+            now={NOW}
+            rangeLabel="last 7 days"
+            onClose={() => {}}
+            onOpenQuestion={() => {}}
+          />
+        )
+      )
     ).not.toContain(LIVE_VERSUS_RECORDED);
   });
 
@@ -1053,7 +1116,9 @@ describe('the per-user panel', () => {
    */
   it('states each permission the runs carried as a badge with its run count', () => {
     const rendered = text(
-      render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />)
+      render(
+        <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+      )
     );
 
     expect(rendered).toContain('Their own Unity Catalog grants 41 runs');
@@ -1065,7 +1130,11 @@ describe('the per-user panel', () => {
 
   it('names the application only on a panel whose runs actually used it', () => {
     const shared = panel({ executionSplit: { asThemselves: 30, asApplication: 11, unrecorded: 0 } });
-    const rendered = text(render(<PersonPanel panel={shared} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />));
+    const rendered = text(
+      render(
+        <PersonPanel panel={shared} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+      )
+    );
 
     expect(rendered).toContain("The application's grants 11 runs");
     expect(rendered).toContain('Their own Unity Catalog grants 30 runs');
@@ -1084,7 +1153,11 @@ describe('the per-user panel', () => {
       executionSplit: { asThemselves: 40, asApplication: 0, unrecorded: 1 },
       subjectSplit: { verified: 38, confirmedByEndpoint: 2, unrecorded: 1 },
     });
-    const rendered = text(render(<PersonPanel panel={some} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />));
+    const rendered = text(
+      render(
+        <PersonPanel panel={some} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+      )
+    );
 
     expect(rendered).toContain('Their own Unity Catalog grants 40 runs');
     expect(rendered).not.toMatch(/did not record/i);
@@ -1097,7 +1170,9 @@ describe('the per-user panel', () => {
    */
   it('reports nothing about the access gate', () => {
     const rendered = text(
-      render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />)
+      render(
+        <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+      )
     );
 
     expect(rendered).not.toMatch(/access gate/i);
@@ -1108,7 +1183,9 @@ describe('the per-user panel', () => {
   /** The two explanations of hypotheticals that went with the prose. */
   it('explains no hypothetical about whose grants bounded an answer', () => {
     const rendered = text(
-      render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />)
+      render(
+        <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+      )
     );
 
     expect(rendered).not.toContain('is not an answer bounded by what this person can see');
@@ -1116,7 +1193,9 @@ describe('the per-user panel', () => {
   });
 
   it('does not render an endpoint-confirmed subject as a problem', () => {
-    const markup = render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />);
+    const markup = render(
+      <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+    );
 
     // Neutral, not the bad tone. Confirmation by the endpoint is ordinary.
     expect(markup).toMatch(/ast-pill--neutral-outline[^>]*>Sign-in confirmed by the endpoint/);
@@ -1132,9 +1211,19 @@ describe('the per-user panel', () => {
    */
   it('badges an unchecked table as not checked rather than as cannot read', () => {
     const unchecked = panel({
-      grants: [{ table: 'a_catalog.a_schema.a_table', canRead: false, missing: 'Not checked', rowFilter: null, maskedColumns: null }],
+      grants: [
+        {
+          table: 'a_catalog.a_schema.a_table',
+          canRead: false,
+          missing: 'Not checked',
+          rowFilter: null,
+          maskedColumns: null,
+        },
+      ],
     });
-    const markup = render(<PersonPanel panel={unchecked} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />);
+    const markup = render(
+      <PersonPanel panel={unchecked} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+    );
 
     expect(text(markup)).toContain('Not checked');
     expect(text(markup)).not.toContain('Cannot read');
@@ -1148,7 +1237,9 @@ describe('the per-user panel', () => {
 
   /** The full table name is reachable where the line truncates it. */
   it('carries the whole table name on the elements that truncate it', () => {
-    const markup = render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />);
+    const markup = render(
+      <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+    );
 
     expect(markup).toContain('class="monitoring-mono monitoring-grant-table" title="a_catalog.a_schema.a_table"');
     expect(markup).toContain('monitoring-panel-tile-wide');
@@ -1156,7 +1247,15 @@ describe('the per-user panel', () => {
 
   it('says the grants could not be read rather than rendering an empty table', () => {
     const rendered = text(
-      render(<PersonPanel panel={panel({ grants: null })} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />)
+      render(
+        <PersonPanel
+          panel={panel({ grants: null })}
+          now={NOW}
+          rangeLabel="last 7 days"
+          onClose={() => {}}
+          onOpenQuestion={() => {}}
+        />
+      )
     );
 
     expect(rendered).toContain('could not be read just now');
@@ -1166,13 +1265,27 @@ describe('the per-user panel', () => {
 
   it('names the token coverage on the tile', () => {
     expect(
-      text(render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />))
+      text(
+        render(
+          <PersonPanel
+            panel={panel()}
+            now={NOW}
+            rangeLabel="last 7 days"
+            onClose={() => {}}
+            onOpenQuestion={() => {}}
+          />
+        )
+      )
     ).toContain('over 38 of 41 runs');
   });
 
   it('replaces the percentile with the labelled slowest run under twenty runs', () => {
     const few = panel({ durationsMs: [3_000, 9_000, 41_000, 84_000] });
-    const rendered = text(render(<PersonPanel panel={few} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />));
+    const rendered = text(
+      render(
+        <PersonPanel panel={few} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+      )
+    );
 
     expect(rendered).toContain('was the slowest run');
     expect(rendered).not.toContain('at the 95th percentile');

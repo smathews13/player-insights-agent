@@ -82,6 +82,12 @@ from semantic_retrieval import (
 from semantic_retrieval import (
     configuration_entry as semantic_configuration_entry,
 )
+from stage_lexicon import (
+    TOOL_STAGE_NAMES,
+    TOOL_STAGE_RUNNING,
+    project_stage_input,
+    project_stage_output,
+)
 from tool_repetition import RepeatedFailures
 from tools import (
     DENIAL_WITHOUT_OBJECT,
@@ -1431,8 +1437,10 @@ def _is_simple_inventory_request(question: str) -> bool:
     """True only for an unfiltered source inventory, not analytical discovery."""
 
     candidate = question.strip()
-    if candidate.startswith("Discovery intent:\n"):
-        candidate = candidate.removeprefix("Discovery intent:\n").split("\n\n", 1)[0].strip()
+    for lead in ("Question:\n", "Discovery intent:\n"):
+        if candidate.startswith(lead):
+            candidate = candidate.removeprefix(lead).split("\n\n", 1)[0].strip()
+            break
     return bool(_INVENTORY_REQUEST.fullmatch(candidate))
 
 
@@ -2091,34 +2099,7 @@ def stage_kind(name: str) -> str:
     return _TOOL_KINDS.get(name, "tool")
 
 
-#: Stage labels for the timeline. The tool names are the model's vocabulary and
-#: are kept in `input`/`output`; these are what a stakeholder reads.
-_TOOL_STAGE_NAMES = {
-    "data_genie": "Queried governed data",
-    "dictionary_genie": "Checked field definitions",
-    "list_data_assets": "Listed available tables",
-    "search_tagged_assets": "Searched catalog tags",
-    "resolve_table": "Located the named table",
-    "describe_table": "Read a table's columns",
-    "query_named_table": "Queried the named table",
-    "run_sql": "Ran a governed read-only query",
-}
-
-#: The same labels for a call that has been announced and has not returned. Every
-#: key in `_TOOL_STAGE_NAMES` has one, because a step whose name changes when it
-#: finishes reads as two steps, and the rail draws them in one row.
-_TOOL_STAGE_RUNNING = {
-    "data_genie": "Querying governed data",
-    "dictionary_genie": "Checking field definitions",
-    "list_data_assets": "Listing available tables",
-    "search_tagged_assets": "Searching catalog tags",
-    "resolve_table": "Locating the named table",
-    "describe_table": "Reading a table's columns",
-    "query_named_table": "Querying the named table",
-    "run_sql": "Running a governed read-only query",
-}
-
-#: What a reader should understand was unavailable, per tool. `_TOOL_STAGE_NAMES`
+#: What a reader should understand was unavailable, per tool. `TOOL_STAGE_NAMES`
 #: describes an action ("Queried governed data") and reads as nonsense in a
 #: sentence about what failed, so the surfaces get their own names.
 _TOOL_SURFACES = {
@@ -2672,10 +2653,10 @@ class RunLog:
         depth: int = 0,
         parent_id: str = "",
     ) -> TraceStage:
-        """Record a parent before its children, then let ``close_stage`` finish it."""
+        """Record a parent with its reader-facing task, then finish it in place."""
 
         recorded = self.starting(stage_id, name, kind, started, depth, parent_id)
-        recorded.input = self._fit(input_text)
+        recorded.input = self._fit(project_stage_input(stage_id, kind, input_text))
         self.stages.append(recorded)
         return recorded
 
@@ -2686,10 +2667,12 @@ class RunLog:
         output_text: str,
         status: str = "complete",
     ) -> TraceStage:
-        """Finish an opened parent in place so its stored order does not move."""
+        """Finish an opened parent with the compact reader-facing result."""
 
         recorded.duration = (time.perf_counter() - started) * 1000
-        recorded.output = self._fit(output_text)
+        recorded.output = self._fit(
+            project_stage_output(recorded.id, recorded.kind, output_text, status)
+        )
         recorded.status = status  # type: ignore[assignment]
         return recorded
 
@@ -2714,8 +2697,8 @@ class RunLog:
             duration=(time.perf_counter() - started) * 1000,
             status=status,  # type: ignore[arg-type]
             calls=1,
-            input=self._fit(input_text),
-            output=self._fit(output_text),
+            input=self._fit(project_stage_input(stage_id, kind, input_text)),
+            output=self._fit(project_stage_output(stage_id, kind, output_text, status)),
             tables=list(tables),
             depth=depth,
             parent_id=parent_id,
@@ -3633,7 +3616,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                     # The RAW string is shown, not a re-encoding: there is no
                     # parsed dict to show and the malformed text is the diagnosis.
                     entry.arguments_json = str(getattr(call.function, "arguments", "") or "")
-                    entry.refused_label = _TOOL_STAGE_NAMES.get(name, f"Called {name}")
+                    entry.refused_label = TOOL_STAGE_NAMES.get(name, f"Called {name}")
                     entry.refused_before_running = (
                         f"ERROR: the arguments to {name} were not valid JSON, so nothing "
                         "ran. Call the tool again with a valid JSON object of arguments."
@@ -3716,7 +3699,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 for entry in flight:
                     yield log.starting(
                         f"{step_stage.id}-{entry.index}-{entry.name}",
-                        _TOOL_STAGE_RUNNING.get(entry.name, f"Calling {entry.name}"),
+                        TOOL_STAGE_RUNNING.get(entry.name, f"Calling {entry.name}"),
                         stage_kind(entry.name),
                         entry.started,
                         depth=step_stage.depth + 1,
@@ -3764,7 +3747,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                         # when they wonder whether anything is still happening.
                         yield log.starting(
                             f"{step_stage.id}-{index}-{name}",
-                            _TOOL_STAGE_RUNNING.get(name, f"Calling {name}"),
+                            TOOL_STAGE_RUNNING.get(name, f"Calling {name}"),
                             stage_kind(name),
                             entry.started,
                             depth=step_stage.depth + 1,
@@ -3971,7 +3954,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 entry.shared_status = status
                 yield log.stage(
                     f"{step_stage.id}-{index}-{name}",
-                    _TOOL_STAGE_NAMES.get(name, f"Called {name}"),
+                    TOOL_STAGE_NAMES.get(name, f"Called {name}"),
                     stage_kind(name),
                     tool_started,
                     entry.arguments_json,

@@ -151,8 +151,9 @@ describe('an answer from the workspace reaches the row that was asking', () => {
    * it, and the row keeps saying what it always said.
    */
   it('reports a resource nothing is configured for as unchecked rather than as a failure', () => {
-    const reading = readingsById(readConnections(payload({ checks: [check('catalog', 'ok')] }), []))
-      .get('llm-gateway')!;
+    const reading = readingsById(readConnections(payload({ checks: [check('catalog', 'ok')] }), [])).get(
+      'llm-gateway'
+    )!;
     expect(reading.check).toBeUndefined();
     expect(reading.status).not.toBe('blocked');
     expect(reading.row.configured).toBe('');
@@ -163,9 +164,7 @@ describe('an answer from the workspace reaches the row that was asking', () => {
   // cannot say something the rows it stands for do not.
   it('fills the Declared tables row from the summary the probes rolled up', () => {
     expect(statusOf('declared-manifest', [])).toBe('not-checked');
-    expect(statusOf('declared-manifest', [check('declared-manifest', 'ok', { kind: 'manifest' })])).toBe(
-      'reachable',
-    );
+    expect(statusOf('declared-manifest', [check('declared-manifest', 'ok', { kind: 'manifest' })])).toBe('reachable');
   });
 
   /**
@@ -228,7 +227,7 @@ describe('the headline counts what was actually asked', () => {
   // where that is easiest to lose.
   it('never says everything is reachable while anything is unresolved', () => {
     expect(checksHeadline([check('catalog', 'ok'), check('schema', 'unverified')])).toBe(
-      'Some dependencies could not be checked',
+      'Some dependencies could not be checked'
     );
     expect(checksHeadline([check('catalog', 'ok')])).toBe('Every dependency is reachable');
     expect(checksHeadline([])).toBe('No dependency check answered');
@@ -369,9 +368,9 @@ describe('what the page must keep refusing to claim', () => {
    * the configured value as though something had confirmed it.
    */
   it('never shows an unmeasured value as though something had confirmed it', () => {
-    expect(PAGE).toMatch(/Not measured/);
-    expect(PAGE).toMatch(/Nothing to measure it against/);
-    expect(PAGE).toMatch(/row\.actualObserved \?/);
+    expect(PAGE).not.toMatch(/Not measured/);
+    expect(PAGE).not.toMatch(/Nothing to measure it against/);
+    expect(PAGE).toMatch(/\{row\.actualObserved \? \(/);
     // The one word this tile must never reach for on an absence of evidence.
     expect(PAGE).not.toMatch(/'matches'/);
   });
@@ -380,8 +379,9 @@ describe('what the page must keep refusing to claim', () => {
     // `connectionNote` prefers the workspace's words and falls back to the
     // generic note only where there are none, so a status vocabulary shared with
     // the matrix cannot flatten twenty different answers into four.
-    expect(connectionNote({ check: check('catalog', 'ok', { detail: 'The workspace answered.' }), status: 'reachable' }))
-      .toBe('The workspace answered.');
+    expect(
+      connectionNote({ check: check('catalog', 'ok', { detail: 'The workspace answered.' }), status: 'reachable' })
+    ).toBe('The workspace answered.');
     expect(connectionNote({ check: null, status: 'not-checked' }).length).toBeGreaterThan(0);
     // On the page it is the FAILURE that carries them now, verbatim: the tile
     // beside it used to print the same sentence on a pass, where its tail was

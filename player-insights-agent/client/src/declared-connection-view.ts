@@ -13,6 +13,7 @@
  * clauses, not sentences of explanation.
  */
 import { DECLARABLE_KEYS, SCOPES_KEY } from '../../shared/notebook-declaration';
+import type { DeclaredResourceType } from '../../shared/notebook-declaration';
 import type { ConnectionEntry, DeclarationComparisonRow, NotebookPanel } from './connection-model';
 import type { AssetPickerSpec } from './asset-picker';
 
@@ -144,33 +145,42 @@ export const CONNECTION_LIST_TITLE = 'Assets the agent may consider';
  * `shared/browse-contract.ts` kinds; only this mapping was missing.
  */
 export type AddableBrowse =
-  | 'tables'
-  | 'genie-spaces'
-  | 'catalogs'
-  | 'warehouses'
-  | 'volumes'
-  | 'vector-search-indexes'
-  | 'serving-endpoints';
+  | 'catalog'
+  | 'schema'
+  | 'table'
+  | 'sql-warehouse'
+  | 'serving-endpoint'
+  | 'genie-space'
+  | 'vector-search-endpoint'
+  | 'vector-search-index'
+  | 'volume';
 
 /** The kinds a reader may choose from, with the words the tab uses for them. */
 export const ADDABLE_KINDS: ReadonlyArray<{
-  id: string;
+  id: DeclaredResourceType;
   kind: string;
   label: string;
   browse: AddableBrowse;
 }> = [
-  { id: 'table', kind: 'unity-catalog', label: 'Tables', browse: 'tables' },
-  { id: 'genie-space', kind: 'genie-space', label: 'Genie spaces', browse: 'genie-spaces' },
-  { id: 'catalog', kind: 'unity-catalog', label: 'Catalogs', browse: 'catalogs' },
-  { id: 'sql-warehouse', kind: 'sql-warehouse', label: 'SQL warehouse', browse: 'warehouses' },
-  { id: 'volume', kind: 'volume', label: 'Volume', browse: 'volumes' },
+  { id: 'catalog', kind: 'unity-catalog', label: 'Catalog', browse: 'catalog' },
+  { id: 'schema', kind: 'unity-catalog', label: 'Schema', browse: 'schema' },
+  { id: 'table', kind: 'unity-catalog', label: 'Table or view', browse: 'table' },
+  { id: 'sql-warehouse', kind: 'sql-warehouse', label: 'SQL warehouse', browse: 'sql-warehouse' },
+  { id: 'serving-endpoint', kind: 'model', label: 'Serving endpoint', browse: 'serving-endpoint' },
+  { id: 'genie-space', kind: 'genie-space', label: 'Genie space', browse: 'genie-space' },
   {
-    id: 'vector-search',
+    id: 'vector-search-endpoint',
+    kind: 'vector-search',
+    label: 'Vector Search endpoint',
+    browse: 'vector-search-endpoint',
+  },
+  {
+    id: 'vector-search-index',
     kind: 'vector-search',
     label: 'Vector Search index',
-    browse: 'vector-search-indexes',
+    browse: 'vector-search-index',
   },
-  { id: 'model', kind: 'model', label: 'Model endpoint', browse: 'serving-endpoints' },
+  { id: 'volume', kind: 'volume', label: 'Volume', browse: 'volume' },
 ];
 
 /**
@@ -183,7 +193,7 @@ export const ADDABLE_KINDS: ReadonlyArray<{
  * lists stop at one level.
  */
 export const ADD_CONNECTION_PICKERS: Record<AddableBrowse, AssetPickerSpec> = {
-  tables: {
+  table: {
     field: 'add-table',
     levels: ['catalogs', 'schemas', 'tables'],
     pickAt: 'last',
@@ -192,7 +202,7 @@ export const ADD_CONNECTION_PICKERS: Record<AddableBrowse, AssetPickerSpec> = {
     typeLabel: 'Or type a three-part table name',
     typeNote: '',
   },
-  'genie-spaces': {
+  'genie-space': {
     field: 'add-genie-space',
     levels: ['genie-spaces'],
     pickAt: 'last',
@@ -201,7 +211,7 @@ export const ADD_CONNECTION_PICKERS: Record<AddableBrowse, AssetPickerSpec> = {
     typeLabel: 'Or type a Genie space ID',
     typeNote: '',
   },
-  catalogs: {
+  catalog: {
     field: 'add-catalog',
     levels: ['catalogs'],
     pickAt: 'last',
@@ -210,7 +220,16 @@ export const ADD_CONNECTION_PICKERS: Record<AddableBrowse, AssetPickerSpec> = {
     typeLabel: 'Or type a catalog name',
     typeNote: '',
   },
-  warehouses: {
+  schema: {
+    field: 'add-schema',
+    levels: ['catalogs', 'schemas'],
+    pickAt: 'last',
+    multi: false,
+    title: 'Schemas your sign-in can see',
+    typeLabel: 'Or type catalog.schema',
+    typeNote: '',
+  },
+  'sql-warehouse': {
     field: 'add-sql-warehouse',
     levels: ['warehouses'],
     pickAt: 'last',
@@ -219,7 +238,7 @@ export const ADD_CONNECTION_PICKERS: Record<AddableBrowse, AssetPickerSpec> = {
     typeLabel: 'Or type a warehouse id',
     typeNote: '',
   },
-  volumes: {
+  volume: {
     field: 'add-volume',
     levels: ['catalogs', 'schemas', 'volumes'],
     pickAt: 'last',
@@ -228,7 +247,16 @@ export const ADD_CONNECTION_PICKERS: Record<AddableBrowse, AssetPickerSpec> = {
     typeLabel: 'Or type a volume name',
     typeNote: '',
   },
-  'vector-search-indexes': {
+  'vector-search-endpoint': {
+    field: 'add-vector-search-endpoint',
+    levels: ['vector-search-endpoints'],
+    pickAt: 'last',
+    multi: false,
+    title: 'Vector Search endpoints your sign-in can see',
+    typeLabel: 'Or type an endpoint name',
+    typeNote: '',
+  },
+  'vector-search-index': {
     field: 'add-vector-search',
     levels: ['vector-search-endpoints', 'vector-search-indexes'],
     pickAt: 'last',
@@ -237,7 +265,7 @@ export const ADD_CONNECTION_PICKERS: Record<AddableBrowse, AssetPickerSpec> = {
     typeLabel: 'Or type a three-part index name',
     typeNote: '',
   },
-  'serving-endpoints': {
+  'serving-endpoint': {
     field: 'add-model',
     levels: ['serving-endpoints'],
     pickAt: 'last',
@@ -386,13 +414,28 @@ export interface ConnectionRowView {
   fullIdentifier: string;
 }
 
+const RESOURCE_TYPE_LABELS: Record<DeclaredResourceType, string> = {
+  catalog: 'Catalog',
+  schema: 'Schema',
+  table: 'Table or view',
+  'sql-warehouse': 'SQL warehouse',
+  'serving-endpoint': 'Serving endpoint',
+  'genie-space': 'Genie space',
+  'vector-search-endpoint': 'Vector Search endpoint',
+  'vector-search-index': 'Vector Search index',
+  volume: 'Volume',
+};
+
 export function connectionRowView(connection: {
   label: string;
   value: string;
   id: string;
   kind: string;
+  resourceType?: DeclaredResourceType;
 }): ConnectionRowView {
-  const kindLabel = connectionKindLabel(connection.kind);
+  const kindLabel = connection.resourceType
+    ? RESOURCE_TYPE_LABELS[connection.resourceType]
+    : connectionKindLabel(connection.kind);
   const label = connection.label.trim();
   const value = connection.value.trim();
   const fullIdentifier = value || connection.id;

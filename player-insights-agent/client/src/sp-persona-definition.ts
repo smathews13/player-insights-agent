@@ -51,6 +51,16 @@ export function changeSpGrantAction(grant: SpGrant, action: SpGrant['action']): 
   return option ? { ...grant, action, privilege: option.privilege } : grant;
 }
 
+export function canSuggestSpPermissions(purpose: string, resourceCount: number): boolean {
+  return purpose.trim().length > 0 && resourceCount > 0;
+}
+
+export function mergeSuggestedSpGrants(current: readonly SpGrant[], suggested: readonly SpGrant[]): SpGrant[] {
+  const unique = new Map(current.map((grant) => [spGrantKey(grant), grant]));
+  for (const grant of suggested) unique.set(spGrantKey(grant), grant);
+  return [...unique.values()].slice(0, 24);
+}
+
 /**
  * Converts recognizable legacy labels without pretending they named a scope.
  * The structured replacement therefore remains incomplete until the operator

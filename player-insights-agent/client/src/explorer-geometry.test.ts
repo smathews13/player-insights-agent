@@ -45,20 +45,21 @@ describe('the Run Explorer’s two columns', () => {
   });
 
   it('puts the username filter beside All conversations, not under it', () => {
-    expect(rule(RUNS, '.run-list-filters')).toContain('display: flex');
-    expect(rule(RUNS, '.run-list-filters')).toContain('flex-direction: row');
+    expect(rule(RUNS, '.run-list-filters')).toContain('display: grid');
+    expect(rule(RUNS, '.run-list-filters')).toContain('minmax(0, 1.65fr) minmax(0, 1fr)');
     expect(EXPLORER).toContain('run-list-filters');
     expect(EXPLORER).toContain('Filter runs by username');
     expect(EXPLORER).toContain('All users');
   });
 
-  it('does not let All conversations shrink under its chevron or focus ring', () => {
-    // Equal `flex: 1 1 0` plus `min-width: 0` was what sliced the longer closed
-    // label: the chevron and the focus ring both ended at a flat right edge.
-    const conversation = rule(RUNS, '.run-list-filters > *:first-child');
-    expect(conversation).toContain('min-width: 11rem');
-    expect(conversation).not.toContain('min-width: 0');
-    expect(rule(RUNS, '.run-conversation-filter')).toContain('overflow: visible');
+  it('bounds both filter tracks while preserving the chevron and ellipsis', () => {
+    const field = rule(RUNS, '.run-filter-field');
+    expect(field).toContain('min-width: 0');
+    expect(field).toContain('max-width: 100%');
+    const triggers = rule(RUNS, '.run-conversation-filter,\n.run-username-filter');
+    expect(triggers).toContain('width: 100%');
+    expect(triggers).toContain('max-width: 100%');
+    expect(triggers).toContain('min-width: 0');
     expect(rule(RUNS, '.run-filter-label')).toContain('text-overflow: ellipsis');
     expect(EXPLORER).toContain('run-filter-label');
   });
@@ -68,7 +69,7 @@ describe('the Run Explorer’s two columns', () => {
     // detail pane. The menu is a popper overlay; opening it cannot change the
     // field of view, chrome width, or scrollbar.
     expect(EXPLORER).toMatch(/position="popper"/);
-    expect(EXPLORER).toMatch(/className="app-select-content"/);
+    expect(EXPLORER).toMatch(/className="app-select-content run-filter-menu"/);
     expect(rule(RUNS, '.explorer-layout')).toContain('overflow-x: clip');
     expect(rule(RUNS, 'html body[data-scroll-locked]')).toContain('margin-right: 0 !important');
     expect(rule(RUNS, 'html body[data-scroll-locked]')).toContain('padding-right: 0 !important');
@@ -124,22 +125,15 @@ describe('the Run Explorer’s two columns', () => {
     }
   });
 
-  it('sets the row’s two figures in mono and leaves the words beside them alone', () => {
-    // A duration and a score, each in a right-aligned meta slot, which is one of
-    // the four placements §3 makes binding. The stakeholder's name shares the line
-    // with the duration and is not a measurement, so the face goes on the figure
-    // rather than on the line.
+  it('sets the row’s duration in mono and keeps feedback directional', () => {
+    // The stakeholder's name shares the line with the duration and is not a
+    // measurement, so the face goes on the figure rather than on the line.
     expect(EXPLORER).toContain('<span className="ast-num">{(run.duration_ms / 1000).toFixed(1)}s</span>');
     // Overview wall time uses the same printer as the Timeline envelope, so a
     // 24.009s run cannot read as 24.0s on one tab and 24.01s on the other.
     expect(EXPLORER).toContain('{selected?.duration_ms ? formatMs(selected.duration_ms) : ABSENT}');
-    // The score takes it on the wrapper instead, and deliberately: the star and
-    // the figure are one sentence three surfaces print identically, which
-    // rail-run-summary.test.ts reads as `<Star /> {ratingOutOf(...)}`. A span
-    // around the figure would break that reading in another lane's file, and
-    // nothing else inside this wrapper is a glyph the face changes.
-    expect(EXPLORER).toContain('className="run-item-rating ast-num"');
-    expect(EXPLORER).toMatch(/<Star \/> \{ratingOutOf\(runRating\.value\)\}/);
+    expect(EXPLORER).toContain('<RunRatingBadge rating={run.rating} />');
+    expect(EXPLORER).not.toContain('<Star');
   });
 
   it('marks the selected run with the blue edge on a faint blue ground', () => {

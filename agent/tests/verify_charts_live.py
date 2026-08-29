@@ -77,13 +77,18 @@ def main() -> int:
         for chart in charts:
             traces = chart["data"]
             colours = [
-                t.get("marker", {}).get("color") or t.get("line", {}).get("color")
+                t.get("marker", {}).get("color")
+                or t.get("line", {}).get("color")
                 or t.get("marker", {}).get("colors")
                 for t in traces
             ]
             points = [
                 max(
-                    (len(t[k]) for k in ("x", "y", "values", "labels") if isinstance(t.get(k), list)),
+                    (
+                        len(t[k])
+                        for k in ("x", "y", "values", "labels")
+                        if isinstance(t.get(k), list)
+                    ),
                     default=0,
                 )
                 for t in traces

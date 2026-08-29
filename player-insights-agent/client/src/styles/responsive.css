@@ -121,12 +121,29 @@
   .arch-rails {
     grid-template-columns: 1fr;
   }
-  /* Monitoring's five-across summary strip. Five tiles here are around 200px each,
-     which is narrower than the longest label ("ANSWERED · REFUSED · FAILED") needs
-     on one line, and a label that wraps mid-phrase above a 22px figure reads as two
-     tiles. Three across keeps the three-part outcome tile whole. */
+  /* Monitoring keeps the outcome card at half the row through laptop widths.
+     Its four full labels stay on one line without reducing the shared 11px
+     eyebrow size; the other cards form a balanced second row. */
   .monitoring-strip {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      'questions threads outcomes outcomes'
+      'rated rated median median';
+  }
+  .monitoring-summary-questions {
+    grid-area: questions;
+  }
+  .monitoring-summary-threads {
+    grid-area: threads;
+  }
+  .monitoring-outcomes-tile {
+    grid-area: outcomes;
+  }
+  .monitoring-summary-rated {
+    grid-area: rated;
+  }
+  .monitoring-summary-median {
+    grid-area: median;
   }
   /*
    * The search box gives up the right edge once the row can no longer hold it.
@@ -169,7 +186,16 @@
   }
   /* Two across, at the width the architecture tiles also go to two. Below this the
      tabular figures start colliding with their captions. */
-  .monitoring-strip,
+  .monitoring-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      'questions threads'
+      'outcomes outcomes'
+      'rated median';
+  }
+  .monitoring-outcomes-label {
+    white-space: normal;
+  }
   .monitoring-panel-grid,
   .monitoring-refusal-tiles {
     grid-template-columns: repeat(2, 1fr);
@@ -204,6 +230,17 @@
   }
   .runtime-answer-body--narrative .runtime-answer-cap {
     width: 90px;
+    justify-self: start;
+  }
+  /* Runtime's architecture key moves below the three controls once there is no
+     longer a stable side-by-side corridor. The controls keep their desktop
+     widths; the explanatory SVG takes the available line beneath them. */
+  .runtime-loop-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .runtime-loop-diagram {
+    width: min(100%, 420px);
+    max-width: 420px;
     justify-self: start;
   }
   .appearance-display-choices {
@@ -318,6 +355,18 @@
   .ops-cost-resource-budgets {
     grid-column: auto;
   }
+  .egress-summary {
+    grid-template-columns: 1fr;
+  }
+  .egress-storage > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .ops-forecast-formulas > div,
+  .ops-forecast-not-included li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
   /* The label and the value stop competing for one line: the value drops under
      the label rather than truncating to nothing on a phone. */
   .connection-row-summary {
@@ -382,6 +431,18 @@
   }
   .explorer-layout {
     grid-template-columns: 1fr;
+  }
+  /* The Explorer changes to one pane in this shared narrow-content band, so its
+     filters change with it: two complete full-width controls rather than two
+     abbreviated labels competing for a leftover row. */
+  .run-list-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .run-filter-field,
+  .run-conversation-filter,
+  .run-username-filter {
+    width: 100%;
+    max-width: none;
   }
   .run-list {
     position: static;
@@ -490,6 +551,42 @@
    width -- the nav went at 1180px -- but a rule that only happens to be unread is
    a rule that is wrong the day something reads it. */
 @media (max-width: 480px) {
+  /* Two useful-width inputs and then the third, rather than three controls
+     squeezed below their labels or pushed outside the modal. */
+  .runtime-loop-row {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  }
+  .judge-settings-table colgroup {
+    display: none;
+  }
+  .judge-settings-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .judge-settings-table tbody,
+  .judge-settings-table tr,
+  .judge-settings-table td {
+    display: block;
+    width: 100%;
+  }
+  .judge-settings-table tr {
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .judge-settings-table td {
+    height: auto;
+    padding: 0;
+    border-bottom: 0;
+  }
+  .judge-settings-table .exp-feature-control {
+    margin-top: 7px;
+    text-align: right;
+  }
   .appearance-display-choices {
     grid-template-columns: minmax(0, 1fr);
   }

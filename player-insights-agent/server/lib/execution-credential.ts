@@ -29,6 +29,7 @@ import {
   type SpPersona,
 } from '../../shared/sp-identity';
 import { normalizeAdminEmail } from './admin-identity';
+import { resolveRole } from './admin-roles';
 import {
   ASSIGNED_SERVICE_PRINCIPAL as BOUND_ASSIGNED_SP,
   type BoundIdentity,
@@ -92,6 +93,9 @@ export async function resolveExecutionCredential(
 
   const email = signedInEmail(req);
   if (!email) return { kind: 'oauth', token: userToken };
+  if ((await resolveRole(store.lakebase, email)).role === 'super_admin') {
+    return { kind: 'oauth', token: userToken };
+  }
 
   const assignment = await assignmentForEmail(store, email);
   if (!assignment) return { kind: 'oauth', token: userToken };
@@ -190,7 +194,7 @@ export async function describeSpIdentity(
   const enabled = await isSpIdentityEnabled(store);
   const email = signedInEmail(req);
   let assigned: SpIdentityAssigned | null = null;
-  if (email) {
+  if (email && (await resolveRole(store.lakebase, email)).role !== 'super_admin') {
     const assignment = await assignmentForEmail(store, email);
     if (assignment) {
       const persona = await readSpPersona(store, assignment.personaId);

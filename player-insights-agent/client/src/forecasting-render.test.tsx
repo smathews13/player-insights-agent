@@ -8,6 +8,10 @@ import { ForecastingBody } from './ForecastingPanel';
 import { OpsPage, type Block } from './OpsPage';
 import { autoLoadOpsBlock, forgetOpsSession, opsAutoLoadClaimed } from './ops-session';
 
+const OPS_CSS = readFileSync(new URL('./styles/ops.css', import.meta.url), 'utf8');
+const RESPONSIVE_CSS = readFileSync(new URL('./styles/responsive.css', import.meta.url), 'utf8');
+const FORECAST_SOURCE = readFileSync(new URL('./ForecastingPanel.tsx', import.meta.url), 'utf8');
+
 function block<T>(data: T | null, overrides: Partial<Block<T>> = {}): Block<T> {
   return { data, busy: false, failed: '', refresh: () => {}, ...overrides };
 }
@@ -77,7 +81,7 @@ function cost(): OpsCostPayload {
       limited: false,
       reason: '',
     },
-    budgets: { total: null, resources: {} },
+    budgets: { total: { value: null, unit: 'USD' }, resources: {} },
     budgetsReadable: true,
     honesty: {
       priceSource: 'list_prices',
@@ -170,7 +174,14 @@ describe('Forecasting visibility and placement', () => {
       expect(markup).toContain(label);
     }
     expect(markup).toContain('type="number"');
-    expect(markup).toContain('List-price estimate only');
+    expect(markup).not.toContain('List-price estimate only');
+    expect(markup).not.toContain('Baseline:');
+    expect(markup).not.toContain('Source:');
+    expect(markup).not.toContain('Assumption baselines');
+    expect(markup).not.toContain('complete days');
+    expect(markup).not.toContain('2026-08-08');
+    expect(markup).toContain('How totals are calculated');
+    expect(markup).toContain('Daily questions × observed serving cost per question');
     const helpers = [...markup.matchAll(/class="ops-forecast-assumption-evidence">([^<]*)<\/small>/g)].map(
       (match) => match[1]
     );
@@ -220,10 +231,30 @@ describe('Forecasting visibility and placement', () => {
         <ForecastingBody cost={block(partialCost)} traffic={block(traffic())} />
       </MemoryRouter>
     );
-    expect(partial).toContain('Partial estimate');
+    expect(partial).not.toContain('Partial estimate');
     expect(partial).toContain('Partial list-price coverage; spend withheld.');
+    expect(partial).toContain('Not included');
     expect(partial).toContain('estimated subtotal');
     expect(partial).not.toContain('<span>Serving endpoint</span>');
+  });
+
+  it('uses compact responsive rows and caps the initially visible limits', () => {
+    const payload = cost();
+    payload.perQuestion = { ...payload.perQuestion, runsInRange: 8, tokenCoveredRuns: 2 };
+    const trafficPayload = traffic();
+    trafficPayload.activeMinutesRecordedFrom = '2026-08-12T00:00:00Z';
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <ForecastingBody cost={block(payload)} traffic={block(trafficPayload)} periodLabel="30 days" />
+      </MemoryRouter>
+    );
+    expect(markup).toContain('30 days');
+    expect(markup).toContain('Serving token coverage is partial');
+    expect(markup.match(/Active-minute/g)).toHaveLength(1);
+    expect(OPS_CSS).toMatch(/\.ops-forecast-formulas > div,[\s\S]*grid-template-columns:/);
+    expect(RESPONSIVE_CSS).toMatch(/\.ops-forecast-formulas > div,[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+    expect(FORECAST_SOURCE).toContain('limits.slice(0, VISIBLE_LIMITS)');
+    expect(FORECAST_SOURCE).toContain('ops-forecast-more-limits');
   });
 });
 

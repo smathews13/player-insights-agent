@@ -74,4 +74,41 @@ describe('SP grant resource discovery', () => {
     });
     expect(resources.filter((resource) => resource.type === 'SQL_WAREHOUSE')).toHaveLength(1);
   });
+
+  it('uses the persisted resource type instead of guessing from a vector resource label', async () => {
+    const client = {
+      lakebase: {
+        query: () =>
+          Promise.resolve({
+            rows: [
+              {
+                id: 'semantic-search',
+                label: 'Semantic search',
+                kind: 'vector-search',
+                resource_type: 'vector-search-endpoint',
+                value: 'vs-resource-123',
+                state: 'declared',
+                origin: 'app',
+              },
+            ],
+          }),
+      },
+    };
+
+    const resources = await discoverSpGrantResources(client as never, {});
+
+    expect(resources).toContainEqual(
+      expect.objectContaining({
+        type: 'VECTOR_SEARCH_ENDPOINT',
+        id: 'vs-resource-123',
+        source: 'declared',
+      })
+    );
+    expect(resources).not.toContainEqual(
+      expect.objectContaining({
+        type: 'VECTOR_SEARCH_INDEX',
+        id: 'vs-resource-123',
+      })
+    );
+  });
 });

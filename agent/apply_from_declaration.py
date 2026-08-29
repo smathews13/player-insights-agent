@@ -30,8 +30,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from config import ENV_VARS
 
@@ -96,9 +97,7 @@ class ApplyPlan:
     def command(self, target: str, *, apply: bool = False) -> str:
         """Customer-facing command line (no internal workspace names)."""
         flag = "--apply" if apply else "--plan"
-        return (
-            f"TARGET={target} bundle/apply-declaration.sh {flag} --i-am-deploying"
-        )
+        return f"TARGET={target} bundle/apply-declaration.sh {flag} --i-am-deploying"
 
 
 def _text(value: Any) -> str:
@@ -161,7 +160,11 @@ def settings_from_declaration(document: Mapping[str, Any] | None) -> dict[str, s
     if isinstance(settings, Mapping):
         items = settings.items()
     elif isinstance(settings, list):
-        items = ((entry.get("key"), entry.get("value")) for entry in settings if isinstance(entry, Mapping))
+        items = (
+            (entry.get("key"), entry.get("value"))
+            for entry in settings
+            if isinstance(entry, Mapping)
+        )
     else:
         return out
     for key, value in items:
@@ -219,7 +222,9 @@ def resolve_apply_plan(
             "Readable scopes were staged by an administrator. If the new list is "
             "wider than the live model version, pass --allow-widening to the release."
         )
-    if any(k.source == "notebook" for k in knobs) and not any(k.source == "intended" for k in knobs):
+    if any(k.source == "notebook" for k in knobs) and not any(
+        k.source == "intended" for k in knobs
+    ):
         notes.append(
             "Values come from the notebook declaration. Connections intended "
             "settings override the notebook when both name the same key."

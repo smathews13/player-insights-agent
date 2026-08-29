@@ -30,7 +30,7 @@ import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { BrandIcon } from './BrandIcon';
 import { parseAnswerMarkdown, type Block, type Inline } from './answer-markdown';
-import { EntityText } from './DataEntityLinks';
+import { EntityText, TableEntityList } from './DataEntityLinks';
 import {
   chipRuns,
   fieldDefinition,
@@ -45,6 +45,7 @@ import {
   type ResultTable,
   type SemanticEntry,
   type SemanticResult,
+  type StructuredTableResult,
 } from './step-results';
 
 /**
@@ -235,6 +236,37 @@ export function MarkdownText({ text, tables = [] }: { text: string; tables?: rea
       {parseAnswerMarkdown(text).map((block) => (
         <MarkdownBlock block={block} tables={tables} key={block.start} />
       ))}
+    </div>
+  );
+}
+
+/**
+ * Governed table inventories embedded in finder and writer payloads.
+ *
+ * The parser keeps headings, multiple lists and the prose around them as
+ * separate sections. Each entry is then handed to the shared entity renderer;
+ * bracketed qualifiers sit beside it as metadata instead of becoming part of
+ * the identifier.
+ */
+export function StructuredTableResultView({ result }: { result: StructuredTableResult }) {
+  return (
+    <div className="dag-structured-table-result">
+      {result.sections.map((section) =>
+        section.kind === 'prose' ? (
+          <MarkdownText text={section.text} key={`prose-${section.text}`} />
+        ) : (
+          <section
+            className="dag-structured-table-list"
+            aria-label={`${section.heading}, ${section.tables.length} ${
+              section.tables.length === 1 ? 'table' : 'tables'
+            }`}
+            key={`tables-${section.heading}-${section.tables.map((table) => table.name).join('|')}`}
+          >
+            <strong className="dag-structured-table-heading">{section.heading}</strong>
+            <TableEntityList tables={section.tables} countVerb="declared" />
+          </section>
+        )
+      )}
     </div>
   );
 }
