@@ -174195,7 +174195,7 @@ function spGrantKey(grant) {
 function spGrantSummary(grant) {
   return `${SP_GRANT_MATRIX[grant.resourceType].label} ${grant.resource} \u2014 ${grant.privilege}`;
 }
-var SP_IDENTITY_ENABLED_SETTING, SP_EXECUTION_OAUTH, SP_EXECUTION_SERVICE_PRINCIPAL, ASSIGNED_SERVICE_PRINCIPAL2, SP_IDENTITY_MINTING_UNAVAILABLE, SP_GRANT_RESOURCE_TYPES, SP_GRANT_ACTIONS, SP_GRANT_MATRIX, NAME_MAX, DESCRIPTION_MAX, CAPABILITY_MAX, CAPABILITY_COUNT_MAX, GRANT_COUNT_MAX, SECRET_REF_MAX, CLIENT_ID_MAX, SpPersonaWriteSchema, SpPersonaPatchSchema, SpCapabilitySchema, SpCapabilitiesSchema, SpGrantResourceTypeSchema, SpGrantActionSchema, SpGrantSchema, SpGrantsSchema, SpPermissionSuggestionRequestSchema, SpPermissionPlanSchema, SpPermissionSuggestionsSchema, SpPersonaDefinitionFields, uniqueCapabilities, SpPersonaDefinitionWriteSchema, SpPersonaDefinitionPatchSchema, SpIdentityModeSchema, SpAssignmentWriteSchema;
+var SP_IDENTITY_ENABLED_SETTING, SP_EXECUTION_OAUTH, SP_EXECUTION_SERVICE_PRINCIPAL, ASSIGNED_SERVICE_PRINCIPAL2, SP_IDENTITY_MINTING_UNAVAILABLE, SP_GRANT_RESOURCE_TYPES, SP_GRANT_ACTIONS, SP_GRANT_MATRIX, NAME_MAX, DESCRIPTION_MAX, CAPABILITY_MAX, CAPABILITY_COUNT_MAX, SP_PERSONA_GRANT_COUNT_MAX, SECRET_REF_MAX, CLIENT_ID_MAX, SpPersonaWriteSchema, SpPersonaPatchSchema, SpCapabilitySchema, SpCapabilitiesSchema, SpGrantResourceTypeSchema, SpGrantActionSchema, SpGrantSchema, SpGrantsSchema, SpPermissionSuggestionRequestSchema, SpPermissionPlanSchema, SpPermissionSuggestionsSchema, SpPersonaDefinitionFields, uniqueCapabilities, SpPersonaDefinitionWriteSchema, SpPersonaDefinitionPatchSchema, SpIdentityModeSchema, SpAssignmentWriteSchema;
 var init_sp_identity = __esm({
   "shared/sp-identity.ts"() {
     init_zod();
@@ -174335,7 +174335,7 @@ var init_sp_identity = __esm({
     DESCRIPTION_MAX = 280;
     CAPABILITY_MAX = 180;
     CAPABILITY_COUNT_MAX = 12;
-    GRANT_COUNT_MAX = 24;
+    SP_PERSONA_GRANT_COUNT_MAX = 24;
     SECRET_REF_MAX = 128;
     CLIENT_ID_MAX = 64;
     SpPersonaWriteSchema = external_exports.object({
@@ -174374,7 +174374,7 @@ var init_sp_identity = __esm({
         });
       }
     });
-    SpGrantsSchema = external_exports.array(SpGrantSchema).max(GRANT_COUNT_MAX).refine((grants2) => new Set(grants2.map(spGrantKey)).size === grants2.length, {
+    SpGrantsSchema = external_exports.array(SpGrantSchema).max(SP_PERSONA_GRANT_COUNT_MAX).refine((grants2) => new Set(grants2.map(spGrantKey)).size === grants2.length, {
       message: "The grant plan contains an exact duplicate."
     });
     SpPermissionSuggestionRequestSchema = external_exports.object({
@@ -190606,6 +190606,129 @@ var init_sp_permission_suggestions = __esm({
   }
 });
 
+// shared/sp-persona-templates.ts
+var SP_PERSONA_TEMPLATES_ENV, TEXT_MAX, LIST_MAX, GRANT_INTENT_MAX, VARIANT_MAX, EXAMPLE_PROFILE_ACTIONS, SummaryListSchema, SpGrantResourceTypeSchema2, SpGrantActionSchema2, SpPersonaResourceSelectorSchema, SpPersonaGrantIntentSchema, SpPersonaTemplateVariantSchema, SpPersonaTemplateSchema, SpPersonaTemplatesSchema;
+var init_sp_persona_templates = __esm({
+  "shared/sp-persona-templates.ts"() {
+    init_zod();
+    init_sp_identity();
+    SP_PERSONA_TEMPLATES_ENV = "PLAYER_INSIGHTS_PERSONA_TEMPLATES";
+    TEXT_MAX = 280;
+    LIST_MAX = 12;
+    GRANT_INTENT_MAX = 24;
+    VARIANT_MAX = 4;
+    EXAMPLE_PROFILE_ACTIONS = /* @__PURE__ */ new Set(["READ", "USE", "VIEW", "EXECUTE"]);
+    SummaryListSchema = external_exports.array(external_exports.string().trim().min(1).max(TEXT_MAX)).max(LIST_MAX);
+    SpGrantResourceTypeSchema2 = external_exports.enum(SP_GRANT_RESOURCE_TYPES);
+    SpGrantActionSchema2 = external_exports.enum(SP_GRANT_ACTIONS);
+    SpPersonaResourceSelectorSchema = external_exports.object({
+      match: external_exports.enum(["single", "all"]).default("single"),
+      sources: external_exports.array(external_exports.enum(["configured", "declared"])).min(1).max(2).optional(),
+      labels: external_exports.array(external_exports.string().trim().min(1).max(120)).min(1).max(12).optional(),
+      ids: external_exports.array(external_exports.string().trim().min(1).max(255)).min(1).max(24).optional(),
+      idSuffixes: external_exports.array(
+        external_exports.string().trim().min(1).max(255).regex(/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/)
+      ).min(1).max(24).optional(),
+      labelSegments: external_exports.array(
+        external_exports.string().trim().min(2).max(80).regex(/^[A-Za-z0-9_-]+$/)
+      ).min(1).max(12).optional(),
+      choiceLabel: external_exports.string().trim().min(1).max(120)
+    }).strict().superRefine((selector, context2) => {
+      if (selector.match === "all" && !selector.labels && !selector.ids && !selector.idSuffixes && !selector.labelSegments) {
+        context2.addIssue({
+          code: "custom",
+          message: "An all-resources selector must use an exact or bounded resource constraint."
+        });
+      }
+    });
+    SpPersonaGrantIntentSchema = external_exports.object({
+      resourceType: SpGrantResourceTypeSchema2,
+      action: SpGrantActionSchema2,
+      privilege: external_exports.string().trim().min(1).max(64),
+      selector: SpPersonaResourceSelectorSchema
+    }).strict().superRefine((intent, context2) => {
+      const option = SP_GRANT_MATRIX[intent.resourceType].options.find((candidate2) => candidate2.action === intent.action);
+      if (!option) {
+        context2.addIssue({
+          code: "custom",
+          path: ["action"],
+          message: `${intent.action} is not valid for ${SP_GRANT_MATRIX[intent.resourceType].label}.`
+        });
+      } else if (intent.privilege !== option.privilege) {
+        context2.addIssue({
+          code: "custom",
+          path: ["privilege"],
+          message: `${intent.action} maps to ${option.privilege}.`
+        });
+      }
+    });
+    SpPersonaTemplateVariantSchema = external_exports.object({
+      id: external_exports.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/),
+      label: external_exports.string().trim().min(1).max(80),
+      description: external_exports.string().trim().min(1).max(TEXT_MAX),
+      leastPrivilege: external_exports.boolean(),
+      grants: external_exports.array(SpPersonaGrantIntentSchema).min(1).max(GRANT_INTENT_MAX)
+    }).strict().superRefine((variant, context2) => {
+      variant.grants.forEach((grant, index) => {
+        if (!EXAMPLE_PROFILE_ACTIONS.has(grant.action)) {
+          context2.addIssue({
+            code: "custom",
+            path: ["grants", index, "action"],
+            message: "Example profiles may request only read, use, view, or execute access."
+          });
+        }
+      });
+    });
+    SpPersonaTemplateSchema = external_exports.object({
+      id: external_exports.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/),
+      displayName: external_exports.string().trim().min(1).max(120),
+      roleSummary: external_exports.string().trim().min(1).max(TEXT_MAX),
+      purpose: external_exports.string().trim().min(1).max(TEXT_MAX),
+      duties: SummaryListSchema.min(1),
+      dataBoundaries: SummaryListSchema.min(1),
+      exclusions: SummaryListSchema.min(1),
+      keyCapabilities: SummaryListSchema.min(1).max(6),
+      variants: external_exports.array(SpPersonaTemplateVariantSchema).min(1).max(VARIANT_MAX)
+    }).strict().superRefine((template, context2) => {
+      if (template.variants.filter((variant) => variant.leastPrivilege).length !== 1) {
+        context2.addIssue({
+          code: "custom",
+          path: ["variants"],
+          message: "Each profile must have exactly one least-privilege variant."
+        });
+      }
+      if (new Set(template.variants.map((variant) => variant.id)).size !== template.variants.length) {
+        context2.addIssue({ code: "custom", path: ["variants"], message: "Variant ids must be unique." });
+      }
+    });
+    SpPersonaTemplatesSchema = external_exports.array(SpPersonaTemplateSchema).max(12).refine((templates) => new Set(templates.map((template) => template.id)).size === templates.length, {
+      message: "Profile ids must be unique."
+    });
+  }
+});
+
+// server/lib/sp-persona-templates.ts
+function parseSpPersonaTemplates(raw2) {
+  if (!raw2?.trim()) return { templates: [], warning: null };
+  try {
+    const parsed = SpPersonaTemplatesSchema.safeParse(JSON.parse(raw2));
+    if (parsed.success) return { templates: parsed.data, warning: null };
+  } catch {
+  }
+  return {
+    templates: [],
+    warning: "Example profiles are unavailable because this deployment configured an invalid template contract."
+  };
+}
+function configuredSpPersonaTemplates(env = process.env) {
+  return parseSpPersonaTemplates(env[SP_PERSONA_TEMPLATES_ENV]);
+}
+var init_sp_persona_templates2 = __esm({
+  "server/lib/sp-persona-templates.ts"() {
+    init_sp_persona_templates();
+  }
+});
+
 // server/routes/sp-identity-routes.ts
 var sp_identity_routes_exports = {};
 __export(sp_identity_routes_exports, {
@@ -190613,6 +190736,7 @@ __export(sp_identity_routes_exports, {
   setupSpIdentityRoutes: () => setupSpIdentityRoutes
 });
 async function adminPayload(appkit) {
+  const templateConfig = configuredSpPersonaTemplates();
   const [enabled2, personas, personaDefinitions, assignments, rosterRead, grantResourceDiscovery] = await Promise.all([
     isSpIdentityEnabled(appkit, { maxAgeMs: 0 }),
     listSpPersonas(appkit),
@@ -190641,6 +190765,8 @@ async function adminPayload(appkit) {
     minting: describeSpTokenMinting(),
     personas,
     personaDefinitions,
+    personaTemplates: templateConfig.templates,
+    personaTemplateWarning: templateConfig.warning,
     grantResourceDiscovery,
     accountConsoleUrl: accountConsoleUrlForWorkspace(process.env.DATABRICKS_HOST),
     organizations: parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS),
@@ -190946,6 +191072,7 @@ var init_sp_identity_routes = __esm({
     init_sp_token();
     init_sp_grant_resources();
     init_sp_permission_suggestions();
+    init_sp_persona_templates2();
     init_sp_identity_store();
     init_user_roster();
     init_insights_routes();

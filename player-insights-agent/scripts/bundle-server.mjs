@@ -326,6 +326,7 @@ async function main() {
   // role.
   const adminEmails = (process.env.PLAYER_INSIGHTS_ADMIN_EMAILS ?? '').trim();
   const organizations = (process.env.PLAYER_INSIGHTS_ORGANIZATIONS ?? '').trim();
+  const personaTemplates = (process.env.PLAYER_INSIGHTS_PERSONA_TEMPLATES ?? '').trim();
   // Passed through exactly. The server owns validation, clamping, and the
   // explicit `disabled` value; this build step only carries the target policy
   // into the dependency-free app artifact.
@@ -437,6 +438,9 @@ async function main() {
       ...(adminEmails ? [{ name: 'PLAYER_INSIGHTS_ADMIN_EMAILS', value: `'${adminEmails}'` }] : []),
       ...(organizations
         ? [{ name: 'PLAYER_INSIGHTS_ORGANIZATIONS', value: `'${organizations.replaceAll("'", "''")}'` }]
+        : []),
+      ...(personaTemplates
+        ? [{ name: 'PLAYER_INSIGHTS_PERSONA_TEMPLATES', value: `'${personaTemplates.replaceAll("'", "''")}'` }]
         : []),
     ],
   });

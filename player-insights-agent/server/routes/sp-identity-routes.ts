@@ -24,6 +24,7 @@ import { resolveJudgeEndpoint } from '../lib/app-settings';
 import { describeSpTokenMinting } from '../lib/sp-token';
 import { discoverSpGrantResources } from '../lib/sp-grant-resources';
 import { suggestSpPermissions } from '../lib/sp-permission-suggestions';
+import { configuredSpPersonaTemplates } from '../lib/sp-persona-templates';
 import {
   deleteSpPersonaDefinition,
   deleteSpPersona,
@@ -44,6 +45,7 @@ import { invokeServing, userEmail, type InsightsAppKit } from './insights-routes
 export const SP_PERMISSION_SUGGESTION_TIMEOUT_MS = 30_000;
 
 async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayload> {
+  const templateConfig = configuredSpPersonaTemplates();
   const [enabled, personas, personaDefinitions, assignments, rosterRead, grantResourceDiscovery] = await Promise.all([
     isSpIdentityEnabled(appkit, { maxAgeMs: 0 }),
     listSpPersonas(appkit),
@@ -74,6 +76,8 @@ async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayl
     minting: describeSpTokenMinting(),
     personas,
     personaDefinitions,
+    personaTemplates: templateConfig.templates,
+    personaTemplateWarning: templateConfig.warning,
     grantResourceDiscovery,
     accountConsoleUrl: accountConsoleUrlForWorkspace(process.env.DATABRICKS_HOST),
     organizations: parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS),

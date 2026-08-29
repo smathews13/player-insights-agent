@@ -22,6 +22,7 @@ import {
   SP_GRANT_MATRIX,
   SP_GRANT_RESOURCE_TYPES,
   SP_IDENTITY_MINTING_UNAVAILABLE,
+  SP_PERSONA_GRANT_COUNT_MAX,
   spGrantIdentifierFault,
   spGrantKey,
   spGrantSummary,
@@ -36,6 +37,12 @@ import {
   type SpPersonaDefinition,
   type SpPersonaDefinitionWrite,
 } from '../../shared/sp-identity';
+import type {
+  SpPersonaTemplate,
+  SpPersonaTemplateOverflow,
+  SpPersonaTemplateUnresolved,
+  SpPersonaTemplateVariant,
+} from '../../shared/sp-persona-templates';
 import {
   createSpPersonaDefinition,
   deleteSpPersonaDefinition,
@@ -45,13 +52,19 @@ import {
   updateSpPersonaDefinition,
 } from './identity-settings-api';
 import {
+  activeSpPersonaUnresolved,
   changeSpGrantAction,
   changeSpGrantType,
   canSuggestSpPermissions,
+  duplicateSpPersonaGrantRow,
   grantsFromLegacy,
+  isSpPersonaDraftDirty,
   isSpPersonaDefinitionComplete,
   mergeSuggestedSpGrants,
   newSpGrant,
+  removeSpPersonaGrantRow,
+  resolveSpPersonaTemplateVariant,
+  spPersonaTemplateUseBlock,
 } from './sp-persona-definition';
 import {
   failSpIdentityRead,
@@ -131,6 +144,8 @@ export function SpIdentityEditor({
           <SpPersonaDefinitionBuilder
             busy={busy || !enabled || !hasLastGoodPayload}
             definitions={payload.personaDefinitions ?? []}
+            templates={payload.personaTemplates ?? []}
+            templateWarning={payload.personaTemplateWarning ?? null}
             resourceDiscovery={payload.grantResourceDiscovery}
             accountConsoleUrl={payload.accountConsoleUrl ?? 'https://accounts.cloud.databricks.com'}
             loading={loading && !hasLastGoodPayload}
@@ -167,6 +182,8 @@ function newDefinition(resources: readonly SpGrantResource[] = []): SpPersonaDef
 function SpPersonaDefinitionBuilder({
   busy,
   definitions,
+  templates,
+  templateWarning,
   resourceDiscovery,
   accountConsoleUrl,
   loading,
@@ -179,6 +196,8 @@ function SpPersonaDefinitionBuilder({
 }: {
   busy: boolean;
   definitions: SpPersonaDefinition[];
+  templates: SpPersonaTemplate[];
+  templateWarning: string | null;
   resourceDiscovery: SpIdentityAdminPayload['grantResourceDiscovery'];
   accountConsoleUrl: string;
   loading: boolean;
@@ -195,9 +214,19 @@ function SpPersonaDefinitionBuilder({
   const [suggestions, setSuggestions] = useState<SpPermissionPlan[]>([]);
   const [suggestionError, setSuggestionError] = useState('');
   const [suggesting, setSuggesting] = useState(false);
+  const [unresolvedSelections, setUnresolvedSelections] = useState<SpPersonaTemplateUnresolved[]>([]);
+  const [templateOverflow, setTemplateOverflow] = useState<SpPersonaTemplateOverflow[]>([]);
+  const [grantRowIds, setGrantRowIds] = useState<string[]>([]);
+  const nextRowId = useRef(0);
   const suggestionRequest = useRef<AbortController | null>(null);
+  const dirty = isSpPersonaDraftDirty(draft);
+  const activeUnresolved = activeSpPersonaUnresolved(draft.grants, grantRowIds, unresolvedSelections);
+  const templateUseBlock = spPersonaTemplateUseBlock(editingId, dirty);
   const canSubmit =
-    !busy && isSpPersonaDefinitionComplete(draft) && (editingId ? Boolean(onUpdate) : Boolean(onCreate));
+    !busy &&
+    templateOverflow.length === 0 &&
+    isSpPersonaDefinitionComplete(draft) &&
+    (editingId ? Boolean(onUpdate) : Boolean(onCreate));
   const canSuggest = !busy && !suggesting && canSuggestSpPermissions(draft.description, resources.length);
 
   useEffect(
@@ -213,6 +242,9 @@ function SpPersonaDefinitionBuilder({
     setDraft(newDefinition(resources));
     setSuggestions([]);
     setSuggestionError('');
+    setUnresolvedSelections([]);
+    setTemplateOverflow([]);
+    setGrantRowIds([]);
   }
 
   function edit(definition: SpPersonaDefinition): void {
@@ -225,6 +257,26 @@ function SpPersonaDefinitionBuilder({
       legacyCapabilities:
         definition.legacyCapabilities ?? ((definition.grants?.length ?? 0) > 0 ? [] : [...definition.capabilities]),
     });
+    setUnresolvedSelections([]);
+    setTemplateOverflow([]);
+    setGrantRowIds((definition.grants ?? []).map((_, index) => `saved-${definition.id}-${index}`));
+  }
+
+  function useTemplate(template: SpPersonaTemplate, variant: SpPersonaTemplateVariant): void {
+    if (spPersonaTemplateUseBlock(editingId, dirty)) return;
+    const resolved = resolveSpPersonaTemplateVariant(variant, resources);
+    setDraft({
+      displayName: template.displayName,
+      description: template.purpose,
+      capabilities: [],
+      grants: resolved.grants,
+      legacyCapabilities: [],
+    });
+    setUnresolvedSelections(resolved.unresolved);
+    setTemplateOverflow(resolved.overflow);
+    setGrantRowIds(resolved.rowIds);
+    setSuggestions([]);
+    setSuggestionError('');
   }
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -263,21 +315,40 @@ function SpPersonaDefinitionBuilder({
   }
 
   function applyPlan(plan: SpPermissionPlan): void {
-    setDraft((current) => ({ ...current, grants: mergeSuggestedSpGrants(current.grants, plan.grants) }));
+    const merged = mergeSuggestedSpGrants(draft.grants, plan.grants);
+    if (merged.overflowCount > 0) {
+      setSuggestionError(
+        `This suggestion exceeds the ${SP_PERSONA_GRANT_COUNT_MAX}-permission limit by ${merged.overflowCount}. Narrow it before applying.`
+      );
+      return;
+    }
+    const added = merged.grants.length - draft.grants.length;
+    setDraft((current) => ({ ...current, grants: merged.grants }));
+    setGrantRowIds((current) => [...current, ...Array.from({ length: added }, () => `manual-${nextRowId.current++}`)]);
     setSuggestions([]);
     setSuggestionError('');
   }
 
   return (
     <div className="sp-persona-definition-workspace">
+      {templates.length > 0 || templateWarning ? (
+        <ExampleProfiles
+          templates={templates}
+          warning={templateWarning}
+          resources={resources}
+          busy={busy}
+          useBlockedReason={templateUseBlock}
+          onUse={useTemplate}
+        />
+      ) : null}
       <form className="sp-persona-builder" onSubmit={(event) => void submit(event)}>
         <div className="sp-persona-builder-head">
           <div>
             <strong>{editingId ? 'Edit persona configuration' : 'Define a persona'}</strong>
           </div>
-          {editingId ? (
+          {editingId || dirty ? (
             <Button type="button" variant="outline" className="roster-control" onClick={reset} disabled={busy}>
-              Cancel edit
+              {editingId ? 'Cancel edit' : 'Cancel staged changes'}
             </Button>
           ) : null}
         </div>
@@ -314,13 +385,14 @@ function SpPersonaDefinitionBuilder({
                 type="button"
                 variant="outline"
                 className="roster-control"
-                disabled={busy || draft.grants.length >= 24}
-                onClick={() =>
+                disabled={busy || draft.grants.length >= SP_PERSONA_GRANT_COUNT_MAX}
+                onClick={() => {
+                  setGrantRowIds((current) => [...current, `manual-${nextRowId.current++}`]);
                   setDraft((current) => ({
                     ...current,
                     grants: [...current.grants, newSpGrant([], 'TABLE')],
-                  }))
-                }
+                  }));
+                }}
               >
                 <Plus className="size-3.5" /> Add permission
               </Button>
@@ -338,11 +410,38 @@ function SpPersonaDefinitionBuilder({
               ) : null}
             </span>
           </div>
+          {templateOverflow.length > 0 ? (
+            <div className="sp-template-unresolved" role="alert">
+              {templateOverflow.map((item) => (
+                <p key={item.rowId}>
+                  <strong>
+                    {item.requiredGrantCount} resolved grants exceed the {item.grantLimit}-permission limit by{' '}
+                    {item.overflowCount}.
+                  </strong>{' '}
+                  {item.candidateCount} resources matched “{item.choiceLabel}”; select and, if needed, duplicate at most{' '}
+                  {item.selectableCount} permission rows before saving.
+                </p>
+              ))}
+            </div>
+          ) : null}
+          {activeUnresolved.length > 0 ? (
+            <div className="sp-template-unresolved" role="status">
+              <strong>Complete {activeUnresolved.length} resource choice(s) before saving</strong>
+              <ul>
+                {activeUnresolved.map((selection) => (
+                  <li key={selection.rowId}>
+                    Permission {grantRowIds.indexOf(selection.rowId) + 1}: {selection.choiceLabel}
+                    {selection.candidateCount > 1
+                      ? ` — ${selection.candidateCount} configured matches; choose one`
+                      : ' — no configured match; choose or enter one'}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {draft.grants.map((grant, index) => (
             <StructuredGrantRow
-              // A grant's position is stable while its fields change.
-              // eslint-disable-next-line react/no-array-index-key
-              key={`${index}:${draft.grants.length}`}
+              key={grantRowIds[index] ?? `untracked-${index}`}
               grant={grant}
               index={index}
               grants={draft.grants}
@@ -351,27 +450,44 @@ function SpPersonaDefinitionBuilder({
               resourcesLoading={loading}
               onRefreshResources={onRefreshResources}
               busy={busy}
-              onChange={(next) =>
+              onChange={(next) => {
+                const rowId = grantRowIds[index];
+                if (next.resource.trim()) {
+                  setUnresolvedSelections((selections) => selections.filter((selection) => selection.rowId !== rowId));
+                  setTemplateOverflow((items) => items.filter((item) => item.rowId !== rowId));
+                } else {
+                  setUnresolvedSelections((selections) =>
+                    selections.map((selection) =>
+                      selection.rowId === rowId ? { ...selection, resourceType: next.resourceType } : selection
+                    )
+                  );
+                }
                 setDraft((current) => ({
                   ...current,
                   grants: current.grants.map((value, item) => (item === index ? next : value)),
-                }))
-              }
-              onDuplicate={() =>
+                }));
+              }}
+              removeDisabled={templateOverflow.some((item) => item.rowId === grantRowIds[index])}
+              onDuplicate={() => {
+                if (draft.grants.length >= SP_PERSONA_GRANT_COUNT_MAX) return;
+                const newRowId = `manual-${nextRowId.current++}`;
+                const duplicated = duplicateSpPersonaGrantRow(grantRowIds, unresolvedSelections, index, newRowId);
+                setGrantRowIds(duplicated.rowIds);
+                setUnresolvedSelections(duplicated.unresolved);
                 setDraft((current) => ({
                   ...current,
-                  grants:
-                    current.grants.length >= 24
-                      ? current.grants
-                      : [...current.grants.slice(0, index + 1), { ...grant }, ...current.grants.slice(index + 1)],
-                }))
-              }
-              onRemove={() =>
+                  grants: [...current.grants.slice(0, index + 1), { ...grant }, ...current.grants.slice(index + 1)],
+                }));
+              }}
+              onRemove={() => {
+                const removed = removeSpPersonaGrantRow(grantRowIds, unresolvedSelections, index);
+                setGrantRowIds(removed.rowIds);
+                setUnresolvedSelections(removed.unresolved);
                 setDraft((current) => ({
                   ...current,
                   grants: current.grants.filter((_, item) => item !== index),
-                }))
-              }
+                }));
+              }}
             />
           ))}
           {suggestionError ? (
@@ -412,14 +528,22 @@ function SpPersonaDefinitionBuilder({
                   type="button"
                   variant="outline"
                   className="roster-control"
-                  disabled={busy || draft.grants.length >= 24}
-                  onClick={() =>
+                  disabled={busy || draft.grants.length >= SP_PERSONA_GRANT_COUNT_MAX}
+                  onClick={() => {
+                    const converted = grantsFromLegacy(capability);
+                    if (draft.grants.length + converted.length > SP_PERSONA_GRANT_COUNT_MAX) {
+                      setSuggestionError(
+                        `Converting this entry would exceed the ${SP_PERSONA_GRANT_COUNT_MAX}-permission limit. Remove or narrow permissions first.`
+                      );
+                      return;
+                    }
+                    setGrantRowIds((current) => [...current, ...converted.map(() => `manual-${nextRowId.current++}`)]);
                     setDraft((current) => ({
                       ...current,
-                      grants: [...current.grants, ...grantsFromLegacy(capability)].slice(0, 24),
+                      grants: [...current.grants, ...converted],
                       legacyCapabilities: current.legacyCapabilities.filter((_, item) => item !== index),
-                    }))
-                  }
+                    }));
+                  }}
                 >
                   Convert
                 </Button>
@@ -490,6 +614,111 @@ function SpPersonaDefinitionBuilder({
         onDelete={onDelete}
       />
     </div>
+  );
+}
+
+export function ExampleProfiles({
+  templates,
+  warning,
+  resources,
+  busy,
+  useBlockedReason = null,
+  onUse,
+}: {
+  templates: SpPersonaTemplate[];
+  warning: string | null;
+  resources: SpGrantResource[];
+  busy: boolean;
+  useBlockedReason?: string | null;
+  onUse: (template: SpPersonaTemplate, variant: SpPersonaTemplateVariant) => void;
+}) {
+  return (
+    <section className="sp-example-profiles" aria-labelledby="sp-example-profiles-title">
+      <div className="sp-example-profiles-head">
+        <div>
+          <strong id="sp-example-profiles-title">Example profiles</strong>
+          <p>Stage an editable, credential-free plan. Nothing is saved, created, or granted until you review it.</p>
+        </div>
+      </div>
+      {warning ? (
+        <p className="settings-status settings-error" role="alert">
+          {warning}
+        </p>
+      ) : null}
+      <div className="sp-example-profile-grid">
+        {templates.map((template) => {
+          const leastPrivilege = template.variants.find((variant) => variant.leastPrivilege);
+          const expanded = template.variants.filter((variant) => !variant.leastPrivilege);
+          if (!leastPrivilege) return null;
+          const leastResolved = resolveSpPersonaTemplateVariant(leastPrivilege, resources);
+          return (
+            <article className="sp-example-profile" key={template.id}>
+              <div>
+                <strong>{template.displayName}</strong>
+                <p>{template.roleSummary}</p>
+              </div>
+              <ul className="sp-example-capabilities">
+                {template.keyCapabilities.map((capability) => (
+                  <li key={capability}>{capability}</li>
+                ))}
+              </ul>
+              <p className="sp-example-grant-count">
+                {leastPrivilege.grants.length} grant intents
+                {leastResolved.overflow.length > 0
+                  ? ` · ${leastResolved.overflow[0].requiredGrantCount} resolved grants exceed the ${leastResolved.overflow[0].grantLimit}-permission limit`
+                  : leastResolved.unresolved.length > 0
+                    ? ` · ${leastResolved.unresolved.length} resource choice(s) need review`
+                    : ' · configured resources resolved'}
+              </p>
+              {useBlockedReason ? <p className="settings-status">{useBlockedReason}</p> : null}
+              <details>
+                <summary>Review duties, boundaries, and exclusions</summary>
+                <strong>Duties</strong>
+                <ul>
+                  {template.duties.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                <strong>Data boundaries</strong>
+                <ul>
+                  {template.dataBoundaries.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                <strong>Explicit exclusions</strong>
+                <ul>
+                  {template.exclusions.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </details>
+              <div className="sp-example-profile-actions">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy || Boolean(useBlockedReason)}
+                  onClick={() => onUse(template, leastPrivilege)}
+                >
+                  Use profile
+                </Button>
+                {expanded.map((variant) => (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy || Boolean(useBlockedReason)}
+                    key={variant.id}
+                    onClick={() => onUse(template, variant)}
+                  >
+                    Use {variant.label}
+                  </Button>
+                ))}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -647,6 +876,7 @@ function StructuredGrantRow({
   onChange,
   onDuplicate,
   onRemove,
+  removeDisabled = false,
 }: {
   grant: SpGrant;
   grants: SpGrant[];
@@ -659,6 +889,7 @@ function StructuredGrantRow({
   onChange: (grant: SpGrant) => void;
   onDuplicate: () => void;
   onRemove: () => void;
+  removeDisabled?: boolean;
 }) {
   const identifierFault = spGrantIdentifierFault(grant.resourceType, grant.resource);
   const duplicate = grants.findIndex((candidate) => spGrantKey(candidate) === spGrantKey(grant)) !== index;
@@ -712,7 +943,7 @@ function StructuredGrantRow({
             type="button"
             variant="ghost"
             className="sp-icon-button"
-            disabled={busy || grants.length >= 24}
+            disabled={busy || grants.length >= SP_PERSONA_GRANT_COUNT_MAX}
             aria-label={`Duplicate permission ${index + 1}`}
             onClick={onDuplicate}
           >
@@ -722,7 +953,7 @@ function StructuredGrantRow({
             type="button"
             variant="ghost"
             className="sp-icon-button"
-            disabled={busy}
+            disabled={busy || removeDisabled}
             aria-label={`Remove permission ${index + 1}`}
             onClick={onRemove}
           >

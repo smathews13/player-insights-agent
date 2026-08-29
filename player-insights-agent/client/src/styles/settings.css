@@ -2035,6 +2035,77 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   gap: 10px;
 }
 
+.sp-example-profiles {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.sp-example-profiles-head strong {
+  font-size: 12px;
+}
+
+.sp-example-profiles-head p,
+.sp-example-profile p,
+.sp-example-profile details,
+.sp-example-profile ul {
+  margin: 2px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.sp-example-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.sp-example-profile {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.sp-example-capabilities {
+  padding-left: 16px;
+}
+
+.sp-example-grant-count {
+  font-weight: 600;
+}
+
+.sp-example-profile details {
+  border-top: 1px solid var(--border);
+  padding-top: 7px;
+}
+
+.sp-example-profile details summary {
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.sp-example-profile details > strong {
+  display: block;
+  margin-top: 7px;
+  color: var(--foreground);
+}
+
+.sp-example-profile details ul {
+  padding-left: 16px;
+}
+
+.sp-example-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .sp-persona-builder {
   min-width: 0;
   display: grid;
@@ -2263,6 +2334,24 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .sp-grant-error {
   color: var(--destructive);
+}
+
+.sp-template-unresolved {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
+
+.sp-template-unresolved strong {
+  color: var(--foreground);
+}
+
+.sp-template-unresolved ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
 }
 
 .sp-suggestion-error {

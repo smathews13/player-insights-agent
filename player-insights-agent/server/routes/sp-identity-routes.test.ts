@@ -25,6 +25,13 @@ describe('service-principal identity admin routes', () => {
     expect(source).not.toMatch(/console\.(?:info|warn)\([^)]*(?:purpose|displayName|prompt)/s);
   });
 
+  it('returns deployment-validated examples without persisting or provisioning them', () => {
+    expect(source).toContain('configuredSpPersonaTemplates()');
+    expect(source).toContain('personaTemplates: templateConfig.templates');
+    expect(source).toContain('personaTemplateWarning: templateConfig.warning');
+    expect(source).not.toMatch(/personaTemplates[\s\S]{0,400}insertSpPersonaDefinition/);
+  });
+
   it('never serialises a secret value', () => {
     expect(source).toContain("app.get('/api/admin/sp-identity'");
     expect(source).toContain("app.put('/api/admin/sp-identity/mode'");

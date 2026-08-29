@@ -141,6 +141,11 @@ env:
   # untracked deployment override, never in this published file.
   - name: PLAYER_INSIGHTS_ORGANIZATIONS
     value: ''
+  # Optional deployment-private example SP profiles. The generic contract is
+  # parsed and validated by the server; customer names and selectors belong in
+  # a pruned target overlay or an untracked deployment override.
+  - name: PLAYER_INSIGHTS_PERSONA_TEMPLATES
+    value: ''
   # The catalog and schema Databricks Apps writes this app's own telemetry into,
   # as `catalog.schema`. Read by the Ops tab, which reports what the app served,
   # and by the administrator settings, which grant an admin read access to it at

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { ResourceBrowser, SpIdentityEditor } from './SpIdentityPanel';
+import { ExampleProfiles, ResourceBrowser, SpIdentityEditor } from './SpIdentityPanel';
 import { isSpPersonaDefinitionComplete } from './sp-persona-definition';
 import { EMPTY_SP_IDENTITY, UNASSIGNED_PERSONA } from './identity-settings-api';
 import { SP_IDENTITY_MINTING_UNAVAILABLE, type SpIdentityAdminPayload } from '../../shared/sp-identity';
@@ -166,6 +166,127 @@ describe('Settings → Identity', () => {
     expect(markup).toContain('lucide-external-link');
     expect(markup).not.toMatch(/service principal (created|provisioned)/i);
     expect(markup).not.toMatch(/client id|secret scope|secret key/i);
+  });
+
+  it('renders review-only example profile cards with capabilities, counts, and an explicit staging action', () => {
+    const template = {
+      id: 'fictional-analyst',
+      displayName: 'Fictional Analyst',
+      roleSummary: 'Read-only governed reporting.',
+      purpose: 'Analyze approved data.',
+      duties: ['Run approved reports.'],
+      dataBoundaries: ['Configured resources only.'],
+      exclusions: ['No writes or management.'],
+      keyCapabilities: ['Governed SQL', 'Approved Genie'],
+      variants: [
+        {
+          id: 'least-privilege',
+          label: 'least privilege',
+          description: 'Read only.',
+          leastPrivilege: true,
+          grants: [
+            {
+              resourceType: 'SQL_WAREHOUSE' as const,
+              action: 'USE' as const,
+              privilege: 'CAN USE',
+              selector: { match: 'single' as const, choiceLabel: 'Reporting warehouse' },
+            },
+          ],
+        },
+      ],
+    };
+    const markup = renderToStaticMarkup(
+      <ExampleProfiles
+        templates={[template]}
+        warning={null}
+        resources={PAYLOAD.grantResourceDiscovery?.resources ?? []}
+        busy={false}
+        onUse={() => {}}
+      />
+    );
+    expect(markup).toContain('Example profiles');
+    expect(markup).toContain('Fictional Analyst');
+    expect(markup).toContain('Governed SQL');
+    expect(markup).toContain('1 grant intents');
+    expect(markup).toContain('Use profile');
+    expect(markup).toContain('Nothing is saved, created, or granted');
+    expect(markup).toContain('Review duties, boundaries, and exclusions');
+  });
+
+  it('keeps applied examples editable, incomplete when unresolved, and cancellable before save', () => {
+    const source = readFileSync(new URL('SpIdentityPanel.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('resolveSpPersonaTemplateVariant');
+    expect(source).toContain('setDraft({');
+    expect(source).toContain('Cancel staged changes');
+    expect(source).toContain('Complete {activeUnresolved.length} resource choice(s) before saving');
+    expect(source).toContain('templateOverflow.length === 0');
+    expect(source).toContain('duplicateSpPersonaGrantRow');
+    expect(source).not.toMatch(/function useTemplate[\s\S]{0,800}setEditingId\(null\)/);
+    expect(source).not.toMatch(/useTemplate[\s\S]{0,1200}(?:onCreate|createSpPersonaDefinition)\(/);
+  });
+
+  it('disables profile replacement with an explicit explanation while a draft is active', () => {
+    const template = {
+      id: 'fictional-analyst',
+      displayName: 'Fictional Analyst',
+      roleSummary: 'Read-only governed reporting.',
+      purpose: 'Analyze approved data.',
+      duties: ['Run approved reports.'],
+      dataBoundaries: ['Configured resources only.'],
+      exclusions: ['No writes or management.'],
+      keyCapabilities: ['Governed SQL'],
+      variants: [
+        {
+          id: 'least-privilege',
+          label: 'least privilege',
+          description: 'Read only.',
+          leastPrivilege: true,
+          grants: [
+            {
+              resourceType: 'SQL_WAREHOUSE' as const,
+              action: 'USE' as const,
+              privilege: 'CAN USE',
+              selector: { match: 'single' as const, choiceLabel: 'Reporting warehouse' },
+            },
+          ],
+        },
+      ],
+    };
+    const existingEdit = renderToStaticMarkup(
+      <ExampleProfiles
+        templates={[template]}
+        warning={null}
+        resources={PAYLOAD.grantResourceDiscovery?.resources ?? []}
+        busy={false}
+        useBlockedReason="Finish or cancel the current edit first."
+        onUse={() => {}}
+      />
+    );
+    expect(existingEdit).toContain('Finish or cancel the current edit first.');
+    expect(existingEdit).toContain('disabled=""');
+
+    const dirtyCreate = renderToStaticMarkup(
+      <ExampleProfiles
+        templates={[template]}
+        warning={null}
+        resources={PAYLOAD.grantResourceDiscovery?.resources ?? []}
+        busy={false}
+        useBlockedReason="Cancel staged changes before using an example profile."
+        onUse={() => {}}
+      />
+    );
+    expect(dirtyCreate).toContain('Cancel staged changes before using an example profile.');
+
+    const cleanCreate = renderToStaticMarkup(
+      <ExampleProfiles
+        templates={[template]}
+        warning={null}
+        resources={PAYLOAD.grantResourceDiscovery?.resources ?? []}
+        busy={false}
+        onUse={() => {}}
+      />
+    );
+    expect(cleanCreate).not.toContain('disabled=""');
   });
 
   it('browses grouped configured resources and keeps manual entry secondary', () => {

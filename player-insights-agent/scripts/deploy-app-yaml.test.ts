@@ -261,6 +261,23 @@ describe('every authored variable reaches the deploy target', () => {
     expect(generated.match(/name: PLAYER_INSIGHTS_ADMIN_EMAILS/g)).toHaveLength(1);
   });
 
+  it('declares persona examples empty in source and carries deployment-private JSON only during release', () => {
+    expect(envNames(authored)).toContain('PLAYER_INSIGHTS_PERSONA_TEMPLATES');
+    expect(/- name: PLAYER_INSIGHTS_PERSONA_TEMPLATES\n\s+value: '?([^'\n]*)'?/.exec(authored)?.[1]).toBe('');
+    expect(bundleServer).toContain('process.env.PLAYER_INSIGHTS_PERSONA_TEMPLATES');
+    expect(bundleServer).toContain("name: 'PLAYER_INSIGHTS_PERSONA_TEMPLATES'");
+    expect(appRelease).toContain('bundle/targets/$TARGET/persona-templates.json');
+    expect(appRelease).toContain('PLAYER_INSIGHTS_PERSONA_TEMPLATES="$PERSONA_TEMPLATES"');
+
+    const configured = '[{"id":"fictional-reader"}]';
+    const generated = renderDeployAppYaml(authored, {
+      ...DEPLOY_OVERRIDES,
+      env: [...DEPLOY_OVERRIDES.env, { name: 'PLAYER_INSIGHTS_PERSONA_TEMPLATES', value: `'${configured}'` }],
+    });
+    expect(generated).toContain(`name: PLAYER_INSIGHTS_PERSONA_TEMPLATES\n    value: '${configured}'`);
+    expect(generated.match(/name: PLAYER_INSIGHTS_PERSONA_TEMPLATES/g)).toHaveLength(1);
+  });
+
   it('keeps resource-backed variables bound to their resource', () => {
     const generated = renderDeployAppYaml(authored, DEPLOY_OVERRIDES);
 

@@ -364,6 +364,16 @@ fi
 # the first administrator.
 ADMIN_EMAILS="${PLAYER_INSIGHTS_ADMIN_EMAILS:-$(bundle_var_or_empty admin_emails)}"
 ORGANIZATIONS="${PLAYER_INSIGHTS_ORGANIZATIONS:-$(bundle_var_or_empty organization_domains)}"
+PERSONA_TEMPLATES="${PLAYER_INSIGHTS_PERSONA_TEMPLATES:-}"
+PERSONA_TEMPLATE_OVERLAY="$BUNDLE_ROOT/bundle/targets/$TARGET/persona-templates.json"
+if [[ -z "$PERSONA_TEMPLATES" && -f "$PERSONA_TEMPLATE_OVERLAY" ]]; then
+  PERSONA_TEMPLATES="$(python3 - "$PERSONA_TEMPLATE_OVERLAY" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as handle:
+    print(json.dumps(json.load(handle), separators=(",", ":")))
+PY
+)"
+fi
 IDLE_TIMEOUT="${PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES:-$(bundle_var_or_empty app_idle_timeout_minutes)}"
 if [[ -n "$ADMIN_EMAILS" ]]; then
   note "administrators       $ADMIN_EMAILS"
@@ -436,6 +446,7 @@ step "Building the dependency-free deploy tree"
      PLAYER_INSIGHTS_USER_API_SCOPES="$DECLARED_SCOPES" \
      PLAYER_INSIGHTS_ADMIN_EMAILS="$ADMIN_EMAILS" \
      PLAYER_INSIGHTS_ORGANIZATIONS="$ORGANIZATIONS" \
+     PLAYER_INSIGHTS_PERSONA_TEMPLATES="$PERSONA_TEMPLATES" \
      PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES="$IDLE_TIMEOUT" \
      PLAYER_INSIGHTS_APP_SCHEMA="$LAKEBASE_APP_SCHEMA" \
      npm run build:deploy)

@@ -22,6 +22,7 @@
 
 import { z } from 'zod';
 import type { OrganizationMapping } from './organization-mapping';
+import type { SpPersonaTemplate } from './sp-persona-templates';
 
 /** Lakebase / identity-payload flag: the whole app uses assigned SP tokens. */
 export const SP_IDENTITY_ENABLED_SETTING = 'sp-identity-enabled';
@@ -292,6 +293,9 @@ export interface SpIdentityAdminPayload {
   personas: SpPersona[];
   /** Optional while an older deployed server is rolling forward. */
   personaDefinitions?: SpPersonaDefinition[];
+  /** Deployment-configured, credential-free examples; never persisted by reading. */
+  personaTemplates?: SpPersonaTemplate[];
+  personaTemplateWarning?: string | null;
   /** Absent while loading or when an older server has not implemented discovery. */
   grantResourceDiscovery?: SpGrantResourceDiscovery;
   /** Official generic Account Console landing page for this deployment's cloud. */
@@ -305,7 +309,7 @@ const NAME_MAX = 120;
 const DESCRIPTION_MAX = 280;
 const CAPABILITY_MAX = 180;
 const CAPABILITY_COUNT_MAX = 12;
-const GRANT_COUNT_MAX = 24;
+export const SP_PERSONA_GRANT_COUNT_MAX = 24;
 const SECRET_REF_MAX = 128;
 const CLIENT_ID_MAX = 64;
 
@@ -401,7 +405,7 @@ export const SpGrantSchema = z
 
 const SpGrantsSchema = z
   .array(SpGrantSchema)
-  .max(GRANT_COUNT_MAX)
+  .max(SP_PERSONA_GRANT_COUNT_MAX)
   .refine((grants) => new Set(grants.map(spGrantKey)).size === grants.length, {
     message: 'The grant plan contains an exact duplicate.',
   });
