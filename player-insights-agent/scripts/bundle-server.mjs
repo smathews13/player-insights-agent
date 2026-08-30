@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeDeployAppYaml } from './deploy-app-yaml.mjs';
+import { copyAccessGuideAsset } from './access-guide-asset.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(root, 'build', 'deploy');
@@ -284,6 +285,7 @@ async function main() {
     recursive: true,
     filter: (src) => !skipFromStatic.has(path.basename(src)),
   });
+  await copyAccessGuideAsset({ root, outDir });
 
   // Passed through rather than interpreted. The server decides what counts as
   // "on". This only has to make sure the value the release resolved actually

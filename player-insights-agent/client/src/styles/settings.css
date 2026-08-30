@@ -1127,6 +1127,68 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   font-weight: 700;
 }
 
+.access-guide-download-row {
+  min-width: 0;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+}
+
+.access-guide-download-title,
+.access-guide-download-description {
+  margin: 0;
+}
+
+.access-guide-download-title {
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.access-guide-download-description {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.access-guide-download-button {
+  min-height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.access-guide-download-button:hover {
+  border-color: var(--db-blue-800);
+  background: var(--db-blue-800);
+  color: var(--primary-foreground);
+}
+
+.access-guide-download-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.access-guide-download-button svg {
+  width: 14px;
+  height: 14px;
+}
+
 .settings-modal-footer {
   min-height: 58px;
   padding: 10px 16px;

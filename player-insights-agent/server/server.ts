@@ -29,6 +29,7 @@ createApp({
       { setupBrowseRoutes },
       { setupArchitectureRoutes },
       { setupAdminRoutes },
+      { setupAccessGuideRoutes },
       { setupUserRoutes },
       { setupMonitoringRoutes },
       { setupOpsRoutes },
@@ -50,6 +51,7 @@ createApp({
       import('./routes/browse-routes'),
       import('./routes/architecture-routes'),
       import('./routes/admin-routes'),
+      import('./routes/access-guide-routes'),
       import('./routes/user-routes'),
       import('./routes/monitoring-routes'),
       import('./routes/ops-routes'),
@@ -109,6 +111,10 @@ createApp({
     // is added afterwards. Registered first, `/api/admins` would serve the admin
     // list to every consumer who asked for it.
     setupAdminRoutes(appkit);
+    // A fixed bundled PDF, protected by the same identity, app-session, and
+    // `/api/admin` role gates already registered above. Its availability route
+    // lets public builds omit both the confidential asset and a dead UI control.
+    setupAccessGuideRoutes(appkit);
     setupRunLabelRoutes(appkit);
     // After the insights routes for the reason above and for one more: they register
     // the super-admin guard as well, and Express applies middleware to what is added

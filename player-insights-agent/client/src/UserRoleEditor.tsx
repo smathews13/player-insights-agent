@@ -45,6 +45,7 @@ import {
   writeHumanRoster,
 } from './identity-settings-api';
 import { SpIdentityEditor, type SpIdentityMutationError } from './SpIdentityPanel';
+import { AccessGuideDownload } from './AccessGuideDownload';
 
 /** The #24a add row appoints an Admin or Consumer. Super-admin promotion stays
  * on an existing row, where the server names it in `assignable` and protects the
@@ -399,6 +400,7 @@ export function UserRoleEditor({
         <h4 id="human-roles-title" className="settings-section-title">
           Human roles and admins
         </h4>
+        <AccessGuideDownload />
         {loading ? <p className="admin-list-note">Reading identity settings.</p> : null}
         {error ? (
           <p className="admin-list-note admin-list-error">
