@@ -87,12 +87,15 @@ import {
   reportSections,
   resultShape,
   semanticResult,
+  sqlStatements,
   structuredTableResult,
   type ResultShape,
 } from './step-results';
 import { astPill } from './run-header';
 import { EntityText, TableEntityList } from './DataEntityLinks';
 import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
+import { SqlCodeBlocks } from './SqlPresentation';
+import { sanitizeSqlForDisplay } from './sql-presentation';
 import {
   cardCalls,
   cardTiming,
@@ -105,7 +108,6 @@ import {
   rawIo,
   runContainerSummary,
   sqlLines,
-  sqlTokens,
   stepNumber,
   RAIL_CONNECTOR_HEIGHT,
   type RailGlyph,
@@ -488,9 +490,10 @@ function RenderedResult({
  * tokenised version above, which is the same characters in spans, and not the
  * clamped fragment on screen.
  */
-function SqlBlock({ sql }: { sql: string }) {
+function SqlBlock({ sql, tables = [] }: { sql: string; tables?: readonly string[] }) {
   const [expanded, setExpanded] = useState(false);
-  const lines = sqlLines(sql);
+  const safeSql = sanitizeSqlForDisplay(sql);
+  const lines = sqlStatements(safeSql).flatMap(sqlLines);
   const clamps = lines.length > CLAMP_LINES;
   return (
     <div className={`dag-sql ${expanded || !clamps ? 'open' : ''}`}>
@@ -503,7 +506,7 @@ function SqlBlock({ sql }: { sql: string }) {
           type="button"
           className="dag-sql-copy"
           onClick={() => {
-            void navigator.clipboard?.writeText(sql);
+            void navigator.clipboard?.writeText(safeSql);
             // The same one-line report the run details' copies make. This is a
             // second button onto a channel that already reports, so nothing was
             // unrecorded -- but a path that reports from one of its buttons and
@@ -517,34 +520,7 @@ function SqlBlock({ sql }: { sql: string }) {
         </button>
       </div>
       <div className="dag-sql-body">
-        <pre>
-          {lines.map((line, at) => (
-            <span key={lines.slice(0, at + 1).join('\n')}>
-              {sqlTokens(line).map((token, tokenAt) =>
-                token.keyword ? (
-                  <b
-                    key={sqlTokens(line)
-                      .slice(0, tokenAt + 1)
-                      .map(({ text }) => text)
-                      .join('|')}
-                  >
-                    {token.text}
-                  </b>
-                ) : (
-                  <span
-                    key={sqlTokens(line)
-                      .slice(0, tokenAt + 1)
-                      .map(({ text }) => text)
-                      .join('|')}
-                  >
-                    {token.text}
-                  </span>
-                )
-              )}
-              {'\n'}
-            </span>
-          ))}
-        </pre>
+        <SqlCodeBlocks sql={safeSql} formatClauses={false} tables={tables} />
         {clamps && !expanded && (
           <button type="button" className="dag-sql-more" onClick={() => setExpanded(true)}>
             Show all {lines.length} lines
@@ -774,7 +750,7 @@ export function StageDetail({
           </>
         ) : null}
       </dl>
-      {sql && <SqlBlock sql={sql.value} />}
+      {sql && <SqlBlock sql={sql.value} tables={tables} />}
     </div>
   );
 }

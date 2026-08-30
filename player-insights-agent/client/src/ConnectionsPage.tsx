@@ -104,6 +104,7 @@ import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import { ApplyDeclarationCard } from './ApplyDeclarationCard';
 import {
   configurationValue,
+  DECLARED_TABLES_SECTION_ID,
   RESOURCE_PRODUCT,
   tableReachabilityCopy,
   declaredTableFilterOptions,
@@ -356,6 +357,7 @@ export function BuildStampRow({ artifact }: { artifact: BuildArtifact }) {
  * after that URL is opened.
  */
 function Disclosure({
+  id,
   open,
   onToggle,
   summary,
@@ -363,6 +365,7 @@ function Disclosure({
   controls,
   children,
 }: {
+  id?: string;
   open: boolean;
   onToggle: () => void;
   summary: string;
@@ -371,7 +374,7 @@ function Disclosure({
   children: React.ReactNode;
 }) {
   return (
-    <section className="connection-block">
+    <section id={id} className="connection-block">
       <div className="connection-block-head">
         <button type="button" className="connection-block-summary" aria-expanded={open} onClick={onToggle}>
           <ChevronRight className={`size-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
@@ -693,6 +696,7 @@ export function DeclaredTablesSection({
 
   return (
     <Disclosure
+      id={DECLARED_TABLES_SECTION_ID}
       open={open}
       onToggle={() => setOpen((was) => !was)}
       summary="Unity Catalog tables"
@@ -1753,11 +1757,13 @@ export function ConnectionsPage() {
       entries={payload?.connections}
       storeAvailable={payload?.storeAvailable ?? true}
       allowMutations={allowMutations}
-      onChanged={() => {
-        void rereadSettings();
+      onChanged={async () => {
+        await rereadSettings();
       }}
     />
   );
+  const showsDeclaredConnections =
+    allowMutations || Boolean(payload?.connections?.length) || payload?.storeAvailable === false;
 
   const now = Date.now();
 
@@ -2051,20 +2057,23 @@ export function ConnectionsPage() {
                   onClear={() => clear(reading.row)}
                 />
               ))}
+              {/* Built-in configured resources always lead. The shared declared
+                  list then adds its own deterministic user-added section, with
+                  the closed Add row and form after every saved row. */}
+              {group.key === 'reachable' ? declaredConnections : null}
             </div>
-            {/* THE LAST ROW OF THIS SECTION, and of no other. What the control
-                adds -- a table, a Genie space, a catalog -- is the same kind of
-                thing every row above it names, and it used to sit at the foot
-                of the Unity Catalog table list, two sections down, where it
-                read as the way to add a table. */}
-            {group.key === 'reachable' ? declaredConnections : null}
           </section>
         )
       )}
 
       {/* A deployment where nothing was reachable draws no Connected resources
           section, and the control must not vanish with it. */}
-      {groups.some((group) => group.key === 'reachable') ? null : declaredConnections}
+      {groups.some((group) => group.key === 'reachable') || !showsDeclaredConnections ? null : (
+        <section className="connection-group">
+          <h3 className="connection-group-title">Connected resources</h3>
+          <div className="connection-rows">{declaredConnections}</div>
+        </section>
+      )}
 
       {tableChecks.length > 0 ? (
         <DeclaredTablesSection tableChecks={tableChecks} requestedEntity={requestedEntity} checkedAt={lastCheckedAt} />

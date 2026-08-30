@@ -247,11 +247,9 @@ describe('the parts a reader has to be able to use', () => {
     expect(rule('.plane-add-row')).toMatch(/border:\s*1px solid var\(--border\)/);
   });
 
-  it('uses the destructive control token only for permanent removal', () => {
-    const forever = rule('.plane-confirm-forever');
-    expect(forever).toMatch(/background:\s*var\(--destructive\)/);
-    expect(forever).toMatch(/border:\s*1px solid var\(--destructive\)/);
-    expect(forever).toMatch(/color:\s*var\(--destructive-foreground\)/);
+  it('sizes the trash mark inside the shared destructive button', () => {
+    expect(rule('.plane-delete-connection svg')).toMatch(/width:\s*14px/);
+    expect(rule('.plane-delete-connection svg')).toMatch(/height:\s*14px/);
   });
 
   it('paints the affordance that leads somewhere in the action colour, and the padlock not at all', () => {
@@ -260,6 +258,33 @@ describe('the parts a reader has to be able to use', () => {
     // are the same #2272B4 and astrolabe-tokens.test.ts holds them equal; this
     // page asks for it by the name the rebuild uses.
     expect(rule(".connection-row-affordance[data-affordance='write']")).toMatch(/color:\s*var\(--ast-blue\)/);
+  });
+});
+
+describe('the add-resource surface over the constellation', () => {
+  it('uses theme-aware opaque surfaces for standard rows, the form and picker', () => {
+    expect(rule('.connection-rows')).toMatch(/background:\s*var\(--popover\)/);
+    expect(rule('.plane-add-row')).toMatch(/background:\s*var\(--popover\)/);
+    expect(rule('.plane-form')).toMatch(/background:\s*var\(--popover\)/);
+    expect(rule('.asset-picker')).toMatch(/background:\s*var\(--card\)/);
+    for (const selector of ['.connection-rows', '.plane-add-row', '.plane-form', '.asset-picker']) {
+      expect(rule(selector), selector).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
+    }
+  });
+
+  it('keeps selected, hover and keyboard focus rows readable without moving them', () => {
+    const selected = rule(".asset-picker-row[data-selected='true']");
+    expect(selected).toMatch(/background:\s*var\(--db-selected-tint\)/);
+    expect(selected).toMatch(/box-shadow:\s*inset 3px 0 0 var\(--ast-blue\)/);
+    expect(CSS).toMatch(/\.asset-picker-row:hover,\s*\n\.asset-picker-row:focus-within\s*\{/);
+    expect(rule('.asset-picker-row-names')).toMatch(/display:\s*grid/);
+    expect(rule('.asset-picker-row-id')).toMatch(/text-overflow:\s*ellipsis/);
+    expect(rule('.asset-picker-row-id')).toMatch(/white-space:\s*nowrap/);
+  });
+
+  it('separates pagination from the resource rows', () => {
+    expect(rule('.asset-picker-more')).toMatch(/border-top:\s*1px solid var\(--border\)/);
+    expect(rule('.asset-picker-more')).toMatch(/justify-content:\s*center/);
   });
 });
 

@@ -382,7 +382,7 @@ const StageSchema = z.looseObject({
   kind: z.string(),
   start: z.number(),
   duration: z.number(),
-  status: z.enum(['complete', 'running', 'partial', 'failed']),
+  status: z.enum(['complete', 'running', 'partial', 'failed', 'cancelled', 'awaiting_approval']),
   calls: z.number(),
   input: z.string(),
   output: z.string(),
@@ -822,7 +822,7 @@ const TraceDetailSchema = TraceSchema.extend({ stages: z.array(TraceStageDetailS
 const ToolStageSchema = z.looseObject({
   id: z.string(),
   name: z.string(),
-  status: z.enum(['complete', 'running', 'partial', 'failed']),
+  status: z.enum(['complete', 'running', 'partial', 'failed', 'cancelled', 'awaiting_approval']),
   durationMs: z.number(),
   calls: z.number(),
   arguments: z.string(),

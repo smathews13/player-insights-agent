@@ -410,6 +410,7 @@ html:has(.connections-page) body[data-scroll-locked] {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
+  background: var(--popover);
 }
 .connection-row + .connection-row {
   border-top: 1px solid var(--border);
@@ -1608,44 +1609,11 @@ html:has(.connections-page) body[data-scroll-locked] {
   white-space: nowrap;
   color: var(--ast-text-secondary);
 }
-/* Both row actions occupy the one trailing grid cell. Remove keeps a recovery
-   path; the trash control permanently forgets the row, so neither is allowed to
-   disappear behind the other when an identifier takes the remaining width. */
+/* Restore and the one destructive action occupy the trailing row cell. */
 .plane-row-actions {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-.plane-row-forget {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--ast-border-input);
-  border-radius: var(--ast-radius-control);
-  background: var(--card);
-  color: var(--ast-text-secondary);
-  cursor: pointer;
-}
-.plane-row-forget > svg {
-  width: 14px;
-  height: 14px;
-}
-.plane-row-forget:hover,
-.plane-row-forget:focus-visible {
-  border-color: var(--ast-neg-border);
-  background: var(--ast-neg-fill);
-  color: var(--ast-neg-text);
-}
-.plane-row-forget:focus-visible {
-  outline: 2px solid var(--ast-blue);
-  outline-offset: 2px;
-}
-.plane-row-forget:disabled {
-  cursor: wait;
-  opacity: 0.5;
 }
 /* An ordinarily removed asset is still listed, because the safe action is not
    destructive and the way back is the button in its own row. Dimmed rather than
@@ -1670,6 +1638,58 @@ html:has(.connections-page) body[data-scroll-locked] {
 .plane-stack {
   display: grid;
   gap: 4px;
+}
+.declared-connections-heading {
+  margin: 0;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.declared-connection-row {
+  background: var(--popover);
+}
+.declared-connection-row:focus {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: -2px;
+}
+.declared-connection-summary {
+  flex-wrap: wrap;
+  cursor: default;
+}
+.declared-connection-summary .connection-row-title {
+  flex: 0 1 auto;
+  max-width: min(28rem, 35vw);
+  overflow: hidden;
+}
+.declared-connection-id {
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  max-width: 28rem;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.declared-connection-summary .connection-provenance {
+  min-width: 0;
+}
+.declared-connection-summary .plane-row-actions {
+  margin-left: auto;
+}
+.declared-connection-row > .connection-row-note,
+.declared-connection-error {
+  margin: 0;
+  padding: 0 16px 12px;
+}
+.plane-delete-connection svg {
+  width: 14px;
+  height: 14px;
 }
 .plane-rows {
   display: grid;
@@ -1718,28 +1738,6 @@ html:has(.connections-page) body[data-scroll-locked] {
   display: flex;
   gap: 8px;
 }
-/* Filled danger is reserved for the action whose confirmation says it cannot
-   be undone. The recoverable Remove and Put back controls remain quiet. */
-.plane-confirm-forever {
-  padding: 4px 10px;
-  border: 1px solid var(--destructive);
-  border-radius: var(--ast-radius-control);
-  background: var(--destructive);
-  color: var(--destructive-foreground);
-  font-size: var(--ast-fs-12);
-  cursor: pointer;
-}
-.plane-confirm-forever:hover {
-  filter: brightness(0.9);
-}
-.plane-confirm-forever:focus-visible {
-  outline: 2px solid var(--ast-blue);
-  outline-offset: 2px;
-}
-.plane-confirm-forever:disabled {
-  cursor: wait;
-  opacity: 0.7;
-}
 /* The add form follows the decision: kind, its identifier, then the two names
    the stored row needs. A six-pixel gap made labels and controls from adjacent
    decisions read as one dense stack, so the form uses the ordinary row gap and
@@ -1747,6 +1745,9 @@ html:has(.connections-page) body[data-scroll-locked] {
 .plane-form {
   display: grid;
   gap: 12px;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  background: var(--popover);
 }
 
 .notebook-path-editor {
@@ -1822,7 +1823,7 @@ html:has(.connections-page) body[data-scroll-locked] {
   position: sticky;
   bottom: 0;
   padding-block: 10px;
-  background: var(--background);
+  background: var(--popover);
   border-top: 1px solid var(--border);
 }
 .plane-add-reason {
@@ -1874,6 +1875,7 @@ html:has(.connections-page) body[data-scroll-locked] {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 10px 16px;
+  background: var(--popover);
 }
 .plane-add-connection {
   padding: 0;
@@ -1908,7 +1910,7 @@ html:has(.connections-page) body[data-scroll-locked] {
   padding: 10px;
   border: 1px solid var(--ast-hairline, var(--border));
   border-radius: var(--radius-md);
-  background: var(--ast-fill-band, var(--muted));
+  background: var(--card);
 }
 .asset-picker-head {
   display: flex;
@@ -1974,15 +1976,19 @@ html:has(.connections-page) body[data-scroll-locked] {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 4px 6px;
+  min-width: 0;
+  padding: 7px 8px;
   border-radius: var(--radius-sm);
 }
-.asset-picker-row:hover {
-  background: var(--ast-white, var(--background));
+.asset-picker-row:hover,
+.asset-picker-row:focus-within {
+  background: var(--db-row-hover);
 }
 .asset-picker-row[data-selected='true'] {
-  background: var(--ast-fill-band);
-  box-shadow: inset 0 0 0 1px var(--border);
+  background: var(--db-selected-tint);
+  box-shadow:
+    inset 3px 0 0 var(--ast-blue),
+    inset 0 0 0 1px var(--border);
 }
 .warehouse-picker-choice {
   display: grid;
@@ -2062,22 +2068,30 @@ html:has(.connections-page) body[data-scroll-locked] {
   font-size: var(--text-sm);
 }
 .asset-picker-row-names {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
   min-width: 0;
 }
 .asset-picker-row-name {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--text-sm);
   font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* The stored identifier, under the name rather than instead of it. This is the
    whole reason a Genie space picker is worth having: the operator recognises the
    title and the setting holds an opaque id. */
 .asset-picker-row-id {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--text-xs);
   color: var(--muted-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .asset-picker-row-aside {
   font-size: var(--text-xs);
@@ -2165,6 +2179,9 @@ html:has(.connections-page) body[data-scroll-locked] {
 }
 .asset-picker-more {
   display: flex;
+  justify-content: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 /* What typing is FOR, where it is for more than a fallback. Only the denylist
    has one: its entries may be patterns, and no list of tables that exist today

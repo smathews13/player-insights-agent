@@ -29,7 +29,7 @@
 import { isMlflowTraceId } from './mlflow-trace-id';
 import { takeawayWhenTablesLanded, UNANSWERED_LINE } from './run-verdict';
 import { DEGRADED_ANSWER_MARKER } from './setup-remedies';
-import { projectReaderStage } from './stage-lexicon';
+import { normalizeReaderStageStatus, projectReaderStage, type ReaderStageStatus } from './stage-lexicon';
 
 /**
  * Said above the answer, in red, rather than fifth under "What to keep in mind".
@@ -69,7 +69,7 @@ export type RecordedStage = {
   kind: string;
   start: number;
   duration: number;
-  status: 'complete' | 'running' | 'partial' | 'failed';
+  status: ReaderStageStatus;
   calls: number;
   input: string;
   output: string;
@@ -86,10 +86,7 @@ function asRecordedStage(stage: Record<string, unknown>): RecordedStage {
     kind: typeof stage.kind === 'string' ? stage.kind : '',
     start: typeof stage.start === 'number' && Number.isFinite(stage.start) ? stage.start : 0,
     duration: typeof stage.duration === 'number' && Number.isFinite(stage.duration) ? stage.duration : 0,
-    status:
-      status === 'complete' || status === 'running' || status === 'partial' || status === 'failed'
-        ? status
-        : 'complete',
+    status: normalizeReaderStageStatus(status),
     calls: typeof stage.calls === 'number' && Number.isFinite(stage.calls) ? stage.calls : 0,
     input: typeof stage.input === 'string' ? stage.input : '',
     output: typeof stage.output === 'string' ? stage.output : '',
@@ -114,7 +111,7 @@ export function foldRecordedStages(stages: readonly unknown[]): {
   }
   const settled = folded.map((stage, index, list) => {
     if (index === list.length - 1 && stage.status === 'running') {
-      return { ...stage, status: 'failed' as const };
+      return projectReaderStage({ ...stage, status: 'failed' as const });
     }
     return stage;
   });

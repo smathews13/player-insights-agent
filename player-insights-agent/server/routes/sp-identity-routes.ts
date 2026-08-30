@@ -9,7 +9,6 @@ import { z } from 'zod';
 import {
   SpAssignmentWriteSchema,
   SpIdentityModeSchema,
-  SpPermissionSuggestionRequestSchema,
   SpPersonaDefinitionPatchSchema,
   SpPersonaDefinitionWriteSchema,
   SpPersonaPatchSchema,
@@ -20,10 +19,8 @@ import {
 import { accountConsoleUrlForWorkspace } from '../../shared/databricks-links';
 import { parseOrganizationMappings } from '../../shared/organization-mapping';
 import { invalidAdminEmail, normalizeAdminEmail, recordAdminAction } from '../lib/admin-roles';
-import { resolveJudgeEndpoint } from '../lib/app-settings';
 import { describeSpTokenMinting } from '../lib/sp-token';
 import { discoverSpGrantResources } from '../lib/sp-grant-resources';
-import { suggestSpPermissions } from '../lib/sp-permission-suggestions';
 import { configuredSpPersonaTemplates } from '../lib/sp-persona-templates';
 import {
   deleteSpPersonaDefinition,
@@ -40,9 +37,7 @@ import {
   isSpIdentityEnabled,
 } from '../lib/sp-identity-store';
 import { readRoster } from '../lib/user-roster';
-import { invokeServing, userEmail, type InsightsAppKit } from './insights-routes';
-
-export const SP_PERMISSION_SUGGESTION_TIMEOUT_MS = 30_000;
+import { userEmail, type InsightsAppKit } from './insights-routes';
 
 async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayload> {
   const templateConfig = configuredSpPersonaTemplates();
@@ -96,55 +91,6 @@ export function setupSpIdentityRoutes(appkit: InsightsAppKit): void {
           error: 'sp_identity_unreadable',
           detail: `Service-principal personas could not be read: ${(error as Error).message}`,
         });
-      }
-    });
-
-    app.post('/api/admin/sp-identity/permission-suggestions', async (req, res) => {
-      const parsed = SpPermissionSuggestionRequestSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: 'invalid_sp_permission_suggestion', detail: parsed.error.message });
-        return;
-      }
-      const actor = userEmail(req);
-      const started = Date.now();
-      const cancellation = new AbortController();
-      req.once('aborted', () => cancellation.abort(new Error('The suggestion request was cancelled.')));
-      try {
-        const resources = await discoverSpGrantResources(appkit);
-        const endpoint = await resolveJudgeEndpoint(appkit);
-        const suggestions = await suggestSpPermissions({
-          request: parsed.data,
-          resources,
-          invoke: (payload) =>
-            invokeServing(
-              appkit,
-              payload,
-              undefined,
-              SP_PERMISSION_SUGGESTION_TIMEOUT_MS,
-              undefined,
-              endpoint,
-              cancellation.signal
-            ),
-        });
-        console.info(
-          `[sp-permissions] Suggested ${suggestions.plans.length} plans for ${actor || 'an administrator'} ` +
-            `from ${resources.length} allowlisted resources via ${endpoint} in ${Date.now() - started} ms.`
-        );
-        res.json(suggestions);
-      } catch (error) {
-        const message = (error as Error).message;
-        const timedOut = /did not answer within/i.test(message);
-        console.warn(
-          `[sp-permissions] Suggestion failed for ${actor || 'an administrator'} after ${Date.now() - started} ms: ${message}`
-        );
-        if (!res.headersSent) {
-          res.status(timedOut ? 504 : 502).json({
-            error: timedOut ? 'sp_permission_suggestion_timeout' : 'sp_permission_suggestion_failed',
-            detail: timedOut
-              ? 'Permission suggestions timed out. Try again.'
-              : 'Permission suggestions could not be validated. Try again.',
-          });
-        }
       }
     });
 

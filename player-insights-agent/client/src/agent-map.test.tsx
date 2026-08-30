@@ -1183,10 +1183,10 @@ describe('the generated SQL block', () => {
     expect(SOURCE).toContain("field.key === 'sql' || field.key === 'query'");
   });
 
-  it('copies what was recorded rather than what is on screen', () => {
-    // The tokenised version above is the same characters in spans, and the clamped
-    // view is a fragment. Neither is what somebody pasting into a notebook wants.
-    expect(SOURCE).toContain('navigator.clipboard?.writeText(sql)');
+  it('copies the full sanitized statement rather than the clamped fragment on screen', () => {
+    // Token markup and the clamp are presentation only. Comments and
+    // credential-shaped literals still cannot ride the copy path.
+    expect(SOURCE).toContain('navigator.clipboard?.writeText(safeSql)');
   });
 });
 

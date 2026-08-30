@@ -375,7 +375,7 @@
   color: var(--ast-text);
   overflow: hidden;
 }
-.code-panel > div {
+.code-panel > .code-panel-head {
   padding: 8px 14px;
   border-bottom: 1px solid var(--ast-hairline);
   background: transparent;

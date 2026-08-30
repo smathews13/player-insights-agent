@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { OpsCostPayload, OpsTrafficPayload } from '../../shared/ops-contract';
-import { calculateForecast, deriveForecastBaseline, normalizeForecastAssumptions } from './forecast';
+import {
+  calculateForecast,
+  deriveForecastBaseline,
+  normalizeForecastAssumptions,
+  stepForecastAssumption,
+} from './forecast';
 import { FORECAST_ASSUMPTIONS_KEY, persistForecastAssumptions, readForecastAssumptions } from './forecast-preferences';
 import type { PreferenceStore } from './experimental-features';
 
@@ -164,6 +169,10 @@ describe('forecast arithmetic', () => {
     expect(result.horizons[0].total).toBeCloseTo(56);
     expect(result.horizons[1].total).toBeCloseTo(240);
     expect(result.horizons[2].total).toBeCloseTo(1440);
+    for (const horizon of result.horizons) {
+      expect(horizon.components.reduce((total, component) => total + component.amount, 0)).toBeCloseTo(horizon.total!);
+      expect(new Set(horizon.components.map((component) => component.id)).size).toBe(horizon.components.length);
+    }
     expect(JSON.stringify(result)).not.toMatch(/buffer|contingency/i);
   });
 
@@ -188,8 +197,38 @@ describe('forecast arithmetic', () => {
       averageDailyUsers: 1,
       questionsPerUserPerDay: 4.8,
       activeAppMinutesPerUserPerDay: 0.8,
-      averageModelTokensPerQuestion: 52353.6,
+      averageModelTokensPerQuestion: 52354,
     });
+  });
+
+  it('steps each assumption with field-specific precision and a zero floor', () => {
+    expect(stepForecastAssumption('averageDailyUsers', 1, 1)).toBe(2);
+    expect(stepForecastAssumption('averageDailyUsers', 0, -1)).toBe(0);
+    expect(stepForecastAssumption('questionsPerUserPerDay', 4.4, 1)).toBe(4.5);
+    expect(stepForecastAssumption('questionsPerUserPerDay', 0.3, -1)).toBe(0.2);
+    expect(stepForecastAssumption('activeAppMinutesPerUserPerDay', 0.2, 1)).toBe(0.3);
+    expect(stepForecastAssumption('activeAppMinutesPerUserPerDay', 0, -1)).toBe(0);
+    expect(stepForecastAssumption('averageModelTokensPerQuestion', 48_528, 1)).toBe(48_529);
+    expect(stepForecastAssumption('averageModelTokensPerQuestion', 0, -1)).toBe(0);
+  });
+
+  it('normalizes typed and stepped values through the same integer, decimal, and token rules', () => {
+    const typed = normalizeForecastAssumptions({
+      averageDailyUsers: 2.6,
+      questionsPerUserPerDay: 4.449,
+      activeAppMinutesPerUserPerDay: 9.749,
+      averageModelTokensPerQuestion: 48_528.2,
+    });
+    expect(typed).toEqual({
+      averageDailyUsers: 3,
+      questionsPerUserPerDay: 4.4,
+      activeAppMinutesPerUserPerDay: 9.7,
+      averageModelTokensPerQuestion: 48_528,
+    });
+    expect(stepForecastAssumption('questionsPerUserPerDay', typed.questionsPerUserPerDay, 1)).toBe(4.5);
+    expect(stepForecastAssumption('averageModelTokensPerQuestion', typed.averageModelTokensPerQuestion, 1)).toBe(
+      48_529
+    );
   });
 });
 

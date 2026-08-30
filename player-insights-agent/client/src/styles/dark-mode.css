@@ -1134,17 +1134,15 @@ html[data-theme='dark'] .time-range-segment:hover:not([aria-checked='true']) {
 }
 
 /*
- * The two bespoke destructive controls join AppKit's destructive token.
+ * Bespoke destructive controls join AppKit's destructive token.
  *
- * Deleting a conversation and forgetting a connection predate the shared Button
- * component, so their base styles name two different palette roles. Restating
- * both from the control token above gives filled deletion one app-wide colour
+ * Deleting a conversation predates the shared Button component. Restating it
+ * from the control token above gives filled deletion one app-wide colour
  * without turning negative prose and chart marks into dark, unreadable red.
  * Hover mixes toward white just enough to confirm the pointer without returning
  * to the pale pink that prompted this correction.
  */
 html[data-theme='dark'] .conversation-confirm-delete,
-html[data-theme='dark'] .plane-confirm-forever,
 html[data-theme='dark'] [data-slot='button'].bg-destructive,
 html[data-theme='dark'] [data-slot='button'][data-variant='destructive'] {
   background: var(--ast-destructive-control);
@@ -1160,12 +1158,6 @@ html[data-theme='dark'] .ops-stop-all strong {
 html[data-theme='dark'] .conversation-confirm-delete:hover {
   background: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
   border-color: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
-}
-
-html[data-theme='dark'] .plane-confirm-forever:hover {
-  background: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
-  border-color: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
-  filter: none;
 }
 
 html[data-theme='dark'] [data-slot='button'].bg-destructive:hover:not(:disabled),

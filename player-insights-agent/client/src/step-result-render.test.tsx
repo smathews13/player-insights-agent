@@ -466,7 +466,7 @@ describe('rendered markdown results', () => {
     expect(markup).toContain('<strong>Governed</strong>');
     expect(markup).not.toContain('## Evidence');
     expect(markup).toContain('class="dag-sql open"');
-    expect(markup).toContain('<b>SELECT</b>');
+    expect(markup).toContain('semantic-code-keyword">SELECT</span>');
     expect(markup).toContain('governed.players');
   });
 });

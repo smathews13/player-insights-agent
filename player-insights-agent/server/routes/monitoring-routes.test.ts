@@ -513,7 +513,7 @@ describe('a cost is null until a price is configured', () => {
     const previous = process.env[VARIABLE];
     delete process.env[VARIABLE];
 
-    expect(tokenCost(412_000)).toBeNull();
+    expect(tokenCost(412_000, 38)).toBeNull();
 
     if (previous !== undefined) process.env[VARIABLE] = previous;
   });
@@ -522,7 +522,7 @@ describe('a cost is null until a price is configured', () => {
     const previous = process.env[VARIABLE];
     process.env[VARIABLE] = '10';
 
-    expect(tokenCost(412_000)).toBeCloseTo(4.12, 5);
+    expect(tokenCost(412_000, 38)).toBeCloseTo(4.12, 5);
 
     if (previous === undefined) delete process.env[VARIABLE];
     else process.env[VARIABLE] = previous;
@@ -532,7 +532,17 @@ describe('a cost is null until a price is configured', () => {
     const previous = process.env[VARIABLE];
     process.env[VARIABLE] = 'ask finance';
 
-    expect(tokenCost(412_000)).toBeNull();
+    expect(tokenCost(412_000, 38)).toBeNull();
+
+    if (previous === undefined) delete process.env[VARIABLE];
+    else process.env[VARIABLE] = previous;
+  });
+
+  it('withholds cost when no run carried measured token usage', () => {
+    const previous = process.env[VARIABLE];
+    process.env[VARIABLE] = '10';
+
+    expect(tokenCost(0, 0)).toBeNull();
 
     if (previous === undefined) delete process.env[VARIABLE];
     else process.env[VARIABLE] = previous;

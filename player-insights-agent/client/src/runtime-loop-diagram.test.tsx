@@ -18,10 +18,12 @@ describe('Runtime loop diagram', () => {
 
     expect(first).toContain('up to 7');
     expect(first).toContain('up to 19 total');
-    expect(first).toContain('88s overall run budget');
+    expect(first).toContain('Stops after 88s');
     expect(changed).toContain('up to 13');
     expect(changed).toContain('up to 31 total');
-    expect(changed).toContain('144s overall run budget');
+    expect(changed).toContain('Stops after 144s');
+    expect(first).not.toContain('overall run budget');
+    expect(changed).not.toContain('overall run budget');
     expect(panel).toContain('<RuntimeLoopDiagram loop={settings.loop} />');
   });
 
@@ -34,9 +36,10 @@ describe('Runtime loop diagram', () => {
     expect(markup).toContain('>Answer</text>');
     expect(markup).toContain('up to 15 total');
     expect(markup).toContain('total across the run');
-    expect(markup).toContain('100 second overall run budget stops');
+    expect(markup).toContain('run-wide time boundary stops gathering after');
     expect(markup.match(/runtime-loop-diagram__edge--loop/g)).toHaveLength(2);
-    expect(markup).toContain('deadline stops gathering → writes answer');
+    expect(markup).toContain('Stops after 100s · then writes the answer');
+    expect(markup).not.toContain('100s overall run budget');
   });
 
   it('uses named agent, tool and budget treatments so color is not the only cue', () => {
@@ -45,7 +48,8 @@ describe('Runtime loop diagram', () => {
     expect(markup).toContain('runtime-loop-diagram__node--agent');
     expect(markup).toContain('runtime-loop-diagram__node--tool');
     expect(markup).toContain('runtime-loop-diagram__budget-frame');
-    expect(markup).toContain('runtime-loop-diagram__budget-label');
+    expect(markup).toContain('runtime-loop-diagram__deadline-note');
+    expect(markup).not.toContain('runtime-loop-diagram__budget-label');
     expect(styles).toMatch(
       /\.runtime-loop-diagram__node--agent[^}]*\{[^}]*stroke:\s*var\(--ast-primary-control-border\)/
     );
@@ -63,12 +67,12 @@ describe('Runtime loop diagram', () => {
     expect(markup).toContain(`<desc id="${labelledBy[1]}">`);
     expect(markup).toContain('up to 9 reasoning steps');
     expect(markup).toContain('up to 17 tool calls total');
-    expect(markup).toContain('120 second overall run budget');
+    expect(markup).toContain('stops gathering after 120 seconds');
   });
 
   it('sits beside controls on desktop and stacks without squeezing them on narrow layouts', () => {
     expect(styles).toMatch(
-      /\.runtime-loop-layout\s*\{[^}]*grid-template-columns:\s*354px minmax\(300px,\s*1fr\)[^}]*align-items:\s*end/
+      /\.runtime-loop-layout\s*\{[^}]*grid-template-columns:\s*minmax\(330px,\s*354px\)\s+minmax\(320px,\s*1fr\)[^}]*align-items:\s*center/
     );
     expect(responsiveStyles).toMatch(
       /@media \(max-width:\s*800px\)\s*\{[\s\S]*?\.runtime-loop-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
@@ -80,6 +84,8 @@ describe('Runtime loop diagram', () => {
       styles.indexOf('.runtime-loop-diagram {'),
       styles.indexOf('.runtime-field {', styles.indexOf('.runtime-loop-diagram {'))
     );
+    expect(diagramStyles).toMatch(/aspect-ratio:\s*420\s*\/\s*118/);
+    expect(diagramStyles).toMatch(/max-width:\s*440px/);
     expect(diagramStyles).not.toMatch(/\banimation\s*:/);
     expect(diagramStyles).not.toMatch(/\btransition\s*:/);
   });

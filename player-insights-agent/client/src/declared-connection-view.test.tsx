@@ -13,6 +13,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ADDABLE_KINDS,
   ADD_CONNECTION_PICKERS,
+  DELETE_CONNECTION_LABEL,
   addedConnectionLabel,
   addedConnectionValue,
   CONNECTION_LIST_TITLE,
@@ -22,6 +23,7 @@ import {
   comparisonBadge,
   comparisonNote,
   connectionCounts,
+  connectionDatabricksObject,
   connectionRowView,
   emptyScopesNote,
   forgetConnectionDetail,
@@ -35,11 +37,17 @@ import { NotebookCard } from './NotebookCard';
 import { EXPERIMENTAL_PANE_HINT } from './ExperimentalBadge';
 import { notebookPathView, persistNotebookPath } from './notebook-card-state';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
-import { connectionValueError, createDeclaredConnection, derivedConnectionKey } from './declared-connection-form';
+import {
+  connectionValueError,
+  createDeclaredConnection,
+  deleteDeclaredConnection,
+  derivedConnectionKey,
+} from './declared-connection-form';
 import { DECLARABLE_KEYS, DECLARABLE_KINDS } from '../../shared/notebook-declaration';
 import type { ConnectionEntry, DeclarationComparisonRow, NotebookPanel } from './connection-model';
 
 const CARD_SOURCE = readFileSync(new URL('./DeclaredConnectionsCard.tsx', import.meta.url), 'utf8');
+const PAGE_SOURCE = readFileSync(new URL('./ConnectionsPage.tsx', import.meta.url), 'utf8');
 
 function comparison(overrides: Partial<DeclarationComparisonRow> = {}): DeclarationComparisonRow {
   return {
@@ -325,10 +333,10 @@ describe('the list of assets the agent may consider', () => {
     expect(markup).not.toContain('plane-card-head');
   });
 
-  it('uses the standard accordion row and persisted provenance', () => {
+  it('uses the standard row styling and persisted provenance', () => {
     const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[entry()]} onChanged={() => {}} />);
     expect(markup).toContain('connection-row-summary');
-    expect(markup).toContain('connection-row-detail');
+    expect(markup).not.toContain('connection-row-detail');
     expect(markup).toContain('Added by');
     expect(markup).toContain('analyst@example.invalid');
     expect(markup).toContain('dateTime="2026-08-17T18:00:00.000Z"');
@@ -395,6 +403,50 @@ describe('the list of assets the agent may consider', () => {
     expect(failure).not.toHaveProperty('entry');
   });
 
+  it('withdraws a current row and permanently forgets only an already withdrawn row', async () => {
+    const active = entry().connection;
+    const withdrawn = entry({ state: 'withdrawn' }).connection;
+    const fetchImpl = vi.fn((url: string, _init?: RequestInit) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            url.endsWith('/forever')
+              ? { forgotten: { id: withdrawn.id }, restorable: false }
+              : { connection: { ...active, state: 'withdrawn' }, restorable: true }
+          ),
+          { status: 200 }
+        )
+      )
+    );
+
+    await expect(deleteDeclaredConnection(active, fetchImpl as typeof fetch)).resolves.toMatchObject({
+      ok: true,
+      outcome: 'withdrawn',
+    });
+    await expect(deleteDeclaredConnection(withdrawn, fetchImpl as typeof fetch)).resolves.toEqual({
+      ok: true,
+      outcome: 'forgotten',
+    });
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([
+      '/api/settings/connections/roster-table',
+      '/api/settings/connections/roster-table/forever',
+    ]);
+    expect(fetchImpl.mock.calls.every(([, init]) => init?.method === 'DELETE')).toBe(true);
+  });
+
+  it('reports delete failure without claiming the row changed', async () => {
+    const result = await deleteDeclaredConnection(
+      entry().connection,
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ detail: 'The connection store is unavailable.' }), { status: 503 })
+        )
+      ) as typeof fetch
+    );
+    expect(result).toEqual({ ok: false, detail: 'The connection store is unavailable.' });
+    expect(result).not.toHaveProperty('connection');
+  });
+
   it('never claims the asset is granted, connected or accessible', () => {
     const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[entry()]} onChanged={() => {}} />);
     for (const forbidden of ['grants you', 'now readable', 'access granted']) {
@@ -425,9 +477,45 @@ describe('the list of assets the agent may consider', () => {
     expect(markup).toMatch(/class="plane-add-row" data-testid="add-connection-row"/);
   });
 
-  it('puts removed assets after listed ones', () => {
-    const ordered = orderConnections([entry({ id: 'gone', state: 'withdrawn' }), entry({ id: 'here' })]);
-    expect(ordered.map((item) => item.connection.id)).toEqual(['here', 'gone']);
+  it('keeps every saved row before the closed Add control and its form', () => {
+    const rows = CARD_SOURCE.indexOf('{listed.map((entry)');
+    const add = CARD_SOURCE.indexOf('data-testid="add-connection-row"');
+    const form = CARD_SOURCE.indexOf('data-testid="add-connection-form"');
+    expect(rows).toBeGreaterThan(0);
+    expect(rows).toBeLessThan(add);
+    expect(add).toBeLessThan(form);
+  });
+
+  it('mounts the shared user-added section after built-in configured rows', () => {
+    const rowLoop = PAGE_SOURCE.indexOf('{group.readings.map((reading)');
+    const declaredList = PAGE_SOURCE.indexOf("{group.key === 'reachable' ? declaredConnections : null}");
+    expect(rowLoop).toBeGreaterThan(0);
+    expect(rowLoop).toBeLessThan(declaredList);
+    expect(PAGE_SOURCE.slice(rowLoop, declaredList)).toContain('<ConnectionRow');
+  });
+
+  it('installs the server row before reload, then closes, resets and focuses it', () => {
+    expect(CARD_SOURCE).toMatch(
+      /setInstantEntries\([\s\S]*setJustAdded\([\s\S]*setLabel\(''\)[\s\S]*setValue\(''\)[\s\S]*setAdding\(false\)[\s\S]*await onChanged\(\)/
+    );
+    expect(CARD_SOURCE).toMatch(/newRowRef\.current\.focus\(\{ preventScroll: true \}\)/);
+    expect(CARD_SOURCE).toMatch(/scrollIntoView\(\{ block: 'nearest', behavior: 'auto' \}\)/);
+  });
+
+  it('keeps the chosen value and open form when create fails', () => {
+    const refusal = CARD_SOURCE.match(/if \(!result\.ok\) \{([\s\S]*?)\n\s*\}/)?.[1] ?? '';
+    expect(refusal).toContain('setError(result.detail)');
+    expect(refusal).not.toMatch(/setValue|setAdding|setInstantEntries/);
+    expect(CARD_SOURCE).toContain('role="alert"');
+  });
+
+  it('orders current assets before removed assets deterministically across reloads', () => {
+    const ordered = orderConnections([
+      entry({ id: 'gone', state: 'withdrawn', createdAt: '2026-08-01T00:00:00Z' }),
+      entry({ id: 'later', label: 'Zeta', createdAt: '2026-08-20T00:00:00Z' }),
+      entry({ id: 'earlier', label: 'Alpha', createdAt: '2026-08-10T00:00:00Z' }),
+    ]);
+    expect(ordered.map((item) => item.connection.id)).toEqual(['earlier', 'later', 'gone']);
   });
 
   it('never renders a zero count', () => {
@@ -447,7 +535,7 @@ describe('the list of assets the agent may consider', () => {
     expect(markup).toContain('Put back');
   });
 
-  it('offers an administrator a keyboard-reachable permanent removal on every remembered row', () => {
+  it('offers one filled destructive action per remembered row without duplicate remove controls', () => {
     const markup = renderToStaticMarkup(
       <DeclaredConnectionsCard
         entries={[entry(), entry({ id: 'gone', state: 'withdrawn' })]}
@@ -455,15 +543,16 @@ describe('the list of assets the agent may consider', () => {
         onChanged={() => {}}
       />
     );
-    expect(markup.match(/aria-label="Remove forever:/g)).toHaveLength(2);
-    expect(markup.match(/class="plane-row-forget"/g)).toHaveLength(2);
-    expect(markup).toContain('title="Remove forever"');
+    expect(markup.match(new RegExp(DELETE_CONNECTION_LABEL, 'g'))).toHaveLength(2);
+    expect(markup.match(/\bplane-delete-connection\b/g)).toHaveLength(2);
+    expect(markup).toContain('bg-destructive');
+    expect(markup).not.toMatch(/>Remove<|Remove forever|plane-row-forget/);
   });
 
-  it('does not advertise a permanent mutation the server would refuse to a consumer', () => {
+  it('does not advertise a destructive mutation the server would refuse to a consumer', () => {
     const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[entry()]} onChanged={() => {}} />);
-    expect(markup).not.toContain('Remove forever');
-    expect(markup).not.toContain('plane-row-forget');
+    expect(markup).not.toContain(DELETE_CONNECTION_LABEL);
+    expect(markup).not.toContain('plane-delete-connection');
   });
 
   it('states that permanent removal cannot be undone and names the notebook exception', () => {
@@ -481,6 +570,18 @@ describe('the list of assets the agent may consider', () => {
   it('draws no empty wrapper for a read-only empty list', () => {
     const markup = renderToStaticMarkup(<DeclaredConnectionsCard onChanged={() => {}} />);
     expect(markup).toBe('');
+  });
+
+  it('puts provenance in the stable row bar and removes the empty accordion', () => {
+    const markup = renderToStaticMarkup(
+      <DeclaredConnectionsCard entries={[entry()]} allowMutations onChanged={() => {}} />
+    );
+    const summary = markup.indexOf('declared-connection-summary');
+    expect(summary).toBeGreaterThan(0);
+    expect(markup.indexOf('Added by')).toBeGreaterThan(summary);
+    expect(markup.indexOf('Added by')).toBeLessThan(markup.indexOf(DELETE_CONNECTION_LABEL));
+    expect(markup).not.toContain('<details');
+    expect(markup).not.toContain('connection-row-chevron');
   });
 });
 
@@ -668,6 +769,21 @@ describe('how a listed asset reads on its row', () => {
     );
     expect(markup).toContain('Genie space');
     expect(markup).toContain('Player performance');
+  });
+
+  it('builds only workspace links supported by the shared link contract', () => {
+    expect(
+      connectionDatabricksObject({
+        resourceType: 'genie-space',
+        value: '01f19cd4502f1f6dbfb79bf6e63a1b2c',
+      })
+    ).toEqual({ kind: 'genie-space', spaceId: '01f19cd4502f1f6dbfb79bf6e63a1b2c' });
+    expect(connectionDatabricksObject({ resourceType: 'schema', value: 'analytics.player' })).toEqual({
+      kind: 'schema',
+      catalog: 'analytics',
+      schema: 'player',
+    });
+    expect(connectionDatabricksObject({ resourceType: 'volume', value: '/Volumes/a/b/c' })).toBeNull();
   });
 });
 

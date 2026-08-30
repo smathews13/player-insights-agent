@@ -138,6 +138,23 @@
   margin-left: auto;
 }
 
+.ops-cost-head-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cost-unit-segments {
+  font-size: var(--text-xs);
+}
+
+.cost-unit-segment {
+  min-width: 34px;
+  opacity: 1;
+}
+
 .ops-block-body {
   padding: 16px;
   display: flex;
@@ -913,10 +930,17 @@ a.ops-dependency-name:hover {
 
 .ops-budget-input-row {
   display: grid;
-  grid-template-columns: var(--ops-budget-input-width) auto;
+  grid-template-columns: var(--ops-budget-input-width);
   align-items: center;
   gap: 4px;
   min-width: 0;
+}
+
+.ops-budget-input-wrap {
+  position: relative;
+  display: block;
+  width: var(--ops-budget-input-width);
+  max-width: var(--ops-budget-input-width);
 }
 
 .ops-budget-field input {
@@ -929,17 +953,35 @@ a.ops-dependency-name:hover {
   max-width: var(--ops-budget-input-width);
   min-width: 0;
   flex: 0 0 var(--ops-budget-input-width);
+  box-sizing: border-box;
 }
 
-.ops-budget-unit {
-  width: 4.5rem;
-  height: 32px;
-  padding: 0 4px;
-  border: 1px solid var(--ast-border-input);
-  border-radius: var(--ast-radius-control);
-  background: var(--ast-surface-solid);
+.ops-budget-affix {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  color: var(--ast-text-secondary);
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
-  color: var(--ast-text-long);
+  line-height: 1;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.ops-budget-input-wrap[data-unit='USD'] .ops-budget-affix {
+  left: 8px;
+}
+
+.ops-budget-input-wrap[data-unit='USD'] input {
+  padding-left: 20px;
+}
+
+.ops-budget-input-wrap[data-unit='DBU'] .ops-budget-affix {
+  right: 7px;
+}
+
+.ops-budget-input-wrap[data-unit='DBU'] input {
+  padding-right: 34px;
 }
 
 .ops-tile-budget {
@@ -1071,18 +1113,23 @@ a.ops-dependency-name:hover {
 
 .ops-forecast-assumption-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 13.5rem));
   gap: 10px 12px;
 }
 
-.ops-forecast-assumption-grid > label {
+.ops-forecast-assumption {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 4px;
+}
+
+.ops-forecast-assumption > label {
   color: var(--ast-text-long);
   font-size: var(--text-xs);
   font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: break-word;
 }
 
 .ops-forecast-input-row {
@@ -1091,10 +1138,85 @@ a.ops-dependency-name:hover {
   gap: 6px;
 }
 
-.ops-forecast-input-row input {
-  width: min(100%, 9rem);
+.ops-forecast-number-control {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) 20px;
+  width: min(100%, 8.25rem);
+  overflow: hidden;
+  border: 1px solid var(--ast-border-input);
+  border-radius: var(--ast-radius-control);
+  background: var(--ast-surface-solid);
+}
+
+.ops-forecast-number-control input {
+  width: 100%;
   height: 32px;
   min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  font-weight: 700;
+  appearance: textfield;
+}
+
+.ops-forecast-number-control input::-webkit-inner-spin-button,
+.ops-forecast-number-control input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.ops-forecast-number-control:focus-within {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 1px;
+}
+
+.ops-forecast-steppers {
+  display: grid;
+  grid-template-rows: repeat(2, 1fr);
+  border-left: 1px solid var(--ast-border-input);
+}
+
+.ops-forecast-steppers button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  min-width: 20px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--ast-fill-band);
+  color: var(--ast-text-long);
+  cursor: pointer;
+}
+
+.ops-forecast-steppers button + button {
+  border-top: 1px solid var(--ast-border-input);
+}
+
+.ops-forecast-steppers button:hover:not(:disabled) {
+  background: var(--db-hover-tint);
+}
+
+.ops-forecast-steppers button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--ast-blue);
+  outline-offset: -2px;
+}
+
+.ops-forecast-steppers button:disabled {
+  color: var(--ast-text-secondary);
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.ops-forecast-steppers svg {
+  width: 12px;
+  height: 12px;
 }
 
 .ops-forecast-input-row small {
@@ -1155,6 +1277,74 @@ a.ops-dependency-name:hover {
 .ops-forecast-total > span:last-child {
   color: var(--ast-text-secondary);
   font-size: var(--text-xs);
+}
+
+.ops-forecast-breakdown {
+  min-width: 0;
+}
+
+.ops-forecast-breakdown > h4 {
+  margin: 0 0 6px;
+  color: var(--ast-text-long);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.ops-forecast-breakdown-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.ops-forecast-breakdown table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.ops-forecast-breakdown th,
+.ops-forecast-breakdown td {
+  padding: 7px 10px;
+  border-top: 1px solid var(--ast-hairline);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ops-forecast-breakdown th:first-child {
+  width: 34%;
+  padding-left: 0;
+  text-align: left;
+  white-space: normal;
+}
+
+.ops-forecast-breakdown td:last-child,
+.ops-forecast-breakdown th:last-child {
+  padding-right: 0;
+}
+
+.ops-forecast-breakdown thead th {
+  border-top: 0;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.ops-forecast-breakdown tbody th {
+  color: var(--ast-text-long);
+  font-weight: 500;
+}
+
+.ops-forecast-breakdown td {
+  color: var(--ast-text-long);
+  font-family: var(--font-mono);
+}
+
+.ops-forecast-breakdown tfoot th,
+.ops-forecast-breakdown tfoot td {
+  border-top-color: var(--ast-border-input);
+  color: var(--ast-text-long);
+  font-weight: 700;
 }
 
 .ops-forecast-horizon ul,

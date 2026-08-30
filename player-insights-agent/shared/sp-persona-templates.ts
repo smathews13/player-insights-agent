@@ -77,6 +77,7 @@ export const SpPersonaGrantIntentSchema = z
     resourceType: SpGrantResourceTypeSchema,
     action: SpGrantActionSchema,
     privilege: z.string().trim().min(1).max(64),
+    optional: z.boolean().optional(),
     selector: SpPersonaResourceSelectorSchema,
   })
   .strict()
@@ -172,6 +173,7 @@ export interface SpPersonaTemplateUnresolved {
   choiceLabel: string;
   candidateCount: number;
   reason: 'selection' | 'overflow';
+  optional?: boolean;
   selectableCount?: number;
 }
 

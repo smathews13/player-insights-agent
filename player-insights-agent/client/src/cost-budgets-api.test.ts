@@ -21,8 +21,8 @@ describe('cost budget API responses', () => {
     await expect(loadCostBudgets()).resolves.toEqual({
       ok: true,
       budgets: {
-        total: { value: 90, unit: 'USD' },
-        resources: { 'app-compute': { value: 12, unit: 'USD' } },
+        total: { USD: 90, DBU: null },
+        resources: { 'app-compute': { USD: 12, DBU: null } },
       },
     });
     vi.unstubAllGlobals();
@@ -60,8 +60,8 @@ describe('cost budget API responses', () => {
 
   it('persists and reloads the selected unit without conversion', async () => {
     const budgets = {
-      total: { value: 42, unit: 'DBU' as const },
-      resources: { 'app-compute': { value: 9, unit: 'USD' as const } },
+      total: { USD: 90, DBU: 42 },
+      resources: { 'app-compute': { USD: 9, DBU: 6 } },
     };
     const fetch = vi.fn().mockResolvedValue(json({ budgets, readable: true }));
     vi.stubGlobal('fetch', fetch);

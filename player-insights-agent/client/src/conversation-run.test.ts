@@ -96,7 +96,7 @@ describe('the steps a durable run reports', () => {
     // Normalized through the same function the stream uses, so a replayed step
     // and a streamed one are the same object to every surface below.
     expect(stages[0].startMeasured).toBe(true);
-    expect(stages[0].output).toBe('');
+    expect(stages[0].output).toBe('Prepared assessed findings from governed sources.');
   });
 
   it('reports no steps rather than failing when the run carries none', () => {

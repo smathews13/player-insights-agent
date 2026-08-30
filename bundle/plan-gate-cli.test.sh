@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prove that a direct-planner panic prints the selective state recovery.
+# Prove that a direct-planner panic fails closed without prescribing state edits.
 
 set -uo pipefail
 
@@ -30,11 +30,11 @@ set -e
 }
 
 for NEEDLE in \
-  "deployment unbind player_insights_app" \
-  "deployment unbind player_insights_schema" \
-  "Run only the line for each resource you confirmed is already absent." \
-  "Do NOT remove the whole state directory" \
-  "deleted app also removes the stale endpoint binding"
+  "COULD NOT RUN. 'databricks bundle plan' produced no output" \
+  "OverrideChangeDesc" \
+  "This is NOT a clean plan" \
+  "databricks bundle plan -t customer --profile \"customer\"" \
+  ".databricks/bundle/customer/variable-overrides.json"
 do
   [[ "$OUTPUT" == *"$NEEDLE"* ]] || {
     printf 'FAIL  recovery output omitted: %s\n%s\n' "$NEEDLE" "$OUTPUT"
@@ -42,4 +42,9 @@ do
   }
 done
 
-printf 'PASS  direct-planner panic prints selective state recovery.\n'
+[[ "$OUTPUT" != *"deployment unbind"* ]] || {
+  printf 'FAIL  planner failure must not prescribe state mutation\n%s\n' "$OUTPUT"
+  exit 1
+}
+
+printf 'PASS  direct-planner panic fails closed without state mutation guidance.\n'

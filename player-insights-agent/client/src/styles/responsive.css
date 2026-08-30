@@ -200,6 +200,17 @@
   .monitoring-refusal-tiles {
     grid-template-columns: repeat(2, 1fr);
   }
+  /* Every ordinary Monitoring panel takes one track; the ranked-table panel
+     spans both and keeps each table/count pair on one compact line. */
+  .monitoring-panel-grid > .monitoring-panel-tile {
+    grid-column: span 1;
+  }
+  .monitoring-panel-grid > .monitoring-panel-tile-wide {
+    grid-column: 1 / -1;
+  }
+  .monitoring-table-ranking li {
+    gap: 6px;
+  }
   /* Lab contract is six cells at 1080px. At this band three-across keeps the
      eyebrow + value + caption readable without inventing a fifth breakpoint. */
   .bench-contract {
@@ -375,6 +386,18 @@
   .connection-row-value {
     flex-basis: 100%;
     text-align: left;
+  }
+  .declared-connection-summary .connection-row-title {
+    max-width: calc(100% - 5rem);
+  }
+  .declared-connection-id,
+  .declared-connection-summary .connection-provenance {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+  .declared-connection-summary .plane-row-actions {
+    width: 100%;
+    margin-left: 0;
   }
   /* Configured beside measured stops being a comparison and becomes two
      truncated ids. Moved from a 640px query in connections.css, which was a

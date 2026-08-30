@@ -176,6 +176,38 @@
   padding: 0 3px;
 }
 
+/*
+ * SQL is code on every trace surface, including the compact narrative rows.
+ * The prefix remains outside this element in the proportional body face.
+ */
+.semantic-sql-code {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.semantic-sql-code--inline {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--db-code-bg);
+  color: var(--foreground);
+  font-size: 0.92em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.semantic-code-keyword {
+  color: var(--ast-info-text);
+  font-weight: 600;
+}
+.semantic-sql-blocks {
+  display: grid;
+  min-width: 0;
+}
+.semantic-sql-code--block code {
+  font: inherit;
+  color: inherit;
+}
+
 /* ── The Gantt ─────────────────────────────────────────────────────────────
  *
  * A table, because every row is a labelled record with a duration and the bar
@@ -572,7 +604,8 @@
 .trace-bar.partial,
 .trace-bar.running,
 .trace-bar.failed {
-  background-image: repeating-linear-gradient(135deg,
+  background-image: repeating-linear-gradient(
+    135deg,
     rgba(255, 255, 255, 0.85) 0,
     rgba(255, 255, 255, 0.85) 2px,
     transparent 2px,
@@ -745,4 +778,3 @@
   background: var(--ast-fill-band);
   border-radius: var(--radius-sm);
 }
-

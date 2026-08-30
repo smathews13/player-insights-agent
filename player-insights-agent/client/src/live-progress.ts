@@ -17,6 +17,7 @@ import type { TraceStage } from './answer-shape';
 import { stageType, toolNameFromId, type ToolType } from './trace-timeline';
 import { describePayload } from './trace-payload';
 import { projectReaderStage } from '../../shared/stage-lexicon';
+import { sqlFromStageInput, truncateSql } from './sql-presentation';
 
 /**
  * How far a run has got, in terms of what the browser has actually seen.
@@ -43,6 +44,10 @@ export interface LiveStep {
    * rather than a placeholder.
    */
   detail: string;
+  /** Normal-prose lead kept outside the SQL code treatment. */
+  detailLead?: string;
+  /** The structurally identified SQL field. Never inferred from prose. */
+  sql?: string;
   /** What came back, clamped for the rail. Empty when nothing was recorded. */
   result: string;
   /** Tables structurally declared by this tool call, for shared entity rendering. */
@@ -206,8 +211,11 @@ export function describeStage(stage: TraceStage, question = ''): string {
       return quoted('Asked the governed data Genie space', field(shown.input, 'question'));
     case 'dictionary_genie':
       return quoted('Asked the data dictionary Genie space', field(shown.input, 'question'));
-    case 'run_sql':
-      return prefixed('Ran a read-only query', field(shown.input, 'sql'));
+    case 'run_sql': {
+      const sql = sqlFromStageInput(shown.input);
+      const shownSql = truncateSql(sql).text;
+      return shownSql ? `Ran a read-only query: ${shownSql}` : 'Ran a read-only query';
+    }
     case 'query_named_table':
       return prefixed('Queried the table it was given', allFields(shown.input));
     case 'describe_table': {
@@ -462,6 +470,8 @@ export function runningStepNumber(stages: TraceStage[]): number {
 
 export function toLiveStep(stage: TraceStage, question = ''): LiveStep {
   const tableListing = isTableListingStage(stage);
+  const shown = projectReaderStage(stage);
+  const sql = toolNameFromId(shown.id) === 'run_sql' ? sqlFromStageInput(shown.input) : '';
   return {
     id: stage.id,
     name: stage.name,
@@ -470,6 +480,8 @@ export function toLiveStep(stage: TraceStage, question = ''): LiveStep {
     durationMs: stage.duration,
     startMs: stage.startMeasured === false ? null : stage.start,
     detail: describeStage(stage, question),
+    detailLead: sql ? 'Ran a read-only query' : undefined,
+    sql: sql || undefined,
     result: tableListing ? '' : describeResult(stage),
     tables: stageTableEntities(stage),
     tableListing,

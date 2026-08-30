@@ -518,15 +518,11 @@ describe('dark mode covers the shipped surfaces', () => {
      * `--ast-neg-text` is pale by design in dark mode and remains correct for
      * prose, glyphs and hairlines. It must never double as a solid button fill.
      * The base `--destructive` is also error text, so a control-only token keeps
-     * those labels readable. Pin AppKit and the two bespoke controls to the same
-     * route so all filled forms change together.
+     * those labels readable. Pin AppKit and the remaining bespoke control to the
+     * same route so all filled forms change together.
      */
     expect(bodyFor(DARK, "html[data-theme='dark']")).toMatch(/--ast-destructive-control:\s*var\(--db-red-700\)/);
-    for (const selector of [
-      '.conversation-confirm-delete',
-      '.plane-confirm-forever',
-      "[data-slot='button'][data-variant='destructive']",
-    ]) {
+    for (const selector of ['.conversation-confirm-delete', "[data-slot='button'][data-variant='destructive']"]) {
       const body = bodyFor(DARK, `html[data-theme='dark'] ${selector}`);
       expect(body, `${selector} does not share the destructive fill`).toMatch(
         /background:\s*var\(--ast-destructive-control\)/

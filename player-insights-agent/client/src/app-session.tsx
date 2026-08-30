@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- session state and its blocking boundary must share one latch */
-import { useEffect, useSyncExternalStore, useState, type ReactNode } from 'react';
-import { LogOut, RotateCcw } from 'lucide-react';
+import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
+import { LogIn, RotateCcw } from 'lucide-react';
 import { forgetIdentityRequest } from './app-state';
 import { clearActiveConversationRuns } from './active-conversation-runs';
 import { abortActiveAsksForSessionEnd } from './ask-cancellation';
@@ -20,6 +20,7 @@ export const APP_SESSION_BOOTSTRAP_PATH = '/api/app-session/bootstrap';
 export const APP_SESSION_ACTIVITY_PATH = '/api/app-session/activity';
 export const APP_SESSION_END_PATH = '/api/app-session/end';
 export const APP_IDLE_TIMEOUT_CODE = 'APP_IDLE_TIMEOUT';
+export const APP_SESSION_TIMEOUT_KEY = 'astrolabe.app-session.timed-out';
 export const USER_ACTIVITY_THROTTLE_MS = 60_000;
 export const SIGN_OUT_END_WAIT_MS = 1_500;
 
@@ -27,7 +28,19 @@ type AppSessionState = 'booting' | 'ready' | 'timed-out' | 'unavailable';
 type Listener = () => void;
 export type AppSessionFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
-let state: AppSessionState = 'booting';
+const TIMED_OUT = 'true';
+
+export function appSessionStateFromStore(
+  store: AcknowledgementStore | null = browserAcknowledgementStore()
+): AppSessionState {
+  try {
+    return store?.getItem(APP_SESSION_TIMEOUT_KEY) === TIMED_OUT ? 'timed-out' : 'booting';
+  } catch {
+    return 'booting';
+  }
+}
+
+let state: AppSessionState = appSessionStateFromStore();
 let bootstrapPromise: Promise<void> | null = null;
 let fetchInstalled = false;
 const listeners = new Set<Listener>();
@@ -75,6 +88,11 @@ export function clearSensitiveClientState(store = browserAcknowledgementStore())
 export function markAppSessionTimedOut(store = browserAcknowledgementStore()): void {
   if (state === 'timed-out') return;
   clearSensitiveClientState(store);
+  try {
+    store?.setItem(APP_SESSION_TIMEOUT_KEY, TIMED_OUT);
+  } catch {
+    // The in-memory latch still blocks this loaded page when storage is unavailable.
+  }
   setState('timed-out');
 }
 
@@ -133,6 +151,7 @@ export function installAppSessionFetchGuard(target: typeof globalThis = globalTh
 }
 
 export function bootstrapAppSession(fetchImpl: AppSessionFetch = fetch): Promise<void> {
+  if (state === 'timed-out') return Promise.resolve();
   if (bootstrapPromise) return bootstrapPromise;
   setState('booting');
   bootstrapPromise = fetchImpl(APP_SESSION_BOOTSTRAP_PATH, {
@@ -252,31 +271,41 @@ export async function signOutAndEndAppSession(
   }
 }
 
+export function returnToSignIn(
+  options: {
+    navigate?: (path: string) => void;
+    store?: AcknowledgementStore | null;
+  } = {}
+): void {
+  const navigate = options.navigate ?? ((path: string) => window.location.assign(path));
+  const store = options.store === undefined ? browserAcknowledgementStore() : options.store;
+  clearSensitiveClientState(store);
+  try {
+    store?.removeItem?.(APP_SESSION_TIMEOUT_KEY);
+  } catch {
+    // Navigation still ends the current native app auth when storage is unavailable.
+  }
+  // This same-origin native Apps endpoint resets native app auth. An active
+  // upstream workspace/IdP session may authenticate the person again.
+  navigate(NATIVE_APP_SIGN_OUT_PATH);
+}
+
 function SessionTimedOut() {
-  const [leaving, setLeaving] = useState(false);
   return (
     <main className="app-session-block" role="alert" aria-labelledby="app-session-timeout-title">
       <section className="app-session-card">
         <h1 id="app-session-timeout-title">Session timed out</h1>
-        <p>
-          Astrolabe’s idle timeout ended this app session. It cannot detect or invalidate a separate Databricks
-          workspace session.
-        </p>
-        <p>
-          Signing out clears the native app cookie. If your workspace or identity-provider session remains active,
-          Databricks may authenticate you again without prompting.
-        </p>
-        <button
-          type="button"
-          disabled={leaving}
-          onClick={() => {
-            setLeaving(true);
-            void signOutAndEndAppSession();
+        <p>Your Astrolabe session ended after inactivity. Return to sign in to continue.</p>
+        <a
+          href={NATIVE_APP_SIGN_OUT_PATH}
+          onClick={(event) => {
+            event.preventDefault();
+            returnToSignIn();
           }}
         >
-          <LogOut aria-hidden="true" />
-          {leaving ? 'Signing out…' : 'Sign out of Astrolabe'}
-        </button>
+          <LogIn aria-hidden="true" />
+          Return to sign in
+        </a>
       </section>
     </main>
   );

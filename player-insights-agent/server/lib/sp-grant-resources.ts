@@ -1,8 +1,10 @@
 import type { ResourceKind } from '../../shared/deployment-config';
+import { DATA_GENIE_TABLES, qualifyDataContractTables } from '../../shared/data-contract';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
 import type { SpGrantResource, SpGrantResourceType } from '../../shared/sp-identity';
 import type { LakebaseReader } from './lakebase-store';
 import { readDeclaredConnections } from './declared-connections';
+import { resolveSemanticIndexValue } from './semantic-index-name';
 
 interface Candidate {
   type: SpGrantResourceType;
@@ -76,24 +78,25 @@ export async function discoverSpGrantResources(
   client: LakebaseReader,
   env: NodeJS.ProcessEnv = process.env
 ): Promise<SpGrantResource[]> {
+  const catalog = env.PLAYER_INSIGHTS_CATALOG ?? '';
+  const schema = env.PLAYER_INSIGHTS_SCHEMA ?? '';
+  const semanticIndex = resolveSemanticIndexValue(env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '', catalog, schema);
   const configured: Array<Candidate | null> = [
     candidate('SERVING_ENDPOINT', env.DATABRICKS_SERVING_ENDPOINT_NAME, 'Orchestrator serving endpoint'),
     candidate('SERVING_ENDPOINT', env.PLAYER_INSIGHTS_LLM_ENDPOINT, 'Foundation model endpoint'),
     candidate('SERVING_ENDPOINT', env.PLAYER_INSIGHTS_JUDGE_ENDPOINT, 'Benchmark judge endpoint'),
     candidate('SQL_WAREHOUSE', env.DATABRICKS_SQL_WAREHOUSE_ID, 'SQL warehouse'),
-    candidate('CATALOG', env.PLAYER_INSIGHTS_CATALOG, 'App catalog'),
-    candidate(
-      'SCHEMA',
-      env.PLAYER_INSIGHTS_CATALOG && env.PLAYER_INSIGHTS_SCHEMA
-        ? `${env.PLAYER_INSIGHTS_CATALOG}.${env.PLAYER_INSIGHTS_SCHEMA}`
-        : undefined,
-      'App schema'
-    ),
+    candidate('CATALOG', catalog, 'App catalog'),
+    candidate('SCHEMA', catalog && schema ? `${catalog}.${schema}` : undefined, 'App schema'),
+    ...qualifyDataContractTables(catalog, schema, DATA_GENIE_TABLES).map((id) => {
+      const parts = id.split('.');
+      return candidate('TABLE', id, parts[parts.length - 1] ?? id);
+    }),
     candidate('GENIE_SPACE', env.PLAYER_INSIGHTS_DATA_GENIE_ID, 'Data Genie space'),
     candidate('GENIE_SPACE', env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID, 'Dictionary Genie space'),
     candidate(
       'VECTOR_SEARCH_INDEX',
-      env.PLAYER_INSIGHTS_SEMANTIC_INDEX === 'true' ? undefined : env.PLAYER_INSIGHTS_SEMANTIC_INDEX,
+      semanticIndex.split('.').length === 3 ? semanticIndex : undefined,
       'Vector Search index'
     ),
   ];

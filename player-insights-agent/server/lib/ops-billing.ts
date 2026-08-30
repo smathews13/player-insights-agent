@@ -1131,6 +1131,7 @@ function genieSpaceTiles(
       canAllocate && generatedSql && warehouseDbus !== null
         ? (warehouseDbus * generatedSql.executionMs) / warehouseAttribution.totalExecutionMs
         : null;
+    const hasAllocation = amount !== null || dbus !== null;
     const sqlGap = representedBy
       ? `This Genie space is already represented by ${representedBy}; cost is not repeated`
       : !spaceId
@@ -1151,18 +1152,18 @@ function genieSpaceTiles(
       label: space.label,
       resourceId: spaceId,
       resourceKind: spaceId ? ('genie-space' as const) : '',
-      quality: amount === null ? ('unknown' as const) : ('estimate' as const),
+      quality: hasAllocation ? ('estimate' as const) : ('unknown' as const),
       amount,
       dbus,
       basis: 'total-in-range' as const,
       population: 'Generated SQL share',
-      attribution: amount === null ? ('unavailable' as const) : ('deployment' as const),
+      attribution: hasAllocation ? ('deployment' as const) : ('unavailable' as const),
       pricing: warehousePricing,
-      unavailable: amount === null ? unavailable : '',
+      unavailable: hasAllocation ? '' : unavailable,
       remedy: spaceId ? '' : `Configure the ${space.label} space.`,
       note: GENIE_SQL_NOT_COMPLETE,
       evidence: {
-        billingRows: amount === null ? null : billingRows,
+        billingRows: hasAllocation ? billingRows : null,
         astrolabeQueries: null,
         queryHistoryComplete: warehouseAttribution.complete,
         activity: measured

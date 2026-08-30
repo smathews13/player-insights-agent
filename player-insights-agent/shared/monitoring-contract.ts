@@ -359,9 +359,8 @@ export interface PersonPanelPayload {
   /**
    * What those tokens cost, when the endpoint's price is known.
    *
-   * Null when it is not, and the panel says the price is not configured rather
-   * than showing a zero. A cost of zero and a cost nobody could compute look
-   * identical in a tile.
+   * Null when it is not. The panel omits the cost tile in that case rather than
+   * giving an unmeasured configuration detail the same weight as a KPI.
    */
   tokenCostUsd: number | null;
   ratedUp: number;

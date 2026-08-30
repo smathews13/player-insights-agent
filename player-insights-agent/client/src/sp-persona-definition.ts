@@ -16,6 +16,13 @@ import type {
   SpPersonaTemplateUnresolved,
 } from '../../shared/sp-persona-templates';
 
+export const DELETE_PERMISSIONS_CONFIRMATION =
+  'Delete this unsaved permissions draft? The persona name, purpose, and permission rows will be cleared.';
+
+export function confirmDeletePermissionsDraft(confirm: (message: string) => boolean): boolean {
+  return confirm(DELETE_PERMISSIONS_CONFIRMATION);
+}
+
 export function isSpPersonaDefinitionComplete(write: SpPersonaDefinitionWrite): boolean {
   const legacy = write.legacyCapabilities.map((capability) => capability.trim());
   const grantsComplete = write.grants.every(
@@ -57,23 +64,6 @@ export function changeSpGrantType(resourceType: SpGrantResourceType, resources: 
 export function changeSpGrantAction(grant: SpGrant, action: SpGrant['action']): SpGrant {
   const option = spGrantOption(grant.resourceType, action);
   return option ? { ...grant, action, privilege: option.privilege } : grant;
-}
-
-export function canSuggestSpPermissions(purpose: string, resourceCount: number): boolean {
-  return purpose.trim().length > 0 && resourceCount > 0;
-}
-
-export function mergeSuggestedSpGrants(
-  current: readonly SpGrant[],
-  suggested: readonly SpGrant[]
-): { grants: SpGrant[]; overflowCount: number } {
-  const unique = new Map(current.map((grant) => [spGrantKey(grant), grant]));
-  for (const grant of suggested) unique.set(spGrantKey(grant), grant);
-  const merged = [...unique.values()];
-  if (merged.length > SP_PERSONA_GRANT_COUNT_MAX) {
-    return { grants: [...current], overflowCount: merged.length - SP_PERSONA_GRANT_COUNT_MAX };
-  }
-  return { grants: merged, overflowCount: 0 };
 }
 
 function normalized(value: string): string {
@@ -158,6 +148,17 @@ export function resolveSpPersonaTemplateVariant(
       });
       return;
     }
+    if (intent.optional) {
+      unresolved.push({
+        rowId: `optional-intent-${intentIndex}`,
+        resourceType: intent.resourceType,
+        choiceLabel: intent.selector.choiceLabel,
+        candidateCount: matches.length,
+        reason: 'selection',
+        optional: true,
+      });
+      return;
+    }
     const actualRowId = append(rowId, {
       resourceType: intent.resourceType,
       resource: '',
@@ -200,6 +201,17 @@ export function resolveSpPersonaTemplateVariant(
           action: intent.action,
           privilege: intent.privilege,
         });
+      });
+      continue;
+    }
+    if (intent.optional && matches.length === 0) {
+      unresolved.push({
+        rowId: `optional-intent-${intentIndex}`,
+        resourceType: intent.resourceType,
+        choiceLabel: intent.selector.choiceLabel,
+        candidateCount: 0,
+        reason: 'selection',
+        optional: true,
       });
       continue;
     }
@@ -265,6 +277,7 @@ export function activeSpPersonaUnresolved(
   unresolved: readonly SpPersonaTemplateUnresolved[]
 ): SpPersonaTemplateUnresolved[] {
   return unresolved
+    .filter((selection) => !selection.optional)
     .filter((selection) => {
       const index = rowIds.indexOf(selection.rowId);
       return index >= 0 && !grants[index]?.resource.trim();
@@ -283,7 +296,7 @@ export function isSpPersonaDraftDirty(write: SpPersonaDefinitionWrite): boolean 
 
 export function spPersonaTemplateUseBlock(editingId: string | null, dirty: boolean): string | null {
   if (editingId) return 'Finish or cancel the current edit first.';
-  if (dirty) return 'Cancel staged changes before using an example profile.';
+  if (dirty) return 'Delete the current permissions draft before using an example profile.';
   return null;
 }
 

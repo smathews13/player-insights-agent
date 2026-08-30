@@ -16,11 +16,13 @@ export const READER_STAGE_TASKS = {
   synthesis: 'Prepare the final answer from assessed findings.',
 } as const;
 
+export type ReaderStageStatus = 'complete' | 'partial' | 'failed' | 'running' | 'cancelled' | 'awaiting_approval';
+
 type ReaderStage = {
   id: string;
   name: string;
   kind: string;
-  status: 'complete' | 'partial' | 'failed' | 'running';
+  status: ReaderStageStatus;
   input: string;
   output: string;
 };
@@ -40,6 +42,70 @@ const ERROR_INSTRUCTION_MARKERS = [
   '. Answer ',
   '. This is an outage',
 ] as const;
+
+type FallbackFamily = 'data_source_finder' | 'attachment' | 'reasoning';
+
+const IDENTIFIED_DATA_OUTPUT = 'Identified the governed data available for this question.';
+const STAGE_FALLBACKS: Record<ReaderStageStatus, Record<FallbackFamily, string>> = {
+  running: {
+    data_source_finder: 'Governed data discovery is in progress.',
+    attachment: 'Bounded attachment context is being reviewed.',
+    reasoning: 'Reasoning is in progress.',
+  },
+  complete: {
+    data_source_finder: 'Prepared an assessed data package from governed sources.',
+    attachment: 'Bounded attachment context was available to this run.',
+    reasoning: 'Prepared assessed findings from governed sources.',
+  },
+  failed: {
+    data_source_finder: 'Governed data discovery could not complete.',
+    attachment: 'Bounded attachment context could not be reviewed.',
+    reasoning: 'The reasoning step did not complete.',
+  },
+  cancelled: {
+    data_source_finder: 'Governed data discovery was cancelled before completion.',
+    attachment: 'Bounded attachment review was cancelled before completion.',
+    reasoning: 'The reasoning step was cancelled before completion.',
+  },
+  awaiting_approval: {
+    data_source_finder: 'Governed data discovery is awaiting approval.',
+    attachment: 'Bounded attachment context is awaiting approval.',
+    reasoning: 'The reasoning step is awaiting approval.',
+  },
+  partial: {
+    data_source_finder: 'Governed data discovery ended with unresolved gaps.',
+    attachment: 'Bounded attachment context was only partially reviewed.',
+    reasoning: 'The reasoning step ended with partial findings.',
+  },
+};
+
+/** Canonicalize the statuses carried by live, replayed, and platform traces. */
+export function normalizeReaderStageStatus(value: unknown): ReaderStageStatus {
+  const status =
+    typeof value === 'string'
+      ? value
+          .trim()
+          .toLowerCase()
+          .replace(/[\s-]+/g, '_')
+      : '';
+  if (['complete', 'completed', 'succeeded', 'success', 'answered'].includes(status)) return 'complete';
+  if (['partial', 'truncated', 'skipped'].includes(status)) return 'partial';
+  if (['failed', 'error', 'refused', 'timed_out', 'timeout'].includes(status)) return 'failed';
+  if (['running', 'in_progress', 'pending', 'queued'].includes(status)) return 'running';
+  if (['cancelled', 'canceled', 'interrupted', 'aborted'].includes(status)) return 'cancelled';
+  if (status === 'awaiting_approval') return 'awaiting_approval';
+  return 'complete';
+}
+
+function stageFallback(stage: ReaderStage, output: string, family: FallbackFamily): string {
+  const value = output.trim();
+  const fallback = STAGE_FALLBACKS[stage.status][family];
+  if (value === fallback) return value;
+  if (family === 'data_source_finder' && stage.status === 'complete') {
+    if (value === IDENTIFIED_DATA_OUTPUT || output.includes('## DATA OVERVIEW')) return IDENTIFIED_DATA_OUTPUT;
+  }
+  return fallback;
+}
 
 function toolNameFromStageId(id: string): string {
   return TOOL_STAGE_ID.exec(id)?.[1] ?? '';
@@ -135,42 +201,34 @@ function projectInput(stage: ReaderStage): string {
   if (stage.id === 'data_source_finder') return READER_STAGE_TASKS.data_source_finder;
   if (stage.id === 'attachment') return READER_STAGE_TASKS.attachment;
   if (stage.id === 'synthesis') return READER_STAGE_TASKS.synthesis;
-  if (MODEL_STEP_ID.test(stage.id)) return READER_STAGE_TASKS.reasoning;
+  if (MODEL_STEP_ID.test(stage.id) && stage.kind !== 'tool') return READER_STAGE_TASKS.reasoning;
   return stage.input;
 }
 
 function projectOutput(stage: ReaderStage): string {
-  if (typeof stage.output !== 'string' || !stage.output) return '';
+  const output = typeof stage.output === 'string' ? stage.output : '';
   if (stage.id === 'data_source_finder') {
-    if (stage.status === 'failed') return 'Governed data discovery could not complete.';
-    if (stage.status === 'partial' || stage.status === 'running') {
-      return 'Governed data discovery ended with unresolved gaps.';
-    }
-    if (stage.output.includes('## DATA OVERVIEW')) {
-      return 'Identified the governed data available for this question.';
-    }
-    return 'Prepared an assessed data package from governed sources.';
+    return stageFallback(stage, output, 'data_source_finder');
   }
-  if (stage.id === 'attachment') return 'Bounded attachment context was available to this run.';
-  if (MODEL_STEP_ID.test(stage.id)) {
-    const calls = stage.output
+  if (stage.id === 'attachment') return stageFallback(stage, output, 'attachment');
+  if (MODEL_STEP_ID.test(stage.id) && stage.kind !== 'tool') {
+    const calls = output
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
     if (
       calls.length > 0 &&
-      calls.length === stage.output.split(',').length &&
+      calls.length === output.split(',').length &&
       calls.every((item) => /^[a-z_][a-z0-9_]*$/.test(item))
     ) {
       return calls.join(', ');
     }
-    return stage.status === 'failed'
-      ? 'The reasoning step did not complete.'
-      : 'Prepared assessed findings from governed sources.';
+    return stageFallback(stage, output, 'reasoning');
   }
+  if (!output) return '';
   const tool = toolNameFromStageId(stage.id);
-  if (tool || stage.id === 'inventory') return projectToolOutput(stage.output, tool || 'list_data_assets');
-  return stage.output;
+  if (tool || stage.id === 'inventory') return projectToolOutput(output, tool || 'list_data_assets');
+  return output;
 }
 
 /** Apply the allowlisted projection without changing unrelated stage fields. */

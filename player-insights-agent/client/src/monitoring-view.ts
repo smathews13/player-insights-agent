@@ -184,22 +184,15 @@ export function tokensTile(tokens: { total: number; metredRuns: number; totalRun
 export const NO_FIGURE = '\u2013';
 
 /**
- * What the tokens cost, or a mark and three words.
+ * What the measured tokens cost when the deployment configured their rate.
  *
- * A MARK, NOT A PARAGRAPH, in the shape the Ops latency block uses for a
- * percentile it will not print. This tile used to read "Price not configured"
- * over "the endpoint has no list price recorded, so this cannot be computed":
- * a sentence and a half about the absence of a number, on the one tile in the
- * grid with nothing to report, next to five tiles reporting figures. The fact a
- * reader needs is that there is no cost here and that a price is what is
- * missing, and that fits in the caption.
- *
- * Still never `$0.00`. A cost of zero and a cost nobody could compute are
- * different facts that look identical once a zero is printed.
+ * Null means there is no defensible figure, so the whole tile is omitted. An
+ * empty KPI card would spend the same space as a measured fact while reporting
+ * only a configuration detail.
  */
-export function tokenCostTile(costUsd: number | null): TileValue {
-  if (costUsd === null) return tile(NO_FIGURE, 'no price configured');
-  return tile(`$${costUsd.toFixed(2)}`, 'at list price · USD');
+export function tokenCostTile(costUsd: number | null): TileValue | null {
+  if (costUsd === null) return null;
+  return tile(`$${costUsd.toFixed(2)}`, 'at configured rate · USD');
 }
 
 /**

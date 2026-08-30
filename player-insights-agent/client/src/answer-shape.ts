@@ -3,10 +3,10 @@
  */
 
 import { isAnswerProvenance, type AnswerProvenance } from '../../shared/answer-provenance';
-import { projectReaderStage } from '../../shared/stage-lexicon';
+import { normalizeReaderStageStatus, projectReaderStage, type ReaderStageStatus } from '../../shared/stage-lexicon';
 import type { AnalyticalExecution } from './analytical-execution';
 
-export type StageStatus = 'complete' | 'partial' | 'failed' | 'running';
+export type StageStatus = ReaderStageStatus;
 
 export interface TraceStage {
   id: string;
@@ -134,8 +134,6 @@ export interface WireAnswer {
   executionIdentity?: unknown;
 }
 
-const STAGE_STATUSES = new Set<StageStatus>(['complete', 'partial', 'failed', 'running']);
-
 function asString(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
 }
@@ -150,7 +148,7 @@ function asArray(value: unknown): unknown[] {
 }
 
 function asStageStatus(value: unknown): StageStatus {
-  return typeof value === 'string' && STAGE_STATUSES.has(value as StageStatus) ? (value as StageStatus) : 'complete';
+  return normalizeReaderStageStatus(value);
 }
 
 /**

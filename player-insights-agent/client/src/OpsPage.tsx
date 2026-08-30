@@ -36,7 +36,7 @@
  * `ops-session.ts` rather than in this page's `useState`: leaving the tab and
  * coming back is not a reason to scan billing again. Refresh still is.
  */
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, ExternalLink, Search, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
@@ -50,7 +50,6 @@ import { OUTCOME_PARAM } from './monitoring-filters';
 import { useWorkspaceHost } from './data-entity-state';
 import { databricksLink } from '../../shared/databricks-links';
 import { CostBudgetProvider, CostResourceBudgets, CostSpendSummary, CostTotalBudget } from './CostBudgets';
-import { costSpendSummary } from './cost-budget-view';
 import {
   activeMinutesDisplay,
   bars,
@@ -62,7 +61,6 @@ import {
   count,
   errorFraming,
   healthResourceObject,
-  healthRows,
   latencyAbsence,
   latencyFigure,
   latencyRouteMatchesTrend,
@@ -82,6 +80,7 @@ import {
   type Absence as AbsenceCopy,
   type HealthRow,
 } from './ops-view';
+import { healthConnectionsHref, healthRowsForDisplay } from './health-resource-view';
 import { opsCostRangeId, useOpsBlock } from './ops-session';
 import { TimeRangeControl } from './TimeRangeControl';
 import { rangeLabel, rangeWindow } from './time-range';
@@ -89,6 +88,8 @@ import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
 import { ForecastingBody } from './ForecastingPanel';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
 import { EntityText } from './DataEntityLinks';
+import { adjacentCostDisplayUnit, persistCostDisplayUnit, readCostDisplayUnit } from './cost-unit-preference';
+import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import type {
   DependencyResult,
   GrantRemedy,
@@ -348,7 +349,7 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
         reason: payload.app.reason,
       })
     : null;
-  const rows = healthRows(payload);
+  const rows = healthRowsForDisplay(payload);
 
   return (
     <section className="ops-block" aria-labelledby="ops-health-heading">
@@ -405,6 +406,7 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                     {rows.map((row) => {
                       const object = healthResourceObject(row);
                       const resourceHref = object ? databricksLink(host, object) : null;
+                      const connectionsHref = healthConnectionsHref(row);
                       return (
                         <tr key={row.id}>
                           <th scope="row">
@@ -422,11 +424,8 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                               where the server said there is one: some probes have
                               no Connections row, and a link to nothing looks like
                               the page failing to find it. */}
-                              {row.connectionsId ? (
-                                <Link
-                                  className="ops-dependency-label"
-                                  to={`/connections?entity=${encodeURIComponent(row.connectionsId)}`}
-                                >
+                              {connectionsHref ? (
+                                <Link className="ops-dependency-label" to={connectionsHref}>
                                   {row.label}
                                 </Link>
                               ) : (
@@ -539,7 +538,62 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
 
 /* ── Cost ────────────────────────────────────────────────────────────────── */
 
-export function CostBody({ block, periodLabel = '7 days' }: { block: Block<OpsCostPayload>; periodLabel?: string }) {
+export function CostUnitControl({
+  unit,
+  onChange,
+}: {
+  unit: CostBudgetUnit;
+  onChange: (unit: CostBudgetUnit) => void;
+}) {
+  const segments: Array<{ unit: CostBudgetUnit; label: string; accessible: string }> = [
+    { unit: 'USD', label: '$', accessible: 'US dollars' },
+    { unit: 'DBU', label: 'DBU', accessible: 'Databricks units' },
+  ];
+  const move = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = adjacentCostDisplayUnit(
+      unit,
+      event.key as 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown' | 'Home' | 'End'
+    );
+    onChange(next);
+    event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`[data-cost-unit="${next}"]`)?.focus();
+  };
+  return (
+    <div className="time-range cost-unit-control">
+      <div className="time-range-segments cost-unit-segments" role="radiogroup" aria-label="Cost display unit">
+        {segments.map((segment) => (
+          <button
+            key={segment.unit}
+            type="button"
+            role="radio"
+            aria-checked={unit === segment.unit}
+            aria-label={segment.accessible}
+            tabIndex={unit === segment.unit ? 0 : -1}
+            data-cost-unit={segment.unit}
+            className="time-range-segment cost-unit-segment"
+            onClick={() => onChange(segment.unit)}
+            onKeyDown={move}
+          >
+            {segment.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CostBody({
+  block,
+  periodLabel = '7 days',
+  unit = 'USD',
+  onUnitChange = () => {},
+}: {
+  block: Block<OpsCostPayload>;
+  periodLabel?: string;
+  unit?: CostBudgetUnit;
+  onUnitChange?: (unit: CostBudgetUnit) => void;
+}) {
   const payload = block.data;
   const host = useWorkspaceHost();
   const billingHref = databricksLink(host, { kind: 'table', table: 'system.billing.usage' });
@@ -570,19 +624,24 @@ export function CostBody({ block, periodLabel = '7 days' }: { block: Block<OpsCo
           { word: 'Experimental', tone: astPill('warn', 'ops-pill') },
           { word: periodLabel, tone: astPill('neutral-outline', 'ops-pill ops-period-pill') },
         ]}
-        control={<RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />}
+        control={
+          <div className="ops-cost-head-controls">
+            <CostUnitControl unit={unit} onChange={onUnitChange} />
+            <RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />
+          </div>
+        }
       />
 
       <BlockBody>
         {block.busy && !payload ? (
           <Skeleton className="ops-skeleton" />
         ) : payload ? (
-          <CostBudgetProvider payload={payload} tileIds={displayed.map((tile) => tile.id)}>
+          <CostBudgetProvider payload={payload} tileIds={displayed.map((tile) => tile.id)} unit={unit}>
             {replaceGrid && absent ? (
               <Absence notice={absent}>{payload.grant ? <Grant grant={payload.grant} /> : null}</Absence>
             ) : null}
             <div className="ops-cost-summary-grid">
-              <CostSpendSummary payload={payload} />
+              <CostSpendSummary payload={payload} unit={unit} />
               <div className="ops-cost-summary-box">
                 <div className="ops-cost-summary-head">
                   <span>App budget</span>
@@ -594,7 +653,7 @@ export function CostBody({ block, periodLabel = '7 days' }: { block: Block<OpsCo
             <div className="ops-cost-resources">
               <div className="ops-tiles">
                 {displayed.map((tile) => {
-                  const view = tileView(tile, payload.currency);
+                  const view = tileView(tile, payload.currency, unit);
                   const identifiers = [tile.resourceId, tile.secondaryResourceId].filter((value): value is string =>
                     Boolean(value?.trim())
                   );
@@ -627,8 +686,7 @@ export function CostBody({ block, periodLabel = '7 days' }: { block: Block<OpsCo
                     </div>
                   );
                 })}
-                <QuestionCostAverage payload={payload} />
-                <TotalAppCostTile payload={payload} />
+                <QuestionCostAverage payload={payload} unit={unit} />
               </div>
             </div>
             {!replaceGrid && absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
@@ -643,11 +701,7 @@ export function CostBody({ block, periodLabel = '7 days' }: { block: Block<OpsCo
 function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
   const evidence = tile.evidence;
   const billingRows = evidence?.billingRows ?? 0;
-  const facts = [
-    typeof tile.dbus === 'number' && Number.isFinite(tile.dbus) ? `${tile.dbus.toFixed(2)} DBU` : '',
-    billingRows > 0 ? `${count(billingRows)} billing ${billingRows === 1 ? 'row' : 'rows'}` : '',
-  ].filter(Boolean);
-  const fact = facts.join(' · ');
+  const fact = billingRows > 0 ? `${count(billingRows)} billing ${billingRows === 1 ? 'row' : 'rows'}` : '';
   return (
     <p className="ops-tile-evidence" title={fact || undefined} aria-hidden={fact ? undefined : true}>
       {fact || '\u00a0'}
@@ -683,8 +737,8 @@ export function CostTileTitle({ label, href }: { label: string; href: string | n
   );
 }
 
-function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
-  const amount = questionServingAverage(payload);
+function QuestionCostAverage({ payload, unit }: { payload: OpsCostPayload; unit: CostBudgetUnit }) {
+  const amount = questionServingAverage(payload, unit);
   const reason = payload.perQuestion.reason || 'Attributed serving and SQL spend unavailable';
 
   return (
@@ -700,37 +754,13 @@ function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
       {amount !== null ? (
         <p className="ops-tile-figure">
           <span className="ast-num">
-            {amount.toFixed(2)} {payload.currency}
+            {amount.toFixed(2)} {unit === 'DBU' ? 'DBU' : payload.currency}
           </span>
         </p>
       ) : (
         <p className="ops-tile-absent">{reason}</p>
       )}
       <p className="ops-tile-formula">{QUESTION_COST_FORMULA}</p>
-    </div>
-  );
-}
-
-function TotalAppCostTile({ payload }: { payload: OpsCostPayload }) {
-  const summary = costSpendSummary(payload);
-  return (
-    <div className="ops-tile" data-testid="ops-total-app-cost">
-      <div className="ops-tile-head">
-        <ExperimentalBadge />
-        <p className="ops-tile-label">
-          <span className="ops-tile-label-text" title="Total app cost">
-            Total app cost
-          </span>
-        </p>
-      </div>
-      {summary.amount === null ? (
-        <p className="ops-tile-absent">No attributable total</p>
-      ) : (
-        <p className="ops-tile-figure">
-          <span className="ast-num">{summary.label}</span>
-        </p>
-      )}
-      <p className="ops-tile-evidence">{summary.dbus === null ? '\u00a0' : `${summary.dbus.toFixed(2)} DBU`}</p>
     </div>
   );
 }
@@ -1517,6 +1547,7 @@ export function OpsPage() {
   const forecastingShown = showsForecasting(features);
   const [params] = useSearchParams();
   const [openedAt] = useState(() => Date.now());
+  const [costUnit, setCostUnit] = useState<CostBudgetUnit>(readCostDisplayUnit);
   const selected = rangeWindow(params, openedAt);
   const selectedPeriodLabel = rangeLabel(params);
   const range = opsDayRange(selected.from, selected.to, openedAt);
@@ -1560,6 +1591,10 @@ export function OpsPage() {
   };
 
   const runsHref = () => '/runs?range=all';
+  const chooseCostUnit = (unit: CostBudgetUnit) => {
+    setCostUnit(unit);
+    persistCostDisplayUnit(unit);
+  };
 
   return (
     <div className="page-shell ops-page">
@@ -1572,8 +1607,10 @@ export function OpsPage() {
       {/* Each measured block reads itself. Four read times on one page rather
           than one, because they were read at four different moments. */}
       <HealthBody block={health} />
-      <CostBody block={cost} periodLabel={selectedPeriodLabel} />
-      {forecastingShown ? <ForecastingBody cost={cost} traffic={traffic} periodLabel={selectedPeriodLabel} /> : null}
+      <CostBody block={cost} periodLabel={selectedPeriodLabel} unit={costUnit} onUnitChange={chooseCostUnit} />
+      {forecastingShown ? (
+        <ForecastingBody cost={cost} traffic={traffic} periodLabel={selectedPeriodLabel} unit={costUnit} />
+      ) : null}
       <TrafficBody block={traffic} monitoringHref={monitoringHref} runsHref={runsHref} />
       <LatencyBody block={latency} />
     </div>

@@ -143,7 +143,7 @@ export function AssetPickerRow({
   const text = pickerRowText(kind, item);
   const actions = rowActions(spec, cursor, item);
   const warehousePick = kind === 'warehouses' ? actions.find((action) => action.kind === 'pick') : undefined;
-  const selected = warehousePick?.kind === 'pick' && current.trim() === warehousePick.value;
+  const selected = actions.some((action) => action.kind === 'pick' && alreadyHeld(spec, current, action.value));
   if (warehousePick?.kind === 'pick') {
     return (
       <li className="asset-picker-row asset-picker-row--warehouse" data-selected={selected ? 'true' : undefined}>
@@ -174,7 +174,13 @@ export function AssetPickerRow({
     );
   }
   return (
-    <li className="asset-picker-row" data-testid={`asset-picker-row-${item.id}`}>
+    <li
+      className="asset-picker-row"
+      data-testid={`asset-picker-row-${item.id}`}
+      data-selected={selected ? 'true' : undefined}
+      aria-current={selected ? 'true' : undefined}
+      title={[text.primary, text.identifier, text.secondary].filter(Boolean).join(' · ')}
+    >
       <span className="asset-picker-row-names">
         <span className="asset-picker-row-name">{text.primary}</span>
         {text.identifier ? <code className="asset-picker-row-id">{text.identifier}</code> : null}
@@ -346,7 +352,7 @@ export function AssetPickerPanel({
       ) : null}
 
       {!loading && shown.length > 0 ? (
-        <ul className="asset-picker-rows">
+        <ul className="asset-picker-rows" aria-label={spec.title}>
           {shown.map((item) => (
             <AssetPickerRow
               key={`${item.id}-${item.label}`}
@@ -369,7 +375,13 @@ export function AssetPickerPanel({
 
       {!loading && response && response.status === 'ok' && response.next_page_token ? (
         <div className="asset-picker-more">
-          <Button variant="ghost" size="sm" disabled={loadingMore} onClick={onMore}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loadingMore}
+            aria-label={`Load more ${spec.title.toLowerCase()}`}
+            onClick={onMore}
+          >
             {loadingMore ? 'Loading\u2026' : 'Load more'}
           </Button>
         </div>

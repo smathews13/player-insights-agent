@@ -162549,7 +162549,7 @@ var init_request_latency = __esm({
   }
 });
 
-// server/lib/app-activity.ts
+// shared/timezone.ts
 function validIanaTimeZone(value) {
   const candidate2 = value.trim();
   if (!candidate2) return "";
@@ -162560,6 +162560,12 @@ function validIanaTimeZone(value) {
     return "";
   }
 }
+var init_timezone = __esm({
+  "shared/timezone.ts"() {
+  }
+});
+
+// server/lib/app-activity.ts
 async function recordAppActivityMinute(store, user) {
   await store.lakebase.query(RECORD_APP_ACTIVITY_QUERY, [user]);
 }
@@ -162567,6 +162573,7 @@ var APP_ACTIVITY_TABLE, APP_ACTIVITY_DDL, RECORD_APP_ACTIVITY_QUERY, ACTIVE_MINU
 var init_app_activity = __esm({
   "server/lib/app-activity.ts"() {
     init_app_schema();
+    init_timezone();
     APP_ACTIVITY_TABLE = appTable("app_activity_minutes");
     APP_ACTIVITY_DDL = `CREATE TABLE IF NOT EXISTS ${APP_ACTIVITY_TABLE} (
   user_email TEXT NOT NULL,
@@ -162818,6 +162825,7 @@ async function requireVerifiedSession(req, res, controls, config2) {
         await revokeSession(controls.lakebase, binding.sessionHash);
       } catch {
       }
+      res.setHeader("Set-Cookie", clearAppSessionCookie());
       refusal(
         res,
         401,
@@ -164250,6 +164258,25 @@ var init_run_verdict = __esm({
 });
 
 // shared/stage-lexicon.ts
+function normalizeReaderStageStatus(value) {
+  const status = typeof value === "string" ? value.trim().toLowerCase().replace(/[\s-]+/g, "_") : "";
+  if (["complete", "completed", "succeeded", "success", "answered"].includes(status)) return "complete";
+  if (["partial", "truncated", "skipped"].includes(status)) return "partial";
+  if (["failed", "error", "refused", "timed_out", "timeout"].includes(status)) return "failed";
+  if (["running", "in_progress", "pending", "queued"].includes(status)) return "running";
+  if (["cancelled", "canceled", "interrupted", "aborted"].includes(status)) return "cancelled";
+  if (status === "awaiting_approval") return "awaiting_approval";
+  return "complete";
+}
+function stageFallback(stage, output, family) {
+  const value = output.trim();
+  const fallback = STAGE_FALLBACKS[stage.status][family];
+  if (value === fallback) return value;
+  if (family === "data_source_finder" && stage.status === "complete") {
+    if (value === IDENTIFIED_DATA_OUTPUT || output.includes("## DATA OVERVIEW")) return IDENTIFIED_DATA_OUTPUT;
+  }
+  return fallback;
+}
 function toolNameFromStageId(id) {
   return TOOL_STAGE_ID.exec(id)?.[1] ?? "";
 }
@@ -164314,39 +164341,33 @@ function projectInput(stage) {
   if (stage.id === "data_source_finder") return READER_STAGE_TASKS.data_source_finder;
   if (stage.id === "attachment") return READER_STAGE_TASKS.attachment;
   if (stage.id === "synthesis") return READER_STAGE_TASKS.synthesis;
-  if (MODEL_STEP_ID.test(stage.id)) return READER_STAGE_TASKS.reasoning;
+  if (MODEL_STEP_ID.test(stage.id) && stage.kind !== "tool") return READER_STAGE_TASKS.reasoning;
   return stage.input;
 }
 function projectOutput(stage) {
-  if (typeof stage.output !== "string" || !stage.output) return "";
+  const output = typeof stage.output === "string" ? stage.output : "";
   if (stage.id === "data_source_finder") {
-    if (stage.status === "failed") return "Governed data discovery could not complete.";
-    if (stage.status === "partial" || stage.status === "running") {
-      return "Governed data discovery ended with unresolved gaps.";
-    }
-    if (stage.output.includes("## DATA OVERVIEW")) {
-      return "Identified the governed data available for this question.";
-    }
-    return "Prepared an assessed data package from governed sources.";
+    return stageFallback(stage, output, "data_source_finder");
   }
-  if (stage.id === "attachment") return "Bounded attachment context was available to this run.";
-  if (MODEL_STEP_ID.test(stage.id)) {
-    const calls = stage.output.split(",").map((item) => item.trim()).filter(Boolean);
-    if (calls.length > 0 && calls.length === stage.output.split(",").length && calls.every((item) => /^[a-z_][a-z0-9_]*$/.test(item))) {
+  if (stage.id === "attachment") return stageFallback(stage, output, "attachment");
+  if (MODEL_STEP_ID.test(stage.id) && stage.kind !== "tool") {
+    const calls = output.split(",").map((item) => item.trim()).filter(Boolean);
+    if (calls.length > 0 && calls.length === output.split(",").length && calls.every((item) => /^[a-z_][a-z0-9_]*$/.test(item))) {
       return calls.join(", ");
     }
-    return stage.status === "failed" ? "The reasoning step did not complete." : "Prepared assessed findings from governed sources.";
+    return stageFallback(stage, output, "reasoning");
   }
+  if (!output) return "";
   const tool = toolNameFromStageId(stage.id);
-  if (tool || stage.id === "inventory") return projectToolOutput(stage.output, tool || "list_data_assets");
-  return stage.output;
+  if (tool || stage.id === "inventory") return projectToolOutput(output, tool || "list_data_assets");
+  return output;
 }
 function projectReaderStage(stage) {
   const input = projectInput(stage);
   const output = projectOutput(stage);
   return input === stage.input && output === stage.output ? stage : { ...stage, input, output };
 }
-var DATA_SOURCE_FINDER_TASK, READER_STAGE_TASKS, TOOL_STAGE_ID, MODEL_STEP_ID, TOOL_OUTPUT_NOTES, ERROR_INSTRUCTION_MARKERS;
+var DATA_SOURCE_FINDER_TASK, READER_STAGE_TASKS, TOOL_STAGE_ID, MODEL_STEP_ID, TOOL_OUTPUT_NOTES, ERROR_INSTRUCTION_MARKERS, IDENTIFIED_DATA_OUTPUT, STAGE_FALLBACKS;
 var init_stage_lexicon = __esm({
   "shared/stage-lexicon.ts"() {
     DATA_SOURCE_FINDER_TASK = "Identify the governed data available for this question.";
@@ -164371,6 +164392,39 @@ var init_stage_lexicon = __esm({
       ". Answer ",
       ". This is an outage"
     ];
+    IDENTIFIED_DATA_OUTPUT = "Identified the governed data available for this question.";
+    STAGE_FALLBACKS = {
+      running: {
+        data_source_finder: "Governed data discovery is in progress.",
+        attachment: "Bounded attachment context is being reviewed.",
+        reasoning: "Reasoning is in progress."
+      },
+      complete: {
+        data_source_finder: "Prepared an assessed data package from governed sources.",
+        attachment: "Bounded attachment context was available to this run.",
+        reasoning: "Prepared assessed findings from governed sources."
+      },
+      failed: {
+        data_source_finder: "Governed data discovery could not complete.",
+        attachment: "Bounded attachment context could not be reviewed.",
+        reasoning: "The reasoning step did not complete."
+      },
+      cancelled: {
+        data_source_finder: "Governed data discovery was cancelled before completion.",
+        attachment: "Bounded attachment review was cancelled before completion.",
+        reasoning: "The reasoning step was cancelled before completion."
+      },
+      awaiting_approval: {
+        data_source_finder: "Governed data discovery is awaiting approval.",
+        attachment: "Bounded attachment context is awaiting approval.",
+        reasoning: "The reasoning step is awaiting approval."
+      },
+      partial: {
+        data_source_finder: "Governed data discovery ended with unresolved gaps.",
+        attachment: "Bounded attachment context was only partially reviewed.",
+        reasoning: "The reasoning step ended with partial findings."
+      }
+    };
   }
 });
 
@@ -164389,7 +164443,7 @@ function asRecordedStage(stage) {
     kind: typeof stage.kind === "string" ? stage.kind : "",
     start: typeof stage.start === "number" && Number.isFinite(stage.start) ? stage.start : 0,
     duration: typeof stage.duration === "number" && Number.isFinite(stage.duration) ? stage.duration : 0,
-    status: status === "complete" || status === "running" || status === "partial" || status === "failed" ? status : "complete",
+    status: normalizeReaderStageStatus(status),
     calls: typeof stage.calls === "number" && Number.isFinite(stage.calls) ? stage.calls : 0,
     input: typeof stage.input === "string" ? stage.input : "",
     output: typeof stage.output === "string" ? stage.output : "",
@@ -164409,7 +164463,7 @@ function foldRecordedStages(stages) {
   }
   const settled = folded.map((stage, index, list2) => {
     if (index === list2.length - 1 && stage.status === "running") {
-      return { ...stage, status: "failed" };
+      return projectReaderStage({ ...stage, status: "failed" });
     }
     return stage;
   });
@@ -174195,7 +174249,7 @@ function spGrantKey(grant) {
 function spGrantSummary(grant) {
   return `${SP_GRANT_MATRIX[grant.resourceType].label} ${grant.resource} \u2014 ${grant.privilege}`;
 }
-var SP_IDENTITY_ENABLED_SETTING, SP_EXECUTION_OAUTH, SP_EXECUTION_SERVICE_PRINCIPAL, ASSIGNED_SERVICE_PRINCIPAL2, SP_IDENTITY_MINTING_UNAVAILABLE, SP_GRANT_RESOURCE_TYPES, SP_GRANT_ACTIONS, SP_GRANT_MATRIX, NAME_MAX, DESCRIPTION_MAX, CAPABILITY_MAX, CAPABILITY_COUNT_MAX, SP_PERSONA_GRANT_COUNT_MAX, SECRET_REF_MAX, CLIENT_ID_MAX, SpPersonaWriteSchema, SpPersonaPatchSchema, SpCapabilitySchema, SpCapabilitiesSchema, SpGrantResourceTypeSchema, SpGrantActionSchema, SpGrantSchema, SpGrantsSchema, SpPermissionSuggestionRequestSchema, SpPermissionPlanSchema, SpPermissionSuggestionsSchema, SpPersonaDefinitionFields, uniqueCapabilities, SpPersonaDefinitionWriteSchema, SpPersonaDefinitionPatchSchema, SpIdentityModeSchema, SpAssignmentWriteSchema;
+var SP_IDENTITY_ENABLED_SETTING, SP_EXECUTION_OAUTH, SP_EXECUTION_SERVICE_PRINCIPAL, ASSIGNED_SERVICE_PRINCIPAL2, SP_IDENTITY_MINTING_UNAVAILABLE, SP_GRANT_RESOURCE_TYPES, SP_GRANT_ACTIONS, SP_GRANT_MATRIX, NAME_MAX, DESCRIPTION_MAX, CAPABILITY_MAX, CAPABILITY_COUNT_MAX, SP_PERSONA_GRANT_COUNT_MAX, SECRET_REF_MAX, CLIENT_ID_MAX, SpPersonaWriteSchema, SpPersonaPatchSchema, SpCapabilitySchema, SpCapabilitiesSchema, SpGrantResourceTypeSchema, SpGrantActionSchema, SpGrantSchema, SpGrantsSchema, SpPersonaDefinitionFields, uniqueCapabilities, SpPersonaDefinitionWriteSchema, SpPersonaDefinitionPatchSchema, SpIdentityModeSchema, SpAssignmentWriteSchema;
 var init_sp_identity = __esm({
   "shared/sp-identity.ts"() {
     init_zod();
@@ -174223,9 +174277,20 @@ var init_sp_identity = __esm({
       "USE",
       "EXECUTE",
       "WRITE",
+      "MODIFY",
       "CREATE",
+      "CREATE_SCHEMA",
+      "CREATE_TABLE",
+      "CREATE_FUNCTION",
+      "CREATE_MODEL",
+      "CREATE_VOLUME",
+      "CREATE_MODEL_VERSION",
       "EDIT",
       "MONITOR",
+      "APPLY_TAG",
+      "READ_METADATA",
+      "ALL_PRIVILEGES",
+      "OWNER",
       "MANAGE"
     ];
     SP_GRANT_MATRIX = {
@@ -174245,6 +174310,7 @@ var init_sp_identity = __esm({
           { action: "VIEW", label: "View", privilege: "CAN VIEW" },
           { action: "MONITOR", label: "Monitor and run", privilege: "CAN MONITOR" },
           { action: "USE", label: "Use", privilege: "CAN USE" },
+          { action: "OWNER", label: "Own", privilege: "IS OWNER" },
           { action: "MANAGE", label: "Manage", privilege: "CAN MANAGE" }
         ]
       },
@@ -174254,8 +174320,17 @@ var init_sp_identity = __esm({
         options: [
           { action: "VIEW", label: "Browse metadata", privilege: "BROWSE" },
           { action: "USE", label: "Use", privilege: "USE CATALOG" },
+          { action: "READ_METADATA", label: "Read security metadata", privilege: "READ METADATA" },
           { action: "READ", label: "Read all current and future data", privilege: "SELECT" },
+          { action: "MODIFY", label: "Modify all current and future tables", privilege: "MODIFY" },
           { action: "EXECUTE", label: "Execute all current and future functions", privilege: "EXECUTE" },
+          { action: "APPLY_TAG", label: "Apply tags", privilege: "APPLY TAG" },
+          { action: "CREATE_SCHEMA", label: "Create schemas", privilege: "CREATE SCHEMA" },
+          { action: "CREATE_TABLE", label: "Create tables", privilege: "CREATE TABLE" },
+          { action: "CREATE_FUNCTION", label: "Create functions", privilege: "CREATE FUNCTION" },
+          { action: "CREATE_MODEL", label: "Create models", privilege: "CREATE MODEL" },
+          { action: "CREATE_VOLUME", label: "Create volumes", privilege: "CREATE VOLUME" },
+          { action: "ALL_PRIVILEGES", label: "All applicable data privileges", privilege: "ALL PRIVILEGES" },
           { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
         ]
       },
@@ -174264,17 +174339,28 @@ var init_sp_identity = __esm({
         identifierHint: "catalog.schema",
         options: [
           { action: "USE", label: "Use", privilege: "USE SCHEMA" },
+          { action: "READ_METADATA", label: "Read security metadata", privilege: "READ METADATA" },
           { action: "READ", label: "Read all current and future data", privilege: "SELECT" },
+          { action: "MODIFY", label: "Modify all current and future tables", privilege: "MODIFY" },
           { action: "EXECUTE", label: "Execute all current and future functions", privilege: "EXECUTE" },
+          { action: "APPLY_TAG", label: "Apply tags", privilege: "APPLY TAG" },
+          { action: "CREATE_TABLE", label: "Create tables", privilege: "CREATE TABLE" },
+          { action: "CREATE_FUNCTION", label: "Create functions", privilege: "CREATE FUNCTION" },
+          { action: "CREATE_MODEL", label: "Create models", privilege: "CREATE MODEL" },
+          { action: "CREATE_VOLUME", label: "Create volumes", privilege: "CREATE VOLUME" },
+          { action: "ALL_PRIVILEGES", label: "All applicable data privileges", privilege: "ALL PRIVILEGES" },
           { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
         ]
       },
       TABLE: {
-        label: "Table or view",
+        label: "Table",
         identifierHint: "catalog.schema.table",
         options: [
           { action: "READ", label: "Read", privilege: "SELECT" },
+          { action: "READ_METADATA", label: "Read security metadata", privilege: "READ METADATA" },
           { action: "WRITE", label: "Modify", privilege: "MODIFY" },
+          { action: "APPLY_TAG", label: "Apply tags", privilege: "APPLY TAG" },
+          { action: "ALL_PRIVILEGES", label: "All data privileges", privilege: "ALL PRIVILEGES" },
           { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
         ]
       },
@@ -174300,8 +174386,8 @@ var init_sp_identity = __esm({
         label: "Vector Search endpoint",
         identifierHint: "Endpoint name",
         options: [
-          { action: "CREATE", label: "Create indexes", privilege: "CAN CREATE" },
-          { action: "USE", label: "Use", privilege: "CAN USE" },
+          { action: "CREATE", label: "Create endpoints", privilege: "CAN CREATE" },
+          { action: "USE", label: "Create indexes", privilege: "CAN USE" },
           { action: "MANAGE", label: "Manage", privilege: "CAN MANAGE" }
         ]
       },
@@ -174310,6 +174396,8 @@ var init_sp_identity = __esm({
         identifierHint: "catalog.schema.function",
         options: [
           { action: "EXECUTE", label: "Execute / call", privilege: "EXECUTE" },
+          { action: "READ_METADATA", label: "Read security metadata", privilege: "READ METADATA" },
+          { action: "ALL_PRIVILEGES", label: "All function privileges", privilege: "ALL PRIVILEGES" },
           { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
         ]
       },
@@ -174318,6 +174406,10 @@ var init_sp_identity = __esm({
         identifierHint: "catalog.schema.model",
         options: [
           { action: "EXECUTE", label: "Load / use", privilege: "EXECUTE" },
+          { action: "READ_METADATA", label: "Read security metadata", privilege: "READ METADATA" },
+          { action: "APPLY_TAG", label: "Apply tags", privilege: "APPLY TAG" },
+          { action: "CREATE_MODEL_VERSION", label: "Create model versions", privilege: "CREATE MODEL VERSION" },
+          { action: "ALL_PRIVILEGES", label: "All model privileges", privilege: "ALL PRIVILEGES" },
           { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
         ]
       },
@@ -174326,7 +174418,10 @@ var init_sp_identity = __esm({
         identifierHint: "catalog.schema.volume",
         options: [
           { action: "READ", label: "Read files", privilege: "READ VOLUME" },
+          { action: "READ_METADATA", label: "Read security metadata", privilege: "READ METADATA" },
           { action: "WRITE", label: "Write files", privilege: "WRITE VOLUME" },
+          { action: "APPLY_TAG", label: "Apply tags", privilege: "APPLY TAG" },
+          { action: "ALL_PRIVILEGES", label: "All volume privileges", privilege: "ALL PRIVILEGES" },
           { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
         ]
       }
@@ -174375,20 +174470,8 @@ var init_sp_identity = __esm({
       }
     });
     SpGrantsSchema = external_exports.array(SpGrantSchema).max(SP_PERSONA_GRANT_COUNT_MAX).refine((grants2) => new Set(grants2.map(spGrantKey)).size === grants2.length, {
-      message: "The grant plan contains an exact duplicate."
+      message: "The permissions contain an exact duplicate."
     });
-    SpPermissionSuggestionRequestSchema = external_exports.object({
-      displayName: external_exports.string().trim().max(NAME_MAX).default(""),
-      purpose: external_exports.string().trim().min(1).max(DESCRIPTION_MAX)
-    }).strict();
-    SpPermissionPlanSchema = external_exports.object({
-      name: external_exports.string().trim().min(1).max(80),
-      rationale: external_exports.string().trim().min(1).max(240),
-      grants: SpGrantsSchema.min(1)
-    }).strict();
-    SpPermissionSuggestionsSchema = external_exports.object({
-      plans: external_exports.array(SpPermissionPlanSchema).min(2).max(4)
-    }).strict();
     SpPersonaDefinitionFields = external_exports.object({
       displayName: external_exports.string().trim().min(1).max(NAME_MAX),
       description: external_exports.string().trim().max(DESCRIPTION_MAX).default(""),
@@ -178376,7 +178459,7 @@ var init_insights_routes = __esm({
       kind: external_exports.string(),
       start: external_exports.number(),
       duration: external_exports.number(),
-      status: external_exports.enum(["complete", "running", "partial", "failed"]),
+      status: external_exports.enum(["complete", "running", "partial", "failed", "cancelled", "awaiting_approval"]),
       calls: external_exports.number(),
       input: external_exports.string(),
       output: external_exports.string(),
@@ -178637,7 +178720,7 @@ var init_insights_routes = __esm({
     ToolStageSchema = external_exports.looseObject({
       id: external_exports.string(),
       name: external_exports.string(),
-      status: external_exports.enum(["complete", "running", "partial", "failed"]),
+      status: external_exports.enum(["complete", "running", "partial", "failed", "cancelled", "awaiting_approval"]),
       durationMs: external_exports.number(),
       calls: external_exports.number(),
       arguments: external_exports.string(),
@@ -185052,9 +185135,10 @@ function setupMonitoringRoutes(appkit, deps) {
         summary: summarize(questions, totals.threads),
         durationsMs: questions.map((question) => question.durationMs).filter((ms) => ms !== null),
         tokens: { total: tokenTotal, metredRuns, totalRuns: questions.length },
-        // Null until the endpoint's list price is configured. A zero here would
-        // read as free.
-        tokenCostUsd: tokenCost(tokenTotal),
+        // Null until both usage and the deployment's explicit token rate are
+        // known. Ops billing is deliberately not reused here: it is a separate,
+        // privileged list-price read and its component spend is not this total.
+        tokenCostUsd: tokenCost(tokenTotal, metredRuns),
         ratedUp: questions.filter((question) => question.rating === "up").length,
         ratedDown: questions.filter((question) => question.rating === "down").length,
         tablesReadMost,
@@ -185073,7 +185157,8 @@ function setupMonitoringRoutes(appkit, deps) {
   });
   console.log("[monitoring] Registered the Monitoring read routes. The admin guard's prefix list covers all of them.");
 }
-function tokenCost(totalTokens2) {
+function tokenCost(totalTokens2, metredRuns) {
+  if (metredRuns <= 0) return null;
   const raw2 = (process.env.PLAYER_INSIGHTS_TOKEN_PRICE_PER_MILLION_USD ?? "").trim();
   if (!raw2) return null;
   const price = Number.parseFloat(raw2);
@@ -186071,6 +186156,7 @@ function genieSpaceTiles(ids, warehouseRow, warehouseAttribution, activity) {
     const canAllocate = Boolean(spaceId) && !representedBy && (warehouseSpend !== null || warehouseDbus !== null) && warehouseAttribution.complete && warehouseAttribution.totalExecutionMs > 0 && Boolean(generatedSql && generatedSql.executionMs > 0);
     const amount = canAllocate && generatedSql && warehouseSpend !== null ? warehouseSpend * generatedSql.executionMs / warehouseAttribution.totalExecutionMs : null;
     const dbus = canAllocate && generatedSql && warehouseDbus !== null ? warehouseDbus * generatedSql.executionMs / warehouseAttribution.totalExecutionMs : null;
+    const hasAllocation = amount !== null || dbus !== null;
     const sqlGap = representedBy ? `This Genie space is already represented by ${representedBy}; cost is not repeated` : !spaceId ? "Resource identifier unavailable" : warehouseSpend === null ? unpricedUnavailable(warehousePricing) || "Generated SQL cost unavailable: no priced SQL warehouse billing rows" : !warehouseAttribution.complete ? "Generated SQL cost unavailable: incomplete Query History" : warehouseAttribution.totalExecutionMs <= 0 ? "Generated SQL cost unavailable: Query History has no execution-time denominator" : !generatedSql || generatedSql.executionMs <= 0 ? "Generated SQL cost unavailable: no Query History execution matched this Genie space" : "";
     const unavailable4 = sqlGap ? `${sqlGap}. ${GENIE_LLM_UNAVAILABLE}` : GENIE_LLM_UNAVAILABLE;
     return {
@@ -186078,18 +186164,18 @@ function genieSpaceTiles(ids, warehouseRow, warehouseAttribution, activity) {
       label: space.label,
       resourceId: spaceId,
       resourceKind: spaceId ? "genie-space" : "",
-      quality: amount === null ? "unknown" : "estimate",
+      quality: hasAllocation ? "estimate" : "unknown",
       amount,
       dbus,
       basis: "total-in-range",
       population: "Generated SQL share",
-      attribution: amount === null ? "unavailable" : "deployment",
+      attribution: hasAllocation ? "deployment" : "unavailable",
       pricing: warehousePricing,
-      unavailable: amount === null ? unavailable4 : "",
+      unavailable: hasAllocation ? "" : unavailable4,
       remedy: spaceId ? "" : `Configure the ${space.label} space.`,
       note: GENIE_SQL_NOT_COMPLETE,
       evidence: {
-        billingRows: amount === null ? null : billingRows,
+        billingRows: hasAllocation ? billingRows : null,
         astrolabeQueries: null,
         queryHistoryComplete: warehouseAttribution.complete,
         activity: measured ? { calls: measured.calls, observedCalls: measured.observedCalls, unit: "requests" } : null
@@ -186464,20 +186550,30 @@ function parseCostBudgets(raw2) {
   const parsed = CostBudgetsSchema.safeParse(raw2);
   return parsed.success ? attributableCostBudgets(parsed.data) : null;
 }
-var COST_BUDGET_MAX, AmountSchema, CostBudgetUnitSchema, CostBudgetSchema, CostBudgetsSchema, EMPTY_COST_BUDGET, EMPTY_COST_BUDGETS, COST_BUDGET_WITHHELD_TILE_IDS;
+var COST_BUDGET_MAX, AmountSchema, CostBudgetUnitSchema, CostBudgetValuesSchema, CostBudgetSchema, CostBudgetsSchema, EMPTY_COST_BUDGET, EMPTY_COST_BUDGETS, COST_BUDGET_WITHHELD_TILE_IDS;
 var init_cost_budgets = __esm({
   "shared/cost-budgets.ts"() {
     init_zod();
     COST_BUDGET_MAX = 1e12;
     AmountSchema = external_exports.number().finite().nonnegative().max(COST_BUDGET_MAX).nullable();
     CostBudgetUnitSchema = external_exports.enum(["USD", "DBU"]);
-    CostBudgetSchema = external_exports.preprocess(
-      (raw2) => typeof raw2 === "number" || raw2 === null ? { value: raw2, unit: "USD" } : raw2,
-      external_exports.strictObject({
-        value: AmountSchema,
-        unit: CostBudgetUnitSchema
-      })
-    );
+    CostBudgetValuesSchema = external_exports.strictObject({
+      USD: AmountSchema,
+      DBU: AmountSchema
+    });
+    CostBudgetSchema = external_exports.preprocess((raw2) => {
+      if (typeof raw2 === "number" || raw2 === null) return { USD: raw2, DBU: null };
+      if (!raw2 || typeof raw2 !== "object" || Array.isArray(raw2)) return raw2;
+      const record2 = raw2;
+      if ("USD" in record2 || "DBU" in record2) return raw2;
+      if ("value" in record2 && (record2.unit === "USD" || record2.unit === "DBU")) {
+        return {
+          USD: record2.unit === "USD" ? record2.value : null,
+          DBU: record2.unit === "DBU" ? record2.value : null
+        };
+      }
+      return raw2;
+    }, CostBudgetValuesSchema);
     CostBudgetsSchema = external_exports.strictObject({
       /** App-wide cap. Null means unset, which is not zero. */
       total: CostBudgetSchema,
@@ -186487,7 +186583,7 @@ var init_cost_budgets = __esm({
        */
       resources: external_exports.record(external_exports.string().min(1).max(200), CostBudgetSchema)
     });
-    EMPTY_COST_BUDGET = { value: null, unit: "USD" };
+    EMPTY_COST_BUDGET = { USD: null, DBU: null };
     EMPTY_COST_BUDGETS = { total: EMPTY_COST_BUDGET, resources: {} };
     COST_BUDGET_WITHHELD_TILE_IDS = /* @__PURE__ */ new Set(["foundation-model", "index-rebuild-job"]);
   }
@@ -186633,8 +186729,8 @@ function configuredResourceName(value, keys) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return "";
   const record2 = value;
   for (const key2 of keys) {
-    const candidate2 = record2[key2];
-    if (typeof candidate2 === "string" && candidate2.trim()) return candidate2.trim();
+    const candidate2 = text18(record2[key2]).trim();
+    if (candidate2) return candidate2;
   }
   return "";
 }
@@ -186669,8 +186765,9 @@ async function costIdentifiersFor(appkit, req, extras) {
   const semanticEntry = report?.configuration.find((entry) => entry.key === "semantic_index");
   const semanticCheck = report?.checks.find((check3) => check3.id === "semantic-index");
   const endpointCheck = report?.checks.find((check3) => check3.id === "semantic-index-endpoint");
+  const semanticValue = text18(configured["semantic-index"]) || configuredResourceName(semanticEntry?.value, ["index_name", "full_name", "name", "value"]) || text18(semanticEntry?.value);
   const vectorIndex = vectorIndexName(
-    configured["semantic-index"] || configuredResourceName(semanticEntry?.value, ["index_name", "full_name", "name", "value"]) || semanticCheck?.name || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? "")
+    resolveSemanticIndexValue(semanticValue, text18(configured.catalog), text18(configured.schema)) || semanticCheck?.name || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? "")
   );
   let vectorEndpoint = queryText(req, "vectorEndpoint") || configured["semantic-index-endpoint"] || endpointCheck?.name || configuredResourceName(semanticEntry?.value, ["endpoint_name", "endpoint"]);
   if (!vectorEndpoint && vectorIndex) {
@@ -187356,6 +187453,7 @@ var init_ops_routes = __esm({
     init_app_schema();
     init_ops_billing();
     init_resource_tagging();
+    init_semantic_index_name();
     init_ops_telemetry();
     init_access_verification();
     init_execution_credential();
@@ -190494,22 +190592,25 @@ function declaredGrantResourceType(input) {
   }
 }
 async function discoverSpGrantResources(client, env = process.env) {
+  const catalog2 = env.PLAYER_INSIGHTS_CATALOG ?? "";
+  const schema2 = env.PLAYER_INSIGHTS_SCHEMA ?? "";
+  const semanticIndex2 = resolveSemanticIndexValue(env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? "", catalog2, schema2);
   const configured = [
     candidate("SERVING_ENDPOINT", env.DATABRICKS_SERVING_ENDPOINT_NAME, "Orchestrator serving endpoint"),
     candidate("SERVING_ENDPOINT", env.PLAYER_INSIGHTS_LLM_ENDPOINT, "Foundation model endpoint"),
     candidate("SERVING_ENDPOINT", env.PLAYER_INSIGHTS_JUDGE_ENDPOINT, "Benchmark judge endpoint"),
     candidate("SQL_WAREHOUSE", env.DATABRICKS_SQL_WAREHOUSE_ID, "SQL warehouse"),
-    candidate("CATALOG", env.PLAYER_INSIGHTS_CATALOG, "App catalog"),
-    candidate(
-      "SCHEMA",
-      env.PLAYER_INSIGHTS_CATALOG && env.PLAYER_INSIGHTS_SCHEMA ? `${env.PLAYER_INSIGHTS_CATALOG}.${env.PLAYER_INSIGHTS_SCHEMA}` : void 0,
-      "App schema"
-    ),
+    candidate("CATALOG", catalog2, "App catalog"),
+    candidate("SCHEMA", catalog2 && schema2 ? `${catalog2}.${schema2}` : void 0, "App schema"),
+    ...qualifyDataContractTables(catalog2, schema2, DATA_GENIE_TABLES).map((id) => {
+      const parts = id.split(".");
+      return candidate("TABLE", id, parts[parts.length - 1] ?? id);
+    }),
     candidate("GENIE_SPACE", env.PLAYER_INSIGHTS_DATA_GENIE_ID, "Data Genie space"),
     candidate("GENIE_SPACE", env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID, "Dictionary Genie space"),
     candidate(
       "VECTOR_SEARCH_INDEX",
-      env.PLAYER_INSIGHTS_SEMANTIC_INDEX === "true" ? void 0 : env.PLAYER_INSIGHTS_SEMANTIC_INDEX,
+      semanticIndex2.split(".").length === 3 ? semanticIndex2 : void 0,
       "Vector Search index"
     )
   ];
@@ -190534,7 +190635,9 @@ async function discoverSpGrantResources(client, env = process.env) {
 var DECLARED_GRANT_RESOURCE_TYPES;
 var init_sp_grant_resources = __esm({
   "server/lib/sp-grant-resources.ts"() {
+    init_data_contract();
     init_declared_connections();
+    init_semantic_index_name();
     DECLARED_GRANT_RESOURCE_TYPES = {
       catalog: "CATALOG",
       schema: "SCHEMA",
@@ -190549,69 +190652,13 @@ var init_sp_grant_resources = __esm({
   }
 });
 
-// server/lib/sp-permission-suggestions.ts
-function suggestionPrompt(request, resources) {
-  const inventory = resources.map(({ type, id, label }) => ({ type, id, label }));
-  const matrix = Object.fromEntries(
-    Object.entries(SP_GRANT_MATRIX).map(([type, definition]) => [
-      type,
-      definition.options.map(({ action, privilege, label }) => ({ action, privilege, label }))
-    ])
-  );
-  return [
-    "Suggest 2 to 4 conservative Databricks permission plans for this service-principal persona.",
-    "Use only exact resources and exact action/privilege pairs from the supplied JSON.",
-    'Prefer least privilege. Return JSON only: {"plans":[{"name":"...","rationale":"...","grants":[...]}]}.',
-    JSON.stringify({
-      persona: { name: request.displayName, purpose: request.purpose },
-      allowlisted_resources: inventory,
-      canonical_privilege_matrix: matrix
-    })
-  ].join("\n");
-}
-function jsonBody(raw2) {
-  const trimmed = raw2.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  return JSON.parse(trimmed);
-}
-async function suggestSpPermissions(input) {
-  if (input.resources.length === 0) throw new Error("No configured resources are available for suggestions.");
-  const raw2 = await input.invoke({
-    messages: [{ role: "user", content: suggestionPrompt(input.request, input.resources) }],
-    temperature: 0,
-    max_tokens: 2400
-  });
-  const content = extractJudgeContent(raw2);
-  if (!content) throw new Error("The model returned no permission suggestions.");
-  const parsed = SpPermissionSuggestionsSchema.safeParse(jsonBody(content));
-  if (!parsed.success) throw new Error("The model returned an invalid permission-plan shape.");
-  const allowed = new Set(
-    input.resources.map((resource) => `${resource.type}\0${resource.id.toLocaleLowerCase()}`)
-  );
-  for (const plan of parsed.data.plans) {
-    if (new Set(plan.grants.map(spGrantKey)).size !== plan.grants.length) {
-      throw new Error("The model returned a plan with duplicate permissions.");
-    }
-    for (const grant of plan.grants) {
-      if (!allowed.has(`${grant.resourceType}\0${grant.resource.toLocaleLowerCase()}`)) {
-        throw new Error("The model suggested a resource outside the configured allowlist.");
-      }
-    }
-  }
-  return parsed.data;
-}
-var init_sp_permission_suggestions = __esm({
-  "server/lib/sp-permission-suggestions.ts"() {
-    init_sp_identity();
-    init_mlflow_judges();
-  }
-});
-
 // shared/default-sp-persona-templates.ts
-function single(resourceType, action, privilege, label, choiceLabel) {
+function single(resourceType, action, privilege, label, choiceLabel, optional2 = false) {
   return {
     resourceType,
     action,
     privilege,
+    optional: optional2,
     selector: { match: "single", labels: [label], choiceLabel }
   };
 }
@@ -190622,7 +190669,7 @@ function curatedTables(idSuffixes, choiceLabel) {
     privilege: "SELECT",
     selector: {
       match: "all",
-      sources: ["declared"],
+      sources: ["configured", "declared"],
       idSuffixes: [...idSuffixes],
       choiceLabel
     }
@@ -190655,7 +190702,8 @@ var init_default_sp_persona_templates = __esm({
       "READ",
       "SELECT",
       "Vector Search index",
-      "Semantic discovery index"
+      "Metadata search index",
+      true
     );
     analystGrants = [
       warehouse,
@@ -190688,7 +190736,7 @@ var init_default_sp_persona_templates = __esm({
         dataBoundaries: [
           "Only resources configured or declared by this Astrolabe deployment may be selected.",
           "Table access is limited to the exact curated performance and player-analysis tables in the product data contract.",
-          "Semantic search is optional and remains discovery-only."
+          "Metadata search is optional, read-only, and does not grant access to table rows."
         ],
         exclusions: [
           "No MODIFY, WRITE, CREATE, EDIT, MANAGE, or ownership privileges.",
@@ -190698,7 +190746,7 @@ var init_default_sp_persona_templates = __esm({
         keyCapabilities: [
           "Run governed SQL and Data Genie analysis",
           "Read only exact curated performance and player tables",
-          "Optionally use semantic discovery"
+          "Optionally add read-only metadata search"
         ],
         variants: [
           {
@@ -190710,8 +190758,8 @@ var init_default_sp_persona_templates = __esm({
           },
           {
             id: "semantic-discovery",
-            label: "semantic discovery",
-            description: "The least-privilege plan plus read-only Vector Search discovery.",
+            label: "Add metadata search",
+            description: "Adds read-only Vector Search access so Astrolabe can find relevant table and column metadata; it does not grant access to table rows.",
             leastPrivilege: false,
             grants: [...analystGrants, semanticIndex]
           }
@@ -190730,7 +190778,7 @@ var init_default_sp_persona_templates = __esm({
         dataBoundaries: [
           "Only resources configured or declared by this Astrolabe deployment may be selected.",
           "Table access is limited to the exact audience, marketing, purchase, and player-profile tables in the product data contract.",
-          "Semantic search is optional and remains discovery-only."
+          "Metadata search is optional, read-only, and does not grant access to table rows."
         ],
         exclusions: [
           "No MODIFY, WRITE, CREATE, EDIT, MANAGE, or ownership privileges.",
@@ -190752,8 +190800,8 @@ var init_default_sp_persona_templates = __esm({
           },
           {
             id: "semantic-discovery",
-            label: "semantic discovery",
-            description: "The least-privilege plan plus read-only Vector Search discovery.",
+            label: "Add metadata search",
+            description: "Adds read-only Vector Search access so Astrolabe can find relevant table and column metadata; it does not grant access to table rows.",
             leastPrivilege: false,
             grants: [...marketingScientistGrants, semanticIndex]
           }
@@ -190802,6 +190850,7 @@ var init_sp_persona_templates = __esm({
       resourceType: SpGrantResourceTypeSchema2,
       action: SpGrantActionSchema2,
       privilege: external_exports.string().trim().min(1).max(64),
+      optional: external_exports.boolean().optional(),
       selector: SpPersonaResourceSelectorSchema
     }).strict().superRefine((intent, context2) => {
       const option = SP_GRANT_MATRIX[intent.resourceType].options.find((candidate2) => candidate2.action === intent.action);
@@ -190908,7 +190957,6 @@ var init_sp_persona_templates2 = __esm({
 // server/routes/sp-identity-routes.ts
 var sp_identity_routes_exports = {};
 __export(sp_identity_routes_exports, {
-  SP_PERMISSION_SUGGESTION_TIMEOUT_MS: () => SP_PERMISSION_SUGGESTION_TIMEOUT_MS,
   setupSpIdentityRoutes: () => setupSpIdentityRoutes
 });
 async function adminPayload(appkit) {
@@ -190960,50 +191008,6 @@ function setupSpIdentityRoutes(appkit) {
           error: "sp_identity_unreadable",
           detail: `Service-principal personas could not be read: ${error48.message}`
         });
-      }
-    });
-    app.post("/api/admin/sp-identity/permission-suggestions", async (req, res) => {
-      const parsed = SpPermissionSuggestionRequestSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: "invalid_sp_permission_suggestion", detail: parsed.error.message });
-        return;
-      }
-      const actor = userEmail(req);
-      const started = Date.now();
-      const cancellation = new AbortController();
-      req.once("aborted", () => cancellation.abort(new Error("The suggestion request was cancelled.")));
-      try {
-        const resources = await discoverSpGrantResources(appkit);
-        const endpoint = await resolveJudgeEndpoint(appkit);
-        const suggestions = await suggestSpPermissions({
-          request: parsed.data,
-          resources,
-          invoke: (payload) => invokeServing(
-            appkit,
-            payload,
-            void 0,
-            SP_PERMISSION_SUGGESTION_TIMEOUT_MS,
-            void 0,
-            endpoint,
-            cancellation.signal
-          )
-        });
-        console.info(
-          `[sp-permissions] Suggested ${suggestions.plans.length} plans for ${actor || "an administrator"} from ${resources.length} allowlisted resources via ${endpoint} in ${Date.now() - started} ms.`
-        );
-        res.json(suggestions);
-      } catch (error48) {
-        const message = error48.message;
-        const timedOut = /did not answer within/i.test(message);
-        console.warn(
-          `[sp-permissions] Suggestion failed for ${actor || "an administrator"} after ${Date.now() - started} ms: ${message}`
-        );
-        if (!res.headersSent) {
-          res.status(timedOut ? 504 : 502).json({
-            error: timedOut ? "sp_permission_suggestion_timeout" : "sp_permission_suggestion_failed",
-            detail: timedOut ? "Permission suggestions timed out. Try again." : "Permission suggestions could not be validated. Try again."
-          });
-        }
       }
     });
     app.put("/api/admin/sp-identity/mode", async (req, res) => {
@@ -191236,7 +191240,6 @@ function setupSpIdentityRoutes(appkit) {
     });
   });
 }
-var SP_PERMISSION_SUGGESTION_TIMEOUT_MS;
 var init_sp_identity_routes = __esm({
   "server/routes/sp-identity-routes.ts"() {
     init_zod();
@@ -191244,15 +191247,12 @@ var init_sp_identity_routes = __esm({
     init_databricks_links();
     init_organization_mapping();
     init_admin_roles();
-    init_app_settings();
     init_sp_token();
     init_sp_grant_resources();
-    init_sp_permission_suggestions();
     init_sp_persona_templates2();
     init_sp_identity_store();
     init_user_roster();
     init_insights_routes();
-    SP_PERMISSION_SUGGESTION_TIMEOUT_MS = 3e4;
   }
 });
 

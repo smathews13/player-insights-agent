@@ -14,12 +14,14 @@ function single(
   action: SpPersonaGrantIntent['action'],
   privilege: string,
   label: string,
-  choiceLabel: string
+  choiceLabel: string,
+  optional = false
 ): SpPersonaGrantIntent {
   return {
     resourceType,
     action,
     privilege,
+    optional,
     selector: { match: 'single', labels: [label], choiceLabel },
   };
 }
@@ -31,7 +33,7 @@ function curatedTables(idSuffixes: readonly string[], choiceLabel: string): SpPe
     privilege: 'SELECT',
     selector: {
       match: 'all',
-      sources: ['declared'],
+      sources: ['configured', 'declared'],
       idSuffixes: [...idSuffixes],
       choiceLabel,
     },
@@ -55,7 +57,8 @@ const semanticIndex = single(
   'READ',
   'SELECT',
   'Vector Search index',
-  'Semantic discovery index'
+  'Metadata search index',
+  true
 );
 
 const analystGrants = [
@@ -98,7 +101,7 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
     dataBoundaries: [
       'Only resources configured or declared by this Astrolabe deployment may be selected.',
       'Table access is limited to the exact curated performance and player-analysis tables in the product data contract.',
-      'Semantic search is optional and remains discovery-only.',
+      'Metadata search is optional, read-only, and does not grant access to table rows.',
     ],
     exclusions: [
       'No MODIFY, WRITE, CREATE, EDIT, MANAGE, or ownership privileges.',
@@ -108,7 +111,7 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
     keyCapabilities: [
       'Run governed SQL and Data Genie analysis',
       'Read only exact curated performance and player tables',
-      'Optionally use semantic discovery',
+      'Optionally add read-only metadata search',
     ],
     variants: [
       {
@@ -120,8 +123,9 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
       },
       {
         id: 'semantic-discovery',
-        label: 'semantic discovery',
-        description: 'The least-privilege plan plus read-only Vector Search discovery.',
+        label: 'Add metadata search',
+        description:
+          'Adds read-only Vector Search access so Astrolabe can find relevant table and column metadata; it does not grant access to table rows.',
         leastPrivilege: false,
         grants: [...analystGrants, semanticIndex],
       },
@@ -141,7 +145,7 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
     dataBoundaries: [
       'Only resources configured or declared by this Astrolabe deployment may be selected.',
       'Table access is limited to the exact audience, marketing, purchase, and player-profile tables in the product data contract.',
-      'Semantic search is optional and remains discovery-only.',
+      'Metadata search is optional, read-only, and does not grant access to table rows.',
     ],
     exclusions: [
       'No MODIFY, WRITE, CREATE, EDIT, MANAGE, or ownership privileges.',
@@ -164,8 +168,9 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
       },
       {
         id: 'semantic-discovery',
-        label: 'semantic discovery',
-        description: 'The least-privilege plan plus read-only Vector Search discovery.',
+        label: 'Add metadata search',
+        description:
+          'Adds read-only Vector Search access so Astrolabe can find relevant table and column metadata; it does not grant access to table rows.',
         leastPrivilege: false,
         grants: [...marketingScientistGrants, semanticIndex],
       },

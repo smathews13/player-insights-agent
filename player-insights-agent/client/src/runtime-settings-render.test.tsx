@@ -54,15 +54,16 @@ describe('runtime and appearance modal sections', () => {
       'Figures',
       'Charts',
       'Analyst caveats',
-      'Timezone (IANA name)',
     ]) {
       expect(source).toContain(label);
     }
+    expect(source).toContain('<RuntimeTimezoneField');
+    expect(source).toContain('value={settings.behavior.timezone}');
     expect(source).not.toContain('Guidance goes to the agent with every ask.');
     expect(source).not.toContain('Limits how many reasoning passes');
     expect(source).not.toContain('Changes how relative dates');
     expect(source).toContain('Reasoning steps in one Ask.');
-    expect(source).toContain('placeholder="America/New_York"');
+    expect(source).not.toContain('placeholder="America/New_York"');
     expect(source).toContain('Example: 42 teams increased weekly usage.');
   });
 

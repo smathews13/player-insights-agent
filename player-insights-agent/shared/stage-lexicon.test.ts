@@ -57,6 +57,45 @@ describe('reader-facing stage lexicon', () => {
     expect(JSON.stringify(stages)).not.toContain(secret);
   });
 
+  it('uses status-aware reasoning copy when no reader-facing output exists', () => {
+    const outputFor = (status: 'running' | 'complete' | 'failed' | 'partial' | 'cancelled' | 'awaiting_approval') =>
+      projectReaderStage({ ...base, id: 'step-1', status, output: '' }).output;
+
+    expect(outputFor('running')).toBe('Reasoning is in progress.');
+    expect(outputFor('complete')).toBe('Prepared assessed findings from governed sources.');
+    expect(outputFor('failed')).toBe('The reasoning step did not complete.');
+    expect(outputFor('partial')).toBe('The reasoning step ended with partial findings.');
+    expect(outputFor('cancelled')).toBe('The reasoning step was cancelled before completion.');
+    expect(outputFor('awaiting_approval')).toBe('The reasoning step is awaiting approval.');
+  });
+
+  it('replaces a generated fallback when the status changes', () => {
+    const running = projectReaderStage({ ...base, id: 'step-1', status: 'running', output: '' });
+    const cancelled = projectReaderStage({ ...running, status: 'cancelled' });
+
+    expect(running.output).toBe('Reasoning is in progress.');
+    expect(cancelled.output).toBe('The reasoning step was cancelled before completion.');
+    expect(cancelled.output).not.toContain('in progress');
+  });
+
+  it('preserves genuine sanitized output across terminal status projection', () => {
+    const calls = projectReaderStage({
+      ...base,
+      id: 'step-1',
+      status: 'failed',
+      output: 'describe_table, run_sql',
+    });
+    const synthesis = projectReaderStage({
+      ...base,
+      id: 'synthesis',
+      status: 'partial',
+      output: 'The available evidence supports a partial answer.',
+    });
+
+    expect(calls.output).toBe('describe_table, run_sql');
+    expect(synthesis.output).toBe('The available evidence supports a partial answer.');
+  });
+
   it('removes runtime guidance from errors and refusals only', () => {
     expect(
       projectToolOutput('ERROR: data_genie failed: timeout. This is an outage, not a refusal. Do NOT silently reroute.')

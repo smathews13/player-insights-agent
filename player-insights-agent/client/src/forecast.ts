@@ -1,4 +1,5 @@
 import type { CostTile, OpsCostPayload, OpsTrafficPayload } from '../../shared/ops-contract';
+import type { CostBudgetUnit } from '../../shared/cost-budgets';
 
 const DAY_MS = 86_400_000;
 
@@ -80,8 +81,13 @@ export function normalizeForecastAssumptions(assumptions: Partial<ForecastAssump
     averageDailyUsers: Math.round(finiteNonNegative(assumptions.averageDailyUsers)),
     questionsPerUserPerDay: oneDecimal(assumptions.questionsPerUserPerDay),
     activeAppMinutesPerUserPerDay: oneDecimal(assumptions.activeAppMinutesPerUserPerDay),
-    averageModelTokensPerQuestion: oneDecimal(assumptions.averageModelTokensPerQuestion),
+    averageModelTokensPerQuestion: Math.round(finiteNonNegative(assumptions.averageModelTokensPerQuestion)),
   };
+}
+
+export function stepForecastAssumption(field: keyof ForecastAssumptions, value: number, direction: -1 | 1): number {
+  const step = field === 'questionsPerUserPerDay' || field === 'activeAppMinutesPerUserPerDay' ? 0.1 : 1;
+  return normalizeForecastAssumptions({ [field]: Math.max(0, value + direction * step) })[field];
 }
 
 function rangeDays(from: string, to: string): number {
@@ -114,32 +120,33 @@ function rangeOf(values: Iterable<number>, label: string): ForecastSuggestionEvi
   return finite.length > 0 ? { label, min: Math.min(...finite), max: Math.max(...finite) } : null;
 }
 
-function usableAmount(tile: CostTile | undefined): number | null {
-  if (!tile || tile.amount === null || !Number.isFinite(tile.amount) || tile.amount < 0) return null;
+function usableAmount(tile: CostTile | undefined, unit: CostBudgetUnit): number | null {
+  const amount = unit === 'DBU' ? tile?.dbus : tile?.amount;
+  if (!tile || amount === null || amount === undefined || !Number.isFinite(amount) || amount < 0) return null;
   if (tile.attribution === 'shared-upper-bound' || tile.attribution === 'unavailable') return null;
-  if (tile.pricing && tile.pricing.match !== 'priced') return null;
-  return tile.amount;
+  if (unit === 'USD' && tile.pricing && tile.pricing.match !== 'priced') return null;
+  return amount;
 }
 
-function totalInWindow(tile: CostTile | undefined, days: number): number | null {
-  const amount = usableAmount(tile);
+function totalInWindow(tile: CostTile | undefined, days: number, unit: CostBudgetUnit): number | null {
+  const amount = usableAmount(tile, unit);
   if (amount === null || days <= 0) return null;
   return tile?.basis === 'per-day' ? amount * days : amount;
 }
 
-function dailyInWindow(tile: CostTile | undefined, days: number): number | null {
-  const amount = usableAmount(tile);
+function dailyInWindow(tile: CostTile | undefined, days: number, unit: CostBudgetUnit): number | null {
+  const amount = usableAmount(tile, unit);
   if (amount === null || days <= 0) return null;
   return tile?.basis === 'per-day' ? amount : amount / days;
 }
 
-function tileReason(tile: CostTile | undefined, fallback: string): string {
+function tileReason(tile: CostTile | undefined, fallback: string, unit: CostBudgetUnit): string {
   if (!tile) return fallback;
   if (tile.attribution === 'shared-upper-bound') return 'Shared workspace or warehouse spend is not summed.';
-  if (tile.pricing && tile.pricing.match !== 'priced') {
+  if (unit === 'USD' && tile.pricing && tile.pricing.match !== 'priced') {
     return tile.unavailable || `List-price coverage is ${tile.pricing.match}; this amount is withheld.`;
   }
-  return tile.unavailable || fallback;
+  return unit === 'DBU' ? 'No measured, attributable DBU amount is available.' : tile.unavailable || fallback;
 }
 
 function pushUnique(items: string[], value: string): void {
@@ -153,7 +160,8 @@ function pushUnique(items: string[], value: string): void {
  */
 export function deriveForecastBaseline(
   cost: OpsCostPayload | null,
-  traffic: OpsTrafficPayload | null
+  traffic: OpsTrafficPayload | null,
+  unit: CostBudgetUnit = 'USD'
 ): ForecastBaseline {
   const emptyDefaults: ForecastAssumptions = {
     averageDailyUsers: 0,
@@ -169,7 +177,7 @@ export function deriveForecastBaseline(
   const empty: ForecastBaseline = {
     available: false,
     unavailableReason: 'Cost has not established a priced baseline yet.',
-    currency: cost?.currency || 'USD',
+    currency: unit === 'DBU' ? 'DBU' : cost?.currency || 'USD',
     window: { from: cost?.range.from ?? '', to: cost?.range.to ?? '', days: 0 },
     source:
       'Ops Cost (billing list prices and Query History) plus Ops Traffic (stored questions, askers, and active minutes)',
@@ -188,7 +196,10 @@ export function deriveForecastBaseline(
     },
     fixedDailyCosts: [],
     exclusions: [],
-    caveats: ['Forecasts use Databricks list prices, not contracted rates, invoices, budgets, or commitments.'],
+    caveats:
+      unit === 'USD'
+        ? ['Forecasts use Databricks list prices, not contracted rates, invoices, budgets, or commitments.']
+        : ['Forecasts use measured Databricks units and do not apply a USD conversion rate.'],
     noActivityHistory: false,
   };
 
@@ -197,7 +208,7 @@ export function deriveForecastBaseline(
   const days = rangeDays(cost.range.from, cost.range.to);
   const baseline: ForecastBaseline = {
     ...empty,
-    currency: cost.currency || 'USD',
+    currency: unit === 'DBU' ? 'DBU' : cost.currency || 'USD',
     window: { ...cost.range, days },
     unavailableReason: '',
     caveats: [...empty.caveats],
@@ -294,7 +305,7 @@ export function deriveForecastBaseline(
   }
 
   const serving = cost.tiles.find((tile) => tile.id === 'serving-endpoint');
-  const servingTotal = totalInWindow(serving, days);
+  const servingTotal = totalInWindow(serving, days, unit);
   const tokenRuns = finiteNonNegative(cost.perQuestion.tokenCoveredRuns);
   const recordedTokens = finiteNonNegative(cost.perQuestion.totalRecordedTokens);
   const completedRuns = finiteNonNegative(cost.perQuestion.runsInRange);
@@ -333,7 +344,7 @@ export function deriveForecastBaseline(
       component: serving?.label || 'Serving endpoint',
       reason:
         servingTotal === null
-          ? tileReason(serving, 'No priced serving spend was measured.')
+          ? tileReason(serving, 'No priced serving spend was measured.', unit)
           : questionCount === 0
             ? 'No stored user questions overlap the Cost window.'
             : 'Recorded model tokens do not cover any completed question.',
@@ -341,7 +352,7 @@ export function deriveForecastBaseline(
   }
 
   const sql = cost.tiles.find((tile) => tile.id === 'sql-warehouse');
-  const sqlTotal = totalInWindow(sql, days);
+  const sqlTotal = totalInWindow(sql, days, unit);
   const queryHistoryComplete = sql?.evidence?.queryHistoryComplete !== false;
   if (sqlTotal !== null && questionCount > 0 && queryHistoryComplete) {
     baseline.observed.sqlCostPerQuestion = sqlTotal / questionCount;
@@ -351,13 +362,13 @@ export function deriveForecastBaseline(
       reason: !queryHistoryComplete
         ? 'Query History is incomplete, so attributed SQL spend is withheld.'
         : sqlTotal === null
-          ? tileReason(sql, 'No priced, attributable SQL spend was measured.')
+          ? tileReason(sql, 'No priced, attributable SQL spend was measured.', unit)
           : 'No stored user questions overlap the Cost window.',
     });
   }
 
   const app = cost.tiles.find((tile) => tile.id === 'app-compute');
-  const appTotal = totalInWindow(app, days);
+  const appTotal = totalInWindow(app, days, unit);
   if (appTotal !== null && activeMinutesReadable && activeMinutesComplete && activeMinutes > 0) {
     baseline.observed.appCostPerActiveMinute = appTotal / activeMinutes;
   } else {
@@ -365,7 +376,7 @@ export function deriveForecastBaseline(
       component: app?.label || 'App compute',
       reason:
         appTotal === null
-          ? tileReason(app, 'No priced app-compute spend was measured.')
+          ? tileReason(app, 'No priced app-compute spend was measured.', unit)
           : activeMinutesReadable
             ? activeMinutesComplete
               ? 'No active app minutes overlap the Cost window.'
@@ -375,7 +386,7 @@ export function deriveForecastBaseline(
   }
 
   const vector = cost.tiles.find((tile) => tile.id === 'vector-search');
-  const vectorDaily = dailyInWindow(vector, days);
+  const vectorDaily = dailyInWindow(vector, days, unit);
   if (vectorDaily !== null && vector?.resourceId) {
     baseline.fixedDailyCosts.push({
       id: 'vector-search',
@@ -385,25 +396,25 @@ export function deriveForecastBaseline(
   } else if (vector?.resourceId) {
     baseline.exclusions.push({
       component: vector?.label || 'Vector Search',
-      reason: tileReason(vector, 'No measured, attributable Vector Search spend is available.'),
+      reason: tileReason(vector, 'No measured, attributable Vector Search spend is available.', unit),
     });
   }
 
   const known = new Set(['serving-endpoint', 'sql-warehouse', 'app-compute', 'vector-search']);
   for (const tile of cost.tiles) {
     if (known.has(tile.id)) continue;
-    const amount = dailyInWindow(tile, days);
+    const amount = dailyInWindow(tile, days, unit);
     if (amount !== null) {
       baseline.fixedDailyCosts.push({ id: tile.id, label: tile.label, amount });
     } else {
       baseline.exclusions.push({
         component: tile.label,
-        reason: tileReason(tile, 'No priced, deployment-attributable daily baseline is available.'),
+        reason: tileReason(tile, 'No priced, deployment-attributable daily baseline is available.', unit),
       });
     }
   }
 
-  if (cost.honesty?.currencyConsistent === false) {
+  if (unit === 'USD' && cost.honesty?.currencyConsistent === false) {
     baseline.unavailableReason = 'The Cost window contains mixed currencies, so no total can be formed.';
     return baseline;
   }

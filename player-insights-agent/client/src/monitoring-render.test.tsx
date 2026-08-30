@@ -1002,8 +1002,44 @@ describe('the per-user panel', () => {
     expect(markup.match(/data-entity-part="table"/g)).toHaveLength(2);
   });
 
+  it('keeps a long ranked name and its count in one row with the full name available', () => {
+    const table =
+      'a_very_long_catalog_name.a_very_long_schema_name.a_very_long_table_name_that_needs_controlled_truncation';
+    const markup = render(<TablesReadMost rows={[{ table, runs: 12_345 }]} />);
+    const row = markup.match(/<li>([\s\S]*?)<\/li>/)?.[1] ?? '';
+
+    expect(row).toContain(`title="${table}"`);
+    expect(row).toContain(`aria-label="${table}"`);
+    expect(row).toContain('data-entity-part="catalog"');
+    expect(row).toContain('data-entity-part="schema"');
+    expect(row).toContain('data-entity-part="table"');
+    expect(row).toContain('12,345 runs');
+    expect(row.indexOf('monitoring-ranked-table')).toBeLessThan(row.indexOf('monitoring-table-runs'));
+  });
+
   it('omits the ranked-table module when no run recorded a source', () => {
     expect(render(<TablesReadMost rows={[]} />)).toBe('');
+  });
+
+  it('renders token cost only when the backend supplied a measured figure', () => {
+    const measured = render(
+      <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+    );
+    const unavailable = render(
+      <PersonPanel
+        panel={panel({ tokenCostUsd: null })}
+        now={NOW}
+        rangeLabel="last 7 days"
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+      />
+    );
+
+    expect(text(measured)).toContain('Token cost $3.84 at configured rate · USD');
+    expect(measured).not.toContain('monitoring-panel-grid-without-cost');
+    expect(text(unavailable)).not.toContain('Token cost');
+    expect(text(unavailable)).not.toContain('no price configured');
+    expect(unavailable).toContain('monitoring-panel-grid monitoring-panel-grid-without-cost');
   });
 
   /**

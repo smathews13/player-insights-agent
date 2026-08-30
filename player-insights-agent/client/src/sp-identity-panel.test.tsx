@@ -1,11 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ExampleProfiles, ResourceBrowser, SpIdentityEditor } from './SpIdentityPanel';
-import { isSpPersonaDefinitionComplete } from './sp-persona-definition';
+import {
+  confirmDeletePermissionsDraft,
+  DELETE_PERMISSIONS_CONFIRMATION,
+  isSpPersonaDefinitionComplete,
+} from './sp-persona-definition';
 import { EMPTY_SP_IDENTITY, UNASSIGNED_PERSONA } from './identity-settings-api';
 import { SP_IDENTITY_MINTING_UNAVAILABLE, type SpIdentityAdminPayload } from '../../shared/sp-identity';
+import { DEFAULT_SP_PERSONA_TEMPLATES } from '../../shared/default-sp-persona-templates';
 import { failSpIdentityRead, finishSpIdentityRead, INITIAL_SP_IDENTITY_READ_STATE } from './sp-identity-read-state';
 import { AppSelect } from './AppSelect';
 
@@ -136,7 +141,7 @@ describe('Settings → Identity', () => {
     expect(empty).not.toContain('sp-personas-table');
   });
 
-  it('renders a clean staged-plan builder and a truthful external SP link', () => {
+  it('renders a clean permissions builder and a truthful external SP link', () => {
     const markup = renderToStaticMarkup(
       <SpIdentityEditor
         enabled={true}
@@ -157,7 +162,8 @@ describe('Settings → Identity', () => {
     expect(markup).not.toContain('catalog.schema.table');
     expect(markup).not.toContain('choose a resource');
     expect(markup).not.toContain('Databricks object — permission');
-    expect(markup).toContain('>Save plan</button>');
+    expect(markup).toContain('>Save permissions</button>');
+    expect(markup).not.toMatch(/Suggest permissions|Suggesting|Try again|permission suggestions/i);
     expect(markup).toContain('Open Account Console');
     expect(markup).not.toContain('Generate SP');
     expect(markup).toContain('target="_blank"');
@@ -217,8 +223,9 @@ describe('Settings → Identity', () => {
     const source = readFileSync(new URL('SpIdentityPanel.tsx', import.meta.url), 'utf8');
     expect(source).toContain('resolveSpPersonaTemplateVariant');
     expect(source).toContain('setDraft({');
-    expect(source).toContain('Cancel staged changes');
-    expect(source).toContain('Complete {activeUnresolved.length} resource choice(s) before saving');
+    expect(source).toContain('Delete permissions');
+    expect(source).toContain('Choose {activeUnresolved.length} required resource(s) before saving');
+    expect(source).toContain('Open Browse in this row to choose or enter an identifier.');
     expect(source).toContain('templateOverflow.length === 0');
     expect(source).toContain('duplicateSpPersonaGrantRow');
     expect(source).not.toMatch(/function useTemplate[\s\S]{0,800}setEditingId\(null\)/);
@@ -271,11 +278,11 @@ describe('Settings → Identity', () => {
         warning={null}
         resources={PAYLOAD.grantResourceDiscovery?.resources ?? []}
         busy={false}
-        useBlockedReason="Cancel staged changes before using an example profile."
+        useBlockedReason="Delete the current permissions draft before using an example profile."
         onUse={() => {}}
       />
     );
-    expect(dirtyCreate).toContain('Cancel staged changes before using an example profile.');
+    expect(dirtyCreate).toContain('Delete the current permissions draft before using an example profile.');
 
     const cleanCreate = renderToStaticMarkup(
       <ExampleProfiles
@@ -289,7 +296,7 @@ describe('Settings → Identity', () => {
     expect(cleanCreate).not.toContain('disabled=""');
   });
 
-  it('browses grouped configured resources and keeps manual entry secondary', () => {
+  it('browses only resources valid for the selected row and keeps manual entry secondary', () => {
     const markup = renderToStaticMarkup(
       <ResourceBrowser
         grant={{ resourceType: 'TABLE', resource: '', action: 'READ', privilege: 'SELECT' }}
@@ -304,11 +311,36 @@ describe('Settings → Identity', () => {
       />
     );
     expect(markup).toContain('Browse configured resources for permission 1');
-    expect(markup).toContain('Table or view');
-    expect(markup).toContain('SQL warehouse');
+    expect(markup).toContain('Table');
+    expect(markup).not.toContain('SQL warehouse');
     expect(markup).toContain('main.games.players');
     expect(markup).toContain('Enter identifier');
     expect(markup).not.toContain('Resource identifier for permission 1');
+  });
+
+  it('explains optional metadata search in plain language on every default profile', () => {
+    const markup = renderToStaticMarkup(
+      <ExampleProfiles
+        templates={[...DEFAULT_SP_PERSONA_TEMPLATES]}
+        warning={null}
+        resources={PAYLOAD.grantResourceDiscovery?.resources ?? []}
+        busy={false}
+        onUse={() => {}}
+      />
+    );
+    expect(markup.match(/does not grant access to table rows/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(markup.match(/>Add metadata search<\/button>/g) ?? []).toHaveLength(2);
+    expect(markup).not.toContain('Use semantic discovery');
+  });
+
+  it('confirms destructive draft deletion and never treats it as persisted-persona deletion', () => {
+    const declined = vi.fn(() => false);
+    const accepted = vi.fn(() => true);
+    expect(confirmDeletePermissionsDraft(declined)).toBe(false);
+    expect(confirmDeletePermissionsDraft(accepted)).toBe(true);
+    expect(declined).toHaveBeenCalledWith(DELETE_PERMISSIONS_CONFIRMATION);
+    expect(DELETE_PERMISSIONS_CONFIRMATION).toContain('unsaved permissions draft');
+    expect(DELETE_PERMISSIONS_CONFIRMATION).toContain('will be cleared');
   });
 
   it('renders canonical privileges as code in closed and open select values', () => {

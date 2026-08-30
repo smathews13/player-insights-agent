@@ -369,10 +369,10 @@
   color: var(--muted-foreground);
 }
 
-/* Timezone: the handoff's single narrow mono input rather than a full-width one. */
-.runtime-timezone {
-  max-width: 280px;
-  font-family: var(--font-mono);
+/* Timezone uses the shared menu treatment; custom IANA values reveal a
+   validated escape hatch without replacing the saved value while it is typed. */
+.runtime-timezone-field {
+  max-width: 420px;
 }
 
 .runtime-entity-section {
@@ -571,7 +571,7 @@
   margin: 0;
   min-width: 0;
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: 11px;
   font-weight: 500;
   display: flex;
   align-items: flex-start;
@@ -580,8 +580,9 @@
 
 .admin-row-address {
   min-width: 0;
-  overflow-wrap: anywhere;
-  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .roster-email {
@@ -592,6 +593,15 @@
   min-width: 0;
   display: grid;
   gap: 2px;
+}
+
+.roster-email-copy {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0;
+  color: var(--muted-foreground);
 }
 
 .roster-organization-mark {
@@ -692,27 +702,27 @@
 }
 
 .roles-table {
-  min-width: 700px;
+  min-width: 780px;
 }
 
 .roles-table--editable th:first-child {
-  width: 28%;
+  width: 39%;
 }
 
 .roles-table--editable th:nth-child(2) {
-  width: 17%;
-}
-
-.roles-table--editable th:nth-child(3) {
   width: 18%;
 }
 
+.roles-table--editable th:nth-child(3) {
+  width: 14%;
+}
+
 .roles-table--editable th:nth-child(4) {
-  width: 22%;
+  width: 18%;
 }
 
 .roles-table--editable th:last-child {
-  width: 15%;
+  width: 11%;
   text-align: right;
 }
 
@@ -769,11 +779,11 @@
 }
 
 .roster-role-select {
-  max-width: 9rem;
+  max-width: 7rem;
 }
 
 .roster-persona-select {
-  max-width: 13rem;
+  max-width: 9rem;
 }
 
 .roster-role,
@@ -1202,9 +1212,9 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .runtime-loop-layout {
   display: grid;
-  grid-template-columns: 354px minmax(300px, 1fr);
-  align-items: end;
-  gap: 18px;
+  grid-template-columns: minmax(330px, 354px) minmax(320px, 1fr);
+  align-items: center;
+  gap: 22px;
   min-width: 0;
 }
 
@@ -1248,11 +1258,12 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 .runtime-loop-diagram {
   display: block;
   width: 100%;
-  max-width: 380px;
+  max-width: 440px;
+  aspect-ratio: 420 / 118;
   min-width: 0;
   justify-self: end;
   color: var(--foreground);
-  overflow: visible;
+  overflow: hidden;
 }
 
 .runtime-loop-diagram__budget-frame {
@@ -1262,21 +1273,15 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   stroke-dasharray: 3 3;
 }
 
-.runtime-loop-diagram__budget-label,
 .runtime-loop-diagram__deadline-note {
   fill: var(--ast-blue);
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 500;
 }
 
-.runtime-loop-diagram__budget-label {
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
 .runtime-loop-diagram__deadline-note {
-  fill: var(--muted-foreground);
+  fill: var(--ast-blue);
 }
 
 .runtime-loop-diagram__edge {
@@ -1287,6 +1292,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .runtime-loop-diagram__edge--loop {
   stroke: var(--db-teal-600);
+  stroke-linecap: round;
 }
 
 .runtime-loop-diagram__arrowhead {
@@ -1309,7 +1315,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 .runtime-loop-diagram__node .runtime-loop-diagram__node-value {
   fill: var(--muted-foreground);
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 500;
 }
 
@@ -1416,11 +1422,43 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 }
 
 .runtime-timezone-field {
-  width: 260px;
+  width: min(100%, 420px);
 }
 
-.runtime-timezone {
-  width: 260px;
+.runtime-timezone-select {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.runtime-timezone-select .app-select-value {
+  flex: 1;
+  text-align: left;
+}
+
+.runtime-timezone-menu {
+  width: min(420px, calc(100vw - 24px));
+}
+
+.runtime-timezone-menu code,
+.runtime-timezone-select code,
+.runtime-timezone-input {
+  font-family: var(--font-mono);
+}
+
+.runtime-timezone-custom {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.runtime-timezone-input {
+  width: 100%;
+}
+
+.runtime-timezone-error {
+  color: var(--ast-neg-text);
+  font-size: var(--text-xs);
+  line-height: 1.35;
 }
 
 .appearance-display-section {
@@ -2146,13 +2184,19 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   gap: 10px;
 }
 
+.sp-persona-fields .runtime-field {
+  grid-template-rows: auto 44px;
+}
+
 .sp-persona-fields [data-slot='input'] {
-  height: 30px;
+  height: 44px;
 }
 
 .sp-persona-fields [data-slot='textarea'] {
-  min-height: 48px;
-  resize: vertical;
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+  resize: none;
 }
 
 .sp-capability-editor {
@@ -2173,12 +2217,6 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-}
-
-.sp-suggest-button {
-  border-color: var(--ast-primary-control);
-  background: var(--ast-primary-control);
-  color: var(--primary-foreground);
 }
 
 .sp-structured-grant {
@@ -2241,7 +2279,6 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .sp-resource-trigger code,
 .sp-resource-option code,
-.sp-suggestion-plan code,
 .sp-grant-select code {
   font-family: var(--font-mono);
   font-size: 0.92em;
@@ -2326,6 +2363,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 }
 
 .sp-grant-error,
+.sp-grant-required,
 .sp-resource-state {
   margin: 0;
   color: var(--muted-foreground);
@@ -2336,7 +2374,12 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   color: var(--destructive);
 }
 
-.sp-template-unresolved {
+.sp-grant-required {
+  color: var(--destructive);
+}
+
+.sp-template-unresolved,
+.sp-template-optional {
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -2354,40 +2397,19 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   padding-left: 16px;
 }
 
-.sp-suggestion-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.sp-template-optional {
+  border-style: dashed;
+}
+
+.sp-draft-error {
+  margin: 0;
   color: var(--destructive);
   font-size: var(--text-xs);
 }
 
-.sp-suggestion-plans {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 8px;
-}
-
-.sp-suggestion-plan {
-  display: grid;
-  align-content: start;
-  gap: 5px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--card);
-}
-
-.sp-suggestion-plan p,
-.sp-suggestion-plan ul {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-}
-
-.sp-suggestion-plan ul {
-  padding-left: 16px;
+.sp-example-variant-note {
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
 }
 
 .sp-legacy-grant {

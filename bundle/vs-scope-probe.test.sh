@@ -80,7 +80,7 @@ check_says "a healthy index passes all three" 0 "declared, reachable and answeri
   python3 "$GATE" --target "$TARGET" --responses "$GOOD"
 
 printf '\n==> DECLARED: the target must ask for what the index needs\n'
-edit "$BUNDLE" "{\n        - vectorsearch.vector-search-indexes:read}{}" && \
+edit "$BUNDLE" "{\n      - vectorsearch.vector-search-indexes:read}{}" && \
   check_says "an undeclared Vector Search scope fails" 1 \
     "reads a refusal as a missing Unity Catalog grant" \
     python3 "$GATE" --target "$TARGET" --responses "$GOOD"

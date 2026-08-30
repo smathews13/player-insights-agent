@@ -918,7 +918,7 @@ export function TablesReadMost({ rows }: { rows: PersonPanelPayload['tablesReadM
       <ol className="monitoring-table-ranking">
         {rows.map((row) => (
           <li key={row.table}>
-            <span className="monitoring-ranked-table" title={row.table}>
+            <span className="monitoring-ranked-table" title={row.table} aria-label={row.table}>
               <VisitInDatabricks name={row.table} />
               <span className="source-name-pill" data-tone="queried">
                 <SourceEntityName name={row.table} />
@@ -960,6 +960,7 @@ export function PersonPanel({
   const times = answerTimeTile(panel.durationsMs);
   const outcomes = outcomeTile(panel.summary);
   const scopes = readScopes(panel);
+  const cost = tokenCostTile(panel.tokenCostUsd);
   return (
     <aside className="monitoring-drawer" role="dialog" aria-modal="true" aria-label="Activity for one person">
       <div className="monitoring-drawer-head">
@@ -984,7 +985,7 @@ export function PersonPanel({
       <h4 className="monitoring-eyebrow">
         What they asked <span className="monitoring-eyebrow-range">{rangeLabel}</span>
       </h4>
-      <div className="monitoring-panel-grid">
+      <div className={`monitoring-panel-grid${cost ? '' : ' monitoring-panel-grid-without-cost'}`}>
         <div className="monitoring-panel-tile">
           <p className="monitoring-panel-tile-label">Questions</p>
           <p className="monitoring-panel-tile-value ast-num">{panel.summary.questionsAsked.toLocaleString()}</p>
@@ -996,7 +997,7 @@ export function PersonPanel({
           </p>
         </div>
         <PanelTile label="Tokens" tile={tokensTile(panel.tokens)} />
-        <PanelTile label="Token cost" tile={tokenCostTile(panel.tokenCostUsd)} />
+        {cost ? <PanelTile label="Token cost" tile={cost} /> : null}
         <div className="monitoring-panel-tile">
           <p className="monitoring-panel-tile-label">Answer time</p>
           {times.value !== null ? (

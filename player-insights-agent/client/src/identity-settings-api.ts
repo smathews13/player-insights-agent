@@ -1,9 +1,4 @@
-import type {
-  SpIdentityAdminPayload,
-  SpPermissionSuggestions,
-  SpPersonaDefinition,
-  SpPersonaDefinitionWrite,
-} from '../../shared/sp-identity';
+import type { SpIdentityAdminPayload, SpPersonaDefinition, SpPersonaDefinitionWrite } from '../../shared/sp-identity';
 import type { Role, RosterPayload } from '../../shared/user-roster-contract';
 
 export const EMPTY_SP_IDENTITY: SpIdentityAdminPayload = {
@@ -106,24 +101,6 @@ export async function deleteSpPersonaDefinition(id: string): Promise<void> {
     const body = (await response.json().catch(() => null)) as { detail?: string } | null;
     throw new Error(serverDetail(body, `Removing the persona configuration answered ${response.status}.`));
   }
-}
-
-export async function suggestSpPersonaPermissions(
-  displayName: string,
-  purpose: string,
-  signal?: AbortSignal
-): Promise<SpPermissionSuggestions> {
-  const response = await fetch('/api/admin/sp-identity/permission-suggestions', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ displayName: displayName.trim(), purpose: purpose.trim() }),
-    signal,
-  });
-  const body = (await response.json().catch(() => null)) as (SpPermissionSuggestions & { detail?: string }) | null;
-  if (!response.ok || !body) {
-    throw new Error(serverDetail(body, `Permission suggestions answered ${response.status}.`));
-  }
-  return body;
 }
 
 async function rosterResponse(response: Response): Promise<RosterPayload> {

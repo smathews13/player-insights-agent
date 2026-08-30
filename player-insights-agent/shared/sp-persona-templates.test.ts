@@ -44,13 +44,15 @@ describe('deployment-configured SP persona template contract', () => {
     for (const template of parsed) {
       expect(template.variants.map((variant) => variant.id)).toEqual(['least-privilege', 'semantic-discovery']);
       for (const variant of template.variants) {
-        expect(variant.grants.map((grant) => grant.action)).not.toEqual(
-          expect.arrayContaining(['WRITE', 'CREATE', 'EDIT', 'MANAGE'])
-        );
+        expect(variant.grants.every((grant) => ['READ', 'USE', 'VIEW', 'EXECUTE'].includes(grant.action))).toBe(true);
       }
       const tableIntent = template.variants[0].grants.find((grant) => grant.resourceType === 'TABLE');
       expect(tableIntent?.selector.idSuffixes?.length).toBeGreaterThan(0);
       expect(tableIntent?.selector).not.toHaveProperty('labelIncludes');
+      const metadataSearch = template.variants[1];
+      expect(metadataSearch.label).toBe('Add metadata search');
+      expect(metadataSearch.description).toContain('does not grant access to table rows');
+      expect(metadataSearch.grants[metadataSearch.grants.length - 1]?.optional).toBe(true);
     }
   });
 

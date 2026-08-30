@@ -10,36 +10,47 @@ function completeDays(payload: Pick<OpsCostPayload, 'range'>): number {
   return Number.isFinite(from) && Number.isFinite(to) && to >= from ? Math.round((to - from) / DAY_MS) + 1 : 0;
 }
 
-export function costSpendSummary(payload: Pick<OpsCostPayload, 'range' | 'tiles' | 'currency'>) {
+export function costSpendSummary(
+  payload: Pick<OpsCostPayload, 'range' | 'tiles' | 'currency'>,
+  unit: CostBudgetUnit = 'USD'
+) {
   const days = completeDays(payload);
-  // Genie-space amounts are allocations of the SQL warehouse tile, not another
-  // meter. Keep them visible per space, but never add them back into the app total.
-  const directTiles = payload.tiles.filter((tile) => !tile.id.startsWith('genie:'));
-  const included = directTiles.filter(
+  // The SQL tile is Astrolabe-tagged SQL only; each Genie tile is a mutually
+  // exclusive Query History allocation from the same warehouse denominator.
+  const included = payload.tiles.filter(
     (tile) =>
       tileAttribution(tile) === 'deployment' &&
-      tile.quality !== 'unknown' &&
-      typeof tile.amount === 'number' &&
-      Number.isFinite(tile.amount) &&
-      (tile.pricing?.match === undefined || tile.pricing.match === 'priced' || tile.pricing.match === 'none')
+      (unit === 'DBU'
+        ? typeof tile.dbus === 'number' && Number.isFinite(tile.dbus)
+        : tile.quality !== 'unknown' &&
+          typeof tile.amount === 'number' &&
+          Number.isFinite(tile.amount) &&
+          (tile.pricing?.match === undefined || tile.pricing.match === 'priced' || tile.pricing.match === 'none'))
   );
-  const amount = included.reduce((sum, tile) => sum + (tile.amount ?? 0) * (tile.basis === 'per-day' ? days : 1), 0);
-  const dbuTiles = directTiles.filter(
-    (tile) => tileAttribution(tile) === 'deployment' && typeof tile.dbus === 'number' && Number.isFinite(tile.dbus)
+  const total = included.reduce(
+    (sum, tile) =>
+      sum + (unit === 'DBU' ? (tile.dbus ?? 0) : (tile.amount ?? 0)) * (tile.basis === 'per-day' ? days : 1),
+    0
   );
-  const dbus = dbuTiles.reduce((sum, tile) => sum + (tile.dbus ?? 0) * (tile.basis === 'per-day' ? days : 1), 0);
-  const activeMissing = directTiles.some(
-    (tile) => Boolean(tile.resourceId.trim()) && tile.attribution !== 'deployment'
+  const activeMissing = payload.tiles.some(
+    (tile) =>
+      Boolean(tile.resourceId.trim()) &&
+      (tile.attribution !== 'deployment' ||
+        (unit === 'DBU'
+          ? typeof tile.dbus !== 'number' || !Number.isFinite(tile.dbus)
+          : typeof tile.amount !== 'number' || !Number.isFinite(tile.amount)))
   );
   const currency = payload.currency.trim();
   return {
-    amount: included.length > 0 ? amount : null,
-    dbus: dbuTiles.length > 0 ? dbus : null,
+    amount: unit === 'USD' && included.length > 0 ? total : null,
+    dbus: unit === 'DBU' && included.length > 0 ? total : null,
     label:
       included.length > 0
-        ? `${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${
-            currency ? ` ${currency}` : ''
-          }`
+        ? unit === 'DBU'
+          ? `${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DBU`
+          : `${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${
+              currency ? ` ${currency}` : ''
+            }`
         : 'Unavailable',
     days,
     partial: activeMissing,
@@ -50,6 +61,6 @@ export function costSpendSummary(payload: Pick<OpsCostPayload, 'range' | 'tiles'
 export function budgetPlaceholder(observed: Record<CostBudgetUnit, number | null>, unit: CostBudgetUnit): string {
   const baseline = observed[unit];
   return typeof baseline === 'number' && Number.isFinite(baseline)
-    ? `e.g. ${baseline.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+    ? baseline.toLocaleString('en-US', { maximumFractionDigits: 2 })
     : 'No observed value';
 }

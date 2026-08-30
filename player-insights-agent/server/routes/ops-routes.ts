@@ -48,6 +48,7 @@ import {
   vectorIndexName,
 } from '../lib/ops-billing';
 import { resourceTagInventory } from '../lib/resource-tagging';
+import { resolveSemanticIndexValue } from '../lib/semantic-index-name';
 import {
   buildTelemetryStatement,
   grantFor,
@@ -260,8 +261,8 @@ export function configuredResourceName(value: unknown, keys: readonly string[]):
   if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
   const record = value as Record<string, unknown>;
   for (const key of keys) {
-    const candidate = record[key];
-    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    const candidate = text(record[key]).trim();
+    if (candidate) return candidate;
   }
   return '';
 }
@@ -313,9 +314,12 @@ async function costIdentifiersFor(
   const semanticEntry = report?.configuration.find((entry) => entry.key === 'semantic_index');
   const semanticCheck = report?.checks.find((check) => check.id === 'semantic-index');
   const endpointCheck = report?.checks.find((check) => check.id === 'semantic-index-endpoint');
+  const semanticValue =
+    text(configured['semantic-index']) ||
+    configuredResourceName(semanticEntry?.value, ['index_name', 'full_name', 'name', 'value']) ||
+    text(semanticEntry?.value);
   const vectorIndex = vectorIndexName(
-    configured['semantic-index'] ||
-      configuredResourceName(semanticEntry?.value, ['index_name', 'full_name', 'name', 'value']) ||
+    resolveSemanticIndexValue(semanticValue, text(configured.catalog), text(configured.schema)) ||
       semanticCheck?.name ||
       (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '')
   );

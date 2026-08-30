@@ -88,6 +88,10 @@ const EXCEPTIONS: Record<string, { value: string; because: string }[]> = {
     { value: '2px', because: 'a 10px Gantt bar; 4px would round it into a lozenge' },
     { value: '2px', because: 'the same bar in the trace timeline' },
     { value: '2px', because: 'the run envelope drawn around it, which has to match' },
+    {
+      value: '3px',
+      because: 'inline SQL code at body height; 4px would round the one-line mark into a lozenge',
+    },
   ],
   'runs.css': [
     {

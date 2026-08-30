@@ -5,12 +5,17 @@ import {
   APP_IDLE_TIMEOUT_CODE,
   APP_SESSION_ACTIVITY_PATH,
   APP_SESSION_END_PATH,
+  APP_SESSION_TIMEOUT_KEY,
   AppSessionBoundary,
   NATIVE_APP_SIGN_OUT_PATH,
   type AppSessionFetch,
+  appSessionStateFromStore,
+  bootstrapAppSession,
   clearSensitiveClientState,
   installAppSessionFetchGuard,
   resetAppSessionForTests,
+  retryAppSessionBootstrap,
+  returnToSignIn,
   signOutAndEndAppSession,
   startExplicitUserActivity,
 } from './app-session';
@@ -65,29 +70,33 @@ describe('explicit user activity', () => {
 });
 
 describe('timeout boundary', () => {
-  it('observes the stable 401 code, unmounts protected content, and shows honest copy', async () => {
+  it('ends the client session, blocks retry bootstrap, and shows the concise return action', async () => {
+    const values = new Map<string, string>();
+    const sessionStorage: AcknowledgementStore = {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => void values.delete(key),
+    };
     vi.stubGlobal('window', {
-      location: { origin: 'https://astrolabe.example.test' },
-      sessionStorage: {
-        getItem: () => null,
-        setItem: () => undefined,
-        removeItem: () => undefined,
-      },
+      location: { origin: 'https://astrolabe.example.test', assign: vi.fn() },
+      sessionStorage,
     });
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ error: APP_IDLE_TIMEOUT_CODE }), {
-            status: 401,
-            headers: { 'content-type': 'application/json' },
-          })
-        )
-      )
-    );
+    const nativeFetch = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
+      void input;
+      return Promise.resolve(
+        new Response(JSON.stringify({ error: APP_IDLE_TIMEOUT_CODE }), {
+          status: 401,
+          headers: { 'content-type': 'application/json' },
+        })
+      );
+    });
+    vi.stubGlobal('fetch', nativeFetch);
     resetAppSessionForTests('ready');
     installAppSessionFetchGuard();
     await fetch('/api/conversations');
+    await fetch('/api/conversations');
+    await bootstrapAppSession(nativeFetch);
+    retryAppSessionBootstrap();
     const markup = renderToStaticMarkup(
       <AppSessionBoundary>
         <div>private conversation</div>
@@ -96,10 +105,16 @@ describe('timeout boundary', () => {
 
     expect(markup).toContain('Session timed out');
     expect(markup).not.toContain('private conversation');
-    expect(markup).toContain('cannot detect or invalidate a separate Databricks workspace session');
-    expect(markup).toContain('may authenticate you again without prompting');
-    expect(markup).toContain('Sign out of Astrolabe');
-    expect(markup).not.toMatch(/workspace (?:was|is) signed out|federated logout (?:works|completed)/i);
+    expect(markup).toContain('Your Astrolabe session ended after inactivity. Return to sign in to continue.');
+    expect(markup).toContain(`href="${NATIVE_APP_SIGN_OUT_PATH}"`);
+    expect(markup).toContain('lucide-log-in');
+    expect(markup).toContain('Return to sign in');
+    expect(markup).not.toMatch(/Sign out of Astrolabe|workspace session|identity-provider|authenticate you again/);
+    expect(values.get(APP_SESSION_TIMEOUT_KEY)).toBe('true');
+    expect(nativeFetch).toHaveBeenCalledTimes(1);
+    const firstRequest = nativeFetch.mock.calls[0];
+    if (!firstRequest) throw new Error('The guarded request never reached the native fetch.');
+    expect(requestText(firstRequest[0])).toBe('/api/conversations');
   });
 
   it('clears tab-scoped state and cache reset hooks', () => {
@@ -124,6 +139,46 @@ describe('timeout boundary', () => {
     ]) {
       expect(source).toContain(reset);
     }
+  });
+
+  it('persists the timeout across reload and clears it only for native sign-in return', () => {
+    const values = new Map([[APP_SESSION_TIMEOUT_KEY, 'true']]);
+    const removed: string[] = [];
+    const store: AcknowledgementStore = {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => {
+        removed.push(key);
+        values.delete(key);
+      },
+    };
+    const navigate = vi.fn();
+
+    expect(appSessionStateFromStore(store)).toBe('timed-out');
+    returnToSignIn({ store, navigate });
+
+    expect(removed).toContain(APP_SESSION_TIMEOUT_KEY);
+    expect(appSessionStateFromStore(store)).toBe('booting');
+    expect(navigate).toHaveBeenCalledWith(NATIVE_APP_SIGN_OUT_PATH);
+  });
+
+  it('keeps upstream-session limits in security docs, not on the timeout card', () => {
+    const accessGuide = readFileSync(new URL('../../../docs/Astrolabe_Access_Guide.md', import.meta.url), 'utf8');
+    const securitySpec = readFileSync(
+      new URL('../../../docs/Astrolabe_Security_Access_Specification.md', import.meta.url),
+      'utf8'
+    );
+    const accountMenu = readFileSync(new URL('./AccountMenu.tsx', import.meta.url), 'utf8');
+    const timeoutSource = readFileSync(new URL('./app-session.tsx', import.meta.url), 'utf8');
+
+    for (const document of [accessGuide, securitySpec]) {
+      expect(document).toMatch(/upstream(?: workspace or identity-provider| workspace\/IdP)? session/i);
+      expect(document).toMatch(/authenticate (?:the user|you) again|authenticate the person again/i);
+    }
+    expect(accountMenu).toContain('Sign out of Astrolabe');
+    expect(accountMenu).toMatch(/Federated logout is not\s+supported/);
+    expect(timeoutSource).not.toContain('It cannot detect or invalidate a separate Databricks workspace session.');
+    expect(timeoutSource).not.toContain('Databricks may authenticate you again without prompting.');
   });
 });
 

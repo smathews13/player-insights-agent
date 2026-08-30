@@ -4,6 +4,7 @@ import { rawIo } from './agent-map';
 import { normalizeStage } from './answer-shape';
 import type { RunTrace } from './app-types';
 import { normalizeRunTrace } from './app-state';
+import { replayedStages } from './conversation-run';
 import { RunDetails } from './RunDetails';
 
 const LEGACY = {
@@ -20,6 +21,28 @@ const LEGACY = {
 };
 
 describe('stage projections on advanced surfaces', () => {
+  it('projects empty running output identically for live and replayed stages', () => {
+    const raw = {
+      id: 'step-1',
+      name: 'Choosing the next step',
+      kind: 'agent',
+      status: 'running',
+      output: '',
+    };
+    const live = normalizeStage(raw, 0);
+    const replayed = replayedStages({
+      run_id: 'run-1',
+      state: 'RUNNING',
+      created_at: '2026-08-28T00:00:00Z',
+      updated_at: '2026-08-28T00:00:01Z',
+      terminal_code: null,
+      stages: [raw],
+    })[0];
+
+    expect(live.output).toBe('Reasoning is in progress.');
+    expect(replayed).toMatchObject({ status: 'running', output: live.output });
+  });
+
   it('keeps legacy prompt text out of the Agent map Raw I/O document', () => {
     const io = rawIo([normalizeStage(LEGACY, 0)]);
 

@@ -39,15 +39,15 @@ function tile(overrides: Partial<CostTile>): CostTile {
 describe('cost budget placeholders', () => {
   it('selects only the observed value for the active unit', () => {
     const observed = { USD: 12.345, DBU: 98.765 };
-    expect(budgetPlaceholder(observed, 'USD')).toBe('e.g. 12.35');
-    expect(budgetPlaceholder(observed, 'DBU')).toBe('e.g. 98.77');
+    expect(budgetPlaceholder(observed, 'USD')).toBe('12.35');
+    expect(budgetPlaceholder(observed, 'DBU')).toBe('98.77');
   });
 
   it('does not invent a baseline for an unavailable unit', () => {
     expect(budgetPlaceholder({ USD: 8, DBU: null }, 'DBU')).toBe('No observed value');
   });
 
-  it('uses each direct tile basis, excludes allocated Genie SQL, and refreshes from the latest payload', () => {
+  it('uses mutually exclusive SQL and Genie allocations, each tile basis, and the selected unit', () => {
     const payload = {
       range: { from: '2026-08-01', to: '2026-08-03' },
       currency: 'USD',
@@ -59,12 +59,14 @@ describe('cost budget placeholders', () => {
         tile({ id: 'genie:dictionary', amount: 8 }),
       ],
     } as Pick<OpsCostPayload, 'range' | 'currency' | 'tiles'>;
-    expect(costSpendSummary(payload)).toMatchObject({ amount: 19, dbus: 17 });
+    expect(costSpendSummary(payload, 'USD')).toMatchObject({ amount: 34, dbus: null });
+    expect(costSpendSummary(payload, 'DBU')).toMatchObject({ amount: null, dbus: 17 });
 
     const refreshed = {
       ...payload,
       tiles: payload.tiles.map((item) => (item.id === 'vector-search' ? { ...item, amount: 10, dbus: 8 } : item)),
     };
-    expect(costSpendSummary(refreshed)).toMatchObject({ amount: 40, dbus: 26 });
+    expect(costSpendSummary(refreshed, 'USD')).toMatchObject({ amount: 55, dbus: null });
+    expect(costSpendSummary(refreshed, 'DBU')).toMatchObject({ amount: null, dbus: 26 });
   });
 });

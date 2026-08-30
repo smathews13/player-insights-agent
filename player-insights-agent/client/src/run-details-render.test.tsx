@@ -166,7 +166,7 @@ describe('what flipping it on does', () => {
     // Generated SQL remains its own readable block. Stage records are already
     // open: Advanced itself is the disclosure, so requiring every stage row to
     // be expanded again would leave the switch looking inert.
-    expect(markup).toContain('<b>SELECT</b> title');
+    expect(markup).toContain('semantic-code-keyword">SELECT</span>');
     expect(markup).toContain('Stage Raw I/O');
     expect(markup).toContain('Querying governed data');
     expect(markup).toContain('gold_title_daily_summary');
@@ -303,29 +303,31 @@ describe('the generated SQL block', () => {
 
     expect(markup).toContain('Generated SQL');
     expect(markup).toContain('2 statements');
-    expect(markup.match(/<pre>/g)).toHaveLength(2);
+    expect(markup.match(/<pre class="semantic-sql-code semantic-sql-code--block"/g)).toHaveLength(2);
   });
 
   it('breaks a statement at its clauses instead of wrapping one long line', () => {
     const markup = detailsMarkup(true, LONG);
 
     for (const clause of ['SELECT', 'FROM', 'WHERE']) {
-      expect(markup).toContain(`<span class="sql-line"><b>${clause}</b>`);
+      expect(markup).toContain(
+        `<span class="sql-line"><span class="semantic-code-token semantic-code-keyword">${clause}</span>`
+      );
     }
   });
 
   it('colours the keywords and leaves the names alone', () => {
     const markup = detailsMarkup(true, LONG);
 
-    expect(markup).toContain('<b>ILIKE</b>');
-    expect(markup).toContain('<b>IS NOT NULL</b>');
-    expect(markup).toContain('<b>COUNT</b>');
-    expect(markup).toContain('<b>DISTINCT</b>');
+    expect(markup).toContain('semantic-code-keyword">ILIKE</span>');
+    expect(markup).toContain('semantic-code-keyword">IS NOT NULL</span>');
+    expect(markup).toContain('semantic-code-keyword">COUNT</span>');
+    expect(markup).toContain('semantic-code-keyword">DISTINCT</span>');
     // A backticked identifier is the one thing on the line that is certainly not
     // the language, so it keeps the colour of a name even when it reads as a
     // keyword. `usage_guardrail` carries no keyword; `table_name` is the check
     // that the pattern is not matching inside backticks at all.
-    expect(markup).not.toContain('<b>table_name</b>');
+    expect(markup).not.toContain('semantic-code-keyword">table_name</span>');
   });
 
   it('offers the whole field on the clipboard, not the reformatted lines', () => {

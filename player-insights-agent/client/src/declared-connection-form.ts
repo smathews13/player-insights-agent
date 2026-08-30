@@ -11,6 +11,10 @@ export interface CreateConnectionInput {
 
 export type CreateConnectionResult = { ok: true; entry: ConnectionEntry } | { ok: false; detail: string };
 
+export type DeleteConnectionResult =
+  | { ok: true; outcome: 'withdrawn' | 'forgotten'; connection?: ConnectionEntry['connection'] }
+  | { ok: false; detail: string };
+
 /** POST one connection and keep the server's persisted provenance verbatim. */
 export async function createDeclaredConnection(
   input: CreateConnectionInput,
@@ -35,6 +39,45 @@ export async function createDeclaredConnection(
     return {
       ok: false,
       detail: `The connection was not added: ${(error as Error).message || 'the app could not be reached.'}`,
+    };
+  }
+}
+
+/**
+ * Delete through the backend's two real states.
+ *
+ * A current declaration is withdrawn first so it remains recoverable. A row
+ * already withdrawn is permanently forgotten. Keeping that choice here makes
+ * the one destructive control honest without teaching the component two URLs.
+ */
+export async function deleteDeclaredConnection(
+  connection: Pick<ConnectionEntry['connection'], 'id' | 'state'>,
+  fetchImpl: typeof fetch = fetch
+): Promise<DeleteConnectionResult> {
+  const forgetting = connection.state === 'withdrawn';
+  const url = `/api/settings/connections/${encodeURIComponent(connection.id)}${forgetting ? '/forever' : ''}`;
+  try {
+    const response = await fetchImpl(url, { method: 'DELETE' });
+    const body = (await response.json().catch(() => ({}))) as {
+      connection?: ConnectionEntry['connection'];
+      forgotten?: { id: string };
+      detail?: string;
+    };
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: body.detail ?? (forgetting ? 'The connection was not deleted.' : 'The connection was not withdrawn.'),
+      };
+    }
+    if (forgetting && body.forgotten?.id === connection.id) return { ok: true, outcome: 'forgotten' };
+    if (!forgetting && body.connection?.state === 'withdrawn') {
+      return { ok: true, outcome: 'withdrawn', connection: body.connection };
+    }
+    return { ok: false, detail: 'The server did not confirm that the connection changed.' };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: `The connection was not deleted: ${(error as Error).message || 'the app could not be reached.'}`,
     };
   }
 }

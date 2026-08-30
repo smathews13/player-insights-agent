@@ -18,20 +18,21 @@
  * ordinary removal still offers "Put back", permanent removal is explicit, and
  * adding still grants nobody anything.
  */
-import { useEffect, useId, useState } from 'react';
-import { ChevronRight, Trash2 } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { BrandIcon } from './BrandIcon';
+import { VisitInDatabricks } from './DataEntityLinks';
 import { RESOURCE_PRODUCT } from './connections-view';
 import {
   ADDABLE_KINDS,
   ADD_CONNECTION_PICKERS,
+  DELETE_CONNECTION_LABEL,
   addedConnectionLabel,
   addedConnectionValue,
   JUST_ADDED_LABEL,
-  REMOVE_LABEL,
-  REMOVE_FOREVER_LABEL,
   RESTORE_LABEL,
+  connectionDatabricksObject,
   connectionRowView,
   forgetConnectionDetail,
   orderConnections,
@@ -40,9 +41,15 @@ import type { ConnectionEntry } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import { StatusBadge } from './StatusBadge';
 import { UserIdentityChip } from './UserIdentityChip';
-import { connectionValueError, createDeclaredConnection, derivedConnectionKey } from './declared-connection-form';
+import {
+  connectionValueError,
+  createDeclaredConnection,
+  deleteDeclaredConnection,
+  derivedConnectionKey,
+} from './declared-connection-form';
 import type { ConnectionTypesResponse } from '../../shared/browse-contract';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
+import { Button } from './ui';
 
 function ConnectionProvenance({ connection }: { connection: ConnectionEntry['connection'] }) {
   const created = connection.createdAt ? new Date(connection.createdAt) : null;
@@ -96,12 +103,13 @@ export function DeclaredConnectionsCard({
   const [typeDiscovery, setTypeDiscovery] = useState<ConnectionTypesResponse | null>(null);
   const [typeDiscoveryError, setTypeDiscoveryError] = useState('');
   const [instantEntries, setInstantEntries] = useState<ConnectionEntry[]>([]);
+  const [hiddenEntries, setHiddenEntries] = useState<Set<string>>(() => new Set());
   /** The id awaiting a confirmed removal, so the impact is read before it happens. */
   const [confirming, setConfirming] = useState('');
-  /** The id awaiting permanent deletion, kept separate from recoverable removal. */
-  const [forgetting, setForgetting] = useState('');
   /** The row added in this sitting, which carries the badge until the page is left. */
   const [justAdded, setJustAdded] = useState('');
+  const [rowError, setRowError] = useState<{ id: string; detail: string } | null>(null);
+  const newRowRef = useRef<HTMLDivElement | null>(null);
   const formId = useId();
 
   useEffect(() => {
@@ -131,18 +139,14 @@ export function DeclaredConnectionsCard({
   useEffect(() => {
     const persisted = new Set((entries ?? []).map((entry) => entry.connection.id));
     setInstantEntries((current) => current.filter((entry) => !persisted.has(entry.connection.id)));
+    setHiddenEntries((current) => new Set([...current].filter((id) => persisted.has(id))));
   }, [entries]);
 
-  const merged = [...(entries ?? []), ...instantEntries];
+  const mergedById = new Map((entries ?? []).map((entry) => [entry.connection.id, entry]));
+  for (const entry of instantEntries) mergedById.set(entry.connection.id, entry);
+  const merged = [...mergedById.values()].filter((entry) => !hiddenEntries.has(entry.connection.id));
   const ordered = orderConnections(merged);
-  // The row just added sits at the foot of the list, immediately above the
-  // control that added it, which is where a reader is already looking.
-  const listed = justAdded
-    ? [
-        ...ordered.filter((entry) => entry.connection.id !== justAdded),
-        ...ordered.filter((entry) => entry.connection.id === justAdded),
-      ]
-    : ordered;
+  const listed = ordered;
   const chosenKind = ADDABLE_KINDS.find((entry) => entry.id === kindChoice) ?? ADDABLE_KINDS[0];
   const picker = ADD_CONNECTION_PICKERS[chosenKind.browse];
   const identifierLabel = picker.typeLabel
@@ -209,6 +213,7 @@ export function DeclaredConnectionsCard({
       setKeyOverride('');
       setLabel('');
       setValue('');
+      setManual(false);
       setAdding(false);
       await onChanged();
     } finally {
@@ -216,20 +221,51 @@ export function DeclaredConnectionsCard({
     }
   }
 
-  async function act(entryId: string, method: 'DELETE' | 'POST', suffix = '') {
+  useEffect(() => {
+    if (!justAdded || !newRowRef.current) return;
+    newRowRef.current.focus({ preventScroll: true });
+    newRowRef.current.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+  }, [justAdded]);
+
+  async function restore(entryId: string) {
+    if (busy) return;
     setBusy(true);
-    setError('');
+    setRowError(null);
     try {
-      const response = await fetch(`/api/settings/connections/${encodeURIComponent(entryId)}${suffix}`, {
-        method,
+      const response = await fetch(`/api/settings/connections/${encodeURIComponent(entryId)}/restore`, {
+        method: 'POST',
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { detail?: string };
-        setError(body.detail ?? 'That did not take effect.');
+        setRowError({ id: entryId, detail: body.detail ?? 'That did not take effect.' });
         return;
       }
       setConfirming('');
-      setForgetting('');
+      await onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(entry: ConnectionEntry) {
+    if (busy) return;
+    setBusy(true);
+    setRowError(null);
+    try {
+      const result = await deleteDeclaredConnection(entry.connection);
+      if (!result.ok) {
+        setRowError({ id: entry.connection.id, detail: result.detail });
+        return;
+      }
+      if (result.outcome === 'forgotten') {
+        setHiddenEntries((current) => new Set(current).add(entry.connection.id));
+      } else if (result.connection) {
+        setInstantEntries((current) => [
+          ...current.filter((candidate) => candidate.connection.id !== entry.connection.id),
+          { ...entry, connection: result.connection! },
+        ]);
+      }
+      setConfirming('');
       await onChanged();
     } finally {
       setBusy(false);
@@ -244,8 +280,132 @@ export function DeclaredConnectionsCard({
         </span>
       ) : null}
 
+      {listed.length > 0 ? <p className="declared-connections-heading">User-added resources</p> : null}
+      {listed.map((entry) => {
+        const removed = entry.connection.state === 'withdrawn';
+        const row = connectionRowView(entry.connection);
+        const destination = connectionDatabricksObject(entry.connection);
+        const name = row.name || row.fullIdentifier || row.kindLabel;
+        const confirmOpen = confirming === entry.connection.id;
+        return (
+          <div
+            key={entry.connection.id}
+            ref={entry.connection.id === justAdded ? newRowRef : undefined}
+            className="connection-row plane-stack declared-connection-row"
+            data-state={entry.connection.state}
+            data-testid={`declared-connection-${entry.connection.id}`}
+            role="group"
+            aria-label={`${row.kindLabel}: ${name}`}
+            tabIndex={-1}
+          >
+            <div className="connection-row-summary declared-connection-summary">
+              <BrandIcon product={RESOURCE_PRODUCT[entry.connection.kind]} className="plane-row-product" />
+              <span className="connection-row-kind">{row.kindLabel}</span>
+              {destination ? <VisitInDatabricks name={name} object={destination} /> : null}
+              {row.name ? (
+                <span className="connection-row-title" title={row.name}>
+                  <StatusBadge value={row.name} tone="plain" title={row.name} />
+                </span>
+              ) : null}
+              {entry.connection.id === justAdded ? <span className="plane-row-new">{JUST_ADDED_LABEL}</span> : null}
+              {row.identifier ? (
+                <code className="declared-connection-id" title={row.fullIdentifier} aria-label={row.fullIdentifier}>
+                  {row.identifier}
+                </code>
+              ) : null}
+              <StatusBadge value={removed ? 'Withdrawn' : 'Declared'} tone="plain" />
+              <ConnectionProvenance connection={entry.connection} />
+              {allowMutations ? (
+                <div className="plane-row-actions">
+                  {removed ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy || !storeAvailable}
+                      onClick={() => void restore(entry.connection.id)}
+                    >
+                      {RESTORE_LABEL}
+                    </Button>
+                  ) : null}
+                  {!confirmOpen ? (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="plane-delete-connection"
+                      disabled={busy || !storeAvailable}
+                      onClick={() => {
+                        setRowError(null);
+                        setConfirming(entry.connection.id);
+                      }}
+                    >
+                      <Trash2 aria-hidden="true" />
+                      {DELETE_CONNECTION_LABEL}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            {entry.connection.note ? <p className="connection-row-note">{entry.connection.note}</p> : null}
+
+            {allowMutations && confirmOpen ? (
+              <div className="plane-confirm" role="group" aria-label={`${DELETE_CONNECTION_LABEL}: ${name}`}>
+                <span className="plane-confirm-headline">
+                  {removed ? 'Delete this remembered connection permanently?' : entry.impact.headline}
+                </span>
+                {removed ? (
+                  <span className="plane-confirm-detail">{forgetConnectionDetail(entry.connection.origin)}</span>
+                ) : (
+                  <ul className="plane-confirm-list">
+                    {entry.impact.consequences.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                )}
+                <span className="plane-confirm-actions">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="plane-delete-connection"
+                    disabled={busy}
+                    onClick={() => void remove(entry)}
+                  >
+                    <Trash2 aria-hidden="true" />
+                    {busy ? 'Deleting\u2026' : DELETE_CONNECTION_LABEL}
+                  </Button>
+                  <Button variant="outline" size="sm" disabled={busy} onClick={() => setConfirming('')}>
+                    Keep
+                  </Button>
+                </span>
+              </div>
+            ) : null}
+            {rowError?.id === entry.connection.id ? (
+              <span className="plane-error declared-connection-error" role="alert">
+                {rowError.detail}
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
+
+      {allowMutations ? (
+        <div className="plane-add-row" data-testid="add-connection-row">
+          <button
+            type="button"
+            className="plane-add-connection"
+            aria-expanded={adding}
+            aria-controls={`${formId}-form`}
+            onClick={() => {
+              setError('');
+              setAdding((open) => !open);
+            }}
+          >
+            {adding ? 'Cancel' : '+ Add a new connection'}
+          </button>
+        </div>
+      ) : null}
+
       {allowMutations && adding ? (
-        <div className="plane-form">
+        <div className="plane-form" id={`${formId}-form`} data-testid="add-connection-form">
           <div className="plane-kind-field">
             {typeChoices.length > 0 ? (
               <AppSelect
@@ -277,18 +437,12 @@ export function DeclaredConnectionsCard({
                 key={chosenKind.id}
                 spec={picker}
                 current={value}
-                onPick={(picked, row) => {
-                  // A volume row carries a leaf name, and only the catalog and
-                  // schema it was browsed through make it into a path the agent
-                  // can be pointed at.
-                  const stored = addedConnectionValue(chosenKind.id, picked, row?.cursor);
+                onPick={(picked, pickedRow) => {
+                  const stored = addedConnectionValue(chosenKind.id, picked, pickedRow?.cursor);
                   setValue(stored);
-                  // THE NAME THE LIST SHOWED, not a fragment of the id. A Genie
-                  // space and a warehouse both store a hex string, and deriving a
-                  // label from one is how this list ended up printing hex at the
-                  // reader. The picked row already carries the human name.
-                  const named = addedConnectionLabel(stored, row?.item.label);
+                  const named = addedConnectionLabel(stored, pickedRow?.item.label);
                   setLabel((current) => current || named);
+                  setError('');
                 }}
               />
             </div>
@@ -305,7 +459,10 @@ export function DeclaredConnectionsCard({
                 id={`${formId}-identifier`}
                 className="plane-field ast-mono"
                 value={value}
-                onChange={(event) => setValue(event.target.value)}
+                onChange={(event) => {
+                  setValue(event.target.value);
+                  setError('');
+                }}
                 placeholder={picker.typeLabel.replace(/^Or type (an?|a) /i, '')}
               />
             </label>
@@ -337,6 +494,12 @@ export function DeclaredConnectionsCard({
             </label>
           ) : null}
 
+          {error ? (
+            <span className="plane-error plane-form-error" role="alert">
+              {error}
+            </span>
+          ) : null}
+
           <div className="plane-form-actions" data-sticky="true">
             <button
               type="button"
@@ -364,147 +527,6 @@ export function DeclaredConnectionsCard({
               </span>
             ) : null}
           </div>
-        </div>
-      ) : null}
-
-      {error ? <span className="plane-error">{error}</span> : null}
-
-      {listed.map((entry) => {
-        const removed = entry.connection.state === 'withdrawn';
-        const row = connectionRowView(entry.connection);
-        return (
-          <div key={entry.connection.id} className="connection-row plane-stack">
-            <details className="connection-accordion" data-state={entry.connection.state}>
-              <summary className="connection-row-summary">
-                <ChevronRight className="connection-row-chevron" aria-hidden="true" />
-                <BrandIcon product={RESOURCE_PRODUCT[entry.connection.kind]} className="plane-row-product" />
-                <span className="connection-row-kind">{row.kindLabel}</span>
-                {row.name ? (
-                  <span className="connection-row-title" title={row.name}>
-                    <StatusBadge value={row.name} tone="plain" title={row.name} />
-                  </span>
-                ) : null}
-                {entry.connection.id === justAdded ? <span className="plane-row-new">{JUST_ADDED_LABEL}</span> : null}
-                <span className="connection-row-value ast-mono" title={row.fullIdentifier}>
-                  {row.identifier}
-                </span>
-                <StatusBadge value={removed ? 'Withdrawn' : 'Declared'} tone="plain" />
-              </summary>
-              <div className="connection-row-detail">
-                <ConnectionProvenance connection={entry.connection} />
-                {entry.connection.note ? <p className="connection-row-note">{entry.connection.note}</p> : null}
-                {allowMutations ? (
-                  <div className="plane-row-actions">
-                    {removed ? (
-                      <button
-                        type="button"
-                        className="plane-button-quiet"
-                        disabled={busy || !storeAvailable}
-                        onClick={() => void act(entry.connection.id, 'POST', '/restore')}
-                      >
-                        {RESTORE_LABEL}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="plane-button-quiet"
-                        disabled={busy || !storeAvailable}
-                        onClick={() => {
-                          setForgetting('');
-                          setConfirming(entry.connection.id);
-                        }}
-                      >
-                        {REMOVE_LABEL}
-                      </button>
-                    )}
-                    {/* Permanent deletion is a distinct control, not a second
-                      meaning hidden behind Remove. The ordinary action keeps a
-                      restorable row; this one deletes the Lakebase record and
-                      therefore asks its own irreversible question first. */}
-                    <button
-                      type="button"
-                      className="plane-row-forget"
-                      disabled={busy || !storeAvailable}
-                      aria-label={`${REMOVE_FOREVER_LABEL}: ${row.name || row.kindLabel}`}
-                      title={REMOVE_FOREVER_LABEL}
-                      onClick={() => {
-                        setConfirming('');
-                        setForgetting(entry.connection.id);
-                      }}
-                    >
-                      <Trash2 aria-hidden="true" />
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            </details>
-
-            {allowMutations && confirming === entry.connection.id ? (
-              <div className="plane-confirm">
-                <span className="plane-confirm-headline">{entry.impact.headline}</span>
-                <ul className="plane-confirm-list">
-                  {entry.impact.consequences.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-                <span className="plane-confirm-actions">
-                  <button
-                    type="button"
-                    className="plane-button-quiet"
-                    disabled={busy}
-                    onClick={() => void act(entry.connection.id, 'DELETE')}
-                  >
-                    {REMOVE_LABEL}
-                  </button>
-                  <button
-                    type="button"
-                    className="plane-button-quiet"
-                    disabled={busy}
-                    onClick={() => setConfirming('')}
-                  >
-                    Keep
-                  </button>
-                </span>
-              </div>
-            ) : null}
-
-            {allowMutations && forgetting === entry.connection.id ? (
-              <div
-                className="plane-confirm"
-                role="group"
-                aria-label={`${REMOVE_FOREVER_LABEL}: ${row.name || row.kindLabel}`}
-              >
-                <span className="plane-confirm-headline">Remove this remembered connection forever?</span>
-                <span className="plane-confirm-detail">{forgetConnectionDetail(entry.connection.origin)}</span>
-                <span className="plane-confirm-actions">
-                  <button
-                    type="button"
-                    className="plane-confirm-forever"
-                    disabled={busy}
-                    onClick={() => void act(entry.connection.id, 'DELETE', '/forever')}
-                  >
-                    {busy ? 'Removing\u2026' : REMOVE_FOREVER_LABEL}
-                  </button>
-                  <button
-                    type="button"
-                    className="plane-button-quiet"
-                    disabled={busy}
-                    onClick={() => setForgetting('')}
-                  >
-                    Keep
-                  </button>
-                </span>
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
-
-      {allowMutations ? (
-        <div className="plane-add-row" data-testid="add-connection-row">
-          <button type="button" className="plane-add-connection" onClick={() => setAdding((open) => !open)}>
-            {adding ? 'Cancel' : '+ Add a new connection'}
-          </button>
         </div>
       ) : null}
     </>

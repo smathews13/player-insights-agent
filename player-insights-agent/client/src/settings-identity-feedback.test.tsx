@@ -145,8 +145,10 @@ describe('the demo workspace Identity feedback', () => {
     expect(markup).not.toContain(spRoles.personas[0].secretKey);
   });
 
-  it('prevents email and setter cells from wrapping character-by-character', () => {
-    expect(CSS).toMatch(/\.admin-row-address \{[^}]*overflow-wrap:\s*anywhere[^}]*white-space:\s*normal/s);
+  it('keeps full emails on one readable line with tooltip and copy support', () => {
+    expect(CSS).toMatch(/\.admin-row-address \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
+    expect(CSS).toMatch(/\.admin-row-email \{[^}]*font-size:\s*11px/s);
+    expect(CSS).toMatch(/\.roster-email-copy \{[^}]*width:\s*26px[^}]*height:\s*26px/s);
     expect(CSS).toMatch(/\.roster-set-by > \* \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
     expect(CSS).toMatch(/\.settings-data-table \{[^}]*table-layout:\s*fixed/s);
   });
@@ -155,7 +157,10 @@ describe('the demo workspace Identity feedback', () => {
     expect(CSS).toMatch(
       /\.settings-page\.settings-modal \{[^}]*width:\s*min\(960px,\s*calc\(100vw - 48px\)\)[^}]*max-width:\s*960px/s
     );
-    expect(CSS).toMatch(/\.roles-table \{[^}]*min-width:\s*700px/s);
+    expect(CSS).toMatch(/\.roles-table \{[^}]*min-width:\s*780px/s);
+    expect(CSS).toMatch(/\.roles-table--editable th:first-child \{[^}]*width:\s*39%/s);
+    expect(CSS).toMatch(/\.roster-role-select \{[^}]*max-width:\s*7rem/s);
+    expect(CSS).toMatch(/\.roster-persona-select \{[^}]*max-width:\s*9rem/s);
     expect(RESPONSIVE).toMatch(
       /@media \(max-width:\s*800px\)[\s\S]*\.settings-modal-body \{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s
     );
@@ -230,7 +235,16 @@ describe('the demo workspace Identity feedback', () => {
     expect(markup).toContain('aria-label="Organization: Example Studio"');
     expect(markup).toContain('roster-organization-mark');
     expect(markup).toContain(`title="${email}">${email}</span>`);
-    expect(markup.indexOf('roster-organization-mark')).toBeLessThan(markup.indexOf(`title="${email}"`));
+    expect(markup).toContain(`aria-label="Copy email ${email}"`);
+    expect(markup.indexOf('roster-organization-mark')).toBeLessThan(markup.indexOf('admin-row-address'));
+  });
+
+  it('keeps persona name and purpose controls compact and exactly equal height', () => {
+    expect(CSS).toMatch(/\.sp-persona-fields \.runtime-field \{[^}]*grid-template-rows:\s*auto 44px/s);
+    expect(CSS).toMatch(/\.sp-persona-fields \[data-slot='input'\] \{[^}]*height:\s*44px/s);
+    expect(CSS).toMatch(
+      /\.sp-persona-fields \[data-slot='textarea'\] \{[^}]*height:\s*44px[^}]*max-height:\s*44px[^}]*resize:\s*none/s
+    );
   });
 
   it('pins every row control to the same 30px geometry', () => {

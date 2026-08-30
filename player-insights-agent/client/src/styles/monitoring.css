@@ -823,8 +823,14 @@
 
 .monitoring-panel-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
+}
+.monitoring-panel-grid > .monitoring-panel-tile {
+  grid-column: span 2;
+}
+.monitoring-panel-grid-without-cost > .monitoring-panel-tile:not(.monitoring-panel-tile-wide) {
+  grid-column: span 3;
 }
 .monitoring-panel-tile {
   border: 1px solid var(--ast-hairline);
@@ -859,10 +865,11 @@
  * on the line below -- made it fit by breaking inside a word:
  * `..._catalog.player_i` / `nary`. That is the one truncation a reader cannot
  * tell from the end of the name, and it is worse than either of the alternatives.
- * At full row width the name has about 570px, and the ellipsis below is the
- * backstop for a longer one.
+ * At full row width the name has about 570px. The row stays one line: each
+ * semantic segment may surrender width and show an ellipsis, while the full
+ * identifier remains in the title and accessible label.
  */
-.monitoring-panel-tile-wide {
+.monitoring-panel-grid > .monitoring-panel-tile-wide {
   grid-column: 1 / -1;
 }
 .monitoring-tables-read {
@@ -878,19 +885,49 @@
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
   padding: 6px 0;
+  white-space: nowrap;
 }
 .monitoring-table-ranking li + li {
   border-top: 1px solid var(--ast-hairline);
 }
 .monitoring-ranked-table {
   min-width: 0;
-  overflow-wrap: anywhere;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
   line-height: 1.55;
 }
+.monitoring-ranked-table > .visit-in-databricks {
+  flex: none;
+}
+.monitoring-ranked-table > .source-name-pill {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.monitoring-ranked-table > .source-name-pill > a {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.monitoring-ranked-table .entity-token {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .monitoring-table-runs {
+  justify-self: end;
   white-space: nowrap;
   font-size: var(--text-sm);
   color: var(--ast-text-secondary);
@@ -992,13 +1029,3 @@
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-
-/* ── Narrow ────────────────────────────────────────────────────────────── */
-
-/*
- * There is no width query in this file, on purpose.
- *
- * The summary strip, tile grid and drawer all reshape in responsive.css with
- * every other breakpoint in the app. The summary keeps the full outcome label
- * on desktop there and intentionally releases it at the shared narrow band.
- */

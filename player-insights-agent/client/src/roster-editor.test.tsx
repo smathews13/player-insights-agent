@@ -201,8 +201,8 @@ describe('the #24a Roles geometry', () => {
 
   it('keeps role and action controls compact within their columns', () => {
     expect(css).toMatch(/\.roster-role-select,\s*\.roster-persona-select \{[^}]*flex:\s*0 0 auto/);
-    expect(css).toMatch(/\.roster-role-select \{[^}]*max-width:\s*9rem/);
-    expect(css).toMatch(/\.roster-persona-select \{[^}]*max-width:\s*13rem/);
+    expect(css).toMatch(/\.roster-role-select \{[^}]*max-width:\s*7rem/);
+    expect(css).toMatch(/\.roster-persona-select \{[^}]*max-width:\s*9rem/);
     expect(css).toMatch(/\.admin-add \[data-slot='button'\] \{[^}]*flex:\s*none/);
     expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*min-width:\s*0/);
     expect(css).toMatch(/\.roles-table--editable th:last-child \{[^}]*text-align:\s*right/);

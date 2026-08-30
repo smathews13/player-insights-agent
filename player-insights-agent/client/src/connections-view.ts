@@ -2,6 +2,9 @@ import type { BrandProduct } from './BrandIcon';
 import type { ResourceKind } from '../../shared/deployment-config';
 import { formatCheckedAt, type PreflightCheck } from './preflight';
 
+/** Stable anchor for the per-table evidence section on Connections. */
+export const DECLARED_TABLES_SECTION_ID = 'declared-tables';
+
 export const RESOURCE_PRODUCT: Record<ResourceKind, BrandProduct> = {
   agent: 'mosaic-ai',
   model: 'mosaic-ai',

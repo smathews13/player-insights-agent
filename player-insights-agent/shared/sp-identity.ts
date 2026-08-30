@@ -53,7 +53,7 @@ export interface SpPersona {
 }
 
 /**
- * A credential-free plan for an operator-created service principal.
+ * A credential-free configuration for an operator-created service principal.
  *
  * The app's declared user scopes can read/query Databricks resources but cannot
  * administer account service principals or apply grants. Generating one of
@@ -104,9 +104,20 @@ export const SP_GRANT_ACTIONS = [
   'USE',
   'EXECUTE',
   'WRITE',
+  'MODIFY',
   'CREATE',
+  'CREATE_SCHEMA',
+  'CREATE_TABLE',
+  'CREATE_FUNCTION',
+  'CREATE_MODEL',
+  'CREATE_VOLUME',
+  'CREATE_MODEL_VERSION',
   'EDIT',
   'MONITOR',
+  'APPLY_TAG',
+  'READ_METADATA',
+  'ALL_PRIVILEGES',
+  'OWNER',
   'MANAGE',
 ] as const;
 export type SpGrantAction = (typeof SP_GRANT_ACTIONS)[number];
@@ -147,6 +158,7 @@ export const SP_GRANT_MATRIX: Record<SpGrantResourceType, SpGrantTypeDefinition>
       { action: 'VIEW', label: 'View', privilege: 'CAN VIEW' },
       { action: 'MONITOR', label: 'Monitor and run', privilege: 'CAN MONITOR' },
       { action: 'USE', label: 'Use', privilege: 'CAN USE' },
+      { action: 'OWNER', label: 'Own', privilege: 'IS OWNER' },
       { action: 'MANAGE', label: 'Manage', privilege: 'CAN MANAGE' },
     ],
   },
@@ -156,8 +168,17 @@ export const SP_GRANT_MATRIX: Record<SpGrantResourceType, SpGrantTypeDefinition>
     options: [
       { action: 'VIEW', label: 'Browse metadata', privilege: 'BROWSE' },
       { action: 'USE', label: 'Use', privilege: 'USE CATALOG' },
+      { action: 'READ_METADATA', label: 'Read security metadata', privilege: 'READ METADATA' },
       { action: 'READ', label: 'Read all current and future data', privilege: 'SELECT' },
+      { action: 'MODIFY', label: 'Modify all current and future tables', privilege: 'MODIFY' },
       { action: 'EXECUTE', label: 'Execute all current and future functions', privilege: 'EXECUTE' },
+      { action: 'APPLY_TAG', label: 'Apply tags', privilege: 'APPLY TAG' },
+      { action: 'CREATE_SCHEMA', label: 'Create schemas', privilege: 'CREATE SCHEMA' },
+      { action: 'CREATE_TABLE', label: 'Create tables', privilege: 'CREATE TABLE' },
+      { action: 'CREATE_FUNCTION', label: 'Create functions', privilege: 'CREATE FUNCTION' },
+      { action: 'CREATE_MODEL', label: 'Create models', privilege: 'CREATE MODEL' },
+      { action: 'CREATE_VOLUME', label: 'Create volumes', privilege: 'CREATE VOLUME' },
+      { action: 'ALL_PRIVILEGES', label: 'All applicable data privileges', privilege: 'ALL PRIVILEGES' },
       { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
     ],
   },
@@ -166,17 +187,28 @@ export const SP_GRANT_MATRIX: Record<SpGrantResourceType, SpGrantTypeDefinition>
     identifierHint: 'catalog.schema',
     options: [
       { action: 'USE', label: 'Use', privilege: 'USE SCHEMA' },
+      { action: 'READ_METADATA', label: 'Read security metadata', privilege: 'READ METADATA' },
       { action: 'READ', label: 'Read all current and future data', privilege: 'SELECT' },
+      { action: 'MODIFY', label: 'Modify all current and future tables', privilege: 'MODIFY' },
       { action: 'EXECUTE', label: 'Execute all current and future functions', privilege: 'EXECUTE' },
+      { action: 'APPLY_TAG', label: 'Apply tags', privilege: 'APPLY TAG' },
+      { action: 'CREATE_TABLE', label: 'Create tables', privilege: 'CREATE TABLE' },
+      { action: 'CREATE_FUNCTION', label: 'Create functions', privilege: 'CREATE FUNCTION' },
+      { action: 'CREATE_MODEL', label: 'Create models', privilege: 'CREATE MODEL' },
+      { action: 'CREATE_VOLUME', label: 'Create volumes', privilege: 'CREATE VOLUME' },
+      { action: 'ALL_PRIVILEGES', label: 'All applicable data privileges', privilege: 'ALL PRIVILEGES' },
       { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
     ],
   },
   TABLE: {
-    label: 'Table or view',
+    label: 'Table',
     identifierHint: 'catalog.schema.table',
     options: [
       { action: 'READ', label: 'Read', privilege: 'SELECT' },
+      { action: 'READ_METADATA', label: 'Read security metadata', privilege: 'READ METADATA' },
       { action: 'WRITE', label: 'Modify', privilege: 'MODIFY' },
+      { action: 'APPLY_TAG', label: 'Apply tags', privilege: 'APPLY TAG' },
+      { action: 'ALL_PRIVILEGES', label: 'All data privileges', privilege: 'ALL PRIVILEGES' },
       { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
     ],
   },
@@ -202,8 +234,8 @@ export const SP_GRANT_MATRIX: Record<SpGrantResourceType, SpGrantTypeDefinition>
     label: 'Vector Search endpoint',
     identifierHint: 'Endpoint name',
     options: [
-      { action: 'CREATE', label: 'Create indexes', privilege: 'CAN CREATE' },
-      { action: 'USE', label: 'Use', privilege: 'CAN USE' },
+      { action: 'CREATE', label: 'Create endpoints', privilege: 'CAN CREATE' },
+      { action: 'USE', label: 'Create indexes', privilege: 'CAN USE' },
       { action: 'MANAGE', label: 'Manage', privilege: 'CAN MANAGE' },
     ],
   },
@@ -212,6 +244,8 @@ export const SP_GRANT_MATRIX: Record<SpGrantResourceType, SpGrantTypeDefinition>
     identifierHint: 'catalog.schema.function',
     options: [
       { action: 'EXECUTE', label: 'Execute / call', privilege: 'EXECUTE' },
+      { action: 'READ_METADATA', label: 'Read security metadata', privilege: 'READ METADATA' },
+      { action: 'ALL_PRIVILEGES', label: 'All function privileges', privilege: 'ALL PRIVILEGES' },
       { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
     ],
   },
@@ -220,6 +254,10 @@ export const SP_GRANT_MATRIX: Record<SpGrantResourceType, SpGrantTypeDefinition>
     identifierHint: 'catalog.schema.model',
     options: [
       { action: 'EXECUTE', label: 'Load / use', privilege: 'EXECUTE' },
+      { action: 'READ_METADATA', label: 'Read security metadata', privilege: 'READ METADATA' },
+      { action: 'APPLY_TAG', label: 'Apply tags', privilege: 'APPLY TAG' },
+      { action: 'CREATE_MODEL_VERSION', label: 'Create model versions', privilege: 'CREATE MODEL VERSION' },
+      { action: 'ALL_PRIVILEGES', label: 'All model privileges', privilege: 'ALL PRIVILEGES' },
       { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
     ],
   },
@@ -228,7 +266,10 @@ export const SP_GRANT_MATRIX: Record<SpGrantResourceType, SpGrantTypeDefinition>
     identifierHint: 'catalog.schema.volume',
     options: [
       { action: 'READ', label: 'Read files', privilege: 'READ VOLUME' },
+      { action: 'READ_METADATA', label: 'Read security metadata', privilege: 'READ METADATA' },
       { action: 'WRITE', label: 'Write files', privilege: 'WRITE VOLUME' },
+      { action: 'APPLY_TAG', label: 'Apply tags', privilege: 'APPLY TAG' },
+      { action: 'ALL_PRIVILEGES', label: 'All volume privileges', privilege: 'ALL PRIVILEGES' },
       { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
     ],
   },
@@ -407,33 +448,8 @@ const SpGrantsSchema = z
   .array(SpGrantSchema)
   .max(SP_PERSONA_GRANT_COUNT_MAX)
   .refine((grants) => new Set(grants.map(spGrantKey)).size === grants.length, {
-    message: 'The grant plan contains an exact duplicate.',
+    message: 'The permissions contain an exact duplicate.',
   });
-
-export const SpPermissionSuggestionRequestSchema = z
-  .object({
-    displayName: z.string().trim().max(NAME_MAX).default(''),
-    purpose: z.string().trim().min(1).max(DESCRIPTION_MAX),
-  })
-  .strict();
-
-export const SpPermissionPlanSchema = z
-  .object({
-    name: z.string().trim().min(1).max(80),
-    rationale: z.string().trim().min(1).max(240),
-    grants: SpGrantsSchema.min(1),
-  })
-  .strict();
-
-export const SpPermissionSuggestionsSchema = z
-  .object({
-    plans: z.array(SpPermissionPlanSchema).min(2).max(4),
-  })
-  .strict();
-
-export type SpPermissionSuggestionRequest = z.infer<typeof SpPermissionSuggestionRequestSchema>;
-export type SpPermissionPlan = z.infer<typeof SpPermissionPlanSchema>;
-export type SpPermissionSuggestions = z.infer<typeof SpPermissionSuggestionsSchema>;
 
 const SpPersonaDefinitionFields = z.object({
   displayName: z.string().trim().min(1).max(NAME_MAX),

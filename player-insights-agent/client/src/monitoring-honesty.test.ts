@@ -13,7 +13,6 @@ import {
   partialSentence,
   PERCENTILE_FLOOR,
   grantBadge,
-  NO_FIGURE,
   ratedHelpfulTile,
   ratedTile,
   readScopes,
@@ -114,31 +113,13 @@ describe('a rate never renders without its population', () => {
     expect(tokensTile({ total: 0, metredRuns: 0, totalRuns: 0 }).absence).toBe('No runs in this range');
   });
 
-  /**
-   * A mark and three words, where this used to be a paragraph.
-   *
-   * It read "Price not configured" over "the endpoint has no list price recorded,
-   * so this cannot be computed": a sentence and a half about the absence of a
-   * number, on the one tile in the grid with nothing to report. The mark says
-   * there is no figure and the caption says what is missing, which is the shape
-   * the Ops latency block uses for a percentile it will not print.
-   */
-  it('marks an unpriced cost rather than explaining it at length', () => {
-    const tile = tokenCostTile(null);
-
-    expect(tile.value).toBe(NO_FIGURE);
-    expect(tile.absence).toBeNull();
-    expect(tile.caption).toBe('no price configured');
-    // Still never a zero. A free answer and an uncomputable one are not the same.
-    expect(tile.value).not.toContain('$0');
-    // An em dash is banned in this file, so the mark is the en dash.
-    expect(tile.value).not.toBe('\u2014');
-    expect(tile.caption.split(' ')).toHaveLength(3);
+  it('offers no tile when the deployment has no configured token rate', () => {
+    expect(tokenCostTile(null)).toBeNull();
   });
 
-  it('prints the cost where a price is configured', () => {
-    expect(tokenCostTile(3.84).value).toBe('$3.84');
-    expect(tokenCostTile(3.84).caption).toBe('at list price · USD');
+  it('prints the measured cost where a rate is configured', () => {
+    expect(tokenCostTile(3.84)?.value).toBe('$3.84');
+    expect(tokenCostTile(3.84)?.caption).toBe('at configured rate · USD');
   });
 
   it('says nothing was rated rather than rating zero', () => {

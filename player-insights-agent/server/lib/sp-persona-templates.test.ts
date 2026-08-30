@@ -48,9 +48,7 @@ describe('SP persona template configuration parser', () => {
     for (const template of parsed.templates) {
       expect(template.variants).toHaveLength(2);
       for (const variant of template.variants) {
-        expect(variant.grants.map((grant) => grant.action)).not.toEqual(
-          expect.arrayContaining(['WRITE', 'CREATE', 'EDIT', 'MANAGE'])
-        );
+        expect(variant.grants.every((grant) => ['READ', 'USE', 'VIEW', 'EXECUTE'].includes(grant.action))).toBe(true);
       }
     }
   });

@@ -38,6 +38,8 @@ import { MarkdownText, StructuredTableResultView } from './StepResult';
 import { structuredTableResult } from './step-results';
 import { EntityText, TableEntityList } from './DataEntityLinks';
 import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
+import { InlineSqlCode, SqlCodeBlocks } from './SqlPresentation';
+import { isSqlText, sqlFromStageInput } from './sql-presentation';
 
 /** Which surface is drawing the panel. See file header. */
 export type TraceTimelineVariant = 'default' | 'explorer';
@@ -210,30 +212,54 @@ export function PayloadView({
         <TableEntityList tables={tables} />
       ) : payload.fields ? (
         <ul className="trace-payload-fields">
-          {payload.fields.map((field) => (
-            <li key={field.key} className={field.block ? 'block' : ''}>
-              <span className="trace-payload-key">{field.key}</span>
-              {field.block ? (
-                field.key === 'sql' || field.key === 'query' ? (
-                  <pre>
-                    <EntityText text={field.value} sources={tables.map((name) => ({ name }))} />
-                  </pre>
-                ) : (
+          {payload.fields.map((field) => {
+            const sqlField = field.key === 'sql' || (field.key === 'query' && isSqlText(field.value));
+            return (
+              <li key={field.key} className={field.block || sqlField ? 'block' : ''}>
+                <span className="trace-payload-key">{field.key}</span>
+                {sqlField ? (
+                  <SqlCodeBlocks sql={field.value} className="trace-payload-sql" tables={tables} />
+                ) : field.block ? (
                   <MarkdownText text={field.value} tables={tables} />
-                )
-              ) : (
-                <span className="trace-payload-value">
-                  <EntityText text={field.value} sources={tables.map((name) => ({ name }))} />
-                </span>
-              )}
-            </li>
-          ))}
+                ) : (
+                  <span className="trace-payload-value">
+                    <EntityText text={field.value} sources={tables.map((name) => ({ name }))} />
+                  </span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <MarkdownText text={payload.body} tables={tables} />
       )}
     </div>
   );
+}
+
+function EventSummary({
+  row,
+  eventLabel,
+  variant,
+  sources,
+  tools,
+}: {
+  row: TimelineRow;
+  eventLabel: string;
+  variant: TraceTimelineVariant;
+  sources: { name: string }[];
+  tools: string[];
+}) {
+  const tool = toolNameFromId(row.id);
+  const sql = variant === 'explorer' && tool === 'run_sql' ? sqlFromStageInput(row.input) : '';
+  if (sql) {
+    return (
+      <>
+        <EntityText text={tool} sources={sources} tools={[tool]} /> <InlineSqlCode sql={sql} limit={52} />
+      </>
+    );
+  }
+  return <EntityText text={eventLabel} sources={sources} tools={tools} />;
 }
 
 /**
@@ -284,8 +310,11 @@ function GanttRow({
         </td>
         <td className="trace-event">
           <button type="button" aria-expanded={expanded}>
-            <span className="trace-event-label" title={eventLabel}>
-              <EntityText text={eventLabel} sources={sources} tools={tools} />
+            <span
+              className="trace-event-label"
+              title={variant === 'explorer' && toolNameFromId(row.id) === 'run_sql' ? undefined : eventLabel}
+            >
+              <EventSummary row={row} eventLabel={eventLabel} variant={variant} sources={sources} tools={tools} />
             </span>
             <ChevronDown aria-hidden="true" />
             {row.status !== 'complete' && <span className={`trace-status ${row.status}`}>{row.status}</span>}

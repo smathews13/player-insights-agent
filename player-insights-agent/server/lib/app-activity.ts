@@ -1,4 +1,5 @@
 import { appTable } from '../../shared/app-schema';
+export { validIanaTimeZone } from '../../shared/timezone';
 import type { LakebaseReader } from './lakebase-store';
 
 export const APP_ACTIVITY_TABLE = appTable('app_activity_minutes');
@@ -38,17 +39,6 @@ export const ACTIVE_MINUTES_PER_DAY_QUERY = `
   FROM bounds
   LEFT JOIN per_day ON TRUE
   ORDER BY per_day.day`;
-
-export function validIanaTimeZone(value: string): string {
-  const candidate = value.trim();
-  if (!candidate) return '';
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: candidate }).format(0);
-    return candidate;
-  } catch {
-    return '';
-  }
-}
 
 export async function recordAppActivityMinute(store: LakebaseReader, user: string): Promise<void> {
   await store.lakebase.query(RECORD_APP_ACTIVITY_QUERY, [user]);

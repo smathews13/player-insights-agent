@@ -291,7 +291,10 @@ describe('expiry and activity semantics', () => {
       const response = await running.call(path, { method, headers: { cookie } });
       expect(response.status).toBe(401);
       expect(await response.json()).toMatchObject({ error: APP_IDLE_TIMEOUT_CODE });
+      expect(response.headers.get('set-cookie')).toContain(`${APP_SESSION_COOKIE}=`);
+      expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
     }
+    expect([...running.store.rows.values()][0]?.revoked).not.toBeNull();
   });
 
   it('also enforces the absolute boundary and subject binding', async () => {
@@ -346,7 +349,7 @@ describe('expiry and activity semantics', () => {
     expect(row.idleExpires).toBeGreaterThan(originalExpiry);
   });
 
-  it('does not replace an expired or attacker-supplied cookie during bootstrap', async () => {
+  it('clears but never replaces an expired or attacker-supplied cookie during bootstrap', async () => {
     const running = await start();
     open.push(running.close);
     const cookie = cookieFrom(await running.bootstrap());
@@ -354,8 +357,9 @@ describe('expiry and activity semantics', () => {
     const expired = await running.bootstrap(cookie);
     expect(expired.status).toBe(401);
     expect(((await expired.json()) as { error: string }).error).toBe(APP_IDLE_TIMEOUT_CODE);
-    expect(expired.headers.get('set-cookie')).toBeNull();
+    expect(expired.headers.get('set-cookie')).toContain('Max-Age=0');
     expect(running.store.rows.size).toBe(1);
+    expect([...running.store.rows.values()][0]?.revoked).not.toBeNull();
 
     const fixed = await running.bootstrap(`${APP_SESSION_COOKIE}=${createOpaqueSessionId()}`);
     expect(fixed.status).toBe(401);

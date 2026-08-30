@@ -113,6 +113,24 @@ describe('a list the workspace answered', () => {
     expect(shown).toContain('01ef9a2b');
   });
 
+  it('keeps long Genie names and identifiers distinct with full-value tooltips', () => {
+    const longName = 'Cloud Resource Billing Analytics for the North America Shared Services Organization';
+    const longId = '01f1a0a8acc61efc907b5fdc8e1817c10000000000000000';
+    const markup = panel('genie-data', ok([item({ id: longId, label: longName })], { kind: 'genie-spaces' }));
+    expect(markup).toContain(`asset-picker-row-name">${longName}</span>`);
+    expect(markup).toContain(`asset-picker-row-id">${longId}</code>`);
+    expect(markup).toContain(`title="${longName} · ${longId}"`);
+  });
+
+  it('marks a selected Genie row in text and accessibility state', () => {
+    const id = '01f1a0a8acc61efc907b5fdc8e1817c1';
+    const markup = panel('genie-data', ok([item({ id, label: 'Cloud billing' })], { kind: 'genie-spaces' }), {
+      current: id,
+    });
+    expect(markup).toContain('data-selected="true"');
+    expect(markup).toContain('aria-current="true"');
+  });
+
   it('says a warehouse name was not reported rather than dressing the id as one', () => {
     const markup = panel(
       'sql-warehouse',
@@ -315,7 +333,9 @@ describe('long lists', () => {
   });
 
   it('offers another page only where the workspace said there is one', () => {
-    expect(text(panel('catalog', ok(many, { next_page_token: 'tok' })))).toContain('Load more');
+    const markup = panel('catalog', ok(many, { next_page_token: 'tok' }));
+    expect(text(markup)).toContain('Load more');
+    expect(markup).toContain('aria-label="Load more catalogs your sign-in can see"');
     expect(text(panel('catalog', ok(many)))).not.toContain('Load more');
   });
 });

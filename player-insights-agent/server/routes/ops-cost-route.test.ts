@@ -69,6 +69,7 @@ describe('the ranged cost route', () => {
     };
     expect(configuredResourceName(configured, ['index_name', 'name'])).toBe('catalog.schema.semantic_index');
     expect(configuredResourceName(configured, ['endpoint_name', 'endpoint'])).toBe('semantic-endpoint');
+    expect(configuredResourceName({ value: true }, ['value'])).toBe('true');
   });
 
   it('attributes legacy Genie traces by configured space without double-counting current resource calls', () => {
@@ -181,7 +182,7 @@ describe('the ranged cost route', () => {
         expect.objectContaining({ id: 'genie', quality: 'unknown', amount: null }),
       ])
     );
-    expect(payload.budgets).toEqual({ total: { value: null, unit: 'USD' }, resources: {} });
+    expect(payload.budgets).toEqual({ total: { USD: null, DBU: null }, resources: {} });
     expect(payload.budgetsReadable).toBe(true);
     expect(payload.honesty?.priceSource).toBe('list_prices');
     expect(payload.honesty?.contractRates).toBe('unavailable');
@@ -331,8 +332,8 @@ describe('the ranged cost route', () => {
     });
     expect(payload.tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
     expect(payload.budgets).toEqual({
-      total: { value: 250, unit: 'USD' },
-      resources: { 'app-compute': { value: 40, unit: 'USD' } },
+      total: { USD: 250, DBU: null },
+      resources: { 'app-compute': { USD: 40, DBU: null } },
     });
     expect(payload.budgetsReadable).toBe(true);
   });

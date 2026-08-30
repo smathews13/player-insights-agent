@@ -187,11 +187,8 @@
   color: var(--muted-foreground);
 }
 
-/* The recorded arguments: the Genie question as asked, the SQL as run. Wrapped
-   rather than ellipsised, because the point of the row is to be readable.
-   This is English narration even when it quotes an identifier, so it follows
-   the answer's proportional-prose rhythm rather than a payload block's looser
-   mono rhythm. */
+/* The recorded argument row. Narrative stays in the proportional face; a SQL
+   field inside it is the shared `.semantic-sql-code` block and therefore mono. */
 .live-step-detail {
   margin: 3px 0 0;
   font-size: var(--text-sm);

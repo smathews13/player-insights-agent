@@ -20,6 +20,7 @@ import { partial } from './styles/stylesheet';
  */
 
 const CSS = partial('monitoring.css');
+const RESPONSIVE = partial('responsive.css');
 
 /**
  * One rule's body, by exact selector, and a failure rather than an empty string
@@ -34,28 +35,55 @@ function rule(selector: string): string {
 }
 
 describe('a fully-qualified table name remains readable beside its count', () => {
-  /**
-   * Every catalog, schema and table segment is a shared unbroken entity token.
-   * The surrounding name may wrap between those tokens instead of clipping the
-   * evidence or pushing the count off the row.
-   */
   it('gives the tile carrying a table name the whole grid row', () => {
-    expect(rule('.monitoring-panel-tile-wide')).toMatch(/grid-column:\s*1\s*\/\s*-1/);
+    expect(rule('.monitoring-panel-grid > .monitoring-panel-tile-wide')).toMatch(/grid-column:\s*1\s*\/\s*-1/);
   });
 
-  it('wraps between shared entity segments rather than clipping the table name', () => {
+  it('keeps the icon, segmented name, and count on one horizontal row', () => {
     const name = rule('.monitoring-ranked-table');
+    const row = rule('.monitoring-table-ranking li');
 
-    expect(name).toMatch(/overflow-wrap:\s*anywhere/);
-    expect(name).not.toMatch(/overflow:\s*hidden/);
-    expect(name).not.toMatch(/text-overflow:\s*ellipsis/);
+    expect(row).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/);
+    expect(row).toMatch(/align-items:\s*center/);
+    expect(row).toMatch(/white-space:\s*nowrap/);
+    expect(name).toMatch(/display:\s*flex/);
+    expect(name).toMatch(/white-space:\s*nowrap/);
+    expect(name).toMatch(/overflow:\s*hidden/);
+    expect(rule('.monitoring-ranked-table > .visit-in-databricks')).toMatch(/flex:\s*none/);
   });
 
-  /** The flexible name column gives before the compact run count does. */
-  it('lets each ranked name shrink beside its count', () => {
+  it('shrinks semantic name segments with ellipses before moving the count', () => {
+    const source = rule('.monitoring-ranked-table > .source-name-pill');
+    const segment = rule('.monitoring-ranked-table .entity-token');
+
     expect(rule('.monitoring-ranked-table')).toMatch(/min-width:\s*0/);
-    expect(rule('.monitoring-table-ranking li')).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/);
+    expect(source).toMatch(/min-width:\s*0/);
+    expect(source).toMatch(/overflow:\s*hidden/);
+    expect(segment).toMatch(/min-width:\s*0/);
+    expect(segment).toMatch(/overflow:\s*hidden/);
+    expect(segment).toMatch(/text-overflow:\s*ellipsis/);
+    expect(segment).toMatch(/white-space:\s*nowrap/);
     expect(rule('.monitoring-panel-tile')).toMatch(/min-width:\s*0/);
+  });
+
+  it('reflows four summary tiles into two aligned columns', () => {
+    expect(rule('.monitoring-panel-grid')).toMatch(/grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
+    expect(rule('.monitoring-panel-grid > .monitoring-panel-tile')).toMatch(/grid-column:\s*span\s*2/);
+    expect(
+      rule('.monitoring-panel-grid-without-cost > .monitoring-panel-tile:not(.monitoring-panel-tile-wide)')
+    ).toMatch(/grid-column:\s*span\s*3/);
+  });
+
+  it('uses a compact two-column fallback without allowing ranked rows to wrap', () => {
+    const narrowLayout = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
+
+    expect(narrowLayout).toMatch(/\.monitoring-panel-grid[\s\S]*grid-template-columns:\s*repeat\(2,\s*1fr\)/);
+    expect(narrowLayout).toMatch(/\.monitoring-panel-grid > \.monitoring-panel-tile\s*\{[^}]*grid-column:\s*span\s*1/);
+    expect(narrowLayout).toMatch(
+      /\.monitoring-panel-grid > \.monitoring-panel-tile-wide\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/
+    );
+    expect(narrowLayout).toMatch(/\.monitoring-table-ranking li\s*\{[^}]*gap:\s*6px/);
+    expect(rule('.monitoring-ranked-table')).toMatch(/white-space:\s*nowrap/);
   });
 
   /**
@@ -78,7 +106,10 @@ describe('a fully-qualified table name remains readable beside its count', () =>
   });
 
   it('keeps each run count intact while ordinary captions remain free to wrap', () => {
-    expect(rule('.monitoring-table-runs')).toMatch(/white-space:\s*nowrap/);
+    const runs = rule('.monitoring-table-runs');
+
+    expect(runs).toMatch(/justify-self:\s*end/);
+    expect(runs).toMatch(/white-space:\s*nowrap/);
     expect(rule('.monitoring-tile-caption')).not.toMatch(/white-space:\s*nowrap/);
   });
 });

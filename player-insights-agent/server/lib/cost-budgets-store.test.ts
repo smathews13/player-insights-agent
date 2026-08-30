@@ -40,10 +40,10 @@ describe('cost budget persistence', () => {
     forgetCostBudgets();
     const legacy = { total: 250, resources: { 'app-compute': 40, 'serving-endpoint': 80 } };
     const stored = {
-      total: { value: 250, unit: 'USD' as const },
+      total: { USD: 250, DBU: null },
       resources: {
-        'app-compute': { value: 40, unit: 'USD' as const },
-        'serving-endpoint': { value: 80, unit: 'USD' as const },
+        'app-compute': { USD: 40, DBU: null },
+        'serving-endpoint': { USD: 80, DBU: null },
       },
     };
     expect((await readCostBudgets(client([{ settings: legacy }]) as never, { maxAgeMs: 0 })).budgets).toEqual(stored);
@@ -58,7 +58,7 @@ describe('cost budget persistence', () => {
     forgetCostBudgets();
     const result = await readCostBudgets(client([], new Error('permission denied')) as never, { maxAgeMs: 0 });
     expect(result).toEqual({ budgets: EMPTY_COST_BUDGETS, readable: false });
-    expect(result.budgets.total).toEqual({ value: null, unit: 'USD' });
+    expect(result.budgets.total).toEqual({ USD: null, DBU: null });
     expect(result.budgets.resources).toEqual({});
   });
 

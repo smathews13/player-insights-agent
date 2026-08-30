@@ -16,6 +16,7 @@ import { DECLARABLE_KEYS, SCOPES_KEY } from '../../shared/notebook-declaration';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
 import type { ConnectionEntry, DeclarationComparisonRow, NotebookPanel } from './connection-model';
 import type { AssetPickerSpec } from './asset-picker';
+import type { DatabricksObject } from '../../shared/databricks-links';
 
 /** The badge a compared setting carries. */
 export interface ComparisonBadge {
@@ -336,12 +337,22 @@ export function connectionKindLabel(kind: string): string {
   return KIND_LABEL[kind] ?? 'Connection';
 }
 
-/** Declared assets first, withdrawn ones after, each in the order given. */
+/**
+ * Built-in resources are rendered by the page before this list. Within the
+ * user-added section, current declarations come before withdrawn ones and each
+ * state is stable across reloads regardless of database return order.
+ */
 export function orderConnections(entries: readonly ConnectionEntry[]): ConnectionEntry[] {
-  return [
-    ...entries.filter((entry) => entry.connection.state === 'declared'),
-    ...entries.filter((entry) => entry.connection.state === 'withdrawn'),
-  ];
+  return [...entries].sort((left, right) => {
+    const state = Number(left.connection.state === 'withdrawn') - Number(right.connection.state === 'withdrawn');
+    if (state) return state;
+    const created = (left.connection.createdAt ?? '').localeCompare(right.connection.createdAt ?? '');
+    if (created) return created;
+    const kind = connectionKindLabel(left.connection.kind).localeCompare(connectionKindLabel(right.connection.kind));
+    if (kind) return kind;
+    const name = connectionDisplayName(left.connection).localeCompare(connectionDisplayName(right.connection));
+    return name || left.connection.id.localeCompare(right.connection.id);
+  });
 }
 
 /** The count line for the list, with zeroes never rendered. */
@@ -452,17 +463,43 @@ export function connectionRowView(connection: {
   return { kindLabel, name: '', identifier: shortenAssetId(fullIdentifier), fullIdentifier };
 }
 
+/** The workspace destination a remembered row can prove, or null rather than a guessed link. */
+export function connectionDatabricksObject(connection: {
+  resourceType?: DeclaredResourceType;
+  value: string;
+}): DatabricksObject | null {
+  const value = connection.value.trim();
+  if (!value) return null;
+  switch (connection.resourceType) {
+    case 'genie-space':
+      return { kind: 'genie-space', spaceId: value };
+    case 'sql-warehouse':
+      return { kind: 'sql-warehouse', warehouseId: value };
+    case 'serving-endpoint':
+      return { kind: 'serving-endpoint', name: value };
+    case 'catalog':
+      return { kind: 'catalog', catalog: value };
+    case 'schema': {
+      const [catalog, schema, ...rest] = value.split('.');
+      return catalog && schema && rest.length === 0 ? { kind: 'schema', catalog, schema } : null;
+    }
+    case 'table':
+      return { kind: 'table', table: value };
+    case 'vector-search-index':
+      return { kind: 'vector-index', index: value };
+    default:
+      return null;
+  }
+}
+
 /** The badge on a row added in this sitting, so a reader can see what they just did. */
 export const JUST_ADDED_LABEL = 'New';
 
 /** The label on the button that puts a withdrawn asset back. */
 export const RESTORE_LABEL = 'Put back';
 
-/** The label on the button that removes one. */
-export const REMOVE_LABEL = 'Remove';
-
-/** The accessible name and confirmation label for deleting the stored row. */
-export const REMOVE_FOREVER_LABEL = 'Remove forever';
+/** The single destructive action shown on a remembered connection row. */
+export const DELETE_CONNECTION_LABEL = 'Delete connection';
 
 /**
  * What permanent removal says before it runs.

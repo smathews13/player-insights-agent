@@ -141,7 +141,7 @@
 .sql-panel-head > .copy-value {
   margin-left: auto;
 }
-.sql-panel > pre {
+.sql-panel > .semantic-sql-blocks > pre {
   margin: 0;
   padding: 10px 12px;
   font-family: var(--font-mono);
@@ -150,7 +150,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.sql-panel > pre + pre {
+.sql-panel > .semantic-sql-blocks > pre + pre {
   border-top: 1px solid var(--db-line);
 }
 /* A continued clause is indented, so a wrapped WHERE cannot be mistaken for the

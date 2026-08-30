@@ -1,17 +1,21 @@
 import { useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { ExperimentalBadge } from './ExperimentalBadge';
 import { astPill } from './astrolabe-pill';
 import {
   calculateForecast,
   deriveForecastBaseline,
   normalizeForecastAssumptions,
+  stepForecastAssumption,
   type ForecastAssumptions,
+  type ForecastResult,
   type ForecastSuggestionEvidence,
 } from './forecast';
 import { persistForecastAssumptions, readForecastAssumptions } from './forecast-preferences';
 import { Disclosure } from './page-chrome';
 import { Input, Skeleton } from './ui';
 import type { OpsCostPayload, OpsTrafficPayload } from '../../shared/ops-contract';
+import type { CostBudgetUnit } from '../../shared/cost-budgets';
 
 interface ForecastBlock<T> {
   data: T | null;
@@ -24,33 +28,33 @@ const ASSUMPTION_FIELDS: Array<{
   label: string;
   unit?: string;
   exampleUnit: string;
-  step: string;
+  step: number;
 }> = [
   {
     key: 'averageDailyUsers',
     label: 'Average daily users',
     exampleUnit: 'users',
-    step: '1',
+    step: 1,
   },
   {
     key: 'questionsPerUserPerDay',
     label: 'Questions per user per day',
     exampleUnit: 'questions/user/day',
-    step: '0.1',
+    step: 0.1,
   },
   {
     key: 'activeAppMinutesPerUserPerDay',
     label: 'Active app minutes per user per day',
     unit: 'min',
     exampleUnit: 'min/user/day',
-    step: '0.1',
+    step: 0.1,
   },
   {
     key: 'averageModelTokensPerQuestion',
     label: 'Average model tokens per question',
     unit: 'tokens',
     exampleUnit: 'tokens/question',
-    step: '0.1',
+    step: 1,
   },
 ];
 
@@ -123,26 +127,51 @@ function AssumptionGrid({
       <legend>Assumptions</legend>
       <div className="ops-forecast-assumption-grid">
         {ASSUMPTION_FIELDS.map((field) => {
+          const inputId = `ops-forecast-${field.key}`;
+          const value = assumptions[field.key];
           return (
-            <label key={field.key}>
-              <span>{field.label}</span>
+            <div className="ops-forecast-assumption" key={field.key}>
+              <label htmlFor={inputId}>{field.label}</label>
               <span className="ops-forecast-input-row">
-                <Input
-                  type="number"
-                  min="0"
-                  step={field.step}
-                  value={assumptions[field.key]}
-                  onChange={(event) => {
-                    const next = event.target.valueAsNumber;
-                    onChange(field.key, Number.isFinite(next) && next >= 0 ? next : 0);
-                  }}
-                />
+                <span className="ops-forecast-number-control">
+                  <Input
+                    id={inputId}
+                    type="number"
+                    inputMode={field.step === 1 ? 'numeric' : 'decimal'}
+                    min="0"
+                    step={field.step}
+                    value={value}
+                    onChange={(event) => {
+                      const next = event.target.valueAsNumber;
+                      onChange(field.key, Number.isFinite(next) && next >= 0 ? next : 0);
+                    }}
+                  />
+                  <span className="ops-forecast-steppers" role="group" aria-label={`${field.label} step controls`}>
+                    <button
+                      type="button"
+                      aria-label={`Increase ${field.label.toLowerCase()}`}
+                      aria-controls={inputId}
+                      onClick={() => onChange(field.key, stepForecastAssumption(field.key, value, 1))}
+                    >
+                      <ChevronUp aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Decrease ${field.label.toLowerCase()}`}
+                      aria-controls={inputId}
+                      disabled={value <= 0}
+                      onClick={() => onChange(field.key, stepForecastAssumption(field.key, value, -1))}
+                    >
+                      <ChevronDown aria-hidden="true" />
+                    </button>
+                  </span>
+                </span>
                 {field.unit ? <small>{field.unit}</small> : null}
               </span>
               <small className="ops-forecast-assumption-evidence">
                 {exampleRangeText(field, examples[field.key], evidence[field.key])}
               </small>
-            </label>
+            </div>
           );
         })}
       </div>
@@ -150,17 +179,91 @@ function AssumptionGrid({
   );
 }
 
+function ProjectionBreakdown({
+  result,
+  currency,
+  partial,
+}: {
+  result: ForecastResult;
+  currency: string;
+  partial: boolean;
+}) {
+  const complete =
+    result.components.length > 0 &&
+    result.horizons.every(
+      (horizon) =>
+        horizon.total !== null &&
+        horizon.components.length === result.components.length &&
+        result.components.every((component) => horizon.components.some((item) => item.id === component.id))
+    );
+  if (!complete) return null;
+
+  return (
+    <section className="ops-forecast-breakdown" aria-labelledby="ops-forecast-breakdown-heading">
+      <h4 id="ops-forecast-breakdown-heading">Projected breakdown</h4>
+      <div
+        className="ops-forecast-breakdown-scroll"
+        role="region"
+        aria-label="Projected cost breakdown by horizon"
+        tabIndex={0}
+      >
+        <table>
+          <caption className="sr-only">
+            Included forecast components for the next 7 days, next 30 days, and six months
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Component</th>
+              {result.horizons.map((horizon) => (
+                <th scope="col" key={horizon.days}>
+                  {horizon.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {result.components.map((component) => (
+              <tr key={component.id}>
+                <th scope="row">{component.label}</th>
+                {result.horizons.map((horizon) => (
+                  <td key={horizon.days}>
+                    <span className="ast-num">
+                      {money(horizon.components.find((item) => item.id === component.id)!.amount, currency)}
+                    </span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row">{partial ? 'Subtotal' : 'Total'}</th>
+              {result.horizons.map((horizon) => (
+                <td key={horizon.days}>
+                  <span className="ast-num">{money(horizon.total!, currency)}</span>
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export function ForecastingBody({
   cost,
   traffic,
   periodLabel = '7 days',
+  unit = 'USD',
 }: {
   cost: ForecastBlock<OpsCostPayload>;
   traffic: ForecastBlock<OpsTrafficPayload>;
   periodLabel?: string;
+  unit?: CostBudgetUnit;
 }) {
   const [saved, setSaved] = useState<ForecastAssumptions | null>(readForecastAssumptions);
-  const baseline = deriveForecastBaseline(cost.data, traffic.data);
+  const baseline = deriveForecastBaseline(cost.data, traffic.data, unit);
   const assumptions = saved ?? baseline.defaults;
   const result = calculateForecast(baseline, assumptions);
   const limits = methodologyLimits(baseline.caveats, baseline.exclusions);
@@ -235,6 +338,7 @@ export function ForecastingBody({
                 </article>
               ))}
             </div>
+            <ProjectionBreakdown result={result} currency={baseline.currency} partial={partial} />
 
             <Disclosure summary="Methodology, formulas, and exclusions" className="ops-forecast-method">
               <div className="ops-forecast-method-sections">

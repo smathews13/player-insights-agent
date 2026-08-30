@@ -320,6 +320,7 @@ async function requireVerifiedSession(
         // The timeout decision came from the authoritative read. Cookie clearing
         // and refusal do not depend on the retention write succeeding.
       }
+      res.setHeader('Set-Cookie', clearAppSessionCookie());
       refusal(
         res,
         401,

@@ -15,6 +15,7 @@ import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import { AppSelect } from './AppSelect';
 import { adoptRuntimeEntityStyles } from './runtime-entity-styles';
 import { RuntimeLoopDiagram } from './RuntimeLoopDiagram';
+import { RuntimeTimezoneField } from './RuntimeTimezoneField';
 import { wholeNumberFrom } from './runtime-number';
 import {
   changedSettingKeys,
@@ -467,27 +468,15 @@ export function RuntimeSettingsPanel({
             </AnswerRow>
           </section>
 
-          <section className="runtime-section runtime-section-last">
-            <label className="runtime-field runtime-timezone-field">
-              <span className="runtime-section-label">Timezone (IANA name)</span>
-              <span id="runtime-timezone-help" className="runtime-control-note">
-                Zone for dates in answers.
-              </span>
-              <Input
-                className="runtime-timezone"
-                aria-label="Timezone (IANA name)"
-                aria-describedby="runtime-timezone-help"
-                placeholder="America/New_York"
-                value={settings.behavior.timezone}
-                onChange={(event) =>
-                  setSettings((current) => ({
-                    ...current,
-                    behavior: { ...current.behavior, timezone: event.target.value },
-                  }))
-                }
-              />
-            </label>
-          </section>
+          <RuntimeTimezoneField
+            value={settings.behavior.timezone}
+            update={(timezone) =>
+              setSettings((current) => ({
+                ...current,
+                behavior: { ...current.behavior, timezone },
+              }))
+            }
+          />
         </>
       ) : (
         <>

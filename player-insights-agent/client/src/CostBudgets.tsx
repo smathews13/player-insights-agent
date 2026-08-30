@@ -14,7 +14,9 @@ import { createContext, useCallback, useContext, useRef, useState, type ReactNod
 import {
   budgetsForVisibleTiles,
   EMPTY_COST_BUDGETS,
+  costBudgetValue,
   resourceBudget,
+  withCostBudgetValue,
   withResourceBudget,
   withTotalBudget,
   type CostBudget,
@@ -44,6 +46,7 @@ interface CostBudgetApi {
   budgets: CostBudgets;
   currency: string;
   payload: OpsCostPayload;
+  unit: CostBudgetUnit;
   setTotal: (budget: CostBudget) => void;
   setResource: (tileId: string, budget: CostBudget) => void;
   apply: (control: BudgetControl) => void;
@@ -63,10 +66,12 @@ function useCostBudgets(): CostBudgetApi {
 export function CostBudgetProvider({
   payload,
   tileIds,
+  unit,
   children,
 }: {
   payload: OpsCostPayload;
   tileIds: readonly string[];
+  unit: CostBudgetUnit;
   children: ReactNode;
 }) {
   const [draft, setDraft] = useState<CostBudgets | null>(null);
@@ -151,6 +156,7 @@ export function CostBudgetProvider({
         budgets,
         currency: payload.currency,
         payload,
+        unit,
         setTotal,
         setResource,
         apply,
@@ -168,14 +174,17 @@ export function CostTotalBudget() {
   const api = useCostBudgets();
   const control: BudgetControl = { kind: 'total' };
   const saveState = api.stateFor(control);
-  const observed = costSpendSummary(api.payload);
-  const view = totalBudgetView(api.budgets.total, api.currency, { USD: observed.amount, DBU: observed.dbus });
+  const usd = costSpendSummary(api.payload, 'USD');
+  const dbu = costSpendSummary(api.payload, 'DBU');
+  const observed = { USD: usd.amount, DBU: dbu.dbus };
+  const view = totalBudgetView(api.budgets.total, api.currency, observed, api.unit);
   return (
     <div className="ops-cost-total">
       <CostBudgetField
         ariaLabel="App budget"
         budget={api.budgets.total}
-        observed={{ USD: observed.amount, DBU: observed.dbus }}
+        unit={api.unit}
+        observed={observed}
         onCommit={api.setTotal}
         saveState={saveState}
         applying={api.applying}
@@ -198,8 +207,8 @@ export function CostTotalBudget() {
   );
 }
 
-export function CostSpendSummary({ payload }: { payload: OpsCostPayload }) {
-  const summary = costSpendSummary(payload);
+export function CostSpendSummary({ payload, unit }: { payload: OpsCostPayload; unit: CostBudgetUnit }) {
+  const summary = costSpendSummary(payload, unit);
   return (
     <div className="ops-cost-summary-box" aria-label="Total app spend">
       <div className="ops-cost-summary-head">
@@ -207,7 +216,7 @@ export function CostSpendSummary({ payload }: { payload: OpsCostPayload }) {
       </div>
       <p className="ops-cost-summary-value">
         <span className="ast-num">{summary.label}</span>
-        {summary.amount !== null ? (
+        {summary.amount !== null || summary.dbus !== null ? (
           <span>{summary.partial ? 'estimated subtotal' : summary.estimated ? 'estimated total' : 'total'}</span>
         ) : null}
       </p>
@@ -235,7 +244,7 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
   const control: BudgetControl = { kind: 'resource', tileId: tile.id };
   const saveState = api.stateFor(control);
   const amount = resourceBudget(api.budgets, tile.id);
-  const compared = spendVersusBudget(tile, amount, api.currency);
+  const compared = spendVersusBudget(tile, amount, api.currency, api.unit);
   return (
     <div className="ops-tile-budget">
       <CostBudgetField
@@ -243,6 +252,7 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
         ariaLabel={`${tile.label} budget${tile.basis === 'per-day' ? ' per day' : ''}`}
         perDay={tile.basis === 'per-day'}
         budget={amount}
+        unit={api.unit}
         observed={{ USD: tile.amount, DBU: tile.dbus ?? null }}
         onCommit={(value) => api.setResource(tile.id, value)}
         saveState={saveState}
@@ -267,9 +277,13 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
       ) : compared.kind === 'budget-only' ? (
         <p className="ops-budget-compare">
           Budget <span className="ast-num">{compared.budgetLabel}</span>
-          {tile.amount === null ||
-          tile.quality === 'unknown' ||
-          (tile.pricing?.match !== undefined && tile.pricing.match !== 'priced' && tile.pricing.match !== 'none')
+          {(
+            api.unit === 'DBU'
+              ? tile.dbus === null || tile.dbus === undefined
+              : tile.amount === null ||
+                tile.quality === 'unknown' ||
+                (tile.pricing?.match !== undefined && tile.pricing.match !== 'priced' && tile.pricing.match !== 'none')
+          )
             ? ' · spend not measured'
             : null}
         </p>
@@ -283,6 +297,7 @@ function CostBudgetField({
   ariaLabel,
   perDay = false,
   budget,
+  unit,
   observed,
   onCommit,
   saveState,
@@ -294,6 +309,7 @@ function CostBudgetField({
   ariaLabel: string;
   perDay?: boolean;
   budget: CostBudget;
+  unit: CostBudgetUnit;
   observed: Record<CostBudgetUnit, number | null>;
   onCommit: (budget: CostBudget) => void;
   saveState: SettingsSaveState;
@@ -301,11 +317,12 @@ function CostBudgetField({
   readable: boolean;
   onApply: () => void;
 }) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const caption = `${ariaLabel} in ${budget.unit}`;
+  const [draft, setDraft] = useState<Partial<Record<CostBudgetUnit, string>>>({});
+  const caption = `${ariaLabel} in ${unit}`;
   const notice = costBudgetNotice(saveState);
-  const baseline = observed[budget.unit];
-  const placeholder = budgetPlaceholder(observed, budget.unit);
+  const baseline = observed[unit];
+  const placeholder = budgetPlaceholder(observed, unit);
+  const value = costBudgetValue(budget, unit);
   return (
     <div className="ops-budget-field">
       <label>
@@ -318,34 +335,25 @@ function CostBudgetField({
           <span className="sr-only">{ariaLabel}</span>
         )}
         <span className="ops-budget-input-row">
-          <Input
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            aria-label={caption}
-            placeholder={placeholder}
-            title={
-              baseline === null ? `${budget.unit} observed amount unavailable` : `${baseline} ${budget.unit} observed`
-            }
-            value={draft ?? budgetFieldText(budget.value)}
-            onChange={(event) => {
-              const typed = event.target.value.replace(/[^0-9.]/g, '');
-              setDraft(typed);
-              onCommit({ ...budget, value: moneyAmountFrom(typed, budget.value) });
-            }}
-          />
-          <select
-            className="ops-budget-unit"
-            aria-label={`${ariaLabel} unit`}
-            value={budget.unit}
-            onChange={(event) => {
-              setDraft(null);
-              onCommit({ value: null, unit: event.target.value as CostBudgetUnit });
-            }}
-          >
-            <option value="USD">USD</option>
-            <option value="DBU">DBU</option>
-          </select>
+          <span className="ops-budget-input-wrap" data-unit={unit}>
+            <span className="ops-budget-affix" aria-hidden="true">
+              {unit === 'USD' ? '$' : 'DBU'}
+            </span>
+            <Input
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              aria-label={caption}
+              placeholder={placeholder}
+              title={baseline === null ? `${unit} observed amount unavailable` : `${baseline} ${unit} observed`}
+              value={draft[unit] ?? budgetFieldText(value)}
+              onChange={(event) => {
+                const typed = event.target.value.replace(/[^0-9.]/g, '');
+                setDraft((current) => ({ ...current, [unit]: typed }));
+                onCommit(withCostBudgetValue(budget, unit, moneyAmountFrom(typed, value)));
+              }}
+            />
+          </span>
         </span>
       </label>
       <CostBudgetApplyButton state={saveState} disabled={applying} onClick={onApply} />

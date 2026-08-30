@@ -16,18 +16,50 @@ const AmountSchema = z.number().finite().nonnegative().max(COST_BUDGET_MAX).null
 export const CostBudgetUnitSchema = z.enum(['USD', 'DBU']);
 export type CostBudgetUnit = z.infer<typeof CostBudgetUnitSchema>;
 
-export const CostBudgetSchema = z.preprocess(
-  (raw) => (typeof raw === 'number' || raw === null ? { value: raw, unit: 'USD' } : raw),
-  z.strictObject({
-    value: AmountSchema,
-    unit: CostBudgetUnitSchema,
-  })
-);
-export type CostBudget = z.infer<typeof CostBudgetSchema>;
+const CostBudgetValuesSchema = z.strictObject({
+  USD: AmountSchema,
+  DBU: AmountSchema,
+});
+
+export const CostBudgetSchema = z.preprocess((raw) => {
+  if (typeof raw === 'number' || raw === null) return { USD: raw, DBU: null };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const record = raw as Record<string, unknown>;
+  if ('USD' in record || 'DBU' in record) return raw;
+  if ('value' in record && (record.unit === 'USD' || record.unit === 'DBU')) {
+    return {
+      USD: record.unit === 'USD' ? record.value : null,
+      DBU: record.unit === 'DBU' ? record.value : null,
+    };
+  }
+  return raw;
+}, CostBudgetValuesSchema);
+export interface CostBudget {
+  /** Current persisted shape. Both slots survive display-unit changes. */
+  USD?: number | null;
+  DBU?: number | null;
+  /** Legacy fields accepted only while old settings and fixtures migrate. */
+  value?: number | null;
+  unit?: CostBudgetUnit;
+}
+export type LegacyCostBudget = Required<Pick<CostBudget, 'value' | 'unit'>>;
 export type CostBudgetInput = CostBudget | number | null;
 
-export function normalizeCostBudget(budget: CostBudgetInput): CostBudget {
-  return typeof budget === 'number' || budget === null ? { value: budget, unit: 'USD' } : budget;
+export function normalizeCostBudget(budget: CostBudgetInput): Required<Pick<CostBudget, 'USD' | 'DBU'>> {
+  const parsed = CostBudgetSchema.safeParse(budget);
+  return parsed.success ? parsed.data : { USD: null, DBU: null };
+}
+
+export function costBudgetValue(budget: CostBudgetInput, unit: CostBudgetUnit): number | null {
+  return normalizeCostBudget(budget)[unit];
+}
+
+export function withCostBudgetValue(
+  budget: CostBudgetInput,
+  unit: CostBudgetUnit,
+  value: number | null
+): Required<Pick<CostBudget, 'USD' | 'DBU'>> {
+  return { ...normalizeCostBudget(budget), [unit]: value };
 }
 
 export const CostBudgetsSchema = z.strictObject({
@@ -40,9 +72,12 @@ export const CostBudgetsSchema = z.strictObject({
   resources: z.record(z.string().min(1).max(200), CostBudgetSchema),
 });
 
-export type CostBudgets = z.infer<typeof CostBudgetsSchema>;
+export interface CostBudgets {
+  total: CostBudget;
+  resources: Record<string, CostBudget>;
+}
 
-export const EMPTY_COST_BUDGET: CostBudget = { value: null, unit: 'USD' };
+export const EMPTY_COST_BUDGET: Required<Pick<CostBudget, 'USD' | 'DBU'>> = { USD: null, DBU: null };
 export const EMPTY_COST_BUDGETS: CostBudgets = { total: EMPTY_COST_BUDGET, resources: {} };
 
 /**

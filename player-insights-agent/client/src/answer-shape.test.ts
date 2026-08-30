@@ -143,6 +143,13 @@ describe('normalizeStage', () => {
     expect(normalizeStage({ status: 'failed' }, 0).status).toBe('failed');
   });
 
+  it('canonicalizes reader-facing lifecycle status aliases', () => {
+    expect(normalizeStage({ status: 'succeeded' }, 0).status).toBe('complete');
+    expect(normalizeStage({ status: 'interrupted' }, 0).status).toBe('cancelled');
+    expect(normalizeStage({ status: 'canceled' }, 0).status).toBe('cancelled');
+    expect(normalizeStage({ status: 'awaiting approval' }, 0).status).toBe('awaiting_approval');
+  });
+
   it('distinguishes an absent depth from depth zero', () => {
     // The timeline indents on depth. Defaulting an absent depth to 0 would claim
     // a model version that does not report nesting had reported it as flat.

@@ -24,6 +24,7 @@ import { railTiming, stepNumber } from './agent-map';
 import { astPill } from './run-header';
 import { formatMs, toolNameFromId } from './trace-timeline';
 import { EntityText, TableEntityList } from './DataEntityLinks';
+import { InlineSqlCode } from './SqlPresentation';
 
 /**
  * One reported step.
@@ -106,7 +107,13 @@ function StepRow({
         </p>
         {step.detail && (
           <p className="live-step-detail">
-            <EntityText text={step.detail} sources={step.tables.map((name) => ({ name }))} tools={step.tools} />
+            {step.sql && step.detailLead ? (
+              <>
+                <span className="stage-summary-prefix">{step.detailLead}:</span> <InlineSqlCode sql={step.sql} />
+              </>
+            ) : (
+              <EntityText text={step.detail} sources={step.tables.map((name) => ({ name }))} tools={step.tools} />
+            )}
           </p>
         )}
         {step.result && (

@@ -154,19 +154,7 @@ def main(argv: list[str]) -> int:
         return EXIT_COULD_NOT_RUN
 
     try:
-        text = drift.read(drift.BUNDLE_FILE)
-        at = text.find(f"\n  {args.target}:\n")
-        block = text[at:] if at >= 0 else ""
-        key = block.find("app_user_api_scopes:")
-        declared: list[str] = []
-        if key >= 0:
-            for line in block[key:].split("\n")[1:]:
-                if line.strip().startswith("- "):
-                    declared.append(line.strip()[2:].strip())
-                elif line.strip().startswith("#"):
-                    continue
-                else:
-                    break
+        declared = drift.declared_app_scopes(args.target)
     except drift.Unreadable as exc:
         print(f"  COULD NOT RUN. {exc}")
         return EXIT_COULD_NOT_RUN

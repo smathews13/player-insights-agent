@@ -28,7 +28,12 @@
 import { astPill } from './astrolabe-pill';
 import type { BrandProduct } from './brand-icons';
 import type { DatabricksObject } from '../../shared/databricks-links';
-import { normalizeCostBudget, type CostBudgetInput } from '../../shared/cost-budgets';
+import {
+  costBudgetValue,
+  type CostBudgetInput,
+  type CostBudgetUnit,
+  type LegacyCostBudget,
+} from '../../shared/cost-budgets';
 import {
   COST_QUALITY_LABEL,
   DEPENDENCY_RESULT_LABEL,
@@ -72,6 +77,17 @@ export function money(amount: number | null, currency: string): string {
   return currency ? `${figure} ${currency}` : figure;
 }
 
+export function costAmount(amount: number | null, currency: string, unit: CostBudgetUnit): string {
+  return unit === 'DBU' && amount !== null && Number.isFinite(amount)
+    ? `${amount.toFixed(2)} DBU`
+    : money(amount, currency);
+}
+
+function selectedBudgetUnit(input: CostBudgetInput, selected?: CostBudgetUnit): CostBudgetUnit {
+  if (selected) return selected;
+  return input && typeof input === 'object' && 'unit' in input ? (input as LegacyCostBudget).unit : 'USD';
+}
+
 /** A whole count with thousands separators, or '' where there is no count. */
 export function count(value: number | null): string {
   return value === null || !Number.isFinite(value) ? '' : value.toLocaleString('en-US');
@@ -102,15 +118,17 @@ export function tileAttribution(tile: Pick<CostTile, 'amount' | 'population' | '
 export function spendVersusBudget(
   tile: Pick<CostTile, 'amount' | 'dbus' | 'quality' | 'population' | 'attribution' | 'pricing'>,
   inputBudget: CostBudgetInput,
-  currency: string
+  currency: string,
+  selectedUnit?: CostBudgetUnit
 ): SpendVersusBudget {
-  const budget = normalizeCostBudget(inputBudget);
-  if (budget.value === null || !Number.isFinite(budget.value)) return { kind: 'none' };
-  const budgetLabel = budget.unit === 'DBU' ? `${budget.value.toFixed(2)} DBU` : money(budget.value, currency);
-  const observed = budget.unit === 'DBU' ? (tile.dbus ?? null) : tile.amount;
+  const unit = selectedBudgetUnit(inputBudget, selectedUnit);
+  const budget = costBudgetValue(inputBudget, unit);
+  if (budget === null || !Number.isFinite(budget)) return { kind: 'none' };
+  const budgetLabel = costAmount(budget, currency, unit);
+  const observed = unit === 'DBU' ? (tile.dbus ?? null) : tile.amount;
   const match = tile.pricing?.match;
   const unusable =
-    budget.unit === 'USD' &&
+    unit === 'USD' &&
     (tile.quality === 'unknown' ||
       match === 'unpriced' ||
       match === 'duplicate' ||
@@ -119,12 +137,12 @@ export function spendVersusBudget(
   if (unusable || observed === null || !Number.isFinite(observed)) {
     return { kind: 'budget-only', budgetLabel };
   }
-  const spendLabel = budget.unit === 'DBU' ? `${observed.toFixed(2)} DBU` : money(observed, currency);
+  const spendLabel = costAmount(observed, currency, unit);
   if (!spendLabel || !budgetLabel) return { kind: 'budget-only', budgetLabel };
   if (tileAttribution(tile) === 'shared-upper-bound' || SHARED_POPULATIONS.has(tile.population)) {
     return { kind: 'shared-meter', spendLabel, budgetLabel };
   }
-  return { kind: 'compared', spendLabel, budgetLabel, over: observed > budget.value };
+  return { kind: 'compared', spendLabel, budgetLabel, over: observed > budget };
 }
 
 /**
@@ -136,18 +154,20 @@ export function spendVersusBudget(
 export function totalBudgetView(
   inputBudget: CostBudgetInput,
   currency: string,
-  observed: { USD: number | null; DBU: number | null } = { USD: null, DBU: null }
+  observed: { USD: number | null; DBU: number | null } = { USD: null, DBU: null },
+  selectedUnit?: CostBudgetUnit
 ): SpendVersusBudget {
-  const budget = normalizeCostBudget(inputBudget);
-  if (budget.value === null || !Number.isFinite(budget.value)) return { kind: 'none' };
-  const budgetLabel = budget.unit === 'DBU' ? `${budget.value.toFixed(2)} DBU` : money(budget.value, currency);
-  const actual = observed[budget.unit];
+  const unit = selectedBudgetUnit(inputBudget, selectedUnit);
+  const budget = costBudgetValue(inputBudget, unit);
+  if (budget === null || !Number.isFinite(budget)) return { kind: 'none' };
+  const budgetLabel = costAmount(budget, currency, unit);
+  const actual = observed[unit];
   if (!budgetLabel || actual === null || !Number.isFinite(actual)) {
     return budgetLabel ? { kind: 'budget-only', budgetLabel } : { kind: 'none' };
   }
-  const spendLabel = budget.unit === 'DBU' ? `${actual.toFixed(2)} DBU` : money(actual, currency);
+  const spendLabel = costAmount(actual, currency, unit);
   return spendLabel
-    ? { kind: 'compared', spendLabel, budgetLabel, over: actual > budget.value }
+    ? { kind: 'compared', spendLabel, budgetLabel, over: actual > budget }
     : { kind: 'budget-only', budgetLabel };
 }
 
@@ -255,18 +275,24 @@ function kindFromCostTileId(id: string): CostTile['resourceKind'] {
   return '';
 }
 
-export function tileView(tile: CostTile, currency: string): TileView {
+export function tileView(tile: CostTile, currency: string, unit: CostBudgetUnit = 'USD'): TileView {
   // `CostTile` predates the discriminated per-question part, so defend the wire
   // boundary here too: an unknown tile never becomes a number even if malformed
   // JSON happens to carry one.
   const completePrice = !tile.pricing || tile.pricing.match === 'priced' || tile.pricing.match === 'none';
-  const figure = tile.quality === 'unknown' || !completePrice ? '' : money(tile.amount, currency);
+  const selected = unit === 'DBU' ? (tile.dbus ?? null) : tile.amount;
+  const figure =
+    unit === 'USD' && (tile.quality === 'unknown' || !completePrice) ? '' : costAmount(selected, currency, unit);
   return {
     id: tile.id,
     label: tile.label,
     figure,
     // A tile with an amount it could not format is an absence, not a blank.
-    absence: figure ? '' : tile.unavailable || 'Billing detail unavailable',
+    absence: figure
+      ? ''
+      : unit === 'DBU'
+        ? 'Measured DBU amount unavailable'
+        : tile.unavailable || 'Billing detail unavailable',
     qualityLabel: COST_QUALITY_LABEL[tile.quality],
     estimate: figure !== '' && tile.quality === 'estimate',
     population: tile.population,
@@ -781,30 +807,31 @@ export function costCoverageLinesForTile(tileId: string, coverage: CostCoverage 
  */
 export const QUESTION_COST_FORMULA = 'Attributed serving + SQL ÷ completed questions';
 
-export function questionServingAverage(payload: OpsCostPayload): number | null {
+export function questionServingAverage(payload: OpsCostPayload, unit: CostBudgetUnit = 'USD'): number | null {
   const serving = payload.tiles.find((tile) => tile.id === 'serving-endpoint');
   const sql = payload.tiles.find((tile) => tile.id === 'sql-warehouse');
   const completed = payload.perQuestion.runsInRange;
   const dedicated = serving?.population === 'This endpoint' && tileAttribution(serving) === 'deployment';
   const priced = (tile: CostTile | undefined) =>
     !tile?.pricing || tile.pricing.match === 'priced' || tile.pricing.match === 'none';
+  const servingAmount = unit === 'DBU' ? serving?.dbus : serving?.amount;
+  const sqlAmount = unit === 'DBU' ? sql?.dbus : sql?.amount;
+  const usdUnavailable =
+    unit === 'USD' && (serving?.quality !== 'real' || sql?.quality === 'unknown' || !priced(serving) || !priced(sql));
   if (
-    serving?.quality !== 'real' ||
     !sql ||
-    sql.quality === 'unknown' ||
     !dedicated ||
     tileAttribution(sql) !== 'deployment' ||
-    !priced(serving) ||
-    !priced(sql) ||
-    typeof serving.amount !== 'number' ||
-    !Number.isFinite(serving.amount) ||
-    typeof sql.amount !== 'number' ||
-    !Number.isFinite(sql.amount) ||
+    usdUnavailable ||
+    typeof servingAmount !== 'number' ||
+    !Number.isFinite(servingAmount) ||
+    typeof sqlAmount !== 'number' ||
+    !Number.isFinite(sqlAmount) ||
     completed <= 0
   ) {
     return null;
   }
-  return (serving.amount + sql.amount) / completed;
+  return (servingAmount + sqlAmount) / completed;
 }
 
 export function costHonestyLine(honesty: CostHonesty | null | undefined): string {

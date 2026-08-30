@@ -2,22 +2,11 @@
  * Settings → Identity: the backend-defined service-principal personas.
  *
  * Connected identities remain rename-only. The generator saves a separate
- * credential-free operator plan because this app cannot administer Databricks
+ * credential-free operator configuration because this app cannot administer Databricks
  * account service principals or grants with its declared scopes.
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import {
-  Copy,
-  ExternalLink,
-  FolderOpen,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Search,
-  Sparkles,
-  Trash2,
-  UserRound,
-} from 'lucide-react';
+import { Copy, ExternalLink, FolderOpen, Pencil, Plus, RefreshCw, Search, Trash2, UserRound } from 'lucide-react';
 import {
   SP_GRANT_MATRIX,
   SP_GRANT_RESOURCE_TYPES,
@@ -31,7 +20,6 @@ import {
   type SpGrantResource,
   type SpGrantResourceType,
   type SpIdentityAdminPayload,
-  type SpPermissionPlan,
   type SpMintingStatus,
   type SpPersona,
   type SpPersonaDefinition,
@@ -48,19 +36,17 @@ import {
   deleteSpPersonaDefinition,
   loadSpIdentityAdmin,
   renameSpPersona,
-  suggestSpPersonaPermissions,
   updateSpPersonaDefinition,
 } from './identity-settings-api';
 import {
   activeSpPersonaUnresolved,
   changeSpGrantAction,
   changeSpGrantType,
-  canSuggestSpPermissions,
+  confirmDeletePermissionsDraft,
   duplicateSpPersonaGrantRow,
   grantsFromLegacy,
   isSpPersonaDraftDirty,
   isSpPersonaDefinitionComplete,
-  mergeSuggestedSpGrants,
   newSpGrant,
   removeSpPersonaGrantRow,
   resolveSpPersonaTemplateVariant,
@@ -211,37 +197,25 @@ function SpPersonaDefinitionBuilder({
   const resources = resourceDiscovery?.resources ?? [];
   const [draft, setDraft] = useState<SpPersonaDefinitionWrite>(() => newDefinition(resourceDiscovery?.resources ?? []));
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<SpPermissionPlan[]>([]);
-  const [suggestionError, setSuggestionError] = useState('');
-  const [suggesting, setSuggesting] = useState(false);
+  const [draftError, setDraftError] = useState('');
   const [unresolvedSelections, setUnresolvedSelections] = useState<SpPersonaTemplateUnresolved[]>([]);
   const [templateOverflow, setTemplateOverflow] = useState<SpPersonaTemplateOverflow[]>([]);
   const [grantRowIds, setGrantRowIds] = useState<string[]>([]);
   const nextRowId = useRef(0);
-  const suggestionRequest = useRef<AbortController | null>(null);
   const dirty = isSpPersonaDraftDirty(draft);
   const activeUnresolved = activeSpPersonaUnresolved(draft.grants, grantRowIds, unresolvedSelections);
+  const skippedOptional = unresolvedSelections.filter((selection) => selection.optional);
   const templateUseBlock = spPersonaTemplateUseBlock(editingId, dirty);
   const canSubmit =
     !busy &&
     templateOverflow.length === 0 &&
     isSpPersonaDefinitionComplete(draft) &&
     (editingId ? Boolean(onUpdate) : Boolean(onCreate));
-  const canSuggest = !busy && !suggesting && canSuggestSpPermissions(draft.description, resources.length);
-
-  useEffect(
-    () => () => {
-      suggestionRequest.current?.abort();
-    },
-    []
-  );
 
   function reset(): void {
-    suggestionRequest.current?.abort();
     setEditingId(null);
     setDraft(newDefinition(resources));
-    setSuggestions([]);
-    setSuggestionError('');
+    setDraftError('');
     setUnresolvedSelections([]);
     setTemplateOverflow([]);
     setGrantRowIds([]);
@@ -275,8 +249,7 @@ function SpPersonaDefinitionBuilder({
     setUnresolvedSelections(resolved.unresolved);
     setTemplateOverflow(resolved.overflow);
     setGrantRowIds(resolved.rowIds);
-    setSuggestions([]);
-    setSuggestionError('');
+    setDraftError('');
   }
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -294,39 +267,6 @@ function SpPersonaDefinitionBuilder({
     };
     const saved = editingId ? await onUpdate?.(editingId, write) : await onCreate?.(write);
     if (saved) reset();
-  }
-
-  async function suggest(): Promise<void> {
-    if (!canSuggest) return;
-    suggestionRequest.current?.abort();
-    const controller = new AbortController();
-    suggestionRequest.current = controller;
-    setSuggesting(true);
-    setSuggestionError('');
-    setSuggestions([]);
-    try {
-      const result = await suggestSpPersonaPermissions(draft.displayName, draft.description, controller.signal);
-      if (!controller.signal.aborted) setSuggestions(result.plans);
-    } catch (error) {
-      if (!controller.signal.aborted) setSuggestionError((error as Error).message);
-    } finally {
-      if (!controller.signal.aborted) setSuggesting(false);
-    }
-  }
-
-  function applyPlan(plan: SpPermissionPlan): void {
-    const merged = mergeSuggestedSpGrants(draft.grants, plan.grants);
-    if (merged.overflowCount > 0) {
-      setSuggestionError(
-        `This suggestion exceeds the ${SP_PERSONA_GRANT_COUNT_MAX}-permission limit by ${merged.overflowCount}. Narrow it before applying.`
-      );
-      return;
-    }
-    const added = merged.grants.length - draft.grants.length;
-    setDraft((current) => ({ ...current, grants: merged.grants }));
-    setGrantRowIds((current) => [...current, ...Array.from({ length: added }, () => `manual-${nextRowId.current++}`)]);
-    setSuggestions([]);
-    setSuggestionError('');
   }
 
   return (
@@ -347,8 +287,17 @@ function SpPersonaDefinitionBuilder({
             <strong>{editingId ? 'Edit persona configuration' : 'Define a persona'}</strong>
           </div>
           {editingId || dirty ? (
-            <Button type="button" variant="outline" className="roster-control" onClick={reset} disabled={busy}>
-              {editingId ? 'Cancel edit' : 'Cancel staged changes'}
+            <Button
+              type="button"
+              variant={editingId ? 'outline' : 'destructive'}
+              data-variant={editingId ? 'outline' : 'destructive'}
+              className={`roster-control${editingId ? '' : ' settings-destructive'}`}
+              onClick={() => {
+                if (editingId || confirmDeletePermissionsDraft(window.confirm)) reset();
+              }}
+              disabled={busy}
+            >
+              {editingId ? 'Cancel edit' : 'Delete permissions'}
             </Button>
           ) : null}
         </div>
@@ -396,18 +345,6 @@ function SpPersonaDefinitionBuilder({
               >
                 <Plus className="size-3.5" /> Add permission
               </Button>
-              {draft.description.trim() ? (
-                <Button
-                  type="button"
-                  className="roster-control sp-suggest-button"
-                  disabled={!canSuggest}
-                  aria-busy={suggesting}
-                  onClick={() => void suggest()}
-                >
-                  <Sparkles className="size-3.5" aria-hidden="true" />
-                  {suggesting ? 'Suggesting…' : 'Suggest permissions'}
-                </Button>
-              ) : null}
             </span>
           </div>
           {templateOverflow.length > 0 ? (
@@ -426,17 +363,25 @@ function SpPersonaDefinitionBuilder({
           ) : null}
           {activeUnresolved.length > 0 ? (
             <div className="sp-template-unresolved" role="status">
-              <strong>Complete {activeUnresolved.length} resource choice(s) before saving</strong>
+              <strong>Choose {activeUnresolved.length} required resource(s) before saving</strong>
               <ul>
                 {activeUnresolved.map((selection) => (
                   <li key={selection.rowId}>
-                    Permission {grantRowIds.indexOf(selection.rowId) + 1}: {selection.choiceLabel}
+                    Permission {grantRowIds.indexOf(selection.rowId) + 1} — {selection.choiceLabel}.{' '}
                     {selection.candidateCount > 1
-                      ? ` — ${selection.candidateCount} configured matches; choose one`
-                      : ' — no configured match; choose or enter one'}
+                      ? `${selection.candidateCount} configured matches. `
+                      : 'No configured match. '}
+                    Open Browse in this row to choose or enter an identifier.
                   </li>
                 ))}
               </ul>
+            </div>
+          ) : null}
+          {skippedOptional.length > 0 ? (
+            <div className="sp-template-optional" role="status">
+              Optional {skippedOptional.map((selection) => selection.choiceLabel).join(', ')}{' '}
+              {skippedOptional.length === 1 ? 'was' : 'were'} skipped because it did not resolve to exactly one
+              configured resource. Base permissions can still be saved.
             </div>
           ) : null}
           {draft.grants.map((grant, index) => (
@@ -450,6 +395,7 @@ function SpPersonaDefinitionBuilder({
               resourcesLoading={loading}
               onRefreshResources={onRefreshResources}
               busy={busy}
+              requiredChoice={activeUnresolved.find((selection) => selection.rowId === grantRowIds[index])}
               onChange={(next) => {
                 const rowId = grantRowIds[index];
                 if (next.resource.trim()) {
@@ -490,33 +436,10 @@ function SpPersonaDefinitionBuilder({
               }}
             />
           ))}
-          {suggestionError ? (
-            <div className="sp-suggestion-error" role="alert">
-              <span>{suggestionError}</span>
-              <Button type="button" variant="outline" size="sm" disabled={!canSuggest} onClick={() => void suggest()}>
-                Try again
-              </Button>
-            </div>
-          ) : null}
-          {suggestions.length > 0 ? (
-            <div className="sp-suggestion-plans" aria-label="Suggested permission plans">
-              {suggestions.map((plan) => (
-                <article className="sp-suggestion-plan" key={plan.name}>
-                  <strong>{plan.name}</strong>
-                  <p>{plan.rationale}</p>
-                  <ul>
-                    {plan.grants.map((grant) => (
-                      <li key={spGrantKey(grant)}>
-                        {SP_GRANT_MATRIX[grant.resourceType].label} {grant.resource} — <code>{grant.privilege}</code>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button type="button" variant="outline" size="sm" onClick={() => applyPlan(plan)}>
-                    Use this plan
-                  </Button>
-                </article>
-              ))}
-            </div>
+          {draftError ? (
+            <p className="sp-draft-error" role="alert">
+              {draftError}
+            </p>
           ) : null}
           {draft.legacyCapabilities.map((capability, index) => (
             // Legacy strings have no identifier and may contain duplicates.
@@ -532,7 +455,7 @@ function SpPersonaDefinitionBuilder({
                   onClick={() => {
                     const converted = grantsFromLegacy(capability);
                     if (draft.grants.length + converted.length > SP_PERSONA_GRANT_COUNT_MAX) {
-                      setSuggestionError(
+                      setDraftError(
                         `Converting this entry would exceed the ${SP_PERSONA_GRANT_COUNT_MAX}-permission limit. Remove or narrow permissions first.`
                       );
                       return;
@@ -583,8 +506,8 @@ function SpPersonaDefinitionBuilder({
         </div>
 
         <div className="sp-persona-builder-foot">
-          <Button type="submit" disabled={!canSubmit} aria-label="Save persona permission plan">
-            {editingId ? 'Save persona' : 'Save plan'}
+          <Button type="submit" disabled={!canSubmit} aria-label="Save persona permissions">
+            Save permissions
           </Button>
           <Button asChild>
             <a
@@ -637,7 +560,9 @@ export function ExampleProfiles({
       <div className="sp-example-profiles-head">
         <div>
           <strong id="sp-example-profiles-title">Example profiles</strong>
-          <p>Stage an editable, credential-free plan. Nothing is saved, created, or granted until you review it.</p>
+          <p>
+            Stage editable, credential-free permissions. Nothing is saved, created, or granted until you review them.
+          </p>
         </div>
       </div>
       {warning ? (
@@ -670,6 +595,11 @@ export function ExampleProfiles({
                     ? ` · ${leastResolved.unresolved.length} resource choice(s) need review`
                     : ' · configured resources resolved'}
               </p>
+              {expanded.map((variant) => (
+                <p className="sp-example-variant-note" key={`${variant.id}-description`}>
+                  {variant.description}
+                </p>
+              ))}
               {useBlockedReason ? <p className="settings-status">{useBlockedReason}</p> : null}
               <details>
                 <summary>Review duties, boundaries, and exclusions</summary>
@@ -710,7 +640,7 @@ export function ExampleProfiles({
                     key={variant.id}
                     onClick={() => onUse(template, variant)}
                   >
-                    Use {variant.label}
+                    {variant.label}
                   </Button>
                 ))}
               </div>
@@ -750,10 +680,12 @@ export function ResourceBrowser({
     (resource) =>
       resource.type === grant.resourceType && resource.id.toLocaleLowerCase() === grant.resource.toLocaleLowerCase()
   );
-  const filtered = resources.filter((resource) =>
-    `${resource.label} ${resource.id} ${SP_GRANT_MATRIX[resource.type].label}`
-      .toLocaleLowerCase()
-      .includes(query.toLocaleLowerCase())
+  const filtered = resources.filter(
+    (resource) =>
+      resource.type === grant.resourceType &&
+      `${resource.label} ${resource.id} ${SP_GRANT_MATRIX[resource.type].label}`
+        .toLocaleLowerCase()
+        .includes(query.toLocaleLowerCase())
   );
   const groups = SP_GRANT_RESOURCE_TYPES.map((type) => ({
     type,
@@ -873,6 +805,7 @@ function StructuredGrantRow({
   resourcesLoading,
   onRefreshResources,
   busy,
+  requiredChoice,
   onChange,
   onDuplicate,
   onRemove,
@@ -886,6 +819,7 @@ function StructuredGrantRow({
   resourcesLoading: boolean;
   onRefreshResources?: () => void;
   busy: boolean;
+  requiredChoice?: SpPersonaTemplateUnresolved;
   onChange: (grant: SpGrant) => void;
   onDuplicate: () => void;
   onRemove: () => void;
@@ -963,7 +897,12 @@ function StructuredGrantRow({
       </div>
       {(grant.resource.trim() && identifierFault) || (grant.resource.trim() && duplicate) ? (
         <p className="sp-grant-error" role="alert">
-          {duplicate ? 'This exact resource and permission is already in the plan.' : identifierFault}
+          {duplicate ? 'This exact resource and permission is already selected.' : identifierFault}
+        </p>
+      ) : null}
+      {requiredChoice && !grant.resource.trim() ? (
+        <p className="sp-grant-required" role="alert">
+          Required: {requiredChoice.choiceLabel}. Open Browse to choose or enter an identifier.
         </p>
       ) : null}
     </div>
@@ -1076,7 +1015,7 @@ function SpPersonaDefinitionTable({
 /**
  * A generated definition cannot execute anything: the credential-backed table
  * below still contains only identities an operator connected outside this UI.
- * Keeping those records separate prevents a configuration plan from appearing
+ * Keeping those records separate prevents a credential-free configuration from appearing
  * in the human assignment dropdown before it can mint a token.
  */
 function SpPersonaTable({

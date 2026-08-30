@@ -39,7 +39,7 @@
   line-height: 1.55;
 }
 
-.app-session-card button {
+.app-session-card :is(button, a) {
   display: inline-flex;
   width: max-content;
   min-height: 36px;
@@ -53,6 +53,7 @@
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .app-session-card button:disabled {
@@ -60,7 +61,7 @@
   opacity: 0.65;
 }
 
-.app-session-card button svg {
+.app-session-card :is(button, a) svg {
   width: 15px;
   height: 15px;
 }

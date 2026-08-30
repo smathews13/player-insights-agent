@@ -168,7 +168,8 @@ describe('the Cost controls and values share compact rows', () => {
     expect(row).toMatch(/flex-wrap:\s*nowrap/);
     expect(row).toMatch(/overflow-x:\s*auto/);
     expect(rule('.ops-tile-budget')).toMatch(/flex:\s*0\s+0\s+auto/);
-    expect(rule('.ops-budget-input-row')).toMatch(/grid-template-columns:\s*var\(--ops-budget-input-width\)\s+auto/);
+    expect(rule('.ops-budget-input-row')).toMatch(/grid-template-columns:\s*var\(--ops-budget-input-width\)/);
+    expect(rule('.ops-budget-input-wrap')).toMatch(/width:\s*var\(--ops-budget-input-width\)/);
   });
 
   it('reserves matching amount and evidence rows for values and honest empty states', () => {

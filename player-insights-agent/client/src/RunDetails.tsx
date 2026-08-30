@@ -3,7 +3,7 @@ import { ChevronRight, CircleAlert, Copy, ExternalLink, ShieldCheck } from 'luci
 import { BrandIcon } from './BrandIcon';
 import { Alert, AlertDescription, Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from './ui';
 import { StateSwitch } from './StateSwitch';
-import { sqlClauseLines, sqlHighlightRuns, sqlStatements, truncatedId } from './step-results';
+import { sqlStatements, truncatedId } from './step-results';
 import { formatMs } from './trace-timeline';
 import { reportEgress } from './egress-policy';
 import type { EgressChannel } from '../../shared/egress-contract';
@@ -12,6 +12,8 @@ import type { TraceStage } from './answer-shape';
 import { PayloadView } from './TraceTimeline';
 import { EntityText } from './DataEntityLinks';
 import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
+import { SqlCodeBlocks } from './SqlPresentation';
+import { sanitizeSqlForDisplay } from './sql-presentation';
 
 /**
  * Puts a value the page has truncated onto the clipboard whole.
@@ -91,7 +93,8 @@ function TraceRow({ mlflow }: { mlflow: NonNullable<RunTrace['mlflow']> }) {
  * read off the same split the blocks are, so it cannot disagree with them.
  */
 function GeneratedSql({ sql }: { sql: string }) {
-  const statements = sqlStatements(sql);
+  const safeSql = sanitizeSqlForDisplay(sql);
+  const statements = sqlStatements(safeSql);
   if (statements.length === 0) return null;
   return (
     <div className="sql-panel">
@@ -100,21 +103,9 @@ function GeneratedSql({ sql }: { sql: string }) {
         <span>
           {statements.length} statement{statements.length === 1 ? '' : 's'}
         </span>
-        <CopyValue value={sql} label="Copy the generated SQL" channel="generated-sql" />
+        <CopyValue value={safeSql} label="Copy the generated SQL" channel="generated-sql" />
       </div>
-      {statements.map((statement) => (
-        <pre key={statement}>
-          {sqlClauseLines(statement).map((line) => (
-            <span className="sql-line" key={line}>
-              {/* Plain stretches stay text nodes. Wrapping them would put an
-                  element boundary between a keyword and the name after it, which
-                  is a word break the copy would then carry. */}
-              {sqlHighlightRuns(line).map((run) => (run.keyword ? <b key={run.start}>{run.text}</b> : run.text))}
-              {'\n'}
-            </span>
-          ))}
-        </pre>
-      ))}
+      <SqlCodeBlocks sql={safeSql} />
     </div>
   );
 }

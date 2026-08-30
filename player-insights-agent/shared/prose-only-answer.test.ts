@@ -62,9 +62,7 @@ describe('the answer for a prose-only reply', () => {
   });
 
   it('skips leading blank lines rather than showing an empty takeaway', () => {
-    expect(proseOnlyAnswer('msg-1', `\n\n   \n${PROSE}`).takeaway).toBe(
-      'VLH Online leads the last 30 days.'
-    );
+    expect(proseOnlyAnswer('msg-1', `\n\n   \n${PROSE}`).takeaway).toBe('VLH Online leads the last 30 days.');
   });
 
   it('describes the shape of the reply when there is no first line to use', () => {
@@ -92,6 +90,7 @@ describe('the answer for a prose-only reply', () => {
     ]);
     expect(answer.trace.stages).toHaveLength(2);
     expect(answer.trace.stages[1]?.status).toBe('failed');
+    expect(answer.trace.stages[1]?.output).toBe('');
     expect(answer.trace.toolCalls).toBe(1);
     expect(answer.trace.totalMs).toBe(52);
     expect(answer.caveats[0]).toContain('stopped after 2 steps');
@@ -107,6 +106,32 @@ describe('folding recorded steps', () => {
     ]);
     expect(folded.stages).toHaveLength(1);
     expect(folded.stages[0]?.status).toBe('complete');
+  });
+
+  it('re-projects generated output after settling a final running step as failed', () => {
+    const folded = foldRecordedStages([
+      {
+        id: 'step-1',
+        name: 'Choosing the next step',
+        kind: 'agent',
+        status: 'running',
+        output: '',
+      },
+    ]);
+
+    expect(folded.stages[0]?.status).toBe('failed');
+    expect(folded.stages[0]?.output).toBe('The reasoning step did not complete.');
+  });
+
+  it.each(['cancelled', 'interrupted'])('normalizes a running step followed by %s', (terminalStatus) => {
+    const folded = foldRecordedStages([
+      { id: 'step-1', status: 'running', output: '' },
+      { id: 'step-1', status: terminalStatus, output: 'Reasoning is in progress.' },
+    ]);
+
+    expect(folded.stages).toHaveLength(1);
+    expect(folded.stages[0]?.status).toBe('cancelled');
+    expect(folded.stages[0]?.output).toBe('The reasoning step was cancelled before completion.');
   });
 });
 
@@ -216,9 +241,7 @@ describe('the finder’s internal package', () => {
       '156,447 session rows spanning 2026-02-05 to 2026-08-03.\n\n| Title | Players |\n| VLH Online | 9575 |'
     );
     const answer = proseOnlyAnswer('msg-1', packaged);
-    expect(answer.takeaway).toBe(
-      'The run reached its time limit before the answer could be composed.'
-    );
+    expect(answer.takeaway).toBe('The run reached its time limit before the answer could be composed.');
     expect(answer.narrative).toContain('| VLH Online | 9575 |');
   });
 

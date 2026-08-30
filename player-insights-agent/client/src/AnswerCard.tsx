@@ -47,6 +47,21 @@ import { DOWN_RATING, UP_RATING, ratedThumb } from './stored-feedback';
 import { evidenceLinkedSourceNames } from './answer-table-origins';
 import type { Answer, FeedbackEntry } from './app-types';
 import { StateSwitch } from './StateSwitch';
+import { SqlCodeBlocks } from './SqlPresentation';
+
+/** Shared by Ask and Monitoring, which mounts this same answer card. */
+export function AnswerSql({ sql }: { sql: string }) {
+  return (
+    <div className="code-panel">
+      <div className="code-panel-head">
+        <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
+          Read only
+        </Badge>
+      </div>
+      <SqlCodeBlocks sql={sql} />
+    </div>
+  );
+}
 
 export function AnswerCard({
   answer,
@@ -403,18 +418,10 @@ export function AnswerCard({
                   <TabsTrigger value="raw">Raw I/O</TabsTrigger>
                 </TabsList>
                 <TabsContent value="sql">
-                  <div className="code-panel">
-                    <div>
-                      {/* The one pill recipe, outlined rather than filled: this chip
-                          sits on the panel's own tinted header band, and a neutral
-                          tint on that band reads as a rendering fault rather than as
-                          a chip. */}
-                      <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
-                        Read only
-                      </Badge>
-                    </div>
-                    <pre>{answer.sql}</pre>
-                  </div>
+                  {/* The one pill recipe stays outlined on this tinted header.
+                      SQL itself uses the same structural renderer as live,
+                      reloaded Explorer, and Monitoring trace payloads. */}
+                  <AnswerSql sql={answer.sql} />
                 </TabsContent>
                 <TabsContent value="raw">
                   <div className="code-panel">

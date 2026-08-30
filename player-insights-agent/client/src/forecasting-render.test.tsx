@@ -33,6 +33,7 @@ function cost(): OpsCostPayload {
         resourceId: 'agent',
         quality: 'real',
         amount: 14,
+        dbus: 7,
         basis: 'total-in-range',
         population: 'This endpoint',
         attribution: 'deployment',
@@ -46,6 +47,7 @@ function cost(): OpsCostPayload {
         resourceId: 'warehouse',
         quality: 'estimate',
         amount: 7,
+        dbus: 3.5,
         basis: 'total-in-range',
         population: 'Astrolabe query share',
         attribution: 'deployment',
@@ -65,6 +67,7 @@ function cost(): OpsCostPayload {
         resourceId: 'app',
         quality: 'rate',
         amount: 2,
+        dbus: 1,
         basis: 'per-day',
         population: 'This app',
         attribution: 'deployment',
@@ -174,6 +177,18 @@ describe('Forecasting visibility and placement', () => {
       expect(markup).toContain(label);
     }
     expect(markup).toContain('type="number"');
+    expect(markup).toContain('aria-label="Increase average daily users"');
+    expect(markup).toContain('aria-label="Decrease average daily users"');
+    expect(markup.match(/ops-forecast-steppers/g)).toHaveLength(4);
+    expect(markup.match(/aria-controls="ops-forecast-/g)).toHaveLength(8);
+    expect(markup).toMatch(/id="ops-forecast-averageDailyUsers"[^>]*inputMode="numeric"[^>]*min="0"[^>]*step="1"/);
+    expect(markup).toMatch(
+      /id="ops-forecast-questionsPerUserPerDay"[^>]*inputMode="decimal"[^>]*min="0"[^>]*step="0\.1"/
+    );
+    expect(markup).toMatch(
+      /id="ops-forecast-averageModelTokensPerQuestion"[^>]*inputMode="numeric"[^>]*min="0"[^>]*step="1"/
+    );
+    expect(markup).not.toContain('$');
     expect(markup).not.toContain('List-price estimate only');
     expect(markup).not.toContain('Baseline:');
     expect(markup).not.toContain('Source:');
@@ -199,6 +214,93 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).not.toContain('Governed table count');
     expect(markup).not.toContain('Vector Search cost per table per day');
     expect(markup.indexOf('experimental-pane-badge')).toBeLessThan(markup.indexOf('>Forecasting</h3>'));
+    expect(markup).toContain('Projected breakdown');
+    expect(markup).toContain('Projected cost breakdown by horizon');
+    expect(markup).toMatch(/<th scope="col">Component<\/th>/);
+    expect(markup).toMatch(/<th scope="col">Next 7 days<\/th>/);
+    expect(markup).toMatch(/<th scope="col">Next 30 days<\/th>/);
+    expect(markup).toMatch(/<th scope="col">Six months<\/th>/);
+    expect(markup).toMatch(/<tfoot>[\s\S]*?<th scope="row">Total<\/th>/);
+  });
+
+  it('renders exact calculated component horizons, omits unpriced rows, and matches headline subtotals', () => {
+    const payload = cost();
+    payload.tiles.push(
+      {
+        id: 'vector-search',
+        label: 'Vector Search',
+        resourceId: 'catalog.schema.index',
+        quality: 'rate',
+        amount: 3,
+        basis: 'per-day',
+        population: 'This endpoint',
+        attribution: 'deployment',
+        unavailable: '',
+        remedy: '',
+        note: '',
+      },
+      {
+        id: 'genie:data',
+        label: 'Data Genie',
+        resourceId: 'data-space',
+        quality: 'rate',
+        amount: 4,
+        basis: 'per-day',
+        population: 'This space',
+        attribution: 'deployment',
+        unavailable: '',
+        remedy: '',
+        note: '',
+      },
+      {
+        id: 'genie:dictionary',
+        label: 'Dictionary Genie',
+        resourceId: 'dictionary-space',
+        quality: 'unknown',
+        amount: null,
+        basis: 'total-in-range',
+        population: 'This space',
+        attribution: 'unavailable',
+        unavailable: 'Dictionary Genie pricing is unavailable.',
+        remedy: '',
+        note: '',
+      }
+    );
+    const daily = Array.from({ length: 7 }, (_, index) => `2026-08-${String(index + 8).padStart(2, '0')}`);
+    const trafficPayload = traffic();
+    trafficPayload.questionsPerDay = daily.map((day) => ({ day, count: 7 }));
+    trafficPayload.distinctAskersPerDay = daily.map((day) => ({ day, count: 2 }));
+    trafficPayload.activeMinutesPerDay = daily.map((day) => ({ day, count: 40 }));
+
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <ForecastingBody cost={block(payload)} traffic={block(trafficPayload)} />
+      </MemoryRouter>
+    );
+    const breakdown = markup.slice(markup.indexOf('ops-forecast-breakdown'), markup.indexOf('ops-forecast-method'));
+
+    for (const component of ['Serving endpoint', 'Astrolabe SQL', 'App compute', 'Vector Search', 'Data Genie']) {
+      expect(breakdown).toContain(`<th scope="row">${component}</th>`);
+    }
+    expect(breakdown).not.toContain('Dictionary Genie');
+    expect(markup).toContain('Dictionary Genie pricing is unavailable.');
+    expect(breakdown).toContain('<th scope="row">Subtotal</th>');
+    expect(markup.match(/84\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(markup.match(/360\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(markup.match(/2,160\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(breakdown.match(/<th scope="row">Astrolabe SQL<\/th>/g)).toHaveLength(1);
+  });
+
+  it('uses the shared DBU selection for every projection without a currency conversion', () => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <ForecastingBody cost={block(cost())} traffic={block(traffic())} unit="DBU" />
+      </MemoryRouter>
+    );
+    const projection = markup.slice(markup.indexOf('ops-forecast-horizons'), markup.indexOf('ops-forecast-method'));
+    expect(projection).toContain('DBU');
+    expect(projection).not.toContain(' USD');
+    expect(markup).toContain('do not apply a USD conversion rate');
   });
 
   it('renders loading, unavailable, and partial states without inventing totals', () => {
@@ -252,6 +354,17 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).toContain('Serving token coverage is partial');
     expect(markup.match(/Active-minute/g)).toHaveLength(1);
     expect(OPS_CSS).toMatch(/\.ops-forecast-formulas > div,[\s\S]*grid-template-columns:/);
+    expect(OPS_CSS).toMatch(
+      /\.ops-forecast-assumption-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(min\(12rem,\s*100%\),\s*13\.5rem\)\)/
+    );
+    expect(OPS_CSS).toMatch(
+      /\.ops-forecast-number-control\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*7rem\)\s+20px[^}]*width:\s*min\(100%,\s*8\.25rem\)/
+    );
+    expect(OPS_CSS).toMatch(
+      /\.ops-forecast-number-control input\s*\{[^}]*font-size:\s*var\(--text-base\)[^}]*font-weight:\s*700/
+    );
+    expect(OPS_CSS).toMatch(/\.ops-forecast-breakdown-scroll\s*\{[^}]*overflow-x:\s*auto/);
+    expect(OPS_CSS).toMatch(/\.ops-forecast-breakdown table\s*\{[^}]*min-width:\s*620px/);
     expect(RESPONSIVE_CSS).toMatch(/\.ops-forecast-formulas > div,[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
     expect(FORECAST_SOURCE).toContain('limits.slice(0, VISIBLE_LIMITS)');
     expect(FORECAST_SOURCE).toContain('ops-forecast-more-limits');

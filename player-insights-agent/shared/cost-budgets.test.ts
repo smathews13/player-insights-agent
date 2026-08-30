@@ -13,11 +13,11 @@ import {
 
 describe('nominal cost budgets', () => {
   it('treats a missing amount as unset rather than zero', () => {
-    expect(EMPTY_COST_BUDGETS.total).toEqual({ value: null, unit: 'USD' });
-    expect(resourceBudget(EMPTY_COST_BUDGETS, 'app-compute')).toEqual({ value: null, unit: 'USD' });
+    expect(EMPTY_COST_BUDGETS.total).toEqual({ USD: null, DBU: null });
+    expect(resourceBudget(EMPTY_COST_BUDGETS, 'app-compute')).toEqual({ USD: null, DBU: null });
     expect(CostBudgetsSchema.parse({ total: 0, resources: { 'app-compute': 0 } })).toEqual({
-      total: { value: 0, unit: 'USD' },
-      resources: { 'app-compute': { value: 0, unit: 'USD' } },
+      total: { USD: 0, DBU: null },
+      resources: { 'app-compute': { USD: 0, DBU: null } },
     });
   });
 
@@ -26,10 +26,10 @@ describe('nominal cost budgets', () => {
       total: 400,
       resources: { 'app-compute': 40, 'genie:space-data': 12.5 },
     });
-    expect(stored?.total).toEqual({ value: 400, unit: 'USD' });
-    expect(resourceBudget(stored!, 'app-compute')).toEqual({ value: 40, unit: 'USD' });
-    expect(resourceBudget(stored!, 'genie:space-data')).toEqual({ value: 12.5, unit: 'USD' });
-    expect(resourceBudget(stored!, 'sql-warehouse')).toEqual({ value: null, unit: 'USD' });
+    expect(stored?.total).toEqual({ USD: 400, DBU: null });
+    expect(resourceBudget(stored!, 'app-compute')).toEqual({ USD: 40, DBU: null });
+    expect(resourceBudget(stored!, 'genie:space-data')).toEqual({ USD: 12.5, DBU: null });
+    expect(resourceBudget(stored!, 'sql-warehouse')).toEqual({ USD: null, DBU: null });
   });
 
   it('refuses a negative or non-finite amount rather than storing it', () => {
@@ -41,10 +41,10 @@ describe('nominal cost budgets', () => {
   it('drops keys that are no longer on the Cost grid', () => {
     const stored = withResourceBudget(withTotalBudget(EMPTY_COST_BUDGETS, 100), 'genie:old-space', 25);
     expect(budgetsForVisibleTiles(stored, ['app-compute', 'serving-endpoint'])).toEqual({
-      total: { value: 100, unit: 'USD' },
+      total: { USD: 100, DBU: null },
       resources: {
-        'app-compute': { value: null, unit: 'USD' },
-        'serving-endpoint': { value: null, unit: 'USD' },
+        'app-compute': { USD: null, DBU: null },
+        'serving-endpoint': { USD: null, DBU: null },
       },
     });
   });
@@ -60,13 +60,24 @@ describe('nominal cost budgets', () => {
         },
       })
     ).toEqual({
-      total: { value: 100, unit: 'USD' },
-      resources: { 'app-compute': { value: 25, unit: 'USD' } },
+      total: { USD: 100, DBU: null },
+      resources: { 'app-compute': { USD: 25, DBU: null } },
     });
   });
 
   it('keeps a typed amount inside the schema ceiling', () => {
-    expect(parseCostBudgets({ total: COST_BUDGET_MAX, resources: {} })?.total.value).toBe(COST_BUDGET_MAX);
+    expect(parseCostBudgets({ total: COST_BUDGET_MAX, resources: {} })?.total.USD).toBe(COST_BUDGET_MAX);
     expect(parseCostBudgets({ total: COST_BUDGET_MAX + 1, resources: {} })).toBeNull();
+  });
+
+  it('migrates a legacy unit into one slot and preserves dual-unit values without conversion', () => {
+    expect(parseCostBudgets({ total: { value: 7, unit: 'DBU' }, resources: {} })?.total).toEqual({
+      USD: null,
+      DBU: 7,
+    });
+    expect(parseCostBudgets({ total: { USD: 54.81, DBU: 78.25 }, resources: {} })?.total).toEqual({
+      USD: 54.81,
+      DBU: 78.25,
+    });
   });
 });

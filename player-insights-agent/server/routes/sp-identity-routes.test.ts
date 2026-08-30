@@ -12,17 +12,12 @@ describe('service-principal identity admin routes', () => {
     expect(isAdminRoute('/api/admin/sp-identity/personas')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/assignments')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/persona-definitions')).toBe(true);
-    expect(isAdminRoute('/api/admin/sp-identity/permission-suggestions')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/mode')).toBe(true);
   });
 
-  it('guards suggestions with server-owned discovery, a bounded model call, and safe logs', () => {
-    expect(source).toContain("app.post('/api/admin/sp-identity/permission-suggestions'");
-    expect(source).toContain('SpPermissionSuggestionRequestSchema.safeParse(req.body)');
-    expect(source).toContain('discoverSpGrantResources(appkit)');
-    expect(source).toContain('resolveJudgeEndpoint(appkit)');
-    expect(source).toContain('SP_PERMISSION_SUGGESTION_TIMEOUT_MS');
-    expect(source).not.toMatch(/console\.(?:info|warn)\([^)]*(?:purpose|displayName|prompt)/s);
+  it('has no permission-suggestion route, model call, timeout, or cancellation surface', () => {
+    expect(source).not.toMatch(/permission-suggestions|PermissionSuggestion|suggestSpPermissions/);
+    expect(source).not.toMatch(/resolveJudgeEndpoint|invokeServing|AbortController|SUGGESTION_TIMEOUT/);
   });
 
   it('returns deployment-validated examples without persisting or provisioning them', () => {

@@ -16,7 +16,7 @@ export function RuntimeLoopDiagram({ loop }: { loop: RuntimeSettings['loop'] }) 
   return (
     <svg
       className="runtime-loop-diagram"
-      viewBox="0 0 380 106"
+      viewBox="0 0 420 118"
       role="img"
       aria-labelledby={`${titleId} ${descriptionId}`}
       preserveAspectRatio="xMidYMid meet"
@@ -24,8 +24,8 @@ export function RuntimeLoopDiagram({ loop }: { loop: RuntimeSettings['loop'] }) 
       <title id={titleId}>Runtime loop limits</title>
       <desc id={descriptionId}>
         An Ask repeats up to {loop.maxSteps} reasoning steps. Those steps may make up to {loop.maxToolCalls} tool calls
-        total across the run, then produce an Answer. The {loop.maxRunSeconds} second overall run budget stops gathering
-        early enough to write the answer.
+        total across the run, then produce an Answer. A run-wide time boundary stops gathering after{' '}
+        {loop.maxRunSeconds} seconds and preserves time to write the answer.
       </desc>
       <defs>
         <marker
@@ -42,71 +42,68 @@ export function RuntimeLoopDiagram({ loop }: { loop: RuntimeSettings['loop'] }) 
         </marker>
       </defs>
 
-      <rect className="runtime-loop-diagram__budget-frame" x="1" y="1" width="378" height="104" rx="8" />
-      <text className="runtime-loop-diagram__budget-label" x="12" y="15">
-        {loop.maxRunSeconds}s overall run budget
-      </text>
+      <rect className="runtime-loop-diagram__budget-frame" x="1" y="1" width="418" height="116" rx="10" />
 
       <path
         className="runtime-loop-diagram__edge"
-        d="M 58 53 H 78"
+        d="M 62 57 H 87"
         markerEnd={`url(#${markerId})`}
         aria-hidden="true"
       />
       <path
         className="runtime-loop-diagram__edge runtime-loop-diagram__edge--loop"
-        d="M 181 45 C 192 36, 200 36, 211 45"
+        d="M 200 42 C 214 31, 221 31, 235 42"
         markerEnd={`url(#${markerId})`}
         aria-hidden="true"
       />
       <path
         className="runtime-loop-diagram__edge runtime-loop-diagram__edge--loop"
-        d="M 211 62 C 200 71, 192 71, 181 62"
+        d="M 235 72 C 221 84, 214 84, 200 72"
         markerEnd={`url(#${markerId})`}
         aria-hidden="true"
       />
       <path
         className="runtime-loop-diagram__edge"
-        d="M 299 53 H 320"
+        d="M 333 57 H 355"
         markerEnd={`url(#${markerId})`}
         aria-hidden="true"
       />
 
       <g className="runtime-loop-diagram__node runtime-loop-diagram__node--ask">
-        <rect x="10" y="34" width="48" height="38" rx="5" />
-        <text x="34" y="57" textAnchor="middle">
+        <rect x="12" y="37" width="50" height="40" rx="6" />
+        <text x="37" y="61" textAnchor="middle">
           Ask
         </text>
       </g>
       <g className="runtime-loop-diagram__node runtime-loop-diagram__node--agent">
-        <rect x="79" y="29" width="102" height="48" rx="5" />
-        <path className="runtime-loop-diagram__node-accent" d="M 82 33 V 73" />
-        <text x="130" y="49" textAnchor="middle">
+        <rect x="88" y="26" width="112" height="60" rx="6" />
+        <path className="runtime-loop-diagram__node-accent" d="M 92 32 V 80" />
+        <text x="144" y="51" textAnchor="middle">
           Reasoning step
         </text>
-        <text className="runtime-loop-diagram__node-value" x="130" y="66" textAnchor="middle">
+        <text className="runtime-loop-diagram__node-value" x="144" y="70" textAnchor="middle">
           up to {loop.maxSteps}
         </text>
       </g>
       <g className="runtime-loop-diagram__node runtime-loop-diagram__node--tool">
-        <rect x="211" y="29" width="88" height="48" rx="5" />
-        <path className="runtime-loop-diagram__node-accent" d="M 214 33 V 73" />
-        <text x="255" y="49" textAnchor="middle">
+        <rect x="235" y="26" width="98" height="60" rx="6" />
+        <path className="runtime-loop-diagram__node-accent" d="M 239 32 V 80" />
+        <text x="284" y="51" textAnchor="middle">
           Tool calls
         </text>
-        <text className="runtime-loop-diagram__node-value" x="255" y="66" textAnchor="middle">
+        <text className="runtime-loop-diagram__node-value" x="284" y="70" textAnchor="middle">
           up to {loop.maxToolCalls} total
         </text>
       </g>
       <g className="runtime-loop-diagram__node runtime-loop-diagram__node--answer">
-        <rect x="320" y="34" width="50" height="38" rx="5" />
-        <text x="345" y="57" textAnchor="middle">
+        <rect x="356" y="37" width="52" height="40" rx="6" />
+        <text x="382" y="61" textAnchor="middle">
           Answer
         </text>
       </g>
 
-      <text className="runtime-loop-diagram__deadline-note" x="190" y="94" textAnchor="middle">
-        deadline stops gathering → writes answer
+      <text className="runtime-loop-diagram__deadline-note" x="210" y="105" textAnchor="middle">
+        Stops after {loop.maxRunSeconds}s · then writes the answer
       </text>
     </svg>
   );

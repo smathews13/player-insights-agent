@@ -4,12 +4,10 @@ import {
   activeSpPersonaUnresolved,
   changeSpGrantAction,
   changeSpGrantType,
-  canSuggestSpPermissions,
   duplicateSpPersonaGrantRow,
   grantsFromLegacy,
   isSpPersonaDraftDirty,
   isSpPersonaDefinitionComplete,
-  mergeSuggestedSpGrants,
   newSpGrant,
   removeSpPersonaGrantRow,
   resourceMatchesSpPersonaSelector,
@@ -73,29 +71,6 @@ describe('structured persona grant editing', () => {
         legacyCapabilities: [],
       })
     ).toBe(false);
-  });
-
-  it('enables suggestions only for a stated purpose and available inventory', () => {
-    expect(canSuggestSpPermissions('', 2)).toBe(false);
-    expect(canSuggestSpPermissions('   ', 2)).toBe(false);
-    expect(canSuggestSpPermissions('Read player metrics', 0)).toBe(false);
-    expect(canSuggestSpPermissions('Read player metrics', 2)).toBe(true);
-  });
-
-  it('stages a selected suggestion without duplicates', () => {
-    const read = newSpGrant(resources);
-    const write = changeSpGrantAction(read, 'WRITE');
-    expect(mergeSuggestedSpGrants([read], [read, write])).toEqual({ grants: [read, write], overflowCount: 0 });
-  });
-
-  it('rejects an over-cap suggestion without partially applying or truncating it', () => {
-    const suggested = Array.from({ length: 25 }, (_, index) => ({
-      resourceType: 'TABLE' as const,
-      resource: `main.games.table_${index}`,
-      action: 'READ' as const,
-      privilege: 'SELECT',
-    }));
-    expect(mergeSuggestedSpGrants([], suggested)).toEqual({ grants: [], overflowCount: 1 });
   });
 
   it('resolves only unique or explicit all-match configured resources and deduplicates grants', () => {
@@ -212,6 +187,50 @@ describe('structured persona grant editing', () => {
       );
       expect(resolved.grants.map((grant) => grant.resource)).not.toContain('main.games.silver_player_profiles_backup');
     }
+  });
+
+  it('skips an unresolved optional metadata index without blocking resolved base permissions', () => {
+    const template = DEFAULT_SP_PERSONA_TEMPLATES[0];
+    const semantic = template.variants.find((variant) => variant.id === 'semantic-discovery');
+    if (!semantic) throw new Error('Default template must provide metadata search.');
+    const withoutIndex = [
+      { type: 'SQL_WAREHOUSE' as const, id: 'warehouse-1', label: 'SQL warehouse', source: 'configured' as const },
+      { type: 'CATALOG' as const, id: 'main', label: 'App catalog', source: 'configured' as const },
+      { type: 'SCHEMA' as const, id: 'main.games', label: 'App schema', source: 'configured' as const },
+      { type: 'GENIE_SPACE' as const, id: 'data', label: 'Data Genie space', source: 'configured' as const },
+      {
+        type: 'SERVING_ENDPOINT' as const,
+        id: 'astrolabe',
+        label: 'Orchestrator serving endpoint',
+        source: 'configured' as const,
+      },
+      ...[
+        'gold_player_180d_summary',
+        'gold_title_daily_summary',
+        'silver_gameplay_activity',
+        'silver_player_profiles',
+      ].map((name) => ({
+        type: 'TABLE' as const,
+        id: `main.games.${name}`,
+        label: name,
+        source: 'configured' as const,
+      })),
+    ];
+    const resolved = resolveSpPersonaTemplateVariant(semantic, withoutIndex);
+    expect(resolved.grants.some((grant) => grant.resourceType === 'VECTOR_SEARCH_INDEX')).toBe(false);
+    expect(resolved.unresolved).toContainEqual(
+      expect.objectContaining({ choiceLabel: 'Metadata search index', optional: true })
+    );
+    expect(activeSpPersonaUnresolved(resolved.grants, resolved.rowIds, resolved.unresolved)).toEqual([]);
+    expect(
+      isSpPersonaDefinitionComplete({
+        displayName: template.displayName,
+        description: template.purpose,
+        capabilities: [],
+        grants: resolved.grants,
+        legacyCapabilities: [],
+      })
+    ).toBe(true);
   });
 
   it('preserves fixed semantic grants and reports exact overflow instead of truncating broad expansions', () => {
@@ -366,7 +385,9 @@ describe('structured persona grant editing', () => {
 
   it('blocks profile replacement during existing edits or dirty create drafts, but permits clean drafts and cancel', () => {
     expect(spPersonaTemplateUseBlock('definition-1', true)).toBe('Finish or cancel the current edit first.');
-    expect(spPersonaTemplateUseBlock(null, true)).toBe('Cancel staged changes before using an example profile.');
+    expect(spPersonaTemplateUseBlock(null, true)).toBe(
+      'Delete the current permissions draft before using an example profile.'
+    );
     expect(spPersonaTemplateUseBlock(null, false)).toBeNull();
     expect(
       spPersonaTemplateUseBlock(

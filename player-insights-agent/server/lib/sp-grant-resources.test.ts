@@ -35,6 +35,7 @@ describe('SP grant resource discovery', () => {
       DATABRICKS_SQL_WAREHOUSE_ID: 'abc123',
       PLAYER_INSIGHTS_CATALOG: 'main',
       PLAYER_INSIGHTS_SCHEMA: 'games',
+      PLAYER_INSIGHTS_SEMANTIC_INDEX: 'true',
       DATABRICKS_TOKEN: 'must-not-leak',
       CLIENT_SECRET: 'must-not-leak',
     });
@@ -45,6 +46,21 @@ describe('SP grant resource discovery', () => {
         expect.objectContaining({ type: 'CATALOG', id: 'main', source: 'configured' }),
         expect.objectContaining({ type: 'SCHEMA', id: 'main.games', source: 'configured' }),
         expect.objectContaining({ type: 'TABLE', id: 'main.games.players', source: 'declared' }),
+        expect.objectContaining({
+          type: 'TABLE',
+          id: 'main.games.gold_player_180d_summary',
+          source: 'configured',
+        }),
+        expect.objectContaining({
+          type: 'TABLE',
+          id: 'main.games.silver_purchases',
+          source: 'configured',
+        }),
+        expect.objectContaining({
+          type: 'VECTOR_SEARCH_INDEX',
+          id: 'main.games.semantic_layer_index',
+          source: 'configured',
+        }),
       ])
     );
     expect(JSON.stringify(resources)).not.toMatch(/must-not-leak|token|secret/i);

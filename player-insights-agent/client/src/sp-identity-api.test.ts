@@ -6,7 +6,6 @@ import {
   EMPTY_SP_IDENTITY,
   loadSpIdentityAdmin,
   persistSpIdentityMode,
-  suggestSpPersonaPermissions,
   updateSpPersonaDefinition,
 } from './identity-settings-api';
 import { spIdentityEnabledFromPayload } from './sp-identity-mode';
@@ -111,30 +110,9 @@ describe('credential-free persona configuration API', () => {
       method: 'DELETE',
     });
   });
-});
 
-describe('permission suggestion API', () => {
-  it('sends only the persona name and purpose and forwards cancellation', async () => {
-    const fetch = vi.fn().mockResolvedValue(json({ plans: [] }));
-    vi.stubGlobal('fetch', fetch);
-    const controller = new AbortController();
-    await suggestSpPersonaPermissions('Analyst', 'Read metrics', controller.signal);
-    expect(fetch).toHaveBeenCalledWith('/api/admin/sp-identity/permission-suggestions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ displayName: 'Analyst', purpose: 'Read metrics' }),
-      signal: controller.signal,
-    });
-    expect(JSON.stringify(fetch.mock.calls)).not.toMatch(/secret|token|userList|existingGrant/i);
-  });
-
-  it('surfaces timeout and retry-safe server errors', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(json({ detail: 'Permission suggestions timed out. Try again.' }, 504))
-    );
-    await expect(suggestSpPersonaPermissions('', 'Read metrics')).rejects.toThrow(
-      'Permission suggestions timed out. Try again.'
-    );
+  it('exposes no client request for model-generated permission suggestions', () => {
+    const source = readFileSync(new URL('identity-settings-api.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/permission-suggestions|suggestSpPersonaPermissions|AbortSignal/);
   });
 });

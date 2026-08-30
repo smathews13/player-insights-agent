@@ -1206,9 +1206,10 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         summary: summarize(questions, totals.threads),
         durationsMs: questions.map((question) => question.durationMs).filter((ms): ms is number => ms !== null),
         tokens: { total: tokenTotal, metredRuns, totalRuns: questions.length },
-        // Null until the endpoint's list price is configured. A zero here would
-        // read as free.
-        tokenCostUsd: tokenCost(tokenTotal),
+        // Null until both usage and the deployment's explicit token rate are
+        // known. Ops billing is deliberately not reused here: it is a separate,
+        // privileged list-price read and its component spend is not this total.
+        tokenCostUsd: tokenCost(tokenTotal, metredRuns),
         ratedUp: questions.filter((question) => question.rating === 'up').length,
         ratedDown: questions.filter((question) => question.rating === 'down').length,
         tablesReadMost,
@@ -1238,7 +1239,8 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
  * deployment's configuration and no default is invented here. A per-million
  * figure rather than per-token because that is how the endpoints publish it.
  */
-export function tokenCost(totalTokens: number): number | null {
+export function tokenCost(totalTokens: number, metredRuns: number): number | null {
+  if (metredRuns <= 0) return null;
   const raw = (process.env.PLAYER_INSIGHTS_TOKEN_PRICE_PER_MILLION_USD ?? '').trim();
   if (!raw) return null;
   const price = Number.parseFloat(raw);

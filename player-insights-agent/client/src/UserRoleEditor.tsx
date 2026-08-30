@@ -21,7 +21,7 @@
  * of the role, so it is no longer on this screen.
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Trash2, UserPlus } from 'lucide-react';
+import { Copy, Trash2, UserPlus } from 'lucide-react';
 import { Button, Input } from './ui';
 import { CopyableCommand } from './AdminListEditor';
 import { canSubmit, roleWord, setOn, stepsDownFrom, type RosterEntry } from './user-roster';
@@ -214,7 +214,7 @@ export function RosterRows({
               const organization = organizationForEmail(entry.email, payload.organizations ?? []);
               return (
                 <tr key={entry.email} className="admin-row">
-                  <td className="roster-email">
+                  <td className="roster-email" title={entry.email}>
                     <span className="admin-row-email">
                       <span
                         className="roster-organization-mark"
@@ -230,6 +230,16 @@ export function RosterRows({
                         <span className="roster-organization-name">{organization.name}</span>
                       </span>
                       {entry.isYou ? <span className="admin-row-you">you</span> : null}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="roster-email-copy"
+                        aria-label={`Copy email ${entry.email}`}
+                        title={`Copy ${entry.email}`}
+                        onClick={() => void navigator.clipboard?.writeText(entry.email)}
+                      >
+                        <Copy className="size-3.5" aria-hidden="true" />
+                      </Button>
                     </span>
                   </td>
                   {manageHumanRoles ? (
