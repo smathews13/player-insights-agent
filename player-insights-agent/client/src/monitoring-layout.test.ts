@@ -238,12 +238,9 @@ describe("Monitoring's filter row at three widths", () => {
    * otherwise empty line, which is the same orphan the other way round.
    */
   it('makes it full width there, not just unpinned', () => {
-    const band = new RegExp(`@media\\s*\\(max-width:\\s*${searchOwnLineBreakpoint()}px\\)\\s*\\{[\\s\\S]*?\\n\\}`).exec(
-      CSS
-    );
+    const band = mediaBody(searchOwnLineBreakpoint());
 
-    expect(band).not.toBeNull();
-    const rule = /\.monitoring-search\s*\{([^}]*)\}/.exec(band?.[0] ?? '');
+    const rule = /\.monitoring-search\s*\{([^}]*)\}/.exec(band);
     expect(rule?.[1]).toContain('margin-left: 0');
     expect(rule?.[1]).toMatch(/flex:\s*1\s+1\s+100%/);
   });
@@ -274,25 +271,29 @@ describe("Monitoring's filter row at three widths", () => {
   });
 });
 
-describe("Monitoring's desktop outcome header", () => {
-  it('gives the four-label outcome card two of six desktop tracks', () => {
-    expect(ruleBody('.monitoring-strip')).toContain('grid-template-columns: repeat(6, minmax(0, 1fr))');
-    expect(ruleBody('.monitoring-outcomes-tile')).toContain('grid-column: span 2');
+describe("Monitoring's KPI card layout", () => {
+  it('keeps all five cards on one desktop row and gives outcomes three tracks', () => {
+    expect(ruleBody('.monitoring-strip')).toContain('grid-template-columns: repeat(7, minmax(0, 1fr))');
+    expect(ruleBody('.monitoring-outcomes-tile')).toContain('grid-column: span 3');
+    // The screenshot-width laptop band must override the old early two-row rule.
+    expect(CSS).toMatch(
+      /@media\s*\(max-width:\s*1180px\)[\s\S]*?\.monitoring-page \.monitoring-strip\s*\{[^}]*grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)[^}]*grid-template-areas:\s*none/
+    );
   });
 
-  it('keeps the full label on one readable desktop line', () => {
-    const label = ruleBody('.monitoring-outcomes-label');
-    expect(label).toContain('white-space: nowrap');
-    expect(label).not.toMatch(/font-size:\s*(?:[0-9]|10px)/);
-
-    const laptop = mediaBody(1180);
-    expect(laptop).toContain("'questions threads outcomes outcomes'");
-    expect(laptop).toContain("'rated rated median median'");
+  it('moves the whole outcomes card to its own row at the narrow breakpoint', () => {
+    expect(CSS).toMatch(
+      /@media\s*\(max-width:\s*800px\)[\s\S]*?\.monitoring-page \.monitoring-strip\s*\{[^}]*'questions threads'[^}]*'outcomes outcomes'[^}]*'rated median'/
+    );
+    expect(CSS).toMatch(
+      /@media\s*\(max-width:\s*800px\)[\s\S]*?\.monitoring-page \.monitoring-outcomes-tile\s*\{[^}]*grid-area:\s*outcomes/
+    );
   });
 
-  it('intentionally releases the label to wrap only at the narrow breakpoint', () => {
-    const narrow = mediaBody(800);
-    expect(narrow).toMatch(/\.monitoring-outcomes-label\s*\{[^}]*white-space:\s*normal/);
-    expect(narrow).toContain("'outcomes outcomes'");
+  it('reflows outcome label-value pairs together on a phone', () => {
+    expect(CSS).toMatch(
+      /@media\s*\(max-width:\s*480px\)[\s\S]*?\.monitoring-outcome-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+    );
+    expect(CSS).toMatch(/@media\s*\(max-width:\s*480px\)[\s\S]*?\.monitoring-outcome-grid\s*\{[^}]*row-gap:\s*10px/);
   });
 });

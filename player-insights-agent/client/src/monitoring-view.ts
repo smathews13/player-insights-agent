@@ -82,11 +82,11 @@ export function formatDuration(ms: number | null): string | null {
 export type RangeLabel = string;
 
 export function questionsAskedTile(summary: MonitoringSummary): TileValue {
-  return tile(count(summary.questionsAsked), '');
+  return tile(count(summary.questionsAsked), 'Submitted in this period');
 }
 
 export function userThreadsTile(summary: MonitoringSummary): TileValue {
-  return tile(count(summary.userThreads), '');
+  return tile(count(summary.userThreads), 'Distinct conversation threads');
 }
 
 /**
@@ -112,8 +112,11 @@ export function outcomeTile(summary: MonitoringSummary): OutcomeTile {
   const { completed, partial, refused, failed, questionsAsked } = summary;
   const accounted = completed + partial + refused + failed;
   const missing = questionsAsked - accounted;
+  const terminal = `${count(accounted)} terminal outcome${accounted === 1 ? '' : 's'}`;
   const caption =
-    accounted === questionsAsked ? '' : `${count(missing)} more ${missing === 1 ? 'has' : 'have'} no recorded outcome`;
+    accounted === questionsAsked
+      ? terminal
+      : `${terminal} · ${count(missing)} more ${missing === 1 ? 'has' : 'have'} no recorded outcome`;
   return {
     completed: count(completed),
     partial: count(partial),
@@ -132,10 +135,13 @@ export function outcomeTile(summary: MonitoringSummary): OutcomeTile {
  */
 export function ratedHelpfulTile(summary: MonitoringSummary): TileValue {
   if (summary.ratedTotal <= 0) {
-    return absent('Not rated yet', '');
+    return absent('Not rated yet', 'No rated answers in this period');
   }
   const share = Math.round((summary.ratedUp / summary.ratedTotal) * 100);
-  return tile(`${share}%`, `of ${count(summary.ratedTotal)} rated answers`);
+  return tile(
+    `${share}%`,
+    `${count(summary.ratedUp)} of ${count(summary.ratedTotal)} rated answer${summary.ratedTotal === 1 ? '' : 's'}`
+  );
 }
 
 /**
@@ -147,13 +153,10 @@ export function ratedHelpfulTile(summary: MonitoringSummary): TileValue {
  */
 export function medianAnswerTimeTile(summary: MonitoringSummary): TileValue {
   const formatted = formatDuration(summary.medianMs);
+  const caption = `Over ${count(summary.timedCount)} of ${count(summary.questionsAsked)} runs`;
   if (formatted === null) {
-    return absent('No run times recorded', '');
+    return absent('No run times recorded', caption);
   }
-  const caption =
-    summary.timedCount < summary.questionsAsked
-      ? `over ${count(summary.timedCount)} of ${count(summary.questionsAsked)} runs`
-      : '';
   return tile(formatted, caption);
 }
 

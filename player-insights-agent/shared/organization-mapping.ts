@@ -16,6 +16,18 @@ export const OrganizationMappingSchema = z
 export const OrganizationMappingsSchema = z.array(OrganizationMappingSchema).max(50);
 export type OrganizationMapping = z.infer<typeof OrganizationMappingSchema>;
 
+/**
+ * Organizations for which the application has a verified, committed brand mark.
+ *
+ * Deployment-provided mappings still supply labels for every other known
+ * organization. Databricks is built in because rendering its configured "DB"
+ * monogram while the official mark is already shipped with the client makes the
+ * same company look like an unknown tenant.
+ */
+const BUILT_IN_ORGANIZATIONS: readonly OrganizationMapping[] = [
+  { domain: 'databricks.com', name: 'Databricks', monogram: 'DB' },
+];
+
 export function parseOrganizationMappings(raw: string | undefined | null): OrganizationMapping[] {
   if (!raw?.trim()) return [];
   try {
@@ -38,7 +50,7 @@ export function emailDomain(email: string): string {
 
 export function organizationForEmail(email: string, mappings: readonly OrganizationMapping[]): OrganizationMapping {
   const domain = emailDomain(email);
-  const match = [...mappings]
+  const match = [...BUILT_IN_ORGANIZATIONS, ...mappings]
     .sort((left, right) => right.domain.length - left.domain.length)
     .find((candidate) => domain === candidate.domain || domain.endsWith(`.${candidate.domain}`));
   if (match) return match;

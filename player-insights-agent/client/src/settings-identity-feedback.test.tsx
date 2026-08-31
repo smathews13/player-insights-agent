@@ -155,10 +155,10 @@ describe('the demo workspace Identity feedback', () => {
 
   it('fits the editable identity table in the full modal and moves navigation above narrow panes', () => {
     expect(CSS).toMatch(
-      /\.settings-page\.settings-modal \{[^}]*width:\s*min\(960px,\s*calc\(100vw - 48px\)\)[^}]*max-width:\s*960px/s
+      /\.settings-page\.settings-modal \{[^}]*width:\s*min\(1080px,\s*calc\(100vw - 32px\)\)[^}]*max-width:\s*1080px/s
     );
-    expect(CSS).toMatch(/\.roles-table \{[^}]*min-width:\s*780px/s);
-    expect(CSS).toMatch(/\.roles-table--editable th:first-child \{[^}]*width:\s*39%/s);
+    expect(CSS).toMatch(/\.roles-table \{[^}]*min-width:\s*800px/s);
+    expect(CSS).toMatch(/\.roles-table--editable \.roster-action-column \{[^}]*width:\s*112px/s);
     expect(CSS).toMatch(/\.roster-role-select \{[^}]*max-width:\s*7rem/s);
     expect(CSS).toMatch(/\.roster-persona-select \{[^}]*max-width:\s*9rem/s);
     expect(RESPONSIVE).toMatch(

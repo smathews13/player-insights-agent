@@ -948,7 +948,7 @@ function SpPersonaDefinitionTable({
   return (
     <>
       <div className="settings-table-frame sp-definitions-frame">
-        <table className="settings-data-table sp-definitions-table">
+        <table className="settings-data-table settings-actions-table sp-definitions-table">
           <thead>
             <tr>
               <th scope="col">Persona</th>
@@ -1033,7 +1033,7 @@ function SpPersonaTable({
   return (
     <>
       <div className="settings-table-frame sp-personas-frame" data-testid="sp-personas-table">
-        <table className="settings-data-table sp-personas-table">
+        <table className="settings-data-table settings-actions-table sp-personas-table">
           <thead>
             <tr>
               <th scope="col">Persona</th>

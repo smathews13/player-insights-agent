@@ -9,6 +9,23 @@ const mappings = parseOrganizationMappings(
 );
 
 describe('organization mapping', () => {
+  it('always maps Databricks mail to the verified built-in organization', () => {
+    expect(organizationForEmail('<your-username>', [])).toEqual({
+      domain: 'databricks.com',
+      name: 'Databricks',
+      monogram: 'DB',
+    });
+    expect(
+      organizationForEmail('person@labs.databricks.com', [
+        { domain: 'databricks.com', name: 'Configured initials', monogram: 'XX' },
+      ])
+    ).toEqual({
+      domain: 'databricks.com',
+      name: 'Databricks',
+      monogram: 'DB',
+    });
+  });
+
   it('matches domains case-insensitively and prefers the longest exact suffix', () => {
     expect(organizationForEmail('A@STUDIO.EXAMPLE.ORG', mappings).name).toBe('Example Studio');
     expect(organizationForEmail('a@team.example.org', mappings).name).toBe('Example Cooperative');

@@ -894,6 +894,7 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   gap: 12px;
 }
 .run-explorer .summary-grid [data-slot='card'] {
+  height: 100%;
   padding: 0;
   border-radius: var(--radius-md);
   box-shadow: none;
@@ -902,17 +903,22 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  padding: 14px 16px;
+  box-sizing: border-box;
+  gap: 6px;
+  min-height: 138px;
+  height: 100%;
+  padding: 16px;
 }
-.run-explorer .summary-grid span {
+.run-explorer .summary-grid .run-kpi-label {
   min-width: 0;
   color: var(--muted-foreground);
   font-size: var(--text-sm);
+  line-height: 1.25;
 }
 .run-explorer .summary-grid strong {
   font-size: var(--text-kpi);
   font-weight: 700;
+  line-height: 1.2;
   letter-spacing: -0.01em;
   /* The figure is the tile's subject and never wraps mid-value: "26,437" broken
      across two lines is what made the token tile unreadable at this width. */
@@ -922,6 +928,20 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   font-size: var(--text-xs);
   color: var(--muted-foreground);
 }
+.run-explorer .summary-grid .run-kpi-value,
+.run-explorer .summary-grid .run-kpi-feedback {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+}
+.run-explorer .summary-grid .run-kpi-subtitle {
+  min-width: 0;
+  min-height: 2.7em;
+  margin-top: auto;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
 .run-explorer .summary-grid small.tile-mono {
   font-family: var(--font-mono);
 }
@@ -929,10 +949,40 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   color: var(--muted-foreground);
 }
 .run-explorer .summary-grid .tile-link {
-  margin-top: 2px;
   color: var(--primary);
-  font-size: var(--text-sm);
   font-weight: 500;
+}
+.run-explorer .summary-grid .run-rating-badge--kpi {
+  gap: 8px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 9px;
+  font-size: var(--text-kpi);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.run-explorer .summary-grid .run-rating-badge--kpi > svg {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+}
+.run-explorer .summary-grid .run-rating-badge--kpi .run-rating-unknown-icons {
+  gap: 3px;
+}
+.run-explorer .summary-grid .run-rating-badge--kpi .run-rating-unknown-icons > svg {
+  width: 18px;
+  height: 18px;
+}
+.run-explorer .summary-grid .run-rating-badge--kpi .run-rating-badge-label {
+  color: currentColor;
+  font-size: inherit;
+}
+.run-explorer .summary-grid .run-rating-badge--none.run-rating-badge--kpi {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+  padding-inline: 0;
 }
 
 /*

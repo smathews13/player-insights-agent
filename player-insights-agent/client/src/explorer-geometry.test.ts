@@ -17,7 +17,10 @@ const RUNS = partial('runs.css');
 const SHELL = partial('page-shell.css');
 const BENCHMARK = partial('benchmark.css');
 const TIMELINE = partial('timeline.css');
+const RESPONSIVE = partial('responsive.css');
 const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
+const KPIS = readFileSync(new URL('./RunOverviewKpis.tsx', import.meta.url), 'utf8');
+const RATING_BADGE = readFileSync(new URL('./RunRatingBadge.tsx', import.meta.url), 'utf8');
 const LAB = readFileSync(new URL('./BenchmarkLab.tsx', import.meta.url), 'utf8');
 
 /** The declarations of one rule, by selector, so a claim can be made about one block. */
@@ -131,7 +134,7 @@ describe('the Run Explorer’s two columns', () => {
     expect(EXPLORER).toContain('<span className="ast-num">{(run.duration_ms / 1000).toFixed(1)}s</span>');
     // Overview wall time uses the same printer as the Timeline envelope, so a
     // 24.009s run cannot read as 24.0s on one tab and 24.01s on the other.
-    expect(EXPLORER).toContain('{selected?.duration_ms ? formatMs(selected.duration_ms) : ABSENT}');
+    expect(KPIS).toContain('value={hasDuration ? formatMs(durationMs) : ABSENT}');
     expect(EXPLORER).toContain('<RunRatingBadge rating={run.rating} />');
     expect(EXPLORER).not.toContain('<Star');
   });
@@ -157,7 +160,7 @@ describe('the Run Explorer’s two columns', () => {
     // Two metred numbers to be compared, so they are mono and small; the tile's
     // value stays the one figure a reader takes away.
     expect(rule(RUNS, '.run-explorer .summary-grid small.tile-mono')).toContain('font-family: var(--font-mono)');
-    expect(EXPLORER).toContain('tile-mono');
+    expect(KPIS).toContain('tile-mono');
   });
 
   it('cannot be left with a label welded to its figure', () => {
@@ -184,10 +187,41 @@ describe('the Run Explorer’s two columns', () => {
     // never touching it.
     const row = rule(RUNS, ".run-explorer .summary-grid [data-slot='card-content']");
     expect(row).toContain('flex-direction: column');
-    expect(row).toContain('gap: 2px');
-    expect(row).toContain('padding: 14px 16px');
+    expect(row).toContain('gap: 6px');
+    expect(row).toContain('padding: 16px');
+    expect(row).toContain('min-height: 138px');
     // And the figure never breaks mid-value at the detail pane's width.
     expect(rule(RUNS, '.run-explorer .summary-grid strong')).toContain('white-space: nowrap');
+  });
+
+  it('reserves the same value and subtitle geometry in all five cards', () => {
+    expect(rule(RUNS, ".run-explorer .summary-grid [data-slot='card']")).toContain('height: 100%');
+    expect(
+      rule(RUNS, '.run-explorer .summary-grid .run-kpi-value,\n.run-explorer .summary-grid .run-kpi-feedback')
+    ).toContain('min-height: 34px');
+    const subtitle = rule(RUNS, '.run-explorer .summary-grid .run-kpi-subtitle');
+    expect(subtitle).toContain('min-height: 2.7em');
+    expect(subtitle).toContain('text-wrap: balance');
+    expect(subtitle).toContain('overflow-wrap: anywhere');
+  });
+
+  it('gives directional feedback the visual weight of a KPI without colouring no-rating as positive', () => {
+    const feedback = rule(RUNS, '.run-explorer .summary-grid .run-rating-badge--kpi');
+    expect(feedback).toContain('font-size: var(--text-kpi)');
+    expect(feedback).toContain('min-height: 34px');
+    const icon = rule(RUNS, '.run-explorer .summary-grid .run-rating-badge--kpi > svg');
+    expect(icon).toContain('width: 26px');
+    expect(icon).toContain('height: 26px');
+    const unrated = rule(RUNS, '.run-explorer .summary-grid .run-rating-badge--none.run-rating-badge--kpi');
+    expect(unrated).toContain('color: var(--muted-foreground)');
+    expect(unrated).toContain('background: transparent');
+  });
+
+  it('lets the KPI row reflow at both intrinsic and phone widths', () => {
+    expect(rule(RUNS, '.run-explorer .summary-grid')).toContain('repeat(auto-fit, minmax(148px, 1fr))');
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*?\.summary-grid\s*\{[^}]*grid-template-columns:\s*1fr/
+    );
   });
 
   it('keeps the MLflow mark attached to its left-aligned link', () => {
@@ -257,8 +291,8 @@ describe('a run nobody has rated', () => {
   it('says so in words, and offers the way to supply one', () => {
     // An empty star reads as a rating of zero, which is a claim nobody made. The
     // link is blue because supplying a rating is an action.
-    expect(EXPLORER).toContain('Not rated');
-    expect(EXPLORER).toContain('Rate this run');
+    expect(RATING_BADGE).toContain('Not rated');
+    expect(KPIS).toContain('Rate this run');
     expect(rule(BENCHMARK, '.summary-grid .tile-link')).toContain('color: var(--primary)');
     // And in the Lab's table, the same fact in the same register.
     expect(LAB).toContain('Not rated yet');
@@ -269,7 +303,7 @@ describe('a run nobody has rated', () => {
     // derivation exists to prevent. The property is that a missing metric renders
     // as SOMETHING THAT IS NOT A NUMBER; which token stands there is the copy rule
     // below, and the two screens no longer answer it the same way.
-    expect(EXPLORER).toContain("const ABSENT = 'not set'");
+    expect(KPIS).toContain("const ABSENT = 'not set'");
     expect(LAB).toMatch(/'—'/);
   });
 
@@ -277,9 +311,9 @@ describe('a run nobody has rated', () => {
     // §7: no em dashes, and unset renders "not set" in mono. A dash has to be READ
     // as absence, which is a convention the reader has to already hold; the rating
     // tile beside it has said "Not rated" in words since it landed.
-    expect(EXPLORER).not.toMatch(/—/);
+    expect(KPIS).not.toMatch(/—/);
     // In mono, and in the secondary ink that stops "not set" reading as a result.
-    expect(EXPLORER).toContain("return absent ? 'ast-num tile-absent' : 'ast-num'");
+    expect(KPIS).toContain("return absent ? 'run-kpi-value ast-num tile-absent' : 'run-kpi-value ast-num'");
     expect(rule(BENCHMARK, '.summary-grid strong.tile-absent')).toContain('var(--muted-foreground)');
   });
 

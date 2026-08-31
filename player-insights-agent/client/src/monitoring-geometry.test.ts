@@ -248,6 +248,38 @@ describe('the filter-row search is a field, not a hole in the sky', () => {
 describe('the figures line up and the palette is the palette', () => {
   const RULES = CSS.replace(/\/\*[\s\S]*?\*\//g, ' ');
 
+  it('uses one card rhythm and anchors every subtitle to the same row', () => {
+    const tile = rule('.monitoring-tile');
+
+    expect(tile).toMatch(/padding:\s*12px\s+14px/);
+    expect(tile).toMatch(/grid-template-rows:\s*auto\s+1fr\s+auto/);
+    expect(tile).toMatch(/min-height:\s*82px/);
+    expect(tile).toMatch(/gap:\s*4px/);
+    expect(rule('.monitoring-outcomes-tile')).toMatch(/grid-template-rows:\s*1fr\s+auto/);
+  });
+
+  it('keeps outcome labels and values in one four-column metric grid', () => {
+    const grid = rule('.monitoring-outcome-grid');
+    const metric = rule('.monitoring-outcome-metric');
+    const value = rule('.monitoring-outcome-value');
+
+    expect(grid).toMatch(/grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
+    expect(metric).toMatch(/display:\s*grid/);
+    expect(metric).toMatch(/gap:\s*4px/);
+    expect(value).toMatch(/font-size:\s*var\(--text-kpi\)/);
+    expect(value).toMatch(/font-weight:\s*700/);
+    expect(value).toMatch(/min-width:\s*0/);
+  });
+
+  it('keeps zero outcome values visible without making them dominant', () => {
+    const zero = rule('.monitoring-outcome-value-zero');
+    const opacity = Number.parseFloat(zero.match(/opacity:\s*([\d.]+)/)?.[1] ?? 'NaN');
+
+    expect(opacity).toBeGreaterThan(0.5);
+    expect(opacity).toBeLessThan(1);
+    expect(zero).not.toMatch(/display:\s*none|visibility:\s*hidden|color:\s*transparent/);
+  });
+
   /**
    * `font-variant-numeric: tabular-nums` on DM Sans is a no-op that reads as
    * done: its GSUB carries no `tnum`, and its digits run from 342 to 656 units
@@ -280,6 +312,7 @@ describe('the figures line up and the palette is the palette', () => {
   it('colours refused and failed in the palette’s neutral and negative', () => {
     expect(rule('.monitoring-refused')).toMatch(/color:\s*var\(--ast-neutral-text\)/);
     expect(rule('.monitoring-failed')).toMatch(/color:\s*var\(--ast-neg-text\)/);
+    expect(rule('.monitoring-partial')).toMatch(/color:\s*var\(--ast-warn-text\)/);
     // Two rules, never one: the words are in the label above, so the split does
     // not ride on colour, but it must still be a split.
     expect(rule('.monitoring-refused')).not.toEqual(rule('.monitoring-failed'));

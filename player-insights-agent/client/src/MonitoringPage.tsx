@@ -133,6 +133,12 @@ export function SummaryTile({ label, tile, className = '' }: { label: string; ti
  */
 export function SummaryStrip({ payload }: { payload: MonitoringQuestionsPayload; rangeLabel?: string }) {
   const outcomes = outcomeTile(payload.summary);
+  const outcomeMetrics = [
+    { label: 'Completed', value: outcomes.completed, count: payload.summary.completed, className: '' },
+    { label: 'Partial', value: outcomes.partial, count: payload.summary.partial, className: 'monitoring-partial' },
+    { label: 'Refused', value: outcomes.refused, count: payload.summary.refused, className: 'monitoring-refused' },
+    { label: 'Failed', value: outcomes.failed, count: payload.summary.failed, className: 'monitoring-failed' },
+  ];
   return (
     <div className="monitoring-strip" aria-label="Summary for the selected range">
       <SummaryTile
@@ -146,14 +152,31 @@ export function SummaryStrip({ payload }: { payload: MonitoringQuestionsPayload;
         className="monitoring-summary-threads"
       />
       <div className="monitoring-tile monitoring-outcomes-tile">
-        <p className="monitoring-tile-label monitoring-outcomes-label">Completed · Partial · Refused · Failed</p>
-        <p className="monitoring-tile-value ast-num">
-          <span>{outcomes.completed}</span>
-          <span className="monitoring-partial"> · {outcomes.partial}</span>
-          <span className="monitoring-refused"> · {outcomes.refused}</span>
-          <span className="monitoring-failed"> · {outcomes.failed}</span>
-        </p>
-        {outcomes.caption ? <p className="monitoring-tile-caption">{outcomes.caption}</p> : null}
+        <dl className="monitoring-outcome-grid" aria-label="Final run outcomes">
+          {outcomeMetrics.map((metric) => (
+            <div
+              className="monitoring-outcome-metric"
+              role="group"
+              aria-label={`${metric.label}: ${metric.value}`}
+              key={metric.label}
+            >
+              <dt className="monitoring-tile-label">{metric.label}</dt>
+              <dd
+                className={[
+                  'monitoring-outcome-value',
+                  'ast-num',
+                  metric.className,
+                  metric.count === 0 ? 'monitoring-outcome-value-zero' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                {metric.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p className="monitoring-tile-caption">{outcomes.caption}</p>
       </div>
       <SummaryTile
         label="Rated helpful"

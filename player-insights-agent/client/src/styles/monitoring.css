@@ -24,23 +24,26 @@
 .monitoring-strip {
   display: grid;
   /*
-   * Six tracks for five cards: the outcome card takes two. Its four full labels
-   * are the only heading in this strip wider than an ordinary KPI card, and
-   * giving it real width keeps desktop text readable instead of shrinking it.
+   * Seven tracks for five cards: the outcome card takes three. Four independently
+   * labelled figures need more than twice the width of one figure, especially
+   * once counts are grouped with thousands separators.
    */
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 12px;
 }
 .monitoring-outcomes-tile {
-  grid-column: span 2;
+  grid-column: span 3;
+  grid-template-rows: 1fr auto;
 }
 .monitoring-tile {
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
   padding: 12px 14px;
   display: grid;
-  gap: 2px;
-  align-content: start;
+  grid-template-rows: auto 1fr auto;
+  gap: 4px;
+  align-content: stretch;
+  min-height: 82px;
   min-width: 0;
 }
 .monitoring-tile-label {
@@ -50,12 +53,6 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ast-text-secondary);
-}
-.monitoring-outcomes-label {
-  /* The full accessible label remains visible. Narrow screens intentionally
-     release this rule in responsive.css and give the card a whole row. */
-  white-space: nowrap;
-  letter-spacing: 0.045em;
 }
 .monitoring-tile-value {
   margin: 0;
@@ -86,6 +83,30 @@
   color: var(--ast-text-secondary);
   line-height: 1.4;
 }
+.monitoring-outcome-grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+.monitoring-outcome-metric {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.monitoring-outcome-value {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-kpi);
+  font-weight: 700;
+  line-height: 1.2;
+}
+/* Keep an empty bucket legible without giving it the same visual weight as a
+   bucket that needs attention. Opacity preserves the outcome's semantic hue. */
+.monitoring-outcome-value-zero {
+  opacity: 0.68;
+}
 /* The four figures remain separate and must never be merged. The palette's own
    neutral and negative, which is what monitoring-ops.md
    names them as: refused #46596B, failed #A04A62.
@@ -101,6 +122,60 @@
 }
 .monitoring-failed {
   color: var(--ast-neg-text);
+}
+
+/*
+ * Keep the five KPI cards on one line at the screenshot's laptop width.
+ *
+ * `responsive.css` historically moved them to two rows at 1180px. These
+ * page-scoped rules are more specific because Monitoring now has a wider,
+ * internally responsive outcome card and no longer needs that early break.
+ */
+@media (max-width: 1180px) {
+  .monitoring-page .monitoring-strip {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-areas: none;
+  }
+  .monitoring-page .monitoring-summary-questions,
+  .monitoring-page .monitoring-summary-threads,
+  .monitoring-page .monitoring-outcomes-tile,
+  .monitoring-page .monitoring-summary-rated,
+  .monitoring-page .monitoring-summary-median {
+    grid-area: auto;
+  }
+}
+
+@media (max-width: 800px) {
+  .monitoring-page .monitoring-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      'questions threads'
+      'outcomes outcomes'
+      'rated median';
+  }
+  .monitoring-page .monitoring-summary-questions {
+    grid-area: questions;
+  }
+  .monitoring-page .monitoring-summary-threads {
+    grid-area: threads;
+  }
+  .monitoring-page .monitoring-outcomes-tile {
+    grid-area: outcomes;
+  }
+  .monitoring-page .monitoring-summary-rated {
+    grid-area: rated;
+  }
+  .monitoring-page .monitoring-summary-median {
+    grid-area: median;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Long grouped counts move with their labels, never independently. */
+  .monitoring-outcome-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 10px;
+  }
 }
 
 /* ── The filter row ────────────────────────────────────────────────────── */

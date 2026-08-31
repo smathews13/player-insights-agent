@@ -155,17 +155,21 @@ describe('the summary strip', () => {
     const rendered = text(render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />));
 
     expect(rendered).toContain('User threads 17');
+    expect(rendered).toContain('Distinct conversation threads');
     expect(rendered).not.toContain('People asking');
   });
 
-  it('shows the four outcomes separately and never their total', () => {
-    const rendered = text(render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />));
+  it('shows each outcome as its own labelled metric and never merges refused with failed', () => {
+    const markup = render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />);
+    const rendered = text(markup);
 
-    expect(rendered).toContain('Completed · Partial · Refused · Failed');
-    expect(rendered).toContain('190');
-    expect(rendered).toContain('6');
-    expect(rendered).toContain('11');
-    expect(rendered).toContain('7');
+    expect(markup).toContain('aria-label="Final run outcomes"');
+    expect(markup).toContain('aria-label="Completed: 190"');
+    expect(markup).toContain('aria-label="Partial: 6"');
+    expect(markup).toContain('aria-label="Refused: 11"');
+    expect(markup).toContain('aria-label="Failed: 7"');
+    expect(rendered).toContain('Completed 190 Partial 6 Refused 11 Failed 7');
+    expect(rendered).toContain('214 terminal outcomes');
     expect(rendered).not.toContain('sum to questions asked');
     // 11 refused + 7 failed. The page must never show the two added up.
     expect(rendered).not.toMatch(/\b18\b/);
@@ -183,8 +187,18 @@ describe('the summary strip', () => {
 
   it('names the denominator beside the rated share', () => {
     expect(text(render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />))).toContain(
-      'of 46 rated answers'
+      '36 of 46 rated answers'
     );
+  });
+
+  it('gives every KPI a concise information line', () => {
+    const rendered = text(render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />));
+
+    expect(rendered).toContain('Submitted in this period');
+    expect(rendered).toContain('Distinct conversation threads');
+    expect(rendered).toContain('214 terminal outcomes');
+    expect(rendered).toContain('36 of 46 rated answers');
+    expect(rendered).toContain('Over 214 of 214 runs');
   });
 
   it('shows no percentage when nothing was rated', () => {
@@ -194,7 +208,64 @@ describe('the summary strip', () => {
     const rendered = text(render(<SummaryStrip payload={unrated} rangeLabel="last 7 days" />));
 
     expect(rendered).toContain('Not rated yet');
+    expect(rendered).toContain('No rated answers in this period');
     expect(rendered).not.toContain('0%');
+  });
+
+  it('keeps zero outcome buckets visible but marked as quiet', () => {
+    const empty = payload({
+      summary: {
+        ...payload().summary,
+        questionsAsked: 0,
+        completed: 0,
+        partial: 0,
+        refused: 0,
+        failed: 0,
+      },
+    });
+    const markup = render(<SummaryStrip payload={empty} rangeLabel="last 7 days" />);
+
+    expect(markup.match(/monitoring-outcome-value-zero/g)).toHaveLength(4);
+    for (const label of ['Completed', 'Partial', 'Refused', 'Failed']) {
+      expect(markup).toContain(`aria-label="${label}: 0"`);
+    }
+    expect(text(markup)).toContain('0 terminal outcomes');
+  });
+
+  it('keeps large grouped outcome values associated with their labels', () => {
+    const large = payload({
+      summary: {
+        ...payload().summary,
+        questionsAsked: 91_234,
+        completed: 81_234,
+        partial: 4_000,
+        refused: 3_000,
+        failed: 3_000,
+      },
+    });
+    const markup = render(<SummaryStrip payload={large} rangeLabel="last 7 days" />);
+
+    expect(markup).toContain('aria-label="Completed: 81,234"');
+    expect(markup).toContain('aria-label="Partial: 4,000"');
+    expect(markup).toContain('aria-label="Refused: 3,000"');
+    expect(markup).toContain('aria-label="Failed: 3,000"');
+  });
+
+  it('keeps missing rating and median coverage explicit', () => {
+    const missing = payload({
+      summary: {
+        ...payload().summary,
+        questionsAsked: 12,
+        ratedUp: 0,
+        ratedTotal: 0,
+        medianMs: null,
+        timedCount: 0,
+      },
+    });
+    const rendered = text(render(<SummaryStrip payload={missing} rangeLabel="last 7 days" />));
+
+    expect(rendered).toContain('Not rated yet No rated answers in this period');
+    expect(rendered).toContain('No run times recorded Over 0 of 12 runs');
   });
 });
 

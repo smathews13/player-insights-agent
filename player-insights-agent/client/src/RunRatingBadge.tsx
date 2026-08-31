@@ -14,15 +14,24 @@ import { Badge } from './ui';
 export function RunRatingBadge({
   rating,
   showUnrated = false,
+  display = 'compact',
 }: {
   rating: number | null | undefined;
   showUnrated?: boolean;
+  display?: 'compact' | 'kpi';
 }) {
   const direction = runRatingDirection(rating);
+  const kpi = display === 'kpi';
   if (direction === 'none') {
     return showUnrated ? (
-      <Badge variant="outline" className="run-rating-badge run-rating-badge--none">
-        Not rated
+      <Badge
+        variant="outline"
+        className={`run-rating-badge run-rating-badge--none${kpi ? ' run-rating-badge--kpi' : ''}`}
+        aria-label={kpi ? 'User feedback: Not rated' : 'Not rated'}
+        title="No user feedback submitted"
+      >
+        <span aria-hidden={kpi || undefined}>Not rated</span>
+        {kpi ? <span className="sr-only">User feedback: Not rated</span> : null}
       </Badge>
     ) : null;
   }
@@ -31,12 +40,17 @@ export function RunRatingBadge({
     return (
       <Badge
         variant="outline"
-        className="run-rating-badge run-rating-badge--up"
-        aria-label="Rated helpful"
-        title="Rated helpful"
+        className={`run-rating-badge run-rating-badge--up${kpi ? ' run-rating-badge--kpi' : ''}`}
+        aria-label={kpi ? 'User feedback: Positive' : 'Rated helpful'}
+        title={kpi ? 'Positive user feedback' : 'Rated helpful'}
       >
         <ThumbsUp aria-hidden="true" />
-        <span className="sr-only">Rated helpful</span>
+        {kpi ? (
+          <span className="run-rating-badge-label" aria-hidden="true">
+            Positive
+          </span>
+        ) : null}
+        <span className="sr-only">{kpi ? 'User feedback: Positive' : 'Rated helpful'}</span>
       </Badge>
     );
   }
@@ -45,12 +59,17 @@ export function RunRatingBadge({
     return (
       <Badge
         variant="outline"
-        className="run-rating-badge run-rating-badge--down"
-        aria-label="Rated not helpful"
-        title="Rated not helpful"
+        className={`run-rating-badge run-rating-badge--down${kpi ? ' run-rating-badge--kpi' : ''}`}
+        aria-label={kpi ? 'User feedback: Negative' : 'Rated not helpful'}
+        title={kpi ? 'Negative user feedback' : 'Rated not helpful'}
       >
         <ThumbsDown aria-hidden="true" />
-        <span className="sr-only">Rated not helpful</span>
+        {kpi ? (
+          <span className="run-rating-badge-label" aria-hidden="true">
+            Negative
+          </span>
+        ) : null}
+        <span className="sr-only">{kpi ? 'User feedback: Negative' : 'Rated not helpful'}</span>
       </Badge>
     );
   }
@@ -58,15 +77,20 @@ export function RunRatingBadge({
   return (
     <Badge
       variant="outline"
-      className="run-rating-badge run-rating-badge--unknown"
-      aria-label="Rated, direction unknown"
-      title="Rated, direction unknown"
+      className={`run-rating-badge run-rating-badge--unknown${kpi ? ' run-rating-badge--kpi' : ''}`}
+      aria-label={kpi ? 'User feedback: Direction unknown' : 'Rated, direction unknown'}
+      title={kpi ? 'User feedback direction is unknown' : 'Rated, direction unknown'}
     >
       <span className="run-rating-unknown-icons" aria-hidden="true">
         <ThumbsUp />
         <ThumbsDown />
       </span>
-      <span className="sr-only">Rated, direction unknown</span>
+      {kpi ? (
+        <span className="run-rating-badge-label" aria-hidden="true">
+          Direction unknown
+        </span>
+      ) : null}
+      <span className="sr-only">{kpi ? 'User feedback: Direction unknown' : 'Rated, direction unknown'}</span>
     </Badge>
   );
 }

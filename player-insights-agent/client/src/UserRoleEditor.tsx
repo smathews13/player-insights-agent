@@ -30,6 +30,7 @@ import type { SpIdentityAdminPayload, SpPersona } from '../../shared/sp-identity
 import { AppSelect } from './AppSelect';
 import { roleOptions } from './user-role-options';
 import { RoleBadge } from './RoleBadge';
+import { OrganizationAvatar } from './OrganizationAvatar';
 import { organizationForEmail } from '../../shared/organization-mapping';
 import {
   assignSpPersona,
@@ -147,6 +148,63 @@ function PersonaControl({
   );
 }
 
+/** The table footer is a row, not a floating form, so every control shares the
+ * same explicit column geometry as the identities above it. Exported to keep
+ * enabled, disabled and alignment states render-tested without a network read. */
+export function RosterAddRow({
+  draft,
+  role,
+  busy,
+  onDraftChange,
+  onRoleChange,
+  onAdd,
+}: {
+  draft: string;
+  role: Role;
+  busy: boolean;
+  onDraftChange: (value: string) => void;
+  onRoleChange: (role: Role) => void;
+  onAdd: () => void;
+}) {
+  return (
+    <tr className="roster-add-row">
+      <td className="roster-email">
+        <Input
+          value={draft}
+          onChange={(event) => onDraftChange(event.target.value)}
+          placeholder="name@example.com"
+          aria-label="Email address to put on the roster"
+        />
+      </td>
+      <td className="roster-add-help">Added by you</td>
+      <td className="roster-role">
+        <AppSelect<Role>
+          label="User role"
+          ariaLabel="User role to give them"
+          value={role}
+          disabled={busy}
+          onValueChange={onRoleChange}
+          options={ADDABLE_ROLES.map((option) => ({ value: option, label: roleWord(option) }))}
+          className="roster-control roster-role-select"
+          showLabel={false}
+        />
+      </td>
+      <td className="roster-add-persona">Assign after adding</td>
+      <td className="roster-action">
+        <Button
+          variant="outline"
+          data-variant="outline"
+          className="roster-control"
+          disabled={!canSubmit(draft, busy)}
+          onClick={onAdd}
+        >
+          <UserPlus className="size-3.5" aria-hidden="true" /> Add
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
 /**
  * The rows, as a function of the payload and nothing else.
  *
@@ -198,8 +256,15 @@ export function RosterRows({
         <table
           className={`settings-data-table roles-table roles-table--${
             manageHumanRoles ? 'editable' : 'assignment-only'
-          }`}
+          }${manageHumanRoles ? ' settings-actions-table' : ''}`}
         >
+          <colgroup>
+            <col className="roster-email-column" />
+            {manageHumanRoles ? <col className="roster-set-by-column" /> : null}
+            <col className="roster-role-column" />
+            {showPersona ? <col className="roster-persona-column" /> : null}
+            {manageHumanRoles ? <col className="roster-action-column" /> : null}
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">Email</th>
@@ -217,13 +282,7 @@ export function RosterRows({
                 <tr key={entry.email} className="admin-row">
                   <td className="roster-email" title={entry.email}>
                     <span className="admin-row-email">
-                      <span
-                        className="roster-organization-mark"
-                        aria-label={`Organization: ${organization.name}`}
-                        title={organization.name}
-                      >
-                        {organization.monogram}
-                      </span>
+                      <OrganizationAvatar organization={organization} />
                       <span className="roster-email-details">
                         <span className="admin-row-address" title={entry.email}>
                           {entry.email}
@@ -438,41 +497,14 @@ export function UserRoleEditor({
             }
             footer={
               canManageHumanRoles ? (
-                <tr className="roster-add-row">
-                  <td>
-                    <Input
-                      value={draft}
-                      onChange={(event) => setDraft(event.target.value)}
-                      placeholder="name@example.com"
-                      aria-label="Email address to put on the roster"
-                    />
-                  </td>
-                  <td className="roster-add-help">Added by you</td>
-                  <td>
-                    <AppSelect<Role>
-                      label="User role"
-                      ariaLabel="User role to give them"
-                      value={draftRole}
-                      disabled={busy}
-                      onValueChange={setDraftRole}
-                      options={ADDABLE_ROLES.map((role) => ({ value: role, label: roleWord(role) }))}
-                      className="roster-control roster-role-select"
-                      showLabel={false}
-                    />
-                  </td>
-                  <td className="roster-add-persona">Assign after adding</td>
-                  <td className="roster-action">
-                    <Button
-                      variant="outline"
-                      data-variant="outline"
-                      className="roster-control"
-                      disabled={!canSubmit(draft, busy)}
-                      onClick={() => void add()}
-                    >
-                      <UserPlus className="size-3.5" /> Add
-                    </Button>
-                  </td>
-                </tr>
+                <RosterAddRow
+                  draft={draft}
+                  role={draftRole}
+                  busy={busy}
+                  onDraftChange={setDraft}
+                  onRoleChange={setDraftRole}
+                  onAdd={() => void add()}
+                />
               ) : undefined
             }
           />

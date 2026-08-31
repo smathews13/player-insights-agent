@@ -56,14 +56,14 @@ describe('a rate never renders without its population', () => {
     expect(tile.absence).toBe('Not rated yet');
     // And it does not print a zero, which would read as a quality score.
     expect(tile.absence).not.toMatch(/0\s*%/);
-    expect(tile.caption).toBe('');
+    expect(tile.caption).toBe('No rated answers in this period');
   });
 
   it('names the denominator beside every share it does print', () => {
     const tile = ratedHelpfulTile(summary({ questionsAsked: 214, ratedUp: 36, ratedTotal: 46 }));
 
     expect(tile.value).toBe('78%');
-    expect(tile.caption).toBe('of 46 rated answers');
+    expect(tile.caption).toBe('36 of 46 rated answers');
   });
 
   /**
@@ -82,7 +82,7 @@ describe('a rate never renders without its population', () => {
     const tile = medianAnswerTimeTile(summary({ questionsAsked: 40, medianMs: 41_000, timedCount: 8 }));
 
     expect(tile.value).toBe('41.0s');
-    expect(tile.caption).toBe('over 8 of 40 runs');
+    expect(tile.caption).toBe('Over 8 of 40 runs');
   });
 
   it('refuses a median when nothing recorded a run time', () => {
@@ -90,6 +90,7 @@ describe('a rate never renders without its population', () => {
 
     expect(tile.value).toBeNull();
     expect(tile.absence).toBe('No run times recorded');
+    expect(tile.caption).toBe('Over 0 of 12 runs');
   });
 
   it('names the token coverage even when it is complete', () => {
@@ -222,17 +223,45 @@ describe('run outcomes remain separate', () => {
     expect(Object.values(tile)).not.toContain('18');
   });
 
-  it('claims they sum to the questions asked only when they do', () => {
+  it('reports the actual terminal total when every question has an outcome', () => {
     const exact = outcomeTile(summary({ questionsAsked: 214, completed: 190, partial: 6, refused: 11, failed: 7 }));
 
-    expect(exact.caption).toBe('');
+    expect(exact.caption).toBe('214 terminal outcomes');
   });
 
   it('names an unaccounted remainder rather than claiming a false sum', () => {
     const mixed = outcomeTile(summary({ questionsAsked: 214, completed: 189, partial: 6, refused: 11, failed: 7 }));
 
     expect(mixed.caption).not.toContain('sum to questions asked');
-    expect(mixed.caption).toBe('1 more has no recorded outcome');
+    expect(mixed.caption).toBe('213 terminal outcomes · 1 more has no recorded outcome');
+  });
+
+  it('uses the correct singular and plural terminal-outcome copy', () => {
+    expect(outcomeTile(summary({ questionsAsked: 1, completed: 1 })).caption).toBe('1 terminal outcome');
+    expect(outcomeTile(summary({ questionsAsked: 2, completed: 2 })).caption).toBe('2 terminal outcomes');
+  });
+
+  it('keeps all-zero and large outcome counts exact', () => {
+    const empty = outcomeTile(summary());
+    const large = outcomeTile(
+      summary({
+        questionsAsked: 91_234,
+        completed: 81_234,
+        partial: 4_000,
+        refused: 3_000,
+        failed: 3_000,
+      })
+    );
+
+    expect([empty.completed, empty.partial, empty.refused, empty.failed]).toEqual(['0', '0', '0', '0']);
+    expect(empty.caption).toBe('0 terminal outcomes');
+    expect([large.completed, large.partial, large.refused, large.failed]).toEqual([
+      '81,234',
+      '4,000',
+      '3,000',
+      '3,000',
+    ]);
+    expect(large.caption).toBe('91,234 terminal outcomes');
   });
 
   it('keeps the two refusal causes on separate code lists', () => {

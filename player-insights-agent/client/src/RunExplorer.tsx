@@ -16,7 +16,7 @@
  * everything the answer's panel already had: the roll-up by tool type, and a row
  * that opens onto the arguments and result the agent recorded.
  */
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { useState, useEffect } from 'react';
 import { listAvailability, listUnreachable, type ListAvailability } from './list-availability';
 import { UnavailablePanel } from './UnavailablePanel';
@@ -57,11 +57,10 @@ import { astPill } from './run-header';
 import { runLabel } from './run-label';
 import { TraceDag } from './TraceDag';
 import { TraceTimeline } from './TraceTimeline';
-import { formatMs } from './trace-timeline';
 import type { Conversation, Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
 import { RunRatingBadge } from './RunRatingBadge';
-import { runRatingDirection } from './run-rating';
+import { RunOverviewKpis } from './RunOverviewKpis';
 import {
   conversationFilterOptions,
   conversationRunNumber,
@@ -79,23 +78,6 @@ import {
   rememberRunLabelOverride,
   type RunLabelOverride,
 } from './run-header-labels';
-
-/**
- * What a tile says when the run recorded no such measurement.
- *
- * Words, never a zero: a stored answer from before token metering did not make a
- * free call, and "0" beside a non-zero call count reads as though the work was
- * measured and cost nothing.
- *
- * It was an em dash, which §7 of the rebuild spec spells out twice over -- no em
- * dashes anywhere, and unset renders "not set" in mono. A dash also has to be
- * read as absence, which is a convention rather than a sentence; the tile beside
- * it has said "Not rated" in words since it landed, and these now agree.
- *
- * The Benchmark Lab still dashes the same fact, in BenchmarkLab.tsx, which is
- * not this lane's file. See the note in explorer-geometry.test.ts.
- */
-const ABSENT = 'not set';
 
 /** Stages whose time belongs to data work, including older traces that tagged
  * the finder or SQL wrapper as an agent stage instead of a tool stage. */
@@ -123,38 +105,6 @@ const ABSENT = 'not set';
  * the run it happened inside rather than published as a longer run than
  * happened.
  */
-/**
- * What each tile on the Overview grid is a measurement of, in one sentence.
- *
- * Every one of these five figures has been read as something it is not. Wall
- * time and tool-stage time were compared as though the second were a share of
- * the first; the call count and the tool time were compared as though one were
- * the other's denominator, when the counter increments on stages the timing
- * never covered. A tile that states its own definition is cheaper than the
- * conversation that follows a reader deciding on one.
- *
- * Rendered as `title`, so the sentence arrives on hover without a second line
- * of text under every figure. That is a real limitation for a reader on a
- * keyboard or a screen reader, and the tiles are still labelled without it.
- */
-/**
- * The class a tile's value takes.
- *
- * `.ast-num` because §3 sets every stat value in DM Mono, and this is the one
- * spelling of that rule. It goes on the element rather than into the stylesheet
- * because `.summary-grid` is the Benchmark Lab's grid too: its `strong` rule asks
- * for tabular figures without setting the face, which in DM Sans is a declaration
- * with nothing to apply, and repointing a shared selector would repaint a page
- * this lane does not own.
- *
- * `.tile-absent` drops the words that stand in for a missing figure to secondary
- * ink, the same treatment "Not rated" has always had, so "not set" cannot be read
- * as a measured result.
- */
-function tileValue(absent: boolean): string {
-  return absent ? 'ast-num tile-absent' : 'ast-num';
-}
-
 export function RunExplorerFilters({
   conversationFilter,
   usernameFilter,
@@ -390,29 +340,15 @@ export function RunExplorer() {
   // report more time than the first without calling the first wrong.
   const toolStageMs = toolStageDurationMs(stages, selected?.duration_ms ?? null);
   const agentToolCalls = runTrace?.trace?.toolCalls ?? selected?.tool_calls ?? null;
-  // Nothing was tagged, so the time spent in those calls is unmeasured, not zero.
-  // Rendering 0.0s next to a non-zero call count reads as "the tools were free".
-  // Which is also why no sentence under the grid reconciles them any more. A
-  // paragraph there explained that the agent had recorded N external calls and
-  // tagged none of them, which is the app explaining its own bookkeeping to a
-  // reader who did not ask -- and it restated a figure already standing in the
-  // tile beside it. The tile now says "not set", in the register the rest of the
-  // page uses for a measurement nobody took.
-  const toolStageTime = toolStageMs !== null ? `${(toolStageMs / 1000).toFixed(1)}s` : ABSENT;
   const groundedness = runTrace?.benchmark?.groundedness ?? null;
   const tokens = runTrace?.trace ?? null;
   // Unmeasured, not zero, for the same reason the tool time above is. A run whose
   // gateway reported no usage at all is not a run that spent no tokens.
   const totalTokens = typeof tokens?.total_tokens === 'number' ? tokens.total_tokens : null;
-  // The split is printed only when both halves were metred. Half a split filled
-  // in with a zero is a claim that the model read nothing, or wrote nothing.
-  const tokenSplit =
-    typeof tokens?.prompt_tokens === 'number' && typeof tokens?.completion_tokens === 'number'
-      ? `${tokens.prompt_tokens.toLocaleString()} in / ${tokens.completion_tokens.toLocaleString()} out`
-      : null;
+  const promptTokens = typeof tokens?.prompt_tokens === 'number' ? tokens.prompt_tokens : null;
+  const completionTokens = typeof tokens?.completion_tokens === 'number' ? tokens.completion_tokens : null;
   const ratePath = selected?.conversation_id ? conversationHref(selected.conversation_id, selected.id) : null;
   const displayed = selected ? applyRunLabelOverride(selected, canEdit ? labelOverlay : null) : null;
-  const displayedRating = runRatingDirection(displayed?.rating);
 
   useEffect(() => {
     if (!canEdit || !selected?.id) return;
@@ -551,59 +487,17 @@ export function RunExplorer() {
             </TabsList>
             <TabsContent value="overview" className="space-y-4 pt-4">
               {selected && traceState.status === 'ready' ? <UsedThisRun used={runTrace?.runtimeUsed ?? null} /> : null}
-              <div className="summary-grid">
-                <Card>
-                  <CardContent>
-                    <span>Wall time</span>
-                    <strong className={tileValue(!selected?.duration_ms)}>
-                      {selected?.duration_ms ? formatMs(selected.duration_ms) : ABSENT}
-                    </strong>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent>
-                    <span>Tool-stage time</span>
-                    {/* Absent covers both "no trace" and "a trace that tagged no
-                        stage as tool work". The second used to be explained by a
-                        paragraph under the grid; the tile says it. */}
-                    <strong className={tileValue(!runTrace?.trace || toolStageTime === ABSENT)}>
-                      {runTrace?.trace ? toolStageTime : ABSENT}
-                    </strong>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent>
-                    <span>Agent tool calls</span>
-                    <strong className={tileValue(agentToolCalls === null)}>{agentToolCalls ?? ABSENT}</strong>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent>
-                    <span>LLM tokens</span>
-                    <strong className={tileValue(totalTokens === null || totalTokens <= 0)}>
-                      {totalTokens !== null && totalTokens > 0 ? totalTokens.toLocaleString() : ABSENT}
-                    </strong>
-                    {totalTokens !== null && totalTokens > 0 && tokenSplit && (
-                      <small className="tile-mono ast-num">{tokenSplit}</small>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent>
-                    <span>User feedback</span>
-                    {displayedRating === 'none' ? (
-                      <strong className={tileValue(true)}>Not rated</strong>
-                    ) : (
-                      <RunRatingBadge rating={displayed?.rating} />
-                    )}
-                    {displayedRating === 'none' && ratePath && (
-                      <Link className="tile-link" to={ratePath}>
-                        Rate this run
-                      </Link>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+              <RunOverviewKpis
+                durationMs={selected?.duration_ms}
+                toolStageMs={runTrace?.trace ? toolStageMs : null}
+                agentToolCalls={agentToolCalls}
+                stages={stages}
+                totalTokens={totalTokens}
+                promptTokens={promptTokens}
+                completionTokens={completionTokens}
+                rating={displayed?.rating}
+                ratePath={ratePath}
+              />
               {traceState.status === 'loading' ? (
                 <div className="space-y-2">
                   <Skeleton className="h-6 w-3/4" />

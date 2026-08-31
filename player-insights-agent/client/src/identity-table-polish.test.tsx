@@ -1,0 +1,165 @@
+import { readFileSync } from 'node:fs';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import type { RosterPayload } from '../../shared/user-roster-contract';
+import { DATABRICKS_SYMBOL } from './brand-icons';
+import { RosterAddRow, RosterRows } from './UserRoleEditor';
+
+const CSS = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
+
+const payload: RosterPayload = {
+  entries: [
+    {
+      email: '<your-username>',
+      role: 'super_admin',
+      seedFloor: 'super_admin',
+      setBy: '<your-username>',
+      setAt: '2026-08-19T00:00:00.000Z',
+      isYou: true,
+      assignable: [],
+      canRemove: false,
+    },
+    {
+      email: 'an.identity.with.a.deliberately.long.local.part@outside.example.invalid',
+      role: 'admin',
+      seedFloor: 'consumer',
+      setBy: 'a.deliberately.long.setter.address@another.example.invalid',
+      setAt: '2026-08-20T00:00:00.000Z',
+      isYou: false,
+      assignable: ['admin', 'consumer'],
+      canRemove: true,
+    },
+  ],
+  storedRosterReadable: true,
+  roleColumnPresent: true,
+  pendingSchemaStatement: '',
+  superAdminCount: 1,
+  recoveryStatement: '',
+};
+
+function roster(busy = false) {
+  return renderToStaticMarkup(
+    <RosterRows
+      payload={payload}
+      busy={busy}
+      personas={[]}
+      personaByEmail={new Map()}
+      personaDisabled={false}
+      showPersona={true}
+      onPersonaChange={() => {}}
+      onChange={() => {}}
+      onRemove={() => {}}
+    />
+  );
+}
+
+describe('Identity table polish', () => {
+  it('reserves control columns and owns overflow at the screenshot and narrower desktop widths', () => {
+    // 1024px is the supplied capture. The wider modal leaves 812px before the
+    // platform scrollbar; the table's 800px floor fits there. At 900px the table
+    // scrolls inside its 688px frame instead of widening or escaping the modal.
+    expect(1024 - 32 - 140 - 40).toBe(812);
+    expect(900 - 32 - 140 - 40).toBe(688);
+    expect(CSS).toMatch(/\.settings-page\.settings-modal \{[^}]*width:\s*min\(1080px,\s*calc\(100vw - 32px\)\)/s);
+    expect(CSS).toMatch(
+      /\.settings-table-frame \{[^}]*max-width:\s*100%[^}]*overflow-x:\s*auto[^}]*overflow-y:\s*hidden/s
+    );
+    expect(CSS).toMatch(/\.roles-table \{[^}]*min-width:\s*800px/s);
+    expect(CSS).toMatch(/\.roles-table--editable \.roster-set-by-column \{[^}]*width:\s*140px/s);
+    expect(CSS).toMatch(/\.roles-table--editable \.roster-role-column \{[^}]*width:\s*126px/s);
+    expect(CSS).toMatch(/\.roles-table--editable \.roster-persona-column \{[^}]*width:\s*136px/s);
+    expect(CSS).toMatch(/\.roles-table--editable \.roster-action-column \{[^}]*width:\s*112px/s);
+    expect(CSS).toMatch(
+      /\.settings-modal-content \{[^}]*overflow-x:\s*hidden[^}]*overflow-y:\s*auto[^}]*scrollbar-gutter:\s*stable/s
+    );
+  });
+
+  it('keeps the Actions column and its controls pinned inside the table frame', () => {
+    const markup = roster();
+    expect(markup).toContain('settings-actions-table');
+    expect(markup).toContain('<th scope="col">Actions</th>');
+    expect(markup).toContain(
+      'aria-label="Remove an.identity.with.a.deliberately.long.local.part@outside.example.invalid"'
+    );
+    expect(markup).toContain('data-variant="destructive"');
+    expect(markup).toContain('> Remove</button>');
+    expect(CSS).toMatch(
+      /\.settings-actions-table th:last-child,\s*\.settings-actions-table td:last-child \{[^}]*position:\s*sticky[^}]*right:\s*0/s
+    );
+    expect(CSS).toMatch(/\.settings-actions-table td:last-child \{[^}]*white-space:\s*nowrap/s);
+  });
+
+  it('keeps immutable Super admin and Owner badges complete and separated by columns', () => {
+    const markup = roster();
+    expect(markup).toContain('data-role-state="super_admin"');
+    expect(markup).toContain('Super admin');
+    expect(markup).toContain('roster-owner-badge">Owner</span>');
+    expect(markup).not.toContain('aria-label="Remove <your-username>"');
+    expect(CSS).toMatch(
+      /\.roster-role > \.role-badge,\s*\.roster-owner-badge \{[^}]*max-width:\s*none[^}]*overflow:\s*visible[^}]*white-space:\s*nowrap/s
+    );
+  });
+
+  it('renders the official Databricks mark and a neutral fallback without hiding either full email', () => {
+    const markup = roster();
+    expect(markup).toContain('aria-label="Organization: Databricks"');
+    expect(markup).toContain('data-organization-domain="databricks.com"');
+    expect(markup).toContain(DATABRICKS_SYMBOL);
+    expect(markup).toContain('aria-label="Organization: outside.example.invalid"');
+    expect(markup).toContain('lucide-building-2');
+    for (const entry of payload.entries) {
+      expect(markup).toContain(`title="${entry.email}">${entry.email}</span>`);
+      expect(markup).toContain(`aria-label="Copy email ${entry.email}"`);
+    }
+  });
+
+  it('aligns the Add row to the same columns and preserves disabled and focusable control states', () => {
+    const enabled = renderToStaticMarkup(
+      <table>
+        <tfoot>
+          <RosterAddRow
+            draft="person@example.com"
+            role="admin"
+            busy={false}
+            onDraftChange={() => {}}
+            onRoleChange={() => {}}
+            onAdd={() => {}}
+          />
+        </tfoot>
+      </table>
+    );
+    const disabled = renderToStaticMarkup(
+      <table>
+        <tfoot>
+          <RosterAddRow
+            draft=""
+            role="admin"
+            busy={true}
+            onDraftChange={() => {}}
+            onRoleChange={() => {}}
+            onAdd={() => {}}
+          />
+        </tfoot>
+      </table>
+    );
+
+    expect(enabled).toContain('class="roster-add-row"');
+    expect(enabled.match(/<td/g) ?? []).toHaveLength(5);
+    expect(enabled).toContain('aria-label="Email address to put on the roster"');
+    expect(enabled).toContain('aria-label="User role to give them: Admin"');
+    expect(enabled).toContain('> Add</button>');
+    expect(enabled).not.toMatch(/> Add<\/button>.*disabled/);
+    expect(enabled).toMatch(/focus-visible:[^"]+/);
+    expect(disabled).toContain('disabled=""');
+    expect(CSS).toMatch(
+      /\.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*background:\s*var\(--db-red-700\)[^}]*color:\s*var\(--destructive-foreground\)/s
+    );
+  });
+
+  it('disables destructive controls while a roster mutation is in progress', () => {
+    const markup = roster(true);
+    expect(markup).toMatch(
+      /disabled=""[^>]*aria-label="Remove an\.identity\.with\.a\.deliberately\.long\.local\.part@outside\.example\.invalid"/
+    );
+  });
+});

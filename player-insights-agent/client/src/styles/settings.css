@@ -621,6 +621,30 @@
   text-transform: uppercase;
 }
 
+.roster-organization-mark--databricks {
+  border-color: color-mix(in srgb, var(--db-red-700) 28%, var(--border));
+  background: var(--card);
+  text-transform: none;
+}
+
+.roster-databricks-symbol {
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+}
+
+.roster-databricks-symbol svg,
+.roster-organization-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+.roster-organization-fallback {
+  width: 14px;
+  height: 14px;
+}
+
 .roster-organization-name {
   color: var(--muted-foreground);
   font-family: var(--font-sans);
@@ -666,11 +690,31 @@
 /* Shared Settings table language: real headers, compact rows and one continuous
    divider. Roles and Identity both use this rather than card-like list rows. */
 .settings-table-frame {
+  isolation: isolate;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: var(--ast-border-input) var(--muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--card);
+}
+
+.settings-table-frame::-webkit-scrollbar {
+  height: 10px;
+}
+
+.settings-table-frame::-webkit-scrollbar-track {
+  background: var(--muted);
+}
+
+.settings-table-frame::-webkit-scrollbar-thumb {
+  border: 2px solid var(--muted);
+  border-radius: 999px;
+  background: var(--ast-border-input);
 }
 
 .settings-data-table {
@@ -702,44 +746,66 @@
 }
 
 .roles-table {
-  min-width: 780px;
+  min-width: 800px;
 }
 
-.roles-table--editable th:first-child {
-  width: 39%;
+.roles-table--editable .roster-email-column {
+  width: auto;
 }
 
-.roles-table--editable th:nth-child(2) {
-  width: 18%;
+.roles-table--editable .roster-set-by-column {
+  width: 140px;
 }
 
-.roles-table--editable th:nth-child(3) {
-  width: 14%;
+.roles-table--editable .roster-role-column {
+  width: 126px;
 }
 
-.roles-table--editable th:nth-child(4) {
-  width: 18%;
+.roles-table--editable .roster-persona-column {
+  width: 136px;
 }
 
-.roles-table--editable th:last-child {
-  width: 11%;
-  text-align: right;
+.roles-table--editable .roster-action-column {
+  width: 112px;
 }
 
 .roles-table--assignment-only {
   min-width: 560px;
 }
 
-.roles-table--assignment-only th:first-child {
-  width: 42%;
+.roles-table--assignment-only .roster-email-column {
+  width: auto;
 }
 
-.roles-table--assignment-only th:nth-child(2) {
-  width: 23%;
+.roles-table--assignment-only .roster-role-column {
+  width: 136px;
 }
 
-.roles-table--assignment-only th:last-child {
-  width: 35%;
+.roles-table--assignment-only .roster-persona-column {
+  width: 196px;
+}
+
+/*
+ * Controls are the last thing allowed to leave the frame. These tables own
+ * their horizontal overflow, and the final column stays pinned inside that
+ * scroller while email and provenance pass underneath it.
+ */
+.settings-actions-table th:last-child,
+.settings-actions-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: var(--card);
+  box-shadow: -1px 0 0 var(--border);
+}
+
+.settings-actions-table th:last-child {
+  z-index: 3;
+  text-align: right;
+}
+
+.settings-actions-table td:last-child {
+  white-space: nowrap;
 }
 
 .roles-table tfoot td {
@@ -797,12 +863,12 @@
 }
 
 .roster-action {
-  min-width: 0;
   text-align: right;
 }
 
 .roster-action > [data-slot='button'] {
   width: auto;
+  max-width: 100%;
 }
 
 .roles-table td {
@@ -857,8 +923,11 @@
 
 .roster-role > .role-badge,
 .roster-owner-badge {
+  max-width: none;
+  overflow: visible;
   width: fit-content;
   min-height: 24px;
+  white-space: nowrap;
 }
 
 .roster-owner-badge {
@@ -936,7 +1005,7 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
   z-index: 80;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 16px;
   background: color-mix(in oklab, var(--db-ink-deep) 50%, transparent);
 }
 
@@ -944,8 +1013,8 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 0;
-  width: min(960px, calc(100vw - 48px));
-  max-width: 960px;
+  width: min(1080px, calc(100vw - 32px));
+  max-width: 1080px;
   height: min(720px, calc(100vh - 48px));
   margin: 0;
   padding: 0;
@@ -1088,8 +1157,10 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 .settings-modal-content {
   min-width: 0;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 16px 20px;
 }
 
@@ -2101,11 +2172,11 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 }
 
 .sp-personas-table th:first-child {
-  width: 78%;
+  width: auto;
 }
 
 .sp-personas-table th:last-child {
-  width: 22%;
+  width: 118px;
   text-align: right;
 }
 
@@ -2524,7 +2595,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 }
 
 .sp-definitions-table {
-  min-width: 660px;
+  min-width: 700px;
 }
 
 .sp-definitions-table th:nth-child(1) {
@@ -2544,7 +2615,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 }
 
 .sp-definitions-table th:nth-child(5) {
-  width: 14%;
+  width: 112px;
   text-align: right;
 }
 
