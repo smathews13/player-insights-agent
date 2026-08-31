@@ -105,7 +105,7 @@ export function EnvironmentPanel({
                     setCopied(false);
                   }}
                 >
-                  Packages ({data.packages.length})
+                  Installed packages ({data.packages.length})
                 </button>
               </div>
               <div className="environment-tools">
@@ -137,6 +137,11 @@ export function EnvironmentPanel({
                 </Button>
               </div>
             </div>
+            {active === 'packages' ? (
+              <p className="settings-status">
+                Live container inventory — includes app, transitive, and Databricks base-image packages. Read-only here.
+              </p>
+            ) : null}
 
             <div className="environment-list" role="region" aria-label={`Filtered ${active}`} tabIndex={0}>
               <table>

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { EnvironmentInfo } from '../../shared/environment-info';
@@ -16,6 +17,7 @@ const INFO: EnvironmentInfo = {
     { name: 'zod', version: '4.3.6' },
   ],
 };
+const PANEL_SOURCE = readFileSync(new URL('./EnvironmentPanel.tsx', import.meta.url), 'utf8');
 
 describe('Environment panel', () => {
   it('shows live runtime versions as separate badges', () => {
@@ -25,14 +27,21 @@ describe('Environment panel', () => {
     expect(markup).not.toContain('Python 3.11.15; Node.js v22.16.0');
   });
 
-  it('shows counted Variables and Packages tabs with a searchable list and copy control', () => {
+  it('shows counted Variables and Installed packages tabs with a searchable list and copy control', () => {
     const markup = renderToStaticMarkup(<EnvironmentPanel initialData={INFO} />);
     expect(markup).toContain('role="tablist"');
     expect(markup).toContain('Variables (2)');
-    expect(markup).toContain('Packages (2)');
+    expect(markup).toContain('Installed packages (2)');
     expect(markup).toContain('aria-label="Search variables"');
     expect(markup).toContain('aria-label="Copy filtered variables"');
     expect(markup).toContain('DATABRICKS_APP_NAME');
+  });
+
+  it('says the installed package count includes platform and transitive inventory', () => {
+    expect(PANEL_SOURCE).toContain('Live container inventory');
+    expect(PANEL_SOURCE).toContain('transitive');
+    expect(PANEL_SOURCE).toContain('Databricks base-image packages');
+    expect(PANEL_SOURCE).toContain('Read-only');
   });
 
   it('filters either column without changing the source list', () => {

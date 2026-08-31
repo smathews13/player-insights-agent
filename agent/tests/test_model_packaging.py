@@ -24,6 +24,7 @@ from __future__ import annotations
 import ast
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 AGENT = Path(__file__).parents[1]
@@ -56,6 +57,10 @@ RELEASE_ONLY = {
 DISTRIBUTIONS = {"databricks": "databricks-sdk"}
 
 
+def _requirement_name(requirement: str) -> str:
+    return re.split(r"[<>=!~\[]", requirement, maxsplit=1)[0].strip().lower()
+
+
 def _declared() -> set[str]:
     body = re.search(
         r"code_paths=\[(.*?)\n        \],",
@@ -63,10 +68,8 @@ def _declared() -> set[str]:
         re.DOTALL,
     )
     assert body, "code_paths is not declared the way this test reads it"
-    return {
-        name.removesuffix(".py")
-        for name in re.findall(r'ROOT / "([\w.]+\.py)"', body.group(1))
-    }
+    names = re.findall(r'ROOT / "([\w.]+\.py)"', body.group(1))
+    return {name.removesuffix(".py") for name in names}
 
 
 def _imports(module: str) -> set[str]:
@@ -141,10 +144,7 @@ def _declared_requirements() -> set[str]:
     )
     assert body, "pip_requirements is not declared the way this test reads it"
     # The distribution name, without whichever version specifier it carries.
-    return {
-        re.split(r"[<>=!~\[]", line, maxsplit=1)[0].strip().lower()
-        for line in re.findall(r'"([^"]+)"', body.group(1))
-    }
+    return {_requirement_name(line) for line in re.findall(r'"([^"]+)"', body.group(1))}
 
 
 def _third_party() -> set[str]:
@@ -169,6 +169,28 @@ def test_every_package_the_agent_imports_is_in_pip_requirements():
         "somebody else's dependency, which is how httpx got there until openai 3 stopped "
         "bringing it. Declare it."
     )
+
+
+def test_project_runtime_dependencies_match_the_served_import_contract():
+    """Keep release tools out and direct runtime imports explicit.
+
+    ``uv sync --no-dev`` is the local runtime check. It must install the same
+    top-level distributions that the logged model declares, while deployment
+    helpers such as ``databricks-agents`` stay in the default dev group used by
+    the release scripts.
+    """
+
+    pyproject = tomllib.loads((AGENT / "pyproject.toml").read_text())
+    runtime = {_requirement_name(item) for item in pyproject["project"]["dependencies"]}
+    imported = {DISTRIBUTIONS.get(name, name).lower() for name in _third_party()}
+
+    assert runtime == imported, (
+        f"project runtime dependencies do not match served imports: "
+        f"missing={sorted(imported - runtime)}, extra={sorted(runtime - imported)}"
+    )
+    dev = {_requirement_name(item) for item in pyproject["dependency-groups"]["dev"]}
+    assert "databricks-agents" in dev
+    assert "databricks-agents" not in runtime
 
 
 def test_the_guard_and_the_failure_codes_are_both_in_there():

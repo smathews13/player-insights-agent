@@ -3,16 +3,17 @@ name = "player-insights-agent-runtime"
 version = "0.1.0"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-  "databricks-agents",
   "databricks-sdk>=0.81.0",
+  "httpx>=0.27,<1",
   "mlflow>=3.14.0",
-  "openai>=1.66.0",
+  "openai>=1.66.0,<3",
   "pydantic>=2.10.0",
   "sqlglot>=30.14.0",
 ]
 
 [dependency-groups]
 dev = [
+  "databricks-agents",
   "pytest>=8.3.0",
   "ruff>=0.11.0",
 ]
