@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { consumeServingStream, sseEvents } from './serving-stream';
+import {
+  consumeServingStream,
+  MAX_SERVING_OUTPUT_ITEMS,
+  MAX_SERVING_STREAM_BYTES,
+  MAX_SERVING_STREAM_EVENTS,
+  sseEvents,
+} from './serving-stream';
 
 /**
  * A `text/event-stream` body, delivered in the chunks given.
@@ -120,6 +126,31 @@ describe('sseEvents', () => {
     for await (const event of sseEvents(bodyOf(chunks))) seen.push(event);
 
     expect(seen).toHaveLength(1);
+  });
+
+  it('cancels an oversized body instead of buffering beyond the byte limit', async () => {
+    let cancelled = false;
+    const oversized = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAX_SERVING_STREAM_BYTES + 1));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+
+    await expect(async () => {
+      for await (const _event of sseEvents(oversized));
+    }).rejects.toMatchObject({ name: 'StreamLimitExceededError', limit: 'bytes' });
+    expect(cancelled).toBe(true);
+  });
+
+  it('refuses too many framed events even when none carry output', async () => {
+    const frames = Array.from({ length: MAX_SERVING_STREAM_EVENTS + 1 }, () => 'data: [DONE]\n\n').join('');
+
+    await expect(async () => {
+      for await (const _event of sseEvents(bodyOf([frames])));
+    }).rejects.toMatchObject({ name: 'StreamLimitExceededError', limit: 'events' });
   });
 });
 
@@ -360,5 +391,21 @@ describe('consumeServingStream', () => {
 
     expect((result.custom_outputs as { type: string }).type).toBe('answer');
     warn.mockRestore();
+  });
+
+  it('refuses excess output items instead of returning a silently truncated answer', async () => {
+    const outputs = Array.from(
+      { length: MAX_SERVING_OUTPUT_ITEMS + 1 },
+      (_, index) =>
+        `data: ${JSON.stringify({
+          type: 'response.output_item.done',
+          item: { id: `item-${index}`, type: 'message', content: [] },
+        })}\n\n`
+    );
+
+    await expect(consumeServingStream(bodyOf(outputs), () => {})).rejects.toMatchObject({
+      name: 'StreamLimitExceededError',
+      limit: 'output_items',
+    });
   });
 });

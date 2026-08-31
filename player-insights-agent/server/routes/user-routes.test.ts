@@ -242,6 +242,20 @@ describe('the super admin reads the roster', () => {
     await app.list(LEAD);
     expect(calls).toEqual([]);
   });
+
+  it('reads the full Lakebase roster once across both guards and the handler', async () => {
+    announceSeedAdmins('');
+    const store = fakeLakebase([{ email: LEAD, role: 'super_admin', added_by: LEAD, added_at: '' }]);
+    const query = vi.spyOn(store, 'query');
+    const app = await startApp(store);
+
+    expect((await app.list(LEAD)).status).toBe(200);
+
+    const rosterReads = query.mock.calls.filter(
+      ([sql]) => String(sql).trim().startsWith('SELECT') && String(sql).includes(ADDED_ADMINS_TABLE)
+    );
+    expect(rosterReads).toHaveLength(1);
+  });
 });
 
 describe('appointing an administrator', () => {
@@ -302,6 +316,27 @@ describe('appointing an administrator', () => {
     const app = await startApp(store);
     expect((await app.add(LEAD, ANALYST, 'super_admin')).status).toBe(200);
     expect(store.rows.roster[0].role).toBe('super_admin');
+  });
+
+  it('invalidates the request snapshot after mutation and reads back the new role', async () => {
+    announceSeedAdmins('');
+    const store = fakeLakebase([
+      { email: LEAD, role: 'super_admin', added_by: LEAD, added_at: '' },
+      { email: ANALYST, role: 'consumer', added_by: LEAD, added_at: '' },
+    ]);
+    const query = vi.spyOn(store, 'query');
+    const app = await startApp(store);
+
+    const response = await app.change(LEAD, ANALYST, 'admin');
+    const payload = (await response.json()) as RosterPayload;
+
+    expect(payload.entries.find((entry) => entry.email === ANALYST)?.role).toBe('admin');
+    const rosterReads = query.mock.calls.filter(
+      ([sql]) => String(sql).trim().startsWith('SELECT') && String(sql).includes(ADDED_ADMINS_TABLE)
+    );
+    // One snapshot for both guards and the precondition; one authoritative read
+    // after writeRole increments the store generation.
+    expect(rosterReads).toHaveLength(2);
   });
 
   it('refuses an address that is not one', async () => {
@@ -425,5 +460,17 @@ describe('when Lakebase is not answering', () => {
     const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
     expect(payload.storedRosterReadable).toBe(false);
     expect(payload.entries.map((entry) => entry.email)).toEqual([LEAD, DEPUTY]);
+  });
+
+  it('fails closed with one store read when no test-only seed floor can admit the caller', async () => {
+    announceSeedAdmins('');
+    const query = vi.fn(() => Promise.reject(new Error('connection terminated')));
+    const app = await startApp({ query });
+
+    const response = await app.list(LEAD);
+
+    expect(response.status).toBe(403);
+    expect(await errorOf(response)).toBe('admin_role_required');
+    expect(query).toHaveBeenCalledOnce();
   });
 });

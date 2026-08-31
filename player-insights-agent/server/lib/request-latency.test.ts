@@ -1,12 +1,13 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
 
-import {
-  readRequestLatencyRows,
-  REQUEST_LATENCY_QUERY,
-  requestLatencyRecorder,
-} from './request-latency';
+import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, requestLatencyRecorder } from './request-latency';
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe('the Lakebase route latency query', () => {
   it('groups by the full method and canonical route instead of collapsing distinct routes', () => {
@@ -15,10 +16,11 @@ describe('the Lakebase route latency query', () => {
     expect(REQUEST_LATENCY_QUERY).not.toContain('/api/insights/ask');
   });
 
-  it('splits all recorded requests into two halves without date bounds', () => {
+  it('splits requests in the complete-day period into two exact halves', () => {
     expect(REQUEST_LATENCY_QUERY).toContain('MIN(recorded_at)');
     expect(REQUEST_LATENCY_QUERY).toContain('MAX(recorded_at)');
-    expect(REQUEST_LATENCY_QUERY).not.toMatch(/\$[12]|from_at|to_at/);
+    expect(REQUEST_LATENCY_QUERY).toContain('$1::date AS from_day');
+    expect(REQUEST_LATENCY_QUERY).toContain('$2::date AS to_day');
   });
 
   it('ends the CTE list before the result SELECT', () => {
@@ -55,7 +57,13 @@ describe('the Lakebase route latency query', () => {
   });
 
   it('reports an honestly empty window without manufacturing routes', () => {
-    expect(readRequestLatencyRows([])).toEqual({ routes: [], coveredFrom: '', coveredTo: '' });
+    expect(readRequestLatencyRows([])).toEqual({
+      routes: [],
+      coveredFrom: '',
+      coveredTo: '',
+      coverageState: 'unavailable',
+      missingDays: 0,
+    });
   });
 });
 
@@ -126,7 +134,28 @@ describe('the shared request recorder', () => {
     expect(params).toContain(500);
   });
 
-  it('writes early rather than letting a burst sit unwritten', async () => {
+  it('coalesces concurrent flush callers into one drain', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const middleware = requestLatencyRecorder({ query });
+    finish(middleware, '/api/identity');
+
+    await Promise.all([middleware.flush(), middleware.flush(), middleware.flush()]);
+
+    expect(query).toHaveBeenCalledOnce();
+  });
+
+  it('preserves the normal periodic flush', async () => {
+    vi.useFakeTimers();
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const middleware = requestLatencyRecorder({ query }, { flushMs: 25 });
+    finish(middleware, '/api/identity');
+
+    await vi.advanceTimersByTimeAsync(25);
+
+    expect(query).toHaveBeenCalledOnce();
+  });
+
+  it('writes early rather than letting a burst sit unwritten', () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const middleware = requestLatencyRecorder({ query }, { maxBuffered: 2 });
 

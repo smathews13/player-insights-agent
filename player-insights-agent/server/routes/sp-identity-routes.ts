@@ -20,7 +20,7 @@ import { accountConsoleUrlForWorkspace } from '../../shared/databricks-links';
 import { parseOrganizationMappings } from '../../shared/organization-mapping';
 import { invalidAdminEmail, normalizeAdminEmail, recordAdminAction } from '../lib/admin-roles';
 import { describeSpTokenMinting } from '../lib/sp-token';
-import { discoverSpGrantResources } from '../lib/sp-grant-resources';
+import { boundedSpGrantResources, discoverSpGrantResources } from '../lib/sp-grant-resources';
 import { configuredSpPersonaTemplates } from '../lib/sp-persona-templates';
 import {
   deleteSpPersonaDefinition,
@@ -48,7 +48,7 @@ async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayl
     listSpAssignments(appkit),
     readRoster(appkit.lakebase).catch(() => ({ rows: [] as { email: string; role: string }[] })),
     discoverSpGrantResources(appkit)
-      .then((resources) => ({ status: 'ready' as const, resources, detail: '' }))
+      .then((resources) => ({ status: 'ready' as const, ...boundedSpGrantResources(resources), detail: '' }))
       .catch((error) => ({
         status: 'error' as const,
         resources: [],

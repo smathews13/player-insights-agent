@@ -132858,7 +132858,7 @@ var require_websocket = __commonJS({
     var http = __require("http");
     var net2 = __require("net");
     var tls = __require("tls");
-    var { randomBytes: randomBytes2, createHash: createHash9 } = __require("crypto");
+    var { randomBytes: randomBytes2, createHash: createHash10 } = __require("crypto");
     var { Duplex, Readable: Readable4 } = __require("stream");
     var { URL: URL3 } = __require("url");
     var PerMessageDeflate = require_permessage_deflate();
@@ -133515,7 +133515,7 @@ var require_websocket = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash9("sha1").update(key2 + GUID).digest("base64");
+        const digest = createHash10("sha1").update(key2 + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -133882,7 +133882,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter = __require("events");
     var http = __require("http");
     var { Duplex } = __require("stream");
-    var { createHash: createHash9 } = __require("crypto");
+    var { createHash: createHash10 } = __require("crypto");
     var extension = require_extension();
     var PerMessageDeflate = require_permessage_deflate();
     var subprotocol = require_subprotocol();
@@ -134179,7 +134179,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash9("sha1").update(key2 + GUID).digest("base64");
+        const digest = createHash10("sha1").update(key2 + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -152431,7 +152431,7 @@ var require_parseurl = __commonJS({
         return void 0;
       }
       var parsed = req._parsedUrl;
-      if (fresh2(url3, parsed)) {
+      if (fresh(url3, parsed)) {
         return parsed;
       }
       parsed = fastparse(url3);
@@ -152444,7 +152444,7 @@ var require_parseurl = __commonJS({
         return parseurl(req);
       }
       var parsed = req._parsedOriginalUrl;
-      if (fresh2(url3, parsed)) {
+      if (fresh(url3, parsed)) {
         return parsed;
       }
       parsed = fastparse(url3);
@@ -152494,7 +152494,7 @@ var require_parseurl = __commonJS({
       }
       return url3;
     }
-    function fresh2(url3, parsedUrl) {
+    function fresh(url3, parsedUrl) {
       return typeof parsedUrl === "object" && parsedUrl !== null && (Url === void 0 || parsedUrl instanceof Url) && parsedUrl._raw === url3;
     }
   }
@@ -155570,8 +155570,8 @@ var require_fresh = __commonJS({
   "node_modules/fresh/index.js"(exports, module) {
     "use strict";
     var CACHE_CONTROL_NO_CACHE_REGEXP = /(?:^|,)\s*?no-cache\s*?(?:,|$)/;
-    module.exports = fresh2;
-    function fresh2(reqHeaders, resHeaders) {
+    module.exports = fresh;
+    function fresh(reqHeaders, resHeaders) {
       var modifiedSince = reqHeaders["if-modified-since"];
       var noneMatch = reqHeaders["if-none-match"];
       if (!modifiedSince && !noneMatch) {
@@ -155791,7 +155791,7 @@ var require_send = __commonJS({
     var encodeUrl = require_encodeurl();
     var escapeHtml = require_escape_html();
     var etag = require_etag();
-    var fresh2 = require_fresh();
+    var fresh = require_fresh();
     var fs16 = __require("fs");
     var mime = require_mime();
     var ms = require_ms();
@@ -155961,7 +155961,7 @@ var require_send = __commonJS({
       }
     };
     SendStream.prototype.isFresh = function isFresh() {
-      return fresh2(this.req.headers, {
+      return fresh(this.req.headers, {
         etag: this.res.getHeader("ETag"),
         "last-modified": this.res.getHeader("Last-Modified")
       });
@@ -158153,7 +158153,7 @@ var require_request = __commonJS({
     var isIP = __require("net").isIP;
     var typeis = require_type_is();
     var http = __require("http");
-    var fresh2 = require_fresh();
+    var fresh = require_fresh();
     var parseRange = require_range_parser();
     var parse5 = require_parseurl();
     var proxyaddr = require_proxy_addr();
@@ -158284,7 +158284,7 @@ var require_request = __commonJS({
       var status = res.statusCode;
       if ("GET" !== method && "HEAD" !== method) return false;
       if (status >= 200 && status < 300 || 304 === status) {
-        return fresh2(this.headers, {
+        return fresh(this.headers, {
           "etag": res.get("ETag"),
           "last-modified": res.get("Last-Modified")
         });
@@ -160940,7 +160940,7 @@ var require_request2 = __commonJS({
     var isIP = __require("net").isIP;
     var typeis = require_type_is();
     var http = __require("http");
-    var fresh2 = require_fresh();
+    var fresh = require_fresh();
     var parseRange = require_range_parser();
     var parse5 = require_parseurl();
     var proxyaddr = require_proxy_addr();
@@ -161071,7 +161071,7 @@ var require_request2 = __commonJS({
       var status = res.statusCode;
       if ("GET" !== method && "HEAD" !== method) return false;
       if (status >= 200 && status < 300 || 304 === status) {
-        return fresh2(this.headers, {
+        return fresh(this.headers, {
           "etag": res.get("ETag"),
           "last-modified": res.get("Last-Modified")
         });
@@ -161715,17 +161715,12 @@ var require_express4 = __commonJS({
 });
 
 // server/lib/pdf-text.ts
-import { extractText, getDocumentProxy } from "./vendor-unpdf.mjs";
+import { Worker } from "node:worker_threads";
 function isPdfFilename(filename) {
   const dot = filename.lastIndexOf(".");
   if (dot <= 0) return false;
   const extension = filename.slice(dot + 1).toLowerCase();
   return PDF_EXTENSIONS.includes(extension);
-}
-function toOwnedCopy(input) {
-  const copy = new Uint8Array(input.byteLength);
-  copy.set(input);
-  return copy;
 }
 function toPdfTextError(error48) {
   if (error48 instanceof PdfTextError) return error48;
@@ -161738,63 +161733,17 @@ function toPdfTextError(error48) {
     cause: error48
   });
 }
-function normalizeText(pages) {
-  return pages.map(
-    (page) => page.replace(/\r\n?/g, "\n").split("\n").map((line) => line.replace(/[^\S\n]+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim()
-  ).filter((page) => page.length > 0).join("\n\n");
-}
 async function extractPdfText(input, options = {}) {
-  const maxChars = options.maxChars ?? MAX_PDF_TEXT_CHARS;
-  const timeoutMs = options.timeoutMs ?? PDF_EXTRACTION_TIMEOUT_MS;
-  if (input.byteLength === 0) {
-    throw new PdfTextError("empty", "This PDF is empty.");
-  }
-  let timer;
-  const work = (async () => {
-    const pdf = await getDocumentProxy(toOwnedCopy(input), {
-      isOffscreenCanvasSupported: false,
-      isImageDecoderSupported: false,
-      enableXfa: false
-    });
-    try {
-      const { text: text22 } = await extractText(pdf, { mergePages: false });
-      return text22;
-    } finally {
-      await pdf.loadingTask?.destroy();
-    }
-  })();
-  work.catch(() => {
-  });
-  let pages;
-  try {
-    pages = await Promise.race([
-      work,
-      new Promise((_resolve, reject) => {
-        timer = setTimeout(
-          () => reject(new PdfTextError("timeout", "This PDF took too long to process. Try a smaller file.")),
-          timeoutMs
-        );
-      })
-    ]);
-  } catch (error48) {
-    throw toPdfTextError(error48);
-  } finally {
-    clearTimeout(timer);
-  }
-  const text21 = normalizeText(pages);
-  if (!text21) {
-    throw new PdfTextError(
-      "no-text",
-      "No readable text was found in this report. Scanned or image-only PDFs are not supported."
-    );
-  }
-  return text21.slice(0, maxChars);
+  return pdfExtractionPool.extract(input, options);
 }
-var MAX_PDF_TEXT_CHARS, PDF_EXTRACTION_TIMEOUT_MS, PDF_EXTENSIONS, PdfTextError;
+var MAX_PDF_TEXT_CHARS, PDF_EXTRACTION_TIMEOUT_MS, MAX_PDF_BYTES, MAX_CONCURRENT_PDF_EXTRACTIONS, MAX_QUEUED_PDF_EXTRACTIONS, PDF_EXTENSIONS, PdfTextError, PdfExtractionPool, pdfExtractionPool;
 var init_pdf_text = __esm({
   "server/lib/pdf-text.ts"() {
     MAX_PDF_TEXT_CHARS = 5e4;
     PDF_EXTRACTION_TIMEOUT_MS = 15e3;
+    MAX_PDF_BYTES = 8 * 1024 * 1024;
+    MAX_CONCURRENT_PDF_EXTRACTIONS = 2;
+    MAX_QUEUED_PDF_EXTRACTIONS = 4;
     PDF_EXTENSIONS = ["pdf"];
     PdfTextError = class extends Error {
       code;
@@ -161810,6 +161759,144 @@ var init_pdf_text = __esm({
         this.cause = options?.cause;
       }
     };
+    PdfExtractionPool = class {
+      maxConcurrent;
+      maxQueued;
+      workerUrl;
+      workerOptions;
+      active = /* @__PURE__ */ new Set();
+      queue = [];
+      constructor(options = {}) {
+        this.maxConcurrent = Math.max(1, Math.floor(options.maxConcurrent ?? MAX_CONCURRENT_PDF_EXTRACTIONS));
+        this.maxQueued = Math.max(0, Math.floor(options.maxQueued ?? MAX_QUEUED_PDF_EXTRACTIONS));
+        this.workerUrl = options.workerUrl ?? new URL("./pdf-text-worker.mjs", import.meta.url);
+        this.workerOptions = options.workerOptions ?? { resourceLimits: { maxOldGenerationSizeMb: 128 } };
+      }
+      snapshot() {
+        return { active: this.active.size, queued: this.queue.length };
+      }
+      extract(input, options = {}) {
+        if (input.byteLength === 0) {
+          return Promise.reject(new PdfTextError("empty", "This PDF is empty."));
+        }
+        if (input.byteLength > MAX_PDF_BYTES) {
+          return Promise.reject(new PdfTextError("too-large", "Choose a non-empty report no larger than 8 MB."));
+        }
+        if (options.signal?.aborted) {
+          return Promise.reject(new PdfTextError("cancelled", "PDF processing was cancelled."));
+        }
+        if (this.active.size >= this.maxConcurrent && this.queue.length >= this.maxQueued) {
+          return Promise.reject(
+            new PdfTextError("overloaded", "PDF processing is busy. Wait a moment and try this report again.")
+          );
+        }
+        const requestedMax = Math.floor(options.maxChars ?? MAX_PDF_TEXT_CHARS);
+        const maxChars = Number.isFinite(requestedMax) ? Math.max(1, Math.min(MAX_PDF_TEXT_CHARS, requestedMax)) : MAX_PDF_TEXT_CHARS;
+        const requestedTimeout = Math.floor(options.timeoutMs ?? PDF_EXTRACTION_TIMEOUT_MS);
+        const timeoutMs = Number.isFinite(requestedTimeout) ? Math.max(1, Math.min(PDF_EXTRACTION_TIMEOUT_MS, requestedTimeout)) : PDF_EXTRACTION_TIMEOUT_MS;
+        return new Promise((resolve2, reject) => {
+          const task = {
+            input,
+            maxChars,
+            timeoutMs,
+            signal: options.signal,
+            resolve: resolve2,
+            reject,
+            state: "queued",
+            settled: false
+          };
+          task.timer = setTimeout(() => {
+            void this.settle(task, new PdfTextError("timeout", "This PDF took too long to process. Try a smaller file."));
+          }, timeoutMs);
+          task.timer.unref();
+          task.abort = () => {
+            void this.settle(task, new PdfTextError("cancelled", "PDF processing was cancelled."));
+          };
+          task.signal?.addEventListener("abort", task.abort, { once: true });
+          if (this.active.size < this.maxConcurrent) this.start(task);
+          else this.queue.push(task);
+        });
+      }
+      /** Terminates every worker and rejects queued work; primarily used by orderly shutdown/tests. */
+      async close() {
+        const tasks = [...this.queue, ...this.active];
+        await Promise.all(
+          tasks.map((task) => this.settle(task, new PdfTextError("cancelled", "PDF processing was cancelled.")))
+        );
+      }
+      start(task) {
+        if (task.settled) return;
+        task.state = "active";
+        this.active.add(task);
+        const owned = new Uint8Array(task.input.byteLength);
+        owned.set(task.input);
+        try {
+          const worker = new Worker(this.workerUrl, {
+            ...this.workerOptions,
+            workerData: { bytes: owned.buffer, maxChars: task.maxChars },
+            transferList: [owned.buffer]
+          });
+          task.worker = worker;
+          worker.once("message", (message) => {
+            const result = message;
+            if (result?.ok === true && typeof result.text === "string") {
+              const text21 = result.text.slice(0, task.maxChars);
+              void this.settle(
+                task,
+                text21.trim() ? text21 : new PdfTextError(
+                  "no-text",
+                  "No readable text was found in this report. Scanned or image-only PDFs are not supported."
+                )
+              );
+              return;
+            }
+            if (result?.ok === false && typeof result.error?.name === "string" && typeof result.error.message === "string") {
+              const cause = new Error(result.error.message);
+              cause.name = result.error.name;
+              void this.settle(task, toPdfTextError(cause));
+              return;
+            }
+            void this.settle(task, toPdfTextError(new Error("PDF worker returned an invalid result.")));
+          });
+          worker.once("error", (error48) => {
+            void this.settle(task, toPdfTextError(error48));
+          });
+          worker.once("exit", (code) => {
+            if (!task.settled) {
+              void this.settle(task, toPdfTextError(new Error(`PDF worker exited before returning text (${code}).`)));
+            }
+          });
+        } catch (error48) {
+          void this.settle(task, toPdfTextError(error48));
+        }
+      }
+      async settle(task, outcome) {
+        if (task.settled) return;
+        task.settled = true;
+        task.state = "settling";
+        clearTimeout(task.timer);
+        if (task.abort) task.signal?.removeEventListener("abort", task.abort);
+        const queuedIndex = this.queue.indexOf(task);
+        if (queuedIndex >= 0) this.queue.splice(queuedIndex, 1);
+        if (task.worker) {
+          try {
+            await task.worker.terminate();
+          } catch {
+          }
+        }
+        this.active.delete(task);
+        if (typeof outcome === "string") task.resolve(outcome);
+        else task.reject(outcome);
+        this.pump();
+      }
+      pump() {
+        while (this.active.size < this.maxConcurrent && this.queue.length > 0) {
+          const next = this.queue.shift();
+          if (next && !next.settled) this.start(next);
+        }
+      }
+    };
+    pdfExtractionPool = new PdfExtractionPool();
   }
 });
 
@@ -161987,16 +162074,24 @@ async function runStatement(client, sql3, params) {
     connection.release();
   }
 }
-async function withoutReadTimeout(client, run2) {
+async function withoutReadTimeout(client, run2, options = {}) {
   const pool = client.lakebase.pool;
   const restore = statementTimeoutSql();
-  if (restore === null || typeof pool?.connect !== "function") {
+  if (typeof pool?.connect !== "function") {
+    return run2((sql3, params) => client.lakebase.query(sql3, params));
+  }
+  if (restore === null && !options.requirePinnedConnection) {
     return run2((sql3, params) => client.lakebase.query(sql3, params));
   }
   let connection;
   try {
     connection = await pool.connect();
   } catch (error48) {
+    if (options.requirePinnedConnection) {
+      throw new Error(
+        `A migration requiring one pinned Postgres session could not reserve a connection: ${error48.message}`
+      );
+    }
     console.warn(
       `[lakebase] no connection could be reserved to lift the read timeout: ${error48.message}. Continuing on the pool, where a long statement may still be cancelled.`
     );
@@ -162004,16 +162099,18 @@ async function withoutReadTimeout(client, run2) {
   }
   sessionsWithTimeout.delete(connection);
   try {
-    await connection.query("SET statement_timeout = 0");
+    if (restore !== null) await connection.query("SET statement_timeout = 0");
     return await run2((sql3, params) => connection.query(sql3, params));
   } finally {
-    try {
-      await connection.query(restore);
-      sessionsWithTimeout.add(connection);
-    } catch (error48) {
-      console.warn(
-        `[lakebase] the read timeout could not be restored on a connection lent to a migration: ${error48.message}. It is being returned unmarked, so the next read sets it again.`
-      );
+    if (restore !== null) {
+      try {
+        await connection.query(restore);
+        sessionsWithTimeout.add(connection);
+      } catch (error48) {
+        console.warn(
+          `[lakebase] the read timeout could not be restored on a connection lent to a migration: ${error48.message}. It is being returned unmarked, so the next read sets it again.`
+        );
+      }
     }
     connection.release();
   }
@@ -162390,6 +162487,354 @@ var init_ops_contract = __esm({
   }
 });
 
+// server/lib/telemetry-retention.ts
+function dayText(value) {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return typeof value === "string" ? value.slice(0, 10) : "";
+}
+function truthy(value) {
+  return value === true || value === "t" || value === "true" || value === 1;
+}
+async function inTransaction(connection, work) {
+  await connection.query("BEGIN");
+  try {
+    await work();
+    await connection.query("COMMIT");
+  } catch (error48) {
+    await connection.query("ROLLBACK").catch(() => void 0);
+    throw error48;
+  }
+}
+async function deleteBatches(connection, statement, limit, maxBatches) {
+  let deleted = 0;
+  for (let batch = 0; batch < maxBatches; batch += 1) {
+    let rows = 0;
+    await inTransaction(connection, async () => {
+      const result = await connection.query(statement, [limit]);
+      rows = result.rows.length;
+    });
+    deleted += rows;
+    if (rows < limit) break;
+  }
+  return deleted;
+}
+function runTelemetryHousekeeping(lakebase2, options = {}) {
+  const active = activeHousekeeping.get(lakebase2);
+  if (active) return active;
+  const run2 = async () => {
+    const connection = await lakebase2.pool?.connect();
+    if (!connection) {
+      throw new Error(
+        "Telemetry housekeeping requires the Lakebase pool so its lock and transactions share one connection."
+      );
+    }
+    let acquired = false;
+    try {
+      const lock = await connection.query(CLAIM_TELEMETRY_LOCK_QUERY, [...TELEMETRY_ADVISORY_LOCK_KEYS]);
+      acquired = truthy(lock.rows[0]?.acquired);
+      if (!acquired) {
+        return {
+          acquired: false,
+          alreadyCompleted: false,
+          rolledDays: [],
+          deletedRequestLatencies: 0,
+          deletedActivityMinutes: 0
+        };
+      }
+      const completed = await connection.query(LAST_HOUSEKEEPING_DAY_QUERY);
+      const today = await connection.query(`SELECT (NOW() AT TIME ZONE 'UTC')::date AS day`);
+      if (dayText(completed.rows[0]?.last_completed_day) === dayText(today.rows[0]?.day)) {
+        return {
+          acquired: true,
+          alreadyCompleted: true,
+          rolledDays: [],
+          deletedRequestLatencies: 0,
+          deletedActivityMinutes: 0
+        };
+      }
+      const maxRollupDays = Math.max(
+        1,
+        Math.min(MAX_ROLLUP_DAYS_PER_RUN, Math.trunc(options.maxRollupDays ?? MAX_ROLLUP_DAYS_PER_RUN))
+      );
+      const candidates = await connection.query(PENDING_ROLLUP_DAYS_QUERY, [maxRollupDays]);
+      const rolledDays = [];
+      for (const row2 of candidates.rows) {
+        const day = dayText(row2.day);
+        if (!day) continue;
+        await inTransaction(connection, async () => {
+          await connection.query(ROLLUP_REQUEST_LATENCY_DAY_QUERY, [day]);
+          await connection.query(ROLLUP_APP_ACTIVITY_DAY_QUERY, [day]);
+          await connection.query(MARK_ROLLUP_DAY_QUERY, [day]);
+        });
+        rolledDays.push(day);
+      }
+      const deleteBatchSize = Math.max(1, Math.min(1e4, Math.trunc(options.deleteBatchSize ?? DELETE_BATCH_SIZE)));
+      const maxDeleteBatches = Math.max(
+        1,
+        Math.min(MAX_DELETE_BATCHES_PER_RUN, Math.trunc(options.maxDeleteBatches ?? MAX_DELETE_BATCHES_PER_RUN))
+      );
+      const deletedRequestLatencies = await deleteBatches(
+        connection,
+        DELETE_REQUEST_LATENCY_BATCH_QUERY,
+        deleteBatchSize,
+        maxDeleteBatches
+      );
+      const deletedActivityMinutes = await deleteBatches(
+        connection,
+        DELETE_APP_ACTIVITY_BATCH_QUERY,
+        deleteBatchSize,
+        maxDeleteBatches
+      );
+      await connection.query(MARK_HOUSEKEEPING_COMPLETE_QUERY);
+      return {
+        acquired: true,
+        alreadyCompleted: false,
+        rolledDays,
+        deletedRequestLatencies,
+        deletedActivityMinutes
+      };
+    } finally {
+      if (acquired) {
+        await connection.query(RELEASE_TELEMETRY_LOCK_QUERY, [...TELEMETRY_ADVISORY_LOCK_KEYS]).catch(() => void 0);
+      }
+      connection.release();
+    }
+  };
+  const started = run2().finally(() => {
+    activeHousekeeping.delete(lakebase2);
+  });
+  activeHousekeeping.set(lakebase2, started);
+  return started;
+}
+function startTelemetryHousekeeping(lakebase2, intervalMs = TELEMETRY_HOUSEKEEPING_INTERVAL_MS) {
+  stopActiveScheduler?.();
+  const run2 = () => {
+    void runTelemetryHousekeeping(lakebase2).catch((error48) => {
+      console.warn(`[telemetry-retention] Daily housekeeping did not complete and will retry: ${error48.message}`);
+    });
+  };
+  run2();
+  const timer = setInterval(run2, Math.max(6e4, intervalMs));
+  timer.unref?.();
+  const stop = () => {
+    clearInterval(timer);
+    if (stopActiveScheduler === stop) stopActiveScheduler = null;
+  };
+  stopActiveScheduler = stop;
+  return stop;
+}
+var RAW_TELEMETRY_RETENTION_DAYS, MAX_ROLLUP_DAYS_PER_RUN, MAX_DELETE_BATCHES_PER_RUN, DELETE_BATCH_SIZE, TELEMETRY_HOUSEKEEPING_INTERVAL_MS, RAW_REQUEST_LATENCY_TABLE, RAW_APP_ACTIVITY_TABLE, REQUEST_LATENCY_ROLLUP_TABLE, APP_ACTIVITY_ROLLUP_TABLE, TELEMETRY_ROLLUP_DAYS_TABLE, TELEMETRY_HOUSEKEEPING_STATE_TABLE, REQUEST_LATENCY_ROLLUP_DDL, APP_ACTIVITY_ROLLUP_DDL, TELEMETRY_ROLLUP_DAYS_DDL, TELEMETRY_HOUSEKEEPING_STATE_DDL, APP_ACTIVITY_RETENTION_INDEX_DDL, RUNS_CREATED_AT_INDEX_DDL, TELEMETRY_ROLLUP_MIGRATION_DDL, TELEMETRY_ADVISORY_LOCK_KEYS, CLAIM_TELEMETRY_LOCK_QUERY, RELEASE_TELEMETRY_LOCK_QUERY, LAST_HOUSEKEEPING_DAY_QUERY, PENDING_ROLLUP_DAYS_QUERY, ROLLUP_REQUEST_LATENCY_DAY_QUERY, ROLLUP_APP_ACTIVITY_DAY_QUERY, MARK_ROLLUP_DAY_QUERY, DELETE_REQUEST_LATENCY_BATCH_QUERY, DELETE_APP_ACTIVITY_BATCH_QUERY, MARK_HOUSEKEEPING_COMPLETE_QUERY, activeHousekeeping, stopActiveScheduler;
+var init_telemetry_retention = __esm({
+  "server/lib/telemetry-retention.ts"() {
+    init_app_schema();
+    RAW_TELEMETRY_RETENTION_DAYS = 90;
+    MAX_ROLLUP_DAYS_PER_RUN = 31;
+    MAX_DELETE_BATCHES_PER_RUN = 20;
+    DELETE_BATCH_SIZE = 1e3;
+    TELEMETRY_HOUSEKEEPING_INTERVAL_MS = 24 * 60 * 60 * 1e3;
+    RAW_REQUEST_LATENCY_TABLE = appTable("request_latencies");
+    RAW_APP_ACTIVITY_TABLE = appTable("app_activity_minutes");
+    REQUEST_LATENCY_ROLLUP_TABLE = appTable("request_latency_daily_rollups");
+    APP_ACTIVITY_ROLLUP_TABLE = appTable("app_activity_daily_rollups");
+    TELEMETRY_ROLLUP_DAYS_TABLE = appTable("telemetry_rollup_days");
+    TELEMETRY_HOUSEKEEPING_STATE_TABLE = appTable("telemetry_housekeeping_state");
+    REQUEST_LATENCY_ROLLUP_DDL = `CREATE TABLE IF NOT EXISTS ${REQUEST_LATENCY_ROLLUP_TABLE} (
+  day DATE NOT NULL,
+  method TEXT NOT NULL,
+  route TEXT NOT NULL,
+  recorded_offsets_us BIGINT[] NOT NULL,
+  durations_ms DOUBLE PRECISION[] NOT NULL,
+  error_flags BOOLEAN[] NOT NULL,
+  request_count INTEGER NOT NULL,
+  error_count INTEGER NOT NULL,
+  first_request_at TIMESTAMPTZ NOT NULL,
+  last_request_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (day, method, route),
+  CHECK (cardinality(recorded_offsets_us) = cardinality(durations_ms)),
+  CHECK (cardinality(durations_ms) = cardinality(error_flags)),
+  CHECK (request_count = cardinality(durations_ms))
+)`;
+    APP_ACTIVITY_ROLLUP_DDL = `CREATE TABLE IF NOT EXISTS ${APP_ACTIVITY_ROLLUP_TABLE} (
+  day DATE PRIMARY KEY,
+  minute_counts INTEGER[] NOT NULL,
+  active_minutes INTEGER NOT NULL,
+  first_active_at TIMESTAMPTZ,
+  last_active_at TIMESTAMPTZ,
+  CHECK (cardinality(minute_counts) = 1440),
+  CHECK (active_minutes >= 0)
+)`;
+    TELEMETRY_ROLLUP_DAYS_DDL = `CREATE TABLE IF NOT EXISTS ${TELEMETRY_ROLLUP_DAYS_TABLE} (
+  day DATE PRIMARY KEY,
+  request_latency_complete BOOLEAN NOT NULL,
+  app_activity_complete BOOLEAN NOT NULL,
+  request_latency_rows BIGINT NOT NULL,
+  app_activity_rows BIGINT NOT NULL,
+  completed_at TIMESTAMPTZ NOT NULL
+)`;
+    TELEMETRY_HOUSEKEEPING_STATE_DDL = `CREATE TABLE IF NOT EXISTS ${TELEMETRY_HOUSEKEEPING_STATE_TABLE} (
+  singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+  last_completed_day DATE,
+  completed_at TIMESTAMPTZ
+)`;
+    APP_ACTIVITY_RETENTION_INDEX_DDL = `CREATE INDEX IF NOT EXISTS app_activity_minutes_active_idx
+  ON ${RAW_APP_ACTIVITY_TABLE} (active_minute)`;
+    RUNS_CREATED_AT_INDEX_DDL = `CREATE INDEX IF NOT EXISTS runs_created_at_idx
+  ON ${appTable("runs")} (created_at)`;
+    TELEMETRY_ROLLUP_MIGRATION_DDL = [
+      REQUEST_LATENCY_ROLLUP_DDL,
+      APP_ACTIVITY_ROLLUP_DDL,
+      TELEMETRY_ROLLUP_DAYS_DDL,
+      TELEMETRY_HOUSEKEEPING_STATE_DDL,
+      APP_ACTIVITY_RETENTION_INDEX_DDL,
+      RUNS_CREATED_AT_INDEX_DDL
+    ];
+    TELEMETRY_ADVISORY_LOCK_KEYS = [5261633, 5522764];
+    CLAIM_TELEMETRY_LOCK_QUERY = "SELECT pg_try_advisory_lock($1, $2) AS acquired";
+    RELEASE_TELEMETRY_LOCK_QUERY = "SELECT pg_advisory_unlock($1, $2) AS released";
+    LAST_HOUSEKEEPING_DAY_QUERY = `SELECT last_completed_day
+  FROM ${TELEMETRY_HOUSEKEEPING_STATE_TABLE}
+  WHERE singleton = TRUE`;
+    PENDING_ROLLUP_DAYS_QUERY = `WITH first_day AS (
+  SELECT LEAST(
+    (SELECT MIN((recorded_at AT TIME ZONE 'UTC')::date) FROM ${RAW_REQUEST_LATENCY_TABLE}),
+    (SELECT MIN((active_minute AT TIME ZONE 'UTC')::date) FROM ${RAW_APP_ACTIVITY_TABLE}),
+    (SELECT MIN(day) FROM ${TELEMETRY_ROLLUP_DAYS_TABLE})
+  ) AS day
+),
+calendar AS (
+  SELECT generate_series(
+    (SELECT day FROM first_day),
+    (NOW() AT TIME ZONE 'UTC')::date - 1,
+    INTERVAL '1 day'
+  )::date AS day
+)
+SELECT calendar.day
+FROM calendar
+LEFT JOIN ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled USING (day)
+WHERE rolled.day IS NULL
+ORDER BY calendar.day
+LIMIT $1`;
+    ROLLUP_REQUEST_LATENCY_DAY_QUERY = `INSERT INTO ${REQUEST_LATENCY_ROLLUP_TABLE}
+  (day, method, route, recorded_offsets_us, durations_ms, error_flags,
+   request_count, error_count, first_request_at, last_request_at)
+SELECT $1::date,
+       method,
+       route,
+       array_agg(
+         ROUND(EXTRACT(EPOCH FROM (recorded_at - ($1::date::timestamp AT TIME ZONE 'UTC'))) * 1000000)::bigint
+         ORDER BY recorded_at, id
+       ),
+       array_agg(duration_ms ORDER BY recorded_at, id),
+       array_agg(status_code >= 500 ORDER BY recorded_at, id),
+       COUNT(*)::int,
+       COUNT(*) FILTER (WHERE status_code >= 500)::int,
+       MIN(recorded_at),
+       MAX(recorded_at)
+FROM ${RAW_REQUEST_LATENCY_TABLE}
+WHERE recorded_at >= ($1::date::timestamp AT TIME ZONE 'UTC')
+  AND recorded_at < (($1::date + 1)::timestamp AT TIME ZONE 'UTC')
+GROUP BY method, route
+ON CONFLICT (day, method, route) DO UPDATE SET
+  recorded_offsets_us = EXCLUDED.recorded_offsets_us,
+  durations_ms = EXCLUDED.durations_ms,
+  error_flags = EXCLUDED.error_flags,
+  request_count = EXCLUDED.request_count,
+  error_count = EXCLUDED.error_count,
+  first_request_at = EXCLUDED.first_request_at,
+  last_request_at = EXCLUDED.last_request_at`;
+    ROLLUP_APP_ACTIVITY_DAY_QUERY = `WITH minute_totals AS (
+  SELECT date_trunc('minute', active_minute) AS minute, COUNT(*)::int AS count
+  FROM ${RAW_APP_ACTIVITY_TABLE}
+  WHERE active_minute >= ($1::date::timestamp AT TIME ZONE 'UTC')
+    AND active_minute < (($1::date + 1)::timestamp AT TIME ZONE 'UTC')
+  GROUP BY 1
+),
+minutes AS (
+  SELECT generate_series(
+    ($1::date::timestamp AT TIME ZONE 'UTC'),
+    (($1::date + 1)::timestamp AT TIME ZONE 'UTC') - INTERVAL '1 minute',
+    INTERVAL '1 minute'
+  ) AS minute
+)
+INSERT INTO ${APP_ACTIVITY_ROLLUP_TABLE}
+  (day, minute_counts, active_minutes, first_active_at, last_active_at)
+SELECT $1::date,
+       array_agg(COALESCE(t.count, 0) ORDER BY m.minute),
+       COALESCE(SUM(t.count), 0)::int,
+       MIN(m.minute) FILTER (WHERE COALESCE(t.count, 0) > 0),
+       MAX(m.minute) FILTER (WHERE COALESCE(t.count, 0) > 0)
+FROM minutes m
+LEFT JOIN minute_totals t USING (minute)
+ON CONFLICT (day) DO UPDATE SET
+  minute_counts = EXCLUDED.minute_counts,
+  active_minutes = EXCLUDED.active_minutes,
+  first_active_at = EXCLUDED.first_active_at,
+  last_active_at = EXCLUDED.last_active_at`;
+    MARK_ROLLUP_DAY_QUERY = `INSERT INTO ${TELEMETRY_ROLLUP_DAYS_TABLE}
+  (day, request_latency_complete, app_activity_complete,
+   request_latency_rows, app_activity_rows, completed_at)
+SELECT $1::date,
+       TRUE,
+       TRUE,
+       (SELECT COUNT(*) FROM ${RAW_REQUEST_LATENCY_TABLE}
+         WHERE recorded_at >= ($1::date::timestamp AT TIME ZONE 'UTC')
+           AND recorded_at < (($1::date + 1)::timestamp AT TIME ZONE 'UTC')),
+       (SELECT COUNT(*) FROM ${RAW_APP_ACTIVITY_TABLE}
+         WHERE active_minute >= ($1::date::timestamp AT TIME ZONE 'UTC')
+           AND active_minute < (($1::date + 1)::timestamp AT TIME ZONE 'UTC')),
+       NOW()
+ON CONFLICT (day) DO UPDATE SET
+  request_latency_complete = EXCLUDED.request_latency_complete,
+  app_activity_complete = EXCLUDED.app_activity_complete,
+  request_latency_rows = EXCLUDED.request_latency_rows,
+  app_activity_rows = EXCLUDED.app_activity_rows,
+  completed_at = EXCLUDED.completed_at`;
+    DELETE_REQUEST_LATENCY_BATCH_QUERY = `WITH expired AS (
+  SELECT raw.id
+  FROM ${RAW_REQUEST_LATENCY_TABLE} raw
+  WHERE raw.recorded_at < NOW() - INTERVAL '${RAW_TELEMETRY_RETENTION_DAYS} days'
+    AND EXISTS (
+      SELECT 1
+      FROM ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled
+      WHERE rolled.day = (raw.recorded_at AT TIME ZONE 'UTC')::date
+        AND rolled.request_latency_complete
+    )
+  ORDER BY raw.recorded_at, raw.id
+  LIMIT $1
+)
+DELETE FROM ${RAW_REQUEST_LATENCY_TABLE} raw
+USING expired
+WHERE raw.id = expired.id
+RETURNING raw.id`;
+    DELETE_APP_ACTIVITY_BATCH_QUERY = `WITH expired AS (
+  SELECT raw.user_email, raw.active_minute
+  FROM ${RAW_APP_ACTIVITY_TABLE} raw
+  WHERE raw.active_minute < NOW() - INTERVAL '${RAW_TELEMETRY_RETENTION_DAYS} days'
+    AND EXISTS (
+      SELECT 1
+      FROM ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled
+      WHERE rolled.day = (raw.active_minute AT TIME ZONE 'UTC')::date
+        AND rolled.app_activity_complete
+    )
+  ORDER BY raw.active_minute, raw.user_email
+  LIMIT $1
+)
+DELETE FROM ${RAW_APP_ACTIVITY_TABLE} raw
+USING expired
+WHERE raw.user_email = expired.user_email
+  AND raw.active_minute = expired.active_minute
+RETURNING raw.user_email`;
+    MARK_HOUSEKEEPING_COMPLETE_QUERY = `INSERT INTO ${TELEMETRY_HOUSEKEEPING_STATE_TABLE}
+  (singleton, last_completed_day, completed_at)
+VALUES (TRUE, (NOW() AT TIME ZONE 'UTC')::date, NOW())
+ON CONFLICT (singleton) DO UPDATE SET
+  last_completed_day = EXCLUDED.last_completed_day,
+  completed_at = EXCLUDED.completed_at`;
+    activeHousekeeping = /* @__PURE__ */ new WeakMap();
+    stopActiveScheduler = null;
+  }
+});
+
 // server/lib/request-latency.ts
 function text(value) {
   if (typeof value === "string") return value;
@@ -162404,12 +162849,19 @@ function readRequestLatencyRows(rows) {
   const routes = [];
   let coveredFrom = "";
   let coveredTo = "";
+  let coverageState = "unavailable";
+  let missingDays = 0;
   for (const row2 of rows) {
+    const rawCoverageState = text(row2.coverage_state);
+    if (rawCoverageState === "complete" || rawCoverageState === "partial" || rawCoverageState === "unavailable") {
+      coverageState = rawCoverageState;
+    }
+    missingDays = Math.max(missingDays, count(row2.missing_days));
+    coveredFrom ||= text(row2.covered_from);
+    coveredTo ||= text(row2.covered_to);
     const route = text(row2.route).trim();
     const spans = count(row2.current_count);
     if (!route || spans <= 0) continue;
-    coveredFrom ||= text(row2.covered_from);
-    coveredTo ||= text(row2.covered_to);
     const priorSpans = count(row2.prior_count);
     routes.push({
       route,
@@ -162426,7 +162878,7 @@ function readRequestLatencyRows(rows) {
     });
   }
   routes.sort((left, right) => right.p50Ms - left.p50Ms || left.route.localeCompare(right.route));
-  return { routes, coveredFrom, coveredTo };
+  return { routes, coveredFrom, coveredTo, coverageState, missingDays };
 }
 function matchedRoutePath(req) {
   const matched = req.route;
@@ -162435,30 +162887,45 @@ function matchedRoutePath(req) {
   return typeof path20 === "string" ? path20 : "";
 }
 function requestLatencyRecorder(store, { flushMs = FLUSH_MS, maxBuffered = MAX_BUFFERED } = {}) {
-  let buffered = [];
+  const buffered = [];
   let timer = null;
-  const flush = async () => {
+  let activeFlush = null;
+  const flush = () => {
     if (timer) {
       clearTimeout(timer);
       timer = null;
     }
-    if (buffered.length === 0) return;
-    const writing = buffered;
-    buffered = [];
-    const values = writing.map((_, index) => {
-      const at = index * 4;
-      return `($${at + 1}, $${at + 2}, $${at + 3}, $${at + 4})`;
-    }).join(", ");
-    try {
-      await store.query(
-        `INSERT INTO ${REQUEST_LATENCY_TABLE} (method, route, status_code, duration_ms)
-           VALUES ${values}`,
-        writing.flat()
-      );
-    } catch (error48) {
-      const reason = error48 instanceof Error ? error48.message : String(error48);
-      console.warn(`[ops] ${writing.length} request latency span(s) were not recorded: ${reason}`);
-    }
+    if (activeFlush) return activeFlush;
+    if (buffered.length === 0) return Promise.resolve();
+    activeFlush = (async () => {
+      while (buffered.length > 0) {
+        const writing = buffered.splice(0, maxBuffered);
+        const values = writing.map((_, index) => {
+          const at = index * 4;
+          return `($${at + 1}, $${at + 2}, $${at + 3}, $${at + 4})`;
+        }).join(", ");
+        try {
+          await store.query(
+            `INSERT INTO ${REQUEST_LATENCY_TABLE} (method, route, status_code, duration_ms)
+               VALUES ${values}`,
+            writing.flat()
+          );
+        } catch (error48) {
+          const reason = error48 instanceof Error ? error48.message : String(error48);
+          console.warn(`[ops] ${writing.length} request latency span(s) were not recorded: ${reason}`);
+        }
+      }
+    })().finally(() => {
+      activeFlush = null;
+      if (buffered.length > 0 && !timer) {
+        timer = setTimeout(() => {
+          timer = null;
+          void flush();
+        }, flushMs);
+        timer.unref?.();
+      }
+    });
+    return activeFlush;
   };
   const record2 = (span) => {
     buffered.push(span);
@@ -162488,9 +162955,9 @@ function requestLatencyRecorder(store, { flushMs = FLUSH_MS, maxBuffered = MAX_B
 var REQUEST_LATENCY_TABLE, REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL, REQUEST_LATENCY_QUERY, FLUSH_MS, MAX_BUFFERED;
 var init_request_latency = __esm({
   "server/lib/request-latency.ts"() {
-    init_app_schema();
     init_ops_contract();
-    REQUEST_LATENCY_TABLE = `${APP_SCHEMA}.request_latencies`;
+    init_telemetry_retention();
+    REQUEST_LATENCY_TABLE = RAW_REQUEST_LATENCY_TABLE;
     REQUEST_LATENCY_DDL = `CREATE TABLE IF NOT EXISTS ${REQUEST_LATENCY_TABLE} (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   method TEXT NOT NULL,
@@ -162502,10 +162969,49 @@ var init_request_latency = __esm({
     REQUEST_LATENCY_INDEX_DDL = `CREATE INDEX IF NOT EXISTS request_latencies_recorded_route_idx
   ON ${REQUEST_LATENCY_TABLE} (recorded_at DESC, method, route)`;
     REQUEST_LATENCY_QUERY = `
-  WITH coverage AS (
+  WITH requested AS (
+    SELECT $1::date AS from_day, $2::date AS to_day
+  ),
+  raw_samples AS (
+    SELECT CONCAT(r.method, ' ', r.route) AS route,
+           r.duration_ms,
+           r.status_code >= 500 AS is_error,
+           r.recorded_at
+    FROM ${REQUEST_LATENCY_TABLE} r
+    CROSS JOIN requested q
+    WHERE r.recorded_at >= (q.from_day::timestamp AT TIME ZONE 'UTC')
+      AND r.recorded_at < ((q.to_day + 1)::timestamp AT TIME ZONE 'UTC')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled
+        WHERE rolled.day = (r.recorded_at AT TIME ZONE 'UTC')::date
+          AND rolled.request_latency_complete
+      )
+  ),
+  rolled_samples AS (
+    SELECT CONCAT(r.method, ' ', r.route) AS route,
+           sample.duration_ms,
+           sample.is_error,
+           (r.day::timestamp AT TIME ZONE 'UTC')
+             + sample.offset_us * INTERVAL '1 microsecond' AS recorded_at
+    FROM ${REQUEST_LATENCY_ROLLUP_TABLE} r
+    CROSS JOIN requested q
+    CROSS JOIN LATERAL unnest(
+      r.recorded_offsets_us,
+      r.durations_ms,
+      r.error_flags
+    ) AS sample(offset_us, duration_ms, is_error)
+    WHERE r.day BETWEEN q.from_day AND q.to_day
+  ),
+  samples AS (
+    SELECT * FROM rolled_samples
+    UNION ALL
+    SELECT * FROM raw_samples
+  ),
+  coverage AS (
     SELECT MIN(recorded_at) AS covered_from,
            MAX(recorded_at) AS covered_to
-    FROM ${REQUEST_LATENCY_TABLE}
+    FROM samples
   ),
   bounds AS (
     SELECT covered_from,
@@ -162513,13 +163019,9 @@ var init_request_latency = __esm({
            covered_from + ((covered_to - covered_from) / 2) AS split_at
     FROM coverage
   ),
-  samples AS (
-    SELECT CONCAT(r.method, ' ', r.route) AS route,
-           r.duration_ms,
-           r.status_code,
-           r.recorded_at,
-           b.split_at
-    FROM ${REQUEST_LATENCY_TABLE} r, bounds b
+  marked AS (
+    SELECT s.*, b.split_at
+    FROM samples s CROSS JOIN bounds b
   ),
   routes AS (
     SELECT
@@ -162532,17 +163034,61 @@ var init_request_latency = __esm({
       ROUND(percentile_cont(0.99) WITHIN GROUP (ORDER BY s.duration_ms)
         FILTER (WHERE s.recorded_at >= s.split_at))::int AS current_p99_ms,
       ROUND(MAX(s.duration_ms) FILTER (WHERE s.recorded_at >= s.split_at))::int AS slowest_ms,
-      COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at AND s.status_code >= 500)::int AS error_count,
+      COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at AND s.is_error)::int AS error_count,
       MAX(s.recorded_at) FILTER (WHERE s.recorded_at >= s.split_at) AS last_request_at,
       COUNT(*) FILTER (WHERE s.recorded_at < s.split_at)::int AS prior_count,
       ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
         FILTER (WHERE s.recorded_at < s.split_at))::int AS prior_p50_ms
-    FROM samples s
+    FROM marked s
     GROUP BY s.route
     HAVING COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at) > 0
+  ),
+  available_days AS (
+    SELECT rolled.day
+    FROM ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled
+    CROSS JOIN requested q
+    WHERE rolled.request_latency_complete
+      AND rolled.day BETWEEN q.from_day AND q.to_day
+    UNION
+    SELECT (raw.recorded_at AT TIME ZONE 'UTC')::date
+    FROM ${REQUEST_LATENCY_TABLE} raw
+    CROSS JOIN requested q
+    WHERE raw.recorded_at >= (q.from_day::timestamp AT TIME ZONE 'UTC')
+      AND raw.recorded_at < ((q.to_day + 1)::timestamp AT TIME ZONE 'UTC')
+  ),
+  observed_days AS (
+    SELECT MIN(day) AS first_day, MAX(day) AS last_day FROM available_days
+  ),
+  missing AS (
+    SELECT COUNT(*)::int AS missing_days
+    FROM observed_days observed
+    CROSS JOIN LATERAL generate_series(
+      observed.first_day,
+      observed.last_day,
+      INTERVAL '1 day'
+    ) expected(day)
+    LEFT JOIN available_days available ON available.day = expected.day::date
+    WHERE available.day IS NULL
+  ),
+  coverage_state AS (
+    SELECT CASE
+             WHEN observed.first_day IS NULL THEN 'unavailable'
+             WHEN missing.missing_days > 0 THEN 'partial'
+             ELSE 'complete'
+           END AS state,
+           missing.missing_days,
+           observed.first_day,
+           observed.last_day
+    FROM observed_days observed CROSS JOIN missing
   )
-  SELECT r.*, b.covered_from, b.covered_to
-  FROM routes r CROSS JOIN bounds b
+  SELECT r.*, b.covered_from, b.covered_to,
+         c.state AS coverage_state,
+         c.missing_days,
+         c.first_day AS coverage_from_day,
+         c.last_day AS coverage_to_day
+  FROM coverage_state c
+  CROSS JOIN bounds b
+  LEFT JOIN routes r ON TRUE
   ORDER BY r.current_p50_ms DESC NULLS LAST, r.route`;
     FLUSH_MS = 2e3;
     MAX_BUFFERED = 100;
@@ -162572,9 +163118,9 @@ async function recordAppActivityMinute(store, user) {
 var APP_ACTIVITY_TABLE, APP_ACTIVITY_DDL, RECORD_APP_ACTIVITY_QUERY, ACTIVE_MINUTES_PER_DAY_QUERY;
 var init_app_activity = __esm({
   "server/lib/app-activity.ts"() {
-    init_app_schema();
     init_timezone();
-    APP_ACTIVITY_TABLE = appTable("app_activity_minutes");
+    init_telemetry_retention();
+    APP_ACTIVITY_TABLE = RAW_APP_ACTIVITY_TABLE;
     APP_ACTIVITY_DDL = `CREATE TABLE IF NOT EXISTS ${APP_ACTIVITY_TABLE} (
   user_email TEXT NOT NULL,
   active_minute TIMESTAMPTZ NOT NULL,
@@ -162584,21 +163130,106 @@ var init_app_activity = __esm({
 VALUES (lower($1), date_trunc('minute', now()))
 ON CONFLICT (user_email, active_minute) DO NOTHING`;
     ACTIVE_MINUTES_PER_DAY_QUERY = `
-  WITH activity AS (
-    SELECT active_minute, active_minute AT TIME ZONE $1 AS local_minute
-    FROM ${APP_ACTIVITY_TABLE}
+  WITH requested AS (
+    SELECT $2::date AS from_day, $3::date AS to_day
+  ),
+  rolled_activity AS (
+    SELECT (rollup.day::timestamp AT TIME ZONE 'UTC')
+             + (slot - 1) * INTERVAL '1 minute' AS active_minute,
+           rollup.minute_counts[slot]::bigint AS count
+    FROM ${APP_ACTIVITY_ROLLUP_TABLE} rollup
+    CROSS JOIN generate_subscripts(rollup.minute_counts, 1) slot
+    CROSS JOIN requested requested
+    WHERE rollup.day BETWEEN requested.from_day - 1 AND requested.to_day + 1
+      AND rollup.minute_counts[slot] > 0
+  ),
+  raw_activity AS (
+    SELECT raw.active_minute, 1::bigint AS count
+    FROM ${APP_ACTIVITY_TABLE} raw
+    CROSS JOIN requested requested
+    WHERE raw.active_minute >= ((requested.from_day - 1)::timestamp AT TIME ZONE 'UTC')
+      AND raw.active_minute < ((requested.to_day + 2)::timestamp AT TIME ZONE 'UTC')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled
+        WHERE rolled.day = (raw.active_minute AT TIME ZONE 'UTC')::date
+          AND rolled.app_activity_complete
+      )
+  ),
+  activity AS (
+    SELECT active_minute, count FROM rolled_activity
+    UNION ALL
+    SELECT active_minute, count FROM raw_activity
+  ),
+  localized AS (
+    SELECT active_minute,
+           count,
+           active_minute AT TIME ZONE $1 AS local_minute
+    FROM activity
   ),
   per_day AS (
-    SELECT to_char(date_trunc('day', local_minute), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
-    FROM activity
+    SELECT to_char(date_trunc('day', local_minute), 'YYYY-MM-DD') AS day, SUM(count)::int AS count
+    FROM localized
+    CROSS JOIN requested requested
+    WHERE local_minute::date BETWEEN requested.from_day AND requested.to_day
     GROUP BY 1
   ),
+  bound_rows AS (
+    SELECT first_active_at AS recorded_from, last_active_at AS recorded_through
+    FROM ${APP_ACTIVITY_ROLLUP_TABLE}
+    WHERE first_active_at IS NOT NULL
+    UNION ALL
+    SELECT MIN(active_minute), MAX(active_minute)
+    FROM ${APP_ACTIVITY_TABLE}
+  ),
   bounds AS (
-    SELECT MIN(active_minute) AS recorded_from, MAX(active_minute) AS recorded_through
-    FROM activity
+    SELECT MIN(recorded_from) AS recorded_from, MAX(recorded_through) AS recorded_through
+    FROM bound_rows
+  ),
+  available_days AS (
+    SELECT rolled.day
+    FROM ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled
+    CROSS JOIN requested requested
+    WHERE rolled.app_activity_complete
+      AND rolled.day BETWEEN requested.from_day - 1 AND requested.to_day + 1
+    UNION
+    SELECT (raw.active_minute AT TIME ZONE 'UTC')::date
+    FROM ${APP_ACTIVITY_TABLE} raw
+    CROSS JOIN requested requested
+    WHERE raw.active_minute >= ((requested.from_day - 1)::timestamp AT TIME ZONE 'UTC')
+      AND raw.active_minute < ((requested.to_day + 2)::timestamp AT TIME ZONE 'UTC')
+  ),
+  observed_days AS (
+    SELECT MIN(day) AS first_day, MAX(day) AS last_day FROM available_days
+  ),
+  missing AS (
+    SELECT COUNT(*)::int AS missing_days
+    FROM observed_days observed
+    CROSS JOIN LATERAL generate_series(
+      observed.first_day,
+      observed.last_day,
+      INTERVAL '1 day'
+    ) expected(day)
+    LEFT JOIN available_days available ON available.day = expected.day::date
+    WHERE available.day IS NULL
+  ),
+  coverage AS (
+    SELECT CASE
+             WHEN observed.first_day IS NULL THEN 'unavailable'
+             WHEN missing.missing_days > 0 THEN 'partial'
+             ELSE 'complete'
+           END AS state,
+           missing.missing_days
+    FROM observed_days observed CROSS JOIN missing
   )
-  SELECT per_day.day, per_day.count, bounds.recorded_from, bounds.recorded_through
+  SELECT per_day.day,
+         per_day.count,
+         bounds.recorded_from,
+         bounds.recorded_through,
+         coverage.state AS coverage_state,
+         coverage.missing_days
   FROM bounds
+  CROSS JOIN coverage
   LEFT JOIN per_day ON TRUE
   ORDER BY per_day.day`;
   }
@@ -163064,6 +163695,7 @@ var init_migrations = __esm({
     init_request_latency();
     init_app_activity();
     init_app_session();
+    init_telemetry_retention();
     BASELINE_VERSION = 1;
     BASELINE_NAME = "baseline schema";
     LATER_MIGRATIONS = [
@@ -163614,6 +164246,61 @@ var init_migrations = __esm({
           `DROP INDEX IF EXISTS ${APP_SCHEMA}.app_sessions_retention_idx`,
           `DROP TABLE IF EXISTS ${APP_SESSION_TABLE}`
         ]
+      },
+      {
+        version: 23,
+        name: "daily telemetry rollups",
+        /**
+         * New app-owned tables rather than changes to raw telemetry. The rollup-day
+         * marker is the deletion fence: housekeeping cannot remove a raw row until
+         * the transaction that filled both rollup tables committed its day.
+         */
+        statements: TELEMETRY_ROLLUP_MIGRATION_DDL,
+        down: [
+          `DROP INDEX IF EXISTS ${APP_SCHEMA}.runs_created_at_idx`,
+          `DROP INDEX IF EXISTS ${APP_SCHEMA}.app_activity_minutes_active_idx`,
+          `DROP TABLE IF EXISTS ${TELEMETRY_HOUSEKEEPING_STATE_TABLE}`,
+          `DROP TABLE IF EXISTS ${TELEMETRY_ROLLUP_DAYS_TABLE}`,
+          `DROP TABLE IF EXISTS ${APP_ACTIVITY_ROLLUP_TABLE}`,
+          `DROP TABLE IF EXISTS ${REQUEST_LATENCY_ROLLUP_TABLE}`
+        ]
+      },
+      {
+        version: 24,
+        name: "query path indexes",
+        lock: "session",
+        /**
+         * The three uncovered ordered lookups in application SQL are one owner's
+         * conversation rail, one owner's attachments in a conversation, and one
+         * owner's latest feedback for a message.
+         *
+         * `CONCURRENTLY` is valid because this runner deliberately does not wrap
+         * migrations in a transaction. Existing reads and writes continue while
+         * old rows are indexed. Each create is preceded by an online drop so a
+         * cancelled earlier build cannot leave an invalid same-named index that
+         * `IF NOT EXISTS` would mistake for success. The session lock and its
+         * in-lock version recheck keep a stale replica from dropping the valid
+         * indexes another replica just recorded.
+         *
+         * Runs, Monitoring, and session retention already have matching indexes;
+         * adding overlapping prefixes there would only amplify writes.
+         */
+        statements: [
+          `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.conversations_owner_updated_idx`,
+          `CREATE INDEX CONCURRENTLY IF NOT EXISTS conversations_owner_updated_idx
+         ON ${APP_SCHEMA}.conversations (user_email, updated_at DESC)`,
+          `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.attachments_conversation_owner_created_idx`,
+          `CREATE INDEX CONCURRENTLY IF NOT EXISTS attachments_conversation_owner_created_idx
+         ON ${APP_SCHEMA}.attachments (conversation_id, user_email, created_at)`,
+          `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.feedback_message_owner_created_idx`,
+          `CREATE INDEX CONCURRENTLY IF NOT EXISTS feedback_message_owner_created_idx
+         ON ${APP_SCHEMA}.feedback (message_id, user_email, created_at DESC)`
+        ],
+        down: [
+          `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.feedback_message_owner_created_idx`,
+          `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.attachments_conversation_owner_created_idx`,
+          `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.conversations_owner_updated_idx`
+        ]
       }
     ];
   }
@@ -163695,7 +164382,16 @@ async function statementAlreadySatisfied(client, statement) {
   if (indexed) {
     const present = await schemaNames(
       client,
-      `SELECT indexname FROM pg_indexes WHERE schemaname = $1 AND indexname = $2`,
+      `SELECT index_class.relname AS indexname
+       FROM pg_catalog.pg_class index_class
+       JOIN pg_catalog.pg_namespace namespace
+         ON namespace.oid = index_class.relnamespace
+       JOIN pg_catalog.pg_index index_state
+         ON index_state.indexrelid = index_class.oid
+       WHERE namespace.nspname = $1
+         AND index_class.relname = $2
+         AND index_state.indisready
+         AND index_state.indisvalid`,
       [indexed[2], indexed[1]],
       "indexname"
     );
@@ -163871,24 +164567,65 @@ async function bootstrapVersionTable(client, schema2) {
 async function applyOne(client, schema2, migration, appliedBy, ensureVersionTable) {
   const refused2 = [];
   const total = migration.statements.length;
-  await withoutReadTimeout(client, async (query) => {
-    for (const [index, statement] of migration.statements.entries()) {
-      try {
-        await query(statement);
-      } catch (error48) {
-        refused2.push({
-          statement,
-          failure: {
-            position: index + 1,
-            label: describeSql(statement),
-            message: error48.message,
-            code: failureCode(error48),
-            satisfied: false
+  const lockKey = `${schema2}:migration:${migration.version}`;
+  let recordedWhileWaiting = false;
+  try {
+    await withoutReadTimeout(
+      client,
+      async (query) => {
+        let locked = false;
+        try {
+          if (migration.lock === "session") {
+            await query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [lockKey]);
+            locked = true;
+            try {
+              const current = await query(`SELECT version FROM ${schema2}.${SCHEMA_VERSION_TABLE} WHERE version = $1`, [
+                migration.version
+              ]);
+              recordedWhileWaiting = current.rows.some((row2) => Number(row2.version) === migration.version);
+            } catch {
+            }
           }
-        });
-      }
-    }
-  });
+          for (const [index, statement] of (recordedWhileWaiting ? [] : migration.statements).entries()) {
+            try {
+              await query(statement);
+            } catch (error48) {
+              refused2.push({
+                statement,
+                failure: {
+                  position: index + 1,
+                  label: describeSql(statement),
+                  message: error48.message,
+                  code: failureCode(error48),
+                  satisfied: false
+                }
+              });
+            }
+          }
+        } finally {
+          if (locked) {
+            await query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [lockKey]);
+          }
+        }
+      },
+      { requirePinnedConnection: migration.lock === "session" }
+    );
+  } catch (error48) {
+    const failure = {
+      position: 1,
+      label: `SERIALIZE version ${migration.version}`,
+      message: error48.message,
+      code: failureCode(error48),
+      satisfied: false
+    };
+    console.error(
+      `[migrate] version ${migration.version} (${migration.name}) could not reserve its serialized migration session, so none of its state may be recorded: ${failure.message}`
+    );
+    return { version: migration.version, name: migration.name, outcome: "failed", failures: [failure] };
+  }
+  if (recordedWhileWaiting) {
+    return { version: migration.version, name: migration.name, outcome: "applied", failures: [] };
+  }
   const failures = refused2.map((entry) => entry.failure);
   const storeRefusedWholesale = total > 1 && failures.length === total;
   if (failures.length > 0 && !storeRefusedWholesale) {
@@ -169307,6 +170044,54 @@ var init_build_stamps = __esm({
   }
 });
 
+// server/lib/expiring-lru.ts
+var ExpiringLruCache;
+var init_expiring_lru = __esm({
+  "server/lib/expiring-lru.ts"() {
+    ExpiringLruCache = class {
+      constructor(maxEntries, ttlMs) {
+        this.maxEntries = maxEntries;
+        this.ttlMs = ttlMs;
+        if (!Number.isInteger(maxEntries) || maxEntries < 1) throw new Error("maxEntries must be a positive integer");
+        if (!Number.isFinite(ttlMs) || ttlMs < 0) throw new Error("ttlMs must be a non-negative finite number");
+      }
+      entries = /* @__PURE__ */ new Map();
+      get(key2, now = Date.now()) {
+        this.prune(now);
+        const entry = this.entries.get(key2);
+        if (!entry) return void 0;
+        this.entries.delete(key2);
+        this.entries.set(key2, entry);
+        return entry.value;
+      }
+      set(key2, value, now = Date.now(), ttlMs = this.ttlMs) {
+        this.prune(now);
+        this.entries.delete(key2);
+        this.entries.set(key2, { expiresAt: now + Math.max(0, ttlMs), value });
+        while (this.entries.size > this.maxEntries) {
+          const oldest = this.entries.keys().next().value;
+          if (oldest === void 0) break;
+          this.entries.delete(oldest);
+        }
+      }
+      delete(key2) {
+        return this.entries.delete(key2);
+      }
+      clear() {
+        this.entries.clear();
+      }
+      get size() {
+        return this.entries.size;
+      }
+      prune(now) {
+        for (const [key2, entry] of this.entries) {
+          if (entry.expiresAt <= now) this.entries.delete(key2);
+        }
+      }
+    };
+  }
+});
+
 // server/lib/experiment-probe.ts
 function textOf2(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -169517,7 +170302,7 @@ async function resolveJudgeEndpoint(client) {
 function forgetResolvedExperimentIds() {
   experimentIdByPath.clear();
 }
-async function resolveExperimentId(client, resolvePath = workspaceExperimentIdResolver) {
+async function resolveExperimentId(client, resolvePath = workspaceExperimentIdResolver, now = Date.now()) {
   const stored = await readStoredSettings(client, { maxAgeMs: STORED_SETTINGS_TTL_MS });
   const saved = stored.get("experiment-id");
   if (saved?.intent === "active" && saved.value) return saved.value;
@@ -169525,10 +170310,10 @@ async function resolveExperimentId(client, resolvePath = workspaceExperimentIdRe
   if (fromEnv) return fromEnv;
   const path20 = process.env.PLAYER_INSIGHTS_EXPERIMENT_PATH?.trim();
   if (!path20) return "";
-  const cached3 = experimentIdByPath.get(path20);
+  const cached3 = experimentIdByPath.get(path20, now);
   if (cached3) return cached3;
   const resolved = (await resolvePath(path20)).trim();
-  if (resolved) experimentIdByPath.set(path20, resolved);
+  if (resolved) experimentIdByPath.set(path20, resolved, now);
   return resolved;
 }
 async function resolveNotebookDeclaration(client) {
@@ -169744,13 +170529,14 @@ function classifyWrite(resourceId, requested) {
   }
   return { ok: true, intent: requested, changedBy: resource.changedBy };
 }
-var DEPLOYMENT_SETTINGS_DDL, STORED_SETTINGS_QUERY, UPSERT_SETTING_QUERY, DELETE_SETTING_QUERY, STORED_SETTINGS_TTL_MS, settingsCache, experimentIdByPath, APP_DEFAULTS, ARTIFACT, TRUSTED_PROVENANCE;
+var DEPLOYMENT_SETTINGS_DDL, STORED_SETTINGS_QUERY, UPSERT_SETTING_QUERY, DELETE_SETTING_QUERY, STORED_SETTINGS_TTL_MS, settingsCache, EXPERIMENT_ID_CACHE_MAX_ENTRIES, EXPERIMENT_ID_CACHE_TTL_MS, experimentIdByPath, APP_DEFAULTS, ARTIFACT, TRUSTED_PROVENANCE;
 var init_app_settings = __esm({
   "server/lib/app-settings.ts"() {
     init_deployment_config();
     init_benchmark_contract();
     init_app_schema();
     init_build_stamps();
+    init_expiring_lru();
     init_experiment_probe();
     DEPLOYMENT_SETTINGS_DDL = `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.deployment_settings (resource_id TEXT PRIMARY KEY,
      value TEXT NOT NULL,
@@ -169777,7 +170563,9 @@ var init_app_settings = __esm({
   DELETE FROM ${APP_SCHEMA}.deployment_settings WHERE resource_id = $1 RETURNING resource_id`;
     STORED_SETTINGS_TTL_MS = 45e3;
     settingsCache = /* @__PURE__ */ new WeakMap();
-    experimentIdByPath = /* @__PURE__ */ new Map();
+    EXPERIMENT_ID_CACHE_MAX_ENTRIES = 128;
+    EXPERIMENT_ID_CACHE_TTL_MS = 60 * 6e4;
+    experimentIdByPath = new ExpiringLruCache(EXPERIMENT_ID_CACHE_MAX_ENTRIES, EXPERIMENT_ID_CACHE_TTL_MS);
     APP_DEFAULTS = {
       "judge-endpoint": DEFAULT_JUDGE_ENDPOINT,
       "shared-conversation-rail": "false",
@@ -171135,6 +171923,12 @@ function missingRoleColumn(error48) {
   const message = error48?.message ?? "";
   return message.includes(ROLE_COLUMN) && /does not exist|undefined column/i.test(message);
 }
+function generationFor(store) {
+  return rosterGeneration.get(store) ?? 0;
+}
+function invalidateRosterCache(store) {
+  rosterGeneration.set(store, generationFor(store) + 1);
+}
 async function readRoster(store) {
   try {
     const withRole = await store.query(
@@ -171148,6 +171942,15 @@ async function readRoster(store) {
     );
     return { rows: withoutRole.rows.map((row2) => storedRole(row2, "admin")), roleColumnPresent: false };
   }
+}
+function readRosterForRequest(store, req) {
+  const request = req;
+  const generation = generationFor(store);
+  const cached3 = request[REQUEST_ROSTER];
+  if (cached3 && cached3.store === store && cached3.generation === generation) return cached3.reading;
+  const reading = readRoster(store);
+  request[REQUEST_ROSTER] = { store, generation, reading };
+  return reading;
 }
 function storedRole(row2, rawRole) {
   const candidate2 = rawRole.trim().toLowerCase();
@@ -171167,6 +171970,7 @@ async function writeRole(store, input) {
        ON CONFLICT (email) DO UPDATE SET added_by = EXCLUDED.added_by, added_at = NOW()`,
       [email3, actor]
     );
+    invalidateRosterCache(store);
     return;
   }
   await store.query(
@@ -171177,12 +171981,15 @@ async function writeRole(store, input) {
            added_at = NOW()`,
     [email3, input.role, actor]
   );
+  invalidateRosterCache(store);
 }
 async function deleteRosterRow(store, email3) {
   const result = await store.query(`DELETE FROM ${ADDED_ADMINS_TABLE} WHERE email = $1 RETURNING email`, [
     normalizeAdminEmail(email3)
   ]);
-  return result.rows.length > 0;
+  const deleted = result.rows.length > 0;
+  if (deleted) invalidateRosterCache(store);
+  return deleted;
 }
 function seedFloorFor(seed, email3) {
   const candidate2 = normalizeAdminEmail(email3);
@@ -171285,7 +172092,7 @@ function rosterPayload(input) {
 function roleChangeSentence(input) {
   return `${input.actor} changed ${input.email} from ${ROLE_WORD[input.from].toLowerCase()} to ${ROLE_WORD[input.to].toLowerCase()} in this deployment.`;
 }
-var ROLE_COLUMN, ADD_ROLE_COLUMN_STATEMENT, UNDEFINED_COLUMN, REFUSAL_DETAIL;
+var ROLE_COLUMN, ADD_ROLE_COLUMN_STATEMENT, UNDEFINED_COLUMN, REQUEST_ROSTER, rosterGeneration, REFUSAL_DETAIL;
 var init_user_roster = __esm({
   "server/lib/user-roster.ts"() {
     init_user_roster_contract();
@@ -171294,6 +172101,8 @@ var init_user_roster = __esm({
     ROLE_COLUMN = "role";
     ADD_ROLE_COLUMN_STATEMENT = `ALTER TABLE ${ADDED_ADMINS_TABLE} ADD COLUMN IF NOT EXISTS ${ROLE_COLUMN} TEXT NOT NULL DEFAULT 'admin'`;
     UNDEFINED_COLUMN = "42703";
+    REQUEST_ROSTER = Symbol("request-roster");
+    rosterGeneration = /* @__PURE__ */ new WeakMap();
     REFUSAL_DETAIL = {
       "immutable-super-admin": "Super admins are deployment owners and cannot be changed or removed here.",
       "seed-floor": "That role is set in this deployment's configuration and cannot be lowered here. It can be raised.",
@@ -171333,6 +172142,7 @@ __export(admin_roles_exports, {
   requireAdmin: () => requireAdmin,
   requireSuperAdmin: () => requireSuperAdmin,
   resolveRole: () => resolveRole,
+  resolveRoleForRequest: () => resolveRoleForRequest,
   rolePayload: () => rolePayload,
   seedAdminEmails: () => seedAdminEmails,
   seedRoles: () => seedRoles,
@@ -171450,6 +172260,7 @@ async function bootstrapSeedRoles(store, raw2 = process.env[SEED_ADMIN_EMAILS_EN
   console.log(
     `[admin] Bootstrapped ${inserted.rows.length} role row${inserted.rows.length === 1 ? "" : "s"} into Lakebase. Future boots ignore deployed role config because the database is now authoritative.`
   );
+  invalidateRosterCache(store);
   return "bootstrapped";
 }
 async function readAddedAdmins(store) {
@@ -171460,7 +172271,7 @@ async function readAddedAdmins(store) {
     addedAt: row2.added_at instanceof Date ? row2.added_at.toISOString() : columnText(row2.added_at)
   }));
 }
-async function resolveRole(store, email3) {
+async function resolveRoleFrom(email3, read2) {
   const caller = normalizeAdminEmail(email3);
   const seed = seedRoles();
   const floor = seedFloorFor(seed, caller);
@@ -171468,7 +172279,7 @@ async function resolveRole(store, email3) {
     return { role: "super_admin", addedAdminsReadable: true, seedAdminCount: seed.admins.length };
   }
   try {
-    const { rows } = await readRoster(store);
+    const { rows } = await read2();
     const role = caller ? effectiveRole({ seed, stored: rows, email: caller }) : "consumer";
     return { role, addedAdminsReadable: true, seedAdminCount: seed.admins.length };
   } catch (error48) {
@@ -171477,6 +172288,12 @@ async function resolveRole(store, email3) {
     );
     return { role: floor, addedAdminsReadable: false, seedAdminCount: seed.admins.length };
   }
+}
+async function resolveRole(store, email3) {
+  return resolveRoleFrom(email3, () => readRoster(store));
+}
+async function resolveRoleForRequest(store, req, readEmail) {
+  return resolveRoleFrom(readEmail(req), () => readRosterForRequest(store, req));
 }
 async function rolePayload(store, email3) {
   const { role, addedAdminsReadable, seedAdminCount } = await resolveRole(store, email3);
@@ -171505,7 +172322,7 @@ function requireAdmin(store, readEmail) {
       res.status(403).json(ADMIN_REQUIRED_BODY);
       return;
     }
-    resolveRole(store, caller).then((resolution) => {
+    resolveRoleForRequest(store, req, () => caller).then((resolution) => {
       if (opensAdminSurfaces(resolution.role)) {
         next();
         return;
@@ -171535,7 +172352,7 @@ function requireSuperAdmin(store, readEmail) {
       res.status(403).json(SUPER_ADMIN_REQUIRED_BODY);
       return;
     }
-    resolveRole(store, caller).then((resolution) => {
+    resolveRoleForRequest(store, req, () => caller).then((resolution) => {
       if (opensUserRoster(resolution.role)) {
         next();
         return;
@@ -171612,13 +172429,17 @@ async function addAdmin(store, input) {
      RETURNING email`,
     [email3, normalizeAdminEmail(input.addedBy)]
   );
-  return result.rows.length > 0;
+  const inserted = result.rows.length > 0;
+  if (inserted) invalidateRosterCache(store);
+  return inserted;
 }
 async function removeAdmin(store, email3) {
   const result = await store.query(`DELETE FROM ${ADDED_ADMINS_TABLE} WHERE email = $1 RETURNING email`, [
     normalizeAdminEmail(email3)
   ]);
-  return result.rows.length > 0;
+  const deleted = result.rows.length > 0;
+  if (deleted) invalidateRosterCache(store);
+  return deleted;
 }
 var SEED_ADMIN_EMAILS_ENV, SEED_SUPER_ADMIN_PREFIX, seedAdmins, seedSuperAdmins, ADMIN_ROUTE_PREFIXES, SUPER_ADMIN_ROUTE_PREFIXES, ADMIN_REQUIRED_BODY, SUPER_ADMIN_REQUIRED_BODY, REMOVAL_REFUSAL_DETAIL;
 var init_admin_roles = __esm({
@@ -172327,12 +173148,15 @@ async function stageQuery(store, reporter, label, sql3, params) {
   }
 }
 async function recordStageEvent(store, input, reporter = { reported: false }) {
+  const fenced = input.fencingToken !== void 0;
   const rows = await stageQuery(
     store,
     reporter,
     "stage append",
     `INSERT INTO ${APP_SCHEMA}.run_events (run_id, seq, event_id, event_type, stage, payload)
-     VALUES ($1,$2,$3,$4,$5,$6::jsonb)
+     SELECT $1,$2,$3,$4,$5,$6::jsonb
+      WHERE ${fenced ? `EXISTS (SELECT 1 FROM ${APP_SCHEMA}.runs
+                       WHERE run_id = $1 AND fencing_token = $7 AND completed_at IS NULL)` : "TRUE"}
      ON CONFLICT (run_id, seq) DO NOTHING
      RETURNING seq`,
     [
@@ -172341,7 +173165,8 @@ async function recordStageEvent(store, input, reporter = { reported: false }) {
       `${input.runId}-${input.seq}`,
       STAGE_EVENT_TYPE,
       stageLabel(input.stage),
-      JSON.stringify(stageEventPayload(input.stage))
+      JSON.stringify(stageEventPayload(input.stage)),
+      ...fenced ? [input.fencingToken] : []
     ]
   );
   return rows !== null;
@@ -172370,15 +173195,19 @@ async function readStageEvents(store, runId) {
   if (rows === null) return [];
   return rows.map((row2) => parsePayload(row2.payload)).filter((payload) => payload !== null);
 }
-function createStageRecorder(store, runId) {
+function createStageRecorder(store, runId, options = {}) {
   const reporter = { reported: false };
   let seq = 0;
   let tail = Promise.resolve();
   return {
     record(stage) {
+      if (options.signal?.aborted) return;
       seq += 1;
       const at = seq;
-      tail = tail.then(() => recordStageEvent(store, { runId, seq: at, stage }, reporter)).then(() => void 0);
+      tail = tail.then(async () => {
+        if (options.signal?.aborted) return;
+        await recordStageEvent(store, { runId, seq: at, stage, fencingToken: options.fencingToken }, reporter);
+      }).then(() => void 0);
     },
     settled: () => tail
   };
@@ -172617,40 +173446,88 @@ function classifyCancellationError(error48) {
 async function defaultSleep(milliseconds) {
   await new Promise((resolve2) => setTimeout(resolve2, milliseconds));
 }
+function abortReason(signal) {
+  return signal.reason instanceof Error ? signal.reason : new Error("SQL cancellation lookup aborted.");
+}
+function abortable(work, signal) {
+  if (signal.aborted) return Promise.reject(abortReason(signal));
+  return new Promise((resolve2, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(abortReason(signal));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve2(value);
+      },
+      (error48) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error48 instanceof Error ? error48 : new Error(String(error48)));
+      }
+    );
+  });
+}
 async function scanPass(input) {
   const candidates = /* @__PURE__ */ new Map();
-  for (const requestedStatus of ACTIVE_QUERY_STATUSES) {
-    let pageToken;
-    const usedTokens = /* @__PURE__ */ new Set();
-    for (let page = 0; page < MAX_PAGES_PER_STATUS; page += 1) {
-      const response = await input.transport.listQueries({
-        warehouseId: input.warehouseId,
-        status: requestedStatus,
-        pageToken,
-        maxResults: QUERY_HISTORY_PAGE_SIZE
-      });
-      for (const row2 of Array.isArray(response.res) ? response.res : []) {
-        const queryId = stringValue(row2.query_id);
-        const activeStatus = returnedActiveStatus(row2, requestedStatus);
-        if (!queryId || !activeStatus) continue;
-        if (row2.warehouse_id !== void 0 && row2.warehouse_id !== input.warehouseId) continue;
-        if (matchesScope(row2, input.scope)) candidates.set(queryId, activeStatus);
+  if (input.coverage.pagesRead >= input.coverage.maxPages) {
+    input.coverage.complete = false;
+    input.coverage.reason = "page-cap";
+    return candidates;
+  }
+  let pageToken2;
+  const usedTokens = /* @__PURE__ */ new Set();
+  while (input.coverage.pagesRead < input.coverage.maxPages) {
+    let response;
+    try {
+      response = await abortable(
+        input.transport.listQueries({
+          warehouseId: input.warehouseId,
+          status: "RUNNING",
+          statuses: ACTIVE_QUERY_STATUSES,
+          startTimeMs: input.startTimeMs,
+          endTimeMs: input.endTimeMs,
+          pageToken: pageToken2,
+          maxResults: QUERY_HISTORY_PAGE_SIZE,
+          signal: input.signal
+        }),
+        input.signal
+      );
+    } catch {
+      input.coverage.complete = false;
+      input.coverage.reason = input.signal.aborted ? input.signal.reason instanceof CancellationDeadlineError ? "deadline" : "caller-abort" : "transport-error";
+      break;
+    }
+    input.coverage.pagesRead += 1;
+    const rows = Array.isArray(response.res) ? response.res : [];
+    input.coverage.rowsRead += rows.length;
+    for (const row2 of rows) {
+      const queryId = stringValue(row2.query_id);
+      const activeStatus = returnedActiveStatus(row2, "RUNNING");
+      if (!queryId || !activeStatus) continue;
+      if (row2.warehouse_id !== void 0 && row2.warehouse_id !== input.warehouseId) continue;
+      if (matchesScope(row2, input.scope)) candidates.set(queryId, activeStatus);
+    }
+    const nextPageToken = stringValue(response.next_page_token);
+    if (!nextPageToken) {
+      if (response.has_next_page) {
+        input.coverage.complete = false;
+        input.coverage.reason = "missing-page-token";
       }
-      const nextPageToken = stringValue(response.next_page_token);
-      if (!nextPageToken) {
-        if (response.has_next_page) {
-          throw new Error("Query History reported another page without a page token.");
-        }
-        break;
-      }
-      if (usedTokens.has(nextPageToken)) {
-        throw new Error("Query History repeated a page token.");
-      }
-      usedTokens.add(nextPageToken);
-      pageToken = nextPageToken;
-      if (page === MAX_PAGES_PER_STATUS - 1) {
-        throw new Error(`Query History exceeded ${MAX_PAGES_PER_STATUS} pages for one status.`);
-      }
+      break;
+    }
+    if (usedTokens.has(nextPageToken)) {
+      input.coverage.complete = false;
+      input.coverage.reason = "repeated-page-token";
+      break;
+    }
+    usedTokens.add(nextPageToken);
+    pageToken2 = nextPageToken;
+    if (input.coverage.pagesRead >= input.coverage.maxPages) {
+      input.coverage.complete = false;
+      input.coverage.reason = "page-cap";
+      break;
     }
   }
   return candidates;
@@ -172660,33 +173537,83 @@ async function cancelAstrolabeWarehouseQueries(input) {
   if (!warehouseId2) throw new Error("A configured SQL warehouse ID is required.");
   const sleep = input.sleep ?? defaultSleep;
   const sweepDelayMs = Math.max(0, input.sweepDelayMs ?? DEFAULT_SWEEP_DELAY_MS);
+  const now = input.now?.() ?? Date.now();
+  const maxPages = Math.max(
+    1,
+    Math.min(MAX_CANCELLATION_HISTORY_PAGES, Math.floor(input.maxPages ?? MAX_CANCELLATION_HISTORY_PAGES))
+  );
+  const deadlineMs = Math.max(1, Math.min(CANCELLATION_DEADLINE_MS, input.deadlineMs ?? CANCELLATION_DEADLINE_MS));
+  const controller = new AbortController();
+  const parentAbort = () => controller.abort(input.signal?.reason);
+  if (input.signal?.aborted) parentAbort();
+  else input.signal?.addEventListener("abort", parentAbort, { once: true });
+  const timer = setTimeout(() => controller.abort(new CancellationDeadlineError()), deadlineMs);
+  timer.unref?.();
+  const coverage2 = {
+    complete: true,
+    queriedRange: {
+      from: new Date(now - CANCELLATION_LOOKBACK_MS).toISOString(),
+      to: new Date(now).toISOString()
+    },
+    rowsRead: 0,
+    pagesRead: 0,
+    passesRead: 0,
+    maxPages,
+    reason: "complete"
+  };
   const matched = /* @__PURE__ */ new Set();
   const attempted = /* @__PURE__ */ new Set();
   const details = [];
-  for (let pass = 0; pass < 2; pass += 1) {
-    const candidates = await scanPass({
-      warehouseId: warehouseId2,
-      scope: input.scope,
-      transport: input.transport
-    });
-    for (const [queryId, queryStatus] of candidates) {
-      matched.add(queryId);
-      if (attempted.has(queryId)) continue;
-      attempted.add(queryId);
-      try {
-        await input.transport.cancelStatement(queryId);
-        details.push({ query_id: queryId, query_status: queryStatus, outcome: "cancel_requested" });
-      } catch (error48) {
-        const classified = classifyCancellationError(error48);
-        details.push({
-          query_id: queryId,
-          query_status: queryStatus,
-          outcome: classified.outcome,
-          ...classified.providerStatus === void 0 ? {} : { provider_status: classified.providerStatus }
-        });
+  try {
+    for (let pass = 0; pass < 2 && coverage2.complete && !controller.signal.aborted; pass += 1) {
+      const candidates = await scanPass({
+        warehouseId: warehouseId2,
+        scope: input.scope,
+        transport: input.transport,
+        startTimeMs: now - CANCELLATION_LOOKBACK_MS,
+        endTimeMs: now,
+        signal: controller.signal,
+        coverage: coverage2
+      });
+      coverage2.passesRead += 1;
+      for (const queryId of candidates.keys()) matched.add(queryId);
+      for (const [queryId, queryStatus] of candidates) {
+        if (attempted.has(queryId)) continue;
+        attempted.add(queryId);
+        try {
+          await abortable(input.transport.cancelStatement(queryId, controller.signal), controller.signal);
+          details.push({ query_id: queryId, query_status: queryStatus, outcome: "cancel_requested" });
+        } catch (error48) {
+          if (controller.signal.aborted) {
+            coverage2.complete = false;
+            coverage2.reason = controller.signal.reason instanceof CancellationDeadlineError ? "deadline" : "caller-abort";
+            break;
+          }
+          const classified = classifyCancellationError(error48);
+          details.push({
+            query_id: queryId,
+            query_status: queryStatus,
+            outcome: classified.outcome,
+            ...classified.providerStatus === void 0 ? {} : { provider_status: classified.providerStatus }
+          });
+        }
+      }
+      if (pass === 0 && coverage2.complete) {
+        try {
+          await abortable(sleep(sweepDelayMs), controller.signal);
+        } catch {
+          coverage2.complete = false;
+          coverage2.reason = controller.signal.reason instanceof CancellationDeadlineError ? "deadline" : "caller-abort";
+        }
       }
     }
-    if (pass === 0) await sleep(sweepDelayMs);
+  } finally {
+    clearTimeout(timer);
+    input.signal?.removeEventListener("abort", parentAbort);
+  }
+  if (controller.signal.aborted && coverage2.complete) {
+    coverage2.complete = false;
+    coverage2.reason = controller.signal.reason instanceof CancellationDeadlineError ? "deadline" : "caller-abort";
   }
   const count4 = (outcome) => details.filter((detail) => detail.outcome === outcome).length;
   return {
@@ -172695,7 +173622,8 @@ async function cancelAstrolabeWarehouseQueries(input) {
     already_finished_or_raced: count4("already_finished_or_raced"),
     refused: count4("refused"),
     failed: count4("failed"),
-    details
+    details,
+    coverage: coverage2
   };
 }
 function queryHistoryPage(value) {
@@ -172709,27 +173637,37 @@ function queryHistoryPage(value) {
 }
 function createDatabricksWarehouseCancellationTransport(client) {
   return {
-    async listQueries({ warehouseId: warehouseId2, status, pageToken, maxResults }) {
+    async listQueries({ warehouseId: warehouseId2, status, statuses, startTimeMs, endTimeMs, pageToken: pageToken2, maxResults, signal }) {
+      const end = endTimeMs ?? Date.now();
       const response = await client.request({
         path: "/api/2.0/sql/history/queries",
         method: "GET",
         headers: new Headers({ Accept: "application/json" }),
         raw: false,
         query: {
-          filter_by: { warehouse_ids: [warehouseId2], statuses: [status] },
+          filter_by: {
+            warehouse_ids: [warehouseId2],
+            statuses: [...statuses ?? [status]],
+            query_start_time_range: {
+              start_time_ms: startTimeMs ?? end - CANCELLATION_LOOKBACK_MS,
+              end_time_ms: end
+            }
+          },
           include_metrics: false,
           max_results: maxResults,
-          ...pageToken ? { page_token: pageToken } : {}
-        }
+          ...pageToken2 ? { page_token: pageToken2 } : {}
+        },
+        ...signal ? { signal } : {}
       });
       return queryHistoryPage(response);
     },
-    async cancelStatement(statementId) {
+    async cancelStatement(statementId, signal) {
       await client.request({
         path: `/api/2.0/sql/statements/${encodeURIComponent(statementId)}/cancel`,
         method: "POST",
         headers: new Headers(),
-        raw: false
+        raw: false,
+        ...signal ? { signal } : {}
       });
     }
   };
@@ -172742,17 +173680,27 @@ async function createWorkspaceWarehouseCancellationTransport(input = {}) {
     authType: "pat"
   }) : new WorkspaceClient6({});
   return createDatabricksWarehouseCancellationTransport({
+    // The experimental SDK runtime forwards AbortSignal although its public
+    // low-level request type has not declared the field yet.
     request: (options) => client.apiClient.request(options)
   });
 }
-var ACTIVE_QUERY_STATUSES, ACTIVE_STATUS_SET, DEFAULT_SWEEP_DELAY_MS, QUERY_HISTORY_PAGE_SIZE, MAX_PAGES_PER_STATUS;
+var ACTIVE_QUERY_STATUSES, ACTIVE_STATUS_SET, DEFAULT_SWEEP_DELAY_MS, QUERY_HISTORY_PAGE_SIZE, MAX_CANCELLATION_HISTORY_PAGES, CANCELLATION_LOOKBACK_MS, CANCELLATION_DEADLINE_MS, CancellationDeadlineError;
 var init_warehouse_cancellation = __esm({
   "server/lib/warehouse-cancellation.ts"() {
     ACTIVE_QUERY_STATUSES = ["QUEUED", "STARTED", "COMPILING", "COMPILED", "RUNNING"];
     ACTIVE_STATUS_SET = new Set(ACTIVE_QUERY_STATUSES);
     DEFAULT_SWEEP_DELAY_MS = 500;
-    QUERY_HISTORY_PAGE_SIZE = 999;
-    MAX_PAGES_PER_STATUS = 100;
+    QUERY_HISTORY_PAGE_SIZE = 100;
+    MAX_CANCELLATION_HISTORY_PAGES = 8;
+    CANCELLATION_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1e3;
+    CANCELLATION_DEADLINE_MS = 1e4;
+    CancellationDeadlineError = class extends Error {
+      constructor() {
+        super("SQL cancellation lookup deadline reached.");
+        this.name = "CancellationDeadlineError";
+      }
+    };
   }
 });
 
@@ -172779,21 +173727,23 @@ function createGenieWarehouseWarmup(options = {}) {
   const now = options.now ?? Date.now;
   const cooldownMs = options.cooldownMs ?? GENIE_WARMUP_COOLDOWN_MS;
   const timeoutMs = options.timeoutMs ?? GENIE_WARMUP_TIMEOUT_MS;
-  const lastAttempt = /* @__PURE__ */ new Map();
+  const lastAttempt = new ExpiringLruCache(options.maxEntries ?? GENIE_WARMUP_CACHE_MAX_ENTRIES, cooldownMs);
   return {
-    async warm({ host: host2, token, spaceIds, appWarehouseId: appWarehouseId2 }) {
+    async warm({ host: host2, token, subject, spaceIds, appWarehouseId: appWarehouseId2 }) {
       const base = host2.replace(/\/+$/, "");
-      if (!base || !token) return [];
+      const reader = subject.trim().toLowerCase();
+      if (!base || !token || !reader) return [];
       const outcomes = [];
       const warehouses = /* @__PURE__ */ new Map();
       await Promise.all(
         [...new Set(spaceIds.filter(Boolean))].map(async (spaceId) => {
-          const key2 = `${base}|${spaceId}`;
-          if (now() - (lastAttempt.get(key2) ?? Number.NEGATIVE_INFINITY) < cooldownMs) {
+          const key2 = `${reader}\0${base}\0${spaceId}`;
+          const checkedAt = now();
+          if (lastAttempt.get(key2, checkedAt)) {
             outcomes.push({ kind: "cooling-down", spaceId });
             return;
           }
-          lastAttempt.set(key2, now());
+          lastAttempt.set(key2, true, checkedAt);
           try {
             const space = await jsonRequest(
               call,
@@ -172821,13 +173771,7 @@ function createGenieWarehouseWarmup(options = {}) {
           }
           let state = "";
           try {
-            const body = await jsonRequest(
-              call,
-              `${base}${warehouseStatePath(warehouseId2)}`,
-              token,
-              "GET",
-              timeoutMs
-            );
+            const body = await jsonRequest(call, `${base}${warehouseStatePath(warehouseId2)}`, token, "GET", timeoutMs);
             state = typeof body.state === "string" ? body.state.trim().toUpperCase() : "";
             if (!state) throw new Error("warehouse reported no state");
           } catch (error48) {
@@ -172844,13 +173788,7 @@ function createGenieWarehouseWarmup(options = {}) {
             return;
           }
           try {
-            await jsonRequest(
-              call,
-              `${base}${warehouseStartPath(warehouseId2)}`,
-              token,
-              "POST",
-              timeoutMs
-            );
+            await jsonRequest(call, `${base}${warehouseStartPath(warehouseId2)}`, token, "POST", timeoutMs);
             outcomes.push({ kind: "started", warehouseId: warehouseId2, spaceIds: resolvedSpaces, from: state });
           } catch (error48) {
             outcomes.push({
@@ -172866,12 +173804,14 @@ function createGenieWarehouseWarmup(options = {}) {
     }
   };
 }
-var GENIE_WARMUP_COOLDOWN_MS, GENIE_WARMUP_TIMEOUT_MS, ALREADY_WARM2, NOTHING_TO_WARM2;
+var GENIE_WARMUP_COOLDOWN_MS, GENIE_WARMUP_TIMEOUT_MS, GENIE_WARMUP_CACHE_MAX_ENTRIES, ALREADY_WARM2, NOTHING_TO_WARM2;
 var init_genie_warehouse_warmup = __esm({
   "server/lib/genie-warehouse-warmup.ts"() {
     init_warehouse_warmup();
+    init_expiring_lru();
     GENIE_WARMUP_COOLDOWN_MS = 6e4;
     GENIE_WARMUP_TIMEOUT_MS = 1e4;
+    GENIE_WARMUP_CACHE_MAX_ENTRIES = 2048;
     ALREADY_WARM2 = /* @__PURE__ */ new Set(["RUNNING", "STARTING"]);
     NOTHING_TO_WARM2 = /* @__PURE__ */ new Set(["DELETING", "DELETED"]);
   }
@@ -174903,8 +175843,9 @@ async function mintPersonaToken(persona, deps = {}) {
   const minting = describeSpTokenMinting(env);
   if (!minting.available) return { ok: false, reason: minting.detail };
   const now = deps.now ?? Date.now;
-  const cached3 = tokenCache.get(persona.id);
-  if (cached3 && cached3.expiresAtMs - EXPIRY_SKEW_MS > now()) {
+  const checkedAt = now();
+  const cached3 = tokenCache.get(persona.id, checkedAt);
+  if (cached3 && cached3.expiresAtMs - EXPIRY_SKEW_MS > checkedAt) {
     return { ok: true, token: cached3.token };
   }
   const host2 = normalizeWorkspaceHost(env.DATABRICKS_HOST);
@@ -174919,10 +175860,14 @@ async function mintPersonaToken(persona, deps = {}) {
       };
     }
     const minted = await exchange({ host: host2, clientId: persona.clientId, clientSecret: secret });
-    tokenCache.set(persona.id, {
-      token: minted.token,
-      expiresAtMs: now() + Math.max(minted.expiresInSeconds, 60) * 1e3
-    });
+    const storedAt = now();
+    const expiresAtMs = storedAt + Math.max(minted.expiresInSeconds, 60) * 1e3;
+    tokenCache.set(
+      persona.id,
+      { token: minted.token, expiresAtMs },
+      storedAt,
+      Math.min(SP_TOKEN_CACHE_MAX_TTL_MS, Math.max(0, expiresAtMs - EXPIRY_SKEW_MS - storedAt))
+    );
     return { ok: true, token: minted.token };
   } catch (error48) {
     const message = error48.message || "The token exchange failed.";
@@ -174938,12 +175883,15 @@ async function mintPersonaToken(persona, deps = {}) {
     };
   }
 }
-var tokenCache, EXPIRY_SKEW_MS, DEFAULT_EXPIRES_IN;
+var SP_TOKEN_CACHE_MAX_ENTRIES, SP_TOKEN_CACHE_MAX_TTL_MS, tokenCache, EXPIRY_SKEW_MS, DEFAULT_EXPIRES_IN;
 var init_sp_token = __esm({
   "server/lib/sp-token.ts"() {
     init_sp_identity();
     init_databricks_links();
-    tokenCache = /* @__PURE__ */ new Map();
+    init_expiring_lru();
+    SP_TOKEN_CACHE_MAX_ENTRIES = 256;
+    SP_TOKEN_CACHE_MAX_TTL_MS = 24 * 60 * 6e4;
+    tokenCache = new ExpiringLruCache(SP_TOKEN_CACHE_MAX_ENTRIES, SP_TOKEN_CACHE_MAX_TTL_MS);
     EXPIRY_SKEW_MS = 6e4;
     DEFAULT_EXPIRES_IN = 3600;
   }
@@ -175093,9 +176041,13 @@ var init_execution_credential = __esm({
 function isRunCancelledError(error48) {
   return error48 instanceof RunCancelledError;
 }
+function isRunDeadlineExceededError(error48) {
+  return error48 instanceof RunDeadlineExceededError;
+}
 function throwIfRunCancelled(signal, runId = "") {
   if (!signal?.aborted) return;
   if (isRunCancelledError(signal.reason)) throw signal.reason;
+  if (isRunDeadlineExceededError(signal.reason)) throw signal.reason;
   throw new RunCancelledError(runId || "unknown");
 }
 function registerRunController(runId, controller) {
@@ -175121,7 +176073,7 @@ function abortInProcessRuns(runIds) {
   return aborted2;
 }
 function watchDurableCancellation(input) {
-  const intervalMs = Math.max(10, input.intervalMs ?? 250);
+  const intervalMs = Math.min(2e3, Math.max(1e3, input.intervalMs ?? DURABLE_CANCELLATION_POLL_MS));
   let stopped = false;
   let timer;
   const schedule = () => {
@@ -175148,7 +176100,7 @@ function watchDurableCancellation(input) {
     }
   };
 }
-var RunCancelledError, activeRunControllers;
+var RunCancelledError, RunDeadlineExceededError, activeRunControllers, DURABLE_CANCELLATION_POLL_MS;
 var init_run_cancellation = __esm({
   "server/lib/run-cancellation.ts"() {
     init_run_ledger();
@@ -175162,7 +176114,16 @@ var init_run_cancellation = __esm({
         this.runId = runId;
       }
     };
+    RunDeadlineExceededError = class extends Error {
+      timeoutMs;
+      constructor(timeoutMs) {
+        super(`The agent endpoint did not answer within ${timeoutMs} ms, so its app-side transport was stopped.`);
+        this.name = "RunDeadlineExceededError";
+        this.timeoutMs = timeoutMs;
+      }
+    };
     activeRunControllers = /* @__PURE__ */ new Map();
+    DURABLE_CANCELLATION_POLL_MS = 1500;
   }
 });
 
@@ -175183,16 +176144,33 @@ function isAnnouncement(stage) {
 }
 async function* sseEvents(body, signal) {
   const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
   let buffer = "";
+  let bytes = 0;
+  let events = 0;
   for await (const chunk of toChunks(body, signal)) {
+    bytes += typeof chunk === "string" ? encoder.encode(chunk).byteLength : chunk.byteLength;
+    if (bytes > MAX_SERVING_STREAM_BYTES) {
+      throw new StreamLimitExceededError("bytes", MAX_SERVING_STREAM_BYTES);
+    }
     buffer += typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true });
     let boundary = buffer.search(/\r?\n\r?\n/);
     while (boundary !== -1) {
       const block = buffer.slice(0, boundary);
       buffer = buffer.slice(boundary).replace(/^\r?\n\r?\n/, "");
+      events += 1;
+      if (events > MAX_SERVING_STREAM_EVENTS) {
+        throw new StreamLimitExceededError("events", MAX_SERVING_STREAM_EVENTS);
+      }
       const parsed = parseBlock(block);
       if (parsed) yield parsed;
       boundary = buffer.search(/\r?\n\r?\n/);
+    }
+  }
+  if (buffer) {
+    events += 1;
+    if (events > MAX_SERVING_STREAM_EVENTS) {
+      throw new StreamLimitExceededError("events", MAX_SERVING_STREAM_EVENTS);
     }
   }
   const trailing = parseBlock(buffer);
@@ -175213,6 +176191,8 @@ async function* toChunks(body, signal) {
   throwIfRunCancelled(signal);
   if (typeof body.getReader === "function") {
     const reader = body.getReader();
+    let finished = false;
+    let failure;
     const abort = () => {
       void reader.cancel(signal?.reason).catch(() => void 0);
     };
@@ -175221,16 +176201,25 @@ async function* toChunks(body, signal) {
       for (; ; ) {
         const { done, value } = await reader.read();
         throwIfRunCancelled(signal);
-        if (done) return;
+        if (done) {
+          finished = true;
+          return;
+        }
         if (value) yield value;
       }
+    } catch (error48) {
+      failure = error48;
+      throw error48;
     } finally {
       signal?.removeEventListener("abort", abort);
+      if (!finished) await reader.cancel(failure ?? signal?.reason).catch(() => void 0);
       reader.releaseLock();
     }
   }
   if (typeof body[Symbol.asyncIterator] === "function") {
     const nodeBody = body;
+    let finished = false;
+    let failure;
     const abort = () => nodeBody.destroy?.(signal?.reason instanceof Error ? signal.reason : void 0);
     signal?.addEventListener("abort", abort, { once: true });
     try {
@@ -175239,9 +176228,14 @@ async function* toChunks(body, signal) {
         yield chunk;
       }
       throwIfRunCancelled(signal);
+      finished = true;
       return;
+    } catch (error48) {
+      failure = error48;
+      throw error48;
     } finally {
       signal?.removeEventListener("abort", abort);
+      if (!finished) nodeBody.destroy?.(failure instanceof Error ? failure : void 0);
     }
   }
   throw new Error("The endpoint returned a streaming response body that cannot be read.");
@@ -175268,7 +176262,12 @@ async function consumeServingStream(body, onStage, signal) {
         }
         continue;
       }
-      if (event.item !== void 0) output.push(event.item);
+      if (event.item !== void 0) {
+        if (output.length >= MAX_SERVING_OUTPUT_ITEMS) {
+          throw new StreamLimitExceededError("output_items", MAX_SERVING_OUTPUT_ITEMS);
+        }
+        output.push(event.item);
+      }
       if (event.custom_outputs && typeof event.custom_outputs === "object") {
         customOutputs2 = event.custom_outputs;
       }
@@ -175282,6 +176281,7 @@ async function consumeServingStream(body, onStage, signal) {
       throwIfRunCancelled(signal);
       throw error48;
     }
+    if (error48 instanceof StreamLimitExceededError) throw error48;
     if (customOutputs2 === null && output.length === 0) {
       console.warn(
         `[serving] Stream died after ${stages} stage(s) and ${announced} announcement(s): ${error48.message}`
@@ -175301,11 +176301,25 @@ async function consumeServingStream(body, onStage, signal) {
     ...streamTraceId ? { trace_id: streamTraceId } : {}
   };
 }
-var TruncatedStreamError;
+var MAX_SERVING_STREAM_BYTES, MAX_SERVING_STREAM_EVENTS, MAX_SERVING_OUTPUT_ITEMS, StreamLimitExceededError, TruncatedStreamError;
 var init_serving_stream = __esm({
   "server/lib/serving-stream.ts"() {
     init_mlflow_trace_id();
     init_run_cancellation();
+    init_run_stage_events();
+    MAX_SERVING_STREAM_BYTES = 8 * 1024 * 1024;
+    MAX_SERVING_STREAM_EVENTS = STAGE_REPLAY_LIMIT * 3 + 8;
+    MAX_SERVING_OUTPUT_ITEMS = STAGE_REPLAY_LIMIT;
+    StreamLimitExceededError = class extends Error {
+      limit;
+      maximum;
+      constructor(limit, maximum) {
+        super(`The endpoint stream exceeded the ${limit.replace("_", " ")} limit of ${maximum}.`);
+        this.name = "StreamLimitExceededError";
+        this.limit = limit;
+        this.maximum = maximum;
+      }
+    };
     TruncatedStreamError = class extends Error {
       /**
        * Stages that reported finished work.
@@ -175544,30 +176558,33 @@ function appServicePrincipal() {
 function observedServingPrincipal() {
   return servingPrincipal;
 }
-function declareAccessMode(email3, mode, detail) {
+function decisionKey(email3) {
+  return email3.trim().toLowerCase();
+}
+function declareAccessMode(email3, mode, detail, now = Date.now()) {
   if (mode === "user-verified") {
     throw new Error(
       "user-verified is established by running the access checks, not by declaring it. Call recordVerifiedAccess with the outcome of a real check."
     );
   }
-  const decision = { mode, decidedAt: (/* @__PURE__ */ new Date()).toISOString(), detail };
-  decisions.set(email3, decision);
+  const decision = { mode, decidedAt: new Date(now).toISOString(), detail };
+  decisions.set(decisionKey(email3), decision, now);
   return decision;
 }
-function recordVerifiedAccess(email3, detail) {
-  const decision = { mode: "user-verified", decidedAt: (/* @__PURE__ */ new Date()).toISOString(), detail };
-  decisions.set(email3, decision);
+function recordVerifiedAccess(email3, detail, now = Date.now()) {
+  const decision = { mode: "user-verified", decidedAt: new Date(now).toISOString(), detail };
+  decisions.set(decisionKey(email3), decision, now);
   return decision;
 }
-function accessModeFor(email3) {
-  return decisions.get(email3)?.mode ?? "service-principal";
+function accessModeFor(email3, now = Date.now()) {
+  return decisions.get(decisionKey(email3), now)?.mode ?? "service-principal";
 }
-function accessDecisionFor(email3) {
-  return decisions.get(email3) ?? null;
+function accessDecisionFor(email3, now = Date.now()) {
+  return decisions.get(decisionKey(email3), now) ?? null;
 }
-function recordedAccessMode(email3, gate = ACCESS_GATE_ENABLED) {
-  if (gate) return accessModeFor(email3);
-  return accessDecisionFor(email3)?.mode ?? null;
+function recordedAccessMode(email3, gate = ACCESS_GATE_ENABLED, now = Date.now()) {
+  if (gate) return accessModeFor(email3, now);
+  return accessDecisionFor(email3, now)?.mode ?? null;
 }
 function executionIdentityColumns(email3, execution) {
   const serving3 = observedServingPrincipal();
@@ -175580,13 +176597,16 @@ function executionIdentityColumns(email3, execution) {
     execution?.verified ?? null
   ];
 }
-var ACCESS_MODES, servingPrincipal, decisions;
+var ACCESS_MODES, servingPrincipal, ACCESS_DECISION_TTL_MS, ACCESS_DECISION_CACHE_MAX_ENTRIES, decisions;
 var init_execution_identity = __esm({
   "server/routes/execution-identity.ts"() {
     init_access_gate();
+    init_expiring_lru();
     ACCESS_MODES = ["service-principal", "user-verified", "skipped"];
     servingPrincipal = null;
-    decisions = /* @__PURE__ */ new Map();
+    ACCESS_DECISION_TTL_MS = 5 * 6e4;
+    ACCESS_DECISION_CACHE_MAX_ENTRIES = 2048;
+    decisions = new ExpiringLruCache(ACCESS_DECISION_CACHE_MAX_ENTRIES, ACCESS_DECISION_TTL_MS);
   }
 });
 
@@ -175622,6 +176642,7 @@ __export(insights_routes_exports, {
   buildAskServingBody: () => buildAskServingBody,
   buildServingHistory: () => buildServingHistory,
   candidateAcknowledgement: () => candidateAcknowledgement,
+  conversationListQuery: () => conversationListQuery,
   conversationRunTrace: () => conversationRunTrace,
   countChecks: () => countChecks,
   createServingTransport: () => createServingTransport,
@@ -175688,6 +176709,16 @@ function undeclaredPlanKeys(plan) {
     found.push(...keysOutsideShape(step, PlanStepSchema.shape, `steps[${index}].`));
   });
   return found;
+}
+function parseBoundedAttachment(req, res, next) {
+  parseAttachmentBody(req, res, (error48) => {
+    const type = error48 && typeof error48 === "object" && "type" in error48 ? error48.type : void 0;
+    if (type === "entity.too.large") {
+      res.status(413).json({ error: "Choose a non-empty report no larger than 8 MB." });
+      return;
+    }
+    next(error48);
+  });
 }
 async function callerReadsEveryRun(store, email3) {
   const { role } = await resolveRole(store, email3);
@@ -176344,9 +177375,9 @@ ${narrative}`.slice(0, 4e3)
 function attachmentExtension(filename) {
   return filename.toLowerCase().split(".").pop() ?? "";
 }
-async function extractAttachmentText(filename, bytes) {
+async function extractAttachmentText(filename, bytes, signal) {
   if (isPdfFilename(filename)) {
-    return extractPdfText(bytes, { maxChars: MAX_ATTACHMENT_TEXT });
+    return extractPdfText(bytes, { maxChars: MAX_ATTACHMENT_TEXT, signal });
   }
   const extension = attachmentExtension(filename);
   if (!ALLOWED_ATTACHMENT_TYPES.has(extension)) {
@@ -176465,6 +177496,7 @@ function warmGenieWarehousesForArrival(req) {
   genieWarehouseWarmup.warm({
     host: host2,
     token,
+    subject: userEmail(req),
     spaceIds,
     appWarehouseId: appWarehouseId()
   }).then((outcomes) => {
@@ -176569,13 +177601,52 @@ async function invokeServing(appkit, payload, onStage, timeoutMs = SERVING_INVOK
     throw new Error("DATABRICKS_SERVING_ENDPOINT_NAME is not set.");
   }
   const transport = appkit.servingTransport ?? workspaceServingTransport;
-  const result = await withDeadline(
-    transport({ path: servingInvocationPath(endpointName), payload, onStage, userToken, signal }),
-    timeoutMs,
-    `The agent endpoint did not answer within ${timeoutMs} ms. The call was abandoned rather than cancelled, so it may still be running at the endpoint.`
-  );
-  throwIfRunCancelled(signal);
-  return result;
+  const controller = new AbortController();
+  let acceptingStages = true;
+  const relayAbort = () => {
+    if (!controller.signal.aborted) controller.abort(signal?.reason);
+  };
+  if (signal?.aborted) relayAbort();
+  else signal?.addEventListener("abort", relayAbort, { once: true });
+  let rejectAborted = () => void 0;
+  const rejectAbort = () => {
+    try {
+      throwIfRunCancelled(controller.signal);
+    } catch (error48) {
+      rejectAborted(error48);
+    }
+  };
+  const aborted2 = new Promise((_resolve, reject) => {
+    rejectAborted = reject;
+    controller.signal.addEventListener("abort", rejectAbort, { once: true });
+    if (controller.signal.aborted) rejectAbort();
+  });
+  const timer = setTimeout(() => controller.abort(new RunDeadlineExceededError(timeoutMs)), Math.max(0, timeoutMs));
+  timer.unref?.();
+  try {
+    throwIfRunCancelled(controller.signal);
+    const guardedStage = onStage ? (stage) => {
+      if (!acceptingStages || controller.signal.aborted) return;
+      onStage(stage);
+    } : void 0;
+    const result = await Promise.race([
+      transport({
+        path: servingInvocationPath(endpointName),
+        payload,
+        onStage: guardedStage,
+        userToken,
+        signal: controller.signal
+      }),
+      aborted2
+    ]);
+    throwIfRunCancelled(controller.signal);
+    return result;
+  } finally {
+    acceptingStages = false;
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", relayAbort);
+    controller.signal.removeEventListener("abort", rejectAbort);
+  }
 }
 function agentEndpointDependency() {
   return { kind: "agent-endpoint", name: process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "" };
@@ -176717,7 +177788,9 @@ function setupInsightsRoutes(appkit, options = {}) {
     }
     app.use(requireAdmin(appkit.lakebase, userEmail));
     app.use(requireSuperAdmin(appkit.lakebase, userEmail));
-    app.use(requestLatencyRecorder(appkit.lakebase));
+    const latencyRecorder = requestLatencyRecorder(appkit.lakebase);
+    options.onRequestLatencyRecorder?.(latencyRecorder);
+    app.use(latencyRecorder);
     app.post("/api/warehouse-warmup", (req, res) => {
       warmWarehouseForArrival(appkit.warehouseWarmup ?? appWarehouseWarmup);
       warmGenieWarehousesForArrival(req);
@@ -177096,96 +178169,111 @@ function setupInsightsRoutes(appkit, options = {}) {
       markResponse(res, noSubstitution());
       res.json(read2.rows);
     });
-    app.post(
-      "/api/conversations/:id/attachments",
-      (0, import_express3.raw)({ type: "application/octet-stream", limit: MAX_ATTACHMENT_BYTES }),
-      async (req, res) => {
-        const encodedName = req.header("x-file-name");
-        const filename = encodedName ? decodeURIComponent(encodedName) : "";
-        const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-        if (!filename || bytes.length === 0 || bytes.length > MAX_ATTACHMENT_BYTES) {
-          res.status(400).json({ error: "Choose a non-empty report no larger than 8 MB." });
-          return;
-        }
-        const conversationId = req.params.id;
-        const owner = await readStored(
-          appkit,
-          "POST /api/conversations/:id/attachments (owner)",
-          `SELECT user_email FROM ${APP_SCHEMA}.conversations WHERE id = $1`,
-          [conversationId]
+    app.post("/api/conversations/:id/attachments", parseBoundedAttachment, async (req, res) => {
+      const encodedName = req.header("x-file-name");
+      const filename = encodedName ? decodeURIComponent(encodedName) : "";
+      const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      if (!filename || bytes.length === 0 || bytes.length > MAX_ATTACHMENT_BYTES) {
+        res.status(400).json({ error: "Choose a non-empty report no larger than 8 MB." });
+        return;
+      }
+      const conversationId = String(req.params.id);
+      const owner = await readStored(
+        appkit,
+        "POST /api/conversations/:id/attachments (owner)",
+        `SELECT user_email FROM ${APP_SCHEMA}.conversations WHERE id = $1`,
+        [conversationId]
+      );
+      if (!owner.available) {
+        console.warn(
+          `[lakebase] Attachment for ${conversationId} was not stored: ownership unreadable (${owner.code}).`
         );
-        if (!owner.available) {
-          console.warn(
-            `[lakebase] Attachment for ${conversationId} was not stored: ownership unreadable (${owner.code}).`
-          );
-          res.status(503).json({
-            error: "attachment_owner_unreadable",
-            conversationId,
-            message: "This report could not be attached right now, because the store could not confirm who owns this conversation. Nothing was written. Try again shortly."
-          });
+        res.status(503).json({
+          error: "attachment_owner_unreadable",
+          conversationId,
+          message: "This report could not be attached right now, because the store could not confirm who owns this conversation. Nothing was written. Try again shortly."
+        });
+        return;
+      }
+      const ownerEmail = owner.rows[0]?.user_email;
+      if (typeof ownerEmail === "string" && ownerEmail !== userEmail(req)) {
+        console.warn(
+          `[tenancy] Refused attachment upload to conversation ${conversationId}: it belongs to another user.`
+        );
+        res.status(404).json({
+          error: "conversation_not_found",
+          conversationId,
+          message: "No conversation with this id belongs to you."
+        });
+        return;
+      }
+      let extractedText;
+      const extraction = new AbortController();
+      const abortExtraction = () => extraction.abort();
+      const abortIfDisconnected = () => {
+        if (!res.writableEnded) extraction.abort();
+      };
+      req.once("aborted", abortExtraction);
+      res.once("close", abortIfDisconnected);
+      if (req.aborted || res.destroyed) extraction.abort();
+      try {
+        extractedText = await extractAttachmentText(filename, bytes, extraction.signal);
+      } catch (error48) {
+        if (extraction.signal.aborted || res.destroyed) return;
+        if (error48 instanceof PdfTextError && error48.code === "overloaded") {
+          res.setHeader("Retry-After", "1");
+          res.status(429).json({ error: error48.message });
           return;
         }
-        const ownerEmail = owner.rows[0]?.user_email;
-        if (typeof ownerEmail === "string" && ownerEmail !== userEmail(req)) {
-          console.warn(
-            `[tenancy] Refused attachment upload to conversation ${conversationId}: it belongs to another user.`
-          );
-          res.status(404).json({
-            error: "conversation_not_found",
-            conversationId,
-            message: "No conversation with this id belongs to you."
-          });
-          return;
-        }
-        let extractedText;
-        try {
-          extractedText = await extractAttachmentText(filename, bytes);
-        } catch (error48) {
-          res.status(422).json({ error: error48.message });
-          return;
-        }
-        if (!extractedText.trim()) {
-          res.status(422).json({ error: "No readable text was found in this report." });
-          return;
-        }
-        const id = crypto.randomUUID();
-        const email3 = userEmail(req);
-        try {
-          await appkit.lakebase.query(
-            `INSERT INTO ${APP_SCHEMA}.conversations (id, user_email, title)
+        res.status(error48 instanceof PdfTextError && error48.code === "too-large" ? 413 : 422).json({
+          error: error48.message
+        });
+        return;
+      } finally {
+        req.off("aborted", abortExtraction);
+        res.off("close", abortIfDisconnected);
+      }
+      if (!extractedText.trim()) {
+        res.status(422).json({ error: "No readable text was found in this report." });
+        return;
+      }
+      const id = crypto.randomUUID();
+      const email3 = userEmail(req);
+      try {
+        await appkit.lakebase.query(
+          `INSERT INTO ${APP_SCHEMA}.conversations (id, user_email, title)
              VALUES ($1,$2,$3) ON CONFLICT (id) DO UPDATE SET updated_at = NOW()`,
-            [conversationId, email3, PLACEHOLDER_CONVERSATION_TITLE]
-          );
-          await appkit.lakebase.query(
-            `INSERT INTO ${APP_SCHEMA}.attachments
+          [conversationId, email3, PLACEHOLDER_CONVERSATION_TITLE]
+        );
+        await appkit.lakebase.query(
+          `INSERT INTO ${APP_SCHEMA}.attachments
              (id, conversation_id, user_email, filename, mime_type, size_bytes, extracted_text)
              VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-            [
-              id,
-              conversationId,
-              email3,
-              filename,
-              req.header("content-type") ?? "application/octet-stream",
-              bytes.length,
-              extractedText
-            ]
-          );
-        } catch (error48) {
-          console.warn("[lakebase] Attachment could not be stored:", error48.message);
-          res.status(503).json({
-            error: "Attachment storage is unavailable right now. Try again shortly."
-          });
-          return;
-        }
-        res.status(201).json({
-          id,
-          filename,
-          mime_type: req.header("x-file-type") ?? "application/octet-stream",
-          size_bytes: bytes.length,
-          status: "ready"
+          [
+            id,
+            conversationId,
+            email3,
+            filename,
+            req.header("content-type") ?? "application/octet-stream",
+            bytes.length,
+            extractedText
+          ]
+        );
+      } catch (error48) {
+        console.warn("[lakebase] Attachment could not be stored:", error48.message);
+        res.status(503).json({
+          error: "Attachment storage is unavailable right now. Try again shortly."
         });
+        return;
       }
-    );
+      res.status(201).json({
+        id,
+        filename,
+        mime_type: req.header("x-file-type") ?? "application/octet-stream",
+        size_bytes: bytes.length,
+        status: "ready"
+      });
+    });
     app.delete("/api/conversations/:conversationId/attachments/:attachmentId", async (req, res) => {
       const { conversationId, attachmentId } = req.params;
       try {
@@ -177459,6 +178547,8 @@ function setupInsightsRoutes(appkit, options = {}) {
       const historyResult = { rows: historyRows };
       const attachmentText = attachmentRows.map((row2) => `## ${String(row2.filename)}
 ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHMENT_TEXT);
+      const servingTimeoutMs = appkit.servingTimeoutMs ?? SERVING_INVOKE_TIMEOUT_MS;
+      const runDeadlineAt = new Date(Date.now() + servingTimeoutMs);
       const admission = await admitRun(appkit, {
         mode: resolveRunLedgerMode(process.env[RUN_LEDGER_MODE_ENV]),
         // The same id the agent is handed as `runId` below, so the ledger row,
@@ -177489,7 +178579,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
         correlationId: identity.correlationId,
         // The budget the agent is given, so the ledger's deadline and the one
         // in the payload cannot disagree about when this run ran out of time.
-        budgetMs: SERVING_INVOKE_TIMEOUT_MS,
+        budgetMs: Math.max(1, runDeadlineAt.getTime() - Date.now()),
         executor: executorName()
       });
       if (admission.kind === "refuse") {
@@ -177537,264 +178627,411 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
         );
         return;
       }
-      let answer;
-      let ranAsSignedInUser = false;
-      let stagesSeen = 0;
-      let lastStage;
-      const collectedStages = [];
-      let askRuntime;
-      try {
-        const servingHistory = buildServingHistory(historyResult.rows);
-        if (approvedPlanId && servingHistory.length > 0) {
-          servingHistory[servingHistory.length - 1] = { role: "user", content: prompt };
+      const cancellationController = new AbortController();
+      const unregisterCancellation = admission.run ? registerRunController(admission.run.runId, cancellationController) : () => void 0;
+      const cancellationWatch = admission.run ? watchDurableCancellation({
+        store: appkit,
+        runId: admission.run.runId,
+        userEmail: email3,
+        controller: cancellationController
+      }) : null;
+      const deadlineTimer = setTimeout(
+        () => cancellationController.abort(new RunDeadlineExceededError(servingTimeoutMs)),
+        Math.max(0, runDeadlineAt.getTime() - Date.now())
+      );
+      deadlineTimer.unref?.();
+      const hasOutputFence = Boolean(admission.run && admission.fencingToken !== null);
+      const outputFenceSql = (runPlaceholder, fencePlaceholder) => hasOutputFence ? `EXISTS (SELECT 1 FROM ${APP_SCHEMA}.runs
+                       WHERE run_id = $${runPlaceholder}
+                         AND fencing_token = $${fencePlaceholder}
+                         AND completed_at IS NULL)` : "TRUE";
+      const outputFenceParams = hasOutputFence ? [admission.run?.runId, admission.fencingToken] : [];
+      const replyIfCancelled = () => {
+        if (!cancellationController.signal.aborted || isRunDeadlineExceededError(cancellationController.signal.reason)) {
+          return false;
         }
-        askRuntime = await readRuntimeSettings(appkit);
-        const evalGuidance = await resolveAskGuidance(appkit);
-        const payload = buildAskServingBody({
-          history: servingHistory,
-          prompt,
-          conversationId,
-          approvedPlanId,
-          executePlan,
-          attachmentText,
-          stream: reply.wantsStream,
-          requestId: identity.correlationId,
-          runId: identity.requestId,
-          ...servingIdentityFields(identity),
-          deadlineAt: new Date(Date.now() + SERVING_INVOKE_TIMEOUT_MS).toISOString(),
-          runtimeSettings: askRuntime,
-          evalGuidance
+        reply.status(409).json({
+          type: "cancelled",
+          state: "CANCELLED",
+          message: "Stopped.",
+          runId: admission.run?.runId ?? identity.requestId,
+          correlationId: identity.correlationId,
+          modelServing: "App-side stream consumption stopped and no replacement invocation was started. The current model invocation may still finish server-side."
         });
-        const stageRecorder = admission.run ? createStageRecorder(appkit, admission.run.runId) : null;
-        const onStage = (stage) => {
-          const id = typeof stage.id === "string" ? stage.id : "";
-          const at = id ? collectedStages.findIndex((held) => held.id === id) : -1;
-          if (at !== -1) collectedStages[at] = stage;
-          else collectedStages.push(stage);
-          if (!isRunningStage(stage)) {
-            stagesSeen += 1;
-            lastStage = { title: readStageTitle(stage), completed: stagesSeen };
-          }
-          if (reply.wantsStream) reply.stage(stage);
-          stageRecorder?.record(stage);
-        };
-        const askEndpoint = await resolveAskEndpoint(appkit);
-        const cancellationController = new AbortController();
-        const unregisterCancellation = admission.run ? registerRunController(admission.run.runId, cancellationController) : () => void 0;
-        const cancellationWatch = admission.run ? watchDurableCancellation({
-          store: appkit,
-          runId: admission.run.runId,
-          userEmail: email3,
-          controller: cancellationController
-        }) : null;
-        let endpointResult;
+        return true;
+      };
+      try {
+        let answer;
+        let ranAsSignedInUser = false;
+        let stagesSeen = 0;
+        let lastStage;
+        const collectedStages = [];
+        let askRuntime;
         try {
-          endpointResult = identity.token ? await invokeServingAsUser(
+          const servingHistory = buildServingHistory(historyResult.rows);
+          if (approvedPlanId && servingHistory.length > 0) {
+            servingHistory[servingHistory.length - 1] = { role: "user", content: prompt };
+          }
+          askRuntime = await readRuntimeSettings(appkit);
+          const evalGuidance = await resolveAskGuidance(appkit);
+          const payload = buildAskServingBody({
+            history: servingHistory,
+            prompt,
+            conversationId,
+            approvedPlanId,
+            executePlan,
+            attachmentText,
+            stream: reply.wantsStream,
+            requestId: identity.correlationId,
+            runId: identity.requestId,
+            ...servingIdentityFields(identity),
+            deadlineAt: runDeadlineAt.toISOString(),
+            runtimeSettings: askRuntime,
+            evalGuidance
+          });
+          const stageRecorder = admission.run && admission.fencingToken !== null ? createStageRecorder(appkit, admission.run.runId, {
+            fencingToken: admission.fencingToken,
+            signal: cancellationController.signal
+          }) : null;
+          const onStage = (stage) => {
+            if (cancellationController.signal.aborted) return;
+            const id = typeof stage.id === "string" ? stage.id : "";
+            const at = id ? collectedStages.findIndex((held) => held.id === id) : -1;
+            if (at !== -1) collectedStages[at] = stage;
+            else collectedStages.push(stage);
+            if (!isRunningStage(stage)) {
+              stagesSeen += 1;
+              lastStage = { title: readStageTitle(stage), completed: stagesSeen };
+            }
+            if (reply.wantsStream) reply.stage(stage);
+            stageRecorder?.record(stage);
+          };
+          const askEndpoint = await resolveAskEndpoint(appkit);
+          const endpointResult = identity.token ? await invokeServingAsUser(
             appkit,
             payload,
             identity.token,
             onStage,
-            SERVING_INVOKE_TIMEOUT_MS,
+            Math.max(0, runDeadlineAt.getTime() - Date.now()),
             askEndpoint,
             cancellationController.signal
           ) : await invokeServing(
             appkit,
             payload,
             onStage,
-            SERVING_INVOKE_TIMEOUT_MS,
+            Math.max(0, runDeadlineAt.getTime() - Date.now()),
             void 0,
             askEndpoint,
             cancellationController.signal
           );
-        } finally {
-          cancellationWatch?.stop();
-          unregisterCancellation();
-        }
-        ranAsSignedInUser = Boolean(identity.token);
-        const refused2 = readAgentRefusal(endpointResult, { requestId: identity.correlationId });
-        if (refused2) {
-          console.warn(
-            `[identity] Agent refused request ${identity.correlationId} with ${refused2.code}${refused2.execution_identity ? `, executing as ${refused2.execution_identity.mode}` : ""}. Returning unavailable rather than an answer.`
-          );
-          await settleRun(appkit, admission, { to: terminalStateFor(refused2.code), code: refused2.code });
-          reply.status(unavailableHttpStatus(refused2.code)).json(refused2);
-          return;
-        }
-        const plan = extractAnalysisPlan(endpointResult);
-        if (plan && approvedPlanId === plan.id) {
-          console.error(
-            `[serving] Approved plan ${approvedPlanId} was re-proposed unchanged instead of being run. Refusing to loop the approval, and refusing to answer with representative figures the user did not ask for.`
-          );
-          await settleRun(appkit, admission, { to: "FAILED", code: "DEPENDENCY_UNAVAILABLE" });
-          reply.status(502).json({
-            error: "plan_not_executed",
-            planId: plan.id,
-            message: "The agent proposed the same plan again instead of running the one you approved. Nothing was run, and this is not an answer to your question. Start the question again to get a fresh plan."
-          });
-          return;
-        }
-        if (plan) {
-          const reissued = Boolean(approvedPlanId);
-          if (reissued) {
+          throwIfRunCancelled(cancellationController.signal, admission.run?.runId);
+          clearTimeout(deadlineTimer);
+          ranAsSignedInUser = Boolean(identity.token);
+          const refused2 = readAgentRefusal(endpointResult, { requestId: identity.correlationId });
+          if (refused2) {
             console.warn(
-              `[serving] Approval for plan ${approvedPlanId} was refused by the agent, which re-issued plan ${plan.id}. Returning the new plan for approval rather than answering a question the user has not authorised yet.`
+              `[identity] Agent refused request ${identity.correlationId} with ${refused2.code}${refused2.execution_identity ? `, executing as ${refused2.execution_identity.mode}` : ""}. Returning unavailable rather than an answer.`
             );
+            await settleRun(appkit, admission, { to: terminalStateFor(refused2.code), code: refused2.code });
+            reply.status(unavailableHttpStatus(refused2.code)).json(refused2);
+            return;
           }
-          const planResponse = {
-            type: "plan",
-            mode: "live",
-            plan,
-            // Recorded on the response, and so into `response_json`, because a
-            // re-issue is the interesting event when someone asks later why an
-            // approval did not run.
-            ...reissued ? { supersededApprovalId: approvedPlanId } : {}
-          };
-          await safeQuery(
-            appkit,
-            `INSERT INTO ${APP_SCHEMA}.messages
+          const plan = extractAnalysisPlan(endpointResult);
+          if (plan && approvedPlanId === plan.id) {
+            console.error(
+              `[serving] Approved plan ${approvedPlanId} was re-proposed unchanged instead of being run. Refusing to loop the approval, and refusing to answer with representative figures the user did not ask for.`
+            );
+            await settleRun(appkit, admission, { to: "FAILED", code: "DEPENDENCY_UNAVAILABLE" });
+            reply.status(502).json({
+              error: "plan_not_executed",
+              planId: plan.id,
+              message: "The agent proposed the same plan again instead of running the one you approved. Nothing was run, and this is not an answer to your question. Start the question again to get a fresh plan."
+            });
+            return;
+          }
+          if (plan) {
+            const reissued = Boolean(approvedPlanId);
+            if (reissued) {
+              console.warn(
+                `[serving] Approval for plan ${approvedPlanId} was refused by the agent, which re-issued plan ${plan.id}. Returning the new plan for approval rather than answering a question the user has not authorised yet.`
+              );
+            }
+            const planResponse = {
+              type: "plan",
+              mode: "live",
+              plan,
+              // Recorded on the response, and so into `response_json`, because a
+              // re-issue is the interesting event when someone asks later why an
+              // approval did not run.
+              ...reissued ? { supersededApprovalId: approvedPlanId } : {}
+            };
+            await safeQuery(
+              appkit,
+              `INSERT INTO ${APP_SCHEMA}.messages
              (id, conversation_id, role, content, response_json,
               app_principal, serving_principal, serving_principal_observed_at, access_mode,
               execution_mode, execution_identity_verified)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-            [
-              `msg-${crypto.randomUUID()}`,
-              conversationId,
-              "assistant",
-              plan.summary,
-              JSON.stringify(withAskRuntime(planResponse, askRuntime)),
-              ...executionIdentityColumns(email3, executionIdentityClaim(identity))
-            ]
-          );
-          await parkRun(appkit, admission, plan.id);
-          reply.json(planResponse);
-          return;
-        }
-        const clarification = extractClarification(endpointResult);
-        if (clarification) {
-          const honestClarification = withoutUntracedProcess(
-            bindServingMlflowTraceId(clarification, servingMlflowTraceId(endpointResult))
-          );
-          const clarificationResponse = {
-            type: "clarification",
-            mode: "live",
-            clarification: honestClarification
-          };
-          await safeQuery(
-            appkit,
-            `INSERT INTO ${APP_SCHEMA}.messages
+             SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
+              WHERE ${outputFenceSql(12, 13)}
+             RETURNING id`,
+              [
+                `msg-${crypto.randomUUID()}`,
+                conversationId,
+                "assistant",
+                plan.summary,
+                JSON.stringify(withAskRuntime(planResponse, askRuntime)),
+                ...executionIdentityColumns(email3, executionIdentityClaim(identity)),
+                ...outputFenceParams
+              ]
+            );
+            throwIfRunCancelled(cancellationController.signal, admission.run?.runId);
+            await parkRun(appkit, admission, plan.id);
+            reply.json(planResponse);
+            return;
+          }
+          const clarification = extractClarification(endpointResult);
+          if (clarification) {
+            const honestClarification = withoutUntracedProcess(
+              bindServingMlflowTraceId(clarification, servingMlflowTraceId(endpointResult))
+            );
+            const clarificationResponse = {
+              type: "clarification",
+              mode: "live",
+              clarification: honestClarification
+            };
+            await safeQuery(
+              appkit,
+              `INSERT INTO ${APP_SCHEMA}.messages
              (id, conversation_id, role, content, response_json, trace_id,
               app_principal, serving_principal, serving_principal_observed_at, access_mode,
               execution_mode, execution_identity_verified)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-            [
-              `msg-${clarification.id}`,
-              conversationId,
-              "assistant",
-              clarification.question,
-              JSON.stringify(withAskRuntime(clarificationResponse, askRuntime)),
-              honestClarification.trace.id,
-              ...executionIdentityColumns(email3, executionIdentityClaim(identity))
-            ]
-          );
+             SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+              WHERE ${outputFenceSql(13, 14)}
+             RETURNING id`,
+              [
+                `msg-${clarification.id}`,
+                conversationId,
+                "assistant",
+                clarification.question,
+                JSON.stringify(withAskRuntime(clarificationResponse, askRuntime)),
+                honestClarification.trace.id,
+                ...executionIdentityColumns(email3, executionIdentityClaim(identity)),
+                ...outputFenceParams
+              ]
+            );
+            throwIfRunCancelled(cancellationController.signal, admission.run?.runId);
+            await settleRun(appkit, admission, {
+              to: "CLARIFICATION_REQUIRED",
+              traceId: honestClarification.trace.id,
+              messageId: `msg-${clarification.id}`
+            });
+            reply.json(clarificationResponse);
+            return;
+          }
+          const structuredAnswer = extractStructuredAnswer(endpointResult);
+          const liveText = extractLiveText(endpointResult);
+          const platformTraceId = servingMlflowTraceId(endpointResult);
+          if (structuredAnswer) {
+            const withPlatform = bindServingMlflowTraceId(
+              { ...structuredAnswer, mode: "live", provenance: "live" },
+              platformTraceId
+            );
+            answer = asServedAnswer(attachRecordedStages(withPlatform, collectedStages));
+          } else if (liveText) {
+            answer = asServedAnswer(
+              attachRecordedStages(
+                bindServingMlflowTraceId(
+                  {
+                    ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
+                    mode: "live",
+                    provenance: "live"
+                  },
+                  platformTraceId
+                ),
+                collectedStages
+              )
+            );
+          } else {
+            const shape = describePayloadShape(endpointResult);
+            console.error(
+              `[serving] The endpoint answered, but with none of the four shapes this app can read (plan, clarification, structured answer, live text). ${shape}. Payload: ` + JSON.stringify(endpointResult).slice(0, 1200)
+            );
+            await settleRun(appkit, admission, {
+              to: terminalStateFor("OUTPUT_SCHEMA_VIOLATION"),
+              code: "OUTPUT_SCHEMA_VIOLATION"
+            });
+            reply.status(unavailableHttpStatus("OUTPUT_SCHEMA_VIOLATION")).json(
+              unavailableResult({
+                code: "OUTPUT_SCHEMA_VIOLATION",
+                requestId: identity.correlationId,
+                runId: null,
+                // The endpoint answered, so a run happened. What did not happen
+                // is anything this app could store as an answer, and claiming
+                // `not_stored` would assert a write failure nobody attempted.
+                persistence: "not_stored",
+                executionIdentity: executionIdentityClaim(identity),
+                detail: shape,
+                // The endpoint's status was 200 and saying so is the point: a
+                // reader who has been told the app cannot read the reply needs to
+                // know the reply arrived, or they go and check whether the
+                // endpoint is up. The shape IS the error here, so it travels as
+                // the provider message; there is no provider sentence to quote
+                // because the provider did not think anything had gone wrong.
+                evidence: {
+                  dependency: agentEndpointDependency(),
+                  status: 200,
+                  providerMessage: shape,
+                  ...lastStage ? { stage: lastStage } : {}
+                }
+              })
+            );
+            return;
+          }
+        } catch (error48) {
+          if (isRunDeadlineExceededError(error48)) {
+            console.warn(
+              `[serving] Run ${admission.run?.runId ?? identity.requestId} reached its ${servingTimeoutMs} ms deadline. The serving request and response reader were aborted; no partial output will be stored.`
+            );
+            await settleRun(appkit, admission, {
+              to: terminalStateFor("RUN_DEADLINE_EXCEEDED"),
+              code: "RUN_DEADLINE_EXCEEDED"
+            });
+            reply.status(unavailableHttpStatus("RUN_DEADLINE_EXCEEDED")).json(
+              unavailableResult({
+                code: "RUN_DEADLINE_EXCEEDED",
+                requestId: identity.correlationId,
+                runId: admission.run?.runId ?? null,
+                persistence: admission.run ? "stored" : "not_stored",
+                executionIdentity: executionIdentityClaim(identity),
+                detail: error48.message,
+                evidence: agentEndpointEvidence(error48, {
+                  principal: email3,
+                  ...lastStage ? { stage: lastStage } : {}
+                })
+              })
+            );
+            return;
+          }
+          if (isRunCancelledError(error48)) {
+            console.info(
+              `[serving] Run ${error48.runId} was cancelled. App-side consumption stopped and no replacement invocation was started; the current Model Serving invocation may still finish server-side.`
+            );
+            reply.status(409).json({
+              type: "cancelled",
+              state: "CANCELLED",
+              message: "Stopped.",
+              runId: admission.run?.runId ?? error48.runId,
+              correlationId: identity.correlationId,
+              completedStages: stagesSeen,
+              modelServing: "App-side stream consumption stopped and no replacement invocation was started. The current model invocation may still finish server-side."
+            });
+            return;
+          }
+          if (error48 instanceof StreamLimitExceededError) {
+            console.error(
+              `[serving] The stream exceeded its ${error48.limit} bound. Transport was terminated and partial output was discarded.`
+            );
+            await settleRun(appkit, admission, {
+              to: terminalStateFor("STREAM_INTERRUPTED"),
+              code: "STREAM_INTERRUPTED"
+            });
+            reply.status(unavailableHttpStatus("STREAM_INTERRUPTED")).json(
+              unavailableResult({
+                code: "STREAM_INTERRUPTED",
+                requestId: identity.correlationId,
+                runId: admission.run?.runId ?? null,
+                persistence: admission.run ? "stored" : "not_stored",
+                executionIdentity: executionIdentityClaim(identity),
+                detail: error48.message,
+                evidence: agentEndpointEvidence(error48, {
+                  principal: email3,
+                  ...lastStage ? { stage: lastStage } : {}
+                })
+              })
+            );
+            return;
+          }
+          if (error48 instanceof TruncatedStreamError && error48.stages > 0) {
+            console.error(
+              `[serving] The stream ended after ${error48.stages} stage(s). The partial run was kept and no second invocation was started.`
+            );
+            await settleRun(appkit, admission, {
+              to: terminalStateFor("STREAM_INTERRUPTED"),
+              code: "STREAM_INTERRUPTED"
+            });
+            reply.status(unavailableHttpStatus("STREAM_INTERRUPTED")).json(
+              unavailableResult({
+                code: "STREAM_INTERRUPTED",
+                requestId: identity.correlationId,
+                runId: admission.run?.runId ?? null,
+                persistence: admission.run ? "stored" : "not_stored",
+                executionIdentity: executionIdentityClaim(identity),
+                detail: error48.message,
+                evidence: agentEndpointEvidence(error48, {
+                  principal: email3,
+                  ...lastStage ? { stage: lastStage } : {}
+                })
+              })
+            );
+            return;
+          }
+          if (error48 instanceof AuthorizationRefused) {
+            await settleRun(appkit, admission, { to: terminalStateFor(error48.code), code: error48.code });
+            reply.status(error48.httpStatus).json(
+              unavailableResult({
+                code: error48.code,
+                requestId: identity.correlationId,
+                runId: null,
+                persistence: "not_stored",
+                // What was asked for, and unverified, because the endpoint is the
+                // thing that just declined to confirm it.
+                executionIdentity: refusedIdentityClaim(),
+                detail: error48.disclosable,
+                // Built here rather than through `agentEndpointEvidence`, which
+                // forwards the provider's sentence unedited. This is the one path
+                // that may not: for the reason set out on
+                // `AuthorizationRefused.disclosable`, Unity Catalog names the
+                // table, the privilege and its owner, and this body reaches the
+                // person who has just been told they may not read that table.
+                //
+                // The STATUS still travels, and it is the part that resolves the
+                // ambiguity a reader is actually stuck on -- 401 means their
+                // session, 403 means their grants, and those are two different
+                // people to go and see. It names nothing.
+                evidence: {
+                  dependency: agentEndpointDependency(),
+                  // The endpoint's status, not the taxonomy's. They agree today
+                  // and they are different facts, and this panel is the one place
+                  // that has to say which one it is quoting.
+                  ...error48.providerStatus === void 0 ? {} : { status: error48.providerStatus },
+                  providerMessage: error48.disclosable,
+                  principal: email3,
+                  ...lastStage ? { stage: lastStage } : {}
+                }
+              })
+            );
+            return;
+          }
+          const detail = error48 instanceof Error ? error48.message : String(error48);
+          console.error(`[serving] The agent endpoint call failed and nothing ran. Cause: ${detail}`);
           await settleRun(appkit, admission, {
-            to: "CLARIFICATION_REQUIRED",
-            traceId: honestClarification.trace.id,
-            messageId: `msg-${clarification.id}`
+            to: terminalStateFor("DEPENDENCY_UNAVAILABLE"),
+            code: "DEPENDENCY_UNAVAILABLE"
           });
-          reply.json(clarificationResponse);
-          return;
-        }
-        const structuredAnswer = extractStructuredAnswer(endpointResult);
-        const liveText = extractLiveText(endpointResult);
-        const platformTraceId = servingMlflowTraceId(endpointResult);
-        if (structuredAnswer) {
-          const withPlatform = bindServingMlflowTraceId(
-            { ...structuredAnswer, mode: "live", provenance: "live" },
-            platformTraceId
-          );
-          answer = asServedAnswer(attachRecordedStages(withPlatform, collectedStages));
-        } else if (liveText) {
-          answer = asServedAnswer(
-            attachRecordedStages(
-              bindServingMlflowTraceId(
-                {
-                  ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
-                  mode: "live",
-                  provenance: "live"
-                },
-                platformTraceId
-              ),
-              collectedStages
-            )
-          );
-        } else {
-          const shape = describePayloadShape(endpointResult);
-          console.error(
-            `[serving] The endpoint answered, but with none of the four shapes this app can read (plan, clarification, structured answer, live text). ${shape}. Payload: ` + JSON.stringify(endpointResult).slice(0, 1200)
-          );
-          await settleRun(appkit, admission, {
-            to: terminalStateFor("OUTPUT_SCHEMA_VIOLATION"),
-            code: "OUTPUT_SCHEMA_VIOLATION"
-          });
-          reply.status(unavailableHttpStatus("OUTPUT_SCHEMA_VIOLATION")).json(
+          reply.status(unavailableHttpStatus("DEPENDENCY_UNAVAILABLE")).json(
             unavailableResult({
-              code: "OUTPUT_SCHEMA_VIOLATION",
+              code: "DEPENDENCY_UNAVAILABLE",
               requestId: identity.correlationId,
               runId: null,
-              // The endpoint answered, so a run happened. What did not happen
-              // is anything this app could store as an answer, and claiming
-              // `not_stored` would assert a write failure nobody attempted.
               persistence: "not_stored",
               executionIdentity: executionIdentityClaim(identity),
-              detail: shape,
-              // The endpoint's status was 200 and saying so is the point: a
-              // reader who has been told the app cannot read the reply needs to
-              // know the reply arrived, or they go and check whether the
-              // endpoint is up. The shape IS the error here, so it travels as
-              // the provider message; there is no provider sentence to quote
-              // because the provider did not think anything had gone wrong.
-              evidence: {
-                dependency: agentEndpointDependency(),
-                status: 200,
-                providerMessage: shape,
-                ...lastStage ? { stage: lastStage } : {}
-              }
-            })
-          );
-          return;
-        }
-      } catch (error48) {
-        if (isRunCancelledError(error48)) {
-          console.info(
-            `[serving] Run ${error48.runId} was cancelled. App-side consumption stopped and no replacement invocation was started; the current Model Serving invocation may still finish server-side.`
-          );
-          reply.status(409).json({
-            type: "cancelled",
-            state: "CANCELLED",
-            message: "Stopped.",
-            runId: admission.run?.runId ?? error48.runId,
-            correlationId: identity.correlationId,
-            completedStages: stagesSeen,
-            modelServing: "App-side stream consumption stopped and no replacement invocation was started. The current model invocation may still finish server-side."
-          });
-          return;
-        }
-        if (error48 instanceof TruncatedStreamError && error48.stages > 0) {
-          console.error(
-            `[serving] The stream ended after ${error48.stages} stage(s). The partial run was kept and no second invocation was started.`
-          );
-          await settleRun(appkit, admission, {
-            to: terminalStateFor("STREAM_INTERRUPTED"),
-            code: "STREAM_INTERRUPTED"
-          });
-          reply.status(unavailableHttpStatus("STREAM_INTERRUPTED")).json(
-            unavailableResult({
-              code: "STREAM_INTERRUPTED",
-              requestId: identity.correlationId,
-              runId: admission.run?.runId ?? null,
-              persistence: admission.run ? "stored" : "not_stored",
-              executionIdentity: executionIdentityClaim(identity),
-              detail: error48.message,
+              detail,
+              // Verbatim, and this is the path the failure the user reported came
+              // down. Everything here describes our own infrastructure -- a
+              // timeout, a socket, a Model Serving 5xx -- so there is nothing to
+              // withhold, and the reader's alternative was "a service this needed
+              // did not respond just now" over a payload that named the endpoint
+              // and quoted its error.
               evidence: agentEndpointEvidence(error48, {
                 principal: email3,
                 ...lastStage ? { stage: lastStage } : {}
@@ -177803,149 +179040,94 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           );
           return;
         }
-        if (error48 instanceof AuthorizationRefused) {
-          await settleRun(appkit, admission, { to: terminalStateFor(error48.code), code: error48.code });
-          reply.status(error48.httpStatus).json(
-            unavailableResult({
-              code: error48.code,
-              requestId: identity.correlationId,
-              runId: null,
-              persistence: "not_stored",
-              // What was asked for, and unverified, because the endpoint is the
-              // thing that just declined to confirm it.
-              executionIdentity: refusedIdentityClaim(),
-              detail: error48.disclosable,
-              // Built here rather than through `agentEndpointEvidence`, which
-              // forwards the provider's sentence unedited. This is the one path
-              // that may not: for the reason set out on
-              // `AuthorizationRefused.disclosable`, Unity Catalog names the
-              // table, the privilege and its owner, and this body reaches the
-              // person who has just been told they may not read that table.
-              //
-              // The STATUS still travels, and it is the part that resolves the
-              // ambiguity a reader is actually stuck on -- 401 means their
-              // session, 403 means their grants, and those are two different
-              // people to go and see. It names nothing.
-              evidence: {
-                dependency: agentEndpointDependency(),
-                // The endpoint's status, not the taxonomy's. They agree today
-                // and they are different facts, and this panel is the one place
-                // that has to say which one it is quoting.
-                ...error48.providerStatus === void 0 ? {} : { status: error48.providerStatus },
-                providerMessage: error48.disclosable,
-                principal: email3,
-                ...lastStage ? { stage: lastStage } : {}
-              }
-            })
-          );
-          return;
-        }
-        const detail = error48 instanceof Error ? error48.message : String(error48);
-        console.error(`[serving] The agent endpoint call failed and nothing ran. Cause: ${detail}`);
-        await settleRun(appkit, admission, {
-          to: terminalStateFor("DEPENDENCY_UNAVAILABLE"),
-          code: "DEPENDENCY_UNAVAILABLE"
-        });
-        reply.status(unavailableHttpStatus("DEPENDENCY_UNAVAILABLE")).json(
-          unavailableResult({
-            code: "DEPENDENCY_UNAVAILABLE",
-            requestId: identity.correlationId,
-            runId: null,
-            persistence: "not_stored",
-            executionIdentity: executionIdentityClaim(identity),
-            detail,
-            // Verbatim, and this is the path the failure the user reported came
-            // down. Everything here describes our own infrastructure -- a
-            // timeout, a socket, a Model Serving 5xx -- so there is nothing to
-            // withhold, and the reader's alternative was "a service this needed
-            // did not respond just now" over a payload that named the endpoint
-            // and quoted its error.
-            evidence: agentEndpointEvidence(error48, {
-              principal: email3,
-              ...lastStage ? { stage: lastStage } : {}
-            })
-          })
+        const disclosed = discloseExecutingIdentity(
+          withoutUntracedProcess(discloseAnswerProvenance(answer)),
+          ranAsSignedInUser
         );
-        return;
-      }
-      const disclosed = discloseExecutingIdentity(
-        withoutUntracedProcess(discloseAnswerProvenance(answer)),
-        ranAsSignedInUser
-      );
-      const persisted = await readStored(
-        appkit,
-        "POST /api/insights/ask (answer)",
-        `INSERT INTO ${APP_SCHEMA}.messages
+        if (replyIfCancelled()) return;
+        const persisted = await readStored(
+          appkit,
+          "POST /api/insights/ask (answer)",
+          `INSERT INTO ${APP_SCHEMA}.messages
          (id, conversation_id, role, content, response_json, trace_id,
           app_principal, serving_principal, serving_principal_observed_at, access_mode,
           execution_mode, execution_identity_verified)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [
-          disclosed.id,
-          conversationId,
-          "assistant",
-          disclosed.narrative,
-          JSON.stringify(withAskRuntime(disclosed, askRuntime)),
-          disclosed.trace.id,
-          // Recorded on the answer rather than on the question, because these
-          // name the authority something RAN under and a question runs nothing.
-          ...executionIdentityColumns(email3, executionIdentityClaim(identity))
-        ]
-      );
-      const runStored = persisted.available && conversationAddressable;
-      if (!runStored) {
-        const cause = !persisted.available && persisted.error || !conversationWrite.available && conversationWrite.error || "the write reported no error";
-        console.error(
-          `[lakebase] The answer to this question was not stored, so run ${disclosed.id} does not exist for the Run Explorer to open and this turn is absent from the conversation history. The answer itself was returned. Last error: ${cause}`
-        );
-      }
-      await settleRun(
-        appkit,
-        admission,
-        runStored ? { to: "SUCCEEDED", traceId: disclosed.trace.id, messageId: disclosed.id } : { to: "PERSISTENCE_FAILED", code: "PERSISTENCE_UNAVAILABLE", traceId: disclosed.trace.id }
-      );
-      void readBenchmarkSettings(appkit).then(async (settings) => {
-        const judgeEndpoint = settings.judgeEndpoint.trim();
-        let invokeJudge;
-        if (judgeEndpoint) {
-          const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
-          if (!workspaceClient) workspaceClient = new WorkspaceClient6({});
-          const client = workspaceClient;
-          invokeJudge = (payload) => client.apiClient.request({
-            path: servingInvocationPath(judgeEndpoint),
-            method: "POST",
-            payload,
-            headers: new Headers({ Accept: "application/json" }),
-            raw: false
-          });
-        }
-        const turns = await loadConversationTurns(appkit, conversationId).catch(() => []);
-        scheduleLiveAskScore({
-          client: appkit,
-          settings,
-          invokeJudge,
-          turn: {
+         SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+          WHERE ${outputFenceSql(13, 14)}
+         RETURNING id`,
+          [
+            disclosed.id,
             conversationId,
-            messageId: disclosed.id,
-            traceId: disclosed.trace.id,
-            question: prompt,
-            response: [disclosed.takeaway, disclosed.narrative].filter(Boolean).join("\n"),
-            sql: disclosed.sql ?? "",
-            note: "",
-            durationMs: disclosed.trace.totalMs,
-            context: disclosed.sql ?? "",
-            turns
+            "assistant",
+            disclosed.narrative,
+            JSON.stringify(withAskRuntime(disclosed, askRuntime)),
+            disclosed.trace.id,
+            // Recorded on the answer rather than on the question, because these
+            // name the authority something RAN under and a question runs nothing.
+            ...executionIdentityColumns(email3, executionIdentityClaim(identity)),
+            ...outputFenceParams
+          ]
+        );
+        const runStored = persisted.available && conversationAddressable && (!hasOutputFence || persisted.rows.length > 0);
+        if (replyIfCancelled()) return;
+        if (!runStored) {
+          const cause = !persisted.available && persisted.error || !conversationWrite.available && conversationWrite.error || "the write reported no error";
+          console.error(
+            `[lakebase] The answer to this question was not stored, so run ${disclosed.id} does not exist for the Run Explorer to open and this turn is absent from the conversation history. The answer itself was returned. Last error: ${cause}`
+          );
+        }
+        await settleRun(
+          appkit,
+          admission,
+          runStored ? { to: "SUCCEEDED", traceId: disclosed.trace.id, messageId: disclosed.id } : { to: "PERSISTENCE_FAILED", code: "PERSISTENCE_UNAVAILABLE", traceId: disclosed.trace.id }
+        );
+        void readBenchmarkSettings(appkit).then(async (settings) => {
+          const judgeEndpoint = settings.judgeEndpoint.trim();
+          let invokeJudge;
+          if (judgeEndpoint) {
+            const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+            if (!workspaceClient) workspaceClient = new WorkspaceClient6({});
+            const client = workspaceClient;
+            invokeJudge = (payload) => client.apiClient.request({
+              path: servingInvocationPath(judgeEndpoint),
+              method: "POST",
+              payload,
+              headers: new Headers({ Accept: "application/json" }),
+              raw: false
+            });
           }
+          const turns = await loadConversationTurns(appkit, conversationId).catch(() => []);
+          scheduleLiveAskScore({
+            client: appkit,
+            settings,
+            invokeJudge,
+            turn: {
+              conversationId,
+              messageId: disclosed.id,
+              traceId: disclosed.trace.id,
+              question: prompt,
+              response: [disclosed.takeaway, disclosed.narrative].filter(Boolean).join("\n"),
+              sql: disclosed.sql ?? "",
+              note: "",
+              durationMs: disclosed.trace.totalMs,
+              context: disclosed.sql ?? "",
+              turns
+            }
+          });
+        }).catch((error48) => {
+          console.warn("[eval-live-scores] Sampled Ask scoring was not started:", error48.message);
         });
-      }).catch((error48) => {
-        console.warn("[eval-live-scores] Sampled Ask scoring was not started:", error48.message);
-      });
-      reply.json({
-        type: "answer",
-        ...disclosed,
-        runStored,
-        execution_identity: executionIdentityClaim(identity)
-      });
+        reply.json({
+          type: "answer",
+          ...disclosed,
+          runStored,
+          execution_identity: executionIdentityClaim(identity)
+        });
+      } finally {
+        clearTimeout(deadlineTimer);
+        cancellationWatch?.stop();
+        unregisterCancellation();
+      }
     });
     app.get("/api/runs", async (req, res) => {
       const email3 = userEmail(req);
@@ -178304,9 +179486,13 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
       () => void 0
     );
   }
+  void storeReady.then(
+    () => void startTelemetryHousekeeping(appkit.lakebase),
+    () => void 0
+  );
   return Promise.resolve({ storeReady });
 }
-var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, ResourceCallSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, NO_WAREHOUSE_CANCELLATION, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
+var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, ResourceCallSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, parseAttachmentBody, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, NO_WAREHOUSE_CANCELLATION, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
 var init_insights_routes = __esm({
   "server/routes/insights-routes.ts"() {
     init_app_schema();
@@ -178318,6 +179504,7 @@ var init_insights_routes = __esm({
     init_migrations();
     init_app_activity();
     init_app_session();
+    init_telemetry_retention();
     init_databricks_links();
     init_representative_answer();
     init_mlflow_trace_id();
@@ -178352,7 +179539,6 @@ var init_insights_routes = __esm({
     init_run_request_hash();
     init_run_state();
     init_handler_failures();
-    init_deadline();
     init_request_latency();
     init_warehouse_warmup();
     init_warehouse_cancellation();
@@ -178634,9 +179820,10 @@ var init_insights_routes = __esm({
       trace: TraceSchema
     });
     ALLOWED_ATTACHMENT_TYPES = /* @__PURE__ */ new Set(["txt", "md", "csv", "json"]);
-    MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+    MAX_ATTACHMENT_BYTES = MAX_PDF_BYTES;
     MAX_ATTACHMENT_TEXT = 5e4;
     MAX_CONVERSATION_ATTACHMENT_TEXT = 8e4;
+    parseAttachmentBody = (0, import_express3.raw)({ type: "application/octet-stream", limit: MAX_ATTACHMENT_BYTES });
     PLAN_APPROVAL_MESSAGE = "Approved the proposed analysis plan.";
     SHARED_RUN_OWNER = "Another team member";
     RUNS_QUERY = `
@@ -179465,14 +180652,14 @@ async function listDeclarableTablesInSchema(input) {
   const call = input.fetchImpl ?? fetch;
   const timeoutMs = input.timeoutMs ?? 15e3;
   const found = [];
-  let pageToken = "";
+  let pageToken2 = "";
   for (let pages = 0; pages < 20; pages += 1) {
     const query = [
       `catalog_name=${encodeURIComponent(catalog2)}`,
       `schema_name=${encodeURIComponent(schema2)}`,
       "omit_columns=false",
       "max_results=100",
-      pageToken ? `page_token=${encodeURIComponent(pageToken)}` : ""
+      pageToken2 ? `page_token=${encodeURIComponent(pageToken2)}` : ""
     ].filter(Boolean).join("&");
     try {
       const response = await call(`${input.host}${TABLES_PATH}?${query}`, {
@@ -179487,8 +180674,8 @@ async function listDeclarableTablesInSchema(input) {
         const table = listedTableFromBody(row2);
         if (table) found.push(table);
       }
-      pageToken = String(body.next_page_token ?? "").trim();
-      if (!pageToken) break;
+      pageToken2 = String(body.next_page_token ?? "").trim();
+      if (!pageToken2) break;
     } catch {
       return tablesFromListing(found, input.denylist);
     }
@@ -180318,7 +181505,9 @@ function sourceFolderPath(body) {
 }
 function appTags(raw2) {
   if (Array.isArray(raw2)) {
-    return raw2.map((entry) => typeof entry === "string" ? entry.trim() : textOf3(objectOf(entry).value) || textOf3(objectOf(entry).key)).filter(Boolean);
+    return raw2.map(
+      (entry) => typeof entry === "string" ? entry.trim() : textOf3(objectOf(entry).value) || textOf3(objectOf(entry).key)
+    ).filter(Boolean);
   }
   const map2 = objectOf(raw2);
   return Object.values(map2).map(textOf3).filter(Boolean);
@@ -180416,11 +181605,12 @@ async function readAppFacts(input = {}) {
   }
   return appFacts({ read: read2, workspaceHost: workspaceHost3, otelExporter, otelExport, sourceFolderId });
 }
-var APPS_PATH2, APP_NAME_ENV, OTEL_ENDPOINT_ENV, COMPUTE_ENVELOPES, WORKSPACE_STATUS_PATH, WORKSPACE_PREFIX, workspaceAppReader, knownFolderIds, workspaceFolderIdResolver;
+var APPS_PATH2, APP_NAME_ENV, OTEL_ENDPOINT_ENV, COMPUTE_ENVELOPES, WORKSPACE_STATUS_PATH, WORKSPACE_PREFIX, workspaceAppReader, FOLDER_ID_CACHE_MAX_ENTRIES, FOLDER_ID_CACHE_TTL_MS, knownFolderIds, workspaceFolderIdResolver;
 var init_app_metadata = __esm({
   "server/lib/app-metadata.ts"() {
     init_app_facts();
     init_databricks_links();
+    init_expiring_lru();
     init_ops_telemetry();
     APPS_PATH2 = "/api/2.0/apps";
     APP_NAME_ENV = "DATABRICKS_APP_NAME";
@@ -180449,7 +181639,9 @@ var init_app_metadata = __esm({
         return { kind: "no-response", message };
       }
     };
-    knownFolderIds = /* @__PURE__ */ new Map();
+    FOLDER_ID_CACHE_MAX_ENTRIES = 256;
+    FOLDER_ID_CACHE_TTL_MS = 60 * 6e4;
+    knownFolderIds = new ExpiringLruCache(FOLDER_ID_CACHE_MAX_ENTRIES, FOLDER_ID_CACHE_TTL_MS);
     workspaceFolderIdResolver = async (path20) => {
       const wanted = path20.trim();
       if (!wanted) return "";
@@ -181330,7 +182522,95 @@ var init_browse_contract = __esm({
   }
 });
 
+// server/lib/discovery-control.ts
+function abortError(signal) {
+  return signal.reason instanceof Error ? signal.reason : new DOMException("Aborted", "AbortError");
+}
+var DISCOVERY_MAX_CONCURRENCY, DISCOVERY_CACHE_TTL_MS, DISCOVERY_CACHE_MAX_ENTRIES, DiscoveryLimiter, discoveryLimiter, DiscoveryPageCache;
+var init_discovery_control = __esm({
+  "server/lib/discovery-control.ts"() {
+    DISCOVERY_MAX_CONCURRENCY = 4;
+    DISCOVERY_CACHE_TTL_MS = 1e4;
+    DISCOVERY_CACHE_MAX_ENTRIES = 128;
+    DiscoveryLimiter = class {
+      constructor(concurrency = DISCOVERY_MAX_CONCURRENCY) {
+        this.concurrency = concurrency;
+      }
+      active = 0;
+      queue = [];
+      run(signal, work) {
+        if (signal?.aborted) return Promise.reject(abortError(signal));
+        return new Promise((resolve2, reject) => {
+          const queued = { signal, run: work, resolve: resolve2, reject };
+          if (signal) {
+            const abort = () => {
+              const index = this.queue.indexOf(queued);
+              if (index >= 0) this.queue.splice(index, 1);
+              reject(abortError(signal));
+            };
+            signal.addEventListener("abort", abort, { once: true });
+            queued.removeAbort = () => signal.removeEventListener("abort", abort);
+          }
+          this.queue.push(queued);
+          this.drain();
+        });
+      }
+      drain() {
+        while (this.active < this.concurrency && this.queue.length > 0) {
+          const queued = this.queue.shift();
+          if (queued.signal?.aborted) {
+            queued.removeAbort?.();
+            queued.reject(abortError(queued.signal));
+            continue;
+          }
+          queued.removeAbort?.();
+          this.active += 1;
+          void queued.run().then(queued.resolve, queued.reject).finally(() => {
+            this.active -= 1;
+            this.drain();
+          });
+        }
+      }
+    };
+    discoveryLimiter = new DiscoveryLimiter();
+    DiscoveryPageCache = class {
+      constructor(maxEntries = DISCOVERY_CACHE_MAX_ENTRIES, ttlMs = DISCOVERY_CACHE_TTL_MS) {
+        this.maxEntries = maxEntries;
+        this.ttlMs = ttlMs;
+      }
+      entries = /* @__PURE__ */ new Map();
+      get(key2, now = Date.now()) {
+        const entry = this.entries.get(key2);
+        if (!entry) return void 0;
+        if (entry.expiresAt <= now) {
+          this.entries.delete(key2);
+          return void 0;
+        }
+        this.entries.delete(key2);
+        this.entries.set(key2, entry);
+        return structuredClone(entry.value);
+      }
+      set(key2, value, now = Date.now()) {
+        this.entries.delete(key2);
+        this.entries.set(key2, { expiresAt: now + this.ttlMs, value: structuredClone(value) });
+        while (this.entries.size > this.maxEntries) {
+          const oldest = this.entries.keys().next().value;
+          if (oldest === void 0) break;
+          this.entries.delete(oldest);
+        }
+      }
+      clear() {
+        this.entries.clear();
+      }
+      get size() {
+        return this.entries.size;
+      }
+    };
+  }
+});
+
 // server/lib/browse-assets.ts
+import { createHash as createHash8 } from "node:crypto";
 function scopeForBrowsePath(path20) {
   const exact = BROWSE_SCOPE_BY_PATH[path20];
   if (exact) return exact;
@@ -181358,30 +182638,61 @@ function unavailableNoAppsScope(kind, family) {
     detail: browseAppsHasNoScopeDetail(family)
   };
 }
-function failed2(kind, detail, error48 = "") {
-  return { status: "failed", kind, detail, error: error48 };
+function failed2(kind, detail, error48 = "", incompleteReason = "failed") {
+  return { status: "failed", kind, detail, error: error48, incomplete_reason: incompleteReason };
 }
-function ok(kind, items, nextPageToken = "", path20 = "") {
+function ok(kind, items, nextPageToken = "", path20 = "", page = 1) {
+  const capped = page >= BROWSE_PAGE_LIMIT && Boolean(nextPageToken);
   return {
     status: "ok",
     kind,
     items,
-    next_page_token: nextPageToken,
-    path: path20
+    next_page_token: capped ? "" : nextPageToken,
+    path: path20,
+    pagination: {
+      complete: !nextPageToken,
+      incomplete_reason: nextPageToken ? capped ? "page_cap" : "more_available" : "",
+      page,
+      page_limit: BROWSE_PAGE_LIMIT,
+      page_size: BROWSE_PAGE_SIZE,
+      returned: items.length
+    }
   };
+}
+function cacheKey(pathAndQuery, options) {
+  const principal = options.principal?.trim().toLocaleLowerCase() ?? "";
+  if (!principal) return "";
+  const tokenHash = createHash8("sha256").update(options.token).digest("base64url").slice(0, 16);
+  return `${principal}\0${tokenHash}\0${pathAndQuery}`;
+}
+function combinedBrowseSignal(options) {
+  const timeout2 = AbortSignal.timeout(options.timeoutMs ?? BROWSE_TIMEOUT_MS);
+  return options.signal ? AbortSignal.any([options.signal, timeout2]) : timeout2;
 }
 async function workspaceGet(pathAndQuery, options) {
   const call = options.fetchImpl ?? fetch;
-  const timeoutMs = options.timeoutMs ?? BROWSE_TIMEOUT_MS;
+  const key2 = cacheKey(pathAndQuery, options);
+  const cached3 = key2 ? pageCache.get(key2) : void 0;
+  if (cached3) return cached3;
+  const signal = combinedBrowseSignal(options);
   try {
-    const response = await call(`${options.host}${pathAndQuery}`, {
-      method: "GET",
-      headers: { authorization: `Bearer ${options.token}` },
-      signal: AbortSignal.timeout(timeoutMs)
-    });
+    const response = await discoveryLimiter.run(
+      signal,
+      () => call(`${options.host}${pathAndQuery}`, {
+        method: "GET",
+        headers: { authorization: `Bearer ${options.token}` },
+        signal
+      })
+    );
     const body = await response.json().catch(() => ({}));
-    return { kind: "http", status: response.status, body: body ?? {} };
+    const answer = { kind: "http", status: response.status, body: body ?? {} };
+    if (key2 && response.status >= 200 && response.status < 300) pageCache.set(key2, answer);
+    return answer;
   } catch (error48) {
+    if (signal.aborted) {
+      const reasonName = signal.reason?.name;
+      return reasonName === "TimeoutError" ? { kind: "timeout" } : { kind: "cancelled" };
+    }
     const name2 = error48?.name;
     if (name2 === "TimeoutError" || name2 === "AbortError") return { kind: "timeout" };
     return { kind: "unreachable", message: error48?.message ?? String(error48) };
@@ -181403,7 +182714,15 @@ function browseBlockedByScope(input) {
 function interpretBrowseAnswer(input) {
   const { kind, apiPath, answer } = input;
   if (answer.kind === "timeout") {
-    return failed2(kind, "The workspace did not answer in time, so nothing about this list was established.", "timeout");
+    return failed2(
+      kind,
+      "The workspace did not answer in time, so nothing about this list was established.",
+      "timeout",
+      "deadline"
+    );
+  }
+  if (answer.kind === "cancelled") {
+    return failed2(kind, "Resource discovery was cancelled, so this list is incomplete.", "cancelled", "cancelled");
   }
   if (answer.kind === "unreachable") {
     return failed2(kind, "The workspace could not be asked for this list, so nothing was established.", answer.message);
@@ -181411,7 +182730,7 @@ function interpretBrowseAnswer(input) {
   const { status, body } = answer;
   if (status >= 200 && status < 300) {
     const parsed = input.itemsFromBody(body);
-    return ok(kind, parsed.items, parsed.next_page_token, input.path ?? "");
+    return ok(kind, parsed.items, parsed.next_page_token, input.path ?? "", input.page ?? 1);
   }
   const code = text13(body.error_code);
   const message = text13(body.message);
@@ -181447,12 +182766,16 @@ function interpretBrowseAnswer(input) {
     message || `HTTP ${status}`
   );
 }
-function pageQuery(pageToken, pageSize = BROWSE_PAGE_SIZE) {
+function pageQuery(pageToken2, pageSize = BROWSE_PAGE_SIZE) {
   const parts = [`max_results=${pageSize}`];
-  if (pageToken) parts.push(`page_token=${encodeURIComponent(pageToken)}`);
+  if (pageToken2) parts.push(`page_token=${encodeURIComponent(pageToken2)}`);
   return parts.join("&");
 }
 async function listWithGuard(kind, apiPath, pathAndQuery, options, itemsFromBody, listedPath = "") {
+  const page = options.page ?? (pathAndQuery.includes("page_token=") ? 2 : 1);
+  if (!Number.isInteger(page) || page < 1 || page > BROWSE_PAGE_LIMIT) {
+    return failed2(kind, `Resource discovery is limited to ${BROWSE_PAGE_LIMIT} pages per list.`, "page cap reached");
+  }
   if (!options.host) {
     return failed2(kind, "This app was given no workspace host, so it does not know where to browse.");
   }
@@ -181472,7 +182795,8 @@ async function listWithGuard(kind, apiPath, pathAndQuery, options, itemsFromBody
     answer,
     itemsFromBody,
     path: listedPath,
-    tokenScopes: scopesFromToken(options.token)
+    tokenScopes: scopesFromToken(options.token),
+    page
   });
 }
 function catalogItems(body) {
@@ -181724,6 +183048,14 @@ function volumeItems(body) {
 async function listVolumes(options) {
   const catalog2 = options.catalog.trim();
   const schema2 = options.schema.trim();
+  const page = options.page ?? (options.pageToken ? 2 : 1);
+  if (!Number.isInteger(page) || page < 1 || page > BROWSE_PAGE_LIMIT) {
+    return failed2(
+      "volumes",
+      `Resource discovery is limited to ${BROWSE_PAGE_LIMIT} pages per list.`,
+      "page cap reached"
+    );
+  }
   if (!catalog2 || !schema2) {
     return failed2("volumes", "A catalog and schema are required to list volumes.");
   }
@@ -181747,7 +183079,8 @@ async function listVolumes(options) {
     apiPath,
     answer,
     itemsFromBody: volumeItems,
-    tokenScopes: scopesFromToken(options.token)
+    tokenScopes: scopesFromToken(options.token),
+    page
   });
 }
 function vectorSearchEndpointItems(body) {
@@ -181929,7 +183262,10 @@ function listExperiments(_options = {
 function browseRequestContext(input) {
   return {
     host: normalizeWorkspaceHost(input.host ?? process.env.DATABRICKS_HOST ?? ""),
-    token: input.token?.trim() ?? ""
+    token: input.token?.trim() ?? "",
+    principal: input.principal?.trim().toLocaleLowerCase(),
+    signal: input.signal,
+    page: input.page
   };
 }
 async function discoverConnectionTypes(options) {
@@ -181941,22 +183277,7 @@ async function discoverConnectionTypes(options) {
     listVectorSearchEndpoints(options)
   ]);
   const catalogs = roots[0];
-  const schemas = catalogs.status === "ok" ? await Promise.all(catalogs.items.map((catalog2) => listSchemas({ ...options, catalog: catalog2.id }))) : [];
-  const schemaParents = schemas.flatMap(
-    (response, catalogIndex) => response.status === "ok" ? response.items.map((schema2) => ({
-      catalog: catalogs.status === "ok" ? catalogs.items[catalogIndex].id : "",
-      schema: schema2.id
-    })) : []
-  );
-  const [tables, volumes] = await Promise.all([
-    Promise.all(schemaParents.map((parent) => listTables({ ...options, ...parent }))),
-    Promise.all(schemaParents.map((parent) => listVolumes({ ...options, ...parent })))
-  ]);
   const vectorEndpoints = roots[4];
-  const vectorIndexes = vectorEndpoints.status === "ok" ? await Promise.all(
-    vectorEndpoints.items.map((endpoint) => listVectorSearchIndexes({ ...options, endpoint: endpoint.id }))
-  ) : [];
-  const hasVisible = (responses) => responses.some((response) => response.status === "ok" && response.items.length > 0);
   const byKind = new Map(roots.map((response) => [response.kind, response]));
   const definitions = [
     { id: "catalog", label: "Catalog", rootKind: "catalogs" },
@@ -181978,27 +183299,33 @@ async function discoverConnectionTypes(options) {
     }
   ];
   const available = definitions.filter((definition) => {
-    if (definition.id === "schema") return hasVisible(schemas);
-    if (definition.id === "table") return hasVisible(tables);
-    if (definition.id === "volume") return hasVisible(volumes);
-    if (definition.id === "vector-search-index") return hasVisible(vectorIndexes);
+    if (definition.id === "schema" || definition.id === "table" || definition.id === "volume") {
+      return catalogs.status === "ok" && catalogs.items.length > 0;
+    }
+    if (definition.id === "vector-search-index") {
+      return vectorEndpoints.status === "ok" && vectorEndpoints.items.length > 0;
+    }
     const response = byKind.get(definition.rootKind);
     return response?.status === "ok" && response.items.length > 0;
   });
-  const leafResponses = [
-    ...available.some((entry) => entry.id === "schema") ? [] : schemas,
-    ...available.some((entry) => entry.id === "table") ? [] : tables,
-    ...available.some((entry) => entry.id === "volume") ? [] : volumes,
-    ...available.some((entry) => entry.id === "vector-search-index") ? [] : vectorIndexes
-  ];
-  const unavailable5 = [...roots, ...leafResponses].filter((response) => response.status !== "ok" || response.items.length === 0).map((response) => ({
+  const unavailable5 = roots.filter((response) => response.status !== "ok" || response.items.length === 0).map((response) => ({
     rootKind: response.kind,
     status: response.status === "unavailable" ? "denied" : response.status === "failed" ? "failed" : "empty",
     detail: response.status === "ok" ? "No visible resources were returned." : response.detail
   }));
-  return { available, unavailable: unavailable5 };
+  return {
+    available,
+    unavailable: unavailable5,
+    discovery: {
+      mode: "lazy",
+      complete: false,
+      incomplete_reason: "children_not_enumerated",
+      root_calls: roots.length,
+      concurrency_limit: DISCOVERY_MAX_CONCURRENCY
+    }
+  };
 }
-var BROWSE_TIMEOUT_MS, BROWSE_PAGE_SIZE, BROWSE_SCOPE_BY_PATH;
+var BROWSE_TIMEOUT_MS, BROWSE_PAGE_SIZE, BROWSE_PAGE_LIMIT, BROWSE_SCOPE_BY_PATH, pageCache;
 var init_browse_assets = __esm({
   "server/lib/browse-assets.ts"() {
     init_browse_contract();
@@ -182006,8 +183333,10 @@ var init_browse_assets = __esm({
     init_databricks_links();
     init_access_verification();
     init_dependency_probes();
+    init_discovery_control();
     BROWSE_TIMEOUT_MS = 15e3;
     BROWSE_PAGE_SIZE = 100;
+    BROWSE_PAGE_LIMIT = 5;
     BROWSE_SCOPE_BY_PATH = {
       "/api/2.1/unity-catalog/catalogs": "catalog.catalogs:read",
       "/api/2.1/unity-catalog/schemas": "catalog.schemas:read",
@@ -182027,6 +183356,7 @@ var init_browse_assets = __esm({
       "/api/2.0/vector-search/indexes": "vectorsearch.vector-search-indexes:read",
       "/api/2.0/postgres/projects": "postgres"
     };
+    pageCache = new DiscoveryPageCache();
   }
 });
 
@@ -183065,7 +184395,7 @@ __export(settings_routes_exports, {
   setupSettingsRoutes: () => setupSettingsRoutes,
   validateAndStoreNotebookPath: () => validateAndStoreNotebookPath
 });
-import { createHash as createHash8, randomUUID as randomUUID6 } from "node:crypto";
+import { createHash as createHash9, randomUUID as randomUUID6 } from "node:crypto";
 async function validateAndStoreNotebookPath(input) {
   const validate2 = input.validate ?? validateNotebookPath;
   const validation = await validate2(input.path, {
@@ -183539,7 +184869,7 @@ function releaseDeclaration(plan) {
 ${canonicalSettings(settings)}`;
   return {
     source: "connections-apply",
-    revision: `sha256:${createHash8("sha256").update(body).digest("hex")}`,
+    revision: `sha256:${createHash9("sha256").update(body).digest("hex")}`,
     settings
   };
 }
@@ -183740,33 +185070,59 @@ var init_settings_routes = __esm({
 // server/routes/browse-routes.ts
 var browse_routes_exports = {};
 __export(browse_routes_exports, {
+  BROWSE_ROUTE_DEADLINE_MS: () => BROWSE_ROUTE_DEADLINE_MS,
   setupBrowseRoutes: () => setupBrowseRoutes
 });
 function queryString(req, name2) {
   const raw2 = req.query[name2];
   return typeof raw2 === "string" ? raw2.trim() : "";
 }
+function pageToken(req) {
+  const token = queryString(req, "page_token");
+  return token && token.length <= PAGE_TOKEN_MAX_LENGTH ? token : void 0;
+}
+function pageNumber(req) {
+  const raw2 = queryString(req, "page");
+  const rawToken = queryString(req, "page_token");
+  if (rawToken.length > PAGE_TOKEN_MAX_LENGTH) return 0;
+  if (!raw2) return rawToken ? 2 : 1;
+  const parsed = Number(raw2);
+  return Number.isInteger(parsed) && (parsed === 1 || Boolean(rawToken)) ? parsed : 0;
+}
 function defaultNotebookPath(req) {
   const email3 = req.header("x-forwarded-email")?.trim();
   return email3 ? `/Users/${email3}` : "/";
 }
 async function sendBrowse(req, res, run2) {
-  const ctx = browseRequestContext({ token: executionToken(req) });
-  const payload = await run2(ctx);
-  res.status(200).json(payload);
+  const disconnected = new AbortController();
+  const abortDisconnected = () => disconnected.abort(new DOMException("Client disconnected", "AbortError"));
+  const closeDisconnected = () => {
+    if (!res.writableEnded) abortDisconnected();
+  };
+  req.once("aborted", abortDisconnected);
+  res.once("close", closeDisconnected);
+  const signal = AbortSignal.any([disconnected.signal, AbortSignal.timeout(BROWSE_ROUTE_DEADLINE_MS)]);
+  const ctx = browseRequestContext({
+    token: executionToken(req),
+    principal: req.header("x-forwarded-email")?.trim() ?? "",
+    signal,
+    page: pageNumber(req)
+  });
+  try {
+    const payload = await run2(ctx);
+    if (!res.destroyed && !res.writableEnded) res.status(200).json(payload);
+  } finally {
+    req.off("aborted", abortDisconnected);
+    res.off("close", closeDisconnected);
+  }
 }
 function setupBrowseRoutes(appkit) {
   appkit.server.extend((app) => {
     app.get("/api/browse/connection-types", async (req, res) => {
-      const ctx = browseRequestContext({ token: executionToken(req) });
-      res.status(200).json(await discoverConnectionTypes(ctx));
+      await sendBrowse(req, res, discoverConnectionTypes);
     });
     app.get("/api/browse/catalogs", async (req, res) => {
-      await sendBrowse(
-        req,
-        res,
-        (ctx) => listCatalogs({ ...ctx, pageToken: queryString(req, "page_token") || void 0 })
-      );
+      await sendBrowse(req, res, (ctx) => listCatalogs({ ...ctx, pageToken: pageToken(req) }));
     });
     app.get("/api/browse/schemas", async (req, res) => {
       await sendBrowse(
@@ -183775,7 +185131,7 @@ function setupBrowseRoutes(appkit) {
         (ctx) => listSchemas({
           ...ctx,
           catalog: queryString(req, "catalog"),
-          pageToken: queryString(req, "page_token") || void 0
+          pageToken: pageToken(req)
         })
       );
     });
@@ -183787,7 +185143,7 @@ function setupBrowseRoutes(appkit) {
           ...ctx,
           catalog: queryString(req, "catalog"),
           schema: queryString(req, "schema"),
-          pageToken: queryString(req, "page_token") || void 0
+          pageToken: pageToken(req)
         })
       );
     });
@@ -183799,7 +185155,7 @@ function setupBrowseRoutes(appkit) {
           ...ctx,
           catalog: queryString(req, "catalog"),
           schema: queryString(req, "schema"),
-          pageToken: queryString(req, "page_token") || void 0
+          pageToken: pageToken(req)
         })
       );
     });
@@ -183808,25 +185164,13 @@ function setupBrowseRoutes(appkit) {
       await sendBrowse(req, res, (ctx) => listNotebooks({ ...ctx, path: path20 }));
     });
     app.get("/api/browse/warehouses", async (req, res) => {
-      await sendBrowse(
-        req,
-        res,
-        (ctx) => listWarehouses({ ...ctx, pageToken: queryString(req, "page_token") || void 0 })
-      );
+      await sendBrowse(req, res, (ctx) => listWarehouses({ ...ctx, pageToken: pageToken(req) }));
     });
     app.get("/api/browse/genie-spaces", async (req, res) => {
-      await sendBrowse(
-        req,
-        res,
-        (ctx) => listGenieSpaces({ ...ctx, pageToken: queryString(req, "page_token") || void 0 })
-      );
+      await sendBrowse(req, res, (ctx) => listGenieSpaces({ ...ctx, pageToken: pageToken(req) }));
     });
     app.get("/api/browse/serving-endpoints", async (req, res) => {
-      await sendBrowse(
-        req,
-        res,
-        (ctx) => listServingEndpoints({ ...ctx, pageToken: queryString(req, "page_token") || void 0 })
-      );
+      await sendBrowse(req, res, (ctx) => listServingEndpoints({ ...ctx, pageToken: pageToken(req) }));
     });
     app.get("/api/browse/vector-search-endpoints", async (req, res) => {
       await sendBrowse(
@@ -183834,7 +185178,7 @@ function setupBrowseRoutes(appkit) {
         res,
         (ctx) => listVectorSearchEndpoints({
           ...ctx,
-          pageToken: queryString(req, "page_token") || void 0
+          pageToken: pageToken(req)
         })
       );
     });
@@ -183845,7 +185189,7 @@ function setupBrowseRoutes(appkit) {
         (ctx) => listVectorSearchIndexes({
           ...ctx,
           endpoint: queryString(req, "endpoint"),
-          pageToken: queryString(req, "page_token") || void 0
+          pageToken: pageToken(req)
         })
       );
     });
@@ -183855,7 +185199,7 @@ function setupBrowseRoutes(appkit) {
         res,
         (ctx) => listLakebaseProjects({
           ...ctx,
-          pageToken: queryString(req, "page_token") || void 0
+          pageToken: pageToken(req)
         })
       );
     });
@@ -183866,7 +185210,7 @@ function setupBrowseRoutes(appkit) {
         (ctx) => listLakebaseBranches({
           ...ctx,
           project: queryString(req, "project"),
-          pageToken: queryString(req, "page_token") || void 0
+          pageToken: pageToken(req)
         })
       );
     });
@@ -183877,23 +185221,22 @@ function setupBrowseRoutes(appkit) {
         (ctx) => listLakebaseDatabases({
           ...ctx,
           branch: queryString(req, "branch"),
-          pageToken: queryString(req, "page_token") || void 0
+          pageToken: pageToken(req)
         })
       );
     });
     app.get("/api/browse/experiments", async (req, res) => {
-      await sendBrowse(
-        req,
-        res,
-        (ctx) => listExperiments({ ...ctx, pageToken: queryString(req, "page_token") || void 0 })
-      );
+      await sendBrowse(req, res, (ctx) => listExperiments({ ...ctx, pageToken: pageToken(req) }));
     });
   });
 }
+var BROWSE_ROUTE_DEADLINE_MS, PAGE_TOKEN_MAX_LENGTH;
 var init_browse_routes = __esm({
   "server/routes/browse-routes.ts"() {
     init_execution_credential();
     init_browse_assets();
+    BROWSE_ROUTE_DEADLINE_MS = 1e4;
+    PAGE_TOKEN_MAX_LENGTH = 2048;
   }
 });
 
@@ -184118,9 +185461,13 @@ __export(admin_routes_exports, {
   runnerFor: () => runnerFor,
   setupAdminRoutes: () => setupAdminRoutes
 });
-async function readAdded(store) {
+async function readAdded(store, req) {
   try {
-    return { added: await readAddedAdmins(store), readable: true };
+    const roster = await readRosterForRequest(store, req);
+    return {
+      added: roster.rows.map((row2) => ({ email: row2.email, addedBy: row2.setBy, addedAt: row2.setAt })),
+      readable: true
+    };
   } catch (error48) {
     console.warn("[admin] The stored admin list could not be read for the Settings editor:", error48.message);
     return { added: [], readable: false };
@@ -184143,11 +185490,11 @@ function runnerFor(req) {
 function setupAdminRoutes(appkit) {
   appkit.server.extend((app) => {
     app.get("/api/admins", async (req, res) => {
-      const payload = await listPayload(userEmail(req));
+      const payload = await listPayload(req, userEmail(req));
       res.json(payload);
     });
-    async function listPayload(reader) {
-      const { added, readable } = await readAdded(appkit.lakebase);
+    async function listPayload(req, reader) {
+      const { added, readable } = await readAdded(appkit.lakebase, req);
       return adminListPayload({
         seed: seedAdminEmails(),
         added,
@@ -184187,7 +185534,7 @@ function setupAdminRoutes(appkit) {
           subject: email3,
           detail: `${actor} added ${email3} as an administrator of this deployment.`
         });
-        res.status(201).json(await listPayload(actor));
+        res.status(201).json(await listPayload(req, actor));
       } catch (error48) {
         console.error(`[admin] ${email3} could not be added:`, error48.message);
         res.status(503).json({
@@ -184201,7 +185548,8 @@ function setupAdminRoutes(appkit) {
       const actor = userEmail(req);
       let added;
       try {
-        added = await readAddedAdmins(appkit.lakebase);
+        const roster = await readRosterForRequest(appkit.lakebase, req);
+        added = roster.rows.map((row2) => ({ email: row2.email, addedBy: row2.setBy, addedAt: row2.setAt }));
       } catch (error48) {
         console.error(
           "[admin] The stored admin list could not be read, so no removal was attempted:",
@@ -184240,7 +185588,7 @@ function setupAdminRoutes(appkit) {
             detail: `${actor} removed ${email3}, and the access an earlier version of this app had granted them: ` + `${withdrawal.summary} ${withdrawal.note}`.trim()
           });
         }
-        res.json(await listPayload(actor));
+        res.json(await listPayload(req, actor));
       } catch (error48) {
         console.error(`[admin] ${email3} could not be removed:`, error48.message);
         res.status(503).json({ error: "admin_store_unavailable", detail: "Nobody was removed." });
@@ -184255,6 +185603,7 @@ var init_admin_routes = __esm({
     init_databricks_links();
     init_admin_access();
     init_admin_roles();
+    init_user_roster();
     init_execution_credential();
     init_insights_routes();
     AddBody = external_exports.object({ email: external_exports.string().trim().max(320) });
@@ -184362,9 +185711,9 @@ var user_routes_exports = {};
 __export(user_routes_exports, {
   setupUserRoutes: () => setupUserRoutes
 });
-async function read(store) {
+async function read(store, req) {
   try {
-    const { rows, roleColumnPresent } = await readRoster(store);
+    const { rows, roleColumnPresent } = await (req ? readRosterForRequest(store, req) : readRoster(store));
     return { rows, readable: true, roleColumnPresent };
   } catch (error48) {
     console.warn("[admin] The stored roster could not be read for the roster editor:", error48.message);
@@ -184397,7 +185746,7 @@ async function withdrawOnDemotion(input) {
 function setupUserRoutes(appkit) {
   appkit.server.extend((app) => {
     app.get("/api/users", async (req, res) => {
-      const { rows, readable, roleColumnPresent } = await read(appkit.lakebase);
+      const { rows, readable, roleColumnPresent } = await read(appkit.lakebase, req);
       const payload = rosterPayload({
         seed: seedRoles(),
         stored: rows,
@@ -184436,7 +185785,7 @@ function setupUserRoutes(appkit) {
       let rows;
       let roleColumnPresent;
       try {
-        ({ rows, roleColumnPresent } = await readRoster(appkit.lakebase));
+        ({ rows, roleColumnPresent } = await readRosterForRequest(appkit.lakebase, req));
       } catch (error48) {
         console.error("[admin] The roster could not be read, so no removal was attempted:", error48.message);
         res.status(503).json({
@@ -184460,7 +185809,7 @@ function setupUserRoutes(appkit) {
           subject: email3,
           detail: `${actor} removed ${email3} from this deployment's roster, held as ${ROLE_WORD[from].toLowerCase()}.`
         });
-        await replyWithRoster(res, appkit.lakebase, actor, roleColumnPresent);
+        await replyWithRoster(req, res, appkit.lakebase, actor, roleColumnPresent);
       } catch (error48) {
         console.error(`[admin] ${email3} could not be removed:`, error48.message);
         res.status(503).json({ error: "roster_store_unavailable", detail: "Nobody was removed." });
@@ -184472,7 +185821,7 @@ function setupUserRoutes(appkit) {
       let rows;
       let roleColumnPresent;
       try {
-        ({ rows, roleColumnPresent } = await readRoster(appkit.lakebase));
+        ({ rows, roleColumnPresent } = await readRosterForRequest(appkit.lakebase, req));
       } catch (error48) {
         console.error("[admin] The roster could not be read, so no role was changed:", error48.message);
         res.status(503).json({
@@ -184497,7 +185846,7 @@ function setupUserRoutes(appkit) {
           detail: roleChangeSentence({ actor, email: email3, from, to })
         });
         await withdrawOnDemotion({ req, store: appkit.lakebase, email: email3, actor, from, to });
-        await replyWithRoster(res, appkit.lakebase, actor, roleColumnPresent);
+        await replyWithRoster(req, res, appkit.lakebase, actor, roleColumnPresent);
       } catch (error48) {
         console.error(`[admin] ${email3} could not be set to ${role}:`, error48.message);
         res.status(503).json({
@@ -184506,8 +185855,8 @@ function setupUserRoutes(appkit) {
         });
       }
     }
-    async function replyWithRoster(res, store, reader, roleColumnPresent) {
-      const after = await read(store);
+    async function replyWithRoster(req, res, store, reader, roleColumnPresent) {
+      const after = await read(store, req);
       const payload = rosterPayload({
         seed: seedRoles(),
         stored: after.rows,
@@ -184615,23 +185964,23 @@ function conditioningFor(tables, grants2) {
   }
   return null;
 }
-function cacheKey(key2) {
-  return `${key2.admin.toLowerCase()}\0${key2.window}`;
+function cacheKey2(key2) {
+  return `${key2.admin.trim().toLowerCase()}\0${key2.window}`;
 }
 async function resolveGrants(options) {
   const now = options.now ?? Date.now();
   const ttl = options.ttlMs ?? GRANT_CACHE_TTL_MS;
-  const id = cacheKey(options.key);
-  const cached3 = cache6.get(id);
-  if (cached3 && now - cached3.resolvedAt < ttl) return cached3;
+  const id = cacheKey2(options.key);
+  const cached3 = cache6.get(id, now);
+  if (cached3) return cached3;
   if (options.tables.length === 0) {
     const empty = { resolved: true, verdicts: /* @__PURE__ */ new Map(), resolvedAt: now };
-    cache6.set(id, empty);
+    cache6.set(id, empty, now, ttl);
     return empty;
   }
   if (!options.probe) {
     const failed5 = unresolvedGrants(now);
-    cache6.set(id, failed5);
+    cache6.set(id, failed5, now, ttl);
     return failed5;
   }
   let outcome;
@@ -184642,7 +185991,7 @@ async function resolveGrants(options) {
       `[monitoring] Table permissions could not be resolved for ${options.key.admin}: ${error48.message}. Everything is shown, and the page says the check could not run.`
     );
     const failed5 = unresolvedGrants(now);
-    cache6.set(id, failed5);
+    cache6.set(id, failed5, now, ttl);
     return failed5;
   }
   if (outcome.blocked) {
@@ -184650,13 +185999,13 @@ async function resolveGrants(options) {
       `[monitoring] Table permissions not established for ${options.key.admin}: ${outcome.blocked.kind}. Everything is shown.`
     );
     const failed5 = unresolvedGrants(now);
-    cache6.set(id, failed5);
+    cache6.set(id, failed5, now, ttl);
     return failed5;
   }
   const verdicts = /* @__PURE__ */ new Map();
   for (const verdict of outcome.verdicts) verdicts.set(verdict.table, verdict);
   const resolution = { resolved: true, verdicts, resolvedAt: now };
-  cache6.set(id, resolution);
+  cache6.set(id, resolution, now, ttl);
   return resolution;
 }
 function once(key2, work) {
@@ -184665,15 +186014,6 @@ function once(key2, work) {
   const started = work().finally(() => inFlight.delete(key2));
   inFlight.set(key2, started);
   return started;
-}
-function fresh(store, key2, ttl, now) {
-  const entry = store.get(key2);
-  if (!entry) return null;
-  if (now - entry.at >= ttl) {
-    store.delete(key2);
-    return null;
-  }
-  return entry.value;
 }
 async function readTableGrant(read2, table, principal, now = Date.now()) {
   const reading = {
@@ -184684,7 +186024,7 @@ async function readTableGrant(read2, table, principal, now = Date.now()) {
     maskedColumns: null
   };
   const personKey = `${table}\0${principal.trim().toLowerCase()}`;
-  const heldPrivileges = fresh(personPrivileges, personKey, PERSON_PRIVILEGE_TTL_MS, now);
+  const heldPrivileges = personPrivileges.get(personKey, now);
   if (heldPrivileges) {
     reading.canRead = heldPrivileges.canRead;
     reading.missing = heldPrivileges.missing;
@@ -184698,13 +186038,13 @@ async function readTableGrant(read2, table, principal, now = Date.now()) {
       if (privileges !== null) {
         reading.canRead = privileges.includes(READ_PRIVILEGE);
         reading.missing = reading.canRead ? null : `${READ_PRIVILEGE} missing`;
-        personPrivileges.set(personKey, { at: now, value: { canRead: reading.canRead, missing: reading.missing } });
+        personPrivileges.set(personKey, { canRead: reading.canRead, missing: reading.missing }, now);
       }
     } catch (error48) {
       console.warn(`[monitoring] Effective permissions on ${table} could not be read: ${error48.message}`);
     }
   }
-  const heldPolicies = fresh(tablePolicies, table, TABLE_POLICY_TTL_MS, now);
+  const heldPolicies = tablePolicies.get(table, now);
   if (heldPolicies) {
     reading.rowFilter = heldPolicies.rowFilter;
     reading.maskedColumns = heldPolicies.maskedColumns;
@@ -184714,7 +186054,7 @@ async function readTableGrant(read2, table, principal, now = Date.now()) {
       const policies = policiesFrom(body);
       reading.rowFilter = policies.rowFilter;
       reading.maskedColumns = policies.maskedColumns;
-      tablePolicies.set(table, { at: now, value: policies });
+      tablePolicies.set(table, policies, now);
     } catch (error48) {
       console.warn(`[monitoring] Row filter and masks on ${table} could not be read: ${error48.message}`);
     }
@@ -184754,19 +186094,29 @@ function policiesFrom(body) {
   }).filter((name2) => name2 !== "");
   return { rowFilter, maskedColumns: masked };
 }
-var GRANT_CACHE_TTL_MS, cache6, EFFECTIVE_PERMISSIONS_PATH, TABLE_PATH, READ_PRIVILEGE, TABLE_POLICY_TTL_MS, PERSON_PRIVILEGE_TTL_MS, tablePolicies, personPrivileges, inFlight;
+var GRANT_CACHE_TTL_MS, GRANT_CACHE_MAX_ENTRIES, cache6, EFFECTIVE_PERMISSIONS_PATH, TABLE_PATH, READ_PRIVILEGE, TABLE_POLICY_TTL_MS, TABLE_POLICY_CACHE_MAX_ENTRIES, PERSON_PRIVILEGE_TTL_MS, PERSON_PRIVILEGE_CACHE_MAX_ENTRIES, tablePolicies, personPrivileges, inFlight;
 var init_monitoring_grants = __esm({
   "server/lib/monitoring-grants.ts"() {
     init_access_verification();
-    GRANT_CACHE_TTL_MS = 10 * 6e4;
-    cache6 = /* @__PURE__ */ new Map();
+    init_expiring_lru();
+    GRANT_CACHE_TTL_MS = 3e4;
+    GRANT_CACHE_MAX_ENTRIES = 256;
+    cache6 = new ExpiringLruCache(GRANT_CACHE_MAX_ENTRIES, GRANT_CACHE_TTL_MS);
     EFFECTIVE_PERMISSIONS_PATH = "/api/2.1/unity-catalog/effective-permissions/table";
     TABLE_PATH = "/api/2.1/unity-catalog/tables";
     READ_PRIVILEGE = "SELECT";
     TABLE_POLICY_TTL_MS = 10 * 6e4;
-    PERSON_PRIVILEGE_TTL_MS = 6e4;
-    tablePolicies = /* @__PURE__ */ new Map();
-    personPrivileges = /* @__PURE__ */ new Map();
+    TABLE_POLICY_CACHE_MAX_ENTRIES = 512;
+    PERSON_PRIVILEGE_TTL_MS = 3e4;
+    PERSON_PRIVILEGE_CACHE_MAX_ENTRIES = 2048;
+    tablePolicies = new ExpiringLruCache(
+      TABLE_POLICY_CACHE_MAX_ENTRIES,
+      TABLE_POLICY_TTL_MS
+    );
+    personPrivileges = new ExpiringLruCache(
+      PERSON_PRIVILEGE_CACHE_MAX_ENTRIES,
+      PERSON_PRIVILEGE_TTL_MS
+    );
     inFlight = /* @__PURE__ */ new Map();
   }
 });
@@ -185530,58 +186880,93 @@ function genieSpaceId(row2) {
   const value = row2.query_source.genie_space_id;
   return typeof value === "string" ? value.trim() : "";
 }
+function isoTimestamp(value) {
+  if (!Number.isFinite(value) || Math.abs(value) > 864e13) return null;
+  return new Date(value).toISOString();
+}
+function addReason(coverage2, reason) {
+  if (!coverage2.reasons.includes(reason)) coverage2.reasons.push(reason);
+}
+function abortReason2(signal) {
+  return signal.reason instanceof Error ? signal.reason : new Error("Query History read aborted.");
+}
+function abortable2(work, signal) {
+  if (signal.aborted) return Promise.reject(abortReason2(signal));
+  return new Promise((resolve2, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(abortReason2(signal));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve2(value);
+      },
+      (error48) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error48 instanceof Error ? error48 : new Error(String(error48)));
+      }
+    );
+  });
+}
 async function readWarehouseQueryAttribution(input) {
   const warehouseId2 = input.warehouseId.trim();
-  if (!warehouseId2 || !Number.isFinite(input.startTimeMs) || !Number.isFinite(input.endTimeMs)) {
-    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION };
+  const requestedFrom = isoTimestamp(input.startTimeMs);
+  const requestedTo = isoTimestamp(input.endTimeMs);
+  if (!warehouseId2 || !requestedFrom || !requestedTo || input.endTimeMs < input.startTimeMs) {
+    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, coverage: EMPTY_WAREHOUSE_QUERY_ATTRIBUTION.coverage };
   }
-  const rows = /* @__PURE__ */ new Map();
-  let complete = true;
-  for (let windowStart = input.startTimeMs; windowStart <= input.endTimeMs; ) {
-    const windowEnd = Math.min(input.endTimeMs, windowStart + MAX_QUERY_HISTORY_RANGE_MS - 1);
-    let pageToken;
-    const usedTokens = /* @__PURE__ */ new Set();
-    for (let page = 0; page < MAX_QUERY_HISTORY_PAGES; page += 1) {
-      const response = await input.transport.listQueries({
-        warehouseId: warehouseId2,
-        startTimeMs: windowStart,
-        endTimeMs: windowEnd,
-        pageToken,
-        maxResults: QUERY_HISTORY_PAGE_SIZE2
-      });
-      for (const row2 of Array.isArray(response.res) ? response.res : []) {
-        if (row2.warehouse_id !== void 0 && row2.warehouse_id !== warehouseId2) {
-          complete = false;
-          continue;
-        }
-        const id = rowId(row2);
-        if (!id) {
-          complete = false;
-          continue;
-        }
-        rows.set(id, row2);
-      }
-      const next = typeof response.next_page_token === "string" ? response.next_page_token.trim() : "";
-      if (!next) {
-        if (response.has_next_page) complete = false;
-        break;
-      }
-      if (usedTokens.has(next)) {
-        complete = false;
-        break;
-      }
-      usedTokens.add(next);
-      pageToken = next;
-      if (page === MAX_QUERY_HISTORY_PAGES - 1) complete = false;
-    }
-    if (windowEnd >= input.endTimeMs) break;
-    windowStart = windowEnd + 1;
+  const coverage2 = {
+    state: "partial",
+    requestedRange: { from: requestedFrom, to: requestedTo },
+    queriedRange: null,
+    rowsRead: 0,
+    pagesRead: 0,
+    chunksRead: 0,
+    reasons: []
+  };
+  const now = input.now?.() ?? Date.now();
+  const boundedEnd = Math.min(input.endTimeMs, now);
+  const boundedStart = Math.max(input.startTimeMs, boundedEnd - MAX_QUERY_HISTORY_TOTAL_RANGE_MS + 1);
+  if (boundedEnd !== input.endTimeMs || boundedStart !== input.startTimeMs) addReason(coverage2, "range-clamped");
+  const boundedFrom = isoTimestamp(boundedStart);
+  const boundedTo = isoTimestamp(boundedEnd);
+  if (!boundedFrom || !boundedTo || boundedEnd < boundedStart) {
+    coverage2.state = "unavailable";
+    addReason(coverage2, "invalid-range");
+    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, coverage: coverage2 };
   }
+  const maximumPages = Math.max(
+    1,
+    Math.min(MAX_QUERY_HISTORY_PAGES, Math.floor(input.maxPages ?? MAX_QUERY_HISTORY_PAGES))
+  );
+  const deadlineMs = Math.max(1, Math.min(QUERY_HISTORY_DEADLINE_MS, input.deadlineMs ?? QUERY_HISTORY_DEADLINE_MS));
+  const controller = new AbortController();
+  const parentAbort = () => controller.abort(input.signal?.reason);
+  if (input.signal?.aborted) parentAbort();
+  else input.signal?.addEventListener("abort", parentAbort, { once: true });
+  const timer = setTimeout(() => controller.abort(new QueryHistoryDeadlineError()), deadlineMs);
+  timer.unref?.();
+  const seenQueryIds = /* @__PURE__ */ new Set();
   let astrolabeQueries = 0;
   let astrolabeExecutionMs = 0;
   let totalExecutionMs = 0;
   const genieSpaces = /* @__PURE__ */ new Map();
-  for (const row2 of rows.values()) {
+  let totalQueries = 0;
+  const aggregate = (row2) => {
+    if (row2.warehouse_id !== void 0 && row2.warehouse_id !== warehouseId2) {
+      addReason(coverage2, "unexpected-warehouse");
+      return;
+    }
+    const id = rowId(row2);
+    if (!id) {
+      addReason(coverage2, "invalid-row");
+      return;
+    }
+    if (seenQueryIds.has(id)) return;
+    seenQueryIds.add(id);
+    totalQueries += 1;
     const spaceId = genieSpaceId(row2);
     const astrolabe = isAstrolabe(row2) && !spaceId;
     if (astrolabe) astrolabeQueries += 1;
@@ -185592,20 +186977,107 @@ async function readWarehouseQueryAttribution(input) {
     }
     const duration3 = executionMilliseconds(row2);
     if (duration3 === null) {
-      complete = false;
-      continue;
+      addReason(coverage2, "missing-execution-time");
+      return;
     }
     totalExecutionMs += duration3;
     if (astrolabe) astrolabeExecutionMs += duration3;
     if (spaceId) genieSpaces.get(spaceId).executionMs += duration3;
+  };
+  let stop = controller.signal.aborted;
+  try {
+    for (let windowStart = boundedStart; windowStart <= boundedEnd && !stop; ) {
+      if (coverage2.pagesRead >= maximumPages) {
+        addReason(coverage2, "page-cap");
+        break;
+      }
+      const windowEnd = Math.min(boundedEnd, windowStart + MAX_QUERY_HISTORY_RANGE_MS - 1);
+      let pageToken2;
+      const usedTokens = /* @__PURE__ */ new Set();
+      coverage2.chunksRead += 1;
+      coverage2.queriedRange = {
+        from: coverage2.queriedRange?.from ?? new Date(windowStart).toISOString(),
+        to: new Date(windowEnd).toISOString()
+      };
+      for (; ; ) {
+        if (controller.signal.aborted) {
+          stop = true;
+          break;
+        }
+        if (coverage2.pagesRead >= maximumPages) {
+          addReason(coverage2, "page-cap");
+          stop = true;
+          break;
+        }
+        let response;
+        try {
+          response = await abortable2(
+            input.transport.listQueries({
+              warehouseId: warehouseId2,
+              startTimeMs: windowStart,
+              endTimeMs: windowEnd,
+              pageToken: pageToken2,
+              maxResults: QUERY_HISTORY_PAGE_SIZE2,
+              signal: controller.signal
+            }),
+            controller.signal
+          );
+        } catch {
+          if (controller.signal.aborted) {
+            addReason(
+              coverage2,
+              controller.signal.reason instanceof QueryHistoryDeadlineError ? "deadline" : "caller-abort"
+            );
+          } else {
+            addReason(coverage2, "transport-error");
+          }
+          stop = true;
+          break;
+        }
+        coverage2.pagesRead += 1;
+        const pageRows = Array.isArray(response.res) ? response.res : [];
+        coverage2.rowsRead += pageRows.length;
+        for (const row2 of pageRows) aggregate(row2);
+        const next = typeof response.next_page_token === "string" ? response.next_page_token.trim() : "";
+        if (!next) {
+          if (response.has_next_page) {
+            addReason(coverage2, "missing-page-token");
+            stop = true;
+          }
+          break;
+        }
+        if (usedTokens.has(next)) {
+          addReason(coverage2, "repeated-page-token");
+          stop = true;
+          break;
+        }
+        usedTokens.add(next);
+        pageToken2 = next;
+        if (coverage2.pagesRead >= maximumPages) {
+          addReason(coverage2, "page-cap");
+          stop = true;
+          break;
+        }
+      }
+      if (windowEnd >= boundedEnd || stop) break;
+      windowStart = windowEnd + 1;
+    }
+  } finally {
+    clearTimeout(timer);
+    input.signal?.removeEventListener("abort", parentAbort);
   }
+  if (controller.signal.aborted && coverage2.reasons.length === 0) {
+    addReason(coverage2, controller.signal.reason instanceof QueryHistoryDeadlineError ? "deadline" : "caller-abort");
+  }
+  coverage2.state = coverage2.reasons.length === 0 ? "complete" : "partial";
   return {
-    complete,
+    complete: coverage2.state === "complete",
     astrolabeQueries,
-    totalQueries: rows.size,
+    totalQueries,
     astrolabeExecutionMs,
     totalExecutionMs,
-    genieSpaces: [...genieSpaces].map(([spaceId, values]) => ({ spaceId, ...values }))
+    genieSpaces: [...genieSpaces].map(([spaceId, values]) => ({ spaceId, ...values })),
+    coverage: coverage2
   };
 }
 function queryHistoryPage2(value) {
@@ -185619,7 +187091,7 @@ function queryHistoryPage2(value) {
 }
 function createDatabricksQueryHistoryTransport(client) {
   return {
-    async listQueries({ warehouseId: warehouseId2, startTimeMs, endTimeMs, pageToken, maxResults }) {
+    async listQueries({ warehouseId: warehouseId2, startTimeMs, endTimeMs, pageToken: pageToken2, maxResults, signal }) {
       const response = await client.request({
         path: "/api/2.0/sql/history/queries",
         method: "GET",
@@ -185632,8 +187104,9 @@ function createDatabricksQueryHistoryTransport(client) {
           },
           include_metrics: true,
           max_results: maxResults,
-          ...pageToken ? { page_token: pageToken } : {}
-        }
+          ...pageToken2 ? { page_token: pageToken2 } : {}
+        },
+        signal
       });
       return queryHistoryPage2(response);
     }
@@ -185647,23 +187120,42 @@ async function createWorkspaceQueryHistoryTransport(input) {
     authType: "pat"
   });
   return createDatabricksQueryHistoryTransport({
+    // The experimental SDK runtime forwards AbortSignal although its public
+    // low-level request type has not declared the field yet.
     request: (options) => client.apiClient.request(options)
   });
 }
-var QUERY_HISTORY_PAGE_SIZE2, MAX_QUERY_HISTORY_PAGES, MAX_QUERY_HISTORY_RANGE_MS, EMPTY_WAREHOUSE_QUERY_ATTRIBUTION;
+var QUERY_HISTORY_PAGE_SIZE2, MAX_QUERY_HISTORY_PAGES, MAX_QUERY_HISTORY_RANGE_MS, MAX_QUERY_HISTORY_TOTAL_RANGE_MS, QUERY_HISTORY_DEADLINE_MS, EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, QueryHistoryDeadlineError;
 var init_ops_query_history = __esm({
   "server/lib/ops-query-history.ts"() {
     init_warehouse_cancellation();
     QUERY_HISTORY_PAGE_SIZE2 = 999;
-    MAX_QUERY_HISTORY_PAGES = 100;
+    MAX_QUERY_HISTORY_PAGES = 40;
     MAX_QUERY_HISTORY_RANGE_MS = 30 * 24 * 60 * 60 * 1e3;
+    MAX_QUERY_HISTORY_TOTAL_RANGE_MS = 366 * 24 * 60 * 60 * 1e3;
+    QUERY_HISTORY_DEADLINE_MS = 2e4;
     EMPTY_WAREHOUSE_QUERY_ATTRIBUTION = {
       complete: false,
       astrolabeQueries: 0,
       totalQueries: 0,
       astrolabeExecutionMs: 0,
       totalExecutionMs: 0,
-      genieSpaces: []
+      genieSpaces: [],
+      coverage: {
+        state: "unavailable",
+        requestedRange: null,
+        queriedRange: null,
+        rowsRead: 0,
+        pagesRead: 0,
+        chunksRead: 0,
+        reasons: ["invalid-range"]
+      }
+    };
+    QueryHistoryDeadlineError = class extends Error {
+      constructor() {
+        super("Query History read deadline reached.");
+        this.name = "QueryHistoryDeadlineError";
+      }
     };
   }
 });
@@ -186315,6 +187807,7 @@ function genieSpaceTiles(ids, warehouseRow, warehouseAttribution, activity) {
         billingRows: hasAllocation ? billingRows : null,
         astrolabeQueries: null,
         queryHistoryComplete: warehouseAttribution.complete,
+        queryHistoryCoverage: warehouseAttribution.coverage,
         activity: measured ? { calls: measured.calls, observedCalls: measured.observedCalls, unit: "requests" } : null
       }
     };
@@ -186410,7 +187903,8 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
     astrolabeQueries: component === "sql-warehouse" ? warehouseAttribution.astrolabeQueries : null,
     ...component === "sql-warehouse" ? {
       warehouseQueries: warehouseAttribution.totalQueries,
-      queryHistoryComplete: warehouseAttribution.complete
+      queryHistoryComplete: warehouseAttribution.complete,
+      queryHistoryCoverage: warehouseAttribution.coverage
     } : {},
     ...component === "vector-search" ? {
       activity: measuredActivity ? {
@@ -187272,11 +188766,26 @@ async function warehouseQueryAttribution(input) {
       warehouseId: input.warehouseId,
       startTimeMs,
       endTimeMs,
-      transport
+      transport,
+      signal: input.signal
     });
   } catch (error48) {
     console.warn(`[ops] Query History attribution was withheld: ${error48.message}`);
-    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION };
+    return {
+      ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION,
+      coverage: {
+        state: "unavailable",
+        requestedRange: {
+          from: new Date(startTimeMs).toISOString(),
+          to: new Date(endTimeMs).toISOString()
+        },
+        queriedRange: null,
+        rowsRead: 0,
+        pagesRead: 0,
+        chunksRead: 0,
+        reasons: ["transport-error"]
+      }
+    };
   }
 }
 function setupOpsRoutes(appkit, deps) {
@@ -187333,6 +188842,10 @@ function setupOpsRoutes(appkit, deps) {
     app.get("/api/ops/cost", async (req, res) => {
       const readAt = new Date(clock()).toISOString();
       const range = opsDayRange(queryText(req, "from"), queryText(req, "to"), clock());
+      const requestAbort = new AbortController();
+      res.once?.("close", () => {
+        if (!res.writableEnded) requestAbort.abort(new Error("The Cost caller disconnected."));
+      });
       const workspace2 = host();
       const warehouse2 = warehouseId();
       const token = executionToken(req);
@@ -187402,7 +188915,8 @@ function setupOpsRoutes(appkit, deps) {
             token,
             warehouseId: warehouse2,
             range,
-            transport: deps.queryHistoryTransport
+            transport: deps.queryHistoryTransport,
+            signal: requestAbort.signal
           })
         ]);
         const inventoryCount = resourceTagInventory({ environment: process.env, report: resolved.report }).length;
@@ -187490,20 +189004,26 @@ function setupOpsRoutes(appkit, deps) {
     });
     app.get("/api/ops/traffic", async (req, res) => {
       const readAt = new Date(clock()).toISOString();
+      const range = opsDayRange(queryText(req, "from"), queryText(req, "to"), clock());
       try {
         const runtime = await readRuntimeSettings(appkit);
         const activeMinutesTimeZone = validIanaTimeZone(runtime.behavior.timezone) || validIanaTimeZone(queryText(req, "timeZone")) || "UTC";
         const [questions, askers, activeMinutes, outcomes, tools] = await Promise.allSettled([
-          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY, [activeMinutesTimeZone]),
-          appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY, [activeMinutesTimeZone]),
-          appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY, [activeMinutesTimeZone]),
-          appkit.lakebase.query(RUN_OUTCOMES_QUERY),
-          appkit.lakebase.query(TOOL_CALLS_QUERY)
+          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
+          appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
+          appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
+          appkit.lakebase.query(RUN_OUTCOMES_QUERY, [activeMinutesTimeZone, range.from, range.to]),
+          appkit.lakebase.query(TOOL_CALLS_QUERY, [activeMinutesTimeZone, range.from, range.to])
         ]);
         const questionsPerDay = questions.status === "fulfilled" ? questions.value.rows.map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
         const distinctAskersPerDay = askers.status === "fulfilled" ? askers.value.rows.map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
         const activeMinutesPerDay = activeMinutes.status === "fulfilled" ? activeMinutes.value.rows.filter((row2) => Boolean(text18(row2.day))).map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
         const activityBounds = activeMinutes.status === "fulfilled" ? activeMinutes.value.rows[0] : void 0;
+        const activityCoverageState = text18(activityBounds?.coverage_state);
+        const activityCoverage = activityCoverageState === "complete" || activityCoverageState === "partial" || activityCoverageState === "unavailable" ? {
+          state: activityCoverageState,
+          missingDays: count3(activityBounds?.missing_days)
+        } : void 0;
         const failures = /* @__PURE__ */ new Map();
         const refusals = /* @__PURE__ */ new Map();
         let runsInRange = 0;
@@ -187534,19 +189054,23 @@ function setupOpsRoutes(appkit, deps) {
         ].filter((read2) => read2.done.status === "rejected");
         const rejected = outstanding.map((read2) => read2.done);
         const readCount = 5;
+        const partialRead = rejected.length > 0 && rejected.length < readCount ? unreadNote(
+          outstanding.map((read2) => read2.charts),
+          text18(rejected[0].reason?.message)
+        ) : "";
+        const coverageRead = activityCoverage?.state === "partial" ? `Recorded active app minutes have ${activityCoverage.missingDays} missing UTC rollup day(s); the returned days are partial rather than zero-filled.` : "";
         const payload = {
           readAt,
+          range,
           reason: rejected.length === readCount ? `Nothing about traffic could be read: ${text18(rejected[0].reason?.message) || "the store did not answer"}` : "",
-          unread: rejected.length > 0 && rejected.length < readCount ? unreadNote(
-            outstanding.map((read2) => read2.charts),
-            text18(rejected[0].reason?.message)
-          ) : "",
+          unread: [partialRead, coverageRead].filter(Boolean).join(" "),
           questionsPerDay,
           distinctAskersPerDay,
           activeMinutesPerDay,
           activeMinutesTimeZone,
           activeMinutesRecordedFrom: text18(activityBounds?.recorded_from),
           activeMinutesRecordedThrough: text18(activityBounds?.recorded_through),
+          activityCoverage,
           failuresByCause: toBars(failures),
           refusalsByCause: toBars(refusals),
           toolCalls,
@@ -187556,6 +189080,7 @@ function setupOpsRoutes(appkit, deps) {
       } catch (error48) {
         const payload = {
           readAt,
+          range,
           reason: `Nothing about traffic could be read: ${error48.message}`,
           unread: "",
           questionsPerDay: [],
@@ -187567,32 +189092,37 @@ function setupOpsRoutes(appkit, deps) {
           failuresByCause: [],
           refusalsByCause: [],
           toolCalls: [],
-          runsInRange: 0
+          runsInRange: 0,
+          activityCoverage: { state: "unavailable", missingDays: 0 }
         };
         res.json(payload);
       }
     });
-    app.get("/api/ops/latency", async (_req, res) => {
+    app.get("/api/ops/latency", async (req, res) => {
       const readAt = new Date(clock()).toISOString();
+      const range = opsDayRange(queryText(req, "from"), queryText(req, "to"), clock());
       const base = {
         readAt,
+        range,
         state: "no-rows",
         reason: "",
         grant: null,
         table: REQUEST_LATENCY_TABLE,
         routes: [],
         coveredFrom: "",
-        coveredTo: ""
+        coveredTo: "",
+        coverage: { state: "unavailable", missingDays: 0 }
       };
       try {
-        const result = await appkit.lakebase.query(REQUEST_LATENCY_QUERY);
+        const result = await appkit.lakebase.query(REQUEST_LATENCY_QUERY, [range.from, range.to]);
         const measured = readRequestLatencyRows(result.rows);
         if (measured.routes.length === 0) {
           res.json({
             ...base,
             reason: "No API request timings have been recorded. Recording starts with this release and does not backfill.",
             coveredFrom: measured.coveredFrom,
-            coveredTo: measured.coveredTo
+            coveredTo: measured.coveredTo,
+            coverage: { state: measured.coverageState, missingDays: measured.missingDays }
           });
           return;
         }
@@ -187601,7 +189131,9 @@ function setupOpsRoutes(appkit, deps) {
           state: "ready",
           routes: measured.routes,
           coveredFrom: measured.coveredFrom,
-          coveredTo: measured.coveredTo
+          coveredTo: measured.coveredTo,
+          coverage: { state: measured.coverageState, missingDays: measured.missingDays },
+          reason: measured.coverageState === "partial" ? `${measured.missingDays} UTC day(s) are missing from raw and rolled request timings, so these figures are partial.` : ""
         });
       } catch (error48) {
         const payload = {
@@ -187649,6 +189181,8 @@ var init_ops_routes = __esm({
   SELECT to_char(date_trunc('day', m.created_at AT TIME ZONE $1), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
   FROM ${APP_SCHEMA}.messages m
   WHERE m.role = 'user'
+    AND m.created_at >= ($2::date::timestamp AT TIME ZONE $1)
+    AND m.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
   GROUP BY 1
   ORDER BY 1`;
     DISTINCT_ASKERS_PER_DAY_QUERY = `
@@ -187657,6 +189191,8 @@ var init_ops_routes = __esm({
   FROM ${APP_SCHEMA}.messages m
   JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
   WHERE m.role = 'user'
+    AND m.created_at >= ($2::date::timestamp AT TIME ZONE $1)
+    AND m.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
   GROUP BY 1
   ORDER BY 1`;
     OPS_ANSWER_STATUS_SQL = classifiedRunStatusSql({
@@ -187668,7 +189204,8 @@ var init_ops_routes = __esm({
   WITH answers AS (
     SELECT m.id,
            COALESCE(NULLIF(m.trace_id, ''), NULLIF(m.response_json->'trace'->>'id', '')) AS trace_id,
-           ${OPS_ANSWER_STATUS_SQL} AS answer_status
+           ${OPS_ANSWER_STATUS_SQL} AS answer_status,
+           m.created_at
     FROM ${APP_SCHEMA}.messages m
     WHERE m.role = 'assistant'
       AND jsonb_typeof(m.response_json->'trace') = 'object'
@@ -187695,6 +189232,8 @@ var init_ops_routes = __esm({
       ORDER BY (a.id = r.terminal_message_id) DESC
       LIMIT 1
     ) a ON TRUE
+    WHERE r.created_at >= ($2::date::timestamp AT TIME ZONE $1)
+      AND r.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
   ),
   legacy_answer_events AS (
     SELECT a.id AS event_id,
@@ -187707,6 +189246,8 @@ var init_ops_routes = __esm({
       WHERE r.terminal_message_id = a.id
          OR (COALESCE(r.trace_id, '') <> '' AND r.trace_id = a.trace_id)
     )
+      AND a.created_at >= ($2::date::timestamp AT TIME ZONE $1)
+      AND a.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
   ),
   events AS (
     SELECT * FROM ledger_events
@@ -187721,6 +189262,8 @@ var init_ops_routes = __esm({
   FROM ${APP_SCHEMA}.messages m,
        LATERAL jsonb_array_elements(m.response_json->'trace'->'stages') AS stage
   WHERE m.role = 'assistant'
+    AND m.created_at >= ($2::date::timestamp AT TIME ZONE $1)
+    AND m.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
     AND jsonb_typeof(m.response_json->'trace'->'stages') = 'array'
     AND stage->>'kind' = 'tool'
     AND COALESCE(stage->>'name', '') <> ''
@@ -190800,12 +192343,25 @@ async function discoverSpGrantResources(client, env = process.env) {
     (left, right) => left.type.localeCompare(right.type) || left.label.localeCompare(right.label)
   );
 }
-var DECLARED_GRANT_RESOURCE_TYPES;
+function boundedSpGrantResources(resources, limit = SP_GRANT_RESOURCE_LIMIT) {
+  const bounded = resources.slice(0, Math.max(0, limit));
+  return {
+    resources: bounded,
+    pagination: {
+      complete: bounded.length === resources.length,
+      returned: bounded.length,
+      limit,
+      incompleteReason: bounded.length === resources.length ? "" : "result_cap"
+    }
+  };
+}
+var SP_GRANT_RESOURCE_LIMIT, DECLARED_GRANT_RESOURCE_TYPES;
 var init_sp_grant_resources = __esm({
   "server/lib/sp-grant-resources.ts"() {
     init_data_contract();
     init_declared_connections();
     init_semantic_index_name();
+    SP_GRANT_RESOURCE_LIMIT = 500;
     DECLARED_GRANT_RESOURCE_TYPES = {
       catalog: "CATALOG",
       schema: "SCHEMA",
@@ -191135,7 +192691,7 @@ async function adminPayload(appkit) {
     listSpPersonaDefinitions(appkit),
     listSpAssignments(appkit),
     readRoster(appkit.lakebase).catch(() => ({ rows: [] })),
-    discoverSpGrantResources(appkit).then((resources) => ({ status: "ready", resources, detail: "" })).catch((error48) => ({
+    discoverSpGrantResources(appkit).then((resources) => ({ status: "ready", ...boundedSpGrantResources(resources), detail: "" })).catch((error48) => ({
       status: "error",
       resources: [],
       detail: `Configured resources could not be read: ${error48.message}`
@@ -193431,25 +194987,25 @@ var CacheManager = class CacheManager2 {
     if (!this.config.enabled) return fn(options?.callerSignal);
     const callerSignal = options?.callerSignal;
     if (callerSignal?.aborted) throw createAbortError(callerSignal);
-    const cacheKey2 = this.generateKey(key2, userKey);
+    const cacheKey3 = this.generateKey(key2, userKey);
     return this.telemetry.startActiveSpan("cache.getOrExecute", { attributes: {
-      "cache.key": cacheKey2,
+      "cache.key": cacheKey3,
       "cache.enabled": this.config.enabled,
       "cache.persistent": this.storage.isPersistent()
     } }, async (span) => {
       try {
-        const cached3 = await this.getValid(cacheKey2);
+        const cached3 = await this.getValid(cacheKey3);
         if (cached3 !== null) {
           span.setAttribute("cache.hit", true);
           span.setStatus({ code: SpanStatusCode.OK });
-          this.telemetryMetrics.cacheHitCount.add(1, { "cache.key": cacheKey2 });
+          this.telemetryMetrics.cacheHitCount.add(1, { "cache.key": cacheKey3 });
           logger3.event()?.setExecution({
             cache_hit: true,
-            cache_key: cacheKey2
+            cache_key: cacheKey3
           });
           return cached3.value;
         }
-        const existing = this.inFlightRequests.get(cacheKey2);
+        const existing = this.inFlightRequests.get(cacheKey3);
         if (existing && !existing.sharedController.signal.aborted) {
           existing.refCount++;
           if (existing.abortTimer) {
@@ -193458,24 +195014,24 @@ var CacheManager = class CacheManager2 {
           }
           span.setAttribute("cache.hit", true);
           span.setAttribute("cache.deduplication", true);
-          span.addEvent("cache.deduplication_used", { "cache.key": cacheKey2 });
+          span.addEvent("cache.deduplication_used", { "cache.key": cacheKey3 });
           this.telemetryMetrics.cacheHitCount.add(1, {
-            "cache.key": cacheKey2,
+            "cache.key": cacheKey3,
             "cache.deduplication": "true"
           });
           logger3.event()?.setExecution({
             cache_hit: true,
-            cache_key: cacheKey2,
+            cache_key: cacheKey3,
             cache_deduplication: true
           });
           return await this._waitWithRefCount(existing, callerSignal);
         }
         span.setAttribute("cache.hit", false);
-        span.addEvent("cache.miss", { "cache.key": cacheKey2 });
-        this.telemetryMetrics.cacheMissCount.add(1, { "cache.key": cacheKey2 });
+        span.addEvent("cache.miss", { "cache.key": cacheKey3 });
+        this.telemetryMetrics.cacheMissCount.add(1, { "cache.key": cacheKey3 });
         logger3.event()?.setExecution({
           cache_hit: false,
-          cache_key: cacheKey2
+          cache_key: cacheKey3
         });
         const sharedController = new AbortController();
         const entry = {
@@ -193484,9 +195040,9 @@ var CacheManager = class CacheManager2 {
           sharedController
         };
         entry.promise = fn(sharedController.signal).then(async (result2) => {
-          await this.set(cacheKey2, result2, options);
+          await this.set(cacheKey3, result2, options);
           span.addEvent("cache.value_stored", {
-            "cache.key": cacheKey2,
+            "cache.key": cacheKey3,
             "cache.ttl": options?.ttl ?? this.config.ttl ?? 3600
           });
           return result2;
@@ -193497,11 +195053,11 @@ var CacheManager = class CacheManager2 {
           if (error48 instanceof AppKitError || error48 instanceof ApiError) throw error48;
           throw ExecutionError.statementFailed(error48 instanceof Error ? error48.message : String(error48));
         }).finally(() => {
-          if (this.inFlightRequests.get(cacheKey2) === entry) this.inFlightRequests.delete(cacheKey2);
+          if (this.inFlightRequests.get(cacheKey3) === entry) this.inFlightRequests.delete(cacheKey3);
         });
         entry.promise.catch(() => {
         });
-        this.inFlightRequests.set(cacheKey2, entry);
+        this.inFlightRequests.set(cacheKey3, entry);
         const result = await this._waitWithRefCount(entry, callerSignal);
         span.setStatus({ code: SpanStatusCode.OK });
         return result;
@@ -196874,15 +198430,15 @@ var GenieConnector = class {
   }
   async getConversation(workspaceClient2, spaceId, conversationId) {
     const allMessages = [];
-    let pageToken;
+    let pageToken2;
     do {
       const { messages, nextPageToken } = await this.listConversationMessages(workspaceClient2, spaceId, conversationId, {
         pageSize: genieConnectorDefaults.pageSize,
-        pageToken
+        pageToken: pageToken2
       });
       allMessages.push(...messages);
-      pageToken = nextPageToken ?? void 0;
-    } while (pageToken && allMessages.length < this.config.maxMessages);
+      pageToken2 = nextPageToken ?? void 0;
+    } while (pageToken2 && allMessages.length < this.config.maxMessages);
     return {
       conversationId,
       spaceId,
@@ -198094,14 +199650,14 @@ var FilesPlugin = class FilesPlugin2 extends Plugin {
     if (path20.includes("\0")) return "path must not contain null bytes";
     return true;
   }
-  _readSettings(cacheKey2, authMode) {
+  _readSettings(cacheKey3, authMode) {
     const cache9 = authMode === "on-behalf-of-user" ? {
       ...FILES_READ_DEFAULTS.cache,
       enabled: false,
-      cacheKey: cacheKey2
+      cacheKey: cacheKey3
     } : {
       ...FILES_READ_DEFAULTS.cache,
-      cacheKey: cacheKey2
+      cacheKey: cacheKey3
     };
     return { default: {
       ...FILES_READ_DEFAULTS,
@@ -199164,9 +200720,9 @@ var GeniePlugin = class extends Plugin {
       return;
     }
     const includeQueryResults = req.query.includeQueryResults !== "false";
-    const pageToken = typeof req.query.pageToken === "string" ? req.query.pageToken : void 0;
+    const pageToken2 = typeof req.query.pageToken === "string" ? req.query.pageToken : void 0;
     const requestId = typeof req.query.requestId === "string" && req.query.requestId || randomUUID3();
-    logger23.debug("Fetching conversation %s from space %s (alias=%s, includeQueryResults=%s, pageToken=%s)", conversationId, spaceId, alias, includeQueryResults, pageToken ?? "none");
+    logger23.debug("Fetching conversation %s from space %s (alias=%s, includeQueryResults=%s, pageToken=%s)", conversationId, spaceId, alias, includeQueryResults, pageToken2 ?? "none");
     const streamSettings = {
       ...genieStreamDefaults,
       stream: {
@@ -199177,7 +200733,7 @@ var GeniePlugin = class extends Plugin {
     const workspaceClient2 = getWorkspaceClient();
     await this.executeStream(res, (signal) => this.genieConnector.streamConversation(workspaceClient2, spaceId, conversationId, {
       includeQueryResults,
-      pageToken,
+      pageToken: pageToken2,
       signal
     }), streamSettings);
   }
@@ -199458,13 +201014,13 @@ var JobsPlugin = class JobsPlugin2 extends Plugin {
     }
     return id;
   }
-  _readSettings(cacheKey2) {
+  _readSettings(cacheKey3) {
     return { default: {
       ...JOBS_READ_DEFAULTS,
       ...this.config.timeout != null && { timeout: this.config.timeout },
       cache: {
         ...JOBS_READ_DEFAULTS.cache,
-        cacheKey: cacheKey2
+        cacheKey: cacheKey3
       }
     } };
   }
@@ -203764,9 +205320,92 @@ async function preserveOwnedAppSchema(lakebase2, env = process.env) {
   return APP_SCHEMA;
 }
 
+// server/lib/request-latency-shutdown.ts
+var REQUEST_LATENCY_SHUTDOWN_TIMEOUT_MS = 2e3;
+var RequestLatencyShutdown = class {
+  constructor(timeoutMs = REQUEST_LATENCY_SHUTDOWN_TIMEOUT_MS) {
+    this.timeoutMs = timeoutMs;
+  }
+  recorder = null;
+  draining = null;
+  signalSource = null;
+  bind(recorder) {
+    this.recorder = recorder;
+  }
+  listen(source = process) {
+    if (this.signalSource) return;
+    this.signalSource = source;
+    source.once("SIGTERM", this.onSignal);
+    source.once("SIGINT", this.onSignal);
+  }
+  flushOnce() {
+    if (this.draining) return this.draining;
+    this.stopListening();
+    const flush = this.recorder?.flush();
+    if (!flush) {
+      this.draining = Promise.resolve();
+      return this.draining;
+    }
+    this.draining = new Promise((resolve2) => {
+      const timeout2 = setTimeout(() => {
+        console.warn(
+          `[ops] Request latency shutdown flush exceeded ${this.timeoutMs}ms; shutdown will continue without waiting.`
+        );
+        resolve2();
+      }, this.timeoutMs);
+      timeout2.unref?.();
+      void flush.then(
+        () => {
+          clearTimeout(timeout2);
+          resolve2();
+        },
+        (error48) => {
+          clearTimeout(timeout2);
+          const reason = error48 instanceof Error ? error48.message : String(error48);
+          console.warn(`[ops] Request latency shutdown flush failed: ${reason}`);
+          resolve2();
+        }
+      );
+    });
+    return this.draining;
+  }
+  onSignal = () => {
+    void this.flushOnce();
+  };
+  stopListening() {
+    if (!this.signalSource) return;
+    this.signalSource.off("SIGTERM", this.onSignal);
+    this.signalSource.off("SIGINT", this.onSignal);
+    this.signalSource = null;
+  }
+};
+var RequestLatencyShutdownPlugin = class extends Plugin {
+  static manifest = {
+    name: "requestLatencyShutdown",
+    displayName: "Request latency shutdown",
+    description: "Flushes buffered request latency spans during graceful server shutdown.",
+    resources: { required: [], optional: [] }
+  };
+  coordinator = new RequestLatencyShutdown();
+  setup() {
+    this.coordinator.listen();
+    return Promise.resolve();
+  }
+  shutdown() {
+    return this.coordinator.flushOnce();
+  }
+  exports() {
+    return {
+      setRecorder: this.coordinator.bind.bind(this.coordinator),
+      flushOnce: this.coordinator.flushOnce.bind(this.coordinator)
+    };
+  }
+};
+var requestLatencyShutdown = toPlugin(RequestLatencyShutdownPlugin);
+
 // server/server.ts
 createApp({
-  plugins: [lakebase({ pool: lakebasePoolSettings() }), server()],
+  plugins: [lakebase({ pool: lakebasePoolSettings() }), requestLatencyShutdown(), server()],
   async onPluginsReady(appkit) {
     await preserveOwnedAppSchema(appkit.lakebase);
     const [
@@ -203816,7 +205455,8 @@ createApp({
     ]);
     const readiness = {};
     const { storeReady } = await setupInsightsRoutes2(appkit, {
-      rolesReady: () => readiness.roles ?? Promise.reject(new Error("Role bootstrap was requested before it was scheduled."))
+      rolesReady: () => readiness.roles ?? Promise.reject(new Error("Role bootstrap was requested before it was scheduled.")),
+      onRequestLatencyRecorder: (recorder) => appkit.requestLatencyShutdown.setRecorder(recorder)
     });
     readiness.roles = storeReady.then(() => bootstrapSeedRoles2(appkit.lakebase)).then(() => void 0).catch((error48) => {
       console.error(`[admin] Background role bootstrap failed: ${error48.message}`);

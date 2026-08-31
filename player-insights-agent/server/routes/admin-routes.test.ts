@@ -284,6 +284,21 @@ describe('reading the list', () => {
     expect(body).not.toHaveProperty('access');
     expect(JSON.stringify(body)).not.toContain('billing');
   });
+
+  it('shares one full-roster read between the guard and list handler', async () => {
+    announceSeedAdmins('');
+    const store = fakeLakebase();
+    store.rows.admins.push({ email: BOSS, added_by: BOSS, added_at: '2026-08-15T00:00:00.000Z' });
+    const query = vi.spyOn(store, 'query');
+    const app = await startApp(store);
+
+    expect((await app.get(BOSS)).status).toBe(200);
+
+    const rosterReads = query.mock.calls.filter(
+      ([sql]) => String(sql).trim().startsWith('SELECT') && String(sql).includes(ADDED_ADMINS_TABLE)
+    );
+    expect(rosterReads).toHaveLength(1);
+  });
 });
 
 describe('adding an administrator', () => {
@@ -373,7 +388,13 @@ describe('removing an administrator', () => {
     store.rows.admins.push({ email: NEWCOMER, added_by: BOSS, added_at: '2026-08-15T00:00:00.000Z' });
     store.rows.grants.push(
       { email: NEWCOMER, target: 'telemetry', object: TELEMETRY, privilege: 'SELECT', provenance: 'app-granted' },
-      { email: NEWCOMER, target: 'billing', object: 'system.billing.usage', privilege: 'SELECT', provenance: 'pre-existing' }
+      {
+        email: NEWCOMER,
+        target: 'billing',
+        object: 'system.billing.usage',
+        privilege: 'SELECT',
+        provenance: 'pre-existing',
+      }
     );
     const calls = stubStatements(() => SUCCEEDED);
 

@@ -69,6 +69,7 @@ import {
   p50BarWidths,
   productForCostTile,
   productForProbe,
+  queryHistoryCoverageDetail,
   QUESTION_COST_FORMULA,
   questionServingAverage,
   splitMethod,
@@ -798,6 +799,8 @@ function CostMethodology({ payload, billingHref }: { payload: OpsCostPayload; bi
       tileAttribution(tile) !== 'deployment' ||
       ((tile.amount === null || tile.amount === undefined) && (tile.dbus === null || tile.dbus === undefined))
   );
+  const queryHistoryCoverage = payload.tiles.find((tile) => tile.id === 'sql-warehouse' || tile.id.startsWith('genie:'))
+    ?.evidence?.queryHistoryCoverage;
   const groups: MethodologyGroup[] = [
     {
       title: 'How totals are calculated',
@@ -822,6 +825,9 @@ function CostMethodology({ payload, billingHref }: { payload: OpsCostPayload; bi
         { label: 'Rates', detail: 'Prices use Databricks list rates; contracted rates are not available.' },
         ...(payload.honesty?.rangeMayStillFill
           ? [{ label: 'Freshness', detail: 'Recent billing records may still be arriving.' }]
+          : []),
+        ...(queryHistoryCoverage && queryHistoryCoverage.state !== 'complete'
+          ? [{ label: 'Query History', detail: queryHistoryCoverageDetail(queryHistoryCoverage) }]
           : []),
         ...(billingHref
           ? [

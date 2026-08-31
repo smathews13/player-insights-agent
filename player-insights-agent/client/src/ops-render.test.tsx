@@ -34,7 +34,7 @@ import {
   TrafficBody,
   type Block,
 } from './OpsPage';
-import { activeMinutesDisplay } from './ops-view';
+import { activeMinutesDisplay, queryHistoryCoverageDetail } from './ops-view';
 import { REFRESH_LABEL } from './refresh-state';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
@@ -883,6 +883,25 @@ describe('the cost block', () => {
     expect(visible).not.toContain('system.billing.list_prices');
     expect(visible).not.toContain('complete days');
     expect(markup.indexOf('>Experimental</span>')).toBeLessThan(markup.indexOf('>Cost</h3>'));
+  });
+
+  it('states exact partial Query History coverage instead of implying an estimate is complete', () => {
+    const detail = queryHistoryCoverageDetail({
+      state: 'partial',
+      requestedRange: { from: '1970-01-01T00:00:00.000Z', to: '2026-08-30T23:59:59.999Z' },
+      queriedRange: { from: '2025-08-30T00:00:00.000Z', to: '2026-08-30T23:59:59.999Z' },
+      rowsRead: 1_998,
+      pagesRead: 2,
+      chunksRead: 1,
+      reasons: ['range-clamped', 'page-cap'],
+    });
+
+    expect(detail).toContain('Partial: requested 1970-01-01 to 2026-08-30');
+    expect(detail).toContain('queried 2025-08-30 to 2026-08-30');
+    expect(detail).toContain('1998 rows across 2 pages');
+    expect(detail).toContain('requested span exceeded the bounded history window');
+    expect(detail).toContain('page limit was reached');
+    expect(detail).toContain('SQL and Genie allocations are withheld');
   });
 
   it('draws that badge as the badge the rest of the tab uses', () => {

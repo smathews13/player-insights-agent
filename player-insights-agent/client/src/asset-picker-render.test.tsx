@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -16,6 +17,8 @@ import {
 import { browseScopeUnavailableDetail } from '../../shared/browse-contract';
 import type { BrowseItem, BrowseResponse } from '../../shared/browse-contract';
 import { SINGLE_SCHEMA_LABEL, WHOLE_CATALOG_LABEL } from '../../shared/data-catalog-scope';
+
+const PICKER_SOURCE = readFileSync(new URL('AssetPicker.tsx', import.meta.url), 'utf8');
 
 /**
  * The browsers as they are composed, rather than as their source reads.
@@ -59,13 +62,24 @@ function spec(field: string): AssetPickerSpec {
   return found;
 }
 
-function ok(items: BrowseItem[], over: Partial<Extract<BrowseResponse, { status: 'ok' }>> = {}) {
+function ok(
+  items: BrowseItem[],
+  over: Partial<Extract<BrowseResponse, { status: 'ok' }>> = {}
+): Extract<BrowseResponse, { status: 'ok' }> {
   return {
     status: 'ok' as const,
     kind: 'catalogs' as const,
     items,
     next_page_token: '',
     path: '',
+    pagination: {
+      complete: true,
+      incomplete_reason: '' as const,
+      page: 1,
+      page_limit: 5,
+      page_size: 100,
+      returned: items.length,
+    },
     ...over,
   };
 }
@@ -282,6 +296,7 @@ describe('a list that could not be read', () => {
     kind: 'warehouses',
     detail: 'The workspace did not answer in time, so nothing about this list was established.',
     error: 'timeout',
+    incomplete_reason: 'deadline',
   };
 
   it('reports the failure and offers a retry, which a refusal does not', () => {
@@ -323,7 +338,7 @@ describe('long lists', () => {
   const many = Array.from({ length: 3 }, (_, index) => item({ id: `analytics.player.t${index}`, label: `t${index}` }));
 
   it('offers a filter over a list with rows in it', () => {
-    expect(panel('notebook-declaration', ok(many, { kind: 'tables' }))).toContain('Narrow this list');
+    expect(panel('notebook-declaration', ok(many, { kind: 'tables' }))).toContain('Search loaded results');
   });
 
   it('says when the filter hid everything, rather than looking like an empty workspace', () => {
@@ -334,10 +349,43 @@ describe('long lists', () => {
   });
 
   it('offers another page only where the workspace said there is one', () => {
-    const markup = panel('catalog', ok(many, { next_page_token: 'tok' }));
+    const markup = panel(
+      'catalog',
+      ok(many, {
+        next_page_token: 'tok',
+        pagination: {
+          complete: false,
+          incomplete_reason: 'more_available',
+          page: 1,
+          page_limit: 5,
+          page_size: 100,
+          returned: many.length,
+        },
+      })
+    );
     expect(text(markup)).toContain('Load more');
     expect(markup).toContain('aria-label="Load more catalogs your sign-in can see"');
     expect(text(panel('catalog', ok(many)))).not.toContain('Load more');
+  });
+
+  it('labels a capped prefix as partial and does not offer another page', () => {
+    const markup = panel(
+      'catalog',
+      ok(many, {
+        pagination: {
+          complete: false,
+          incomplete_reason: 'page_cap',
+          page: 5,
+          page_limit: 5,
+          page_size: 100,
+          returned: 500,
+        },
+      })
+    );
+    expect(markup).toContain('data-testid="asset-picker-partial"');
+    expect(text(markup)).toContain('Partial list');
+    expect(text(markup)).toContain('500 resources maximum');
+    expect(text(markup)).not.toContain('Load more');
   });
 });
 
@@ -348,6 +396,15 @@ describe('resource discovery loading', () => {
     expect(markup).toContain('asset-picker-spinner');
     expect(text(markup)).toContain('Finding resources your sign-in can access…');
     expect(markup).not.toContain('asset-picker-rows');
+  });
+
+  it('passes abort signals to initial and paged fetches and cancels on unmount', () => {
+    expect(PICKER_SOURCE).toContain('fetch(browseUrl(kind, cursor), { signal: controller.signal })');
+    expect(PICKER_SOURCE).toContain(
+      'fetch(browsePageUrl(kind, cursor, token, nextPage), { signal: controller.signal })'
+    );
+    expect(PICKER_SOURCE).toContain('pagingController.current?.abort()');
+    expect(PICKER_SOURCE).toContain('controller.abort()');
   });
 });
 

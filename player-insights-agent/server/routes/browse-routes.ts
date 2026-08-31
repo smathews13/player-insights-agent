@@ -33,9 +33,26 @@ import {
   listWarehouses,
 } from '../lib/browse-assets';
 
+export const BROWSE_ROUTE_DEADLINE_MS = 10_000;
+const PAGE_TOKEN_MAX_LENGTH = 2_048;
+
 function queryString(req: Request, name: string): string {
   const raw = req.query[name];
   return typeof raw === 'string' ? raw.trim() : '';
+}
+
+function pageToken(req: Request): string | undefined {
+  const token = queryString(req, 'page_token');
+  return token && token.length <= PAGE_TOKEN_MAX_LENGTH ? token : undefined;
+}
+
+function pageNumber(req: Request): number {
+  const raw = queryString(req, 'page');
+  const rawToken = queryString(req, 'page_token');
+  if (rawToken.length > PAGE_TOKEN_MAX_LENGTH) return 0;
+  if (!raw) return rawToken ? 2 : 1;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && (parsed === 1 || Boolean(rawToken)) ? parsed : 0;
 }
 
 function defaultNotebookPath(req: Request): string {
@@ -46,24 +63,39 @@ function defaultNotebookPath(req: Request): string {
 async function sendBrowse(
   req: Request,
   res: Response,
-  run: (ctx: { host: string; token: string }) => Promise<unknown>
+  run: (ctx: ReturnType<typeof browseRequestContext>) => Promise<unknown>
 ): Promise<void> {
-  const ctx = browseRequestContext({ token: executionToken(req) });
-  const payload = await run(ctx);
-  res.status(200).json(payload);
+  const disconnected = new AbortController();
+  const abortDisconnected = () => disconnected.abort(new DOMException('Client disconnected', 'AbortError'));
+  const closeDisconnected = () => {
+    if (!res.writableEnded) abortDisconnected();
+  };
+  req.once('aborted', abortDisconnected);
+  res.once('close', closeDisconnected);
+  const signal = AbortSignal.any([disconnected.signal, AbortSignal.timeout(BROWSE_ROUTE_DEADLINE_MS)]);
+  const ctx = browseRequestContext({
+    token: executionToken(req),
+    principal: req.header('x-forwarded-email')?.trim() ?? '',
+    signal,
+    page: pageNumber(req),
+  });
+  try {
+    const payload = await run(ctx);
+    if (!res.destroyed && !res.writableEnded) res.status(200).json(payload);
+  } finally {
+    req.off('aborted', abortDisconnected);
+    res.off('close', closeDisconnected);
+  }
 }
 
 export function setupBrowseRoutes(appkit: InsightsAppKit): void {
   appkit.server.extend((app) => {
     app.get('/api/browse/connection-types', async (req, res) => {
-      const ctx = browseRequestContext({ token: executionToken(req) });
-      res.status(200).json(await discoverConnectionTypes(ctx));
+      await sendBrowse(req, res, discoverConnectionTypes);
     });
 
     app.get('/api/browse/catalogs', async (req, res) => {
-      await sendBrowse(req, res, (ctx) =>
-        listCatalogs({ ...ctx, pageToken: queryString(req, 'page_token') || undefined })
-      );
+      await sendBrowse(req, res, (ctx) => listCatalogs({ ...ctx, pageToken: pageToken(req) }));
     });
 
     app.get('/api/browse/schemas', async (req, res) => {
@@ -71,7 +103,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
         listSchemas({
           ...ctx,
           catalog: queryString(req, 'catalog'),
-          pageToken: queryString(req, 'page_token') || undefined,
+          pageToken: pageToken(req),
         })
       );
     });
@@ -82,7 +114,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
           ...ctx,
           catalog: queryString(req, 'catalog'),
           schema: queryString(req, 'schema'),
-          pageToken: queryString(req, 'page_token') || undefined,
+          pageToken: pageToken(req),
         })
       );
     });
@@ -93,7 +125,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
           ...ctx,
           catalog: queryString(req, 'catalog'),
           schema: queryString(req, 'schema'),
-          pageToken: queryString(req, 'page_token') || undefined,
+          pageToken: pageToken(req),
         })
       );
     });
@@ -104,15 +136,11 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
     });
 
     app.get('/api/browse/warehouses', async (req, res) => {
-      await sendBrowse(req, res, (ctx) =>
-        listWarehouses({ ...ctx, pageToken: queryString(req, 'page_token') || undefined })
-      );
+      await sendBrowse(req, res, (ctx) => listWarehouses({ ...ctx, pageToken: pageToken(req) }));
     });
 
     app.get('/api/browse/genie-spaces', async (req, res) => {
-      await sendBrowse(req, res, (ctx) =>
-        listGenieSpaces({ ...ctx, pageToken: queryString(req, 'page_token') || undefined })
-      );
+      await sendBrowse(req, res, (ctx) => listGenieSpaces({ ...ctx, pageToken: pageToken(req) }));
     });
 
     // Serves the three settings that name a served model: the foundation model,
@@ -120,16 +148,14 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
     // the AI Gateway route, which is a three-value routing mode rather than an
     // object in the workspace.
     app.get('/api/browse/serving-endpoints', async (req, res) => {
-      await sendBrowse(req, res, (ctx) =>
-        listServingEndpoints({ ...ctx, pageToken: queryString(req, 'page_token') || undefined })
-      );
+      await sendBrowse(req, res, (ctx) => listServingEndpoints({ ...ctx, pageToken: pageToken(req) }));
     });
 
     app.get('/api/browse/vector-search-endpoints', async (req, res) => {
       await sendBrowse(req, res, (ctx) =>
         listVectorSearchEndpoints({
           ...ctx,
-          pageToken: queryString(req, 'page_token') || undefined,
+          pageToken: pageToken(req),
         })
       );
     });
@@ -139,7 +165,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
         listVectorSearchIndexes({
           ...ctx,
           endpoint: queryString(req, 'endpoint'),
-          pageToken: queryString(req, 'page_token') || undefined,
+          pageToken: pageToken(req),
         })
       );
     });
@@ -148,7 +174,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
       await sendBrowse(req, res, (ctx) =>
         listLakebaseProjects({
           ...ctx,
-          pageToken: queryString(req, 'page_token') || undefined,
+          pageToken: pageToken(req),
         })
       );
     });
@@ -158,7 +184,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
         listLakebaseBranches({
           ...ctx,
           project: queryString(req, 'project'),
-          pageToken: queryString(req, 'page_token') || undefined,
+          pageToken: pageToken(req),
         })
       );
     });
@@ -168,7 +194,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
         listLakebaseDatabases({
           ...ctx,
           branch: queryString(req, 'branch'),
-          pageToken: queryString(req, 'page_token') || undefined,
+          pageToken: pageToken(req),
         })
       );
     });
@@ -177,9 +203,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
     // Connections experiment picker can show the same grant/fallback surface
     // rather than a blank box with no explanation.
     app.get('/api/browse/experiments', async (req, res) => {
-      await sendBrowse(req, res, (ctx) =>
-        listExperiments({ ...ctx, pageToken: queryString(req, 'page_token') || undefined })
-      );
+      await sendBrowse(req, res, (ctx) => listExperiments({ ...ctx, pageToken: pageToken(req) }));
     });
   });
 }

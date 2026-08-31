@@ -1,10 +1,14 @@
 import type { NextFunction, Request, Response } from 'express';
 
-import { APP_SCHEMA } from '../../shared/app-schema';
 import { SPAN_PERCENTILE_FLOOR, type RouteLatency } from '../../shared/ops-contract';
+import {
+  RAW_REQUEST_LATENCY_TABLE,
+  REQUEST_LATENCY_ROLLUP_TABLE,
+  TELEMETRY_ROLLUP_DAYS_TABLE,
+} from './telemetry-retention';
 
 /** Durable, app-owned request timings. Customer deployments do not need OTEL. */
-export const REQUEST_LATENCY_TABLE = `${APP_SCHEMA}.request_latencies`;
+export const REQUEST_LATENCY_TABLE = RAW_REQUEST_LATENCY_TABLE;
 
 export const REQUEST_LATENCY_DDL = `CREATE TABLE IF NOT EXISTS ${REQUEST_LATENCY_TABLE} (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -27,10 +31,49 @@ export const REQUEST_LATENCY_INDEX_DDL = `CREATE INDEX IF NOT EXISTS request_lat
  * says: the later half is current and the earlier half is the route's baseline.
  */
 export const REQUEST_LATENCY_QUERY = `
-  WITH coverage AS (
+  WITH requested AS (
+    SELECT $1::date AS from_day, $2::date AS to_day
+  ),
+  raw_samples AS (
+    SELECT CONCAT(r.method, ' ', r.route) AS route,
+           r.duration_ms,
+           r.status_code >= 500 AS is_error,
+           r.recorded_at
+    FROM ${REQUEST_LATENCY_TABLE} r
+    CROSS JOIN requested q
+    WHERE r.recorded_at >= (q.from_day::timestamp AT TIME ZONE 'UTC')
+      AND r.recorded_at < ((q.to_day + 1)::timestamp AT TIME ZONE 'UTC')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled
+        WHERE rolled.day = (r.recorded_at AT TIME ZONE 'UTC')::date
+          AND rolled.request_latency_complete
+      )
+  ),
+  rolled_samples AS (
+    SELECT CONCAT(r.method, ' ', r.route) AS route,
+           sample.duration_ms,
+           sample.is_error,
+           (r.day::timestamp AT TIME ZONE 'UTC')
+             + sample.offset_us * INTERVAL '1 microsecond' AS recorded_at
+    FROM ${REQUEST_LATENCY_ROLLUP_TABLE} r
+    CROSS JOIN requested q
+    CROSS JOIN LATERAL unnest(
+      r.recorded_offsets_us,
+      r.durations_ms,
+      r.error_flags
+    ) AS sample(offset_us, duration_ms, is_error)
+    WHERE r.day BETWEEN q.from_day AND q.to_day
+  ),
+  samples AS (
+    SELECT * FROM rolled_samples
+    UNION ALL
+    SELECT * FROM raw_samples
+  ),
+  coverage AS (
     SELECT MIN(recorded_at) AS covered_from,
            MAX(recorded_at) AS covered_to
-    FROM ${REQUEST_LATENCY_TABLE}
+    FROM samples
   ),
   bounds AS (
     SELECT covered_from,
@@ -38,13 +81,9 @@ export const REQUEST_LATENCY_QUERY = `
            covered_from + ((covered_to - covered_from) / 2) AS split_at
     FROM coverage
   ),
-  samples AS (
-    SELECT CONCAT(r.method, ' ', r.route) AS route,
-           r.duration_ms,
-           r.status_code,
-           r.recorded_at,
-           b.split_at
-    FROM ${REQUEST_LATENCY_TABLE} r, bounds b
+  marked AS (
+    SELECT s.*, b.split_at
+    FROM samples s CROSS JOIN bounds b
   ),
   routes AS (
     SELECT
@@ -57,17 +96,61 @@ export const REQUEST_LATENCY_QUERY = `
       ROUND(percentile_cont(0.99) WITHIN GROUP (ORDER BY s.duration_ms)
         FILTER (WHERE s.recorded_at >= s.split_at))::int AS current_p99_ms,
       ROUND(MAX(s.duration_ms) FILTER (WHERE s.recorded_at >= s.split_at))::int AS slowest_ms,
-      COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at AND s.status_code >= 500)::int AS error_count,
+      COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at AND s.is_error)::int AS error_count,
       MAX(s.recorded_at) FILTER (WHERE s.recorded_at >= s.split_at) AS last_request_at,
       COUNT(*) FILTER (WHERE s.recorded_at < s.split_at)::int AS prior_count,
       ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
         FILTER (WHERE s.recorded_at < s.split_at))::int AS prior_p50_ms
-    FROM samples s
+    FROM marked s
     GROUP BY s.route
     HAVING COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at) > 0
+  ),
+  available_days AS (
+    SELECT rolled.day
+    FROM ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled
+    CROSS JOIN requested q
+    WHERE rolled.request_latency_complete
+      AND rolled.day BETWEEN q.from_day AND q.to_day
+    UNION
+    SELECT (raw.recorded_at AT TIME ZONE 'UTC')::date
+    FROM ${REQUEST_LATENCY_TABLE} raw
+    CROSS JOIN requested q
+    WHERE raw.recorded_at >= (q.from_day::timestamp AT TIME ZONE 'UTC')
+      AND raw.recorded_at < ((q.to_day + 1)::timestamp AT TIME ZONE 'UTC')
+  ),
+  observed_days AS (
+    SELECT MIN(day) AS first_day, MAX(day) AS last_day FROM available_days
+  ),
+  missing AS (
+    SELECT COUNT(*)::int AS missing_days
+    FROM observed_days observed
+    CROSS JOIN LATERAL generate_series(
+      observed.first_day,
+      observed.last_day,
+      INTERVAL '1 day'
+    ) expected(day)
+    LEFT JOIN available_days available ON available.day = expected.day::date
+    WHERE available.day IS NULL
+  ),
+  coverage_state AS (
+    SELECT CASE
+             WHEN observed.first_day IS NULL THEN 'unavailable'
+             WHEN missing.missing_days > 0 THEN 'partial'
+             ELSE 'complete'
+           END AS state,
+           missing.missing_days,
+           observed.first_day,
+           observed.last_day
+    FROM observed_days observed CROSS JOIN missing
   )
-  SELECT r.*, b.covered_from, b.covered_to
-  FROM routes r CROSS JOIN bounds b
+  SELECT r.*, b.covered_from, b.covered_to,
+         c.state AS coverage_state,
+         c.missing_days,
+         c.first_day AS coverage_from_day,
+         c.last_day AS coverage_to_day
+  FROM coverage_state c
+  CROSS JOIN bounds b
+  LEFT JOIN routes r ON TRUE
   ORDER BY r.current_p50_ms DESC NULLS LAST, r.route`;
 
 function text(value: unknown): string {
@@ -86,16 +169,25 @@ export function readRequestLatencyRows(rows: readonly Record<string, unknown>[])
   routes: RouteLatency[];
   coveredFrom: string;
   coveredTo: string;
+  coverageState: 'complete' | 'partial' | 'unavailable';
+  missingDays: number;
 } {
   const routes: RouteLatency[] = [];
   let coveredFrom = '';
   let coveredTo = '';
+  let coverageState: 'complete' | 'partial' | 'unavailable' = 'unavailable';
+  let missingDays = 0;
   for (const row of rows) {
+    const rawCoverageState = text(row.coverage_state);
+    if (rawCoverageState === 'complete' || rawCoverageState === 'partial' || rawCoverageState === 'unavailable') {
+      coverageState = rawCoverageState;
+    }
+    missingDays = Math.max(missingDays, count(row.missing_days));
+    coveredFrom ||= text(row.covered_from);
+    coveredTo ||= text(row.covered_to);
     const route = text(row.route).trim();
     const spans = count(row.current_count);
     if (!route || spans <= 0) continue;
-    coveredFrom ||= text(row.covered_from);
-    coveredTo ||= text(row.covered_to);
     const priorSpans = count(row.prior_count);
     routes.push({
       route,
@@ -112,7 +204,7 @@ export function readRequestLatencyRows(rows: readonly Record<string, unknown>[])
     });
   }
   routes.sort((left, right) => right.p50Ms - left.p50Ms || left.route.localeCompare(right.route));
-  return { routes, coveredFrom, coveredTo };
+  return { routes, coveredFrom, coveredTo, coverageState, missingDays };
 }
 
 type RequestLatencyStore = {
@@ -170,37 +262,53 @@ export function requestLatencyRecorder(
   store: RequestLatencyStore,
   { flushMs = FLUSH_MS, maxBuffered = MAX_BUFFERED }: { flushMs?: number; maxBuffered?: number } = {}
 ): RequestLatencyRecorder {
-  let buffered: LatencySpan[] = [];
+  const buffered: LatencySpan[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let activeFlush: Promise<void> | null = null;
 
-  const flush = async (): Promise<void> => {
+  const flush = (): Promise<void> => {
     if (timer) {
       clearTimeout(timer);
       timer = null;
     }
-    if (buffered.length === 0) return;
-    // Taken before the await so spans arriving during the write join the next
-    // batch rather than being dropped by the reset, or written twice.
-    const writing = buffered;
-    buffered = [];
+    if (activeFlush) return activeFlush;
+    if (buffered.length === 0) return Promise.resolve();
+    activeFlush = (async () => {
+      while (buffered.length > 0) {
+        // Taken before the await so spans arriving during the write join the next
+        // bounded batch rather than being dropped by the reset, or written twice.
+        const writing = buffered.splice(0, maxBuffered);
+        const values = writing
+          .map((_, index) => {
+            const at = index * 4;
+            return `($${at + 1}, $${at + 2}, $${at + 3}, $${at + 4})`;
+          })
+          .join(', ');
 
-    const values = writing
-      .map((_, index) => {
-        const at = index * 4;
-        return `($${at + 1}, $${at + 2}, $${at + 3}, $${at + 4})`;
-      })
-      .join(', ');
-
-    try {
-      await store.query(
-        `INSERT INTO ${REQUEST_LATENCY_TABLE} (method, route, status_code, duration_ms)
-           VALUES ${values}`,
-        writing.flat()
-      );
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      console.warn(`[ops] ${writing.length} request latency span(s) were not recorded: ${reason}`);
-    }
+        try {
+          await store.query(
+            `INSERT INTO ${REQUEST_LATENCY_TABLE} (method, route, status_code, duration_ms)
+               VALUES ${values}`,
+            writing.flat()
+          );
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          console.warn(`[ops] ${writing.length} request latency span(s) were not recorded: ${reason}`);
+        }
+      }
+    })().finally(() => {
+      activeFlush = null;
+      // A response may finish after the final loop check and before this
+      // continuation. Preserve the ordinary periodic path for that new span.
+      if (buffered.length > 0 && !timer) {
+        timer = setTimeout(() => {
+          timer = null;
+          void flush();
+        }, flushMs);
+        timer.unref?.();
+      }
+    });
+    return activeFlush;
   };
 
   const record = (span: LatencySpan): void => {

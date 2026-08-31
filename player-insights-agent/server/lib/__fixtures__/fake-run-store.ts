@@ -330,14 +330,19 @@ export class FakeStore implements LakebaseReader {
    * second row, and it must not be reported as a fresh write either.
    */
   private insertStageEvent(params: unknown[]): Record<string, unknown>[] {
-    const [runId, seq, eventId, eventType, stage, payload] = params as [
+    const [runId, seq, eventId, eventType, stage, payload, fencingToken] = params as [
       string,
       number,
       string,
       string,
       string | null,
       string,
+      number | undefined,
     ];
+    if (fencingToken !== undefined) {
+      const run = this.runs.find((row) => row.run_id === runId);
+      if (!run || run.fencing_token !== fencingToken || run.completed_at !== null) return [];
+    }
     if (this.stageEvents.some((row) => row.run_id === runId && row.seq === Number(seq))) return [];
     this.stageEvents.push({
       run_id: runId,

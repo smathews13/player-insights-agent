@@ -33,6 +33,8 @@ interface FakeOptions {
   present?: { columns?: string[]; tables?: string[]; indexes?: string[] };
   /** What the ownership probe should say. Absent means "schema does not exist". */
   ownership?: Record<string, unknown>;
+  /** Simulate another replica recording this version while the lock is awaited. */
+  recordOnLock?: number;
 }
 
 /**
@@ -74,7 +76,7 @@ function fakeStore(options: FakeOptions = {}) {
     if (/information_schema\.tables/i.test(collapsed)) {
       return Promise.resolve({ rows: (options.present?.tables ?? []).map((table_name) => ({ table_name })) });
     }
-    if (/pg_indexes/i.test(collapsed)) {
+    if (/pg_catalog\.pg_index/i.test(collapsed)) {
       return Promise.resolve({ rows: (options.present?.indexes ?? []).map((indexname) => ({ indexname })) });
     }
 
@@ -100,6 +102,9 @@ function fakeStore(options: FakeOptions = {}) {
     }
 
     migrationSql.push(collapsed);
+    if (/^SELECT pg_advisory_lock/i.test(collapsed) && options.recordOnLock !== undefined) {
+      recordedVersions.add(options.recordOnLock);
+    }
     const refusal = options.refuse?.(collapsed) ?? null;
     if (refusal) {
       const error = new Error(typeof refusal === 'string' ? refusal : refusal.message) as Error & { code?: string };
@@ -246,6 +251,85 @@ describe('the app request timing migration', () => {
     expect(migration?.statements.join('\n')).toContain('CREATE TABLE IF NOT EXISTS');
     expect(migration?.statements.join('\n')).toContain('request_latencies');
     expect(MIGRATIONS[0].statements.join('\n')).not.toContain('request_latencies');
+  });
+});
+
+describe('serialized online migrations', () => {
+  it('holds one session advisory lock around concurrent index statements', async () => {
+    const migration: Migration = {
+      version: 2,
+      name: 'online indexes',
+      lock: 'session',
+      statements: [`CREATE INDEX CONCURRENTLY IF NOT EXISTS one_added_idx ON ${SCHEMA}.one (added)`],
+      down: [`DROP INDEX CONCURRENTLY IF EXISTS ${SCHEMA}.one_added_idx`],
+    };
+    const store = fakeStore({ recorded: [1] });
+
+    const outcome = await runMigrations(store.client, options([twoVersions()[0], migration]));
+
+    expect(outcome.ok).toBe(true);
+    expect(store.migrationSql).toEqual([
+      'SELECT pg_advisory_lock(hashtextextended($1, 0))',
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS one_added_idx ON ${SCHEMA}.one (added)`,
+      'SELECT pg_advisory_unlock(hashtextextended($1, 0))',
+    ]);
+    expect(store.inserts).toEqual([[2, 'online indexes', 1, 0, 'a test']]);
+  });
+
+  it('does not replay cleanup after another replica records the version', async () => {
+    const migration: Migration = {
+      version: 2,
+      name: 'online indexes',
+      lock: 'session',
+      statements: [
+        `DROP INDEX CONCURRENTLY IF EXISTS ${SCHEMA}.one_added_idx`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS one_added_idx ON ${SCHEMA}.one (added)`,
+      ],
+      down: [`DROP INDEX CONCURRENTLY IF EXISTS ${SCHEMA}.one_added_idx`],
+    };
+    const store = fakeStore({ recorded: [1], recordOnLock: 2 });
+
+    const outcome = await runMigrations(store.client, options([twoVersions()[0], migration]));
+
+    expect(outcome.ok).toBe(true);
+    expect(store.migrationSql).toEqual([
+      'SELECT pg_advisory_lock(hashtextextended($1, 0))',
+      'SELECT pg_advisory_unlock(hashtextextended($1, 0))',
+    ]);
+    expect(store.inserts).toEqual([]);
+    expect(store.recordedVersions).toEqual(new Set([1, 2]));
+  });
+});
+
+describe('the v22 to v24 upgrade path', () => {
+  const recordedThrough22 = Array.from({ length: 22 }, (_, index) => index + 1);
+
+  it('records telemetry rollups before query-path indexes', async () => {
+    const store = fakeStore({ recorded: recordedThrough22 });
+
+    const outcome = await runMigrations(store.client, options(MIGRATIONS));
+
+    expect(outcome.ok).toBe(true);
+    expect(outcome.attempts.map((attempt) => attempt.version)).toEqual([23, 24]);
+    expect(store.inserts.map((row) => row[0])).toEqual([23, 24]);
+    expect(store.migrationSql.findIndex((sql) => sql.includes('request_latency_daily_rollups'))).toBeLessThan(
+      store.migrationSql.findIndex((sql) => sql.includes('conversations_owner_updated_idx'))
+    );
+  });
+
+  it('never attempts or records v24 when v23 is incomplete', async () => {
+    const store = fakeStore({
+      recorded: recordedThrough22,
+      refuse: (sql) => (sql.includes('request_latency_daily_rollups') ? 'rollup table refused' : null),
+    });
+
+    const outcome = await runMigrations(store.client, options(MIGRATIONS));
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.attempts.map((attempt) => attempt.version)).toEqual([23]);
+    expect(outcome.pending).toEqual([23, 24]);
+    expect(store.inserts.map((row) => row[0])).toEqual([]);
+    expect(store.migrationSql.join('\n')).not.toContain('conversations_owner_updated_idx');
   });
 });
 

@@ -113,7 +113,12 @@ export function DeclaredConnectionsCard({
   useEffect(() => {
     if (!adding || typeDiscovery || typeDiscoveryError) return;
     let live = true;
-    fetch('/api/browse/connection-types')
+    const controller = new AbortController();
+    const timeout = window.setTimeout(
+      () => controller.abort(new DOMException('Resource discovery timed out', 'TimeoutError')),
+      15_000
+    );
+    fetch('/api/browse/connection-types', { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`the discovery endpoint answered ${response.status}`);
         return response.json() as Promise<ConnectionTypesResponse>;
@@ -126,11 +131,19 @@ export function DeclaredConnectionsCard({
           if (first) setKindChoice(first);
         },
         (caught: unknown) => {
-          if (live) setTypeDiscoveryError((caught as Error).message || 'Resource types could not be listed.');
+          if (live) {
+            setTypeDiscoveryError(
+              (caught as Error)?.name === 'TimeoutError'
+                ? 'Resource discovery timed out.'
+                : (caught as Error).message || 'Resource types could not be listed.'
+            );
+          }
         }
       );
     return () => {
       live = false;
+      window.clearTimeout(timeout);
+      controller.abort();
     };
   }, [adding, typeDiscovery, typeDiscoveryError]);
 

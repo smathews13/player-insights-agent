@@ -744,6 +744,11 @@ export function ResourceBrowser({
               ) : null}
             </div>
           ) : null}
+          {!loading && discovery?.status === 'ready' && discovery.pagination?.complete === false ? (
+            <p className="sp-resource-state">
+              Partial list: showing the first {discovery.pagination.returned} configured resources.
+            </p>
+          ) : null}
           {!loading && resources.length > 0 && groups.length === 0 ? <p>No resources match this filter.</p> : null}
           {groups.map((group) => (
             <section

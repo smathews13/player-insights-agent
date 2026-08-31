@@ -49,7 +49,7 @@ describe('Ops active-minute timezone and freshness', () => {
         lakebase: { query },
         server: { extend: (register: (target: Application) => void) => register(app) },
       } as unknown as InsightsAppKit,
-      { isAdminRoute: () => true }
+      { isAdminRoute: () => true, now: () => Date.parse('2026-08-31T12:00:00Z') }
     );
 
     let payload = {} as OpsTrafficPayload;
@@ -58,9 +58,10 @@ describe('Ops active-minute timezone and freshness', () => {
       { json: (body: OpsTrafficPayload) => (payload = body) } as unknown as Response
     );
 
-    expect(query).toHaveBeenCalledWith(ACTIVE_MINUTES_PER_DAY_QUERY, ['America/Los_Angeles']);
-    expect(query).toHaveBeenCalledWith(QUESTIONS_PER_DAY_QUERY, ['America/Los_Angeles']);
-    expect(query).toHaveBeenCalledWith(DISTINCT_ASKERS_PER_DAY_QUERY, ['America/Los_Angeles']);
+    const parameters = ['America/Los_Angeles', '2026-08-24', '2026-08-30'];
+    expect(query).toHaveBeenCalledWith(ACTIVE_MINUTES_PER_DAY_QUERY, parameters);
+    expect(query).toHaveBeenCalledWith(QUESTIONS_PER_DAY_QUERY, parameters);
+    expect(query).toHaveBeenCalledWith(DISTINCT_ASKERS_PER_DAY_QUERY, parameters);
     expect(payload.activeMinutesPerDay).toEqual([{ day: '2026-08-27', count: 3 }]);
     expect(payload.activeMinutesTimeZone).toBe('America/Los_Angeles');
     expect(payload.activeMinutesRecordedFrom).toBe('2026-08-28T05:58:00.000Z');

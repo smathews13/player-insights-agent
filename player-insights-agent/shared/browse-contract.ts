@@ -67,6 +67,24 @@ export interface BrowseItem {
   expandable: boolean;
 }
 
+export type BrowseIncompleteReason = 'more_available' | 'page_cap' | 'deadline' | 'cancelled' | 'failed';
+
+/**
+ * Pagination truth carried with every successful page.
+ *
+ * `complete` means the workspace said this list ended. A capped or interrupted
+ * list remains useful, but is explicitly partial so the UI never presents the
+ * loaded prefix as every resource the user can access.
+ */
+export interface BrowsePagination {
+  complete: boolean;
+  incomplete_reason: BrowseIncompleteReason | '';
+  page: number;
+  page_limit: number;
+  page_size: number;
+  returned: number;
+}
+
 /**
  * Why browsing is unavailable, in a fixed vocabulary the picker can switch on.
  *
@@ -94,6 +112,7 @@ export interface BrowseOk {
    * For notebooks: the directory that was listed. Empty for other kinds.
    */
   path: string;
+  pagination: BrowsePagination;
 }
 
 /**
@@ -121,6 +140,7 @@ export interface BrowseFailed {
   detail: string;
   /** Workspace or transport wording, when any. */
   error: string;
+  incomplete_reason: Extract<BrowseIncompleteReason, 'deadline' | 'cancelled' | 'failed'>;
 }
 
 export type BrowseResponse = BrowseOk | BrowseUnavailable | BrowseFailed;
@@ -155,6 +175,13 @@ export interface ConnectionTypesResponse {
     status: 'empty' | 'denied' | 'failed';
     detail: string;
   }>;
+  discovery: {
+    mode: 'lazy';
+    complete: false;
+    incomplete_reason: 'children_not_enumerated';
+    root_calls: number;
+    concurrency_limit: number;
+  };
 }
 
 /** Type guard the picker uses before reading `items`. */

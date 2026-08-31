@@ -6,12 +6,36 @@ export interface ActiveAskCancellation {
 export interface RegisteredActiveAsk extends ActiveAskCancellation {
   conversationId: string;
   stopRequested: boolean;
+  /**
+   * The SSE transport this browser owns.
+   *
+   * Kept beside the AbortController because both describe the same POST. The
+   * durable poll reads this to avoid duplicating a healthy stream, and the
+   * timestamps let it fall back when heartbeats stop arriving.
+   */
+  stream?: {
+    state: 'connecting' | 'open';
+    openedAt: number | null;
+    lastActivityAt: number | null;
+  };
 }
 
 const activeAsks = new Map<string, RegisteredActiveAsk>();
+const activeAskListeners = new Set<() => void>();
+export const ACTIVE_ASK_STREAM_STALE_MS = 45_000;
+
+function announceActiveAskChange(): void {
+  for (const listener of [...activeAskListeners]) listener();
+}
+
+export function subscribeToActiveAskChanges(listener: () => void): () => void {
+  activeAskListeners.add(listener);
+  return () => activeAskListeners.delete(listener);
+}
 
 export function registerActiveAsk(active: RegisteredActiveAsk): void {
   activeAsks.set(active.conversationId, active);
+  announceActiveAskChange();
 }
 
 export function readActiveAsk(conversationId: string): RegisteredActiveAsk | null {
@@ -19,12 +43,46 @@ export function readActiveAsk(conversationId: string): RegisteredActiveAsk | nul
 }
 
 export function forgetActiveAsk(conversationId: string, active: RegisteredActiveAsk): void {
-  if (activeAsks.get(conversationId) === active) activeAsks.delete(conversationId);
+  if (activeAsks.get(conversationId) !== active) return;
+  activeAsks.delete(conversationId);
+  announceActiveAskChange();
+}
+
+export function markActiveAskStreamOpen(active: RegisteredActiveAsk, at = Date.now()): void {
+  if (activeAsks.get(active.conversationId) !== active) return;
+  active.stream = { state: 'open', openedAt: at, lastActivityAt: at };
+  announceActiveAskChange();
+}
+
+export function markActiveAskStreamActivity(active: RegisteredActiveAsk, at = Date.now()): void {
+  if (activeAsks.get(active.conversationId) !== active || active.stream?.state !== 'open') return;
+  active.stream.lastActivityAt = at;
+  announceActiveAskChange();
+}
+
+export function activeAskHasHealthyStream(
+  conversationId: string,
+  runId: string,
+  now = Date.now(),
+  staleAfterMs = ACTIVE_ASK_STREAM_STALE_MS
+): boolean {
+  const active = activeAsks.get(conversationId);
+  if (
+    !active ||
+    active.correlationId !== runId ||
+    active.controller.signal.aborted ||
+    active.stream?.state !== 'open' ||
+    active.stream.lastActivityAt === null
+  ) {
+    return false;
+  }
+  return now - active.stream.lastActivityAt <= staleAfterMs;
 }
 
 /** Test isolation only. Navigation never clears active asks. */
 export function resetActiveAsks(): void {
   activeAsks.clear();
+  activeAskListeners.clear();
 }
 
 /**
@@ -37,6 +95,7 @@ export function abortActiveAsksForSessionEnd(): void {
     active.controller.abort(new DOMException('Astrolabe app session ended', 'AbortError'));
   }
   activeAsks.clear();
+  announceActiveAskChange();
 }
 
 export interface CancelRunResponse {

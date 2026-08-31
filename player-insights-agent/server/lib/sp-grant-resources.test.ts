@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { discoverSpGrantResources } from './sp-grant-resources';
+import { boundedSpGrantResources, discoverSpGrantResources } from './sp-grant-resources';
 
 describe('SP grant resource discovery', () => {
   it('combines configured and declared resources without exposing unrelated environment values', async () => {
@@ -126,5 +126,23 @@ describe('SP grant resource discovery', () => {
         id: 'vs-resource-123',
       })
     );
+  });
+
+  it('marks capped local grant discovery as partial', () => {
+    const resources = Array.from({ length: 4 }, (_, index) => ({
+      type: 'TABLE' as const,
+      id: `main.schema.table_${index}`,
+      label: `table_${index}`,
+      source: 'declared' as const,
+    }));
+    expect(boundedSpGrantResources(resources, 2)).toEqual({
+      resources: resources.slice(0, 2),
+      pagination: {
+        complete: false,
+        returned: 2,
+        limit: 2,
+        incompleteReason: 'result_cap',
+      },
+    });
   });
 });

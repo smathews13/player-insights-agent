@@ -5,6 +5,32 @@
 
 import { servingMlflowTraceId } from '../../shared/mlflow-trace-id';
 import { isRunCancelledError, throwIfRunCancelled } from './run-cancellation';
+import { STAGE_REPLAY_LIMIT } from './run-stage-events';
+
+/**
+ * Hard bounds for one streamed serving response.
+ *
+ * Eight MiB matches the existing attachment transport ceiling and is far above
+ * the agent's 200,000-character trace budget. Event count allows the maximum
+ * replayable stage set to announce, complete, and flush, plus a small envelope
+ * allowance. Non-stage output items are separately bounded by that same stage
+ * ceiling so a malformed endpoint cannot grow the assembled response forever.
+ */
+export const MAX_SERVING_STREAM_BYTES = 8 * 1024 * 1024;
+export const MAX_SERVING_STREAM_EVENTS = STAGE_REPLAY_LIMIT * 3 + 8;
+export const MAX_SERVING_OUTPUT_ITEMS = STAGE_REPLAY_LIMIT;
+
+export class StreamLimitExceededError extends Error {
+  readonly limit: 'bytes' | 'events' | 'output_items';
+  readonly maximum: number;
+
+  constructor(limit: StreamLimitExceededError['limit'], maximum: number) {
+    super(`The endpoint stream exceeded the ${limit.replace('_', ' ')} limit of ${maximum}.`);
+    this.name = 'StreamLimitExceededError';
+    this.limit = limit;
+    this.maximum = maximum;
+  }
+}
 
 /** One `data:` payload, already parsed. Shapes beyond this are the caller's. */
 interface StreamEvent {
@@ -117,9 +143,16 @@ function isAnnouncement(stage: Record<string, unknown>): boolean {
  */
 export async function* sseEvents(body: unknown, signal?: AbortSignal): AsyncGenerator<StreamEvent> {
   const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
   let buffer = '';
+  let bytes = 0;
+  let events = 0;
 
   for await (const chunk of toChunks(body, signal)) {
+    bytes += typeof chunk === 'string' ? encoder.encode(chunk).byteLength : chunk.byteLength;
+    if (bytes > MAX_SERVING_STREAM_BYTES) {
+      throw new StreamLimitExceededError('bytes', MAX_SERVING_STREAM_BYTES);
+    }
     buffer += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
     // SSE separates events with a blank line. \r\n\r\n is tolerated because the
     // spec permits it and a proxy is free to rewrite line endings.
@@ -131,6 +164,10 @@ export async function* sseEvents(body: unknown, signal?: AbortSignal): AsyncGene
       // guessing wrong leaves a stray newline that makes the next block's
       // `data:` prefix stop matching -- dropping every remaining event.
       buffer = buffer.slice(boundary).replace(/^\r?\n\r?\n/, '');
+      events += 1;
+      if (events > MAX_SERVING_STREAM_EVENTS) {
+        throw new StreamLimitExceededError('events', MAX_SERVING_STREAM_EVENTS);
+      }
       const parsed = parseBlock(block);
       if (parsed) yield parsed;
       boundary = buffer.search(/\r?\n\r?\n/);
@@ -138,6 +175,12 @@ export async function* sseEvents(body: unknown, signal?: AbortSignal): AsyncGene
   }
   // A final event with no trailing blank line. Servers should send one; this
   // costs a line and removes a dependency on them having done so.
+  if (buffer) {
+    events += 1;
+    if (events > MAX_SERVING_STREAM_EVENTS) {
+      throw new StreamLimitExceededError('events', MAX_SERVING_STREAM_EVENTS);
+    }
+  }
   const trailing = parseBlock(buffer);
   if (trailing) yield trailing;
 }
@@ -167,6 +210,8 @@ async function* toChunks(body: unknown, signal?: AbortSignal): AsyncGenerator<Ui
   throwIfRunCancelled(signal);
   if (typeof (body as ReadableStream<Uint8Array>).getReader === 'function') {
     const reader = (body as ReadableStream<Uint8Array>).getReader();
+    let finished = false;
+    let failure: unknown;
     const abort = () => {
       void reader.cancel(signal?.reason).catch(() => undefined);
     };
@@ -175,16 +220,25 @@ async function* toChunks(body: unknown, signal?: AbortSignal): AsyncGenerator<Ui
       for (;;) {
         const { done, value } = await reader.read();
         throwIfRunCancelled(signal);
-        if (done) return;
+        if (done) {
+          finished = true;
+          return;
+        }
         if (value) yield value;
       }
+    } catch (error) {
+      failure = error;
+      throw error;
     } finally {
       signal?.removeEventListener('abort', abort);
+      if (!finished) await reader.cancel(failure ?? signal?.reason).catch(() => undefined);
       reader.releaseLock();
     }
   }
   if (typeof (body as AsyncIterable<unknown>)[Symbol.asyncIterator] === 'function') {
     const nodeBody = body as AsyncIterable<Uint8Array | string> & { destroy?: (error?: Error) => void };
+    let finished = false;
+    let failure: unknown;
     const abort = () => nodeBody.destroy?.(signal?.reason instanceof Error ? signal.reason : undefined);
     signal?.addEventListener('abort', abort, { once: true });
     try {
@@ -193,9 +247,14 @@ async function* toChunks(body: unknown, signal?: AbortSignal): AsyncGenerator<Ui
         yield chunk;
       }
       throwIfRunCancelled(signal);
+      finished = true;
       return;
+    } catch (error) {
+      failure = error;
+      throw error;
     } finally {
       signal?.removeEventListener('abort', abort);
+      if (!finished) nodeBody.destroy?.(failure instanceof Error ? failure : undefined);
     }
   }
   throw new Error('The endpoint returned a streaming response body that cannot be read.');
@@ -240,7 +299,12 @@ export async function consumeServingStream(
         }
         continue;
       }
-      if (event.item !== undefined) output.push(event.item);
+      if (event.item !== undefined) {
+        if (output.length >= MAX_SERVING_OUTPUT_ITEMS) {
+          throw new StreamLimitExceededError('output_items', MAX_SERVING_OUTPUT_ITEMS);
+        }
+        output.push(event.item);
+      }
       if (event.custom_outputs && typeof event.custom_outputs === 'object') {
         customOutputs = event.custom_outputs as Record<string, unknown>;
       }
@@ -254,6 +318,7 @@ export async function consumeServingStream(
       throwIfRunCancelled(signal);
       throw error;
     }
+    if (error instanceof StreamLimitExceededError) throw error;
     // The socket died part-way through. undici reports this as a bare
     // `aborted`, which is indistinguishable by message from an endpoint that
     // was never reachable, and the route's catch treats the latter as grounds

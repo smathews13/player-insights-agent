@@ -50,10 +50,39 @@ import {
   type OpsLatencyPayload,
   type OpsTrafficPayload,
   type PlatformReading,
+  type QueryHistoryCoverage,
   type RouteLatency,
   type TelemetryState,
   type TrafficBar,
 } from '../../shared/ops-contract';
+
+const QUERY_HISTORY_REASON: Record<QueryHistoryCoverage['reasons'][number], string> = {
+  'invalid-range': 'the requested dates were invalid',
+  'range-clamped': 'the requested span exceeded the bounded history window',
+  'page-cap': 'the page limit was reached',
+  'repeated-page-token': 'Databricks repeated a page cursor',
+  'missing-page-token': 'Databricks reported another page without a cursor',
+  deadline: 'the overall read deadline was reached',
+  'caller-abort': 'the caller cancelled the read',
+  'transport-error': 'Databricks Query History did not answer',
+  'invalid-row': 'one or more rows had no query identifier',
+  'unexpected-warehouse': 'one or more rows belonged to another warehouse',
+  'missing-execution-time': 'one or more rows had no execution-time metric',
+};
+
+export function queryHistoryCoverageDetail(coverage: QueryHistoryCoverage): string {
+  const dates = (range: QueryHistoryCoverage['requestedRange']) =>
+    range ? `${range.from.slice(0, 10)} to ${range.to.slice(0, 10)}` : 'no valid range';
+  if (coverage.state === 'complete') {
+    return `Complete: ${coverage.rowsRead} rows across ${coverage.pagesRead} pages and ${coverage.chunksRead} bounded date chunks.`;
+  }
+  const reasons = coverage.reasons.map((reason) => QUERY_HISTORY_REASON[reason]).join('; ');
+  return (
+    `Partial: requested ${dates(coverage.requestedRange)}; queried ${dates(coverage.queriedRange)}; ` +
+    `${coverage.rowsRead} rows across ${coverage.pagesRead} pages and ${coverage.chunksRead} bounded date chunks. ` +
+    `${reasons || 'Coverage was not established'}. SQL and Genie allocations are withheld.`
+  );
+}
 
 /* ── Money ───────────────────────────────────────────────────────────────── */
 

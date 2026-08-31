@@ -64,6 +64,30 @@ export function replayedStages(status: ConversationRunStatus | null): TraceStage
   return status.stages.map((stage, index) => normalizeStage(stage, index));
 }
 
+/**
+ * The parts of a durable run that materially move a live surface.
+ *
+ * `updated_at` is deliberately absent. Lease heartbeats can move that timestamp
+ * without changing anything a reader sees; treating each heartbeat as progress
+ * would pin fallback polling at its fastest cadence for an otherwise quiet run.
+ */
+export function conversationRunStateKey(status: ConversationRunStatus): string {
+  return JSON.stringify({
+    run: status.run_id,
+    state: status.state,
+    terminalCode: status.terminal_code,
+    terminalMessage: status.terminal_message_id ?? null,
+    stages: replayedStages(status).map((stage) => [
+      stage.id,
+      stage.status,
+      stage.name,
+      stage.start,
+      stage.duration,
+      stage.calls,
+    ]),
+  });
+}
+
 export async function readConversationRun(
   conversationId: string,
   fetchImpl: typeof fetch = fetch

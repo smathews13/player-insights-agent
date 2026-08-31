@@ -19,6 +19,7 @@
  * identity the app can authenticate as or grant anything to.
  */
 import { ACCESS_GATE_ENABLED } from '../../shared/access-gate';
+import { ExpiringLruCache } from '../lib/expiring-lru';
 
 /** How much of the system the user was told their own permissions govern. */
 export type AccessMode =
@@ -76,10 +77,7 @@ export function observedServingPrincipal(): ServingPrincipalObservation | null {
  * agent substitutes when `current_user.me()` failed, and storing that against a
  * conversation would turn a failed lookup into a named identity.
  */
-export function rememberServingPrincipal(report: {
-  principal?: unknown;
-  principal_resolved?: unknown;
-}): void {
+export function rememberServingPrincipal(report: { principal?: unknown; principal_resolved?: unknown }): void {
   if (report.principal_resolved !== true) return;
   const id = typeof report.principal === 'string' ? report.principal.trim() : '';
   if (!id) return;
@@ -105,8 +103,18 @@ export interface AccessDecision {
  * claim about authority and a claim about authority cannot be taken from the
  * client that benefits from it. A request asserting `user-verified` in a header
  * would be asserting that its own permissions were checked.
+ *
+ * A verified decision is not a session. It expires after five minutes and the
+ * whole process holds at most 2,048 users, so a long-lived instance cannot retain
+ * every identity it has ever seen or reuse an old verification indefinitely.
  */
-const decisions = new Map<string, AccessDecision>();
+export const ACCESS_DECISION_TTL_MS = 5 * 60_000;
+export const ACCESS_DECISION_CACHE_MAX_ENTRIES = 2_048;
+const decisions = new ExpiringLruCache<AccessDecision>(ACCESS_DECISION_CACHE_MAX_ENTRIES, ACCESS_DECISION_TTL_MS);
+
+function decisionKey(email: string): string {
+  return email.trim().toLowerCase();
+}
 
 /**
  * Record a mode the caller declared for itself.
@@ -115,21 +123,22 @@ const decisions = new Map<string, AccessDecision>();
  * by `recordVerifiedAccess` after the checks have run and passed. Returns the
  * decision that is now in force so a caller cannot assume its request landed.
  */
-export function declareAccessMode(email: string, mode: AccessMode, detail: string): AccessDecision {
+export function declareAccessMode(email: string, mode: AccessMode, detail: string, now = Date.now()): AccessDecision {
   if (mode === 'user-verified') {
-    throw new Error('user-verified is established by running the access checks, not by declaring it. ' +
+    throw new Error(
+      'user-verified is established by running the access checks, not by declaring it. ' +
         'Call recordVerifiedAccess with the outcome of a real check.'
     );
   }
-  const decision: AccessDecision = { mode, decidedAt: new Date().toISOString(), detail };
-  decisions.set(email, decision);
+  const decision: AccessDecision = { mode, decidedAt: new Date(now).toISOString(), detail };
+  decisions.set(decisionKey(email), decision, now);
   return decision;
 }
 
 /** Record that this user's own grants were checked, and held. */
-export function recordVerifiedAccess(email: string, detail: string): AccessDecision {
-  const decision: AccessDecision = { mode: 'user-verified', decidedAt: new Date().toISOString(), detail };
-  decisions.set(email, decision);
+export function recordVerifiedAccess(email: string, detail: string, now = Date.now()): AccessDecision {
+  const decision: AccessDecision = { mode: 'user-verified', decidedAt: new Date(now).toISOString(), detail };
+  decisions.set(decisionKey(email), decision, now);
   return decision;
 }
 
@@ -141,12 +150,12 @@ export function recordVerifiedAccess(email: string, detail: string): AccessDecis
  * access was not verified, not that asks run as a service principal. Who executes
  * is `analyticalExecution`.
  */
-export function accessModeFor(email: string): AccessMode {
-  return decisions.get(email)?.mode ?? 'service-principal';
+export function accessModeFor(email: string, now = Date.now()): AccessMode {
+  return decisions.get(decisionKey(email), now)?.mode ?? 'service-principal';
 }
 
-export function accessDecisionFor(email: string): AccessDecision | null {
-  return decisions.get(email) ?? null;
+export function accessDecisionFor(email: string, now = Date.now()): AccessDecision | null {
+  return decisions.get(decisionKey(email), now) ?? null;
 }
 
 /** Test seam, and what a sign-out would call if this app had one. */
@@ -165,9 +174,9 @@ export function forgetAccessDecisions(): void {
  * @param gate Defaults to the deployment's switch, and is a parameter so a test
  *   can drive both states.
  */
-export function recordedAccessMode(email: string, gate = ACCESS_GATE_ENABLED): AccessMode | null {
-  if (gate) return accessModeFor(email);
-  return accessDecisionFor(email)?.mode ?? null;
+export function recordedAccessMode(email: string, gate = ACCESS_GATE_ENABLED, now = Date.now()): AccessMode | null {
+  if (gate) return accessModeFor(email, now);
+  return accessDecisionFor(email, now)?.mode ?? null;
 }
 
 /**

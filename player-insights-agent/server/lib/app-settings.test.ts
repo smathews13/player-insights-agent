@@ -11,6 +11,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   APP_RUNTIME_RESOLVERS,
+  EXPERIMENT_ID_CACHE_MAX_ENTRIES,
+  EXPERIMENT_ID_CACHE_TTL_MS,
   appEnvironment,
   classifyWrite,
   computeDrift,
@@ -1054,6 +1056,37 @@ describe('resolving the experiment id', () => {
     expect(calls, 'the id a path maps to does not change, so it is resolved once').toEqual([
       '/Shared/player-insights-agent',
     ]);
+  });
+
+  it('expires a resolved path deterministically', async () => {
+    process.env[PATH] = '/Shared/player-insights-agent';
+    const { calls, resolve } = spyResolver('987654');
+
+    await resolveExperimentId(client([]), resolve, 0);
+    await resolveExperimentId(client([]), resolve, EXPERIMENT_ID_CACHE_TTL_MS - 1);
+    await resolveExperimentId(client([]), resolve, EXPERIMENT_ID_CACHE_TTL_MS);
+
+    expect(calls).toHaveLength(2);
+  });
+
+  it('bounds high-cardinality resolved paths and evicts least-recently-used', async () => {
+    const calls: string[] = [];
+    const resolve = (path: string) => {
+      calls.push(path);
+      return Promise.resolve(`id:${path}`);
+    };
+    for (let index = 0; index < EXPERIMENT_ID_CACHE_MAX_ENTRIES; index += 1) {
+      process.env[PATH] = `/Shared/experiment-${index}`;
+      await resolveExperimentId(client([]), resolve, 0);
+    }
+    process.env[PATH] = '/Shared/experiment-0';
+    await resolveExperimentId(client([]), resolve, 1);
+    process.env[PATH] = '/Shared/overflow';
+    await resolveExperimentId(client([]), resolve, 1);
+    process.env[PATH] = '/Shared/experiment-1';
+    await resolveExperimentId(client([]), resolve, 1);
+
+    expect(calls).toHaveLength(EXPERIMENT_ID_CACHE_MAX_ENTRIES + 2);
   });
 
   it('does not cache an empty resolve, so an experiment made later is picked up', async () => {

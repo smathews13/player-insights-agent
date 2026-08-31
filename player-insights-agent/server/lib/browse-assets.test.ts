@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  BROWSE_PAGE_LIMIT,
   browseBlockedByScope,
   discoverConnectionTypes,
   interpretBrowseAnswer,
@@ -18,8 +19,10 @@ import {
   listVectorSearchIndexes,
   listVolumes,
   listWarehouses,
+  resetBrowsePageCache,
   validateNotebookPath,
 } from './browse-assets';
+import { DISCOVERY_MAX_CONCURRENCY } from './discovery-control';
 import { isBrowseOk, isBrowseUnavailable } from '../../shared/browse-contract';
 
 const HOST = 'https://example-workspace.invalid';
@@ -174,6 +177,14 @@ describe('listCatalogs', () => {
       ],
       next_page_token: 'page-2',
       path: '',
+      pagination: {
+        complete: false,
+        incomplete_reason: 'more_available',
+        page: 1,
+        page_limit: 5,
+        page_size: 100,
+        returned: 2,
+      },
     });
   });
 
@@ -258,6 +269,233 @@ describe('discoverConnectionTypes', () => {
     expect(response.unavailable).toContainEqual(
       expect.objectContaining({ rootKind: 'serving-endpoints', status: 'empty' })
     );
+  });
+
+  it('uses five root calls for a 100 catalog by 100 schema workspace instead of recursively making 20,105', async () => {
+    const catalogs = Array.from({ length: 100 }, (_, index) => ({ name: `catalog_${index}` }));
+    const routedFetch = fetchFor({
+      '/api/2.1/unity-catalog/catalogs': { status: 200, body: { catalogs } },
+      '/api/2.0/sql/warehouses': { status: 200, body: { warehouses: [] } },
+      '/api/2.0/genie/spaces': { status: 200, body: { spaces: [] } },
+      '/api/2.0/serving-endpoints': { status: 200, body: { endpoints: [] } },
+      '/api/2.0/vector-search/endpoints': { status: 200, body: { endpoints: [] } },
+      // These fixtures document the fan-out that must remain lazy.
+      '/api/2.1/unity-catalog/schemas': {
+        status: 200,
+        body: { schemas: Array.from({ length: 100 }, (_, index) => ({ name: `schema_${index}` })) },
+      },
+      '/api/2.1/unity-catalog/tables': { status: 200, body: { tables: [{ name: 'must-stay-lazy' }] } },
+      '/api/2.1/unity-catalog/volumes': { status: 200, body: { volumes: [{ name: 'must-stay-lazy' }] } },
+    });
+    const requested: string[] = [];
+    const fetchImpl = ((input: string | URL | Request, init?: RequestInit) => {
+      requested.push(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url);
+      return routedFetch(input, init);
+    }) as typeof fetch;
+    const response = await discoverConnectionTypes({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl,
+    });
+
+    expect(requested).toHaveLength(5);
+    expect(requested.join('\n')).not.toMatch(/schemas|tables|volumes|indexes/);
+    expect(response.available.map((entry) => entry.id)).toEqual(
+      expect.arrayContaining(['catalog', 'schema', 'table', 'volume'])
+    );
+    expect(response.discovery).toMatchObject({
+      mode: 'lazy',
+      root_calls: 5,
+      concurrency_limit: DISCOVERY_MAX_CONCURRENCY,
+    });
+  });
+
+  it('does not fan out across Vector Search endpoints until one is opened', async () => {
+    const fetchImpl = fetchFor({
+      '/api/2.1/unity-catalog/catalogs': { status: 200, body: { catalogs: [] } },
+      '/api/2.0/sql/warehouses': { status: 200, body: { warehouses: [] } },
+      '/api/2.0/genie/spaces': { status: 200, body: { spaces: [] } },
+      '/api/2.0/serving-endpoints': { status: 200, body: { endpoints: [] } },
+      '/api/2.0/vector-search/endpoints': {
+        status: 200,
+        body: {
+          endpoints: Array.from({ length: 100 }, (_, index) => ({ name: `endpoint_${index}` })),
+        },
+      },
+      '/api/2.0/vector-search/indexes': {
+        status: 200,
+        body: { vector_indexes: [{ name: 'must.stay.lazy' }] },
+      },
+    });
+    const response = await discoverConnectionTypes({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(5);
+    expect(fetchImpl).not.toHaveBeenCalledWith(expect.stringContaining('/vector-search/indexes'), expect.anything());
+    expect(response.available.map((entry) => entry.id)).toEqual(
+      expect.arrayContaining(['vector-search-endpoint', 'vector-search-index'])
+    );
+  });
+
+  it('never exceeds the shared discovery concurrency limit', async () => {
+    let active = 0;
+    let maximum = 0;
+    const fetchImpl = vi.fn(async (url: string) => {
+      active += 1;
+      maximum = Math.max(maximum, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      const path = String(url);
+      const body = path.includes('catalogs')
+        ? { catalogs: [{ name: 'main' }] }
+        : path.includes('warehouses')
+          ? { warehouses: [] }
+          : path.includes('genie')
+            ? { spaces: [] }
+            : { endpoints: [] };
+      return { status: 200, json: () => Promise.resolve(body) };
+    }) as unknown as typeof fetch;
+
+    await discoverConnectionTypes({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl,
+    });
+
+    expect(maximum).toBe(DISCOVERY_MAX_CONCURRENCY);
+  });
+
+  it('cancels active calls and does not start queued calls after the request closes', async () => {
+    const controller = new AbortController();
+    const fetchImpl = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () =>
+              reject(
+                init.signal?.reason instanceof Error ? init.signal.reason : new DOMException('Aborted', 'AbortError')
+              ),
+            { once: true }
+          );
+        })
+    ) as unknown as typeof fetch;
+    const pending = discoverConnectionTypes({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl,
+      signal: controller.signal,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+    const response = await pending;
+
+    expect(fetchImpl).toHaveBeenCalledTimes(DISCOVERY_MAX_CONCURRENCY);
+    expect(response.unavailable.every((entry) => entry.status === 'failed')).toBe(true);
+  });
+});
+
+describe('bounded pagination and per-user page cache', () => {
+  it('marks the fifth page partial and refuses a sixth call', async () => {
+    const fetchImpl = fetchFor({
+      '/api/2.1/unity-catalog/catalogs': {
+        status: 200,
+        body: { catalogs: [{ name: 'last-loaded' }], next_page_token: 'must-not-be-followed' },
+      },
+    });
+    const fifth = await listCatalogs({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl,
+      pageToken: 'page-5',
+      page: BROWSE_PAGE_LIMIT,
+    });
+    expect(fifth).toMatchObject({
+      status: 'ok',
+      next_page_token: '',
+      pagination: { complete: false, incomplete_reason: 'page_cap', page: BROWSE_PAGE_LIMIT },
+    });
+
+    const sixth = await listCatalogs({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl,
+      pageToken: 'page-6',
+      page: BROWSE_PAGE_LIMIT + 1,
+    });
+    expect(sixth).toMatchObject({ status: 'failed', error: 'page cap reached' });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses a page only for the same signed-in user and token', async () => {
+    resetBrowsePageCache();
+    const fetchImpl = fetchFor({
+      '/api/2.1/unity-catalog/catalogs': { status: 200, body: { catalogs: [{ name: 'main' }] } },
+    });
+    const base = {
+      host: HOST,
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl,
+    };
+    await listCatalogs({ ...base, principal: 'alice@example.test', token: tokenWith([...CATALOG_SCOPES]) });
+    await listCatalogs({ ...base, principal: 'alice@example.test', token: tokenWith([...CATALOG_SCOPES]) });
+    await listCatalogs({ ...base, principal: 'bob@example.test', token: tokenWith([...CATALOG_SCOPES]) });
+    await listCatalogs({ ...base, principal: 'alice@example.test', token: tokenWith(['catalog.catalogs:read']) });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not cache a failed page, so retry can recover', async () => {
+    resetBrowsePageCache();
+    let attempt = 0;
+    const fetchImpl = vi.fn(() => {
+      attempt += 1;
+      return Promise.resolve({
+        status: attempt === 1 ? 503 : 200,
+        json: () => Promise.resolve(attempt === 1 ? { message: 'busy' } : { catalogs: [{ name: 'main' }] }),
+      });
+    }) as unknown as typeof fetch;
+    const options = {
+      host: HOST,
+      principal: 'alice@example.test',
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl,
+    };
+    expect((await listCatalogs(options)).status).toBe('failed');
+    expect((await listCatalogs(options)).status).toBe('ok');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports an initial deadline as incomplete instead of an empty list', async () => {
+    const fetchImpl = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () =>
+              reject(
+                init.signal?.reason instanceof Error ? init.signal.reason : new DOMException('Aborted', 'AbortError')
+              ),
+            { once: true }
+          );
+        })
+    ) as unknown as typeof fetch;
+    const response = await listCatalogs({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl,
+      timeoutMs: 5,
+    });
+    expect(response).toMatchObject({ status: 'failed', incomplete_reason: 'deadline', error: 'timeout' });
   });
 });
 

@@ -54,6 +54,7 @@ import {
 } from '../../shared/user-roster-contract';
 import { ADDED_ADMINS_TABLE } from './admin-roles-schema';
 import { columnText, normalizeAdminEmail, type AdminStore } from './admin-identity';
+import type { Request } from 'express';
 
 export type { Role, RosterEntry, RosterPayload, RosterRefusal };
 
@@ -116,6 +117,32 @@ export interface StoredRoster {
   roleColumnPresent: boolean;
 }
 
+const REQUEST_ROSTER = Symbol('request-roster');
+const rosterGeneration = new WeakMap<object, number>();
+
+interface RequestRosterSnapshot {
+  store: AdminStore;
+  generation: number;
+  reading: Promise<StoredRoster>;
+}
+
+type RequestWithRoster = Request & { [REQUEST_ROSTER]?: RequestRosterSnapshot };
+
+function generationFor(store: AdminStore): number {
+  return rosterGeneration.get(store) ?? 0;
+}
+
+/**
+ * Invalidate snapshots after an authoritative role mutation.
+ *
+ * The generation is per store and weakly held. A mutation in the middle of a
+ * request therefore forces its response read-back to hit Lakebase, while other
+ * request objects remain collectible as soon as Express releases them.
+ */
+export function invalidateRosterCache(store: AdminStore): void {
+  rosterGeneration.set(store, generationFor(store) + 1);
+}
+
 /**
  * The stored half. Throws when the store does not answer.
  *
@@ -143,6 +170,23 @@ export async function readRoster(store: AdminStore): Promise<StoredRoster> {
     );
     return { rows: withoutRole.rows.map((row) => storedRole(row, 'admin')), roleColumnPresent: false };
   }
+}
+
+/**
+ * One authoritative full-roster read per request and generation.
+ *
+ * Both admin guards and the roster handler ask through this seam. Rejections are
+ * shared too, so an outage cannot become a second read with a different answer;
+ * the guards still interpret that rejection as a denial.
+ */
+export function readRosterForRequest(store: AdminStore, req: Request): Promise<StoredRoster> {
+  const request = req as RequestWithRoster;
+  const generation = generationFor(store);
+  const cached = request[REQUEST_ROSTER];
+  if (cached && cached.store === store && cached.generation === generation) return cached.reading;
+  const reading = readRoster(store);
+  request[REQUEST_ROSTER] = { store, generation, reading };
+  return reading;
 }
 
 /**
@@ -189,6 +233,7 @@ export async function writeRole(
        ON CONFLICT (email) DO UPDATE SET added_by = EXCLUDED.added_by, added_at = NOW()`,
       [email, actor]
     );
+    invalidateRosterCache(store);
     return;
   }
   await store.query(
@@ -199,6 +244,7 @@ export async function writeRole(
            added_at = NOW()`,
     [email, input.role, actor]
   );
+  invalidateRosterCache(store);
 }
 
 /** Drop one row. Returns false when there was none, so the route can answer 404. */
@@ -206,7 +252,9 @@ export async function deleteRosterRow(store: AdminStore, email: string): Promise
   const result = await store.query(`DELETE FROM ${ADDED_ADMINS_TABLE} WHERE email = $1 RETURNING email`, [
     normalizeAdminEmail(email),
   ]);
-  return result.rows.length > 0;
+  const deleted = result.rows.length > 0;
+  if (deleted) invalidateRosterCache(store);
+  return deleted;
 }
 
 /**

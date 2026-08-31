@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  activeAskHasHealthyStream,
   CancelRunRefused,
   forgetActiveAsk,
+  markActiveAskStreamActivity,
+  markActiveAskStreamOpen,
   readActiveAsk,
   registerActiveAsk,
   resetActiveAsks,
@@ -88,5 +91,29 @@ describe('the browser Stop controller', () => {
     expect(readActiveAsk('conversation-b')).toBeNull();
     expect(readActiveAsk('conversation-a')).toBe(active);
     expect(active.controller.signal.aborted).toBe(false);
+  });
+
+  it('matches a healthy SSE stream to its exact run and expires it after missed heartbeats', () => {
+    const active = {
+      conversationId: 'conversation-a',
+      correlationId: 'run-a',
+      controller: new AbortController(),
+      stopRequested: false,
+      stream: {
+        state: 'connecting' as const,
+        openedAt: null,
+        lastActivityAt: null,
+      },
+    };
+    registerActiveAsk(active);
+    expect(activeAskHasHealthyStream('conversation-a', 'run-a', 10_000)).toBe(false);
+
+    markActiveAskStreamOpen(active, 10_000);
+    expect(activeAskHasHealthyStream('conversation-a', 'run-a', 10_001)).toBe(true);
+    expect(activeAskHasHealthyStream('conversation-a', 'different-run', 10_001)).toBe(false);
+
+    markActiveAskStreamActivity(active, 25_000);
+    expect(activeAskHasHealthyStream('conversation-a', 'run-a', 69_999)).toBe(true);
+    expect(activeAskHasHealthyStream('conversation-a', 'run-a', 70_001)).toBe(false);
   });
 });

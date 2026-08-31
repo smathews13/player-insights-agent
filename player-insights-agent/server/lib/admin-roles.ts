@@ -35,7 +35,16 @@ import type { NextFunction, Request, Response } from 'express';
 import { ADDED_ADMINS_TABLE, ADMIN_AUDIT_TABLE } from './admin-roles-schema';
 import { columnText, normalizeAdminEmail, type AdminStore } from './admin-identity';
 import { opensAdminSurfaces, opensUserRoster, type Role } from '../../shared/user-roster-contract';
-import { effectiveRole, readRoster, ROLE_COLUMN, seedFloorFor, type SeedRoles, type StoredRoster } from './user-roster';
+import {
+  effectiveRole,
+  invalidateRosterCache,
+  readRoster,
+  readRosterForRequest,
+  ROLE_COLUMN,
+  seedFloorFor,
+  type SeedRoles,
+  type StoredRoster,
+} from './user-roster';
 // The wire shape lives in shared/ so the editor and these routes cannot disagree
 // about what a row is. Re-exported because most callers here want it, and a second
 // import line at every call site is noise.
@@ -299,6 +308,7 @@ export async function bootstrapSeedRoles(
     `[admin] Bootstrapped ${inserted.rows.length} role row${inserted.rows.length === 1 ? '' : 's'} into Lakebase. ` +
       'Future boots ignore deployed role config because the database is now authoritative.'
   );
+  invalidateRosterCache(store);
   return 'bootstrapped';
 }
 
@@ -332,7 +342,7 @@ export async function readAddedAdmins(store: AdminStore): Promise<AddedAdmin[]> 
  * the top of the order, so the store has nothing to add, and skipping the read means
  * the one role that can repair a broken roster does not depend on reading it.
  */
-export async function resolveRole(store: AdminStore, email: string): Promise<RoleResolution> {
+async function resolveRoleFrom(email: string, read: () => Promise<StoredRoster>): Promise<RoleResolution> {
   const caller = normalizeAdminEmail(email);
   const seed = seedRoles();
   const floor = seedFloorFor(seed, caller);
@@ -340,7 +350,7 @@ export async function resolveRole(store: AdminStore, email: string): Promise<Rol
     return { role: 'super_admin', addedAdminsReadable: true, seedAdminCount: seed.admins.length };
   }
   try {
-    const { rows } = await readRoster(store);
+    const { rows } = await read();
     const role = caller ? effectiveRole({ seed, stored: rows, email: caller }) : 'consumer';
     return { role, addedAdminsReadable: true, seedAdminCount: seed.admins.length };
   } catch (error) {
@@ -351,6 +361,19 @@ export async function resolveRole(store: AdminStore, email: string): Promise<Rol
     );
     return { role: floor, addedAdminsReadable: false, seedAdminCount: seed.admins.length };
   }
+}
+
+export async function resolveRole(store: AdminStore, email: string): Promise<RoleResolution> {
+  return resolveRoleFrom(email, () => readRoster(store));
+}
+
+/** Resolve through the one generation-aware roster snapshot owned by this request. */
+export async function resolveRoleForRequest(
+  store: AdminStore,
+  req: Request,
+  readEmail: (req: Request) => string
+): Promise<RoleResolution> {
+  return resolveRoleFrom(readEmail(req), () => readRosterForRequest(store, req));
 }
 
 /**
@@ -517,7 +540,7 @@ export function requireAdmin(store: AdminStore, readEmail: (req: Request) => str
       res.status(403).json(ADMIN_REQUIRED_BODY);
       return;
     }
-    resolveRole(store, caller)
+    resolveRoleForRequest(store, req, () => caller)
       .then((resolution) => {
         if (opensAdminSurfaces(resolution.role)) {
           next();
@@ -572,7 +595,7 @@ export function requireSuperAdmin(store: AdminStore, readEmail: (req: Request) =
       res.status(403).json(SUPER_ADMIN_REQUIRED_BODY);
       return;
     }
-    resolveRole(store, caller)
+    resolveRoleForRequest(store, req, () => caller)
       .then((resolution) => {
         if (opensUserRoster(resolution.role)) {
           next();
@@ -810,7 +833,9 @@ export async function addAdmin(store: AdminStore, input: { email: string; addedB
      RETURNING email`,
     [email, normalizeAdminEmail(input.addedBy)]
   );
-  return result.rows.length > 0;
+  const inserted = result.rows.length > 0;
+  if (inserted) invalidateRosterCache(store);
+  return inserted;
 }
 
 /** Remove one address. Returns false when there was no row, so the route can say so. */
@@ -818,5 +843,7 @@ export async function removeAdmin(store: AdminStore, email: string): Promise<boo
   const result = await store.query(`DELETE FROM ${ADDED_ADMINS_TABLE} WHERE email = $1 RETURNING email`, [
     normalizeAdminEmail(email),
   ]);
-  return result.rows.length > 0;
+  const deleted = result.rows.length > 0;
+  if (deleted) invalidateRosterCache(store);
+  return deleted;
 }

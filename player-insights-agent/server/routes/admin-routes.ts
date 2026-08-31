@@ -38,7 +38,6 @@ import {
   adminListPayload,
   invalidAdminEmail,
   normalizeAdminEmail,
-  readAddedAdmins,
   recordAdminAction,
   removalRefusal,
   removeAdmin,
@@ -47,6 +46,7 @@ import {
   type AddedAdmin,
   type AdminStore,
 } from '../lib/admin-roles';
+import { readRosterForRequest } from '../lib/user-roster';
 import type { AdminListPayload } from '../../shared/admin-contract';
 import { executionToken } from '../lib/execution-credential';
 import { userEmail, type InsightsAppKit } from './insights-routes';
@@ -62,9 +62,13 @@ const AddBody = z.object({ email: z.string().trim().max(320) });
  * different remedies. The editor says which it is; conflating them sends
  * somebody looking for a person who was never removed.
  */
-async function readAdded(store: AdminStore): Promise<{ added: AddedAdmin[]; readable: boolean }> {
+async function readAdded(store: AdminStore, req: Request): Promise<{ added: AddedAdmin[]; readable: boolean }> {
   try {
-    return { added: await readAddedAdmins(store), readable: true };
+    const roster = await readRosterForRequest(store, req);
+    return {
+      added: roster.rows.map((row) => ({ email: row.email, addedBy: row.setBy, addedAt: row.setAt })),
+      readable: true,
+    };
   } catch (error) {
     console.warn('[admin] The stored admin list could not be read for the Settings editor:', (error as Error).message);
     return { added: [], readable: false };
@@ -110,13 +114,13 @@ export function setupAdminRoutes(appkit: InsightsAppKit) {
      * waiting on a warehouse that may be cold.
      */
     app.get('/api/admins', async (req, res) => {
-      const payload: AdminListPayload = await listPayload(userEmail(req));
+      const payload: AdminListPayload = await listPayload(req, userEmail(req));
       res.json(payload);
     });
 
     /** The list as the store now holds it, for whoever is reading the screen. */
-    async function listPayload(reader: string): Promise<AdminListPayload> {
-      const { added, readable } = await readAdded(appkit.lakebase);
+    async function listPayload(req: Request, reader: string): Promise<AdminListPayload> {
+      const { added, readable } = await readAdded(appkit.lakebase, req);
       return adminListPayload({
         seed: seedAdminEmails(),
         added,
@@ -173,7 +177,7 @@ export function setupAdminRoutes(appkit: InsightsAppKit) {
           subject: email,
           detail: `${actor} added ${email} as an administrator of this deployment.`,
         });
-        res.status(201).json(await listPayload(actor));
+        res.status(201).json(await listPayload(req, actor));
       } catch (error) {
         console.error(`[admin] ${email} could not be added:`, (error as Error).message);
         res.status(503).json({
@@ -209,7 +213,8 @@ export function setupAdminRoutes(appkit: InsightsAppKit) {
       const actor = userEmail(req);
       let added: AddedAdmin[];
       try {
-        added = await readAddedAdmins(appkit.lakebase);
+        const roster = await readRosterForRequest(appkit.lakebase, req);
+        added = roster.rows.map((row) => ({ email: row.email, addedBy: row.setBy, addedAt: row.setAt }));
       } catch (error) {
         console.error(
           '[admin] The stored admin list could not be read, so no removal was attempted:',
@@ -254,7 +259,7 @@ export function setupAdminRoutes(appkit: InsightsAppKit) {
               `${withdrawal.summary} ${withdrawal.note}`.trim(),
           });
         }
-        res.json(await listPayload(actor));
+        res.json(await listPayload(req, actor));
       } catch (error) {
         console.error(`[admin] ${email} could not be removed:`, (error as Error).message);
         res.status(503).json({ error: 'admin_store_unavailable', detail: 'Nobody was removed.' });

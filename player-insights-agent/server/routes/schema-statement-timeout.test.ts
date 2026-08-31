@@ -141,14 +141,12 @@ describe('the schema pass on a connection a read has already used', () => {
   });
 
   /**
-   * A pool that cannot lend a connection must not cost the pass its reporting.
-   *
-   * `applySchema` says what failed statement by statement, and the surfaces that
-   * read those failures treat an empty list as a schema that is fine. A throw
-   * from the checkout would replace twenty named failures with none, which is a
-   * deployment reporting itself healthy on the strength of never having tried.
+   * A pool that cannot lend a connection still runs ordinary idempotent DDL on
+   * the pool fallback. A migration guarded by a session advisory lock cannot
+   * use that fallback: locking one session and executing on another would only
+   * pretend to serialize replicas, so it fails loudly and remains unrecorded.
    */
-  it('still attempts every statement when no connection can be reserved', async () => {
+  it('falls back for ordinary DDL but refuses a session-locked migration without a connection', async () => {
     resetLakebaseHealth();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const session = oneSession();
@@ -159,7 +157,11 @@ describe('the schema pass on a connection a read has already used', () => {
       },
     } as unknown as InsightsAppKit;
 
-    await expect(applySchema(appkit)).resolves.toEqual([]);
+    const failures = await applySchema(appkit);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.label).toBe('SERIALIZE version 24');
+    expect(failures[0]?.message).toContain('pool exhausted');
+    expect(failures[0]?.satisfied).toBe(false);
     expect(session.of(INDEX)).toHaveLength(1);
     warn.mockRestore();
   });

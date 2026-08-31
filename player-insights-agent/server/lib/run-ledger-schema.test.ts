@@ -38,9 +38,7 @@ describe('what the ledger migrations are allowed to be', () => {
     // Names taken from the existing statements would be `CREATE TABLE IF NOT
     // EXISTS` against somebody else's table: a no-op that says nothing, and a
     // ledger silently writing into a table shaped for something else.
-    const existing = schemaStatements
-      .filter((statement) => !RUN_LEDGER_DDL.includes(statement))
-      .join('\n');
+    const existing = schemaStatements.filter((statement) => !RUN_LEDGER_DDL.includes(statement)).join('\n');
     for (const table of ['runs', 'run_attempts', 'run_events']) {
       expect(existing).not.toContain(`player_insights.${table}`);
     }
@@ -114,7 +112,9 @@ describe('the uniqueness rule that stops a hundred requests becoming a hundred r
   });
 
   it('does not hold a run that has finished', () => {
-    for (const state of RUN_STATES.filter((candidate) => !(EXECUTING_STATES as readonly string[]).includes(candidate))) {
+    for (const state of RUN_STATES.filter(
+      (candidate) => !(EXECUTING_STATES as readonly string[]).includes(candidate)
+    )) {
       expect(live).not.toContain(`'${state}'`);
     }
   });
@@ -141,16 +141,12 @@ function refusingStore(options: { tables?: string[]; indexes?: string[] }) {
         const wantedName = typeof askedAfter === 'string' ? askedAfter : '';
         if (/information_schema\.tables/i.test(trimmed)) {
           return Promise.resolve({
-            rows: (options.tables ?? [])
-              .filter((name) => name === wantedName)
-              .map((table_name) => ({ table_name })),
+            rows: (options.tables ?? []).filter((name) => name === wantedName).map((table_name) => ({ table_name })),
           });
         }
-        if (/pg_indexes/i.test(trimmed)) {
+        if (/pg_catalog\.pg_index/i.test(trimmed)) {
           return Promise.resolve({
-            rows: (options.indexes ?? [])
-              .filter((name) => name === wantedName)
-              .map((indexname) => ({ indexname })),
+            rows: (options.indexes ?? []).filter((name) => name === wantedName).map((indexname) => ({ indexname })),
           });
         }
         if (/information_schema\.columns/i.test(trimmed)) return Promise.resolve({ rows: [] });

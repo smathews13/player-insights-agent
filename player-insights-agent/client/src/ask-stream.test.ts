@@ -135,6 +135,24 @@ describe('askStreaming', () => {
     expect(seen).toEqual(['open', 'stage']);
   });
 
+  it('reports keep-alive comments as stream activity without turning them into stages', async () => {
+    const activity: string[] = [];
+    const stages: string[] = [];
+    const response = sse([': open\n\n', ': keep-alive\n\n', frame('stage', STAGE), frame('result', {})]);
+
+    await askStreaming(
+      {},
+      {
+        onActivity: () => activity.push('activity'),
+        onStage: (stage) => stages.push(stage.id),
+      },
+      fetchReturning(response)
+    );
+
+    expect(activity).toHaveLength(4);
+    expect(stages).toEqual(['step-1']);
+  });
+
   it('does not report a stream opening when the server answered with a plain body', async () => {
     // A non-streaming reply is not a run being narrated, and saying it had
     // started would be a claim about something that never happened.

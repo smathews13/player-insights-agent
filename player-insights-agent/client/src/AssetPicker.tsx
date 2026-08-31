@@ -33,7 +33,7 @@
  * NO ANIMATION OF ITS OWN, so there is nothing here for reduced motion to
  * suppress. The list appears when it arrives.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight, LoaderCircle, Search } from 'lucide-react';
 import { Button, Input } from './ui';
 import type { BrowseItem, BrowseResponse } from '../../shared/browse-contract';
@@ -295,15 +295,15 @@ export function AssetPickerPanel({
         ) : null}
       </div>
 
-      {/* Narrowing what is on screen, not a second request. A schema with two
-          hundred tables answers in one page and is unreadable without this. */}
+      {/* Narrowing the pages already loaded. Child APIs are requested only after
+          their parent is opened; pagination stays explicit and bounded. */}
       {response && response.status === 'ok' && items.length > 0 ? (
         <div className="asset-picker-filter">
           <Search className="size-3.5" aria-hidden="true" />
           <Input
             value={query}
             onChange={(event) => onQuery(event.target.value)}
-            placeholder="Narrow this list"
+            placeholder="Search loaded results"
             aria-label={`Narrow ${spec.title.toLowerCase()}`}
           />
         </div>
@@ -364,6 +364,20 @@ export function AssetPickerPanel({
         </ul>
       ) : null}
 
+      {!loading && response?.status === 'ok' && !response.pagination.complete ? (
+        <p className="asset-picker-empty-note" data-testid="asset-picker-partial">
+          {response.pagination.incomplete_reason === 'page_cap'
+            ? `Partial list: discovery stopped at ${response.pagination.page_limit} pages (${response.pagination.page_size * response.pagination.page_limit} resources maximum).`
+            : response.pagination.incomplete_reason === 'more_available'
+              ? 'More resources are available. Search currently covers the loaded results.'
+              : response.pagination.incomplete_reason === 'deadline'
+                ? 'Partial list: loading the next page reached its deadline.'
+                : response.pagination.incomplete_reason === 'cancelled'
+                  ? 'Partial list: loading the next page was cancelled.'
+                  : 'Partial list: the next page could not be loaded.'}
+        </p>
+      ) : null}
+
       {/* The filter hid everything the list held. Said, because an empty list
           under a filter box otherwise reads as an empty workspace. */}
       {!loading && items.length > 0 && shown.length === 0 ? (
@@ -418,6 +432,7 @@ export function AssetPicker({
   /** Bumped by Try again, so a retry is a new key rather than a re-run. */
   const [attempt, setAttempt] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const pagingController = useRef<AbortController | null>(null);
 
   const kind = cursorKind(spec, cursor);
   /**
@@ -479,32 +494,93 @@ export function AssetPicker({
     };
   }, [answers, key, kind, cursor]);
 
+  useEffect(
+    () => () => {
+      pagingController.current?.abort();
+    },
+    []
+  );
+
   const more = useCallback(() => {
     if (!response || response.status !== 'ok' || !response.next_page_token) return;
     const token = response.next_page_token;
+    const nextPage = response.pagination.page + 1;
+    pagingController.current?.abort();
+    const controller = new AbortController();
+    pagingController.current = controller;
+    const timeout = window.setTimeout(
+      () => controller.abort(new DOMException('Resource discovery timed out', 'TimeoutError')),
+      15_000
+    );
     setLoadingMore(true);
-    fetch(browsePageUrl(kind, cursor, token))
-      .then((answer) => answer.json() as Promise<BrowseResponse>)
+    fetch(browsePageUrl(kind, cursor, token, nextPage), { signal: controller.signal })
+      .then((answer) => {
+        if (!answer.ok) throw new Error(`resource discovery answered ${answer.status}`);
+        return answer.json() as Promise<BrowseResponse>;
+      })
       .then((body) => {
         // Appended only when the next page is itself an `ok`. A refusal or a
         // failure on page two says nothing about page one, and folding it in
         // would either drop rows already on screen or claim the list ended.
         setAnswers((held) => {
           const current = held.get(key);
-          if (!current || current.status !== 'ok' || body.status !== 'ok') return held;
+          if (!current || current.status !== 'ok') return held;
+          if (body.status !== 'ok') {
+            return new Map(held).set(key, {
+              ...current,
+              pagination: {
+                ...current.pagination,
+                complete: false,
+                incomplete_reason: body.status === 'failed' ? body.incomplete_reason : 'failed',
+              },
+            });
+          }
           return new Map(held).set(key, {
             ...current,
             items: [...current.items, ...body.items],
             next_page_token: body.next_page_token,
+            pagination: {
+              ...body.pagination,
+              returned: current.items.length + body.items.length,
+            },
           });
         });
       })
       .catch(() => {
-        // Deliberately silent: the rows already shown are still true, and a
-        // failed second page is not a statement about them.
+        if (controller.signal.aborted && (controller.signal.reason as Error | undefined)?.name !== 'TimeoutError') {
+          return;
+        }
+        setAnswers((held) => {
+          const current = held.get(key);
+          if (!current || current.status !== 'ok') return held;
+          return new Map(held).set(key, {
+            ...current,
+            pagination: {
+              ...current.pagination,
+              complete: false,
+              incomplete_reason:
+                (controller.signal.reason as Error | undefined)?.name === 'TimeoutError' ? 'deadline' : 'failed',
+            },
+          });
+        });
       })
-      .finally(() => setLoadingMore(false));
+      .finally(() => {
+        window.clearTimeout(timeout);
+        if (pagingController.current === controller) {
+          pagingController.current = null;
+          setLoadingMore(false);
+        }
+      });
   }, [response, kind, cursor, key]);
+
+  // A query is an explicit request to look beyond the first page. Continue
+  // through the bounded page window after a short pause, so a match on page two
+  // can appear without eagerly enumerating the workspace when the picker opens.
+  useEffect(() => {
+    if (query.trim().length < 2 || loadingMore || response?.status !== 'ok' || !response.next_page_token) return;
+    const timer = window.setTimeout(more, 250);
+    return () => window.clearTimeout(timer);
+  }, [loadingMore, more, query, response]);
 
   return (
     <AssetPickerPanel

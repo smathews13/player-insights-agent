@@ -25,9 +25,25 @@ export function isRunCancelledError(error: unknown): error is RunCancelledError 
   return error instanceof RunCancelledError;
 }
 
+/** The app-side deadline that actively closes serving transport consumption. */
+export class RunDeadlineExceededError extends Error {
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number) {
+    super(`The agent endpoint did not answer within ${timeoutMs} ms, so its app-side transport was stopped.`);
+    this.name = 'RunDeadlineExceededError';
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+export function isRunDeadlineExceededError(error: unknown): error is RunDeadlineExceededError {
+  return error instanceof RunDeadlineExceededError;
+}
+
 export function throwIfRunCancelled(signal: AbortSignal | undefined, runId = ''): void {
   if (!signal?.aborted) return;
   if (isRunCancelledError(signal.reason)) throw signal.reason;
+  if (isRunDeadlineExceededError(signal.reason)) throw signal.reason;
   throw new RunCancelledError(runId || 'unknown');
 }
 
@@ -69,6 +85,8 @@ export interface DurableCancellationWatch {
   stop(): void;
 }
 
+export const DURABLE_CANCELLATION_POLL_MS = 1_500;
+
 /**
  * Observe the durable state so Stop works when the route and invocation live on
  * different app replicas.
@@ -83,7 +101,11 @@ export function watchDurableCancellation(input: {
   controller: AbortController;
   intervalMs?: number;
 }): DurableCancellationWatch {
-  const intervalMs = Math.max(10, input.intervalMs ?? 250);
+  // Cross-replica cancellation is a fallback behind the in-process controller.
+  // Keep it prompt without turning every active run into four Lakebase reads a
+  // second. The bounds also prevent a caller from accidentally reintroducing
+  // that load or stretching cancellation beyond the promised two seconds.
+  const intervalMs = Math.min(2_000, Math.max(1_000, input.intervalMs ?? DURABLE_CANCELLATION_POLL_MS));
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
 

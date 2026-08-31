@@ -457,6 +457,15 @@ describe('billing attribution', () => {
         astrolabeExecutionMs: 25,
         totalExecutionMs: 75,
         genieSpaces: [],
+        coverage: {
+          state: 'partial',
+          requestedRange: { from: '1970-01-01T00:00:00.000Z', to: '2026-08-17T23:59:59.999Z' },
+          queriedRange: { from: '2025-08-17T00:00:00.000Z', to: '2026-08-17T23:59:59.999Z' },
+          rowsRead: 9,
+          pagesRead: 2,
+          chunksRead: 1,
+          reasons: ['range-clamped', 'page-cap'],
+        },
       }
     ).find((tile) => tile.id === 'sql-warehouse');
 
@@ -468,6 +477,12 @@ describe('billing attribution', () => {
         astrolabeQueries: 2,
         warehouseQueries: 9,
         queryHistoryComplete: false,
+        queryHistoryCoverage: {
+          state: 'partial',
+          rowsRead: 9,
+          pagesRead: 2,
+          reasons: ['range-clamped', 'page-cap'],
+        },
       },
     });
     expect(sql?.amount).not.toBe(100);

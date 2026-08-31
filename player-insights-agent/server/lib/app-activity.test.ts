@@ -25,7 +25,7 @@ describe('first-party app activity', () => {
     expect(APP_ACTIVITY_DDL).not.toMatch(/ALTER TABLE/i);
     expect(ACTIVE_MINUTES_PER_DAY_QUERY).toContain('COUNT(*)::int');
     expect(ACTIVE_MINUTES_PER_DAY_QUERY).toContain('active_minute AT TIME ZONE $1');
-    expect(ACTIVE_MINUTES_PER_DAY_QUERY).toContain('MIN(active_minute) AS recorded_from');
+    expect(ACTIVE_MINUTES_PER_DAY_QUERY).toContain('MIN(recorded_from) AS recorded_from');
   });
 
   it('accepts configured and browser IANA zones but rejects arbitrary SQL input', () => {

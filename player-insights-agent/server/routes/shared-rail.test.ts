@@ -160,7 +160,7 @@ describe('source security invariants', () => {
       expect(ROUTE_SOURCE.slice(start, start + 700), route).toContain('callerReadsSharedConversations');
     }
     const upload = ROUTE_SOURCE.slice(
-      ROUTE_SOURCE.indexOf("app.post(\n      '/api/conversations/:id/attachments',"),
+      ROUTE_SOURCE.indexOf("app.post('/api/conversations/:id/attachments'"),
       ROUTE_SOURCE.indexOf("app.delete('/api/conversations/:conversationId/attachments/:attachmentId'")
     );
     expect(upload).not.toContain('callerReadsSharedConversations');

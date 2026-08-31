@@ -293,6 +293,12 @@ export interface SpGrantResourceDiscovery {
   status: 'ready' | 'error';
   resources: SpGrantResource[];
   detail: string;
+  pagination?: {
+    complete: boolean;
+    returned: number;
+    limit: number;
+    incompleteReason: '' | 'result_cap';
+  };
 }
 
 export interface SpAssignment {

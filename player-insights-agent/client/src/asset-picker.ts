@@ -298,11 +298,11 @@ export function browseUrl(kind: BrowseKind, cursor: PickerCursor): string {
   return `/api/browse/${kind}`;
 }
 
-/** One page's worth more of the same list. */
-export function browsePageUrl(kind: BrowseKind, cursor: PickerCursor, pageToken: string): string {
+/** One page's worth more of the same list, carrying the bounded traversal depth. */
+export function browsePageUrl(kind: BrowseKind, cursor: PickerCursor, pageToken: string, page: number): string {
   const base = browseUrl(kind, cursor);
   const joiner = base.includes('?') ? '&' : '?';
-  return `${base}${joiner}page_token=${encodeURIComponent(pageToken)}`;
+  return `${base}${joiner}page_token=${encodeURIComponent(pageToken)}&page=${page}`;
 }
 
 /** The dotted segments of a value, trimmed, empties dropped. */
@@ -713,5 +713,6 @@ export function browseTransportFailure(kind: BrowseKind, error: string): BrowseR
     kind,
     detail: 'This list could not be fetched from the app, so nothing was established about it.',
     error,
+    incomplete_reason: error.toLocaleLowerCase().includes('timed out') ? 'deadline' : 'failed',
   };
 }

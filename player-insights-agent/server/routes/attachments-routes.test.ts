@@ -10,12 +10,7 @@ import { setupInsightsRoutes, type InsightsAppKit } from './insights-routes';
 
 // The PDF fixtures belong to server/lib/pdf-text.ts. They are read, never modified, so the
 // route tests exercise the same real documents the extractor is verified against.
-const fixtureDir = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-  'lib',
-  '__fixtures__'
-);
+const fixtureDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', '__fixtures__');
 const loadFixture = (name: string) => readFile(path.join(fixtureDir, name));
 
 interface StoredAttachment {
@@ -139,6 +134,15 @@ describe('PDF upload route', () => {
       error: 'Use a PDF, TXT, Markdown, CSV, or JSON file.',
     });
   });
+
+  it('refuses more than 8 MB in the body parser before PDF worker transfer', async () => {
+    const response = await upload('oversized.pdf', Buffer.alloc(8 * 1024 * 1024 + 1));
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      error: 'Choose a non-empty report no larger than 8 MB.',
+    });
+  });
 });
 
 describe('PdfTextError messages reach the client verbatim', () => {
@@ -158,8 +162,7 @@ describe('PdfTextError messages reach the client verbatim', () => {
     // The route has its own generic "No readable text was found in this report." fallback for
     // whitespace-only text files. The extractor throws first, so the specific message wins.
     expect(await response.json()).toEqual({
-      error:
-        'No readable text was found in this report. Scanned or image-only PDFs are not supported.',
+      error: 'No readable text was found in this report. Scanned or image-only PDFs are not supported.',
     });
   });
 

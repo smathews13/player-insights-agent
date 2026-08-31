@@ -1,10 +1,6 @@
 import { APP_SCHEMA } from '../../shared/app-schema';
 import type { PreflightCheck } from '../routes/insights-routes';
-import {
-  GRANT_SCRIPT_COMMAND,
-  GRANT_HOOK_PATH,
-  GRANT_SCRIPT_WHY,
-} from '../../shared/setup-remedies';
+import { GRANT_SCRIPT_COMMAND, GRANT_HOOK_PATH, GRANT_SCRIPT_WHY } from '../../shared/setup-remedies';
 import { POOL_ENV, STATEMENT_TIMEOUT_CODE, statementTimeoutMs, statementTimeoutSql } from './lakebase-pool';
 
 /**
@@ -305,10 +301,7 @@ const OWNERSHIP_REFUSAL = /must be owner of/i;
  * read can raise it.
  */
 export function isGrantDenied(error: unknown, depth: ReadDepth): boolean {
-  return (depth === 'schema' &&
-    GRANT_DENIED_CODES.has(errorCode(error)) &&
-    !OWNERSHIP_REFUSAL.test(errorMessage(error))
-  );
+  return depth === 'schema' && GRANT_DENIED_CODES.has(errorCode(error)) && !OWNERSHIP_REFUSAL.test(errorMessage(error));
 }
 
 /**
@@ -380,7 +373,8 @@ function markOk(route: string, depth: ReadDepth) {
     // reads were failing for as long as they were.
     if (!health.connectionOkSinceFailure) {
       health.connectionOkSinceFailure = true;
-      console.error(`[lakebase] STILL UNAVAILABLE, but the endpoint answers: ${route} succeeded without reading through ` +
+      console.error(
+        `[lakebase] STILL UNAVAILABLE, but the endpoint answers: ${route} succeeded without reading through ` +
           `the ${APP_SCHEMA} schema, while the failing read (${health.lastError?.route}, code ` +
           `${health.lastError?.code}) does. The connection and the credential are fine, so this is a ` +
           `privilege or schema problem and waiting will not fix it, run scripts/grant-app-db-access.mjs.`
@@ -400,7 +394,8 @@ function markOk(route: string, depth: ReadDepth) {
   // A bare connection check must not retract a grant diagnosis it never tested.
   if (depth === 'schema') health.access = 'ok';
   if (previous === 'unavailable') {
-    console.warn(`[lakebase] RECOVERED: reads are succeeding again on ${route} after ${outageSeconds}s unavailable. ` +
+    console.warn(
+      `[lakebase] RECOVERED: reads are succeeding again on ${route} after ${outageSeconds}s unavailable. ` +
         `Every response during the outage declared itself unavailable rather than carrying rows.`
     );
   }
@@ -442,7 +437,8 @@ function markUnavailable(route: string, error: unknown, depth: ReadDepth) {
       // still true and because it is what existing log searches and alerts
       // match on. A diagnosis that arrives by making the old line disappear
       // is one nobody is watching for.
-      console.error(`[lakebase] STORAGE UNAVAILABLE, SCHEMA GRANTS MISSING: ${route} was REFUSED by Postgres (code ${code}): ${message}. ` +
+      console.error(
+        `[lakebase] STORAGE UNAVAILABLE, SCHEMA GRANTS MISSING: ${route} was REFUSED by Postgres (code ${code}): ${message}. ` +
           `Previously ${healthyFor}. This is not an outage and waiting will not fix it: the endpoint ` +
           `answered and then declined the read, so the app's Postgres role has no privilege on the ` +
           `${APP_SCHEMA} schema. Conversation storage is therefore unavailable and every route that ` +
@@ -454,7 +450,8 @@ function markUnavailable(route: string, error: unknown, depth: ReadDepth) {
       // Warn rather than error, and no remedy: this is the expected shape of a
       // request that arrived in the moment between the app starting to answer
       // and the schema pass finishing, and it resolves itself.
-      console.warn(`[lakebase] READ BEFORE SCHEMA: ${route} could not read the store yet (code ${code}): ${message}. ` +
+      console.warn(
+        `[lakebase] READ BEFORE SCHEMA: ${route} could not read the store yet (code ${code}): ${message}. ` +
           `The schema pass is still running -- the app starts answering before it finishes, on purpose -- so ` +
           `the table this read wants may not exist yet. This is NOT the missing-grant condition and needs no ` +
           `script; it clears when the pass completes. If it is still appearing after that, it is real.`
@@ -467,7 +464,8 @@ function markUnavailable(route: string, error: unknown, depth: ReadDepth) {
       // still working when we gave up on it. The remedy is a query or an index,
       // not the endpoint, and the response carries the failure rather than an
       // empty list precisely so nobody reads a cancelled read as "no matches".
-      console.error(`[lakebase] STATEMENT CANCELLED ON TIMEOUT: ${route} ran past the configured statement timeout ` +
+      console.error(
+        `[lakebase] STATEMENT CANCELLED ON TIMEOUT: ${route} ran past the configured statement timeout ` +
           `and Postgres cancelled it (code ${code}): ${message}. Previously ${healthyFor}. This is NOT an ` +
           `empty result and NOT an outage: the store was answering. The route reports itself unavailable so ` +
           `no screen can show a cancelled read as a store holding nothing. Either the query needs an index ` +
@@ -475,13 +473,15 @@ function markUnavailable(route: string, error: unknown, depth: ReadDepth) {
       );
       return;
     }
-    console.error(`[lakebase] STORAGE UNAVAILABLE: ${route} failed (code ${code}): ${message}. ` +
+    console.error(
+      `[lakebase] STORAGE UNAVAILABLE: ${route} failed (code ${code}): ${message}. ` +
         `Previously ${healthyFor}. Stored conversations, runs and benchmarks cannot be read; ` +
         `every route that reads them reports itself unavailable rather than substituting rows.`
     );
     return;
   }
-  console.error(`[lakebase] still ${denied ? 'refused' : 'unavailable'} (failure ${health.consecutiveFailures}, ` +
+  console.error(
+    `[lakebase] still ${denied ? 'refused' : 'unavailable'} (failure ${health.consecutiveFailures}, ` +
       `${seconds(health.since)}s): ${route} failed (code ${code}): ${message}`
   );
 }
@@ -519,7 +519,8 @@ const sessionsWithTimeout = new WeakSet<PooledConnection>();
  * their connection, and a migration cancelled on a read's timer is a deployment
  * broken for a reason nothing on it names.
  */
-async function runStatement(client: LakebaseReader,
+async function runStatement(
+  client: LakebaseReader,
   sql: string,
   params: unknown[]
 ): Promise<{ rows: Record<string, unknown>[] }> {
@@ -579,12 +580,17 @@ async function runStatement(client: LakebaseReader,
  * configured, which is what keeps every test that hands this module a bare
  * `query` working.
  */
-export async function withoutReadTimeout<T>(client: LakebaseReader,
-  run: (query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>) => Promise<T>
+export async function withoutReadTimeout<T>(
+  client: LakebaseReader,
+  run: (query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>) => Promise<T>,
+  options: { requirePinnedConnection?: boolean } = {}
 ): Promise<T> {
   const pool = client.lakebase.pool;
   const restore = statementTimeoutSql();
-  if (restore === null || typeof pool?.connect !== 'function') {
+  if (typeof pool?.connect !== 'function') {
+    return run((sql, params) => client.lakebase.query(sql, params));
+  }
+  if (restore === null && !options.requirePinnedConnection) {
     return run((sql, params) => client.lakebase.query(sql, params));
   }
   // A checkout that fails must not swallow the work. `applySchema` reports what
@@ -598,7 +604,13 @@ export async function withoutReadTimeout<T>(client: LakebaseReader,
   try {
     connection = await pool.connect();
   } catch (error) {
-    console.warn(`[lakebase] no connection could be reserved to lift the read timeout: ` +
+    if (options.requirePinnedConnection) {
+      throw new Error(
+        `A migration requiring one pinned Postgres session could not reserve a connection: ${(error as Error).message}`
+      );
+    }
+    console.warn(
+      `[lakebase] no connection could be reserved to lift the read timeout: ` +
         `${(error as Error).message}. Continuing on the pool, where a long statement may still be cancelled.`
     );
     return run((sql, params) => client.lakebase.query(sql, params));
@@ -607,16 +619,19 @@ export async function withoutReadTimeout<T>(client: LakebaseReader,
   // or leaves the next read to apply it. Nothing may assume it is in force.
   sessionsWithTimeout.delete(connection);
   try {
-    await connection.query('SET statement_timeout = 0');
+    if (restore !== null) await connection.query('SET statement_timeout = 0');
     return await run((sql, params) => connection.query(sql, params));
   } finally {
-    try {
-      await connection.query(restore);
-      sessionsWithTimeout.add(connection);
-    } catch (error) {
-      console.warn(`[lakebase] the read timeout could not be restored on a connection lent to a migration: ` +
-          `${(error as Error).message}. It is being returned unmarked, so the next read sets it again.`
-      );
+    if (restore !== null) {
+      try {
+        await connection.query(restore);
+        sessionsWithTimeout.add(connection);
+      } catch (error) {
+        console.warn(
+          `[lakebase] the read timeout could not be restored on a connection lent to a migration: ` +
+            `${(error as Error).message}. It is being returned unmarked, so the next read sets it again.`
+        );
+      }
     }
     connection.release();
   }
@@ -633,7 +648,8 @@ export async function withoutReadTimeout<T>(client: LakebaseReader,
  * `available: false`, which every caller already answers with a 503 rather than
  * with an empty list.
  */
-export async function readStored(client: LakebaseReader,
+export async function readStored(
+  client: LakebaseReader,
   route: string,
   sql: string,
   params: unknown[] = []
@@ -651,7 +667,8 @@ export async function readStored(client: LakebaseReader,
     } catch (error) {
       lastError = error;
       if (attempt === 1 && isRetryable(error)) {
-        console.warn(`[lakebase] ${route} failed with a retryable error (code ${errorCode(error)}): ` +
+        console.warn(
+          `[lakebase] ${route} failed with a retryable error (code ${errorCode(error)}): ` +
             `${errorMessage(error)}. Retrying once on a fresh connection.`
         );
         continue;
@@ -702,7 +719,8 @@ export interface Substitution {
  * with no degraded reason. Collapsing the two is the conflation every caller
  * here exists to prevent.
  */
-export function chooseRows(route: string,
+export function chooseRows(
+  route: string,
   read: StoredRead
 ): {
   rows: Record<string, unknown>[];
@@ -721,7 +739,8 @@ export function chooseRows(route: string,
       `The store ${denied ? 'refused the read' : 'is unavailable'}. ` +
       `Last error (code ${read.code}): ${read.error}` +
       (denied ? ` ${GRANT_DENIED_LOG_REMEDY}` : '');
-    console.error(`[lakebase] NO ROWS SERVED on ${route}: the app shows no seeded data, so the response is ` +
+    console.error(
+      `[lakebase] NO ROWS SERVED on ${route}: the app shows no seeded data, so the response is ` +
         `empty and declares itself unavailable. It is NOT a report that the store holds nothing. ${cause}`
     );
     return { rows: [], substitution: { reason, origin: 'none' } };
@@ -732,7 +751,8 @@ export function chooseRows(route: string,
     // steady state that would otherwise emit a warning for every page load and
     // bury the events worth reading.
     if (health.contentByRoute.get(route) !== 'empty') {
-      console.warn(`[lakebase] STORE EMPTY on ${route}: the read succeeded, so Lakebase is reachable and the ` +
+      console.warn(
+        `[lakebase] STORE EMPTY on ${route}: the read succeeded, so Lakebase is reachable and the ` +
           `connection is fine. It simply holds no matching records, and this response carries no rows at ` +
           `all. Normal on a fresh deployment, where asking a question populates it. If records were ` +
           `written earlier, they have since been deleted, or the app is reading a different database, ` +
@@ -876,8 +896,7 @@ export function lakebaseStorageCheck(): PreflightCheck {
     if (snapshot.content === 'populated') {
       return {
         ...base,
-        detail:
-          `The app read its Postgres store successfully at ${snapshot.last_ok_at}, and it returned stored records.`,
+        detail: `The app read its Postgres store successfully at ${snapshot.last_ok_at}, and it returned stored records.`,
         remedy: null,
       };
     }
@@ -1061,7 +1080,8 @@ export function startLakebaseWatchdog(client: LakebaseReader, intervalMs = watch
     if (probing) {
       if (!skipping) {
         skipping = true;
-        console.warn(`[lakebase] the watchdog probe has not answered within its ${intervalMs}ms interval, so this ` +
+        console.warn(
+          `[lakebase] the watchdog probe has not answered within its ${intervalMs}ms interval, so this ` +
             'tick is skipped rather than started alongside it. The store is slower than the probe schedule ' +
             'assumes; the probe already running will report what it finds.'
         );

@@ -41,6 +41,7 @@ import {
   deleteRosterRow,
   effectiveRole,
   readRoster,
+  readRosterForRequest,
   REFUSAL_DETAIL,
   removalRefusal,
   roleChangeRefusal,
@@ -72,9 +73,12 @@ const AddBody = RoleBody.extend({ email: z.string().trim().max(320) });
  * remedies. Conflating them sends somebody looking for a person who was never
  * removed.
  */
-async function read(store: AdminStore): Promise<{ rows: StoredRole[]; readable: boolean; roleColumnPresent: boolean }> {
+async function read(
+  store: AdminStore,
+  req?: Request
+): Promise<{ rows: StoredRole[]; readable: boolean; roleColumnPresent: boolean }> {
   try {
-    const { rows, roleColumnPresent } = await readRoster(store);
+    const { rows, roleColumnPresent } = await (req ? readRosterForRequest(store, req) : readRoster(store));
     return { rows, readable: true, roleColumnPresent };
   } catch (error) {
     console.warn('[admin] The stored roster could not be read for the roster editor:', (error as Error).message);
@@ -152,7 +156,7 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
      * without waiting on a warehouse that may be cold.
      */
     app.get('/api/users', async (req, res) => {
-      const { rows, readable, roleColumnPresent } = await read(appkit.lakebase);
+      const { rows, readable, roleColumnPresent } = await read(appkit.lakebase, req);
       const payload: RosterPayload = rosterPayload({
         seed: seedRoles(),
         stored: rows,
@@ -215,7 +219,7 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
       let rows: StoredRole[];
       let roleColumnPresent: boolean;
       try {
-        ({ rows, roleColumnPresent } = await readRoster(appkit.lakebase));
+        ({ rows, roleColumnPresent } = await readRosterForRequest(appkit.lakebase, req));
       } catch (error) {
         console.error('[admin] The roster could not be read, so no removal was attempted:', (error as Error).message);
         res.status(503).json({
@@ -243,7 +247,7 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
           subject: email,
           detail: `${actor} removed ${email} from this deployment's roster, held as ${ROLE_WORD[from].toLowerCase()}.`,
         });
-        await replyWithRoster(res, appkit.lakebase, actor, roleColumnPresent);
+        await replyWithRoster(req, res, appkit.lakebase, actor, roleColumnPresent);
       } catch (error) {
         console.error(`[admin] ${email} could not be removed:`, (error as Error).message);
         res.status(503).json({ error: 'roster_store_unavailable', detail: 'Nobody was removed.' });
@@ -264,7 +268,7 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
       let rows: StoredRole[];
       let roleColumnPresent: boolean;
       try {
-        ({ rows, roleColumnPresent } = await readRoster(appkit.lakebase));
+        ({ rows, roleColumnPresent } = await readRosterForRequest(appkit.lakebase, req));
       } catch (error) {
         console.error('[admin] The roster could not be read, so no role was changed:', (error as Error).message);
         res.status(503).json({
@@ -292,7 +296,7 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
           detail: roleChangeSentence({ actor, email, from, to }),
         });
         await withdrawOnDemotion({ req, store: appkit.lakebase, email, actor, from, to });
-        await replyWithRoster(res, appkit.lakebase, actor, roleColumnPresent);
+        await replyWithRoster(req, res, appkit.lakebase, actor, roleColumnPresent);
       } catch (error) {
         console.error(`[admin] ${email} could not be set to ${role}:`, (error as Error).message);
         res.status(503).json({
@@ -311,8 +315,14 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
      * store now holds it. A payload assembled from what the handler believed it wrote
      * is a payload that agrees with the handler rather than with the database.
      */
-    async function replyWithRoster(res: Response, store: AdminStore, reader: string, roleColumnPresent: boolean) {
-      const after = await read(store);
+    async function replyWithRoster(
+      req: Request,
+      res: Response,
+      store: AdminStore,
+      reader: string,
+      roleColumnPresent: boolean
+    ) {
+      const after = await read(store, req);
       const payload: RosterPayload = rosterPayload({
         seed: seedRoles(),
         stored: after.rows,

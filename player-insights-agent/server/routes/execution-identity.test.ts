@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  ACCESS_DECISION_CACHE_MAX_ENTRIES,
+  ACCESS_DECISION_TTL_MS,
   accessDecisionFor,
   accessModeFor,
   appServicePrincipal,
@@ -85,6 +87,24 @@ describe('the access mode', () => {
   it('keeps one user\u2019s decision away from another\u2019s', () => {
     recordVerifiedAccess(USER, 'verified');
     expect(accessModeFor('someone.else@example.com')).toBe('service-principal');
+  });
+
+  it('expires a verified decision at the safe TTL on a fake clock', () => {
+    recordVerifiedAccess(USER, 'verified', 1_000);
+
+    expect(accessModeFor(USER, 1_000 + ACCESS_DECISION_TTL_MS - 1)).toBe('user-verified');
+    expect(accessModeFor(USER, 1_000 + ACCESS_DECISION_TTL_MS)).toBe('service-principal');
+  });
+
+  it('isolates normalized user keys and evicts least-recently-used high-cardinality decisions', () => {
+    recordVerifiedAccess(`  ${USER.toUpperCase()} `, 'verified', 0);
+    expect(accessModeFor(USER, 1)).toBe('user-verified');
+    for (let index = 0; index < ACCESS_DECISION_CACHE_MAX_ENTRIES; index += 1) {
+      recordVerifiedAccess(`person-${index}@example.com`, 'verified', 1);
+    }
+
+    expect(accessModeFor(USER, 2)).toBe('service-principal');
+    expect(accessModeFor(`person-${ACCESS_DECISION_CACHE_MAX_ENTRIES - 1}@example.com`, 2)).toBe('user-verified');
   });
 
   it('records nothing for a turn nobody was asked about', () => {

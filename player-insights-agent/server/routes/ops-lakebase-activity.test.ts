@@ -92,7 +92,7 @@ afterEach(() => {
 });
 
 describe('Ops activity without billed telemetry', () => {
-  it('counts all recorded questions without date parameters', async () => {
+  it('uses the same complete-day range for every traffic read', async () => {
     delete process.env.PLAYER_INSIGHTS_TELEMETRY_SCHEMA;
     const { handlers, calls } = routes();
 
@@ -103,11 +103,11 @@ describe('Ops activity without billed telemetry', () => {
     expect(payload.activeMinutesPerDay).toEqual([{ day: '2026-08-20', count: 18 }]);
     expect(calls.filter((call) => call.sql !== REQUEST_LATENCY_QUERY).map((call) => call.params)).toEqual([
       ['effective'],
-      ['UTC'],
-      ['UTC'],
-      ['UTC'],
-      [],
-      [],
+      ['UTC', '2026-08-19', '2026-08-19'],
+      ['UTC', '2026-08-19', '2026-08-19'],
+      ['UTC', '2026-08-19', '2026-08-19'],
+      ['UTC', '2026-08-19', '2026-08-19'],
+      ['UTC', '2026-08-19', '2026-08-19'],
     ]);
   });
 
@@ -117,7 +117,7 @@ describe('Ops activity without billed telemetry', () => {
 
     const payload = await invoke<OpsLatencyPayload>(handlers.get('/api/ops/latency')!);
 
-    expect(calls).toEqual([{ sql: REQUEST_LATENCY_QUERY, params: [] }]);
+    expect(calls).toEqual([{ sql: REQUEST_LATENCY_QUERY, params: ['2026-08-19', '2026-08-19'] }]);
     expect(payload.state).toBe('ready');
     expect(payload.table).toContain('.request_latencies');
     expect(payload.routes).toEqual([

@@ -751,6 +751,8 @@ export const QUESTIONS_PER_DAY_QUERY = `
   SELECT to_char(date_trunc('day', m.created_at AT TIME ZONE $1), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
   FROM ${APP_SCHEMA}.messages m
   WHERE m.role = 'user'
+    AND m.created_at >= ($2::date::timestamp AT TIME ZONE $1)
+    AND m.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
   GROUP BY 1
   ORDER BY 1`;
 
@@ -761,6 +763,8 @@ export const DISTINCT_ASKERS_PER_DAY_QUERY = `
   FROM ${APP_SCHEMA}.messages m
   JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
   WHERE m.role = 'user'
+    AND m.created_at >= ($2::date::timestamp AT TIME ZONE $1)
+    AND m.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
   GROUP BY 1
   ORDER BY 1`;
 
@@ -783,7 +787,8 @@ export const RUN_OUTCOMES_QUERY = `
   WITH answers AS (
     SELECT m.id,
            COALESCE(NULLIF(m.trace_id, ''), NULLIF(m.response_json->'trace'->>'id', '')) AS trace_id,
-           ${OPS_ANSWER_STATUS_SQL} AS answer_status
+           ${OPS_ANSWER_STATUS_SQL} AS answer_status,
+           m.created_at
     FROM ${APP_SCHEMA}.messages m
     WHERE m.role = 'assistant'
       AND jsonb_typeof(m.response_json->'trace') = 'object'
@@ -810,6 +815,8 @@ export const RUN_OUTCOMES_QUERY = `
       ORDER BY (a.id = r.terminal_message_id) DESC
       LIMIT 1
     ) a ON TRUE
+    WHERE r.created_at >= ($2::date::timestamp AT TIME ZONE $1)
+      AND r.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
   ),
   legacy_answer_events AS (
     SELECT a.id AS event_id,
@@ -822,6 +829,8 @@ export const RUN_OUTCOMES_QUERY = `
       WHERE r.terminal_message_id = a.id
          OR (COALESCE(r.trace_id, '') <> '' AND r.trace_id = a.trace_id)
     )
+      AND a.created_at >= ($2::date::timestamp AT TIME ZONE $1)
+      AND a.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
   ),
   events AS (
     SELECT * FROM ledger_events
@@ -838,6 +847,8 @@ export const TOOL_CALLS_QUERY = `
   FROM ${APP_SCHEMA}.messages m,
        LATERAL jsonb_array_elements(m.response_json->'trace'->'stages') AS stage
   WHERE m.role = 'assistant'
+    AND m.created_at >= ($2::date::timestamp AT TIME ZONE $1)
+    AND m.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
     AND jsonb_typeof(m.response_json->'trace'->'stages') = 'array'
     AND stage->>'kind' = 'tool'
     AND COALESCE(stage->>'name', '') <> ''
@@ -1078,6 +1089,7 @@ async function warehouseQueryAttribution(input: {
   warehouseId: string;
   range: { from: string; to: string };
   transport?: WarehouseQueryHistoryTransport;
+  signal?: AbortSignal;
 }): Promise<WarehouseQueryAttribution> {
   const startTimeMs = Date.parse(`${input.range.from}T00:00:00Z`);
   const endTimeMs = Date.parse(`${input.range.to}T00:00:00Z`) + 86_400_000 - 1;
@@ -1102,10 +1114,25 @@ async function warehouseQueryAttribution(input: {
       startTimeMs,
       endTimeMs,
       transport,
+      signal: input.signal,
     });
   } catch (error) {
     console.warn(`[ops] Query History attribution was withheld: ${(error as Error).message}`);
-    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION };
+    return {
+      ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION,
+      coverage: {
+        state: 'unavailable',
+        requestedRange: {
+          from: new Date(startTimeMs).toISOString(),
+          to: new Date(endTimeMs).toISOString(),
+        },
+        queriedRange: null,
+        rowsRead: 0,
+        pagesRead: 0,
+        chunksRead: 0,
+        reasons: ['transport-error'],
+      },
+    };
   }
 }
 
@@ -1235,6 +1262,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
     app.get('/api/ops/cost', async (req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
       const range = opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
+      const requestAbort = new AbortController();
+      res.once?.('close', () => {
+        if (!res.writableEnded) requestAbort.abort(new Error('The Cost caller disconnected.'));
+      });
       const workspace = host();
       const warehouse = warehouseId();
       const token = executionToken(req);
@@ -1310,6 +1341,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             warehouseId: warehouse,
             range,
             transport: deps.queryHistoryTransport,
+            signal: requestAbort.signal,
           }),
         ]);
         const inventoryCount = resourceTagInventory({ environment: process.env, report: resolved.report }).length;
@@ -1413,6 +1445,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
     app.get('/api/ops/traffic', async (req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
+      const range = opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
       try {
         const runtime = await readRuntimeSettings(appkit);
         const activeMinutesTimeZone =
@@ -1421,11 +1454,11 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         // messages table and a deployment that has not created it yet should
         // still get its questions chart rather than an empty block.
         const [questions, askers, activeMinutes, outcomes, tools] = await Promise.allSettled([
-          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY, [activeMinutesTimeZone]),
-          appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY, [activeMinutesTimeZone]),
-          appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY, [activeMinutesTimeZone]),
-          appkit.lakebase.query(RUN_OUTCOMES_QUERY),
-          appkit.lakebase.query(TOOL_CALLS_QUERY),
+          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
+          appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
+          appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
+          appkit.lakebase.query(RUN_OUTCOMES_QUERY, [activeMinutesTimeZone, range.from, range.to]),
+          appkit.lakebase.query(TOOL_CALLS_QUERY, [activeMinutesTimeZone, range.from, range.to]),
         ]);
 
         const questionsPerDay =
@@ -1443,6 +1476,16 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
                 .map((row) => ({ day: text(row.day), count: count(row.count) }))
             : [];
         const activityBounds = activeMinutes.status === 'fulfilled' ? activeMinutes.value.rows[0] : undefined;
+        const activityCoverageState = text(activityBounds?.coverage_state);
+        const activityCoverage: OpsTrafficPayload['activityCoverage'] =
+          activityCoverageState === 'complete' ||
+          activityCoverageState === 'partial' ||
+          activityCoverageState === 'unavailable'
+            ? {
+                state: activityCoverageState,
+                missingDays: count(activityBounds?.missing_days),
+              }
+            : undefined;
 
         const failures = new Map<string, number>();
         const refusals = new Map<string, number>();
@@ -1488,25 +1531,32 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         ].filter((read) => read.done.status === 'rejected');
         const rejected = outstanding.map((read) => read.done as PromiseRejectedResult);
         const readCount = 5;
+        const partialRead =
+          rejected.length > 0 && rejected.length < readCount
+            ? unreadNote(
+                outstanding.map((read) => read.charts),
+                text((rejected[0].reason as Error)?.message)
+              )
+            : '';
+        const coverageRead =
+          activityCoverage?.state === 'partial'
+            ? `Recorded active app minutes have ${activityCoverage.missingDays} missing UTC rollup day(s); the returned days are partial rather than zero-filled.`
+            : '';
         const payload: OpsTrafficPayload = {
           readAt,
+          range,
           reason:
             rejected.length === readCount
               ? `Nothing about traffic could be read: ${text((rejected[0].reason as Error)?.message) || 'the store did not answer'}`
               : '',
-          unread:
-            rejected.length > 0 && rejected.length < readCount
-              ? unreadNote(
-                  outstanding.map((read) => read.charts),
-                  text((rejected[0].reason as Error)?.message)
-                )
-              : '',
+          unread: [partialRead, coverageRead].filter(Boolean).join(' '),
           questionsPerDay,
           distinctAskersPerDay,
           activeMinutesPerDay,
           activeMinutesTimeZone,
           activeMinutesRecordedFrom: text(activityBounds?.recorded_from),
           activeMinutesRecordedThrough: text(activityBounds?.recorded_through),
+          activityCoverage,
           failuresByCause: toBars(failures),
           refusalsByCause: toBars(refusals),
           toolCalls,
@@ -1516,6 +1566,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       } catch (error) {
         const payload: OpsTrafficPayload = {
           readAt,
+          range,
           reason: `Nothing about traffic could be read: ${(error as Error).message}`,
           unread: '',
           questionsPerDay: [],
@@ -1528,6 +1579,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           refusalsByCause: [],
           toolCalls: [],
           runsInRange: 0,
+          activityCoverage: { state: 'unavailable', missingDays: 0 },
         };
         res.json(payload);
       }
@@ -1536,10 +1588,12 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
     /* ── Latency ─────────────────────────────────────────────────────────── */
 
     /** Per-route request timings from Lakebase, independent of billed app telemetry. */
-    app.get('/api/ops/latency', async (_req: Request, res: Response) => {
+    app.get('/api/ops/latency', async (req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
+      const range = opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
       const base: OpsLatencyPayload = {
         readAt,
+        range,
         state: 'no-rows',
         reason: '',
         grant: null,
@@ -1547,9 +1601,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         routes: [],
         coveredFrom: '',
         coveredTo: '',
+        coverage: { state: 'unavailable', missingDays: 0 },
       };
       try {
-        const result = await appkit.lakebase.query(REQUEST_LATENCY_QUERY);
+        const result = await appkit.lakebase.query(REQUEST_LATENCY_QUERY, [range.from, range.to]);
         const measured = readRequestLatencyRows(result.rows);
         if (measured.routes.length === 0) {
           res.json({
@@ -1558,6 +1613,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               'No API request timings have been recorded. Recording starts with this release and does not backfill.',
             coveredFrom: measured.coveredFrom,
             coveredTo: measured.coveredTo,
+            coverage: { state: measured.coverageState, missingDays: measured.missingDays },
           });
           return;
         }
@@ -1567,6 +1623,11 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           routes: measured.routes,
           coveredFrom: measured.coveredFrom,
           coveredTo: measured.coveredTo,
+          coverage: { state: measured.coverageState, missingDays: measured.missingDays },
+          reason:
+            measured.coverageState === 'partial'
+              ? `${measured.missingDays} UTC day(s) are missing from raw and rolled request timings, so these figures are partial.`
+              : '',
         } satisfies OpsLatencyPayload);
       } catch (error) {
         const payload: OpsLatencyPayload = {

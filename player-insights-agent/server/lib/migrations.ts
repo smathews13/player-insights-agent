@@ -3,6 +3,13 @@ import { DEPLOYMENT_DECISIONS_TABLE_NAME, deploymentDecisionsDdl } from './deplo
 import { REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL } from './request-latency';
 import { APP_ACTIVITY_DDL, APP_ACTIVITY_TABLE } from './app-activity';
 import { APP_SESSION_TABLE } from './app-session';
+import {
+  APP_ACTIVITY_ROLLUP_TABLE,
+  REQUEST_LATENCY_ROLLUP_TABLE,
+  TELEMETRY_HOUSEKEEPING_STATE_TABLE,
+  TELEMETRY_ROLLUP_DAYS_TABLE,
+  TELEMETRY_ROLLUP_MIGRATION_DDL,
+} from './telemetry-retention';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -70,6 +77,14 @@ export interface Migration {
   name: string;
   /** Applied in order. Each must be idempotent; see the file header. */
   statements: readonly string[];
+  /**
+   * Hold one session-level advisory lock while applying this version.
+   *
+   * Online index builds need this when multiple app replicas can observe the
+   * same pending version. It serializes the builders without a transaction,
+   * because CREATE INDEX CONCURRENTLY is forbidden inside one.
+   */
+  lock?: 'session';
   /**
    * How to undo this version, or `null` when it cannot be undone.
    *
@@ -648,6 +663,61 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
       `DROP INDEX IF EXISTS ${APP_SCHEMA}.app_sessions_subject_deployment_idx`,
       `DROP INDEX IF EXISTS ${APP_SCHEMA}.app_sessions_retention_idx`,
       `DROP TABLE IF EXISTS ${APP_SESSION_TABLE}`,
+    ],
+  },
+  {
+    version: 23,
+    name: 'daily telemetry rollups',
+    /**
+     * New app-owned tables rather than changes to raw telemetry. The rollup-day
+     * marker is the deletion fence: housekeeping cannot remove a raw row until
+     * the transaction that filled both rollup tables committed its day.
+     */
+    statements: TELEMETRY_ROLLUP_MIGRATION_DDL,
+    down: [
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.runs_created_at_idx`,
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.app_activity_minutes_active_idx`,
+      `DROP TABLE IF EXISTS ${TELEMETRY_HOUSEKEEPING_STATE_TABLE}`,
+      `DROP TABLE IF EXISTS ${TELEMETRY_ROLLUP_DAYS_TABLE}`,
+      `DROP TABLE IF EXISTS ${APP_ACTIVITY_ROLLUP_TABLE}`,
+      `DROP TABLE IF EXISTS ${REQUEST_LATENCY_ROLLUP_TABLE}`,
+    ],
+  },
+  {
+    version: 24,
+    name: 'query path indexes',
+    lock: 'session',
+    /**
+     * The three uncovered ordered lookups in application SQL are one owner's
+     * conversation rail, one owner's attachments in a conversation, and one
+     * owner's latest feedback for a message.
+     *
+     * `CONCURRENTLY` is valid because this runner deliberately does not wrap
+     * migrations in a transaction. Existing reads and writes continue while
+     * old rows are indexed. Each create is preceded by an online drop so a
+     * cancelled earlier build cannot leave an invalid same-named index that
+     * `IF NOT EXISTS` would mistake for success. The session lock and its
+     * in-lock version recheck keep a stale replica from dropping the valid
+     * indexes another replica just recorded.
+     *
+     * Runs, Monitoring, and session retention already have matching indexes;
+     * adding overlapping prefixes there would only amplify writes.
+     */
+    statements: [
+      `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.conversations_owner_updated_idx`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS conversations_owner_updated_idx
+         ON ${APP_SCHEMA}.conversations (user_email, updated_at DESC)`,
+      `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.attachments_conversation_owner_created_idx`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS attachments_conversation_owner_created_idx
+         ON ${APP_SCHEMA}.attachments (conversation_id, user_email, created_at)`,
+      `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.feedback_message_owner_created_idx`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS feedback_message_owner_created_idx
+         ON ${APP_SCHEMA}.feedback (message_id, user_email, created_at DESC)`,
+    ],
+    down: [
+      `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.feedback_message_owner_created_idx`,
+      `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.attachments_conversation_owner_created_idx`,
+      `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.conversations_owner_updated_idx`,
     ],
   },
 ];

@@ -1,7 +1,9 @@
 import { warehouseStartPath, warehouseStatePath } from './warehouse-warmup';
+import { ExpiringLruCache } from './expiring-lru';
 
 export const GENIE_WARMUP_COOLDOWN_MS = 60_000;
 export const GENIE_WARMUP_TIMEOUT_MS = 10_000;
+export const GENIE_WARMUP_CACHE_MAX_ENTRIES = 2_048;
 
 type FetchLike = typeof fetch;
 
@@ -16,6 +18,7 @@ export interface GenieWarehouseWarmup {
   warm(input: {
     host: string;
     token: string;
+    subject: string;
     spaceIds: readonly string[];
     appWarehouseId: string;
   }): Promise<readonly GenieWarehouseWarmupOutcome[]>;
@@ -57,33 +60,38 @@ async function jsonRequest(
  * CAN USE on its warehouse to ask a question, so the same short-lived token is
  * the only identity that can safely discover and start that compute.
  */
-export function createGenieWarehouseWarmup(options: {
-  fetchImpl?: FetchLike;
-  now?: () => number;
-  cooldownMs?: number;
-  timeoutMs?: number;
-} = {}): GenieWarehouseWarmup {
+export function createGenieWarehouseWarmup(
+  options: {
+    fetchImpl?: FetchLike;
+    now?: () => number;
+    cooldownMs?: number;
+    timeoutMs?: number;
+    maxEntries?: number;
+  } = {}
+): GenieWarehouseWarmup {
   const call = options.fetchImpl ?? fetch;
   const now = options.now ?? Date.now;
   const cooldownMs = options.cooldownMs ?? GENIE_WARMUP_COOLDOWN_MS;
   const timeoutMs = options.timeoutMs ?? GENIE_WARMUP_TIMEOUT_MS;
-  const lastAttempt = new Map<string, number>();
+  const lastAttempt = new ExpiringLruCache<true>(options.maxEntries ?? GENIE_WARMUP_CACHE_MAX_ENTRIES, cooldownMs);
 
   return {
-    async warm({ host, token, spaceIds, appWarehouseId }) {
+    async warm({ host, token, subject, spaceIds, appWarehouseId }) {
       const base = host.replace(/\/+$/, '');
-      if (!base || !token) return [];
+      const reader = subject.trim().toLowerCase();
+      if (!base || !token || !reader) return [];
 
       const outcomes: GenieWarehouseWarmupOutcome[] = [];
       const warehouses = new Map<string, string[]>();
       await Promise.all(
         [...new Set(spaceIds.filter(Boolean))].map(async (spaceId) => {
-          const key = `${base}|${spaceId}`;
-          if (now() - (lastAttempt.get(key) ?? Number.NEGATIVE_INFINITY) < cooldownMs) {
+          const key = `${reader}\u0000${base}\u0000${spaceId}`;
+          const checkedAt = now();
+          if (lastAttempt.get(key, checkedAt)) {
             outcomes.push({ kind: 'cooling-down', spaceId });
             return;
           }
-          lastAttempt.set(key, now());
+          lastAttempt.set(key, true, checkedAt);
           try {
             const space = await jsonRequest(
               call,
@@ -112,13 +120,7 @@ export function createGenieWarehouseWarmup(options: {
           }
           let state = '';
           try {
-            const body = await jsonRequest(
-              call,
-              `${base}${warehouseStatePath(warehouseId)}`,
-              token,
-              'GET',
-              timeoutMs
-            );
+            const body = await jsonRequest(call, `${base}${warehouseStatePath(warehouseId)}`, token, 'GET', timeoutMs);
             state = typeof body.state === 'string' ? body.state.trim().toUpperCase() : '';
             if (!state) throw new Error('warehouse reported no state');
           } catch (error) {
@@ -135,13 +137,7 @@ export function createGenieWarehouseWarmup(options: {
             return;
           }
           try {
-            await jsonRequest(
-              call,
-              `${base}${warehouseStartPath(warehouseId)}`,
-              token,
-              'POST',
-              timeoutMs
-            );
+            await jsonRequest(call, `${base}${warehouseStartPath(warehouseId)}`, token, 'POST', timeoutMs);
             outcomes.push({ kind: 'started', warehouseId, spaceIds: resolvedSpaces, from: state });
           } catch (error) {
             outcomes.push({

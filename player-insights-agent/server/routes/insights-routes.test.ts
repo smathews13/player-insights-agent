@@ -33,6 +33,7 @@ import {
 import { announceSeedAdmins } from '../lib/admin-roles';
 import servingResponses from './__fixtures__/serving-responses.json';
 import { FakeStore } from '../lib/__fixtures__/fake-run-store';
+import { StreamLimitExceededError } from '../lib/serving-stream';
 import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 import { PROSE_ONLY_ANSWER_CAVEAT } from '../../shared/prose-only-answer';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
@@ -659,7 +660,9 @@ function memoryLakebase(
           response_json: params[4] ?? null,
           created_at: new Date(Date.now() + messages.length).toISOString(),
         });
-        return Promise.resolve({ rows: [] as Record<string, unknown>[] });
+        return Promise.resolve({
+          rows: sql.includes('RETURNING id') ? [{ id: String(params[0]) }] : ([] as Record<string, unknown>[]),
+        });
       }
 
       // Mirrors what RUNS_QUERY derives in Postgres: one run per answered turn,
@@ -848,7 +851,7 @@ afterAll(async () => {
 async function startInsightsApp(
   transport: ServingTransport,
   lakebase: InsightsAppKit['lakebase'] = { query: () => Promise.resolve({ rows: [] }) },
-  overrides: Pick<InsightsAppKit, 'warehouseCancellationTransport'> = {}
+  overrides: Pick<InsightsAppKit, 'warehouseCancellationTransport' | 'servingTimeoutMs'> = {}
 ) {
   const app = express();
   app.use(express.json());
@@ -3363,13 +3366,32 @@ describe('an agent endpoint that never answers', () => {
 
   it('abandons a silent endpoint rather than waiting forever', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    let servingSignal: AbortSignal | undefined;
+    let abortObserved = false;
     const appkit = {
       lakebase: { query: () => Promise.resolve({ rows: [] }) },
       server: { extend: () => {} },
-      servingTransport: () => new Promise<never>(() => {}),
+      servingTransport: ({ signal }: { signal?: AbortSignal }) => {
+        servingSignal = signal;
+        return new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              abortObserved = true;
+              reject(signal.reason instanceof Error ? signal.reason : new Error('Serving request aborted.'));
+            },
+            { once: true }
+          );
+        });
+      },
     } as unknown as InsightsAppKit;
 
-    await expect(invokeServing(appkit, { input: [] }, undefined, 30)).rejects.toThrow(/did not answer within 30 ms/);
+    await expect(invokeServing(appkit, { input: [] }, undefined, 30)).rejects.toMatchObject({
+      name: 'RunDeadlineExceededError',
+      timeoutMs: 30,
+    });
+    expect(servingSignal?.aborted).toBe(true);
+    expect(abortObserved).toBe(true);
   });
 });
 
@@ -4121,10 +4143,22 @@ function lakebaseWithLedger(store: ReturnType<typeof memoryLakebase>) {
   return {
     ledger,
     lakebase: {
-      query: (sql: string, params: unknown[] = []) =>
-        /player_insights\.(runs|run_attempts|run_events)/.test(sql)
+      query: (sql: string, params: unknown[] = []) => {
+        if (/INSERT INTO player_insights\.messages/i.test(sql)) {
+          if (/EXISTS \(SELECT 1 FROM player_insights\.runs/i.test(sql)) {
+            const runId = String(params[params.length - 2]);
+            const fence = Number(params[params.length - 1]);
+            const run = ledger.runs.find((candidate) => candidate.run_id === runId);
+            if (!run || run.fencing_token !== fence || run.completed_at !== null) {
+              return Promise.resolve({ rows: [] as Record<string, unknown>[] });
+            }
+          }
+          return store.query(sql, params);
+        }
+        return /player_insights\.(runs|run_attempts|run_events)/.test(sql)
           ? ledger.lakebase.query(sql, params)
-          : store.query(sql, params),
+          : store.query(sql, params);
+      },
     },
   };
 }
@@ -4205,6 +4239,94 @@ describe('the run ledger under POST /api/insights/ask', () => {
       // Walked rather than jumped, so a run that answered can be shown to have
       // passed through synthesis.
       expect(ledger.events.map((event) => event.to)).toEqual(['PLANNING', 'RUNNING', 'SYNTHESIZING', 'SUCCEEDED']);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('aborts a never-ending Ask at the deadline and ignores output attempted afterward', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    let fetchSignal: AbortSignal | undefined;
+    let lateStageAttempted = false;
+    const transport: ServingTransport = ({ signal, onStage }) => {
+      fetchSignal = signal;
+      onStage?.({
+        id: 'step-before-timeout',
+        name: 'Chose the next step',
+        kind: 'agent',
+        status: 'complete',
+        start: 0,
+        duration: 1,
+        calls: 1,
+      });
+      return new Promise<never>((_resolve, reject) => {
+        signal?.addEventListener(
+          'abort',
+          () => {
+            reject(signal.reason instanceof Error ? signal.reason : new Error('Serving request aborted.'));
+            queueMicrotask(() => {
+              lateStageAttempted = true;
+              onStage?.({
+                id: 'step-after-timeout',
+                name: 'Late output',
+                kind: 'tool',
+                status: 'complete',
+                start: 2,
+                duration: 1,
+                calls: 1,
+              });
+            });
+          },
+          { once: true }
+        );
+      });
+    };
+    const store = memoryLakebase();
+    const { ledger, lakebase } = lakebaseWithLedger(store);
+    const app = await startInsightsApp(transport, lakebase, { servingTimeoutMs: 25 });
+
+    try {
+      const terminal = await app.ask({
+        conversationId: 'conv-deadline',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(terminal).toMatchObject({ type: 'unavailable', code: 'RUN_DEADLINE_EXCEEDED' });
+      expect(fetchSignal?.aborted).toBe(true);
+      expect(lateStageAttempted).toBe(true);
+      expect(ledger.runs[0]).toMatchObject({
+        state: 'DEADLINE_EXCEEDED',
+        terminal_code: 'RUN_DEADLINE_EXCEEDED',
+      });
+      expect(ledger.events.filter((event) => event.to === 'DEADLINE_EXCEEDED')).toHaveLength(1);
+      expect(store.messages.filter((message) => message.role === 'assistant')).toHaveLength(0);
+      expect(ledger.stageEvents.some((event) => (event.payload as { id?: string }).id === 'step-after-timeout')).toBe(
+        false
+      );
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('settles an oversized stream once as interrupted and stores no partial answer', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const store = memoryLakebase();
+    const { ledger, lakebase } = lakebaseWithLedger(store);
+    const app = await startInsightsApp(() => Promise.reject(new StreamLimitExceededError('events', 608)), lakebase);
+
+    try {
+      const terminal = await app.ask({
+        conversationId: 'conv-stream-limit',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+
+      expect(terminal).toMatchObject({ type: 'unavailable', code: 'STREAM_INTERRUPTED' });
+      expect(ledger.runs[0]).toMatchObject({ state: 'FAILED', terminal_code: 'STREAM_INTERRUPTED' });
+      expect(ledger.events.filter((event) => event.to === 'FAILED')).toHaveLength(1);
+      expect(store.messages.filter((message) => message.role === 'assistant')).toHaveLength(0);
     } finally {
       await app.close();
     }

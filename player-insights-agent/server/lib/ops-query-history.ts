@@ -1,8 +1,11 @@
 import { parseQueryTags, type QueryHistoryPage, type QueryHistoryRow } from './warehouse-cancellation';
+import type { QueryHistoryCoverage, QueryHistoryCoverageReason } from '../../shared/ops-contract';
 
 const QUERY_HISTORY_PAGE_SIZE = 999;
-const MAX_QUERY_HISTORY_PAGES = 100;
+export const MAX_QUERY_HISTORY_PAGES = 40;
 const MAX_QUERY_HISTORY_RANGE_MS = 30 * 24 * 60 * 60 * 1_000;
+export const MAX_QUERY_HISTORY_TOTAL_RANGE_MS = 366 * 24 * 60 * 60 * 1_000;
+export const QUERY_HISTORY_DEADLINE_MS = 20_000;
 
 export interface WarehouseQueryAttribution {
   /** True only when every page and every execution-time denominator was available. */
@@ -14,6 +17,8 @@ export interface WarehouseQueryAttribution {
   totalExecutionMs: number;
   /** Generated SQL measured for each exact Query History Genie space id. */
   genieSpaces: Array<{ spaceId: string; queries: number; executionMs: number }>;
+  /** Present on every new read; optional only for legacy injected fixtures. */
+  coverage?: QueryHistoryCoverage;
 }
 
 export const EMPTY_WAREHOUSE_QUERY_ATTRIBUTION: WarehouseQueryAttribution = {
@@ -23,6 +28,15 @@ export const EMPTY_WAREHOUSE_QUERY_ATTRIBUTION: WarehouseQueryAttribution = {
   astrolabeExecutionMs: 0,
   totalExecutionMs: 0,
   genieSpaces: [],
+  coverage: {
+    state: 'unavailable',
+    requestedRange: null,
+    queriedRange: null,
+    rowsRead: 0,
+    pagesRead: 0,
+    chunksRead: 0,
+    reasons: ['invalid-range'],
+  },
 };
 
 export interface WarehouseQueryHistoryTransport {
@@ -32,6 +46,7 @@ export interface WarehouseQueryHistoryTransport {
     endTimeMs: number;
     pageToken?: string;
     maxResults: number;
+    signal?: AbortSignal;
   }): Promise<QueryHistoryPage>;
 }
 
@@ -62,6 +77,47 @@ function genieSpaceId(row: QueryHistoryRow): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+class QueryHistoryDeadlineError extends Error {
+  constructor() {
+    super('Query History read deadline reached.');
+    this.name = 'QueryHistoryDeadlineError';
+  }
+}
+
+function isoTimestamp(value: number): string | null {
+  if (!Number.isFinite(value) || Math.abs(value) > 8_640_000_000_000_000) return null;
+  return new Date(value).toISOString();
+}
+
+function addReason(coverage: QueryHistoryCoverage, reason: QueryHistoryCoverageReason): void {
+  if (!coverage.reasons.includes(reason)) coverage.reasons.push(reason);
+}
+
+function abortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error ? signal.reason : new Error('Query History read aborted.');
+}
+
+function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(abortReason(signal));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort);
+      reject(abortReason(signal));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    work.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    );
+  });
+}
+
 /**
  * Read the complete Query History denominator for one warehouse and bounded range.
  *
@@ -73,63 +129,71 @@ export async function readWarehouseQueryAttribution(input: {
   startTimeMs: number;
   endTimeMs: number;
   transport: WarehouseQueryHistoryTransport;
-}): Promise<WarehouseQueryAttribution> {
+  signal?: AbortSignal;
+  /** Test seam. Callers cannot increase the production page or time budget. */
+  maxPages?: number;
+  deadlineMs?: number;
+  now?: () => number;
+}): Promise<WarehouseQueryAttribution & { coverage: QueryHistoryCoverage }> {
   const warehouseId = input.warehouseId.trim();
-  if (!warehouseId || !Number.isFinite(input.startTimeMs) || !Number.isFinite(input.endTimeMs)) {
-    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION };
+  const requestedFrom = isoTimestamp(input.startTimeMs);
+  const requestedTo = isoTimestamp(input.endTimeMs);
+  if (!warehouseId || !requestedFrom || !requestedTo || input.endTimeMs < input.startTimeMs) {
+    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, coverage: EMPTY_WAREHOUSE_QUERY_ATTRIBUTION.coverage! };
   }
 
-  const rows = new Map<string, QueryHistoryRow>();
-  let complete = true;
-  for (let windowStart = input.startTimeMs; windowStart <= input.endTimeMs; ) {
-    const windowEnd = Math.min(input.endTimeMs, windowStart + MAX_QUERY_HISTORY_RANGE_MS - 1);
-    let pageToken: string | undefined;
-    const usedTokens = new Set<string>();
-
-    for (let page = 0; page < MAX_QUERY_HISTORY_PAGES; page += 1) {
-      const response = await input.transport.listQueries({
-        warehouseId,
-        startTimeMs: windowStart,
-        endTimeMs: windowEnd,
-        pageToken,
-        maxResults: QUERY_HISTORY_PAGE_SIZE,
-      });
-      for (const row of Array.isArray(response.res) ? response.res : []) {
-        if (row.warehouse_id !== undefined && row.warehouse_id !== warehouseId) {
-          complete = false;
-          continue;
-        }
-        const id = rowId(row);
-        if (!id) {
-          complete = false;
-          continue;
-        }
-        rows.set(id, row);
-      }
-
-      const next = typeof response.next_page_token === 'string' ? response.next_page_token.trim() : '';
-      if (!next) {
-        if (response.has_next_page) complete = false;
-        break;
-      }
-      if (usedTokens.has(next)) {
-        complete = false;
-        break;
-      }
-      usedTokens.add(next);
-      pageToken = next;
-      if (page === MAX_QUERY_HISTORY_PAGES - 1) complete = false;
-    }
-
-    if (windowEnd >= input.endTimeMs) break;
-    windowStart = windowEnd + 1;
+  const coverage: QueryHistoryCoverage = {
+    state: 'partial',
+    requestedRange: { from: requestedFrom, to: requestedTo },
+    queriedRange: null,
+    rowsRead: 0,
+    pagesRead: 0,
+    chunksRead: 0,
+    reasons: [],
+  };
+  const now = input.now?.() ?? Date.now();
+  const boundedEnd = Math.min(input.endTimeMs, now);
+  const boundedStart = Math.max(input.startTimeMs, boundedEnd - MAX_QUERY_HISTORY_TOTAL_RANGE_MS + 1);
+  if (boundedEnd !== input.endTimeMs || boundedStart !== input.startTimeMs) addReason(coverage, 'range-clamped');
+  const boundedFrom = isoTimestamp(boundedStart);
+  const boundedTo = isoTimestamp(boundedEnd);
+  if (!boundedFrom || !boundedTo || boundedEnd < boundedStart) {
+    coverage.state = 'unavailable';
+    addReason(coverage, 'invalid-range');
+    return { ...EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, coverage };
   }
 
+  const maximumPages = Math.max(
+    1,
+    Math.min(MAX_QUERY_HISTORY_PAGES, Math.floor(input.maxPages ?? MAX_QUERY_HISTORY_PAGES))
+  );
+  const deadlineMs = Math.max(1, Math.min(QUERY_HISTORY_DEADLINE_MS, input.deadlineMs ?? QUERY_HISTORY_DEADLINE_MS));
+  const controller = new AbortController();
+  const parentAbort = () => controller.abort(input.signal?.reason);
+  if (input.signal?.aborted) parentAbort();
+  else input.signal?.addEventListener('abort', parentAbort, { once: true });
+  const timer = setTimeout(() => controller.abort(new QueryHistoryDeadlineError()), deadlineMs);
+  timer.unref?.();
+
+  const seenQueryIds = new Set<string>();
   let astrolabeQueries = 0;
   let astrolabeExecutionMs = 0;
   let totalExecutionMs = 0;
   const genieSpaces = new Map<string, { queries: number; executionMs: number }>();
-  for (const row of rows.values()) {
+  let totalQueries = 0;
+  const aggregate = (row: QueryHistoryRow): void => {
+    if (row.warehouse_id !== undefined && row.warehouse_id !== warehouseId) {
+      addReason(coverage, 'unexpected-warehouse');
+      return;
+    }
+    const id = rowId(row);
+    if (!id) {
+      addReason(coverage, 'invalid-row');
+      return;
+    }
+    if (seenQueryIds.has(id)) return;
+    seenQueryIds.add(id);
+    totalQueries += 1;
     const spaceId = genieSpaceId(row);
     // A generated statement belongs to its exact Genie space. Excluding it from
     // the Astrolabe bucket makes the two allocations mutually exclusive.
@@ -142,21 +206,113 @@ export async function readWarehouseQueryAttribution(input: {
     }
     const duration = executionMilliseconds(row);
     if (duration === null) {
-      complete = false;
-      continue;
+      addReason(coverage, 'missing-execution-time');
+      return;
     }
     totalExecutionMs += duration;
     if (astrolabe) astrolabeExecutionMs += duration;
     if (spaceId) genieSpaces.get(spaceId)!.executionMs += duration;
+  };
+
+  let stop = controller.signal.aborted;
+  try {
+    for (let windowStart = boundedStart; windowStart <= boundedEnd && !stop; ) {
+      if (coverage.pagesRead >= maximumPages) {
+        addReason(coverage, 'page-cap');
+        break;
+      }
+      const windowEnd = Math.min(boundedEnd, windowStart + MAX_QUERY_HISTORY_RANGE_MS - 1);
+      let pageToken: string | undefined;
+      const usedTokens = new Set<string>();
+      coverage.chunksRead += 1;
+      coverage.queriedRange = {
+        from: coverage.queriedRange?.from ?? new Date(windowStart).toISOString(),
+        to: new Date(windowEnd).toISOString(),
+      };
+
+      for (;;) {
+        if (controller.signal.aborted) {
+          stop = true;
+          break;
+        }
+        if (coverage.pagesRead >= maximumPages) {
+          addReason(coverage, 'page-cap');
+          stop = true;
+          break;
+        }
+        let response: QueryHistoryPage;
+        try {
+          response = await abortable(
+            input.transport.listQueries({
+              warehouseId,
+              startTimeMs: windowStart,
+              endTimeMs: windowEnd,
+              pageToken,
+              maxResults: QUERY_HISTORY_PAGE_SIZE,
+              signal: controller.signal,
+            }),
+            controller.signal
+          );
+        } catch {
+          if (controller.signal.aborted) {
+            addReason(
+              coverage,
+              controller.signal.reason instanceof QueryHistoryDeadlineError ? 'deadline' : 'caller-abort'
+            );
+          } else {
+            addReason(coverage, 'transport-error');
+          }
+          stop = true;
+          break;
+        }
+        coverage.pagesRead += 1;
+        const pageRows = Array.isArray(response.res) ? response.res : [];
+        coverage.rowsRead += pageRows.length;
+        for (const row of pageRows) aggregate(row);
+
+        const next = typeof response.next_page_token === 'string' ? response.next_page_token.trim() : '';
+        if (!next) {
+          if (response.has_next_page) {
+            addReason(coverage, 'missing-page-token');
+            stop = true;
+          }
+          break;
+        }
+        if (usedTokens.has(next)) {
+          addReason(coverage, 'repeated-page-token');
+          stop = true;
+          break;
+        }
+        usedTokens.add(next);
+        pageToken = next;
+        if (coverage.pagesRead >= maximumPages) {
+          addReason(coverage, 'page-cap');
+          stop = true;
+          break;
+        }
+      }
+
+      if (windowEnd >= boundedEnd || stop) break;
+      windowStart = windowEnd + 1;
+    }
+  } finally {
+    clearTimeout(timer);
+    input.signal?.removeEventListener('abort', parentAbort);
   }
 
+  if (controller.signal.aborted && coverage.reasons.length === 0) {
+    addReason(coverage, controller.signal.reason instanceof QueryHistoryDeadlineError ? 'deadline' : 'caller-abort');
+  }
+  coverage.state = coverage.reasons.length === 0 ? 'complete' : 'partial';
+
   return {
-    complete,
+    complete: coverage.state === 'complete',
     astrolabeQueries,
-    totalQueries: rows.size,
+    totalQueries,
     astrolabeExecutionMs,
     totalExecutionMs,
     genieSpaces: [...genieSpaces].map(([spaceId, values]) => ({ spaceId, ...values })),
+    coverage,
   };
 }
 
@@ -174,6 +330,7 @@ interface LowLevelApiRequest {
     max_results: number;
     page_token?: string;
   };
+  signal?: AbortSignal;
 }
 
 export interface DatabricksLowLevelQueryHistoryClient {
@@ -195,7 +352,7 @@ export function createDatabricksQueryHistoryTransport(
   client: DatabricksLowLevelQueryHistoryClient
 ): WarehouseQueryHistoryTransport {
   return {
-    async listQueries({ warehouseId, startTimeMs, endTimeMs, pageToken, maxResults }) {
+    async listQueries({ warehouseId, startTimeMs, endTimeMs, pageToken, maxResults, signal }) {
       const response = await client.request({
         path: '/api/2.0/sql/history/queries',
         method: 'GET',
@@ -210,6 +367,7 @@ export function createDatabricksQueryHistoryTransport(
           max_results: maxResults,
           ...(pageToken ? { page_token: pageToken } : {}),
         },
+        signal,
       });
       return queryHistoryPage(response);
     },
@@ -227,6 +385,8 @@ export async function createWorkspaceQueryHistoryTransport(input: {
     authType: 'pat',
   });
   return createDatabricksQueryHistoryTransport({
-    request: (options) => client.apiClient.request(options),
+    // The experimental SDK runtime forwards AbortSignal although its public
+    // low-level request type has not declared the field yet.
+    request: (options) => client.apiClient.request(options as never),
   });
 }

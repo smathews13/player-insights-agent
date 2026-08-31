@@ -628,7 +628,8 @@ describe('every addable kind browses', () => {
   });
 
   it('requires user-scoped discovery and offers no typed identifier or display name', () => {
-    expect(CARD_SOURCE).toContain("fetch('/api/browse/connection-types')");
+    expect(CARD_SOURCE).toContain("fetch('/api/browse/connection-types', { signal: controller.signal })");
+    expect(CARD_SOURCE).toContain('controller.abort()');
     expect(CARD_SOURCE).toMatch(/typeChoices\.length > 0 \? \([\s\S]*<AssetPicker/);
     expect(CARD_SOURCE).not.toContain('Enter an identifier manually');
     expect(CARD_SOURCE).not.toContain('Display name (optional)');

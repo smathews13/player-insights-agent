@@ -61,7 +61,7 @@ const __appkitDirname = __pathDirname(__appkitFilename);
 // during deployment. The heaviest packages are emitted as sibling vendor
 // modules so no single file approaches that ceiling, which also leaves room
 // for the server bundle to grow.
-const vendorPackages = ['unpdf', '@databricks/sdk-experimental'];
+const vendorPackages = ['@databricks/sdk-experimental'];
 
 // Appended when the tree this build came from held uncommitted tracked changes.
 // The same suffix and the same rule as agent/preflight.py's DIRTY_SUFFIX: the two
@@ -211,7 +211,7 @@ async function bundleVendors() {
 }
 
 async function bundleServer() {
-  await build({
+  const result = await build({
     entryPoints: [path.join(root, 'server', 'server.ts')],
     outfile: path.join(outDir, 'server.mjs'),
     bundle: true,
@@ -230,12 +230,46 @@ async function bundleServer() {
     // minification, is what keeps files under the per-file size limit.
     minify: false,
     sourcemap: false,
+    metafile: true,
     define: {
       'process.env.NODE_ENV': '"production"',
       __filename: '__appkitFilename',
       __dirname: '__appkitDirname',
     },
   });
+  const eagerUnpdfInputs = Object.keys(result.metafile.inputs).filter((input) => input.includes('node_modules/unpdf/'));
+  if (eagerUnpdfInputs.length > 0) {
+    throw new Error(`unpdf entered the normal server startup graph: ${eagerUnpdfInputs.join(', ')}`);
+  }
+}
+
+async function bundlePdfWorker() {
+  const result = await build({
+    entryPoints: [path.join(root, 'server', 'lib', 'pdf-text-worker.mjs')],
+    outfile: path.join(outDir, 'pdf-text-worker.mjs'),
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node20',
+    external,
+    alias: { '@ast-grep/napi': astGrepStub },
+    banner: { js: banner },
+    minify: false,
+    sourcemap: false,
+    metafile: true,
+    define: {
+      'process.env.NODE_ENV': '"production"',
+      __filename: '__appkitFilename',
+      __dirname: '__appkitDirname',
+    },
+    logLevel: 'info',
+  });
+  const workerUnpdfInputs = Object.keys(result.metafile.inputs).filter((input) =>
+    input.includes('node_modules/unpdf/')
+  );
+  if (workerUnpdfInputs.length === 0) {
+    throw new Error('The PDF worker artifact did not bundle unpdf.');
+  }
 }
 
 async function main() {
@@ -270,6 +304,7 @@ async function main() {
   await writeFile(astGrepStub, astGrepStubSource);
 
   await bundleVendors();
+  await bundlePdfWorker();
   await bundleServer();
 
   // AppKit's ServerPlugin.findStaticPath() probes cwd for dist|client/dist|build|public|out.

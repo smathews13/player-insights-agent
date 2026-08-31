@@ -283,14 +283,22 @@ export async function statementAlreadySatisfied(client: LakebaseReader, statemen
 
   const indexed = CREATE_INDEX_TARGET.exec(trimmed);
   if (indexed) {
-    // `pg_indexes` rather than `information_schema`, which has no view of
-    // indexes at all. It says nothing about whether the index has the columns
-    // this statement asked for, only that the name is taken, which is the same
-    // guarantee `IF NOT EXISTS` itself gives and therefore the right one to
-    // check against.
+    // `CREATE INDEX CONCURRENTLY` can leave a same-named INVALID index after a
+    // cancelled build. `IF NOT EXISTS` sees that object and skips it, so name
+    // presence alone is not enough to record the migration. Only a ready,
+    // valid index is the end state this statement promises.
     const present = await schemaNames(
       client,
-      `SELECT indexname FROM pg_indexes WHERE schemaname = $1 AND indexname = $2`,
+      `SELECT index_class.relname AS indexname
+       FROM pg_catalog.pg_class index_class
+       JOIN pg_catalog.pg_namespace namespace
+         ON namespace.oid = index_class.relnamespace
+       JOIN pg_catalog.pg_index index_state
+         ON index_state.indexrelid = index_class.oid
+       WHERE namespace.nspname = $1
+         AND index_class.relname = $2
+         AND index_state.indisready
+         AND index_state.indisvalid`,
       [indexed[2], indexed[1]],
       'indexname'
     );
@@ -625,33 +633,82 @@ async function applyOne(
 ): Promise<MigrationAttempt> {
   const refused: { failure: SchemaStatementFailure; statement: string }[] = [];
   const total = migration.statements.length;
+  const lockKey = `${schema}:migration:${migration.version}`;
+  let recordedWhileWaiting = false;
 
   // NOT ON A READ'S BUDGET. See the file header: the timeout is a session
   // setting a read leaves on a pooled connection, `CREATE INDEX` waits on an
   // ACCESS EXCLUSIVE lock, and that wait counts against the same timer.
   // `withoutReadTimeout` lifts it on one connection and restores it before the
   // connection goes back to the pool.
-  await withoutReadTimeout(client, async (query) => {
-    for (const [index, statement] of migration.statements.entries()) {
-      try {
-        await query(statement);
-      } catch (error) {
-        // Every statement is attempted, including the ones after a failure. The
-        // loop used to `break`, which turned one ownership no-op into seven
-        // statements that silently never ran.
-        refused.push({
-          statement,
-          failure: {
-            position: index + 1,
-            label: describeSql(statement),
-            message: (error as Error).message,
-            code: failureCode(error),
-            satisfied: false,
-          },
-        });
-      }
-    }
-  });
+  try {
+    await withoutReadTimeout(
+      client,
+      async (query) => {
+        let locked = false;
+        try {
+          if (migration.lock === 'session') {
+            await query('SELECT pg_advisory_lock(hashtextextended($1, 0))', [lockKey]);
+            locked = true;
+            // Another replica may have completed this version while this one
+            // waited for the lock. Re-read on the pinned session before running
+            // replay cleanup such as DROP INDEX, or the stale replica could
+            // remove the valid index the winner just built.
+            try {
+              const current = await query(`SELECT version FROM ${schema}.${SCHEMA_VERSION_TABLE} WHERE version = $1`, [
+                migration.version,
+              ]);
+              recordedWhileWaiting = current.rows.some((row) => Number(row.version) === migration.version);
+            } catch {
+              // A fresh database may not have the version table yet. The normal
+              // post-statement bootstrap path below remains authoritative.
+            }
+          }
+          for (const [index, statement] of (recordedWhileWaiting ? [] : migration.statements).entries()) {
+            try {
+              await query(statement);
+            } catch (error) {
+              // Every statement is attempted, including the ones after a failure. The
+              // loop used to `break`, which turned one ownership no-op into seven
+              // statements that silently never ran.
+              refused.push({
+                statement,
+                failure: {
+                  position: index + 1,
+                  label: describeSql(statement),
+                  message: (error as Error).message,
+                  code: failureCode(error),
+                  satisfied: false,
+                },
+              });
+            }
+          }
+        } finally {
+          if (locked) {
+            await query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [lockKey]);
+          }
+        }
+      },
+      { requirePinnedConnection: migration.lock === 'session' }
+    );
+  } catch (error) {
+    const failure: SchemaStatementFailure = {
+      position: 1,
+      label: `SERIALIZE version ${migration.version}`,
+      message: (error as Error).message,
+      code: failureCode(error),
+      satisfied: false,
+    };
+    console.error(
+      `[migrate] version ${migration.version} (${migration.name}) could not reserve its serialized migration ` +
+        `session, so none of its state may be recorded: ${failure.message}`
+    );
+    return { version: migration.version, name: migration.name, outcome: 'failed', failures: [failure] };
+  }
+
+  if (recordedWhileWaiting) {
+    return { version: migration.version, name: migration.name, outcome: 'applied', failures: [] };
+  }
 
   const failures = refused.map((entry) => entry.failure);
 

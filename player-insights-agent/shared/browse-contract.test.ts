@@ -17,6 +17,14 @@ describe('browse-contract', () => {
       items: [],
       next_page_token: '',
       path: '',
+      pagination: {
+        complete: true,
+        incomplete_reason: '',
+        page: 1,
+        page_limit: 5,
+        page_size: 100,
+        returned: 0,
+      },
     };
     const unavailable: BrowseResponse = {
       status: 'unavailable',
@@ -30,6 +38,7 @@ describe('browse-contract', () => {
       kind: 'catalogs',
       detail: 'broke',
       error: 'timeout',
+      incomplete_reason: 'deadline',
     };
 
     expect(isBrowseOk(ok)).toBe(true);
@@ -47,6 +56,14 @@ describe('browse-contract', () => {
       items: [],
       next_page_token: '',
       path: '',
+      pagination: {
+        complete: true,
+        incomplete_reason: '',
+        page: 1,
+        page_limit: 5,
+        page_size: 100,
+        returned: 0,
+      },
     };
     expect(isBrowseOk(empty)).toBe(true);
     expect(empty.items).toEqual([]);

@@ -14,6 +14,7 @@ import { APP_SCHEMA } from '../../shared/app-schema';
 import type { AppFacts } from '../../shared/app-facts';
 import { parseAncestorList } from '../../shared/build-stamps';
 import type { LakebaseReader } from './lakebase-store';
+import { ExpiringLruCache } from './expiring-lru';
 import type { PreflightReport } from '../routes/insights-routes';
 import { workspaceExperimentIdResolver, type ExperimentIdResolver } from './experiment-probe';
 
@@ -226,8 +227,8 @@ export async function resolveJudgeEndpoint(client: LakebaseReader): Promise<stri
 }
 
 /**
- * A workspace experiment path resolved to its numeric id, kept for the life of
- * the process.
+ * A workspace experiment path resolved to its numeric id, kept for at most one
+ * hour and one of 128 paths in this process.
  *
  * The id a path maps to does not change while a deployment runs, so it is
  * resolved on the first Monitoring drawer that needs it and held after -- off the
@@ -238,7 +239,9 @@ export async function resolveJudgeEndpoint(client: LakebaseReader): Promise<stri
  * it up without a restart. The same "a FAILED read is never cached" rule the
  * stored settings above follow.
  */
-const experimentIdByPath = new Map<string, string>();
+export const EXPERIMENT_ID_CACHE_MAX_ENTRIES = 128;
+export const EXPERIMENT_ID_CACHE_TTL_MS = 60 * 60_000;
+const experimentIdByPath = new ExpiringLruCache<string>(EXPERIMENT_ID_CACHE_MAX_ENTRIES, EXPERIMENT_ID_CACHE_TTL_MS);
 
 /** Forget resolved ids, so a test starts from a clean cache. Exported for tests. */
 export function forgetResolvedExperimentIds(): void {
@@ -256,7 +259,8 @@ export function forgetResolvedExperimentIds(): void {
  */
 export async function resolveExperimentId(
   client: LakebaseReader,
-  resolvePath: ExperimentIdResolver = workspaceExperimentIdResolver
+  resolvePath: ExperimentIdResolver = workspaceExperimentIdResolver,
+  now = Date.now()
 ): Promise<string> {
   const stored = await readStoredSettings(client, { maxAgeMs: STORED_SETTINGS_TTL_MS });
   const saved = stored.get('experiment-id');
@@ -267,10 +271,10 @@ export async function resolveExperimentId(
 
   const path = process.env.PLAYER_INSIGHTS_EXPERIMENT_PATH?.trim();
   if (!path) return '';
-  const cached = experimentIdByPath.get(path);
+  const cached = experimentIdByPath.get(path, now);
   if (cached) return cached;
   const resolved = (await resolvePath(path)).trim();
-  if (resolved) experimentIdByPath.set(path, resolved);
+  if (resolved) experimentIdByPath.set(path, resolved, now);
   return resolved;
 }
 

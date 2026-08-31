@@ -29,6 +29,7 @@ import {
   type ExporterReading,
 } from '../../shared/app-facts';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
+import { ExpiringLruCache } from './expiring-lru';
 import { readExporter, type ExporterReader } from './ops-telemetry';
 
 /** Where the app is asked about, named once. */
@@ -185,7 +186,9 @@ export function sourceFolderPath(body: Record<string, unknown>): string {
 export function appTags(raw: unknown): string[] {
   if (Array.isArray(raw)) {
     return raw
-      .map((entry) => (typeof entry === 'string' ? entry.trim() : textOf(objectOf(entry).value) || textOf(objectOf(entry).key)))
+      .map((entry) =>
+        typeof entry === 'string' ? entry.trim() : textOf(objectOf(entry).value) || textOf(objectOf(entry).key)
+      )
       .filter(Boolean);
   }
   const map = objectOf(raw);
@@ -297,8 +300,7 @@ export function appFacts(input: {
       // refused the id for. A deployment that reported no source gets no link,
       // because a row that goes somewhere unrelated is worse than a row that is
       // not drawn.
-      workspaceUrl:
-        folderUrl || (sourcePath ? appPageUrl({ host: workspaceHost, appName, workspaceId }) : ''),
+      workspaceUrl: folderUrl || (sourcePath ? appPageUrl({ host: workspaceHost, appName, workspaceId }) : ''),
       gitRef,
     },
     serving: appServing(body),
@@ -336,13 +338,15 @@ export const workspaceAppReader: AppReader = async (name) => {
 };
 
 /**
- * Folder ids already resolved, kept for the life of the process.
+ * Folder ids already resolved, kept briefly and with a global cardinality cap.
  *
  * A deployment's source folder does not move while the app runs, and
  * `/api/settings` is read on every visit to the Connections tab: without this,
  * one link on one card would cost a workspace call per page load.
  */
-const knownFolderIds = new Map<string, string>();
+export const FOLDER_ID_CACHE_MAX_ENTRIES = 256;
+export const FOLDER_ID_CACHE_TTL_MS = 60 * 60_000;
+const knownFolderIds = new ExpiringLruCache<string>(FOLDER_ID_CACHE_MAX_ENTRIES, FOLDER_ID_CACHE_TTL_MS);
 
 /** For tests, which must not inherit an id resolved by an earlier case. */
 export function forgetFolderIds(): void {
@@ -385,8 +389,8 @@ export const workspaceFolderIdResolver: FolderIdResolver = async (path) => {
         `(${(error as Error).message}), so the App source row points at the app's own page.`
     );
   }
-  // Cached either way. A refusal will not become a grant while this process
-  // lives, and retrying it per page load would be a request that always fails.
+  // Cached either way, but only for the bounded TTL. Retrying a refusal per page
+  // load is waste; retaining it forever would hide a later grant.
   knownFolderIds.set(wanted, id);
   return id;
 };
@@ -399,14 +403,16 @@ export const workspaceFolderIdResolver: FolderIdResolver = async (path) => {
  * it comes from the environment rather than from the workspace and is the one
  * fact a local run can honestly state.
  */
-export async function readAppFacts(input: {
-  name?: string;
-  workspaceHost?: string;
-  otelExporter?: string;
-  read?: AppReader;
-  readExport?: ExporterReader;
-  resolveFolderId?: FolderIdResolver;
-} = {}): Promise<AppFacts> {
+export async function readAppFacts(
+  input: {
+    name?: string;
+    workspaceHost?: string;
+    otelExporter?: string;
+    read?: AppReader;
+    readExport?: ExporterReader;
+    resolveFolderId?: FolderIdResolver;
+  } = {}
+): Promise<AppFacts> {
   const name = (input.name ?? process.env[APP_NAME_ENV] ?? '').trim();
   const workspaceHost = input.workspaceHost ?? process.env.DATABRICKS_HOST ?? '';
   const otelExporter = (input.otelExporter ?? process.env[OTEL_ENDPOINT_ENV] ?? '').trim();

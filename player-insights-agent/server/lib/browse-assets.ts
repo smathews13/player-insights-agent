@@ -6,6 +6,7 @@
  * answer is {@link BrowseUnavailable}, never an empty list. See
  * `shared/browse-contract.ts`.
  */
+import { createHash } from 'node:crypto';
 import {
   browseAppsHasNoScopeDetail,
   browseScopeUnavailableDetail,
@@ -22,12 +23,15 @@ import { declaredUserApiScopes } from '../../shared/declared-scopes';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { looksLikeMissingScope, scopesFromToken } from '../routes/access-verification';
 import { refusalCause, scopeForPath, scopesFromRefusal, tokenScopeVerdict } from './dependency-probes';
+import { DISCOVERY_MAX_CONCURRENCY, DiscoveryPageCache, discoveryLimiter } from './discovery-control';
 
 /** How long one browse call may take. Same order as a metadata probe. */
 export const BROWSE_TIMEOUT_MS = 15_000;
 
 /** Default page size for paged Databricks list APIs. */
 export const BROWSE_PAGE_SIZE = 100;
+/** At most 500 rows can be loaded into one picker traversal. */
+export const BROWSE_PAGE_LIMIT = 5;
 
 /**
  * Workspace API families this module lists, mapped to Apps-API scopes.
@@ -90,17 +94,31 @@ function unavailableNoAppsScope(kind: BrowseKind, family: string): BrowseUnavail
   };
 }
 
-function failed(kind: BrowseKind, detail: string, error = ''): BrowseFailed {
-  return { status: 'failed', kind, detail, error };
+function failed(
+  kind: BrowseKind,
+  detail: string,
+  error = '',
+  incompleteReason: BrowseFailed['incomplete_reason'] = 'failed'
+): BrowseFailed {
+  return { status: 'failed', kind, detail, error, incomplete_reason: incompleteReason };
 }
 
-function ok(kind: BrowseKind, items: BrowseItem[], nextPageToken = '', path = ''): BrowseOk {
+function ok(kind: BrowseKind, items: BrowseItem[], nextPageToken = '', path = '', page = 1): BrowseOk {
+  const capped = page >= BROWSE_PAGE_LIMIT && Boolean(nextPageToken);
   return {
     status: 'ok',
     kind,
     items,
-    next_page_token: nextPageToken,
+    next_page_token: capped ? '' : nextPageToken,
     path,
+    pagination: {
+      complete: !nextPageToken,
+      incomplete_reason: nextPageToken ? (capped ? 'page_cap' : 'more_available') : '',
+      page,
+      page_limit: BROWSE_PAGE_LIMIT,
+      page_size: BROWSE_PAGE_SIZE,
+      returned: items.length,
+    },
   };
 }
 
@@ -109,6 +127,12 @@ export interface BrowseCallOptions {
   token: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  /** Aborted when the browser disconnects or the route deadline expires. */
+  signal?: AbortSignal;
+  /** Signed-in user identity. Required for page caching; never inferred from a token. */
+  principal?: string;
+  /** One-based page number, used to enforce the traversal cap. */
+  page?: number;
   /** Override declared scopes for tests. Defaults to the container's list. */
   declaredScopes?: string[] | null;
 }
@@ -116,20 +140,52 @@ export interface BrowseCallOptions {
 type WorkspaceAnswer =
   | { kind: 'http'; status: number; body: Record<string, unknown> }
   | { kind: 'timeout' }
+  | { kind: 'cancelled' }
   | { kind: 'unreachable'; message: string };
+
+const pageCache = new DiscoveryPageCache<Extract<WorkspaceAnswer, { kind: 'http' }>>();
+
+export function resetBrowsePageCache(): void {
+  pageCache.clear();
+}
+
+function cacheKey(pathAndQuery: string, options: BrowseCallOptions): string {
+  const principal = options.principal?.trim().toLocaleLowerCase() ?? '';
+  if (!principal) return '';
+  const tokenHash = createHash('sha256').update(options.token).digest('base64url').slice(0, 16);
+  return `${principal}\u0000${tokenHash}\u0000${pathAndQuery}`;
+}
+
+function combinedBrowseSignal(options: BrowseCallOptions): AbortSignal {
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? BROWSE_TIMEOUT_MS);
+  return options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+}
 
 async function workspaceGet(pathAndQuery: string, options: BrowseCallOptions): Promise<WorkspaceAnswer> {
   const call = options.fetchImpl ?? fetch;
-  const timeoutMs = options.timeoutMs ?? BROWSE_TIMEOUT_MS;
+  const key = cacheKey(pathAndQuery, options);
+  const cached = key ? pageCache.get(key) : undefined;
+  if (cached) return cached;
+  const signal = combinedBrowseSignal(options);
   try {
-    const response = await call(`${options.host}${pathAndQuery}`, {
-      method: 'GET',
-      headers: { authorization: `Bearer ${options.token}` },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const response = await discoveryLimiter.run(signal, () =>
+      call(`${options.host}${pathAndQuery}`, {
+        method: 'GET',
+        headers: { authorization: `Bearer ${options.token}` },
+        signal,
+      })
+    );
     const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    return { kind: 'http', status: response.status, body: body ?? {} };
+    const answer = { kind: 'http' as const, status: response.status, body: body ?? {} };
+    // Only successful immutable metadata pages are cached. Refusals and
+    // transport failures must be retried, and never become another user's view.
+    if (key && response.status >= 200 && response.status < 300) pageCache.set(key, answer);
+    return answer;
   } catch (error) {
+    if (signal.aborted) {
+      const reasonName = (signal.reason as Error | undefined)?.name;
+      return reasonName === 'TimeoutError' ? { kind: 'timeout' } : { kind: 'cancelled' };
+    }
     const name = (error as Error)?.name;
     if (name === 'TimeoutError' || name === 'AbortError') return { kind: 'timeout' };
     return { kind: 'unreachable', message: (error as Error)?.message ?? String(error) };
@@ -180,11 +236,21 @@ export function interpretBrowseAnswer(input: {
   path?: string;
   /** Scopes readable off the token, or null when the token did not say. */
   tokenScopes?: string[] | null;
+  /** One-based page number within this picker traversal. */
+  page?: number;
 }): BrowseResponse {
   const { kind, apiPath, answer } = input;
 
   if (answer.kind === 'timeout') {
-    return failed(kind, 'The workspace did not answer in time, so nothing about this list was established.', 'timeout');
+    return failed(
+      kind,
+      'The workspace did not answer in time, so nothing about this list was established.',
+      'timeout',
+      'deadline'
+    );
+  }
+  if (answer.kind === 'cancelled') {
+    return failed(kind, 'Resource discovery was cancelled, so this list is incomplete.', 'cancelled', 'cancelled');
   }
   if (answer.kind === 'unreachable') {
     return failed(kind, 'The workspace could not be asked for this list, so nothing was established.', answer.message);
@@ -193,7 +259,7 @@ export function interpretBrowseAnswer(input: {
   const { status, body } = answer;
   if (status >= 200 && status < 300) {
     const parsed = input.itemsFromBody(body);
-    return ok(kind, parsed.items, parsed.next_page_token, input.path ?? '');
+    return ok(kind, parsed.items, parsed.next_page_token, input.path ?? '', input.page ?? 1);
   }
 
   const code = text(body.error_code);
@@ -259,6 +325,10 @@ async function listWithGuard(
   },
   listedPath = ''
 ): Promise<BrowseResponse> {
+  const page = options.page ?? (pathAndQuery.includes('page_token=') ? 2 : 1);
+  if (!Number.isInteger(page) || page < 1 || page > BROWSE_PAGE_LIMIT) {
+    return failed(kind, `Resource discovery is limited to ${BROWSE_PAGE_LIMIT} pages per list.`, 'page cap reached');
+  }
   if (!options.host) {
     return failed(kind, 'This app was given no workspace host, so it does not know where to browse.');
   }
@@ -281,6 +351,7 @@ async function listWithGuard(
     itemsFromBody,
     path: listedPath,
     tokenScopes: scopesFromToken(options.token),
+    page,
   });
 }
 
@@ -620,6 +691,14 @@ export async function listVolumes(
 ): Promise<BrowseResponse> {
   const catalog = options.catalog.trim();
   const schema = options.schema.trim();
+  const page = options.page ?? (options.pageToken ? 2 : 1);
+  if (!Number.isInteger(page) || page < 1 || page > BROWSE_PAGE_LIMIT) {
+    return failed(
+      'volumes',
+      `Resource discovery is limited to ${BROWSE_PAGE_LIMIT} pages per list.`,
+      'page cap reached'
+    );
+  }
   if (!catalog || !schema) {
     return failed('volumes', 'A catalog and schema are required to list volumes.');
   }
@@ -651,6 +730,7 @@ export async function listVolumes(
     answer,
     itemsFromBody: volumeItems,
     tokenScopes: scopesFromToken(options.token),
+    page,
   });
 }
 
@@ -869,21 +949,31 @@ export function listExperiments(
   return Promise.resolve(unavailableNoAppsScope('experiments', 'MLflow'));
 }
 
-/** Host + token from the request environment, shared by every browse route. */
-export function browseRequestContext(input: { token: string | null; host?: string }): { host: string; token: string } {
+/** User-scoped request context shared by every browse route. */
+export function browseRequestContext(input: {
+  token: string | null;
+  host?: string;
+  principal?: string;
+  signal?: AbortSignal;
+  page?: number;
+}): BrowseCallOptions {
   return {
     host: normalizeWorkspaceHost(input.host ?? process.env.DATABRICKS_HOST ?? ''),
     token: input.token?.trim() ?? '',
+    principal: input.principal?.trim().toLocaleLowerCase(),
+    signal: input.signal,
+    page: input.page,
   };
 }
 
 /**
  * Discover addable connection categories through the signed-in user's token.
  *
- * The five independent roots are deliberately concurrent. Catalog-backed
- * categories share the catalog root and Vector Search index shares its endpoint
- * root; their leaf pickers still report an honest empty/denied/failed result
- * when opened. No service-principal fallback is permitted here.
+ * Only the five independent roots are read. Catalog/schema/table/volume and
+ * Vector endpoint/index children are deliberately not enumerated here: opening
+ * a type merely needs to know that its root is browseable, and the picker loads
+ * each child only after the user selects its parent. No service-principal
+ * fallback is permitted here.
  */
 export async function discoverConnectionTypes(options: BrowseCallOptions): Promise<ConnectionTypesResponse> {
   const roots = await Promise.all([
@@ -894,31 +984,7 @@ export async function discoverConnectionTypes(options: BrowseCallOptions): Promi
     listVectorSearchEndpoints(options),
   ]);
   const catalogs = roots[0];
-  const schemas =
-    catalogs.status === 'ok'
-      ? await Promise.all(catalogs.items.map((catalog) => listSchemas({ ...options, catalog: catalog.id })))
-      : [];
-  const schemaParents = schemas.flatMap((response, catalogIndex) =>
-    response.status === 'ok'
-      ? response.items.map((schema) => ({
-          catalog: catalogs.status === 'ok' ? catalogs.items[catalogIndex].id : '',
-          schema: schema.id,
-        }))
-      : []
-  );
-  const [tables, volumes] = await Promise.all([
-    Promise.all(schemaParents.map((parent) => listTables({ ...options, ...parent }))),
-    Promise.all(schemaParents.map((parent) => listVolumes({ ...options, ...parent }))),
-  ]);
   const vectorEndpoints = roots[4];
-  const vectorIndexes =
-    vectorEndpoints.status === 'ok'
-      ? await Promise.all(
-          vectorEndpoints.items.map((endpoint) => listVectorSearchIndexes({ ...options, endpoint: endpoint.id }))
-        )
-      : [];
-  const hasVisible = (responses: readonly BrowseResponse[]) =>
-    responses.some((response) => response.status === 'ok' && response.items.length > 0);
   const byKind = new Map(roots.map((response) => [response.kind, response]));
   const definitions: ConnectionTypeAvailability[] = [
     { id: 'catalog', label: 'Catalog', rootKind: 'catalogs' },
@@ -940,20 +1006,16 @@ export async function discoverConnectionTypes(options: BrowseCallOptions): Promi
     },
   ];
   const available = definitions.filter((definition) => {
-    if (definition.id === 'schema') return hasVisible(schemas);
-    if (definition.id === 'table') return hasVisible(tables);
-    if (definition.id === 'volume') return hasVisible(volumes);
-    if (definition.id === 'vector-search-index') return hasVisible(vectorIndexes);
+    if (definition.id === 'schema' || definition.id === 'table' || definition.id === 'volume') {
+      return catalogs.status === 'ok' && catalogs.items.length > 0;
+    }
+    if (definition.id === 'vector-search-index') {
+      return vectorEndpoints.status === 'ok' && vectorEndpoints.items.length > 0;
+    }
     const response = byKind.get(definition.rootKind);
     return response?.status === 'ok' && response.items.length > 0;
   });
-  const leafResponses = [
-    ...(available.some((entry) => entry.id === 'schema') ? [] : schemas),
-    ...(available.some((entry) => entry.id === 'table') ? [] : tables),
-    ...(available.some((entry) => entry.id === 'volume') ? [] : volumes),
-    ...(available.some((entry) => entry.id === 'vector-search-index') ? [] : vectorIndexes),
-  ];
-  const unavailable = [...roots, ...leafResponses]
+  const unavailable = roots
     .filter((response) => response.status !== 'ok' || response.items.length === 0)
     .map((response) => ({
       rootKind: response.kind,
@@ -965,5 +1027,15 @@ export async function discoverConnectionTypes(options: BrowseCallOptions): Promi
             : ('empty' as const),
       detail: response.status === 'ok' ? 'No visible resources were returned.' : response.detail,
     }));
-  return { available, unavailable };
+  return {
+    available,
+    unavailable,
+    discovery: {
+      mode: 'lazy',
+      complete: false,
+      incomplete_reason: 'children_not_enumerated',
+      root_calls: roots.length,
+      concurrency_limit: DISCOVERY_MAX_CONCURRENCY,
+    },
+  };
 }

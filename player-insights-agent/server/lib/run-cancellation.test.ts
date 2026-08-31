@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createOrGetRun } from './run-ledger';
 import {
   abortInProcessRuns,
+  DURABLE_CANCELLATION_POLL_MS,
   isRunCancelledError,
   registerRunController,
   watchDurableCancellation,
@@ -60,13 +61,13 @@ describe('durable cancellation watcher', () => {
       runId: row.run_id,
       userEmail: row.user_email,
       controller,
-      intervalMs: 10,
+      intervalMs: 1_000,
     });
 
     await vi.advanceTimersByTimeAsync(1);
     expect(controller.signal.aborted).toBe(false);
     row.state = 'CANCELLED';
-    await vi.advanceTimersByTimeAsync(11);
+    await vi.advanceTimersByTimeAsync(1_001);
 
     expect(controller.signal.aborted).toBe(true);
     expect(isRunCancelledError(controller.signal.reason)).toBe(true);
@@ -84,11 +85,36 @@ describe('durable cancellation watcher', () => {
       runId: 'run-unreadable',
       userEmail: 'reader@example.com',
       controller,
-      intervalMs: 10,
+      intervalMs: 1_000,
     });
 
-    await vi.advanceTimersByTimeAsync(30);
+    await vi.advanceTimersByTimeAsync(3_000);
     expect(controller.signal.aborted).toBe(false);
+    watch.stop();
+    vi.useRealTimers();
+  });
+
+  it('uses a safe 1.5-second default cadence without delaying the first cross-replica read', async () => {
+    vi.useFakeTimers();
+    const store = new FakeStore();
+    const row = await stored(store, 'run-default-cadence');
+    const reads = vi.spyOn(store.lakebase, 'query');
+    const controller = new AbortController();
+    const watch = watchDurableCancellation({
+      store,
+      runId: row.run_id,
+      userEmail: row.user_email,
+      controller,
+    });
+
+    await vi.advanceTimersByTimeAsync(1);
+    const afterImmediate = reads.mock.calls.length;
+    expect(afterImmediate).toBe(1);
+    await vi.advanceTimersByTimeAsync(DURABLE_CANCELLATION_POLL_MS - 2);
+    expect(reads.mock.calls.length).toBe(afterImmediate);
+    await vi.advanceTimersByTimeAsync(2);
+    expect(reads.mock.calls.length).toBe(afterImmediate + 1);
+
     watch.stop();
     vi.useRealTimers();
   });

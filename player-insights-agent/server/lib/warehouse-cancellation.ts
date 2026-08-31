@@ -11,8 +11,10 @@ export type ActiveQueryStatus = (typeof ACTIVE_QUERY_STATUSES)[number];
 
 const ACTIVE_STATUS_SET = new Set<string>(ACTIVE_QUERY_STATUSES);
 const DEFAULT_SWEEP_DELAY_MS = 500;
-const QUERY_HISTORY_PAGE_SIZE = 999;
-const MAX_PAGES_PER_STATUS = 100;
+const QUERY_HISTORY_PAGE_SIZE = 100;
+export const MAX_CANCELLATION_HISTORY_PAGES = 8;
+export const CANCELLATION_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1_000;
+export const CANCELLATION_DEADLINE_MS = 10_000;
 
 export interface QueryHistoryRow {
   query_id?: string;
@@ -35,11 +37,16 @@ export interface QueryHistoryPage {
 export interface WarehouseCancellationTransport {
   listQueries(input: {
     warehouseId: string;
+    /** Compatibility hint for injected transports; the API request uses statuses. */
     status: ActiveQueryStatus;
+    statuses?: readonly ActiveQueryStatus[];
+    startTimeMs?: number;
+    endTimeMs?: number;
     pageToken?: string;
     maxResults: number;
+    signal?: AbortSignal;
   }): Promise<QueryHistoryPage>;
-  cancelStatement(statementId: string): Promise<void>;
+  cancelStatement(statementId: string, signal?: AbortSignal): Promise<void>;
 }
 
 type OwnerSelector = { runId: string; correlationId?: string } | { runId?: string; correlationId: string };
@@ -56,6 +63,24 @@ export interface WarehouseCancellationDetail {
   provider_status?: number;
 }
 
+export interface WarehouseCancellationCoverage {
+  complete: boolean;
+  queriedRange: { from: string; to: string } | null;
+  rowsRead: number;
+  pagesRead: number;
+  passesRead: number;
+  maxPages: number;
+  reason:
+    | 'not-run'
+    | 'complete'
+    | 'page-cap'
+    | 'repeated-page-token'
+    | 'missing-page-token'
+    | 'deadline'
+    | 'caller-abort'
+    | 'transport-error';
+}
+
 export interface WarehouseCancellationResult {
   matched: number;
   cancel_requested: number;
@@ -63,6 +88,8 @@ export interface WarehouseCancellationResult {
   refused: number;
   failed: number;
   details: WarehouseCancellationDetail[];
+  /** Optional only for legacy injected no-op fixtures. New sweeps always return it. */
+  coverage?: WarehouseCancellationCoverage;
 }
 
 export interface CancelAstrolabeWarehouseQueriesInput {
@@ -71,6 +98,10 @@ export interface CancelAstrolabeWarehouseQueriesInput {
   transport: WarehouseCancellationTransport;
   sleep?: (milliseconds: number) => Promise<void>;
   sweepDelayMs?: number;
+  signal?: AbortSignal;
+  deadlineMs?: number;
+  maxPages?: number;
+  now?: () => number;
 }
 
 function stringValue(value: unknown): string | undefined {
@@ -177,45 +208,112 @@ async function defaultSleep(milliseconds: number): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }
 
+class CancellationDeadlineError extends Error {
+  constructor() {
+    super('SQL cancellation lookup deadline reached.');
+    this.name = 'CancellationDeadlineError';
+  }
+}
+
+function abortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error ? signal.reason : new Error('SQL cancellation lookup aborted.');
+}
+
+function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(abortReason(signal));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort);
+      reject(abortReason(signal));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    work.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    );
+  });
+}
+
 async function scanPass(input: {
   warehouseId: string;
   scope: WarehouseCancellationScope;
   transport: WarehouseCancellationTransport;
+  startTimeMs: number;
+  endTimeMs: number;
+  signal: AbortSignal;
+  coverage: WarehouseCancellationCoverage;
 }): Promise<Map<string, ActiveQueryStatus>> {
   const candidates = new Map<string, ActiveQueryStatus>();
-  for (const requestedStatus of ACTIVE_QUERY_STATUSES) {
-    let pageToken: string | undefined;
-    const usedTokens = new Set<string>();
-    for (let page = 0; page < MAX_PAGES_PER_STATUS; page += 1) {
-      const response = await input.transport.listQueries({
-        warehouseId: input.warehouseId,
-        status: requestedStatus,
-        pageToken,
-        maxResults: QUERY_HISTORY_PAGE_SIZE,
-      });
-      for (const row of Array.isArray(response.res) ? response.res : []) {
-        const queryId = stringValue(row.query_id);
-        const activeStatus = returnedActiveStatus(row, requestedStatus);
-        if (!queryId || !activeStatus) continue;
-        if (row.warehouse_id !== undefined && row.warehouse_id !== input.warehouseId) continue;
-        if (matchesScope(row, input.scope)) candidates.set(queryId, activeStatus);
-      }
+  if (input.coverage.pagesRead >= input.coverage.maxPages) {
+    input.coverage.complete = false;
+    input.coverage.reason = 'page-cap';
+    return candidates;
+  }
+  let pageToken: string | undefined;
+  const usedTokens = new Set<string>();
+  while (input.coverage.pagesRead < input.coverage.maxPages) {
+    let response: QueryHistoryPage;
+    try {
+      response = await abortable(
+        input.transport.listQueries({
+          warehouseId: input.warehouseId,
+          status: 'RUNNING',
+          statuses: ACTIVE_QUERY_STATUSES,
+          startTimeMs: input.startTimeMs,
+          endTimeMs: input.endTimeMs,
+          pageToken,
+          maxResults: QUERY_HISTORY_PAGE_SIZE,
+          signal: input.signal,
+        }),
+        input.signal
+      );
+    } catch {
+      input.coverage.complete = false;
+      input.coverage.reason = input.signal.aborted
+        ? input.signal.reason instanceof CancellationDeadlineError
+          ? 'deadline'
+          : 'caller-abort'
+        : 'transport-error';
+      break;
+    }
+    input.coverage.pagesRead += 1;
+    const rows = Array.isArray(response.res) ? response.res : [];
+    input.coverage.rowsRead += rows.length;
+    for (const row of rows) {
+      const queryId = stringValue(row.query_id);
+      const activeStatus = returnedActiveStatus(row, 'RUNNING');
+      if (!queryId || !activeStatus) continue;
+      if (row.warehouse_id !== undefined && row.warehouse_id !== input.warehouseId) continue;
+      // Exact application and owner/run/correlation tags are tested before the
+      // row is retained; unrelated history is discarded with the page.
+      if (matchesScope(row, input.scope)) candidates.set(queryId, activeStatus);
+    }
 
-      const nextPageToken = stringValue(response.next_page_token);
-      if (!nextPageToken) {
-        if (response.has_next_page) {
-          throw new Error('Query History reported another page without a page token.');
-        }
-        break;
+    const nextPageToken = stringValue(response.next_page_token);
+    if (!nextPageToken) {
+      if (response.has_next_page) {
+        input.coverage.complete = false;
+        input.coverage.reason = 'missing-page-token';
       }
-      if (usedTokens.has(nextPageToken)) {
-        throw new Error('Query History repeated a page token.');
-      }
-      usedTokens.add(nextPageToken);
-      pageToken = nextPageToken;
-      if (page === MAX_PAGES_PER_STATUS - 1) {
-        throw new Error(`Query History exceeded ${MAX_PAGES_PER_STATUS} pages for one status.`);
-      }
+      break;
+    }
+    if (usedTokens.has(nextPageToken)) {
+      input.coverage.complete = false;
+      input.coverage.reason = 'repeated-page-token';
+      break;
+    }
+    usedTokens.add(nextPageToken);
+    pageToken = nextPageToken;
+    if (input.coverage.pagesRead >= input.coverage.maxPages) {
+      input.coverage.complete = false;
+      input.coverage.reason = 'page-cap';
+      break;
     }
   }
   return candidates;
@@ -228,40 +326,91 @@ async function scanPass(input: {
  */
 export async function cancelAstrolabeWarehouseQueries(
   input: CancelAstrolabeWarehouseQueriesInput
-): Promise<WarehouseCancellationResult> {
+): Promise<WarehouseCancellationResult & { coverage: WarehouseCancellationCoverage }> {
   const warehouseId = input.warehouseId.trim();
   if (!warehouseId) throw new Error('A configured SQL warehouse ID is required.');
 
   const sleep = input.sleep ?? defaultSleep;
   const sweepDelayMs = Math.max(0, input.sweepDelayMs ?? DEFAULT_SWEEP_DELAY_MS);
+  const now = input.now?.() ?? Date.now();
+  const maxPages = Math.max(
+    1,
+    Math.min(MAX_CANCELLATION_HISTORY_PAGES, Math.floor(input.maxPages ?? MAX_CANCELLATION_HISTORY_PAGES))
+  );
+  const deadlineMs = Math.max(1, Math.min(CANCELLATION_DEADLINE_MS, input.deadlineMs ?? CANCELLATION_DEADLINE_MS));
+  const controller = new AbortController();
+  const parentAbort = () => controller.abort(input.signal?.reason);
+  if (input.signal?.aborted) parentAbort();
+  else input.signal?.addEventListener('abort', parentAbort, { once: true });
+  const timer = setTimeout(() => controller.abort(new CancellationDeadlineError()), deadlineMs);
+  timer.unref?.();
+  const coverage: WarehouseCancellationCoverage = {
+    complete: true,
+    queriedRange: {
+      from: new Date(now - CANCELLATION_LOOKBACK_MS).toISOString(),
+      to: new Date(now).toISOString(),
+    },
+    rowsRead: 0,
+    pagesRead: 0,
+    passesRead: 0,
+    maxPages,
+    reason: 'complete',
+  };
   const matched = new Set<string>();
   const attempted = new Set<string>();
   const details: WarehouseCancellationDetail[] = [];
 
-  for (let pass = 0; pass < 2; pass += 1) {
-    const candidates = await scanPass({
-      warehouseId,
-      scope: input.scope,
-      transport: input.transport,
-    });
-    for (const [queryId, queryStatus] of candidates) {
-      matched.add(queryId);
-      if (attempted.has(queryId)) continue;
-      attempted.add(queryId);
-      try {
-        await input.transport.cancelStatement(queryId);
-        details.push({ query_id: queryId, query_status: queryStatus, outcome: 'cancel_requested' });
-      } catch (error) {
-        const classified = classifyCancellationError(error);
-        details.push({
-          query_id: queryId,
-          query_status: queryStatus,
-          outcome: classified.outcome,
-          ...(classified.providerStatus === undefined ? {} : { provider_status: classified.providerStatus }),
-        });
+  try {
+    for (let pass = 0; pass < 2 && coverage.complete && !controller.signal.aborted; pass += 1) {
+      const candidates = await scanPass({
+        warehouseId,
+        scope: input.scope,
+        transport: input.transport,
+        startTimeMs: now - CANCELLATION_LOOKBACK_MS,
+        endTimeMs: now,
+        signal: controller.signal,
+        coverage,
+      });
+      coverage.passesRead += 1;
+      for (const queryId of candidates.keys()) matched.add(queryId);
+      for (const [queryId, queryStatus] of candidates) {
+        if (attempted.has(queryId)) continue;
+        attempted.add(queryId);
+        try {
+          await abortable(input.transport.cancelStatement(queryId, controller.signal), controller.signal);
+          details.push({ query_id: queryId, query_status: queryStatus, outcome: 'cancel_requested' });
+        } catch (error) {
+          if (controller.signal.aborted) {
+            coverage.complete = false;
+            coverage.reason =
+              controller.signal.reason instanceof CancellationDeadlineError ? 'deadline' : 'caller-abort';
+            break;
+          }
+          const classified = classifyCancellationError(error);
+          details.push({
+            query_id: queryId,
+            query_status: queryStatus,
+            outcome: classified.outcome,
+            ...(classified.providerStatus === undefined ? {} : { provider_status: classified.providerStatus }),
+          });
+        }
+      }
+      if (pass === 0 && coverage.complete) {
+        try {
+          await abortable(sleep(sweepDelayMs), controller.signal);
+        } catch {
+          coverage.complete = false;
+          coverage.reason = controller.signal.reason instanceof CancellationDeadlineError ? 'deadline' : 'caller-abort';
+        }
       }
     }
-    if (pass === 0) await sleep(sweepDelayMs);
+  } finally {
+    clearTimeout(timer);
+    input.signal?.removeEventListener('abort', parentAbort);
+  }
+  if (controller.signal.aborted && coverage.complete) {
+    coverage.complete = false;
+    coverage.reason = controller.signal.reason instanceof CancellationDeadlineError ? 'deadline' : 'caller-abort';
   }
 
   const count = (outcome: CancellationOutcome) => details.filter((detail) => detail.outcome === outcome).length;
@@ -272,6 +421,7 @@ export async function cancelAstrolabeWarehouseQueries(
     refused: count('refused'),
     failed: count('failed'),
     details,
+    coverage,
   };
 }
 
@@ -281,11 +431,16 @@ interface LowLevelApiRequest {
   headers: Headers;
   raw: false;
   query?: {
-    filter_by?: { warehouse_ids: string[]; statuses: ActiveQueryStatus[] };
+    filter_by?: {
+      warehouse_ids: string[];
+      statuses: ActiveQueryStatus[];
+      query_start_time_range: { start_time_ms: number; end_time_ms: number };
+    };
     include_metrics?: boolean;
     max_results?: number;
     page_token?: string;
   };
+  signal?: AbortSignal;
 }
 
 export interface DatabricksLowLevelApiClient {
@@ -307,27 +462,37 @@ export function createDatabricksWarehouseCancellationTransport(
   client: DatabricksLowLevelApiClient
 ): WarehouseCancellationTransport {
   return {
-    async listQueries({ warehouseId, status, pageToken, maxResults }) {
+    async listQueries({ warehouseId, status, statuses, startTimeMs, endTimeMs, pageToken, maxResults, signal }) {
+      const end = endTimeMs ?? Date.now();
       const response = await client.request({
         path: '/api/2.0/sql/history/queries',
         method: 'GET',
         headers: new Headers({ Accept: 'application/json' }),
         raw: false,
         query: {
-          filter_by: { warehouse_ids: [warehouseId], statuses: [status] },
+          filter_by: {
+            warehouse_ids: [warehouseId],
+            statuses: [...(statuses ?? [status])],
+            query_start_time_range: {
+              start_time_ms: startTimeMs ?? end - CANCELLATION_LOOKBACK_MS,
+              end_time_ms: end,
+            },
+          },
           include_metrics: false,
           max_results: maxResults,
           ...(pageToken ? { page_token: pageToken } : {}),
         },
+        ...(signal ? { signal } : {}),
       });
       return queryHistoryPage(response);
     },
-    async cancelStatement(statementId) {
+    async cancelStatement(statementId, signal) {
       await client.request({
         path: `/api/2.0/sql/statements/${encodeURIComponent(statementId)}/cancel`,
         method: 'POST',
         headers: new Headers(),
         raw: false,
+        ...(signal ? { signal } : {}),
       });
     },
   };
@@ -337,10 +502,12 @@ export function createDatabricksWarehouseCancellationTransport(
  * Production factory. WorkspaceClient is imported only here; unit tests inject
  * the transport or low-level client and never create credentials or live calls.
  */
-export async function createWorkspaceWarehouseCancellationTransport(input: {
-  host?: string;
-  token?: string;
-} = {}): Promise<WarehouseCancellationTransport> {
+export async function createWorkspaceWarehouseCancellationTransport(
+  input: {
+    host?: string;
+    token?: string;
+  } = {}
+): Promise<WarehouseCancellationTransport> {
   const { WorkspaceClient } = await import('@databricks/sdk-experimental');
   const client = input.token
     ? new WorkspaceClient({
@@ -350,6 +517,8 @@ export async function createWorkspaceWarehouseCancellationTransport(input: {
       })
     : new WorkspaceClient({});
   return createDatabricksWarehouseCancellationTransport({
-    request: (options) => client.apiClient.request(options),
+    // The experimental SDK runtime forwards AbortSignal although its public
+    // low-level request type has not declared the field yet.
+    request: (options) => client.apiClient.request(options as never),
   });
 }

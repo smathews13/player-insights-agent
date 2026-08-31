@@ -13,6 +13,9 @@ interface Candidate {
   source: SpGrantResource['source'];
 }
 
+/** SP discovery reads local declarations only, but its response is still bounded. */
+export const SP_GRANT_RESOURCE_LIMIT = 500;
+
 function candidate(
   type: SpGrantResourceType,
   id: string | undefined,
@@ -117,4 +120,17 @@ export async function discoverSpGrantResources(
   return [...unique.values()].sort(
     (left, right) => left.type.localeCompare(right.type) || left.label.localeCompare(right.label)
   );
+}
+
+export function boundedSpGrantResources(resources: readonly SpGrantResource[], limit = SP_GRANT_RESOURCE_LIMIT) {
+  const bounded = resources.slice(0, Math.max(0, limit));
+  return {
+    resources: bounded,
+    pagination: {
+      complete: bounded.length === resources.length,
+      returned: bounded.length,
+      limit,
+      incompleteReason: bounded.length === resources.length ? ('' as const) : ('result_cap' as const),
+    },
+  };
 }

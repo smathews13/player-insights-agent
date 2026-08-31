@@ -49,9 +49,11 @@ import {
   type VerificationOutcome,
 } from '../routes/access-verification';
 import type { AnswerConditioning } from '../../shared/monitoring-contract';
+import { ExpiringLruCache } from './expiring-lru';
 
-/** How long a resolved set of grants is reused before it is read again. */
-export const GRANT_CACHE_TTL_MS = 10 * 60_000;
+/** Permission decisions are deliberately brief: a revocation must be observed quickly. */
+export const GRANT_CACHE_TTL_MS = 30_000;
+export const GRANT_CACHE_MAX_ENTRIES = 256;
 
 /**
  * What the check found, per table, plus whether it ran at all.
@@ -79,10 +81,7 @@ export function unresolvedGrants(now: number): GrantResolution {
  * iteration. Naming one table is enough: the reader needs a grant to proceed and
  * a list of five does not change what they do next.
  */
-export function conditioningFor(
-  tables: readonly string[],
-  grants: GrantResolution
-): AnswerConditioning | null {
+export function conditioningFor(tables: readonly string[], grants: GrantResolution): AnswerConditioning | null {
   // The whole of decision 3, in one line. Nothing is conditioned when the check
   // did not run.
   if (!grants.resolved) return null;
@@ -118,7 +117,7 @@ export interface GrantCacheKey {
 }
 
 function cacheKey(key: GrantCacheKey): string {
-  return `${key.admin.toLowerCase()}\u0000${key.window}`;
+  return `${key.admin.trim().toLowerCase()}\u0000${key.window}`;
 }
 
 /**
@@ -129,7 +128,7 @@ function cacheKey(key: GrantCacheKey): string {
  * as it stayed broken, which turns a permission check nobody can complete into a
  * load generator. The entry expires like any other, so recovery is picked up.
  */
-const cache = new Map<string, GrantResolution>();
+const cache = new ExpiringLruCache<GrantResolution>(GRANT_CACHE_MAX_ENTRIES, GRANT_CACHE_TTL_MS);
 
 /** For tests, and for a deployment that has just changed somebody's grants. */
 export function resetGrantCache() {
@@ -161,19 +160,19 @@ export async function resolveGrants(options: ResolveGrantsOptions): Promise<Gran
   const now = options.now ?? Date.now();
   const ttl = options.ttlMs ?? GRANT_CACHE_TTL_MS;
   const id = cacheKey(options.key);
-  const cached = cache.get(id);
-  if (cached && now - cached.resolvedAt < ttl) return cached;
+  const cached = cache.get(id, now);
+  if (cached) return cached;
 
   if (options.tables.length === 0) {
     const empty: GrantResolution = { resolved: true, verdicts: new Map(), resolvedAt: now };
-    cache.set(id, empty);
+    cache.set(id, empty, now, ttl);
     return empty;
   }
   // No probe means the app has no warehouse, no workspace host, or no forwarded
   // token to run one with. Unresolved, which shows everything and says so.
   if (!options.probe) {
     const failed = unresolvedGrants(now);
-    cache.set(id, failed);
+    cache.set(id, failed, now, ttl);
     return failed;
   }
 
@@ -186,7 +185,7 @@ export async function resolveGrants(options: ResolveGrantsOptions): Promise<Gran
         'Everything is shown, and the page says the check could not run.'
     );
     const failed = unresolvedGrants(now);
-    cache.set(id, failed);
+    cache.set(id, failed, now, ttl);
     return failed;
   }
   // A block is a reason that is not about any one table: no forwarded token, no
@@ -198,13 +197,13 @@ export async function resolveGrants(options: ResolveGrantsOptions): Promise<Gran
       `[monitoring] Table permissions not established for ${options.key.admin}: ${outcome.blocked.kind}. Everything is shown.`
     );
     const failed = unresolvedGrants(now);
-    cache.set(id, failed);
+    cache.set(id, failed, now, ttl);
     return failed;
   }
   const verdicts = new Map<string, TableVerdict>();
   for (const verdict of outcome.verdicts) verdicts.set(verdict.table, verdict);
   const resolution: GrantResolution = { resolved: true, verdicts, resolvedAt: now };
-  cache.set(id, resolution);
+  cache.set(id, resolution, now, ttl);
   return resolution;
 }
 
@@ -254,9 +253,9 @@ const READ_PRIVILEGE = 'SELECT';
  *    table, not to the person, so one reading serves every person the admin looks
  *    at next. Held ten minutes.
  *  - `effective-permissions` reports WHAT ONE PERSON MAY DO. That is a permission,
- *    so it is held for sixty seconds and no longer. It is deliberately shorter
+ *    so it is held for thirty seconds and no longer. It is deliberately shorter
  *    than the other, and the reason is worth stating: a grant revoked while an
- *    admin is reading must stop being reported as held quickly. Sixty seconds
+ *    admin is reading must stop being reported as held quickly. Thirty seconds
  *    still collapses the repeated opens that made this slow, because those happen
  *    within a few seconds of each other.
  *
@@ -270,16 +269,19 @@ const READ_PRIVILEGE = 'SELECT';
  * would turn one unreadable moment into ten minutes of a panel confidently saying
  * "Not checked" while the workspace was answering again.
  */
-const TABLE_POLICY_TTL_MS = 10 * 60_000;
-const PERSON_PRIVILEGE_TTL_MS = 60_000;
+export const TABLE_POLICY_TTL_MS = 10 * 60_000;
+export const TABLE_POLICY_CACHE_MAX_ENTRIES = 512;
+export const PERSON_PRIVILEGE_TTL_MS = 30_000;
+export const PERSON_PRIVILEGE_CACHE_MAX_ENTRIES = 2_048;
 
-interface Cached<T> {
-  at: number;
-  value: T;
-}
-
-const tablePolicies = new Map<string, Cached<{ rowFilter: boolean | null; maskedColumns: string[] | null }>>();
-const personPrivileges = new Map<string, Cached<{ canRead: boolean | null; missing: string | null }>>();
+const tablePolicies = new ExpiringLruCache<{ rowFilter: boolean | null; maskedColumns: string[] | null }>(
+  TABLE_POLICY_CACHE_MAX_ENTRIES,
+  TABLE_POLICY_TTL_MS
+);
+const personPrivileges = new ExpiringLruCache<{ canRead: boolean | null; missing: string | null }>(
+  PERSON_PRIVILEGE_CACHE_MAX_ENTRIES,
+  PERSON_PRIVILEGE_TTL_MS
+);
 
 /** In flight, so N concurrent opens of the same panel make one call, not N. */
 const inFlight = new Map<string, Promise<unknown>>();
@@ -290,16 +292,6 @@ function once<T>(key: string, work: () => Promise<T>): Promise<T> {
   const started = work().finally(() => inFlight.delete(key));
   inFlight.set(key, started);
   return started;
-}
-
-function fresh<T>(store: Map<string, Cached<T>>, key: string, ttl: number, now: number): T | null {
-  const entry = store.get(key);
-  if (!entry) return null;
-  if (now - entry.at >= ttl) {
-    store.delete(key);
-    return null;
-  }
-  return entry.value;
 }
 
 /**
@@ -325,7 +317,7 @@ export async function readTableGrant(
   };
 
   const personKey = `${table}\u0000${principal.trim().toLowerCase()}`;
-  const heldPrivileges = fresh(personPrivileges, personKey, PERSON_PRIVILEGE_TTL_MS, now);
+  const heldPrivileges = personPrivileges.get(personKey, now);
   if (heldPrivileges) {
     reading.canRead = heldPrivileges.canRead;
     reading.missing = heldPrivileges.missing;
@@ -338,14 +330,14 @@ export async function readTableGrant(
       if (privileges !== null) {
         reading.canRead = privileges.includes(READ_PRIVILEGE);
         reading.missing = reading.canRead ? null : `${READ_PRIVILEGE} missing`;
-        personPrivileges.set(personKey, { at: now, value: { canRead: reading.canRead, missing: reading.missing } });
+        personPrivileges.set(personKey, { canRead: reading.canRead, missing: reading.missing }, now);
       }
     } catch (error) {
       console.warn(`[monitoring] Effective permissions on ${table} could not be read: ${(error as Error).message}`);
     }
   }
 
-  const heldPolicies = fresh(tablePolicies, table, TABLE_POLICY_TTL_MS, now);
+  const heldPolicies = tablePolicies.get(table, now);
   if (heldPolicies) {
     reading.rowFilter = heldPolicies.rowFilter;
     reading.maskedColumns = heldPolicies.maskedColumns;
@@ -355,7 +347,7 @@ export async function readTableGrant(
       const policies = policiesFrom(body);
       reading.rowFilter = policies.rowFilter;
       reading.maskedColumns = policies.maskedColumns;
-      tablePolicies.set(table, { at: now, value: policies });
+      tablePolicies.set(table, policies, now);
     } catch (error) {
       console.warn(`[monitoring] Row filter and masks on ${table} could not be read: ${(error as Error).message}`);
     }

@@ -1,7 +1,7 @@
 import { APP_SCHEMA, appTable } from '../../shared/app-schema';
 import { raw, type Application, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { extractPdfText, isPdfFilename } from '../lib/pdf-text';
+import { extractPdfText, isPdfFilename, MAX_PDF_BYTES, PdfTextError } from '../lib/pdf-text';
 import {
   chooseRows,
   lakebaseHealth,
@@ -21,6 +21,7 @@ import {
   startAppSessionCleanup,
   type IdleTimeoutConfig,
 } from '../lib/app-session';
+import { startTelemetryHousekeeping } from '../lib/telemetry-retention';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { REPRESENTATIVE_ANSWER_CAVEAT } from '../../shared/representative-answer';
 import {
@@ -81,7 +82,6 @@ import { createStageRecorder, readStageEvents } from '../lib/run-stage-events';
 import { isUsableIdempotencyKey } from '../lib/run-request-hash';
 import { terminalStateFor } from '../lib/run-state';
 import { answerRatherThanExit } from '../lib/handler-failures';
-import { withDeadline } from '../lib/deadline';
 import { requestLatencyRecorder } from '../lib/request-latency';
 import {
   createWarehouseWarmup,
@@ -124,12 +124,19 @@ import {
   overlayAssignedPersona,
   servingIdentityFields,
 } from '../lib/execution-credential';
-import { consumeServingStream, TruncatedStreamError, type StageSink } from '../lib/serving-stream';
+import {
+  consumeServingStream,
+  StreamLimitExceededError,
+  TruncatedStreamError,
+  type StageSink,
+} from '../lib/serving-stream';
 import { cancelAllExecutingRuns, cancelOwnedRun } from '../lib/run-ledger';
 import {
   abortInProcessRuns,
+  isRunDeadlineExceededError,
   isRunCancelledError,
   registerRunController,
+  RunDeadlineExceededError,
   throwIfRunCancelled,
   watchDurableCancellation,
 } from '../lib/run-cancellation';
@@ -217,6 +224,8 @@ export interface InsightsAppKit {
   };
   /** Overridable so tests can assert the exact JSON that reaches Model Serving. */
   servingTransport?: ServingTransport;
+  /** Test seam for the interactive deadline; production always uses 240 seconds. */
+  servingTimeoutMs?: number;
   /**
    * Overridable endpoint metadata read used by the cheap readiness route.
    *
@@ -620,9 +629,22 @@ type Clarification = z.infer<typeof ClarificationSchema>;
 
 // PDF is handled separately, by `extractPdfText`; these are the formats read as UTF-8.
 const ALLOWED_ATTACHMENT_TYPES = new Set(['txt', 'md', 'csv', 'json']);
-const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES = MAX_PDF_BYTES;
 const MAX_ATTACHMENT_TEXT = 50_000;
 const MAX_CONVERSATION_ATTACHMENT_TEXT = 80_000;
+const parseAttachmentBody = raw({ type: 'application/octet-stream', limit: MAX_ATTACHMENT_BYTES });
+
+/** Keep body-parser's byte-cap refusal in the attachment API's safe JSON shape. */
+function parseBoundedAttachment(req: Request, res: Response, next: NextFunction): void {
+  parseAttachmentBody(req, res, (error?: unknown) => {
+    const type = error && typeof error === 'object' && 'type' in error ? (error as { type?: unknown }).type : undefined;
+    if (type === 'entity.too.large') {
+      res.status(413).json({ error: 'Choose a non-empty report no larger than 8 MB.' });
+      return;
+    }
+    next(error);
+  });
+}
 
 /**
  * Written as the user turn when a proposed plan is approved. `RUNS_QUERY` skips
@@ -2066,7 +2088,7 @@ const CONVERSATION_VERDICT_JOIN = `
 const CONVERSATION_LIST_COLUMNS =
   'c.id, c.title, c.updated_at, c.user_email, ' + 'verdict.status, verdict.truncated, verdict.duration_ms';
 
-function conversationListQuery(email: string, readsShared: boolean) {
+export function conversationListQuery(email: string, readsShared: boolean) {
   return readsShared
     ? {
         sql:
@@ -2330,11 +2352,11 @@ function attachmentExtension(filename: string) {
   return filename.toLowerCase().split('.').pop() ?? '';
 }
 
-export async function extractAttachmentText(filename: string, bytes: Buffer) {
+export async function extractAttachmentText(filename: string, bytes: Buffer, signal?: AbortSignal) {
   // PDFs are binary by definition, so they must bypass the UTF-8 path and its NUL guard.
   // `PdfTextError` messages are written for the user, so they propagate to the 422 body.
   if (isPdfFilename(filename)) {
-    return extractPdfText(bytes, { maxChars: MAX_ATTACHMENT_TEXT });
+    return extractPdfText(bytes, { maxChars: MAX_ATTACHMENT_TEXT, signal });
   }
   const extension = attachmentExtension(filename);
   if (!ALLOWED_ATTACHMENT_TYPES.has(extension)) {
@@ -2538,6 +2560,7 @@ function warmGenieWarehousesForArrival(req: Request): void {
     .warm({
       host,
       token,
+      subject: userEmail(req),
       spaceIds,
       appWarehouseId: appWarehouseId(),
     })
@@ -2793,12 +2816,11 @@ export function buildAskServingBody({
 /**
  * Upper bound on one interactive invocation of the agent endpoint.
  *
- * Generous on purpose. It exists to stop a silent socket holding a request open
- * forever (nothing here cancels a call, and `fetch` against an endpoint that
- * accepted the connection and then said nothing never rejects), not to police a
- * run that is slow but alive. The longest real answer measured against the
- * deployed endpoint is a little over a minute; the benchmark runner keeps its own
- * tighter per-turn bound because it is running twelve of them unattended.
+ * Generous on purpose. It stops a silent socket holding a request open forever
+ * by aborting the transport signal and its response reader, rather than merely
+ * abandoning the promise. The longest real answer measured against the deployed
+ * endpoint is a little over a minute; the benchmark runner keeps its own tighter
+ * per-turn bound because it is running twelve of them unattended.
  */
 export const SERVING_INVOKE_TIMEOUT_MS = 240_000;
 
@@ -2818,17 +2840,56 @@ export async function invokeServing(
     throw new Error('DATABRICKS_SERVING_ENDPOINT_NAME is not set.');
   }
   const transport = appkit.servingTransport ?? workspaceServingTransport;
-  const result = await withDeadline(
-    transport({ path: servingInvocationPath(endpointName), payload, onStage, userToken, signal }),
-    timeoutMs,
-    `The agent endpoint did not answer within ${timeoutMs} ms. The call was abandoned rather than ` +
-      'cancelled, so it may still be running at the endpoint.'
-  );
-  // Custom transports in tests and future integrations may not consume the
-  // signal. The durable Stop still wins before any returned payload is parsed
-  // or persisted.
-  throwIfRunCancelled(signal);
-  return result;
+  const controller = new AbortController();
+  let acceptingStages = true;
+  const relayAbort = () => {
+    if (!controller.signal.aborted) controller.abort(signal?.reason);
+  };
+  if (signal?.aborted) relayAbort();
+  else signal?.addEventListener('abort', relayAbort, { once: true });
+
+  let rejectAborted: (error: unknown) => void = () => undefined;
+  const rejectAbort = () => {
+    try {
+      throwIfRunCancelled(controller.signal);
+    } catch (error) {
+      rejectAborted(error);
+    }
+  };
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectAborted = reject;
+    controller.signal.addEventListener('abort', rejectAbort, { once: true });
+    if (controller.signal.aborted) rejectAbort();
+  });
+  const timer = setTimeout(() => controller.abort(new RunDeadlineExceededError(timeoutMs)), Math.max(0, timeoutMs));
+  timer.unref?.();
+
+  try {
+    throwIfRunCancelled(controller.signal);
+    const guardedStage: StageSink | undefined = onStage
+      ? (stage) => {
+          if (!acceptingStages || controller.signal.aborted) return;
+          onStage(stage);
+        }
+      : undefined;
+    const result = await Promise.race([
+      transport({
+        path: servingInvocationPath(endpointName),
+        payload,
+        onStage: guardedStage,
+        userToken,
+        signal: controller.signal,
+      }),
+      aborted,
+    ]);
+    throwIfRunCancelled(controller.signal);
+    return result;
+  } finally {
+    acceptingStages = false;
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', relayAbort);
+    controller.signal.removeEventListener('abort', rejectAbort);
+  }
 }
 
 /**
@@ -3231,7 +3292,11 @@ async function prepareStore(appkit: InsightsAppKit): Promise<void> {
  */
 export function setupInsightsRoutes(
   appkit: InsightsAppKit,
-  options: { rolesReady?: () => Promise<void>; appSessionConfig?: IdleTimeoutConfig } = {}
+  options: {
+    rolesReady?: () => Promise<void>;
+    appSessionConfig?: IdleTimeoutConfig;
+    onRequestLatencyRecorder?: (recorder: ReturnType<typeof requestLatencyRecorder>) => void;
+  } = {}
 ): Promise<{ storeReady: Promise<void> }> {
   // BEFORE `prepareStore`, not after, and that ordering is load-bearing rather
   // than tidy. `prepareStore` asks the store whether this deployment recorded a
@@ -3310,7 +3375,9 @@ export function setupInsightsRoutes(
     // It runs after identity/role gates, so rejected requests are not presented
     // as routes the app served, and it stores canonical Express route templates
     // rather than concrete URLs containing user or resource ids.
-    app.use(requestLatencyRecorder(appkit.lakebase));
+    const latencyRecorder = requestLatencyRecorder(appkit.lakebase);
+    options.onRequestLatencyRecorder?.(latencyRecorder);
+    app.use(latencyRecorder);
 
     /**
      * Wake the configured SQL warehouse while the browser is showing the
@@ -3893,106 +3960,121 @@ export function setupInsightsRoutes(
     /**
      * Attach a document to a conversation the caller owns.
      */
-    app.post(
-      '/api/conversations/:id/attachments',
-      raw({ type: 'application/octet-stream', limit: MAX_ATTACHMENT_BYTES }),
-      async (req, res) => {
-        const encodedName = req.header('x-file-name');
-        const filename = encodedName ? decodeURIComponent(encodedName) : '';
-        const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-        if (!filename || bytes.length === 0 || bytes.length > MAX_ATTACHMENT_BYTES) {
-          res.status(400).json({ error: 'Choose a non-empty report no larger than 8 MB.' });
-          return;
-        }
+    app.post('/api/conversations/:id/attachments', parseBoundedAttachment, async (req, res) => {
+      const encodedName = req.header('x-file-name');
+      const filename = encodedName ? decodeURIComponent(encodedName) : '';
+      const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      if (!filename || bytes.length === 0 || bytes.length > MAX_ATTACHMENT_BYTES) {
+        res.status(400).json({ error: 'Choose a non-empty report no larger than 8 MB.' });
+        return;
+      }
 
-        const conversationId = req.params.id;
-        const owner = await readStored(
-          appkit,
-          'POST /api/conversations/:id/attachments (owner)',
-          `SELECT user_email FROM ${APP_SCHEMA}.conversations WHERE id = $1`,
-          [conversationId]
+      const conversationId = String(req.params.id);
+      const owner = await readStored(
+        appkit,
+        'POST /api/conversations/:id/attachments (owner)',
+        `SELECT user_email FROM ${APP_SCHEMA}.conversations WHERE id = $1`,
+        [conversationId]
+      );
+      if (!owner.available) {
+        console.warn(
+          `[lakebase] Attachment for ${conversationId} was not stored: ownership unreadable (${owner.code}).`
         );
-        if (!owner.available) {
-          console.warn(
-            `[lakebase] Attachment for ${conversationId} was not stored: ownership unreadable (${owner.code}).`
-          );
-          res.status(503).json({
-            error: 'attachment_owner_unreadable',
-            conversationId,
-            message:
-              'This report could not be attached right now, because the store could not confirm who ' +
-              'owns this conversation. Nothing was written. Try again shortly.',
-          });
-          return;
-        }
-        const ownerEmail = owner.rows[0]?.user_email;
-        // Refused only with another owner's address in hand. No row means the
-        // conversation is new and about to be claimed legitimately, which is how
-        // the first upload in a fresh chat works.
-        if (typeof ownerEmail === 'string' && ownerEmail !== userEmail(req)) {
-          console.warn(
-            `[tenancy] Refused attachment upload to conversation ${conversationId}: it belongs to another user.`
-          );
-          // 404 rather than 403, as everywhere else here: confirming the id
-          // exists but is somebody else's is itself a disclosure.
-          res.status(404).json({
-            error: 'conversation_not_found',
-            conversationId,
-            message: 'No conversation with this id belongs to you.',
-          });
-          return;
-        }
+        res.status(503).json({
+          error: 'attachment_owner_unreadable',
+          conversationId,
+          message:
+            'This report could not be attached right now, because the store could not confirm who ' +
+            'owns this conversation. Nothing was written. Try again shortly.',
+        });
+        return;
+      }
+      const ownerEmail = owner.rows[0]?.user_email;
+      // Refused only with another owner's address in hand. No row means the
+      // conversation is new and about to be claimed legitimately, which is how
+      // the first upload in a fresh chat works.
+      if (typeof ownerEmail === 'string' && ownerEmail !== userEmail(req)) {
+        console.warn(
+          `[tenancy] Refused attachment upload to conversation ${conversationId}: it belongs to another user.`
+        );
+        // 404 rather than 403, as everywhere else here: confirming the id
+        // exists but is somebody else's is itself a disclosure.
+        res.status(404).json({
+          error: 'conversation_not_found',
+          conversationId,
+          message: 'No conversation with this id belongs to you.',
+        });
+        return;
+      }
 
-        let extractedText: string;
-        try {
-          extractedText = await extractAttachmentText(filename, bytes);
-        } catch (error) {
-          res.status(422).json({ error: (error as Error).message });
+      let extractedText: string;
+      const extraction = new AbortController();
+      const abortExtraction = () => extraction.abort();
+      const abortIfDisconnected = () => {
+        if (!res.writableEnded) extraction.abort();
+      };
+      req.once('aborted', abortExtraction);
+      res.once('close', abortIfDisconnected);
+      if (req.aborted || res.destroyed) extraction.abort();
+      try {
+        extractedText = await extractAttachmentText(filename, bytes, extraction.signal);
+      } catch (error) {
+        if (extraction.signal.aborted || res.destroyed) return;
+        if (error instanceof PdfTextError && error.code === 'overloaded') {
+          res.setHeader('Retry-After', '1');
+          res.status(429).json({ error: error.message });
           return;
         }
-        if (!extractedText.trim()) {
-          res.status(422).json({ error: 'No readable text was found in this report.' });
-          return;
-        }
+        res.status(error instanceof PdfTextError && error.code === 'too-large' ? 413 : 422).json({
+          error: (error as Error).message,
+        });
+        return;
+      } finally {
+        req.off('aborted', abortExtraction);
+        res.off('close', abortIfDisconnected);
+      }
+      if (!extractedText.trim()) {
+        res.status(422).json({ error: 'No readable text was found in this report.' });
+        return;
+      }
 
-        const id = crypto.randomUUID();
-        const email = userEmail(req);
-        try {
-          await appkit.lakebase.query(
-            `INSERT INTO ${APP_SCHEMA}.conversations (id, user_email, title)
+      const id = crypto.randomUUID();
+      const email = userEmail(req);
+      try {
+        await appkit.lakebase.query(
+          `INSERT INTO ${APP_SCHEMA}.conversations (id, user_email, title)
              VALUES ($1,$2,$3) ON CONFLICT (id) DO UPDATE SET updated_at = NOW()`,
-            [conversationId, email, PLACEHOLDER_CONVERSATION_TITLE]
-          );
-          await appkit.lakebase.query(
-            `INSERT INTO ${APP_SCHEMA}.attachments
+          [conversationId, email, PLACEHOLDER_CONVERSATION_TITLE]
+        );
+        await appkit.lakebase.query(
+          `INSERT INTO ${APP_SCHEMA}.attachments
              (id, conversation_id, user_email, filename, mime_type, size_bytes, extracted_text)
              VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-            [
-              id,
-              conversationId,
-              email,
-              filename,
-              req.header('content-type') ?? 'application/octet-stream',
-              bytes.length,
-              extractedText,
-            ]
-          );
-        } catch (error) {
-          console.warn('[lakebase] Attachment could not be stored:', (error as Error).message);
-          res.status(503).json({
-            error: 'Attachment storage is unavailable right now. Try again shortly.',
-          });
-          return;
-        }
-        res.status(201).json({
-          id,
-          filename,
-          mime_type: req.header('x-file-type') ?? 'application/octet-stream',
-          size_bytes: bytes.length,
-          status: 'ready',
+          [
+            id,
+            conversationId,
+            email,
+            filename,
+            req.header('content-type') ?? 'application/octet-stream',
+            bytes.length,
+            extractedText,
+          ]
+        );
+      } catch (error) {
+        console.warn('[lakebase] Attachment could not be stored:', (error as Error).message);
+        res.status(503).json({
+          error: 'Attachment storage is unavailable right now. Try again shortly.',
         });
+        return;
       }
-    );
+      res.status(201).json({
+        id,
+        filename,
+        mime_type: req.header('x-file-type') ?? 'application/octet-stream',
+        size_bytes: bytes.length,
+        status: 'ready',
+      });
+    });
 
     /**
      * Remove one attachment, and report which of the three things happened.
@@ -4381,6 +4463,8 @@ export function setupInsightsRoutes(
        * endpoint call could not prevent the duplicate execution it exists to
        * prevent: by then it has already been paid for.
        */
+      const servingTimeoutMs = appkit.servingTimeoutMs ?? SERVING_INVOKE_TIMEOUT_MS;
+      const runDeadlineAt = new Date(Date.now() + servingTimeoutMs);
       const admission = await admitRun(appkit, {
         mode: resolveRunLedgerMode(process.env[RUN_LEDGER_MODE_ENV]),
         // The same id the agent is handed as `runId` below, so the ledger row,
@@ -4411,7 +4495,7 @@ export function setupInsightsRoutes(
         correlationId: identity.correlationId,
         // The budget the agent is given, so the ledger's deadline and the one
         // in the payload cannot disagree about when this run ran out of time.
-        budgetMs: SERVING_INVOKE_TIMEOUT_MS,
+        budgetMs: Math.max(1, runDeadlineAt.getTime() - Date.now()),
         executor: executorName(),
       });
       if (admission.kind === 'refuse') {
@@ -4481,141 +4565,181 @@ export function setupInsightsRoutes(
         return;
       }
 
-      /**
-       * What this turn will answer with. Declared with no value on purpose.
-       *
-       * It used to be pre-seeded with the stored demo answer and
-       * overwritten by the two paths that had a live answer to put there. That
-       * made canned figures the default outcome of the block below rather than
-       * a decision inside it: any exception, and any payload matching none of
-       * the four contracts, served the demo dataset over HTTP 200 as
-       * `type: 'answer'`, and there was no statement anywhere saying so to find
-       * when somebody asked why. Adding one `custom_outputs` shape to the agent
-       * was enough to do it.
-       *
-       * Nothing assigns it a stored answer now, on any target, and no target
-       * holds one to assign. A question that was asked is answered by the run
-       * or reported as unanswered.
-       *
-       * Uninitialised, TypeScript will not compile a path out of here that has
-       * not said what it is serving, so a new early exit or a new unhandled
-       * payload shape is a build failure rather than a plausible wrong number
-       * in front of a customer.
-       */
-      let answer: ServedAnswer;
-      // Set by the invocation below and read after it, because the disclosure
-      // belongs on the answer and the answer is assembled further down. False
-      // until something proves otherwise: nothing has run as anybody yet.
-      let ranAsSignedInUser = false;
-      // How far the run got, read by the failure paths below. Undefined rather
-      // than a zeroth stage: a turn that answers with a plan emits no stages at
-      // all, and reporting "stopped in step 0" for one would name a step that
-      // does not exist.
-      let stagesSeen = 0;
-      let lastStage: FailureStage | undefined;
-      const collectedStages: Record<string, unknown>[] = [];
-      // The runtime this Ask sent. Snapshotted onto the stored row so Monitoring
-      // and Run Explorer can show what THIS run used after Settings has moved on.
-      let askRuntime: RuntimeSettings | undefined;
-      try {
-        const servingHistory = buildServingHistory(historyResult.rows);
-        if (approvedPlanId && servingHistory.length > 0) {
-          servingHistory[servingHistory.length - 1] = { role: 'user', content: prompt };
+      const cancellationController = new AbortController();
+      const unregisterCancellation = admission.run
+        ? registerRunController(admission.run.runId, cancellationController)
+        : () => undefined;
+      const cancellationWatch = admission.run
+        ? watchDurableCancellation({
+            store: appkit,
+            runId: admission.run.runId,
+            userEmail: email,
+            controller: cancellationController,
+          })
+        : null;
+      const deadlineTimer = setTimeout(
+        () => cancellationController.abort(new RunDeadlineExceededError(servingTimeoutMs)),
+        Math.max(0, runDeadlineAt.getTime() - Date.now())
+      );
+      deadlineTimer.unref?.();
+      const hasOutputFence = Boolean(admission.run && admission.fencingToken !== null);
+      const outputFenceSql = (runPlaceholder: number, fencePlaceholder: number) =>
+        hasOutputFence
+          ? `EXISTS (SELECT 1 FROM ${APP_SCHEMA}.runs
+                       WHERE run_id = $${runPlaceholder}
+                         AND fencing_token = $${fencePlaceholder}
+                         AND completed_at IS NULL)`
+          : 'TRUE';
+      const outputFenceParams = hasOutputFence ? [admission.run?.runId, admission.fencingToken] : [];
+      const replyIfCancelled = (): boolean => {
+        if (
+          !cancellationController.signal.aborted ||
+          isRunDeadlineExceededError(cancellationController.signal.reason)
+        ) {
+          return false;
         }
-        askRuntime = await readRuntimeSettings(appkit);
-        const evalGuidance = await resolveAskGuidance(appkit);
-        const payload = buildAskServingBody({
-          history: servingHistory,
-          prompt,
-          conversationId,
-          approvedPlanId,
-          executePlan,
-          attachmentText,
-          stream: reply.wantsStream,
-          requestId: identity.correlationId,
-          runId: identity.requestId,
-          ...servingIdentityFields(identity),
-          deadlineAt: new Date(Date.now() + SERVING_INVOKE_TIMEOUT_MS).toISOString(),
-          runtimeSettings: askRuntime,
-          evalGuidance,
+        reply.status(409).json({
+          type: 'cancelled',
+          state: 'CANCELLED',
+          message: 'Stopped.',
+          runId: admission.run?.runId ?? identity.requestId,
+          correlationId: identity.correlationId,
+          modelServing:
+            'App-side stream consumption stopped and no replacement invocation was started. ' +
+            'The current model invocation may still finish server-side.',
         });
-        // Counted on the way past, so a failure can say where the run died
-        // rather than only that it did. "It stopped in 'Query
-        // gold_title_daily_summary' after four steps" and "it never started" are
-        // the same red panel today, and they send a reader to two different
-        // people. The forwarding behaviour is unchanged: this only reads what is
-        // already going by.
+        return true;
+      };
+
+      try {
         /**
-         * Where each step is written down, so a browser that leaves mid-run can
-         * be shown the path again when it returns.
+         * What this turn will answer with. Declared with no value on purpose.
          *
-         * Null when the ledger recorded no run for this request, which is shadow
-         * mode over a database whose ledger tables were refused: there is no
-         * `run_id` to file the steps under, and inventing one would produce a
-         * narration nothing could ever find. The run is unaffected either way --
-         * nothing below waits on this, and a reconnect simply has no steps to
-         * replay, which is the behaviour every run had before this existed.
+         * It used to be pre-seeded with the stored demo answer and
+         * overwritten by the two paths that had a live answer to put there. That
+         * made canned figures the default outcome of the block below rather than
+         * a decision inside it: any exception, and any payload matching none of
+         * the four contracts, served the demo dataset over HTTP 200 as
+         * `type: 'answer'`, and there was no statement anywhere saying so to find
+         * when somebody asked why. Adding one `custom_outputs` shape to the agent
+         * was enough to do it.
+         *
+         * Nothing assigns it a stored answer now, on any target, and no target
+         * holds one to assign. A question that was asked is answered by the run
+         * or reported as unanswered.
+         *
+         * Uninitialised, TypeScript will not compile a path out of here that has
+         * not said what it is serving, so a new early exit or a new unhandled
+         * payload shape is a build failure rather than a plausible wrong number
+         * in front of a customer.
          */
-        const stageRecorder = admission.run ? createStageRecorder(appkit, admission.run.runId) : null;
-        const onStage = (stage: Record<string, unknown>) => {
-          // Always collected, including when the browser did not ask for a
-          // stream. The prose-only path used to persist `stages: []` because
-          // this list did not exist, so a failed run that had taken many
-          // tools stored a card that said nothing ran.
-          const id = typeof stage.id === 'string' ? stage.id : '';
-          const at = id ? collectedStages.findIndex((held) => held.id === id) : -1;
-          if (at !== -1) collectedStages[at] = stage;
-          else collectedStages.push(stage);
-          // Forwarded whatever it is, counted only if it finished. The
-          // endpoint now announces a step when it STARTS as well, under the
-          // same id and with `status: "running"`, so the rail can draw the
-          // row a reader is waiting on. Counting those would double every
-          // number in `FailureStage` and name a step that had not run as the
-          // last one to finish, which is what that contract exists to avoid.
-          if (!isRunningStage(stage)) {
-            stagesSeen += 1;
-            // The last stage to COMPLETE, which is not the stage that
-            // failed; see FailureStage. Incremented first so the count and
-            // the title describe the same event.
-            lastStage = { title: readStageTitle(stage), completed: stagesSeen };
-          }
-          if (reply.wantsStream) reply.stage(stage);
-          // AFTER the forward, and never awaited. The reader watching this
-          // run live must not wait behind a write that exists for the
-          // reader who left. Announcements are stored as well as
-          // completions: the step a returning reader is waiting ON is the
-          // one worth showing them, and it arrives as `running`.
-          stageRecorder?.record(stage);
-        };
-        // Two calls rather than one with a nullable token, so the path that runs
-        // without a user is visibly the local one and cannot be reached by a
-        // deployed request: `bindIdentity` has already refused an empty token
-        // above whenever `isDeployed()`.
-        //
-        // The endpoint is the promoted winner when Benchmarking saved one,
-        // otherwise the deployed default. Connections does not change.
-        const askEndpoint = await resolveAskEndpoint(appkit);
-        const cancellationController = new AbortController();
-        const unregisterCancellation = admission.run
-          ? registerRunController(admission.run.runId, cancellationController)
-          : () => undefined;
-        const cancellationWatch = admission.run
-          ? watchDurableCancellation({
-              store: appkit,
-              runId: admission.run.runId,
-              userEmail: email,
-              controller: cancellationController,
-            })
-          : null;
-        let endpointResult: unknown;
+        let answer: ServedAnswer;
+        // Set by the invocation below and read after it, because the disclosure
+        // belongs on the answer and the answer is assembled further down. False
+        // until something proves otherwise: nothing has run as anybody yet.
+        let ranAsSignedInUser = false;
+        // How far the run got, read by the failure paths below. Undefined rather
+        // than a zeroth stage: a turn that answers with a plan emits no stages at
+        // all, and reporting "stopped in step 0" for one would name a step that
+        // does not exist.
+        let stagesSeen = 0;
+        let lastStage: FailureStage | undefined;
+        const collectedStages: Record<string, unknown>[] = [];
+        // The runtime this Ask sent. Snapshotted onto the stored row so Monitoring
+        // and Run Explorer can show what THIS run used after Settings has moved on.
+        let askRuntime: RuntimeSettings | undefined;
         try {
-          endpointResult = identity.token
+          const servingHistory = buildServingHistory(historyResult.rows);
+          if (approvedPlanId && servingHistory.length > 0) {
+            servingHistory[servingHistory.length - 1] = { role: 'user', content: prompt };
+          }
+          askRuntime = await readRuntimeSettings(appkit);
+          const evalGuidance = await resolveAskGuidance(appkit);
+          const payload = buildAskServingBody({
+            history: servingHistory,
+            prompt,
+            conversationId,
+            approvedPlanId,
+            executePlan,
+            attachmentText,
+            stream: reply.wantsStream,
+            requestId: identity.correlationId,
+            runId: identity.requestId,
+            ...servingIdentityFields(identity),
+            deadlineAt: runDeadlineAt.toISOString(),
+            runtimeSettings: askRuntime,
+            evalGuidance,
+          });
+          // Counted on the way past, so a failure can say where the run died
+          // rather than only that it did. "It stopped in 'Query
+          // gold_title_daily_summary' after four steps" and "it never started" are
+          // the same red panel today, and they send a reader to two different
+          // people. The forwarding behaviour is unchanged: this only reads what is
+          // already going by.
+          /**
+           * Where each step is written down, so a browser that leaves mid-run can
+           * be shown the path again when it returns.
+           *
+           * Null when the ledger recorded no run for this request, which is shadow
+           * mode over a database whose ledger tables were refused: there is no
+           * `run_id` to file the steps under, and inventing one would produce a
+           * narration nothing could ever find. The run is unaffected either way --
+           * nothing below waits on this, and a reconnect simply has no steps to
+           * replay, which is the behaviour every run had before this existed.
+           */
+          const stageRecorder =
+            admission.run && admission.fencingToken !== null
+              ? createStageRecorder(appkit, admission.run.runId, {
+                  fencingToken: admission.fencingToken,
+                  signal: cancellationController.signal,
+                })
+              : null;
+          const onStage = (stage: Record<string, unknown>) => {
+            if (cancellationController.signal.aborted) return;
+            // Always collected, including when the browser did not ask for a
+            // stream. The prose-only path used to persist `stages: []` because
+            // this list did not exist, so a failed run that had taken many
+            // tools stored a card that said nothing ran.
+            const id = typeof stage.id === 'string' ? stage.id : '';
+            const at = id ? collectedStages.findIndex((held) => held.id === id) : -1;
+            if (at !== -1) collectedStages[at] = stage;
+            else collectedStages.push(stage);
+            // Forwarded whatever it is, counted only if it finished. The
+            // endpoint now announces a step when it STARTS as well, under the
+            // same id and with `status: "running"`, so the rail can draw the
+            // row a reader is waiting on. Counting those would double every
+            // number in `FailureStage` and name a step that had not run as the
+            // last one to finish, which is what that contract exists to avoid.
+            if (!isRunningStage(stage)) {
+              stagesSeen += 1;
+              // The last stage to COMPLETE, which is not the stage that
+              // failed; see FailureStage. Incremented first so the count and
+              // the title describe the same event.
+              lastStage = { title: readStageTitle(stage), completed: stagesSeen };
+            }
+            if (reply.wantsStream) reply.stage(stage);
+            // AFTER the forward, and never awaited. The reader watching this
+            // run live must not wait behind a write that exists for the
+            // reader who left. Announcements are stored as well as
+            // completions: the step a returning reader is waiting ON is the
+            // one worth showing them, and it arrives as `running`.
+            stageRecorder?.record(stage);
+          };
+          // Two calls rather than one with a nullable token, so the path that runs
+          // without a user is visibly the local one and cannot be reached by a
+          // deployed request: `bindIdentity` has already refused an empty token
+          // above whenever `isDeployed()`.
+          //
+          // The endpoint is the promoted winner when Benchmarking saved one,
+          // otherwise the deployed default. Connections does not change.
+          const askEndpoint = await resolveAskEndpoint(appkit);
+          const endpointResult = identity.token
             ? await invokeServingAsUser(
                 appkit,
                 payload,
                 identity.token,
                 onStage,
-                SERVING_INVOKE_TIMEOUT_MS,
+                Math.max(0, runDeadlineAt.getTime() - Date.now()),
                 askEndpoint,
                 cancellationController.signal
               )
@@ -4623,290 +4747,418 @@ export function setupInsightsRoutes(
                 appkit,
                 payload,
                 onStage,
-                SERVING_INVOKE_TIMEOUT_MS,
+                Math.max(0, runDeadlineAt.getTime() - Date.now()),
                 undefined,
                 askEndpoint,
                 cancellationController.signal
               );
-        } finally {
-          cancellationWatch?.stop();
-          unregisterCancellation();
-        }
-        ranAsSignedInUser = Boolean(identity.token);
-        /**
-         * Before all four shapes, because a refusal is none of them and looks
-         * like one of them.
-         *
-         * `invokeServingAsUser` raises `AuthorizationRefused` when the ENDPOINT
-         * declines the invocation with a 401 or a 403. This is the other half:
-         * the invocation succeeded and the agent's identity gate declined the
-         * turn from inside it, which a Model Serving container can only report
-         * as an ordinary 200. The refusal arrives in `custom_outputs`, and its
-         * sentence arrives in a text output item, where `extractLiveText` found
-         * it and served it as prose with the stored demo answer's figures,
-         * charts, sources and SQL attached. A reader refused on identity
-         * grounds was shown the demo dataset with "could not be executed with
-         * your permissions" as its takeaway.
-         */
-        const refused = readAgentRefusal(endpointResult, { requestId: identity.correlationId });
-        if (refused) {
-          console.warn(
-            `[identity] Agent refused request ${identity.correlationId} with ${refused.code}` +
-              `${refused.execution_identity ? `, executing as ${refused.execution_identity.mode}` : ''}. ` +
-              'Returning unavailable rather than an answer.'
-          );
-          await settleRun(appkit, admission, { to: terminalStateFor(refused.code), code: refused.code });
-          reply.status(unavailableHttpStatus(refused.code)).json(refused);
-          return;
-        }
-        const plan = extractAnalysisPlan(endpointResult);
-        if (plan && approvedPlanId === plan.id) {
-          // The agent was handed an approval for this exact plan and answered with
-          // the same plan again. Returning it would put the user in a loop:
-          // approve, receive the identical plan, approve. Falling through is worse
-          //. That was the old behaviour, and it answered a plan-approval request
-          // with canned figures. So: neither, and say what happened.
-          console.error(
-            `[serving] Approved plan ${approvedPlanId} was re-proposed unchanged instead of being ` +
-              'run. Refusing to loop the approval, and refusing to answer with representative ' +
-              'figures the user did not ask for.'
-          );
-          // FAILED rather than parked. The approval was not run, and a run left
-          // waiting on a person who has already answered is a run nothing will
-          // ever finish.
-          await settleRun(appkit, admission, { to: 'FAILED', code: 'DEPENDENCY_UNAVAILABLE' });
-          reply.status(502).json({
-            error: 'plan_not_executed',
-            planId: plan.id,
-            message:
-              'The agent proposed the same plan again instead of running the one you approved. ' +
-              'Nothing was run, and this is not an answer to your question. Start the question ' +
-              'again to get a fresh plan.',
-          });
-          return;
-        }
-        if (plan) {
+          throwIfRunCancelled(cancellationController.signal, admission.run?.runId);
+          // The 240-second budget bounds orchestration and stream consumption.
+          // Once the complete envelope is in hand, persistence is fenced
+          // separately and must not inherit a timer intended for the transport.
+          clearTimeout(deadlineTimer);
+          ranAsSignedInUser = Boolean(identity.token);
           /**
-           * Two ways to arrive here, and the plan is the right response to both.
+           * Before all four shapes, because a refusal is none of them and looks
+           * like one of them.
            *
-           * With an approval carrying a *different* id, the agent has refused that
-           * approval and re-issued. The id was stale, or it authorised a different
-           * question. That refusal is the point of binding an approval to its plan,
-           * so it has to reach the user as a plan to look at and approve. This used
-           * to warn and fall through to the stored demo answer, which
-           * answered the rejection with invented figures over HTTP 200. The client
-           * already expects the plan here and explains the re-proposal; it was only
-           * ever the server discarding it.
+           * `invokeServingAsUser` raises `AuthorizationRefused` when the ENDPOINT
+           * declines the invocation with a 401 or a 403. This is the other half:
+           * the invocation succeeded and the agent's identity gate declined the
+           * turn from inside it, which a Model Serving container can only report
+           * as an ordinary 200. The refusal arrives in `custom_outputs`, and its
+           * sentence arrives in a text output item, where `extractLiveText` found
+           * it and served it as prose with the stored demo answer's figures,
+           * charts, sources and SQL attached. A reader refused on identity
+           * grounds was shown the demo dataset with "could not be executed with
+           * your permissions" as its takeaway.
            */
-          const reissued = Boolean(approvedPlanId);
-          if (reissued) {
+          const refused = readAgentRefusal(endpointResult, { requestId: identity.correlationId });
+          if (refused) {
             console.warn(
-              `[serving] Approval for plan ${approvedPlanId} was refused by the agent, which ` +
-                `re-issued plan ${plan.id}. Returning the new plan for approval rather than ` +
-                'answering a question the user has not authorised yet.'
+              `[identity] Agent refused request ${identity.correlationId} with ${refused.code}` +
+                `${refused.execution_identity ? `, executing as ${refused.execution_identity.mode}` : ''}. ` +
+                'Returning unavailable rather than an answer.'
             );
+            await settleRun(appkit, admission, { to: terminalStateFor(refused.code), code: refused.code });
+            reply.status(unavailableHttpStatus(refused.code)).json(refused);
+            return;
           }
-          const planResponse = {
-            type: 'plan' as const,
-            mode: 'live' as const,
-            plan,
-            // Recorded on the response, and so into `response_json`, because a
-            // re-issue is the interesting event when someone asks later why an
-            // approval did not run.
-            ...(reissued ? { supersededApprovalId: approvedPlanId } : {}),
-          };
-          await safeQuery(
-            appkit,
-            `INSERT INTO ${APP_SCHEMA}.messages
+          const plan = extractAnalysisPlan(endpointResult);
+          if (plan && approvedPlanId === plan.id) {
+            // The agent was handed an approval for this exact plan and answered with
+            // the same plan again. Returning it would put the user in a loop:
+            // approve, receive the identical plan, approve. Falling through is worse
+            //. That was the old behaviour, and it answered a plan-approval request
+            // with canned figures. So: neither, and say what happened.
+            console.error(
+              `[serving] Approved plan ${approvedPlanId} was re-proposed unchanged instead of being ` +
+                'run. Refusing to loop the approval, and refusing to answer with representative ' +
+                'figures the user did not ask for.'
+            );
+            // FAILED rather than parked. The approval was not run, and a run left
+            // waiting on a person who has already answered is a run nothing will
+            // ever finish.
+            await settleRun(appkit, admission, { to: 'FAILED', code: 'DEPENDENCY_UNAVAILABLE' });
+            reply.status(502).json({
+              error: 'plan_not_executed',
+              planId: plan.id,
+              message:
+                'The agent proposed the same plan again instead of running the one you approved. ' +
+                'Nothing was run, and this is not an answer to your question. Start the question ' +
+                'again to get a fresh plan.',
+            });
+            return;
+          }
+          if (plan) {
+            /**
+             * Two ways to arrive here, and the plan is the right response to both.
+             *
+             * With an approval carrying a *different* id, the agent has refused that
+             * approval and re-issued. The id was stale, or it authorised a different
+             * question. That refusal is the point of binding an approval to its plan,
+             * so it has to reach the user as a plan to look at and approve. This used
+             * to warn and fall through to the stored demo answer, which
+             * answered the rejection with invented figures over HTTP 200. The client
+             * already expects the plan here and explains the re-proposal; it was only
+             * ever the server discarding it.
+             */
+            const reissued = Boolean(approvedPlanId);
+            if (reissued) {
+              console.warn(
+                `[serving] Approval for plan ${approvedPlanId} was refused by the agent, which ` +
+                  `re-issued plan ${plan.id}. Returning the new plan for approval rather than ` +
+                  'answering a question the user has not authorised yet.'
+              );
+            }
+            const planResponse = {
+              type: 'plan' as const,
+              mode: 'live' as const,
+              plan,
+              // Recorded on the response, and so into `response_json`, because a
+              // re-issue is the interesting event when someone asks later why an
+              // approval did not run.
+              ...(reissued ? { supersededApprovalId: approvedPlanId } : {}),
+            };
+            await safeQuery(
+              appkit,
+              `INSERT INTO ${APP_SCHEMA}.messages
              (id, conversation_id, role, content, response_json,
               app_principal, serving_principal, serving_principal_observed_at, access_mode,
               execution_mode, execution_identity_verified)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-            [
-              `msg-${crypto.randomUUID()}`,
-              conversationId,
-              'assistant',
-              plan.summary,
-              JSON.stringify(withAskRuntime(planResponse, askRuntime)),
-              ...executionIdentityColumns(email, executionIdentityClaim(identity)),
-            ]
-          );
-          // Parked, not finished. The run is waiting on a person now, and the
-          // lease is released with it so the approval that follows is the same
-          // run picked up again rather than a duplicate refused for being in
-          // flight. The fingerprint is what the approval will resume on.
-          await parkRun(appkit, admission, plan.id);
-          reply.json(planResponse);
-          return;
-        }
-        // Before the answer contract, deliberately. A clarification has no
-        // takeaway, so the answer parse fails and the fall-through would serve a
-        // representative answer to a question the agent had just said it could
-        // not answer, with the figures of a different question, over HTTP 200.
-        const clarification = extractClarification(endpointResult);
-        if (clarification) {
-          const honestClarification = withoutUntracedProcess(
-            bindServingMlflowTraceId(clarification, servingMlflowTraceId(endpointResult))
-          );
-          const clarificationResponse = {
-            type: 'clarification' as const,
-            mode: 'live' as const,
-            clarification: honestClarification,
-          };
-          await safeQuery(
-            appkit,
-            `INSERT INTO ${APP_SCHEMA}.messages
+             SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
+              WHERE ${outputFenceSql(12, 13)}
+             RETURNING id`,
+              [
+                `msg-${crypto.randomUUID()}`,
+                conversationId,
+                'assistant',
+                plan.summary,
+                JSON.stringify(withAskRuntime(planResponse, askRuntime)),
+                ...executionIdentityColumns(email, executionIdentityClaim(identity)),
+                ...outputFenceParams,
+              ]
+            );
+            throwIfRunCancelled(cancellationController.signal, admission.run?.runId);
+            // Parked, not finished. The run is waiting on a person now, and the
+            // lease is released with it so the approval that follows is the same
+            // run picked up again rather than a duplicate refused for being in
+            // flight. The fingerprint is what the approval will resume on.
+            await parkRun(appkit, admission, plan.id);
+            reply.json(planResponse);
+            return;
+          }
+          // Before the answer contract, deliberately. A clarification has no
+          // takeaway, so the answer parse fails and the fall-through would serve a
+          // representative answer to a question the agent had just said it could
+          // not answer, with the figures of a different question, over HTTP 200.
+          const clarification = extractClarification(endpointResult);
+          if (clarification) {
+            const honestClarification = withoutUntracedProcess(
+              bindServingMlflowTraceId(clarification, servingMlflowTraceId(endpointResult))
+            );
+            const clarificationResponse = {
+              type: 'clarification' as const,
+              mode: 'live' as const,
+              clarification: honestClarification,
+            };
+            await safeQuery(
+              appkit,
+              `INSERT INTO ${APP_SCHEMA}.messages
              (id, conversation_id, role, content, response_json, trace_id,
               app_principal, serving_principal, serving_principal_observed_at, access_mode,
               execution_mode, execution_identity_verified)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-            [
-              `msg-${clarification.id}`,
-              conversationId,
-              'assistant',
-              clarification.question,
-              JSON.stringify(withAskRuntime(clarificationResponse, askRuntime)),
-              honestClarification.trace.id,
-              ...executionIdentityColumns(email, executionIdentityClaim(identity)),
-            ]
-          );
-          await settleRun(appkit, admission, {
-            to: 'CLARIFICATION_REQUIRED',
-            traceId: honestClarification.trace.id,
-            messageId: `msg-${clarification.id}`,
-          });
-          reply.json(clarificationResponse);
-          return;
-        }
-        const structuredAnswer = extractStructuredAnswer(endpointResult);
-        const liveText = extractLiveText(endpointResult);
-        const platformTraceId = servingMlflowTraceId(endpointResult);
-        if (structuredAnswer) {
-          // Everything a reader will see came back from this run:
-          // `LiveAnswerSchema` requires the figures, sources, SQL and trace, so
-          // there is nothing here for the app to have filled in. This is the
-          // only path allowed to say 'live', and saying it here is what makes
-          // the silence on the path below mean something.
-          //
-          // Local stream stages are attached only after a real MLflow id is on
-          // the answer. Grafting them onto `trace-<uuid>` is how a 77s Ask
-          // drew a Gantt with no backend connector.
-          const withPlatform = bindServingMlflowTraceId(
-            { ...structuredAnswer, mode: 'live', provenance: 'live' },
-            platformTraceId
-          );
-          answer = asServedAnswer(attachRecordedStages(withPlatform, collectedStages));
-        } else if (liveText) {
-          // The endpoint replied in prose and sent no result contract. Its
-          // words are kept and nothing is put under them -- except the steps
-          // the stream already reported, and only when serving also handed
-          // back a real MLflow id. Those used to be stored unconditionally,
-          // which is why a failed run that had taken many tools stored a card
-          // that looked traced with nothing in MLflow.
-          //
-          // This used to build the answer on top of the stored demo answer, so
-          // the figures, charts, sources, SQL and stage timings a reader saw
-          // beneath a narrative about their own business were the demo seed.
-          // `provenance: 'mixed'` and a caveat said so and neither was a
-          // control, because the numbers were still on the screen. See
-          // shared/prose-only-answer.ts for why this is not reported as an
-          // evidence failure either.
-          //
-          // `provenance` is 'live' and that is not a downgrade of the claim: it
-          // means every reader-facing part came from this run, which is now
-          // true here because there are no parts that did not.
-          answer = asServedAnswer(
-            attachRecordedStages(
-              bindServingMlflowTraceId(
-                {
-                  ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
-                  mode: 'live',
-                  provenance: 'live',
-                },
-                platformTraceId
-              ),
-              collectedStages
-            )
-          );
-        } else {
-          // Not a warning. The app and the model version have drifted apart,
-          // which is two artifacts released separately and in either order, and
-          // this line is the only record of which shape actually arrived.
-          const shape = describePayloadShape(endpointResult);
-          console.error(
-            '[serving] The endpoint answered, but with none of the four shapes this app can read ' +
-              `(plan, clarification, structured answer, live text). ${shape}. Payload: ` +
-              JSON.stringify(endpointResult).slice(0, 1200)
-          );
-          await settleRun(appkit, admission, {
-            to: terminalStateFor('OUTPUT_SCHEMA_VIOLATION'),
-            code: 'OUTPUT_SCHEMA_VIOLATION',
-          });
-          reply.status(unavailableHttpStatus('OUTPUT_SCHEMA_VIOLATION')).json(
-            unavailableResult({
+             SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+              WHERE ${outputFenceSql(13, 14)}
+             RETURNING id`,
+              [
+                `msg-${clarification.id}`,
+                conversationId,
+                'assistant',
+                clarification.question,
+                JSON.stringify(withAskRuntime(clarificationResponse, askRuntime)),
+                honestClarification.trace.id,
+                ...executionIdentityColumns(email, executionIdentityClaim(identity)),
+                ...outputFenceParams,
+              ]
+            );
+            throwIfRunCancelled(cancellationController.signal, admission.run?.runId);
+            await settleRun(appkit, admission, {
+              to: 'CLARIFICATION_REQUIRED',
+              traceId: honestClarification.trace.id,
+              messageId: `msg-${clarification.id}`,
+            });
+            reply.json(clarificationResponse);
+            return;
+          }
+          const structuredAnswer = extractStructuredAnswer(endpointResult);
+          const liveText = extractLiveText(endpointResult);
+          const platformTraceId = servingMlflowTraceId(endpointResult);
+          if (structuredAnswer) {
+            // Everything a reader will see came back from this run:
+            // `LiveAnswerSchema` requires the figures, sources, SQL and trace, so
+            // there is nothing here for the app to have filled in. This is the
+            // only path allowed to say 'live', and saying it here is what makes
+            // the silence on the path below mean something.
+            //
+            // Local stream stages are attached only after a real MLflow id is on
+            // the answer. Grafting them onto `trace-<uuid>` is how a 77s Ask
+            // drew a Gantt with no backend connector.
+            const withPlatform = bindServingMlflowTraceId(
+              { ...structuredAnswer, mode: 'live', provenance: 'live' },
+              platformTraceId
+            );
+            answer = asServedAnswer(attachRecordedStages(withPlatform, collectedStages));
+          } else if (liveText) {
+            // The endpoint replied in prose and sent no result contract. Its
+            // words are kept and nothing is put under them -- except the steps
+            // the stream already reported, and only when serving also handed
+            // back a real MLflow id. Those used to be stored unconditionally,
+            // which is why a failed run that had taken many tools stored a card
+            // that looked traced with nothing in MLflow.
+            //
+            // This used to build the answer on top of the stored demo answer, so
+            // the figures, charts, sources, SQL and stage timings a reader saw
+            // beneath a narrative about their own business were the demo seed.
+            // `provenance: 'mixed'` and a caveat said so and neither was a
+            // control, because the numbers were still on the screen. See
+            // shared/prose-only-answer.ts for why this is not reported as an
+            // evidence failure either.
+            //
+            // `provenance` is 'live' and that is not a downgrade of the claim: it
+            // means every reader-facing part came from this run, which is now
+            // true here because there are no parts that did not.
+            answer = asServedAnswer(
+              attachRecordedStages(
+                bindServingMlflowTraceId(
+                  {
+                    ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
+                    mode: 'live',
+                    provenance: 'live',
+                  },
+                  platformTraceId
+                ),
+                collectedStages
+              )
+            );
+          } else {
+            // Not a warning. The app and the model version have drifted apart,
+            // which is two artifacts released separately and in either order, and
+            // this line is the only record of which shape actually arrived.
+            const shape = describePayloadShape(endpointResult);
+            console.error(
+              '[serving] The endpoint answered, but with none of the four shapes this app can read ' +
+                `(plan, clarification, structured answer, live text). ${shape}. Payload: ` +
+                JSON.stringify(endpointResult).slice(0, 1200)
+            );
+            await settleRun(appkit, admission, {
+              to: terminalStateFor('OUTPUT_SCHEMA_VIOLATION'),
               code: 'OUTPUT_SCHEMA_VIOLATION',
+            });
+            reply.status(unavailableHttpStatus('OUTPUT_SCHEMA_VIOLATION')).json(
+              unavailableResult({
+                code: 'OUTPUT_SCHEMA_VIOLATION',
+                requestId: identity.correlationId,
+                runId: null,
+                // The endpoint answered, so a run happened. What did not happen
+                // is anything this app could store as an answer, and claiming
+                // `not_stored` would assert a write failure nobody attempted.
+                persistence: 'not_stored',
+                executionIdentity: executionIdentityClaim(identity),
+                detail: shape,
+                // The endpoint's status was 200 and saying so is the point: a
+                // reader who has been told the app cannot read the reply needs to
+                // know the reply arrived, or they go and check whether the
+                // endpoint is up. The shape IS the error here, so it travels as
+                // the provider message; there is no provider sentence to quote
+                // because the provider did not think anything had gone wrong.
+                evidence: {
+                  dependency: agentEndpointDependency(),
+                  status: 200,
+                  providerMessage: shape,
+                  ...(lastStage ? { stage: lastStage } : {}),
+                },
+              })
+            );
+            return;
+          }
+        } catch (error) {
+          if (isRunDeadlineExceededError(error)) {
+            console.warn(
+              `[serving] Run ${admission.run?.runId ?? identity.requestId} reached its ${servingTimeoutMs} ms deadline. ` +
+                'The serving request and response reader were aborted; no partial output will be stored.'
+            );
+            await settleRun(appkit, admission, {
+              to: terminalStateFor('RUN_DEADLINE_EXCEEDED'),
+              code: 'RUN_DEADLINE_EXCEEDED',
+            });
+            reply.status(unavailableHttpStatus('RUN_DEADLINE_EXCEEDED')).json(
+              unavailableResult({
+                code: 'RUN_DEADLINE_EXCEEDED',
+                requestId: identity.correlationId,
+                runId: admission.run?.runId ?? null,
+                persistence: admission.run ? 'stored' : 'not_stored',
+                executionIdentity: executionIdentityClaim(identity),
+                detail: error.message,
+                evidence: agentEndpointEvidence(error, {
+                  principal: email,
+                  ...(lastStage ? { stage: lastStage } : {}),
+                }),
+              })
+            );
+            return;
+          }
+          if (isRunCancelledError(error)) {
+            console.info(
+              `[serving] Run ${error.runId} was cancelled. App-side consumption stopped and no replacement ` +
+                'invocation was started; the current Model Serving invocation may still finish server-side.'
+            );
+            // The cancellation route already wrote the authoritative terminal
+            // state and incremented the fence. Do not call settleRun here: doing
+            // so would relabel an explicit Stop as a dependency failure.
+            reply.status(409).json({
+              type: 'cancelled',
+              state: 'CANCELLED',
+              message: 'Stopped.',
+              runId: admission.run?.runId ?? error.runId,
+              correlationId: identity.correlationId,
+              completedStages: stagesSeen,
+              modelServing:
+                'App-side stream consumption stopped and no replacement invocation was started. ' +
+                'The current model invocation may still finish server-side.',
+            });
+            return;
+          }
+          if (error instanceof StreamLimitExceededError) {
+            console.error(
+              `[serving] The stream exceeded its ${error.limit} bound. Transport was terminated and partial output was discarded.`
+            );
+            await settleRun(appkit, admission, {
+              to: terminalStateFor('STREAM_INTERRUPTED'),
+              code: 'STREAM_INTERRUPTED',
+            });
+            reply.status(unavailableHttpStatus('STREAM_INTERRUPTED')).json(
+              unavailableResult({
+                code: 'STREAM_INTERRUPTED',
+                requestId: identity.correlationId,
+                runId: admission.run?.runId ?? null,
+                persistence: admission.run ? 'stored' : 'not_stored',
+                executionIdentity: executionIdentityClaim(identity),
+                detail: error.message,
+                evidence: agentEndpointEvidence(error, {
+                  principal: email,
+                  ...(lastStage ? { stage: lastStage } : {}),
+                }),
+              })
+            );
+            return;
+          }
+          if (error instanceof TruncatedStreamError && error.stages > 0) {
+            console.error(
+              `[serving] The stream ended after ${error.stages} stage(s). The partial run was kept and no second invocation was started.`
+            );
+            await settleRun(appkit, admission, {
+              to: terminalStateFor('STREAM_INTERRUPTED'),
+              code: 'STREAM_INTERRUPTED',
+            });
+            reply.status(unavailableHttpStatus('STREAM_INTERRUPTED')).json(
+              unavailableResult({
+                code: 'STREAM_INTERRUPTED',
+                requestId: identity.correlationId,
+                runId: admission.run?.runId ?? null,
+                persistence: admission.run ? 'stored' : 'not_stored',
+                executionIdentity: executionIdentityClaim(identity),
+                detail: error.message,
+                evidence: agentEndpointEvidence(error, {
+                  principal: email,
+                  ...(lastStage ? { stage: lastStage } : {}),
+                }),
+              })
+            );
+            return;
+          }
+          // First, because an authorization denial and an endpoint that did not
+          // answer send a reader to two different people. Both end in an
+          // unavailable result now, so the ordering no longer decides whether the
+          // demo dataset appears; it decides which sentence and which status the
+          // reader gets, which is the thing it was always for.
+          if (error instanceof AuthorizationRefused) {
+            await settleRun(appkit, admission, { to: terminalStateFor(error.code), code: error.code });
+            reply.status(error.httpStatus).json(
+              unavailableResult({
+                code: error.code,
+                requestId: identity.correlationId,
+                runId: null,
+                persistence: 'not_stored',
+                // What was asked for, and unverified, because the endpoint is the
+                // thing that just declined to confirm it.
+                executionIdentity: refusedIdentityClaim(),
+                detail: error.disclosable,
+                // Built here rather than through `agentEndpointEvidence`, which
+                // forwards the provider's sentence unedited. This is the one path
+                // that may not: for the reason set out on
+                // `AuthorizationRefused.disclosable`, Unity Catalog names the
+                // table, the privilege and its owner, and this body reaches the
+                // person who has just been told they may not read that table.
+                //
+                // The STATUS still travels, and it is the part that resolves the
+                // ambiguity a reader is actually stuck on -- 401 means their
+                // session, 403 means their grants, and those are two different
+                // people to go and see. It names nothing.
+                evidence: {
+                  dependency: agentEndpointDependency(),
+                  // The endpoint's status, not the taxonomy's. They agree today
+                  // and they are different facts, and this panel is the one place
+                  // that has to say which one it is quoting.
+                  ...(error.providerStatus === undefined ? {} : { status: error.providerStatus }),
+                  providerMessage: error.disclosable,
+                  principal: email,
+                  ...(lastStage ? { stage: lastStage } : {}),
+                },
+              })
+            );
+            return;
+          }
+          const detail = error instanceof Error ? error.message : String(error);
+          console.error(`[serving] The agent endpoint call failed and nothing ran. Cause: ${detail}`);
+          await settleRun(appkit, admission, {
+            to: terminalStateFor('DEPENDENCY_UNAVAILABLE'),
+            code: 'DEPENDENCY_UNAVAILABLE',
+          });
+          reply.status(unavailableHttpStatus('DEPENDENCY_UNAVAILABLE')).json(
+            unavailableResult({
+              code: 'DEPENDENCY_UNAVAILABLE',
               requestId: identity.correlationId,
               runId: null,
-              // The endpoint answered, so a run happened. What did not happen
-              // is anything this app could store as an answer, and claiming
-              // `not_stored` would assert a write failure nobody attempted.
               persistence: 'not_stored',
               executionIdentity: executionIdentityClaim(identity),
-              detail: shape,
-              // The endpoint's status was 200 and saying so is the point: a
-              // reader who has been told the app cannot read the reply needs to
-              // know the reply arrived, or they go and check whether the
-              // endpoint is up. The shape IS the error here, so it travels as
-              // the provider message; there is no provider sentence to quote
-              // because the provider did not think anything had gone wrong.
-              evidence: {
-                dependency: agentEndpointDependency(),
-                status: 200,
-                providerMessage: shape,
-                ...(lastStage ? { stage: lastStage } : {}),
-              },
-            })
-          );
-          return;
-        }
-      } catch (error) {
-        if (isRunCancelledError(error)) {
-          console.info(
-            `[serving] Run ${error.runId} was cancelled. App-side consumption stopped and no replacement ` +
-              'invocation was started; the current Model Serving invocation may still finish server-side.'
-          );
-          // The cancellation route already wrote the authoritative terminal
-          // state and incremented the fence. Do not call settleRun here: doing
-          // so would relabel an explicit Stop as a dependency failure.
-          reply.status(409).json({
-            type: 'cancelled',
-            state: 'CANCELLED',
-            message: 'Stopped.',
-            runId: admission.run?.runId ?? error.runId,
-            correlationId: identity.correlationId,
-            completedStages: stagesSeen,
-            modelServing:
-              'App-side stream consumption stopped and no replacement invocation was started. ' +
-              'The current model invocation may still finish server-side.',
-          });
-          return;
-        }
-        if (error instanceof TruncatedStreamError && error.stages > 0) {
-          console.error(
-            `[serving] The stream ended after ${error.stages} stage(s). The partial run was kept and no second invocation was started.`
-          );
-          await settleRun(appkit, admission, {
-            to: terminalStateFor('STREAM_INTERRUPTED'),
-            code: 'STREAM_INTERRUPTED',
-          });
-          reply.status(unavailableHttpStatus('STREAM_INTERRUPTED')).json(
-            unavailableResult({
-              code: 'STREAM_INTERRUPTED',
-              requestId: identity.correlationId,
-              runId: admission.run?.runId ?? null,
-              persistence: admission.run ? 'stored' : 'not_stored',
-              executionIdentity: executionIdentityClaim(identity),
-              detail: error.message,
+              detail,
+              // Verbatim, and this is the path the failure the user reported came
+              // down. Everything here describes our own infrastructure -- a
+              // timeout, a socket, a Model Serving 5xx -- so there is nothing to
+              // withhold, and the reader's alternative was "a service this needed
+              // did not respond just now" over a payload that named the endpoint
+              // and quoted its error.
               evidence: agentEndpointEvidence(error, {
                 principal: email,
                 ...(lastStage ? { stage: lastStage } : {}),
@@ -4915,192 +5167,133 @@ export function setupInsightsRoutes(
           );
           return;
         }
-        // First, because an authorization denial and an endpoint that did not
-        // answer send a reader to two different people. Both end in an
-        // unavailable result now, so the ordering no longer decides whether the
-        // demo dataset appears; it decides which sentence and which status the
-        // reader gets, which is the thing it was always for.
-        if (error instanceof AuthorizationRefused) {
-          await settleRun(appkit, admission, { to: terminalStateFor(error.code), code: error.code });
-          reply.status(error.httpStatus).json(
-            unavailableResult({
-              code: error.code,
-              requestId: identity.correlationId,
-              runId: null,
-              persistence: 'not_stored',
-              // What was asked for, and unverified, because the endpoint is the
-              // thing that just declined to confirm it.
-              executionIdentity: refusedIdentityClaim(),
-              detail: error.disclosable,
-              // Built here rather than through `agentEndpointEvidence`, which
-              // forwards the provider's sentence unedited. This is the one path
-              // that may not: for the reason set out on
-              // `AuthorizationRefused.disclosable`, Unity Catalog names the
-              // table, the privilege and its owner, and this body reaches the
-              // person who has just been told they may not read that table.
-              //
-              // The STATUS still travels, and it is the part that resolves the
-              // ambiguity a reader is actually stuck on -- 401 means their
-              // session, 403 means their grants, and those are two different
-              // people to go and see. It names nothing.
-              evidence: {
-                dependency: agentEndpointDependency(),
-                // The endpoint's status, not the taxonomy's. They agree today
-                // and they are different facts, and this panel is the one place
-                // that has to say which one it is quoting.
-                ...(error.providerStatus === undefined ? {} : { status: error.providerStatus }),
-                providerMessage: error.disclosable,
-                principal: email,
-                ...(lastStage ? { stage: lastStage } : {}),
-              },
-            })
-          );
-          return;
-        }
-        const detail = error instanceof Error ? error.message : String(error);
-        console.error(`[serving] The agent endpoint call failed and nothing ran. Cause: ${detail}`);
-        await settleRun(appkit, admission, {
-          to: terminalStateFor('DEPENDENCY_UNAVAILABLE'),
-          code: 'DEPENDENCY_UNAVAILABLE',
-        });
-        reply.status(unavailableHttpStatus('DEPENDENCY_UNAVAILABLE')).json(
-          unavailableResult({
-            code: 'DEPENDENCY_UNAVAILABLE',
-            requestId: identity.correlationId,
-            runId: null,
-            persistence: 'not_stored',
-            executionIdentity: executionIdentityClaim(identity),
-            detail,
-            // Verbatim, and this is the path the failure the user reported came
-            // down. Everything here describes our own infrastructure -- a
-            // timeout, a socket, a Model Serving 5xx -- so there is nothing to
-            // withhold, and the reader's alternative was "a service this needed
-            // did not respond just now" over a payload that named the endpoint
-            // and quoted its error.
-            evidence: agentEndpointEvidence(error, {
-              principal: email,
-              ...(lastStage ? { stage: lastStage } : {}),
-            }),
-          })
-        );
-        return;
-      }
 
-      // Disclosed on the way out rather than only where the fallback is built,
-      // so a stored answer reaching here by any route is covered rather than
-      // whichever ones somebody remembered.
-      const disclosed = discloseExecutingIdentity(
-        withoutUntracedProcess(discloseAnswerProvenance(answer)),
-        ranAsSignedInUser
-      );
-      // Not `safeQuery`, whose contract is that a failed write does not change
-      // the response. It does change this one. This row IS the run: `/api/runs`
-      // derives conversation runs from stored answers, so when the write is lost
-      // the id below names nothing, and "Explore full run" links to a run the
-      // Run Explorer cannot find. That is not a hypothetical. The answer comes
-      // back complete, live and fully traced over HTTP 200, so nothing on screen
-      // suggests anything went wrong until the link is followed.
-      //
-      // The answer is still returned. It is the agent's own work and the user
-      // watched it happen; withholding it because a row was lost would be a
-      // worse trade. What it must not do is claim to be addressable.
-      const persisted = await readStored(
-        appkit,
-        'POST /api/insights/ask (answer)',
-        `INSERT INTO ${APP_SCHEMA}.messages
+        // Disclosed on the way out rather than only where the fallback is built,
+        // so a stored answer reaching here by any route is covered rather than
+        // whichever ones somebody remembered.
+        const disclosed = discloseExecutingIdentity(
+          withoutUntracedProcess(discloseAnswerProvenance(answer)),
+          ranAsSignedInUser
+        );
+        if (replyIfCancelled()) return;
+        // Not `safeQuery`, whose contract is that a failed write does not change
+        // the response. It does change this one. This row IS the run: `/api/runs`
+        // derives conversation runs from stored answers, so when the write is lost
+        // the id below names nothing, and "Explore full run" links to a run the
+        // Run Explorer cannot find. That is not a hypothetical. The answer comes
+        // back complete, live and fully traced over HTTP 200, so nothing on screen
+        // suggests anything went wrong until the link is followed.
+        //
+        // The answer is still returned. It is the agent's own work and the user
+        // watched it happen; withholding it because a row was lost would be a
+        // worse trade. What it must not do is claim to be addressable.
+        const persisted = await readStored(
+          appkit,
+          'POST /api/insights/ask (answer)',
+          `INSERT INTO ${APP_SCHEMA}.messages
          (id, conversation_id, role, content, response_json, trace_id,
           app_principal, serving_principal, serving_principal_observed_at, access_mode,
           execution_mode, execution_identity_verified)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [
-          disclosed.id,
-          conversationId,
-          'assistant',
-          disclosed.narrative,
-          JSON.stringify(withAskRuntime(disclosed, askRuntime)),
-          disclosed.trace.id,
-          // Recorded on the answer rather than on the question, because these
-          // name the authority something RAN under and a question runs nothing.
-          ...executionIdentityColumns(email, executionIdentityClaim(identity)),
-        ]
-      );
-      const runStored = persisted.available && conversationAddressable;
-      if (!runStored) {
-        const cause =
-          (!persisted.available && persisted.error) ||
-          (!conversationWrite.available && conversationWrite.error) ||
-          'the write reported no error';
-        console.error(
-          `[lakebase] The answer to this question was not stored, so run ${disclosed.id} does not ` +
-            'exist for the Run Explorer to open and this turn is absent from the conversation ' +
-            `history. The answer itself was returned. Last error: ${cause}`
+         SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+          WHERE ${outputFenceSql(13, 14)}
+         RETURNING id`,
+          [
+            disclosed.id,
+            conversationId,
+            'assistant',
+            disclosed.narrative,
+            JSON.stringify(withAskRuntime(disclosed, askRuntime)),
+            disclosed.trace.id,
+            // Recorded on the answer rather than on the question, because these
+            // name the authority something RAN under and a question runs nothing.
+            ...executionIdentityColumns(email, executionIdentityClaim(identity)),
+            ...outputFenceParams,
+          ]
         );
-      }
-      // SUCCEEDED only when the answer is addressable. A run marked as having
-      // answered, naming a message that was never written, is a ledger that
-      // disagrees with itself and a replay that finds nothing; PERSISTENCE_FAILED
-      // is the state that says an answer happened and was not kept.
-      await settleRun(
-        appkit,
-        admission,
-        runStored
-          ? { to: 'SUCCEEDED', traceId: disclosed.trace.id, messageId: disclosed.id }
-          : { to: 'PERSISTENCE_FAILED', code: 'PERSISTENCE_UNAVAILABLE', traceId: disclosed.trace.id }
-      );
-      // AFTER the answer is stored, never awaited. A sampled turn is scored
-      // without a Benchmarking click. A failure here must not change the reply.
-      void readBenchmarkSettings(appkit)
-        .then(async (settings) => {
-          const judgeEndpoint = settings.judgeEndpoint.trim();
-          let invokeJudge;
-          if (judgeEndpoint) {
-            const { WorkspaceClient } = await import('@databricks/sdk-experimental');
-            if (!workspaceClient) workspaceClient = new WorkspaceClient({});
-            const client = workspaceClient;
-            invokeJudge = (payload: Record<string, unknown>) =>
-              client.apiClient.request({
-                path: servingInvocationPath(judgeEndpoint),
-                method: 'POST',
-                payload,
-                headers: new Headers({ Accept: 'application/json' }),
-                raw: false,
-              });
-          }
-          const turns = await loadConversationTurns(appkit, conversationId).catch(() => []);
-          scheduleLiveAskScore({
-            client: appkit,
-            settings,
-            invokeJudge,
-            turn: {
-              conversationId,
-              messageId: disclosed.id,
-              traceId: disclosed.trace.id,
-              question: prompt,
-              response: [disclosed.takeaway, disclosed.narrative].filter(Boolean).join('\n'),
-              sql: disclosed.sql ?? '',
-              note: '',
-              durationMs: disclosed.trace.totalMs,
-              context: disclosed.sql ?? '',
-              turns,
-            },
+        const runStored =
+          persisted.available && conversationAddressable && (!hasOutputFence || persisted.rows.length > 0);
+        if (replyIfCancelled()) return;
+        if (!runStored) {
+          const cause =
+            (!persisted.available && persisted.error) ||
+            (!conversationWrite.available && conversationWrite.error) ||
+            'the write reported no error';
+          console.error(
+            `[lakebase] The answer to this question was not stored, so run ${disclosed.id} does not ` +
+              'exist for the Run Explorer to open and this turn is absent from the conversation ' +
+              `history. The answer itself was returned. Last error: ${cause}`
+          );
+        }
+        // SUCCEEDED only when the answer is addressable. A run marked as having
+        // answered, naming a message that was never written, is a ledger that
+        // disagrees with itself and a replay that finds nothing; PERSISTENCE_FAILED
+        // is the state that says an answer happened and was not kept.
+        await settleRun(
+          appkit,
+          admission,
+          runStored
+            ? { to: 'SUCCEEDED', traceId: disclosed.trace.id, messageId: disclosed.id }
+            : { to: 'PERSISTENCE_FAILED', code: 'PERSISTENCE_UNAVAILABLE', traceId: disclosed.trace.id }
+        );
+        // AFTER the answer is stored, never awaited. A sampled turn is scored
+        // without a Benchmarking click. A failure here must not change the reply.
+        void readBenchmarkSettings(appkit)
+          .then(async (settings) => {
+            const judgeEndpoint = settings.judgeEndpoint.trim();
+            let invokeJudge;
+            if (judgeEndpoint) {
+              const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+              if (!workspaceClient) workspaceClient = new WorkspaceClient({});
+              const client = workspaceClient;
+              invokeJudge = (payload: Record<string, unknown>) =>
+                client.apiClient.request({
+                  path: servingInvocationPath(judgeEndpoint),
+                  method: 'POST',
+                  payload,
+                  headers: new Headers({ Accept: 'application/json' }),
+                  raw: false,
+                });
+            }
+            const turns = await loadConversationTurns(appkit, conversationId).catch(() => []);
+            scheduleLiveAskScore({
+              client: appkit,
+              settings,
+              invokeJudge,
+              turn: {
+                conversationId,
+                messageId: disclosed.id,
+                traceId: disclosed.trace.id,
+                question: prompt,
+                response: [disclosed.takeaway, disclosed.narrative].filter(Boolean).join('\n'),
+                sql: disclosed.sql ?? '',
+                note: '',
+                durationMs: disclosed.trace.totalMs,
+                context: disclosed.sql ?? '',
+                turns,
+              },
+            });
+          })
+          .catch((error) => {
+            console.warn('[eval-live-scores] Sampled Ask scoring was not started:', (error as Error).message);
           });
-        })
-        .catch((error) => {
-          console.warn('[eval-live-scores] Sampled Ask scoring was not started:', (error as Error).message);
+        // Reported in the body rather than in a header, because the streaming
+        // caller's headers were flushed before the agent was even invoked, by the
+        // time this is known there is no status line or header left to say it with.
+        // Beside `runStored` rather than inside `disclosed`, because both are
+        // facts this server knows about the request and neither is part of the
+        // agent's answer contract: folding them in would make every stored run
+        // report fields the answer schema does not declare.
+        reply.json({
+          type: 'answer',
+          ...disclosed,
+          runStored,
+          execution_identity: executionIdentityClaim(identity),
         });
-      // Reported in the body rather than in a header, because the streaming
-      // caller's headers were flushed before the agent was even invoked, by the
-      // time this is known there is no status line or header left to say it with.
-      // Beside `runStored` rather than inside `disclosed`, because both are
-      // facts this server knows about the request and neither is part of the
-      // agent's answer contract: folding them in would make every stored run
-      // report fields the answer schema does not declare.
-      reply.json({
-        type: 'answer',
-        ...disclosed,
-        runStored,
-        execution_identity: executionIdentityClaim(identity),
-      });
+      } finally {
+        clearTimeout(deadlineTimer);
+        cancellationWatch?.stop();
+        unregisterCancellation();
+      }
     });
 
     app.get('/api/runs', async (req, res) => {
@@ -5620,6 +5813,10 @@ export function setupInsightsRoutes(
       () => undefined
     );
   }
+  void storeReady.then(
+    () => void startTelemetryHousekeeping(appkit.lakebase),
+    () => undefined
+  );
 
   // Handed back rather than awaited. See the note on this function: awaiting it
   // here would be the cold-start block this arrangement exists to remove.

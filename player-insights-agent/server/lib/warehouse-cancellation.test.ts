@@ -77,7 +77,7 @@ describe('owner cancellation boundary', () => {
     });
 
     expect(cancelled).toEqual(['own-run', 'own-correlation']);
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       matched: 2,
       cancel_requested: 2,
       already_finished_or_raced: 0,
@@ -87,6 +87,7 @@ describe('owner cancellation boundary', () => {
         { query_id: 'own-run', query_status: 'RUNNING', outcome: 'cancel_requested' },
         { query_id: 'own-correlation', query_status: 'RUNNING', outcome: 'cancel_requested' },
       ],
+      coverage: { complete: true, pagesRead: 2, passesRead: 2, reason: 'complete' },
     });
     expect(JSON.stringify(result)).not.toContain(secretSql);
     expect(JSON.stringify(result)).not.toContain('private_player_name');
@@ -130,7 +131,7 @@ describe('admin cancellation boundary', () => {
 });
 
 describe('bounded Query History sweep', () => {
-  it('lists every active status separately, paginates twice, and de-duplicates statement IDs', async () => {
+  it('lists all active statuses together, paginates twice, and de-duplicates statement IDs', async () => {
     const calls: Array<{
       warehouseId: string;
       status: ActiveQueryStatus;
@@ -174,18 +175,134 @@ describe('bounded Query History sweep', () => {
       sleep,
     });
 
-    expect(new Set(calls.map(({ status }) => status))).toEqual(new Set(ACTIVE_QUERY_STATUSES));
-    for (const status of ACTIVE_QUERY_STATUSES) {
-      expect(calls.filter((call) => call.status === status && call.pageToken === undefined)).toHaveLength(2);
-    }
+    expect(calls).toHaveLength(3);
+    expect(calls.every((call) => call.status === 'RUNNING')).toBe(true);
+    expect(
+      calls.every(
+        (call) =>
+          new Set((call as typeof call & { statuses: readonly ActiveQueryStatus[] }).statuses).size ===
+          ACTIVE_QUERY_STATUSES.length
+      )
+    ).toBe(true);
+    expect(calls.filter((call) => call.pageToken === undefined)).toHaveLength(2);
     expect(calls.filter((call) => call.pageToken === 'running-page-2')).toHaveLength(1);
-    expect(calls.every((call) => call.warehouseId === WAREHOUSE && call.maxResults === 999)).toBe(true);
+    expect(calls.every((call) => call.warehouseId === WAREHOUSE && call.maxResults === 100)).toBe(true);
     expect(sleep).toHaveBeenCalledOnce();
     expect(sleep).toHaveBeenCalledWith(500);
     expect(cancelled).toEqual(['first-visible', 'from-page-two', 'late-visible']);
     expect(result.matched).toBe(3);
     expect(result.cancel_requested).toBe(3);
     expect(result.details).toHaveLength(3);
+    expect(result.coverage).toMatchObject({ complete: true, pagesRead: 3, passesRead: 2 });
+  });
+
+  it('caps cancellation history at eight calls for the whole two-pass sweep', async () => {
+    let token = 0;
+    const listQueries = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        res: [],
+        next_page_token: `next-${(token += 1)}`,
+        has_next_page: true,
+      })
+    );
+    const result = await cancelAstrolabeWarehouseQueries({
+      warehouseId: WAREHOUSE,
+      scope: { mode: 'admin' },
+      transport: { listQueries, cancelStatement: () => Promise.resolve() },
+      sleep: () => Promise.resolve(),
+    });
+
+    expect(listQueries).toHaveBeenCalledTimes(8);
+    expect(result.coverage).toMatchObject({
+      complete: false,
+      pagesRead: 8,
+      maxPages: 8,
+      reason: 'page-cap',
+    });
+  });
+
+  it('stops a repeated cursor with partial lookup evidence', async () => {
+    const listQueries = vi.fn().mockResolvedValue({
+      res: [],
+      next_page_token: 'same',
+      has_next_page: true,
+    });
+    const result = await cancelAstrolabeWarehouseQueries({
+      warehouseId: WAREHOUSE,
+      scope: { mode: 'admin' },
+      transport: { listQueries, cancelStatement: () => Promise.resolve() },
+      sleep: () => Promise.resolve(),
+    });
+
+    expect(listQueries).toHaveBeenCalledTimes(2);
+    expect(result.coverage).toMatchObject({
+      complete: false,
+      pagesRead: 2,
+      reason: 'repeated-page-token',
+    });
+  });
+
+  it('shares one deadline across lookup, delay, and statement cancellation', async () => {
+    vi.useFakeTimers();
+    try {
+      const listQueries = vi.fn(
+        ({ signal }: { signal?: AbortSignal }) =>
+          new Promise<never>((_resolve, reject) => {
+            signal?.addEventListener(
+              'abort',
+              () => reject(signal.reason instanceof Error ? signal.reason : new Error('aborted')),
+              { once: true }
+            );
+          })
+      );
+      const pending = cancelAstrolabeWarehouseQueries({
+        warehouseId: WAREHOUSE,
+        scope: { mode: 'admin' },
+        transport: { listQueries, cancelStatement: () => Promise.resolve() },
+        deadlineMs: 5,
+      });
+      await vi.advanceTimersByTimeAsync(5);
+
+      await expect(pending).resolves.toMatchObject({
+        coverage: { complete: false, pagesRead: 0, reason: 'deadline' },
+      });
+      expect((listQueries.mock.calls[0]?.[0] as { signal: AbortSignal }).signal.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops immediately on caller abort and exposes the bounded lookup range', async () => {
+    const controller = new AbortController();
+    const now = Date.parse('2026-08-30T12:00:00Z');
+    const listQueries = vi.fn(
+      ({ signal }: { signal?: AbortSignal }) =>
+        new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => reject(signal.reason instanceof Error ? signal.reason : new Error('aborted')),
+            { once: true }
+          );
+        })
+    );
+    const pending = cancelAstrolabeWarehouseQueries({
+      warehouseId: WAREHOUSE,
+      scope: { mode: 'admin' },
+      transport: { listQueries, cancelStatement: () => Promise.resolve() },
+      signal: controller.signal,
+      now: () => now,
+    });
+    controller.abort(new Error('caller left'));
+    const result = await pending;
+
+    expect(result.coverage).toMatchObject({
+      complete: false,
+      queriedRange: {
+        from: '2026-08-23T12:00:00.000Z',
+        to: '2026-08-30T12:00:00.000Z',
+      },
+      reason: 'caller-abort',
+    });
   });
 });
 
@@ -286,6 +403,8 @@ describe('Databricks low-level transport', () => {
     const page = await transport.listQueries({
       warehouseId: WAREHOUSE,
       status: 'COMPILING',
+      startTimeMs: 1_000,
+      endTimeMs: 2_000,
       pageToken: 'prior+page',
       maxResults: 999,
     });
@@ -302,6 +421,7 @@ describe('Databricks low-level transport', () => {
           filter_by: {
             warehouse_ids: [WAREHOUSE],
             statuses: ['COMPILING'],
+            query_start_time_range: { start_time_ms: 1_000, end_time_ms: 2_000 },
           },
           include_metrics: false,
           max_results: 999,

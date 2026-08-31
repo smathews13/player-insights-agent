@@ -10,6 +10,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { FakeStore } from './__fixtures__/fake-run-store';
+import { acquireLease, cancelOwnedRun, createOrGetRun } from './run-ledger';
 import {
   createStageRecorder,
   readStageEvents,
@@ -219,6 +220,44 @@ describe('recording a run as it happens', () => {
     await recordStageEvent(store, { runId: 'run-2', seq: 1, stage: stage({ id: 'step-9' }) });
 
     await expect(readStageEvents(store, 'run-1')).resolves.toEqual([expect.objectContaining({ id: 'step-1' })]);
+  });
+
+  it('ignores queued and late stages after cancellation invalidates the fence', async () => {
+    const store = new FakeStore();
+    await createOrGetRun(store, {
+      runId: 'run-fenced',
+      userEmail: 'reader@example.com',
+      conversationId: 'conv-1',
+      turnId: 'turn-1',
+      requestHash: 'hash-fenced',
+      idempotencyKeyHash: null,
+      deadlineAt: new Date('2026-08-31T18:00:00Z'),
+      identityModeRequested: 'signed_in_user',
+      releaseIdentity: {},
+      correlationId: 'request-fenced',
+    });
+    const lease = await acquireLease(store, 'run-fenced', 'replica-a', ['RECEIVED']);
+    if (!lease.ok) throw new Error(lease.detail);
+    const controller = new AbortController();
+    const recorder = createStageRecorder(store, 'run-fenced', {
+      fencingToken: lease.value.fencingToken,
+      signal: controller.signal,
+    });
+
+    recorder.record(stage({ id: 'before-stop' }));
+    await recorder.settled();
+    await cancelOwnedRun(store, 'reader@example.com', 'run-fenced');
+    controller.abort();
+    recorder.record(stage({ id: 'after-stop' }));
+    await recordStageEvent(store, {
+      runId: 'run-fenced',
+      seq: 99,
+      stage: stage({ id: 'stale-replica' }),
+      fencingToken: lease.value.fencingToken,
+    });
+    await recorder.settled();
+
+    expect(store.stageEvents.map((event) => (event.payload as { id: string }).id)).toEqual(['before-stop']);
   });
 });
 

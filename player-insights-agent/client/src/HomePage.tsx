@@ -84,7 +84,21 @@ import {
 } from './run-header-labels';
 import { slowestStageName } from './progress-labels';
 import { AskCancelled, AskRefused, AskRunFailed, AskUnreachable, askStreaming } from './ask-stream';
-import { forgetActiveAsk, readActiveAsk, registerActiveAsk, stopActiveAsk } from './ask-cancellation';
+import {
+  activeAskHasHealthyStream,
+  forgetActiveAsk,
+  markActiveAskStreamActivity,
+  markActiveAskStreamOpen,
+  readActiveAsk,
+  registerActiveAsk,
+  stopActiveAsk,
+  subscribeToActiveAskChanges,
+} from './ask-cancellation';
+import {
+  browserActiveRunPollingHost,
+  startAdaptiveActiveRunPolling,
+  type ActiveRunPollingController,
+} from './active-run-polling';
 import { LiveProgress } from './LiveProgress';
 import { railStagesFor, runningElapsed, runningStepNumber } from './live-progress';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
@@ -102,7 +116,12 @@ import { useAgentReadiness } from './agent-readiness';
 import { runStatusFor } from './run-status';
 import { answerRunVerdict, withDisplayedStageStatus } from '../../shared/run-verdict';
 import { RunStatusPill } from './RunStatusPill';
-import { isWorkingConversationRun, readConversationRun, replayedStages } from './conversation-run';
+import {
+  conversationRunStateKey,
+  isWorkingConversationRun,
+  readConversationRun,
+  replayedStages,
+} from './conversation-run';
 import {
   conversationIsLive,
   forgetActiveConversationRun,
@@ -437,6 +456,9 @@ export function HomePage() {
    * The conversation on screen, readable from inside a run that is still going.
    */
   const activeConversationRef = useRef(conversationId);
+  /** The durable recovery loop, nudged by rail navigation without remounting it. */
+  const activeRunPollerRef = useRef<ActiveRunPollingController | null>(null);
+  const previousPolledConversationRef = useRef(conversationId);
   /**
    * The run this conversation has going, read from outside this component.
    *
@@ -461,6 +483,7 @@ export function HomePage() {
    */
   const liveAsk = useLiveAsk(conversationId);
   const activeConversationRun = activeConversationRuns.get(conversationId)?.status ?? null;
+  const activeConversationRunsRef = useRef(activeConversationRuns);
   const liveStages = liveAsk?.stages ?? NO_LIVE_STAGES;
   /**
    * Busy belongs to the conversation on screen, not to this mounted page.
@@ -893,9 +916,17 @@ export function HomePage() {
   /**
    * Follow every durable run, regardless of which conversation is open.
    *
-   * Unmounting clears only this timer. There is intentionally no AbortController
-   * here: the browser has no authority to cancel the server's Model Serving
-   * invocation, and reopening this page creates a fresh status read.
+   * SSE is the primary path. A run this browser is already streaming is omitted
+   * until that stream closes or misses three 15-second heartbeats; polling it as
+   * well used to make 100 duplicate status reads during a 150-second run.
+   *
+   * The durable path starts at 1.5 seconds, then backs off from 2 to 10 seconds
+   * with bounded jitter while nothing visible changes. A stage/state transition
+   * resets it. Hidden tabs have no timer, and visibility, network reconnection,
+   * stream attach/detach, or opening another rail conversation wakes it now.
+   *
+   * There is intentionally no AbortController here: these reads observe work.
+   * Only the explicit Stop path has authority to cancel it.
    */
   const activeConversationRunIds = [...activeConversationRuns]
     .filter(([, run]) => isWorkingConversationRun(run.status))
@@ -903,13 +934,13 @@ export function HomePage() {
     .sort()
     .join('\u0000');
   useEffect(() => {
+    activeConversationRunsRef.current = activeConversationRuns;
+  }, [activeConversationRuns]);
+  useEffect(() => {
     if (!activeConversationRunIds) return;
     let live = true;
-    let timer: number | undefined;
     const runIds = activeConversationRunIds.split('\u0000');
-    const schedule = () => {
-      timer = window.setTimeout(() => void poll(), 1500);
-    };
+    const observed = new Map<string, string>();
     const pollOne = async (runConversationId: string) => {
       try {
         const status = await readConversationRun(runConversationId);
@@ -917,7 +948,10 @@ export function HomePage() {
         // guaranteed to be readable. Null in that admission gap is not a
         // terminal state: settling here exposes the previous turn's Complete
         // or Failed summary until somebody clicks back and forces another read.
-        if (!live || !status) return;
+        if (!live || !status) return 'unchanged' as const;
+        const stateKey = conversationRunStateKey(status);
+        const changed = observed.get(runConversationId) !== stateKey;
+        observed.set(runConversationId, stateKey);
         if (isWorkingConversationRun(status)) {
           updateActiveConversationRuns((current) => trackActiveConversationRun(current, runConversationId, status));
           // The steps the run has taken since the last poll. This is what makes a
@@ -929,7 +963,7 @@ export function HomePage() {
             conversationId: runConversationId,
             stages: replayedStages(status),
           });
-          return;
+          return changed ? ('changed' as const) : ('unchanged' as const);
         }
         // A proposed plan is parked on the person, not running. It has no
         // terminal answer summary to wait for and performs no work while the
@@ -941,14 +975,16 @@ export function HomePage() {
             settleActiveConversationRun(current, runConversationId, status, null)
           );
           endLiveAsk(runConversationId);
-          return;
+          return 'stop' as const;
         }
         // Keep Live until the terminal summary for THIS run is readable. A
         // missing/error response, or the previous turn's stale summary, is not
         // evidence that the run ended.
         const summaries = await loadRunSummaries();
-        if (!live) return;
-        if (!terminalConversationRunSummary(status, summaries.get(runConversationId) ?? null)) return;
+        if (!live) return 'stop' as const;
+        if (!terminalConversationRunSummary(status, summaries.get(runConversationId) ?? null)) {
+          return changed ? ('changed' as const) : ('unchanged' as const);
+        }
         // The status row and its stages are the only data that can change while
         // work is in flight. The transcript includes every stored response JSON;
         // rereading and replacing that whole list every 1.5 seconds made a long
@@ -960,7 +996,7 @@ export function HomePage() {
             : null;
         if (response?.ok) {
           const stored = (await response.json()) as ConversationMessage[];
-          if (!live || activeConversationRef.current !== runConversationId) return;
+          if (!live || activeConversationRef.current !== runConversationId) return 'stop' as const;
           setMessages(stored);
           setFeedback(feedbackFromStored(stored));
         }
@@ -976,21 +1012,37 @@ export function HomePage() {
           settleActiveConversationRun(current, runConversationId, status, summaries.get(runConversationId) ?? null)
         );
         endLiveAsk(runConversationId);
+        return 'stop' as const;
       } catch {
         // A transient status-read failure is not evidence that the server work
-        // stopped. Keep the working state; the shared timer retries it.
+        // stopped. Keep the working state; adaptive fallback retries it.
+        return 'unchanged' as const;
       }
     };
-    const poll = async () => {
-      await Promise.all(runIds.map((id) => pollOne(id)));
-      if (live) schedule();
-    };
-    schedule();
+    const controller = startAdaptiveActiveRunPolling({
+      targets: () =>
+        runIds.map((id) => ({
+          conversationId: id,
+          shouldPoll: !activeAskHasHealthyStream(id, activeConversationRunsRef.current.get(id)?.status.run_id ?? ''),
+        })),
+      poll: pollOne,
+      host: browserActiveRunPollingHost(),
+    });
+    activeRunPollerRef.current = controller;
+    const unsubscribeStreams = subscribeToActiveAskChanges(() => controller.wake());
     return () => {
       live = false;
-      if (timer !== undefined) window.clearTimeout(timer);
+      unsubscribeStreams();
+      controller.stop();
+      if (activeRunPollerRef.current === controller) activeRunPollerRef.current = null;
     };
   }, [activeConversationRunIds, loadRunSummaries]);
+
+  useEffect(() => {
+    if (previousPolledConversationRef.current === conversationId) return;
+    previousPolledConversationRef.current = conversationId;
+    activeRunPollerRef.current?.wake();
+  }, [conversationId]);
 
   /**
    * The rail, in one round trip rather than two.
@@ -1209,6 +1261,11 @@ export function HomePage() {
       correlationId: '',
       controller,
       stopRequested: false,
+      stream: {
+        state: 'connecting' as const,
+        openedAt: null,
+        lastActivityAt: null,
+      },
     };
     registerActiveAsk(currentAsk);
     try {
@@ -1258,6 +1315,13 @@ export function HomePage() {
           // change is about.
           onOpen: () => {
             openLiveAsk(runConversationId);
+            markActiveAskStreamOpen(currentAsk);
+          },
+          // Includes the 15-second SSE keep-alive comments, so a connected but
+          // quiet model call remains primary and a silent dead stream falls
+          // back to durable polling after the bounded stale window.
+          onActivity: () => {
+            markActiveAskStreamActivity(currentAsk);
           },
         },
         fetch,

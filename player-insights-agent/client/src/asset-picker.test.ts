@@ -174,10 +174,10 @@ describe('the drill-down chain', () => {
   });
 
   it('adds a page token to a route that already has a query', () => {
-    expect(browsePageUrl('tables', { catalog: 'a', schema: 'b' }, 'tok/1')).toBe(
-      '/api/browse/tables?catalog=a&schema=b&page_token=tok%2F1'
+    expect(browsePageUrl('tables', { catalog: 'a', schema: 'b' }, 'tok/1', 2)).toBe(
+      '/api/browse/tables?catalog=a&schema=b&page_token=tok%2F1&page=2'
     );
-    expect(browsePageUrl('catalogs', PICKER_TOP, 'tok')).toBe('/api/browse/catalogs?page_token=tok');
+    expect(browsePageUrl('catalogs', PICKER_TOP, 'tok', 3)).toBe('/api/browse/catalogs?page_token=tok&page=3');
   });
 });
 

@@ -169,15 +169,22 @@ async function stageQuery(
  */
 export async function recordStageEvent(
   store: LakebaseReader,
-  input: { runId: string; seq: number; stage: Record<string, unknown> },
+  input: { runId: string; seq: number; stage: Record<string, unknown>; fencingToken?: number },
   reporter: { reported: boolean } = { reported: false }
 ): Promise<boolean> {
+  const fenced = input.fencingToken !== undefined;
   const rows = await stageQuery(
     store,
     reporter,
     'stage append',
     `INSERT INTO ${APP_SCHEMA}.run_events (run_id, seq, event_id, event_type, stage, payload)
-     VALUES ($1,$2,$3,$4,$5,$6::jsonb)
+     SELECT $1,$2,$3,$4,$5,$6::jsonb
+      WHERE ${
+        fenced
+          ? `EXISTS (SELECT 1 FROM ${APP_SCHEMA}.runs
+                       WHERE run_id = $1 AND fencing_token = $7 AND completed_at IS NULL)`
+          : 'TRUE'
+      }
      ON CONFLICT (run_id, seq) DO NOTHING
      RETURNING seq`,
     [
@@ -187,6 +194,7 @@ export async function recordStageEvent(
       STAGE_EVENT_TYPE,
       stageLabel(input.stage),
       JSON.stringify(stageEventPayload(input.stage)),
+      ...(fenced ? [input.fencingToken] : []),
     ]
   );
   return rows !== null;
@@ -260,7 +268,11 @@ export interface StageRecorder {
  * happened in that order. The sequence is allocated on the calling side of the
  * chain so a slow write cannot renumber the steps behind it.
  */
-export function createStageRecorder(store: LakebaseReader, runId: string): StageRecorder {
+export function createStageRecorder(
+  store: LakebaseReader,
+  runId: string,
+  options: { fencingToken?: number; signal?: AbortSignal } = {}
+): StageRecorder {
   // Shared across every append of this run, so an unreadable table is described
   // once rather than once per step.
   const reporter = { reported: false };
@@ -268,9 +280,15 @@ export function createStageRecorder(store: LakebaseReader, runId: string): Stage
   let tail: Promise<void> = Promise.resolve();
   return {
     record(stage) {
+      if (options.signal?.aborted) return;
       seq += 1;
       const at = seq;
-      tail = tail.then(() => recordStageEvent(store, { runId, seq: at, stage }, reporter)).then(() => undefined);
+      tail = tail
+        .then(async () => {
+          if (options.signal?.aborted) return;
+          await recordStageEvent(store, { runId, seq: at, stage, fencingToken: options.fencingToken }, reporter);
+        })
+        .then(() => undefined);
     },
     settled: () => tail,
   };

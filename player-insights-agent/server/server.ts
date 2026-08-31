@@ -1,6 +1,7 @@
 import { createApp, lakebase, server } from '@databricks/appkit';
 import { lakebasePoolSettings } from './lib/lakebase-pool';
 import { preserveOwnedAppSchema } from './lib/app-schema-bootstrap';
+import { requestLatencyShutdown } from './lib/request-latency-shutdown';
 
 // The serving() plugin is deliberately NOT registered. Its invoke path runs the
 // request body through two allowlists that drop unknown keys (the plugin's own
@@ -17,7 +18,7 @@ import { preserveOwnedAppSchema } from './lib/app-schema-bootstrap';
 // That timeout is applied per session by the read funnel instead — see
 // lib/lakebase-pool.ts.
 createApp({
-  plugins: [lakebase({ pool: lakebasePoolSettings() }), server()],
+  plugins: [lakebase({ pool: lakebasePoolSettings() }), requestLatencyShutdown(), server()],
   async onPluginsReady(appkit) {
     // Git replaces app.yaml, including a bundle release's private schema value,
     // but keeps the App identity and its Postgres ownership. Resolve that owned
@@ -76,6 +77,7 @@ createApp({
     const { storeReady } = await setupInsightsRoutes(appkit, {
       rolesReady: () =>
         readiness.roles ?? Promise.reject(new Error('Role bootstrap was requested before it was scheduled.')),
+      onRequestLatencyRecorder: (recorder) => appkit.requestLatencyShutdown.setRecorder(recorder),
     });
     readiness.roles = storeReady
       .then(() => bootstrapSeedRoles(appkit.lakebase))

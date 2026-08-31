@@ -38,13 +38,20 @@ describe('Ops Query History attribution', () => {
       transport: { listQueries },
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       complete: true,
       astrolabeQueries: 2,
       totalQueries: 3,
       astrolabeExecutionMs: 125,
       totalExecutionMs: 200,
       genieSpaces: [],
+      coverage: {
+        state: 'complete',
+        rowsRead: 3,
+        pagesRead: 2,
+        chunksRead: 1,
+        reasons: [],
+      },
     });
     expect(listQueries).toHaveBeenNthCalledWith(
       2,
@@ -97,6 +104,7 @@ describe('Ops Query History attribution', () => {
       endTimeMs: 2_000,
       pageToken: 'next',
       maxResults: 999,
+      signal: new AbortController().signal,
     });
 
     expect(request).toHaveBeenCalledWith(
@@ -135,13 +143,14 @@ describe('Ops Query History attribution', () => {
       transport: { listQueries },
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       complete: true,
       astrolabeQueries: 2,
       totalQueries: 3,
       astrolabeExecutionMs: 40,
       totalExecutionMs: 60,
       genieSpaces: [],
+      coverage: { state: 'complete', pagesRead: 3, chunksRead: 3, reasons: [] },
     });
     expect(listQueries).toHaveBeenCalledTimes(3);
     const first = listQueries.mock.calls[0]?.[0] as { startTimeMs: number; endTimeMs: number };
@@ -203,5 +212,153 @@ describe('Ops Query History attribution', () => {
       { spaceId: 'space-data', queries: 2, executionMs: 50 },
       { spaceId: 'space-dictionary', queries: 1, executionMs: 10 },
     ]);
+  });
+
+  it('stops on a repeated next-page token and returns the rows already evidenced as partial', async () => {
+    const listQueries = vi.fn().mockResolvedValue({
+      res: [row('same', 10, 'Astrolabe')],
+      next_page_token: 'loop',
+      has_next_page: true,
+    });
+    const result = await readWarehouseQueryAttribution({
+      warehouseId: 'warehouse-1',
+      startTimeMs: 1_000,
+      endTimeMs: 2_000,
+      transport: { listQueries },
+    });
+
+    expect(listQueries).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      complete: false,
+      totalQueries: 1,
+      coverage: { state: 'partial', pagesRead: 2, rowsRead: 2, reasons: ['repeated-page-token'] },
+    });
+  });
+
+  it('enforces one page cap across every cursor and date chunk', async () => {
+    let token = 0;
+    const listQueries = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        res: [row(`row-${token}`, 1)],
+        next_page_token: `page-${(token += 1)}`,
+        has_next_page: true,
+      })
+    );
+    const result = await readWarehouseQueryAttribution({
+      warehouseId: 'warehouse-1',
+      startTimeMs: 1_000,
+      endTimeMs: 2_000,
+      transport: { listQueries },
+      maxPages: 3,
+    });
+
+    expect(listQueries).toHaveBeenCalledTimes(3);
+    expect(result.coverage).toMatchObject({ state: 'partial', pagesRead: 3, reasons: ['page-cap'] });
+  });
+
+  it('uses one deadline for the operation and aborts a hanging page immediately', async () => {
+    vi.useFakeTimers();
+    try {
+      const listQueries = vi.fn(
+        ({ signal }: { signal?: AbortSignal }) =>
+          new Promise<never>((_resolve, reject) => {
+            signal?.addEventListener(
+              'abort',
+              () => reject(signal.reason instanceof Error ? signal.reason : new Error('aborted')),
+              { once: true }
+            );
+          })
+      );
+      const pending = readWarehouseQueryAttribution({
+        warehouseId: 'warehouse-1',
+        startTimeMs: 1_000,
+        endTimeMs: 2_000,
+        transport: { listQueries },
+        deadlineMs: 5,
+      });
+      await vi.advanceTimersByTimeAsync(5);
+
+      await expect(pending).resolves.toMatchObject({
+        complete: false,
+        coverage: { state: 'partial', pagesRead: 0, reasons: ['deadline'] },
+      });
+      expect((listQueries.mock.calls[0]?.[0] as { signal: AbortSignal }).signal.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops immediately when its caller aborts', async () => {
+    const controller = new AbortController();
+    const listQueries = vi.fn(
+      ({ signal }: { signal?: AbortSignal }) =>
+        new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => reject(signal.reason instanceof Error ? signal.reason : new Error('aborted')),
+            { once: true }
+          );
+        })
+    );
+    const pending = readWarehouseQueryAttribution({
+      warehouseId: 'warehouse-1',
+      startTimeMs: 1_000,
+      endTimeMs: 2_000,
+      transport: { listQueries },
+      signal: controller.signal,
+    });
+    controller.abort(new Error('caller stopped'));
+
+    await expect(pending).resolves.toMatchObject({
+      complete: false,
+      coverage: { state: 'partial', pagesRead: 0, reasons: ['caller-abort'] },
+    });
+  });
+
+  it('clamps an all-time request to bounded chunks and never calls the older range complete', async () => {
+    const now = Date.parse('2026-08-30T23:59:59.999Z');
+    const listQueries = vi.fn().mockResolvedValue({ res: [], has_next_page: false });
+    const result = await readWarehouseQueryAttribution({
+      warehouseId: 'warehouse-1',
+      startTimeMs: 0,
+      endTimeMs: now,
+      transport: { listQueries },
+      now: () => now,
+    });
+
+    expect(result.coverage).toMatchObject({
+      state: 'partial',
+      pagesRead: 13,
+      chunksRead: 13,
+      reasons: ['range-clamped'],
+    });
+    expect(listQueries).toHaveBeenCalledTimes(13);
+    const first = listQueries.mock.calls[0]?.[0] as { startTimeMs: number };
+    expect(first.startTimeMs).toBeGreaterThan(0);
+  });
+
+  it('aggregates large pages as they arrive and retains no raw private fields in the result', async () => {
+    const pages = Array.from({ length: 3 }, (_, page) =>
+      Array.from({ length: 999 }, (_, index) => row(`${page}-${index}`, 1, index % 2 ? '' : 'Astrolabe'))
+    );
+    const listQueries = vi
+      .fn()
+      .mockResolvedValueOnce({ res: pages[0], next_page_token: 'two', has_next_page: true })
+      .mockResolvedValueOnce({ res: pages[1], next_page_token: 'three', has_next_page: true })
+      .mockResolvedValueOnce({ res: pages[2], has_next_page: false });
+    const result = await readWarehouseQueryAttribution({
+      warehouseId: 'warehouse-1',
+      startTimeMs: 1_000,
+      endTimeMs: 2_000,
+      transport: { listQueries },
+    });
+
+    expect(result).toMatchObject({
+      complete: true,
+      totalQueries: 2_997,
+      totalExecutionMs: 2_997,
+      coverage: { state: 'complete', rowsRead: 2_997, pagesRead: 3 },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/query_text|executed_as_user_name|private_table/);
   });
 });

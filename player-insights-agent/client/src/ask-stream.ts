@@ -23,6 +23,8 @@ export interface AskStreamHandlers {
    * The route accepted the question and opened the stream.
    */
   onOpen?(): void;
+  /** Any complete SSE block, including the server's keep-alive comments. */
+  onActivity?(): void;
 }
 
 export interface AskStreamResult {
@@ -140,7 +142,8 @@ export class AskCancelled extends Error {
 /** Splits an SSE stream into `{ event, data }` pairs across chunk boundaries. */
 async function* readEvents(
   body: ReadableStream<Uint8Array>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onActivity?: () => void
 ): AsyncGenerator<{ event: string; data: string }> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -159,6 +162,7 @@ async function* readEvents(
       while (boundary !== -1) {
         const block = buffer.slice(0, boundary);
         buffer = buffer.slice(boundary).replace(/^\r?\n\r?\n/, '');
+        onActivity?.();
         let event = 'message';
         const data: string[] = [];
         for (const line of block.split(/\r?\n/)) {
@@ -246,8 +250,9 @@ export async function askStreaming(
   handlers.onOpen?.();
 
   let completed = 0;
+  const reportActivity = () => handlers.onActivity?.();
   try {
-    for await (const { event, data } of readEvents(response.body, signal)) {
+    for await (const { event, data } of readEvents(response.body, signal, reportActivity)) {
       if (event === 'stage') {
         let parsed: unknown;
         try {
@@ -269,23 +274,23 @@ export async function askStreaming(
       }
       if (event === 'result') return { body: JSON.parse(data), streamed: true, correlationId };
       if (event === 'error') {
-      /**
-       * THE BUG THIS BRANCH USED TO BE. `AskResponder.json` writes the terminal
-       * payload as `event: error` whenever the status is 4xx or 5xx and the
-       * stream is already open -- and once headers are flushed, every refusal
-       * takes that route. So the full `UnavailableResult`, with the failure
-       * code, the provider's status and sentence, the correlation id and the
-       * executing identity, arrived here and was reduced to its `message`
-       * string by `readMessage` and rethrown as a run that stopped.
-       *
-       * The caller then relabelled it: a stopped run is shown as
-       * STREAM_INTERRUPTED, which is retryable. A reader denied SELECT on a
-       * table was therefore told the connection had dropped and offered a
-       * "Try again" button that could only ever deny them again -- and the
-       * correlation id they would have needed to get it fixed was discarded on
-       * this line. Streaming is what the browser asks for, so this was the
-       * normal path and the non-streaming one below was the one that worked.
-       */
+        /**
+         * THE BUG THIS BRANCH USED TO BE. `AskResponder.json` writes the terminal
+         * payload as `event: error` whenever the status is 4xx or 5xx and the
+         * stream is already open -- and once headers are flushed, every refusal
+         * takes that route. So the full `UnavailableResult`, with the failure
+         * code, the provider's status and sentence, the correlation id and the
+         * executing identity, arrived here and was reduced to its `message`
+         * string by `readMessage` and rethrown as a run that stopped.
+         *
+         * The caller then relabelled it: a stopped run is shown as
+         * STREAM_INTERRUPTED, which is retryable. A reader denied SELECT on a
+         * table was therefore told the connection had dropped and offered a
+         * "Try again" button that could only ever deny them again -- and the
+         * correlation id they would have needed to get it fixed was discarded on
+         * this line. Streaming is what the browser asks for, so this was the
+         * normal path and the non-streaming one below was the one that worked.
+         */
         let parsed: unknown = null;
         try {
           parsed = JSON.parse(data);
@@ -296,8 +301,7 @@ export async function askStreaming(
         if (
           parsed &&
           typeof parsed === 'object' &&
-          ((parsed as { type?: unknown }).type === 'cancelled' ||
-            (parsed as { state?: unknown }).state === 'CANCELLED')
+          ((parsed as { type?: unknown }).type === 'cancelled' || (parsed as { state?: unknown }).state === 'CANCELLED')
         ) {
           throw new AskCancelled(correlationId, completed);
         }

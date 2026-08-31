@@ -13,6 +13,7 @@
 
 import { SP_IDENTITY_MINTING_UNAVAILABLE, type SpMintingStatus, type SpPersona } from '../../shared/sp-identity';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
+import { ExpiringLruCache } from './expiring-lru';
 
 export interface SpSecretReader {
   (scope: string, key: string): Promise<string | null>;
@@ -38,7 +39,9 @@ interface CachedToken {
   expiresAtMs: number;
 }
 
-const tokenCache = new Map<string, CachedToken>();
+export const SP_TOKEN_CACHE_MAX_ENTRIES = 256;
+export const SP_TOKEN_CACHE_MAX_TTL_MS = 24 * 60 * 60_000;
+const tokenCache = new ExpiringLruCache<CachedToken>(SP_TOKEN_CACHE_MAX_ENTRIES, SP_TOKEN_CACHE_MAX_TTL_MS);
 /** Refresh this many ms before the issuer's expiry, so a slow call still lands. */
 const EXPIRY_SKEW_MS = 60_000;
 const DEFAULT_EXPIRES_IN = 3600;
@@ -140,8 +143,9 @@ export async function mintPersonaToken(
   if (!minting.available) return { ok: false, reason: minting.detail };
 
   const now = deps.now ?? Date.now;
-  const cached = tokenCache.get(persona.id);
-  if (cached && cached.expiresAtMs - EXPIRY_SKEW_MS > now()) {
+  const checkedAt = now();
+  const cached = tokenCache.get(persona.id, checkedAt);
+  if (cached && cached.expiresAtMs - EXPIRY_SKEW_MS > checkedAt) {
     return { ok: true, token: cached.token };
   }
 
@@ -163,10 +167,14 @@ export async function mintPersonaToken(
       };
     }
     const minted = await exchange({ host, clientId: persona.clientId, clientSecret: secret });
-    tokenCache.set(persona.id, {
-      token: minted.token,
-      expiresAtMs: now() + Math.max(minted.expiresInSeconds, 60) * 1000,
-    });
+    const storedAt = now();
+    const expiresAtMs = storedAt + Math.max(minted.expiresInSeconds, 60) * 1000;
+    tokenCache.set(
+      persona.id,
+      { token: minted.token, expiresAtMs },
+      storedAt,
+      Math.min(SP_TOKEN_CACHE_MAX_TTL_MS, Math.max(0, expiresAtMs - EXPIRY_SKEW_MS - storedAt))
+    );
     return { ok: true, token: minted.token };
   } catch (error) {
     const message = (error as Error).message || 'The token exchange failed.';
@@ -174,8 +182,7 @@ export async function mintPersonaToken(
       return {
         ok: false,
         reason:
-          `The app could not mint a token for ${persona.displayName}: ${message} ` +
-          SP_IDENTITY_MINTING_UNAVAILABLE,
+          `The app could not mint a token for ${persona.displayName}: ${message} ` + SP_IDENTITY_MINTING_UNAVAILABLE,
       };
     }
     return {

@@ -129,6 +129,36 @@ export interface CostHonesty {
   currencyConsistent: boolean;
 }
 
+export type QueryHistoryCoverageReason =
+  | 'invalid-range'
+  | 'range-clamped'
+  | 'page-cap'
+  | 'repeated-page-token'
+  | 'missing-page-token'
+  | 'deadline'
+  | 'caller-abort'
+  | 'transport-error'
+  | 'invalid-row'
+  | 'unexpected-warehouse'
+  | 'missing-execution-time';
+
+/**
+ * What the Query History read actually established.
+ *
+ * A partial range can still carry useful counts, but it can never be used as a
+ * cost denominator. Timestamps are ISO strings so the API payload is directly
+ * inspectable without knowing the server clock representation.
+ */
+export interface QueryHistoryCoverage {
+  state: 'complete' | 'partial' | 'unavailable';
+  requestedRange: { from: string; to: string } | null;
+  queriedRange: { from: string; to: string } | null;
+  rowsRead: number;
+  pagesRead: number;
+  chunksRead: number;
+  reasons: QueryHistoryCoverageReason[];
+}
+
 export interface CostTile {
   id: string;
   /** What it is, in the reader's words. */
@@ -196,6 +226,8 @@ export interface CostTile {
     astrolabeQueries: number | null;
     warehouseQueries?: number | null;
     queryHistoryComplete?: boolean;
+    /** Exact read bounds and any reason the SQL denominator was withheld. */
+    queryHistoryCoverage?: QueryHistoryCoverage;
     /**
      * Calls explicitly tagged with this exact resource id, and all observed
      * calls of the same tool. A smaller numerator means older telemetry or
@@ -546,6 +578,12 @@ export interface TrafficBar {
   count: number;
 }
 
+/** Whether raw and rolled telemetry cover the observed days without a hole. */
+export interface TelemetryCoverage {
+  state: 'complete' | 'partial' | 'unavailable';
+  missingDays: number;
+}
+
 export interface OpsTrafficPayload {
   readAt: string;
   /** '' or the storage-failure sentence, which replaces the block. */
@@ -600,6 +638,10 @@ export interface OpsTrafficPayload {
   toolCalls: TrafficBar[];
   /** Runs that ended in the range, whatever they ended as. */
   runsInRange: number;
+  /** Complete-day period the traffic reads actually used. */
+  range?: OpsDayRange;
+  /** Coverage of raw plus durable activity rollups. */
+  activityCoverage?: TelemetryCoverage;
 }
 
 /* ── Latency, from the spans this file used to say did not exist ─────────── */
@@ -698,6 +740,10 @@ export interface OpsLatencyPayload {
    */
   coveredFrom: string;
   coveredTo: string;
+  /** Complete-day period the latency read actually used. */
+  range?: OpsDayRange;
+  /** Coverage of raw plus durable request-latency rollups. */
+  coverage?: TelemetryCoverage;
 }
 
 /* ── The window all three blocks are read over ───────────────────────────── */

@@ -1179,6 +1179,7 @@ function genieSpaceTiles(
         billingRows: hasAllocation ? billingRows : null,
         astrolabeQueries: null,
         queryHistoryComplete: warehouseAttribution.complete,
+        queryHistoryCoverage: warehouseAttribution.coverage,
         activity: measured
           ? { calls: measured.calls, observedCalls: measured.observedCalls, unit: 'requests' as const }
           : null,
@@ -1298,6 +1299,7 @@ function componentTile(
       ? {
           warehouseQueries: warehouseAttribution.totalQueries,
           queryHistoryComplete: warehouseAttribution.complete,
+          queryHistoryCoverage: warehouseAttribution.coverage,
         }
       : {}),
     ...(component === 'vector-search'

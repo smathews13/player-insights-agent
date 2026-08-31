@@ -2,10 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   conditioningFor,
+  GRANT_CACHE_MAX_ENTRIES,
   GRANT_CACHE_TTL_MS,
+  PERSON_PRIVILEGE_CACHE_MAX_ENTRIES,
+  PERSON_PRIVILEGE_TTL_MS,
   readTableGrant,
   resetGrantCache,
   resolveGrants,
+  TABLE_POLICY_CACHE_MAX_ENTRIES,
   unresolvedGrants,
 } from './monitoring-grants';
 import type { TableVerdict, VerificationOutcome } from '../routes/access-verification';
@@ -109,8 +113,7 @@ describe('what a missing grant conditions', () => {
 describe('resolving the grants once per admin per range', () => {
   it('probes the range\u2019s tables once and reuses the answer', async () => {
     const verify = vi.fn(
-      (): Promise<VerificationOutcome> =>
-        Promise.resolve({ verdicts: [denied(TABLE)], ok: 0, denied: 1, errored: 0 })
+      (): Promise<VerificationOutcome> => Promise.resolve({ verdicts: [denied(TABLE)], ok: 0, denied: 1, errored: 0 })
     );
     const key = { admin: 'admin@example.test', window: 'w1' };
     const options = { key, tables: [TABLE], probe: () => Promise.resolve({ ok: true as const }), verify, now: 0 };
@@ -125,8 +128,7 @@ describe('resolving the grants once per admin per range', () => {
 
   it('re-probes when the range changes', async () => {
     const verify = vi.fn(
-      (): Promise<VerificationOutcome> =>
-        Promise.resolve({ verdicts: [ok(TABLE)], ok: 1, denied: 0, errored: 0 })
+      (): Promise<VerificationOutcome> => Promise.resolve({ verdicts: [ok(TABLE)], ok: 1, denied: 0, errored: 0 })
     );
     const shared = { tables: [TABLE], probe: () => Promise.resolve({ ok: true as const }), verify, now: 0 };
 
@@ -138,8 +140,7 @@ describe('resolving the grants once per admin per range', () => {
 
   it('keeps one admin\u2019s answer out of another\u2019s', async () => {
     const verify = vi.fn(
-      (): Promise<VerificationOutcome> =>
-        Promise.resolve({ verdicts: [ok(TABLE)], ok: 1, denied: 0, errored: 0 })
+      (): Promise<VerificationOutcome> => Promise.resolve({ verdicts: [ok(TABLE)], ok: 1, denied: 0, errored: 0 })
     );
     const shared = { tables: [TABLE], probe: () => Promise.resolve({ ok: true as const }), verify, now: 0 };
 
@@ -151,8 +152,7 @@ describe('resolving the grants once per admin per range', () => {
 
   it('reads again once the entry has expired', async () => {
     const verify = vi.fn(
-      (): Promise<VerificationOutcome> =>
-        Promise.resolve({ verdicts: [ok(TABLE)], ok: 1, denied: 0, errored: 0 })
+      (): Promise<VerificationOutcome> => Promise.resolve({ verdicts: [ok(TABLE)], ok: 1, denied: 0, errored: 0 })
     );
     const shared = {
       key: { admin: 'a@example.test', window: 'w1' },
@@ -165,6 +165,21 @@ describe('resolving the grants once per admin per range', () => {
     await resolveGrants({ ...shared, now: GRANT_CACHE_TTL_MS + 1 });
 
     expect(verify).toHaveBeenCalledTimes(2);
+  });
+
+  it('evicts the least recently used grant range at the global maximum', async () => {
+    const verify = vi.fn(
+      (): Promise<VerificationOutcome> => Promise.resolve({ verdicts: [ok(TABLE)], ok: 1, denied: 0, errored: 0 })
+    );
+    const shared = { tables: [TABLE], probe: () => Promise.resolve({ ok: true as const }), verify, now: 0 };
+    for (let index = 0; index < GRANT_CACHE_MAX_ENTRIES; index += 1) {
+      await resolveGrants({ ...shared, key: { admin: `admin-${index}@example.test`, window: 'w1' } });
+    }
+    await resolveGrants({ ...shared, key: { admin: 'admin-0@example.test', window: 'w1' } });
+    await resolveGrants({ ...shared, key: { admin: 'overflow@example.test', window: 'w1' } });
+    await resolveGrants({ ...shared, key: { admin: 'admin-1@example.test', window: 'w1' } });
+
+    expect(verify).toHaveBeenCalledTimes(GRANT_CACHE_MAX_ENTRIES + 2);
   });
 
   /**
@@ -357,7 +372,7 @@ describe('the per-user grants read answers null rather than guessing', () => {
  * The two halves are held differently on purpose, and the split is the thing
  * being pinned. A row filter belongs to the TABLE, so one reading serves
  * everybody and is held ten minutes. A privilege belongs to the PERSON, so it
- * is held sixty seconds and keyed by who was asked about.
+ * is held thirty seconds and keyed by who was asked about.
  */
 describe('what the per-person read reuses, and whose', () => {
   const READS_IT = {
@@ -396,17 +411,17 @@ describe('what the per-person read reuses, and whose', () => {
     expect(second.canRead).toBe(true);
   });
 
-  it('reuses one person\u2019s privileges for a minute and then asks again', async () => {
+  it('reuses one person\u2019s privileges only for the safe TTL and then asks again', async () => {
     const uc = workspace(() => READS_IT);
 
     await readTableGrant(uc.read, TABLE, 'first.person@example.test', 1_000);
-    await readTableGrant(uc.read, TABLE, 'first.person@example.test', 30_000);
+    await readTableGrant(uc.read, TABLE, 'first.person@example.test', PERSON_PRIVILEGE_TTL_MS);
     expect(uc.asked).toHaveLength(1);
 
-    // Sixty seconds is the whole of the window. A grant revoked while an admin
+    // The TTL is the whole of the window. A grant revoked while an admin
     // is reading has to stop being reported as held, and this is what bounds
     // how long "held" can outlive the truth.
-    await readTableGrant(uc.read, TABLE, 'first.person@example.test', 61_001);
+    await readTableGrant(uc.read, TABLE, 'first.person@example.test', 1_000 + PERSON_PRIVILEGE_TTL_MS);
     expect(uc.asked).toHaveLength(2);
   });
 
@@ -422,5 +437,41 @@ describe('what the per-person read reuses, and whose', () => {
     expect(first.canRead).toBeNull();
     expect(second.canRead).toBeNull();
     expect(uc.asked).toHaveLength(2);
+  });
+
+  it('bounds high-cardinality person privilege readings globally', async () => {
+    const asked: string[] = [];
+    const read = (path: string, query?: Record<string, string>) => {
+      if (!path.includes('effective-permissions')) return Promise.resolve({ columns: [] });
+      const principal = query?.principal ?? '';
+      asked.push(principal);
+      return Promise.resolve({ privilege_assignments: [{ principal, privileges: ['SELECT'] }] });
+    };
+
+    for (let index = 0; index <= PERSON_PRIVILEGE_CACHE_MAX_ENTRIES; index += 1) {
+      await readTableGrant(read, TABLE, `person-${index}@example.test`, 0);
+    }
+    await readTableGrant(read, TABLE, 'person-0@example.test', 1);
+
+    expect(asked).toHaveLength(PERSON_PRIVILEGE_CACHE_MAX_ENTRIES + 2);
+  });
+
+  it('bounds high-cardinality table policy readings globally', async () => {
+    const policyReads: string[] = [];
+    const principal = 'first.person@example.test';
+    const read = (path: string) => {
+      if (path.includes('effective-permissions')) {
+        return Promise.resolve({ privilege_assignments: [{ principal, privileges: ['SELECT'] }] });
+      }
+      policyReads.push(path);
+      return Promise.resolve({ columns: [] });
+    };
+
+    for (let index = 0; index <= TABLE_POLICY_CACHE_MAX_ENTRIES; index += 1) {
+      await readTableGrant(read, `catalog.schema.table_${index}`, principal, 0);
+    }
+    await readTableGrant(read, 'catalog.schema.table_0', principal, 1);
+
+    expect(policyReads).toHaveLength(TABLE_POLICY_CACHE_MAX_ENTRIES + 2);
   });
 });

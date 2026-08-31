@@ -669,7 +669,7 @@ describe('the inspector while a run is still going', () => {
       HOME_PAGE.indexOf('The rail, in one round trip rather than two')
     );
     const statusRead = reconnect.indexOf('readConversationRun(');
-    const admissionGap = reconnect.indexOf('if (!live || !status) return;');
+    const admissionGap = reconnect.indexOf("if (!live || !status) return 'unchanged' as const;");
     const workingCheck = reconnect.indexOf('isWorkingConversationRun(status)');
     const transcriptRead = reconnect.indexOf('/messages');
 
@@ -679,7 +679,9 @@ describe('the inspector while a run is still going', () => {
     expect(workingCheck).toBeGreaterThan(statusRead);
     expect(transcriptRead).toBeGreaterThan(workingCheck);
     expect(reconnect.match(/\/messages/g)).toHaveLength(1);
-    expect(reconnect).toContain('Promise.all(runIds.map((id) => pollOne(id)))');
+    expect(reconnect).toContain('startAdaptiveActiveRunPolling');
+    expect(reconnect).toContain('shouldPoll: !activeAskHasHealthyStream(');
+    expect(reconnect).toContain('subscribeToActiveAskChanges(() => controller.wake())');
     expect(reconnect).toContain('const summaries = await loadRunSummaries()');
     expect(reconnect).toContain('terminalConversationRunSummary(status, summaries.get(runConversationId) ?? null)');
   });
