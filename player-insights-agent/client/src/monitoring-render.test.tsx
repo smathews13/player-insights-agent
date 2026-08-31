@@ -179,7 +179,7 @@ describe('the summary strip', () => {
     expect(markup).toContain('aria-label="Refused: 11"');
     expect(markup).toContain('aria-label="Failed: 7"');
     expect(rendered).toContain('Completed 190 Partial 6 Refused 11 Failed 7');
-    expect(rendered).toContain('214 terminal outcomes');
+    expect(rendered).toContain('214 finished questions');
     expect(rendered).not.toContain('sum to questions asked');
     // 11 refused + 7 failed. The page must never show the two added up.
     expect(rendered).not.toMatch(/\b18\b/);
@@ -206,7 +206,7 @@ describe('the summary strip', () => {
 
     expect(rendered).toContain('Submitted in this period');
     expect(rendered).toContain('Distinct conversation threads');
-    expect(rendered).toContain('214 terminal outcomes');
+    expect(rendered).toContain('214 finished questions');
     expect(rendered).toContain('36 of 46 rated answers');
     expect(rendered).toContain('Over 214 of 214 runs');
   });
@@ -239,7 +239,34 @@ describe('the summary strip', () => {
     for (const label of ['Completed', 'Partial', 'Refused', 'Failed']) {
       expect(markup).toContain(`aria-label="${label}: 0"`);
     }
-    expect(text(markup)).toContain('0 terminal outcomes');
+    expect(text(markup)).toContain('0 finished questions');
+  });
+
+  it.each([
+    {
+      label: 'zero',
+      counts: { questionsAsked: 0, completed: 0, partial: 0, refused: 0, failed: 0 },
+      expected: '0 finished questions',
+    },
+    {
+      label: 'one',
+      counts: { questionsAsked: 1, completed: 0, partial: 1, refused: 0, failed: 0 },
+      expected: '1 finished question',
+    },
+    {
+      label: 'many',
+      counts: { questionsAsked: 214, completed: 190, partial: 6, refused: 11, failed: 7 },
+      expected: '214 finished questions',
+    },
+  ])('renders plain finished-question copy for $label outcomes', ({ counts, expected }) => {
+    const rendered = text(
+      render(
+        <SummaryStrip payload={payload({ summary: { ...payload().summary, ...counts } })} rangeLabel="last 7 days" />
+      )
+    );
+
+    expect(rendered).toContain(expected);
+    expect(rendered).not.toContain('terminal outcome');
   });
 
   it('keeps large grouped outcome values associated with their labels', () => {

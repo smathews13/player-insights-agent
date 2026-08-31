@@ -187,7 +187,7 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
         res.status(400).json({ error: 'invalid_roster_email', detail: invalid });
         return;
       }
-      await setRole(req, res, normalizeAdminEmail(parsed.data.email), parsed.data.role);
+      await setRole(req, res, normalizeAdminEmail(parsed.data.email), parsed.data.role, true);
     });
 
     /**
@@ -217,9 +217,8 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
       const actor = userEmail(req);
       const seed = seedRoles();
       let rows: StoredRole[];
-      let roleColumnPresent: boolean;
       try {
-        ({ rows, roleColumnPresent } = await readRosterForRequest(appkit.lakebase, req));
+        ({ rows } = await readRosterForRequest(appkit.lakebase, req));
       } catch (error) {
         console.error('[admin] The roster could not be read, so no removal was attempted:', (error as Error).message);
         res.status(503).json({
@@ -247,7 +246,7 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
           subject: email,
           detail: `${actor} removed ${email} from this deployment's roster, held as ${ROLE_WORD[from].toLowerCase()}.`,
         });
-        await replyWithRoster(req, res, appkit.lakebase, actor, roleColumnPresent);
+        await replyWithRoster(req, res, appkit.lakebase, actor);
       } catch (error) {
         console.error(`[admin] ${email} could not be removed:`, (error as Error).message);
         res.status(503).json({ error: 'roster_store_unavailable', detail: 'Nobody was removed.' });
@@ -262,7 +261,7 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
      * once would otherwise both pass a check made in a browser and leave the
      * deployment with none.
      */
-    async function setRole(req: Request, res: Response, email: string, role: string) {
+    async function setRole(req: Request, res: Response, email: string, role: string, allowMissingConsumer = false) {
       const actor = userEmail(req);
       const seed = seedRoles();
       let rows: StoredRole[];
@@ -279,7 +278,14 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
         });
         return;
       }
-      const refusal = roleChangeRefusal({ email, role, seed, stored: rows, roleColumnPresent });
+      const refusal = roleChangeRefusal({
+        email,
+        role,
+        seed,
+        stored: rows,
+        roleColumnPresent,
+        allowMissingConsumer,
+      });
       if (refusal) {
         refuse(res, refusal);
         return;
@@ -287,8 +293,10 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
       // Safe: roleChangeRefusal answered 'unknown-role' for anything else.
       const to = role as Role;
       const from = effectiveRole({ seed, stored: rows, email });
+      let roleStored = false;
       try {
         await writeRole(appkit.lakebase, { email, role: to, actor, roleColumnPresent });
+        roleStored = true;
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: 'role-changed',
@@ -296,9 +304,16 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
           detail: roleChangeSentence({ actor, email, from, to }),
         });
         await withdrawOnDemotion({ req, store: appkit.lakebase, email, actor, from, to });
-        await replyWithRoster(req, res, appkit.lakebase, actor, roleColumnPresent);
+        await replyWithRoster(req, res, appkit.lakebase, actor);
       } catch (error) {
         console.error(`[admin] ${email} could not be set to ${role}:`, (error as Error).message);
+        if (roleStored) {
+          res.status(503).json({
+            error: 'roster_confirmation_unavailable',
+            detail: 'Lakebase saved the request but could not confirm the roster. Reload before retrying.',
+          });
+          return;
+        }
         res.status(503).json({
           error: 'roster_store_unavailable',
           detail:
@@ -315,21 +330,18 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
      * store now holds it. A payload assembled from what the handler believed it wrote
      * is a payload that agrees with the handler rather than with the database.
      */
-    async function replyWithRoster(
-      req: Request,
-      res: Response,
-      store: AdminStore,
-      reader: string,
-      roleColumnPresent: boolean
-    ) {
-      const after = await read(store, req);
+    async function replyWithRoster(req: Request, res: Response, store: AdminStore, reader: string) {
+      // Mutation replies may not degrade to the read route's seed-only payload.
+      // A 200 here means Lakebase confirmed the exact row the browser will draw.
+      const after = await readRosterForRequest(store, req);
       const payload: RosterPayload = rosterPayload({
         seed: seedRoles(),
         stored: after.rows,
-        storedRosterReadable: after.readable,
-        roleColumnPresent: after.readable ? after.roleColumnPresent : roleColumnPresent,
+        storedRosterReadable: true,
+        roleColumnPresent: after.roleColumnPresent,
         reader,
       });
+      payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
       res.json(payload);
     }
   });

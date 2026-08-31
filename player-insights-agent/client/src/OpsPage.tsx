@@ -649,9 +649,6 @@ export function CostBody({
             <div className="ops-cost-summary-grid">
               <CostSpendSummary payload={payload} unit={unit} />
               <div className="ops-cost-summary-box">
-                <div className="ops-cost-summary-head">
-                  <span>App budget</span>
-                </div>
                 <CostTotalBudget />
               </div>
               <CostResourceBudgets tiles={displayed} />

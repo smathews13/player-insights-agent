@@ -759,17 +759,21 @@ export function TableEntityList({
       <ul>
         {items.map((table) => (
           <li key={table.name}>
-            <span className="entity-table-list-name">
+            <span className="entity-table-list-name" title={table.name} aria-label={`Table ${table.name}`} tabIndex={0}>
               <EntityText text={table.name} sources={[{ name: table.name }]} />
             </span>
-            {table.metadata.map((metadata) => (
-              <span
-                className="ast-pill ast-pill--neutral-outline entity-table-list-meta"
-                key={`${table.name}-${metadata}`}
-              >
-                {metadata}
+            {table.metadata.length > 0 ? (
+              <span className="entity-table-list-metadata" aria-label={`Metadata for ${table.name}`}>
+                {table.metadata.map((metadata) => (
+                  <span
+                    className="ast-pill ast-pill--neutral-outline entity-table-list-meta"
+                    key={`${table.name}-${metadata}`}
+                  >
+                    {metadata}
+                  </span>
+                ))}
               </span>
-            ))}
+            ) : null}
           </li>
         ))}
       </ul>

@@ -196,7 +196,7 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).not.toContain('ops-period-pill');
     expect(markup).toContain('How totals are calculated');
     expect(markup).toContain('Daily questions × observed serving cost per question');
-    const helpers = [...markup.matchAll(/class="ops-forecast-assumption-evidence">([^<]*)<\/small>/g)].map(
+    const helpers = [...markup.matchAll(/class="ops-ticker-assumption-helper">([^<]*)<\/small>/g)].map(
       (match) => match[1]
     );
     expect(helpers).toHaveLength(4);
@@ -355,7 +355,7 @@ describe('Forecasting visibility and placement', () => {
     expect(markup.match(/Active-minute/g)).toHaveLength(1);
     expect(OPS_CSS).toMatch(/\.ops-methodology-rows > div\s*\{[\s\S]*grid-template-columns:/);
     expect(OPS_CSS).toMatch(
-      /\.ops-forecast-assumption-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(min\(12rem,\s*100%\),\s*13\.5rem\)\)/
+      /\.ops-ticker-assumption-grid\s*\{[^}]*grid-template-columns:\s*repeat\(var\(--ops-assumption-columns\),\s*minmax\(0,\s*1fr\)\)/
     );
     expect(OPS_CSS).toMatch(
       /\.ops-number-ticker\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*7rem\)\s+20px[^}]*width:\s*min\(100%,\s*8\.25rem\)/

@@ -66,7 +66,8 @@ function panel(fields: Partial<TraceStage> & { id: string }): string {
 
 /** The rendered half of a panel, so a Raw assertion cannot pass on the argument block. */
 function result(markup: string): string {
-  return markup.slice(markup.indexOf('<dt>Result</dt>'));
+  const start = markup.indexOf('aria-label="Result payload"');
+  return markup.slice(start);
 }
 
 const DATA_GENIE = [
@@ -241,9 +242,11 @@ describe('a data_genie step', () => {
     expect(result(grid)).toContain('<th scope="col">label</th>');
   });
 
-  it('keeps Raw showing the payload as recorded, with its own size on the segment', () => {
-    expect(markup).toContain('aria-label="How to show this result"');
-    expect(markup).toMatch(/aria-pressed="false" title="8 lines · \d+ characters">Raw · 8 lines</);
+  it('keeps Raw available beside the payload size in the Result header', () => {
+    const pane = result(markup);
+    expect(pane).toContain('aria-label="How to show result"');
+    expect(pane).toMatch(/trace-payload-size">8 lines · \d+ characters/);
+    expect(pane).toContain('aria-pressed="false">Raw</button>');
   });
 });
 
@@ -544,7 +547,7 @@ describe('a search_semantics step', () => {
   });
 
   it('labels the row for what the step did, and the filter as a chip beside it', () => {
-    expect(markup).toContain('<dt>Searched for</dt>');
+    expect(markup).toContain('aria-label="Arguments payload"');
     expect(markup).toContain('tables only');
   });
 
@@ -557,7 +560,10 @@ describe('a search_semantics step', () => {
       input: '{"question": "How many distinct player_id values are in silver_player_profiles?"}',
       output: DATA_GENIE,
     });
-    const question = asked.slice(asked.indexOf('<dt>Asked</dt>'), asked.indexOf('<dt>Result</dt>'));
+    const question = asked.slice(
+      asked.indexOf('aria-label="Arguments payload"'),
+      asked.indexOf('aria-label="Result payload"')
+    );
     expect(question).toContain('<code class="dag-name-chip" title="player_id">player_id</code>');
     expect(question).toContain(
       '<code class="dag-name-chip" title="silver_player_profiles">silver_player_profiles</code>'
@@ -665,7 +671,7 @@ describe('an agent step that wrote up its findings', () => {
   });
 
   it('names the row for what the step was given', () => {
-    expect(markup).toContain('<dt>Worked from</dt>');
+    expect(markup).toContain('aria-label="Arguments payload"');
     expect(markup).toContain('Evidence gathered so far');
   });
 
@@ -677,7 +683,7 @@ describe('an agent step that wrote up its findings', () => {
 
   it('does not crash or blank on a payload that is only markup-looking characters', () => {
     const odd = panel({ id: 'step-1-agent', kind: 'agent', output: '**** `` - - -\n\nNote:' });
-    expect(odd).toContain('<dt>Result</dt>');
+    expect(odd).toContain('aria-label="Result payload"');
     expect(odd.length).toBeGreaterThan(200);
   });
 });

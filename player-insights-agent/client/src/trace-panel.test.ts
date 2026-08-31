@@ -37,14 +37,14 @@ function functionSource(source: string, name: string): string {
   return source.slice(start, end === -1 ? undefined : end);
 }
 
-describe('the run process panel opens without being asked', () => {
-  it('defaults to open, from a literal rather than from anything stored', () => {
-    // A remembered preference is deliberately absent. The panel shipped shut, so
-    // every reader who has already used it has a stored "shut" to their name, and
-    // reading it back would hide the panel from exactly the people who asked for
-    // it to be visible.
-    expect(CARD).toMatch(/const \[showProcess, setShowProcess] = useState\(true\)/);
-    expect(CARD).toContain('<Collapsible open={showProcess} onOpenChange={setShowProcess}>');
+describe('the run process panel follows its surface', () => {
+  it('defaults dedicated process views open and Ask answers closed', () => {
+    expect(CARD).toContain('defaultRunProcessOpen = true');
+    expect(CARD).toContain('readRunProcessPreference(runProcessPreferenceKey) ?? defaultRunProcessOpen');
+    expect(HOME).toContain('defaultRunProcessOpen={false}');
+    expect(HOME).toContain('runProcessPreferenceKey={message.id}');
+    expect(MONITORING).not.toContain('defaultRunProcessOpen={false}');
+    expect(CARD).toContain('<Collapsible open={showProcess} onOpenChange={changeProcessVisibility}>');
   });
 
   it('keeps the control, and says which way it will go', () => {

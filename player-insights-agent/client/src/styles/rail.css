@@ -865,18 +865,14 @@
 }
 
 /* Admin-only owner picker. It stays one row wide no matter how many people the
-   rail contains; the options overlay the conversation cards instead of pushing
-   them below the fold. */
+   rail contains; the options use AppKit's portalled Popover rather than becoming
+   descendants of either rail scroller. That is what lets the menu flip at the
+   viewport edge instead of being clipped by the desktop rail or the mobile sheet. */
 .conversation-owner-select {
   position: relative;
-  isolation: isolate;
   width: 100%;
   min-width: 0;
   margin: 0 0 8px;
-}
-
-.conversation-owner-select[data-open='true'] {
-  z-index: 60;
 }
 
 .conversation-owner-trigger {
@@ -923,16 +919,21 @@
 }
 
 .conversation-owner-menu {
-  position: absolute;
-  z-index: 1;
+  /*
+   * AppKit's Popover portals this element to the document and its positioning
+   * wrapper owns top/left plus bottom-edge flipping. These Radix variables keep
+   * the foreground exactly as wide as its rail trigger and cap it to the
+   * collision space left on whichever side won.
+   */
+  z-index: 90;
   isolation: isolate;
-  top: calc(100% + 4px);
-  left: 0;
-  width: 100%;
+  width: var(--radix-popover-trigger-width);
   min-width: 0;
-  max-height: min(280px, 50vh);
+  max-width: calc(100vw - 16px);
+  max-height: min(280px, var(--radix-popover-content-available-height));
   padding: 4px;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   border: 1px solid var(--db-line-strong);

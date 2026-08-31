@@ -86,7 +86,8 @@ const CLEAN: BenchmarkMetrics = {
 };
 
 function ledgerMarkup(status: string, metrics: BenchmarkMetrics | null): string {
-  return renderToStaticMarkup(<BenchmarkLedger qualifications={benchmarkQualifications(benchmarkSummary(status, metrics))} />
+  return renderToStaticMarkup(
+    <BenchmarkLedger qualifications={benchmarkQualifications(benchmarkSummary(status, metrics))} />
   );
 }
 
@@ -96,7 +97,11 @@ function tileMarkup(status: string, metrics: BenchmarkMetrics | null, hasRun = t
 
 /** Markup with the tags taken out, which is how a reader meets a sentence. */
 function readable(markup: string): string {
-  return markup.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ');
+  return markup
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ');
 }
 
 describe('the qualification ledger, rendered', () => {
@@ -268,9 +273,9 @@ describe('the figure tiles, rendered', () => {
 
   it('prints a dash for a figure the run did not record', () => {
     // A plausible number standing in for a missing one is the defect this screen
-    // was rebuilt around. "Not reported" is a fact about the run.
+    // was rebuilt around. "Not recorded" is a fact about the run.
     const prose = readable(tileMarkup('complete', { passed: 3, total: 3 }));
-    expect(prose).toContain('Not reported');
+    expect(prose).toContain('Not recorded');
     expect(prose).toContain('Not recorded by this run');
   });
 });
@@ -370,12 +375,51 @@ describe('the per-case panel, rendered', () => {
    */
   const CASES: BenchmarkMetrics = {
     cases: [
-      { caseId: 'top-titles', question: 'Which titles led on active players?', outcome: 'passed', durationMs: 21_400, note: 'Every judge that applied said yes.' },
-      { caseId: 'churn-risk', question: 'Which cohorts are at risk of churning?', outcome: 'failed', durationMs: 18_900, note: 'The groundedness judge said no.' },
-      { caseId: 'access-boundary', question: 'Show me another studio’s revenue.', outcome: 'errored', errorStage: 'identity', durationMs: 4_100, note: 'The agent refused this turn rather than answering it. Recorded as unscored, not as a failure.' },
-      { caseId: 'ambiguous-window', question: 'How did we do recently?', outcome: 'clarified', durationMs: 6_200, note: 'The agent asked a question back instead of answering.' },
-      { caseId: 'late-case', question: 'Which platform grew fastest?', outcome: 'errored', errorStage: 'budget', durationMs: null, note: 'The suite ran out of time before this case started.' },
-      { caseId: 'no-answer', question: 'What drove the weekend spike?', outcome: 'errored', errorStage: 'agent', durationMs: 31_000, note: 'The agent produced no answer, so nothing was scored.' },
+      {
+        caseId: 'top-titles',
+        question: 'Which titles led on active players?',
+        outcome: 'passed',
+        durationMs: 21_400,
+        note: 'Every judge that applied said yes.',
+      },
+      {
+        caseId: 'churn-risk',
+        question: 'Which cohorts are at risk of churning?',
+        outcome: 'failed',
+        durationMs: 18_900,
+        note: 'The groundedness judge said no.',
+      },
+      {
+        caseId: 'access-boundary',
+        question: 'Show me another studio’s revenue.',
+        outcome: 'errored',
+        errorStage: 'identity',
+        durationMs: 4_100,
+        note: 'The agent refused this turn rather than answering it. Recorded as unscored, not as a failure.',
+      },
+      {
+        caseId: 'ambiguous-window',
+        question: 'How did we do recently?',
+        outcome: 'clarified',
+        durationMs: 6_200,
+        note: 'The agent asked a question back instead of answering.',
+      },
+      {
+        caseId: 'late-case',
+        question: 'Which platform grew fastest?',
+        outcome: 'errored',
+        errorStage: 'budget',
+        durationMs: null,
+        note: 'The suite ran out of time before this case started.',
+      },
+      {
+        caseId: 'no-answer',
+        question: 'What drove the weekend spike?',
+        outcome: 'errored',
+        errorStage: 'agent',
+        durationMs: 31_000,
+        note: 'The agent produced no answer, so nothing was scored.',
+      },
     ],
   };
 
@@ -416,7 +460,7 @@ describe('the per-case panel, rendered', () => {
 
   it('says a duration is absent rather than printing a zero for it', () => {
     const never = markup.slice(markup.indexOf('late-case'));
-    expect(readable(never)).toContain('Not reported');
+    expect(readable(never)).toContain('Not recorded');
     expect(readable(never)).not.toContain('0.0s');
   });
 

@@ -6,6 +6,76 @@ import { identityName } from './user-identity';
 /** Withheld owner on a shared benchmark run. Not a username that has runs. */
 const SHARED_RUN_OWNER = 'Another team member';
 
+/**
+ * Run ids are opaque, but they are still identifiers rather than arbitrary URL
+ * payloads. This accepts the UUID/run_* forms the stores use while rejecting
+ * empty, path-like, whitespace, and unreasonably large query values before they
+ * can become a detail request.
+ */
+const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
+
+export function validRunId(value: string | null): value is string {
+  return typeof value === 'string' && RUN_ID.test(value);
+}
+
+export type RunSelection =
+  | { state: 'empty'; run: null; automaticRunId: null }
+  | { state: 'invalid'; run: null; automaticRunId: null }
+  | { state: 'selected'; run: Run; automaticRunId: string | null };
+
+/**
+ * Resolve the detail pane from the address bar and the healthy run list.
+ *
+ * A named run is authoritative: if it is invalid or has disappeared, the page
+ * does not silently substitute a different run. With no `run` parameter, the
+ * conversation deep link picks its newest run and the ordinary entry picks the
+ * newest run overall; callers replace the URL with that automatic choice.
+ */
+export function resolveRunSelection(
+  runs: readonly Run[],
+  requestedRunId: string | null,
+  requestedConversationId: string | null
+): RunSelection {
+  if (runs.length === 0) return { state: 'empty', run: null, automaticRunId: null };
+  if (requestedRunId !== null) {
+    if (!validRunId(requestedRunId)) return { state: 'invalid', run: null, automaticRunId: null };
+    const requested = runs.find((run) => run.id === requestedRunId);
+    return requested
+      ? { state: 'selected', run: requested, automaticRunId: null }
+      : { state: 'invalid', run: null, automaticRunId: null };
+  }
+  const automatic =
+    (requestedConversationId ? runs.find((run) => run.conversation_id === requestedConversationId) : undefined) ??
+    runs[0];
+  return { state: 'selected', run: automatic, automaticRunId: automatic.id };
+}
+
+/** Change only `run`; filters, conversation context, and unrelated deep-link data survive. */
+export function searchWithRun(search: URLSearchParams, runId: string): URLSearchParams {
+  const next = new URLSearchParams(search);
+  next.set('run', runId);
+  return next;
+}
+
+export type RunDetailMode = 'loading' | 'empty' | 'invalid' | 'missing' | 'error' | 'ready';
+
+/** One exhaustive state for the whole detail pane, rather than per-widget guesses. */
+export function runDetailMode(input: {
+  listLoading: boolean;
+  listOrigin: 'stored' | 'empty' | 'unavailable' | null;
+  selection: RunSelection['state'];
+  trace: 'idle' | 'loading' | 'ready' | 'missing' | 'error';
+}): RunDetailMode {
+  if (input.listLoading) return 'loading';
+  if (input.listOrigin === 'unavailable') return 'error';
+  if (input.selection === 'empty') return 'empty';
+  if (input.selection === 'invalid') return 'invalid';
+  if (input.trace === 'missing') return 'missing';
+  if (input.trace === 'error') return 'error';
+  if (input.trace === 'ready') return 'ready';
+  return 'loading';
+}
+
 function isDataWork(stage: TraceStage): boolean {
   return stage.kind === 'tool' || /data.source.finder|\bsql\b/i.test(`${stage.id} ${stage.name}`);
 }

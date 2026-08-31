@@ -10,6 +10,15 @@ import { kickWarehouseWarmup } from './warehouse-warmup';
 import { applyColorScheme, DEFAULT_COLOR_SCHEME } from './color-scheme';
 import { useRuntimeEntityStyles } from './runtime-entity-styles';
 import { startActivityHeartbeat } from './activity-heartbeat';
+import { RouteFallback } from './RouteFallback';
+import {
+  loadArchitecturePage,
+  loadBenchmarkLab,
+  loadConnectionsPage,
+  loadMonitoringPage,
+  loadOpsPage,
+  loadRunExplorer,
+} from './lazy-routes';
 
 /**
  * The six pages that are fetched when somebody opens them, not when the app
@@ -33,33 +42,12 @@ import { startActivityHeartbeat } from './activity-heartbeat';
  * BenchmarkLab is referenced here BY PATH ONLY and its contents are somebody
  * else's work in flight; this file must not be the reason that file changes.
  */
-const ArchitecturePage = lazy(() =>
-  import('./ArchitecturePage').then((loaded) => ({ default: loaded.ArchitecturePage }))
-);
-const BenchmarkLab = lazy(() => import('./BenchmarkLab').then((loaded) => ({ default: loaded.BenchmarkLab })));
-const ConnectionsPage = lazy(() => import('./ConnectionsPage').then((loaded) => ({ default: loaded.ConnectionsPage })));
-const MonitoringPage = lazy(() => import('./MonitoringPage').then((loaded) => ({ default: loaded.MonitoringPage })));
-const OpsPage = lazy(() => import('./OpsPage').then((loaded) => ({ default: loaded.OpsPage })));
-const RunExplorer = lazy(() => import('./RunExplorer').then((loaded) => ({ default: loaded.RunExplorer })));
-
-/**
- * What is on screen for the few milliseconds a page's own chunk is in flight.
- *
- * AN EMPTY PAGE SHELL AND NOTHING ELSE, on purpose. Every page this wraps has
- * just been built to a design, and a fallback with a heading, a spinner or a
- * skeleton grid would draw a DIFFERENT layout and then replace it -- which reads
- * as the page loading twice and is worse than the third of a second it saves.
- * `.page-shell` is the same grid container each of these pages opens with, so
- * the only thing that happens when the real page arrives is that content
- * appears inside a box that was already the right shape.
- *
- * `aria-busy` rather than a live region: a screen reader is told the region is
- * working, without an announcement that would be superseded before it finished
- * being read.
- */
-function RouteFallback() {
-  return <div className="page-shell" data-testid="route-loading" aria-busy="true" />;
-}
+const ArchitecturePage = lazy(() => loadArchitecturePage().then((loaded) => ({ default: loaded.ArchitecturePage })));
+const BenchmarkLab = lazy(() => loadBenchmarkLab().then((loaded) => ({ default: loaded.BenchmarkLab })));
+const ConnectionsPage = lazy(() => loadConnectionsPage().then((loaded) => ({ default: loaded.ConnectionsPage })));
+const MonitoringPage = lazy(() => loadMonitoringPage().then((loaded) => ({ default: loaded.MonitoringPage })));
+const OpsPage = lazy(() => loadOpsPage().then((loaded) => ({ default: loaded.OpsPage })));
+const RunExplorer = lazy(() => loadRunExplorer().then((loaded) => ({ default: loaded.RunExplorer })));
 
 /**
  * One Suspense boundary per route rather than one around the router.

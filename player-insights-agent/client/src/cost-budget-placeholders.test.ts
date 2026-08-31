@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { budgetPlaceholder, costSpendSummary } from './cost-budget-view';
+import { budgetPlaceholder, costSpendSummary, resourceBudgetBaseline } from './cost-budget-view';
 import type { CostTile, OpsCostPayload } from '../../shared/ops-contract';
 
 function tile(overrides: Partial<CostTile>): CostTile {
@@ -45,6 +45,17 @@ describe('cost budget placeholders', () => {
 
   it('does not invent a baseline for an unavailable unit', () => {
     expect(budgetPlaceholder({ USD: 8, DBU: null }, 'DBU')).toBe('');
+  });
+
+  it('withholds unavailable and partial USD baselines while preserving measured DBUs', () => {
+    const partial = tile({
+      amount: 9,
+      dbus: 3,
+      pricing: { ...tile({}).pricing!, match: 'partial' },
+    });
+    expect(resourceBudgetBaseline(partial, 'USD')).toBeNull();
+    expect(resourceBudgetBaseline(partial, 'DBU')).toBe(3);
+    expect(resourceBudgetBaseline(tile({ amount: null, dbus: null }), 'USD')).toBeNull();
   });
 
   it('uses mutually exclusive SQL and Genie allocations, each tile basis, and the selected unit', () => {

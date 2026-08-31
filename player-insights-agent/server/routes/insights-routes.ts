@@ -143,6 +143,7 @@ import {
 import { createAskResponder } from '../lib/ask-responder';
 import { allowAstrolabeUserApiScopes } from '../lib/app-user-api-scopes';
 import { isOptionalUserApiScope } from '../../shared/optional-user-api-scopes';
+import { readControlPlaneIdentityMetadata, type ControlPlaneReader } from '../lib/control-plane-identity';
 import {
   accessDecisionFor,
   accessModeFor,
@@ -3296,6 +3297,8 @@ export function setupInsightsRoutes(
     rolesReady?: () => Promise<void>;
     appSessionConfig?: IdleTimeoutConfig;
     onRequestLatencyRecorder?: (recorder: ReturnType<typeof requestLatencyRecorder>) => void;
+    /** Test seam; production reads the Databricks control plane as the app SP. */
+    identityControlPlaneReader?: ControlPlaneReader;
   } = {}
 ): Promise<{ storeReady: Promise<void> }> {
   // BEFORE `prepareStore`, not after, and that ordering is load-bearing rather
@@ -3409,8 +3412,15 @@ export function setupInsightsRoutes(
      * so this cannot start failing on a Lakebase outage.
      */
     app.get('/api/identity', async (req, res) => {
-      const role = await rolePayload(appkit.lakebase, userEmail(req));
-      const spIdentity = await describeSpIdentity(req, appkit);
+      const signedInAs = userEmail(req);
+      const [role, spIdentity, identityMetadata] = await Promise.all([
+        rolePayload(appkit.lakebase, signedInAs),
+        describeSpIdentity(req, appkit),
+        readControlPlaneIdentityMetadata(
+          { email: signedInAs },
+          options.identityControlPlaneReader ? { read: options.identityControlPlaneReader } : {}
+        ),
+      ]);
       res.json({
         ...identityPayload(req),
         // The deployment switch never widens a consumer. The browser receives
@@ -3420,6 +3430,7 @@ export function setupInsightsRoutes(
         sharedConversationRail: sharedRail.shared && opensAdminSurfaces(role.role),
         ...role,
         spIdentity,
+        identityMetadata,
       });
     });
 

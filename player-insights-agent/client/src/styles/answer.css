@@ -115,6 +115,9 @@
 }
 .entity-table-list {
   min-width: 0;
+  max-width: 100%;
+  container-name: entity-table-list;
+  container-type: inline-size;
 }
 .entity-table-list-count,
 .entity-table-list-empty {
@@ -125,26 +128,81 @@
 }
 .entity-table-list ul {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px 10px;
   margin: 6px 0 0;
   padding: 0;
   list-style: none;
 }
 .entity-table-list li {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: 5px 7px;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   font-size: var(--ast-fs-12);
   line-height: var(--ast-lh-body);
 }
 .entity-table-list-name {
+  display: block;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.entity-table-list-name:focus-visible {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
+}
+.entity-table-list-name .entity-table,
+.entity-table-list-name .entity-table-mark {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.entity-table-list-name .entity-token {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Preserve the object segment longest. Qualifiers give way first when a full
+   three-part name has to fit inside one safe card. */
+.entity-table-list-name .entity-catalog {
+  flex: 0 8 auto;
+}
+.entity-table-list-name .entity-schema {
+  flex: 0 5 auto;
+}
+.entity-table-list-name .entity-table {
+  flex: 1 1 auto;
+}
+.entity-table-list-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
 }
 .entity-table-list-meta {
-  flex: none;
+  flex: 0 1 auto;
+  max-width: 100%;
   color: var(--ast-text-secondary);
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+/* Two cards only after each can retain the 23rem minimum used by the trace
+   renderer. At screenshot and desktop widths this is two columns; narrower
+   panels stay one column instead of crushing names and metadata together. */
+@container entity-table-list (min-width: 47rem) {
+  .entity-table-list ul {
+    grid-template-columns: repeat(2, minmax(23rem, 1fr));
+  }
 }
 .answer-card .provenance-chip {
   color: var(--ast-entity-tag-fg);

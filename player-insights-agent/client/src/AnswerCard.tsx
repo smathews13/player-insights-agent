@@ -49,6 +49,7 @@ import type { Answer, FeedbackEntry } from './app-types';
 import { StateSwitch } from './StateSwitch';
 import { SqlCodeBlocks } from './SqlPresentation';
 import { AIAnalysisCaveat } from './AIAnalysisCaveat';
+import { readRunProcessPreference, writeRunProcessPreference } from './run-process-preference';
 
 /** Shared by Ask and Monitoring, which mounts this same answer card. */
 export function AnswerSql({ sql }: { sql: string }) {
@@ -73,6 +74,8 @@ export function AnswerCard({
   saveFeedback,
   showFeedback,
   showRunProcess = true,
+  defaultRunProcessOpen = true,
+  runProcessPreferenceKey,
   processStages,
   afterEvidence,
   headerExtra,
@@ -104,6 +107,20 @@ export function AnswerCard({
    */
   showRunProcess?: boolean;
   /**
+   * Whether this surface opens the finished run timeline on first sight.
+   *
+   * Dedicated process surfaces leave this true. Ask passes false because the
+   * answer is the primary content there and the process is supporting detail.
+   */
+  defaultRunProcessOpen?: boolean;
+  /**
+   * Session-scoped identity for an explicit open/closed choice.
+   *
+   * Ask passes the message id so a reader can inspect one answer without
+   * expanding every answer in a conversation. Dedicated surfaces omit it.
+   */
+  runProcessPreferenceKey?: string;
+  /**
    * Steps the page already has when the stored answer does not.
    *
    * The prose-only path used to persist an empty trace over a run the stream
@@ -132,13 +149,13 @@ export function AnswerCard({
   const [advanced, setAdvanced] = useState(false);
   /** Which thumb this answer's rating lights, or neither. See stored-feedback.ts. */
   const rated = ratedThumb(feedback.usefulness);
-  /**
-   * Open, because a reader who wanted the timing had to find the control first
-   * and nothing under it is expensive to render. Still closable, and nothing
-   * remembers the choice: a stored "shut" from before this default would have
-   * hidden the panel from exactly the readers who asked for it.
-   */
-  const [showProcess, setShowProcess] = useState(true);
+  const [showProcess, setShowProcess] = useState(
+    () => readRunProcessPreference(runProcessPreferenceKey) ?? defaultRunProcessOpen
+  );
+  const changeProcessVisibility = (open: boolean) => {
+    setShowProcess(open);
+    writeRunProcessPreference(runProcessPreferenceKey, open);
+  };
   // A degradation is not a caveat about the answer, it is a statement about
   // whether the answer is the answer. Separated so it can be shown above the
   // figures instead of below them in a list of five, see degraded-answer.ts.
@@ -390,7 +407,7 @@ export function AnswerCard({
             whose default state it is there to pin. */}
         {showRunProcess && recorded && (
           <div className="run-process">
-            <Collapsible open={showProcess} onOpenChange={setShowProcess}>
+            <Collapsible open={showProcess} onOpenChange={changeProcessVisibility}>
               <div className="run-process-head">
                 <p className="font-medium text-sm">Run process</p>
                 <CollapsibleTrigger asChild>

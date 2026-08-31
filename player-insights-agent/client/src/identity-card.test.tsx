@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { IdentityCard, identityTableScopes } from './IdentityPanel';
 import { questionsRunAs, type DeploymentIdentity, type PanelIdentity } from './identity-panel-state';
 import { PLATFORM_DEFAULT_USER_API_SCOPES, userApiScopeDetail } from '../../shared/user-api-scope-details';
+import { DATABRICKS_SYMBOL } from './brand-icons';
 
 /**
  * The Identity card as it is composed, rather than as its source reads.
@@ -30,6 +31,7 @@ const IDENTITY: PanelIdentity = {
   identitySource: 'databricks-apps',
   executionIdentity: 'abcdefab-0000-4000-8000-000000000000',
   executionMode: 'signed_in_user',
+  role: 'admin',
   session: {
     state: 'current',
     signedIn: true,
@@ -42,6 +44,34 @@ const IDENTITY: PanelIdentity = {
     remedy: null,
   },
   analyticalExecution: { mode: 'signed_in_user', verified: true },
+  spIdentity: {
+    enabled: false,
+    minting: { available: true, detail: '' },
+    assigned: null,
+    executingAs: 'oauth',
+    fallbackReason: null,
+  },
+  identityMetadata: {
+    user: {
+      displayName: 'Someone Example',
+      objectId: '1122334455667788',
+      state: 'verified',
+      readAt: '2026-08-31T17:00:00.000Z',
+    },
+    app: {
+      displayName: 'Astrolabe',
+      resourceName: 'player-insights-agent',
+      workspaceHost: 'https://dbc-example.cloud.databricks.com',
+      workspaceId: '<workspace-id>',
+    },
+    servicePrincipal: {
+      displayName: 'Astrolabe application service principal',
+      applicationId: 'abcdefab-0000-4000-8000-000000000000',
+      objectId: '9988776655443322',
+      state: 'verified',
+      readAt: '2026-08-31T17:00:00.000Z',
+    },
+  },
 };
 
 const SIGNED_IN: DeploymentIdentity = { identity: IDENTITY, failed: false };
@@ -74,16 +104,122 @@ describe('IdentityCard', () => {
     expect(textOf(SIGNED_IN)).toContain('someone');
   });
 
+  it('renders the complete structured user, app, SP, and execution-boundary summary', () => {
+    const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
+    const text = textOf(SIGNED_IN);
+
+    for (const section of ['Signed-in user', 'App', 'Service principal', 'Execution boundary']) {
+      expect(text).toContain(section);
+    }
+    for (const value of [
+      'Someone Example',
+      'someone@example.com',
+      'Admin',
+      'Databricks Apps OAuth',
+      'Verified · workspace profile matched',
+      'Astrolabe',
+      'player-insights-agent',
+      'https://dbc-example.cloud.databricks.com',
+      '<workspace-id>',
+      'Astrolabe application service principal',
+      'abcdefab-0000-4000-8000-000000000000',
+      '9988776655443322',
+      'Lakebase and app state · control-plane metadata',
+    ]) {
+      expect(text).toContain(value);
+    }
+    expect(markup).toContain(DATABRICKS_SYMBOL);
+  });
+
+  it('keeps user and app-SP identities separate, with full titles and explicit ID copy controls', () => {
+    const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
+    expect(markup).toContain('title="someone@example.com">someone@example.com</span>');
+    for (const [label, value] of [
+      ['workspace user ID', '1122334455667788'],
+      ['Databricks app resource name', 'player-insights-agent'],
+      ['workspace ID', '<workspace-id>'],
+      ['application ID', 'abcdefab-0000-4000-8000-000000000000'],
+      ['service principal object ID', '9988776655443322'],
+    ]) {
+      expect(markup).toContain(`title="${value}"`);
+      expect(markup).toContain(`aria-label="Copy ${label}"`);
+    }
+    expect(IDENTITY.signedInAs).not.toBe(IDENTITY.identityMetadata?.servicePrincipal.applicationId);
+    expect(IDENTITY.identityMetadata?.user.objectId).not.toBe(IDENTITY.identityMetadata?.servicePrincipal.objectId);
+  });
+
+  it('shows Not reported, never a derived SP name, when the authoritative lookup was unavailable', () => {
+    const read: DeploymentIdentity = {
+      identity: {
+        ...IDENTITY,
+        identityMetadata: {
+          ...IDENTITY.identityMetadata!,
+          servicePrincipal: {
+            displayName: '',
+            applicationId: 'abcdefab-0000-4000-8000-000000000000',
+            objectId: '',
+            state: 'not_reported',
+            readAt: '2026-08-31T17:01:00.000Z',
+          },
+        },
+      },
+      failed: false,
+    };
+    const text = textOf(read);
+    expect(text).toContain('Service principal Display name Not reported');
+    expect(text).toContain('Object ID Not reported');
+    expect(text).toContain('Verification Not reported');
+    expect(text).not.toContain('abcdefab service principal');
+  });
+
+  it('names an effective assigned persona without implying the app SP widened data access', () => {
+    const text = textOf({
+      identity: {
+        ...IDENTITY,
+        role: 'super_admin',
+        analyticalExecution: { mode: 'assigned_service_principal', verified: true },
+        spIdentity: {
+          enabled: true,
+          minting: { available: true, detail: '' },
+          assigned: { id: 'p1', displayName: 'Finance analyst', clientId: 'persona-client-id' },
+          executingAs: 'service_principal',
+          fallbackReason: null,
+        },
+      },
+      failed: false,
+    });
+    expect(text).toContain('Astrolabe role Super admin');
+    expect(text).toContain('Assigned persona Finance analyst');
+    expect(text).toContain('reads run as the assigned persona Finance analyst');
+    expect(text).toContain('app service principal does not widen Unity Catalog data access');
+  });
+
+  it('never renders credential-shaped or raw-error fields accidentally present on the payload', () => {
+    const identity = {
+      ...IDENTITY,
+      clientSecret: 'client-secret-must-not-render',
+      authorization: 'Bearer bearer-must-not-render',
+      databasePassword: 'database-password-must-not-render',
+      identityMetadata: {
+        ...IDENTITY.identityMetadata!,
+        rawError: '403 with token-must-not-render',
+      },
+    };
+    const markup = renderToStaticMarkup(<IdentityCard read={{ identity, failed: false }} />);
+    expect(markup).not.toMatch(
+      /client-secret-must-not-render|bearer-must-not-render|database-password-must-not-render|token-must-not-render/
+    );
+  });
+
   it('prints none of the sentences the card was rebuilt to stop printing', () => {
     const text = textOf(SIGNED_IN);
-    expect(text).not.toMatch(/not reported/i);
     expect(text).not.toMatch(/questions run as the signed-in user/i);
     expect(text).not.toMatch(/identity and permissions/i);
     expect(text).not.toMatch(/which service principals this deployment is connected as/i);
     expect(text).not.toMatch(/dependency checks and your own access are separate/i);
   });
 
-  it('says when an assigned persona could not be used, instead of pretending it was', () => {
+  it('shows an assigned persona while keeping the actual OAuth execution boundary honest', () => {
     const text = textOf({
       identity: {
         ...IDENTITY,
@@ -97,8 +233,9 @@ describe('IdentityCard', () => {
       },
       failed: false,
     });
-    expect(text).toContain('Questions stay on OAuth');
-    expect(text).toContain('someone');
+    expect(text).toContain('Assigned persona Finance analyst');
+    expect(text).toContain('reads run as the signed-in user');
+    expect(text).not.toContain('reads run as the assigned persona');
   });
 
   /**
@@ -143,7 +280,7 @@ describe('IdentityCard', () => {
     expect(text).toContain('catalog.catalogs:read');
   });
 
-  it('uses exactly two table columns and gives every displayed scope a real explanation', () => {
+  it('states declared and effective scope state and gives every displayed scope a real explanation', () => {
     const markup = renderToStaticMarkup(
       <IdentityCard
         read={{
@@ -160,9 +297,14 @@ describe('IdentityCard', () => {
         }}
       />
     );
-    expect(markup.match(/<th scope="col">/g)).toHaveLength(2);
+    expect(markup.match(/<th scope="col">/g)).toHaveLength(4);
     expect(markup).toContain('<th scope="col">Scope</th>');
+    expect(markup).toContain('<th scope="col">Declared</th>');
+    expect(markup).toContain('<th scope="col">Effective</th>');
     expect(markup).toContain('<th scope="col">Details</th>');
+    expect(markup).toMatch(/data-scope="sql"[\s\S]*?<td>Yes<\/td><td>Yes<\/td>/);
+    expect(markup).toMatch(/data-scope="dashboards\.genie"[\s\S]*?<td>Yes<\/td><td>No<\/td>/);
+    expect(markup).toMatch(/data-scope="catalog\.tables:read"[\s\S]*?<td>No<\/td><td>No<\/td>/);
 
     for (const scope of identityTableScopes(['sql', 'dashboards.genie'])) {
       const detail = userApiScopeDetail(scope);
@@ -183,15 +325,10 @@ describe('IdentityCard', () => {
     expect(table).not.toContain('lucide-check');
   });
 
-  it('leaves (default) after the scope name', () => {
-    const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
-    expect(markup).toMatch(/<\/code>\s*<span class="identity-scope-default">/);
-  });
-
-  it('marks both Databricks-provided IAM scopes as defaults', () => {
+  it('marks both Databricks-provided IAM scopes as platform defaults and effective', () => {
     const text = textOf(SIGNED_IN);
     for (const scope of PLATFORM_DEFAULT_USER_API_SCOPES) {
-      expect(text).toContain(`${scope} (default)`);
+      expect(text).toMatch(new RegExp(`${scope.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} Platform default Yes`));
     }
   });
 
@@ -314,11 +451,23 @@ describe('IdentityCard', () => {
     expect(markup.match(/data-testid="oauth-badge"/g)).toHaveLength(1);
   });
 
-  it('says the client id is missing rather than leaving the row blank', () => {
+  it('says the client id is not reported rather than leaving the row blank', () => {
     // The absence is the finding: an app with no client id in its environment
     // cannot authenticate its own writes. A gap beside the label would read as
     // a rendering bug instead.
-    expect(textOf({ identity: { ...IDENTITY, executionIdentity: '' }, failed: false })).toContain('not set');
+    const identity = {
+      ...IDENTITY,
+      executionIdentity: '',
+      identityMetadata: {
+        ...IDENTITY.identityMetadata!,
+        servicePrincipal: {
+          ...IDENTITY.identityMetadata!.servicePrincipal,
+          applicationId: '',
+          state: 'not_reported' as const,
+        },
+      },
+    };
+    expect(textOf({ identity, failed: false })).toContain('Application ID Not reported');
   });
 
   it('reports a failed read as unreadable, not as nothing being connected', () => {

@@ -171242,7 +171242,7 @@ function cursorFromRow(row2) {
 async function readEgressEventsPage(client, options = {}) {
   const pageSize = Number.isFinite(options.limit) && (options.limit ?? 0) > 0 ? Math.min(Math.trunc(options.limit), EGRESS_EVENTS_PAGE_LIMIT) : 20;
   const cursor = options.cursor ?? null;
-  const readAt = new Date(options.now ?? Date.now()).toISOString();
+  const readAt2 = new Date(options.now ?? Date.now()).toISOString();
   const columns = "id, occurred_at, actor, channel, shape, outcome, surface, run_id, conversation_id, item_count";
   const statement = cursor ? `SELECT ${columns}
        FROM ${EGRESS_EVENTS_TABLE}
@@ -171260,7 +171260,7 @@ async function readEgressEventsPage(client, options = {}) {
       readState: read2.code === UNDEFINED_TABLE ? "not-migrated" : "unavailable",
       pageSize,
       nextCursor: null,
-      readAt,
+      readAt: readAt2,
       storage: egressStorageMetadata()
     };
   }
@@ -171271,7 +171271,7 @@ async function readEgressEventsPage(client, options = {}) {
     readState: "read",
     pageSize,
     nextCursor: read2.rows.length > pageSize ? cursorFromRow(pageRows[pageRows.length - 1] ?? {}) : null,
-    readAt,
+    readAt: readAt2,
     storage: egressStorageMetadata()
   };
 }
@@ -172030,7 +172030,8 @@ function roleChangeRefusal(input) {
   const target = normalizeAdminEmail(input.email);
   const desired = input.role;
   const current = effectiveRole({ seed: input.seed, stored: input.stored, email: target });
-  if (desired === current) return "already-holds";
+  const createsConsumer = input.allowMissingConsumer === true && desired === "consumer" && seedFloorFor(input.seed, target) === "consumer" && !input.stored.some((entry) => entry.email === target);
+  if (desired === current && !createsConsumer) return "already-holds";
   if (current === "super_admin") return "immutable-super-admin";
   if (ROLE_RANK[desired] < ROLE_RANK[seedFloorFor(input.seed, target)]) return "seed-floor";
   if (!input.roleColumnPresent && desired !== "admin") return "no-role-column";
@@ -176540,6 +176541,637 @@ var init_app_user_api_scopes = __esm({
   }
 });
 
+// shared/app-facts.ts
+var NO_EXPORTER_READING, NO_APP_SERVING, NO_APP_FACTS;
+var init_app_facts = __esm({
+  "shared/app-facts.ts"() {
+    NO_EXPORTER_READING = {
+      state: "unmeasured",
+      tables: [],
+      error: "",
+      schema: ""
+    };
+    NO_APP_SERVING = { app: "", compute: "", message: "" };
+    NO_APP_FACTS = {
+      url: "",
+      answered: false,
+      description: "",
+      compute: null,
+      tags: [],
+      deployedAt: "",
+      deployedBy: "",
+      source: { path: "", workspaceUrl: "", gitRef: "" },
+      serving: NO_APP_SERVING,
+      otelExporter: "",
+      otelExport: NO_EXPORTER_READING
+    };
+  }
+});
+
+// server/lib/ops-telemetry.ts
+function telemetrySchema(raw2 = process.env[TELEMETRY_SCHEMA_ENV]) {
+  const candidate2 = (raw2 ?? "").trim().replace(/^`|`$/g, "");
+  if (!candidate2) return "";
+  const parts = candidate2.split(".").filter((part) => part.length > 0);
+  if (parts.length !== 2) {
+    console.warn(
+      `[ops] ${TELEMETRY_SCHEMA_ENV} is ${JSON.stringify(candidate2)}, which is not a catalog and schema. App telemetry is being reported as not configured rather than guessed at.`
+    );
+    return "";
+  }
+  return parts.join(".");
+}
+function logsTable(schema2) {
+  return schema2 ? `${schema2}.${LOGS_TABLE}` : "";
+}
+function grantFor(table, principal, permission = "SELECT") {
+  const remedy = tableGrant(table, principal);
+  return { object: table, privilege: permission, statement: remedy.statement };
+}
+function offMeasurement(insightsHref) {
+  return {
+    telemetry: "not-enabled",
+    variable: TELEMETRY_SCHEMA_ENV,
+    table: "",
+    grant: null,
+    insightsHref,
+    requestsPerHour: [],
+    lastServedAt: "",
+    recordingSince: "",
+    signInsPerDay: [],
+    errors: { count: 0, recent: [] },
+    reason: `App telemetry is not switched on for this deployment, so nothing is recording what the app served. It is configuration rather than code: set ${TELEMETRY_SCHEMA_ENV} to a catalog and schema and redeploy, and the platform begins writing from that deploy onward.`
+  };
+}
+function uncheckedMeasurement(insightsHref, note) {
+  const schema2 = telemetrySchema();
+  if (!schema2) return offMeasurement(insightsHref);
+  const table = logsTable(schema2);
+  return {
+    ...offMeasurement(insightsHref),
+    telemetry: "unreadable",
+    table,
+    reason: `App telemetry is switched on and writing to ${table}, and ${note} So nothing about what this app served was established here, which is unchecked rather than empty.`
+  };
+}
+function noHistoryReason() {
+  return "No app requests have been recorded yet.";
+}
+function stateFromFailure(message, table) {
+  const denial = classifyDenial(message, table);
+  if (denial.kind === "no-grant") {
+    return { state: "no-grant", permission: denial.permission, object: denial.object };
+  }
+  return { state: "unreadable", permission: "", object: table };
+}
+function attribute(key2) {
+  return `variant_get(attributes, '$["${key2}"]', 'string')`;
+}
+function buildTelemetryStatement(table) {
+  return `WITH scoped AS (
+  SELECT time, severity_text, body, attributes
+  FROM ${table}
+), served AS (
+  SELECT time, severity_text, body
+  FROM scoped
+  WHERE ${attribute("app.log_source")} = '${APP_LOG_SOURCE}'
+)
+SELECT 'request-hour' AS kind,
+       date_format(date_trunc('HOUR', time), 'yyyy-MM-dd HH:00') AS bucket,
+       CAST(COUNT(*) AS STRING) AS value,
+       '' AS detail
+FROM served
+GROUP BY 1, 2
+UNION ALL
+SELECT 'last-served', '', CAST(MAX(time) AS STRING), '' FROM served
+UNION ALL
+SELECT 'sign-in-day',
+       date_format(date_trunc('DAY', time), 'yyyy-MM-dd'),
+       CAST(COUNT(*) AS STRING),
+       ''
+FROM scoped
+WHERE ${attribute("event.name")} = '${AUTH_EVENT}'
+  AND ${attribute(`${AUTH_EVENT}.reason`)} = '${SIGN_IN_REASON}'
+GROUP BY 1, 2
+UNION ALL
+SELECT 'error-count', '', CAST(COUNT(*) AS STRING), ''
+FROM served
+WHERE upper(severity_text) = 'ERROR'
+UNION ALL
+SELECT 'error-line', CAST(time AS STRING), '', substring(body, 1, 400)
+FROM served
+WHERE upper(severity_text) = 'ERROR'
+UNION ALL
+SELECT 'first-recorded', '', CAST(MIN(time) AS STRING), '' FROM ${table}
+ORDER BY 1, 2`;
+}
+function readTelemetryRows(dataArray2) {
+  const requestsPerHour = [];
+  const signInsPerDay = [];
+  const recent = [];
+  let lastServedAt = "";
+  let recordingSince = "";
+  let count4 = 0;
+  if (Array.isArray(dataArray2)) {
+    for (const raw2 of dataArray2) {
+      if (!Array.isArray(raw2) || raw2.length < 4) continue;
+      const [kind, bucket, value, detail] = raw2;
+      if (kind === "request-hour" && bucket) {
+        requestsPerHour.push({ hour: bucket, count: Number(value ?? 0) });
+      } else if (kind === "sign-in-day" && bucket) {
+        signInsPerDay.push({ day: bucket, count: Number(value ?? 0) });
+      } else if (kind === "last-served" && value) {
+        lastServedAt = value;
+      } else if (kind === "first-recorded" && value) {
+        recordingSince = value;
+      } else if (kind === "error-count") {
+        count4 = Number(value ?? 0);
+      } else if (kind === "error-line" && bucket) {
+        recent.push({ at: bucket, body: detail ?? "" });
+      }
+    }
+  }
+  recent.sort((left, right) => right.at.localeCompare(left.at));
+  return {
+    requestsPerHour,
+    signInsPerDay,
+    lastServedAt,
+    recordingSince,
+    errors: { count: count4, recent: recent.slice(0, RECENT_ERROR_LIMIT) }
+  };
+}
+function hasHistory(figures) {
+  return figures.requestsPerHour.length > 0 || figures.signInsPerDay.length > 0 || Boolean(figures.lastServedAt);
+}
+function buildExporterStatement(schema2) {
+  const branches = EXPORTER_TABLES.map(
+    (name2) => `SELECT '${name2}' AS name,
+       CAST(COUNT(*) AS STRING) AS rows,
+       CAST(MIN(time) AS STRING) AS first_at,
+       CAST(MAX(time) AS STRING) AS last_at
+FROM ${schema2}.${name2}`
+  );
+  return `${branches.join("\nUNION ALL\n")}
+ORDER BY 1`;
+}
+function rowText2(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function readExporterRows(dataArray2, schema2) {
+  const tables = [];
+  if (Array.isArray(dataArray2)) {
+    for (const raw2 of dataArray2) {
+      if (!Array.isArray(raw2) || raw2.length < 4) continue;
+      const [name2, rows, firstAt, lastAt] = raw2;
+      const table = rowText2(name2);
+      if (!table) continue;
+      tables.push({
+        table,
+        rows: Number(rows ?? 0) || 0,
+        firstAt: rowText2(firstAt),
+        lastAt: rowText2(lastAt)
+      });
+    }
+  }
+  const written = tables.reduce((total, entry) => total + entry.rows, 0);
+  return {
+    state: tables.length === 0 ? "unreadable" : written > 0 ? "exporting" : "silent",
+    tables,
+    error: tables.length === 0 ? "The warehouse answered the count with no rows at all, so nothing was established." : "",
+    schema: schema2
+  };
+}
+function exporterFailure(message, schema2) {
+  return {
+    state: "unreadable",
+    tables: [],
+    error: message.trim() || "the count did not complete",
+    schema: schema2
+  };
+}
+async function readExporter(input = {}) {
+  const now = input.now ?? Date.now();
+  const ttl = input.cacheMs ?? EXPORTER_CACHE_MS;
+  if (cached2 && now - cached2.at < ttl) return cached2.reading;
+  const reading = await (input.read ?? workspaceExporterReader)();
+  cached2 = { at: now, reading };
+  return reading;
+}
+var TELEMETRY_SCHEMA_ENV, LOGS_TABLE, EXPORTER_TABLES, AUTH_EVENT, SIGN_IN_REASON, APP_LOG_SOURCE, RECENT_ERROR_LIMIT, WAREHOUSE_ENV, EXPORTER_CACHE_MS, workspaceExporterReader, cached2;
+var init_ops_telemetry = __esm({
+  "server/lib/ops-telemetry.ts"() {
+    init_access_verification();
+    init_sql_query_tags();
+    init_ops_contract();
+    init_app_facts();
+    TELEMETRY_SCHEMA_ENV = "PLAYER_INSIGHTS_TELEMETRY_SCHEMA";
+    LOGS_TABLE = "otel_logs";
+    EXPORTER_TABLES = ["otel_spans", "otel_metrics"];
+    AUTH_EVENT = "app.auth";
+    SIGN_IN_REASON = "user_login";
+    APP_LOG_SOURCE = "APP";
+    RECENT_ERROR_LIMIT = 5;
+    WAREHOUSE_ENV = "DATABRICKS_SQL_WAREHOUSE_ID";
+    EXPORTER_CACHE_MS = 5 * 60 * 1e3;
+    workspaceExporterReader = async () => {
+      const schema2 = telemetrySchema();
+      if (!schema2) return { ...NO_EXPORTER_READING };
+      const warehouse2 = (process.env[WAREHOUSE_ENV] ?? "").trim();
+      if (!warehouse2) {
+        return exporterFailure(`No ${WAREHOUSE_ENV} is set, so there is nothing to run the count on.`, schema2);
+      }
+      try {
+        const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+        const client = new WorkspaceClient6({});
+        const body = await client.apiClient.request({
+          path: "/api/2.0/sql/statements",
+          method: "POST",
+          headers: new Headers({ "content-type": "application/json" }),
+          // `payload`, which is what the SDK's request options call it. Spelled
+          // `body` this shipped a POST with no statement in it, and the count came
+          // back as an unreadable table -- the exporter row reporting a read failure
+          // it had caused itself.
+          payload: {
+            warehouse_id: warehouse2,
+            statement: buildExporterStatement(schema2),
+            query_tags: sqlQueryTags({
+              surface: "telemetry",
+              tool: "ops_telemetry",
+              operation: "exporter_read"
+            }),
+            wait_timeout: "30s",
+            on_wait_timeout: "CANCEL",
+            format: "JSON_ARRAY",
+            disposition: "INLINE"
+          },
+          raw: false
+        });
+        const state = rowText2(body?.status?.state);
+        if (state !== "SUCCEEDED") {
+          return exporterFailure(
+            rowText2(body?.status?.error?.message) || `the count ended in ${state || "an unknown state"}`,
+            schema2
+          );
+        }
+        return readExporterRows(body?.result?.data_array ?? [], schema2);
+      } catch (error48) {
+        return exporterFailure(error48?.message ?? "the count did not complete", schema2);
+      }
+    };
+    cached2 = null;
+  }
+});
+
+// server/lib/app-metadata.ts
+function textOf3(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function objectOf(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function workspaceIdFromAppUrl(url2) {
+  return /^https?:\/\/[^./]*?-(\d{6,})\.[^/]*databricksapps\.com/i.exec(textOf3(url2))?.[1] ?? "";
+}
+function withWorkspace(url2, workspaceId) {
+  const org = textOf3(workspaceId);
+  return org ? `${url2}?o=${encodeURIComponent(org)}` : url2;
+}
+function browseFolderUrl(input) {
+  const base = normalizeWorkspaceHost(input.host);
+  const id = textOf3(input.folderId);
+  if (!base || !id) return "";
+  return withWorkspace(`${base}/browse/folders/${encodeURIComponent(id)}`, input.workspaceId);
+}
+function appPageUrl(input) {
+  const base = normalizeWorkspaceHost(input.host);
+  const name2 = textOf3(input.appName);
+  if (!base || !name2) return "";
+  return withWorkspace(`${base}/apps/${encodeURIComponent(name2)}`, input.workspaceId);
+}
+function sourceFolderPath(body) {
+  const deployment = objectOf(body.active_deployment);
+  if (Object.keys(objectOf(deployment.git_source)).length > 0) return "";
+  const path20 = textOf3(deployment.source_code_path);
+  return path20.startsWith(WORKSPACE_PREFIX) ? path20 : "";
+}
+function appTags(raw2) {
+  if (Array.isArray(raw2)) {
+    return raw2.map(
+      (entry) => typeof entry === "string" ? entry.trim() : textOf3(objectOf(entry).value) || textOf3(objectOf(entry).key)
+    ).filter(Boolean);
+  }
+  const map2 = objectOf(raw2);
+  return Object.values(map2).map(textOf3).filter(Boolean);
+}
+function appServing(body) {
+  const app = objectOf(body.app_status);
+  const compute = objectOf(body.compute_status);
+  return {
+    app: textOf3(app.state),
+    compute: textOf3(compute.state),
+    // The app's own sentence first: when both are unhappy, the application's
+    // message is the one that names what went wrong.
+    message: textOf3(app.message) || textOf3(compute.message)
+  };
+}
+function appCompute(raw2) {
+  const size = textOf3(raw2);
+  if (!size) return null;
+  return { size, envelope: COMPUTE_ENVELOPES[size.toUpperCase()] ?? null };
+}
+function appFacts(input) {
+  const otelExporter = textOf3(input.otelExporter);
+  const otelExport = input.otelExport ?? NO_EXPORTER_READING;
+  if (input.read.kind !== "ok") return { ...NO_APP_FACTS, otelExporter, otelExport };
+  const body = input.read.body;
+  const appUrl2 = textOf3(body.url);
+  const deployment = objectOf(body.active_deployment);
+  const gitSource = objectOf(deployment.git_source);
+  const gitBacked = Object.keys(gitSource).length > 0;
+  const sourcePath = gitBacked ? textOf3(gitSource.source_code_path) : textOf3(deployment.source_code_path);
+  const appName = textOf3(body.name);
+  const workspaceHost3 = normalizeWorkspaceHost(input.workspaceHost);
+  const gitRef = textOf3(gitSource.branch) || textOf3(gitSource.tag) || textOf3(gitSource.commit);
+  const workspaceId = textOf3(input.workspaceId) || workspaceIdFromAppUrl(appUrl2);
+  const folderUrl = gitBacked ? "" : browseFolderUrl({ host: workspaceHost3, folderId: input.sourceFolderId ?? "", workspaceId });
+  return {
+    url: appUrl2,
+    answered: true,
+    description: textOf3(body.description),
+    compute: appCompute(body.compute_size),
+    tags: appTags(body.tags),
+    deployedAt: textOf3(deployment.create_time) || textOf3(body.update_time),
+    deployedBy: textOf3(deployment.creator) || textOf3(body.updater),
+    source: {
+      path: sourcePath,
+      // THE FOLDER WINS WHENEVER THE WORKSPACE RESOLVED ONE. That is the
+      // uploaded and the bundle-deployed case, and it is the link Sam asked
+      // for: `/browse/folders/<id>?o=<workspace>`, pointing at the folder that
+      // actually holds what is serving -- never at the generated snapshot in
+      // the service principal's home, and never at a bundle path inferred here
+      // instead of read.
+      //
+      // The app's own page is the fallback, and only where Apps named a source
+      // at all. It is the whole answer for a Git deployment, which has no
+      // workspace folder to open; it also covers an uploaded folder this app was
+      // refused the id for. A deployment that reported no source gets no link,
+      // because a row that goes somewhere unrelated is worse than a row that is
+      // not drawn.
+      workspaceUrl: folderUrl || (sourcePath ? appPageUrl({ host: workspaceHost3, appName, workspaceId }) : ""),
+      gitRef
+    },
+    serving: appServing(body),
+    otelExporter,
+    otelExport
+  };
+}
+async function readAppFacts(input = {}) {
+  const name2 = (input.name ?? process.env[APP_NAME_ENV] ?? "").trim();
+  const workspaceHost3 = input.workspaceHost ?? process.env.DATABRICKS_HOST ?? "";
+  const otelExporter = (input.otelExporter ?? process.env[OTEL_ENDPOINT_ENV] ?? "").trim();
+  let otelExport = NO_EXPORTER_READING;
+  try {
+    otelExport = await readExporter({ read: input.readExport });
+  } catch (error48) {
+    console.warn("[settings] The exporter tables could not be counted:", error48.message);
+  }
+  if (!name2) return { ...NO_APP_FACTS, otelExporter, otelExport };
+  let read2;
+  try {
+    read2 = await (input.read ?? workspaceAppReader)(name2);
+  } catch (error48) {
+    read2 = { kind: "no-response", message: error48.message };
+  }
+  if (read2.kind !== "ok") {
+    console.warn(`[settings] The workspace could not be asked about the app ${name2}:`, read2.message);
+  }
+  const folderPath = read2.kind === "ok" ? sourceFolderPath(read2.body) : "";
+  let sourceFolderId = "";
+  if (folderPath) {
+    try {
+      sourceFolderId = await (input.resolveFolderId ?? workspaceFolderIdResolver)(folderPath);
+    } catch (error48) {
+      console.warn(`[settings] The folder id for ${folderPath} could not be read:`, error48.message);
+    }
+  }
+  return appFacts({ read: read2, workspaceHost: workspaceHost3, otelExporter, otelExport, sourceFolderId });
+}
+var APPS_PATH2, APP_NAME_ENV, OTEL_ENDPOINT_ENV, COMPUTE_ENVELOPES, WORKSPACE_STATUS_PATH, WORKSPACE_PREFIX, workspaceAppReader, FOLDER_ID_CACHE_MAX_ENTRIES, FOLDER_ID_CACHE_TTL_MS, knownFolderIds, workspaceFolderIdResolver;
+var init_app_metadata = __esm({
+  "server/lib/app-metadata.ts"() {
+    init_app_facts();
+    init_databricks_links();
+    init_expiring_lru();
+    init_ops_telemetry();
+    APPS_PATH2 = "/api/2.0/apps";
+    APP_NAME_ENV = "DATABRICKS_APP_NAME";
+    OTEL_ENDPOINT_ENV = "OTEL_EXPORTER_OTLP_ENDPOINT";
+    COMPUTE_ENVELOPES = {
+      MEDIUM: { vcpus: 2, memoryGb: 6, dbuPerHour: 0.5 }
+    };
+    WORKSPACE_STATUS_PATH = "/api/2.0/workspace/get-status";
+    WORKSPACE_PREFIX = "/Workspace/";
+    workspaceAppReader = async (name2) => {
+      try {
+        const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+        const client = new WorkspaceClient6({});
+        const body = await client.apiClient.request({
+          path: `${APPS_PATH2}/${encodeURIComponent(name2)}`,
+          method: "GET",
+          headers: new Headers({ Accept: "application/json" }),
+          raw: false
+        });
+        return { kind: "ok", body: body ?? {} };
+      } catch (error48) {
+        const shape = error48 ?? {};
+        const status = Number(shape.statusCode ?? shape.status ?? 0);
+        const message = textOf3(shape.message) || "the call did not complete";
+        if (Number.isFinite(status) && status >= 400) return { kind: "refused", status, message };
+        return { kind: "no-response", message };
+      }
+    };
+    FOLDER_ID_CACHE_MAX_ENTRIES = 256;
+    FOLDER_ID_CACHE_TTL_MS = 60 * 6e4;
+    knownFolderIds = new ExpiringLruCache(FOLDER_ID_CACHE_MAX_ENTRIES, FOLDER_ID_CACHE_TTL_MS);
+    workspaceFolderIdResolver = async (path20) => {
+      const wanted = path20.trim();
+      if (!wanted) return "";
+      const cached3 = knownFolderIds.get(wanted);
+      if (cached3 !== void 0) return cached3;
+      let id = "";
+      try {
+        const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+        const client = new WorkspaceClient6({});
+        const body = await client.apiClient.request({
+          path: WORKSPACE_STATUS_PATH,
+          method: "GET",
+          query: { path: wanted },
+          headers: new Headers({ Accept: "application/json" }),
+          raw: false
+        });
+        const found = (body ?? {}).object_id ?? (body ?? {}).resource_id;
+        id = typeof found === "number" ? String(found) : textOf3(found);
+      } catch (error48) {
+        console.warn(
+          `[settings] The workspace could not resolve the folder id for ${wanted} (${error48.message}), so the App source row points at the app's own page.`
+        );
+      }
+      knownFolderIds.set(wanted, id);
+      return id;
+    };
+  }
+});
+
+// server/lib/control-plane-identity.ts
+function recordOf(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function textOf4(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function readAt(now) {
+  return new Date(now).toISOString();
+}
+function keyPart(value) {
+  return value.trim().toLocaleLowerCase();
+}
+function scimResources(body) {
+  const resources = recordOf(body).Resources;
+  return Array.isArray(resources) ? resources.map(recordOf) : [];
+}
+async function readUser(email3, host2, reader, now) {
+  const key2 = `${keyPart(host2)}\0${keyPart(email3)}`;
+  const cached3 = userCache.get(key2, now);
+  if (cached3) return cached3;
+  const empty = { displayName: "", objectId: "", state: "not_reported", readAt: readAt(now) };
+  if (!email3 || !host2) {
+    userCache.set(key2, empty, now);
+    return empty;
+  }
+  let result = empty;
+  try {
+    const body = await reader(SCIM_USERS_PATH2, { filter: `userName eq ${email3}` });
+    const matching = scimResources(body).find((candidate2) => keyPart(textOf4(candidate2.userName)) === keyPart(email3));
+    if (matching) {
+      result = {
+        displayName: textOf4(matching.displayName),
+        objectId: textOf4(matching.id),
+        state: "verified",
+        readAt: readAt(now)
+      };
+    }
+  } catch {
+  }
+  userCache.set(key2, result, now);
+  return result;
+}
+async function readServicePrincipal(expectedApplicationId, host2, reader, now) {
+  const key2 = `${keyPart(host2)}\0${keyPart(expectedApplicationId)}`;
+  const cached3 = servicePrincipalCache.get(key2, now);
+  if (cached3) return cached3;
+  const empty = {
+    displayName: "",
+    applicationId: expectedApplicationId,
+    objectId: "",
+    state: "not_reported",
+    readAt: readAt(now)
+  };
+  if (!host2) {
+    servicePrincipalCache.set(key2, empty, now);
+    return empty;
+  }
+  let result = empty;
+  try {
+    const me = recordOf(await reader(SCIM_ME_PATH));
+    const reportedApplicationId = textOf4(me.applicationId);
+    const identityMatches = Boolean(reportedApplicationId) && (!expectedApplicationId || keyPart(reportedApplicationId) === keyPart(expectedApplicationId));
+    if (identityMatches) {
+      result = {
+        displayName: textOf4(me.displayName),
+        applicationId: reportedApplicationId,
+        objectId: textOf4(me.id),
+        state: "verified",
+        readAt: readAt(now)
+      };
+    }
+  } catch {
+  }
+  servicePrincipalCache.set(key2, result, now);
+  return result;
+}
+async function readAppContext(appName, host2, reader, now) {
+  const key2 = `${keyPart(host2)}\0${keyPart(appName)}`;
+  const cached3 = appCache.get(key2, now);
+  if (cached3) return cached3;
+  let result = { workspaceId: "" };
+  if (appName && host2) {
+    try {
+      const app = recordOf(await reader(`${APPS_PATH2}/${encodeURIComponent(appName)}`));
+      result = { workspaceId: workspaceIdFromAppUrl(textOf4(app.url)) };
+    } catch {
+    }
+  }
+  appCache.set(key2, result, now);
+  return result;
+}
+async function readControlPlaneIdentityMetadata(input, deps = {}) {
+  const appName = (input.appName ?? process.env[APP_NAME_ENV] ?? "").trim();
+  const workspaceHost3 = normalizeWorkspaceHost(input.workspaceHost ?? process.env.DATABRICKS_HOST);
+  const applicationId = (input.applicationId ?? process.env.DATABRICKS_CLIENT_ID ?? "").trim();
+  const now = deps.now ?? Date.now();
+  const reader = deps.read ?? workspaceControlPlaneReader;
+  const [user, servicePrincipal, app] = await Promise.all([
+    readUser(input.email.trim(), workspaceHost3, reader, now),
+    readServicePrincipal(applicationId, workspaceHost3, reader, now),
+    readAppContext(appName, workspaceHost3, reader, now)
+  ]);
+  return {
+    user,
+    app: {
+      displayName: "Astrolabe",
+      resourceName: appName,
+      workspaceHost: workspaceHost3,
+      workspaceId: app.workspaceId
+    },
+    servicePrincipal
+  };
+}
+var SERVICE_PRINCIPAL_METADATA_TTL_MS, SERVICE_PRINCIPAL_METADATA_CACHE_MAX_ENTRIES, USER_METADATA_TTL_MS, USER_METADATA_CACHE_MAX_ENTRIES, APP_CONTEXT_TTL_MS, APP_CONTEXT_CACHE_MAX_ENTRIES, SCIM_ME_PATH, SCIM_USERS_PATH2, userCache, servicePrincipalCache, appCache, workspaceClient, workspaceControlPlaneReader;
+var init_control_plane_identity = __esm({
+  "server/lib/control-plane-identity.ts"() {
+    init_databricks_links();
+    init_app_metadata();
+    init_expiring_lru();
+    SERVICE_PRINCIPAL_METADATA_TTL_MS = 5 * 6e4;
+    SERVICE_PRINCIPAL_METADATA_CACHE_MAX_ENTRIES = 64;
+    USER_METADATA_TTL_MS = 6e4;
+    USER_METADATA_CACHE_MAX_ENTRIES = 512;
+    APP_CONTEXT_TTL_MS = 5 * 6e4;
+    APP_CONTEXT_CACHE_MAX_ENTRIES = 64;
+    SCIM_ME_PATH = "/api/2.0/preview/scim/v2/Me";
+    SCIM_USERS_PATH2 = "/api/2.0/preview/scim/v2/Users";
+    userCache = new ExpiringLruCache(USER_METADATA_CACHE_MAX_ENTRIES, USER_METADATA_TTL_MS);
+    servicePrincipalCache = new ExpiringLruCache(
+      SERVICE_PRINCIPAL_METADATA_CACHE_MAX_ENTRIES,
+      SERVICE_PRINCIPAL_METADATA_TTL_MS
+    );
+    appCache = new ExpiringLruCache(APP_CONTEXT_CACHE_MAX_ENTRIES, APP_CONTEXT_TTL_MS);
+    workspaceControlPlaneReader = async (path20, query) => {
+      const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+      if (!workspaceClient) {
+        workspaceClient = new WorkspaceClient6({ httpTimeoutSeconds: 5, retryTimeoutSeconds: 0 });
+      }
+      return workspaceClient.apiClient.request({
+        path: path20,
+        method: "GET",
+        ...query ? { query } : {},
+        headers: new Headers({ Accept: "application/json" }),
+        raw: false
+      });
+    };
+  }
+});
+
 // shared/access-gate.ts
 var ACCESS_GATE_ENABLED;
 var init_access_gate = __esm({
@@ -177451,8 +178083,8 @@ function servingInvocationPath(endpointName) {
 function appEntitlementLookup() {
   return entitlementLookupVia(async (path20, query) => {
     const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
-    if (!workspaceClient) workspaceClient = new WorkspaceClient6({});
-    return workspaceClient.apiClient.request({
+    if (!workspaceClient2) workspaceClient2 = new WorkspaceClient6({});
+    return workspaceClient2.apiClient.request({
       path: path20,
       method: "GET",
       query,
@@ -177464,8 +178096,8 @@ function appEntitlementLookup() {
 function appWarmupTransport() {
   return async ({ path: path20, method }) => {
     const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
-    if (!workspaceClient) workspaceClient = new WorkspaceClient6({});
-    const body = await workspaceClient.apiClient.request({
+    if (!workspaceClient2) workspaceClient2 = new WorkspaceClient6({});
+    const body = await workspaceClient2.apiClient.request({
       path: path20,
       method,
       headers: new Headers({ Accept: "application/json" }),
@@ -177797,8 +178429,15 @@ function setupInsightsRoutes(appkit, options = {}) {
       res.status(202).json({ accepted: true });
     });
     app.get("/api/identity", async (req, res) => {
-      const role = await rolePayload(appkit.lakebase, userEmail(req));
-      const spIdentity = await describeSpIdentity(req, appkit);
+      const signedInAs = userEmail(req);
+      const [role, spIdentity, identityMetadata] = await Promise.all([
+        rolePayload(appkit.lakebase, signedInAs),
+        describeSpIdentity(req, appkit),
+        readControlPlaneIdentityMetadata(
+          { email: signedInAs },
+          options.identityControlPlaneReader ? { read: options.identityControlPlaneReader } : {}
+        )
+      ]);
       res.json({
         ...identityPayload(req),
         // The deployment switch never widens a consumer. The browser receives
@@ -177807,7 +178446,8 @@ function setupInsightsRoutes(appkit, options = {}) {
         // shared-rail preference for a non-admin session.
         sharedConversationRail: sharedRail.shared && opensAdminSurfaces(role.role),
         ...role,
-        spIdentity
+        spIdentity,
+        identityMetadata
       });
     });
     app.post("/api/activity/heartbeat", async (req, res) => {
@@ -179086,8 +179726,8 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           let invokeJudge;
           if (judgeEndpoint) {
             const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
-            if (!workspaceClient) workspaceClient = new WorkspaceClient6({});
-            const client = workspaceClient;
+            if (!workspaceClient2) workspaceClient2 = new WorkspaceClient6({});
+            const client = workspaceClient2;
             invokeJudge = (payload) => client.apiClient.request({
               path: servingInvocationPath(judgeEndpoint),
               method: "POST",
@@ -179492,7 +180132,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
   );
   return Promise.resolve({ storeReady });
 }
-var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, ResourceCallSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, parseAttachmentBody, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, NO_WAREHOUSE_CANCELLATION, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
+var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, ResourceCallSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, parseAttachmentBody, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, NO_WAREHOUSE_CANCELLATION, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient2, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
 var init_insights_routes = __esm({
   "server/routes/insights-routes.ts"() {
     init_app_schema();
@@ -179556,6 +180196,7 @@ var init_insights_routes = __esm({
     init_ask_responder();
     init_app_user_api_scopes();
     init_optional_user_api_scopes();
+    init_control_plane_identity();
     init_execution_identity();
     init_access_verification();
     init_representative_answer();
@@ -180242,11 +180883,11 @@ var init_insights_routes = __esm({
         });
         return asUser.apiClient;
       }
-      if (!workspaceClient) {
+      if (!workspaceClient2) {
         const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
-        workspaceClient = new WorkspaceClient6({});
+        workspaceClient2 = new WorkspaceClient6({});
       }
-      return workspaceClient.apiClient;
+      return workspaceClient2.apiClient;
     });
     SERVING_INVOKE_TIMEOUT_MS = 24e4;
     SERVICE_PRINCIPAL_FALLBACK_CAVEAT = "This answer ran as the application, not as you. Your own permissions were not what the warehouse enforced, so it may include data your account cannot read directly.";
@@ -181187,487 +181828,6 @@ var init_agent_model2 = __esm({
   "server/lib/agent-model.ts"() {
     init_agent_model();
     init_benchmark_runner();
-  }
-});
-
-// shared/app-facts.ts
-var NO_EXPORTER_READING, NO_APP_SERVING, NO_APP_FACTS;
-var init_app_facts = __esm({
-  "shared/app-facts.ts"() {
-    NO_EXPORTER_READING = {
-      state: "unmeasured",
-      tables: [],
-      error: "",
-      schema: ""
-    };
-    NO_APP_SERVING = { app: "", compute: "", message: "" };
-    NO_APP_FACTS = {
-      url: "",
-      answered: false,
-      description: "",
-      compute: null,
-      tags: [],
-      deployedAt: "",
-      deployedBy: "",
-      source: { path: "", workspaceUrl: "", gitRef: "" },
-      serving: NO_APP_SERVING,
-      otelExporter: "",
-      otelExport: NO_EXPORTER_READING
-    };
-  }
-});
-
-// server/lib/ops-telemetry.ts
-function telemetrySchema(raw2 = process.env[TELEMETRY_SCHEMA_ENV]) {
-  const candidate2 = (raw2 ?? "").trim().replace(/^`|`$/g, "");
-  if (!candidate2) return "";
-  const parts = candidate2.split(".").filter((part) => part.length > 0);
-  if (parts.length !== 2) {
-    console.warn(
-      `[ops] ${TELEMETRY_SCHEMA_ENV} is ${JSON.stringify(candidate2)}, which is not a catalog and schema. App telemetry is being reported as not configured rather than guessed at.`
-    );
-    return "";
-  }
-  return parts.join(".");
-}
-function logsTable(schema2) {
-  return schema2 ? `${schema2}.${LOGS_TABLE}` : "";
-}
-function grantFor(table, principal, permission = "SELECT") {
-  const remedy = tableGrant(table, principal);
-  return { object: table, privilege: permission, statement: remedy.statement };
-}
-function offMeasurement(insightsHref) {
-  return {
-    telemetry: "not-enabled",
-    variable: TELEMETRY_SCHEMA_ENV,
-    table: "",
-    grant: null,
-    insightsHref,
-    requestsPerHour: [],
-    lastServedAt: "",
-    recordingSince: "",
-    signInsPerDay: [],
-    errors: { count: 0, recent: [] },
-    reason: `App telemetry is not switched on for this deployment, so nothing is recording what the app served. It is configuration rather than code: set ${TELEMETRY_SCHEMA_ENV} to a catalog and schema and redeploy, and the platform begins writing from that deploy onward.`
-  };
-}
-function uncheckedMeasurement(insightsHref, note) {
-  const schema2 = telemetrySchema();
-  if (!schema2) return offMeasurement(insightsHref);
-  const table = logsTable(schema2);
-  return {
-    ...offMeasurement(insightsHref),
-    telemetry: "unreadable",
-    table,
-    reason: `App telemetry is switched on and writing to ${table}, and ${note} So nothing about what this app served was established here, which is unchecked rather than empty.`
-  };
-}
-function noHistoryReason() {
-  return "No app requests have been recorded yet.";
-}
-function stateFromFailure(message, table) {
-  const denial = classifyDenial(message, table);
-  if (denial.kind === "no-grant") {
-    return { state: "no-grant", permission: denial.permission, object: denial.object };
-  }
-  return { state: "unreadable", permission: "", object: table };
-}
-function attribute(key2) {
-  return `variant_get(attributes, '$["${key2}"]', 'string')`;
-}
-function buildTelemetryStatement(table) {
-  return `WITH scoped AS (
-  SELECT time, severity_text, body, attributes
-  FROM ${table}
-), served AS (
-  SELECT time, severity_text, body
-  FROM scoped
-  WHERE ${attribute("app.log_source")} = '${APP_LOG_SOURCE}'
-)
-SELECT 'request-hour' AS kind,
-       date_format(date_trunc('HOUR', time), 'yyyy-MM-dd HH:00') AS bucket,
-       CAST(COUNT(*) AS STRING) AS value,
-       '' AS detail
-FROM served
-GROUP BY 1, 2
-UNION ALL
-SELECT 'last-served', '', CAST(MAX(time) AS STRING), '' FROM served
-UNION ALL
-SELECT 'sign-in-day',
-       date_format(date_trunc('DAY', time), 'yyyy-MM-dd'),
-       CAST(COUNT(*) AS STRING),
-       ''
-FROM scoped
-WHERE ${attribute("event.name")} = '${AUTH_EVENT}'
-  AND ${attribute(`${AUTH_EVENT}.reason`)} = '${SIGN_IN_REASON}'
-GROUP BY 1, 2
-UNION ALL
-SELECT 'error-count', '', CAST(COUNT(*) AS STRING), ''
-FROM served
-WHERE upper(severity_text) = 'ERROR'
-UNION ALL
-SELECT 'error-line', CAST(time AS STRING), '', substring(body, 1, 400)
-FROM served
-WHERE upper(severity_text) = 'ERROR'
-UNION ALL
-SELECT 'first-recorded', '', CAST(MIN(time) AS STRING), '' FROM ${table}
-ORDER BY 1, 2`;
-}
-function readTelemetryRows(dataArray2) {
-  const requestsPerHour = [];
-  const signInsPerDay = [];
-  const recent = [];
-  let lastServedAt = "";
-  let recordingSince = "";
-  let count4 = 0;
-  if (Array.isArray(dataArray2)) {
-    for (const raw2 of dataArray2) {
-      if (!Array.isArray(raw2) || raw2.length < 4) continue;
-      const [kind, bucket, value, detail] = raw2;
-      if (kind === "request-hour" && bucket) {
-        requestsPerHour.push({ hour: bucket, count: Number(value ?? 0) });
-      } else if (kind === "sign-in-day" && bucket) {
-        signInsPerDay.push({ day: bucket, count: Number(value ?? 0) });
-      } else if (kind === "last-served" && value) {
-        lastServedAt = value;
-      } else if (kind === "first-recorded" && value) {
-        recordingSince = value;
-      } else if (kind === "error-count") {
-        count4 = Number(value ?? 0);
-      } else if (kind === "error-line" && bucket) {
-        recent.push({ at: bucket, body: detail ?? "" });
-      }
-    }
-  }
-  recent.sort((left, right) => right.at.localeCompare(left.at));
-  return {
-    requestsPerHour,
-    signInsPerDay,
-    lastServedAt,
-    recordingSince,
-    errors: { count: count4, recent: recent.slice(0, RECENT_ERROR_LIMIT) }
-  };
-}
-function hasHistory(figures) {
-  return figures.requestsPerHour.length > 0 || figures.signInsPerDay.length > 0 || Boolean(figures.lastServedAt);
-}
-function buildExporterStatement(schema2) {
-  const branches = EXPORTER_TABLES.map(
-    (name2) => `SELECT '${name2}' AS name,
-       CAST(COUNT(*) AS STRING) AS rows,
-       CAST(MIN(time) AS STRING) AS first_at,
-       CAST(MAX(time) AS STRING) AS last_at
-FROM ${schema2}.${name2}`
-  );
-  return `${branches.join("\nUNION ALL\n")}
-ORDER BY 1`;
-}
-function rowText2(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-function readExporterRows(dataArray2, schema2) {
-  const tables = [];
-  if (Array.isArray(dataArray2)) {
-    for (const raw2 of dataArray2) {
-      if (!Array.isArray(raw2) || raw2.length < 4) continue;
-      const [name2, rows, firstAt, lastAt] = raw2;
-      const table = rowText2(name2);
-      if (!table) continue;
-      tables.push({
-        table,
-        rows: Number(rows ?? 0) || 0,
-        firstAt: rowText2(firstAt),
-        lastAt: rowText2(lastAt)
-      });
-    }
-  }
-  const written = tables.reduce((total, entry) => total + entry.rows, 0);
-  return {
-    state: tables.length === 0 ? "unreadable" : written > 0 ? "exporting" : "silent",
-    tables,
-    error: tables.length === 0 ? "The warehouse answered the count with no rows at all, so nothing was established." : "",
-    schema: schema2
-  };
-}
-function exporterFailure(message, schema2) {
-  return {
-    state: "unreadable",
-    tables: [],
-    error: message.trim() || "the count did not complete",
-    schema: schema2
-  };
-}
-async function readExporter(input = {}) {
-  const now = input.now ?? Date.now();
-  const ttl = input.cacheMs ?? EXPORTER_CACHE_MS;
-  if (cached2 && now - cached2.at < ttl) return cached2.reading;
-  const reading = await (input.read ?? workspaceExporterReader)();
-  cached2 = { at: now, reading };
-  return reading;
-}
-var TELEMETRY_SCHEMA_ENV, LOGS_TABLE, EXPORTER_TABLES, AUTH_EVENT, SIGN_IN_REASON, APP_LOG_SOURCE, RECENT_ERROR_LIMIT, WAREHOUSE_ENV, EXPORTER_CACHE_MS, workspaceExporterReader, cached2;
-var init_ops_telemetry = __esm({
-  "server/lib/ops-telemetry.ts"() {
-    init_access_verification();
-    init_sql_query_tags();
-    init_ops_contract();
-    init_app_facts();
-    TELEMETRY_SCHEMA_ENV = "PLAYER_INSIGHTS_TELEMETRY_SCHEMA";
-    LOGS_TABLE = "otel_logs";
-    EXPORTER_TABLES = ["otel_spans", "otel_metrics"];
-    AUTH_EVENT = "app.auth";
-    SIGN_IN_REASON = "user_login";
-    APP_LOG_SOURCE = "APP";
-    RECENT_ERROR_LIMIT = 5;
-    WAREHOUSE_ENV = "DATABRICKS_SQL_WAREHOUSE_ID";
-    EXPORTER_CACHE_MS = 5 * 60 * 1e3;
-    workspaceExporterReader = async () => {
-      const schema2 = telemetrySchema();
-      if (!schema2) return { ...NO_EXPORTER_READING };
-      const warehouse2 = (process.env[WAREHOUSE_ENV] ?? "").trim();
-      if (!warehouse2) {
-        return exporterFailure(`No ${WAREHOUSE_ENV} is set, so there is nothing to run the count on.`, schema2);
-      }
-      try {
-        const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
-        const client = new WorkspaceClient6({});
-        const body = await client.apiClient.request({
-          path: "/api/2.0/sql/statements",
-          method: "POST",
-          headers: new Headers({ "content-type": "application/json" }),
-          // `payload`, which is what the SDK's request options call it. Spelled
-          // `body` this shipped a POST with no statement in it, and the count came
-          // back as an unreadable table -- the exporter row reporting a read failure
-          // it had caused itself.
-          payload: {
-            warehouse_id: warehouse2,
-            statement: buildExporterStatement(schema2),
-            query_tags: sqlQueryTags({
-              surface: "telemetry",
-              tool: "ops_telemetry",
-              operation: "exporter_read"
-            }),
-            wait_timeout: "30s",
-            on_wait_timeout: "CANCEL",
-            format: "JSON_ARRAY",
-            disposition: "INLINE"
-          },
-          raw: false
-        });
-        const state = rowText2(body?.status?.state);
-        if (state !== "SUCCEEDED") {
-          return exporterFailure(
-            rowText2(body?.status?.error?.message) || `the count ended in ${state || "an unknown state"}`,
-            schema2
-          );
-        }
-        return readExporterRows(body?.result?.data_array ?? [], schema2);
-      } catch (error48) {
-        return exporterFailure(error48?.message ?? "the count did not complete", schema2);
-      }
-    };
-    cached2 = null;
-  }
-});
-
-// server/lib/app-metadata.ts
-function textOf3(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-function objectOf(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-function workspaceIdFromAppUrl(url2) {
-  return /^https?:\/\/[^./]*?-(\d{6,})\.[^/]*databricksapps\.com/i.exec(textOf3(url2))?.[1] ?? "";
-}
-function withWorkspace(url2, workspaceId) {
-  const org = textOf3(workspaceId);
-  return org ? `${url2}?o=${encodeURIComponent(org)}` : url2;
-}
-function browseFolderUrl(input) {
-  const base = normalizeWorkspaceHost(input.host);
-  const id = textOf3(input.folderId);
-  if (!base || !id) return "";
-  return withWorkspace(`${base}/browse/folders/${encodeURIComponent(id)}`, input.workspaceId);
-}
-function appPageUrl(input) {
-  const base = normalizeWorkspaceHost(input.host);
-  const name2 = textOf3(input.appName);
-  if (!base || !name2) return "";
-  return withWorkspace(`${base}/apps/${encodeURIComponent(name2)}`, input.workspaceId);
-}
-function sourceFolderPath(body) {
-  const deployment = objectOf(body.active_deployment);
-  if (Object.keys(objectOf(deployment.git_source)).length > 0) return "";
-  const path20 = textOf3(deployment.source_code_path);
-  return path20.startsWith(WORKSPACE_PREFIX) ? path20 : "";
-}
-function appTags(raw2) {
-  if (Array.isArray(raw2)) {
-    return raw2.map(
-      (entry) => typeof entry === "string" ? entry.trim() : textOf3(objectOf(entry).value) || textOf3(objectOf(entry).key)
-    ).filter(Boolean);
-  }
-  const map2 = objectOf(raw2);
-  return Object.values(map2).map(textOf3).filter(Boolean);
-}
-function appServing(body) {
-  const app = objectOf(body.app_status);
-  const compute = objectOf(body.compute_status);
-  return {
-    app: textOf3(app.state),
-    compute: textOf3(compute.state),
-    // The app's own sentence first: when both are unhappy, the application's
-    // message is the one that names what went wrong.
-    message: textOf3(app.message) || textOf3(compute.message)
-  };
-}
-function appCompute(raw2) {
-  const size = textOf3(raw2);
-  if (!size) return null;
-  return { size, envelope: COMPUTE_ENVELOPES[size.toUpperCase()] ?? null };
-}
-function appFacts(input) {
-  const otelExporter = textOf3(input.otelExporter);
-  const otelExport = input.otelExport ?? NO_EXPORTER_READING;
-  if (input.read.kind !== "ok") return { ...NO_APP_FACTS, otelExporter, otelExport };
-  const body = input.read.body;
-  const appUrl2 = textOf3(body.url);
-  const deployment = objectOf(body.active_deployment);
-  const gitSource = objectOf(deployment.git_source);
-  const gitBacked = Object.keys(gitSource).length > 0;
-  const sourcePath = gitBacked ? textOf3(gitSource.source_code_path) : textOf3(deployment.source_code_path);
-  const appName = textOf3(body.name);
-  const workspaceHost3 = normalizeWorkspaceHost(input.workspaceHost);
-  const gitRef = textOf3(gitSource.branch) || textOf3(gitSource.tag) || textOf3(gitSource.commit);
-  const workspaceId = textOf3(input.workspaceId) || workspaceIdFromAppUrl(appUrl2);
-  const folderUrl = gitBacked ? "" : browseFolderUrl({ host: workspaceHost3, folderId: input.sourceFolderId ?? "", workspaceId });
-  return {
-    url: appUrl2,
-    answered: true,
-    description: textOf3(body.description),
-    compute: appCompute(body.compute_size),
-    tags: appTags(body.tags),
-    deployedAt: textOf3(deployment.create_time) || textOf3(body.update_time),
-    deployedBy: textOf3(deployment.creator) || textOf3(body.updater),
-    source: {
-      path: sourcePath,
-      // THE FOLDER WINS WHENEVER THE WORKSPACE RESOLVED ONE. That is the
-      // uploaded and the bundle-deployed case, and it is the link Sam asked
-      // for: `/browse/folders/<id>?o=<workspace>`, pointing at the folder that
-      // actually holds what is serving -- never at the generated snapshot in
-      // the service principal's home, and never at a bundle path inferred here
-      // instead of read.
-      //
-      // The app's own page is the fallback, and only where Apps named a source
-      // at all. It is the whole answer for a Git deployment, which has no
-      // workspace folder to open; it also covers an uploaded folder this app was
-      // refused the id for. A deployment that reported no source gets no link,
-      // because a row that goes somewhere unrelated is worse than a row that is
-      // not drawn.
-      workspaceUrl: folderUrl || (sourcePath ? appPageUrl({ host: workspaceHost3, appName, workspaceId }) : ""),
-      gitRef
-    },
-    serving: appServing(body),
-    otelExporter,
-    otelExport
-  };
-}
-async function readAppFacts(input = {}) {
-  const name2 = (input.name ?? process.env[APP_NAME_ENV] ?? "").trim();
-  const workspaceHost3 = input.workspaceHost ?? process.env.DATABRICKS_HOST ?? "";
-  const otelExporter = (input.otelExporter ?? process.env[OTEL_ENDPOINT_ENV] ?? "").trim();
-  let otelExport = NO_EXPORTER_READING;
-  try {
-    otelExport = await readExporter({ read: input.readExport });
-  } catch (error48) {
-    console.warn("[settings] The exporter tables could not be counted:", error48.message);
-  }
-  if (!name2) return { ...NO_APP_FACTS, otelExporter, otelExport };
-  let read2;
-  try {
-    read2 = await (input.read ?? workspaceAppReader)(name2);
-  } catch (error48) {
-    read2 = { kind: "no-response", message: error48.message };
-  }
-  if (read2.kind !== "ok") {
-    console.warn(`[settings] The workspace could not be asked about the app ${name2}:`, read2.message);
-  }
-  const folderPath = read2.kind === "ok" ? sourceFolderPath(read2.body) : "";
-  let sourceFolderId = "";
-  if (folderPath) {
-    try {
-      sourceFolderId = await (input.resolveFolderId ?? workspaceFolderIdResolver)(folderPath);
-    } catch (error48) {
-      console.warn(`[settings] The folder id for ${folderPath} could not be read:`, error48.message);
-    }
-  }
-  return appFacts({ read: read2, workspaceHost: workspaceHost3, otelExporter, otelExport, sourceFolderId });
-}
-var APPS_PATH2, APP_NAME_ENV, OTEL_ENDPOINT_ENV, COMPUTE_ENVELOPES, WORKSPACE_STATUS_PATH, WORKSPACE_PREFIX, workspaceAppReader, FOLDER_ID_CACHE_MAX_ENTRIES, FOLDER_ID_CACHE_TTL_MS, knownFolderIds, workspaceFolderIdResolver;
-var init_app_metadata = __esm({
-  "server/lib/app-metadata.ts"() {
-    init_app_facts();
-    init_databricks_links();
-    init_expiring_lru();
-    init_ops_telemetry();
-    APPS_PATH2 = "/api/2.0/apps";
-    APP_NAME_ENV = "DATABRICKS_APP_NAME";
-    OTEL_ENDPOINT_ENV = "OTEL_EXPORTER_OTLP_ENDPOINT";
-    COMPUTE_ENVELOPES = {
-      MEDIUM: { vcpus: 2, memoryGb: 6, dbuPerHour: 0.5 }
-    };
-    WORKSPACE_STATUS_PATH = "/api/2.0/workspace/get-status";
-    WORKSPACE_PREFIX = "/Workspace/";
-    workspaceAppReader = async (name2) => {
-      try {
-        const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
-        const client = new WorkspaceClient6({});
-        const body = await client.apiClient.request({
-          path: `${APPS_PATH2}/${encodeURIComponent(name2)}`,
-          method: "GET",
-          headers: new Headers({ Accept: "application/json" }),
-          raw: false
-        });
-        return { kind: "ok", body: body ?? {} };
-      } catch (error48) {
-        const shape = error48 ?? {};
-        const status = Number(shape.statusCode ?? shape.status ?? 0);
-        const message = textOf3(shape.message) || "the call did not complete";
-        if (Number.isFinite(status) && status >= 400) return { kind: "refused", status, message };
-        return { kind: "no-response", message };
-      }
-    };
-    FOLDER_ID_CACHE_MAX_ENTRIES = 256;
-    FOLDER_ID_CACHE_TTL_MS = 60 * 6e4;
-    knownFolderIds = new ExpiringLruCache(FOLDER_ID_CACHE_MAX_ENTRIES, FOLDER_ID_CACHE_TTL_MS);
-    workspaceFolderIdResolver = async (path20) => {
-      const wanted = path20.trim();
-      if (!wanted) return "";
-      const cached3 = knownFolderIds.get(wanted);
-      if (cached3 !== void 0) return cached3;
-      let id = "";
-      try {
-        const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
-        const client = new WorkspaceClient6({});
-        const body = await client.apiClient.request({
-          path: WORKSPACE_STATUS_PATH,
-          method: "GET",
-          query: { path: wanted },
-          headers: new Headers({ Accept: "application/json" }),
-          raw: false
-        });
-        const found = (body ?? {}).object_id ?? (body ?? {}).resource_id;
-        id = typeof found === "number" ? String(found) : textOf3(found);
-      } catch (error48) {
-        console.warn(
-          `[settings] The workspace could not resolve the folder id for ${wanted} (${error48.message}), so the App source row points at the app's own page.`
-        );
-      }
-      knownFolderIds.set(wanted, id);
-      return id;
-    };
   }
 });
 
@@ -185768,7 +185928,7 @@ function setupUserRoutes(appkit) {
         res.status(400).json({ error: "invalid_roster_email", detail: invalid });
         return;
       }
-      await setRole(req, res, normalizeAdminEmail(parsed.data.email), parsed.data.role);
+      await setRole(req, res, normalizeAdminEmail(parsed.data.email), parsed.data.role, true);
     });
     app.patch("/api/users/:email", async (req, res) => {
       const parsed = RoleBody.safeParse(req.body);
@@ -185783,9 +185943,8 @@ function setupUserRoutes(appkit) {
       const actor = userEmail(req);
       const seed = seedRoles();
       let rows;
-      let roleColumnPresent;
       try {
-        ({ rows, roleColumnPresent } = await readRosterForRequest(appkit.lakebase, req));
+        ({ rows } = await readRosterForRequest(appkit.lakebase, req));
       } catch (error48) {
         console.error("[admin] The roster could not be read, so no removal was attempted:", error48.message);
         res.status(503).json({
@@ -185809,13 +185968,13 @@ function setupUserRoutes(appkit) {
           subject: email3,
           detail: `${actor} removed ${email3} from this deployment's roster, held as ${ROLE_WORD[from].toLowerCase()}.`
         });
-        await replyWithRoster(req, res, appkit.lakebase, actor, roleColumnPresent);
+        await replyWithRoster(req, res, appkit.lakebase, actor);
       } catch (error48) {
         console.error(`[admin] ${email3} could not be removed:`, error48.message);
         res.status(503).json({ error: "roster_store_unavailable", detail: "Nobody was removed." });
       }
     });
-    async function setRole(req, res, email3, role) {
+    async function setRole(req, res, email3, role, allowMissingConsumer = false) {
       const actor = userEmail(req);
       const seed = seedRoles();
       let rows;
@@ -185830,15 +185989,24 @@ function setupUserRoutes(appkit) {
         });
         return;
       }
-      const refusal2 = roleChangeRefusal({ email: email3, role, seed, stored: rows, roleColumnPresent });
+      const refusal2 = roleChangeRefusal({
+        email: email3,
+        role,
+        seed,
+        stored: rows,
+        roleColumnPresent,
+        allowMissingConsumer
+      });
       if (refusal2) {
         refuse(res, refusal2);
         return;
       }
       const to = role;
       const from = effectiveRole({ seed, stored: rows, email: email3 });
+      let roleStored = false;
       try {
         await writeRole(appkit.lakebase, { email: email3, role: to, actor, roleColumnPresent });
+        roleStored = true;
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: "role-changed",
@@ -185846,24 +186014,32 @@ function setupUserRoutes(appkit) {
           detail: roleChangeSentence({ actor, email: email3, from, to })
         });
         await withdrawOnDemotion({ req, store: appkit.lakebase, email: email3, actor, from, to });
-        await replyWithRoster(req, res, appkit.lakebase, actor, roleColumnPresent);
+        await replyWithRoster(req, res, appkit.lakebase, actor);
       } catch (error48) {
         console.error(`[admin] ${email3} could not be set to ${role}:`, error48.message);
+        if (roleStored) {
+          res.status(503).json({
+            error: "roster_confirmation_unavailable",
+            detail: "Lakebase saved the request but could not confirm the roster. Reload before retrying."
+          });
+          return;
+        }
         res.status(503).json({
           error: "roster_store_unavailable",
           detail: "The role was not changed. The app keeps the roster in Lakebase, and it is not answering: reporting success here would leave a role on screen that no reload would keep."
         });
       }
     }
-    async function replyWithRoster(req, res, store, reader, roleColumnPresent) {
-      const after = await read(store, req);
+    async function replyWithRoster(req, res, store, reader) {
+      const after = await readRosterForRequest(store, req);
       const payload = rosterPayload({
         seed: seedRoles(),
         stored: after.rows,
-        storedRosterReadable: after.readable,
-        roleColumnPresent: after.readable ? after.roleColumnPresent : roleColumnPresent,
+        storedRosterReadable: true,
+        roleColumnPresent: after.roleColumnPresent,
         reader
       });
+      payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
       res.json(payload);
     }
   });
@@ -186446,11 +186622,11 @@ function setupMonitoringRoutes(appkit, deps) {
         stored.available ? { available: true, rows: questionRows2(stored.rows) } : stored
       );
       markResponse(res, substitution);
-      const readAt = new Date(clock()).toISOString();
+      const readAt2 = new Date(clock()).toISOString();
       if (!stored.available) {
         res.status(503).json({
           readState: "unavailable",
-          readAt,
+          readAt: readAt2,
           summary: summarize([], 0),
           questions: [],
           people: [],
@@ -186483,7 +186659,7 @@ function setupMonitoringRoutes(appkit, deps) {
       const partial2 = pagination.hasMore || page.cursor !== null;
       res.json({
         readState: partial2 ? "partial" : "ok",
-        readAt,
+        readAt: readAt2,
         // Over the rows that were read, always, and the two counts below say so
         // when those are fewer than the range holds.
         summary: summarize(all, threads),
@@ -186592,7 +186768,7 @@ function setupMonitoringRoutes(appkit, deps) {
         res.status(400).json({ error: page.refusal });
         return;
       }
-      const readAt = new Date(clock()).toISOString();
+      const readAt2 = new Date(clock()).toISOString();
       const stored = await readStored(appkit, "GET /api/monitoring/people/:email", MONITORING_QUESTIONS_QUERY, [
         PLAN_APPROVAL_SENTINEL,
         range.from,
@@ -186708,7 +186884,7 @@ function setupMonitoringRoutes(appkit, deps) {
         refusedAgentRules,
         questions,
         readState: pagination.hasMore || page.cursor !== null ? "partial" : "ok",
-        readAt,
+        readAt: readAt2,
         pagination
       };
       void admin;
@@ -188935,7 +189111,7 @@ function setupOpsRoutes(appkit, deps) {
       }
     });
     app.get("/api/ops/cost", async (req, res) => {
-      const readAt = new Date(clock()).toISOString();
+      const readAt2 = new Date(clock()).toISOString();
       const range = opsDayRange(queryText(req, "from"), queryText(req, "to"), clock());
       const requestAbort = new AbortController();
       res.once?.("close", () => {
@@ -188965,7 +189141,7 @@ function setupOpsRoutes(appkit, deps) {
         throughDay: "",
         range,
         billingLagDays: null,
-        readAt,
+        readAt: readAt2,
         perQuestion: {
           runs: [],
           runsInRange: 0,
@@ -189098,7 +189274,7 @@ function setupOpsRoutes(appkit, deps) {
       }
     });
     app.get("/api/ops/traffic", async (req, res) => {
-      const readAt = new Date(clock()).toISOString();
+      const readAt2 = new Date(clock()).toISOString();
       const range = opsDayRange(queryText(req, "from"), queryText(req, "to"), clock());
       try {
         const runtime = await readRuntimeSettings(appkit);
@@ -189155,7 +189331,7 @@ function setupOpsRoutes(appkit, deps) {
         ) : "";
         const coverageRead = activityCoverage?.state === "partial" ? `Recorded active app minutes have ${activityCoverage.missingDays} missing UTC rollup day(s); the returned days are partial rather than zero-filled.` : "";
         const payload = {
-          readAt,
+          readAt: readAt2,
           range,
           reason: rejected.length === readCount ? `Nothing about traffic could be read: ${text18(rejected[0].reason?.message) || "the store did not answer"}` : "",
           unread: [partialRead, coverageRead].filter(Boolean).join(" "),
@@ -189174,7 +189350,7 @@ function setupOpsRoutes(appkit, deps) {
         res.json(payload);
       } catch (error48) {
         const payload = {
-          readAt,
+          readAt: readAt2,
           range,
           reason: `Nothing about traffic could be read: ${error48.message}`,
           unread: "",
@@ -189194,10 +189370,10 @@ function setupOpsRoutes(appkit, deps) {
       }
     });
     app.get("/api/ops/latency", async (req, res) => {
-      const readAt = new Date(clock()).toISOString();
+      const readAt2 = new Date(clock()).toISOString();
       const range = opsDayRange(queryText(req, "from"), queryText(req, "to"), clock());
       const base = {
-        readAt,
+        readAt: readAt2,
         range,
         state: "no-rows",
         reason: "",
@@ -193978,8 +194154,8 @@ async function getUsernameWithApiLookup(config2) {
 }
 
 // node_modules/@databricks/lakebase/dist/credentials.js
-async function generateDatabaseCredential(workspaceClient2, request) {
-  return validateCredentialResponse(await workspaceClient2.apiClient.request({
+async function generateDatabaseCredential(workspaceClient3, request) {
+  return validateCredentialResponse(await workspaceClient3.apiClient.request({
     path: "/api/2.0/postgres/credentials",
     method: "POST",
     headers: new Headers({
@@ -194041,8 +194217,8 @@ function attachPoolMetrics(pool, telemetry, logger44) {
 
 // node_modules/@databricks/lakebase/dist/token-refresh.js
 var CACHE_BUFFER_MS = 120 * 1e3;
-async function refreshToken(workspaceClient2, endpoint) {
-  const credential = await generateDatabaseCredential(workspaceClient2, { endpoint });
+async function refreshToken(workspaceClient3, endpoint) {
+  const credential = await generateDatabaseCredential(workspaceClient3, { endpoint });
   return {
     token: credential.token,
     expiresAt: new Date(credential.expire_time).getTime()
@@ -194051,11 +194227,11 @@ async function refreshToken(workspaceClient2, endpoint) {
 function createTokenRefreshCallback(deps) {
   let cachedToken;
   let tokenExpiresAt = 0;
-  let workspaceClient2 = null;
+  let workspaceClient3 = null;
   let refreshPromise = null;
   return async () => {
-    if (!workspaceClient2) try {
-      workspaceClient2 = getWorkspaceClient2(deps.userConfig);
+    if (!workspaceClient3) try {
+      workspaceClient3 = getWorkspaceClient2(deps.userConfig);
     } catch (error48) {
       deps.logger?.error("Failed to initialize workspace client: %O", error48);
       throw error48;
@@ -194066,7 +194242,7 @@ function createTokenRefreshCallback(deps) {
       deps.logger?.debug("Using cached OAuth token (expires in %d minutes at %s)", expiresIn, new Date(tokenExpiresAt).toISOString());
       return cachedToken;
     }
-    const client = workspaceClient2;
+    const client = workspaceClient3;
     if (!refreshPromise) refreshPromise = (async () => {
       const startTime = Date.now();
       try {
@@ -197615,7 +197791,7 @@ var SQLWarehouseConnector = class {
     });
     return this._arrowProcessor;
   }
-  async executeStatement(workspaceClient2, input, signal) {
+  async executeStatement(workspaceClient3, input, signal) {
     const startTime = Date.now();
     let success2 = false;
     if (signal?.aborted) throw ExecutionError.canceled();
@@ -197662,7 +197838,7 @@ var SQLWarehouseConnector = class {
           on_wait_timeout: input.on_wait_timeout || executeStatementDefaults.on_wait_timeout
         };
         span.addEvent("statement.submitting", { "db.warehouse_id": input.warehouse_id });
-        const response = await workspaceClient2.statementExecution.executeStatement(body, this._createContext(signal));
+        const response = await workspaceClient3.statementExecution.executeStatement(body, this._createContext(signal));
         if (!response) throw ConnectionError.apiFailure("SQL Warehouse");
         const status = response.status;
         const statementId = response.statement_id;
@@ -197676,7 +197852,7 @@ var SQLWarehouseConnector = class {
           case "RUNNING":
           case "PENDING":
             span.addEvent("statement.polling_started", { "db.status": response.status?.state });
-            result = await this._pollForStatementResult(workspaceClient2, statementId, this.config.timeout, signal);
+            result = await this._pollForStatementResult(workspaceClient3, statementId, this.config.timeout, signal);
             break;
           case "SUCCEEDED":
             result = this._transformDataArray(response);
@@ -197732,7 +197908,7 @@ var SQLWarehouseConnector = class {
       includePrefix: true
     });
   }
-  async _pollForStatementResult(workspaceClient2, statementId, timeout2 = executeStatementDefaults.timeout, signal) {
+  async _pollForStatementResult(workspaceClient3, statementId, timeout2 = executeStatementDefaults.timeout, signal) {
     return this.telemetry.startActiveSpan("sql.poll", { attributes: {
       "db.statement_id": statementId,
       "db.polling.timeout": timeout2
@@ -197763,7 +197939,7 @@ var SQLWarehouseConnector = class {
             "poll.delay_ms": delay,
             "poll.elapsed_ms": elapsedTime
           });
-          const response = await workspaceClient2.statementExecution.getStatement({ statement_id: statementId }, this._createContext(signal));
+          const response = await workspaceClient3.statementExecution.getStatement({ statement_id: statementId }, this._createContext(signal));
           if (!response) throw ConnectionError.apiFailure("SQL Warehouse");
           const status = response.status;
           span.addEvent("polling.status_check", {
@@ -197847,7 +198023,7 @@ var SQLWarehouseConnector = class {
       }
     } };
   }
-  async getArrowData(workspaceClient2, jobId, signal) {
+  async getArrowData(workspaceClient3, jobId, signal) {
     const startTime = Date.now();
     return this.telemetry.startActiveSpan("arrow.getData", {
       kind: SpanKind.CLIENT,
@@ -197857,7 +198033,7 @@ var SQLWarehouseConnector = class {
       }
     }, async (span) => {
       try {
-        const response = await workspaceClient2.statementExecution.getStatement({ statement_id: jobId }, this._createContext(signal));
+        const response = await workspaceClient3.statementExecution.getStatement({ statement_id: jobId }, this._createContext(signal));
         const chunks = response.result?.external_links;
         const schema2 = response.manifest?.schema;
         if (!chunks || !schema2) throw ExecutionError.missingData("chunks or schema");
@@ -198310,9 +198486,9 @@ var GenieConnector = class {
       maxMessages: config2.maxMessages ?? genieConnectorDefaults.maxMessages
     };
   }
-  async startMessage(workspaceClient2, spaceId, content, conversationId) {
+  async startMessage(workspaceClient3, spaceId, content, conversationId) {
     if (conversationId) {
-      const waiter = await workspaceClient2.genie.createMessage({
+      const waiter = await workspaceClient3.genie.createMessage({
         space_id: spaceId,
         conversation_id: conversationId,
         content
@@ -198323,7 +198499,7 @@ var GenieConnector = class {
         messageId: waiter.message_id ?? ""
       };
     }
-    const start = await workspaceClient2.genie.startConversation({
+    const start = await workspaceClient3.genie.startConversation({
       space_id: spaceId,
       content
     });
@@ -198338,9 +198514,9 @@ var GenieConnector = class {
     const waitOptions = timeout2 > 0 ? { timeout: new Time2(timeout2, TimeUnits.milliseconds) } : {};
     return messageWaiter.wait(waitOptions);
   }
-  async listConversationMessages(workspaceClient2, spaceId, conversationId, options) {
+  async listConversationMessages(workspaceClient3, spaceId, conversationId, options) {
     const pageSize = options?.pageSize ?? genieConnectorDefaults.initialPageSize;
-    const response = await workspaceClient2.genie.listConversationMessages({
+    const response = await workspaceClient3.genie.listConversationMessages({
       space_id: spaceId,
       conversation_id: conversationId,
       page_size: pageSize,
@@ -198351,17 +198527,17 @@ var GenieConnector = class {
       nextPageToken: response.next_page_token ?? null
     };
   }
-  async getMessageAttachmentQueryResult(workspaceClient2, spaceId, conversationId, messageId, attachmentId, _signal) {
-    return (await workspaceClient2.genie.getMessageAttachmentQueryResult({
+  async getMessageAttachmentQueryResult(workspaceClient3, spaceId, conversationId, messageId, attachmentId, _signal) {
+    return (await workspaceClient3.genie.getMessageAttachmentQueryResult({
       space_id: spaceId,
       conversation_id: conversationId,
       message_id: messageId,
       attachment_id: attachmentId
     })).statement_response;
   }
-  async *streamSendMessage(workspaceClient2, spaceId, content, conversationId, options) {
+  async *streamSendMessage(workspaceClient3, spaceId, content, conversationId, options) {
     try {
-      const { messageWaiter, conversationId: resultConversationId, messageId: resultMessageId } = await this.startMessage(workspaceClient2, spaceId, content, conversationId);
+      const { messageWaiter, conversationId: resultConversationId, messageId: resultMessageId } = await this.startMessage(workspaceClient3, spaceId, content, conversationId);
       yield {
         type: "message_start",
         conversationId: resultConversationId,
@@ -198381,7 +198557,7 @@ var GenieConnector = class {
         type: "message_result",
         message: messageResponse
       };
-      yield* this.emitQueryResults(workspaceClient2, spaceId, resultConversationId, messageResponse.messageId, messageResponse);
+      yield* this.emitQueryResults(workspaceClient3, spaceId, resultConversationId, messageResponse.messageId, messageResponse);
     } catch (error48) {
       logger17.error("Genie message error (spaceId=%s, conversationId=%s): %O", spaceId, conversationId ?? "new", error48);
       yield {
@@ -198390,12 +198566,12 @@ var GenieConnector = class {
       };
     }
   }
-  async *emitQueryResults(workspaceClient2, spaceId, conversationId, messageId, messageResponse) {
+  async *emitQueryResults(workspaceClient3, spaceId, conversationId, messageId, messageResponse) {
     const attachments = messageResponse.attachments ?? [];
     for (const att of attachments) {
       if (!att.query?.statementId || !att.attachmentId) continue;
       try {
-        const data = await this.getMessageAttachmentQueryResult(workspaceClient2, spaceId, conversationId, messageId, att.attachmentId);
+        const data = await this.getMessageAttachmentQueryResult(workspaceClient3, spaceId, conversationId, messageId, att.attachmentId);
         yield {
           type: "query_result",
           attachmentId: att.attachmentId,
@@ -198411,10 +198587,10 @@ var GenieConnector = class {
       }
     }
   }
-  async *streamConversation(workspaceClient2, spaceId, conversationId, options) {
+  async *streamConversation(workspaceClient3, spaceId, conversationId, options) {
     const includeQueryResults = options?.includeQueryResults !== false;
     try {
-      const { messages: messageResponses, nextPageToken } = await this.listConversationMessages(workspaceClient2, spaceId, conversationId, {
+      const { messages: messageResponses, nextPageToken } = await this.listConversationMessages(workspaceClient3, spaceId, conversationId, {
         pageSize: options?.pageSize,
         pageToken: options?.pageToken
       });
@@ -198437,7 +198613,7 @@ var GenieConnector = class {
           statementId: att.query.statementId
         });
         const results = await Promise.allSettled(queryAttachments.map(async (att) => {
-          const data = await this.getMessageAttachmentQueryResult(workspaceClient2, spaceId, conversationId, att.messageId, att.attachmentId);
+          const data = await this.getMessageAttachmentQueryResult(workspaceClient3, spaceId, conversationId, att.messageId, att.attachmentId);
           return {
             attachmentId: att.attachmentId,
             statementId: att.statementId,
@@ -198471,14 +198647,14 @@ var GenieConnector = class {
   * state (`COMPLETED` or `FAILED`). Yields the same event types as
   * `streamSendMessage` so callers can reuse the same SSE processing logic.
   */
-  async *streamGetMessage(workspaceClient2, spaceId, conversationId, messageId, options) {
+  async *streamGetMessage(workspaceClient3, spaceId, conversationId, messageId, options) {
     const pollInterval = options?.pollInterval ?? 3e3;
     const signal = options?.signal;
     let lastStatus = "";
     try {
       while (true) {
         if (signal?.aborted) return;
-        const message = await workspaceClient2.genie.getMessage({
+        const message = await workspaceClient3.genie.getMessage({
           space_id: spaceId,
           conversation_id: conversationId,
           message_id: messageId
@@ -198496,7 +198672,7 @@ var GenieConnector = class {
             type: "message_result",
             message: messageResponse
           };
-          yield* this.emitQueryResults(workspaceClient2, spaceId, conversationId, messageId, messageResponse);
+          yield* this.emitQueryResults(workspaceClient3, spaceId, conversationId, messageId, messageResponse);
           return;
         }
         await new Promise((resolve2) => {
@@ -198516,18 +198692,18 @@ var GenieConnector = class {
       };
     }
   }
-  async sendMessage(workspaceClient2, spaceId, content, conversationId) {
-    const { messageWaiter, conversationId: resultConversationId } = await this.startMessage(workspaceClient2, spaceId, content, conversationId);
+  async sendMessage(workspaceClient3, spaceId, content, conversationId) {
+    const { messageWaiter, conversationId: resultConversationId } = await this.startMessage(workspaceClient3, spaceId, content, conversationId);
     return {
       ...toMessageResponse(await this.waitForMessage(messageWaiter)),
       conversationId: resultConversationId
     };
   }
-  async getConversation(workspaceClient2, spaceId, conversationId) {
+  async getConversation(workspaceClient3, spaceId, conversationId) {
     const allMessages = [];
     let pageToken2;
     do {
-      const { messages, nextPageToken } = await this.listConversationMessages(workspaceClient2, spaceId, conversationId, {
+      const { messages, nextPageToken } = await this.listConversationMessages(workspaceClient3, spaceId, conversationId, {
         pageSize: genieConnectorDefaults.pageSize,
         pageToken: pageToken2
       });
@@ -198565,36 +198741,36 @@ var JobsConnector = class {
       })
     };
   }
-  async submitRun(workspaceClient2, request, signal) {
+  async submitRun(workspaceClient3, request, signal) {
     return this._callApi("submit", async () => {
-      return workspaceClient2.jobs.submit(request, this._createContext(signal));
+      return workspaceClient3.jobs.submit(request, this._createContext(signal));
     });
   }
-  async runNow(workspaceClient2, request, signal) {
+  async runNow(workspaceClient3, request, signal) {
     return this._callApi("runNow", async () => {
-      return workspaceClient2.jobs.runNow(request, this._createContext(signal));
+      return workspaceClient3.jobs.runNow(request, this._createContext(signal));
     });
   }
-  async getRun(workspaceClient2, request, signal) {
+  async getRun(workspaceClient3, request, signal) {
     return this._callApi("getRun", async () => {
-      return workspaceClient2.jobs.getRun(request, this._createContext(signal));
+      return workspaceClient3.jobs.getRun(request, this._createContext(signal));
     });
   }
-  async getRunOutput(workspaceClient2, request, signal) {
+  async getRunOutput(workspaceClient3, request, signal) {
     return this._callApi("getRunOutput", async () => {
-      return workspaceClient2.jobs.getRunOutput(request, this._createContext(signal));
+      return workspaceClient3.jobs.getRunOutput(request, this._createContext(signal));
     });
   }
-  async cancelRun(workspaceClient2, request, signal) {
+  async cancelRun(workspaceClient3, request, signal) {
     await this._callApi("cancelRun", async () => {
-      return workspaceClient2.jobs.cancelRun(request, this._createContext(signal));
+      return workspaceClient3.jobs.cancelRun(request, this._createContext(signal));
     });
   }
-  async listRuns(workspaceClient2, request, signal) {
+  async listRuns(workspaceClient3, request, signal) {
     return this._callApi("listRuns", async () => {
       const runs = [];
       const limit = Math.max(1, Math.min(request.limit ?? 100, 100));
-      for await (const run2 of workspaceClient2.jobs.listRuns({
+      for await (const run2 of workspaceClient3.jobs.listRuns({
         ...request,
         limit
       }, this._createContext(signal))) {
@@ -198604,9 +198780,9 @@ var JobsConnector = class {
       return runs;
     });
   }
-  async getJob(workspaceClient2, request, signal) {
+  async getJob(workspaceClient3, request, signal) {
     return this._callApi("getJob", async () => {
-      return workspaceClient2.jobs.get(request, this._createContext(signal));
+      return workspaceClient3.jobs.get(request, this._createContext(signal));
     });
   }
   async _callApi(operation, fn) {
@@ -199094,13 +199270,13 @@ var AnalyticsPlugin = class extends Plugin {
   async _handleArrowRoute(req, res) {
     try {
       const { jobId } = req.params;
-      const workspaceClient2 = getWorkspaceClient();
+      const workspaceClient3 = getWorkspaceClient();
       logger21.debug("Processing Arrow job request for jobId=%s", jobId);
       logger21.event(req)?.setComponent("analytics", "getArrowData").setContext("analytics", {
         job_id: jobId,
         plugin: this.name
       });
-      const result = await this.getArrowData(workspaceClient2, jobId);
+      const result = await this.getArrowData(workspaceClient3, jobId);
       res.setHeader("Content-Type", "application/octet-stream");
       res.setHeader("Content-Length", result.data.length.toString());
       res.setHeader("Cache-Control", "public, max-age=3600");
@@ -199188,10 +199364,10 @@ var AnalyticsPlugin = class extends Plugin {
   * ```
   */
   async query(query, parameters, formatParameters, signal) {
-    const workspaceClient2 = getWorkspaceClient();
+    const workspaceClient3 = getWorkspaceClient();
     const warehouseId2 = await getWarehouseId();
     const { statement, parameters: sqlParameters } = this.queryProcessor.convertToSQLParameters(query, parameters);
-    return (await this.SQLClient.executeStatement(workspaceClient2, {
+    return (await this.SQLClient.executeStatement(workspaceClient3, {
       statement,
       warehouse_id: warehouseId2,
       parameters: sqlParameters,
@@ -199201,8 +199377,8 @@ var AnalyticsPlugin = class extends Plugin {
   /**
   * Get Arrow-formatted data for a completed query job.
   */
-  async getArrowData(workspaceClient2, jobId, signal) {
-    return await this.SQLClient.getArrowData(workspaceClient2, jobId, signal);
+  async getArrowData(workspaceClient3, jobId, signal) {
+    return await this.SQLClient.getArrowData(workspaceClient3, jobId, signal);
   }
   async shutdown() {
     this.streamManager.abortAll();
@@ -200801,8 +200977,8 @@ var GeniePlugin = class extends Plugin {
         streamId: requestId
       }
     };
-    const workspaceClient2 = getWorkspaceClient();
-    await this.executeStream(res, (signal) => this.genieConnector.streamSendMessage(workspaceClient2, spaceId, content, conversationId, {
+    const workspaceClient3 = getWorkspaceClient();
+    await this.executeStream(res, (signal) => this.genieConnector.streamSendMessage(workspaceClient3, spaceId, content, conversationId, {
       timeout: timeout2,
       signal
     }), streamSettings);
@@ -200825,8 +201001,8 @@ var GeniePlugin = class extends Plugin {
         streamId: requestId
       }
     };
-    const workspaceClient2 = getWorkspaceClient();
-    await this.executeStream(res, (signal) => this.genieConnector.streamConversation(workspaceClient2, spaceId, conversationId, {
+    const workspaceClient3 = getWorkspaceClient();
+    await this.executeStream(res, (signal) => this.genieConnector.streamConversation(workspaceClient3, spaceId, conversationId, {
       includeQueryResults,
       pageToken: pageToken2,
       signal
@@ -200853,8 +201029,8 @@ var GeniePlugin = class extends Plugin {
         streamId: requestId
       }
     };
-    const workspaceClient2 = getWorkspaceClient();
-    await this.executeStream(res, (signal) => this.genieConnector.streamGetMessage(workspaceClient2, spaceId, conversationId, messageId, {
+    const workspaceClient3 = getWorkspaceClient();
+    await this.executeStream(res, (signal) => this.genieConnector.streamGetMessage(workspaceClient3, spaceId, conversationId, messageId, {
       timeout: timeout2,
       signal
     }), streamSettings);
@@ -200863,8 +201039,8 @@ var GeniePlugin = class extends Plugin {
     signal?.throwIfAborted();
     const spaceId = this.resolveSpaceId(alias);
     if (!spaceId) throw new Error(`Unknown space alias: ${alias}`);
-    const workspaceClient2 = getWorkspaceClient();
-    return this.genieConnector.getConversation(workspaceClient2, spaceId, conversationId);
+    const workspaceClient3 = getWorkspaceClient();
+    return this.genieConnector.getConversation(workspaceClient3, spaceId, conversationId);
   }
   /**
   * Send a message and consume events as a stream (message_start, status,
@@ -200874,9 +201050,9 @@ var GeniePlugin = class extends Plugin {
     options?.signal?.throwIfAborted();
     const spaceId = this.resolveSpaceId(alias);
     if (!spaceId) throw new Error(`Unknown space alias: ${alias}`);
-    const workspaceClient2 = getWorkspaceClient();
+    const workspaceClient3 = getWorkspaceClient();
     const timeout2 = options?.timeout ?? this.config.timeout ?? 12e4;
-    yield* this.genieConnector.streamSendMessage(workspaceClient2, spaceId, content, conversationId, {
+    yield* this.genieConnector.streamSendMessage(workspaceClient3, spaceId, content, conversationId, {
       timeout: timeout2,
       signal: options?.signal
     });
@@ -205316,10 +205492,10 @@ var ServingPlugin = class extends Plugin {
       return;
     }
     const timeout2 = this.config.timeout ?? 12e4;
-    const workspaceClient2 = getWorkspaceClient();
+    const workspaceClient3 = getWorkspaceClient();
     let rawStream;
     try {
-      rawStream = await stream(workspaceClient2, endpoint.name, filteredBody);
+      rawStream = await stream(workspaceClient3, endpoint.name, filteredBody);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Streaming request failed";
       res.status(502).json({ error: message });
@@ -205343,9 +205519,9 @@ var ServingPlugin = class extends Plugin {
   }
   async invoke(alias, body) {
     const { endpoint, filteredBody } = this.resolveAndFilter(alias, body);
-    const workspaceClient2 = getWorkspaceClient();
+    const workspaceClient3 = getWorkspaceClient();
     const timeout2 = this.config.timeout ?? 12e4;
-    return this.execute(() => invoke(workspaceClient2, endpoint.name, filteredBody), { default: {
+    return this.execute(() => invoke(workspaceClient3, endpoint.name, filteredBody), { default: {
       ...servingInvokeDefaults,
       timeout: timeout2
     } });

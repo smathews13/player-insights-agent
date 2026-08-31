@@ -35,7 +35,7 @@
  * dependency; where the reference this was modelled on prints a number, this
  * prints what it is waiting for.
  */
-import { Component, Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Alert, AlertDescription } from './ui';
 import { CircleAlert, ExternalLink } from 'lucide-react';
@@ -65,13 +65,12 @@ import {
   ACCENT_TOKEN,
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
-  canvasFits,
-  canvasScale,
   drawnEdges,
   nodeBox,
   type ArchitectureAccent,
   type NodeBox,
 } from './architecture-layout';
+import { observeArchitectureScale } from './architecture-responsive';
 import {
   ARCHITECTURE_CONTROL_SCOPES,
   displayedBound,
@@ -114,6 +113,16 @@ interface ArchitecturePayload {
 }
 
 const ARCHITECTURE_DESCRIPTION_TIMEOUT_MS = 5_000;
+
+/**
+ * The browser must scale the fixed drawing before it paints it.
+ *
+ * The server and client both render scale 1, so hydration starts from identical
+ * markup. In a browser this effect becomes a layout effect: its synchronous
+ * clientWidth read is flushed before paint, then ResizeObserver reconciles every
+ * later size. On the server it is an ordinary effect and never runs.
+ */
+const useCanvasLayoutEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect;
 
 /** Keep a diagram exception from replacing the whole Architecture tab. */
 class ArchitectureDiagramBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -409,136 +418,109 @@ export function ArchitectureCanvas({
   const description = useMemo(() => describeArchitecture(byResource, now), [byResource, now]);
 
   /**
-   * The width the panel actually offers, which the geometry cannot know.
+   * One fixed geometry and one measured number.
    *
-   * Everything about where a card sits is stated in pixels on a fixed canvas, on
-   * purpose, and that stays true: the only thing measured here is how much of
-   * full size to draw the whole thing at, so that a window narrower than the
-   * canvas shows the whole drawing rather than its left two thirds.
-   *
-   * `0` until measured, which is the server and the first paint, and draws at
-   * full size. ResizeObserver is absent under the test renderer, so every layout
-   * check still reasons about the canvas at its stated size.
+   * Scale 1 is the deterministic server/client initial state. The container query
+   * below keeps an unscaled canvas from painting at widths where it would clip;
+   * in widths where the canvas belongs, the layout effect measures and applies
+   * zoom before the browser paints. ResizeObserver handles only later changes.
    */
-  const [panelWidth, setPanelWidth] = useState(0);
-  const scroller = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+  const responsive = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const element = scroller.current;
-    if (!element || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width ?? 0;
-      setPanelWidth((current) => (current === width ? current : width));
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
+  useCanvasLayoutEffect(() => {
+    const element = responsive.current;
+    if (!element) return;
+    return observeArchitectureScale(element, setScale);
   }, []);
 
-  const scale = canvasScale(panelWidth);
-  /*
-   * Whether there is room to draw it at all. Below the fit floor the two things a
-   * fixed drawing can do are shrink past legibility and be read through a
-   * letterbox, and this page has shipped both; the list below is the third
-   * answer. See `canvasFits`.
-   *
-   * The scroller stays mounted either way, because it is the element being
-   * measured: unmounting it would take the ResizeObserver with it, the width would
-   * go back to 0, `canvasFits` would say yes, and the drawing would come back and
-   * remove itself again on the next frame.
-   */
-  const fits = canvasFits(panelWidth);
-
   return (
-    <>
-      <div className="arch-canvas-scroll" ref={scroller} data-fits={fits ? undefined : 'false'}>
-        {fits ? (
-          <div
-            className="arch-canvas"
-            data-testid="architecture-canvas"
-            role="group"
-            aria-label="Live data flow. Each card links to that dependency on the Connections page."
-            data-active-bound={activeBound ?? undefined}
-            data-active-accent={activeBound ? ARCHITECTURE_CONTROL_SCOPES[activeBound].accent : undefined}
-            style={{
-              width: `${CANVAS_WIDTH}px`,
-              height: `${CANVAS_HEIGHT}px`,
-              // Omitted entirely at full size, so the common case carries no
-              // property at all and the rendered markup is the one the geometry
-              // checks were written against.
-              ...(scale < 1 ? { zoom: scale } : {}),
-            }}
+    <div className="arch-responsive" data-testid="architecture-responsive" ref={responsive}>
+      <div className="arch-canvas-scroll">
+        <div
+          className="arch-canvas"
+          data-testid="architecture-canvas"
+          role="group"
+          aria-label="Live data flow. Each card links to that dependency on the Connections page."
+          data-active-bound={activeBound ?? undefined}
+          data-active-accent={activeBound ? ARCHITECTURE_CONTROL_SCOPES[activeBound].accent : undefined}
+          style={{
+            width: `${CANVAS_WIDTH}px`,
+            height: `${CANVAS_HEIGHT}px`,
+            // Omitted entirely at full size, so the common case carries no
+            // property at all and the rendered markup is the one the geometry
+            // checks were written against.
+            ...(scale < 1 ? { zoom: scale } : {}),
+          }}
+        >
+          <svg
+            className="arch-edges"
+            viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
+            aria-hidden="true"
+            focusable="false"
           >
-            <svg
-              className="arch-edges"
-              viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
-              aria-hidden="true"
-              focusable="false"
-            >
-              {edges.map((edge) => {
-                const controlBounds = edgeControlBounds(edge.from, edge.to);
-                const controlled = activeBound !== null && controlBounds.includes(activeBound);
-                return (
-                  <g key={edge.id}>
-                    <path
-                      className="arch-edge"
-                      d={edge.d}
-                      data-relationship={edge.relationship}
-                      data-control-bounds={controlBounds.join(' ') || undefined}
-                      data-control-active={controlled ? 'true' : undefined}
-                      data-control-bound={controlled ? activeBound : undefined}
-                    />
-                    <text className="arch-edge-label" x={edge.labelX} y={edge.labelY} textAnchor={edge.labelAnchor}>
-                      {edge.label}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-            {edges
-              .filter((edge) => edge.relationship === 'flow')
-              .map((edge) => (
-                <span
-                  className="arch-dot"
-                  key={edge.id}
-                  data-testid={`arch-dot-${edge.id}`}
-                  aria-hidden="true"
-                  style={{
-                    offsetPath: `path('${edge.d}')`,
-                    background: `var(${ACCENT_TOKEN[edge.accent]})`,
-                    animationDuration: `${edge.duration}s`,
-                    animationDelay: `${edge.delay}s`,
-                  }}
-                />
-              ))}
-            {ARCHITECTURE_NODES.map((node) => {
-              const box = nodeBox(node.id);
-              if (!box) return null;
+            {edges.map((edge) => {
+              const controlBounds = edgeControlBounds(edge.from, edge.to);
+              const controlled = activeBound !== null && controlBounds.includes(activeBound);
               return (
-                <ArchitectureNodeCard
-                  activeBound={activeBound}
-                  box={box}
-                  indexReading={byResource.get('semantic-index')}
-                  key={node.id}
-                  node={node}
-                  now={now}
-                  payload={payload}
-                  reading={node.resourceId ? byResource.get(node.resourceId) : undefined}
-                />
+                <g key={edge.id}>
+                  <path
+                    className="arch-edge"
+                    d={edge.d}
+                    data-relationship={edge.relationship}
+                    data-control-bounds={controlBounds.join(' ') || undefined}
+                    data-control-active={controlled ? 'true' : undefined}
+                    data-control-bound={controlled ? activeBound : undefined}
+                  />
+                  <text className="arch-edge-label" x={edge.labelX} y={edge.labelY} textAnchor={edge.labelAnchor}>
+                    {edge.label}
+                  </text>
+                </g>
               );
             })}
-          </div>
-        ) : null}
+          </svg>
+          {edges
+            .filter((edge) => edge.relationship === 'flow')
+            .map((edge) => (
+              <span
+                className="arch-dot"
+                key={edge.id}
+                data-testid={`arch-dot-${edge.id}`}
+                aria-hidden="true"
+                style={{
+                  offsetPath: `path('${edge.d}')`,
+                  background: `var(${ACCENT_TOKEN[edge.accent]})`,
+                  animationDuration: `${edge.duration}s`,
+                  animationDelay: `${edge.delay}s`,
+                }}
+              />
+            ))}
+          {ARCHITECTURE_NODES.map((node) => {
+            const box = nodeBox(node.id);
+            if (!box) return null;
+            return (
+              <ArchitectureNodeCard
+                activeBound={activeBound}
+                box={box}
+                indexReading={byResource.get('semantic-index')}
+                key={node.id}
+                node={node}
+                now={now}
+                payload={payload}
+                reading={node.resourceId ? byResource.get(node.resourceId) : undefined}
+              />
+            );
+          })}
+        </div>
       </div>
 
       {/*
-        The drawing, for anybody not reading it with their eyes and a mouse. Not a
-        fallback: every fact the picture carries is here, which is the only thing
-        that makes hiding the picture from a screen reader defensible.
-
-        And it is the same list that becomes VISIBLE in a panel too narrow to draw
-        in. One list, one set of sentences, one clock, whichever way it is being
-        read -- so the narrow arrangement is not a second version of the page that
-        nobody checks, which is what the old 1024px collapse was.
+        The drawing in words. It is the ONE live tree when a panel is too narrow
+        for the canvas; at drawable widths CSS removes it from both visual and
+        accessibility trees before exposing the interactive canvas. One list, one
+        set of sentences, one clock -- so the narrow arrangement is not a second
+        version of the page that nobody checks, which is what the old 1024px
+        collapse was.
       */}
       <ul className="arch-equivalent" data-testid="architecture-equivalent">
         {description.map((line) => (
@@ -548,17 +530,15 @@ export function ArchitectureCanvas({
 
       {/* The legend maps a colour to a kind of connection, so it has nothing to
           say when the drawing is not on screen. */}
-      {fits ? (
-        <ul className="arch-legend">
-          {LEGEND.map((entry) => (
-            <li key={entry.accent} data-accent={entry.accent}>
-              <span aria-hidden="true" />
-              {entry.label}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </>
+      <ul className="arch-legend">
+        {LEGEND.map((entry) => (
+          <li key={entry.accent} data-accent={entry.accent}>
+            <span aria-hidden="true" />
+            {entry.label}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

@@ -223,22 +223,22 @@ describe('run outcomes remain separate', () => {
     expect(Object.values(tile)).not.toContain('18');
   });
 
-  it('reports the actual terminal total when every question has an outcome', () => {
+  it('reports the actual finished total when every question has an outcome', () => {
     const exact = outcomeTile(summary({ questionsAsked: 214, completed: 190, partial: 6, refused: 11, failed: 7 }));
 
-    expect(exact.caption).toBe('214 terminal outcomes');
+    expect(exact.caption).toBe('214 finished questions');
   });
 
   it('names an unaccounted remainder rather than claiming a false sum', () => {
     const mixed = outcomeTile(summary({ questionsAsked: 214, completed: 189, partial: 6, refused: 11, failed: 7 }));
 
     expect(mixed.caption).not.toContain('sum to questions asked');
-    expect(mixed.caption).toBe('213 terminal outcomes · 1 more has no recorded outcome');
+    expect(mixed.caption).toBe('213 finished questions · 1 more has no recorded outcome');
   });
 
-  it('uses the correct singular and plural terminal-outcome copy', () => {
-    expect(outcomeTile(summary({ questionsAsked: 1, completed: 1 })).caption).toBe('1 terminal outcome');
-    expect(outcomeTile(summary({ questionsAsked: 2, completed: 2 })).caption).toBe('2 terminal outcomes');
+  it('uses the correct singular and plural finished-question copy', () => {
+    expect(outcomeTile(summary({ questionsAsked: 1, completed: 1 })).caption).toBe('1 finished question');
+    expect(outcomeTile(summary({ questionsAsked: 2, completed: 2 })).caption).toBe('2 finished questions');
   });
 
   it('keeps all-zero and large outcome counts exact', () => {
@@ -254,14 +254,14 @@ describe('run outcomes remain separate', () => {
     );
 
     expect([empty.completed, empty.partial, empty.refused, empty.failed]).toEqual(['0', '0', '0', '0']);
-    expect(empty.caption).toBe('0 terminal outcomes');
+    expect(empty.caption).toBe('0 finished questions');
     expect([large.completed, large.partial, large.refused, large.failed]).toEqual([
       '81,234',
       '4,000',
       '3,000',
       '3,000',
     ]);
-    expect(large.caption).toBe('91,234 terminal outcomes');
+    expect(large.caption).toBe('91,234 finished questions');
   });
 
   it('keeps the two refusal causes on separate code lists', () => {

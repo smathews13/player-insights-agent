@@ -31,7 +31,13 @@ export type LooseCase = {
   tokens?: number | null;
   stages?: { id?: string; name?: string; kind?: string; status?: string; duration?: number | null }[] | null;
   scores?: ScorecardValue[] | null;
-  judgements?: { name?: string; rationale?: string; value?: string | null; state?: string; durationMs?: number | null }[];
+  judgements?: {
+    name?: string;
+    rationale?: string;
+    value?: string | null;
+    state?: string;
+    durationMs?: number | null;
+  }[];
 };
 
 export type FailureCase = {
@@ -243,10 +249,13 @@ export function genieLanePair(input: {
     return { baseline: laneFromHistory(prior), candidate };
   }
   if (history.length >= 2) {
-    return { baseline: laneFromHistory(history[1]!), candidate: laneFromHistory(history[0]!) };
+    return { baseline: laneFromHistory(history[1]), candidate: laneFromHistory(history[0]) };
   }
   if (history.length === 1) {
-    return { baseline: emptyGenieLane(ONE_GENIE_NOTE), candidate: { ...laneFromHistory(history[0]!), note: ONE_GENIE_NOTE } };
+    return {
+      baseline: emptyGenieLane(ONE_GENIE_NOTE),
+      candidate: { ...laneFromHistory(history[0]), note: ONE_GENIE_NOTE },
+    };
   }
   return null;
 }
@@ -267,9 +276,7 @@ export function genieLaneFromRun(run: GenieAccuracyRunView | null): {
 
 export function pairCaseOutcomes(baseline: LooseCase[], candidate: LooseCase[]): CaseOutcomePair[] {
   const right = new Map(candidate.map((entry) => [entry.caseId || '', entry]));
-  const ids = new Set(
-    [...baseline, ...candidate].map((entry) => entry.caseId || '').filter(Boolean)
-  );
+  const ids = new Set([...baseline, ...candidate].map((entry) => entry.caseId || '').filter(Boolean));
   return [...ids].map((caseId) => {
     const left = baseline.find((entry) => entry.caseId === caseId);
     const other = right.get(caseId);
@@ -433,13 +440,11 @@ export function casesFromTrace(trace: BakeOffTrace | null): LooseCase[] {
   return Array.isArray(cases) ? cases : [];
 }
 
-export function extraRateNote(
-  extra: Record<string, { rate?: number | null }> | null | undefined
-): string {
+export function extraRateNote(extra: Record<string, { rate?: number | null }> | null | undefined): string {
   if (!extra) return '';
   return Object.entries(extra)
     .map(([name, value]) => {
-      const rate = typeof value?.rate === 'number' ? `${Math.round(value.rate * 100)}%` : 'not set';
+      const rate = typeof value?.rate === 'number' ? `${Math.round(value.rate * 100)}%` : 'Not recorded';
       return `${name} ${rate}`;
     })
     .join(' · ');

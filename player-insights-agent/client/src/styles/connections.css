@@ -987,6 +987,7 @@ html:has(.connections-page) body[data-scroll-locked] {
 .identity-fact-value {
   display: flex;
   align-items: center;
+  flex: 1 1 auto;
   gap: 8px;
   min-width: 0;
 }
@@ -1003,6 +1004,59 @@ html:has(.connections-page) body[data-scroll-locked] {
 .identity-fact-when {
   font-size: var(--text-sm);
   color: var(--muted-foreground);
+}
+.identity-databricks-mark {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.identity-databricks-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.identity-section {
+  min-width: 0;
+  padding: 12px 0;
+}
+.identity-section:first-child {
+  padding-top: 0;
+}
+.identity-section + .identity-section,
+.identity-section + .identity-scope-table-wrap {
+  border-top: 1px solid var(--border);
+}
+.identity-section h4,
+.identity-scope-title {
+  margin: 0 0 8px;
+  color: var(--ast-text-long);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.identity-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 28px;
+}
+.identity-section-grid .identity-fact {
+  min-width: 0;
+}
+.identity-full-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.identity-not-reported {
+  color: var(--muted-foreground);
+}
+.identity-boundary ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ast-text-long);
 }
 /*
  * Whether the half of the deployment a stamp names is working.
@@ -1038,12 +1092,11 @@ html:has(.connections-page) body[data-scroll-locked] {
 .identity-scope-table-wrap {
   width: 100%;
   overflow-x: auto;
-  margin-top: 10px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
+  padding-top: 12px;
 }
 .identity-scope-table {
   width: 100%;
+  min-width: 720px;
   border-collapse: collapse;
   font-size: var(--text-base);
 }
@@ -1061,7 +1114,7 @@ html:has(.connections-page) body[data-scroll-locked] {
 }
 .identity-scope-table th:first-child,
 .identity-scope-table td:first-child {
-  width: 36%;
+  width: 30%;
 }
 .identity-scope-table code {
   font-size: var(--text-sm);
@@ -1089,9 +1142,6 @@ html:has(.connections-page) body[data-scroll-locked] {
 .identity-scope-code {
   font-size: var(--text-sm);
   overflow-wrap: anywhere;
-}
-.identity-scope-default {
-  color: var(--muted-foreground);
 }
 /* Anything after the table needs the same break, in the other direction. */
 .identity-scope-table-wrap + .identity-fact {

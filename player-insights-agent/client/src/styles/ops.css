@@ -635,6 +635,7 @@ a.ops-dependency-name:hover {
 
 .ops-cost-resource-budgets {
   grid-column: 1 / -1;
+  container-type: inline-size;
 }
 
 .ops-cost-summary-head {
@@ -674,44 +675,11 @@ a.ops-dependency-name:hover {
 }
 
 .ops-cost-budget-matrix {
-  display: grid;
-  gap: 0;
-  min-width: 0;
-  margin-top: 8px;
-}
-
-.ops-cost-budget-matrix-head,
-.ops-tile-budget {
-  display: grid;
-  grid-template-columns: minmax(10rem, 1.2fr) minmax(8rem, 0.8fr) minmax(13.5rem, 0.9fr) minmax(9rem, 1fr);
-  align-items: center;
-  gap: 10px 16px;
-  min-width: 0;
-}
-
-.ops-cost-budget-matrix-head {
-  padding: 0 0 6px;
-  color: var(--ast-text-secondary);
-  font-size: var(--text-xs);
-  font-weight: 700;
-}
-
-.ops-cost-budget-matrix-head > span:nth-child(n + 2) {
-  text-align: right;
+  table-layout: fixed;
 }
 
 .ops-tile-budget {
-  padding: 8px 0;
-  border-top: 1px solid var(--ast-hairline);
-}
-
-.ops-tile-budget > span {
   min-width: 0;
-}
-
-.ops-tile-budget > span:nth-child(n + 2) {
-  display: flex;
-  justify-content: flex-end;
 }
 
 .ops-budget-actual {
@@ -727,6 +695,17 @@ a.ops-dependency-name:hover {
   font-family: var(--font-sans);
   font-size: var(--text-xs);
   font-weight: 400;
+}
+
+.ops-budget-value {
+  color: var(--ast-text-long);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ops-cost-actual-breakdown {
+  margin-top: 14px;
 }
 
 .ops-resource-budget-actions {
@@ -947,51 +926,44 @@ a.ops-dependency-name:hover {
  * Daily-rate resources say `per day`; all other fields inherit the Cost window.
  */
 .ops-cost-total {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  margin: 8px 0 0;
+  min-width: 0;
+  margin: 0;
 }
 
-.ops-cost-total-note {
-  margin: 0;
-  flex: 1 1 16rem;
+.ops-cost-total .ops-ticker-input-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 14rem) auto minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.ops-cost-total .ops-budget-apply {
+  min-height: var(--ops-ticker-control-height);
+  height: var(--ops-ticker-control-height);
+}
+
+.ops-app-budget-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ops-ticker-control-height);
+  height: var(--ops-ticker-control-height);
+  min-width: 0;
+  max-width: 100%;
   font-size: var(--text-xs);
   color: var(--ast-text-secondary);
-}
-
-.ops-budget-field {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-  min-width: 0;
-  width: min(100%, 14rem);
-  max-width: 100%;
 }
 
 .ops-budget-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  min-width: 0;
-  font-size: var(--text-xs);
-  font-weight: 700;
-  color: var(--ast-text-secondary);
+  color: var(--ast-text-long);
+  text-align: left;
 }
 
 .ops-budget-resource {
   min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
   color: var(--ast-text-long);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ops-budget-basis {
-  flex: 0 0 auto;
+  margin-left: 4px;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -1008,21 +980,8 @@ a.ops-dependency-name:hover {
   text-align: right;
 }
 
-.ops-budget-not-set,
-.ops-budget-helper {
+.ops-budget-not-set {
   color: var(--ast-text-secondary);
-}
-
-.ops-budget-helper,
-.ops-budget-validation {
-  min-height: 1lh;
-  font-size: var(--text-xs);
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.ops-budget-validation {
-  color: var(--ast-neg-text);
 }
 
 .ops-budget-save-ok {
@@ -1120,7 +1079,7 @@ a.ops-dependency-name:hover {
   font-size: var(--text-sm);
 }
 
-.ops-forecast-assumptions {
+.ops-ticker-assumptions {
   min-width: 0;
   margin: 0;
   padding: 12px;
@@ -1128,7 +1087,7 @@ a.ops-dependency-name:hover {
   border-radius: var(--ast-radius-card);
 }
 
-.ops-forecast-assumptions > legend {
+.ops-ticker-assumptions > legend {
   padding: 0 6px;
   color: var(--ast-text-secondary);
   font-size: var(--text-xs);
@@ -1137,20 +1096,30 @@ a.ops-dependency-name:hover {
   text-transform: uppercase;
 }
 
-.ops-forecast-assumption-grid {
+.ops-ticker-assumption-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 13.5rem));
+  grid-template-columns: repeat(var(--ops-assumption-columns), minmax(0, 1fr));
   gap: 10px 12px;
+  min-width: 0;
 }
 
-.ops-forecast-assumption {
+.ops-ticker-assumptions:not(fieldset) {
+  padding: 0;
+  border: 0;
+}
+
+.ops-cost-resource-budgets > .ops-ticker-assumptions {
+  margin-top: 10px;
+}
+
+.ops-ticker-assumption {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 4px;
 }
 
-.ops-forecast-assumption > label {
+.ops-ticker-assumption > label {
   color: var(--ast-text-long);
   font-size: var(--text-xs);
   font-weight: 600;
@@ -1158,10 +1127,12 @@ a.ops-dependency-name:hover {
   overflow-wrap: break-word;
 }
 
-.ops-forecast-input-row {
+.ops-ticker-input-row {
+  --ops-ticker-control-height: 36px;
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .ops-forecast-number-control,
@@ -1198,8 +1169,8 @@ a.ops-dependency-name:hover {
 }
 
 .ops-number-ticker-wide input {
-  height: 36px;
-  min-height: 36px;
+  height: var(--ops-ticker-control-height, 36px);
+  min-height: var(--ops-ticker-control-height, 36px);
   padding-right: 9px;
   padding-left: 9px;
 }
@@ -1299,24 +1270,30 @@ a.ops-dependency-name:hover {
   height: 12px;
 }
 
-.ops-forecast-input-row small {
+.ops-ticker-input-row small {
   color: var(--ast-text-secondary);
   font-size: var(--text-xs);
   font-weight: 400;
 }
 
-.ops-forecast-assumption-evidence {
+.ops-ticker-assumption-helper,
+.ops-ticker-assumption-error {
   display: block;
+  min-height: 1lh;
   max-width: 30rem;
-  color: var(--ast-text-secondary);
   font-size: var(--text-xs);
   font-weight: 400;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
-.ops-forecast-assumption-evidence {
+.ops-ticker-assumption-helper {
+  color: var(--ast-text-secondary);
   opacity: 0.86;
+}
+
+.ops-ticker-assumption-error {
+  color: var(--ast-neg-text);
 }
 
 .ops-forecast-horizons {

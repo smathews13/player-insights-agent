@@ -31,6 +31,7 @@ import { ANSWER_PARAM, CONVERSATION_PARAM, answerRowId, conversationHref } from 
 
 const HOME_PAGE = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 const RUN_EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
+const RUN_EXPLORER_STATE = readFileSync(new URL('./run-explorer-state.ts', import.meta.url), 'utf8');
 const FINAL_ANSWER = readFileSync(new URL('./FinalAnswer.tsx', import.meta.url), 'utf8');
 const LAYOUT = readFileSync(new URL('./Layout.tsx', import.meta.url), 'utf8');
 
@@ -157,10 +158,10 @@ describe('the way back into the Run Explorer', () => {
 
   it('opens the run belonging to that conversation rather than the newest one', () => {
     expect(RUN_EXPLORER).toContain("searchParams.get('conversation')");
-    expect(RUN_EXPLORER).toMatch(/runs\.find\(\(run\) => run\.conversation_id === requestedConversation\)/);
-    // A run the reader picked still wins over the one carried in, and the
-    // newest-overall default is still last.
-    expect(RUN_EXPLORER).toMatch(/chosen \?\?\s*conversationRun \?\?/);
+    expect(RUN_EXPLORER).toContain('resolveRunSelection(runs, requestedId, requestedConversation)');
+    expect(RUN_EXPLORER_STATE).toMatch(
+      /requestedConversationId[\s\S]*?runs\.find\(\(run\) => run\.conversation_id === requestedConversationId\)[\s\S]*?\?\?\s*runs\[0\]/
+    );
   });
 
   /**

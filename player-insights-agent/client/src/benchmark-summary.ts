@@ -269,7 +269,7 @@ export interface BenchmarkSummary {
   servedVersion: string | null;
 }
 
-const ABSENT = 'Not reported';
+const ABSENT = 'Not recorded';
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -289,7 +289,8 @@ function textOrNull(value: unknown): string | null {
  * on purpose — a suite must not get shorter by failing — which is exactly why the
  * caption has to say so.
  */
-function passedCoverage(passedLabel: string,
+function passedCoverage(
+  passedLabel: string,
   total: unknown,
   unattempted: number | null,
   unresolved: unknown
@@ -343,7 +344,8 @@ function judgeExclusions(judge: BenchmarkJudgeRate | null | undefined): string |
  * over a named population, and guidelines, whose population moves case by case,
  * reads as the fraction itself.
  */
-function rateFigures(value: unknown,
+function rateFigures(
+  value: unknown,
   judge: BenchmarkJudgeRate | null | undefined,
   form: 'percent' | 'fraction',
   population: string
@@ -373,7 +375,8 @@ function rateFigures(value: unknown,
   };
 }
 
-export function benchmarkSummary(rawStatus: string | null | undefined,
+export function benchmarkSummary(
+  rawStatus: string | null | undefined,
   metrics: BenchmarkMetrics | null | undefined
 ): BenchmarkSummary {
   const status = benchmarkStatus(rawStatus);
@@ -406,7 +409,8 @@ export function benchmarkSummary(rawStatus: string | null | undefined,
   // mean different things: one is the agent answering wrongly, the other is the
   // run not getting an answer at all, and averaging them hides a broken endpoint
   // behind a plausible-looking pass rate.
-  const outcomeParts = ([
+  const outcomeParts = (
+    [
       ['passed', counts?.passed],
       ['failed', counts?.failed],
       ['errored', counts?.errored],
@@ -444,7 +448,8 @@ export function benchmarkSummary(rawStatus: string | null | undefined,
   // which was true of the only truncation the runner then wrote and became a
   // false statement about a run that simply ran out of time.
   const truncationCause = truncation
-    ? [truncation.code ? `The code recorded for it is ${truncation.code}` : 'The run recorded no code for it',
+    ? [
+        truncation.code ? `The code recorded for it is ${truncation.code}` : 'The run recorded no code for it',
         textOrNull(truncation.detail),
       ]
         .filter((part): part is string => Boolean(part))
@@ -551,7 +556,8 @@ export function benchmarkSummary(rawStatus: string | null | undefined,
  */
 export function benchmarkCaseRows(metrics: BenchmarkMetrics | null | undefined): BenchmarkCaseRow[] {
   const cases = Array.isArray(metrics?.cases) ? metrics.cases : [];
-  return cases.filter((record): record is BenchmarkCaseRecord => Boolean(record) && typeof record === 'object')
+  return cases
+    .filter((record): record is BenchmarkCaseRecord => Boolean(record) && typeof record === 'object')
     .map((record, index) => {
       const outcome = (textOrNull(record.outcome) ?? '').toLowerCase();
       const stage = (textOrNull(record.errorStage) ?? '').toLowerCase();
@@ -566,7 +572,8 @@ export function benchmarkCaseRows(metrics: BenchmarkMetrics | null | undefined):
         question: textOrNull(record.question),
         outcomeLabel: label,
         tone,
-        durationLabel: isFiniteNumber(record.durationMs) && record.durationMs >= 0 ? formatDuration(record.durationMs) : ABSENT,
+        durationLabel:
+          isFiniteNumber(record.durationMs) && record.durationMs >= 0 ? formatDuration(record.durationMs) : ABSENT,
         note: textOrNull(record.note),
       };
     });
@@ -701,7 +708,9 @@ export function benchmarkQualifications(summary: BenchmarkSummary): BenchmarkQua
       // configuration it never saw.
       const attribution = [
         summary.judgeEndpoint ? `Endpoint ${summary.judgeEndpoint}` : null,
-        summary.judgePromptVersion ? `MLflow prompt version ${summary.judgePromptVersion.replace(/^mlflow-/, '')}` : null,
+        summary.judgePromptVersion
+          ? `MLflow prompt version ${summary.judgePromptVersion.replace(/^mlflow-/, '')}`
+          : null,
       ].filter((part): part is string => Boolean(part));
       // The row survives a missing disclosure sentence as long as the run named
       // what judged it. The attribution is the load-bearing half: a score whose
@@ -715,7 +724,8 @@ export function benchmarkQualifications(summary: BenchmarkSummary): BenchmarkQua
           field,
           tone,
           lead,
-          sentence: [attribution.length > 0 ? `${attribution.join(', ')}.` : null,
+          sentence: [
+            attribution.length > 0 ? `${attribution.join(', ')}.` : null,
             text,
             summary.groundednessBasis,
             JUDGE_COUNTING_RULE,
@@ -727,8 +737,7 @@ export function benchmarkQualifications(summary: BenchmarkSummary): BenchmarkQua
     }
     if (!text) return [];
     if (field === 'executedAsNote') {
-      const identity =
-        summary.executedAsIdentity?.includes('@') ? summary.executedAsIdentity : undefined;
+      const identity = summary.executedAsIdentity?.includes('@') ? summary.executedAsIdentity : undefined;
       return [
         {
           field,
@@ -756,7 +765,14 @@ export function benchmarkQualifications(summary: BenchmarkSummary): BenchmarkQua
       ];
     }
     if (field === 'contradiction') {
-      return [{ field, tone, lead, sentence: `${text} Nothing has been adjusted to hide it. The figures below are shown as stored.` }];
+      return [
+        {
+          field,
+          tone,
+          lead,
+          sentence: `${text} Nothing has been adjusted to hide it. The figures below are shown as stored.`,
+        },
+      ];
     }
     if (field === 'executionNote') {
       return [

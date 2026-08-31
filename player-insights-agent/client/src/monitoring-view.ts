@@ -112,7 +112,7 @@ export function outcomeTile(summary: MonitoringSummary): OutcomeTile {
   const { completed, partial, refused, failed, questionsAsked } = summary;
   const accounted = completed + partial + refused + failed;
   const missing = questionsAsked - accounted;
-  const terminal = `${count(accounted)} terminal outcome${accounted === 1 ? '' : 's'}`;
+  const terminal = `${count(accounted)} finished question${accounted === 1 ? '' : 's'}`;
   const caption =
     accounted === questionsAsked
       ? terminal

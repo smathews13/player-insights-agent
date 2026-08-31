@@ -20,11 +20,22 @@
  * to billing is a separate request to a metastore admin, and it is not a condition
  * of the role, so it is no longer on this screen.
  */
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Copy, Trash2, UserPlus } from 'lucide-react';
 import { Button, Input } from './ui';
 import { CopyableCommand } from './AdminListEditor';
-import { canSubmit, roleWord, setOn, stepsDownFrom, type RosterEntry } from './user-roster';
+import {
+  addDisabledReason,
+  canSubmit,
+  claimRosterMutation,
+  normalizeRosterEmail,
+  roleWord,
+  rosterEmailError,
+  setOn,
+  stepsDownFrom,
+  submittedDraftIsCurrent,
+  type RosterEntry,
+} from './user-roster';
 import { isRole, type Role, type RosterPayload } from '../../shared/user-roster-contract';
 import type { SpIdentityAdminPayload, SpPersona } from '../../shared/sp-identity';
 import { AppSelect } from './AppSelect';
@@ -155,6 +166,9 @@ export function RosterAddRow({
   draft,
   role,
   busy,
+  adding = false,
+  error = '',
+  descriptionId = 'roster-add-description',
   onDraftChange,
   onRoleChange,
   onAdd,
@@ -162,19 +176,40 @@ export function RosterAddRow({
   draft: string;
   role: Role;
   busy: boolean;
+  adding?: boolean;
+  error?: string;
+  descriptionId?: string;
   onDraftChange: (value: string) => void;
   onRoleChange: (role: Role) => void;
   onAdd: () => void;
 }) {
+  const validationError = draft.trim() ? rosterEmailError(draft) : '';
+  const feedback = error || validationError;
+  const disabledReason = addDisabledReason(draft, role, busy);
   return (
     <tr className="roster-add-row">
       <td className="roster-email">
         <Input
+          type="email"
           value={draft}
           onChange={(event) => onDraftChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || !canSubmit(draft, busy, role)) return;
+            event.preventDefault();
+            onAdd();
+          }}
           placeholder="name@example.com"
           aria-label="Email address to put on the roster"
+          aria-invalid={Boolean(feedback)}
+          aria-describedby={descriptionId}
         />
+        <span
+          id={descriptionId}
+          className={`roster-add-feedback${feedback ? ' admin-list-error' : ''}`}
+          role={feedback ? 'alert' : undefined}
+        >
+          {feedback || disabledReason}
+        </span>
       </td>
       <td className="roster-add-help">Added by you</td>
       <td className="roster-role">
@@ -192,13 +227,23 @@ export function RosterAddRow({
       <td className="roster-add-persona">Assign after adding</td>
       <td className="roster-action">
         <Button
+          type="button"
           variant="outline"
           data-variant="outline"
           className="roster-control"
-          disabled={!canSubmit(draft, busy)}
+          disabled={Boolean(disabledReason)}
+          title={disabledReason || `Add ${normalizeRosterEmail(draft)} as ${roleWord(role)}`}
+          aria-describedby={descriptionId}
+          aria-busy={adding}
           onClick={onAdd}
         >
-          <UserPlus className="size-3.5" aria-hidden="true" /> Add
+          {adding ? (
+            'Adding…'
+          ) : (
+            <>
+              <UserPlus className="size-3.5" aria-hidden="true" /> Add
+            </>
+          )}
         </Button>
       </td>
     </tr>
@@ -377,18 +422,26 @@ export function UserRoleEditor({
   const [spMutationError, setSpMutationError] = useState<SpIdentityMutationError | null>(null);
   const [draft, setDraft] = useState('');
   const [draftRole, setDraftRole] = useState<Role>('admin');
-  const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<'add' | 'other' | null>(null);
   const [writeError, setWriteError] = useState('');
+  const [addError, setAddError] = useState('');
   const [notice, setNotice] = useState('');
+  const loadGeneration = useRef(0);
+  const mutationInFlight = useRef(false);
+  const draftVersion = useRef(0);
+  const addDescriptionId = useId();
+  const busy = busyAction !== null;
 
   /** The roster and persona assignment are one screen, so one refresh reads both. */
   const load = useCallback(
     async (showLoading = true) => {
+      const generation = ++loadGeneration.current;
       if (showLoading) setLoading(true);
       setError('');
       setSpError(null);
       const humanRequest = canManageHumanRoles ? loadHumanRoster() : Promise.resolve<RosterPayload | null>(null);
       const [spResult, humanResult] = await Promise.allSettled([loadSpIdentityAdmin(), humanRequest]);
+      if (generation !== loadGeneration.current) return;
 
       if (spResult.status === 'fulfilled') {
         setSpPayload(spResult.value);
@@ -418,37 +471,64 @@ export function UserRoleEditor({
     void load();
   }, [load]);
 
-  /** Every mutation refreshes both halves so a person never shows mixed-time identity data. */
-  async function run(
-    work: () => Promise<unknown>,
+  /**
+   * One synchronous latch sits in front of React state. Two clicks can arrive
+   * before a disabled paint, but only the first may reach the server.
+   */
+  async function run<T>(
+    work: () => Promise<T>,
     said: string,
-    spOperation?: SpIdentityMutationError['operation']
+    options: {
+      spOperation?: SpIdentityMutationError['operation'];
+      action?: 'add' | 'other';
+      apply?: (result: T) => void;
+      onError?: (message: string) => void;
+    } = {}
   ): Promise<boolean> {
-    setBusy(true);
+    if (!claimRosterMutation(mutationInFlight)) return false;
+    setBusyAction(options.action ?? 'other');
     setWriteError('');
     setSpMutationError(null);
     setNotice('');
     try {
-      await work();
-      await load(false);
+      const result = await work();
+      if (options.apply) {
+        // Supersede any older read before applying the server-confirmed write
+        // response. The mutation payload is the authoritative roster.
+        loadGeneration.current += 1;
+        options.apply(result);
+      } else {
+        await load(false);
+      }
       setNotice(said);
       return true;
     } catch (cause) {
-      if (spOperation) setSpMutationError({ operation: spOperation, message: (cause as Error).message });
-      else setWriteError((cause as Error).message);
+      const message = cause instanceof Error ? cause.message : 'The identity change failed. Try again.';
+      if (options.spOperation) setSpMutationError({ operation: options.spOperation, message });
+      else if (options.onError) options.onError(message);
+      else setWriteError(message);
       return false;
     } finally {
-      setBusy(false);
+      mutationInFlight.current = false;
+      setBusyAction(null);
     }
   }
 
   async function add() {
-    const email = draft.trim();
+    const validationError = rosterEmailError(draft);
+    if (validationError || busy) {
+      if (validationError) setAddError(validationError);
+      return;
+    }
+    const email = normalizeRosterEmail(draft);
+    const submittedDraftVersion = draftVersion.current;
+    setAddError('');
     const added = await run(
       () => writeHumanRoster('/api/users', 'POST', { email, role: draftRole }),
-      `${email} is now ${roleWord(draftRole).toLowerCase()}.`
+      `${email} is now ${roleWord(draftRole).toLowerCase()}.`,
+      { action: 'add', apply: setPayload, onError: setAddError }
     );
-    if (added) setDraft('');
+    if (added && submittedDraftIsCurrent(submittedDraftVersion, draftVersion.current)) setDraft('');
   }
 
   const personaByEmail = new Map(spPayload.roster.map((row) => [row.email, row.personaId]));
@@ -486,13 +566,15 @@ export function UserRoleEditor({
                 () => changeHumanRole(entry.email, role),
                 [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
                   .filter(Boolean)
-                  .join(' ')
+                  .join(' '),
+                { apply: setPayload }
               )
             }
             onRemove={(entry) =>
               void run(
                 () => writeHumanRoster(`/api/users/${encodeURIComponent(entry.email)}`, 'DELETE', {}),
-                `${entry.email} is off the roster.`
+                `${entry.email} is off the roster.`,
+                { apply: setPayload }
               )
             }
             footer={
@@ -501,7 +583,14 @@ export function UserRoleEditor({
                   draft={draft}
                   role={draftRole}
                   busy={busy}
-                  onDraftChange={setDraft}
+                  adding={busyAction === 'add'}
+                  error={addError}
+                  descriptionId={addDescriptionId}
+                  onDraftChange={(value) => {
+                    draftVersion.current += 1;
+                    setDraft(value);
+                    setAddError('');
+                  }}
                   onRoleChange={setDraftRole}
                   onAdd={() => void add()}
                 />
@@ -522,27 +611,29 @@ export function UserRoleEditor({
           mutationError={spMutationError}
           onRetryRead={() => void load()}
           onRename={(id, displayName) =>
-            void run(() => renameSpPersona(id, displayName), `Persona renamed to ${displayName}.`, 'rename')
+            void run(() => renameSpPersona(id, displayName), `Persona renamed to ${displayName}.`, {
+              spOperation: 'rename',
+            })
           }
           onCreateDefinition={(write) =>
             run(
               () => createSpPersonaDefinition(write),
               `${write.displayName} configuration generated. Account admin setup is still required.`,
-              'definition-save'
+              { spOperation: 'definition-save' }
             )
           }
           onUpdateDefinition={(id, write) =>
             run(
               () => updateSpPersonaDefinition(id, write),
               `${write.displayName} configuration updated. Account admin setup is still required.`,
-              'definition-save'
+              { spOperation: 'definition-save' }
             )
           }
           onDeleteDefinition={(id) =>
             void run(
               () => deleteSpPersonaDefinition(id),
               'Persona configuration removed. No Databricks account identity was changed.',
-              'definition-delete'
+              { spOperation: 'definition-delete' }
             )
           }
         />

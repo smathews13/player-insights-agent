@@ -250,6 +250,23 @@ export type RunTraceState =
   | { status: 'missing' }
   | { status: 'error'; message: string };
 
+export interface LoadedRunTrace {
+  runId: string;
+  state: RunTraceState;
+}
+
+/**
+ * A response is visible only under the id that produced it.
+ *
+ * Kept outside the hook so the stale-response boundary can be tested without a
+ * browser renderer: after back/forward or a fast row change, the old detail is
+ * loading state for the new run, never content under the wrong heading.
+ */
+export function visibleRunTraceState(runId: string | undefined, loaded: LoadedRunTrace | null): RunTraceState {
+  if (!runId) return { status: 'idle' };
+  return loaded?.runId === runId ? loaded.state : { status: 'loading' };
+}
+
 /** Normalize legacy stored stages at the Run Explorer read boundary. */
 export function normalizeRunTrace(trace: RunTrace): RunTrace {
   if (!trace.trace) return trace;
@@ -278,7 +295,7 @@ export function useRunTrace(runId: string | undefined, refreshToken = 0): RunTra
   // Keyed by the run it was fetched for, so a result can only ever be shown
   // under the run it belongs to, including on the render between a new
   // selection and its fetch, which is otherwise a frame of the previous run.
-  const [loaded, setLoaded] = useState<{ runId: string; state: RunTraceState } | null>(null);
+  const [loaded, setLoaded] = useState<LoadedRunTrace | null>(null);
   useEffect(() => {
     if (!runId) return;
     const controller = new AbortController();
@@ -295,12 +312,12 @@ export function useRunTrace(runId: string | undefined, refreshToken = 0): RunTra
         settle({ status: 'ready', data: normalizeRunTrace((await response.json()) as RunTrace) });
       })
       .catch((error: Error) => {
+        if (error.name === 'AbortError') return;
         settle({ status: 'error', message: error.message });
       });
     return () => controller.abort();
   }, [runId, refreshToken]);
-  if (!runId) return { status: 'idle' };
   // A poll must not blank the pane it is refreshing, so a result already held for
   // this run stays on screen while the next read is in flight.
-  return loaded?.runId === runId ? loaded.state : { status: 'loading' };
+  return visibleRunTraceState(runId, loaded);
 }

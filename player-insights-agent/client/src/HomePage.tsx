@@ -2715,6 +2715,8 @@ const MessageItem = memo(function MessageItem({
       onFeedbackChange={(changes) => onFeedbackChange(response.id, changes)}
       saveFeedback={(rating, options) => onSaveFeedback(response.id, rating, options)}
       showFeedback={showFeedback}
+      defaultRunProcessOpen={false}
+      runProcessPreferenceKey={message.id}
       processStages={processStages}
     />
   );

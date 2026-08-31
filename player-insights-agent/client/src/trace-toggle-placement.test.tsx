@@ -31,7 +31,7 @@ function stage(overrides: Partial<TraceStage> = {}): TraceStage {
     duration: 2_400,
     status: 'complete',
     calls: 1,
-    input: '{"sql":"SELECT title FROM governed_titles"}',
+    input: '{"question":"How many governed titles?","sql":"SELECT title FROM governed_titles"}',
     output: 'title|players\nHoops|1200',
     ...overrides,
   };
@@ -72,6 +72,13 @@ describe('shared trace payload pane headers', () => {
     expect(markup).not.toContain('role="group"');
   });
 
+  it('keeps the control in the pane header for an empty JSON object', () => {
+    const markup = renderToStaticMarkup(<PayloadView label="Arguments" text="{}" />);
+
+    expect(markup).toMatch(/trace-payload-head[^]*How to show arguments[^]*<\/header><div class="trace-payload-body">/);
+    expect(markup).toContain('<p>{}</p>');
+  });
+
   it('uses one shared renderer on timeline, Advanced, replay, and Monitoring paths', () => {
     expect(TIMELINE).toContain('<PayloadView label="Arguments"');
     expect(TIMELINE).toContain('<PayloadView label="Result"');
@@ -97,39 +104,45 @@ describe('shared trace payload pane headers', () => {
 });
 
 describe('Agent Map selected-stage result header', () => {
-  it('places the Result control before the result body and scopes it by name', () => {
+  it('places both payloads outside the evidence grid with controls before their bodies', () => {
     const markup = renderToStaticMarkup(<StageDetail stage={stage()} step={12} origin={0} id="detail" />);
-    const result = markup.slice(markup.indexOf('<dt>Result</dt>'));
-    const headerEnd = result.indexOf('</div></div>');
 
-    expect(result).toContain('class="dag-detail-pane dag-detail-result"');
-    expect(result).toContain('class="dag-detail-pane-head"');
-    expect(result).toContain('aria-label="How to show this result"');
-    expect(result.indexOf('class="dag-seg"')).toBeLessThan(headerEnd);
-    expect(headerEnd).toBeLessThan(result.indexOf('class="dag-result-table"'));
-    expect(result).not.toMatch(/dag-result-table[^]*dag-result-meta/);
+    expect(markup).not.toContain('<dt>Arguments</dt>');
+    expect(markup).not.toContain('<dt>Result</dt>');
+    expect(markup).toContain('class="dag-detail-payloads"');
+    for (const label of ['Arguments', 'Result']) {
+      const pane = markup.slice(markup.indexOf(`aria-label="${label} payload"`));
+      expect(pane.indexOf('trace-payload-head')).toBeLessThan(pane.indexOf('trace-payload-body'));
+      expect(pane.indexOf(`aria-label="How to show ${label.toLowerCase()}"`)).toBeLessThan(
+        pane.indexOf('trace-payload-body')
+      );
+    }
+    expect(markup.indexOf('</dl>')).toBeLessThan(markup.indexOf('class="dag-detail-payloads"'));
+    expect(markup.indexOf('aria-label="Result payload"')).toBeLessThan(markup.indexOf('class="dag-result-table"'));
   });
 
-  it('keeps long identity and timing rows collision-safe at narrow widths', () => {
+  it('keeps long identity and payload headers collision-safe at narrow widths', () => {
     const markup = renderToStaticMarkup(<StageDetail stage={stage()} step={12} origin={0} id="detail" />);
 
     expect(markup).toContain(stage().name);
     expect(rule(TRACE_CSS, '.trace-dag.map .dag-detail-head')).toMatch(/flex-wrap: wrap[\s\S]*min-width: 0/);
     expect(rule(TRACE_CSS, '.trace-dag.map .dag-detail-head strong')).toMatch(/flex: 1 1 16rem[\s\S]*min-width: 0/);
-    expect(rule(TRACE_CSS, '.trace-dag.map .dag-detail-pane-head')).toMatch(/flex-wrap: wrap[\s\S]*min-width: 0/);
-    expect(rule(TRACE_CSS, '.trace-dag.map .dag-result-meta')).toMatch(
-      /flex-wrap: wrap[\s\S]*justify-content: flex-end[\s\S]*margin-left: auto/
+    expect(rule(TRACE_CSS, '.trace-dag.map .dag-detail-payloads')).toMatch(
+      /display: grid[\s\S]*min-width: 0[\s\S]*padding: 0 14px 12px/
     );
+    expect(rule(TIMELINE_CSS, '.trace-payload-actions')).toMatch(/justify-content: flex-end[\s\S]*margin-left: auto/);
   });
 
-  it('omits absent panes and leaves the toggle out of body-rendering branches', () => {
+  it('omits absent panes and has no legacy definition-grid or map-only toggle wrappers', () => {
     const empty = renderToStaticMarkup(
       <StageDetail stage={stage({ input: '', output: '' })} step={12} origin={0} id="detail" />
     );
 
-    expect(empty).not.toContain('<dt>Arguments</dt>');
-    expect(empty).not.toContain('<dt>Result</dt>');
-    expect(STAGE_DETAIL.match(/className="dag-seg"/g)).toHaveLength(1);
-    expect(STAGE_DETAIL.indexOf('className="dag-seg"')).toBeLessThan(STAGE_DETAIL.indexOf('{raw ? ('));
+    expect(empty).not.toContain('aria-label="Arguments payload"');
+    expect(empty).not.toContain('aria-label="Result payload"');
+    expect(STAGE_DETAIL).not.toContain('<dt>{argumentsHeading}</dt>');
+    expect(STAGE_DETAIL).not.toContain('<dt>Result</dt>');
+    expect(STAGE_DETAIL).not.toContain('className="dag-seg"');
+    expect(STAGE_DETAIL).not.toContain('className="dag-detail-pane');
   });
 });

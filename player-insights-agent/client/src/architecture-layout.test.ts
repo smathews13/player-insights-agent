@@ -1139,11 +1139,13 @@ describe('the drawing keeps its shape at every width', () => {
    * architecture-honesty.test.ts, and already read by somebody at every width.
    */
   it('shows the list it already had rather than a second drawing', () => {
-    expect(CSS).toMatch(/\.arch-canvas-scroll\[data-fits='false'\] ~ \.arch-equivalent/);
-    // Offscreen by default and visible under that switch, which is the one place
-    // the two readings differ.
-    expect(rule(CSS, '.arch-equivalent')).toMatch(/clip:\s*rect\(0, 0, 0, 0\)/);
-    expect(CSS.slice(CSS.indexOf(".arch-canvas-scroll[data-fits='false']"))).toMatch(/position:\s*static/);
+    expect(rule(CSS, '.arch-equivalent')).toMatch(/list-style:\s*decimal/);
+    expect(CSS).toMatch(
+      /@container architecture \(min-width:\s*900px\)\s*\{[\s\S]*\.arch-equivalent\s*\{[^}]*display:\s*none/
+    );
+    // The base state is the safe narrow state; the query changes visibility,
+    // never the node arrangement.
+    expect(rule(CSS, '.arch-canvas-scroll')).toMatch(/display:\s*none/);
   });
 
   it('would notice a fit computed to the pixel, which is what shipped', () => {

@@ -15,7 +15,8 @@ describe('the client shell import graph', () => {
     const app = source('App.tsx');
     expect(app).toContain("import { HomePage } from './HomePage'");
     expect(app).not.toContain("import { ConnectionsPage } from './ConnectionsPage'");
-    expect(app).toMatch(/const ConnectionsPage = lazy\(\(\) => import\('\.\/ConnectionsPage'\)/);
+    expect(app).toMatch(/const ConnectionsPage = lazy\(\(\) => loadConnectionsPage\(\)/);
+    expect(source('lazy-routes.ts')).toContain("loadConnectionsPage = () => import('./ConnectionsPage')");
     const route = app.slice(app.indexOf("path: '/connections'"), app.indexOf("path: '/architecture'"));
     expect(route).toContain('<LazyRoute>');
     expect(route).toContain('<ConnectionsPage />');
@@ -80,9 +81,9 @@ describe('the client shell import graph', () => {
    * stay ahead of responsive.css.
    */
   it('keeps the two shared partials out of the page modules entirely', () => {
-    expect(source('RunExplorer.tsx')).not.toContain("./styles/timeline.css");
-    expect(source('BenchmarkLab.tsx')).not.toContain("./styles/timeline.css");
-    expect(source('MonitoringPage.tsx')).not.toContain("./styles/monitoring.css");
+    expect(source('RunExplorer.tsx')).not.toContain('./styles/timeline.css');
+    expect(source('BenchmarkLab.tsx')).not.toContain('./styles/timeline.css');
+    expect(source('MonitoringPage.tsx')).not.toContain('./styles/monitoring.css');
   });
 
   /*

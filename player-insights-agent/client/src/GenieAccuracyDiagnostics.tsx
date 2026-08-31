@@ -6,7 +6,7 @@ import type { EvaluationLabModel } from './use-evaluation-lab';
 
 function formatSuiteDuration(startedAt: string, finishedAt: string): string {
   const ms = Date.parse(finishedAt) - Date.parse(startedAt);
-  if (!Number.isFinite(ms) || ms < 0) return 'not set';
+  if (!Number.isFinite(ms) || ms < 0) return 'Not recorded';
   if (ms < 1000) return `${Math.round(ms)} ms`;
   return `${(ms / 1000).toFixed(1)} s`;
 }
@@ -18,7 +18,8 @@ function outcomeChip(entry: GenieAccuracyCaseView): { label: string; family: 'po
 }
 
 function executionErrorCount(run: GenieAccuracyRunView): number {
-  return run.cases.filter((entry) => !entry.excluded && (entry.outcome === 'error' || entry.missKind === 'error')).length;
+  return run.cases.filter((entry) => !entry.excluded && (entry.outcome === 'error' || entry.missKind === 'error'))
+    .length;
 }
 
 function excludedCount(run: GenieAccuracyRunView): number {
@@ -135,10 +136,10 @@ export function GenieAccuracyDiagnostics({ lab }: { lab: EvaluationLabModel }) {
         <GenieAccuracyResult run={run} accuracyGateMinimum={lab.lab.contract.gates.genieAccuracy.minimum} />
       ) : (
         <GenieStatTiles
-          accuracy="not set"
-          executionErrors="not set"
-          suiteDuration="not set"
-          excluded="not set"
+          accuracy="Not recorded"
+          executionErrors="Not recorded"
+          suiteDuration="Not recorded"
+          excluded="Not recorded"
           policyAnchor
         />
       )}

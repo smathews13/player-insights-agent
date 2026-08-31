@@ -20,11 +20,11 @@
  * trusting this comment.
  *
  * THE CANVAS DOES NOT REFLOW. It is one fixed space, stated once in
- * architecture-layout.ts and never restated here, and a narrow viewport SCROLLS
- * it. The previous version collapsed into a stacked list below 1024px,
- * which meant two different diagrams, only one of which anybody had checked. What
- * does still reshape is the pair of rails under it, and that rule sits with the
- * app's other breakpoints in responsive.css.
+ * architecture-layout.ts and never restated here. A panel too narrow to draw it
+ * legibly shows its text equivalent instead. That first-paint choice belongs to
+ * the panel's container query; JavaScript only computes zoom at widths where the
+ * drawing is present. What does still reshape is the pair of rails under it, and
+ * that rule sits with the app's other breakpoints in responsive.css.
  */
 
 /* ---------------------------------------------------------------------------
@@ -219,22 +219,25 @@
 }
 
 /*
- * The scroller, and the drawing inside it.
+ * The responsive owner, the scroller, and the drawing inside it.
  *
- * The canvas keeps its stated size at every viewport and the scroller is what
- * gives. `overflow-x: auto` on a container whose content is wider than it makes
- * the region keyboard-scrollable in every current engine, and the cards inside
- * are real links, so tabbing through them scrolls the canvas to each one.
+ * The wrapper is the quantity that matters: the panel's actual inline size, not
+ * an estimate from the viewport. The canvas is hidden in the base rule so an
+ * unscaled 1264px drawing can never become a narrow first paint. The container
+ * query at the end of this file reveals it only where the scale floor fits.
  *
- * `auto` AND NOT `scroll`: the canvas is narrower than this panel at the widths
- * the page is laid out for, so on those there is no bar at all. It used to be
- * wider than the panel could ever be, which put a bar under the drawing for
- * everybody; the canvas was tightened to fit and architecture-layout.test.ts now
- * fails if it outgrows this panel again. NOTHING MAY BE ADDED TO THIS RULE that
- * takes width -- no padding, no border -- because the arithmetic that check does
- * goes straight from .arch-flow to the canvas, and the test says so.
+ * `auto` AND NOT `scroll` remains a safety valve. The fitted canvas is narrower
+ * than this panel at every width where it is visible, so there is no bar. NOTHING
+ * MAY BE ADDED TO `.arch-canvas-scroll` that takes width -- no padding, no border
+ * -- because the geometry test goes straight from the panel to the canvas.
  */
+.arch-responsive {
+  container-name: architecture;
+  container-type: inline-size;
+  min-width: 0;
+}
 .arch-canvas-scroll {
+  display: none;
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -576,7 +579,7 @@ a.arch-node-main:hover .arch-node-label {
    --------------------------------------------------------------------------- */
 
 .arch-legend {
-  display: flex;
+  display: none;
   flex-wrap: wrap;
   gap: 8px 20px;
   margin: 0;
@@ -826,36 +829,16 @@ a.arch-node-main:hover .arch-node-label {
 /*
  * ── The drawing, in words ──────────────────────────────────────────────────
  *
- * ONE LIST, READ TWO WAYS. It is the screen-reader equivalent of the diagram at
- * every width, and it is what a panel too narrow to draw in shows instead. Same
- * sentences, same readings, same clock, built once by `describeArchitecture`.
+ * ONE LIST, ONE LIVE TREE. At narrow widths this ordinary list is visible and
+ * accessible while the canvas is `display: none`. At drawable widths the
+ * container query reverses those two displays, removing this list from both
+ * visual and accessibility trees before the canvas becomes live. There is no
+ * frame in which both alternatives are reachable.
  *
- * It carries the offscreen recipe itself rather than the `.sr-only` utility,
- * because the state it has to reach is "visible", and un-hiding a utility class
- * for one element means either fighting a layer's specificity or loosening a rule
- * every other offscreen string in the app depends on.
- *
- * Which state it is in is decided in `canvasFits`, off the measured panel width,
- * and NOT in a media query. The threshold is a property of the drawing rather
- * than of the window, breakpoints.test.ts refuses a width invented in this file,
- * and a viewport query could only estimate the quantity that matters. The
- * scroller carries `data-fits="false"` when the drawing has stood down, and this
- * rule is the other half of that switch.
+ * Same sentences, same readings, same clock, built once by
+ * `describeArchitecture`. This is not a second arrangement of the cards.
  */
 .arch-equivalent {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
-/* Visible, and an ordinary list: numbered, because the sentences are a path a
-   question travels and the order is the content. */
-.arch-canvas-scroll[data-fits='false'] ~ .arch-equivalent {
   position: static;
   width: auto;
   height: auto;
@@ -871,7 +854,27 @@ a.arch-node-main:hover .arch-node-label {
   line-height: 1.5;
   color: var(--ast-text-long);
 }
-.arch-canvas-scroll[data-fits='false'] ~ .arch-equivalent li::marker {
+.arch-equivalent li::marker {
   color: var(--ast-text-secondary);
   font-size: var(--ast-fs-11);
+}
+
+/*
+ * The exact fit floor from architecture-layout.ts. The test compares this value
+ * to MIN_CANVAS_PANEL, so geometry and first-paint visibility cannot drift.
+ *
+ * Container queries are progressive in the safe direction: an older engine that
+ * does not understand this block keeps the complete text equivalent and never
+ * exposes a clipped or duplicate live canvas.
+ */
+@container architecture (min-width: 900px) {
+  .arch-canvas-scroll {
+    display: block;
+  }
+  .arch-equivalent {
+    display: none;
+  }
+  .arch-legend {
+    display: flex;
+  }
 }

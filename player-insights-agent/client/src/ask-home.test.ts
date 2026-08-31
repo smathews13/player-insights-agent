@@ -25,6 +25,7 @@ const RESPONSIVE = partial('responsive.css');
 const RAIL = partial('rail.css');
 const COMPOSER = partial('composer.css');
 const HOME_PAGE = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
+const OWNER_SELECT = readFileSync(new URL('ConversationOwnerSelect.tsx', import.meta.url), 'utf8');
 const RUN_STATUS = readFileSync(new URL('run-status.ts', import.meta.url), 'utf8');
 
 describe('the harness column stays reserved when there is no run', () => {
@@ -657,9 +658,11 @@ describe('the conversation owner filter stays compact', () => {
 
   it('overlays its options instead of pushing conversations down', () => {
     const menu = body('.conversation-owner-menu');
-    expect(menu).toMatch(/position:\s*absolute/);
-    expect(menu).toMatch(/width:\s*100%/);
+    expect(OWNER_SELECT).toContain('<PopoverContent');
+    expect(menu).toMatch(/width:\s*var\(--radix-popover-trigger-width\)/);
+    expect(menu).toMatch(/max-height:\s*min\(280px,\s*var\(--radix-popover-content-available-height\)\)/);
     expect(menu).toMatch(/overflow-y:\s*auto/);
+    expect(menu).not.toMatch(/position:\s*absolute/);
   });
 
   it('clips only the trigger summary with an ellipsis', () => {

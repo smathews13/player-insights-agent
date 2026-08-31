@@ -24,9 +24,9 @@ import type { CostTile, OpsCostPayload } from '../../shared/ops-contract';
 import { astPill } from './astrolabe-pill';
 import { budgetFieldText } from './cost-budget-amount';
 import { COST_BUDGETS_UNREADABLE, loadCostBudgets, saveCostBudgets } from './cost-budgets-api';
-import { budgetHelper, budgetPlaceholder, costSpendSummary } from './cost-budget-view';
-import { NumberTicker, tickerNumber } from './NumberTicker';
-import { spendVersusBudget, tileView, totalBudgetView } from './ops-view';
+import { budgetHelper, budgetPlaceholder, costSpendSummary, resourceBudgetBaseline } from './cost-budget-view';
+import { NumberTicker, TickerAssumptionField, TickerAssumptionGrid, tickerNumber } from './NumberTicker';
+import { costAmount, spendVersusBudget, tileView, totalBudgetView } from './ops-view';
 import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad, type SettingsSaveState } from './settings-save-state';
 import { Button } from './ui';
 import { ConceptFlicker } from './ConceptFlicker';
@@ -236,20 +236,30 @@ export function CostTotalBudget() {
     <div className="ops-cost-total">
       <CostBudgetField
         fieldKey="total"
+        label="App budget"
         ariaLabel="App budget"
         budget={api.budgets.total}
         unit={api.unit}
         observed={observed}
         onCommit={api.setTotal}
         onValidityChange={(valid) => api.setValidity('total', valid)}
+        controlAfter={
+          <>
+            <CostBudgetApplyButton
+              state={state}
+              disabled={api.applying || !api.dirtyFor('total') || !api.validFor('total')}
+              onClick={() => api.apply('total')}
+            />
+            <span className="ops-app-budget-status">
+              {notice || !api.readable ? (
+                <BudgetSaveNotice notice={notice} readable={api.readable} state={state} />
+              ) : (
+                <BudgetComparison view={view} noun="app budget" />
+              )}
+            </span>
+          </>
+        }
       />
-      <CostBudgetApplyButton
-        state={state}
-        disabled={api.applying || !api.dirtyFor('total') || !api.validFor('total')}
-        onClick={() => api.apply('total')}
-      />
-      <BudgetComparison view={view} noun="app budget" />
-      <BudgetSaveNotice notice={notice} readable={api.readable} state={state} />
     </div>
   );
 }
@@ -280,17 +290,11 @@ export function CostResourceBudgets({ tiles }: { tiles: readonly CostTile[] }) {
       <div className="ops-cost-summary-head">
         <span id="ops-resource-budgets-heading">Resource budgets</span>
       </div>
-      <div className="ops-cost-budget-matrix" role="table" aria-label={`Resource actuals and budgets in ${api.unit}`}>
-        <div className="ops-cost-budget-matrix-head" role="row">
-          <span role="columnheader">Component</span>
-          <span role="columnheader">Actual</span>
-          <span role="columnheader">Budget</span>
-          <span role="columnheader">Status</span>
-        </div>
+      <TickerAssumptionGrid columns={tiles.length} labelledBy="ops-resource-budgets-heading" framed={false}>
         {tiles.map((tile) => (
-          <CostTileBudget key={tile.id} tile={tile} />
+          <CostResourceBudgetField key={tile.id} tile={tile} />
         ))}
-      </div>
+      </TickerAssumptionGrid>
       <div className="ops-resource-budget-actions">
         <CostBudgetApplyButton
           label="Apply resource budgets"
@@ -300,7 +304,52 @@ export function CostResourceBudgets({ tiles }: { tiles: readonly CostTile[] }) {
         />
         <BudgetSaveNotice notice={notice} readable={api.readable} state={state} />
       </div>
+      <section className="ops-forecast-breakdown ops-cost-actual-breakdown" aria-labelledby="ops-cost-actual-heading">
+        <h4 id="ops-cost-actual-heading">Actual cost breakdown</h4>
+        <div
+          className="ops-forecast-breakdown-scroll"
+          role="region"
+          aria-label={`Resource actuals and budgets in ${api.unit}`}
+          tabIndex={0}
+        >
+          <table className="ops-cost-budget-matrix">
+            <thead>
+              <tr>
+                <th scope="col">Component</th>
+                <th scope="col">Actual</th>
+                <th scope="col">Budget</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tiles.map((tile) => (
+                <CostTileBudget key={tile.id} tile={tile} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </section>
+  );
+}
+
+function CostResourceBudgetField({ tile }: { tile: CostTile }) {
+  const api = useCostBudgets();
+  const label = `${tile.label}${tile.basis === 'per-day' ? ' per day' : ''}`;
+  return (
+    <CostBudgetField
+      fieldKey={`resource:${tile.id}`}
+      label={label}
+      ariaLabel={`${tile.label} budget${tile.basis === 'per-day' ? ' per day' : ''}`}
+      budget={resourceBudget(api.budgets, tile.id)}
+      unit={api.unit}
+      observed={{
+        USD: resourceBudgetBaseline(tile, 'USD'),
+        DBU: resourceBudgetBaseline(tile, 'DBU'),
+      }}
+      onCommit={(value) => api.setResource(tile.id, value)}
+      onValidityChange={(valid) => api.setValidity(`resource:${tile.id}`, valid)}
+    />
   );
 }
 
@@ -309,31 +358,39 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
   const amount = resourceBudget(api.budgets, tile.id);
   const compared = spendVersusBudget(tile, amount, api.currency, api.unit);
   const actual = tileView(tile, api.currency, api.unit);
+  const budget = costBudgetValue(amount, api.unit);
   return (
-    <div className="ops-tile-budget" role="row">
-      <span className="ops-budget-heading" role="rowheader" title={tile.label}>
+    <tr className="ops-tile-budget">
+      <th className="ops-budget-heading" scope="row" title={tile.label}>
         <span className="ops-budget-resource">{tile.label}</span>
         {tile.basis === 'per-day' ? <span className="ops-budget-basis">per day</span> : null}
-      </span>
-      <span className={`ops-budget-actual${actual.figure ? '' : ' ops-budget-actual-unavailable'}`} role="cell">
+      </th>
+      <td className={`ops-budget-actual${actual.figure ? '' : ' ops-budget-actual-unavailable'}`}>
         {actual.figure || actual.absence}
-      </span>
-      <span role="cell">
-        <CostBudgetField
-          fieldKey={`resource:${tile.id}`}
-          ariaLabel={`${tile.label} budget${tile.basis === 'per-day' ? ' per day' : ''}`}
-          budget={amount}
-          unit={api.unit}
-          observed={{ USD: tile.amount, DBU: tile.dbus ?? null }}
-          onCommit={(value) => api.setResource(tile.id, value)}
-          onValidityChange={(valid) => api.setValidity(`resource:${tile.id}`, valid)}
-        />
-      </span>
-      <span role="cell">
-        <BudgetComparison view={compared} />
-      </span>
-    </div>
+      </td>
+      <td className="ops-budget-value">
+        {budget === null ? 'No budget' : <span className="ast-num">{costAmount(budget, api.currency, api.unit)}</span>}
+      </td>
+      <td>
+        <BudgetStatus view={compared} />
+      </td>
+    </tr>
   );
+}
+
+function BudgetStatus({ view }: { view: ReturnType<typeof spendVersusBudget> }) {
+  if (view.kind === 'compared') {
+    return (
+      <span className={astPill(view.over ? 'warn' : 'pos', 'ops-pill')}>
+        {view.over ? 'Over budget' : 'Within budget'}
+      </span>
+    );
+  }
+  if (view.kind === 'shared-meter') {
+    return <span className={astPill('neutral-outline', 'ops-pill')}>shared meter vs named budget</span>;
+  }
+  if (view.kind === 'budget-only') return <span className="ops-budget-not-set">Spend not measured</span>;
+  return <span className="ops-budget-not-set">No budget</span>;
 }
 
 function BudgetComparison({ view, noun = '' }: { view: ReturnType<typeof spendVersusBudget>; noun?: string }) {
@@ -366,20 +423,24 @@ function BudgetComparison({ view, noun = '' }: { view: ReturnType<typeof spendVe
 
 function CostBudgetField({
   fieldKey,
+  label,
   ariaLabel,
   budget,
   unit,
   observed,
   onCommit,
   onValidityChange,
+  controlAfter,
 }: {
   fieldKey: string;
+  label: string;
   ariaLabel: string;
   budget: CostBudget;
   unit: CostBudgetUnit;
   observed: Record<CostBudgetUnit, number | null>;
   onCommit: (budget: CostBudget) => void;
   onValidityChange: (valid: boolean) => void;
+  controlAfter?: ReactNode;
 }) {
   const [draft, setDraft] = useState<Partial<Record<CostBudgetUnit, string>>>({});
   const baseline = observed[unit];
@@ -395,10 +456,12 @@ function CostBudgetField({
     onValidityChange(allValid);
     if (active.valid) onCommit(withCostBudgetValue(budget, unit, active.empty ? null : active.value));
   };
+  const inputId = `ops-budget-${fieldKey.replace(/[^a-z0-9]+/gi, '-')}`;
+  const error = parsed.valid ? undefined : `Enter a number from 0 to ${COST_BUDGET_MAX.toLocaleString('en-US')}.`;
   return (
-    <div className="ops-budget-field" data-field={fieldKey}>
+    <TickerAssumptionField id={inputId} label={label} helper={budgetHelper(observed, unit)} error={error}>
       <NumberTicker
-        id={`ops-budget-${fieldKey.replace(/[^a-z0-9]+/gi, '-')}`}
+        id={inputId}
         label={`${ariaLabel} in ${unit}`}
         value={value}
         placeholder={budgetPlaceholder(observed, unit)}
@@ -413,17 +476,12 @@ function CostBudgetField({
         title={baseline === null ? `${unit} observed amount unavailable` : `${baseline} ${unit} observed`}
         onChange={update}
       />
-      <small className="ops-budget-helper">{budgetHelper(observed, unit)}</small>
-      {!parsed.valid ? (
-        <small className="ops-budget-validation" role="alert">
-          Enter a number from 0 to {COST_BUDGET_MAX.toLocaleString('en-US')}.
-        </small>
-      ) : null}
-    </div>
+      {controlAfter}
+    </TickerAssumptionField>
   );
 }
 
-function BudgetSaveNotice({
+export function BudgetSaveNotice({
   notice,
   readable,
   state,

@@ -680,6 +680,14 @@
 .trace-payload {
   min-width: 0;
 }
+.trace-payload--pane {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--ast-radius-card);
+  background: var(--ast-surface-solid);
+}
 .trace-payload-head {
   display: flex;
   flex-wrap: wrap;
@@ -689,6 +697,12 @@
   margin-bottom: 4px;
   font-size: var(--text-xs);
   color: var(--muted-foreground);
+}
+.trace-payload--pane > .trace-payload-head {
+  margin: 0;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--ast-hairline);
+  background: var(--ast-fill-band);
 }
 .trace-payload-label {
   flex: 1 1 8rem;
@@ -716,6 +730,14 @@
 }
 .trace-payload-body {
   min-width: 0;
+}
+.trace-payload--pane > .trace-payload-body {
+  padding: 10px;
+  overflow: hidden;
+}
+.trace-payload-header-meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .trace-payload-seg {
   flex: none;

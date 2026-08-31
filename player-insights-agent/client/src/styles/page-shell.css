@@ -219,3 +219,43 @@
     animation: none;
   }
 }
+
+/* ── Lazy route placeholder ───────────────────────────────────────────────
+   The outer box is present from the first suspended frame, so the sticky
+   header and content canvas keep their geometry even when the visual
+   placeholders are delayed. The shapes are deliberately generic: they reserve
+   heading and panel space without presenting invented labels, values or rows. */
+.route-skeleton-shell {
+  min-height: calc(100vh - var(--app-header-h));
+  grid-template-rows: 1fr;
+}
+.route-skeleton {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.route-skeleton-shell.is-visible .route-skeleton {
+  opacity: 1;
+}
+.route-skeleton-heading,
+.route-skeleton-panel {
+  background: var(--db-skeleton);
+  border-radius: var(--radius-md);
+}
+.route-skeleton-heading {
+  width: min(320px, 58%);
+  height: 28px;
+}
+.route-skeleton-panel {
+  min-height: clamp(180px, 32vh, 320px);
+}
+.route-skeleton-panel--short {
+  min-height: 112px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-skeleton {
+    transition: none;
+  }
+}

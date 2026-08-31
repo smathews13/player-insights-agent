@@ -49,4 +49,16 @@ describe('shared NumberTicker', () => {
     expect(source).toContain('changeBy(event.key');
     expect(source).toContain('stepTickerValue(value, direction');
   });
+
+  it('is the one assumption field and grid implementation used by Forecasting and Cost', () => {
+    const forecast = readFileSync(new URL('./ForecastingPanel.tsx', import.meta.url), 'utf8');
+    const budgets = readFileSync(new URL('./CostBudgets.tsx', import.meta.url), 'utf8');
+    for (const source of [forecast, budgets]) {
+      expect(source).toContain('TickerAssumptionGrid');
+      expect(source).toContain('TickerAssumptionField');
+      expect(source).toContain('NumberTicker');
+    }
+    expect(forecast).not.toContain('ops-forecast-assumption-grid');
+    expect(budgets).not.toContain('ops-budget-field');
+  });
 });

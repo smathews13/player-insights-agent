@@ -106,8 +106,7 @@ describe('declared tables in the Health resource list', () => {
     expect(aggregates).toHaveLength(1);
     expect(aggregates[0]).toMatchObject({
       label: 'Declared tables \u00b7 12 tables',
-      notes:
-        '12 tables: 12 reachable \u00b7 0 unverified \u00b7 0 failed. Open the detailed tables section for per-table evidence.',
+      notes: '12 reachable \u00b7 0 unverified \u00b7 0 failed',
       pill: { label: 'Declared tables', value: 'Reachable' },
     });
     expect(aggregates[0].pill.tone).toContain('ast-pill--pos');
@@ -141,6 +140,18 @@ describe('declared tables in the Health resource list', () => {
     expect(aggregate.pill.tone).toContain('ast-pill--neg');
     expect(aggregate.pill.tone).not.toContain('ast-pill--pos');
     expect(aggregate.notes).toContain('9 reachable \u00b7 2 unverified \u00b7 1 failed');
+    expect(aggregate.notes).not.toMatch(/tables?:|open|section|evidence|\.$/i);
+  });
+
+  it('keeps every comparable Notes cell to a noun phrase or metric group', () => {
+    const rows = healthRowsForDisplay(health([table(0), endpoint(), manifest()]));
+    for (const row of rows) {
+      expect(row.notes).not.toMatch(/\bopen\b|\bclick\b|\bgo to\b|\bsection\b|[.!?]$/i);
+    }
+    const aggregate = rows.find((row) => row.id === 'declared-manifest');
+    expect(aggregate?.label).toBe('Declared tables \u00b7 1 table');
+    expect(aggregate?.notes).toBe('1 reachable \u00b7 0 unverified \u00b7 0 failed');
+    expect(aggregate?.notes).not.toContain('1 table');
   });
 
   it('leaves all twelve probes in the dedicated governed-table section', () => {

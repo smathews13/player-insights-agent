@@ -350,12 +350,19 @@ export function roleChangeRefusal(input: {
   seed: SeedRoles;
   stored: readonly StoredRole[];
   roleColumnPresent: boolean;
+  /** POST may create an explicit consumer row; PATCH may not reapply consumer. */
+  allowMissingConsumer?: boolean;
 }): RosterRefusal | '' {
   if (!isRole(input.role)) return 'unknown-role';
   const target = normalizeAdminEmail(input.email);
   const desired = input.role;
   const current = effectiveRole({ seed: input.seed, stored: input.stored, email: target });
-  if (desired === current) return 'already-holds';
+  const createsConsumer =
+    input.allowMissingConsumer === true &&
+    desired === 'consumer' &&
+    seedFloorFor(input.seed, target) === 'consumer' &&
+    !input.stored.some((entry) => entry.email === target);
+  if (desired === current && !createsConsumer) return 'already-holds';
   if (current === 'super_admin') return 'immutable-super-admin';
   // The floor. Lowering below it would be undone by the environment on the next
   // request, and a control that appears to work and does not is worse than none.

@@ -14,7 +14,7 @@
  *   labels (`run - [orchestrator]`, `model call … turn N`, tool + payload),
  *   and bars coloured by kind. Ask must not inherit that look.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 import type { TraceStage, TraceSummary } from './answer-shape';
@@ -171,26 +171,64 @@ export function PayloadView({
   tables = [],
   tableListing = false,
   label,
+  rendered,
+  headerMeta,
+  initialRaw = false,
 }: {
   text: string;
   tables?: readonly string[];
   tableListing?: boolean;
   /** Names the independently switchable pane that owns this payload. */
   label?: string;
+  /** A surface-specific structured reading inside the shared pane and toggle. */
+  rendered?: ReactNode;
+  /** Optional source/status evidence kept in the pane header, before its toggle. */
+  headerMeta?: ReactNode;
+  /** Failed stages may open on their diagnostic text while keeping both views available. */
+  initialRaw?: boolean;
 }) {
-  const [raw, setRaw] = useState(false);
+  const [raw, setRaw] = useState(initialRaw);
   const payload = describePayload(text);
-  if (payload.empty) {
-    const empty = tableListing ? (
+  const tableResult = structuredTableResult(payload.body);
+  const renderedBody =
+    rendered ??
+    (tableResult ? (
+      <StructuredTableResultView result={tableResult} />
+    ) : tableListing ? (
       <TableEntityList tables={tables} />
+    ) : payload.fields ? (
+      <ul className="trace-payload-fields">
+        {payload.fields.map((field) => {
+          const sqlField = field.key === 'sql' || (field.key === 'query' && isSqlText(field.value));
+          return (
+            <li key={field.key} className={field.block || sqlField ? 'block' : ''}>
+              <span className="trace-payload-key">{field.key}</span>
+              {sqlField ? (
+                <SqlCodeBlocks sql={field.value} className="trace-payload-sql" tables={tables} />
+              ) : field.block ? (
+                <MarkdownText text={field.value} tables={tables} />
+              ) : (
+                <span className="trace-payload-value">
+                  <EntityText text={field.value} sources={tables.map((name) => ({ name }))} />
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     ) : (
-      <span className="trace-empty">(none recorded)</span>
-    );
+      <MarkdownText text={payload.body} tables={tables} />
+    ));
+  if (payload.empty) {
+    const empty =
+      rendered ??
+      (tableListing ? <TableEntityList tables={tables} /> : <span className="trace-empty">(none recorded)</span>);
     if (!label) return empty;
     return (
       <section className="trace-payload trace-payload--pane" aria-label={`${label} payload`}>
         <header className="trace-payload-head">
           <strong className="trace-payload-label">{label}</strong>
+          {headerMeta ? <span className="trace-payload-header-meta">{headerMeta}</span> : null}
         </header>
         <div className="trace-payload-body">{empty}</div>
       </section>
@@ -198,7 +236,6 @@ export function PayloadView({
   }
 
   const size = payloadSize(payload);
-  const tableResult = structuredTableResult(payload.body);
   return (
     <section
       className={`trace-payload${label ? ' trace-payload--pane' : ''}`}
@@ -207,6 +244,7 @@ export function PayloadView({
       <header className="trace-payload-head">
         {label && <strong className="trace-payload-label">{label}</strong>}
         <span className="trace-payload-actions ast-num">
+          {headerMeta ? <span className="trace-payload-header-meta">{headerMeta}</span> : null}
           <span className="trace-payload-size">{size}</span>
           {payload.truncated && (
             <strong
@@ -230,37 +268,7 @@ export function PayloadView({
           </span>
         </span>
       </header>
-      <div className="trace-payload-body">
-        {raw ? (
-          <RawPayload payload={payload} />
-        ) : tableResult ? (
-          <StructuredTableResultView result={tableResult} />
-        ) : tableListing ? (
-          <TableEntityList tables={tables} />
-        ) : payload.fields ? (
-          <ul className="trace-payload-fields">
-            {payload.fields.map((field) => {
-              const sqlField = field.key === 'sql' || (field.key === 'query' && isSqlText(field.value));
-              return (
-                <li key={field.key} className={field.block || sqlField ? 'block' : ''}>
-                  <span className="trace-payload-key">{field.key}</span>
-                  {sqlField ? (
-                    <SqlCodeBlocks sql={field.value} className="trace-payload-sql" tables={tables} />
-                  ) : field.block ? (
-                    <MarkdownText text={field.value} tables={tables} />
-                  ) : (
-                    <span className="trace-payload-value">
-                      <EntityText text={field.value} sources={tables.map((name) => ({ name }))} />
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <MarkdownText text={payload.body} tables={tables} />
-        )}
-      </div>
+      <div className="trace-payload-body">{raw ? <RawPayload payload={payload} /> : renderedBody}</div>
     </section>
   );
 }

@@ -512,9 +512,11 @@ export function RuntimeSettingsPanel({
             <div className="appearance-section-heading">
               <h4 className="runtime-section-label">Display</h4>
             </div>
-            <div className="appearance-display-choices">
-              <div className="appearance-choice appearance-mode-choice">
-                <span className="appearance-choice-label">Dark mode</span>
+            <div className="appearance-display-rows">
+              <div className="appearance-display-row">
+                <div>
+                  <span className="appearance-choice-label">Dark mode</span>
+                </div>
                 <StateSwitch
                   checked={settings.colorScheme === 'dark'}
                   onCheckedChange={(on) => {
@@ -528,6 +530,82 @@ export function RuntimeSettingsPanel({
                   aria-label="Dark mode"
                 />
               </div>
+              <div className="appearance-display-row">
+                <div>
+                  <span className="appearance-choice-label">Background graphics</span>
+                  <p className="runtime-control-note" id="appearance-background-graphics-help">
+                    Show decorative shell stars and constellation lines.
+                  </p>
+                </div>
+                <StateSwitch
+                  checked={settings.backgroundGraphics}
+                  onCheckedChange={(backgroundGraphics) =>
+                    setSettings((current) => ({ ...current, backgroundGraphics }))
+                  }
+                  aria-label="Background graphics"
+                  aria-describedby="appearance-background-graphics-help"
+                />
+              </div>
+              <div className="appearance-display-row">
+                <div>
+                  <span className="appearance-choice-label">Animations</span>
+                  <p className="runtime-control-note" id="appearance-animations-help">
+                    Show ambient motion and nonessential transitions.
+                  </p>
+                </div>
+                <StateSwitch
+                  checked={settings.animations}
+                  onCheckedChange={(animations) => setSettings((current) => ({ ...current, animations }))}
+                  aria-label="Animations"
+                  aria-describedby="appearance-animations-help"
+                />
+              </div>
+              <div className="appearance-display-row">
+                <div>
+                  <span className="appearance-choice-label" id="appearance-density-label">
+                    Density
+                  </span>
+                  <p className="runtime-control-note" id="appearance-density-help">
+                    Adjust tables, rails, settings rows, and card spacing.
+                  </p>
+                </div>
+                <div
+                  className="appearance-density"
+                  role="radiogroup"
+                  aria-labelledby="appearance-density-label"
+                  aria-describedby="appearance-density-help"
+                >
+                  {DENSITY_IDS.map((density) => (
+                    <button
+                      key={density}
+                      type="button"
+                      role="radio"
+                      aria-checked={settings.density === density}
+                      tabIndex={settings.density === density ? 0 : -1}
+                      onClick={() => setSettings((current) => ({ ...current, density }))}
+                      onKeyDown={(event) => {
+                        const offset =
+                          event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                            ? 1
+                            : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                              ? -1
+                              : 0;
+                        if (!offset) return;
+                        event.preventDefault();
+                        const next =
+                          DENSITY_IDS[
+                            (DENSITY_IDS.indexOf(density) + offset + DENSITY_IDS.length) % DENSITY_IDS.length
+                          ];
+                        setSettings((current) => ({ ...current, density: next }));
+                      }}
+                    >
+                      {DENSITY_LABELS[density]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="appearance-display-choices">
               {(
                 [
                   ['fontBodyColor', 'Body text', 'Body text color'],
@@ -639,74 +717,6 @@ export function RuntimeSettingsPanel({
               <p className="appearance-display-preview-kicker">Preview</p>
               <p className="appearance-display-preview-body">How many players returned this week?</p>
               <p className="appearance-display-preview-muted">Secondary text · timestamps · captions</p>
-            </div>
-          </section>
-          <section className="runtime-section appearance-interface-section">
-            <div className="appearance-section-heading">
-              <h4 className="runtime-section-label">Interface</h4>
-            </div>
-            <div className="appearance-interface-rows">
-              <div className="appearance-interface-row">
-                <div>
-                  <span className="appearance-choice-label">Background graphics</span>
-                  <p className="runtime-control-note">Show decorative shell stars and constellation lines.</p>
-                </div>
-                <StateSwitch
-                  checked={settings.backgroundGraphics}
-                  onCheckedChange={(backgroundGraphics) =>
-                    setSettings((current) => ({ ...current, backgroundGraphics }))
-                  }
-                  aria-label="Background graphics"
-                />
-              </div>
-              <div className="appearance-interface-row">
-                <div>
-                  <span className="appearance-choice-label">Animations</span>
-                  <p className="runtime-control-note">Show ambient motion and nonessential transitions.</p>
-                </div>
-                <StateSwitch
-                  checked={settings.animations}
-                  onCheckedChange={(animations) => setSettings((current) => ({ ...current, animations }))}
-                  aria-label="Animations"
-                />
-              </div>
-              <div className="appearance-interface-row">
-                <div>
-                  <span className="appearance-choice-label" id="appearance-density-label">
-                    Density
-                  </span>
-                  <p className="runtime-control-note">Adjust tables, rails, settings rows, and card spacing.</p>
-                </div>
-                <div className="appearance-density" role="radiogroup" aria-labelledby="appearance-density-label">
-                  {DENSITY_IDS.map((density) => (
-                    <button
-                      key={density}
-                      type="button"
-                      role="radio"
-                      aria-checked={settings.density === density}
-                      tabIndex={settings.density === density ? 0 : -1}
-                      onClick={() => setSettings((current) => ({ ...current, density }))}
-                      onKeyDown={(event) => {
-                        const offset =
-                          event.key === 'ArrowRight' || event.key === 'ArrowDown'
-                            ? 1
-                            : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
-                              ? -1
-                              : 0;
-                        if (!offset) return;
-                        event.preventDefault();
-                        const next =
-                          DENSITY_IDS[
-                            (DENSITY_IDS.indexOf(density) + offset + DENSITY_IDS.length) % DENSITY_IDS.length
-                          ];
-                        setSettings((current) => ({ ...current, density: next }));
-                      }}
-                    >
-                      {DENSITY_LABELS[density]}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           </section>
           <section className="runtime-section appearance-palette-section">

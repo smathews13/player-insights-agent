@@ -521,23 +521,17 @@ describe('the chart panel is a panel on this card, not a second page', () => {
     }
   });
 
-  it('leaves the figure’s label arrangement to the agent, theming and all', () => {
-    // Where the legend sits, how much room the tick labels get, which slice
-    // labels are drawn and at what angle are one arrangement in the agent's
-    // `new_plot`, applied to every chart it can produce. Written a second time
-    // at this end it would only cover the shapes whoever wrote it had in mind,
-    // and the agent writes the specs, so the next question is a shape nobody had
-    // in mind.
-    //
-    // THE THEME PASS IS INCLUDED IN THAT, which is why it is scanned here. It
-    // may repaint a label and may not move one: the four keys below are the ones
-    // that decide where a label lands, and none of them is a colour.
+  it('normalizes label geometry in one pure app pass rather than in the panel', () => {
+    // Stored answers outlive the agent version that wrote them, so old specs cannot
+    // rely on the current agent's automargins and legend placement. The app owns that
+    // compatibility pass beside theming, over the same copy; the panel still only
+    // supplies the measured box and never grows a second set of layout literals.
     const plot = readFileSync(new URL('./PlotlyFigure.tsx', import.meta.url), 'utf8');
-    const theme = readFileSync(new URL('./plotly-config.ts', import.meta.url), 'utf8');
-    for (const source of [CHARTS, plot]) {
-      expect(source).not.toMatch(/legend|automargin|tickangle|textposition|\bmargin\b/i);
-    }
-    expect(theme).not.toMatch(/automargin|tickangle|textposition|\bmargin\b/i);
+    const config = readFileSync(new URL('./plotly-config.ts', import.meta.url), 'utf8');
+    expect(CHARTS).not.toMatch(/automargin|tickangle|ticktext|minreducedwidth/i);
+    expect(plot).toContain('layoutFigure({ kind, data, layout }, theme, { width: measuredWidth, height })');
+    expect(plot).not.toMatch(/automargin|tickangle|ticktext|minreducedwidth/i);
+    expect(config).toMatch(/automargin|tickangle|ticktext|minreducedwidth/);
   });
 });
 

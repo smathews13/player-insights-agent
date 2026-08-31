@@ -48,10 +48,7 @@ export function healthRowsForDisplay(payload: HealthRowsPayload): HealthRow[] {
       result === 'not-checked'
         ? ''
         : existing?.lastCheckedAt || tables.find((row) => row.lastCheckedAt)?.lastCheckedAt || '',
-    notes:
-      `${total} ${total === 1 ? 'table' : 'tables'}: ${counts.reachable} reachable \u00b7 ` +
-      `${counts.unverified} unverified \u00b7 ${counts.failed} failed. ` +
-      'Open the detailed tables section for per-table evidence.',
+    notes: `${counts.reachable} reachable \u00b7 ${counts.unverified} unverified \u00b7 ${counts.failed} failed`,
     pill: {
       label: resourceWord({ kind: 'manifest', label: 'Declared tables' }),
       value: result === 'answered' ? 'Reachable' : result === 'did-not-answer' ? 'Failed' : 'Unverified',

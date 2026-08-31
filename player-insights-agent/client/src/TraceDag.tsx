@@ -69,7 +69,7 @@ import { productForTool } from './brand-icons';
 import { reportEgress } from './egress-policy';
 import type { TraceStage, TraceSummary } from './answer-shape';
 import { takeawayWhenTablesLanded, withDisplayedStageStatus, type RunVerdict } from '../../shared/run-verdict';
-import { describePayload, payloadSize, type Payload } from './trace-payload';
+import { describePayload, type Payload } from './trace-payload';
 import { buildTimeline, formatMs, runOrigin, toolNameFromId } from './trace-timeline';
 import {
   AgentReport,
@@ -82,7 +82,6 @@ import {
   StructuredTableResultView,
 } from './StepResult';
 import {
-  argumentLabel,
   genieResult,
   reportSections,
   resultShape,
@@ -96,6 +95,7 @@ import { EntityText, TableEntityList } from './DataEntityLinks';
 import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
 import { SqlCodeBlocks } from './SqlPresentation';
 import { sanitizeSqlForDisplay } from './sql-presentation';
+import { PayloadView } from './TraceTimeline';
 import {
   cardCalls,
   cardTiming,
@@ -297,29 +297,6 @@ function StageName({ stage, mono, clamp }: { stage: TraceStage; mono: boolean; c
   );
 }
 
-/** A recorded field the run has nothing in, said in words rather than left blank. */
-function Absent() {
-  return <span className="dag-detail-absent">(none recorded)</span>;
-}
-
-/**
- * The agent's own size ceiling, labelled where it applies.
- *
- * A cap the reader does not notice is worse than no cap: they would believe they
- * were looking at the whole value. Not in the design, and kept anyway, because it
- * is the difference between a short result and a clipped one.
- */
-function Clipped() {
-  return (
-    <strong
-      className="dag-clipped"
-      title="the agent reached its own size ceiling while recording this and said so in the text below"
-    >
-      clipped by the agent
-    </strong>
-  );
-}
-
 /** The argument that is the question the step was asked, when it has one. */
 function askedField(payload: Payload, skipKey: string | null) {
   const fields = payload.fields?.filter((field) => field.key !== skipKey) ?? null;
@@ -348,18 +325,13 @@ function askedField(payload: Payload, skipKey: string | null) {
  * statement twice on one panel is worse than either placement on its own.
  */
 function ArgumentBlock({ payload, skipKey }: { payload: Payload; skipKey: string | null }) {
-  if (payload.empty) return <Absent />;
+  if (payload.empty) return <span className="dag-detail-absent">(none recorded)</span>;
   const fields = payload.fields?.filter((field) => field.key !== skipKey) ?? null;
   const asked = askedField(payload, skipKey);
   const filters = fields?.filter((field) => field.key === 'kind' && field.value.trim() !== '') ?? [];
   const rest = fields?.filter((field) => field !== asked && !filters.includes(field)) ?? null;
   return (
     <>
-      {payload.truncated && (
-        <div className="dag-detail-flag">
-          <Clipped />
-        </div>
-      )}
       {asked && (
         <div className="dag-asked-row">
           <span className="dag-asked">
@@ -635,8 +607,6 @@ export function StageDetail({
   charts?: Chart[];
   runSummary?: RunContainerSummary | null;
 }) {
-  const failed = stage.status === 'failed';
-  const [raw, setRaw] = useState(failed);
   if (runSummary) return <RunSummaryDetail stage={stage} summary={runSummary} id={id} />;
   // The tool's real name, which the stage id carries verbatim. `_TOOL_STAGE_NAMES`
   // in agent.py gives a tool a reader's label ("Queried governed data") and falls
@@ -656,7 +626,6 @@ export function StageDetail({
   const argumentFields = args.fields?.filter((field) => field.key !== (sql?.key ?? null)) ?? null;
   const hasArguments = !args.empty && (argumentFields === null || argumentFields.length > 0);
   const hasResult = !result.empty || (tableListing && tables.length > 0) || stage.name === 'Built the charts';
-  const argumentsHeading = argumentLabel(shape, askedField(args, sql?.key ?? null) !== null);
   return (
     <div className={`dag-detail ${stage.status}`} id={id}>
       <div className="dag-detail-head">
@@ -666,72 +635,43 @@ export function StageDetail({
         </strong>
         <span className="dag-detail-measures ast-num">{detailTiming(stage, origin)}</span>
       </div>
-      <dl>
-        {tool && (
-          <>
-            <dt>Tool</dt>
-            <dd className="dag-detail-mono">{tool}</dd>
-          </>
-        )}
-        {stage.status !== 'complete' && (
-          <>
-            <dt>Ended</dt>
-            <dd>{stage.status}</dd>
-            <dt>Reference</dt>
-            <dd className="dag-detail-mono">{stage.id}</dd>
-          </>
-        )}
+      {tool || stage.status !== 'complete' ? (
+        <dl>
+          {tool && (
+            <>
+              <dt>Tool</dt>
+              <dd className="dag-detail-mono">{tool}</dd>
+            </>
+          )}
+          {stage.status !== 'complete' && (
+            <>
+              <dt>Ended</dt>
+              <dd>{stage.status}</dd>
+              <dt>Reference</dt>
+              <dd className="dag-detail-mono">{stage.id}</dd>
+            </>
+          )}
+        </dl>
+      ) : null}
+      <div className="dag-detail-payloads">
         {hasArguments ? (
-          <>
-            <dt>{argumentsHeading}</dt>
-            <dd className="dag-detail-pane">
-              <div className="dag-detail-pane-head">
-                <strong className="dag-detail-pane-label" aria-hidden="true">
-                  {argumentsHeading}
-                </strong>
-              </div>
-              <ArgumentBlock payload={args} skipKey={sql?.key ?? null} />
-            </dd>
-          </>
+          <PayloadView
+            label="Arguments"
+            text={stage.input}
+            tables={tables}
+            rendered={<ArgumentBlock payload={args} skipKey={sql?.key ?? null} />}
+          />
         ) : null}
         {hasResult ? (
-          <>
-            <dt>Result</dt>
-            <dd className="dag-detail-pane dag-detail-result">
-              <div className="dag-detail-pane-head">
-                <strong className="dag-detail-pane-label" aria-hidden="true">
-                  Result
-                </strong>
-                {!result.empty && (
-                  <div className="dag-result-meta">
-                    {/* What answered, read off the same parse the body is drawn from,
-                    so this line cannot name a Genie space the card below did not
-                    come from. Absent for a shape with no source to name, and for
-                    one whose parse refused. */}
-                    <ResultSource shape={shape} text={result.body} />
-                    {result.truncated && <Clipped />}
-                    {/* Two states of one control, so it is a group of pressed
-                    buttons rather than two independent ones. A radio group
-                    would announce a form field; this changes how one value is
-                    drawn and changes nothing about the run. */}
-                    <span className="dag-seg" role="group" aria-label="How to show this result">
-                      <button type="button" aria-pressed={!raw} onClick={() => setRaw(false)}>
-                        Rendered
-                      </button>
-                      {/* The size moves onto the Raw segment, which is the only place
-                      it means anything: it is the measure of what pressing that
-                      button shows, and above a rendered card it was the length of
-                      a payload the reader was no longer looking at. The character
-                      count stays in the title rather than on the label, which the
-                      design keeps to the line count. */}
-                      <button type="button" aria-pressed={raw} onClick={() => setRaw(true)} title={payloadSize(result)}>
-                        Raw{result.lines > 1 ? ` · ${result.lines.toLocaleString()} lines` : ''}
-                      </button>
-                    </span>
-                  </div>
-                )}
-              </div>
-              {stage.name === 'Built the charts' ? (
+          <PayloadView
+            label="Result"
+            text={result.body}
+            tables={tables}
+            tableListing={tableListing}
+            headerMeta={!result.empty ? <ResultSource shape={shape} text={result.body} /> : undefined}
+            initialRaw={stage.status === 'failed'}
+            rendered={
+              stage.name === 'Built the charts' ? (
                 charts?.length ? (
                   <div className="dag-result-charts">
                     <AnswerCharts charts={charts} />
@@ -743,26 +683,19 @@ export function StageDetail({
                       : 'The chart payload is unavailable for this stored run.'}
                   </p>
                 )
-              ) : null}
-              {result.empty ? (
+              ) : result.empty ? (
                 tableListing ? (
                   <TableEntityList tables={tables} />
                 ) : (
-                  <Absent />
+                  <span className="dag-detail-absent">(none recorded)</span>
                 )
               ) : (
-                <>
-                  {raw ? (
-                    <pre className="dag-block">{result.body}</pre>
-                  ) : (
-                    <RenderedResult shape={shape} text={result.body} tables={tables} tableListing={tableListing} />
-                  )}
-                </>
-              )}
-            </dd>
-          </>
+                <RenderedResult shape={shape} text={result.body} tables={tables} tableListing={tableListing} />
+              )
+            }
+          />
         ) : null}
-      </dl>
+      </div>
       {sql && <SqlBlock sql={sql.value} tables={tables} />}
     </div>
   );

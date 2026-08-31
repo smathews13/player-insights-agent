@@ -650,6 +650,6 @@ describe('nothing the figure attaches outlives the panel', () => {
     const calls = PLOT_SOURCE.match(/Plotly\.react\(/g) ?? [];
     expect(calls).toHaveLength(1);
     expect(PLOT_SOURCE).toContain('FIGURE_CONFIG)');
-    expect(PLOT_SOURCE).toContain('themedFigure({ kind, data, layout }, theme)');
+    expect(PLOT_SOURCE).toContain('layoutFigure({ kind, data, layout }, theme, { width: measuredWidth, height })');
   });
 });

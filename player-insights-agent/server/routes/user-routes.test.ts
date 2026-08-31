@@ -264,15 +264,57 @@ describe('appointing an administrator', () => {
     const store = fakeLakebase();
     const app = await startApp(store);
     const response = await app.add(LEAD, ANALYST, 'admin');
+    const payload = (await response.json()) as RosterPayload;
 
     expect(response.status).toBe(200);
     expect(store.rows.roster).toEqual([
       { email: ANALYST, role: 'admin', added_by: LEAD, added_at: '2026-08-17T00:00:00.000Z' },
     ]);
+    expect(payload.entries.find((entry) => entry.email === ANALYST)).toMatchObject({
+      role: 'admin',
+      setBy: LEAD,
+      setAt: '2026-08-17T00:00:00.000Z',
+    });
     // A promotion used to grant read on the telemetry schema and the
     // `system.billing` tables. Read access to billing needs a metastore admin, so
     // the ordinary promotion reported a refusal for access the rank never required.
     expect(calls).toHaveLength(0);
+  });
+
+  it('creates an explicit consumer row and returns its normalized confirmed facts', async () => {
+    const store = fakeLakebase();
+    const app = await startApp(store);
+    const response = await app.add(LEAD, `  ${ANALYST.toUpperCase()}  `, 'consumer');
+    const payload = (await response.json()) as RosterPayload;
+
+    expect(response.status).toBe(200);
+    expect(store.rows.roster).toEqual([
+      { email: ANALYST, role: 'consumer', added_by: LEAD, added_at: '2026-08-17T00:00:00.000Z' },
+    ]);
+    expect(payload.entries.find((entry) => entry.email === ANALYST)).toMatchObject({
+      role: 'consumer',
+      setBy: LEAD,
+      setAt: '2026-08-17T00:00:00.000Z',
+    });
+  });
+
+  it('rejects a same-role duplicate but lets POST update an existing role', async () => {
+    const store = fakeLakebase([{ email: ANALYST, role: 'consumer', added_by: DEPUTY, added_at: '' }]);
+    const app = await startApp(store);
+
+    const duplicate = await app.add(LEAD, ANALYST, 'consumer');
+    expect(duplicate.status).toBe(409);
+    expect(await errorOf(duplicate)).toBe('roster_refused_already_holds');
+
+    const update = await app.add(LEAD, ANALYST, 'admin');
+    const payload = (await update.json()) as RosterPayload;
+    expect(update.status).toBe(200);
+    expect(payload.entries.find((entry) => entry.email === ANALYST)).toMatchObject({
+      role: 'admin',
+      setBy: LEAD,
+      setAt: '2026-08-17T00:00:00.000Z',
+    });
+    expect(store.rows.roster).toHaveLength(1);
   });
 
   /**
@@ -453,6 +495,32 @@ describe('when Lakebase is not answering', () => {
     const response = await app.change(LEAD, ANALYST, 'admin');
     expect(response.status).toBe(503);
     expect(await errorOf(response)).toBe('roster_store_unavailable');
+  });
+
+  it('returns 503 when adding cannot read the authoritative roster', async () => {
+    const app = await startApp(broken);
+    const response = await app.add(LEAD, ANALYST, 'consumer');
+    expect(response.status).toBe(503);
+    expect(await errorOf(response)).toBe('roster_store_unavailable');
+  });
+
+  it('does not report success when Lakebase cannot confirm a completed write', async () => {
+    const store = fakeLakebase();
+    const query = store.query.bind(store);
+    let rosterReads = 0;
+    store.query = (text, params) => {
+      if (text.trim().startsWith('SELECT') && text.includes(ADDED_ADMINS_TABLE) && ++rosterReads === 2) {
+        return Promise.reject(new Error('read-back unavailable'));
+      }
+      return query(text, params);
+    };
+    const app = await startApp(store);
+
+    const response = await app.add(LEAD, ANALYST, 'consumer');
+
+    expect(response.status).toBe(503);
+    expect(await errorOf(response)).toBe('roster_confirmation_unavailable');
+    expect(store.rows.roster).toHaveLength(1);
   });
 
   it('still shows the roster the environment names', async () => {

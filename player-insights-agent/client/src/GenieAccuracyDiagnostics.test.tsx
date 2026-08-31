@@ -1,17 +1,17 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import {
-  MATCHING_POLICY_FACT,
-  MATCHING_POLICY_ID,
-  MATCHING_POLICY_REFERENCE,
-} from '../../shared/benchmark-lab-v3';
+import { MATCHING_POLICY_FACT, MATCHING_POLICY_ID, MATCHING_POLICY_REFERENCE } from '../../shared/benchmark-lab-v3';
 import type { GenieAccuracyRunView } from '../../shared/eval-genie-run';
 import { GenieAccuracyDiagnostics, GenieAccuracyResult, GenieStageControls } from './GenieAccuracyDiagnostics';
 import type { EvaluationLabModel } from './use-evaluation-lab';
 import { EMPTY_LAB_STATE, labWorkspacePayload } from '../../shared/benchmark-lab-v3';
 
 function readable(markup: string): string {
-  return markup.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ');
+  return markup
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ');
 }
 
 const RUN: GenieAccuracyRunView = {
@@ -51,7 +51,8 @@ const RUN: GenieAccuracyRunView = {
       missKind: null,
       excluded: false,
       conversationId: '',
-      comparisonReason: 'Wrong measure column: `sessions` for `active_players`. Row count matches, values do not. Execution clean.',
+      comparisonReason:
+        'Wrong measure column: `sessions` for `active_players`. Row count matches, values do not. Execution clean.',
     },
     {
       id: 'case_003',
@@ -122,7 +123,7 @@ describe('Genie accuracy diagnostics', () => {
     expect(prose).not.toContain('Complete suite is the customer-facing default');
   });
 
-  it('keeps a quiet empty pane: tiles saying not set, no lecture, no empty table', () => {
+  it('keeps a quiet empty pane: metrics say they were not recorded', () => {
     const lab = labWorkspacePayload({ rows: [], state: EMPTY_LAB_STATE, enabledJudges: [] });
     const model = {
       lab,
@@ -142,7 +143,7 @@ describe('Genie accuracy diagnostics', () => {
     const prose = readable(markup);
     expect(prose).toContain('Genie accuracy diagnostics');
     expect(prose).toContain('Matching policy reference');
-    expect(prose).toContain('not set');
+    expect(prose).toContain('Not recorded');
     expect(prose).not.toContain('No run id yet');
     expect(prose).not.toContain('n of m + gate');
     expect(prose).not.toContain('warehouse startup is not Genie-wrong');

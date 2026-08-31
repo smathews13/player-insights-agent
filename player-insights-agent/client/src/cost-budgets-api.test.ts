@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { COST_BUDGETS_UNREADABLE, loadCostBudgets, saveCostBudgets } from './cost-budgets-api';
-import { CostBudgetApplyButton, costBudgetNotice } from './CostBudgets';
+import { BudgetSaveNotice, CostBudgetApplyButton, costBudgetNotice } from './CostBudgets';
 import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad } from './settings-save-state';
 
 function json(body: unknown, status = 200): Response {
@@ -95,6 +95,22 @@ describe('Cost budget Apply copy', () => {
     expect(markup({ kind: 'saved' })).toContain('Applied');
     expect(markup({ kind: 'failed', message: 'no' })).toContain('Retry');
     expect(markup({ kind: 'failed', message: 'no' })).not.toContain('ast-flick-slot--button');
+  });
+
+  it('renders saved and error status copy independently from the control helper', () => {
+    const status = (state: Parameters<typeof BudgetSaveNotice>[0]['state']) =>
+      renderToStaticMarkup(
+        createElement(BudgetSaveNotice, {
+          state,
+          notice: costBudgetNotice(state),
+          readable: true,
+        })
+      );
+    expect(status({ kind: 'saved' })).toContain('ops-budget-save-ok');
+    expect(status({ kind: 'saved' })).toContain('Applied.');
+    expect(status({ kind: 'failed', message: 'Atomic save failed.' })).toContain('ops-budget-save-error');
+    expect(status({ kind: 'failed', message: 'Atomic save failed.' })).toContain('Atomic save failed.');
+    expect(status({ kind: 'failed', message: 'Atomic save failed.' })).not.toContain('Observed:');
   });
 });
 

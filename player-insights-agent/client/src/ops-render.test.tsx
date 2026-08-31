@@ -1355,24 +1355,62 @@ describe('the cost block', () => {
   });
 
   it('lets an operator set an app budget and a per-tile budget for the Cost window', () => {
+    const baseTiles = cost().tiles;
     const payload = cost({
       budgets: {
         total: { USD: 400, DBU: 50 },
         resources: { 'serving-endpoint': { USD: 40, DBU: 5 } },
       },
       tiles: [
-        { ...cost().tiles[0], id: 'serving-endpoint', label: 'Serving endpoint', basis: 'total-in-range' },
-        { ...cost().tiles[1], id: 'vector-search', label: 'Vector search', basis: 'per-day' },
+        { ...baseTiles[0], id: 'serving-endpoint', label: 'Serving endpoint', basis: 'total-in-range' },
+        { ...baseTiles[0], id: 'sql-warehouse', label: 'SQL warehouse', basis: 'total-in-range' },
+        { ...baseTiles[0], id: 'genie:data', label: 'Data Genie', basis: 'total-in-range' },
+        { ...baseTiles[0], id: 'genie:dictionary', label: 'Dictionary Genie', basis: 'total-in-range' },
+        { ...baseTiles[1], id: 'vector-search', label: 'Vector Search', basis: 'per-day' },
+        { ...baseTiles[0], id: 'app-compute', label: 'App compute', basis: 'per-day' },
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
+    const appEditor = markup.slice(markup.indexOf('ops-cost-total'), markup.indexOf('ops-cost-resource-budgets'));
+    const appControlRow = appEditor.slice(
+      appEditor.indexOf('ops-ticker-input-row'),
+      appEditor.indexOf('ops-ticker-assumption-helper')
+    );
+    const editor = markup.slice(
+      markup.indexOf('ops-ticker-assumptions'),
+      markup.indexOf('ops-resource-budget-actions')
+    );
+    const matrix = markup.slice(markup.indexOf('ops-cost-actual-breakdown'), markup.indexOf('ops-cost-resources'));
     expect(markup).toContain('Total app spend');
     expect(markup).toContain('App budget');
     expect(markup).toContain('aria-label="App budget in USD"');
+    expect(appControlRow).toContain('ops-number-ticker-wide');
+    expect(appControlRow).toContain('ops-budget-apply');
+    expect(appControlRow).toContain('ops-app-budget-status');
+    expect(appEditor.indexOf('ops-ticker-input-row')).toBeLessThan(appEditor.indexOf('ops-ticker-assumption-helper'));
     expect(markup).toContain('aria-label="Serving endpoint budget in USD"');
-    expect(markup).toContain('aria-label="Vector search budget per day in USD"');
+    expect(markup).toContain('aria-label="Vector Search budget per day in USD"');
+    expect(editor).toContain('data-columns="6"');
+    expect(editor.match(/ops-number-ticker ops-forecast-number-control/g)).toHaveLength(6);
+    for (const label of [
+      'Serving endpoint',
+      'SQL warehouse',
+      'Data Genie',
+      'Dictionary Genie',
+      'Vector Search per day',
+      'App compute per day',
+    ]) {
+      expect(editor).toContain(label);
+    }
+    expect(matrix).toContain('Actual cost breakdown');
+    expect(matrix).toMatch(/<th scope="col">Component<\/th>/);
+    expect(matrix).toMatch(/<th scope="col">Actual<\/th>/);
+    expect(matrix).toMatch(/<th scope="col">Budget<\/th>/);
+    expect(matrix).toMatch(/<th scope="col">Status<\/th>/);
+    expect(matrix).not.toContain('ops-number-ticker');
+    expect(matrix).not.toContain('<input');
     expect(markup).not.toContain('selected period');
-    expect(markup).toMatch(/aria-label="App budget in USD"[^>]*placeholder="1\.5"[^>]*value="400"/);
+    expect(markup).toMatch(/aria-label="App budget in USD"[^>]*placeholder="16\.5"[^>]*value="400"/);
     expect(markup).toMatch(/aria-label="Serving endpoint budget in USD"[^>]*placeholder="1\.5"[^>]*value="40"/);
     expect(markup).toContain('placeholder="4"');
     expect(markup).not.toContain('class="ops-budget-unit"');
@@ -1389,7 +1427,7 @@ describe('the cost block', () => {
     expect(markup.match(/class="ops-number-ticker-prefix" aria-hidden="true">\$<\/span>/g)).toHaveLength(
       payload.tiles.length + 1
     );
-    expect(markup).toMatch(/aria-label="Vector search budget per day in USD"[^>]*value=""/);
+    expect(markup).toMatch(/aria-label="Vector Search budget per day in USD"[^>]*value=""/);
     expect(markup.match(/class="ops-budget-resource">Serving endpoint/g)).toHaveLength(1);
     expect(markup).not.toContain('ops-budget-label');
     expect(markup).not.toContain('Same window as the tiles');
@@ -1404,7 +1442,9 @@ describe('the cost block', () => {
     expect(OPS_STYLES).toMatch(/\.ops-number-ticker-wide\s*\{[^}]*width:\s*min\(100%,\s*14rem\)/);
     expect(OPS_STYLES).toMatch(/\.ops-number-ticker\[data-prefix='true'\] input\s*\{[^}]*padding-left:\s*22px/);
     expect(OPS_STYLES).toMatch(/\.ops-number-ticker\[data-suffix='true'\] input\s*\{[^}]*padding-right:\s*40px/);
-    expect(OPS_STYLES).toMatch(/\.ops-tile-budget\s*\{[^}]*display:\s*grid/);
+    expect(OPS_STYLES).toMatch(
+      /\.ops-ticker-assumption-grid\s*\{[^}]*grid-template-columns:\s*repeat\(var\(--ops-assumption-columns\),\s*minmax\(0,\s*1fr\)\)/
+    );
   });
 
   it('uses resource-specific DBU placeholders and an unavailable state without converting dollars', () => {
@@ -1428,6 +1468,11 @@ describe('the cost block', () => {
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} unit="DBU" />);
+    const appEditor = markup.slice(markup.indexOf('ops-cost-total'), markup.indexOf('ops-cost-resource-budgets'));
+    const appControlRow = appEditor.slice(
+      appEditor.indexOf('ops-ticker-input-row'),
+      appEditor.indexOf('ops-ticker-assumption-helper')
+    );
     expect(markup).toMatch(/aria-label="App budget in DBU"[^>]*placeholder="2\.75"/);
     expect(markup).toMatch(/aria-label="Serving endpoint budget in DBU"[^>]*placeholder="2\.75"/);
     expect(markup).toMatch(/aria-label="App compute budget in DBU"[^>]*placeholder=""/);
@@ -1441,6 +1486,12 @@ describe('the cost block', () => {
     expect(markup).not.toContain('value="54.81"');
     expect(markup).toContain('2.75 DBU');
     expect(markup).not.toContain('99.00 USD');
+    expect(appControlRow).toContain('ops-number-ticker-suffix');
+    expect(appControlRow).toContain('ops-budget-apply');
+    expect(appControlRow).toContain('ops-app-budget-status');
+    expect(appEditor).toContain('Observed: 2.75 DBU');
+    expect(markup).toContain('No measured baseline');
+    expect(markup).not.toContain('Observed: 99 USD');
   });
 
   it('renders measured Vector Search USD and DBUs from the same corrected tile', () => {
@@ -1493,7 +1544,7 @@ describe('the cost block', () => {
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('Over budget');
     expect(markup).toContain('No billing rows');
-    expect(markup).toContain('spend not measured');
+    expect(markup).toContain('Spend not measured');
   });
 
   it('does not compare a partial list-price lower bound to a budget', () => {
@@ -1529,7 +1580,7 @@ describe('the cost block', () => {
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('Partial list-price coverage; spend withheld');
     expect(markup).toContain('Budget');
-    expect(markup).toContain('spend not measured');
+    expect(markup).toContain('Spend not measured');
     expect(markup).not.toContain('Over budget');
     expect(markup).not.toContain('Under budget');
     expect(markup).not.toContain('12.00 USD');

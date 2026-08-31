@@ -162,39 +162,48 @@ describe('the traffic groups share the row', () => {
   });
 });
 
-describe('the Cost controls and values share compact rows', () => {
-  it('aligns component, actual, budget, and status columns without horizontal clipping', () => {
-    const row = rule('.ops-tile-budget');
-    expect(row).toMatch(/display:\s*grid/);
-    expect(row).toMatch(
-      /grid-template-columns:\s*minmax\(10rem,\s*1\.2fr\)\s+minmax\(8rem,\s*0\.8fr\)\s+minmax\(13\.5rem,\s*0\.9fr\)\s+minmax\(9rem,\s*1fr\)/
+describe('the Cost assumptions and actuals stay separate', () => {
+  it('uses the shared assumption grid for one desktop row and a read-only projection-style matrix', () => {
+    expect(rule('.ops-ticker-assumption-grid')).toMatch(
+      /grid-template-columns:\s*repeat\(var\(--ops-assumption-columns\),\s*minmax\(0,\s*1fr\)\)/
     );
-    expect(rule('.ops-cost-budget-matrix')).toMatch(/min-width:\s*0/);
-    expect(rule('.ops-number-ticker-wide')).toMatch(/width:\s*min\(100%,\s*14rem\)/);
+    expect(rule('.ops-cost-budget-matrix')).toMatch(/table-layout:\s*fixed/);
+    expect(rule('.ops-forecast-breakdown table')).toMatch(/min-width:\s*620px/);
+    expect(rule('.ops-tile-budget')).not.toMatch(/display:\s*grid/);
   });
 
   it('reserves room for long values, unit affixes, and visible arrow controls', () => {
     expect(rule('.ops-number-ticker-wide')).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)\s+24px/);
+    expect(rule('.ops-number-ticker-wide')).toMatch(/width:\s*min\(100%,\s*14rem\)/);
     expect(rule(".ops-number-ticker[data-prefix='true'] input")).toMatch(/padding-left:\s*22px/);
     expect(rule(".ops-number-ticker[data-suffix='true'] input")).toMatch(/padding-right:\s*40px/);
     expect(RULES).toMatch(/\.ops-number-ticker-suffix\s*\{[^}]*right:\s*32px/);
     expect(rule('.ops-budget-actual')).toMatch(/font-variant-numeric:\s*tabular-nums/);
   });
 
-  it('deliberately reflows at narrow desktop and phone widths', () => {
+  it('deliberately reflows the six assumptions through 3, 2, and 1 columns', () => {
     expect(RESPONSIVE).toMatch(
-      /@media \(max-width: 800px\)[\s\S]*\.ops-tile-budget\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(13\.5rem,\s*14rem\)/
+      /@media \(max-width: 800px\)[\s\S]*\.ops-ticker-assumption-grid\[data-columns='6'\]\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/
     );
     expect(RESPONSIVE).toMatch(
-      /@media \(max-width: 480px\)[\s\S]*\.ops-tile-budget\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
+      /@container \(max-width: 640px\)[\s\S]*\.ops-ticker-assumption-grid\[data-columns='6'\]\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+    );
+    expect(RULES).toMatch(/\.ops-cost-resource-budgets\s*\{[^}]*container-type:\s*inline-size/);
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 480px\)[\s\S]*\.ops-ticker-assumption-grid\[data-columns='6'\],[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
     );
   });
 
-  it('reserves matching amount and evidence rows for values and honest empty states', () => {
-    expect(rule('.ops-tile')).toMatch(/grid-template-rows:\s*auto\s+minmax\(28px,\s*1fr\)\s+minmax\(1lh,\s*auto\)/);
-    expect(rule('.ops-tile-absent')).toMatch(/min-height:\s*28px/);
-    expect(rule('.ops-tile-absent')).toMatch(/align-items:\s*baseline/);
-    expect(rule('.ops-tile-evidence')).toMatch(/min-height:\s*1lh/);
+  it('aligns the App ticker, Apply, and status on the same control-height rail', () => {
+    expect(rule('.ops-cost-total .ops-ticker-input-row')).toMatch(/display:\s*grid/);
+    expect(rule('.ops-cost-total .ops-ticker-input-row')).toMatch(/align-items:\s*stretch/);
+    expect(rule('.ops-ticker-input-row')).toMatch(/--ops-ticker-control-height:\s*36px/);
+    expect(rule('.ops-number-ticker-wide input')).toMatch(/height:\s*var\(--ops-ticker-control-height,\s*36px\)/);
+    expect(rule('.ops-cost-total .ops-budget-apply')).toMatch(/height:\s*var\(--ops-ticker-control-height\)/);
+    expect(rule('.ops-app-budget-status')).toMatch(/height:\s*var\(--ops-ticker-control-height\)/);
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 480px\)[\s\S]*\.ops-cost-total \.ops-ticker-input-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto/
+    );
   });
 });
 

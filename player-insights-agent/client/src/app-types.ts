@@ -14,6 +14,7 @@ import type { Derivation, NormalizedAnswer, StageStatus, TraceStage, TraceSummar
 import type { SessionReport } from '../../shared/session-contract';
 import type { RunRuntimeUsed } from '../../shared/run-runtime-used';
 import type { SpIdentitySummary } from '../../shared/sp-identity';
+import type { ControlPlaneIdentityMetadata } from '../../shared/identity-metadata';
 
 /**
  * What the components are allowed to render: every field present, because it came
@@ -112,6 +113,8 @@ export interface Identity {
    * is also the default until an administrator turns the pivot on.
    */
   spIdentity?: SpIdentitySummary;
+  /** Verified Databricks control-plane metadata for the Connections identity summary. */
+  identityMetadata?: ControlPlaneIdentityMetadata;
 }
 // Rows can come from benchmark runs, where several columns are null.
 export interface Run {

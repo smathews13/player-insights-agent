@@ -424,6 +424,10 @@ html body[data-scroll-locked] {
   display: grid;
   gap: 6px;
 }
+.run-list-skeleton {
+  display: grid;
+  gap: 6px;
+}
 
 /*
  * A run row is a card rather than a list line, because the prompt wraps to two
@@ -593,6 +597,98 @@ html body[data-scroll-locked] {
   border: 1px solid var(--ast-hairline);
   border-radius: var(--ast-radius-card);
   background: var(--ast-pane);
+}
+.run-detail-state {
+  min-height: 430px;
+}
+/*
+ * The placeholder occupies the same pane and KPI tracks as ready content. Its
+ * fixed header, tab, tile, and answer geometry prevents the detail column from
+ * collapsing and then jumping when either the list or trace request resolves.
+ */
+.run-detail-skeleton {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.run-detail-skeleton-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+}
+.run-detail-skeleton-head > div {
+  display: grid;
+  gap: 10px;
+  width: min(560px, 72%);
+}
+.run-detail-skeleton-title {
+  width: 72%;
+  height: 24px;
+}
+.run-detail-skeleton-ident {
+  width: 88%;
+  height: 24px;
+}
+.run-detail-skeleton-duration {
+  width: 58px;
+  height: 18px;
+}
+.run-detail-skeleton-tabs {
+  display: flex;
+  gap: 24px;
+  align-items: flex-end;
+  min-height: 35px;
+  border-bottom: 1px solid var(--border);
+}
+.run-detail-skeleton-tabs > [data-slot='skeleton'] {
+  width: 62px;
+  height: 13px;
+  margin-bottom: 10px;
+}
+.run-detail-skeleton-tabs > [data-slot='skeleton']:nth-child(2) {
+  width: 76px;
+}
+.run-detail-skeleton-kpis [data-slot='card-content'] {
+  min-height: 138px;
+}
+.run-detail-skeleton-label {
+  width: 58%;
+  height: 14px;
+}
+.run-detail-skeleton-value {
+  width: 70%;
+  height: 34px;
+}
+.run-detail-skeleton-subtitle {
+  width: 86%;
+  height: 2.7em;
+  margin-top: auto;
+}
+.run-detail-skeleton-answer {
+  display: grid;
+  gap: 12px;
+  min-height: 190px;
+  box-sizing: border-box;
+  padding: 18px 20px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+}
+.run-detail-skeleton-answer > [data-slot='skeleton'] {
+  height: 16px;
+}
+.run-detail-skeleton-answer > [data-slot='skeleton']:first-child {
+  width: 44%;
+  height: 24px;
+}
+.run-detail-skeleton-answer > [data-slot='skeleton']:last-child {
+  width: 78%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .run-explorer [data-slot='skeleton'] {
+    animation: none !important;
+  }
 }
 .run-detail-head {
   display: flex;

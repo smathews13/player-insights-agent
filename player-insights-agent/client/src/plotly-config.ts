@@ -489,6 +489,328 @@ export interface ThemedFigure {
   layout: PlotLayout;
 }
 
+/** The box Plotly is drawing into, measured by the component rather than the window. */
+export interface FigureViewport {
+  width: number;
+  height: number;
+}
+
+const DEFAULT_VIEWPORT: FigureViewport = { width: 640, height: 260 };
+const MOBILE_WIDTH = 480;
+const NARROW_WIDTH = 360;
+const TICK_CHARACTER_WIDTH = 5;
+const FLAT_TICK_PADDING = 36;
+const MAX_TICK_LINES = 2;
+const AXIS_TITLE_STANDOFF = 12;
+const ELLIPSIS = '…';
+
+type AxisName = 'xaxis' | 'yaxis';
+type TickTreatment = 'none' | 'flat' | 'wrapped' | 'angled' | 'horizontal';
+
+interface CategoryAxis {
+  name: AxisName;
+  values: string[];
+  labels: string[];
+}
+
+function numberBetween(value: unknown, floor: number, ceiling: number, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(ceiling, Math.max(floor, value)) : fallback;
+}
+
+function cleanLabel(value: string): string {
+  return value
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function escapedLabel(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function clippedLine(value: string, limit: number): string {
+  if (value.length <= limit) return value;
+  return `${value.slice(0, Math.max(1, limit - 1)).trimEnd()}${ELLIPSIS}`;
+}
+
+/**
+ * A category label in at most two bounded lines.
+ *
+ * This changes only tick text. The trace keeps the full category value, so Plotly's
+ * tooltip, export payload and category identity still carry the unabridged label.
+ */
+function fittedTickLabel(value: string, lineChars: number, lines = MAX_TICK_LINES): string {
+  const words = cleanLabel(value).split(' ').filter(Boolean);
+  if (words.length === 0) return '';
+  const rows: string[] = [];
+  for (const original of words) {
+    let word = original;
+    while (word.length > lineChars) {
+      rows.push(word.slice(0, lineChars));
+      word = word.slice(lineChars);
+    }
+    if (!word) continue;
+    const current = rows.at(-1);
+    if (current && current.length + word.length + 1 <= lineChars) rows[rows.length - 1] = `${current} ${word}`;
+    else rows.push(word);
+  }
+  if (rows.length > lines) {
+    const kept = rows.slice(0, lines);
+    kept[lines - 1] = clippedLine(kept[lines - 1] + rows.slice(lines).join(''), lineChars);
+    return kept.map(escapedLabel).join('<br>');
+  }
+  return rows.map(escapedLabel).join('<br>');
+}
+
+function distinctStrings(values: unknown): string[] | null {
+  const strings = stringList(values);
+  if (!strings) return null;
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of strings) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+function stringList(values: unknown): string[] | null {
+  return Array.isArray(values) && values.length > 0 && values.every((value) => typeof value === 'string')
+    ? values
+    : null;
+}
+
+function categoricalAxis(
+  data: Record<string, unknown>[],
+  layout: Record<string, unknown>,
+  kind: string
+): CategoryAxis | null {
+  const bars = data.filter((trace) => traceType(trace) === 'bar');
+  const horizontal = bars.length > 0 && bars.every((trace) => text(trace.orientation) === 'h');
+  let name: AxisName;
+  let field: 'x' | 'y';
+  if (kind === 'bar' && horizontal) {
+    name = 'yaxis';
+    field = 'y';
+  } else if (kind === 'bar' || kind === 'line' || kind === 'scatter') {
+    name = 'xaxis';
+    field = 'x';
+  } else {
+    return null;
+  }
+
+  const axis = record(layout[name]);
+  if (['date', 'linear', 'log'].includes(text(axis.type))) return null;
+  const explicitValues = axis.tickmode === 'array' ? stringList(axis.tickvals) : null;
+  const values =
+    explicitValues ?? data.map((trace) => distinctStrings(trace[field])).find((one) => one !== null) ?? null;
+  if (!values || values.every((value) => TIMESTAMP.test(cleanLabel(value)))) return null;
+
+  const explicitText = axis.tickmode === 'array' ? stringList(axis.ticktext) : null;
+  const labels = explicitText?.length === values.length ? explicitText : values;
+  return { name, values, labels };
+}
+
+function sampledIndices(length: number, maximum: number): number[] {
+  if (length <= maximum) return Array.from({ length }, (_, index) => index);
+  const step = Math.ceil(length / maximum);
+  const indices = Array.from({ length }, (_, index) => index).filter((index) => index % step === 0);
+  if (indices.at(-1) !== length - 1) indices.push(length - 1);
+  return indices;
+}
+
+function treatCategoryTicks(axis: Record<string, unknown>, category: CategoryAxis, width: number): TickTreatment {
+  const labels = category.labels.map(cleanLabel);
+  const longest = Math.max(...labels.map((label) => label.length));
+  if (category.name === 'yaxis') {
+    axis.tickangle = 0;
+    const limit = Math.max(
+      12,
+      Math.min(width <= MOBILE_WIDTH ? 18 : 28, Math.floor((width * 0.3) / TICK_CHARACTER_WIDTH))
+    );
+    if (longest > limit) {
+      axis.tickmode = 'array';
+      axis.tickvals = [...category.values];
+      axis.ticktext = labels.map((label) => escapedLabel(clippedLine(label, limit)));
+    }
+    return 'horizontal';
+  }
+
+  const usable = Math.max(120, width - FLAT_TICK_PADDING);
+  const flatCharacters = labels.reduce((total, label) => total + label.length, 0);
+  if (flatCharacters * TICK_CHARACTER_WIDTH <= usable && longest <= 12) {
+    axis.tickangle = 0;
+    return 'flat';
+  }
+
+  const slot = usable / labels.length;
+  if (labels.length <= 6 && longest > 12 && slot >= 44) {
+    const lineChars = Math.max(8, Math.min(18, Math.floor(slot / TICK_CHARACTER_WIDTH)));
+    axis.tickmode = 'array';
+    axis.tickvals = [...category.values];
+    axis.ticktext = labels.map((label) => fittedTickLabel(label, lineChars));
+    axis.tickangle = 0;
+    return 'wrapped';
+  }
+
+  const maximumTicks = Math.max(2, Math.floor(usable / (width <= NARROW_WIDTH ? 42 : 50)));
+  const indices = sampledIndices(labels.length, maximumTicks);
+  const lineChars = Math.max(
+    8,
+    Math.min(width <= MOBILE_WIDTH ? 12 : 16, Math.floor((slot * 1.4) / TICK_CHARACTER_WIDTH))
+  );
+  axis.tickmode = 'array';
+  axis.tickvals = indices.map((index) => category.values[index]);
+  axis.ticktext = indices.map((index) => escapedLabel(clippedLine(labels[index], lineChars)));
+  axis.tickangle = -45;
+  return 'angled';
+}
+
+function titleHasText(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim().length > 0;
+  return typeof record(value).text === 'string' && String(record(value).text).trim().length > 0;
+}
+
+function reserveAxisSpace(
+  layout: Record<string, unknown>,
+  data: Record<string, unknown>[],
+  kind: string,
+  width: number
+): TickTreatment {
+  for (const name of Object.keys(layout).filter((candidate) => /^[xy]axis\d*$/.test(candidate))) {
+    const axis = branch(layout, name);
+    axis.automargin = true;
+    axis.ticklabeloverflow = 'hide past div';
+    delete axis.tickangle;
+    if (titleHasText(axis.title)) {
+      if (typeof axis.title === 'string') axis.title = { text: axis.title.trim(), standoff: AXIS_TITLE_STANDOFF };
+      else branch(axis, 'title').standoff = AXIS_TITLE_STANDOFF;
+    }
+  }
+  const category = categoricalAxis(data, layout, kind);
+  return category ? treatCategoryTicks(branch(layout, category.name), category, width) : 'none';
+}
+
+function legendIsVisible(data: Record<string, unknown>[], layout: Record<string, unknown>): boolean {
+  if (layout.showlegend === false) return false;
+  if (data.some((trace) => traceType(trace) === 'pie')) return true;
+  const entries = data.filter((trace) => trace.showlegend !== false);
+  return layout.showlegend === true ? entries.length > 0 : entries.length > 1;
+}
+
+function placeLegend(layout: Record<string, unknown>, data: Record<string, unknown>[], width: number): boolean {
+  if (!legendIsVisible(data, layout)) return false;
+  const legend = branch(layout, 'legend');
+  const pie = data.some((trace) => traceType(trace) === 'pie');
+  if (pie && width > MOBILE_WIDTH) {
+    Object.assign(legend, {
+      orientation: 'v',
+      xref: 'container',
+      x: 1,
+      xanchor: 'right',
+      yref: 'paper',
+      y: 0.5,
+      yanchor: 'middle',
+      maxheight: 0.9,
+    });
+    delete legend.entrywidth;
+    delete legend.entrywidthmode;
+    return true;
+  }
+  Object.assign(legend, {
+    orientation: 'h',
+    xref: 'paper',
+    x: 0,
+    xanchor: 'left',
+    yref: 'container',
+    y: 1,
+    yanchor: 'top',
+    maxheight: width <= MOBILE_WIDTH ? 0.22 : 0.18,
+    entrywidthmode: 'fraction',
+    entrywidth: width <= MOBILE_WIDTH ? 0.5 : 0.33,
+  });
+  return true;
+}
+
+function responsiveHeight(
+  base: number,
+  width: number,
+  treatment: TickTreatment,
+  legend: boolean,
+  categoryCount: number,
+  horizontal: boolean,
+  title: boolean
+): number {
+  let height = base;
+  if (width <= MOBILE_WIDTH && legend) height += 28;
+  if (treatment === 'wrapped') height += 24;
+  if (treatment === 'angled') height += width <= MOBILE_WIDTH ? 42 : 28;
+  if (title) height += 18;
+  if (horizontal) height = Math.max(height, Math.min(440, 88 + categoryCount * 22 + (legend ? 28 : 0)));
+  return Math.min(440, height);
+}
+
+/**
+ * Apply supported Plotly geometry to a themed copy for the container currently in use.
+ *
+ * The rules are deliberately bounded. Short labels are left short and flat; only crowded
+ * categorical axes receive generated tick text, and the full values stay in the traces for
+ * tooltips and export. Plotly still computes scales, ranges and marks.
+ */
+export function layoutFigure(
+  figure: FigureSpec,
+  theme: ChartTheme,
+  viewport: FigureViewport = DEFAULT_VIEWPORT
+): ThemedFigure {
+  const themed = themedFigure(figure, theme);
+  const data = themed.data.map((trace) => record(trace));
+  const layout = record(themed.layout);
+  const width = Math.max(240, Math.round(viewport.width || DEFAULT_VIEWPORT.width));
+  const baseHeight = Math.max(180, Math.round(viewport.height || DEFAULT_VIEWPORT.height));
+  const kind = String(figure.kind ?? '')
+    .trim()
+    .toLowerCase();
+
+  layout.autosize = true;
+  layout.minreducedwidth = Math.max(96, Math.min(180, Math.floor(width * 0.42)));
+  layout.minreducedheight = 96;
+  const incomingMargin = record(layout.margin);
+  layout.margin = {
+    ...incomingMargin,
+    l: numberBetween(incomingMargin.l, 8, 40, 8),
+    r: numberBetween(incomingMargin.r, 8, 40, 8),
+    t: numberBetween(incomingMargin.t, titleHasText(layout.title) ? 32 : 8, 56, titleHasText(layout.title) ? 32 : 8),
+    b: numberBetween(incomingMargin.b, 8, 40, 8),
+    pad: numberBetween(incomingMargin.pad, 0, 8, 0),
+    autoexpand: true,
+  };
+  if (titleHasText(layout.title)) {
+    if (typeof layout.title === 'string') layout.title = { text: layout.title.trim(), automargin: true };
+    else branch(layout, 'title').automargin = true;
+  }
+
+  for (const trace of data) {
+    if (traceType(trace) === 'pie') trace.automargin = true;
+  }
+  const treatment = reserveAxisSpace(layout, data, kind, width);
+  const legend = placeLegend(layout, data, width);
+  const category = categoricalAxis(data, layout, kind);
+  const horizontal = category?.name === 'yaxis';
+  layout.height = responsiveHeight(
+    baseHeight,
+    width,
+    treatment,
+    legend,
+    category?.values.length ?? 0,
+    horizontal,
+    titleHasText(layout.title)
+  );
+
+  return { data: data as PlotData[], layout: layout as PlotLayout };
+}
+
 /**
  * The spec as it should be drawn in the theme currently on screen.
  *

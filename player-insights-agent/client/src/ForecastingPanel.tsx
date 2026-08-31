@@ -10,7 +10,7 @@ import {
 } from './forecast';
 import { persistForecastAssumptions, readForecastAssumptions } from './forecast-preferences';
 import { MethodologySections, type MethodologyGroup } from './MethodologySection';
-import { NumberTicker, tickerNumber } from './NumberTicker';
+import { NumberTicker, TickerAssumptionField, TickerAssumptionGrid, tickerNumber } from './NumberTicker';
 import { Disclosure } from './page-chrome';
 import { Skeleton } from './ui';
 import type { OpsCostPayload, OpsTrafficPayload } from '../../shared/ops-contract';
@@ -120,38 +120,34 @@ function AssumptionGrid({
   onChange: (field: keyof ForecastAssumptions, value: number) => void;
 }) {
   return (
-    <fieldset className="ops-forecast-assumptions">
-      <legend>Assumptions</legend>
-      <div className="ops-forecast-assumption-grid">
-        {ASSUMPTION_FIELDS.map((field) => {
-          const inputId = `ops-forecast-${field.key}`;
-          const value = assumptions[field.key];
-          return (
-            <div className="ops-forecast-assumption" key={field.key}>
-              <label htmlFor={inputId}>{field.label}</label>
-              <span className="ops-forecast-input-row">
-                <NumberTicker
-                  id={inputId}
-                  label={field.label}
-                  step={field.step}
-                  min={0}
-                  precision={field.step === 1 ? 0 : 1}
-                  value={String(value)}
-                  onChange={(raw) => {
-                    const next = tickerNumber(raw);
-                    if (next.valid && next.value !== null) onChange(field.key, next.value);
-                  }}
-                />
-                {field.unit ? <small>{field.unit}</small> : null}
-              </span>
-              <small className="ops-forecast-assumption-evidence">
-                {exampleRangeText(field, examples[field.key], evidence[field.key])}
-              </small>
-            </div>
-          );
-        })}
-      </div>
-    </fieldset>
+    <TickerAssumptionGrid columns={ASSUMPTION_FIELDS.length} legend="Assumptions">
+      {ASSUMPTION_FIELDS.map((field) => {
+        const inputId = `ops-forecast-${field.key}`;
+        const value = assumptions[field.key];
+        return (
+          <TickerAssumptionField
+            key={field.key}
+            id={inputId}
+            label={field.label}
+            unit={field.unit}
+            helper={exampleRangeText(field, examples[field.key], evidence[field.key])}
+          >
+            <NumberTicker
+              id={inputId}
+              label={field.label}
+              step={field.step}
+              min={0}
+              precision={field.step === 1 ? 0 : 1}
+              value={String(value)}
+              onChange={(raw) => {
+                const next = tickerNumber(raw);
+                if (next.valid && next.value !== null) onChange(field.key, next.value);
+              }}
+            />
+          </TickerAssumptionField>
+        );
+      })}
+    </TickerAssumptionGrid>
   );
 }
 

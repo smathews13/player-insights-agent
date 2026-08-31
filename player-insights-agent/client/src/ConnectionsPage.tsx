@@ -1508,8 +1508,6 @@ export function ConnectionsPage() {
   // One list, one control. Two error alerts each offering their own would be two
   // controls for one intention, and one run produces one account of what failed.
   const problems = [checkError].filter(Boolean);
-  const principal = report?.principal_resolved ? report.principal : '';
-
   return (
     <div className="page-shell connections-page">
       <div className="page-heading">
@@ -1699,7 +1697,7 @@ export function ConnectionsPage() {
             same array: a deployment whose only shortfall is the three optional
             catalog reads has no panel, so the card must not think the sign-in
             remedy is already on the screen. */}
-        <IdentityCard checkedAs={principal} read={identityRead} remedyStatedElsewhere={findings.required.length > 0} />
+        <IdentityCard read={identityRead} remedyStatedElsewhere={findings.required.length > 0} />
       </div>
 
       {/* The notebook, and where what it published differs from what the model is

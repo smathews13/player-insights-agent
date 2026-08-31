@@ -50,6 +50,13 @@ describe('copy rules on the filled surfaces', () => {
     expect(HELPERS).not.toMatch(/—/);
   });
 
+  it('uses the shared missing-evidence copy for metrics', () => {
+    expect(OPS).toContain('Not recorded');
+    expect(HELPERS).toContain('Not recorded');
+    expect(OPS).not.toContain('not set');
+    expect(HELPERS).not.toContain('not set');
+  });
+
   it('does not invent a Review App URL', () => {
     expect(OPS).not.toMatch(/review\.cloud\.databricks|Review App/i);
     expect(HELPERS).not.toMatch(/review\.cloud\.databricks|Review App/i);

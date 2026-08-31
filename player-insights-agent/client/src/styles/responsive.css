@@ -373,20 +373,11 @@
   .ops-cost-resource-budgets {
     grid-column: auto;
   }
-  .ops-cost-budget-matrix-head {
-    display: none;
+  .ops-ticker-assumption-grid[data-columns='6'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .ops-tile-budget {
-    grid-template-columns: minmax(0, 1fr) minmax(13.5rem, 14rem);
-    gap: 6px 14px;
-  }
-  .ops-tile-budget > span:nth-child(odd) {
-    justify-content: flex-start;
-    text-align: left;
-  }
-  .ops-tile-budget > span:nth-child(even) {
-    justify-content: flex-end;
-    text-align: right;
+  .ops-ticker-assumption-grid[data-columns='4'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .egress-summary {
     grid-template-columns: 1fr;
@@ -456,6 +447,15 @@
      a phone's width. Stacked, the label column still lines every value up. */
   .deployment-card-body[data-columns='two'] {
     grid-template-columns: 1fr;
+  }
+  .identity-section-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .deployment-card-identity .identity-fact {
+    align-items: flex-start;
+  }
+  .deployment-card-identity .identity-fact-label {
+    flex-basis: 132px;
   }
   /* Four tiles across a phone gives each of them about 60px, which truncates
      both the label and the figure. Two columns keeps the figures readable and
@@ -660,6 +660,15 @@
     flex-direction: column;
   }
 }
+
+/* Cost assumptions respond to the width of their own card rather than adding a
+   fifth viewport breakpoint to the whole application. */
+@container (max-width: 640px) {
+  .ops-ticker-assumption-grid[data-columns='6'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* On a phone the MARK is what identifies the app and the wordmark is what gives.
    That is the opposite of what this block used to do, and the reversal is the
    point of §1: the header used to carry a partner plate beside a two-line
@@ -678,20 +687,18 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 10px;
   }
-  .ops-tile-budget {
+  .ops-ticker-assumption-grid[data-columns='6'],
+  .ops-ticker-assumption-grid[data-columns='4'] {
     grid-template-columns: minmax(0, 1fr);
   }
-  .ops-tile-budget > span,
-  .ops-tile-budget > span:nth-child(n) {
-    justify-content: flex-start;
-    text-align: left;
+  .ops-cost-total .ops-ticker-input-row {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
-  .ops-budget-compare {
-    justify-content: flex-start;
-    text-align: left;
+  .ops-app-budget-status {
+    grid-column: 1 / -1;
   }
   .ops-number-ticker-wide,
-  .ops-budget-field {
+  .ops-ticker-assumption {
     width: 100%;
   }
   /* Two useful-width inputs and then the third, rather than three controls
@@ -732,6 +739,14 @@
   }
   .appearance-display-choices {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .appearance-display-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .appearance-display-row .state-switch,
+  .appearance-display-row .appearance-density {
+    justify-self: start;
   }
   .appearance-display-family {
     min-width: min(220px, 100%);

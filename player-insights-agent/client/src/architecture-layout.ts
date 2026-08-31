@@ -270,9 +270,10 @@ export function canvasScale(panelWidth: number): number {
  *
  * The floor above is where shrinking stops; this is what that means in pixels.
  * Below it the drawing cannot be made to fit without going under the floor, so
- * something other than the drawing has to be shown.
+ * something other than the drawing has to be shown. Rounded up to a CSS pixel so
+ * the container-query threshold is stable rather than a long binary fraction.
  */
-export const MIN_CANVAS_PANEL = MIN_CANVAS_SCALE * CANVAS_WIDTH + CANVAS_FIT_SLACK;
+export const MIN_CANVAS_PANEL = Math.ceil(MIN_CANVAS_SCALE * CANVAS_WIDTH + CANVAS_FIT_SLACK);
 
 /**
  * Whether the drawing can be shown at all in a panel this wide.
@@ -299,14 +300,11 @@ export const MIN_CANVAS_PANEL = MIN_CANVAS_SCALE * CANVAS_WIDTH + CANVAS_FIT_SLA
  * the one nobody had looked at. This has one drawing and one list, and the list
  * is already asserted, line for line, by architecture-honesty.test.ts.
  *
- * Decided here rather than in a media query for two reasons. The threshold is a
- * property of the drawing, so it belongs beside the drawing's own numbers, and a
- * width invented in architecture.css is exactly what breakpoints.test.ts refuses.
- * And the quantity that matters is the PANEL's width, which a viewport-width
- * query can only estimate: the component measures the panel already, for the fit.
- *
- * An unmeasured panel shows the drawing. That is the server render and the first
- * paint, where showing the list would flash it on every load.
+ * The threshold is a property of the drawing, so it is derived here and copied
+ * verbatim into architecture.css's CONTAINER query. A viewport query could only
+ * estimate the quantity that matters; the container query reads the same panel
+ * whose width JavaScript uses for scale. architecture-responsive.test.ts compares
+ * the CSS threshold to this value so the two cannot drift.
  */
 export function canvasFits(panelWidth: number): boolean {
   if (!Number.isFinite(panelWidth) || panelWidth <= 0) return true;

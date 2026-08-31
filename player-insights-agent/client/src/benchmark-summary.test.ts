@@ -23,16 +23,39 @@ import {
 describe('benchmarkSummary', () => {
   it('reports nothing as a measurement when the run recorded nothing', () => {
     const summary = benchmarkSummary(null, null);
-    expect(summary.passedLabel).toBe('Not reported');
-    expect(summary.durationLabel).toBe('Not reported');
-    expect(summary.groundednessLabel).toBe('Not reported');
-    expect(summary.relevanceLabel).toBe('Not reported');
+    expect(summary.passedLabel).toBe('Not recorded');
+    expect(summary.durationLabel).toBe('Not recorded');
+    expect(summary.groundednessLabel).toBe('Not recorded');
+    expect(summary.relevanceLabel).toBe('Not recorded');
     expect(summary.contradiction).toBeNull();
+  });
+
+  it('keeps recorded zeroes distinct from missing evidence', () => {
+    const summary = benchmarkSummary('complete', {
+      passed: 0,
+      total: 0,
+      durationMs: 0,
+      groundedness: 0,
+      relevance: 0,
+      guidelines: 0,
+      judgeRates: {
+        groundedness: { scored: 0 },
+        relevance_to_context: { scored: 0 },
+        guidelines: { scored: 0 },
+      },
+    });
+    expect(summary.passedLabel).toBe('0 / 0');
+    expect(summary.durationLabel).toBe('0.0s');
+    expect(summary.groundednessLabel).toBe('0%');
+    expect(summary.relevanceLabel).toBe('0%');
+    expect(summary.guidelinesLabel).toBe('0%');
+    expect(Object.values(summary)).not.toContain('Not recorded');
   });
 
   it('never renders a figure the run did not record', () => {
     // The whole class of defect: a plausible number standing in for a missing one.
-    const labels = Object.values(benchmarkSummary('complete', {})).filter((value): value is string => typeof value === 'string'
+    const labels = Object.values(benchmarkSummary('complete', {})).filter(
+      (value): value is string => typeof value === 'string'
     );
     for (const label of labels) {
       expect(label).not.toMatch(/\d/);
@@ -85,8 +108,8 @@ describe('benchmarkSummary', () => {
   });
 
   it('refuses to show a pass count with no denominator', () => {
-    expect(benchmarkSummary('complete', { passed: 8 }).passedLabel).toBe('Not reported');
-    expect(benchmarkSummary('complete', { passed: 8, total: null }).passedLabel).toBe('Not reported');
+    expect(benchmarkSummary('complete', { passed: 8 }).passedLabel).toBe('Not recorded');
+    expect(benchmarkSummary('complete', { passed: 8, total: null }).passedLabel).toBe('Not recorded');
   });
 
   it('counts a rate over the cases its judge scored, not over the suite', () => {
@@ -140,7 +163,8 @@ describe('benchmarkSummary', () => {
     // And the two kinds of absence are not the same fact: a rubric no case reached
     // a verdict on was measured and found inapplicable, where a run with no judge
     // record never measured it at all.
-    expect(benchmarkSummary('complete', {
+    expect(
+      benchmarkSummary('complete', {
         judgeRates: { groundedness: { rate: null, scored: 0 } },
       }).groundednessCoverage
     ).toBe('No case reached a verdict on this rubric');
@@ -222,7 +246,7 @@ describe('benchmarkSummary', () => {
     const summary = benchmarkSummary('complete', { passed: 12, total: 10 });
     expect(summary.contradiction).toContain('12 passes out of 10 cases');
     // And it does not print the impossible fraction as though it were a result.
-    expect(summary.passedLabel).toBe('Not reported');
+    expect(summary.passedLabel).toBe('Not recorded');
   });
 
   it.each([
@@ -286,7 +310,12 @@ describe('benchmarkSummary', () => {
       groundedness: 1,
       counts: { total: 10, attempted: 10, passed: 2, failed: 0, errored: 8, clarified: 0, unresolved: 0 },
       judgeRates: { groundedness: { rate: 1, scored: 2, yes: 2, no: 0, notApplicable: 0, errored: 0 } },
-      truncation: { code: 'USER_AUTH_REJECTED', fromCaseIndex: 2, unattempted: 8, detail: 'the credential was rejected' },
+      truncation: {
+        code: 'USER_AUTH_REJECTED',
+        fromCaseIndex: 2,
+        unattempted: 8,
+        detail: 'the credential was rejected',
+      },
     });
 
     expect(summary.truncationNote).toContain('USER_AUTH_REJECTED');
@@ -491,7 +520,8 @@ describe('benchmarkQualifications', () => {
   it('names no judge endpoint or prompt version when the run recorded none', () => {
     // An older run gets silence rather than whatever the app is configured with
     // today, which would be a claim about a configuration that run never saw.
-    const [judge] = benchmarkQualifications(benchmarkSummary('complete', {
+    const [judge] = benchmarkQualifications(
+      benchmarkSummary('complete', {
         passed: 1,
         total: 1,
         judge: { disclosure: 'Scored by an LLM judge, not by a person.' },

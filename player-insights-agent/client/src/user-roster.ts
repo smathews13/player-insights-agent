@@ -19,6 +19,22 @@ import { ROLE_WORD, type Role, type RosterEntry, type RosterPayload } from '../.
 
 export type { Role, RosterEntry, RosterPayload };
 
+/** Browser-side normalization mirrors the server's identity key without changing
+ * the value while somebody is still typing it. */
+export function normalizeRosterEmail(raw: string): string {
+  return raw.trim().toLowerCase();
+}
+
+/** Deliberately permissive, like the server: reject obvious mistakes without
+ * pretending a browser regex can prove that a work mailbox exists. */
+export function rosterEmailError(raw: string): string {
+  const candidate = normalizeRosterEmail(raw);
+  if (!candidate) return 'Enter a work email address.';
+  if (candidate.length > 320) return 'That email address is too long.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate)) return 'Enter a valid work email address.';
+  return '';
+}
+
 /** The word for a role, on a row and in a menu. */
 export function roleWord(role: Role): string {
   return ROLE_WORD[role];
@@ -76,7 +92,28 @@ export function stepsDownFrom(entry: RosterEntry, next: Role): string {
     : 'You will no longer be able to change roles.';
 }
 
-/** Whether the Add button does anything yet. Kept here so the test does not render. */
-export function canSubmit(draft: string, busy: boolean): boolean {
-  return !busy && draft.trim().length > 0;
+/** Why Add is unavailable, also exposed as its accessible description. */
+export function addDisabledReason(draft: string, role: Role, busy: boolean): string {
+  if (busy) return 'Another identity change is still being saved.';
+  const emailError = rosterEmailError(draft);
+  if (emailError) return emailError;
+  if (role !== 'admin' && role !== 'consumer') return 'Choose Consumer or Admin.';
+  return '';
+}
+
+/** Whether Add can submit one complete, valid request. */
+export function canSubmit(draft: string, busy: boolean, role: Role = 'admin'): boolean {
+  return addDisabledReason(draft, role, busy) === '';
+}
+
+/** Claim a mutation before React has time to paint its disabled controls. */
+export function claimRosterMutation(latch: { current: boolean }): boolean {
+  if (latch.current) return false;
+  latch.current = true;
+  return true;
+}
+
+/** A late response may clear only the exact draft that started its request. */
+export function submittedDraftIsCurrent(submittedVersion: number, currentVersion: number): boolean {
+  return submittedVersion === currentVersion;
 }

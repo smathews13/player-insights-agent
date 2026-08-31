@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import type { KeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 
 import { Input } from './ui';
 
@@ -64,6 +64,76 @@ export interface NumberTickerProps extends TickerStepOptions {
   disabled?: boolean;
   wide?: boolean;
   title?: string;
+}
+
+export function TickerAssumptionGrid({
+  children,
+  columns,
+  legend,
+  labelledBy,
+  framed = true,
+}: {
+  children: ReactNode;
+  columns: number;
+  legend?: string;
+  labelledBy?: string;
+  framed?: boolean;
+}) {
+  const style = { '--ops-assumption-columns': columns } as CSSProperties;
+  const grid = (
+    <div className="ops-ticker-assumption-grid" data-columns={columns} style={style}>
+      {children}
+    </div>
+  );
+  if (!framed) {
+    return (
+      <div className="ops-ticker-assumptions" aria-labelledby={labelledBy}>
+        {grid}
+      </div>
+    );
+  }
+  return (
+    <fieldset className="ops-ticker-assumptions">
+      {legend ? <legend>{legend}</legend> : null}
+      {grid}
+    </fieldset>
+  );
+}
+
+export function TickerAssumptionField({
+  id,
+  label,
+  helper,
+  error,
+  unit,
+  labelHidden = false,
+  children,
+}: {
+  id: string;
+  label: string;
+  helper: string;
+  error?: string;
+  unit?: string;
+  labelHidden?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="ops-ticker-assumption">
+      <label className={labelHidden ? 'sr-only' : undefined} htmlFor={id}>
+        {label}
+      </label>
+      <span className="ops-ticker-input-row">
+        {children}
+        {unit ? <small>{unit}</small> : null}
+      </span>
+      <small className="ops-ticker-assumption-helper">{helper}</small>
+      {error ? (
+        <small className="ops-ticker-assumption-error" role="alert">
+          {error}
+        </small>
+      ) : null}
+    </div>
+  );
 }
 
 /** Shared numeric ticker used by both Forecasting assumptions and Cost budgets. */

@@ -57,6 +57,7 @@ describe('Identity mutation boundaries', () => {
     await changeHumanRole(EMAIL, 'admin');
     expect(fetch).toHaveBeenCalledWith(`/api/users/${encodeURIComponent(EMAIL)}`, {
       method: 'PATCH',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'admin' }),
     });

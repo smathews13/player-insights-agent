@@ -8,6 +8,7 @@ const source = fs.readFileSync(path.join(__dirname, 'RuntimeSettingsPanel.tsx'),
 const page = fs.readFileSync(path.join(__dirname, 'SettingsPage.tsx'), 'utf8');
 const styles = fs.readFileSync(path.join(__dirname, 'styles', 'settings.css'), 'utf8');
 const responsiveStyles = fs.readFileSync(path.join(__dirname, 'styles', 'responsive.css'), 'utf8');
+const appearanceStyles = fs.readFileSync(path.join(__dirname, 'styles', 'appearance-preferences.css'), 'utf8');
 const answerStyles = fs.readFileSync(path.join(__dirname, 'styles', 'answer.css'), 'utf8');
 
 /**
@@ -193,7 +194,7 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('appearance-display-preview');
   });
 
-  it('keeps only Dark mode and text colors in the Display choices block', () => {
+  it('keeps interface controls and text colors together in Display', () => {
     const markup = renderToStaticMarkup(<RuntimeSettingsPanel section="appearance" />);
     const display = markup.slice(
       markup.indexOf('appearance-display-section'),
@@ -202,14 +203,22 @@ describe('runtime and appearance modal sections', () => {
 
     expect(markup).not.toContain('appearance-theme-section');
     expect(markup).not.toMatch(/<h4[^>]*>Theme<\/h4>/);
+    expect(markup).not.toContain('appearance-interface-section');
+    expect(markup).not.toMatch(/<h4[^>]*>Interface<\/h4>/);
     expect(display).toContain('<h4 class="runtime-section-label">Display</h4>');
+    expect(display).toContain('appearance-display-rows');
     expect(display).toContain('appearance-display-choices');
     expect(display).toContain('>Dark mode</span>');
     expect(display).toContain('aria-label="Dark mode"');
+    expect(display).toContain('>Background graphics</span>');
+    expect(display).toContain('>Animations</span>');
+    expect(display).toContain('>Density</span>');
     expect(display).toContain('>Body text</span>');
     expect(display).toContain('>Secondary</span>');
-    expect(display.indexOf('Dark mode')).toBeLessThan(display.indexOf('Body text'));
-    expect(display.indexOf('Body text')).toBeLessThan(display.indexOf('Secondary'));
+    const labels = ['Dark mode', 'Background graphics', 'Animations', 'Density', 'Body text', 'Secondary'];
+    for (let index = 1; index < labels.length; index += 1) {
+      expect(display.indexOf(labels[index - 1])).toBeLessThan(display.indexOf(labels[index]));
+    }
     expect(display).not.toContain('>Font</span>');
     expect(display).not.toContain('>Size</span>');
   });
@@ -222,7 +231,7 @@ describe('runtime and appearance modal sections', () => {
     );
     const typography = markup.slice(
       markup.indexOf('appearance-typography-section'),
-      markup.indexOf('appearance-interface-section')
+      markup.indexOf('appearance-palette-section')
     );
 
     expect(display).toContain('aria-label="Body text color picker"');
@@ -239,11 +248,8 @@ describe('runtime and appearance modal sections', () => {
   });
 
   it('lays out merged choices across supported responsive breakpoints', () => {
-    expect(styles).toMatch(
-      /\.appearance-display-choices\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/
-    );
-    expect(responsiveStyles).toMatch(
-      /@media \(max-width:\s*800px\)\s*\{[\s\S]*?\.appearance-display-choices\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+    expect(appearanceStyles).toMatch(
+      /\.appearance-display-choices\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
     );
     expect(responsiveStyles).toMatch(
       /@media \(max-width:\s*480px\)\s*\{[\s\S]*?\.appearance-display-choices\s*\{[^}]*minmax\(0,\s*1fr\)/

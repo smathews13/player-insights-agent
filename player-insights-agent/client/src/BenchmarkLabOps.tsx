@@ -63,7 +63,7 @@ export type SuiteSide = 'baseline' | 'candidate';
 
 function displayValue(value: number | null, unit: LaneMetric['unit']): string {
   const rendered = formatLaneValue(value, unit);
-  return rendered === '–' ? 'not set' : rendered;
+  return rendered === '–' ? 'Not recorded' : rendered;
 }
 
 function LaneBlock({ title, metrics, extras }: { title: string; metrics: LaneMetric[]; extras?: ReactNode }) {
@@ -83,7 +83,7 @@ function LaneBlock({ title, metrics, extras }: { title: string; metrics: LaneMet
               </span>
               <strong className={`ast-num${missing ? ' tile-absent' : ''}`}>
                 {missing
-                  ? 'not set'
+                  ? 'Not recorded'
                   : `${displayValue(metric.baseline, metric.unit)} → ${displayValue(metric.candidate, metric.unit)}`}
               </strong>
               {!missing && formatDelta(metric.baseline, metric.candidate, metric.unit) !== '–' ? (
@@ -425,9 +425,9 @@ export function SpanTree({ spans }: { spans: LabSpan[] }) {
           </span>
           {span.kind === 'LLM' ? (
             <span className="ast-num">
-              {typeof span.tokens === 'number' ? `${Math.round(span.tokens)} tokens` : 'tokens not set'}
+              {typeof span.tokens === 'number' ? `${Math.round(span.tokens)} tokens` : 'Not recorded'}
               {' · '}
-              {typeof span.cost === 'number' ? span.cost.toFixed(2) : 'cost not set'}
+              {typeof span.cost === 'number' ? span.cost.toFixed(2) : 'Not recorded'}
             </span>
           ) : null}
         </li>

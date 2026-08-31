@@ -8,7 +8,7 @@ import { runRatingDirection } from './run-rating';
 import { formatMs } from './trace-timeline';
 import { Card, CardContent } from './ui';
 
-const ABSENT = 'not set';
+const ABSENT = 'Not recorded';
 
 function measured(value: number | null | undefined, minimum = 0): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= minimum;
@@ -63,10 +63,10 @@ export function RunOverviewKpis({
   rating: number | null | undefined;
   ratePath: string | null;
 }) {
-  const hasDuration = measured(durationMs, Number.EPSILON);
+  const hasDuration = measured(durationMs);
   const hasToolStageTime = measured(toolStageMs);
   const hasToolCalls = measured(agentToolCalls);
-  const hasTokens = measured(totalTokens, Number.EPSILON);
+  const hasTokens = measured(totalTokens);
   const hasTokenSplit = measured(promptTokens) && measured(completionTokens);
   const feedbackDirection = runRatingDirection(rating);
   const hasFeedback = feedbackDirection !== 'none';

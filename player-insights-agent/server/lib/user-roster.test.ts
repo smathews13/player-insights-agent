@@ -161,6 +161,32 @@ describe('the other refusals', () => {
     ).toBe('already-holds');
   });
 
+  it('allows POST to create an explicit consumer row for a new address', () => {
+    expect(
+      roleChangeRefusal({
+        email: ANALYST,
+        role: 'consumer',
+        seed: LEAD_SEEDED,
+        stored: [],
+        roleColumnPresent: true,
+        allowMissingConsumer: true,
+      })
+    ).toBe('');
+  });
+
+  it('still refuses a duplicate explicit consumer row', () => {
+    expect(
+      roleChangeRefusal({
+        email: ANALYST,
+        role: 'consumer',
+        seed: LEAD_SEEDED,
+        stored: [stored(ANALYST, 'consumer')],
+        roleColumnPresent: true,
+        allowMissingConsumer: true,
+      })
+    ).toBe('already-holds');
+  });
+
   it('refuses an address the roster does not name', () => {
     expect(removalRefusal({ email: STRANGER, seed: NO_SEED, stored: [] })).toBe('not-found');
   });

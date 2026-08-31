@@ -43,7 +43,7 @@ export function GenieStatTiles({
       {tiles.map((tile) => (
         <div key={tile.label}>
           <span className="ast-eyebrow">{tile.label}</span>
-          <strong className={`ast-num${tile.value === 'not set' ? ' tile-absent' : ''}`}>{tile.value}</strong>
+          <strong className={`ast-num${tile.value === 'Not recorded' ? ' tile-absent' : ''}`}>{tile.value}</strong>
         </div>
       ))}
     </div>
@@ -103,10 +103,7 @@ export function labContractCells(input: {
     },
     {
       eyebrow: 'Scorer set',
-      value:
-        typeof input.scorerActive === 'number'
-          ? `${input.scorerActive} active`
-          : 'No scorer set yet',
+      value: typeof input.scorerActive === 'number' ? `${input.scorerActive} active` : 'No scorer set yet',
     },
     {
       eyebrow: 'Target',
@@ -153,11 +150,7 @@ export function BenchButton({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' }) {
   return (
-    <button
-      type="button"
-      className={`bench-btn bench-btn-${variant}${className ? ` ${className}` : ''}`}
-      {...props}
-    />
+    <button type="button" className={`bench-btn bench-btn-${variant}${className ? ` ${className}` : ''}`} {...props} />
   );
 }
 
@@ -221,15 +214,7 @@ function PocContractStrip({ cells }: { cells: LabContractCell[] }) {
   );
 }
 
-function PipelineStage({
-  n,
-  title,
-  children,
-}: {
-  n: string;
-  title: string;
-  children: ReactNode;
-}) {
+function PipelineStage({ n, title, children }: { n: string; title: string; children: ReactNode }) {
   return (
     <article className="bench-stage">
       <span className="bench-stage-node ast-num" aria-hidden="true">
@@ -442,10 +427,10 @@ function DefaultGenieDiagnostics() {
       }
     >
       <GenieStatTiles
-        accuracy="not set"
-        executionErrors="not set"
-        suiteDuration="not set"
-        excluded="not set"
+        accuracy="Not recorded"
+        executionErrors="Not recorded"
+        suiteDuration="Not recorded"
+        excluded="Not recorded"
         policyAnchor
       />
     </LabSurface>
@@ -490,7 +475,7 @@ function DefaultRunComparison({ extras }: { extras?: ReactNode }) {
               {lane.metrics.map((metric) => (
                 <div className="bench-metric" key={metric}>
                   <span>{metric}</span>
-                  <strong className="ast-num tile-absent">not set</strong>
+                  <strong className="ast-num tile-absent">Not recorded</strong>
                 </div>
               ))}
             </div>
@@ -501,11 +486,7 @@ function DefaultRunComparison({ extras }: { extras?: ReactNode }) {
   );
 }
 
-function DefaultFailureInvestigation({
-  cases,
-}: {
-  cases: { id: string; question: string; outcome: string }[];
-}) {
+function DefaultFailureInvestigation({ cases }: { cases: { id: string; question: string; outcome: string }[] }) {
   return (
     <LabSurface
       id="lab-failure"

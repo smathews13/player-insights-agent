@@ -350,6 +350,15 @@ describe('a long value truncates rather than being cut off', () => {
     expect(rule('.deployment-card-build .identity-fact-label')).toMatch(/flex-basis:\s*110px/);
     expect(rule('.deployment-card-identity .identity-fact-label')).toMatch(/flex-basis:\s*150px/);
   });
+
+  it('stacks identity sections before values can clip on a narrow screen', () => {
+    expect(rule('.identity-section-grid')).toMatch(/grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+    expect(rule('.identity-fact-value')).toMatch(/min-width:\s*0/);
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*?\.identity-section-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
+    );
+    expect(RESPONSIVE).toMatch(/\.deployment-card-identity \.identity-fact-label\s*\{[^}]*flex-basis:\s*132px/);
+  });
 });
 
 describe('two radii, and no third', () => {

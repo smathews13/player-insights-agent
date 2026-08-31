@@ -65,8 +65,12 @@ import {
   conversationFilterOptions,
   conversationRunNumber,
   matchingRuns,
+  resolveRunSelection,
+  runDetailMode,
+  searchWithRun,
   toolStageDurationMs,
   usernameFilterOptions,
+  validRunId,
 } from './run-explorer-state';
 import { showsAdminSurfaces, useRole } from './role';
 import { answerRunVerdict } from '../../shared/run-verdict';
@@ -193,14 +197,12 @@ export function RunExplorerFilters({
 export function RunExplorer() {
   const role = useRole();
   const canEdit = showsAdminSurfaces(role.state);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [runs, setRuns] = useState<Run[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
-  // Seeded from ?run= so "Explore full run" lands on the run it came from. The
-  // previous default named a representative row that no live list contains, so
-  // arriving from an answer always selected whatever happened to be first.
-  const [selectedId, setSelectedId] = useState(searchParams.get('run') ?? '');
+  const [listReloadToken, setListReloadToken] = useState(0);
+  const [traceReloadToken, setTraceReloadToken] = useState(0);
   // Held here rather than inside the Details tab that draws it, and that is a
   // decision about the reader rather than about the code: Radix unmounts a tab's
   // content when you leave it, so state living down there would reset every time
@@ -226,7 +228,15 @@ export function RunExplorer() {
   // completely different people.
   const [runsAvailability, setRunsAvailability] = useState<ListAvailability | null>(null);
   const [conversationAvailability, setConversationAvailability] = useState<ListAvailability | null>(null);
-  const [labelOverlay, setLabelOverlay] = useState<RunLabelOverride | null>(null);
+  const [labelOverlay, setLabelOverlay] = useState<{
+    runId: string;
+    value: RunLabelOverride | null;
+  } | null>(null);
+  const retryRunList = () => {
+    setLoading(true);
+    setRunsAvailability(null);
+    setListReloadToken((token) => token + 1);
+  };
   /*
    * Two reads, issued together and awaited separately, and the second one is
    * the fix for the defect Sam reported: Ask listed three conversations while
@@ -250,8 +260,9 @@ export function RunExplorer() {
     const conversationsRead = readConversationList();
     void fetch('/api/runs')
       .then(async (response) => {
+        if (!response.ok) throw new Error('Runs could not be read.');
         const rows = (await response.json()) as Run[];
-        setRunsAvailability(listAvailability({ headers: response.headers, rowCount: rows.length }));
+        if (live) setRunsAvailability(listAvailability({ headers: response.headers, rowCount: rows.length }));
         return rows;
       })
       .catch(() => {
@@ -259,7 +270,7 @@ export function RunExplorer() {
         // carrying a real colleague's name, a duration and a five-star rating,
         // none of which had ever happened. It was the last place in the client
         // that answered "I do not know" with a fabrication.
-        setRunsAvailability(listUnreachable());
+        if (live) setRunsAvailability(listUnreachable());
         return [] as Run[];
       })
       .then((rows) => {
@@ -280,7 +291,7 @@ export function RunExplorer() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [listReloadToken]);
   const conversationsUnreadable = conversationAvailability?.origin === 'unavailable';
   const conversationOptions = conversationFilterOptions(conversations, runs);
   const usernameOptions = usernameFilterOptions(runs);
@@ -289,37 +300,31 @@ export function RunExplorer() {
     username: usernameFilter,
     search: searchText,
   });
-  /**
-   * Whether a `?run=` deep link asked for a run that is not here.
-   */
-  const requestedId = searchParams.get('run');
-  const requestedMissing = !loading && Boolean(requestedId) && !runs.some((run) => run.id === requestedId);
-  // Looked up across every run, not just the filtered ones: typing in the search
-  // box narrows the list, and used to also silently re-point the panels at
-  // whatever happened to be first in the narrowed result.
-  const chosen = runs.find((run) => run.id === selectedId) ?? null;
-  // The conversation carried over from Ask PIA, when the reader clicked through
-  // rather than opening a single answer. Runs arrive newest-first, so the first
-  // one that belongs to it is that conversation's latest turn, which is the run
-  // to open on: without this the Explorer defaulted to the newest run overall,
-  // not the conversation the reader had on screen a moment ago. A conversation
-  // with no stored run yet finds nothing and falls through to that default.
+  const requestedId = searchParams.has('run') ? searchParams.get('run') : null;
   const requestedConversation = searchParams.get('conversation');
-  const conversationRun = requestedConversation
-    ? (runs.find((run) => run.conversation_id === requestedConversation) ?? null)
-    : null;
-  // A link that named a run this list does not hold selects nothing at all,
-  // until the reader picks one themselves. Refusing to guess is not refusing to
-  // work: every row in the list is still one click away. A run the reader picks
-  // (`chosen`) always wins over the one carried in from the conversation.
-  const selected =
-    chosen ??
-    conversationRun ??
-    (requestedMissing && selectedId === requestedId ? null : (visibleRuns[0] ?? runs[0] ?? null));
+  const selection = resolveRunSelection(runs, requestedId, requestedConversation);
+  const selected = selection.state === 'selected' ? selection.run : null;
+  const automaticRunId = selection.automaticRunId;
+  const requestedMissing = !loading && runsAvailability?.origin !== 'unavailable' && selection.state === 'invalid';
+  // The automatic first selection is navigation cleanup, not a new history
+  // entry. Explicit row choices below push instead, so Back/Forward restores the
+  // previous run. The cloned params preserve conversation and any future filters.
+  useEffect(() => {
+    if (loading || runsAvailability?.origin === 'unavailable' || selection.state !== 'selected' || !automaticRunId) {
+      return;
+    }
+    setSearchParams((current) => searchWithRun(current, automaticRunId), { replace: true });
+  }, [automaticRunId, loading, runsAvailability?.origin, selection.state, setSearchParams]);
   // Every number and every stage below belongs to the selected run. The panels
   // used to render one hardcoded reference trace no matter what was selected,
   // which put a correct id, wall time, and status beside stages from nothing.
-  const traceState = useRunTrace(selected?.id);
+  const traceState = useRunTrace(selected?.id, traceReloadToken);
+  const detailMode = runDetailMode({
+    listLoading: loading,
+    listOrigin: runsAvailability?.origin ?? null,
+    selection: selection.state,
+    trace: traceState.status,
+  });
   const runTrace = traceState.status === 'ready' ? traceState.data : null;
   const stages = runTrace?.trace?.stages ?? [];
   const answerVerdict = runTrace
@@ -349,7 +354,9 @@ export function RunExplorer() {
   const promptTokens = typeof tokens?.prompt_tokens === 'number' ? tokens.prompt_tokens : null;
   const completionTokens = typeof tokens?.completion_tokens === 'number' ? tokens.completion_tokens : null;
   const ratePath = selected?.conversation_id ? conversationHref(selected.conversation_id, selected.id) : null;
-  const displayed = selected ? applyRunLabelOverride(selected, canEdit ? labelOverlay : null) : null;
+  const displayed = selected
+    ? applyRunLabelOverride(selected, canEdit && labelOverlay?.runId === selected.id ? labelOverlay.value : null)
+    : null;
 
   useEffect(() => {
     if (!canEdit || !selected?.id) return;
@@ -357,7 +364,7 @@ export function RunExplorer() {
     let live = true;
     void readRunLabelOverride(runId).then((overlay) => {
       if (!live) return;
-      setLabelOverlay(overlay);
+      setLabelOverlay({ runId, value: overlay });
       if (overlay) {
         setRuns((rows) => applyRunLabelOverrideToList(rows, runId, overlay));
       }
@@ -373,24 +380,6 @@ export function RunExplorer() {
           changed nothing on screen. It is drawn by RunDetails.tsx now, with the
           panels it governs. */}
       <PageHeading title="Run Explorer" />
-      {requestedMissing && (
-        <Alert variant="destructive">
-          <CircleAlert />
-          <AlertDescription>
-            {/* Why the link missed is the durable half and stays put. What is on
-                screen underneath is not: selecting a row leaves `requestedId` in
-                the URL, so this banner outlives the state it was describing, and
-                "nothing is selected" then sits above four populated panes. A
-                reader who is told the screen is empty while looking at a run
-                learns to discount everything else this app reports. */}
-            The run this link points to ({requestedId}) is not in the store, so it is not shown below
-            {selected
-              ? '. What you are looking at is a different run, not the one this link named.'
-              : ' and nothing is selected.'}{' '}
-            It may have been created by a different workspace, or its answer may never have been stored.
-          </AlertDescription>
-        </Alert>
-      )}
       <div className="explorer-layout">
         <Card className="run-list">
           <CardHeader>
@@ -416,12 +405,20 @@ export function RunExplorer() {
           </CardHeader>
           <CardContent className="p-2">
             {loading ? (
-              [1, 2, 3].map((item) => <Skeleton key={item} className="h-24" />)
+              <div className="run-list-skeleton" aria-busy="true" role="status" aria-live="polite">
+                <span className="sr-only">Loading recent runs</span>
+                {[1, 2, 3].map((item) => (
+                  <Skeleton key={item} className="h-24" aria-hidden="true" />
+                ))}
+              </div>
             ) : runsAvailability?.origin ===
               'unavailable' /* Checked before the empty state, and this order is the whole point.
                  Both arrive here with no rows, and "No runs yet" over an outage
                  tells a customer their history is gone. */ ? (
-              <UnavailablePanel notice={unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE' })} />
+              <UnavailablePanel
+                notice={unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE' })}
+                onRetry={retryRunList}
+              />
             ) : runs.length === 0 ? (
               <Empty>
                 <EmptyHeader>
@@ -448,128 +445,221 @@ export function RunExplorer() {
                   active={run.id === selected?.id}
                   onSelect={() => {
                     setLabelOverlay(null);
-                    setSelectedId(run.id);
+                    setTraceReloadToken(0);
+                    setSearchParams((current) => searchWithRun(current, run.id));
                   }}
                 />
               ))
             )}
           </CardContent>
         </Card>
-        <div className="run-detail">
-          <RunHeader
-            run={displayed}
-            conversationId={displayed?.conversation_id ?? undefined}
-            conversationRun={conversationRunNumber(runs, displayed)}
-            toolCalls={agentToolCalls}
-            reference={isReference}
-            groundedness={groundedness}
-            canEdit={canEdit}
-            onLabelsSaved={(overlay) => {
-              const id = selected?.id;
-              setLabelOverlay(overlay);
-              if (id) setRuns((rows) => applyRunLabelOverrideToList(rows, id, overlay));
-              if (selected?.conversation_id) rememberRunLabelOverride(selected.conversation_id, overlay);
-            }}
-          />
-          {isReference && (
-            <Alert>
-              <CircleAlert />
-              <AlertDescription>
-                {runTrace?.note || 'This is the representative reference trace, not a live agent run.'}
-              </AlertDescription>
-            </Alert>
-          )}
-          <Tabs defaultValue="overview">
-            <TabsList>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="map">Agent map</TabsTrigger>
-              <TabsTrigger value="timeline">Timeline</TabsTrigger>
-              <TabsTrigger value="details">Details</TabsTrigger>
-            </TabsList>
-            <TabsContent value="overview" className="space-y-4 pt-4">
-              {selected && traceState.status === 'ready' ? <UsedThisRun used={runTrace?.runtimeUsed ?? null} /> : null}
-              <RunOverviewKpis
-                durationMs={selected?.duration_ms}
-                toolStageMs={runTrace?.trace ? toolStageMs : null}
-                agentToolCalls={agentToolCalls}
-                stages={stages}
-                totalTokens={totalTokens}
-                promptTokens={promptTokens}
-                completionTokens={completionTokens}
-                rating={displayed?.rating}
-                ratePath={ratePath}
+        <div className="run-detail" aria-busy={detailMode === 'loading' || undefined}>
+          {detailMode === 'loading' ? (
+            <RunDetailSkeleton />
+          ) : detailMode === 'error' && runsAvailability?.origin === 'unavailable' ? (
+            <UnavailablePanel
+              notice={unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE' })}
+              onRetry={retryRunList}
+            />
+          ) : detailMode === 'empty' ? (
+            <RunDetailState
+              title="No runs yet"
+              description="Recorded runs will appear here after the first question finishes."
+            />
+          ) : detailMode === 'invalid' && requestedMissing ? (
+            <RunDetailState
+              title="Run unavailable"
+              description={
+                validRunId(requestedId)
+                  ? 'This run is not in the store. It may have been deleted or created in a different workspace.'
+                  : 'This run link does not contain a valid run id.'
+              }
+            />
+          ) : detailMode === 'missing' ? (
+            <RunDetailState
+              title="Run unavailable"
+              description="This run was removed after the list loaded. Choose another run from Recent runs."
+            />
+          ) : detailMode === 'error' && traceState.status === 'error' ? (
+            <UnavailablePanel
+              notice={unavailableNotice({
+                surface: 'run-trace',
+                code: 'DEPENDENCY_UNAVAILABLE',
+                detail: traceState.message,
+                interactive: true,
+              })}
+              onRetry={() => setTraceReloadToken((token) => token + 1)}
+            />
+          ) : detailMode === 'ready' && displayed && runTrace ? (
+            <>
+              <RunHeader
+                run={displayed}
+                conversationId={displayed?.conversation_id ?? undefined}
+                conversationRun={conversationRunNumber(runs, displayed)}
+                toolCalls={agentToolCalls}
+                reference={isReference}
+                groundedness={groundedness}
+                canEdit={canEdit}
+                onLabelsSaved={(overlay) => {
+                  const id = selected?.id;
+                  if (id) setLabelOverlay({ runId: id, value: overlay });
+                  if (id) setRuns((rows) => applyRunLabelOverrideToList(rows, id, overlay));
+                  if (selected?.conversation_id) rememberRunLabelOverride(selected.conversation_id, overlay);
+                }}
               />
-              {traceState.status === 'loading' ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-16" />
-                </div>
-              ) : runTrace?.takeaway ? (
-                <FinalAnswer
-                  takeaway={runTrace.takeaway}
-                  narrative={runTrace.narrative}
-                  charts={runTrace.charts}
-                  sources={runTrace.sources}
-                  caveats={runTrace.caveats}
-                  derivation={runTrace.derivation}
-                  truncated={selected?.truncated}
-                  conversationId={selected?.conversation_id}
-                  runId={selected?.id}
-                />
-              ) : runTrace?.note ? (
-                <p className="text-muted-foreground text-sm">{runTrace.note}</p>
-              ) : null}
-            </TabsContent>
-            <TabsContent value="map" className="space-y-4 pt-5">
-              {selected && traceState.status === 'ready' ? <UsedThisRun used={runTrace?.runtimeUsed ?? null} /> : null}
-              {stages.length > 0 ? (
-                <>
-                  <TraceDag
+              {isReference && (
+                <Alert>
+                  <CircleAlert />
+                  <AlertDescription>
+                    {runTrace?.note || 'This is the representative reference trace, not a live agent run.'}
+                  </AlertDescription>
+                </Alert>
+              )}
+              <Tabs defaultValue="overview">
+                <TabsList>
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="map">Agent map</TabsTrigger>
+                  <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                  <TabsTrigger value="details">Details</TabsTrigger>
+                </TabsList>
+                <TabsContent value="overview" className="space-y-4 pt-4">
+                  {selected && traceState.status === 'ready' ? (
+                    <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
+                  ) : null}
+                  <RunOverviewKpis
+                    durationMs={selected?.duration_ms}
+                    toolStageMs={runTrace?.trace ? toolStageMs : null}
+                    agentToolCalls={agentToolCalls}
                     stages={stages}
-                    activeIndex={-1}
-                    charts={runTrace?.charts}
-                    trace={runTrace?.trace}
-                    question={runTrace?.prompt ?? ''}
-                    verdict={answerVerdict}
-                    runStatus={displayed?.status}
+                    totalTokens={totalTokens}
+                    promptTokens={promptTokens}
+                    completionTokens={completionTokens}
+                    rating={displayed?.rating}
+                    ratePath={ratePath}
                   />
-                  <AIAnalysisCaveat className="ai-note" />
-                </>
-              ) : (
-                <TraceUnavailable state={traceState} />
-              )}
-            </TabsContent>
-            <TabsContent value="timeline" className="space-y-4 pt-5">
-              {/* The prompt, for the envelope row, which is the run's own
+                  {runTrace.takeaway ? (
+                    <FinalAnswer
+                      takeaway={runTrace.takeaway}
+                      narrative={runTrace.narrative}
+                      charts={runTrace.charts}
+                      sources={runTrace.sources}
+                      caveats={runTrace.caveats}
+                      derivation={runTrace.derivation}
+                      truncated={selected?.truncated}
+                      conversationId={selected?.conversation_id}
+                      runId={selected?.id}
+                    />
+                  ) : runTrace?.note ? (
+                    <p className="text-muted-foreground text-sm">{runTrace.note}</p>
+                  ) : null}
+                </TabsContent>
+                <TabsContent value="map" className="space-y-4 pt-5">
+                  {selected && traceState.status === 'ready' ? (
+                    <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
+                  ) : null}
+                  {stages.length > 0 ? (
+                    <>
+                      <TraceDag
+                        stages={stages}
+                        activeIndex={-1}
+                        charts={runTrace?.charts}
+                        trace={runTrace?.trace}
+                        question={runTrace?.prompt ?? ''}
+                        verdict={answerVerdict}
+                        runStatus={displayed?.status}
+                      />
+                      <AIAnalysisCaveat className="ai-note" />
+                    </>
+                  ) : (
+                    <TraceUnavailable state={traceState} />
+                  )}
+                </TabsContent>
+                <TabsContent value="timeline" className="space-y-4 pt-5">
+                  {/* The prompt, for the envelope row, which is the run's own
                   question here just as it is on the card. */}
-              {stages.length > 0 && runTrace?.trace ? (
-                <>
-                  <TraceTimeline
-                    variant="explorer"
-                    trace={runTrace.trace}
-                    question={runTrace.prompt ?? ''}
-                    verdict={answerVerdict}
-                  />
-                  <AIAnalysisCaveat className="ai-note" />
-                </>
-              ) : (
-                <TraceUnavailable state={traceState} />
-              )}
-            </TabsContent>
-            <TabsContent value="details" className="space-y-4 pt-5">
-              {/* The switch that governs these panels is drawn by this component
+                  {stages.length > 0 && runTrace?.trace ? (
+                    <>
+                      <TraceTimeline
+                        variant="explorer"
+                        trace={runTrace.trace}
+                        question={runTrace.prompt ?? ''}
+                        verdict={answerVerdict}
+                      />
+                      <AIAnalysisCaveat className="ai-note" />
+                    </>
+                  ) : (
+                    <TraceUnavailable state={traceState} />
+                  )}
+                </TabsContent>
+                <TabsContent value="details" className="space-y-4 pt-5">
+                  {/* The switch that governs these panels is drawn by this component
                   too, which is the point of it being one. See RunDetails.tsx. */}
-              <RunDetails
-                trace={runTrace}
-                advanced={advanced}
-                onAdvancedChange={setAdvanced}
-                unavailable={<TraceUnavailable state={traceState} />}
-              />
-            </TabsContent>
-          </Tabs>
+                  <RunDetails
+                    trace={runTrace}
+                    advanced={advanced}
+                    onAdvancedChange={setAdvanced}
+                    unavailable={<TraceUnavailable state={traceState} />}
+                  />
+                </TabsContent>
+              </Tabs>
+            </>
+          ) : (
+            <RunDetailState title="No run selected" description="Choose a run from Recent runs." />
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** Full-size placeholder for the header, tabs, KPIs, and answer region. */
+export function RunDetailSkeleton() {
+  return (
+    <div className="run-detail-skeleton" role="status" aria-live="polite">
+      <span className="sr-only">Loading run details</span>
+      <div className="run-detail-skeleton-head" aria-hidden="true">
+        <div>
+          <Skeleton className="run-detail-skeleton-title" />
+          <Skeleton className="run-detail-skeleton-ident" />
+        </div>
+        <Skeleton className="run-detail-skeleton-duration" />
+      </div>
+      <div className="run-detail-skeleton-tabs" aria-hidden="true">
+        {[1, 2, 3, 4].map((tab) => (
+          <Skeleton key={tab} />
+        ))}
+      </div>
+      <div className="summary-grid run-kpi-grid run-detail-skeleton-kpis" aria-hidden="true">
+        {[1, 2, 3, 4, 5].map((tile) => (
+          <Card className="run-kpi-card" key={tile}>
+            <CardContent>
+              <Skeleton className="run-detail-skeleton-label" />
+              <Skeleton className="run-detail-skeleton-value" />
+              <Skeleton className="run-detail-skeleton-subtitle" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="run-detail-skeleton-answer" aria-hidden="true">
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
+      </div>
+    </div>
+  );
+}
+
+function RunDetailState({ title, description }: { title: string; description: string }) {
+  return (
+    <Empty className="run-detail-state">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Workflow />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{description}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }
 
@@ -606,7 +696,7 @@ export function RunListItem({ run, active, onSelect }: { run: Run; active: boole
       <span className="run-item-meta">
         <span>
           <UserIdentityChip identity={run.stakeholder} compact />
-          {run.duration_ms ? (
+          {typeof run.duration_ms === 'number' && Number.isFinite(run.duration_ms) ? (
             <>
               {' · '}
               {/* The figure in mono, the name beside it in the body face. A

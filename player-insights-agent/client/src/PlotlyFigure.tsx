@@ -3,9 +3,9 @@ import Plotly, { type PlotData, type PlotLayout } from 'plotly.js-cartesian-dist
 import {
   CHART_THEME_ATTRIBUTE,
   FIGURE_CONFIG,
+  layoutFigure,
   readChartTheme,
   sameChartTheme,
-  themedFigure,
   type ChartTheme,
 } from './plotly-config';
 
@@ -73,14 +73,18 @@ export default function PlotlyFigure({ data, layout, kind, title, height }: Plot
     const element = host.current;
     if (!element) return;
 
-    // A copy, themed. The answer's own `data` and `layout` are never written to; see
-    // plotly-config.ts for why that matters when the same chart is drawn twice.
-    const figure = themedFigure({ kind, data, layout }, theme);
     // `react` rather than `newPlot`: it diffs against what is already drawn, so a
     // re-render from a parent state change does not tear the chart down and rebuild it.
     // One call site, so the reviewed config object cannot be bypassed by a second one.
-    const paint = () =>
-      void Plotly.react(element, figure.data, { ...figure.layout, autosize: true, height }, FIGURE_CONFIG);
+    let measuredWidth = element.clientWidth || 640;
+    const paint = () => {
+      // Theme and geometry are both applied to a copy. Width is the actual chart box,
+      // not the window: opening a rail can halve this column without resizing either.
+      const figure = layoutFigure({ kind, data, layout }, theme, { width: measuredWidth, height });
+      const drawnHeight = typeof figure.layout.height === 'number' ? figure.layout.height : height;
+      if (element.style.height !== `${drawnHeight}px`) element.style.height = `${drawnHeight}px`;
+      void Plotly.react(element, figure.data, figure.layout, FIGURE_CONFIG);
+    };
 
     paint();
 
@@ -103,7 +107,9 @@ export default function PlotlyFigure({ data, layout, kind, title, height }: Plot
      * against an element that has just been purged draws into a dead node.
      */
     let frame: number | null = null;
-    const schedule = () => {
+    const schedule = (entries: ResizeObserverEntry[] = []) => {
+      const observedWidth = entries[0]?.contentRect.width;
+      measuredWidth = observedWidth && observedWidth > 0 ? observedWidth : element.clientWidth || measuredWidth;
       if (typeof requestAnimationFrame !== 'function') {
         paint();
         return;

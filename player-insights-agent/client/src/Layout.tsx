@@ -53,6 +53,7 @@ import {
   type AppOutletContext,
   type RoleResolution,
 } from './role';
+import { prefetchLazyRoute } from './lazy-routes';
 
 const SettingsPage = lazy(() => import('./SettingsPage').then((loaded) => ({ default: loaded.SettingsPage })));
 
@@ -229,6 +230,10 @@ export function NavLinks({
           <NavLink
             key={entry.to}
             to={entry.to === '/runs' ? runsTo : entry.to}
+            // Public React events plus the same public dynamic import React.lazy
+            // uses below: no private lazy payload or router manifest access.
+            onMouseEnter={() => prefetchLazyRoute(entry.to)}
+            onFocus={() => prefetchLazyRoute(entry.to)}
             // Ask PIA only. Without it the root path matches every route and the
             // first tab is drawn active on all of them.
             end={entry.to === '/'}

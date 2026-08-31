@@ -205,6 +205,20 @@ describe('the Run Explorer’s two columns', () => {
     expect(subtitle).toContain('overflow-wrap: anywhere');
   });
 
+  it('reserves ready-state geometry while the whole detail pane loads', () => {
+    expect(EXPLORER).toContain('className="run-detail-skeleton"');
+    expect(EXPLORER).toContain('className="summary-grid run-kpi-grid run-detail-skeleton-kpis"');
+    expect(rule(RUNS, '.run-detail-skeleton-head')).toContain('min-height: 58px');
+    expect(rule(RUNS, ".run-detail-skeleton-kpis [data-slot='card-content']")).toContain('min-height: 138px');
+    expect(rule(RUNS, '.run-detail-skeleton-answer')).toContain('min-height: 190px');
+  });
+
+  it('freezes Run Explorer skeleton motion when reduced motion is requested', () => {
+    expect(RUNS).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.run-explorer \[data-slot='skeleton'\]\s*\{[^}]*animation:\s*none !important/
+    );
+  });
+
   it('gives directional feedback the visual weight of a KPI without colouring no-rating as positive', () => {
     const feedback = rule(RUNS, '.run-explorer .summary-grid .run-rating-badge--kpi');
     expect(feedback).toContain('font-size: var(--text-kpi)');
@@ -303,26 +317,25 @@ describe('a run nobody has rated', () => {
     // derivation exists to prevent. The property is that a missing metric renders
     // as SOMETHING THAT IS NOT A NUMBER; which token stands there is the copy rule
     // below, and the two screens no longer answer it the same way.
-    expect(KPIS).toContain("const ABSENT = 'not set'");
+    expect(KPIS).toContain("const ABSENT = 'Not recorded'");
     expect(LAB).toMatch(/'—'/);
   });
 
-  it('says a missing figure in words on the Explorer, per the rebuild spec', () => {
-    // §7: no em dashes, and unset renders "not set" in mono. A dash has to be READ
+  it('says a missing figure in words on the Explorer', () => {
+    // A dash has to be READ
     // as absence, which is a convention the reader has to already hold; the rating
     // tile beside it has said "Not rated" in words since it landed.
     expect(KPIS).not.toMatch(/—/);
-    // In mono, and in the secondary ink that stops "not set" reading as a result.
+    // In mono, and in the secondary ink that stops absence reading as a result.
     expect(KPIS).toContain("return absent ? 'run-kpi-value ast-num tile-absent' : 'run-kpi-value ast-num'");
     expect(rule(BENCHMARK, '.summary-grid strong.tile-absent')).toContain('var(--muted-foreground)');
   });
 
-  it('leaves the Benchmark Lab’s dash alone, because that file is another lane’s', () => {
-    // Recorded rather than fixed: BenchmarkLab.tsx dashes the same fact and belongs
-    // to the lane that owns the Lab. Two screens that read a recorded run should
-    // say a missing figure the same way, so this is a divergence to close, not a
-    // decision. Closing it here would mean editing a file this lane does not own.
-    expect(LAB).toMatch(/'—'/);
+  it('uses words for absent benchmark evidence and dashes only in dense numeric cells', () => {
+    expect(readFileSync(new URL('./benchmark-summary.ts', import.meta.url), 'utf8')).toContain(
+      "const ABSENT = 'Not recorded'"
+    );
+    expect(LAB).toContain("return typeof value === 'number' && Number.isFinite(value) ? render(value) : '—'");
   });
 });
 

@@ -5,6 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEVELOPMENT_IDENTITY, setupInsightsRoutes, type InsightsAppKit } from './insights-routes';
 import { announceSeedAdmins } from '../lib/admin-roles';
 import { resetLakebaseHealth } from '../lib/lakebase-store';
+import {
+  SCIM_ME_PATH,
+  SCIM_USERS_PATH,
+  forgetControlPlaneIdentityMetadata,
+  type ControlPlaneReader,
+} from '../lib/control-plane-identity';
 
 /**
  * The row-level tenancy boundary, from the outside.
@@ -41,15 +47,19 @@ function tenancyQueries(queries: { sql: string; params: unknown[] }[]) {
 
 async function startApp(
   lakebase: InsightsAppKit['lakebase'],
-  servingTransport: InsightsAppKit['servingTransport'] = () => Promise.reject(new Error('not used'))
+  servingTransport: InsightsAppKit['servingTransport'] = () => Promise.reject(new Error('not used')),
+  identityControlPlaneReader?: ControlPlaneReader
 ) {
   const app = express();
   app.use(express.json());
-  await setupInsightsRoutes({
-    lakebase,
-    server: { extend: (fn) => fn(app) },
-    servingTransport,
-  });
+  await setupInsightsRoutes(
+    {
+      lakebase,
+      server: { extend: (fn) => fn(app) },
+      servingTransport,
+    },
+    { identityControlPlaneReader }
+  );
   // Loopback rather than the wildcard, or this binds a port another process holds
   // on 127.0.0.1 and the fetch below reaches that process. See shared-rail.test.ts.
   const server: Server = app.listen(0, '127.0.0.1');
@@ -82,6 +92,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  forgetControlPlaneIdentityMetadata();
   if (nodeEnv === undefined) delete process.env.NODE_ENV;
   else process.env.NODE_ENV = nodeEnv;
   vi.restoreAllMocks();
@@ -284,6 +295,65 @@ describe('a deployed app with a forwarded identity', () => {
       expect(body.identitySource).toBe('databricks-apps');
     } finally {
       await app.close();
+    }
+  });
+
+  it('adds safe authoritative user, app, and service-principal metadata to the identity API', async () => {
+    const prior = {
+      host: process.env.DATABRICKS_HOST,
+      app: process.env.DATABRICKS_APP_NAME,
+      client: process.env.DATABRICKS_CLIENT_ID,
+    };
+    process.env.DATABRICKS_HOST = 'https://dbc-example.cloud.databricks.com';
+    process.env.DATABRICKS_APP_NAME = 'player-insights-agent';
+    process.env.DATABRICKS_CLIENT_ID = '071769f1-5623-45b6-a172-c8b0060adf31';
+    const reader: ControlPlaneReader = (path) => {
+      if (path === SCIM_ME_PATH) {
+        return Promise.resolve({
+          id: '9988776655443322',
+          applicationId: process.env.DATABRICKS_CLIENT_ID,
+          displayName: 'Astrolabe application service principal',
+        });
+      }
+      if (path === SCIM_USERS_PATH) {
+        return Promise.resolve({
+          Resources: [{ id: '1122334455667788', userName: 'analyst@example.example', displayName: 'the demo workspace Analyst' }],
+        });
+      }
+      return Promise.resolve({
+        url: 'https://player-insights-agent-<workspace-id>.<region>.databricksapps.com',
+      });
+    };
+    const app = await startApp(recordingStore().lakebase, undefined, reader);
+    try {
+      const response = await app.fetch('/api/identity', {
+        headers: { 'x-forwarded-email': 'analyst@example.example' },
+      });
+      const body = (await response.json()) as Record<string, unknown>;
+      expect(body.identityMetadata).toMatchObject({
+        user: { displayName: 'the demo workspace Analyst', objectId: '1122334455667788', state: 'verified' },
+        app: {
+          displayName: 'Astrolabe',
+          resourceName: 'player-insights-agent',
+          workspaceHost: process.env.DATABRICKS_HOST,
+          workspaceId: '<workspace-id>',
+        },
+        servicePrincipal: {
+          displayName: 'Astrolabe application service principal',
+          applicationId: process.env.DATABRICKS_CLIENT_ID,
+          objectId: '9988776655443322',
+          state: 'verified',
+        },
+      });
+      expect(JSON.stringify(body)).not.toMatch(/client.?secret|authorization|bearer|database.?password/i);
+    } finally {
+      await app.close();
+      if (prior.host === undefined) delete process.env.DATABRICKS_HOST;
+      else process.env.DATABRICKS_HOST = prior.host;
+      if (prior.app === undefined) delete process.env.DATABRICKS_APP_NAME;
+      else process.env.DATABRICKS_APP_NAME = prior.app;
+      if (prior.client === undefined) delete process.env.DATABRICKS_CLIENT_ID;
+      else process.env.DATABRICKS_CLIENT_ID = prior.client;
     }
   });
 });

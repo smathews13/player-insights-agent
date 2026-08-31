@@ -70,6 +70,14 @@ function rule(selector: string): string {
   return new RegExp(`(?:^|\\n)${escaped} \\{([^}]*)\\}`).exec(TRACE_CSS)?.[1] ?? '';
 }
 
+/** One shared payload pane, bounded so assertions cannot pass on its sibling. */
+function payloadPane(markup: string, label: 'Arguments' | 'Result'): string {
+  const start = markup.indexOf(`aria-label="${label} payload"`);
+  if (start < 0) return '';
+  const end = markup.indexOf('</section>', start);
+  return markup.slice(start, end < 0 ? undefined : end + '</section>'.length);
+}
+
 /** The first length in a declaration, so two rules can be compared as numbers. */
 function px(body: string, property: string): number | null {
   const found = new RegExp(`${property}:[^;]*?(\\d+)px`).exec(body);
@@ -761,10 +769,8 @@ describe('a node opens what its stage recorded', () => {
 
   it('reads the arguments and the result the agent recorded', () => {
     const markup = renderToStaticMarkup(<StageDetail stage={genie} step={6} origin={0} id="detail" />);
-    // "Asked", because the payload holds a question. A step handed a table name
-    // and asked nothing keeps "Arguments" -- see the row below.
-    expect(markup).toContain('<dt>Asked</dt>');
-    expect(markup).toContain('<dt>Result</dt>');
+    expect(markup).toContain('aria-label="Arguments payload"');
+    expect(markup).toContain('aria-label="Result payload"');
     // Unwrapped into its keys, which is what turns a recorded payload back into
     // the question or the query it was. The reading is trace-payload.ts, shared
     // with the Timeline and the live step list.
@@ -772,8 +778,7 @@ describe('a node opens what its stage recorded', () => {
     expect(markup).toContain('active');
     // The question is a sentence and is drawn as one: the `question` key in front
     // of it was labelling the obvious.
-    const asked = markup.slice(markup.indexOf('<dt>Asked</dt>'), markup.indexOf('<dt>Result</dt>'));
-    expect(asked).not.toContain('<b>question</b>');
+    expect(payloadPane(markup, 'Arguments')).not.toContain('<b>question</b>');
   });
 
   it('renders the answer chart inside the chart-building result as a static record', () => {
@@ -842,42 +847,29 @@ describe('a node opens what its stage recorded', () => {
     });
     const wrote = stage({ id: 'step-7-agent', name: 'Prepared the findings', kind: 'agent', input: 'Evidence so far' });
     expect(renderToStaticMarkup(<StageDetail stage={described} step={2} origin={0} id="d" />)).toContain(
-      '<dt>Arguments</dt>'
+      'aria-label="Arguments payload"'
     );
     const search = renderToStaticMarkup(<StageDetail stage={searched} step={2} origin={0} id="d" />);
-    expect(search).toContain('<dt>Searched for</dt>');
+    expect(search).toContain('aria-label="Arguments payload"');
     // The filter is a chip beside the question rather than a second mono row: it
     // narrows the question, it is not another one.
     expect(search).toContain('tables only');
     expect(renderToStaticMarkup(<StageDetail stage={wrote} step={7} origin={0} id="d" />)).toContain(
-      '<dt>Worked from</dt>'
+      'aria-label="Arguments payload"'
     );
   });
 
-  it('prints no character count above the arguments', () => {
-    // The handoff is explicit about it, and the reason holds: the arguments are
-    // short enough to read, so a count above them measures the display rather than
-    // the run. The result's count stays, because a result can be two thousand
-    // characters and how much there is decides whether to read it.
+  it('keeps each payload size inside its own header', () => {
     const markup = renderToStaticMarkup(<StageDetail stage={genie} step={6} origin={0} id="detail" />);
-    const args = markup.slice(markup.indexOf('<dt>Arguments</dt>'), markup.indexOf('<dt>Result</dt>'));
-    expect(args).not.toMatch(/character/);
-    expect(markup.slice(markup.indexOf('<dt>Result</dt>'))).toContain('characters');
+    expect(payloadPane(markup, 'Arguments')).toContain('49 characters');
+    expect(payloadPane(markup, 'Result')).toMatch(/2 lines · \d+ characters/);
   });
 
-  it('offers Rendered and Raw as one segmented control, and opens on Rendered', () => {
+  it('offers independent Rendered and Raw controls, and opens both on Rendered', () => {
     const markup = renderToStaticMarkup(<StageDetail stage={genie} step={6} origin={0} id="detail" />);
-    expect(markup).toContain('aria-label="How to show this result"');
-    expect(markup).toMatch(/<button type="button" aria-pressed="true">Rendered<\/button>/);
-    // The size rides on the Raw segment, which is the only place it means
-    // anything: it measures what pressing that button shows. Above a rendered
-    // card it was the length of a payload the reader was no longer looking at.
-    expect(markup).toMatch(/aria-pressed="false" title="2 lines · \d+ characters">Raw · 2 lines<\/button>/);
-    // The app's one segmented treatment: an outlined group whose pressed segment
-    // is filled from the shared token the timeline toggle also reads.
-    const pressed = rule(".trace-dag.map .dag-seg button[aria-pressed='true']");
-    expect(pressed).toMatch(/background: var\(--ast-seg-pressed\)/);
-    expect(pressed).toMatch(/color: var\(--ast-seg-pressed-ink\)/);
+    expect(markup).toContain('aria-label="How to show arguments"');
+    expect(markup).toContain('aria-label="How to show result"');
+    expect(markup.match(/<button type="button" aria-pressed="true">Rendered<\/button>/g)).toHaveLength(2);
   });
 
   it('draws a result that is a grid as a table, and one that is not as prose', () => {
@@ -977,8 +969,8 @@ describe('a node opens what its stage recorded', () => {
     const markup = renderToStaticMarkup(
       <StageDetail stage={stage({ id: 'step-1' })} step={1} origin={0} id="detail" />
     );
-    expect(markup).not.toContain('<dt>Worked from</dt>');
-    expect(markup).not.toContain('<dt>Result</dt>');
+    expect(markup).not.toContain('aria-label="Arguments payload"');
+    expect(markup).not.toContain('aria-label="Result payload"');
     expect(markup).not.toContain('(none recorded)');
   });
 
@@ -991,8 +983,8 @@ describe('a node opens what its stage recorded', () => {
         id="input"
       />
     );
-    expect(inputOnly).toContain('<dt>Worked from</dt>');
-    expect(inputOnly).not.toContain('<dt>Result</dt>');
+    expect(inputOnly).toContain('aria-label="Arguments payload"');
+    expect(inputOnly).not.toContain('aria-label="Result payload"');
 
     const resultOnly = renderToStaticMarkup(
       <StageDetail
@@ -1002,8 +994,8 @@ describe('a node opens what its stage recorded', () => {
         id="result"
       />
     );
-    expect(resultOnly).not.toContain('<dt>Arguments</dt>');
-    expect(resultOnly).toContain('<dt>Result</dt>');
+    expect(resultOnly).not.toContain('aria-label="Arguments payload"');
+    expect(resultOnly).toContain('aria-label="Result payload"');
     expect(resultOnly).toContain('<td>12</td>');
   });
 
@@ -1095,7 +1087,9 @@ describe('a failed step keeps its card', () => {
     // Raw, not Rendered: an error message is neither prose nor a grid, and putting
     // one through a renderer is where a stack trace loses the line breaks that make
     // it legible.
-    expect(markup).toMatch(/aria-pressed="true" title="[^"]*characters">Raw/);
+    expect(payloadPane(markup, 'Result')).toMatch(
+      /trace-payload-size">2 lines · \d+ characters[^]*aria-pressed="true">Raw/
+    );
     expect(markup).toContain('AnalysisException: cannot resolve `plyer_id`');
   });
 });
@@ -1175,7 +1169,7 @@ describe('the generated SQL block', () => {
     // field is named rather than sniffed for keywords, so a question containing the
     // word "select" is never promoted into a SQL block.
     const markup = renderToStaticMarkup(<StageDetail stage={query} step={5} origin={0} id="detail" />);
-    const args = markup.slice(markup.indexOf('<dt>Arguments</dt>'), markup.indexOf('<dt>Result</dt>'));
+    const args = payloadPane(markup, 'Arguments');
     expect(args).not.toContain('sales');
     // Once, in the block below. Counted on a word the tokeniser keeps whole rather
     // than on a phrase it splits into a keyword and a name.

@@ -1,64 +1,9 @@
-/**
- * Who this deployment runs as, as four facts and no sentences.
- *
- * WHAT THIS CARD USED TO BE, because the change is a deletion and the deletions
- * are the point. It opened with "Which service principals this deployment is
- * connected as, and what the last access check established", which is a caption
- * describing a card the reader is already looking at. Under it came a paragraph
- * beginning "Dependency checks and your own access are separate", a "Questions"
- * line reading "Questions run as the signed-in user", two principal rows each
- * carrying two or three sentences of explanation and, where a principal was
- * absent, a four-sentence account of why it could not be known. The row that
- * summarised all of it read `Connected as  not reported · questions run as the
- * signed-in user`.
- *
- * Every one of those sentences was true. Together they were nine lines of prose
- * around three identifiers, and the reader they were written for reads the top
- * and stops. So the facts stay and the prose goes: which identity questions run
- * as, which client id authenticates the app, and -- where they were reported --
- * the endpoint's principal and when the last access check was decided. Each is a
- * value, a chip or a timestamp.
- *
- * "THE SIGNED-IN USER" IS NEVER THE ANSWER HERE. It is a category, not an
- * identity, and this is the one surface on the app whose job is to name the
- * identity. The reader's own address is in the payload; printing the category
- * instead was the page declining to answer its own question.
- *
- * AND THE BADGE IS THE HEADER'S BADGE. Whether the forwarded sign-in reached
- * this app is decided in `oauth-badge.ts` and drawn by `OAuthBadge.tsx`, which is
- * the same chip the header carries. A second badge here with rules of its own is
- * how two surfaces come to disagree about one sign-in, and the rules are subtle:
- * green is about authentication, and what the token is PERMITTED to do is a
- * different question with its own surface.
- *
- * An absent value renders NOTHING. Not "not reported", not "Not available", and
- * not a paragraph explaining the absence: a row that is not there is read as a
- * fact that was not established, where four sentences about why are read as a
- * fault. The one exception is the client id, because an app with no client id
- * cannot authenticate, and that is a state rather than a silence.
- *
- * AND THE ACCESS-CHECK ROW IS GONE. It printed when the access screen last
- * decided something, and that screen no longer runs: the row was on its way to
- * reporting a stale decision, or none, on a page whose own probes had just
- * answered. Whether a dependency is reachable is measured by the rows below this
- * card, under the reader's own sign-in, and this card must not imply that
- * anybody's access is unverified because a retired screen did not run.
- *
- * THE PROSE CAME BACK ONCE AND HAS GONE AGAIN. Between then and now the card
- * grew two full permission lists -- twenty-six monospace chips -- and a washed
- * three-line box telling the reader to sign in again. Both were added for a real
- * reason and both outgrew it: the lists were the working for a subtraction the
- * server already publishes as `missingScopes`, and two of the box's three lines
- * are now stated by What to fix, once, at the top of the same page. What is left
- * is the difference as a row and the action as a line, which is the shape of
- * every other fact here.
- */
-import { Lock } from 'lucide-react';
+/** Complete user, app, and application-service-principal identity summary. */
 import { Card } from './ui';
 import { OAuthBadge } from './OAuthBadge';
-import { UserIdentityChip } from './UserIdentityChip';
-import { CopyButton, NOT_SET, StatusBadge } from './StatusBadge';
-import { questionsRunAs, useDeploymentIdentity, type DeploymentIdentity } from './identity-panel-state';
+import { CopyButton, StatusBadge } from './StatusBadge';
+import { useDeploymentIdentity, type DeploymentIdentity } from './identity-panel-state';
+import { DATABRICKS_SYMBOL } from './brand-icons';
 // WHETHER to say it, decided away from this file. The condition is the part
 // that must not vary between the surfaces that state it, and a card that
 // decided for itself would eventually offer a fresh sign-in to somebody whose
@@ -70,6 +15,9 @@ import {
   isPlatformDefaultUserApiScope,
   userApiScopeDetail,
 } from '../../shared/user-api-scope-details';
+import { ROLE_WORD } from '../../shared/user-roster-contract';
+import { tokenCarriesScope } from '../../shared/token-scopes';
+import type { SessionReport } from '../../shared/session-contract';
 
 /**
  * The `/api/identity` payload, as this card reads it.
@@ -79,6 +27,8 @@ import {
  * and `session`. A local shape that happened to omit either would draw a neutral
  * badge on a deployment whose sign-in had failed.
  */
+const NOT_REPORTED = 'Not reported';
+
 /** A stamp as a reader's own local time, or '' when there is nothing to show. */
 function when(iso: string | undefined): string {
   if (!iso) return '';
@@ -86,17 +36,6 @@ function when(iso: string | undefined): string {
   return Number.isNaN(at.getTime()) ? '' : at.toLocaleString();
 }
 
-/** What one read of `/api/identity` established, or that it could not be read. */
-/**
- * Whose grants the next question would be computed with, named.
- *
- * `app_service_principal` is the state a laptop with no Apps proxy in front of it
- * reports, and there the honest answer is the app's own client id rather than a
- * reader's address that nothing forwarded. Every other mode resolves to the
- * reader, because that is what on-behalf-of execution means, and the mode string
- * itself is never printed: it is an internal identifier and this row is read by
- * somebody deciding whether an answer could have used grants they do not have.
- */
 /** One label-and-value line. Nothing renders when there is no value. */
 function Fact({ label, wrap, children }: { label: string; wrap?: boolean; children: React.ReactNode }) {
   return (
@@ -104,6 +43,27 @@ function Fact({ label, wrap, children }: { label: string; wrap?: boolean; childr
       <p className="identity-fact-label">{label}</p>
       <div className="identity-fact-value">{children}</div>
     </div>
+  );
+}
+
+function Identifier({ label, value }: { label: string; value: string | undefined }) {
+  const reported = value?.trim() ?? '';
+  if (!reported) return <span className="identity-not-reported">{NOT_REPORTED}</span>;
+  return (
+    <>
+      <StatusBadge value={reported} tone="plain" title={reported} />
+      <CopyButton value={reported} label={`Copy ${label}`} />
+    </>
+  );
+}
+
+function DatabricksMark() {
+  return (
+    <span
+      className="identity-databricks-mark"
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: DATABRICKS_SYMBOL }}
+    />
   );
 }
 
@@ -117,23 +77,35 @@ export function identityTableScopes(declared: readonly string[] | null | undefin
 }
 
 /**
- * The scope contract as a two-column reference table.
- *
- * Scope names are plain monospace values. A green status pill on every row only
- * repeats that each entry came from the app's scope contract; the table itself
- * already establishes that context.
+ * The scope contract with declared and effective state kept separate.
  *
  * Postgres is conditional because some deployments do not request Lakebase
- * browsing; the two IAM scopes are always shown and marked as Databricks platform
- * defaults.
+ * browsing; the two IAM scopes are always shown as Databricks platform defaults.
  */
-function ScopeTable({ scopes }: { scopes: readonly string[] }) {
+function effectiveScope(session: SessionReport | null | undefined, scope: string): string {
+  if (!session?.signedIn) return NOT_REPORTED;
+  if (isPlatformDefaultUserApiScope(scope)) return 'Yes';
+  if (!session.tokenScopes) return NOT_REPORTED;
+  return tokenCarriesScope(session.tokenScopes, scope) ? 'Yes' : 'No';
+}
+
+function declaredScope(session: SessionReport | null | undefined, scope: string): string {
+  if (isPlatformDefaultUserApiScope(scope)) return 'Platform default';
+  if (!session?.declaredScopes) return NOT_REPORTED;
+  return session.declaredScopes.includes(scope) ? 'Yes' : 'No';
+}
+
+function ScopeTable({ session }: { session: SessionReport | null | undefined }) {
+  const scopes = identityTableScopes(session?.declaredScopes);
   return (
     <div className="identity-scope-table-wrap">
-      <table className="identity-scope-table" aria-label="OAuth scopes">
+      <p className="identity-scope-title">Effective user API scopes</p>
+      <table className="identity-scope-table" aria-label="Effective user API scopes">
         <thead>
           <tr>
             <th scope="col">Scope</th>
+            <th scope="col">Declared</th>
+            <th scope="col">Effective</th>
             <th scope="col">Details</th>
           </tr>
         </thead>
@@ -142,14 +114,9 @@ function ScopeTable({ scopes }: { scopes: readonly string[] }) {
             <tr key={scope} data-scope={scope}>
               <td>
                 <code className="identity-scope-code">{scope}</code>
-                {/* Outside the pill. A platform default is granted exactly like the
-                    rest -- that is what the tick says -- and "(default)" qualifies
-                    where it came from, which is a different fact and must not be
-                    drawn inside the chip that states the first one. */}
-                {isPlatformDefaultUserApiScope(scope) ? (
-                  <span className="identity-scope-default"> (default)</span>
-                ) : null}
               </td>
+              <td>{declaredScope(session, scope)}</td>
+              <td>{effectiveScope(session, scope)}</td>
               <td>{userApiScopeDetail(scope)}</td>
             </tr>
           ))}
@@ -160,11 +127,7 @@ function ScopeTable({ scopes }: { scopes: readonly string[] }) {
 }
 
 /**
- * @param checkedAs The principal the preflight report says its checks ran under,
- *   when it resolved one. Carried in rather than fetched because the page that
- *   renders this already holds the report, and a second read of it here would
- *   let the two surfaces disagree about which identity did the work.
- * @param read A read the caller has already made, for the same reason. When it
+ * @param read A read the caller has already made. When it
  *   is absent this card makes its own, so a caller that only wants the card
  *   keeps working unchanged.
  * @param remedyStatedElsewhere Whether something else on the page already tells
@@ -189,25 +152,33 @@ function ScopeTable({ scopes }: { scopes: readonly string[] }) {
  *   clear it.
  */
 export function IdentityCard({
-  checkedAs,
   read,
   remedyStatedElsewhere = false,
-}: { checkedAs?: string; read?: DeploymentIdentity; remedyStatedElsewhere?: boolean } = {}) {
+}: { read?: DeploymentIdentity; remedyStatedElsewhere?: boolean } = {}) {
   const own = useDeploymentIdentity(!read);
   const { identity, failed } = read ?? own;
-
-  // The endpoint's principal where a verification observed one, and the report's
-  // where it resolved one. Two names for one fact, so the row prints whichever
-  // exists and never both.
-  const orchestrator = identity?.servingPrincipal?.id ?? checkedAs ?? '';
-  const observedAt = when(identity?.servingPrincipal?.observedAt);
-  const runsAs = questionsRunAs(identity);
-  const runsAsPerson =
-    identity?.analyticalExecution?.mode !== 'app_service_principal' &&
-    identity?.spIdentity?.executingAs !== 'service_principal';
-  const clientId = identity?.executionIdentity?.trim() ?? '';
   const session = identity?.session;
-  const tableScopes = identityTableScopes(session?.declaredScopes);
+  const metadata = identity?.identityMetadata;
+  const role = identity?.role ? ROLE_WORD[identity.role] : NOT_REPORTED;
+  const userVerified =
+    identity?.identitySource === 'databricks-apps' && session?.signedIn === true
+      ? metadata?.user.state === 'verified'
+        ? 'Verified · workspace profile matched'
+        : 'Verified by Databricks Apps'
+      : 'Not verified';
+  const authMode =
+    identity?.identitySource === 'databricks-apps' ? 'Databricks Apps OAuth' : 'Local development fallback';
+  const assignedPersona = identity?.spIdentity?.assigned?.displayName ?? '';
+  const appSp = metadata?.servicePrincipal;
+  const clientId =
+    appSp?.applicationId?.trim() ||
+    (identity?.executionIdentity && identity.executionIdentity !== 'Astrolabe service principal'
+      ? identity.executionIdentity.trim()
+      : '');
+  const governedIdentity =
+    identity?.spIdentity?.executingAs === 'service_principal' && assignedPersona
+      ? `the assigned persona ${assignedPersona}`
+      : 'the signed-in user';
   /**
    * Whether this reader is being told to sign in again, and null wherever the
    * evidence does not support telling them.
@@ -226,7 +197,7 @@ export function IdentityCard({
     <Card className="deployment-card deployment-card-identity" data-testid="identity-panel">
       <div className="deployment-card-head">
         <p className="deployment-card-title">
-          <Lock className="size-3.5" aria-hidden="true" />
+          <DatabricksMark />
           Identity
         </p>
       </div>
@@ -240,44 +211,95 @@ export function IdentityCard({
           </Fact>
         ) : (
           <>
-            {/* The badge first, because it is the fact that qualifies the name
-                beside it: an address the app is only assuming is worth less than
-                one a sign-in it read presented. Both come from the same read. */}
-            {runsAs ? (
-              <Fact label="Questions run as">
-                <OAuthBadge identity={identity} />
-                {runsAsPerson ? (
-                  <UserIdentityChip identity={runsAs} compact className="identity-principal" />
-                ) : (
-                  <span className="identity-principal">{runsAs}</span>
-                )}
-              </Fact>
-            ) : null}
-            {identity?.spIdentity?.fallbackReason ? (
-              <Fact label="Assigned persona" wrap>
-                <span>{identity.spIdentity.fallbackReason}</span>
-              </Fact>
-            ) : null}
-            <Fact label="App client id">
-              {/* Red on an absence, which is the one place this card treats a
-                  missing value as a state rather than as silence. An app with no
-                  client id in its environment cannot authenticate its own writes,
-                  so the absence IS the finding. */}
-              <StatusBadge
-                value={clientId || NOT_SET}
-                tone={clientId ? 'reachable' : 'blocked'}
-                testId="identity-client-id"
-              />
-              {clientId ? <CopyButton value={clientId} label="Copy the app client id" /> : null}
-            </Fact>
-            {orchestrator ? (
-              <Fact label="Orchestrator">
-                <StatusBadge value={orchestrator} tone="plain" />
-                <CopyButton value={orchestrator} label="Copy the orchestrator principal" />
-                {observedAt ? <span className="identity-fact-when">{observedAt}</span> : null}
-              </Fact>
-            ) : null}
-            <ScopeTable scopes={tableScopes} />
+            <section className="identity-section" aria-labelledby="identity-user-heading">
+              <h4 id="identity-user-heading">Signed-in user</h4>
+              <div className="identity-section-grid">
+                <Fact label="Display name">
+                  <span>{metadata?.user.displayName || NOT_REPORTED}</span>
+                </Fact>
+                <Fact label="Email">
+                  <span className="identity-full-value" title={identity?.signedInAs || NOT_REPORTED}>
+                    {identity?.signedInAs || NOT_REPORTED}
+                  </span>
+                </Fact>
+                <Fact label="Astrolabe role">
+                  <span>{role}</span>
+                </Fact>
+                {assignedPersona ? (
+                  <Fact label="Assigned persona">
+                    <span>{assignedPersona}</span>
+                  </Fact>
+                ) : null}
+                <Fact label="Authentication">
+                  <OAuthBadge identity={identity} />
+                  <span>{authMode}</span>
+                </Fact>
+                <Fact label="Verification">
+                  <span>{userVerified}</span>
+                </Fact>
+                {metadata?.user.objectId ? (
+                  <Fact label="Workspace user ID">
+                    <Identifier label="workspace user ID" value={metadata.user.objectId} />
+                  </Fact>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="identity-section" aria-labelledby="identity-app-heading">
+              <h4 id="identity-app-heading">App</h4>
+              <div className="identity-section-grid">
+                <Fact label="Display name">
+                  <span>{metadata?.app.displayName || 'Astrolabe'}</span>
+                </Fact>
+                <Fact label="Resource name">
+                  <Identifier label="Databricks app resource name" value={metadata?.app.resourceName} />
+                </Fact>
+                <Fact label="Workspace host">
+                  <span className="identity-full-value" title={metadata?.app.workspaceHost || NOT_REPORTED}>
+                    {metadata?.app.workspaceHost || NOT_REPORTED}
+                  </span>
+                </Fact>
+                {metadata?.app.workspaceId ? (
+                  <Fact label="Workspace ID">
+                    <Identifier label="workspace ID" value={metadata.app.workspaceId} />
+                  </Fact>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="identity-section" aria-labelledby="identity-sp-heading">
+              <h4 id="identity-sp-heading">Service principal</h4>
+              <div className="identity-section-grid">
+                <Fact label="Display name">
+                  <span>{appSp?.displayName || NOT_REPORTED}</span>
+                </Fact>
+                <Fact label="Application ID">
+                  <Identifier label="application ID" value={clientId} />
+                </Fact>
+                <Fact label="Object ID">
+                  <Identifier label="service principal object ID" value={appSp?.objectId} />
+                </Fact>
+                <Fact label="Verification">
+                  <span>{appSp?.state === 'verified' ? 'Verified by Databricks SCIM' : NOT_REPORTED}</span>
+                </Fact>
+                <Fact label="Metadata read">
+                  <span>{when(appSp?.readAt) || NOT_REPORTED}</span>
+                </Fact>
+                <Fact label="Responsibility" wrap>
+                  <span>Lakebase and app state · control-plane metadata</span>
+                </Fact>
+              </div>
+            </section>
+
+            <section className="identity-section identity-boundary" aria-labelledby="identity-boundary-heading">
+              <h4 id="identity-boundary-heading">Execution boundary</h4>
+              <ul>
+                <li>Governed SQL, Genie, and Vector Search reads run as {governedIdentity}.</li>
+                <li>The app service principal does not widen Unity Catalog data access.</li>
+              </ul>
+            </section>
+
+            <ScopeTable session={session} />
             {/* THE ONE THING A READER CAN DO, in one line, and only where nothing
                 else on the page is saying it.
 

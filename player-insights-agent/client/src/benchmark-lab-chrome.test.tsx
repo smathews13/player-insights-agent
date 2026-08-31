@@ -7,7 +7,11 @@ import { STAGE_04_CAPTIONS } from '../../shared/benchmark-lab-v3';
 import { partial } from './styles/stylesheet';
 
 function readable(markup: string): string {
-  return markup.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ');
+  return markup
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ');
 }
 
 const CHROME = readFileSync(new URL('./BenchmarkLabChrome.tsx', import.meta.url), 'utf8');
@@ -16,7 +20,10 @@ const DARK = partial('dark-mode.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
 
 describe('Benchmark Lab v3 chrome, rendered', () => {
   const markup = renderToStaticMarkup(
-    <BenchmarkLabChrome contract={labContractCells({ scorerActive: 3 })} judges={['groundedness', 'relevance', 'guidelines']} />,
+    <BenchmarkLabChrome
+      contract={labContractCells({ scorerActive: 3 })}
+      judges={['groundedness', 'relevance', 'guidelines']}
+    />
   );
   const prose = readable(markup);
 
@@ -75,7 +82,7 @@ describe('Benchmark Lab v3 chrome, rendered', () => {
   it('keeps empty regions honest, with spec column headers and no invented scores', () => {
     expect(prose).toContain('Question or conversation');
     expect(prose).toContain('No cases yet');
-    expect(prose).toContain('not set');
+    expect(prose).toContain('Not recorded');
     expect(prose).toContain('PII redaction on');
     expect(prose).toContain('role-gated');
     expect(prose).not.toContain('85%');
@@ -139,7 +146,14 @@ describe('the page seats that chrome', () => {
     const ids = [...markup.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
     const counts = new Map<string, number>();
     for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
-    for (const id of ['lab-pipeline', 'lab-evaluation-set', 'lab-genie-accuracy', 'lab-run-comparison', 'lab-failure', 'lab-held-out']) {
+    for (const id of [
+      'lab-pipeline',
+      'lab-evaluation-set',
+      'lab-genie-accuracy',
+      'lab-run-comparison',
+      'lab-failure',
+      'lab-held-out',
+    ]) {
       expect(counts.get(id)).toBe(1);
     }
     expect(markup).toContain('Import from Ask and Monitoring traces');
@@ -182,7 +196,7 @@ describe('copy and glass rules that hold across the six surfaces', () => {
     const normal = DARK.slice(0, reducedAt);
     const reduced = DARK.slice(reducedAt);
     expect(normal).toMatch(
-      /html\[data-theme='dark'\] \.bench-surface\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*0\.04\)[^}]*backdrop-filter:\s*blur\(2px\)/,
+      /html\[data-theme='dark'\] \.bench-surface\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*0\.04\)[^}]*backdrop-filter:\s*blur\(2px\)/
     );
     expect(reduced).toContain("html[data-theme='dark'] .bench-surface");
   });

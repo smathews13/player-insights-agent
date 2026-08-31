@@ -16,12 +16,25 @@
  * published tree.
  */
 import { readFileSync } from 'node:fs';
+import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { RosterRows } from './UserRoleEditor';
+import { RosterAddRow, RosterRows } from './UserRoleEditor';
 import { roleOptions } from './user-role-options';
-import { canSubmit, originLabel, roleWord, rowLocked, setOn, stepsDownFrom } from './user-roster';
+import {
+  addDisabledReason,
+  canSubmit,
+  claimRosterMutation,
+  normalizeRosterEmail,
+  originLabel,
+  roleWord,
+  rosterEmailError,
+  rowLocked,
+  setOn,
+  stepsDownFrom,
+  submittedDraftIsCurrent,
+} from './user-roster';
 import { badgeAnnouncement, badgeLabel, badgeTitle, roleFrom, showsAdminSurfaces, showsUserRoster } from './role';
 import type { Role, RosterEntry, RosterPayload } from '../../shared/user-roster-contract';
 import { partial } from './styles/stylesheet';
@@ -29,6 +42,21 @@ import { partial } from './styles/stylesheet';
 const LEAD = 'lead@example.invalid';
 const DEPUTY = 'deputy@example.invalid';
 const ANALYST = 'analyst@example.invalid';
+
+function findElement(node: ReactNode, matches: (props: Record<string, unknown>) => boolean): ReactElement {
+  if (isValidElement(node)) {
+    const props = node.props as Record<string, unknown>;
+    if (matches(props)) return node;
+    for (const child of Children.toArray(props.children as ReactNode)) {
+      try {
+        return findElement(child, matches);
+      } catch {
+        // Keep looking through sibling elements.
+      }
+    }
+  }
+  throw new Error('Expected element was not rendered.');
+}
 
 /** The text a reader sees, tags removed and entities put back. */
 function text(markup: string): string {
@@ -207,6 +235,29 @@ describe('the #24a Roles geometry', () => {
     expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*min-width:\s*0/);
     expect(css).toMatch(/\.settings-actions-table th:last-child \{[^}]*text-align:\s*right/);
     expect(css).toMatch(/\.roster-action \{[^}]*text-align:\s*right/);
+  });
+
+  it('keeps Actions above scrolled cells without covering the Add feedback', () => {
+    expect(css).toMatch(
+      /\.settings-actions-table th:last-child,\s*\.settings-actions-table td:last-child \{[^}]*position:\s*sticky[^}]*right:\s*0[^}]*z-index:\s*2/s
+    );
+    expect(css).toMatch(/\.settings-table-frame \{[^}]*overflow-x:\s*auto/s);
+    const markup = renderToStaticMarkup(
+      <table>
+        <tfoot>
+          <RosterAddRow
+            draft="not-an-address"
+            role="consumer"
+            busy={false}
+            onDraftChange={() => {}}
+            onRoleChange={() => {}}
+            onAdd={() => {}}
+          />
+        </tfoot>
+      </table>
+    );
+    expect(markup).toMatch(/<td class="roster-email">[\s\S]*class="roster-add-feedback admin-list-error"/);
+    expect(markup).toMatch(/<td class="roster-action">[\s\S]*type="button"/);
   });
 
   it('shows only the selected user role while keeping a descriptive accessible name', () => {
@@ -423,11 +474,113 @@ describe("the controls are the app's own", () => {
 });
 
 describe('the Add button', () => {
-  it('does nothing until there is something to add', () => {
+  it('requires a valid work email, not merely non-empty text', () => {
     expect(canSubmit('', false)).toBe(false);
     expect(canSubmit('  ', false)).toBe(false);
+    expect(canSubmit('not-an-address', false)).toBe(false);
     expect(canSubmit(ANALYST, true)).toBe(false);
     expect(canSubmit(ANALYST, false)).toBe(true);
+    expect(rosterEmailError('not-an-address')).toBe('Enter a valid work email address.');
+    expect(addDisabledReason('', 'admin', false)).toBe('Enter a work email address.');
+  });
+
+  it.each<Role>(['consumer', 'admin'])('enables a valid %s submission with an accessible description', (role) => {
+    const markup = renderToStaticMarkup(
+      <table>
+        <tfoot>
+          <RosterAddRow
+            draft="  Analyst@Example.Invalid "
+            role={role}
+            busy={false}
+            descriptionId={`add-${role}`}
+            onDraftChange={() => {}}
+            onRoleChange={() => {}}
+            onAdd={() => {}}
+          />
+        </tfoot>
+      </table>
+    );
+    expect(markup).toContain(`aria-label="User role to give them: ${roleWord(role)}"`);
+    expect(markup).toContain(`title="Add analyst@example.invalid as ${roleWord(role)}"`);
+    expect(markup).not.toContain('disabled=""');
+    expect(markup).toContain(`aria-describedby="add-${role}"`);
+    expect(normalizeRosterEmail('  Analyst@Example.Invalid ')).toBe(ANALYST);
+  });
+
+  it('submits with Enter exactly as the Add button does', () => {
+    const onAdd = vi.fn();
+    const preventDefault = vi.fn();
+    const tree = RosterAddRow({
+      draft: ANALYST,
+      role: 'consumer',
+      busy: false,
+      onDraftChange: () => {},
+      onRoleChange: () => {},
+      onAdd,
+    });
+    const input = findElement(tree, (props) => props['aria-label'] === 'Email address to put on the roster');
+    const onKeyDown = (input.props as Record<string, unknown>).onKeyDown as (event: {
+      key: string;
+      preventDefault: () => void;
+    }) => void;
+
+    onKeyDown({ key: 'Enter', preventDefault });
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(onAdd).toHaveBeenCalledOnce();
+  });
+
+  it('shows in-button progress and keeps every control keyboard-addressable', () => {
+    const markup = renderToStaticMarkup(
+      <table>
+        <tfoot>
+          <RosterAddRow
+            draft={ANALYST}
+            role="admin"
+            busy={true}
+            adding={true}
+            onDraftChange={() => {}}
+            onRoleChange={() => {}}
+            onAdd={() => {}}
+          />
+        </tfoot>
+      </table>
+    );
+    expect(markup).toContain('aria-busy="true"');
+    expect(markup).toContain('Adding…');
+    expect(markup).toContain('disabled=""');
+    expect(markup).toContain('type="email"');
+    expect(markup).toContain('type="button"');
+  });
+
+  it('renders invalid and server errors inline without clearing the entered address', () => {
+    const invalid = renderToStaticMarkup(
+      <table>
+        <tfoot>
+          <RosterAddRow
+            draft="not-an-address"
+            role="consumer"
+            busy={false}
+            error="That address already holds that role."
+            onDraftChange={() => {}}
+            onRoleChange={() => {}}
+            onAdd={() => {}}
+          />
+        </tfoot>
+      </table>
+    );
+    expect(invalid).toContain('value="not-an-address"');
+    expect(invalid).toContain('aria-invalid="true"');
+    expect(invalid).toContain('role="alert"');
+    expect(invalid).toContain('That address already holds that role.');
+  });
+
+  it('claims a mutation synchronously and ignores stale draft cleanup', () => {
+    const latch = { current: false };
+    expect(claimRosterMutation(latch)).toBe(true);
+    expect(claimRosterMutation(latch)).toBe(false);
+    expect(submittedDraftIsCurrent(2, 2)).toBe(true);
+    expect(submittedDraftIsCurrent(2, 3)).toBe(false);
   });
 });
 

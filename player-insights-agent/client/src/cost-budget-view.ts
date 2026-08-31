@@ -1,5 +1,5 @@
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
-import type { OpsCostPayload } from '../../shared/ops-contract';
+import type { CostTile, OpsCostPayload } from '../../shared/ops-contract';
 import { tileAttribution } from './ops-view';
 
 const DAY_MS = 86_400_000;
@@ -72,4 +72,22 @@ export function budgetHelper(observed: Record<CostBudgetUnit, number | null>, un
   const format = (value: number) =>
     value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   return `Observed: ${format(baseline)} ${unit}`;
+}
+
+/** Only a usable measured amount may guide an editable resource assumption. */
+export function resourceBudgetBaseline(tile: CostTile, unit: CostBudgetUnit): number | null {
+  const amount = unit === 'DBU' ? (tile.dbus ?? null) : tile.amount;
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) return null;
+  if (unit === 'DBU') return amount;
+  const match = tile.pricing?.match;
+  if (
+    tile.quality === 'unknown' ||
+    match === 'unpriced' ||
+    match === 'duplicate' ||
+    match === 'mixed-currency' ||
+    match === 'partial'
+  ) {
+    return null;
+  }
+  return amount;
 }

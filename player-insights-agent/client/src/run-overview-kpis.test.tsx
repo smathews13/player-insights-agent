@@ -102,13 +102,30 @@ describe('Run Explorer Overview KPIs', () => {
       completionTokens: null,
       ratePath: null,
     });
-    expect(markup.match(/>not set</g)).toHaveLength(4);
+    expect(markup.match(/>Not recorded</g)).toHaveLength(4);
     expect(markup).toContain('Question to final answer');
     expect(markup).toContain('Time spent in agent and tool stages');
     expect(markup).toContain('Governed tool invocations');
     expect(markup).toContain('Token usage not recorded');
     expect(markup).toContain('No rating submitted');
     expect(markup.match(/run-kpi-subtitle/g)).toHaveLength(5);
+  });
+
+  it('keeps recorded zeroes instead of turning them into missing evidence', () => {
+    const markup = render(5, {
+      durationMs: 0,
+      toolStageMs: 0,
+      agentToolCalls: 0,
+      stages: [],
+      totalTokens: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+    });
+    expect(markup).toContain('>0.00ms<');
+    expect(markup).toContain('>0.0s<');
+    expect(markup.match(/>0</g)).toHaveLength(2);
+    expect(markup).toContain('0 in / 0 out');
+    expect(markup).not.toContain('Not recorded');
   });
 
   it('keeps a legacy midpoint explicitly neutral', () => {
