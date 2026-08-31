@@ -644,59 +644,26 @@ describe('the two marks that sign a transcript', () => {
   });
 });
 
-describe('the owner filter chips are the one control that may not move when pressed', () => {
-  const PRESSED = ".conversation-filter-chip[aria-pressed='true']";
-
-  it('changes only colour between the two states, weight included', () => {
-    // Spec §5.5 asks for fixed geometry between states, and weight is part of it:
-    // this was 500 going to 600, so pressing a chip re-measured its own text and
-    // nudged every chip after it along the wrapped row -- the failure being guarded
-    // against is a second click landing on a different chip than the one aimed at.
-    expect(body('.conversation-filter-chip')).toMatch(/font-weight:\s*500/);
-    expect(body(PRESSED)).not.toMatch(/font-weight|padding|font-size|border-width|border:\s/);
+describe('the conversation owner filter stays compact', () => {
+  it('uses one fixed-height trigger across every selection', () => {
+    const trigger = body('.conversation-owner-trigger');
+    expect(trigger).toMatch(/width:\s*100%/);
+    expect(trigger).toMatch(/height:\s*34px/);
+    expect(trigger).toMatch(/min-width:\s*0/);
   });
 
-  it('keeps a border on both states so the box is the same size either way', () => {
-    // The mockup's pressed chip has a fill and no border, which is a pixel narrower
-    // than the outlined one beside it. The border goes to the fill colour instead.
-    expect(body('.conversation-filter-chip')).toMatch(/border:\s*1px solid var\(--db-line-strong\)/);
-    expect(body(PRESSED)).toMatch(/border-color:\s*var\(--db-chip\)/);
+  it('overlays its options instead of pushing conversations down', () => {
+    const menu = body('.conversation-owner-menu');
+    expect(menu).toMatch(/position:\s*absolute/);
+    expect(menu).toMatch(/width:\s*100%/);
+    expect(menu).toMatch(/overflow-y:\s*auto/);
   });
 
-  it('leaves blue in the rail for the row you are reading', () => {
-    // The pressed chip was solid blue, which put a row of blue above the single blue
-    // rule that marks the open conversation and made the two compete. A filter says
-    // which subset is on screen, which is what the neutral chip fill means
-    // everywhere else in the app.
-    expect(body(PRESSED)).toMatch(/background:\s*var\(--db-chip\)/);
-    expect(body(PRESSED)).not.toMatch(/--primary|blue/);
-  });
-
-  it('caps the wrapped block at three whole rows, measured off the chip', () => {
-    // The cap was 84px under a comment claiming "roughly three rows", and roughly
-    // was two pixels short of three: every rail with enough people to wrap carried
-    // a permanent scrollbar and a sliver of a fourth row under the third. The
-    // height is derived here rather than pinned, so a chip that changes padding,
-    // border or type size fails this instead of quietly clipping again.
-    const chip = body('.conversation-filter-chip');
-    const px = (property: string) => Number(chip.match(new RegExp(`${property}:\\s*([\\d.]+)px`))![1]);
-    const [padding] = chip
-      .match(/padding:\s*([\d.]+)px/)!
-      .slice(1)
-      .map(Number);
-    const [border] = chip
-      .match(/border:\s*([\d.]+)px/)!
-      .slice(1)
-      .map(Number);
-    const lineHeight = Number(chip.match(/line-height:\s*([\d.]+)/)![1]);
-    const chipHeight = padding * 2 + border * 2 + px('font-size') * lineHeight;
-    expect(chipHeight).toBe(26);
-
-    const block = body('.conversation-filter');
-    const gap = Number(block.match(/gap:\s*([\d.]+)px/)![1]);
-    expect(block).toMatch(new RegExp(`max-height:\\s*${chipHeight * 3 + gap * 2}px`));
-    // Scrolls past the cap rather than growing, which is what makes the cap a cap.
-    expect(block).toMatch(/overflow-y:\s*auto/);
+  it('clips only the trigger summary with an ellipsis', () => {
+    const summary = body('.conversation-owner-summary');
+    expect(summary).toMatch(/overflow:\s*hidden/);
+    expect(summary).toMatch(/text-overflow:\s*ellipsis/);
+    expect(summary).toMatch(/white-space:\s*nowrap/);
   });
 });
 

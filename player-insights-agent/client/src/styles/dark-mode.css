@@ -223,8 +223,6 @@ html[data-theme='dark'] .header-settings:focus-visible {
   outline-offset: 1px;
 }
 
-html[data-theme='dark'] .conversation-filter-chip[aria-pressed='true'],
-html[data-theme='dark'] .conversation-filter-chip:not(.is-all)[aria-pressed='true'] > .identity-chip,
 html[data-theme='dark'] .time-range-segment:hover:not([aria-checked='true']),
 html[data-theme='dark'] .time-range-segment[aria-checked='true'] {
   color: var(--foreground);
@@ -1124,7 +1122,10 @@ html[data-theme='dark'] .settings-footer-actions [data-slot='button'][data-press
  * the menus use, so hover, selected and highlighted stay one family.
  */
 html[data-theme='dark'] .app-nav-tab:hover,
-html[data-theme='dark'] .conversation-filter-chip:hover,
+html[data-theme='dark'] .conversation-owner-trigger:hover,
+html[data-theme='dark'] .conversation-owner-trigger[aria-expanded='true'],
+html[data-theme='dark'] .conversation-owner-option:hover,
+html[data-theme='dark'] .conversation-owner-option:focus-visible,
 html[data-theme='dark'] .access-gate-actions button:not(.refresh-button):hover:not(:disabled),
 html[data-theme='dark'] .settings-close:hover,
 html[data-theme='dark'] .run-id-chip:hover,

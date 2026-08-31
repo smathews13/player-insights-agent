@@ -626,9 +626,6 @@ describe('dark mode covers the shipped surfaces', () => {
       .sort();
     const corrections: Record<string, string> = {
       '.access-gate-actions button:not(.refresh-button)': '.access-gate-actions button:not(.refresh-button)',
-      ".conversation-filter-chip[aria-pressed='true']": ".conversation-filter-chip[aria-pressed='true']",
-      ".conversation-filter-chip:not(.is-all)[aria-pressed='true'] > .identity-chip":
-        ".conversation-filter-chip:not(.is-all)[aria-pressed='true'] > .identity-chip",
       '.identity-chip': '.identity-chip',
       ".time-range-segment:hover:not([aria-checked='true'])": ".time-range-segment:hover:not([aria-checked='true'])",
       ".time-range-segment[aria-checked='true']": ".time-range-segment[aria-checked='true']",

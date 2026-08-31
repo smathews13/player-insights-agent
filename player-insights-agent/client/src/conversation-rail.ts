@@ -117,10 +117,12 @@ export interface RailOwnership {
 /**
  * Label every row with its owner and count the owners off those same labels.
  */
-export function railOwnership(conversations: readonly Conversation[],
+export function railOwnership(
+  conversations: readonly Conversation[],
   signedInAs: string | null | undefined
 ): RailOwnership {
-  const mine = ownerKey(signedInOwner(signedInAs));
+  const signedIn = signedInOwner(signedInAs);
+  const mine = ownerKey(signedIn);
   const entries: RailEntry[] = conversations.map((conversation) => {
     const owner = (conversation.user_email ?? '').trim();
     const key = ownerKey(owner);
@@ -145,10 +147,24 @@ export function railOwnership(conversations: readonly Conversation[],
     }
     owners.set(entry.ownerKey, { key: entry.ownerKey, email: entry.owner, count: 1, you: entry.you });
   }
+  // An administrator filtering a shared rail must always be able to choose
+  // themselves, including before they have asked their first question.
+  if (mine && signedIn && !owners.has(mine)) {
+    owners.set(mine, { key: mine, email: signedIn, count: 0, you: true });
+  }
 
   return {
     entries,
-    owners: [...owners.values()].sort((a, b) => b.count - a.count || a.email.localeCompare(b.email)),
+    // The signed-in reader always has the first explicit option. Everyone else
+    // is ordered by useful weight, then a case-folded address so equal counts
+    // never jump around between fetches or database row orderings.
+    owners: [...owners.values()].sort(
+      (a, b) =>
+        Number(b.you) - Number(a.you) ||
+        b.count - a.count ||
+        a.key.localeCompare(b.key) ||
+        a.email.localeCompare(b.email)
+    ),
   };
 }
 
@@ -184,7 +200,8 @@ export function unaskedConversation(row: { id: string; owner?: string | undefine
  * said `slice(0, 80)` and the server said something else, the label would change
  * under the reader on the next page load and look like a different conversation.
  */
-export function claimConversationTitle(items: readonly Conversation[],
+export function claimConversationTitle(
+  items: readonly Conversation[],
   claim: { id: string; prompt: string; owner?: string | undefined; updatedAt: string }
 ): Conversation[] {
   const existing = items.find((item) => item.id === claim.id);

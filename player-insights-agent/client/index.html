@@ -1,14 +1,66 @@
 <!doctype html>
-<html lang="en" class="light" data-theme="dark">
+<html
+  lang="en"
+  class="light"
+  data-theme="dark"
+  data-background-graphics="on"
+  data-animations="on"
+  data-density="comfortable"
+>
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#11171C" />
+    <script>
+      /*
+       * Server settings remain canonical. This same-origin cache only lets the
+       * root adopt the last successful Appearance read before CSS paints.
+       */
+      try {
+        const saved = JSON.parse(localStorage.getItem('astrolabe.runtime-appearance.v1') || 'null');
+        if (saved && typeof saved === 'object') {
+          const root = document.documentElement;
+          if (saved.colorScheme === 'dark' || saved.colorScheme === 'light') {
+            root.dataset.theme = saved.colorScheme;
+            document
+              .querySelector('meta[name="theme-color"]')
+              ?.setAttribute('content', saved.colorScheme === 'dark' ? '#11171C' : '#ffffff');
+          }
+          root.dataset.backgroundGraphics = saved.backgroundGraphics === false ? 'off' : 'on';
+          root.dataset.animations = saved.animations === false ? 'off' : 'on';
+          root.dataset.density = saved.density === 'compact' ? 'compact' : 'comfortable';
+          const hex = /^#[0-9a-f]{6}$/i;
+          if (hex.test(saved.fontBodyColor)) {
+            for (const token of ['--ast-text', '--ast-text-long', '--foreground', '--db-ink', '--db-body']) {
+              root.style.setProperty(token, saved.fontBodyColor);
+            }
+          }
+          if (hex.test(saved.fontMutedColor)) {
+            for (const token of ['--ast-text-secondary', '--ast-caption', '--muted-foreground', '--db-slate']) {
+              root.style.setProperty(token, saved.fontMutedColor);
+            }
+          }
+          const families = {
+            'dm-sans': "'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+            system: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+            'dm-mono': "'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+          };
+          if (families[saved.fontFamily]) root.style.setProperty('--font-sans', families[saved.fontFamily]);
+          for (const kind of ['catalog', 'schema', 'table', 'column', 'quote', 'tag']) {
+            const style = saved.entityStyles?.[kind];
+            if (hex.test(style?.foreground)) root.style.setProperty(`--entity-${kind}-fg`, style.foreground);
+            if (hex.test(style?.background)) root.style.setProperty(`--entity-${kind}-bg`, style.background);
+          }
+        }
+      } catch {
+        // Defaults above are the safe first paint when storage is unavailable.
+      }
+    </script>
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#11171C" />
     <!--
       The body typeface, asked for before the stylesheet that names it has arrived.
 

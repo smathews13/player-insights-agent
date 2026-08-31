@@ -773,6 +773,25 @@ async function callerReadsEveryRun(store: InsightsAppKit['lakebase'], email: str
 }
 
 /**
+ * Whether this caller may cross the conversation ownership boundary.
+ *
+ * The deployment flag is only an operator opt-in; it is never authority on its
+ * own. The role is resolved from the Lakebase roster for every request, and an
+ * unreadable roster resolves to consumer in `resolveRole`, so storage failure
+ * narrows this to the caller rather than widening it.
+ */
+async function callerReadsSharedConversations(
+  store: InsightsAppKit['lakebase'],
+  email: string,
+  rolesReady?: () => Promise<void>
+): Promise<boolean> {
+  await rolesReady?.();
+  if (!sharedRail.shared) return false;
+  const { role } = await resolveRole(store, email);
+  return opensAdminSurfaces(role);
+}
+
+/**
  * The only thing `POST /api/insights/ask` can end up serving as an answer.
  *
  * There used to be a second member here, `representativeFallback(prompt,
@@ -1935,9 +1954,9 @@ function announceSharedConversationRail(resolution: SharedRailResolution) {
   if (resolution.shared) {
     console.warn(
       `[rail] SHARED CONVERSATION RAIL IS ON (${SHARED_CONVERSATION_RAIL_ENV}=${JSON.stringify(resolution.raw)}). ` +
-        "Every signed-in user can see, and open, every other user's conversations and the questions and " +
-        'answers inside them. This is a deliberate setting for a shared evaluation workspace and it is not ' +
-        'the default. Deleting, asking and uploading remain scoped to the owner.'
+        "Administrators and super administrators can see and open every user's conversations; consumers " +
+        'remain strictly scoped to their own. This is a deliberate setting for a shared evaluation workspace ' +
+        'and it is not the default. Deleting, asking and uploading remain scoped to the owner.'
     );
     return;
   }
@@ -2005,9 +2024,8 @@ export const CONVERSATION_RAIL_LIMIT = 100;
  * What each conversation's latest answered turn ended on, for the rail's badge.
  *
  * WHY THIS IS NOT READ OFF `/api/runs`. The rail lists everyone's
- * conversations when the shared rail is on, but `RUNS_QUERY` still scopes a
- * consumer to `c.user_email = $2`. Administrators pass `$3` true and see
- * every conversation; a consumer does not. The rail badge used to go blank
+ * conversations for an administrator when the shared rail is on, while a
+ * consumer remains scoped to `c.user_email = $2`. The rail badge used to go blank
  * on anybody else's row because it read the scoped list -- reported as
  * "other user questions should show badges too". A run still carries the
  * prompt, the trace, the generated SQL and the spaces it opened, so the
@@ -2048,8 +2066,8 @@ const CONVERSATION_VERDICT_JOIN = `
 const CONVERSATION_LIST_COLUMNS =
   'c.id, c.title, c.updated_at, c.user_email, ' + 'verdict.status, verdict.truncated, verdict.duration_ms';
 
-function conversationListQuery(email: string) {
-  return sharedRail.shared
+function conversationListQuery(email: string, readsShared: boolean) {
+  return readsShared
     ? {
         sql:
           `SELECT ${CONVERSATION_LIST_COLUMNS} FROM ${APP_SCHEMA}.conversations c` +
@@ -2066,7 +2084,7 @@ function conversationListQuery(email: string) {
       };
 }
 
-function conversationMessagesQuery(conversationId: string, email: string) {
+function conversationMessagesQuery(conversationId: string, email: string, readsShared: boolean) {
   // `c.user_email AS asked_by` rather than a column on the message: the ask
   // route refuses a conversation somebody else owns, so the owner IS the asker
   // and storing it twice would be the same fact in two places. The join was
@@ -2108,7 +2126,7 @@ function conversationMessagesQuery(conversationId: string, email: string) {
                  ORDER BY f.created_at DESC LIMIT 1) AS feedback_comment
          FROM ${APP_SCHEMA}.messages m
          JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id`;
-  return sharedRail.shared
+  return readsShared
     ? {
         // `$2` is still the caller on the shared rail, and deliberately so. The
         // rail shares whose question and whose answer; a rating is one reader's
@@ -2134,7 +2152,7 @@ function conversationMessagesQuery(conversationId: string, email: string) {
  */
 export const CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, updated_at, terminal_code, terminal_message_id
   FROM ${APP_SCHEMA}.runs
-  WHERE conversation_id = $1 AND user_email = $2
+  WHERE conversation_id = $1 AND ($3 OR user_email = $2)
   ORDER BY created_at DESC
   LIMIT 1`;
 
@@ -3326,7 +3344,16 @@ export function setupInsightsRoutes(
     app.get('/api/identity', async (req, res) => {
       const role = await rolePayload(appkit.lakebase, userEmail(req));
       const spIdentity = await describeSpIdentity(req, appkit);
-      res.json({ ...identityPayload(req), ...role, spIdentity });
+      res.json({
+        ...identityPayload(req),
+        // The deployment switch never widens a consumer. The browser receives
+        // the effective scope, derived beside the authoritative stored role,
+        // so it cannot accidentally advertise other people or retain a legacy
+        // shared-rail preference for a non-admin session.
+        sharedConversationRail: sharedRail.shared && opensAdminSurfaces(role.role),
+        ...role,
+        spIdentity,
+      });
     });
 
     /**
@@ -3652,7 +3679,9 @@ export function setupInsightsRoutes(
     });
 
     app.get('/api/conversations', async (req, res) => {
-      const { sql, params } = conversationListQuery(userEmail(req));
+      const email = userEmail(req);
+      const readsShared = await callerReadsSharedConversations(appkit.lakebase, email, options.rolesReady);
+      const { sql, params } = conversationListQuery(email, readsShared);
       await respondWithStored(appkit, res, 'GET /api/conversations', sql, params);
     });
 
@@ -3771,7 +3800,9 @@ export function setupInsightsRoutes(
      * by naming one.
      */
     app.get('/api/conversations/:id/messages', async (req, res) => {
-      const { sql, params } = conversationMessagesQuery(req.params.id, userEmail(req));
+      const email = userEmail(req);
+      const readsShared = await callerReadsSharedConversations(appkit.lakebase, email, options.rolesReady);
+      const { sql, params } = conversationMessagesQuery(req.params.id, email, readsShared);
       await respondWithStored(appkit, res, 'GET /api/conversations/:id/messages', sql, params);
     });
 
@@ -3796,9 +3827,12 @@ export function setupInsightsRoutes(
      * reported, a run that has finished beside the steps of one that had not.
      */
     app.get('/api/conversations/:id/run', async (req, res) => {
+      const email = userEmail(req);
+      const readsShared = await callerReadsSharedConversations(appkit.lakebase, email, options.rolesReady);
       const read = await readStored(appkit, 'GET /api/conversations/:id/run', CONVERSATION_RUN_STATUS_QUERY, [
         req.params.id,
-        userEmail(req),
+        email,
+        readsShared,
       ]);
       if (!read.available) {
         res.status(503).json({
@@ -3829,13 +3863,17 @@ export function setupInsightsRoutes(
      * third.
      */
     app.get('/api/conversations/:id/attachments', async (req, res) => {
+      const email = userEmail(req);
+      const readsShared = await callerReadsSharedConversations(appkit.lakebase, email, options.rolesReady);
       const read = await readStored(
         appkit,
         'GET /api/conversations/:id/attachments',
-        `SELECT id, filename, mime_type, size_bytes, created_at
-         FROM ${APP_SCHEMA}.attachments
-         WHERE conversation_id = $1 AND user_email = $2 ORDER BY created_at`,
-        [req.params.id, userEmail(req)]
+        `SELECT a.id, a.filename, a.mime_type, a.size_bytes, a.created_at
+         FROM ${APP_SCHEMA}.attachments a
+         JOIN ${APP_SCHEMA}.conversations c ON c.id = a.conversation_id
+         WHERE a.conversation_id = $1 AND ($3 OR c.user_email = $2)
+         ORDER BY a.created_at`,
+        [req.params.id, email, readsShared]
       );
       if (!read.available) {
         markResponse(res, noSubstitution('storage_unavailable'));
@@ -5184,12 +5222,27 @@ export function setupInsightsRoutes(
         res.status(400).json({ error: 'Feedback is invalid.' });
         return;
       }
-      const feedback = { id: crypto.randomUUID(), ...parsed.data, userEmail: userEmail(req) };
+      const email = userEmail(req);
+      const readsShared = await callerReadsSharedConversations(appkit.lakebase, email, options.rolesReady);
+      const feedback = { id: crypto.randomUUID(), ...parsed.data, userEmail: email };
       const written = await readStored(
         appkit,
         'POST /api/feedback',
         `INSERT INTO ${APP_SCHEMA}.feedback
-         (id, message_id, user_email, sentiment, usefulness, comment) VALUES ($1,$2,$3,$4,$5,$6)`,
+         (id, message_id, user_email, sentiment, usefulness, comment)
+         SELECT $1,$2,$3,$4,$5,$6
+          WHERE EXISTS (
+            SELECT 1
+              FROM ${APP_SCHEMA}.messages m
+              JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
+             WHERE m.id = $2 AND ($7 OR c.user_email = $3)
+          )
+             OR EXISTS (
+            SELECT 1
+              FROM ${APP_SCHEMA}.benchmark_runs b
+             WHERE b.id = $2 AND ($7 OR b.user_email = $3)
+          )
+         RETURNING id`,
         [
           feedback.id,
           feedback.messageId,
@@ -5197,6 +5250,7 @@ export function setupInsightsRoutes(
           feedback.sentiment ?? null,
           feedback.usefulness ?? null,
           feedback.comment ?? null,
+          readsShared,
         ]
       );
       if (!written.available) {
@@ -5209,8 +5263,14 @@ export function setupInsightsRoutes(
         });
         return;
       }
-      // An INSERT answers with no rows, so `available` (not the row count), is
-      // what says it landed.
+      if (written.rows.length === 0) {
+        // Missing and another owner's id are deliberately the same answer.
+        res.status(404).json({
+          error: 'message_not_found',
+          message: 'No message with this id is available to you.',
+        });
+        return;
+      }
       markResponse(res, noSubstitution());
       res.status(201).json(feedback);
     });

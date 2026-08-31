@@ -19,12 +19,11 @@
  *   2. A failed read of the stored half DENIES rather than admits. cost-obs
  *      falls through to an empty list on a storage error, and an empty list
  *      admits everyone there.
- *   3. BEING AN ADMIN GRANTS NO DATA. Nothing in this file widens what any
- *      query may read. Questions run under the asker's own Unity Catalog
- *      grants, through the forwarded user token, exactly as they do for a
- *      consumer. The role opens tabs. If you are here because you want an
- *      admin to be able to read something a consumer cannot, this is the wrong
- *      file: that decision belongs to Unity Catalog and is made by a grant.
+ *   3. BEING AN ADMIN GRANTS NO ANALYTICAL DATA. Questions still run under the
+ *      asker's own Unity Catalog grants, through the forwarded user token,
+ *      exactly as they do for a consumer. When the shared-conversation operator
+ *      switch is on, routes may use this authoritative role to let admins read
+ *      stored app conversations; that does not widen any catalog grant.
  *
  * Nothing in this module reads a header, a query parameter or a body field that
  * claims a role. The caller's address arrives from the one identity reader the

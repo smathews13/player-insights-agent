@@ -66,6 +66,9 @@ export type FontFamilyId = (typeof FONT_FAMILY_IDS)[number];
 export const FONT_SIZE_IDS = ['s', 'm', 'l'] as const;
 export type FontSizeId = (typeof FONT_SIZE_IDS)[number];
 
+export const DENSITY_IDS = ['comfortable', 'compact'] as const;
+export type DensityId = (typeof DENSITY_IDS)[number];
+
 /**
  * Night-sky body is white so completed questions match step titles instead of
  * sitting on the secondary grey. Light follows the existing ink / slate pair.
@@ -166,6 +169,9 @@ export const RuntimeSettingsSchema = z
     fontMutedColor: HexColorSchema.optional(),
     fontFamily: z.enum(FONT_FAMILY_IDS).default('dm-sans'),
     fontSize: z.enum(FONT_SIZE_IDS).default('m'),
+    backgroundGraphics: z.boolean().default(true),
+    animations: z.boolean().default(true),
+    density: z.enum(DENSITY_IDS).default('comfortable'),
   })
   .transform((settings) => ({
     ...settings,
@@ -205,6 +211,9 @@ export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
   fontMutedColor: THEME_FONT_COLORS.dark.muted,
   fontFamily: 'dm-sans',
   fontSize: 'm',
+  backgroundGraphics: true,
+  animations: true,
+  density: 'comfortable',
 };
 
 export type RuntimeEntityCssVariables = Record<`--entity-${RuntimeEntityKind}-${'fg' | 'bg'}`, string>;

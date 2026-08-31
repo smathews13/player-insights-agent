@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import {
+  parseRuntimeSettings,
   runtimeAppearanceCssVariables,
   runtimeTypographyCssVariables,
   type RuntimeSettings,
@@ -12,6 +13,13 @@ import {
   subscribeLiveRuntimeSettings,
 } from './runtime-settings-live';
 
+export const RUNTIME_APPEARANCE_CACHE_KEY = 'astrolabe.runtime-appearance.v1';
+
+type AppearanceRoot = {
+  style: Pick<CSSStyleDeclaration, 'setProperty'>;
+  setAttribute(name: string, value: string): void;
+};
+
 function writeVariables(
   variables: Record<string, string>,
   target: Pick<CSSStyleDeclaration, 'setProperty'> | null
@@ -22,9 +30,50 @@ function writeVariables(
   }
 }
 
+export function writeRuntimeAppearanceAttributes(
+  settings: RuntimeSettings,
+  root: Pick<AppearanceRoot, 'setAttribute'> | null = typeof document === 'undefined' ? null : document.documentElement
+): void {
+  if (!root) return;
+  root.setAttribute('data-background-graphics', settings.backgroundGraphics ? 'on' : 'off');
+  root.setAttribute('data-animations', settings.animations ? 'on' : 'off');
+  root.setAttribute('data-density', settings.density);
+}
+
 function paintRuntimeStyles(settings: RuntimeSettings, target: Pick<CSSStyleDeclaration, 'setProperty'> | null): void {
   writeVariables(runtimeAppearanceCssVariables(settings), target);
+  writeRuntimeAppearanceAttributes(settings);
   applyColorScheme(settings.colorScheme);
+}
+
+export function cacheRuntimeAppearance(
+  settings: RuntimeSettings,
+  storage: Pick<Storage, 'setItem'> | null = typeof window === 'undefined' ? null : window.localStorage
+): void {
+  try {
+    storage?.setItem(RUNTIME_APPEARANCE_CACHE_KEY, JSON.stringify(settings));
+  } catch {
+    // Server settings stay canonical when private browsing blocks local storage.
+  }
+}
+
+export function runtimeAppearanceFromCache(value: string | null): RuntimeSettings | null {
+  if (!value) return null;
+  try {
+    return parseRuntimeSettings(JSON.parse(value));
+  } catch {
+    return null;
+  }
+}
+
+/** Paint a staged Appearance draft without publishing it as the saved row. */
+export function previewRuntimeAppearance(
+  settings: RuntimeSettings,
+  target: Pick<CSSStyleDeclaration, 'setProperty'> | null = typeof document === 'undefined'
+    ? null
+    : document.documentElement.style
+): void {
+  paintRuntimeStyles(settings, target);
 }
 
 /**
@@ -59,6 +108,7 @@ export function adoptRuntimeEntityStyles(
     : document.documentElement.style
 ): void {
   paintRuntimeStyles(settings, target);
+  cacheRuntimeAppearance(settings);
   rememberLiveRuntimeSettings(settings);
 }
 
@@ -72,10 +122,22 @@ export function useRuntimeEntityStyles(): void {
       paintRuntimeStyles(settings, typeof document === 'undefined' ? null : document.documentElement.style);
     };
     const stop = subscribeLiveRuntimeSettings(paint);
-    void loadLiveRuntimeSettings().then(paint);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== RUNTIME_APPEARANCE_CACHE_KEY) return;
+      const settings = runtimeAppearanceFromCache(event.newValue);
+      if (!settings) return;
+      paintRuntimeStyles(settings, typeof document === 'undefined' ? null : document.documentElement.style);
+      rememberLiveRuntimeSettings(settings);
+    };
+    window.addEventListener('storage', onStorage);
+    void loadLiveRuntimeSettings().then((settings) => {
+      if (settings) cacheRuntimeAppearance(settings);
+      paint();
+    });
     return () => {
       live = false;
       stop();
+      window.removeEventListener('storage', onStorage);
     };
   }, []);
 }

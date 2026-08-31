@@ -34,7 +34,12 @@ const HOME_PAGE = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8')
 const ME = 'first.last@example.com';
 const QUESTION = 'Compare active players by title over the last 30 days.';
 
-function stored(id: string, title: string, email: string | undefined, updatedAt = '2026-08-16T01:00:00.000Z'): Conversation {
+function stored(
+  id: string,
+  title: string,
+  email: string | undefined,
+  updatedAt = '2026-08-16T01:00:00.000Z'
+): Conversation {
   return { id, title, updated_at: updatedAt, user_email: email };
 }
 
@@ -126,9 +131,7 @@ describe('a conversation is named by the question, the moment it is asked', () =
 
 describe('the rename happens where the question is sent, not where the reply is read', () => {
   /** `ask()` from its signature to the `catch` that reports a failed run. */
-  const askBody = HOME_PAGE.slice(HOME_PAGE.indexOf('async function ask('),
-    HOME_PAGE.indexOf('} catch (askError) {')
-  );
+  const askBody = HOME_PAGE.slice(HOME_PAGE.indexOf('async function ask('), HOME_PAGE.indexOf('} catch (askError) {'));
 
   it('claims the title before the request goes out', () => {
     // The failure this guards is a 40-second run with a rail beside it still
@@ -161,7 +164,8 @@ describe('who a rail row belongs to is decided once, for the count and the water
     // The reported defect. The optimistic row carried no address, so it drew
     // without a watermark AND was missing from the tally: one person's five
     // questions read as "All 5 · You 3".
-    const rail = railOwnership([
+    const rail = railOwnership(
+      [
         claimConversationTitle([], {
           id: 'conv-live',
           prompt: QUESTION,
@@ -181,7 +185,8 @@ describe('who a rail row belongs to is decided once, for the count and the water
     // The two derivations in one assertion, which is the only way this stays
     // fixed: a row drawn with initials that no chip counted is exactly what the
     // reader saw, and it is invisible from either side on its own.
-    const rail = railOwnership([
+    const rail = railOwnership(
+      [
         stored('conv-a', 'One', ME),
         stored('conv-b', 'Two', 'colleague@example.com'),
         stored('conv-c', 'Three', ME),
@@ -203,11 +208,33 @@ describe('who a rail row belongs to is decided once, for the count and the water
     // spelling -- but the comparison used to be `===` against the signed-in
     // string, so a proxy that changed one letter's case would have split the
     // reader into two people, one of whom was "not you".
-    const rail = railOwnership([stored('conv-a', 'One', 'First.Last@Example.com'), stored('conv-b', 'Two', ME)],
-      ME
-    );
+    const rail = railOwnership([stored('conv-a', 'One', 'First.Last@Example.com'), stored('conv-b', 'Two', ME)], ME);
     expect(rail.owners).toHaveLength(1);
     expect(rail.owners[0]).toMatchObject({ count: 2, you: true });
+  });
+
+  it('keeps You first, then orders others by count and deterministic address', () => {
+    const rail = railOwnership(
+      [
+        stored('a-1', 'A1', 'zara@example.com'),
+        stored('a-2', 'A2', 'zara@example.com'),
+        stored('b-1', 'B1', 'amy@example.com'),
+        stored('b-2', 'B2', 'amy@example.com'),
+        stored('mine', 'Mine', ME),
+      ],
+      ME
+    );
+    expect(rail.owners.map(({ email, count }) => [email, count])).toEqual([
+      [ME, 1],
+      ['amy@example.com', 2],
+      ['zara@example.com', 2],
+    ]);
+  });
+
+  it('offers You with an accurate zero before an admin has any conversations', () => {
+    const rail = railOwnership([stored('other', 'Other', 'colleague@example.com')], ME);
+    expect(rail.owners[0]).toMatchObject({ email: ME, count: 0, you: true });
+    expect(rail.owners[1]).toMatchObject({ email: 'colleague@example.com', count: 1, you: false });
   });
 
   it('claims nothing for a row it cannot attribute', () => {
@@ -268,7 +295,8 @@ describe('the rail draws one answer to "whose is this", not two', () => {
   it('watermarks the row from the entry the counts were taken off', () => {
     // Reading `conversation.user_email` again inside the row is how the rail and
     // its chips came to disagree in the first place.
-    expect(HOME_PAGE).toMatch(/visibleEntries\.map\(\(\{ conversation, owner \}\)/);
+    expect(HOME_PAGE).toMatch(/visibleEntries\.map\(\(\{ conversation, owner, you \}\)/);
+    expect(HOME_PAGE).toContain('{adminSharedRail && owner && (');
     expect(HOME_PAGE).toContain('<UserIdentityChip identity={owner} label="Asked by"');
     expect(HOME_PAGE).not.toMatch(/\{conversation\.user_email && \(/);
   });
@@ -278,12 +306,12 @@ describe('the rail draws one answer to "whose is this", not two', () => {
     // from counting one list and drawing another. The reported one is worse:
     // the rail collapsed same-titled conversations before counting, so All said
     // 3 where the store held 6 and the Run Explorer listed 6.
-    expect(HOME_PAGE).toMatch(/className="conversation-filter-count">\{rail\.entries\.length\}/);
+    expect(HOME_PAGE).toMatch(/total=\{rail\.entries\.length\}/);
     expect(HOME_PAGE).toMatch(/railOwnership\(conversations, identity\.signedInAs\)/);
   });
 
   it('filters on the normalised key, so a selection survives a change of case', () => {
-    expect(HOME_PAGE).toMatch(/toggleOwnerFilter\(key\)/);
-    expect(HOME_PAGE).toMatch(/activeOwnerFilters\.includes\(key\)/);
+    expect(HOME_PAGE).toContain('normalizeOwnerSelection(current, available)');
+    expect(HOME_PAGE).toMatch(/selected=\{activeOwnerFilters\}/);
   });
 });

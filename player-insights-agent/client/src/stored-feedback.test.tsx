@@ -137,7 +137,9 @@ describe('what the reader is shown for a rating that was saved', () => {
 
     // The pressed state is on the control, not only in a colour: two blank thumbs
     // and a green tick beside them is what a reader reads as "it did not stick".
-    expect(markup).toMatch(/aria-label="Thumbs up"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*aria-label="Thumbs up"/);
+    expect(markup).toMatch(
+      /aria-label="Thumbs up"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*aria-label="Thumbs up"/
+    );
     expect(markup).toContain('feedback-chosen');
     expect(cardText({ ...EMPTY_FEEDBACK, saved: true, usefulness: 5 })).toContain('Feedback saved');
   });
@@ -145,7 +147,9 @@ describe('what the reader is shown for a rating that was saved', () => {
   it('marks the other thumb for a rating that went the other way', () => {
     const markup = cardMarkup({ ...EMPTY_FEEDBACK, saved: true, usefulness: 2 });
 
-    expect(markup).toMatch(/aria-label="Thumbs down"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*aria-label="Thumbs down"/);
+    expect(markup).toMatch(
+      /aria-label="Thumbs down"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*aria-label="Thumbs down"/
+    );
   });
 
   it('says nothing was saved when nothing was', () => {
@@ -195,7 +199,7 @@ describe('the two places the rating had to travel through', () => {
 
   it('passes the caller on both branches of that query, shared rail included', () => {
     const query = ROUTES.slice(ROUTES.indexOf('function conversationMessagesQuery'));
-    const branches = query.slice(query.indexOf('return sharedRail.shared'), query.indexOf('\n}'));
+    const branches = query.slice(query.indexOf('return readsShared'), query.indexOf('\n}'));
     // Two `params` arrays, and the shared one used to carry the conversation id
     // alone. A rating is one reader's opinion and is not shared with the thread.
     expect(branches.match(/params: \[conversationId, email\]/g)?.length).toBe(2);

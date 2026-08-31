@@ -1,5 +1,6 @@
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { readFileSync } from 'node:fs';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -10,12 +11,13 @@ import {
   type InsightsAppKit,
 } from './insights-routes';
 import { resetLakebaseHealth } from '../lib/lakebase-store';
+import { announceSeedAdmins } from '../lib/admin-roles';
 
 /**
  * The switch that decides whether the rail is one person's or everyone's.
  */
 
-function recordingStore() {
+function recordingStore(role?: 'admin' | 'super_admin') {
   const queries: { sql: string; params: unknown[] }[] = [];
   return {
     queries,
@@ -27,6 +29,13 @@ function recordingStore() {
     lakebase: {
       query(sql: string, params: unknown[] = []) {
         queries.push({ sql, params });
+        if (/SELECT email, role, added_by, added_at FROM player_insights\.admin_emails/i.test(sql)) {
+          return Promise.resolve({
+            rows: role
+              ? [{ email: 'alice@example.example', role, added_by: 'operator@example.example', added_at: new Date(0) }]
+              : [],
+          });
+        }
         return Promise.resolve({ rows: [] as Record<string, unknown>[] });
       },
     },
@@ -68,6 +77,7 @@ async function startApp(lakebase: InsightsAppKit['lakebase']) {
 }
 
 const asAlice = { 'x-forwarded-email': 'alice@example.example' };
+const ROUTE_SOURCE = readFileSync(new URL('insights-routes.ts', import.meta.url), 'utf8');
 
 let previous: string | undefined;
 let nodeEnv: string | undefined;
@@ -75,6 +85,7 @@ let logs: string[];
 
 beforeEach(() => {
   resetLakebaseHealth();
+  announceSeedAdmins('');
   previous = process.env[SHARED_CONVERSATION_RAIL_ENV];
   nodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = 'production';
@@ -86,6 +97,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  announceSeedAdmins('');
   if (previous === undefined) delete process.env[SHARED_CONVERSATION_RAIL_ENV];
   else process.env[SHARED_CONVERSATION_RAIL_ENV] = previous;
   if (nodeEnv === undefined) delete process.env.NODE_ENV;
@@ -122,6 +134,38 @@ describe('resolving the flag', () => {
       expect(resolved.reason).toBe('unrecognised');
     }
   );
+});
+
+describe('source security invariants', () => {
+  it('derives shared reads from both the operator switch and the authoritative role', () => {
+    const guard = ROUTE_SOURCE.slice(
+      ROUTE_SOURCE.indexOf('async function callerReadsSharedConversations'),
+      ROUTE_SOURCE.indexOf('/**\n * The only thing `POST /api/insights/ask`')
+    );
+    expect(guard).toContain('if (!sharedRail.shared) return false');
+    expect(guard).toContain('resolveRole(store, email)');
+    expect(guard).toContain('opensAdminSurfaces(role)');
+  });
+
+  it('guards every conversation-bound read while leaving owner-only writes narrow', () => {
+    for (const route of [
+      "app.get('/api/conversations'",
+      "app.get('/api/conversations/:id/messages'",
+      "app.get('/api/conversations/:id/run'",
+      "app.get('/api/conversations/:id/attachments'",
+      "app.post('/api/feedback'",
+    ]) {
+      const start = ROUTE_SOURCE.indexOf(route);
+      expect(start, route).toBeGreaterThan(-1);
+      expect(ROUTE_SOURCE.slice(start, start + 700), route).toContain('callerReadsSharedConversations');
+    }
+    const upload = ROUTE_SOURCE.slice(
+      ROUTE_SOURCE.indexOf("app.post(\n      '/api/conversations/:id/attachments',"),
+      ROUTE_SOURCE.indexOf("app.delete('/api/conversations/:conversationId/attachments/:attachmentId'")
+    );
+    expect(upload).not.toContain('callerReadsSharedConversations');
+    expect(upload).toContain('ownerEmail !== userEmail(req)');
+  });
 });
 
 describe('what the rail reads', () => {
@@ -169,14 +213,20 @@ describe('what the rail reads', () => {
     expect(read.params).toEqual(['alice@example.example']);
   });
 
-  it('lists everyone once the flag is exactly true', async () => {
+  it('keeps a consumer self-only when the flag is exactly true', async () => {
     process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
     const store = recordingStore();
     const app = await startApp(store.lakebase);
     store.queries.length = 0;
 
     try {
-      expect((await app.fetch('/api/conversations', { headers: asAlice })).status).toBe(200);
+      expect(
+        (
+          await app.fetch('/api/conversations?owners=bob%40example.example&owners=alice%40example.example', {
+            headers: asAlice,
+          })
+        ).status
+      ).toBe(200);
     } finally {
       await app.close();
     }
@@ -186,12 +236,12 @@ describe('what the rail reads', () => {
     // rather than on the absence of any WHERE at all, because the status badge
     // is derived by a lateral join whose own WHERE selects a conversation's
     // latest answered turn -- see the note on the scoped case above.
-    expect(read.sql).not.toContain('c.user_email = $1');
+    expect(read.sql).toContain('c.user_email = $1');
     expect(read.sql).toContain(`LIMIT ${CONVERSATION_RAIL_LIMIT}`);
-    expect(read.params).toEqual([]);
+    expect(read.params).toEqual(['alice@example.example']);
   });
 
-  it('opens a shared conversation, because a rail that lists one it cannot open is not a feature', async () => {
+  it('keeps a consumer message read self-only when the flag is exactly true', async () => {
     process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
     const store = recordingStore();
     const app = await startApp(store.lakebase);
@@ -205,13 +255,55 @@ describe('what the rail reads', () => {
 
     const [read] = store.reads();
     expect(read.sql).toContain('WHERE m.conversation_id = $1');
-    expect(read.sql).not.toContain('c.user_email = $2');
+    expect(read.sql).toContain('c.user_email = $2');
     // The caller is still passed, and not as a tenancy predicate: the projection
     // reads back this reader's own rating of each answer, which is why the rating
     // a reader gave survives reopening the conversation. The rail shares whose
     // question and whose answer; it does not share whose opinion of it.
     expect(read.params).toEqual(['conv-bob', 'alice@example.example']);
     expect(read.sql).toContain('f.user_email = $2');
+  });
+
+  it.each(['admin', 'super_admin'] as const)('lets a %s list and open shared conversations', async (role) => {
+    process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
+    const store = recordingStore(role);
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+
+    try {
+      await app.fetch('/api/conversations?owners=bob%40example.example', { headers: asAlice });
+      await app.fetch('/api/conversations/conv-bob/messages', { headers: asAlice });
+    } finally {
+      await app.close();
+    }
+
+    const [list, messages] = store.reads();
+    expect(list.sql).not.toContain('c.user_email = $1');
+    expect(list.params).toEqual([]);
+    expect(messages.sql).not.toContain('AND c.user_email = $2');
+    expect(messages.params).toEqual(['conv-bob', 'alice@example.example']);
+  });
+
+  it('fails closed when the authoritative role store cannot be read', async () => {
+    process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
+    const base = recordingStore();
+    const app = await startApp({
+      query(sql: string, params: unknown[] = []) {
+        if (/FROM player_insights\.admin_emails/i.test(sql)) {
+          return Promise.reject(new Error('role store unavailable'));
+        }
+        return base.lakebase.query(sql, params);
+      },
+    });
+    base.queries.length = 0;
+    try {
+      expect((await app.fetch('/api/conversations?owners=bob%40example.example', { headers: asAlice })).status).toBe(200);
+    } finally {
+      await app.close();
+    }
+    const [read] = base.reads();
+    expect(read.sql).toContain('WHERE c.user_email = $1');
+    expect(read.params).toEqual(['alice@example.example']);
   });
 });
 
@@ -257,8 +349,59 @@ describe('what the flag deliberately does not widen', () => {
     }
 
     const read = store.queries.find((entry) => /FROM player_insights\.attachments/i.test(entry.sql));
-    expect(read?.sql).toContain('user_email = $2');
-    expect(read?.params).toEqual(['conv-bob', 'alice@example.example']);
+    expect(read?.sql).toContain('c.user_email = $2');
+    expect(read?.params).toEqual(['conv-bob', 'alice@example.example', false]);
+  });
+
+  it('keeps guessed run ids self-only for a consumer', async () => {
+    const store = recordingStore();
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+    try {
+      await app.fetch('/api/conversations/conv-bob/run', { headers: asAlice });
+    } finally {
+      await app.close();
+    }
+    const read = store.queries.find((entry) => /FROM player_insights\.runs/i.test(entry.sql));
+    expect(read?.sql).toContain('($3 OR user_email = $2)');
+    expect(read?.params).toEqual(['conv-bob', 'alice@example.example', false]);
+  });
+
+  it('lets an admin poll and read attachments for a shared conversation', async () => {
+    const store = recordingStore('admin');
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+    try {
+      await app.fetch('/api/conversations/conv-bob/run', { headers: asAlice });
+      await app.fetch('/api/conversations/conv-bob/attachments', { headers: asAlice });
+    } finally {
+      await app.close();
+    }
+    const run = store.queries.find((entry) => /FROM player_insights\.runs/i.test(entry.sql));
+    const attachments = store.queries.find((entry) => /FROM player_insights\.attachments/i.test(entry.sql));
+    expect(run?.params).toEqual(['conv-bob', 'alice@example.example', true]);
+    expect(attachments?.params).toEqual(['conv-bob', 'alice@example.example', true]);
+  });
+
+  it('will not record feedback against a guessed message id for a consumer', async () => {
+    const store = recordingStore();
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+    try {
+      const response = await app.fetch('/api/feedback', {
+        method: 'POST',
+        headers: { ...asAlice, 'content-type': 'application/json' },
+        body: JSON.stringify({ messageId: 'msg-bob', usefulness: 5 }),
+      });
+      expect(response.status).toBe(404);
+    } finally {
+      await app.close();
+    }
+    const write = store.queries.find((entry) => /INSERT INTO player_insights\.feedback/i.test(entry.sql));
+    expect(write?.sql).toContain('JOIN player_insights.conversations c');
+    expect(write?.sql).toContain('($7 OR c.user_email = $3)');
+    expect(write?.params[2]).toBe('alice@example.example');
+    expect(write?.params[6]).toBe(false);
   });
 });
 
@@ -283,10 +426,23 @@ describe('what the app says about itself at boot', () => {
     expect(line).toContain('IGNORED');
   });
 
-  it('reports the scope on /api/identity, so the page can say it too', async () => {
+  it('reports the effective consumer scope on /api/identity', async () => {
     process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
     const app = await startApp(recordingStore().lakebase);
 
+    try {
+      const payload = (await (await app.fetch('/api/identity', { headers: asAlice })).json()) as {
+        sharedConversationRail: boolean;
+      };
+      expect(payload.sharedConversationRail).toBe(false);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it.each(['admin', 'super_admin'] as const)('reports shared scope to a %s', async (role) => {
+    process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
+    const app = await startApp(recordingStore(role).lakebase);
     try {
       const payload = (await (await app.fetch('/api/identity', { headers: asAlice })).json()) as {
         sharedConversationRail: boolean;

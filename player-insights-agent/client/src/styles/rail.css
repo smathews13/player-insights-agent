@@ -864,133 +864,142 @@
   border-color: var(--db-line-strong);
 }
 
-/* The scope note beside "RECENT", when the rail is carrying more than the signed-in
-   user. Neutral and not uppercase, so it reads as a qualifier on the eyebrow rather
-   than as a second eyebrow competing with it. 5.02:1 on the rail. */
-.section-label-scope {
-  color: var(--db-slate);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: none;
-}
-
-/* Only ever rendered when the rail holds more than one person, which today means a
-   deployment that has deliberately turned sharing on. It sits between the eyebrow and
-   the first row, so it has to be quieter than both: no border, no fill, and the same
-   neutral as the watermark it filters by. */
-/* The rail's people filter.
- *
- * Wraps rather than scrolling sideways, and is capped at three rows so a
- * deployment with twenty askers cannot push the conversations this control
- * exists to filter below the fold. Past the cap it scrolls within itself, which
- * costs the rail a fixed amount of height whatever the number of people.
- *
- * Three rows EXACTLY, and the number is derived rather than estimated. A chip
- * below measures 26px: 3px of padding twice, a 1px border twice, and an 18px
- * line box from 12px type at 1.5. Three of them plus the two 4px row gaps is 86.
- *
- * It was 84 under a comment saying "roughly three rows", and roughly was two
- * pixels short: every rail carrying enough people to wrap showed a permanent
- * scrollbar and a two-pixel sliver of a fourth row under the third. If the chip's
- * padding, border or type size moves, this number moves with it. */
-.conversation-filter {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
+/* Admin-only owner picker. It stays one row wide no matter how many people the
+   rail contains; the options overlay the conversation cards instead of pushing
+   them below the fold. */
+.conversation-owner-select {
+  position: relative;
+  width: 100%;
+  min-width: 0;
   margin: 0 0 8px;
-  max-height: 86px;
-  overflow-y: auto;
-  color: var(--db-slate);
 }
 
-.conversation-filter-chip {
-  display: inline-flex;
+.conversation-owner-trigger {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  /* Unpressed is the outline treatment the handoff gives every chip: the strong
-     rung, because a hairline does not describe the edge of something you press. */
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px 0 11px;
   border: 1px solid var(--db-line-strong);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--db-slate);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
   font-size: 12px;
-  /* 500 in both states, deliberately. The handoff gives the pressed chip 500 and
-     says nothing about the unpressed one, and this was 500 going to 600: a weight
-     change is a width change, so pressing a chip re-measured its own text and
-     nudged every chip after it along the wrapped row. Fixed geometry between states
-     is a spec rule (§5.5) and weight is part of the geometry. */
-  font-weight: 500;
-  line-height: 1.5;
+  font-weight: 600;
   cursor: pointer;
-  /* Only the colours move on toggle. Nothing that changes the chip's size, so
-     pressing one cannot reflow the row under the pointer and put a different
-     chip where the last click landed. */
-  transition:
-    background-color 0.12s ease,
-    border-color 0.12s ease,
-    color 0.12s ease;
 }
 
-/* The wash every outline control gets under the pointer. */
-.conversation-filter-chip:hover {
+.conversation-owner-trigger:hover,
+.conversation-owner-trigger[aria-expanded='true'] {
+  border-color: var(--db-blue-600);
   background: var(--db-hover-tint);
 }
 
-/*
- * The pressed state: the neutral chip fill, which is what the handoff and the
- * mockup both give it.
- *
- * It was the action colour, white on #2272B4, on the argument that pressed is an
- * active state and blue owns those. Two things wrong with that here. The rail
- * already spends blue on the selected conversation's left rule, and a row of solid
- * blue chips above it competes with the one blue mark that says which conversation
- * you are reading. And the chips are a filter, not a destination: what they report
- * is which subset is on screen, which is the same class of statement as the
- * segmented control's active segment, and that is the neutral fill everywhere else
- * in the app.
- *
- * The border stays 1px and goes to the fill colour rather than to none, so the box
- * does not change size when it lights up. #11171C on #E8ECF0 is 14.6:1.
- */
-.conversation-filter-chip[aria-pressed='true'] {
-  border-color: var(--db-chip);
-  background: var(--db-chip);
-  color: var(--db-ink-deep);
-}
-
-.conversation-filter-chip:focus-visible {
+.conversation-owner-trigger:focus-visible,
+.conversation-owner-option:focus-visible {
   outline: 2px solid var(--db-blue-600);
   outline-offset: 1px;
 }
 
-.conversation-filter-chip:not(.is-all) {
-  padding: 0;
+.conversation-owner-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-owner-trigger svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.conversation-owner-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  min-width: 0;
+  max-height: min(280px, 50vh);
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--db-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.conversation-owner-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 7px;
   border: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
 }
-.conversation-filter-chip:not(.is-all):hover {
-  background: transparent;
+
+.conversation-owner-option:hover,
+.conversation-owner-option:focus-visible {
+  background: var(--db-hover-tint);
 }
-.conversation-filter-chip:not(.is-all)[aria-pressed='true'] {
-  background: transparent;
-}
-.conversation-filter-chip:not(.is-all)[aria-pressed='true'] > .identity-chip {
-  border-color: var(--db-chip);
+
+.conversation-owner-option[aria-selected='true'] {
   background: var(--db-chip);
-  color: var(--db-ink-deep);
+  color: var(--foreground);
 }
 
-/* Tabular so a chip does not change width between 9 and 10, which would
-   reflow the whole wrapped block on a refetch. */
-.conversation-filter-count {
-  font-variant-numeric: tabular-nums;
+.conversation-owner-check {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--db-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: transparent;
+}
+
+.conversation-owner-check svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.5;
+}
+
+.conversation-owner-option[aria-selected='true'] .conversation-owner-check {
+  border-color: var(--db-blue-600);
+  background: var(--db-blue-600);
+  color: #fff;
+}
+
+.conversation-owner-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-owner-option-detail {
   color: var(--muted-foreground);
+  font-weight: 400;
 }
 
-.conversation-filter-chip[aria-pressed='true'] .conversation-filter-count {
-  color: inherit;
+.conversation-owner-option-count {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Destructive, so it stays out of the way until the row is under the pointer or the

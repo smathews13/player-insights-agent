@@ -1,0 +1,212 @@
+/*
+ * Root-level Appearance preferences. These selectors are intentionally last in
+ * the cascade: a saved user choice must beat each surface's normal recipe.
+ */
+:root {
+  --density-card-gap: 12px;
+  --density-row-padding: 10px;
+  --density-table-padding: 8px;
+  --density-settings-gap: 16px;
+}
+
+html[data-density='compact'] {
+  --density-card-gap: 8px;
+  --density-row-padding: 6px;
+  --density-table-padding: 5px;
+  --density-settings-gap: 10px;
+}
+
+html[data-background-graphics='off'] .app-sky {
+  display: none !important;
+}
+
+.appearance-typography-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 20px;
+}
+
+.appearance-size,
+.appearance-density {
+  display: flex;
+  gap: 6px;
+}
+
+.appearance-size button,
+.appearance-density button {
+  min-width: 36px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font: 500 var(--text-sm) var(--font-sans);
+  cursor: pointer;
+}
+
+.appearance-size button[aria-checked='true'],
+.appearance-density button[aria-checked='true'] {
+  border-color: var(--ast-primary-control-border);
+  background: var(--ast-seg-pressed);
+  color: var(--ast-seg-pressed-ink);
+}
+
+.appearance-interface-rows {
+  display: grid;
+}
+
+.appearance-interface-row {
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.appearance-interface-row + .appearance-interface-row {
+  border-top: 1px solid var(--border);
+}
+
+.appearance-interface-row > :first-child {
+  min-width: 0;
+}
+
+.appearance-interface-row .state-switch,
+.appearance-interface-row .appearance-density {
+  flex: none;
+}
+
+html[data-density='compact'] .settings-pane {
+  gap: var(--density-settings-gap);
+}
+
+html[data-density='compact'] .runtime-section {
+  gap: 8px;
+  padding-bottom: 10px;
+}
+
+html[data-density='compact'] .settings-pane > .settings-row + .settings-row {
+  padding-top: 8px;
+}
+
+html[data-density='compact'] .appearance-interface-row {
+  min-height: 40px;
+  padding-block: 5px;
+}
+
+html[data-density='compact'] .settings-data-table th,
+html[data-density='compact'] .settings-data-table td,
+html[data-density='compact'] .exp-feature-table th,
+html[data-density='compact'] .exp-feature-table td,
+html[data-density='compact'] .environment-list th,
+html[data-density='compact'] .environment-list td,
+html[data-density='compact'] .monitoring-row td,
+html[data-density='compact'] .trace-gantt td,
+html[data-density='compact'] .dag-result-table th,
+html[data-density='compact'] .dag-result-table td {
+  padding-block: var(--density-table-padding);
+}
+
+html[data-density='compact'] .conversation-row,
+html[data-density='compact'] .run-item {
+  gap: 4px;
+  padding: var(--density-row-padding);
+}
+
+html[data-density='compact'] .conversation-row + .conversation-row {
+  margin-top: 4px;
+}
+
+html[data-density='compact'] .connection-row-summary,
+html[data-density='compact'] .connection-block-summary {
+  min-height: 40px;
+  padding-block: var(--density-row-padding);
+}
+
+html[data-density='compact'] .summary-grid,
+html[data-density='compact'] .deployment-cards,
+html[data-density='compact'] .monitoring-panel-grid {
+  gap: var(--density-card-gap);
+}
+
+html[data-density='compact'] .summary-grid [data-slot='card-content'] {
+  padding: 10px 12px;
+}
+
+/*
+ * User Off and operating-system reduced motion are independent safeguards.
+ * Existing media queries keep handling the OS preference; these rules provide
+ * the equivalent resting states when the explicit setting is Off.
+ */
+html[data-animations='off'] * {
+  transition-duration: 0ms !important;
+  scroll-behavior: auto !important;
+}
+
+html[data-animations='off'] .app-sky[data-star-motion-field] * {
+  animation: none !important;
+  transform: none;
+}
+
+html[data-animations='off'] .app-sky[data-star-motion-field] [data-star-motion='anchor'] {
+  opacity: 0.7;
+}
+
+html[data-animations='off'] .app-sky[data-star-motion-field] .star-motion-faint {
+  opacity: 0.32;
+}
+
+html[data-animations='off'] .app-sky[data-star-motion-field] .star-motion-draw {
+  stroke-dashoffset: 0;
+  opacity: 0.45;
+}
+
+html[data-animations='off'] .run-status.is-alive .run-status-dot {
+  animation: none;
+}
+
+html[data-animations='off'] .arch-canvas * {
+  animation: none !important;
+}
+
+html[data-animations='off'] .arch-edge {
+  stroke-dasharray: none;
+}
+
+html[data-animations='off'] [class*='ast-anim-'] {
+  animation: none !important;
+}
+
+html[data-animations='off'] .ast-anim-draw {
+  stroke-dashoffset: 0;
+  opacity: 1;
+}
+
+html[data-animations='off'] .ast-anim-pop,
+html[data-animations='off'] .ast-anim-hold,
+html[data-animations='off'] .ast-anim-gate-in,
+html[data-animations='off'] .ast-anim-star-pulse,
+html[data-animations='off'] .ast-anim-center-pulse {
+  opacity: 1;
+  transform: none;
+}
+
+html[data-animations='off'] .ast-anim-dot-run,
+html[data-animations='off'] .ast-anim-dot-run-sm {
+  opacity: 1;
+  transform: none;
+}
+
+html[data-animations='off'] .ast-flick-slot > * {
+  opacity: 0;
+}
+
+html[data-animations='off'] .ast-flick-slot > [data-ast-rest] {
+  opacity: 1;
+  transform: none;
+}

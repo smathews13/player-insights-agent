@@ -9,10 +9,10 @@
  * because hiding an entry point and breaking a URL are different decisions and
  * only the first one was asked for.
  *
- * BEING AN ADMIN GRANTS NO DATA. Every question runs under the asker's own Unity
- * Catalog grants, admin or not, and nothing here changes that. If you are
- * reading this file because an admin needs to see a table a consumer cannot,
- * that is a Unity Catalog grant and not a line of code.
+ * BEING AN ADMIN GRANTS NO UNITY CATALOG DATA. Every question runs under the
+ * asker's own grants, admin or not, and nothing here changes that. The server
+ * may separately let an admin review stored app conversations when the
+ * deployment's shared rail is on; that never widens what a question can query.
  *
  * All the wording and all four badge states are decided here rather than in the
  * components, so they can be tested without a browser. RoleBadge.tsx and

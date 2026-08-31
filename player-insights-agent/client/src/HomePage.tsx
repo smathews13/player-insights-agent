@@ -18,6 +18,7 @@ import { unavailableNotice, unavailableNoticeFor, type UnavailableNotice } from 
 import { submitsOnEnter } from './submit-on-enter';
 import { PASSWORD_MANAGER_OPT_OUT } from './password-manager-optout';
 import { UserIdentityChip } from './UserIdentityChip';
+import { ConversationOwnerSelect } from './ConversationOwnerSelect';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import {
   claimConversationTitle,
@@ -26,6 +27,12 @@ import {
   signedInOwner,
   unaskedConversation,
 } from './conversation-rail';
+import {
+  clearOwnerSelectionPreference,
+  normalizeOwnerSelection,
+  readOwnerSelectionPreference,
+  rememberOwnerSelectionPreference,
+} from './conversation-owner-selection';
 import { subscribeAskHome } from './ask-home-control';
 import {
   clearSelectedConversation,
@@ -415,11 +422,7 @@ export function HomePage() {
    * is hidden and its trigger is the rail.
    */
   const [railSheetOpen, setRailSheetOpen] = useState(false);
-  const toggleOwnerFilter = useCallback((email: string) => {
-    setOwnerFilters((current) =>
-      current.includes(email) ? current.filter((entry) => entry !== email) : [...current, email]
-    );
-  }, []);
+  const ownerPreferenceLoadedFor = useRef('');
   /**
    * The URL wins for deep links and Back/Forward. When Ask is mounted without
    * one after visiting another top-level tab, the browser-session selection
@@ -1668,6 +1671,38 @@ export function HomePage() {
    * which reads as a colleague having quietly used their rail.
    */
   const rail = useMemo(() => railOwnership(conversations, identity.signedInAs), [conversations, identity.signedInAs]);
+  const adminSharedRail =
+    identity.sharedConversationRail === true && (identity.role === 'admin' || identity.role === 'super_admin');
+
+  useEffect(() => {
+    if (identity.role === 'consumer') {
+      ownerPreferenceLoadedFor.current = '';
+      setOwnerFilters([]);
+      clearOwnerSelectionPreference();
+      return;
+    }
+    if (identity.role !== 'admin' && identity.role !== 'super_admin') return;
+    if (!adminSharedRail) {
+      setOwnerFilters([]);
+      return;
+    }
+    if (conversationLoading) return;
+
+    const available = rail.owners.map((owner) => owner.key);
+    if (ownerPreferenceLoadedFor.current !== identity.signedInAs) {
+      ownerPreferenceLoadedFor.current = identity.signedInAs;
+      setOwnerFilters(readOwnerSelectionPreference(available));
+      return;
+    }
+    setOwnerFilters((current) => {
+      const normalized = normalizeOwnerSelection(current, available);
+      if (normalized.length !== current.length || normalized.some((value, index) => value !== current[index])) {
+        rememberOwnerSelectionPreference(normalized);
+        return normalized;
+      }
+      return current;
+    });
+  }, [adminSharedRail, conversationLoading, identity.role, identity.signedInAs, rail.owners]);
 
   /**
    * The selection, narrowed to people the rail is actually showing.
@@ -1717,12 +1752,7 @@ export function HomePage() {
   const visibleEntries = useMemo(() => {
     if (activeOwnerFilters.length === 0) return rail.entries;
     const selected = new Set(activeOwnerFilters);
-    const matching = rail.entries.filter((entry) => entry.ownerKey !== null && selected.has(entry.ownerKey));
-    // Belt and braces. `activeOwnerFilters` only holds people counted off these
-    // same conversations, so each of them has at least one and this cannot fire
-    // today, but an empty rail caused by a filter is the failure worth two
-    // lines of insurance, because it reads as data loss rather than as a filter.
-    return matching.length > 0 ? matching : rail.entries;
+    return rail.entries.filter((entry) => entry.ownerKey !== null && selected.has(entry.ownerKey));
   }, [rail, activeOwnerFilters]);
 
   /*
@@ -1754,83 +1784,18 @@ export function HomePage() {
         <Plus /> New conversation
       </Button>
       <div>
-        <p className="section-label">
-          Conversations
-          {identity.sharedConversationRail && ( // A rail carrying other people's conversations says so on the
-            // page. The scope is a deployment setting, so without this the
-            // only way to know which one is running is to read the app's
-            // startup log, and a widened scope nobody can see is the kind
-            // that surprises somebody later.
-            <span className="section-label-scope" title="This deployment shows everyone's conversations">
-              {' '}
-              · all users
-            </span>
-          )}
-        </p>
-        {rail.owners.length > 0 && ( // Whenever the rail names anybody at all, one person included. Who
-          // asked is worth showing on a rail of one as well: it is the answer
-          // to "is this everything, or only mine", and a filter that appears
-          // the moment a second person arrives is a control nobody knew was
-          // there. Still derived from the rows on screen rather than from the
-          // flag or a lookup, so it cannot name somebody the rail is not
-          // showing, and `> 0` rather than unconditional because with no
-          // identified owner there are no chips and the group is furniture.
-          // Toggles rather than a dropdown, because the question a shared
-          // rail gets asked is "these two people", and a single select can
-          // only ask it one person at a time. Chips rather than a column of
-          // checkboxes for the same reason the row shows initials rather than
-          // an address: this is a 240px rail, and a list of nine names would
-          // push the conversations it is meant to be filtering off the screen.
-          <div
-            className="conversation-filter"
-            role="group"
-            // Names the group so the toggles inside it are read as a filter
-            // rather than as nine unexplained buttons.
-            aria-label="Show conversations from"
-          >
-            {/* "Everyone" IS the empty selection rather than a fourth state
-                  layered over it, so there is one thing to reason about and no
-                  way to reach a rail that is filtered to nobody. It is still a
-                  button, because "unselect the ones you selected" is a worse
-                  way to ask for everyone than pressing everyone. */}
-            <button
-              type="button"
-              className="conversation-filter-chip is-all"
-              aria-pressed={activeOwnerFilters.length === 0}
-              onClick={() => setOwnerFilters([])}
-            >
-              All <span className="conversation-filter-count">{rail.entries.length}</span>
-            </button>
-            {rail.owners.map(({ key, email, count, you }) => {
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  className="conversation-filter-chip"
-                  aria-pressed={activeOwnerFilters.includes(key)}
-                  // The address, not the initials: two letters read aloud are
-                  // not an answer to "whose". Distinct from every conversation
-                  // title too, so it cannot shadow one the way the delete
-                  // control once did.
-                  aria-label={`${you ? 'You' : email} (${count})`}
-                  title={`${email} \u00b7 ${count} conversation${count === 1 ? '' : 's'}`}
-                  onClick={() => toggleOwnerFilter(key)}
-                >
-                  <UserIdentityChip
-                    identity={email}
-                    label={you ? 'You' : undefined}
-                    compact
-                    suffix={
-                      <span className="identity-chip-suffix" aria-hidden="true">
-                        {count}
-                      </span>
-                    }
-                  />
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <p className="section-label">Conversations</p>
+        {adminSharedRail && rail.owners.length > 0 ? (
+          <ConversationOwnerSelect
+            owners={rail.owners}
+            total={rail.entries.length}
+            selected={activeOwnerFilters}
+            onChange={(next) => {
+              setOwnerFilters(next);
+              rememberOwnerSelectionPreference(next);
+            }}
+          />
+        ) : null}
         {conversationLoading && conversations.length === 0 ? (
           <div className="space-y-2">
             <Skeleton className="h-12 w-full" />
@@ -1847,8 +1812,10 @@ export function HomePage() {
           </p>
         ) : conversations.length === 0 ? (
           <p className="conversation-empty">{railEmptyNotice(identity.sharedConversationRail)}</p>
+        ) : visibleEntries.length === 0 ? (
+          <p className="conversation-empty">No conversations for the selected users.</p>
         ) : (
-          visibleEntries.map(({ conversation, owner }) => {
+          visibleEntries.map(({ conversation, owner, you }) => {
             // What this conversation's latest answered turn recorded, or null
             // when nothing is known about it. Absent is the normal state for a
             // conversation nobody has asked anything yet.
@@ -1963,7 +1930,7 @@ export function HomePage() {
                       {conversation.title}
                     </span>
                     <span className="conversation-meta">
-                      {owner && (
+                      {adminSharedRail && owner && (
                         <UserIdentityChip identity={owner} label="Asked by" compact className="conversation-owner" />
                       )}
                       {/* Wall time of that latest turn, when the trace recorded one.
@@ -1979,27 +1946,21 @@ export function HomePage() {
                       )}
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    className="conversation-delete"
-                    // Named for the action alone, and pointed at the title for
-                    // the object. `aria-label={`Delete ${title}`}` reads well
-                    // in isolation but makes this button's name a superstring
-                    // of its neighbour's, so "the button called <title>" now
-                    // describes two controls: one that opens the conversation
-                    // and one that destroys it. A screen-reader user hears the
-                    // title twice with no reliable way to tell which is which,
-                    // and every by-name query in the e2e suite matched both.
-                    // Name says what it does, description says what it acts
-                    // on, and assistive tech announces them in that order.
-                    aria-label="Delete conversation"
-                    aria-describedby={railTitleId(conversation.id, scope)}
-                    title="Delete this conversation"
-                    disabled={runningConversation || conversationLoading}
-                    onClick={() => setPendingDelete(conversation.id)}
-                  >
-                    <Trash2 aria-hidden="true" />
-                  </button>
+                  {you ? (
+                    <button
+                      type="button"
+                      className="conversation-delete"
+                      // Name says what it does, description says what it acts
+                      // on, and assistive tech announces them in that order.
+                      aria-label="Delete conversation"
+                      aria-describedby={railTitleId(conversation.id, scope)}
+                      title="Delete this conversation"
+                      disabled={runningConversation || conversationLoading}
+                      onClick={() => setPendingDelete(conversation.id)}
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </button>
+                  ) : null}
                 </div>
               )
             );

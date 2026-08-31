@@ -123,7 +123,9 @@ export class FakeStore implements LakebaseReader {
     if (/UPDATE player_insights\.runs[\s\S]*lease_expires_at = NOW\(\)/i.test(text)) {
       return { rows: this.heartbeat(params) };
     }
-    if (/FROM player_insights\.runs[\s\S]*WHERE conversation_id = \$1 AND user_email = \$2/i.test(text)) {
+    if (
+      /FROM player_insights\.runs[\s\S]*WHERE conversation_id = \$1 AND (?:\(\$3 OR )?user_email = \$2\)?/i.test(text)
+    ) {
       return { rows: this.latestConversationRun(params) };
     }
     if (

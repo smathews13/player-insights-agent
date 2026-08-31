@@ -23,8 +23,10 @@ import type { OrganizationMapping } from './organization-mapping';
  * below. That keeps the hierarchy a total order, so "the higher of two roles" is
  * always a role rather than a merge.
  *
- * BEING ANY OF THE THREE GRANTS NO DATA. Questions run under the asker's own Unity
- * Catalog grants at every rank. A role opens surfaces; a grant opens data.
+ * A ROLE GRANTS NO UNITY CATALOG DATA. Questions run under the asker's own
+ * grants at every rank. An administrator may review stored app conversations
+ * when the deployment's shared-rail switch is on, but that role never changes
+ * what any question or SQL query may read.
  */
 export type Role = 'super_admin' | 'admin' | 'consumer';
 

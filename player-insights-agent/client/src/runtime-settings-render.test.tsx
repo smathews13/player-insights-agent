@@ -193,11 +193,11 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('appearance-display-preview');
   });
 
-  it('merges Dark mode and text colors into one Display choices block', () => {
+  it('keeps only Dark mode and text colors in the Display choices block', () => {
     const markup = renderToStaticMarkup(<RuntimeSettingsPanel section="appearance" />);
     const display = markup.slice(
       markup.indexOf('appearance-display-section'),
-      markup.indexOf('appearance-palette-section')
+      markup.indexOf('appearance-typography-section')
     );
 
     expect(markup).not.toContain('appearance-theme-section');
@@ -210,23 +210,29 @@ describe('runtime and appearance modal sections', () => {
     expect(display).toContain('>Secondary</span>');
     expect(display.indexOf('Dark mode')).toBeLessThan(display.indexOf('Body text'));
     expect(display.indexOf('Body text')).toBeLessThan(display.indexOf('Secondary'));
+    expect(display).not.toContain('>Font</span>');
+    expect(display).not.toContain('>Size</span>');
   });
 
-  it('keeps typography controls and a staged light/dark preview in the merged section', () => {
+  it('keeps typography controls and preview in their own section', () => {
     const markup = renderToStaticMarkup(<RuntimeSettingsPanel section="appearance" />);
     const display = markup.slice(
       markup.indexOf('appearance-display-section'),
-      markup.indexOf('appearance-palette-section')
+      markup.indexOf('appearance-typography-section')
+    );
+    const typography = markup.slice(
+      markup.indexOf('appearance-typography-section'),
+      markup.indexOf('appearance-interface-section')
     );
 
     expect(display).toContain('aria-label="Body text color picker"');
     expect(display).toContain('aria-label="Body text color"');
     expect(display).toContain('aria-label="Secondary text color picker"');
     expect(display).toContain('aria-label="Secondary text color"');
-    expect(display).toContain('aria-label="Font: DM Sans"');
-    expect(display).toContain('role="radiogroup"');
-    expect(display).toContain('aria-label="Font size L"');
-    expect(display).toContain('appearance-display-preview');
+    expect(typography).toContain('aria-label="Font: DM Sans"');
+    expect(typography).toContain('role="radiogroup"');
+    expect(typography).toContain('aria-label="Font size L"');
+    expect(typography).toContain('appearance-display-preview');
     expect(source).toContain('data-color-scheme={settings.colorScheme}');
     expect(source).toContain("'--appearance-preview-body': settings.fontBodyColor");
     expect(source).toContain("'--appearance-preview-font': FONT_FAMILY_STACKS[settings.fontFamily]");

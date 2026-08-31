@@ -109,6 +109,27 @@ describe('runtime settings contract', () => {
     });
   });
 
+  it('normalizes legacy rows with safe interface defaults without changing their values', () => {
+    const {
+      backgroundGraphics: _backgroundGraphics,
+      animations: _animations,
+      density: _density,
+      ...legacy
+    } = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      loop: { ...DEFAULT_RUNTIME_SETTINGS.loop, maxSteps: 17 },
+      fontFamily: 'system' as const,
+    };
+
+    expect(RuntimeSettingsSchema.parse(legacy)).toMatchObject({
+      loop: { maxSteps: 17 },
+      fontFamily: 'system',
+      backgroundGraphics: true,
+      animations: true,
+      density: 'comfortable',
+    });
+  });
+
   it('writes type onto the same CSS variables every surface already reads', () => {
     const typed = {
       ...DEFAULT_RUNTIME_SETTINGS,
@@ -151,5 +172,6 @@ describe('runtime settings contract', () => {
         behavior: { ...DEFAULT_RUNTIME_SETTINGS.behavior, surprise: true },
       })
     ).toThrow();
+    expect(() => RuntimeSettingsSchema.parse({ ...DEFAULT_RUNTIME_SETTINGS, density: 'dense' })).toThrow();
   });
 });

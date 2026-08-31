@@ -287,13 +287,21 @@ describe('a write is not confirmed unless something stored it', () => {
   });
 
   it('still confirms feedback the store accepted', async () => {
-    const app = await startApp(store('empty'));
+    const empty = store('empty');
+    const app = await startApp({
+      query(sql: string, params?: unknown[]) {
+        if (/INSERT INTO player_insights\.feedback/i.test(sql)) {
+          return Promise.resolve({ rows: [{ id: typeof params?.[0] === 'string' ? params[0] : '' }] });
+        }
+        return empty.query();
+      },
+    });
     try {
       const response = await app.post('/api/feedback', { messageId: 'msg-1', usefulness: 5 });
       const body = (await response.json()) as { messageId: string; usefulness: number };
 
-      // An INSERT returns no rows on success, so "no rows" must not be read here
-      // as "nothing happened".
+      // The ownership-checked INSERT returns the row it accepted. No returned
+      // row is intentionally the indistinguishable missing/other-owner case.
       expect(response.status).toBe(201);
       expect(body).toMatchObject({ messageId: 'msg-1', usefulness: 5 });
       expect(response.headers.get('x-pia-data-origin')).toBe('lakebase');

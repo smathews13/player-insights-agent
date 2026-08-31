@@ -125,6 +125,8 @@
 @import './styles/astrolabe-loaders.css';
 @import './styles/dark-mode.css';
 @import './styles/star-motion.css';
+/* User Appearance choices must outrank every surface's default recipe. */
+@import './styles/appearance-preferences.css';
 
 /*
  * `dark:` applies only under a `.dark` ancestor, never from the OS setting.

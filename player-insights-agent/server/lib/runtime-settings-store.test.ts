@@ -140,4 +140,28 @@ describe('runtime settings persistence', () => {
     expect(reloaded.fontFamily).toBe('system');
     expect(reloaded.fontSize).toBe('l');
   });
+
+  it('persists interface preferences and restores them on a later read', async () => {
+    forgetRuntimeSettings();
+    const interfacePreferences = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      backgroundGraphics: false,
+      animations: false,
+      density: 'compact' as const,
+    };
+    const writer = client();
+
+    expect(await writeRuntimeSettings(writer as never, interfacePreferences, 'admin@example.com')).toEqual(
+      interfacePreferences
+    );
+    expect(writer.calls[0]?.values?.[1]).toBe(JSON.stringify(interfacePreferences));
+
+    forgetRuntimeSettings();
+    const reloaded = await readRuntimeSettings(client([{ settings: interfacePreferences }]) as never, { maxAgeMs: 0 });
+    expect(reloaded).toMatchObject({
+      backgroundGraphics: false,
+      animations: false,
+      density: 'compact',
+    });
+  });
 });
