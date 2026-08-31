@@ -359,6 +359,41 @@
   /* Room for the clear button, which is positioned over the right end of the
      field by `.run-search`'s own relative positioning. */
   position: relative;
+  z-index: 0;
+  isolation: isolate;
+  border-radius: var(--radius-sm);
+  background: var(--ast-surface-solid);
+}
+/*
+ * A crisp foreground glyph, not part of the frosted input backdrop.
+ *
+ * The shared `.run-search svg` is 13px and muted. On Monitoring's constellation
+ * that put the icon behind an input carrying dark mode's backdrop blur, where it
+ * was composited into a grey spot. This named icon is larger, above the opaque
+ * field layer, and explicitly opts out of every image and backdrop effect.
+ */
+.monitoring-search .monitoring-search-icon {
+  top: 50%;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--ast-text-long);
+  opacity: 1;
+  filter: none;
+  backdrop-filter: none;
+  pointer-events: none;
+  z-index: 2;
+}
+.monitoring-search:hover .monitoring-search-icon {
+  color: var(--foreground);
+}
+.monitoring-search:focus-within .monitoring-search-icon {
+  color: var(--ast-info-text);
+}
+.monitoring-search:has(input:disabled) .monitoring-search-icon {
+  color: var(--ast-text-secondary);
+  opacity: 1;
 }
 /*
  * The app's clear, and the browser's suppressed so there is only one.
@@ -384,6 +419,7 @@
   cursor: pointer;
   padding: 2px;
   line-height: 1;
+  z-index: 3;
 }
 /*
  * `.run-search svg` in runs.css pins EVERY icon in the box to `left: 10px` and
@@ -407,8 +443,11 @@
   outline-offset: 1px;
   border-radius: 2px;
 }
-/* So the typed text never runs under the clear button. */
+/* Both icon gutters are reserved, so text touches neither foreground control. */
 .monitoring-search input[type='search'] {
+  position: relative;
+  z-index: 1;
+  padding-left: 34px;
   padding-right: 26px;
 }
 /*
@@ -419,7 +458,14 @@
  * Ops latency field, which shares the class, is not restyled from here.
  */
 .monitoring-filters .monitoring-search input {
-  background: var(--card);
+  background: var(--ast-surface-solid);
+  filter: none;
+  backdrop-filter: none;
+}
+html[data-theme='dark'] .monitoring-page .monitoring-search input {
+  background: var(--ast-surface-solid);
+  filter: none;
+  backdrop-filter: none;
 }
 
 /* One line above the list, in body text. No warning colour, and no icon. */

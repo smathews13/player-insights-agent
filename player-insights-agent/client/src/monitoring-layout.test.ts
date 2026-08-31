@@ -245,6 +245,12 @@ describe("Monitoring's filter row at three widths", () => {
     expect(rule?.[1]).toMatch(/flex:\s*1\s+1\s+100%/);
   });
 
+  it('keeps the icon and its text gutter intact when the field takes a narrow row', () => {
+    expect(ruleBody('.monitoring-search .monitoring-search-icon')).toMatch(/width:\s*16px/);
+    expect(ruleBody(".monitoring-search input[type='search']")).toMatch(/padding-left:\s*34px/);
+    expect(mediaBody(searchOwnLineBreakpoint())).not.toMatch(/monitoring-search-icon|padding-left/);
+  });
+
   /**
    * The widest state of the row that is still bounded: every chip set, so Clear
    * filters is drawn too. A set chip is wider than the unset one measured above

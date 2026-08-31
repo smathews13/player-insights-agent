@@ -365,6 +365,18 @@ describe('the filter row is built from the app, not from the platform', () => {
     expect(markup).toContain('run-search');
     expect(markup).toContain('aria-label="Search questions by text or person"');
   });
+
+  it('renders the standard Search glyph as labelled-input decoration', () => {
+    const markup = row();
+    const icon = markup.match(/<svg[^>]*monitoring-search-icon[^>]*>/)?.[0] ?? '';
+
+    expect(icon).toContain('lucide-search');
+    expect(icon).toContain('monitoring-search-icon');
+    expect(icon).toContain('aria-hidden="true"');
+    expect(icon).toContain('focusable="false"');
+    expect(icon).not.toContain('role="button"');
+    expect(markup).toContain('aria-label="Search questions by text or person"');
+  });
 });
 
 /**

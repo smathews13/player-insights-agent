@@ -332,7 +332,7 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
 
   return (
     <div className="run-search monitoring-search">
-      <Search />
+      <Search className="monitoring-search-icon" aria-hidden="true" focusable="false" />
       <Input
         type="search"
         placeholder="Search questions or people…"

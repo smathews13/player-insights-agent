@@ -235,13 +235,56 @@ describe('the filter-row search is a field, not a hole in the sky', () => {
    * The fill is the whole of this rule: size and placement stay on
    * `.monitoring-search`, which is what the wrap arithmetic reads.
    */
-  it('paints the field with the chip token and does not resize it', () => {
-    expect(rule('.monitoring-filters .monitoring-search input')).toMatch(/background:\s*var\(--card\)/);
+  it('paints the field with an opaque surface and does not resize it', () => {
+    const input = rule('.monitoring-filters .monitoring-search input');
+
+    expect(input).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+    expect(input).toMatch(/backdrop-filter:\s*none/);
+    expect(input).toMatch(/filter:\s*none/);
     expect(rule('.monitoring-filters .monitoring-search input')).not.toMatch(/height:|min-width:|flex:|margin-left:/);
     expect(rule('.monitoring-search')).toMatch(/flex:\s*0\s+1\s+240px/);
     expect(rule('.monitoring-search')).toMatch(/min-width:\s*160px/);
     expect(rule('.monitoring-search')).toMatch(/margin-left:\s*auto/);
     expect(rule('.monitoring-search')).not.toMatch(/height:/);
+  });
+
+  it('keeps a crisp standard-size icon above the field backdrop', () => {
+    const wrapper = rule('.monitoring-search');
+    const icon = rule('.monitoring-search .monitoring-search-icon');
+    const input = rule(".monitoring-search input[type='search']");
+    const clear = rule('.monitoring-search-clear');
+
+    expect(wrapper).toMatch(/isolation:\s*isolate/);
+    expect(wrapper).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+    expect(icon).toMatch(/width:\s*16px/);
+    expect(icon).toMatch(/height:\s*16px/);
+    expect(icon).toMatch(/top:\s*50%/);
+    expect(icon).toMatch(/transform:\s*translateY\(-50%\)/);
+    expect(icon).toMatch(/color:\s*var\(--ast-text-long\)/);
+    expect(icon).toMatch(/opacity:\s*1/);
+    expect(icon).toMatch(/filter:\s*none/);
+    expect(icon).toMatch(/backdrop-filter:\s*none/);
+    expect(icon).not.toMatch(/blur\(|grayscale\(|drop-shadow\(/);
+    expect(icon).toMatch(/z-index:\s*2/);
+    expect(input).toMatch(/z-index:\s*1/);
+    expect(clear).toMatch(/z-index:\s*3/);
+  });
+
+  it('reserves the icon gutter and uses contrast tokens in every state', () => {
+    expect(rule(".monitoring-search input[type='search']")).toMatch(/padding-left:\s*34px/);
+    expect(rule('.monitoring-search:hover .monitoring-search-icon')).toMatch(/color:\s*var\(--foreground\)/);
+    expect(rule('.monitoring-search:focus-within .monitoring-search-icon')).toMatch(/color:\s*var\(--ast-info-text\)/);
+    const disabled = rule('.monitoring-search:has(input:disabled) .monitoring-search-icon');
+    expect(disabled).toMatch(/color:\s*var\(--ast-text-secondary\)/);
+    expect(disabled).toMatch(/opacity:\s*1/);
+  });
+
+  it('uses the same solid, blur-free field layer in dark mode', () => {
+    const dark = rule("html[data-theme='dark'] .monitoring-page .monitoring-search input");
+
+    expect(dark).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+    expect(dark).toMatch(/filter:\s*none/);
+    expect(dark).toMatch(/backdrop-filter:\s*none/);
   });
 });
 
