@@ -20,8 +20,12 @@ does not claim that an inert workflow runs it.
 
 The managed Databricks pre-push hook runs first. There is no repository-local or
 user-local pre-push hook. The managed hook scans the pushed commits for secrets
-and applies the destination/repository safety policy; it does not run Vitest,
-pytest, typecheck, lint, format, a build, or bundle tests.
+and attempts its destination/repository policy check; it does not run Vitest,
+pytest, typecheck, lint, format, a build, or bundle tests. On the final measured
+push, secret scanning ran but the managed metadata check reported that its
+GitHub token was missing and skipped that leg. The mirror's own exact-remote,
+account-switching, origin-equality, divergence, and normal-push checks are
+independent of that managed metadata leg and all ran.
 
 Observed managed-hook time on this machine: **0.10-0.37 seconds**.
 
