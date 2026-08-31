@@ -221,19 +221,11 @@
 .stage-raw-io-status.partial {
   color: var(--db-warn-600);
 }
-.stage-raw-io-stage dl {
+.stage-raw-io-payloads {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 6px 12px;
-  margin: 0;
-  font-size: var(--text-sm);
-}
-.stage-raw-io-stage dt {
-  color: var(--db-slate);
-}
-.stage-raw-io-stage dd {
+  gap: 8px;
   min-width: 0;
-  margin: 0;
+  font-size: var(--text-sm);
 }
 .stage-raw-io-stage .trace-payload pre {
   margin: 0;

@@ -170,70 +170,98 @@ export function PayloadView({
   text,
   tables = [],
   tableListing = false,
+  label,
 }: {
   text: string;
   tables?: readonly string[];
   tableListing?: boolean;
+  /** Names the independently switchable pane that owns this payload. */
+  label?: string;
 }) {
   const [raw, setRaw] = useState(false);
   const payload = describePayload(text);
   if (payload.empty) {
-    return tableListing ? <TableEntityList tables={tables} /> : <span className="trace-empty">(none recorded)</span>;
+    const empty = tableListing ? (
+      <TableEntityList tables={tables} />
+    ) : (
+      <span className="trace-empty">(none recorded)</span>
+    );
+    if (!label) return empty;
+    return (
+      <section className="trace-payload trace-payload--pane" aria-label={`${label} payload`}>
+        <header className="trace-payload-head">
+          <strong className="trace-payload-label">{label}</strong>
+        </header>
+        <div className="trace-payload-body">{empty}</div>
+      </section>
+    );
   }
 
   const size = payloadSize(payload);
   const tableResult = structuredTableResult(payload.body);
   return (
-    <div className="trace-payload">
-      <div className="trace-payload-meta ast-num">
-        <span>{size}</span>
-        {payload.truncated && (
-          <strong
-            className="trace-payload-clipped"
-            title="the agent reached its own size ceiling while recording this and said so in the text below"
+    <section
+      className={`trace-payload${label ? ' trace-payload--pane' : ''}`}
+      aria-label={label ? `${label} payload` : undefined}
+    >
+      <header className="trace-payload-head">
+        {label && <strong className="trace-payload-label">{label}</strong>}
+        <span className="trace-payload-actions ast-num">
+          <span className="trace-payload-size">{size}</span>
+          {payload.truncated && (
+            <strong
+              className="trace-payload-clipped"
+              title="the agent reached its own size ceiling while recording this and said so in the text below"
+            >
+              clipped by the agent
+            </strong>
+          )}
+          <span
+            className="trace-payload-seg"
+            role="group"
+            aria-label={label ? `How to show ${label.toLowerCase()}` : 'How to show this payload'}
           >
-            clipped by the agent
-          </strong>
-        )}
-        <span className="trace-payload-seg" role="group" aria-label="How to show this payload">
-          <button type="button" aria-pressed={!raw} onClick={() => setRaw(false)}>
-            Rendered
-          </button>
-          <button type="button" aria-pressed={raw} onClick={() => setRaw(true)}>
-            Raw
-          </button>
+            <button type="button" aria-pressed={!raw} onClick={() => setRaw(false)}>
+              Rendered
+            </button>
+            <button type="button" aria-pressed={raw} onClick={() => setRaw(true)}>
+              Raw
+            </button>
+          </span>
         </span>
+      </header>
+      <div className="trace-payload-body">
+        {raw ? (
+          <RawPayload payload={payload} />
+        ) : tableResult ? (
+          <StructuredTableResultView result={tableResult} />
+        ) : tableListing ? (
+          <TableEntityList tables={tables} />
+        ) : payload.fields ? (
+          <ul className="trace-payload-fields">
+            {payload.fields.map((field) => {
+              const sqlField = field.key === 'sql' || (field.key === 'query' && isSqlText(field.value));
+              return (
+                <li key={field.key} className={field.block || sqlField ? 'block' : ''}>
+                  <span className="trace-payload-key">{field.key}</span>
+                  {sqlField ? (
+                    <SqlCodeBlocks sql={field.value} className="trace-payload-sql" tables={tables} />
+                  ) : field.block ? (
+                    <MarkdownText text={field.value} tables={tables} />
+                  ) : (
+                    <span className="trace-payload-value">
+                      <EntityText text={field.value} sources={tables.map((name) => ({ name }))} />
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <MarkdownText text={payload.body} tables={tables} />
+        )}
       </div>
-      {raw ? (
-        <RawPayload payload={payload} />
-      ) : tableResult ? (
-        <StructuredTableResultView result={tableResult} />
-      ) : tableListing ? (
-        <TableEntityList tables={tables} />
-      ) : payload.fields ? (
-        <ul className="trace-payload-fields">
-          {payload.fields.map((field) => {
-            const sqlField = field.key === 'sql' || (field.key === 'query' && isSqlText(field.value));
-            return (
-              <li key={field.key} className={field.block || sqlField ? 'block' : ''}>
-                <span className="trace-payload-key">{field.key}</span>
-                {sqlField ? (
-                  <SqlCodeBlocks sql={field.value} className="trace-payload-sql" tables={tables} />
-                ) : field.block ? (
-                  <MarkdownText text={field.value} tables={tables} />
-                ) : (
-                  <span className="trace-payload-value">
-                    <EntityText text={field.value} sources={tables.map((name) => ({ name }))} />
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <MarkdownText text={payload.body} tables={tables} />
-      )}
-    </div>
+    </section>
   );
 }
 
@@ -356,25 +384,23 @@ function GanttRow({
                 </dd>
               </dl>
             ) : (
-              <dl>
-                <dt>Started</dt>
-                <dd className="trace-measured">
-                  {row.startMs === null ? 'not recorded' : `+${formatMs(row.startMs)} into the run`}
-                </dd>
-                <dt>Took</dt>
-                <dd className="trace-measured">
-                  {formatMs(row.durationMs)}
-                  {row.status !== 'complete' && ` · ended ${row.status}`}
-                </dd>
-                <dt>Arguments</dt>
-                <dd>
-                  <PayloadView text={row.input} tables={tables} />
-                </dd>
-                <dt>Result</dt>
-                <dd>
-                  <PayloadView text={row.output} tables={tables} tableListing={tableListing} />
-                </dd>
-              </dl>
+              <div className="trace-detail-content">
+                <dl>
+                  <dt>Started</dt>
+                  <dd className="trace-measured">
+                    {row.startMs === null ? 'not recorded' : `+${formatMs(row.startMs)} into the run`}
+                  </dd>
+                  <dt>Took</dt>
+                  <dd className="trace-measured">
+                    {formatMs(row.durationMs)}
+                    {row.status !== 'complete' && ` · ended ${row.status}`}
+                  </dd>
+                </dl>
+                <div className="trace-detail-payloads">
+                  <PayloadView label="Arguments" text={row.input} tables={tables} />
+                  <PayloadView label="Result" text={row.output} tables={tables} tableListing={tableListing} />
+                </div>
+              </div>
             )}
           </td>
         </tr>

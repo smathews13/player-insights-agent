@@ -692,16 +692,20 @@
    figures a reader actually came for out of a grid they had to scan. */
 .trace-dag.map .dag-detail-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   padding: 9px 14px;
   background: var(--ast-fill-band);
   border-bottom: 1px solid var(--ast-hairline);
 }
 .trace-dag.map .dag-detail-head strong {
+  flex: 1 1 16rem;
   min-width: 0;
   font-size: var(--ast-fs-13);
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 /* The name inside the header is not clamped: the panel is the full width of the
    map and this is the one place the whole name is spelled out. */
@@ -750,9 +754,42 @@
   font-size: var(--ast-fs-12);
   color: var(--ast-text-secondary);
 }
+/* The definition term stays in the accessibility tree while the pane repeats it
+   visibly in its own header. Removing it from the grid lets that header span the
+   panel instead of leaving the toggle aligned with the body column. */
+.trace-dag.map .dag-detail > dl > dt:has(+ dd.dag-detail-pane) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .trace-dag.map .dag-detail > dl > dd {
   margin: 0;
   min-width: 0;
+}
+.trace-dag.map .dag-detail > dl > dd.dag-detail-pane {
+  grid-column: 1 / -1;
+}
+.trace-dag.map .dag-detail-pane-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 8px;
+  min-width: 0;
+  margin-bottom: 6px;
+}
+.trace-dag.map .dag-detail-pane-label {
+  flex: 1 1 8rem;
+  min-width: 0;
+  padding-top: 2px;
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-12);
+  line-height: 1.25;
 }
 .trace-dag.map .run-summary .dag-detail-head > [data-slot='badge'] {
   flex: none;
@@ -850,12 +887,18 @@
   display: block;
   margin-bottom: 2px;
 }
-/* What answered, and the control that says how to draw what it said. */
+/* What answered, and the control that says how to draw what it said. Both live
+   in the Result pane header, so neither can drift down beside the answer body. */
 .trace-dag.map .dag-result-meta {
+  flex: 1 1 20rem;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 4px 8px;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
 }
 /*
  * The source of a result, on the Result row's own line.
@@ -867,6 +910,7 @@
  * line of the prose dump.
  */
 .trace-dag.map .dag-source {
+  flex: 1 1 12rem;
   display: inline-flex;
   align-items: center;
   gap: 6px;

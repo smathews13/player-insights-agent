@@ -172,7 +172,7 @@ describe('what flipping it on does', () => {
     expect(markup).toContain('gold_title_daily_summary');
     expect(markup).toContain('retryable timeout');
     expect(markup).toContain('WAREHOUSE_TIMEOUT');
-    expect(markup).toContain('<dt>Retries</dt>');
+    expect(markup).toContain('<strong class="trace-payload-label">Retries</strong>');
     expect(markup).toContain('>1<');
     expect(markup).toContain('Raw JSON');
     expect(markup).not.toContain('Advanced details are hidden');
@@ -235,9 +235,9 @@ describe('what flipping it on does', () => {
     expect(markup).toContain('gold_title_daily_summary');
     expect(markup).toContain('entity-table-mark');
     expect(markup).toContain('data-entity-part="table"');
-    expect(markup).not.toContain('<dt>Input</dt>');
-    expect(markup).not.toContain('<dt>Retries</dt>');
-    expect(markup).not.toContain('<dt>Errors</dt>');
+    expect(markup).not.toContain('aria-label="Input payload"');
+    expect(markup).not.toContain('aria-label="Retries payload"');
+    expect(markup).not.toContain('aria-label="Errors payload"');
     expect(markup).not.toContain('not recorded');
     expect(markup).not.toContain('none recorded');
     expect(markup).not.toContain('do-not-render');

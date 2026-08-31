@@ -284,40 +284,14 @@ function StageRawIo({ stages }: { stages: readonly TraceStage[] }) {
                 </b>
                 <span className={`stage-raw-io-status ${stage.status}`}>{stage.status}</span>
               </header>
-              <dl>
-                {input ? (
-                  <>
-                    <dt>Input</dt>
-                    <dd>
-                      <PayloadView text={stage.input} tables={tables} />
-                    </dd>
-                  </>
-                ) : null}
+              <div className="stage-raw-io-payloads">
+                {input ? <PayloadView label="Input" text={stage.input} tables={tables} /> : null}
                 {output || tableListing ? (
-                  <>
-                    <dt>Output</dt>
-                    <dd>
-                      <PayloadView text={stage.output} tables={tables} tableListing={tableListing} />
-                    </dd>
-                  </>
+                  <PayloadView label="Output" text={stage.output} tables={tables} tableListing={tableListing} />
                 ) : null}
-                {retries ? (
-                  <>
-                    <dt>Retries</dt>
-                    <dd>
-                      <PayloadView text={retries} />
-                    </dd>
-                  </>
-                ) : null}
-                {error ? (
-                  <>
-                    <dt>Errors</dt>
-                    <dd>
-                      <PayloadView text={error} />
-                    </dd>
-                  </>
-                ) : null}
-              </dl>
+                {retries ? <PayloadView label="Retries" text={retries} /> : null}
+                {error ? <PayloadView label="Errors" text={error} /> : null}
+              </div>
             </article>
           );
         })}

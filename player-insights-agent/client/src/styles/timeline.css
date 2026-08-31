@@ -626,9 +626,12 @@
 .trace-detail td {
   padding: 4px 10px 12px !important;
 }
+.trace-detail-content {
+  min-width: 0;
+}
 .trace-detail dl {
   display: grid;
-  grid-template-columns: 90px 1fr;
+  grid-template-columns: 90px minmax(0, 1fr);
   gap: 4px 12px;
   margin: 0;
   font-size: var(--text-sm);
@@ -645,6 +648,12 @@
 .trace-detail dd.trace-measured {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+.trace-detail-payloads {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 8px;
 }
 /*
  * The recorded value, in the app's code panel: the shared code fill rather than a
@@ -671,17 +680,46 @@
 .trace-payload {
   min-width: 0;
 }
-.trace-payload-meta {
+.trace-payload-head {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 3px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 8px;
+  min-width: 0;
+  margin-bottom: 4px;
   font-size: var(--text-xs);
   color: var(--muted-foreground);
 }
-.trace-payload-seg {
-  display: inline-flex;
+.trace-payload-label {
+  flex: 1 1 8rem;
+  min-width: 0;
+  padding-top: 2px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.trace-payload-actions {
+  flex: 0 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 8px;
+  min-width: 0;
+  max-width: 100%;
   margin-left: auto;
+}
+.trace-payload-size {
+  white-space: nowrap;
+}
+.trace-payload-body {
+  min-width: 0;
+}
+.trace-payload-seg {
+  flex: none;
+  display: inline-flex;
   overflow: hidden;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--ast-radius-control);

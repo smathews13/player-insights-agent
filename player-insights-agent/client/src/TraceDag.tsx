@@ -656,6 +656,7 @@ export function StageDetail({
   const argumentFields = args.fields?.filter((field) => field.key !== (sql?.key ?? null)) ?? null;
   const hasArguments = !args.empty && (argumentFields === null || argumentFields.length > 0);
   const hasResult = !result.empty || (tableListing && tables.length > 0) || stage.name === 'Built the charts';
+  const argumentsHeading = argumentLabel(shape, askedField(args, sql?.key ?? null) !== null);
   return (
     <div className={`dag-detail ${stage.status}`} id={id}>
       <div className="dag-detail-head">
@@ -682,8 +683,13 @@ export function StageDetail({
         )}
         {hasArguments ? (
           <>
-            <dt>{argumentLabel(shape, askedField(args, sql?.key ?? null) !== null)}</dt>
-            <dd>
+            <dt>{argumentsHeading}</dt>
+            <dd className="dag-detail-pane">
+              <div className="dag-detail-pane-head">
+                <strong className="dag-detail-pane-label" aria-hidden="true">
+                  {argumentsHeading}
+                </strong>
+              </div>
               <ArgumentBlock payload={args} skipKey={sql?.key ?? null} />
             </dd>
           </>
@@ -691,28 +697,12 @@ export function StageDetail({
         {hasResult ? (
           <>
             <dt>Result</dt>
-            <dd>
-              {stage.name === 'Built the charts' ? (
-                charts?.length ? (
-                  <div className="dag-result-charts">
-                    <AnswerCharts charts={charts} />
-                  </div>
-                ) : (
-                  <p className="dag-chart-empty">
-                    {charts
-                      ? 'This step completed without a chart.'
-                      : 'The chart payload is unavailable for this stored run.'}
-                  </p>
-                )
-              ) : null}
-              {result.empty ? (
-                tableListing ? (
-                  <TableEntityList tables={tables} />
-                ) : (
-                  <Absent />
-                )
-              ) : (
-                <>
+            <dd className="dag-detail-pane dag-detail-result">
+              <div className="dag-detail-pane-head">
+                <strong className="dag-detail-pane-label" aria-hidden="true">
+                  Result
+                </strong>
+                {!result.empty && (
                   <div className="dag-result-meta">
                     {/* What answered, read off the same parse the body is drawn from,
                     so this line cannot name a Genie space the card below did not
@@ -739,6 +729,29 @@ export function StageDetail({
                       </button>
                     </span>
                   </div>
+                )}
+              </div>
+              {stage.name === 'Built the charts' ? (
+                charts?.length ? (
+                  <div className="dag-result-charts">
+                    <AnswerCharts charts={charts} />
+                  </div>
+                ) : (
+                  <p className="dag-chart-empty">
+                    {charts
+                      ? 'This step completed without a chart.'
+                      : 'The chart payload is unavailable for this stored run.'}
+                  </p>
+                )
+              ) : null}
+              {result.empty ? (
+                tableListing ? (
+                  <TableEntityList tables={tables} />
+                ) : (
+                  <Absent />
+                )
+              ) : (
+                <>
                   {raw ? (
                     <pre className="dag-block">{result.body}</pre>
                   ) : (

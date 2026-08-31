@@ -88,7 +88,7 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
   it('keeps the call count and any partial count in one compact badge', () => {
     const rollUp = functionSource(TIMELINE, 'RollUp');
     expect(rollUp).toContain('className="trace-call-badge ast-num"');
-    expect(rollUp).toContain("row.partialCalls > 0 && ` · ${row.partialCalls} partial`");
+    expect(rollUp).toContain('row.partialCalls > 0 && ` · ${row.partialCalls} partial`');
     const badge = TIMELINE_CSS.match(/\.trace-call-badge \{([^}]*)\}/)?.[1] ?? '';
     expect(badge).toMatch(/border-radius: var\(--radius-sm\)/);
     expect(badge).toMatch(/white-space: nowrap/);
@@ -159,10 +159,7 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
      * the de-stack belongs to the component's own classes, not to Ask's wrapper:
      * scoped to `.run-process` it fixed the card and left Explorer stacking.
      */
-    for (const selector of [
-      "html[data-theme='dark'] .trace-timeline",
-      "html[data-theme='dark'] .trace-gantt",
-    ]) {
+    for (const selector of ["html[data-theme='dark'] .trace-timeline", "html[data-theme='dark'] .trace-gantt"]) {
       expect(cssBody(DARK, selector)).toMatch(/background:\s*transparent[\s\S]*backdrop-filter:\s*none/);
     }
     expect(cssBody(DARK, "html[data-theme='dark'] .trace-kpi")).toMatch(
@@ -253,10 +250,10 @@ describe('the Gantt is a table, with the semantics of one', () => {
 
   it('lays the open row out as a definition list of what was recorded', () => {
     const row = functionSource(TIMELINE, 'GanttRow');
-    for (const term of ['<dt>Started</dt>', '<dt>Took</dt>', '<dt>Arguments</dt>', '<dt>Result</dt>']) {
+    for (const term of ['<dt>Started</dt>', '<dt>Took</dt>', 'label="Arguments"', 'label="Result"']) {
       expect(row).toContain(term);
     }
-    expect(STYLESHEET).toMatch(/\.trace-detail dl \{[^}]*grid-template-columns: 90px 1fr/);
+    expect(STYLESHEET).toMatch(/\.trace-detail dl \{[^}]*grid-template-columns: 90px minmax\(0, 1fr\)/);
   });
 });
 
@@ -276,9 +273,7 @@ describe('the bars carry the outcome, and nothing else', () => {
     const run = STYLESHEET.match(/\n\.trace-bar-run \{([^}]*)\}/)?.[1] ?? '';
     expect(run).toMatch(/background: transparent/);
     expect(run).toMatch(/border: 1\.5px dashed var\(--primary\)/);
-    const explorer = STYLESHEET.match(
-      /\n\.trace-timeline--explorer \.trace-bar-run \{([^}]*)\}/,
-    )?.[1] ?? '';
+    const explorer = STYLESHEET.match(/\n\.trace-timeline--explorer \.trace-bar-run \{([^}]*)\}/)?.[1] ?? '';
     expect(explorer).toMatch(/border: 1\.5px dashed var\(--primary\)/);
     expect(explorer).not.toMatch(/#8a97a3/);
   });
@@ -288,7 +283,7 @@ describe('the bars carry the outcome, and nothing else', () => {
     // translucent: the bar under it is blue on a step that ran and red on one that
     // failed, so a hatch drawn in either would vanish on the other.
     const hatched = STYLESHEET.match(
-      /\.trace-bar\.partial,\s*\.trace-bar\.running,\s*\.trace-bar\.failed \{([^}]*)\}/,
+      /\.trace-bar\.partial,\s*\.trace-bar\.running,\s*\.trace-bar\.failed \{([^}]*)\}/
     )?.[1];
     expect(hatched).toMatch(/repeating-linear-gradient\(\s*135deg/);
     expect(hatched).toMatch(/rgba\(255, 255, 255, 0\.85\)/);
