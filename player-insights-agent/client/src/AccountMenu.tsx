@@ -65,15 +65,6 @@ export function AccountMenuPanel({
           <LogOut aria-hidden="true" />
           <span className="account-menu-signout-label">Sign out of Astrolabe</span>
         </button>
-        <p className="account-menu-session-note">App and workspace sessions are separate.</p>
-        <details className="account-menu-session-details">
-          <summary>What sign-out does</summary>
-          <p>
-            Astrolabe clears its app session and native app cookie. If the upstream workspace or identity-provider
-            session is still active, Databricks may authenticate you again without prompting. Federated logout is not
-            supported.
-          </p>
-        </details>
       </div>
     </div>
   );
@@ -105,6 +96,7 @@ export function AccountMenu({ identity, role }: { identity: Identity; role: Role
   }, [open]);
 
   const signOut = () => {
+    setOpen(false);
     void signOutAndEndAppSession();
   };
 

@@ -172,30 +172,6 @@
   font-weight: 600;
 }
 
-.account-menu-session-note {
-  margin: 4px 10px 2px;
-  color: var(--ast-text-secondary);
-  font-size: 11.5px;
-  line-height: 1.4;
-}
-
-.account-menu-session-details {
-  margin: 0 10px 4px;
-  color: var(--ast-text-secondary);
-  font-size: 11.5px;
-  line-height: 1.45;
-}
-
-.account-menu-session-details summary {
-  width: max-content;
-  color: var(--primary);
-  cursor: pointer;
-}
-
-.account-menu-session-details p {
-  margin: 6px 0 0;
-}
-
 .account-composer-overlay {
   position: fixed;
   inset: 0;

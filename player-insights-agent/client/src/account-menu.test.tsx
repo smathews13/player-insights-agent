@@ -23,8 +23,6 @@ describe('account menu', () => {
       'Escalate to Super Admin',
       'Back to Databricks Apps',
       'Sign out of Astrolabe',
-      'App and workspace sessions are separate.',
-      'What sign-out does',
     ];
     for (const label of labels) expect(markup).toContain(label);
     for (let index = 1; index < labels.length; index += 1) {
@@ -90,19 +88,26 @@ describe('account menu', () => {
 
   it('uses the coordinated app and native-cookie sign-out path', () => {
     const source = readFileSync(new URL('./AccountMenu.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('onClick={onSignOut}');
+    expect(source).toContain('setOpen(false)');
     expect(source).toContain('signOutAndEndAppSession()');
     expect(source).not.toContain('window.location.reload()');
     expect(source).not.toMatch(/https?:\/\/[^'"]+\/\.auth\/sign_out/);
   });
 
-  it('states the platform limitation without promising workspace or federated logout', () => {
+  it('keeps sign-out concise without session explanations or disclosure UI', () => {
     const markup = renderToStaticMarkup(
       <AccountMenuPanel identity={IDENTITY} role="super_admin" onSignOut={() => {}} />
     );
-    expect(markup).toContain('App and workspace sessions are separate.');
-    expect(markup).toContain('may authenticate you again without prompting');
-    expect(markup).toContain('Federated logout is not supported');
-    expect(markup).not.toMatch(/signs? you out of (?:the )?workspace|federated logout (?:is )?(?:complete|supported)/i);
+    expect(markup).toContain('Sign out of Astrolabe');
+    expect(markup).toContain('role="menuitem"');
+    expect(markup).toContain('lucide-log-out');
+    expect(markup).not.toContain('App and workspace sessions are separate.');
+    expect(markup).not.toContain('What sign-out does');
+    expect(markup).not.toContain('may authenticate you again without prompting');
+    expect(markup).not.toContain('Federated logout is not supported');
+    expect(markup).not.toContain('<details');
+    expect(markup).not.toContain('<summary');
   });
 
   it('keeps the gear wired to the existing settings modal', () => {

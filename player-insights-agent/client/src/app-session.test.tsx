@@ -176,7 +176,9 @@ describe('timeout boundary', () => {
       expect(document).toMatch(/authenticate (?:the user|you) again|authenticate the person again/i);
     }
     expect(accountMenu).toContain('Sign out of Astrolabe');
-    expect(accountMenu).toMatch(/Federated logout is not\s+supported/);
+    expect(accountMenu).not.toContain('App and workspace sessions are separate.');
+    expect(accountMenu).not.toContain('What sign-out does');
+    expect(accountMenu).not.toMatch(/Federated logout is not\s+supported/);
     expect(timeoutSource).not.toContain('It cannot detect or invalidate a separate Databricks workspace session.');
     expect(timeoutSource).not.toContain('Databricks may authenticate you again without prompting.');
   });
