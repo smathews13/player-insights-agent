@@ -17,6 +17,8 @@ TIER="${1:-}"
 FAST_VITEST=(
   "scripts/deploy-app-yaml.test.ts"
   "server/lib/app-session.test.ts"
+  "server/lib/migration-runner.test.ts"
+  "server/lib/telemetry-retention.test.ts"
   "server/routes/admin-routes.test.ts"
 )
 
@@ -30,6 +32,9 @@ run_fast() {
     npm test -- "${FAST_VITEST[@]}"
     node scripts/check-migration-order.mjs
   )
+
+  step "Release-critical public derivation leak canary"
+  python3 "$ROOT/mirror/check-derived-tree.test.py"
 
   if [[ -f "$HERE/scope-contract.py" && -f "$HERE/scope-contract.json" ]]; then
     step "Release-critical target and scope contract"

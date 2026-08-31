@@ -55,8 +55,9 @@ Before upload, the app release:
 2. applies the recorded-decision gate;
 3. runs the strict live scope/resource release gate;
 4. installs locked dependencies only when `node_modules` is absent;
-5. runs the compact fast allowlist (app.yaml, admin, session, migration order,
-   and source scope contract);
+5. runs the compact fast allowlist (app.yaml, admin, session, v23/v24 migration
+   safety, 90-day telemetry retention, migration order, the public-tree leak
+   canary, and source scope contract);
 6. builds and audits the deploy artifact;
 7. checks schema ownership and applies app-database grants.
 
@@ -67,7 +68,9 @@ code upload. The post-deploy status read remains, but the same scope contract is
 not checked a second time because an app code upload does not mutate the App
 resource or OAuth policy.
 
-The fast static allowlist measures **1.34 seconds** on this machine. Databricks
+The fast static allowlist measures **1.66 seconds** on this machine, up from
+**1.20 seconds** before the operation-critical migration and leak tests were
+added and still well below its two-minute target. Databricks
 platform upload/start/deploy wait is not included in local-preflight timing.
 
 ### `npm run build:deploy`

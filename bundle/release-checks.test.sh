@@ -44,10 +44,13 @@ ALLOWLIST="$(source_section 'FAST_VITEST=(' 'step() {')"
 for file in \
   scripts/deploy-app-yaml.test.ts \
   server/lib/app-session.test.ts \
+  server/lib/migration-runner.test.ts \
+  server/lib/telemetry-retention.test.ts \
   server/routes/admin-routes.test.ts; do
   [[ "$ALLOWLIST" == *"$file"* ]] || fail "fast tier lost $file"
 done
 [[ "$FAST" == *'check-migration-order.mjs'* ]] || fail "fast tier lost migration ordering"
+[[ "$FAST" == *'check-derived-tree.test.py'* ]] || fail "fast tier lost the derived-tree adversarial canary"
 [[ "$FAST" == *'scope-contract.py" --check'* ]] || fail "fast tier lost the target/scope contract"
 if [[ "$FAST" != *'pytest'* && "$FAST" != *'npm run typecheck'* \
    && "$FAST" != *'npm run lint'* && "$FAST" != *'npm run format'* \
@@ -115,6 +118,28 @@ path.write_text(text.replace(old, "    version: 26,\n", 1))
 PY
 expect_status "migration ordering corruption is refused" 1 "must be unique, contiguous, and ascending" \
   node "$APP/scripts/check-migration-order.mjs" "$WORK/migrations.ts"
+
+REGRESSION_ROOT="$WORK/regressed-root"
+REGRESSION_APP="$REGRESSION_ROOT/player-insights-agent"
+REGRESSION_RUNNER="$REGRESSION_ROOT/bundle/release-checks.sh"
+mkdir -p "$REGRESSION_APP" "$REGRESSION_ROOT/bundle" "$REGRESSION_ROOT/mirror"
+git -C "$ROOT" archive HEAD:player-insights-agent | tar -x -C "$REGRESSION_APP"
+ln -s "$APP/node_modules" "$REGRESSION_APP/node_modules"
+cp "$RUNNER" "$REGRESSION_RUNNER"
+cp "$ROOT/mirror/check-derived-tree.py" "$ROOT/mirror/check-derived-tree.test.py" \
+  "$REGRESSION_ROOT/mirror/"
+python3 - "$REGRESSION_APP/server/lib/migration-runner.ts" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+marker = "// Stop. Ordering is the entire value of numbering"
+start = text.index(marker)
+stop = text.index("    break;", start)
+path.write_text(text[:stop] + "    continue;" + text[stop + len("    break;"):])
+PY
+expect_status "v23 failure cannot continue into v24 in the fast gate" 1 \
+  "never attempts or records later migrations when v23 is incomplete" \
+  bash "$REGRESSION_RUNNER" fast
 
 printf '\n'
 if (( FAIL )); then
