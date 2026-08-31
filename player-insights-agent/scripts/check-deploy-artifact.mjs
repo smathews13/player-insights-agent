@@ -65,7 +65,8 @@ function main() {
   const appYamlPath = path.join(deployDir, 'app.yaml');
   const serverPath = path.join(deployDir, 'server.mjs');
   for (const required of [appYamlPath, serverPath, path.join(deployDir, 'client', 'dist', 'index.html')]) {
-    if (!existsSync(required)) fail(findings, `required artifact file is missing: ${path.relative(deployDir, required)}`);
+    if (!existsSync(required))
+      fail(findings, `required artifact file is missing: ${path.relative(deployDir, required)}`);
   }
   if (findings.length > 0) throw new Error(findings.join('\n'));
 
@@ -84,7 +85,10 @@ function main() {
 
   const sourceMaps = files.filter((file) => file.endsWith('.map'));
   if (sourceMaps.length > 0) {
-    fail(findings, `deploy tree contains source maps: ${sourceMaps.map((file) => path.relative(deployDir, file)).join(', ')}`);
+    fail(
+      findings,
+      `deploy tree contains source maps: ${sourceMaps.map((file) => path.relative(deployDir, file)).join(', ')}`
+    );
   }
   for (const file of files.filter((candidate) => /\.(?:css|js|mjs)$/.test(candidate))) {
     if (readFileSync(file, 'utf8').includes('sourceMappingURL=')) {

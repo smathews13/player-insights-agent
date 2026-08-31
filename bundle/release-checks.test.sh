@@ -62,8 +62,8 @@ for required in \
   'npm --prefix "$APP" run typecheck' \
   'npm --prefix "$APP" run lint' \
   'npm --prefix "$APP" run format' \
-  'uv run --project "$ROOT/agent" --python 3.13 pytest' \
-  'uv run --project "$ROOT/agent" --python 3.13 ruff check "$ROOT/agent"' \
+  'uv run --directory "$ROOT/agent" --python 3.13 pytest' \
+  'uv run --directory "$ROOT/agent" --python 3.13 ruff check .' \
   'run-checks.sh' \
   'run-checks.test.sh' \
   'sync-mirror.test.sh' \

@@ -91,20 +91,23 @@ describe('production bundle budget', () => {
     const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
       scripts: Record<string, string>;
     };
-    expect(manifest.scripts['build:deploy']).toMatch(/bundle:deploy.*bundle:budget/);
+    expect(manifest.scripts['build:deploy']).toMatch(/bundle:deploy.*check:deploy-artifact/);
+    const artifactCheck = readFileSync(new URL('./check-deploy-artifact.mjs', import.meta.url), 'utf8');
+    expect(artifactCheck).toContain('inspectBundle(deployDir)');
+    expect(artifactCheck).toContain('budgetFindings(budgetReport, LIMITS)');
 
     // bundle/ and mirror/ are publication tooling and are intentionally absent
     // from the derived public checkout. The internal suite verifies their wiring;
     // the public suite still verifies the package-level gate and the artifact.
     const releaseUrl = new URL('../../bundle/app-release.sh', import.meta.url);
     const checksUrl = new URL('../../bundle/run-checks.sh', import.meta.url);
-    const mirrorUrl = new URL('../../mirror/sync-mirror.test.sh', import.meta.url);
+    const syncUrl = new URL('../../sync-mirror.sh', import.meta.url);
     if (existsSync(releaseUrl)) expect(readFileSync(releaseUrl, 'utf8')).toContain('npm run build:deploy');
     if (existsSync(checksUrl)) expect(readFileSync(checksUrl, 'utf8')).toContain('run bundle:budget');
-    if (existsSync(mirrorUrl)) {
-      const mirror = readFileSync(mirrorUrl, 'utf8');
-      expect(mirror).toContain('scripts/bundle-budget.test.ts');
-      expect(mirror).toContain('npm run bundle:budget');
+    if (existsSync(syncUrl)) {
+      const sync = readFileSync(syncUrl, 'utf8');
+      expect(sync).toContain('check-deploy-artifact.mjs');
+      expect(sync).toContain('--committed --deploy-dir');
     }
   });
 });

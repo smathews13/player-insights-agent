@@ -58,9 +58,9 @@ run_full() {
   full_check "Complete application format check" npm --prefix "$APP" run format
 
   full_check "Complete Python agent unit suite" \
-    uv run --project "$ROOT/agent" --python 3.13 pytest
+    uv run --directory "$ROOT/agent" --python 3.13 pytest
   full_check "Complete Python agent lint" \
-    uv run --project "$ROOT/agent" --python 3.13 ruff check "$ROOT/agent"
+    uv run --directory "$ROOT/agent" --python 3.13 ruff check .
 
   full_check "Complete bundle checker suites" bash "$HERE/run-checks.sh"
   full_check "Bundle runner control-flow meta-test" bash "$HERE/run-checks.test.sh"
