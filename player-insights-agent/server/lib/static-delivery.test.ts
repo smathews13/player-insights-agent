@@ -1,5 +1,4 @@
 import { createRequire } from 'node:module';
-import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import express from 'express';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import type { Server } from 'node:http';
@@ -111,20 +110,17 @@ afterAll(async () => {
 });
 
 describe('production static delivery', () => {
-  it.each([
-    ['gzip', gunzipSync],
-    ['br', brotliDecompressSync],
-  ] as const)('serves content-hashed assets immutable with %s compression', async (encoding, decompress) => {
-    const response = await read(HASHED_JS, { 'accept-encoding': encoding });
+  it('serves content-hashed assets immutable without wrapping the response stream', async () => {
+    const response = await read(HASHED_JS, { 'accept-encoding': 'br, gzip' });
 
     expect(response.status).toBe(200);
     expect(response.headers['cache-control']).toBe(HASHED_ASSET_CACHE_CONTROL);
     expect(response.headers['content-type']).toMatch(/^application\/javascript/);
-    expect(response.headers['content-encoding']).toBe(encoding);
-    expect(response.headers.vary).toContain('Accept-Encoding');
+    expect(response.headers['content-encoding']).toBeUndefined();
+    expect(response.headers.vary).toBeUndefined();
     expect(response.headers.etag).toBeTruthy();
-    expect(decompress(response.body).toString()).toBe(LARGE_JS);
-    expect(response.body.byteLength).toBeLessThan(Buffer.byteLength(LARGE_JS) / 4);
+    expect(response.body.toString()).toBe(LARGE_JS);
+    expect(response.body.byteLength).toBe(Buffer.byteLength(LARGE_JS));
   });
 
   it('revalidates the app shell on direct and client-routed loads', async () => {
@@ -133,8 +129,8 @@ describe('production static delivery', () => {
       expect(response.status).toBe(200);
       expect(response.headers['cache-control']).toBe(APP_SHELL_CACHE_CONTROL);
       expect(response.headers['content-type']).toMatch(/^text\/html/);
-      expect(response.headers['content-encoding']).toBe('gzip');
-      expect(gunzipSync(response.body).toString()).toContain('<main>');
+      expect(response.headers['content-encoding']).toBeUndefined();
+      expect(response.body.toString()).toContain('<main>');
     }
   });
 
@@ -178,7 +174,7 @@ describe('production static delivery', () => {
     const warm = await read(HASHED_JS, { 'if-none-match': String(cold.headers.etag) });
 
     expect(cold.body.byteLength).toBe(Buffer.byteLength(LARGE_JS));
-    expect(cold.headers.vary).toContain('Accept-Encoding');
+    expect(cold.headers.vary).toBeUndefined();
     expect(warm.status).toBe(304);
     expect(warm.headers['cache-control']).toBe(HASHED_ASSET_CACHE_CONTROL);
     expect(warm.body.byteLength).toBe(0);

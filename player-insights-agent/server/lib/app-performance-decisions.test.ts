@@ -18,7 +18,6 @@ import {
 } from './pdf-text';
 import { REQUEST_LATENCY_SHUTDOWN_TIMEOUT_MS } from './request-latency-shutdown';
 import { MAX_SERVING_OUTPUT_ITEMS, MAX_SERVING_STREAM_BYTES, MAX_SERVING_STREAM_EVENTS } from './serving-stream';
-import { STATIC_COMPRESSION_THRESHOLD_BYTES } from './static-delivery';
 import { STAGE_INPUT_LIMIT, STAGE_REPLAY_LIMIT } from './run-stage-events';
 import {
   DELETE_BATCH_SIZE,
@@ -86,7 +85,6 @@ describe('the app performance decision log', () => {
       ACCESS_DECISION_CACHE_MAX_ENTRIES,
       GENIE_WARMUP_CACHE_MAX_ENTRIES,
       REQUEST_LATENCY_SHUTDOWN_TIMEOUT_MS,
-      STATIC_COMPRESSION_THRESHOLD_BYTES,
       QUESTION_PAGE_SIZE,
       QUESTION_READ_LIMIT,
       MONITORING_TOP_TABLE_LIMIT,
@@ -115,7 +113,6 @@ describe('the app performance decision log', () => {
   it('keeps final frontend delivery and zero-wait answer decisions aligned', () => {
     expect(MESSAGE_SOURCE).toContain('export const DEFAULT_MESSAGE_PAGE_SIZE = 50;');
     expectDocumented('DEFAULT_MESSAGE_PAGE_SIZE', 50);
-    expectDocumented('STATIC_COMPRESSION_THRESHOLD_BYTES', STATIC_COMPRESSION_THRESHOLD_BYTES);
     expect(VITE_SOURCE).toContain("sourcemap: process.env.NODE_ENV === 'development'");
     expect(ANSWER_LOADER_SOURCE).toContain('void preload().catch(() => undefined)');
     const ask = HOME_SOURCE.slice(

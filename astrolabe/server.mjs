@@ -205754,12 +205754,10 @@ var requestLatencyShutdown = toPlugin(RequestLatencyShutdownPlugin);
 // server/lib/static-delivery.ts
 var import_express3 = __toESM(require_express4(), 1);
 import path19 from "node:path";
-import { createBrotliCompress, createGzip as createGzip2 } from "node:zlib";
 var HASHED_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
 var STABLE_ASSET_CACHE_CONTROL = "public, max-age=3600, must-revalidate";
 var APP_SHELL_CACHE_CONTROL = "no-cache";
 var MISSING_ASSET_CACHE_CONTROL = "no-store";
-var STATIC_COMPRESSION_THRESHOLD_BYTES = 1024;
 var VITE_HASHED_FILE = /-[A-Za-z0-9_-]{8}\.[^./]+$/;
 function isContentHashedAsset(filePath, staticRoot) {
   const relative = path19.relative(staticRoot, filePath).split(path19.sep).join("/");
@@ -205772,78 +205770,6 @@ function isFrontendRequest(req) {
 function isAppShellPath(req) {
   return req.path === "/" || req.path.endsWith(".html");
 }
-function isCompressible(res) {
-  const contentType = String(res.getHeader("Content-Type") ?? "").toLowerCase();
-  if (!contentType.startsWith("text/") && !contentType.includes("javascript") && !contentType.includes("json") && !contentType.includes("xml") && !contentType.includes("svg")) {
-    return false;
-  }
-  if (contentType.includes("text/event-stream")) return false;
-  const cacheControl = String(res.getHeader("Cache-Control") ?? "").toLowerCase();
-  if (cacheControl.includes("no-transform")) return false;
-  const contentLength = Number(res.getHeader("Content-Length"));
-  return !Number.isFinite(contentLength) || contentLength >= STATIC_COMPRESSION_THRESHOLD_BYTES;
-}
-function acceptedEncoding(header) {
-  if (!header) return void 0;
-  const qualities = /* @__PURE__ */ new Map();
-  for (const item of header.toLowerCase().split(",")) {
-    const [name2 = "", ...parameters] = item.trim().split(";");
-    const quality = parameters.map((value) => /^q=(\d(?:\.\d+)?)$/.exec(value.trim())?.[1]).find((value) => value !== void 0);
-    qualities.set(name2, quality === void 0 ? 1 : Math.max(0, Math.min(1, Number(quality))));
-  }
-  const wildcard = qualities.get("*") ?? 0;
-  const brotli = qualities.get("br") ?? wildcard;
-  const gzip = qualities.get("gzip") ?? wildcard;
-  if (brotli <= 0 && gzip <= 0) return void 0;
-  return brotli >= gzip ? "br" : "gzip";
-}
-function frontendCompression(req, res, next) {
-  if (req.method === "HEAD" || req.headers.range) {
-    next();
-    return;
-  }
-  const encoding = acceptedEncoding(req.header("accept-encoding"));
-  const originalWrite = res.write.bind(res);
-  const originalEnd = res.end.bind(res);
-  let compressor;
-  let decided = false;
-  const decide = () => {
-    if (decided) return;
-    decided = true;
-    if (!isCompressible(res) || res.statusCode === 204 || res.statusCode === 304) return;
-    res.vary("Accept-Encoding");
-    if (!encoding) return;
-    res.setHeader("Content-Encoding", encoding);
-    res.removeHeader("Content-Length");
-    compressor = encoding === "br" ? createBrotliCompress() : createGzip2();
-    compressor.on("data", (chunk) => {
-      if (!originalWrite(chunk)) {
-        compressor?.pause();
-        res.once("drain", () => compressor?.resume());
-      }
-    });
-    compressor.on("end", () => originalEnd());
-    compressor.on("error", (error48) => res.destroy(error48));
-  };
-  res.write = ((chunk, encodingOrCallback, callback) => {
-    decide();
-    const encoding2 = typeof encodingOrCallback === "string" ? encodingOrCallback : void 0;
-    const done = typeof encodingOrCallback === "function" ? encodingOrCallback : callback;
-    if (compressor) return encoding2 ? compressor.write(chunk, encoding2, done) : compressor.write(chunk, done);
-    return originalWrite(chunk, encoding2, done);
-  });
-  res.end = ((chunk, encodingOrCallback, callback) => {
-    decide();
-    const encoding2 = typeof encodingOrCallback === "string" ? encodingOrCallback : void 0;
-    const done = typeof encodingOrCallback === "function" ? encodingOrCallback : callback;
-    if (!compressor) return originalEnd(chunk, encoding2, done);
-    if (done) res.once("finish", done);
-    if (encoding2) compressor.end(chunk, encoding2);
-    else compressor.end(chunk);
-    return res;
-  });
-  next();
-}
 function registerStaticDelivery(app, options = {}) {
   if ((options.environment ?? "production") !== "production") return;
   const staticRoot = options.staticRoot ?? path19.resolve(process.cwd(), "client", "dist");
@@ -205855,13 +205781,6 @@ function registerStaticDelivery(app, options = {}) {
         isContentHashedAsset(filePath, staticRoot) ? HASHED_ASSET_CACHE_CONTROL : STABLE_ASSET_CACHE_CONTROL
       );
     }
-  });
-  app.use((req, res, next) => {
-    if (!isFrontendRequest(req)) {
-      next();
-      return;
-    }
-    frontendCompression(req, res, next);
   });
   app.use((req, res, next) => {
     if (!isFrontendRequest(req) || isAppShellPath(req)) {
