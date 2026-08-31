@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { astPill } from './astrolabe-pill';
 import { BenchButton, LabSurface } from './BenchmarkLabChrome';
 import { EntityText } from './DataEntityLinks';
@@ -452,6 +452,7 @@ export function BenchmarkFailurePane({
   onMarkKnown: () => void;
 }) {
   const selected = cases.find((row) => row.id === selectedId) ?? null;
+  const detailTitleId = useId();
   return (
     <LabSurface
       id="lab-failure"
@@ -477,10 +478,10 @@ export function BenchmarkFailurePane({
           )}
         </aside>
         {selected ? (
-          <div className="bench-failure-drawer" role="dialog" aria-label={`Trace for ${selected.id}`}>
+          <div className="bench-failure-drawer" role="region" aria-labelledby={detailTitleId}>
             <header className="bench-failure-head">
-              <p className="bench-caption">
-                <strong className="ast-num">{selected.id}</strong>
+              <p className="bench-caption" id={detailTitleId}>
+                <strong className="ast-num">Trace for {selected.id}</strong>
                 {' · '}
                 {selected.diagnosis}
                 {selected.provisional ? (
@@ -550,6 +551,9 @@ async function fetchTrace(runId: string): Promise<BakeOffTrace | null> {
   return { runId: typeof body.runId === 'string' ? body.runId : runId, benchmark: body.benchmark ?? null };
 }
 
+// This hook and the benchmark components are kept together because they share
+// the filled-surface contract above; it is not a component Fast Refresh export.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useBenchmarkOps(input: {
   settings: BenchmarkSettings;
   currentAgentEndpoint: string;

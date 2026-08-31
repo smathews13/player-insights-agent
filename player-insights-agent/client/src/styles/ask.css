@@ -1,4 +1,10 @@
 .conversation-main {
+  /*
+   * First-paint fallback only. HomePage replaces this scoped value with the
+   * measured composer height before paint; spelling the ordinary rows as parts
+   * avoids turning another fixed total into the layout contract.
+   */
+  --composer-reserve: calc(54px + 49px + 20px + 16px);
   /* 56px above the hero's chip, which is the design's, and --conversation-inset
      either side -- the same token the fixed composer insets itself off, so the
      transcript and the box that writes into it cannot drift apart. It was the
@@ -29,6 +35,9 @@
      both gone: DuBois pages are a solid surface and the transcript's cards do the
      separating. */
   background: transparent;
+}
+.transcript-end {
+  scroll-margin-bottom: var(--composer-reserve);
 }
 .conversation-main .answer-card,
 .conversation-main .plan-card {

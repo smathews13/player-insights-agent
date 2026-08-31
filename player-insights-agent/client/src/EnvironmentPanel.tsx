@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Check, Copy, Search } from 'lucide-react';
 import type { EnvironmentInfo, EnvironmentPackage, EnvironmentVariable } from '../../shared/environment-info';
 import { AgentCodeRow } from './AgentCodeRow';
 import { filterEnvironmentItems } from './environment-filter';
 import { environmentInfoFromResponse } from './environment-response';
+import { environmentTabKeyTarget, type EnvironmentTab } from './environment-tab-state';
 import { Badge, Button, Input } from './ui';
 
-type EnvironmentTab = 'variables' | 'packages';
 type EnvironmentRow = EnvironmentVariable | EnvironmentPackage;
 
 function rowsForClipboard(tab: EnvironmentTab, rows: readonly EnvironmentRow[]): string {
@@ -32,6 +32,18 @@ export function EnvironmentPanel({
   const [active, setActive] = useState<EnvironmentTab>('variables');
   const [query, setQuery] = useState('');
   const [copied, setCopied] = useState(false);
+  const tabBaseId = useId();
+  const variableTab = useRef<HTMLButtonElement>(null);
+  const packageTab = useRef<HTMLButtonElement>(null);
+
+  const activateFromKey = (current: EnvironmentTab, event: KeyboardEvent<HTMLButtonElement>) => {
+    const target = environmentTabKeyTarget(current, event.key);
+    if (!target) return;
+    event.preventDefault();
+    setActive(target);
+    setCopied(false);
+    (target === 'variables' ? variableTab : packageTab).current?.focus();
+  };
 
   useEffect(() => {
     if (initialData !== undefined) return;
@@ -84,10 +96,15 @@ export function EnvironmentPanel({
             <div className="environment-toolbar">
               <div className="environment-tabs" role="tablist" aria-label="Environment details">
                 <button
+                  ref={variableTab}
+                  id={`${tabBaseId}-variables-tab`}
                   type="button"
                   role="tab"
                   aria-selected={active === 'variables'}
+                  aria-controls={`${tabBaseId}-variables-panel`}
+                  tabIndex={active === 'variables' ? 0 : -1}
                   className={active === 'variables' ? 'active' : ''}
+                  onKeyDown={(event) => activateFromKey('variables', event)}
                   onClick={() => {
                     setActive('variables');
                     setCopied(false);
@@ -96,10 +113,15 @@ export function EnvironmentPanel({
                   Variables ({data.variables.length})
                 </button>
                 <button
+                  ref={packageTab}
+                  id={`${tabBaseId}-packages-tab`}
                   type="button"
                   role="tab"
                   aria-selected={active === 'packages'}
+                  aria-controls={`${tabBaseId}-packages-panel`}
+                  tabIndex={active === 'packages' ? 0 : -1}
                   className={active === 'packages' ? 'active' : ''}
+                  onKeyDown={(event) => activateFromKey('packages', event)}
                   onClick={() => {
                     setActive('packages');
                     setCopied(false);
@@ -137,30 +159,38 @@ export function EnvironmentPanel({
                 </Button>
               </div>
             </div>
-            {active === 'packages' ? (
-              <p className="settings-status">
-                Live container inventory — includes app, transitive, and Databricks base-image packages. Read-only here.
-              </p>
-            ) : null}
+            <div
+              id={`${tabBaseId}-${active}-panel`}
+              role="tabpanel"
+              aria-labelledby={`${tabBaseId}-${active}-tab`}
+              tabIndex={0}
+            >
+              {active === 'packages' ? (
+                <p className="settings-status">
+                  Live container inventory — includes app, transitive, and Databricks base-image packages. Read-only
+                  here.
+                </p>
+              ) : null}
 
-            <div className="environment-list" role="region" aria-label={`Filtered ${active}`} tabIndex={0}>
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">{active === 'variables' ? 'Key' : 'Package'}</th>
-                    <th scope="col">{active === 'variables' ? 'Value' : 'Version'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((row) => (
-                    <tr key={'key' in row ? row.key : row.name}>
-                      <td>{'key' in row ? row.key : row.name}</td>
-                      <td>{'key' in row ? row.value : row.version}</td>
+              <div className="environment-list" role="region" aria-label={`Filtered ${active}`}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">{active === 'variables' ? 'Key' : 'Package'}</th>
+                      <th scope="col">{active === 'variables' ? 'Value' : 'Version'}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              {visible.length === 0 ? <p className="environment-empty">No matches.</p> : null}
+                  </thead>
+                  <tbody>
+                    {visible.map((row) => (
+                      <tr key={'key' in row ? row.key : row.name}>
+                        <td>{'key' in row ? row.key : row.name}</td>
+                        <td>{'key' in row ? row.value : row.version}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {visible.length === 0 ? <p className="environment-empty">No matches.</p> : null}
+              </div>
             </div>
           </div>
         </>

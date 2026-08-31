@@ -869,9 +869,14 @@
    them below the fold. */
 .conversation-owner-select {
   position: relative;
+  isolation: isolate;
   width: 100%;
   min-width: 0;
   margin: 0 0 8px;
+}
+
+.conversation-owner-select[data-open='true'] {
+  z-index: 60;
 }
 
 .conversation-owner-trigger {
@@ -919,7 +924,8 @@
 
 .conversation-owner-menu {
   position: absolute;
-  z-index: 30;
+  z-index: 1;
+  isolation: isolate;
   top: calc(100% + 4px);
   left: 0;
   width: 100%;
@@ -927,9 +933,15 @@
   max-height: min(280px, 50vh);
   padding: 4px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   border: 1px solid var(--db-line-strong);
   border-radius: var(--radius-md);
-  background: var(--card);
+  background-color: var(--popover);
+  background-image: none;
+  opacity: 1;
+  backdrop-filter: none;
+  box-shadow: var(--shadow-lg);
 }
 
 .conversation-owner-option {

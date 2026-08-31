@@ -347,7 +347,7 @@ describe('the Monitoring list over a 100,000-message store', () => {
 
     // And it is a correct page, not a fast empty one.
     const questions = body.questions as { id: string; askedAt: string; askedBy: string; durationMs: number | null }[];
-    expect(questions).toHaveLength(2000);
+    expect(questions).toHaveLength(50);
     expect(questions[0].askedAt > questions[1].askedAt).toBe(true);
     // Paired to the traced answer rather than to the proposed plan, over a store
     // where every conversation contains both.
@@ -356,7 +356,15 @@ describe('the Monitoring list over a 100,000-message store', () => {
     // The truncation is stated, and the denominator is the range's, not the page's.
     expect(body.readState).toBe('partial');
     expect(body.foundQuestions).toBe(CONVERSATIONS);
-    expect(body.countedQuestions).toBe(2000);
+    expect(body.countedQuestions).toBe(50);
+    const pagination = body.pagination as {
+      pageSize: number;
+      total: number | null;
+      hasMore: boolean;
+      nextCursor: string | null;
+    };
+    expect(pagination).toMatchObject({ pageSize: 50, total: CONVERSATIONS, hasMore: true });
+    expect(typeof pagination.nextCursor).toBe('string');
     expect((body.people as string[]).length).toBe(PEOPLE);
     expect((body.summary as { userThreads: number }).userThreads).toBe(CONVERSATIONS);
 
@@ -374,7 +382,8 @@ describe('the Monitoring list over a 100,000-message store', () => {
     // And the expensive half -- reading an answer and pulling its trace, tool
     // calls and sources out of jsonb -- happens once per LISTED question. Not
     // once per answer in the store, which is what it was.
-    expect(engine.answersRead()).toBe(2000);
+    // One look-ahead row establishes hasMore without returning it to the client.
+    expect(engine.answersRead()).toBe(51);
   });
 
   /**
@@ -391,7 +400,7 @@ describe('the Monitoring list over a 100,000-message store', () => {
       PLAN_APPROVAL_MESSAGE,
       new Date(BASE).toISOString(),
       new Date(BASE + CONVERSATIONS * 60_000 + 10_000).toISOString(),
-      2000,
+      51,
       0,
     ]);
     const now = engine.examinedRows();
@@ -415,9 +424,9 @@ describe('the Monitoring list over a 100,000-message store', () => {
     // The sharper number, and the one that does not depend on how long the
     // fixture's conversations are: answers whose jsonb gets extracted. The old
     // statement did every answer in the store, the new one does the page. This
-    // ratio is what makes a bigger store cost nothing extra on a page of 2000,
+    // ratio is what makes a bigger store cost nothing extra on a page of 50,
     // and it is why the wall clock above stays flat as the demo is used.
     expect(engine.answersRead()).toBe(CONVERSATIONS);
-    expect(nowAnswers).toBe(2000);
+    expect(nowAnswers).toBe(51);
   });
 });

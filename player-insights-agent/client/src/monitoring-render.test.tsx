@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -5,9 +6,14 @@ import { describe, expect, it } from 'vitest';
 import {
   FilterRow,
   MonitoringBody,
+  MONITORING_COMPACT_QUERY,
+  MonitoringPaginationControls,
   MonitoringPage,
   PersonPanel,
+  PersonPanelShell,
+  QuestionList,
   QuestionDrawer,
+  QuestionPanel,
   SummaryStrip,
   TablesReadMost,
 } from './MonitoringPage';
@@ -20,6 +26,9 @@ import type {
   PersonPanelPayload,
 } from '../../shared/monitoring-contract';
 import type { MonitoringState } from './monitoring-view';
+import { beginPanelLoad, idlePanel, rejectPanelLoad } from './monitoring-detail-state';
+
+const MONITORING_SOURCE = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
 
 /**
  * What a reader actually sees on Monitoring, asserted against rendered output.
@@ -101,6 +110,7 @@ function payload(overrides: Partial<MonitoringQuestionsPayload> = {}): Monitorin
     people: ['first.person@example.test'],
     tables: ['a_catalog.a_schema.a_table'],
     grantsResolution: 'ok',
+    pagination: { pageSize: 50, total: 214, hasMore: false, nextCursor: null },
     ...overrides,
   };
 }
@@ -744,6 +754,19 @@ describe('the question list', () => {
     expect(text(markup)).toContain('first.person');
   });
 
+  it('renders one accessible card tree below 800px instead of the clipped table', () => {
+    expect(MONITORING_COMPACT_QUERY).toBe('(max-width: 799px)');
+    const markup = render(<QuestionList questions={[question()]} selectedId="" now={NOW} onOpen={() => {}} compact />);
+
+    expect(markup).toContain('class="monitoring-card-list"');
+    expect(markup).toContain('aria-label="Questions"');
+    expect(markup).toContain('<button');
+    expect(markup).not.toContain('<table');
+    expect(markup).not.toContain('<tr');
+    expect(text(markup)).toContain('Time 76.2s');
+    expect(text(markup)).toContain('Tools 5');
+  });
+
   it('carries the refusal sentence on the row rather than only a colour', () => {
     const markup = body('ready', {
       questions: [
@@ -832,6 +855,66 @@ function detail(overrides: Partial<MonitoringDetail> = {}): MonitoringDetail {
 }
 
 describe('the detail modal', () => {
+  it('uses the shared dialog contract for every question and person state', () => {
+    expect(MONITORING_SOURCE).toContain("import { Dialog } from './Dialog'");
+    expect(MONITORING_SOURCE.match(/<Dialog/g)).toHaveLength(4);
+    expect(MONITORING_SOURCE).not.toContain("window.addEventListener('keydown'");
+
+    const readyQuestion = render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />);
+    const readyPerson = render(
+      <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+    );
+    for (const markup of [readyQuestion, readyPerson]) {
+      expect(markup).toContain('role="dialog"');
+      expect(markup).toContain('aria-modal="true"');
+      expect(markup).toContain('tabindex="-1"');
+    }
+  });
+
+  it('mounts immediately with explicit idle, loading, and error states', () => {
+    const idle = render(
+      <QuestionPanel
+        state={idlePanel<MonitoringDetail>()}
+        title="Question details"
+        onClose={() => {}}
+        onOpenPerson={() => {}}
+        onRetry={() => {}}
+      />
+    );
+    const loading = render(
+      <QuestionPanel
+        state={beginPanelLoad<MonitoringDetail>('question|q1|from|to|', 1)}
+        title="Question details"
+        onClose={() => {}}
+        onOpenPerson={() => {}}
+        onRetry={() => {}}
+      />
+    );
+    const error = render(
+      <QuestionPanel
+        state={rejectPanelLoad(
+          beginPanelLoad<MonitoringDetail>('question|q1|from|to|', 1),
+          'question|q1|from|to|',
+          1,
+          'Could not load.'
+        )}
+        title="Question details"
+        onClose={() => {}}
+        onOpenPerson={() => {}}
+        onRetry={() => {}}
+      />
+    );
+
+    for (const markup of [idle, loading, error]) {
+      expect(markup).toContain('role="dialog"');
+      expect(markup).toContain('Question details');
+      expect(markup).toContain('Close');
+    }
+    expect(loading).toContain('role="status"');
+    expect(error).toContain('role="alert"');
+    expect(text(error)).toContain('Could not load. Retry');
+  });
+
   it('names who asked and whose grants the data was read under', () => {
     const rendered = text(render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />));
 
@@ -1064,11 +1147,68 @@ function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload 
     questions: [question()],
     readState: 'ok',
     readAt: '2026-08-15T11:58:00Z',
+    pagination: { pageSize: 50, total: 41, hasMore: false, nextCursor: null },
     ...overrides,
   };
 }
 
 describe('the per-user panel', () => {
+  it('uses the same one-tree card representation in the narrow person drawer', () => {
+    const markup = render(
+      <PersonPanel
+        panel={panel()}
+        now={NOW}
+        rangeLabel="last 7 days"
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+        compactQuestions
+      />
+    );
+    const questions = markup.slice(markup.indexOf('Their questions'));
+    expect(questions).toContain('monitoring-card-list');
+    expect(questions).not.toContain('<table');
+  });
+
+  it('mounts person status and retry states before data arrives', () => {
+    const loading = render(
+      <PersonPanelShell
+        state={beginPanelLoad<PersonPanelPayload>('person|reader|from|to|', 1)}
+        email="reader@example.test"
+        now={NOW}
+        rangeLabel="last 7 days"
+        page={0}
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+        onPreviousPage={() => {}}
+        onNextPage={() => {}}
+        onRetry={() => {}}
+      />
+    );
+    const failedState = rejectPanelLoad(
+      beginPanelLoad<PersonPanelPayload>('person|reader|from|to|', 1),
+      'person|reader|from|to|',
+      1,
+      'Person activity could not be loaded.'
+    );
+    const failed = render(
+      <PersonPanelShell
+        state={failedState}
+        email="reader@example.test"
+        now={NOW}
+        rangeLabel="last 7 days"
+        page={0}
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+        onPreviousPage={() => {}}
+        onNextPage={() => {}}
+        onRetry={() => {}}
+      />
+    );
+    expect(loading).toContain('role="status"');
+    expect(failed).toContain('role="alert"');
+    expect(text(failed)).toContain('Person activity could not be loaded. Retry');
+  });
+
   it('renders each ranked source table as a counted governed entity', () => {
     const rows = [
       { table: '<your_catalog>.<your_schema>.gold_title_daily_summary', runs: 20 },
@@ -1408,6 +1548,23 @@ describe('the per-user panel', () => {
 
     expect(rendered).toContain('was the slowest run');
     expect(rendered).not.toContain('at the 95th percentile');
+  });
+});
+
+describe('Monitoring pagination controls', () => {
+  it('labels the current page and bounds both directions', () => {
+    const markup = render(
+      <MonitoringPaginationControls
+        pagination={{ pageSize: 50, total: 214, hasMore: true, nextCursor: 'next' }}
+        page={0}
+        onPrevious={() => {}}
+        onNext={() => {}}
+      />
+    );
+    expect(markup).toContain('aria-label="Question pages"');
+    expect(text(markup)).toContain('Page 1 · 214 matching questions');
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Previous/);
+    expect(markup).not.toMatch(/<button[^>]*disabled=""[^>]*>Next/);
   });
 });
 

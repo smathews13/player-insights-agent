@@ -149,6 +149,7 @@ import { useIdentity } from './app-state';
 import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { conversationAge } from './conversation-age';
 import { PlanCard } from './PlanCard';
+import { measureComposerClearance, observeComposerClearance } from './composer-clearance';
 import { AgentPathConstellation } from './AgentConstellation';
 import { ConstellationField } from './ConstellationField';
 import { OPENING_CONSTELLATION } from './constellation';
@@ -522,6 +523,7 @@ export function HomePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const inspectorRef = useRef<HTMLElement>(null);
+  const conversationMainRef = useRef<HTMLElement>(null);
   const wasRunningRef = useRef(false);
   /**
    * The Ask question field. New conversation focuses it from the click itself
@@ -2052,6 +2054,26 @@ export function HomePage() {
   const transcriptEmpty = messages.length === 0 && !loading && !conversationLoading;
 
   /*
+   * The fixed composer is not one height: attachments, extraction failures and
+   * the narrow run summary all add rows. Measure the element that is actually on
+   * screen and publish the clearance only to this Ask transcript. The observer
+   * utility also measures once immediately and falls back to DOM/viewport
+   * observation in browsers without ResizeObserver.
+   */
+  useLayoutEffect(() => {
+    const scope = conversationMainRef.current;
+    const composer = composerRef.current;
+    if (!scope || !composer) return;
+    return observeComposerClearance(scope, composer);
+  }, []);
+  useLayoutEffect(() => {
+    const scope = conversationMainRef.current;
+    const composer = composerRef.current;
+    if (!scope || !composer) return;
+    measureComposerClearance(scope, composer, window.innerHeight);
+  }, [transcriptEmpty]);
+
+  /*
    * Whether the harness column is drawing a run, or the idle silhouette.
    *
    * The track stays either way: collapsing it at idle hid the Agent path pane
@@ -2091,7 +2113,7 @@ export function HomePage() {
         </SheetContent>
       </Sheet>
 
-      <section className={`conversation-main${transcriptEmpty ? ' is-empty' : ''}`}>
+      <section ref={conversationMainRef} className={`conversation-main${transcriptEmpty ? ' is-empty' : ''}`}>
         {transcriptEmpty && (
           <div className="ask-hero">
             {/* The chip that introduces the agent, carrying the small cut of the
@@ -2265,7 +2287,7 @@ export function HomePage() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <div ref={transcriptEndRef} aria-hidden="true" />
+        <div ref={transcriptEndRef} className="transcript-end" aria-hidden="true" />
         <form
           ref={composerRef}
           className="composer"
@@ -2310,7 +2332,7 @@ export function HomePage() {
             </p>
           )}
           {attachments.length > 0 && (
-            <div className="attachment-list" aria-label="Attached context">
+            <div className="attachment-list" role="region" aria-label="Attached context" tabIndex={0}>
               {attachments.map((attachment) => (
                 <div
                   className={`attachment-chip ${attachment.status}`}

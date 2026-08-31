@@ -50,7 +50,7 @@ describe('the demo workspace Settings shell feedback', () => {
     expect(PAGE).toContain("active === 'experimental'");
     expect(PAGE).toContain('form={form}');
     expect(PAGE).toContain('disabled={saveDisabled}');
-    expect(PAGE).toContain('onClick={close}');
+    expect(PAGE).toContain('onClick={requestClose}');
     expect(RUNTIME).toContain('adoptRuntimeEntityStyles(saved)');
     expect(EGRESS).toContain("onSaveState({ kind: 'saved', count: changedCount })");
   });

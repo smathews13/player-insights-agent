@@ -1028,6 +1028,38 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
   line-height: 1.5;
 }
 
+.settings-discard-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in oklab, var(--db-ink-deep) 60%, transparent);
+}
+
+.settings-discard {
+  width: min(360px, calc(100vw - 32px));
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
+}
+
+.settings-discard h3,
+.settings-discard p {
+  margin: 0;
+}
+
+.settings-discard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /*
  * THE NIGHT-SKY PANE, LESS SEE-THROUGH THAN THE RAIL FROST.
  *
@@ -1777,6 +1809,10 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   gap: 6px;
 }
 
+.appearance-mobile-label {
+  display: none;
+}
+
 /*
  * A colour can be white, near the pane surface or near its border. The outer
  * tokenised well keeps all three visible without changing the saved value the
@@ -1846,6 +1882,80 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.appearance-contrast-section {
+  gap: 8px;
+}
+
+.appearance-contrast-summary {
+  min-width: 0;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+}
+
+.appearance-contrast-summary strong,
+.appearance-contrast-summary p {
+  margin: 0;
+}
+
+.appearance-contrast-summary strong {
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+.appearance-contrast-summary p {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.appearance-restore-palette {
+  min-height: 30px;
+  padding: 0 10px;
+  flex: none;
+  border: 1px solid var(--ast-border-input);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font: 500 var(--text-sm) var(--font-sans);
+  cursor: pointer;
+}
+
+.appearance-restore-palette:hover {
+  border-color: var(--primary);
+}
+
+.appearance-restore-palette:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.appearance-contrast-failures {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+  list-style: none;
+  color: var(--ast-neg-text);
+  font-size: 11px;
+}
+
+.appearance-contrast-failures li {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 7px;
+}
+
+.appearance-contrast-failures strong {
+  font-weight: 600;
 }
 
 /* Where the running agent's own code can be opened. Ruled off below rather than

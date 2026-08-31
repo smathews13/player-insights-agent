@@ -107,11 +107,10 @@ export function chipsActive(filters: MonitoringFilters): boolean {
 /**
  * The rows that survive every filter. They combine with AND.
  *
- * Applied here rather than in the query so that narrowing the list costs
- * nothing: the page reads its range once and does not poll, and a filter chip
- * that re-queried would have turned every click into a scan of every message in
- * the range. It also guarantees the strip and the list are over one window,
- * which section 5.8 of the plan requires and two separate reads could not.
+ * Also applied here as a defensive final pass over the server page. The server
+ * receives the same filters so paging does not return two thousand rows, while
+ * this pass prevents a mixed-version response from briefly showing a row the
+ * URL excludes.
  *
  * `unrated` is a filter value rather than the absence of one. "Show me what
  * nobody rated" is a different question from "show me everything", and the two

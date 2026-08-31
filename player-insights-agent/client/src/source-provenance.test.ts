@@ -94,8 +94,8 @@ describe('the source list under an answer', () => {
   it('still names the source and the freshness the server reported', () => {
     // The other direction. The row is how a reader gets from a figure to the
     // table it came from, and deleting a chip must not quietly take the row's
-    // actual content with it. The freshness is in the row's tooltip -- still the
-    // server's words, still in the document.
+    // actual content with it. The freshness is visible beside the name and
+    // focusable for keyboard and touch readers.
     //
     // The governance claim is not, anywhere. It went to the module's header when
     // the strip was replaced, so it was said once instead of once per row, and

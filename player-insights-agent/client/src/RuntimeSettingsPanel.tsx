@@ -27,6 +27,11 @@ import {
 } from './settings-save-state';
 import { StateSwitch } from './StateSwitch';
 import { Input } from './ui';
+import {
+  appearanceContrastChecks,
+  restoreSafeAppearancePalette,
+  WCAG_AA_NORMAL_TEXT_RATIO,
+} from './appearance-contrast';
 
 const FONT_FAMILY_OPTIONS: { value: FontFamilyId; label: string }[] = [
   { value: 'dm-sans', label: 'DM Sans' },
@@ -220,6 +225,8 @@ export function RuntimeSettingsPanel({
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
   const savedSettings = useRef<RuntimeSettings | null>(null);
+  const contrastChecks = appearanceContrastChecks(settings);
+  const contrastFailures = contrastChecks.filter((result) => !result.passes);
 
   const load = useCallback(async (): Promise<SettingsLoadResult> => {
     setState('loading');
@@ -549,6 +556,8 @@ export function RuntimeSettingsPanel({
                       </span>
                       <Input
                         aria-label={aria}
+                        pattern="#[0-9a-fA-F]{6}"
+                        title="Use a six-digit hex color, including #."
                         value={hex}
                         onChange={(event) =>
                           setSettings((current) => ({
@@ -700,7 +709,7 @@ export function RuntimeSettingsPanel({
               </div>
             </div>
           </section>
-          <section className="runtime-section runtime-section-last appearance-palette-section">
+          <section className="runtime-section appearance-palette-section">
             <div className="appearance-section-heading">
               <h4 className="runtime-section-label">Entity colors</h4>
             </div>
@@ -726,6 +735,9 @@ export function RuntimeSettingsPanel({
                       }));
                     return (
                       <label className="appearance-color" role="cell" key={property}>
+                        <span className="appearance-mobile-label">
+                          {property === 'foreground' ? 'Text' : 'Highlight'}
+                        </span>
                         <span className="appearance-color-swatch">
                           <span aria-hidden="true" style={{ background: hex }} />
                           <input
@@ -738,6 +750,8 @@ export function RuntimeSettingsPanel({
                         </span>
                         <Input
                           aria-label={`${kind} ${property}`}
+                          pattern="#[0-9a-fA-F]{6}"
+                          title="Use a six-digit hex color, including #."
                           value={hex}
                           onChange={(event) => update(event.target.value)}
                         />
@@ -745,6 +759,7 @@ export function RuntimeSettingsPanel({
                     );
                   })}
                   <span className="appearance-sample-plaque" role="cell">
+                    <span className="appearance-mobile-label">Sample</span>
                     <span
                       className="appearance-sample"
                       style={{
@@ -758,6 +773,42 @@ export function RuntimeSettingsPanel({
                 </div>
               ))}
             </div>
+          </section>
+          <section
+            className="runtime-section runtime-section-last appearance-contrast-section"
+            aria-label="Color contrast"
+          >
+            <div className="appearance-contrast-summary" role="status" aria-live="polite">
+              <div>
+                <strong>{contrastFailures.length === 0 ? 'AA contrast passed' : 'AA contrast warning'}</strong>
+                <p>
+                  {contrastFailures.length === 0
+                    ? `All ${contrastChecks.length} editable color pairs meet ${WCAG_AA_NORMAL_TEXT_RATIO}:1.`
+                    : `${contrastFailures.length} of ${contrastChecks.length} editable color pairs are below ${WCAG_AA_NORMAL_TEXT_RATIO}:1 or invalid.`}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="appearance-restore-palette"
+                onClick={() => setSettings((current) => restoreSafeAppearancePalette(current))}
+              >
+                Restore safe palette
+              </button>
+            </div>
+            {contrastFailures.length > 0 ? (
+              <ul className="appearance-contrast-failures">
+                {contrastFailures.map((result) => (
+                  <li key={result.id}>
+                    <strong>{result.label}</strong>
+                    <span>
+                      {result.ratio === null
+                        ? 'Enter two six-digit hex colors.'
+                        : `${result.ratio.toFixed(2)}:1 — needs ${WCAG_AA_NORMAL_TEXT_RATIO}:1.`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </section>
         </>
       )}

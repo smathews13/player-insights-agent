@@ -126,4 +126,23 @@ describe('the admin owner dropdown', () => {
     expect(CSS).toMatch(/\.conversation-owner-summary \{[^}]*text-overflow:\s*ellipsis/s);
     expect(CSS).toMatch(/\.conversation-owner-menu \{[^}]*position:\s*absolute[^}]*width:\s*100%/s);
   });
+
+  it('raises the open owner menu on an isolated, fully opaque themed surface', () => {
+    expect(COMPONENT).toContain("data-open={open ? 'true' : undefined}");
+    expect(CSS).toMatch(/\.conversation-owner-select \{[^}]*isolation:\s*isolate/s);
+    expect(CSS).toMatch(/\.conversation-owner-select\[data-open='true'\] \{[^}]*z-index:\s*60/s);
+    expect(CSS).toMatch(
+      /\.conversation-owner-menu \{[^}]*z-index:\s*1[^}]*isolation:\s*isolate[^}]*border:\s*1px solid var\(--db-line-strong\)/s
+    );
+    expect(CSS).toMatch(
+      /\.conversation-owner-menu \{[^}]*background-color:\s*var\(--popover\)[^}]*background-image:\s*none[^}]*opacity:\s*1[^}]*backdrop-filter:\s*none/s
+    );
+    expect(CSS).not.toMatch(/\.conversation-owner-menu \{[^}]*background:\s*var\(--card\)/s);
+  });
+
+  it('contains a long owner list in its own bounded scroller', () => {
+    expect(CSS).toMatch(
+      /\.conversation-owner-menu \{[^}]*max-height:\s*min\(280px,\s*50vh\)[^}]*overflow-y:\s*auto[^}]*overscroll-behavior:\s*contain[^}]*scrollbar-gutter:\s*stable/s
+    );
+  });
 });

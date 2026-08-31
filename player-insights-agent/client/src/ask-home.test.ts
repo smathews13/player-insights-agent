@@ -240,36 +240,44 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(withoutComments(STYLESHEET)).not.toMatch(/clamp\(28px,\s*3\.5vw,\s*64px\)/);
   });
 
-  it('reserves the composer its room from a token, and lets a scroll read the same one', () => {
+  it('reserves the measured composer room on the Ask transcript and its scroll target', () => {
     /*
      * The reported defect was that answer cards "clip behind various surfaces".
      * Nothing clipped. Two separate faults put an answer under a bar:
      *
-     * The transcript reserved a flat 180px for a `position: fixed` composer,
-     * which covers the composer at rest -- 105px of box floating 20px up -- and
-     * not the composer holding an attachment chip and a parse notice.
-     *
-     * Worse, the reserve was a padding only, and `padding` is invisible to
-     * `scrollIntoView`. HomePage ends a turn with `block: 'end'`, aligning the
-     * transcript's end with the bottom of the scrollport, which is behind the
-     * composer -- so the arithmetic being right would not have helped.
-     *
-     * One token, read by the padding and by `scroll-padding-bottom`, is what
-     * makes the two agree by construction.
+     * A fixed total is wrong as soon as attachments wrap or the narrow run
+     * summary appears. ResizeObserver writes the rendered height to the page
+     * scope; both transcript padding and the end-scroll target read that value.
      */
-    expect(partial('tokens.css')).toMatch(/--composer-reserve:\s*\d+px/);
-    expect(body('html')).toMatch(/scroll-padding-bottom:\s*var\(--composer-reserve\)/);
+    expect(HOME_PAGE).toContain('observeComposerClearance(scope, composer)');
+    expect(HOME_PAGE).toContain('measureComposerClearance(scope, composer, window.innerHeight)');
+    expect(HOME_PAGE).toContain('ref={conversationMainRef}');
+    expect(body('.conversation-main')).toMatch(/--composer-reserve:\s*calc\(/);
+    expect(body('.conversation-main')).toMatch(/padding:\s*56px var\(--conversation-inset\) var\(--composer-reserve\)/);
+    expect(body('.transcript-end')).toMatch(/scroll-margin-bottom:\s*var\(--composer-reserve\)/);
+    expect(partial('tokens.css')).not.toContain('--composer-reserve');
+    expect(withoutComments(STYLESHEET)).not.toMatch(/--composer-reserve:\s*220px/);
     // And the top half of the same fault: an answer is scrolled in with
     // `block: 'start'`, which aligns its top edge with a scrollport that begins
     // behind the 52px sticky header. Every answer opened with its provenance
     // chip and the first line of its takeaway covered by the nav tabs.
     expect(body('html')).toMatch(/scroll-padding-top:\s*var\(--app-header-h\)/);
     expect(HOME_PAGE).toContain("block: 'start'");
-    // The reserve has to clear the composer's own occupied height. It floats
-    // 20px up and stands 105px tall at rest, so anything at or under that is a
-    // reserve that hides the last rows of an answer at the end of every scroll.
-    const reserve = Number(partial('tokens.css').match(/--composer-reserve:\s*(\d+)px/)?.[1] ?? 0);
-    expect(reserve).toBeGreaterThan(125);
+    expect(atWidth(800)).toMatch(/padding:\s*24px 16px var\(--composer-reserve\)/);
+  });
+
+  it('caps attachment growth in a labelled keyboard-scrollable region', () => {
+    const attachments = body('.attachment-list');
+    expect(attachments).toMatch(/max-height:\s*min\(/);
+    expect(attachments).toMatch(/overflow-y:\s*auto/);
+    expect(attachments).toMatch(/overscroll-behavior:\s*contain/);
+    expect(HOME_PAGE).toContain('className="attachment-list" role="region" aria-label="Attached context" tabIndex={0}');
+    expect(HOME_PAGE).toContain('aria-label={`Remove ${attachment.filename}`}');
+  });
+
+  it('keeps the fixed composer above the mobile safe area', () => {
+    expect(body('.composer')).toMatch(/bottom:\s*calc\(20px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
+    expect(atWidth(800)).toMatch(/bottom:\s*calc\(12px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
   });
 
   it('keeps the chrome translucent, and blurs it enough that prose cannot read through', () => {

@@ -294,12 +294,16 @@ export function AnswerCard({
                 <div className="answer-stat" key={key}>
                   <span className="answer-stat-label">{figure.label}</span>
                   <b className="answer-stat-value ast-num">{figure.display ?? figure.value}</b>
-                  {/* `title` because the rail clips this line to one row: a
-                      comparison naming a window and a baseline is longer than a
-                      quarter-width column, and ellipsised it stopped saying what
-                      the figure is being compared against. */}
+                  {/* Two visible lines keep the baseline in the card without
+                      making the stat rail sprawl. The focusable text expands in
+                      place, so keyboard and touch readers can reach the complete
+                      comparison without depending on a pointer-only title. */}
                   {figure.comparison ? (
-                    <span className="answer-stat-context" title={figure.comparison}>
+                    <span
+                      className="answer-stat-context provenance-detail"
+                      tabIndex={0}
+                      aria-label={`Comparison: ${figure.comparison}`}
+                    >
                       {figure.comparison}
                     </span>
                   ) : null}

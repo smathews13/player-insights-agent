@@ -55,6 +55,7 @@ import { DATABRICKS_LOGO, DATABRICKS_SYMBOL } from './brand-icons';
 // The same octocat the Connections tab links its repository with. One copy, so
 // the two seatings cannot come apart. See GithubMark.tsx.
 import { GithubMark } from './GithubMark';
+import { Dialog } from './Dialog';
 import { OpeningSequence } from './OpeningSequence';
 import {
   RISE_SETTLE_MS,
@@ -277,132 +278,130 @@ export function FirstOpenPanel({
   const showSkip = offersSkip(report);
   const canApplyRequiredScopes = report.verdict === 'missing' && Boolean(onAllowRequiredScopes);
   return (
-    <div
-      className={`first-open${onSky ? ' on-sky' : ''}${leaving ? ' fo-leaving' : ''}`}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="first-open-title"
+    <Dialog
+      overlayClassName={`first-open${onSky ? ' on-sky' : ''}${leaving ? ' fo-leaving' : ''}`}
+      contentClassName={`first-open-card${rising ? ' ast-anim-gate-in' : ''}${leaving ? ' ast-anim-x-card' : ''}`}
+      contentStyle={rise}
+      labelledBy="first-open-title"
+      describedBy="first-open-description"
+      dismissOnEscape={false}
+      dismissOnBackdrop={false}
     >
-      <div
-        className={`first-open-card${rising ? ' ast-anim-gate-in' : ''}${leaving ? ' ast-anim-x-card' : ''}`}
-        style={rise}
-      >
-        {/* The order `login-gate.md` fixes: the Databricks logo, then the
+      {/* The order `login-gate.md` fixes: the Databricks logo, then the
             astrolabe lockup, then identity, scopes, disclaimer, Continue. The
             platform first and the app second, because the reader has just come
             through Databricks OAuth and this card is the app introducing itself
             on the other side of it. */}
-        <div className="fo-head">
-          <DatabricksLogo />
-          {/* The lockup IS the heading, so the dialog takes its name from it.
+      <div className="fo-head">
+        <DatabricksLogo />
+        {/* The lockup IS the heading, so the dialog takes its name from it.
               The old long app name that used to be set here renders nowhere in
               the app any more (§1). */}
-          <AstrolabeLockup as="h1" seat="gate" id="first-open-title" className="fo-title" />
-        </div>
-
-        <section className="fo-box fo-identity">
-          <p className="fo-label">{IDENTITY_LABEL}</p>
-          <p className="fo-who">
-            <UserIdentityChip identity={report.signedInAs} className="fo-email" />
-            {report.oauthVerified ? (
-              <span className="ast-pill ast-pill--pos fo-oauth">
-                <Check className="fo-check" aria-hidden="true" />
-                {OAUTH_BADGE}
-              </span>
-            ) : null}
-          </p>
-        </section>
-
-        <ScopeSection
-          heading={SCOPES_HEADING}
-          scopes={requiredScopeRows(report.scopes)}
-          footer={
-            report.footer ? (
-              <p className="fo-scope-footer">
-                {report.footer.lead}
-                {report.footer.scopes.map((name, index) => (
-                  <span key={name}>
-                    {index > 0 ? ' \u00b7 ' : ' '}
-                    <code className="fo-scope-name">{name}</code>
-                  </span>
-                ))}
-                {/*
-                 * The stop that ends the lead's sentence, which the names are the
-                 * last thing in. Only where there are names: every other footer is
-                 * a lead on its own and already punctuated.
-                 */}
-                {report.footer.scopes.length > 0 ? '.' : null}
-                {report.footer.tail ? ` ${report.footer.tail}` : null}
-              </p>
-            ) : null
-          }
-        />
-        <ScopeSection
-          heading={OPTIONAL_SCOPES_HEADING}
-          scopes={optionalScopeRows(report.scopes)}
-          onRequestScope={onRequestScope}
-          requestingScope={requestingScope}
-        />
-
-        {/*
-         * A statement, not an alert: neutral wash, no border, no icon, no amber
-         * (spec). It renders in every state and is never truncated.
-         */}
-        <section className="fo-disclaimer">
-          <p className="fo-disc-title">
-            <DatabricksSymbol />
-            {DISCLAIMER_TITLE}
-          </p>
-          <p className="fo-disc-body">
-            {before}
-            <strong>{emphasis}</strong>
-            {after}
-          </p>
-          <a className="fo-source" href={SOURCE_URL} target="_blank" rel="noreferrer noopener">
-            <GithubMark className="fo-github" />
-            {SOURCE_LABEL}
-          </a>
-        </section>
-
-        <div className="fo-foot">
-          <div className={showRefresh ? 'fo-actions fo-actions-pair' : 'fo-actions'}>
-            {/*
-             * One primary action. Required shortfalls are repaired with the
-             * reader's token; an unread check may be skipped; and a complete
-             * check continues into the app.
-             */}
-            {canApplyRequiredScopes ? (
-              <Button
-                className="fo-continue"
-                onClick={onAllowRequiredScopes}
-                disabled={allowingRequiredScopes || scopeUpdateMessage?.kind === 'success'}
-              >
-                {allowingRequiredScopes ? 'Adding access\u2026' : 'Allow serving, SQL, Genie, and workspace browsing'}
-              </Button>
-            ) : (
-              <Button
-                className={`fo-continue${leaving ? ' ast-anim-x-click' : ''}`}
-                onClick={showSkip ? onSkip : onContinue}
-              >
-                {showSkip ? SKIP_LABEL : CONTINUE_LABEL}
-              </Button>
-            )}
-            {showRefresh ? <RefreshButton onRefresh={onRefresh} className="fo-refresh" /> : null}
-          </div>
-          {/*
-           * The whole of what skipping costs, in one line. It grants nothing, so
-           * the reader must not leave believing the app will now work around the
-           * shortfall.
-           */}
-          {scopeUpdateMessage ? (
-            <p className="fo-skip-note" role={scopeUpdateMessage.kind === 'error' ? 'alert' : 'status'}>
-              {scopeUpdateMessage.text}
-            </p>
-          ) : null}
-          {showSkip && !canApplyRequiredScopes ? <p className="fo-skip-note">{SKIP_NOTE}</p> : null}
-        </div>
+        <AstrolabeLockup as="h1" seat="gate" id="first-open-title" className="fo-title" />
       </div>
-    </div>
+
+      <section className="fo-box fo-identity" id="first-open-description">
+        <p className="fo-label">{IDENTITY_LABEL}</p>
+        <p className="fo-who">
+          <UserIdentityChip identity={report.signedInAs} className="fo-email" />
+          {report.oauthVerified ? (
+            <span className="ast-pill ast-pill--pos fo-oauth">
+              <Check className="fo-check" aria-hidden="true" />
+              {OAUTH_BADGE}
+            </span>
+          ) : null}
+        </p>
+      </section>
+
+      <ScopeSection
+        heading={SCOPES_HEADING}
+        scopes={requiredScopeRows(report.scopes)}
+        footer={
+          report.footer ? (
+            <p className="fo-scope-footer">
+              {report.footer.lead}
+              {report.footer.scopes.map((name, index) => (
+                <span key={name}>
+                  {index > 0 ? ' \u00b7 ' : ' '}
+                  <code className="fo-scope-name">{name}</code>
+                </span>
+              ))}
+              {/*
+               * The stop that ends the lead's sentence, which the names are the
+               * last thing in. Only where there are names: every other footer is
+               * a lead on its own and already punctuated.
+               */}
+              {report.footer.scopes.length > 0 ? '.' : null}
+              {report.footer.tail ? ` ${report.footer.tail}` : null}
+            </p>
+          ) : null
+        }
+      />
+      <ScopeSection
+        heading={OPTIONAL_SCOPES_HEADING}
+        scopes={optionalScopeRows(report.scopes)}
+        onRequestScope={onRequestScope}
+        requestingScope={requestingScope}
+      />
+
+      {/*
+       * A statement, not an alert: neutral wash, no border, no icon, no amber
+       * (spec). It renders in every state and is never truncated.
+       */}
+      <section className="fo-disclaimer">
+        <p className="fo-disc-title">
+          <DatabricksSymbol />
+          {DISCLAIMER_TITLE}
+        </p>
+        <p className="fo-disc-body">
+          {before}
+          <strong>{emphasis}</strong>
+          {after}
+        </p>
+        <a className="fo-source" href={SOURCE_URL} target="_blank" rel="noreferrer noopener">
+          <GithubMark className="fo-github" />
+          {SOURCE_LABEL}
+        </a>
+      </section>
+
+      <div className="fo-foot">
+        <div className={showRefresh ? 'fo-actions fo-actions-pair' : 'fo-actions'}>
+          {/*
+           * One primary action. Required shortfalls are repaired with the
+           * reader's token; an unread check may be skipped; and a complete
+           * check continues into the app.
+           */}
+          {canApplyRequiredScopes ? (
+            <Button
+              className="fo-continue"
+              onClick={onAllowRequiredScopes}
+              disabled={allowingRequiredScopes || scopeUpdateMessage?.kind === 'success'}
+            >
+              {allowingRequiredScopes ? 'Adding access\u2026' : 'Allow serving, SQL, Genie, and workspace browsing'}
+            </Button>
+          ) : (
+            <Button
+              className={`fo-continue${leaving ? ' ast-anim-x-click' : ''}`}
+              onClick={showSkip ? onSkip : onContinue}
+            >
+              {showSkip ? SKIP_LABEL : CONTINUE_LABEL}
+            </Button>
+          )}
+          {showRefresh ? <RefreshButton onRefresh={onRefresh} className="fo-refresh" /> : null}
+        </div>
+        {/*
+         * The whole of what skipping costs, in one line. It grants nothing, so
+         * the reader must not leave believing the app will now work around the
+         * shortfall.
+         */}
+        {scopeUpdateMessage ? (
+          <p className="fo-skip-note" role={scopeUpdateMessage.kind === 'error' ? 'alert' : 'status'}>
+            {scopeUpdateMessage.text}
+          </p>
+        ) : null}
+        {showSkip && !canApplyRequiredScopes ? <p className="fo-skip-note">{SKIP_NOTE}</p> : null}
+      </div>
+    </Dialog>
   );
 }
 

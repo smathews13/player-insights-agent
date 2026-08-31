@@ -100,7 +100,8 @@ describe('account menu', () => {
       <AccountMenuPanel identity={IDENTITY} role="super_admin" onSignOut={() => {}} />
     );
     expect(markup).toContain('Sign out of Astrolabe');
-    expect(markup).toContain('role="menuitem"');
+    expect(markup).not.toContain('role="menu"');
+    expect(markup).not.toContain('role="menuitem"');
     expect(markup).toContain('lucide-log-out');
     expect(markup).not.toContain('App and workspace sessions are separate.');
     expect(markup).not.toContain('What sign-out does');

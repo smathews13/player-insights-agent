@@ -39,6 +39,21 @@ function sourceKey(name: string): string {
   return name.trim().toLowerCase();
 }
 
+function SourceFreshness({ freshness }: { freshness: string }) {
+  if (!freshness.trim()) return null;
+  return (
+    <>
+      <span className="source-list-separator" aria-hidden="true">
+        {' '}
+        ·{' '}
+      </span>
+      <span className="source-list-freshness provenance-detail" tabIndex={0} aria-label={`Freshness: ${freshness}`}>
+        {freshness}
+      </span>
+    </>
+  );
+}
+
 function DerivationFacts({ facts }: { facts: readonly DerivationFact[] }) {
   const shown = facts.filter((fact) => fact.value);
   if (shown.length === 0) return null;
@@ -126,8 +141,7 @@ export function SourcesModule({
   const leftoverKeys = new Set(leftover.map((row) => sourceKey(row.name)));
   const unmatched = derived.filter((entry) => !leftoverKeys.has(sourceKey(entry.source)));
 
-  if (rows.length === 0 && derived.length === 0 && !caveats.some((caveat) => caveat.trim()))
-    return null;
+  if (rows.length === 0 && derived.length === 0 && !caveats.some((caveat) => caveat.trim())) return null;
   const provenance =
     leftover.length > 0 || unmatched.length > 0 ? (
       <section className="sources-module" aria-label="Sources and provenance">
@@ -135,13 +149,10 @@ export function SourcesModule({
         <ul className="answer-list source-list">
           {leftover.map((row) => (
             <li className="source-list-row" key={row.name}>
-              <span
-                className="source-list-name source-name-pill"
-                data-tone={row.tone}
-                title={row.freshness ? `${row.name} · ${row.freshness}` : row.name}
-              >
+              <span className="source-list-name source-name-pill" data-tone={row.tone} title={row.name}>
                 <SourceEntityName name={row.name} />
-              </span>{' '}
+              </span>
+              <SourceFreshness freshness={row.freshness} />{' '}
               {/* The chip names the role; the title says what the role MEANS for
                   the numbers on screen -- "Its data is not in the numbers shown"
                   is the distinction a reader is actually checking, and the
@@ -167,13 +178,10 @@ export function SourcesModule({
               <li className="source-list-row" key={entry.key}>
                 {name ? (
                   <>
-                    <span
-                      className="source-list-name source-name-pill"
-                      data-tone={row?.tone ?? 'neutral'}
-                      title={row?.freshness ? `${name} · ${row.freshness}` : name}
-                    >
+                    <span className="source-list-name source-name-pill" data-tone={row?.tone ?? 'neutral'} title={name}>
                       <SourceEntityName name={name} />
                     </span>
+                    {row ? <SourceFreshness freshness={row.freshness} /> : null}
                     {row ? (
                       <>
                         {' '}

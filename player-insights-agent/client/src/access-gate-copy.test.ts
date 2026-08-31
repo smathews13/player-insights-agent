@@ -83,7 +83,7 @@ describe('the screen says its premise once', () => {
     // access under your own token. A reader who has just been told the premise and
     // is then told it again learns to skim the second one, and the second one is
     // where the two limits of the check were.
-    expect(INTRO.match(/<p>/g)).toHaveLength(1);
+    expect(INTRO.match(/<p(?:\s|>)/g)).toHaveLength(1);
   });
 
   it('carries what the reader needs before choosing a door', () => {

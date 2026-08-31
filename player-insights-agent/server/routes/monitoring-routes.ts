@@ -39,6 +39,7 @@ import {
   classifyRefusal,
   refusalSentence,
   type MonitoringDetail,
+  type MonitoringPagination,
   type MonitoringQuestion,
   type MonitoringQuestionsPayload,
   type MonitoringSummary,
@@ -62,14 +63,11 @@ import { resolveExperimentId } from '../lib/app-settings';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 
 /**
- * The most rows one read will return.
- *
- * A hard ceiling, not a hint: it is what bounds the whole statement below. When
- * the range holds more, the response says how many it counted and how many it
- * found, and the summary strip renders over the counted figure. A count over an
- * unknown denominator is the one thing that must not happen here.
+ * Default and hard maximum for one API page. The query asks for one look-ahead
+ * row to establish `hasMore`; that row is never returned.
  */
-export const QUESTION_READ_LIMIT = 2000;
+export const QUESTION_PAGE_SIZE = 50;
+export const QUESTION_READ_LIMIT = 100;
 
 /** The compact person panel shows no more than this many recorded source tables. */
 export const MONITORING_TOP_TABLE_LIMIT = 5;
@@ -81,45 +79,57 @@ export const MONITORING_TOP_TABLE_LIMIT = 5;
  * who can do anything about it, and because the alternative is a page that
  * looks right and is missing a row.
  */
-export const OFFSET_REFUSAL =
-  'This list cannot be paged with an offset. Questions are ordered by the time they were asked, and two ' +
-  'questions asked in the same instant have no defined order between them, so a later page can skip a row ' +
-  `the earlier page never showed. Ask for a bigger page instead, up to ${QUESTION_READ_LIMIT}.`;
+export const OFFSET_REFUSAL = 'Use the opaque cursor from pagination.nextCursor instead of an offset.';
+
+interface QuestionCursor {
+  askedAt: string;
+  id: string;
+}
+
+function encodeCursor(cursor: QuestionCursor): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+function decodeCursor(raw: string): QuestionCursor | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<QuestionCursor>;
+    const askedAt = typeof parsed.askedAt === 'string' ? new Date(parsed.askedAt).toISOString() : '';
+    const id = typeof parsed.id === 'string' ? parsed.id.trim() : '';
+    return askedAt && id ? { askedAt, id } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Opaque cursor exported for route-contract tests. */
+export function monitoringCursor(askedAt: string, id: string): string {
+  return encodeCursor({ askedAt: new Date(askedAt).toISOString(), id });
+}
 
 /**
- * One page of questions, and how far into the range it starts.
- *
- * THE OFFSET IS REFUSED, and this is where. `LIMIT`/`OFFSET` over
- * `ORDER BY u.created_at DESC` is only stable when the order is TOTAL, and
- * `created_at` is not unique: Postgres may return two questions sharing an
- * instant in either order, so a caller walking the range in pages can be shown
- * one row twice and another never. The pages betray nothing -- every row on
- * them is in sequence -- and the only evidence is a question that is missing
- * from a list nobody is counting.
- *
- * The correct fix is a unique tie-break in that `ORDER BY`, and it is not made
- * here: that clause is the one this route's speed rests on, and there is no
- * Postgres in this repository to measure the consequence against. Nothing pages
- * today, so nothing is broken today. What is refused is the SILENT adoption of
- * it in three weeks by somebody who reasonably assumed a paging parameter
- * pages. A comment would not have stopped them.
- *
- * `monitoring-paging.test.ts` binds the refusal to the sort, so the guard
- * cannot outlive its reason: add the tie-break and that test asks for this to
- * be withdrawn.
- *
- * The limit is unaffected and stays clamped rather than trusted. A single page
- * has nothing to skip between, and a truncated response already says so.
+ * One stable keyset page. The cursor contains the final `(asked_at, id)` tuple
+ * from the prior page, matching the query's total order. Offsets remain refused
+ * so concurrent inserts cannot shift a later page under the caller.
  */
-export function pageFrom(req: Request): { limit: number; offset: number; refusal: string } {
+export function pageFrom(req: Request): {
+  limit: number;
+  cursor: QuestionCursor | null;
+  refusal: string;
+} {
   const limit = Number.parseInt(queryString(req.query.limit), 10);
   const offset = Number.parseInt(queryString(req.query.offset), 10);
+  const rawCursor = queryString(req.query.cursor).trim();
+  const cursor = decodeCursor(rawCursor);
   return {
-    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, QUESTION_READ_LIMIT) : QUESTION_READ_LIMIT,
-    offset: 0,
-    // Only a real attempt to page is refused. An absent, empty or unparseable
-    // offset is nobody paging, and must not turn a working list into an error.
-    refusal: Number.isFinite(offset) && offset > 0 ? OFFSET_REFUSAL : '',
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, QUESTION_READ_LIMIT) : QUESTION_PAGE_SIZE,
+    cursor,
+    refusal:
+      Number.isFinite(offset) && offset > 0
+        ? OFFSET_REFUSAL
+        : rawCursor && !cursor
+          ? 'The Monitoring page cursor is invalid. Start again without a cursor.'
+          : '',
   };
 }
 
@@ -127,9 +137,10 @@ export function pageFrom(req: Request): { limit: number; offset: number; refusal
  * Questions in a range, with the answer that followed each and how it was rated.
  *
  * `$1` is the plan-approval sentinel, which is a stored user message and is not a
- * question anybody asked. `$2` and `$3` bound the range. `$4` is the page size,
- * `$5` how far into the range the page starts, and `$6` optionally scopes the
- * same read to one person.
+ * question anybody asked. `$2` and `$3` bound the range. `$4` is one more than
+ * the requested page size, `$5` is unused for compatibility with old store test
+ * doubles, `$6` optionally scopes to one person, `$7`/`$8` are the keyset cursor,
+ * and `$9` is question-or-asker search.
  *
  * An answer is an assistant message that CARRIES A TRACE, which is the same
  * definition `RUNS_QUERY` uses in insights-routes.ts, and the reason this reads
@@ -248,8 +259,14 @@ export const MONITORING_QUESTIONS_QUERY = `
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
       AND ($6 = '' OR lower(c.user_email) = lower($6))
-    ORDER BY u.created_at DESC
-    LIMIT $4 OFFSET $5
+      AND ($7 = '' OR (u.created_at, u.id) < ($7::timestamptz, $8))
+      AND (
+        $9 = ''
+        OR lower(u.content) LIKE ('%' || lower($9) || '%')
+        OR lower(c.user_email) LIKE ('%' || lower($9) || '%')
+      )
+    ORDER BY u.created_at DESC, u.id DESC
+    LIMIT $4
   ),
   range_totals AS (
     SELECT COUNT(*)::int AS asked_total,
@@ -260,6 +277,11 @@ export const MONITORING_QUESTIONS_QUERY = `
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
       AND ($6 = '' OR lower(c.user_email) = lower($6))
+      AND (
+        $9 = ''
+        OR lower(u.content) LIKE ('%' || lower($9) || '%')
+        OR lower(c.user_email) LIKE ('%' || lower($9) || '%')
+      )
   )
   SELECT t.asked_total, t.thread_total, t.people_list,
          q.question_id, q.conversation_id, q.question, q.asked_at, q.user_email,
@@ -317,7 +339,7 @@ export const MONITORING_QUESTIONS_QUERY = `
     ORDER BY fb.created_at DESC LIMIT 1
   ) f ON TRUE
   ${overlayJoinSql('a.id')}
-  ORDER BY q.asked_at DESC
+  ORDER BY q.asked_at DESC, q.question_id DESC
 `;
 
 /**
@@ -390,6 +412,7 @@ export const MONITORING_DETAIL_QUERY = `
   ) f ON TRUE
   ${overlayJoinSql('a.id')}
   WHERE q.id = $1 AND q.role = 'user'
+    AND q.created_at >= $3::timestamptz AND q.created_at < $4::timestamptz
 `;
 
 /** When they were first and last seen, over all time rather than the range. */
@@ -759,6 +782,64 @@ export function rangeFrom(req: Request, now = Date.now()): RangeQuery {
   return { from: new Date(now - 7 * 86_400_000).toISOString(), to: new Date(now).toISOString() };
 }
 
+export interface MonitoringFilterQuery {
+  person: string;
+  outcome: string;
+  rating: string;
+  table: string;
+  search: string;
+}
+
+function filtersFrom(req: Request, person = queryString(req.query.person).trim()): MonitoringFilterQuery {
+  const outcome = queryString(req.query.outcome).trim();
+  const rating = queryString(req.query.rating).trim();
+  return {
+    person,
+    outcome: ['completed', 'partial', 'refused', 'failed'].includes(outcome) ? outcome : '',
+    rating: ['up', 'down', 'unrated'].includes(rating) ? rating : '',
+    table: queryString(req.query.table).trim(),
+    search: queryString(req.query.q).trim(),
+  };
+}
+
+export function matchingQuestions(
+  questions: MonitoringQuestion[],
+  filters: MonitoringFilterQuery
+): MonitoringQuestion[] {
+  const person = filters.person.toLowerCase();
+  const search = filters.search.toLowerCase();
+  const table = filters.table.toLowerCase();
+  return questions.filter((question) => {
+    if (person && question.askedBy.toLowerCase() !== person) return false;
+    if (filters.outcome && question.outcome !== filters.outcome) return false;
+    if (filters.rating === 'unrated' && question.rating !== null) return false;
+    if ((filters.rating === 'up' || filters.rating === 'down') && question.rating !== filters.rating) return false;
+    if (table && !question.tables.some((name) => name.toLowerCase() === table)) return false;
+    if (
+      search &&
+      !`${question.question} ${question.askedBy} ${question.askedBy.split('@')[0]}`.toLowerCase().includes(search)
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function paginationFor(input: {
+  page: ReturnType<typeof pageFrom>;
+  rawPage: MonitoringQuestion[];
+  total: number | null;
+}): MonitoringPagination {
+  const hasMore = input.rawPage.length > input.page.limit;
+  const last = hasMore ? input.rawPage[input.page.limit - 1] : null;
+  return {
+    pageSize: input.page.limit,
+    total: input.total,
+    hasMore,
+    nextCursor: last ? encodeCursor({ askedAt: last.askedAt, id: last.id }) : null,
+  };
+}
+
 /**
  * The ledger's verdicts, best effort.
  *
@@ -890,6 +971,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       const admin = userEmail(req);
       const range = rangeFrom(req, clock());
       const page = pageFrom(req);
+      const filters = filtersFrom(req);
       if (page.refusal) {
         res.status(400).json({ error: page.refusal });
         return;
@@ -898,9 +980,12 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         PLAN_APPROVAL_SENTINEL,
         range.from,
         range.to,
-        page.limit,
-        page.offset,
-        '',
+        page.limit + 1,
+        0,
+        filters.person,
+        page.cursor?.askedAt ?? '',
+        page.cursor?.id ?? '',
+        filters.search,
       ]);
       // Sifted BEFORE `chooseRows`, not after. The statement joins a one-row
       // totals aggregate to the page, so it answers with a row whatever the
@@ -926,13 +1011,16 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
           people: [],
           tables: [],
           grantsResolution: 'ok',
+          pagination: { pageSize: page.limit, total: null, hasMore: false, nextCursor: null },
         } satisfies MonitoringQuestionsPayload);
         return;
       }
 
       const answerIds = rows.map((row) => text(row.answer_id)).filter((id) => id !== '');
       const ledger = await readLedger(appkit, answerIds);
-      const all = rows.map((row) => questionFromRow(row, ledger));
+      const rawPage = rows.map((row) => questionFromRow(row, ledger));
+      const pageRows = rawPage.slice(0, page.limit);
+      const all = matchingQuestions(pageRows, filters);
 
       // The range's real totals, so a truncated list never becomes a smaller
       // count of what people asked. Read from the same statement as the page,
@@ -948,6 +1036,8 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       // reused for every row. Its only job on this route is to tell the client
       // whether the check ran, so it can put one line above the list.
       const distinctTables = [...new Set(all.flatMap((question) => question.tables))].sort();
+      const tableOptions = [...new Set([...distinctTables, ...(filters.table ? [filters.table] : [])])].sort();
+      const peopleOptions = [...new Set([...peopleList, ...(filters.person ? [filters.person] : [])])].sort();
       const grants = await resolveGrants({
         key: { admin, window: `${range.from}|${range.to}` },
         tables: distinctTables,
@@ -955,23 +1045,28 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         now: clock(),
       });
 
-      const partial = found > all.length;
+      const exactTotal = filters.outcome || filters.rating || filters.table ? null : found;
+      const pagination = paginationFor({ page, rawPage, total: exactTotal });
+      const partial = pagination.hasMore || page.cursor !== null;
       res.json({
         readState: partial ? 'partial' : 'ok',
         readAt,
         // Over the rows that were read, always, and the two counts below say so
         // when those are fewer than the range holds.
         summary: summarize(all, threads),
-        ...(partial ? { countedQuestions: all.length, foundQuestions: found } : {}),
-        // The whole range, unfiltered. The filter row narrows what is on screen
-        // in the browser, which is what lets it stay usable during a read and
-        // keeps this route to one query per Refresh press rather than one per
-        // chip. Section 5.8 is explicit that this page does not poll, and a
-        // filter that re-queried would have made every interaction a read.
+        ...(partial
+          ? {
+              countedQuestions: all.length,
+              ...(exactTotal !== null ? { foundQuestions: exactTotal } : {}),
+            }
+          : {}),
+        // One bounded, filtered keyset page. The active filters travel with every
+        // cursor request, so page two cannot silently widen back to all rows.
         questions: all,
-        people: peopleList,
-        tables: distinctTables,
+        people: peopleOptions,
+        tables: tableOptions,
         grantsResolution: grants.resolved ? 'ok' : 'failed',
+        pagination,
       } satisfies MonitoringQuestionsPayload);
     });
 
@@ -989,6 +1084,8 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       const stored = await readStored(appkit, 'GET /api/monitoring/questions/:id', MONITORING_DETAIL_QUERY, [
         req.params.id,
         PLAN_APPROVAL_SENTINEL,
+        range.from,
+        range.to,
       ]);
       if (!stored.available) {
         res.status(503).json({ error: 'storage_unavailable' });
@@ -1075,6 +1172,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       const person = decodeURIComponent(String(req.params.email));
       const range = rangeFrom(req, clock());
       const page = pageFrom(req);
+      const filters = filtersFrom(req, person);
       if (page.refusal) {
         res.status(400).json({ error: page.refusal });
         return;
@@ -1084,9 +1182,12 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         PLAN_APPROVAL_SENTINEL,
         range.from,
         range.to,
-        page.limit,
-        page.offset,
+        page.limit + 1,
+        0,
         person,
+        page.cursor?.askedAt ?? '',
+        page.cursor?.id ?? '',
+        filters.search,
       ]);
       if (!stored.available) {
         res.status(503).json({ error: 'storage_unavailable' });
@@ -1097,15 +1198,21 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       );
       const answerIds = mine.map((row) => text(row.answer_id)).filter((id) => id !== '');
       const ledger = await readLedger(appkit, answerIds);
-      const questions = mine.map((row) => questionFromRow(row, ledger));
+      const rawPage = mine.map((row) => questionFromRow(row, ledger));
+      const questions = matchingQuestions(rawPage.slice(0, page.limit), filters);
+      const selectedQuestionIds = new Set(questions.map((question) => question.id));
+      const selectedRows = mine.filter((row) => selectedQuestionIds.has(text(row.question_id)));
+      const selectedAnswerIds = selectedRows.map((row) => text(row.answer_id)).filter((id) => id !== '');
       const totals = rangeTotalsFrom(stored.rows[0], questions);
+      const exactTotal = filters.outcome || filters.rating || filters.table ? null : totals.asked;
+      const pagination = paginationFor({ page, rawPage, total: exactTotal });
 
       // Tokens, and the runs the total covers. A run the model reported no usage
       // for records zero, and a zero is indistinguishable from an unknown inside
       // a sum, so the coverage travels with the total everywhere it is shown.
       let tokenTotal = 0;
       let metredRuns = 0;
-      for (const row of mine) {
+      for (const row of selectedRows) {
         const tokens = integer(row.total_tokens);
         if (tokens !== null && tokens > 0) {
           tokenTotal += tokens;
@@ -1124,7 +1231,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       // it needed two further sentences to say what "skipped" did not mean.
       const executionSplit = { asThemselves: 0, asApplication: 0, unrecorded: 0 };
       const subjectSplit = { verified: 0, confirmedByEndpoint: 0, unrecorded: 0 };
-      for (const row of mine) {
+      for (const row of selectedRows) {
         const mode = text(row.execution_mode);
         if (mode === 'signed_in_user') executionSplit.asThemselves += 1;
         else if (mode === 'app_service_principal') executionSplit.asApplication += 1;
@@ -1139,7 +1246,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       // second is a change to the release or to the question.
       let refusedMissingGrant = 0;
       let refusedAgentRules = 0;
-      for (const id of answerIds) {
+      for (const id of selectedAnswerIds) {
         const verdict = ledger.get(id);
         if (!verdict || verdict.state !== 'REFUSED') continue;
         const cause = classifyRefusal(verdict.code);
@@ -1219,8 +1326,9 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         refusedMissingGrant,
         refusedAgentRules,
         questions,
-        readState: 'ok',
+        readState: pagination.hasMore || page.cursor !== null ? 'partial' : 'ok',
         readAt,
+        pagination,
       };
       // Named but unused on this route: the conditioning of an answer body is a
       // drawer concern, and this panel shows no answer bodies at all.

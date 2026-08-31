@@ -24,7 +24,7 @@ export function AccountMenuPanel({
 }) {
   const name = identityName(identity.signedInAs);
   return (
-    <div className="account-menu" role="menu" aria-label="Account menu">
+    <div className="account-menu" aria-label="Account controls">
       <div className="account-menu-identity">
         {/*
           THE SAME THREE THINGS THE TRIGGER CARRIES, in the same order: the mark,
@@ -47,21 +47,21 @@ export function AccountMenuPanel({
         <span className="account-menu-address">{identity.signedInAs}</span>
       </div>
       <div className="account-menu-group">
-        <a href={accountSlackHref('feedback')} target="_blank" rel="noopener noreferrer" role="menuitem">
+        <a href={accountSlackHref('feedback')} target="_blank" rel="noopener noreferrer">
           <span>Report feedback</span>
           <DatabricksSymbol className="account-menu-databricks" />
         </a>
-        <a href={accountSlackHref('escalation')} target="_blank" rel="noopener noreferrer" role="menuitem">
+        <a href={accountSlackHref('escalation')} target="_blank" rel="noopener noreferrer">
           <span>Escalate to Super Admin</span>
           <ShieldPlus aria-hidden="true" />
         </a>
       </div>
       <div className="account-menu-group account-menu-leave">
-        <a href="/api/account/apps" role="menuitem">
+        <a href="/api/account/apps">
           <BrandIcon product="apps" size={14} />
           <span>Back to Databricks Apps</span>
         </a>
-        <button type="button" role="menuitem" onClick={onSignOut}>
+        <button type="button" onClick={onSignOut}>
           <LogOut aria-hidden="true" />
           <span className="account-menu-signout-label">Sign out of Astrolabe</span>
         </button>
@@ -109,7 +109,6 @@ export function AccountMenu({ identity, role }: { identity: Identity; role: Role
           data-testid="identity-chip"
           type="button"
           title={identity.signedInAs}
-          aria-haspopup="menu"
           aria-expanded={open}
           aria-controls={open ? menuId : undefined}
           onClick={() => setOpen((current) => !current)}

@@ -6,13 +6,14 @@
  * questions query -- the one that scans every message in the range -- with
  * nobody asking for it. Refresh already exists for that.
  *
- * ONCE PER SESSION PER RANGE, NOT ONCE PER VISIT. The claim is taken from
+ * ONCE PER SESSION PER REQUEST, NOT ONCE PER VISIT. A request is the normalized
+ * range, active filters, and opaque page cursor. The claim is taken from
  * {@link claimAutoLoad} before any fetch is issued. So:
  *
  *   - a second mount of the same range does not re-run it
  *   - React's development double-mount does not re-run it
  *   - an automatic run that FAILED does not re-run it on the next visit
- *   - a different range is a different question and gets its own first read
+ *   - a different range, filter set, or cursor gets its own first read
  *
  * The last-but-one is the one that is easy to get wrong by keying on the store
  * instead of on a latch: a deployment whose list cannot be read would retry the
@@ -33,19 +34,20 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { MonitoringQuestionsPayload } from '../../shared/monitoring-contract';
+import type { MonitoringFilters } from './monitoring-filters';
 import { rangeFromParams, type ReadableParams } from './time-range';
 
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
 
-/** Last completed read for each range, including a failed one (payload null). */
+/** Last completed read for each normalized request, including a failed one. */
 const remembered = new Map<string, MonitoringQuestionsPayload | null>();
 
-/** Ranges whose one automatic run has been taken. */
+/** Requests whose one automatic run has been taken. */
 const autoClaimed = new Set<string>();
 
-/** In-flight read per range. A second caller joins this rather than starting another. */
+/** In-flight read per request. A duplicate caller joins rather than starting another. */
 const inflight = new Map<string, Promise<MonitoringQuestionsPayload | null>>();
 
 function announce(): void {
@@ -113,11 +115,53 @@ export function forgetMonitoringSession(): void {
   listeners.clear();
 }
 
-async function readQuestions(from: string, to: string): Promise<MonitoringQuestionsPayload | null> {
+export interface MonitoringListRequest {
+  rangeId: string;
+  from: string;
+  to: string;
+  filters: MonitoringFilters;
+  cursor: string;
+}
+
+function normalizedStamp(value: string): string {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : value.trim();
+}
+
+/** Every value that changes the server result, normalized into one cache key. */
+export function monitoringRequestId(request: MonitoringListRequest): string {
+  const normalized = {
+    range: request.rangeId,
+    from: normalizedStamp(request.from),
+    to: normalizedStamp(request.to),
+    person: request.filters.person.trim().toLowerCase(),
+    outcome: request.filters.outcome,
+    rating: request.filters.rating,
+    table: request.filters.table.trim().toLowerCase(),
+    search: request.filters.search.trim().toLowerCase(),
+    cursor: request.cursor,
+  };
+  return JSON.stringify(normalized);
+}
+
+export function monitoringQuestionsUrl(request: MonitoringListRequest): string {
+  const params = new URLSearchParams({
+    from: request.from,
+    to: request.to,
+    limit: '50',
+  });
+  if (request.cursor) params.set('cursor', request.cursor);
+  if (request.filters.person) params.set('person', request.filters.person);
+  if (request.filters.outcome) params.set('outcome', request.filters.outcome);
+  if (request.filters.rating) params.set('rating', request.filters.rating);
+  if (request.filters.table) params.set('table', request.filters.table);
+  if (request.filters.search) params.set('q', request.filters.search);
+  return `/api/monitoring/questions?${params.toString()}`;
+}
+
+async function readQuestions(request: MonitoringListRequest): Promise<MonitoringQuestionsPayload | null> {
   try {
-    const response = await fetch(
-      `/api/monitoring/questions?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
-    );
+    const response = await fetch(monitoringQuestionsUrl(request));
     // A 403 is the guard doing its job for a consumer who reached the URL.
     // The body still parses as a payload shape, and `readState` carries the
     // outcome, so there is no separate error path to keep in step.
@@ -139,23 +183,22 @@ async function readQuestions(from: string, to: string): Promise<MonitoringQuesti
  * through {@link claimAutoLoad} first.
  */
 export async function loadMonitoringQuestions(
-  rangeId: string,
-  from: string,
-  to: string
+  request: MonitoringListRequest
 ): Promise<MonitoringQuestionsPayload | null> {
-  const existing = inflight.get(rangeId);
+  const requestId = monitoringRequestId(request);
+  const existing = inflight.get(requestId);
   if (existing) return existing;
 
-  const work = readQuestions(from, to)
+  const work = readQuestions(request)
     .then((payload) => {
-      remembered.set(rangeId, payload);
+      remembered.set(requestId, payload);
       return payload;
     })
     .finally(() => {
-      inflight.delete(rangeId);
+      inflight.delete(requestId);
       announce();
     });
-  inflight.set(rangeId, work);
+  inflight.set(requestId, work);
   announce();
   return work;
 }
@@ -173,7 +216,8 @@ export interface MonitoringQuestionsSession {
  * The first visit of a range starts the read; every visit after that restores
  * the same store. Refresh is the only thing that reads again.
  */
-export function useMonitoringQuestions(rangeId: string, from: string, to: string): MonitoringQuestionsSession {
+export function useMonitoringQuestions(request: MonitoringListRequest): MonitoringQuestionsSession {
+  const requestId = monitoringRequestId(request);
   const [, bump] = useState(0);
   useEffect(() => subscribe(() => bump((count) => count + 1)), []);
 
@@ -182,17 +226,16 @@ export function useMonitoringQuestions(rangeId: string, from: string, to: string
   // are the window for THIS range's first read. A remount recomputes them
   // from a later clock and must not count as a new question.
   useEffect(() => {
-    if (claimAutoLoad(rangeId)) void loadMonitoringQuestions(rangeId, from, to);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeId]);
+    if (claimAutoLoad(requestId)) void loadMonitoringQuestions(request);
+  }, [request, requestId]);
 
   const refresh = useCallback(() => {
-    void loadMonitoringQuestions(rangeId, from, to);
-  }, [rangeId, from, to]);
+    void loadMonitoringQuestions(request);
+  }, [request, requestId]);
 
   return {
-    payload: recallQuestions(rangeId),
-    loading: isMonitoringLoading(rangeId) || !autoLoadClaimed(rangeId),
+    payload: recallQuestions(requestId),
+    loading: isMonitoringLoading(requestId) || !autoLoadClaimed(requestId),
     refresh,
   };
 }

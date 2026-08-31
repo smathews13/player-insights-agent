@@ -343,27 +343,6 @@
    */
   --conversation-measure: 1280px;
 
-  /*
-   * The room the fixed composer needs at the bottom of the transcript.
-   *
-   * A TOKEN BECAUSE THREE RULES NEED THE SAME FIGURE AND ONE OF THEM IS NOT A
-   * PADDING. `.conversation-main` pads by it so the last card can be scrolled
-   * clear of the box; `html` uses it as `scroll-padding-bottom` so that the
-   * `scrollIntoView({ block: 'end' })` which follows a new question stops ABOVE
-   * the composer instead of aligning the transcript's end with the viewport's --
-   * which put the end of the answer underneath the box the reader types in.
-   *
-   * The arithmetic: the composer is a 54px field over a 49px action strip inside
-   * a 1px border, which is 105px, and it floats 20px off the bottom. That is
-   * 125px of occupied screen at its shortest. It grows: an attachment row adds
-   * about 60px, the "could not read that document" notice about 30, and below
-   * 1180px the run summary strip adds about 35 more. 220px covers the field with
-   * attachments and a notice at once, which is the tallest state a reader gets
-   * to without also being in the narrow band. It is deliberately generous --
-   * over-reserving costs a scroll of empty sky, under-reserving hides an answer.
-   */
-  --composer-reserve: 220px;
-
   /* ---- appkit-ui / shadcn semantic mapping ---- */
   --background: #ffffff;
   --foreground: var(--db-ink);

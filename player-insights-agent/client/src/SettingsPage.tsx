@@ -37,6 +37,8 @@ import {
 } from './settings-sections';
 import { UserRoleEditor } from './UserRoleEditor';
 import { Button, Switch } from './ui';
+import { Dialog } from './Dialog';
+import { settingsDismissalAction } from './settings-dismissal';
 
 const noopClose = () => {};
 const noopSetFeature = () => {};
@@ -87,6 +89,35 @@ export class SettingsPaneBoundary extends Component<SettingsPaneBoundaryProps, S
   }
 }
 
+export function SettingsDiscardDialog({
+  onKeepEditing,
+  onDiscard,
+}: {
+  onKeepEditing: () => void;
+  onDiscard: () => void;
+}) {
+  return (
+    <Dialog
+      overlayClassName="settings-discard-overlay"
+      contentClassName="settings-discard"
+      labelledBy="settings-discard-title"
+      describedBy="settings-discard-description"
+      onDismiss={onKeepEditing}
+    >
+      <h3 id="settings-discard-title">Discard changes?</h3>
+      <p id="settings-discard-description">Your staged changes have not been saved.</p>
+      <div className="settings-discard-actions">
+        <Button variant="outline" type="button" onClick={onKeepEditing}>
+          Keep editing
+        </Button>
+        <Button type="button" onClick={onDiscard}>
+          Discard changes
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
 export function SettingsPage({
   onClose,
   initialSection = 'runtime',
@@ -118,6 +149,7 @@ export function SettingsPage({
   // The press paint, held for a beat so the click is visible before the modal
   // goes. See SAVE_PRESS_MS.
   const [pressed, setPressed] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const seededSpMode = spIdentityEnabledProp !== undefined;
   const [spIdentityEnabled, setSpIdentityEnabled] = useState(spIdentityEnabledProp ?? false);
   const [savedSpIdentityEnabled, setSavedSpIdentityEnabled] = useState(spIdentityEnabledProp ?? false);
@@ -134,14 +166,6 @@ export function SettingsPage({
   const role = roleProp ?? DEFAULT_ROLE;
   const setFeature = setFeatureProp ?? noopSetFeature;
   const sections = availableSettingsSections(savedFeatures);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [close]);
 
   /**
    * The Experimental switch and the Identity pane both follow the server flag.
@@ -233,262 +257,285 @@ export function SettingsPage({
    */
   const saveDisabled = settingsSaveDisabled(saving, dirtyCount, Boolean(form));
   const dirtyLabel = unsavedChangesLabel(dirtyCount);
+  const requestClose = useCallback(() => {
+    switch (settingsDismissalAction(dirtyCount, saving)) {
+      case 'ignore':
+        return;
+      case 'confirm':
+        setDiscardOpen(true);
+        return;
+      case 'close':
+        close();
+    }
+  }, [close, dirtyCount, saving]);
+  const discardChanges = useCallback(() => {
+    setDiscardOpen(false);
+    close();
+  }, [close]);
 
   return (
-    <div
-      className="settings-overlay"
-      data-testid="settings-modal-overlay"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) close();
-      }}
+    <Dialog
+      overlayClassName="settings-overlay"
+      contentClassName="settings-modal settings-page"
+      contentAs="section"
+      overlayTestId="settings-modal-overlay"
+      labelledBy="settings-title"
+      onDismiss={requestClose}
     >
-      <section
-        className="settings-modal settings-page"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
-      >
-        <header className="settings-modal-header">
-          <div>
-            <h2 id="settings-title">Settings</h2>
-          </div>
-          <button className="settings-close" type="button" onClick={close} aria-label="Close settings">
-            <X aria-hidden="true" />
-          </button>
-        </header>
-
-        <div className="settings-modal-body">
-          <nav className="settings-rail" aria-label="Settings sections">
-            {sections.map((section) => (
-              <button
-                key={section.id}
-                type="button"
-                className={active === section.id ? 'active' : ''}
-                aria-current={active === section.id ? 'page' : undefined}
-                disabled={section.id !== active && dirtyCount > 0}
-                title={section.id !== active && dirtyCount > 0 ? 'Save or Cancel the current changes first' : undefined}
-                onClick={() => {
-                  navigateSettingsSection(active, section.id, dirtyCount, {
-                    select: setActive,
-                    clearPaneDirty: () => {
-                      paneDirtyCountRef.current = 0;
-                      setPaneDirtyCount(0);
-                    },
-                    // A "Saved" from the pane being left must not be read as an
-                    // outcome for the one being opened.
-                    resetSaveState: () => setSaveState(SETTINGS_SAVE_IDLE),
-                  });
-                }}
-              >
-                {section.label}
-              </button>
-            ))}
-          </nav>
-          <div className="settings-modal-content">
-            <SettingsPaneBoundary key={active} section={active}>
-              {active === 'identity' ? (
-                <div className="settings-pane settings-identity">
-                  <div className="settings-pane-heading">
-                    <h3>Identity</h3>
-                  </div>
-                  <UserRoleEditor
-                    spIdentityEnabled={spIdentityEnabled}
-                    canManageHumanRoles={showsUserRoster(role.state)}
-                  />
-                </div>
-              ) : null}
-              {active === 'runtime' || active === 'appearance' ? (
-                <RuntimeSettingsPanel section={active} onSaveState={setSaveState} onDirtyChange={handlePaneDirty} />
-              ) : null}
-              {active === 'environment' ? <EnvironmentPanel /> : null}
-              {active === 'egress' ? <EgressPanel onSaveState={setSaveState} onDirtyChange={handlePaneDirty} /> : null}
-              {active === 'experimental' ? (
-                <div className="settings-pane">
-                  <div className="settings-pane-heading">
-                    <h3>Experimental</h3>
-                  </div>
-                  <table className="exp-feature-table">
-                    <colgroup>
-                      <col className="exp-feature-name-column" />
-                      <col className="exp-feature-status-column" />
-                      <col className="exp-feature-control-column" />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th scope="col">Feature</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Control</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>
-                          <ExperimentalFeatureName>Egress controls panel</ExperimentalFeatureName>
-                        </td>
-                        <td className="exp-feature-status">
-                          <ExperimentalStatus on={showsEgressControls(draftFeatures)} />
-                        </td>
-                        <td className="exp-feature-control">
-                          <div className="exp-feature-control-inner">
-                            <Switch
-                              checked={showsEgressControls(draftFeatures)}
-                              onCheckedChange={(enabled) => {
-                                setDraftFeatures((current) =>
-                                  withExperimentalFeature(current, 'egressControls', enabled)
-                                );
-                                setSaveState(SETTINGS_SAVE_IDLE);
-                              }}
-                              aria-label="Show the egress controls on this page"
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <ExperimentalFeatureName>SP identities</ExperimentalFeatureName>
-                          {spModeError ? (
-                            <p className="settings-status settings-error" role="alert">
-                              {spModeError}
-                            </p>
-                          ) : null}
-                        </td>
-                        <td className="exp-feature-status">
-                          <ExperimentalStatus on={spIdentityEnabled} />
-                        </td>
-                        <td className="exp-feature-control">
-                          <div className="exp-feature-control-inner">
-                            {spIdentityEnabled ? (
-                              <button
-                                type="button"
-                                className="settings-identity-link"
-                                data-testid="sp-identity-settings-link"
-                                disabled={dirtyCount > 0}
-                                title={dirtyCount > 0 ? 'Save or Cancel the current changes first' : undefined}
-                                onClick={() => {
-                                  setActive('identity');
-                                  setSaveState(SETTINGS_SAVE_IDLE);
-                                }}
-                              >
-                                Identity
-                              </button>
-                            ) : null}
-                            <Switch
-                              checked={spIdentityEnabled}
-                              disabled={spModeBusy}
-                              onCheckedChange={(enabled) => {
-                                setSpModeError(null);
-                                setSpIdentityEnabled(enabled);
-                                setSaveState(SETTINGS_SAVE_IDLE);
-                              }}
-                              aria-label="Run assigned people as their service principal"
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                      <ResourceTagsPanel />
-                      <tr>
-                        <td>
-                          <ExperimentalFeatureName>Forecasting</ExperimentalFeatureName>
-                        </td>
-                        <td className="exp-feature-status">
-                          <ExperimentalStatus on={showsForecasting(draftFeatures)} />
-                        </td>
-                        <td className="exp-feature-control">
-                          <div className="exp-feature-control-inner">
-                            <Switch
-                              checked={showsForecasting(draftFeatures)}
-                              onCheckedChange={(enabled) => {
-                                setDraftFeatures((current) => withExperimentalFeature(current, 'forecasting', enabled));
-                                setSaveState(SETTINGS_SAVE_IDLE);
-                              }}
-                              aria-label="Show Ops forecasting"
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <ExperimentalFeatureName>Benchmarking</ExperimentalFeatureName>
-                        </td>
-                        <td className="exp-feature-status">
-                          <ExperimentalStatus on={showsBenchmarkLab(draftFeatures)} />
-                        </td>
-                        <td className="exp-feature-control">
-                          <div className="exp-feature-control-inner">
-                            <Switch
-                              checked={showsBenchmarkLab(draftFeatures)}
-                              onCheckedChange={(enabled) => {
-                                setDraftFeatures((current) =>
-                                  withExperimentalFeature(current, 'benchmarkLab', enabled)
-                                );
-                                setSaveState(SETTINGS_SAVE_IDLE);
-                              }}
-                              aria-label="Show Benchmarking tab"
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <BenchmarkSettingsPanel
-                    enabled={showsBenchmarkLab(draftFeatures)}
-                    onSaveState={setSaveState}
-                    onDirtyChange={handlePaneDirty}
-                    additionalChangeCount={experimentalShellDirtyCount}
-                    onCommitStaged={commitExperimental}
-                  />
-                </div>
-              ) : null}
-            </SettingsPaneBoundary>
-          </div>
+      <header className="settings-modal-header">
+        <div>
+          <h2 id="settings-title">Settings</h2>
         </div>
+        <button
+          className="settings-close"
+          type="button"
+          onClick={requestClose}
+          aria-label="Close settings"
+          disabled={saving}
+        >
+          <X aria-hidden="true" />
+        </button>
+      </header>
 
-        <footer className="settings-modal-footer">
-          {dirtyLabel ? (
-            <p className="settings-dirty-indicator" role="status">
-              {dirtyLabel} <span className="ast-num">{dirtyCount}</span>
-            </p>
-          ) : (
-            <span aria-hidden="true" />
-          )}
-          <div className="settings-footer-actions">
-            {/* THE OUTCOME GOES BESIDE THE BUTTON THAT CAUSED IT. Drawn in the
+      <div className="settings-modal-body">
+        <nav className="settings-rail" aria-label="Settings sections">
+          {sections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              className={active === section.id ? 'active' : ''}
+              aria-current={active === section.id ? 'page' : undefined}
+              disabled={section.id !== active && dirtyCount > 0}
+              title={section.id !== active && dirtyCount > 0 ? 'Save or Cancel the current changes first' : undefined}
+              onClick={() => {
+                navigateSettingsSection(active, section.id, dirtyCount, {
+                  select: setActive,
+                  clearPaneDirty: () => {
+                    paneDirtyCountRef.current = 0;
+                    setPaneDirtyCount(0);
+                  },
+                  // A "Saved" from the pane being left must not be read as an
+                  // outcome for the one being opened.
+                  resetSaveState: () => setSaveState(SETTINGS_SAVE_IDLE),
+                });
+              }}
+            >
+              {section.label}
+            </button>
+          ))}
+        </nav>
+        <div className="settings-modal-content">
+          <SettingsPaneBoundary key={active} section={active}>
+            {active === 'identity' ? (
+              <div className="settings-pane settings-identity">
+                <div className="settings-pane-heading">
+                  <h3>Identity</h3>
+                </div>
+                <UserRoleEditor
+                  spIdentityEnabled={spIdentityEnabled}
+                  canManageHumanRoles={showsUserRoster(role.state)}
+                />
+              </div>
+            ) : null}
+            {active === 'runtime' || active === 'appearance' ? (
+              <RuntimeSettingsPanel section={active} onSaveState={setSaveState} onDirtyChange={handlePaneDirty} />
+            ) : null}
+            {active === 'environment' ? <EnvironmentPanel /> : null}
+            {active === 'egress' ? <EgressPanel onSaveState={setSaveState} onDirtyChange={handlePaneDirty} /> : null}
+            {active === 'experimental' ? (
+              <div className="settings-pane">
+                <div className="settings-pane-heading">
+                  <h3>Experimental</h3>
+                </div>
+                <table className="exp-feature-table">
+                  <colgroup>
+                    <col className="exp-feature-name-column" />
+                    <col className="exp-feature-status-column" />
+                    <col className="exp-feature-control-column" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th scope="col">Feature</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Control</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <ExperimentalFeatureName>Egress controls panel</ExperimentalFeatureName>
+                      </td>
+                      <td className="exp-feature-status">
+                        <ExperimentalStatus on={showsEgressControls(draftFeatures)} />
+                      </td>
+                      <td className="exp-feature-control">
+                        <div className="exp-feature-control-inner">
+                          <Switch
+                            checked={showsEgressControls(draftFeatures)}
+                            onCheckedChange={(enabled) => {
+                              setDraftFeatures((current) =>
+                                withExperimentalFeature(current, 'egressControls', enabled)
+                              );
+                              setSaveState(SETTINGS_SAVE_IDLE);
+                            }}
+                            aria-label="Show the egress controls on this page"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <ExperimentalFeatureName>SP identities</ExperimentalFeatureName>
+                        {spModeError ? (
+                          <p className="settings-status settings-error" role="alert">
+                            {spModeError}
+                          </p>
+                        ) : null}
+                      </td>
+                      <td className="exp-feature-status">
+                        <ExperimentalStatus on={spIdentityEnabled} />
+                      </td>
+                      <td className="exp-feature-control">
+                        <div className="exp-feature-control-inner">
+                          {spIdentityEnabled ? (
+                            <button
+                              type="button"
+                              className="settings-identity-link"
+                              data-testid="sp-identity-settings-link"
+                              disabled={dirtyCount > 0}
+                              title={dirtyCount > 0 ? 'Save or Cancel the current changes first' : undefined}
+                              onClick={() => {
+                                setActive('identity');
+                                setSaveState(SETTINGS_SAVE_IDLE);
+                              }}
+                            >
+                              Identity
+                            </button>
+                          ) : null}
+                          <Switch
+                            checked={spIdentityEnabled}
+                            disabled={spModeBusy}
+                            onCheckedChange={(enabled) => {
+                              setSpModeError(null);
+                              setSpIdentityEnabled(enabled);
+                              setSaveState(SETTINGS_SAVE_IDLE);
+                            }}
+                            aria-label="Run assigned people as their service principal"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                    <ResourceTagsPanel />
+                    <tr>
+                      <td>
+                        <ExperimentalFeatureName>Forecasting</ExperimentalFeatureName>
+                      </td>
+                      <td className="exp-feature-status">
+                        <ExperimentalStatus on={showsForecasting(draftFeatures)} />
+                      </td>
+                      <td className="exp-feature-control">
+                        <div className="exp-feature-control-inner">
+                          <Switch
+                            checked={showsForecasting(draftFeatures)}
+                            onCheckedChange={(enabled) => {
+                              setDraftFeatures((current) => withExperimentalFeature(current, 'forecasting', enabled));
+                              setSaveState(SETTINGS_SAVE_IDLE);
+                            }}
+                            aria-label="Show Ops forecasting"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <ExperimentalFeatureName>Benchmarking</ExperimentalFeatureName>
+                      </td>
+                      <td className="exp-feature-status">
+                        <ExperimentalStatus on={showsBenchmarkLab(draftFeatures)} />
+                      </td>
+                      <td className="exp-feature-control">
+                        <div className="exp-feature-control-inner">
+                          <Switch
+                            checked={showsBenchmarkLab(draftFeatures)}
+                            onCheckedChange={(enabled) => {
+                              setDraftFeatures((current) => withExperimentalFeature(current, 'benchmarkLab', enabled));
+                              setSaveState(SETTINGS_SAVE_IDLE);
+                            }}
+                            aria-label="Show Benchmarking tab"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <BenchmarkSettingsPanel
+                  enabled={showsBenchmarkLab(draftFeatures)}
+                  onSaveState={setSaveState}
+                  onDirtyChange={handlePaneDirty}
+                  additionalChangeCount={experimentalShellDirtyCount}
+                  onCommitStaged={commitExperimental}
+                />
+              </div>
+            ) : null}
+          </SettingsPaneBoundary>
+        </div>
+      </div>
+
+      <footer className="settings-modal-footer">
+        {dirtyLabel ? (
+          <p className="settings-dirty-indicator" role="status">
+            {dirtyLabel} <span className="ast-num">{dirtyCount}</span>
+          </p>
+        ) : (
+          <span aria-hidden="true" />
+        )}
+        <div className="settings-footer-actions">
+          {/* THE OUTCOME GOES BESIDE THE BUTTON THAT CAUSED IT. Drawn in the
                 footer, which does not scroll, so a save that worked, a save the
                 server refused, and a pane that never loaded are three visibly
                 different things instead of one motionless button. */}
-            {notice ? (
-              <p
-                className={`settings-save-notice${notice.tone === 'error' ? ' settings-error' : ''}`}
-                role={notice.tone === 'error' ? 'alert' : 'status'}
-              >
-                {notice.text}
-              </p>
-            ) : null}
-            <Button variant="outline" data-variant="outline" className="settings-cancel" type="button" onClick={close}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              data-variant="primary"
-              className="settings-save"
-              form={form}
-              disabled={saveDisabled}
-              aria-busy={saving}
-              data-pressed={pressed ? 'true' : undefined}
-              title={
-                active === 'identity'
-                  ? 'Identity changes save immediately'
-                  : active === 'environment'
-                    ? 'Environment details are read-only'
-                    : undefined
-              }
-              onClick={() => setPressed(true)}
+          {notice ? (
+            <p
+              className={`settings-save-notice${notice.tone === 'error' ? ' settings-error' : ''}`}
+              role={notice.tone === 'error' ? 'alert' : 'status'}
             >
-              {saveButtonLabel(saveState)}
-            </Button>
-          </div>
-        </footer>
-      </section>
-    </div>
+              {notice.text}
+            </p>
+          ) : null}
+          <Button
+            variant="outline"
+            data-variant="outline"
+            className="settings-cancel"
+            type="button"
+            onClick={requestClose}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            data-variant="primary"
+            className="settings-save"
+            form={form}
+            disabled={saveDisabled}
+            aria-busy={saving}
+            data-pressed={pressed ? 'true' : undefined}
+            title={
+              active === 'identity'
+                ? 'Identity changes save immediately'
+                : active === 'environment'
+                  ? 'Environment details are read-only'
+                  : undefined
+            }
+            onClick={() => setPressed(true)}
+          >
+            {saveButtonLabel(saveState)}
+          </Button>
+        </div>
+      </footer>
+      {discardOpen ? (
+        <SettingsDiscardDialog onKeepEditing={() => setDiscardOpen(false)} onDiscard={discardChanges} />
+      ) : null}
+    </Dialog>
   );
 }

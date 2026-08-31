@@ -22,6 +22,7 @@ import type { MonitoringDetail } from '../../shared/monitoring-contract';
 
 const MONITORING = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
 const CARD = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
+const DIALOG = readFileSync(new URL('./Dialog.tsx', import.meta.url), 'utf8');
 
 function text(markup: string): string {
   return markup
@@ -125,9 +126,11 @@ describe('a Monitoring question opens as a centered modal over the list', () => 
   });
 
   it('closes on Escape and on a click of the overlay, not of the dialog', () => {
-    expect(MONITORING).toContain("event.key === 'Escape'");
-    expect(MONITORING).toContain('window.addEventListener(\'keydown\', onKeyDown)');
-    expect(MONITORING).toContain('if (event.target === event.currentTarget) onClose()');
+    expect(MONITORING).toContain("import { Dialog } from './Dialog'");
+    expect(DIALOG).toContain("onDismiss?.('escape')");
+    expect(DIALOG).toContain('if (event.target !== event.currentTarget) return');
+    expect(DIALOG).toContain("onDismiss?.('backdrop')");
+    expect(MONITORING).not.toContain("window.addEventListener('keydown'");
   });
 
   it('mounts the same AnswerCard Ask uses, with the run process left on', () => {
@@ -167,7 +170,7 @@ describe('a Monitoring question opens as a centered modal over the list', () => 
   });
 });
 
-describe('the modal draws one run view, the card\'s own', () => {
+describe("the modal draws one run view, the card's own", () => {
   it('draws a single Step timeline for a run that recorded steps', () => {
     expect(occurrences(text(drawer()), 'Step timeline')).toBe(1);
   });
@@ -222,7 +225,9 @@ describe('the modal draws one run view, the card\'s own', () => {
     });
     const rendered = text(markup);
 
-    expect(rendered.indexOf('A narrative sentence.')).toBeLessThan(rendered.indexOf('1,200 tokens recorded on this run.'));
+    expect(rendered.indexOf('A narrative sentence.')).toBeLessThan(
+      rendered.indexOf('1,200 tokens recorded on this run.')
+    );
     expect(rendered.indexOf('1,200 tokens recorded on this run.')).toBeLessThan(rendered.indexOf('Sources'));
     expect(rendered.indexOf('Sources')).toBeLessThan(rendered.indexOf('Keep in mind'));
     expect(rendered.indexOf('Keep in mind')).toBeLessThan(rendered.indexOf('Run process'));

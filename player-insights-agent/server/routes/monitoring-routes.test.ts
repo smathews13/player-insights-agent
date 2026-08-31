@@ -5,6 +5,7 @@ import {
   MONITORING_PERSON_TABLES_QUERY,
   MONITORING_QUESTIONS_QUERY,
   MONITORING_ROUTES,
+  matchingQuestions,
   questionFromRow,
   rangeTotalsFrom,
   rangeFrom,
@@ -235,6 +236,11 @@ describe('the query reads questions rather than answers', () => {
     expect(MONITORING_QUESTIONS_QUERY).toContain('m.created_at >= q.asked_at');
     expect(MONITORING_QUESTIONS_QUERY).not.toContain('m.created_at < $3::timestamptz');
   });
+
+  it('bounds a question detail to the range printed on its panel', () => {
+    expect(MONITORING_DETAIL_QUERY).toContain('q.created_at >= $3::timestamptz');
+    expect(MONITORING_DETAIL_QUERY).toContain('q.created_at < $4::timestamptz');
+  });
 });
 
 describe('a range is bounded rather than trusted', () => {
@@ -460,6 +466,48 @@ describe('the summary counts what it read', () => {
 
   it('reports no median at all when nothing recorded a time', () => {
     expect(summarize([questionFromRow(row({ total_ms: null }), ledger())], 1).medianMs).toBeNull();
+  });
+});
+
+describe('server-side list filters', () => {
+  const questions = [
+    questionFromRow(row(), ledger([['a1', { state: 'REFUSED', code: 'USER_NOT_AUTHORIZED' }]])),
+    questionFromRow(
+      row({
+        question_id: 'q2',
+        conversation_id: 'c2',
+        question: 'Completed revenue answer',
+        user_email: 'second.person@example.test',
+        answer_id: 'a2',
+        usefulness: 2,
+        sources: ['main.finance.revenue'],
+      }),
+      ledger([['a2', { state: 'SUCCEEDED', code: null }]])
+    ),
+  ];
+
+  it('combines person, outcome, rating, table, and search with AND', () => {
+    expect(
+      matchingQuestions(questions, {
+        person: 'second.person@example.test',
+        outcome: 'completed',
+        rating: 'down',
+        table: 'MAIN.FINANCE.REVENUE',
+        search: 'revenue',
+      }).map((question) => question.id)
+    ).toEqual(['q2']);
+  });
+
+  it('keeps unrated distinct from no rating filter', () => {
+    expect(
+      matchingQuestions(questions, {
+        person: '',
+        outcome: '',
+        rating: 'unrated',
+        table: '',
+        search: '',
+      })
+    ).toEqual([]);
   });
 });
 

@@ -29,7 +29,7 @@
  * conversation does not want the list reordering underneath them, and the query
  * behind it scans every message in the range.
  */
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { Search, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import { astPill, type AstPillFamily } from './astrolabe-pill';
@@ -83,7 +83,6 @@ import {
   drawerFromParams,
   filtersActive,
   filtersFromParams,
-  onlyDrawerChanged,
   openPerson,
   openQuestion,
   scrollMemory,
@@ -93,15 +92,28 @@ import {
 // Shared with Ops, so the two tabs cannot be over different windows.
 import { TimeRangeControl } from './TimeRangeControl';
 import { monitoringRangeId, useMonitoringQuestions } from './monitoring-session';
+import {
+  beginPanelLoad,
+  idlePanel,
+  monitoringDetailKey,
+  panelStateForKey,
+  personDetailUrl,
+  questionDetailUrl,
+  rejectPanelLoad,
+  resolvePanelLoad,
+  type PanelLoadState,
+} from './monitoring-detail-state';
 import { rangeWindow } from './time-range';
 import { codesForCause } from '../../shared/monitoring-contract';
 import type {
   MonitoringDetail,
+  MonitoringPagination,
   MonitoringQuestion,
   MonitoringQuestionsPayload,
   PersonPanelPayload,
 } from '../../shared/monitoring-contract';
 import { UsedThisRun } from './UsedThisRun';
+import { Dialog } from './Dialog';
 
 /* ── The summary strip ───────────────────────────────────────────────────── */
 
@@ -542,25 +554,7 @@ function RatingMark({ rating }: { rating: 'up' | 'down' | null }) {
   return <span className="sr-only">Not rated</span>;
 }
 
-/**
- * One row, memoised, because this table is long and the page around it is busy.
- *
- * A range can hold up to `QUESTION_READ_LIMIT` questions -- two thousand -- and
- * every one of them is rendered; there is no windowing. Opening the drawer,
- * closing it, changing a filter and refreshing all re-render the page, and
- * without this each of those rebuilt two thousand rows to change the highlight
- * on one of them. That is the "sticky" the reader feels on a wide range.
- *
- * The comparison is `question`, `selected`, `now` and `onOpen` by identity, so
- * the FOUR THINGS THIS DEPENDS ON have to hold for it to be worth anything:
- * question objects are replaced only when the payload is re-read, `now` moves
- * only on refresh (not on a clock), `selected` is a boolean rather than the
- * selected id, and `onOpen` is stable across renders -- see `open` in
- * `MonitoringPage`, which is latched to a ref precisely so this holds. Passing
- * `selectedId` down instead of `selected` would make every row's props change
- * on every selection, which is the thing being avoided.
- */
-const QuestionRow = memo(function QuestionRow({
+function QuestionRow({
   question,
   selected,
   now,
@@ -633,7 +627,66 @@ const QuestionRow = memo(function QuestionRow({
       </td>
     </tr>
   );
-});
+}
+
+export const MONITORING_COMPACT_MAX_WIDTH_PX = 799;
+export const MONITORING_COMPACT_QUERY = `(max-width: ${MONITORING_COMPACT_MAX_WIDTH_PX}px)`;
+
+function useCompactQuestionList(forced?: boolean): boolean {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    if (forced !== undefined || typeof globalThis.matchMedia !== 'function') return;
+    const query = globalThis.matchMedia(MONITORING_COMPACT_QUERY);
+    const update = () => setCompact(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, [forced]);
+  return forced ?? compact;
+}
+
+function QuestionCard({
+  question,
+  selected,
+  now,
+  onOpen,
+}: {
+  question: MonitoringQuestion;
+  selected: boolean;
+  now: number;
+  onOpen: (question: MonitoringQuestion) => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        className={selected ? 'monitoring-question-card monitoring-row-selected' : 'monitoring-question-card'}
+        aria-current={selected ? 'true' : undefined}
+        onClick={() => onOpen(question)}
+      >
+        <span className="monitoring-question-card-text">{question.question}</span>
+        <span className="monitoring-question-card-meta">
+          <AskerMark email={question.askedBy} />
+          <span>{whenLabel(question.askedAt, now)}</span>
+          <OutcomePill question={question} />
+        </span>
+        <span className="monitoring-question-card-facts">
+          {formatDuration(question.durationMs) ? (
+            <span>
+              Time <span className="ast-num">{formatDuration(question.durationMs)}</span>
+            </span>
+          ) : null}
+          {question.toolCalls !== null ? (
+            <span>
+              Tools <span className="ast-num">{question.toolCalls}</span>
+            </span>
+          ) : null}
+          <RatingMark rating={question.rating} />
+        </span>
+      </button>
+    </li>
+  );
+}
 
 /**
  * One row per question, and the whole row is one control.
@@ -648,12 +701,31 @@ export function QuestionList({
   selectedId,
   now,
   onOpen,
+  compact: forcedCompact,
 }: {
   questions: MonitoringQuestion[];
   selectedId: string;
   now: number;
   onOpen: (question: MonitoringQuestion) => void;
+  /** Test seam; normal callers follow the 800px media query. */
+  compact?: boolean;
 }) {
+  const compact = useCompactQuestionList(forcedCompact);
+  if (compact) {
+    return (
+      <ul className="monitoring-card-list" aria-label="Questions">
+        {newestFirst(questions).map((question) => (
+          <QuestionCard
+            key={question.id}
+            question={question}
+            selected={question.id === selectedId}
+            now={now}
+            onOpen={onOpen}
+          />
+        ))}
+      </ul>
+    );
+  }
   return (
     <table className="monitoring-table">
       <thead>
@@ -709,6 +781,37 @@ function SkeletonRows() {
         <Skeleton className="h-9 w-full" key={index} />
       ))}
     </div>
+  );
+}
+
+export function MonitoringPaginationControls({
+  pagination,
+  page,
+  onPrevious,
+  onNext,
+}: {
+  pagination: MonitoringPagination;
+  page: number;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  if (page === 0 && !pagination.hasMore) return null;
+  const count = pagination.total;
+  return (
+    <nav className="monitoring-pagination" aria-label="Question pages">
+      <p aria-live="polite">
+        Page {page + 1}
+        {count !== null ? ` · ${count.toLocaleString()} matching questions` : ''}
+      </p>
+      <div>
+        <Button variant="outline" size="sm" onClick={onPrevious} disabled={page === 0}>
+          Previous
+        </Button>
+        <Button variant="outline" size="sm" onClick={onNext} disabled={!pagination.hasMore}>
+          Next
+        </Button>
+      </div>
+    </nav>
   );
 }
 
@@ -776,38 +879,24 @@ export function QuestionDrawer({
 }) {
   const answer = detail.conditioning ? null : answerFrom(detail.answer);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
   return (
-    <div
-      className="monitoring-question-overlay"
-      data-testid="monitoring-question-overlay"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <Dialog
+      overlayClassName="monitoring-question-overlay"
+      contentClassName="monitoring-question-modal"
+      overlayTestId="monitoring-question-overlay"
+      labelledBy="monitoring-question-title"
+      onDismiss={onClose}
     >
-      <div
-        className="monitoring-question-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="monitoring-question-title"
-      >
-        <div className="monitoring-drawer-head">
-          <h3 id="monitoring-question-title" className="monitoring-drawer-question">
-            {detail.question}
-          </h3>
-          <Button variant="outline" size="sm" className="monitoring-drawer-close" onClick={onClose}>
-            <X className="size-3" aria-hidden="true" />
-            <span className="sr-only">Close</span>
-          </Button>
-        </div>
-        {/* Who, when, and whose grants the data was read under, in the app's own
+      <div className="monitoring-drawer-head">
+        <h3 id="monitoring-question-title" className="monitoring-drawer-question">
+          {detail.question}
+        </h3>
+        <Button variant="outline" size="sm" className="monitoring-drawer-close" onClick={onClose}>
+          <X className="size-3" aria-hidden="true" />
+          <span className="sr-only">Close</span>
+        </Button>
+      </div>
+      {/* Who, when, and whose grants the data was read under, in the app's own
             footer wording. Its purpose is narrow and worth stating: an admin
             comparing two people's answers to the same question needs to know why
             the numbers differ, and the reason is usually that the two readers have
@@ -816,90 +905,141 @@ export function QuestionDrawer({
             Joined rather than concatenated because the third segment is absent on
             a run that recorded no identity, and a hardcoded separator would leave
             the line ending in a dangling middot. */}
-        {/* Asked-by is a compact corner chip on the answer card, the same
+      {/* Asked-by is a compact corner chip on the answer card, the same
             register as "Live agent response". It stays here only when there is
             no card: a conditioned or failed run still has to name who asked.
             The timestamp and grants stay a caption, not a second washed bar. */}
-        <div className="monitoring-drawer-meta-row">
-          {!answer ? <UserIdentityChip identity={detail.askedBy} label="Asked by" compact /> : null}
-          <p className="monitoring-drawer-meta">
-            {[askedAtLabel(detail.askedAt), askerGrantsLine(detail.execution, identityName(detail.askedBy))]
-              .filter((segment): segment is string => Boolean(segment))
-              .join(' · ')}
-          </p>
-        </div>
-        <UsedThisRun used={detail.runtimeUsed ?? null} />
+      <div className="monitoring-drawer-meta-row">
+        {!answer ? <UserIdentityChip identity={detail.askedBy} label="Asked by" compact /> : null}
+        <p className="monitoring-drawer-meta">
+          {[askedAtLabel(detail.askedAt), askerGrantsLine(detail.execution, identityName(detail.askedBy))]
+            .filter((segment): segment is string => Boolean(segment))
+            .join(' · ')}
+        </p>
+      </div>
+      <UsedThisRun used={detail.runtimeUsed ?? null} />
 
-        <div className="monitoring-drawer-links">
-          {/* Keep the drilldown's onward actions near its heading, where they are
+      <div className="monitoring-drawer-links">
+        {/* Keep the drilldown's onward actions near its heading, where they are
               available before a long answer. The MLflow action remains absent
               rather than dead when the run recorded no trace id. */}
-          {detail.mlflowUrl ? (
-            <a href={detail.mlflowUrl} target="_blank" rel="noreferrer">
-              {/* Sized by height, not boxed: MLflow is published as a wordmark. */}
-              <BrandIcon product="mlflow" size={12} />
-              Open the MLflow trace ↗
-            </a>
-          ) : null}
-          {detail.runId ? <Link to={`/runs?run=${encodeURIComponent(detail.runId)}`}>Open in Run Explorer</Link> : null}
-          {/* Named, not "this person". The row already says who asked, and a
+        {detail.mlflowUrl ? (
+          <a href={detail.mlflowUrl} target="_blank" rel="noreferrer">
+            {/* Sized by height, not boxed: MLflow is published as a wordmark. */}
+            <BrandIcon product="mlflow" size={12} />
+            Open the MLflow trace ↗
+          </a>
+        ) : null}
+        {detail.runId ? <Link to={`/runs?run=${encodeURIComponent(detail.runId)}`}>Open in Run Explorer</Link> : null}
+        {/* Named, not "this person". The row already says who asked, and a
               reader following the link is going to that person's panel -- so the
               link says whose. The fallback is the old wording, for the run that
               recorded no identity: `identityName` would hand us "Unknown" and
               "see Unknown's activity" names nobody. */}
-          <button type="button" className="monitoring-linklike" onClick={() => onOpenPerson(detail.askedBy)}>
-            {detail.askedBy?.trim()
-              ? `see ${possessiveName(identityName(detail.askedBy))} activity`
-              : "see this person's activity"}
-          </button>
-        </div>
+        <button type="button" className="monitoring-linklike" onClick={() => onOpenPerson(detail.askedBy)}>
+          {detail.askedBy?.trim()
+            ? `see ${possessiveName(identityName(detail.askedBy))} activity`
+            : "see this person's activity"}
+        </button>
+      </div>
 
-        {detail.conditioning ? (
-          /* One line where the content would have been, in the same type as the
+      {detail.conditioning ? (
+        /* One line where the content would have been, in the same type as the
              surrounding body text. No warning colour, no icon, no acknowledgement
              step. Everything below still renders. */
-          <p className="monitoring-conditioned">
-            {conditioningLine(detail.conditioning.table, detail.conditioning.permission)}
-          </p>
-        ) : answer ? (
-          <AnswerCard
-            answer={answer}
-            question={detail.question}
-            feedback={READ_ONLY_FEEDBACK}
-            onFeedbackChange={() => {}}
-            saveFeedback={async () => {}}
-            showFeedback={false}
-            afterEvidence={tokensNote(detail.tokens)}
-            headerExtra={<UserIdentityChip identity={detail.askedBy} label="Asked by" compact />}
-          />
-        ) : (
-          /* A refusal or a failure: the taxonomy's own sentence, with the code in
+        <p className="monitoring-conditioned">
+          {conditioningLine(detail.conditioning.table, detail.conditioning.permission)}
+        </p>
+      ) : answer ? (
+        <AnswerCard
+          answer={answer}
+          question={detail.question}
+          feedback={READ_ONLY_FEEDBACK}
+          onFeedbackChange={() => {}}
+          saveFeedback={async () => {}}
+          showFeedback={false}
+          afterEvidence={tokensNote(detail.tokens)}
+          headerExtra={<UserIdentityChip identity={detail.askedBy} label="Asked by" compact />}
+        />
+      ) : (
+        /* A refusal or a failure: the taxonomy's own sentence, with the code in
              monospace beneath it. Not a blank panel, and not an invented reason. */
-          <div className="monitoring-drawer-outcome">
-            <p>{detail.outcomeDetail ?? 'This question produced no stored answer, and no reason was recorded.'}</p>
-            {detail.outcomeCode ? <code className="monitoring-code">{detail.outcomeCode}</code> : null}
-          </div>
-        )}
+        <div className="monitoring-drawer-outcome">
+          <p>{detail.outcomeDetail ?? 'This question produced no stored answer, and no reason was recorded.'}</p>
+          {detail.outcomeCode ? <code className="monitoring-code">{detail.outcomeCode}</code> : null}
+        </div>
+      )}
 
-        {/* Tokens sit inside the card when there is one, after the tables and
+      {/* Tokens sit inside the card when there is one, after the tables and
             before Sources. A sibling after the card is what painted them on the
             last table row. They stay a dialog child only when there is no card. */}
-        {!answer ? tokensNote(detail.tokens) : null}
+      {!answer ? tokensNote(detail.tokens) : null}
 
-        {detail.rating || detail.usefulness !== null || detail.comment ? (
-          <section className="monitoring-drawer-section">
-            <h4 className="monitoring-eyebrow">Rating and feedback</h4>
-            <p className="monitoring-drawer-rating">
-              <RatingMark rating={detail.rating} />
-              {detail.rating === 'up' ? 'Rated helpful' : detail.rating === 'down' ? 'Rated not helpful' : 'Not rated'}
-              {detail.usefulness !== null ? ` · usefulness ${detail.usefulness} of 5` : ''}
-            </p>
-            {/* Verbatim. A comment paraphrased is a comment nobody wrote. */}
-            {detail.comment ? <p className="monitoring-drawer-comment">{detail.comment}</p> : null}
-          </section>
-        ) : null}
+      {detail.rating || detail.usefulness !== null || detail.comment ? (
+        <section className="monitoring-drawer-section">
+          <h4 className="monitoring-eyebrow">Rating and feedback</h4>
+          <p className="monitoring-drawer-rating">
+            <RatingMark rating={detail.rating} />
+            {detail.rating === 'up' ? 'Rated helpful' : detail.rating === 'down' ? 'Rated not helpful' : 'Not rated'}
+            {detail.usefulness !== null ? ` · usefulness ${detail.usefulness} of 5` : ''}
+          </p>
+          {/* Verbatim. A comment paraphrased is a comment nobody wrote. */}
+          {detail.comment ? <p className="monitoring-drawer-comment">{detail.comment}</p> : null}
+        </section>
+      ) : null}
+    </Dialog>
+  );
+}
+
+export function QuestionPanel({
+  state,
+  title,
+  onClose,
+  onOpenPerson,
+  onRetry,
+}: {
+  state: PanelLoadState<MonitoringDetail>;
+  title: string;
+  onClose: () => void;
+  onOpenPerson: (email: string) => void;
+  onRetry: () => void;
+}) {
+  if (state.status === 'ready') {
+    return <QuestionDrawer detail={state.data} onClose={onClose} onOpenPerson={onOpenPerson} />;
+  }
+  return (
+    <Dialog
+      overlayClassName="monitoring-question-overlay"
+      contentClassName="monitoring-question-modal monitoring-panel-status"
+      overlayTestId="monitoring-question-overlay"
+      labelledBy="monitoring-question-title"
+      ariaBusy={state.status === 'loading' || state.status === 'idle'}
+      onDismiss={onClose}
+    >
+      <div className="monitoring-drawer-head">
+        <h3 id="monitoring-question-title" className="monitoring-drawer-question">
+          {title || 'Question details'}
+        </h3>
+        <Button variant="outline" size="sm" className="monitoring-drawer-close" onClick={onClose}>
+          <X className="size-3" aria-hidden="true" />
+          <span className="sr-only">Close</span>
+        </Button>
       </div>
-    </div>
+      {state.status === 'error' ? (
+        <div role="alert" className="monitoring-panel-message">
+          <p>{state.error}</p>
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            Retry
+          </Button>
+        </div>
+      ) : (
+        <div role="status" className="monitoring-panel-message">
+          <Skeleton className="h-5 w-2/3" />
+          <Skeleton className="h-24 w-full" />
+          <span className="sr-only">Loading question details</span>
+        </div>
+      )}
+    </Dialog>
   );
 }
 
@@ -963,6 +1103,10 @@ export function PersonPanel({
   rangeLabel,
   onClose,
   onOpenQuestion,
+  page = 0,
+  onPreviousPage = () => {},
+  onNextPage = () => {},
+  compactQuestions,
 }: {
   panel: PersonPanelPayload;
   now: number;
@@ -979,17 +1123,27 @@ export function PersonPanel({
   rangeLabel: string;
   onClose: () => void;
   onOpenQuestion: (question: MonitoringQuestion) => void;
+  page?: number;
+  onPreviousPage?: () => void;
+  onNextPage?: () => void;
+  compactQuestions?: boolean;
 }) {
   const times = answerTimeTile(panel.durationsMs);
   const outcomes = outcomeTile(panel.summary);
   const scopes = readScopes(panel);
   const cost = tokenCostTile(panel.tokenCostUsd);
   return (
-    <aside className="monitoring-drawer" role="dialog" aria-modal="true" aria-label="Activity for one person">
+    <Dialog
+      overlayClassName="monitoring-person-overlay"
+      contentClassName="monitoring-drawer"
+      contentAs="aside"
+      labelledBy="monitoring-person-title"
+      onDismiss={onClose}
+    >
       <div className="monitoring-drawer-head">
         <div className="monitoring-panel-who">
           <div className="min-w-0">
-            <h3 className="monitoring-panel-name">
+            <h3 id="monitoring-person-title" className="monitoring-panel-name">
               <UserIdentityChip identity={panel.email} />
             </h3>
             <p className="monitoring-drawer-meta">
@@ -1131,9 +1285,95 @@ export function PersonPanel({
       {panel.questions.length === 0 ? (
         <p className="monitoring-empty-line">No questions from this person in this range.</p>
       ) : (
-        <QuestionList questions={panel.questions} selectedId="" now={now} onOpen={onOpenQuestion} />
+        <QuestionList
+          questions={panel.questions}
+          selectedId=""
+          now={now}
+          onOpen={onOpenQuestion}
+          compact={compactQuestions}
+        />
       )}
-    </aside>
+      <MonitoringPaginationControls
+        pagination={panel.pagination}
+        page={page}
+        onPrevious={onPreviousPage}
+        onNext={onNextPage}
+      />
+    </Dialog>
+  );
+}
+
+export function PersonPanelShell({
+  state,
+  email,
+  now,
+  rangeLabel,
+  page,
+  onClose,
+  onOpenQuestion,
+  onPreviousPage,
+  onNextPage,
+  onRetry,
+}: {
+  state: PanelLoadState<PersonPanelPayload>;
+  email: string;
+  now: number;
+  rangeLabel: string;
+  page: number;
+  onClose: () => void;
+  onOpenQuestion: (question: MonitoringQuestion) => void;
+  onPreviousPage: () => void;
+  onNextPage: () => void;
+  onRetry: () => void;
+}) {
+  if (state.status === 'ready') {
+    return (
+      <PersonPanel
+        panel={state.data}
+        now={now}
+        rangeLabel={rangeLabel}
+        page={page}
+        onClose={onClose}
+        onOpenQuestion={onOpenQuestion}
+        onPreviousPage={onPreviousPage}
+        onNextPage={onNextPage}
+      />
+    );
+  }
+  return (
+    <Dialog
+      overlayClassName="monitoring-person-overlay"
+      contentClassName="monitoring-drawer monitoring-panel-status"
+      contentAs="aside"
+      labelledBy="monitoring-person-title"
+      ariaBusy={state.status === 'loading' || state.status === 'idle'}
+      onDismiss={onClose}
+    >
+      <div className="monitoring-drawer-head">
+        <h3 id="monitoring-person-title" className="monitoring-panel-name">
+          {localPart(email) || 'Person activity'}
+        </h3>
+        <Button variant="outline" size="sm" className="monitoring-drawer-close" onClick={onClose}>
+          <X className="size-3" aria-hidden="true" />
+          <span className="sr-only">Close</span>
+        </Button>
+      </div>
+      {state.status === 'error' ? (
+        <div role="alert" className="monitoring-panel-message">
+          <p>{state.error}</p>
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            Retry
+          </Button>
+        </div>
+      ) : (
+        <div role="status" className="monitoring-panel-message">
+          <Skeleton className="h-5 w-1/2" />
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+          <span className="sr-only">Loading person activity</span>
+        </div>
+      )}
+    </Dialog>
   );
 }
 
@@ -1151,6 +1391,9 @@ export interface MonitoringBodyProps {
   onChangeFilters: (next: MonitoringFilters) => void;
   onClearFilters: () => void;
   onRetry: () => void;
+  page?: number;
+  onPreviousPage?: () => void;
+  onNextPage?: () => void;
 }
 
 /**
@@ -1174,6 +1417,9 @@ export function MonitoringBody({
   onChangeFilters,
   onClearFilters,
   onRetry,
+  page = 0,
+  onPreviousPage = () => {},
+  onNextPage = () => {},
 }: MonitoringBodyProps) {
   if (state === 'unavailable') {
     /* The page body is replaced rather than half-populated. The heading and the
@@ -1239,6 +1485,7 @@ export function MonitoringBody({
           <EmptyList
             state={state}
             filters={filters}
+            paged={page > 0 || payload?.pagination.hasMore === true}
             onClearFilters={onClearFilters}
             onChangeFilters={onChangeFilters}
           />
@@ -1246,6 +1493,14 @@ export function MonitoringBody({
           <QuestionList questions={questions} selectedId={selectedId} now={now} onOpen={onOpen} />
         )}
       </div>
+      {payload && state !== 'loading' ? (
+        <MonitoringPaginationControls
+          pagination={payload.pagination}
+          page={page}
+          onPrevious={onPreviousPage}
+          onNext={onNextPage}
+        />
+      ) : null}
     </>
   );
 }
@@ -1263,18 +1518,26 @@ export function MonitoringBody({
 function EmptyList({
   state,
   filters,
+  paged,
   onClearFilters,
   onChangeFilters,
 }: {
   state: EmptyState;
   filters: MonitoringFilters;
+  paged: boolean;
   onClearFilters: () => void;
   onChangeFilters: (next: MonitoringFilters) => void;
 }) {
   const copy = emptyCopy(state, { search: filters.search, chips: chipsActive(filters) });
+  const sentence =
+    paged && state !== 'empty-range'
+      ? state === 'empty-search'
+        ? `No questions on this page match "${filters.search.trim()}".`
+        : 'No questions on this page match these filters.'
+      : copy.sentence;
   return (
     <div className="monitoring-empty">
-      <p className="monitoring-empty-line">{copy.sentence}</p>
+      <p className="monitoring-empty-line">{sentence}</p>
       <div className="monitoring-empty-actions">
         {copy.clearSearch ? (
           <Button variant="outline" size="sm" onClick={() => onChangeFilters({ ...filters, search: '' })}>
@@ -1293,76 +1556,109 @@ function EmptyList({
 
 /* ── The page ────────────────────────────────────────────────────────────── */
 
+function usePanelRequest<T>(key: string, url: string, errorMessage: string) {
+  const [state, setState] = useState<PanelLoadState<T>>(() => idlePanel<T>());
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!key || !url) {
+      setState(idlePanel<T>());
+      return;
+    }
+    const controller = new AbortController();
+    const requestId = ++panelRequestSequence;
+    setState(beginPanelLoad<T>(key, requestId));
+
+    void fetch(url, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(response.status === 403 ? 'forbidden' : `http_${response.status}`);
+        return (await response.json()) as T;
+      })
+      .then((data) => setState((current) => resolvePanelLoad(current, key, requestId, data)))
+      .catch((error: unknown) => {
+        if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) return;
+        const message =
+          error instanceof Error && error.message === 'forbidden'
+            ? 'You do not have access to these Monitoring details.'
+            : errorMessage;
+        setState((current) => rejectPanelLoad(current, key, requestId, message));
+      });
+
+    return () => controller.abort();
+  }, [attempt, errorMessage, key, url]);
+
+  // Effects start after render. Mask a completed prior key synchronously so a
+  // URL/range change cannot paint old-range data under the new range label for
+  // even one frame while the abort and replacement request are being scheduled.
+  const visibleState = panelStateForKey(state, key, 0);
+  return { state: visibleState, retry: () => setAttempt((value) => value + 1) };
+}
+
+let panelRequestSequence = 0;
+
+interface CursorPages {
+  owner: string;
+  cursors: string[];
+  index: number;
+}
+
+function cursorFor(owner: string, pages: CursorPages): string {
+  return pages.owner === owner ? (pages.cursors[pages.index] ?? '') : '';
+}
+
+function pageFor(owner: string, pages: CursorPages): number {
+  return pages.owner === owner ? pages.index : 0;
+}
+
 export function MonitoringPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [detail, setDetail] = useState<MonitoringDetail | null>(null);
-  const [panel, setPanel] = useState<PersonPanelPayload | null>(null);
   // The clock is read once per render pass rather than per row, so every
   // relative stamp on one paint is relative to the same instant.
   const [now, setNow] = useState(() => Date.now());
   const scroll = useRef(scrollMemory());
-  const lastSearch = useRef(location.search);
 
   const filters = filtersFromParams(searchParams);
   const drawer = drawerFromParams(searchParams);
   const window_ = rangeWindow(searchParams, now);
-  // Once per range for the session, and again on Refresh. Never on a filter
-  // change, a drawer opening, or a remount of this page -- those used to
-  // re-run the list query because the route unmounts on navigation.
-  const { payload, loading, refresh } = useMonitoringQuestions(
-    monitoringRangeId(searchParams),
-    window_.from,
-    window_.to
+  const rangeId = monitoringRangeId(searchParams);
+  const filterKey = JSON.stringify(filters);
+  const listOwner = `${rangeId}|${window_.from}|${window_.to}|${filterKey}`;
+  const [listPages, setListPages] = useState<CursorPages>({ owner: listOwner, cursors: [''], index: 0 });
+  const listCursor = cursorFor(listOwner, listPages);
+  const listPage = pageFor(listOwner, listPages);
+  const { payload, loading, refresh } = useMonitoringQuestions({
+    rangeId,
+    from: window_.from,
+    to: window_.to,
+    filters,
+    cursor: listCursor,
+  });
+
+  const personOwner = `${drawer.person.toLowerCase()}|${window_.from}|${window_.to}|${filterKey}`;
+  const [personPages, setPersonPages] = useState<CursorPages>({
+    owner: personOwner,
+    cursors: [''],
+    index: 0,
+  });
+  const personCursor = cursorFor(personOwner, personPages);
+  const personPage = pageFor(personOwner, personPages);
+
+  const questionKey = drawer.question ? monitoringDetailKey('question', drawer.question, window_.from, window_.to) : '';
+  const questionRequest = usePanelRequest<MonitoringDetail>(
+    questionKey,
+    drawer.question ? questionDetailUrl(drawer.question, window_.from, window_.to) : '',
+    'Question details could not be loaded.'
   );
-
-  // The drawer's own read, keyed on which question is open.
-  useEffect(() => {
-    if (!drawer.question) {
-      setDetail(null);
-      return;
-    }
-    let live = true;
-    void fetch(
-      `/api/monitoring/questions/${encodeURIComponent(drawer.question)}` +
-        `?from=${encodeURIComponent(window_.from)}&to=${encodeURIComponent(window_.to)}`
-    )
-      .then((response) => (response.ok ? (response.json() as Promise<MonitoringDetail>) : null))
-      .then((body) => {
-        if (live) setDetail(body);
-      })
-      .catch(() => {
-        if (live) setDetail(null);
-      });
-    return () => {
-      live = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawer.question]);
-
-  useEffect(() => {
-    if (!drawer.person) {
-      setPanel(null);
-      return;
-    }
-    let live = true;
-    void fetch(
-      `/api/monitoring/people/${encodeURIComponent(drawer.person)}` +
-        `?from=${encodeURIComponent(window_.from)}&to=${encodeURIComponent(window_.to)}`
-    )
-      .then((response) => (response.ok ? (response.json() as Promise<PersonPanelPayload>) : null))
-      .then((body) => {
-        if (live) setPanel(body);
-      })
-      .catch(() => {
-        if (live) setPanel(null);
-      });
-    return () => {
-      live = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawer.person]);
+  const personKey = drawer.person
+    ? monitoringDetailKey('person', drawer.person, window_.from, window_.to, personCursor)
+    : '';
+  const personRequest = usePanelRequest<PersonPanelPayload>(
+    personKey,
+    drawer.person ? personDetailUrl(drawer.person, window_.from, window_.to, filters, personCursor) : '',
+    'Person activity could not be loaded.'
+  );
 
   /**
    * Closing the drawer puts the reader back exactly where they were.
@@ -1380,32 +1676,12 @@ export function MonitoringPage() {
     }
   }, [location.search, navigate]);
 
-  /*
-   * Opening a question, and the ONE callback on this page that has to keep its
-   * identity between renders.
-   *
-   * It is handed to every row in the table, and `QuestionRow` is memoised on its
-   * props, so a new function here is a new prop on all two thousand rows and the
-   * memo buys nothing. Written the obvious way it depended on `location.search`,
-   * which this callback's own navigation changes -- so opening the drawer
-   * rebuilt `open`, which re-rendered every row, on the one interaction the memo
-   * exists to make cheap.
-   *
-   * The search string is read off a ref at CALL time instead, which is the same
-   * value the direct dependency had: `searchNow` is assigned on every render, so
-   * by the time a click can reach this it holds the search that click was made
-   * against. That is also why it is assigned during render rather than in an
-   * effect, matching `lastSearch` below.
-   */
-  const searchNow = useRef(location.search);
-  searchNow.current = location.search;
-
   const open = useCallback(
     (question: MonitoringQuestion) => {
       scroll.current.capture(typeof globalThis.scrollY === 'number' ? globalThis.scrollY : 0);
-      void navigate({ search: openQuestion(searchNow.current, question.id) });
+      void navigate({ search: openQuestion(location.search, question.id) });
     },
-    [navigate]
+    [location.search, navigate]
   );
 
   const openPersonPanel = useCallback(
@@ -1424,11 +1700,6 @@ export function MonitoringPage() {
     },
     [location.search, setSearchParams]
   );
-
-  // Kept so a later read can tell a drawer change from a range change without
-  // re-deriving it, and so the reason that matters is written down where it is
-  // used rather than in a commit message.
-  if (!onlyDrawerChanged(lastSearch.current, location.search)) lastSearch.current = location.search;
 
   const visible = payload ? applyFilters(payload.questions, filters) : [];
   const state: MonitoringState = monitoringState({
@@ -1452,7 +1723,6 @@ export function MonitoringPage() {
             now={now}
             onRefresh={() => {
               setNow(Date.now());
-              refresh();
             }}
           />
         }
@@ -1470,13 +1740,59 @@ export function MonitoringPage() {
         onChangeFilters={changeFilters}
         onClearFilters={() => setSearchParams(new URLSearchParams(clearedFilters(location.search)), { replace: true })}
         onRetry={refresh}
+        page={listPage}
+        onPreviousPage={() =>
+          setListPages((current) => ({
+            owner: listOwner,
+            cursors: current.owner === listOwner ? current.cursors : [''],
+            index: Math.max(0, current.owner === listOwner ? current.index - 1 : 0),
+          }))
+        }
+        onNextPage={() => {
+          const next = payload?.pagination.nextCursor;
+          if (!next) return;
+          setListPages((current) => {
+            const cursors = current.owner === listOwner ? current.cursors.slice(0, current.index + 1) : [''];
+            return { owner: listOwner, cursors: [...cursors, next], index: cursors.length };
+          });
+        }}
       />
 
-      {detail && drawer.question ? (
-        <QuestionDrawer detail={detail} onClose={close} onOpenPerson={openPersonPanel} />
+      {drawer.question ? (
+        <QuestionPanel
+          state={questionRequest.state}
+          title={payload?.questions.find((question) => question.id === drawer.question)?.question ?? 'Question details'}
+          onClose={close}
+          onOpenPerson={openPersonPanel}
+          onRetry={questionRequest.retry}
+        />
       ) : null}
-      {panel && drawer.person ? (
-        <PersonPanel panel={panel} now={now} rangeLabel={window_.label} onClose={close} onOpenQuestion={open} />
+      {drawer.person ? (
+        <PersonPanelShell
+          state={personRequest.state}
+          email={drawer.person}
+          now={now}
+          rangeLabel={window_.label}
+          page={personPage}
+          onClose={close}
+          onOpenQuestion={open}
+          onRetry={personRequest.retry}
+          onPreviousPage={() =>
+            setPersonPages((current) => ({
+              owner: personOwner,
+              cursors: current.owner === personOwner ? current.cursors : [''],
+              index: Math.max(0, current.owner === personOwner ? current.index - 1 : 0),
+            }))
+          }
+          onNextPage={() => {
+            const next = personRequest.state.status === 'ready' ? personRequest.state.data.pagination.nextCursor : null;
+            if (!next) return;
+            setPersonPages((current) => {
+              const cursors = current.owner === personOwner ? current.cursors.slice(0, current.index + 1) : [''];
+              return { owner: personOwner, cursors: [...cursors, next], index: cursors.length };
+            });
+          }}
+        />
       ) : null}
     </div>
   );

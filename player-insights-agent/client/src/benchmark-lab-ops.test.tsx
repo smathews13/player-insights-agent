@@ -11,7 +11,15 @@ import {
   BenchmarkFailurePane,
   BenchmarkJudgesStage,
 } from './BenchmarkLabOps';
-import { applyDisabledReason, gateChip, genieLanePair, humanReviewedCaption, investigationCases, spanTreeFromCase, suiteIsLive } from './benchmark-lab-ops';
+import {
+  applyDisabledReason,
+  gateChip,
+  genieLanePair,
+  humanReviewedCaption,
+  investigationCases,
+  spanTreeFromCase,
+  suiteIsLive,
+} from './benchmark-lab-ops';
 import { compareBakeOff, gatesSummary, judgeNeedTags } from '../../shared/benchmark-bakeoff';
 import { MATCHING_POLICY_FACT, MATCHING_POLICY_ID, MATCHING_POLICY_REFERENCE } from '../../shared/benchmark-lab-v3';
 
@@ -19,7 +27,11 @@ const OPS = readFileSync(new URL('./BenchmarkLabOps.tsx', import.meta.url), 'utf
 const HELPERS = readFileSync(new URL('./benchmark-lab-ops.ts', import.meta.url), 'utf8');
 
 function readable(markup: string): string {
-  return markup.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ');
+  return markup
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ');
 }
 
 const emptySide = {
@@ -60,7 +72,7 @@ describe('agent judges', () => {
         onScoreSession={() => undefined}
         onCancel={() => undefined}
         onRetryFailed={() => undefined}
-      />,
+      />
     );
     const prose = readable(markup);
     expect(prose).toContain('SESSION ID FOR MULTI-TURN');
@@ -92,8 +104,8 @@ describe('apply captions stay honest', () => {
           canRollback={false}
           rollbackDisabledReason="No earlier promote to roll back to."
           onRollback={() => undefined}
-        />,
-      ),
+        />
+      )
     );
   }
 
@@ -142,7 +154,7 @@ describe('run comparison', () => {
         onExport={() => undefined}
         onCopyPermalink={() => undefined}
         onInspect={() => undefined}
-      />,
+      />
     );
     const prose = readable(html);
     expect(prose).toContain('Genie lane');
@@ -193,7 +205,7 @@ describe('failure investigation', () => {
         note={null}
         onAddEdge={() => undefined}
         onMarkKnown={() => undefined}
-      />,
+      />
     );
     const withHref = renderToStaticMarkup(
       <BenchmarkFailurePane
@@ -216,12 +228,16 @@ describe('failure investigation', () => {
         note={null}
         onAddEdge={() => undefined}
         onMarkKnown={() => undefined}
-      />,
+      />
     );
     expect(readable(without)).not.toContain('Open MLflow trace');
     expect(readable(without)).toContain('Open MLflow when a trace id is recorded.');
     expect(withHref).toContain('href="/runs?trace=tr-9"');
     expect(readable(withHref)).toContain('Open MLflow trace');
+    expect(withHref).toContain('role="region"');
+    expect(withHref).toContain('aria-labelledby=');
+    expect(withHref).not.toContain('role="dialog"');
+    expect(readable(withHref)).toContain('Trace for case_1');
     expect(without).not.toMatch(/review\.cloud\.databricks/i);
   });
 

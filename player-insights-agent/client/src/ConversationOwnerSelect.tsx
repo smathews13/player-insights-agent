@@ -61,7 +61,7 @@ export function ConversationOwnerSelect({
   };
 
   return (
-    <div className="conversation-owner-select" ref={rootRef}>
+    <div className="conversation-owner-select" data-open={open ? 'true' : undefined} ref={rootRef}>
       <button
         ref={triggerRef}
         type="button"

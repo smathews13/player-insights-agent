@@ -234,6 +234,24 @@ export interface MonitoringSummary {
 /** Whether the store answered, and whether it answered completely. */
 export type MonitoringReadState = 'ok' | 'partial' | 'unavailable';
 
+/** Stable keyset paging metadata for a Monitoring question list. */
+export interface MonitoringPagination {
+  /** The bounded number of rows requested for this page. */
+  pageSize: number;
+  /**
+   * Exact matching-row count when the server can establish it cheaply.
+   *
+   * Null is deliberate for filters derived from answer metadata: returning the
+   * unfiltered range count there would put a precise-looking false total beside
+   * a filtered list.
+   */
+  total: number | null;
+  /** Whether another keyset page can be requested. */
+  hasMore: boolean;
+  /** Opaque cursor for that page, or null at the end. */
+  nextCursor: string | null;
+}
+
 export interface MonitoringQuestionsPayload {
   readState: MonitoringReadState;
   /** ISO stamp of this read, for the shared freshness line. */
@@ -263,6 +281,7 @@ export interface MonitoringQuestionsPayload {
    * entitled to all of it, and Unity Catalog is still the boundary either way.
    */
   grantsResolution: 'ok' | 'failed';
+  pagination: MonitoringPagination;
 }
 
 /**
@@ -394,4 +413,5 @@ export interface PersonPanelPayload {
   questions: MonitoringQuestion[];
   readState: MonitoringReadState;
   readAt: string;
+  pagination: MonitoringPagination;
 }

@@ -88,7 +88,7 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(source('ArchitecturePage.tsx')).toMatch(
       /className=\{selected \? 'arch-node arch-node-selected' : 'arch-node'\}/
     );
-    expect(source('MonitoringPage.tsx')).toContain('className="monitoring-drawer"');
+    expect(source('MonitoringPage.tsx')).toContain('contentClassName="monitoring-drawer"');
     expect(source('AccountMenu.tsx')).toContain('className="account-menu"');
     expect(source('App.tsx')).toContain('useRuntimeEntityStyles();');
     expect(source('AppSky.tsx')).toContain('<StarField');

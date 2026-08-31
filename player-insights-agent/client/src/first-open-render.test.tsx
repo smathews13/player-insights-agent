@@ -339,6 +339,13 @@ describe('the disclaimer', () => {
 describe('once per session', () => {
   beforeEach(forgetFirstOpen);
 
+  it('uses the shared dialog without an Escape or backdrop dismissal', () => {
+    expect(GATE).toContain("import { Dialog } from './Dialog'");
+    expect(GATE).toContain('dismissOnEscape={false}');
+    expect(GATE).toContain('dismissOnBackdrop={false}');
+    expect(GATE).toContain('describedBy="first-open-description"');
+  });
+
   /*
    * On first open the OPENING SEQUENCE is what the reader meets, and the card
    * follows it at 60% (`#19a`, `loading-suite.md`). This run has no DOM and no

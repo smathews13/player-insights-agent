@@ -188,7 +188,7 @@ describe('the rise runs the keyframe without its tail', () => {
     // the splash panel, 5s on the working strip and 10s here, so a duration written
     // into an `ast-anim-*` class would be one of the three being right.
     expect(withoutComments(LOADERS)).not.toMatch(/ast-anim-gate-in\s*\{[^}]*animation-duration/);
-    expect(GATE).toContain('style={rise}');
+    expect(GATE).toContain('contentStyle={rise}');
     // The class is still there, which is what puts the card under the
     // reduced-motion guard that matches `[class*='ast-anim-']`.
     expect(GATE).toContain("' ast-anim-gate-in'");

@@ -107,7 +107,7 @@ describe('the source list', () => {
     expect(rendered).toContain(QUERIED[1]);
     expect(markup.match(/<li class="source-list-row"/g)).toHaveLength(2);
     expect(markup).not.toContain('source-line');
-    expect(markup).not.toContain('aria-hidden="true"> · ');
+    expect(markup.match(/class="source-list-separator"/g)).toHaveLength(2);
   });
 
   it('keeps Keep in mind as its own list under Sources', () => {
@@ -124,7 +124,7 @@ describe('the source list', () => {
     expect(text(markup)).toContain('Watch the window.');
   });
 
-  it('says the governance line nowhere, however many tables the run read', () => {
+  it('says the governance line nowhere and keeps each table freshness visible', () => {
     // The defect the module replaces, and then the half of it the module kept.
     // The strip printed "Governed Unity Catalog source · Read during this run"
     // on every row and the All sources tab printed it again on every row of its
@@ -145,7 +145,7 @@ describe('the source list', () => {
     );
 
     expect(rendered).not.toMatch(/governed/i);
-    expect(rendered).not.toMatch(/read during this run/i);
+    expect(rendered.match(/Read during this run/g)).toHaveLength(3);
     expect(rendered.match(/Queried for the figures/g)).toHaveLength(3);
   });
 });
@@ -271,16 +271,14 @@ describe('the row that names a source', () => {
     expect(rendered.match(new RegExp(QUERIED[0].replace(/\./g, '\\.'), 'g'))).toHaveLength(1);
   });
 
-  it('carries the freshness the server stated, where a reader can still reach it', () => {
-    // Not printed on the row: it was, on two surfaces, and repeating the same
-    // four words under every table is what buried the chip. It is in the row's
-    // tooltip beside the full name, so nothing the server said has been dropped
-    // from the document.
+  it('carries the freshness the server stated as visible focusable text', () => {
     const markup = renderToStaticMarkup(
       <SourcesModule sources={[{ name: NAME, freshness: 'Updated daily' }]} caveats={[]} />
     );
 
-    expect(markup).toContain(`title="${NAME} · Updated daily"`);
+    expect(markup).toContain('Updated daily');
+    expect(markup).toContain('class="source-list-freshness provenance-detail"');
+    expect(markup).toContain('tabindex="0"');
   });
 
   it('is the module an answer card draws, chips and all', () => {
@@ -339,7 +337,7 @@ describe('the row that names a source', () => {
     expect(markup.match(/<li class="source-list-row"/g)).toHaveLength(1);
     expect(markup).toContain(QUERIED[0]);
     expect(markup).toContain('total_rows');
-    expect(markup).not.toContain('aria-hidden="true"> · ');
+    expect(markup.match(/class="source-list-separator"/g)).toHaveLength(1);
   });
 });
 

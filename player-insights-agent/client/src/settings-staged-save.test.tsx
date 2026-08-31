@@ -55,7 +55,7 @@ describe('staged Settings saves', () => {
   });
 
   it('discards staged browser-local changes on Cancel without persisting them', () => {
-    expect(PAGE).toContain('className="settings-cancel" type="button" onClick={close}');
+    expect(PAGE).toMatch(/className="settings-cancel"[\s\S]*?type="button"[\s\S]*?onClick=\{requestClose\}/);
     const forecastingHandler = PAGE.slice(
       PAGE.indexOf('aria-label="Show Ops forecasting"') - 500,
       PAGE.indexOf('aria-label="Show Ops forecasting"')

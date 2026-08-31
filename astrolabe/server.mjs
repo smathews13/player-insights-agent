@@ -186132,7 +186132,10 @@ __export(monitoring_routes_exports, {
   MONITORING_ROUTES: () => MONITORING_ROUTES,
   MONITORING_TOP_TABLE_LIMIT: () => MONITORING_TOP_TABLE_LIMIT,
   OFFSET_REFUSAL: () => OFFSET_REFUSAL,
+  QUESTION_PAGE_SIZE: () => QUESTION_PAGE_SIZE,
   QUESTION_READ_LIMIT: () => QUESTION_READ_LIMIT,
+  matchingQuestions: () => matchingQuestions,
+  monitoringCursor: () => monitoringCursor,
   pageFrom: () => pageFrom,
   questionFromRow: () => questionFromRow,
   questionRows: () => questionRows2,
@@ -186143,15 +186146,32 @@ __export(monitoring_routes_exports, {
   summarize: () => summarize,
   tokenCost: () => tokenCost
 });
+function encodeCursor(cursor) {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+function decodeCursor(raw2) {
+  if (!raw2) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(raw2, "base64url").toString("utf8"));
+    const askedAt = typeof parsed.askedAt === "string" ? new Date(parsed.askedAt).toISOString() : "";
+    const id = typeof parsed.id === "string" ? parsed.id.trim() : "";
+    return askedAt && id ? { askedAt, id } : null;
+  } catch {
+    return null;
+  }
+}
+function monitoringCursor(askedAt, id) {
+  return encodeCursor({ askedAt: new Date(askedAt).toISOString(), id });
+}
 function pageFrom(req) {
   const limit = Number.parseInt(queryString2(req.query.limit), 10);
   const offset = Number.parseInt(queryString2(req.query.offset), 10);
+  const rawCursor = queryString2(req.query.cursor).trim();
+  const cursor = decodeCursor(rawCursor);
   return {
-    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, QUESTION_READ_LIMIT) : QUESTION_READ_LIMIT,
-    offset: 0,
-    // Only a real attempt to page is refused. An absent, empty or unparseable
-    // offset is nobody paging, and must not turn a working list into an error.
-    refusal: Number.isFinite(offset) && offset > 0 ? OFFSET_REFUSAL : ""
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, QUESTION_READ_LIMIT) : QUESTION_PAGE_SIZE,
+    cursor,
+    refusal: Number.isFinite(offset) && offset > 0 ? OFFSET_REFUSAL : rawCursor && !cursor ? "The Monitoring page cursor is invalid. Start again without a cursor." : ""
   };
 }
 function manifestTables() {
@@ -186309,6 +186329,43 @@ function rangeFrom(req, now = Date.now()) {
   }
   return { from: new Date(now - 7 * 864e5).toISOString(), to: new Date(now).toISOString() };
 }
+function filtersFrom(req, person = queryString2(req.query.person).trim()) {
+  const outcome = queryString2(req.query.outcome).trim();
+  const rating = queryString2(req.query.rating).trim();
+  return {
+    person,
+    outcome: ["completed", "partial", "refused", "failed"].includes(outcome) ? outcome : "",
+    rating: ["up", "down", "unrated"].includes(rating) ? rating : "",
+    table: queryString2(req.query.table).trim(),
+    search: queryString2(req.query.q).trim()
+  };
+}
+function matchingQuestions(questions, filters) {
+  const person = filters.person.toLowerCase();
+  const search = filters.search.toLowerCase();
+  const table = filters.table.toLowerCase();
+  return questions.filter((question) => {
+    if (person && question.askedBy.toLowerCase() !== person) return false;
+    if (filters.outcome && question.outcome !== filters.outcome) return false;
+    if (filters.rating === "unrated" && question.rating !== null) return false;
+    if ((filters.rating === "up" || filters.rating === "down") && question.rating !== filters.rating) return false;
+    if (table && !question.tables.some((name2) => name2.toLowerCase() === table)) return false;
+    if (search && !`${question.question} ${question.askedBy} ${question.askedBy.split("@")[0]}`.toLowerCase().includes(search)) {
+      return false;
+    }
+    return true;
+  });
+}
+function paginationFor(input) {
+  const hasMore = input.rawPage.length > input.page.limit;
+  const last = hasMore ? input.rawPage[input.page.limit - 1] : null;
+  return {
+    pageSize: input.page.limit,
+    total: input.total,
+    hasMore,
+    nextCursor: last ? encodeCursor({ askedAt: last.askedAt, id: last.id }) : null
+  };
+}
 async function readLedger(appkit, answerIds) {
   const verdicts = /* @__PURE__ */ new Map();
   if (answerIds.length === 0) return verdicts;
@@ -186368,6 +186425,7 @@ function setupMonitoringRoutes(appkit, deps) {
       const admin = userEmail(req);
       const range = rangeFrom(req, clock());
       const page = pageFrom(req);
+      const filters = filtersFrom(req);
       if (page.refusal) {
         res.status(400).json({ error: page.refusal });
         return;
@@ -186376,9 +186434,12 @@ function setupMonitoringRoutes(appkit, deps) {
         PLAN_APPROVAL_SENTINEL,
         range.from,
         range.to,
-        page.limit,
-        page.offset,
-        ""
+        page.limit + 1,
+        0,
+        filters.person,
+        page.cursor?.askedAt ?? "",
+        page.cursor?.id ?? "",
+        filters.search
       ]);
       const { rows, substitution } = chooseRows(
         "GET /api/monitoring/questions",
@@ -186394,41 +186455,49 @@ function setupMonitoringRoutes(appkit, deps) {
           questions: [],
           people: [],
           tables: [],
-          grantsResolution: "ok"
+          grantsResolution: "ok",
+          pagination: { pageSize: page.limit, total: null, hasMore: false, nextCursor: null }
         });
         return;
       }
       const answerIds = rows.map((row2) => text17(row2.answer_id)).filter((id) => id !== "");
       const ledger = await readLedger(appkit, answerIds);
-      const all = rows.map((row2) => questionFromRow(row2, ledger));
+      const rawPage = rows.map((row2) => questionFromRow(row2, ledger));
+      const pageRows = rawPage.slice(0, page.limit);
+      const all = matchingQuestions(pageRows, filters);
       const totals = rangeTotalsFrom(stored.rows[0], all);
       const found = totals.asked;
       const threads = totals.threads;
       const peopleList = totals.peopleList;
       const distinctTables = [...new Set(all.flatMap((question) => question.tables))].sort();
+      const tableOptions = [.../* @__PURE__ */ new Set([...distinctTables, ...filters.table ? [filters.table] : []])].sort();
+      const peopleOptions = [.../* @__PURE__ */ new Set([...peopleList, ...filters.person ? [filters.person] : []])].sort();
       const grants2 = await resolveGrants({
         key: { admin, window: `${range.from}|${range.to}` },
         tables: distinctTables,
         probe: probeFor(req),
         now: clock()
       });
-      const partial2 = found > all.length;
+      const exactTotal = filters.outcome || filters.rating || filters.table ? null : found;
+      const pagination = paginationFor({ page, rawPage, total: exactTotal });
+      const partial2 = pagination.hasMore || page.cursor !== null;
       res.json({
         readState: partial2 ? "partial" : "ok",
         readAt,
         // Over the rows that were read, always, and the two counts below say so
         // when those are fewer than the range holds.
         summary: summarize(all, threads),
-        ...partial2 ? { countedQuestions: all.length, foundQuestions: found } : {},
-        // The whole range, unfiltered. The filter row narrows what is on screen
-        // in the browser, which is what lets it stay usable during a read and
-        // keeps this route to one query per Refresh press rather than one per
-        // chip. Section 5.8 is explicit that this page does not poll, and a
-        // filter that re-queried would have made every interaction a read.
+        ...partial2 ? {
+          countedQuestions: all.length,
+          ...exactTotal !== null ? { foundQuestions: exactTotal } : {}
+        } : {},
+        // One bounded, filtered keyset page. The active filters travel with every
+        // cursor request, so page two cannot silently widen back to all rows.
         questions: all,
-        people: peopleList,
-        tables: distinctTables,
-        grantsResolution: grants2.resolved ? "ok" : "failed"
+        people: peopleOptions,
+        tables: tableOptions,
+        grantsResolution: grants2.resolved ? "ok" : "failed",
+        pagination
       });
     });
     app.get("/api/monitoring/questions/:id", async (req, res) => {
@@ -186436,7 +186505,9 @@ function setupMonitoringRoutes(appkit, deps) {
       const range = rangeFrom(req, clock());
       const stored = await readStored(appkit, "GET /api/monitoring/questions/:id", MONITORING_DETAIL_QUERY, [
         req.params.id,
-        PLAN_APPROVAL_SENTINEL
+        PLAN_APPROVAL_SENTINEL,
+        range.from,
+        range.to
       ]);
       if (!stored.available) {
         res.status(503).json({ error: "storage_unavailable" });
@@ -186516,6 +186587,7 @@ function setupMonitoringRoutes(appkit, deps) {
       const person = decodeURIComponent(String(req.params.email));
       const range = rangeFrom(req, clock());
       const page = pageFrom(req);
+      const filters = filtersFrom(req, person);
       if (page.refusal) {
         res.status(400).json({ error: page.refusal });
         return;
@@ -186525,9 +186597,12 @@ function setupMonitoringRoutes(appkit, deps) {
         PLAN_APPROVAL_SENTINEL,
         range.from,
         range.to,
-        page.limit,
-        page.offset,
-        person
+        page.limit + 1,
+        0,
+        person,
+        page.cursor?.askedAt ?? "",
+        page.cursor?.id ?? "",
+        filters.search
       ]);
       if (!stored.available) {
         res.status(503).json({ error: "storage_unavailable" });
@@ -186538,11 +186613,17 @@ function setupMonitoringRoutes(appkit, deps) {
       );
       const answerIds = mine.map((row2) => text17(row2.answer_id)).filter((id) => id !== "");
       const ledger = await readLedger(appkit, answerIds);
-      const questions = mine.map((row2) => questionFromRow(row2, ledger));
+      const rawPage = mine.map((row2) => questionFromRow(row2, ledger));
+      const questions = matchingQuestions(rawPage.slice(0, page.limit), filters);
+      const selectedQuestionIds = new Set(questions.map((question) => question.id));
+      const selectedRows = mine.filter((row2) => selectedQuestionIds.has(text17(row2.question_id)));
+      const selectedAnswerIds = selectedRows.map((row2) => text17(row2.answer_id)).filter((id) => id !== "");
       const totals = rangeTotalsFrom(stored.rows[0], questions);
+      const exactTotal = filters.outcome || filters.rating || filters.table ? null : totals.asked;
+      const pagination = paginationFor({ page, rawPage, total: exactTotal });
       let tokenTotal = 0;
       let metredRuns = 0;
-      for (const row2 of mine) {
+      for (const row2 of selectedRows) {
         const tokens = integer2(row2.total_tokens);
         if (tokens !== null && tokens > 0) {
           tokenTotal += tokens;
@@ -186551,7 +186632,7 @@ function setupMonitoringRoutes(appkit, deps) {
       }
       const executionSplit = { asThemselves: 0, asApplication: 0, unrecorded: 0 };
       const subjectSplit = { verified: 0, confirmedByEndpoint: 0, unrecorded: 0 };
-      for (const row2 of mine) {
+      for (const row2 of selectedRows) {
         const mode = text17(row2.execution_mode);
         if (mode === "signed_in_user") executionSplit.asThemselves += 1;
         else if (mode === "app_service_principal") executionSplit.asApplication += 1;
@@ -186563,7 +186644,7 @@ function setupMonitoringRoutes(appkit, deps) {
       }
       let refusedMissingGrant = 0;
       let refusedAgentRules = 0;
-      for (const id of answerIds) {
+      for (const id of selectedAnswerIds) {
         const verdict = ledger.get(id);
         if (!verdict || verdict.state !== "REFUSED") continue;
         const cause = classifyRefusal(verdict.code);
@@ -186626,8 +186707,9 @@ function setupMonitoringRoutes(appkit, deps) {
         refusedMissingGrant,
         refusedAgentRules,
         questions,
-        readState: "ok",
-        readAt
+        readState: pagination.hasMore || page.cursor !== null ? "partial" : "ok",
+        readAt,
+        pagination
       };
       void admin;
       res.json(payload);
@@ -186643,7 +186725,7 @@ function tokenCost(totalTokens2, metredRuns) {
   if (!Number.isFinite(price) || price < 0) return null;
   return totalTokens2 / 1e6 * price;
 }
-var QUESTION_READ_LIMIT, MONITORING_TOP_TABLE_LIMIT, OFFSET_REFUSAL, MONITORING_QUESTIONS_QUERY, MONITORING_LEDGER_QUERY, MONITORING_DETAIL_QUERY, MONITORING_PERSON_SEEN_QUERY, MONITORING_PERSON_TABLES_QUERY, PLAN_APPROVAL_SENTINEL, MONITORING_ROUTES;
+var QUESTION_PAGE_SIZE, QUESTION_READ_LIMIT, MONITORING_TOP_TABLE_LIMIT, OFFSET_REFUSAL, MONITORING_QUESTIONS_QUERY, MONITORING_LEDGER_QUERY, MONITORING_DETAIL_QUERY, MONITORING_PERSON_SEEN_QUERY, MONITORING_PERSON_TABLES_QUERY, PLAN_APPROVAL_SENTINEL, MONITORING_ROUTES;
 var init_monitoring_routes = __esm({
   "server/routes/monitoring-routes.ts"() {
     init_app_schema();
@@ -186659,9 +186741,10 @@ var init_monitoring_routes = __esm({
     init_insights_routes();
     init_app_settings();
     init_databricks_links();
-    QUESTION_READ_LIMIT = 2e3;
+    QUESTION_PAGE_SIZE = 50;
+    QUESTION_READ_LIMIT = 100;
     MONITORING_TOP_TABLE_LIMIT = 5;
-    OFFSET_REFUSAL = `This list cannot be paged with an offset. Questions are ordered by the time they were asked, and two questions asked in the same instant have no defined order between them, so a later page can skip a row the earlier page never showed. Ask for a bigger page instead, up to ${QUESTION_READ_LIMIT}.`;
+    OFFSET_REFUSAL = "Use the opaque cursor from pagination.nextCursor instead of an offset.";
     MONITORING_QUESTIONS_QUERY = `
   WITH page AS (
     SELECT u.id AS question_id, u.conversation_id, u.content AS question,
@@ -186671,8 +186754,14 @@ var init_monitoring_routes = __esm({
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
       AND ($6 = '' OR lower(c.user_email) = lower($6))
-    ORDER BY u.created_at DESC
-    LIMIT $4 OFFSET $5
+      AND ($7 = '' OR (u.created_at, u.id) < ($7::timestamptz, $8))
+      AND (
+        $9 = ''
+        OR lower(u.content) LIKE ('%' || lower($9) || '%')
+        OR lower(c.user_email) LIKE ('%' || lower($9) || '%')
+      )
+    ORDER BY u.created_at DESC, u.id DESC
+    LIMIT $4
   ),
   range_totals AS (
     SELECT COUNT(*)::int AS asked_total,
@@ -186683,6 +186772,11 @@ var init_monitoring_routes = __esm({
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
       AND ($6 = '' OR lower(c.user_email) = lower($6))
+      AND (
+        $9 = ''
+        OR lower(u.content) LIKE ('%' || lower($9) || '%')
+        OR lower(c.user_email) LIKE ('%' || lower($9) || '%')
+      )
   )
   SELECT t.asked_total, t.thread_total, t.people_list,
          q.question_id, q.conversation_id, q.question, q.asked_at, q.user_email,
@@ -186740,7 +186834,7 @@ var init_monitoring_routes = __esm({
     ORDER BY fb.created_at DESC LIMIT 1
   ) f ON TRUE
   ${overlayJoinSql("a.id")}
-  ORDER BY q.asked_at DESC
+  ORDER BY q.asked_at DESC, q.question_id DESC
 `;
     MONITORING_LEDGER_QUERY = `
   SELECT terminal_message_id AS answer_id, state, terminal_code
@@ -186795,6 +186889,7 @@ var init_monitoring_routes = __esm({
   ) f ON TRUE
   ${overlayJoinSql("a.id")}
   WHERE q.id = $1 AND q.role = 'user'
+    AND q.created_at >= $3::timestamptz AND q.created_at < $4::timestamptz
 `;
     MONITORING_PERSON_SEEN_QUERY = `
   SELECT MIN(u.created_at) AS first_seen, MAX(u.created_at) AS last_seen

@@ -567,12 +567,19 @@
   overflow-wrap: break-word;
 }
 .answer-stat-context {
+  display: -webkit-box;
   overflow: hidden;
   color: var(--ast-text-secondary);
   font-size: 10px;
   line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.answer-stat-context:focus {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
 }
 .answer-evidence,
 .answer-evidence > .answer-prose {
@@ -654,6 +661,18 @@
 }
 .source-list-role {
   color: var(--ast-text-secondary);
+}
+.source-list-freshness {
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-12);
+  overflow-wrap: anywhere;
+}
+.provenance-detail {
+  border-radius: 3px;
+}
+.provenance-detail:focus-visible {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
 }
 .source-list-derivation .derivation-fact {
   display: block;

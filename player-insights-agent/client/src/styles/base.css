@@ -9,25 +9,24 @@
  * window scrolls and these two declarations are what the browser measures
  * `scrollIntoView` against.
  *
- * Both existed as bugs before they existed as rules, and both were read as the
- * answer card "clipping behind" something:
+ * Two offsets existed as bugs before they existed as rules, and both were read
+ * as the answer card "clipping behind" something:
  *
  *   - HomePage scrolls each new answer into view with `block: 'start'`, which
  *     aligns the card's top edge with the top of the scrollport. The scrollport
  *     starts behind the 52px header, so every answer opened with its provenance
  *     chip and the first line of its takeaway hidden under the nav tabs. Not
  *     clipped -- covered, and by a bar the reader cannot scroll away.
- *   - The same effect ends a turn with `block: 'end'`, aligning the transcript's
- *     end with the viewport's bottom, which is behind the fixed composer.
+ *   - The same effect ends a turn with `block: 'end'`. The composer is
+ *     content-sized, so its measured bottom clearance is scoped to Ask's
+ *     `.transcript-end` rather than declared on this document-wide scroller.
  *
  * Padding the scrollport rather than adding `scroll-margin` to each target: the
- * offsets are facts about this page's chrome, not about the cards, and a margin
- * per target is a list to keep in step with two tokens. Anything scrolled into
- * view anywhere in the app now clears both bars.
+ * top offset is a fact about page chrome, not about each card. The composer's
+ * offset is instead a fact about one route and stays on that route.
  */
 html {
   scroll-padding-top: var(--app-header-h);
-  scroll-padding-bottom: var(--composer-reserve);
   /*
    * THE DOCUMENT ROOT RESERVES THE BAR. Opening a filter menu that peeks past
    * the fold -- or any other overflow that was not there a moment ago -- used

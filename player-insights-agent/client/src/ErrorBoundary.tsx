@@ -1,6 +1,8 @@
 import React, { Component } from 'react';
 import type { ReactNode } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui';
+import { RefreshCw, RotateCcw } from 'lucide-react';
+import { errorSupportReferences } from './error-support';
 
 interface Props {
   children: ReactNode;
@@ -10,6 +12,62 @@ interface State {
   hasError: boolean;
   error: Error | null;
   errorInfo: React.ErrorInfo | null;
+}
+
+export function ErrorFallback({
+  error,
+  errorInfo,
+  development,
+  onRecover,
+  onReload,
+}: {
+  error: Error | null;
+  errorInfo: React.ErrorInfo | null;
+  development: boolean;
+  onRecover: () => void;
+  onReload: () => void;
+}) {
+  const references = errorSupportReferences(error);
+  return (
+    <div className="min-h-screen bg-background p-4">
+      <Card className="max-w-2xl mx-auto mt-8">
+        <CardHeader>
+          <CardTitle className="text-destructive">The application could not continue</CardTitle>
+          <CardDescription>Try the page again. If it still fails, reload the application.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={onRecover}>
+              <RotateCcw /> Try again
+            </Button>
+            <Button variant="outline" onClick={onReload}>
+              <RefreshCw /> Reload application
+            </Button>
+          </div>
+          {references.length > 0 ? (
+            <Alert>
+              <AlertDescription>
+                <p>Include this information if you ask for help:</p>
+                {references.map((reference) => (
+                  <p className="font-mono text-xs" key={reference.label}>
+                    {reference.label}: {reference.value}
+                  </p>
+                ))}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {development ? (
+            <details>
+              <summary className="cursor-pointer font-medium">Technical details</summary>
+              <pre className="bg-muted mt-3 max-h-96 overflow-auto rounded p-3 text-sm">
+                {[error?.toString(), error?.stack, errorInfo?.componentStack].filter(Boolean).join('\n\n')}
+              </pre>
+            </details>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -35,38 +93,20 @@ export class ErrorBoundary extends Component<Props, State> {
     });
   }
 
+  private recover = () => {
+    this.setState({ hasError: false, error: null, errorInfo: null });
+  };
+
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-background p-4">
-          <Card className="max-w-2xl mx-auto mt-8">
-            <CardHeader>
-              <CardTitle className="text-destructive">Application Error</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-semibold mb-2">Error Message:</h3>
-                  <pre className="bg-muted p-3 rounded text-sm overflow-auto">{this.state.error?.toString()}</pre>
-                </div>
-                {this.state.errorInfo && (
-                  <div>
-                    <h3 className="font-semibold mb-2">Component Stack:</h3>
-                    <pre className="bg-muted p-3 rounded text-sm overflow-auto">
-                      {this.state.errorInfo.componentStack}
-                    </pre>
-                  </div>
-                )}
-                {this.state.error?.stack && (
-                  <div>
-                    <h3 className="font-semibold mb-2">Stack Trace:</h3>
-                    <pre className="bg-muted p-3 rounded text-sm overflow-auto max-h-96">{this.state.error.stack}</pre>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <ErrorFallback
+          error={this.state.error}
+          errorInfo={this.state.errorInfo}
+          development={import.meta.env.DEV}
+          onRecover={this.recover}
+          onReload={() => window.location.reload()}
+        />
       );
     }
 

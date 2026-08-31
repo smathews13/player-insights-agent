@@ -205,12 +205,10 @@ describe('the compact stat rail preserves every figure', () => {
 
 describe('stat comparisons remain neutral and recoverable', () => {
   it('keeps comparison text neutral and verbatim in the stat context', () => {
-    // The `title` is the same string again and not a second reading of it: the rail
-    // clips this line to one row, and a comparison naming a window and a baseline
-    // ellipsised away the thing the figure is being compared against.
     expect(CARD).toMatch(
-      /<span className="answer-stat-context" title=\{figure\.comparison\}>\s*\{figure\.comparison\}\s*<\/span>/
+      /className="answer-stat-context provenance-detail"[\s\S]*tabIndex=\{0\}[\s\S]*\{figure\.comparison\}/
     );
+    expect(CARD).not.toContain('title={figure.comparison}');
     expect(CARD).not.toMatch(/comparison\.(replace|slice|substring)\(/);
   });
 
@@ -498,10 +496,9 @@ describe('the chart panel is a panel on this card, not a second page', () => {
   it('reserves the mono face for what a reader compares character by character', () => {
     // SQL and identifiers, which is what it is for. The rule used to be stated
     // the other way round -- the source name was set in DM Sans and the point
-    // was that the freshness line under it must not be mono. Both halves have
-    // moved: the name is an identifier a reader checks against the one in the
-    // prose above, so it takes the mono face, and there is no freshness line
-    // left to get wrong because the freshness is in the row's tooltip.
+    // was that the freshness beside it must not be mono. The name is an
+    // identifier a reader checks against the one in the prose above, so it takes
+    // the mono face; freshness remains proportional secondary text.
     expect(ruleFor(BODY_CSS, '.code-panel pre {')).toContain('var(--font-mono');
     // The shared source-name recipe also reaches derivation rows; pin the
     // recipe rather than the one seating that opts into it.
@@ -710,7 +707,8 @@ describe('the card holds text it did not write', () => {
     // dangling separator. What the row reads is rendered and read back in
     // sources-module-render.test.tsx; this pins the branch where it is written.
     const module = readFileSync(new URL('./SourcesModule.tsx', import.meta.url), 'utf8');
-    expect(module).toContain('row.freshness ? `${row.name} · ${row.freshness}` : row.name');
+    expect(module).toContain('if (!freshness.trim()) return null;');
+    expect(module).toContain('<SourceFreshness freshness={row.freshness} />');
   });
 
   it('keeps sources as one bullet list rather than a nested card', () => {

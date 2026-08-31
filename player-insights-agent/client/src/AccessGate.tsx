@@ -3,8 +3,9 @@ import { RefreshButton } from './RefreshControl';
 import { principalLabel } from './execution-identity';
 import { ACCESS_GATE_ENABLED } from '../../shared/access-gate';
 import { UserIdentityChip } from './UserIdentityChip';
-import { GATE_FOCUSABLE, gateKeyIntent, gateTabTarget, tableCountLine } from './access-gate-state';
+import { tableCountLine } from './access-gate-state';
 import { identityRequest } from './app-state';
+import { Dialog } from './Dialog';
 
 /**
  * Asks, once per session, under whose authority the answers should be taken.
@@ -420,9 +421,9 @@ export function LimitsReport({ limits }: { limits: readonly NotChecked[] }) {
  * a switch on these buttons. Claiming "still runs as a service principal" here
  * was false under user authorization and taught the wrong lesson about the gate.
  */
-export function GateIntro({ signedInAs }: { signedInAs: string }) {
+export function GateIntro({ signedInAs, id }: { signedInAs: string; id?: string }) {
   return (
-    <p>
+    <p id={id}>
       <UserIdentityChip identity={signedInAs} label="Signed in as" compact />. This checks your access under your own
       token: the SQL warehouse, the tables behind answers, and the Genie spaces. It does not decide who runs the
       questions that follow; that is reported on Connections.
@@ -498,7 +499,6 @@ export function AccessGate({
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const dialog = useRef<HTMLDivElement | null>(null);
   const skip = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -580,70 +580,6 @@ export function AccessGate({
     }
   }, []);
 
-  /**
-   * Whether the gate is really on screen, computed before the early returns so
-   * the trap below is an ordinary effect rather than something conditional.
-   *
-   * The three cases it excludes are the three the gate stands aside for, and they
-   * are the common ones: most sessions never see this dialog at all, and none of
-   * them should have their focus moved by a component that rendered nothing.
-   */
-  const shown = Boolean(
-    !unreachable && identity && identity.identitySource !== 'development-fallback' && !identity.accessDecision
-  );
-
-  /*
-   * The focus trap the spec records as a known gap (§6.7.1).
-   *
-   * This is the only genuinely modal surface in the app, and the only one a
-   * keyboard user meets before they can do anything at all: it renders above the
-   * router, so while it is up there is nothing else on the page to reach. It
-   * declared `aria-modal="true"` and did none of the work that claim implies,
-   * which is worse than not claiming it -- a screen reader is told the rest of
-   * the page is inert while Tab walks straight out into it.
-   *
-   * Initial focus goes to the dialog rather than to a button. The panel opens
-   * with a heading and two paragraphs saying what a check will and will not
-   * establish, and starting a reader on "Verify my access first" hands them three
-   * consequential choices before any of that has been read.
-   *
-   * Escape does not decide anything. Every way out of here is a recorded
-   * governance decision, and a keystroke is not how somebody should make one --
-   * least of all a keystroke people press to mean "get me out of this dialog". It
-   * moves focus to Skip this, which is the option that keystroke is reaching for,
-   * and leaves the pressing of it to the reader.
-   */
-  useEffect(() => {
-    if (!shown) return;
-    const panel = dialog.current;
-    if (!panel) return;
-    const restoreTo = document.activeElement;
-    panel.focus();
-    return () => {
-      // Only if it is still in the document and still focusable. The gate
-      // unmounts when a decision lands, and the element that had focus before it
-      // appeared -- usually the body -- may well have gone with the render.
-      if (restoreTo instanceof HTMLElement && restoreTo.isConnected) restoreTo.focus();
-    };
-  }, [shown]);
-
-  const onKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    const intent = gateKeyIntent(event);
-    if (!intent) return;
-    if (intent === 'escape') {
-      event.preventDefault();
-      skip.current?.focus();
-      return;
-    }
-    const panel = dialog.current;
-    if (!panel) return;
-    const focusable = [...panel.querySelectorAll<HTMLElement>(GATE_FOCUSABLE)];
-    const target = gateTabTarget(focusable, document.activeElement as HTMLElement | null, intent);
-    if (!target) return;
-    event.preventDefault();
-    target.focus();
-  }, []);
-
   // Off by default, and this is the whole of what that means: the app opens under
   // the reader's own token as if the check had never been written. Nothing below
   // has been removed, and nothing records a mode on the way past.
@@ -686,56 +622,53 @@ export function AccessGate({
   const genieProblems = (result?.genie ?? []).filter((verdict) => verdict.status !== 'ok');
 
   return (
-    <div
-      className="access-gate"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="access-gate-title"
-      // Focusable only programmatically: the dialog is where focus starts, and it
-      // must not become a fourth Tab stop once the reader is inside.
-      tabIndex={-1}
-      ref={dialog}
-      onKeyDown={onKeyDown}
+    <Dialog
+      overlayClassName="access-gate"
+      contentClassName="access-gate-panel"
+      labelledBy="access-gate-title"
+      describedBy="access-gate-description"
+      dismissOnEscape={false}
+      dismissOnBackdrop={false}
+      onEscape={() => skip.current?.focus()}
     >
-      <div className="access-gate-panel">
-        <h1 id="access-gate-title">Access check</h1>
-        <GateIntro signedInAs={identity.signedInAs} />
+      <h1 id="access-gate-title">Access check</h1>
+      <GateIntro id="access-gate-description" signedInAs={identity.signedInAs} />
 
-        {result && !result.verified && (
-          <>
-            <div className="access-gate-result access-gate-result-bad" role="alert">
-              {result.blocked ? <BlockedReport blocked={result.blocked} /> : <DenialReport result={result} />}
-              {/*
+      {result && !result.verified && (
+        <>
+          <div className="access-gate-result access-gate-result-bad" role="alert">
+            {result.blocked ? <BlockedReport blocked={result.blocked} /> : <DenialReport result={result} />}
+            {/*
                 Shown beside a warehouse block as well as beside a table
                 denial. A Genie space needs neither the warehouse nor the `sql`
                 scope, so its answer is real even when the rest of the check
                 never got started, and hiding it would waste the one thing that
                 run did establish.
               */}
-              {genieProblems.length > 0 && <GenieReport verdicts={genieProblems} />}
-              {/*
+            {genieProblems.length > 0 && <GenieReport verdicts={genieProblems} />}
+            {/*
                 A default that dead-ends is worse than no default. Verification
                 is now the first thing a user meets, so the first thing a user
                 without the grant meets is a failure, and the way out has to be
                 on the same screen, named, one click away, and honest about the
                 fact that taking it establishes nothing about their own access.
               */}
-              <p className="access-gate-fallback">
-                <strong>You can still go in.</strong> <em>Proceed as the service principal</em> below grants you nothing
-                and claims nothing about your own access.
-              </p>
-            </div>
-            {result.notChecked?.length ? <LimitsReport limits={result.notChecked} /> : null}
-          </>
-        )}
+            <p className="access-gate-fallback">
+              <strong>You can still go in.</strong> <em>Proceed as the service principal</em> below grants you nothing
+              and claims nothing about your own access.
+            </p>
+          </div>
+          {result.notChecked?.length ? <LimitsReport limits={result.notChecked} /> : null}
+        </>
+      )}
 
-        {failure && (
-          <p className="access-gate-result access-gate-result-bad" role="alert">
-            {failure}
-          </p>
-        )}
+      {failure && (
+        <p className="access-gate-result access-gate-result-bad" role="alert">
+          {failure}
+        </p>
+      )}
 
-        {/*
+      {/*
           Order is the argument. Checking your own access is first and primary
           because that is now the default; service-principal mode is second
           because it is the fallback when verification is skipped or fails.
@@ -743,8 +676,8 @@ export function AccessGate({
           check that just failed for a missing grant is not the next thing
           this reader should be pushed towards.
         */}
-        <div className="access-gate-actions">
-          {/*
+      <div className="access-gate-actions">
+        {/*
             ONCE THE CHECK HAS FAILED, RE-RUNNING IT IS A REFRESH, so it is the
             app's shared Refresh control and not a door of its own. It said "Check
             my access again", which was the fifth spelling of the same idea in a
@@ -758,60 +691,59 @@ export function AccessGate({
             So the door keeps its own label and its own explanation there, and this
             is the one place the wording is state-dependent on purpose.
           */}
-          {checkFailed ? (
-            <div className="access-gate-recheck">
-              {/* `void`, because both handlers below are their own error
+        {checkFailed ? (
+          <div className="access-gate-recheck">
+            {/* `void`, because both handlers below are their own error
                   boundary: each ends in a `catch` that puts the failure on
                   screen and a `finally` that clears `busy`, so there is no
                   rejection left for a caller to handle and the click handler
                   is genuinely done when it returns. */}
-              <RefreshButton busy={busy} onRefresh={() => void verify()} />
-              <span>Runs the same probe again, once the grant above has been made.</span>
-            </div>
-          ) : (
-            <button type="button" className="access-gate-primary" disabled={busy} onClick={() => void verify()}>
-              <span className="access-gate-action-label">
-                {busy ? 'Checking your access\u2026' : 'Verify my access first'}
-              </span>
-              {/* One line, because the result says the rest of it. The second
+            <RefreshButton busy={busy} onRefresh={() => void verify()} />
+            <span>Runs the same probe again, once the grant above has been made.</span>
+          </div>
+        ) : (
+          <button type="button" className="access-gate-primary" disabled={busy} onClick={() => void verify()}>
+            <span className="access-gate-action-label">
+              {busy ? 'Checking your access\u2026' : 'Verify my access first'}
+            </span>
+            {/* One line, because the result says the rest of it. The second
                   sentence here promised that the result would report what was
                   verified and what it could not check, which is a promise about a
                   screen the reader is about to be shown anyway. */}
-              <span>Runs a statement on this app’s warehouse under your own token.</span>
-            </button>
-          )}
-          <button
-            type="button"
-            className={checkFailed ? 'access-gate-primary' : undefined}
-            disabled={busy}
-            onClick={() => void declare('service-principal')}
-          >
-            <span className="access-gate-action-label">Proceed as the service principal</span>
-            {/* "Who runs questions is reported on Connections" was here and in the
+            <span>Runs a statement on this app’s warehouse under your own token.</span>
+          </button>
+        )}
+        <button
+          type="button"
+          className={checkFailed ? 'access-gate-primary' : undefined}
+          disabled={busy}
+          onClick={() => void declare('service-principal')}
+        >
+          <span className="access-gate-action-label">Proceed as the service principal</span>
+          {/* "Who runs questions is reported on Connections" was here and in the
                 opening paragraph and in the Genie heading. It is in the opening
                 paragraph now, once. The principal stays: it is the only place the
                 reader is told which identity the fallback names. */}
-            <span>
-              The fallback. Establishes nothing about your own access
-              {serving?.id ? ` (endpoint principal ${principalLabel(serving.id)})` : ''}.
-            </span>
-          </button>
-          <button
-            type="button"
-            className="access-gate-skip"
-            disabled={busy}
-            onClick={() => void declare('skipped')}
-            ref={skip}
-          >
-            <span className="access-gate-action-label">Skip this</span>
-            {/* The distinction that has to survive being shortened: this and the
+          <span>
+            The fallback. Establishes nothing about your own access
+            {serving?.id ? ` (endpoint principal ${principalLabel(serving.id)})` : ''}.
+          </span>
+        </button>
+        <button
+          type="button"
+          className="access-gate-skip"
+          disabled={busy}
+          onClick={() => void declare('skipped')}
+          ref={skip}
+        >
+          <span className="access-gate-action-label">Skip this</span>
+          {/* The distinction that has to survive being shortened: this and the
                 fallback verify exactly the same amount, which is none, and they are
                 RECORDED differently. Without that, a conversation nobody looked at
                 could later be read as one that passed. */}
-            <span>Checks nothing, and is recorded as a skip rather than as the fallback.</span>
-          </button>
-        </div>
+          <span>Checks nothing, and is recorded as a skip rather than as the fallback.</span>
+        </button>
       </div>
-    </div>
+    </Dialog>
   );
 }

@@ -1,6 +1,6 @@
 .composer {
   position: fixed;
-  bottom: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   /* Off the rails' widths plus the transcript's own inset, all three as tokens.
      The inset was written out as its clamp here and again in ask.css, so this box
      and the column it writes into agreed only by both being retyped correctly. */
@@ -165,9 +165,18 @@
 .attachment-list {
   display: flex;
   align-items: flex-start;
+  align-content: flex-start;
   flex-wrap: wrap;
   gap: 8px;
+  max-height: min(132px, 24dvh);
   padding: 12px 16px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.attachment-list:focus-visible {
+  outline: 2px solid var(--db-blue-600);
+  outline-offset: -2px;
 }
 .attachment-chip {
   display: grid;

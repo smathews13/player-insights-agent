@@ -35,9 +35,12 @@ import { SP_TOKEN_CACHE_MAX_ENTRIES } from './sp-token';
 import { GRANT_CACHE_MAX_ENTRIES } from './monitoring-grants';
 import { ACCESS_DECISION_CACHE_MAX_ENTRIES } from '../routes/execution-identity';
 import { BROWSE_ROUTE_DEADLINE_MS } from '../routes/browse-routes';
+import { MONITORING_TOP_TABLE_LIMIT, QUESTION_PAGE_SIZE, QUESTION_READ_LIMIT } from '../routes/monitoring-routes';
 
 const DECISIONS = readFileSync(new URL('../../../docs/APP_PERFORMANCE_DECISIONS.md', import.meta.url), 'utf8');
 const POLLING_SOURCE = readFileSync(new URL('../../client/src/active-run-polling.ts', import.meta.url), 'utf8');
+const COMPOSER_SOURCE = readFileSync(new URL('../../client/src/composer-clearance.ts', import.meta.url), 'utf8');
+const MONITORING_SOURCE = readFileSync(new URL('../../client/src/MonitoringPage.tsx', import.meta.url), 'utf8');
 
 function expectDocumented(name: string, value: number | string): void {
   expect(DECISIONS, `${name} must stay aligned with its source constant`).toContain(`\`${name}=${value}\``);
@@ -78,6 +81,9 @@ describe('the app performance decision log', () => {
       ACCESS_DECISION_CACHE_MAX_ENTRIES,
       GENIE_WARMUP_CACHE_MAX_ENTRIES,
       REQUEST_LATENCY_SHUTDOWN_TIMEOUT_MS,
+      QUESTION_PAGE_SIZE,
+      QUESTION_READ_LIMIT,
+      MONITORING_TOP_TABLE_LIMIT,
     };
     for (const [name, value] of Object.entries(limits)) expectDocumented(name, value);
   });
@@ -91,5 +97,12 @@ describe('the app performance decision log', () => {
     expectDocumented('ACTIVE_RUN_INITIAL_POLL_MS', 1500);
     expectDocumented('ACTIVE_RUN_BACKOFF_MS', '2000,3000,5000,8000,10000');
     expectDocumented('ACTIVE_RUN_JITTER_RATIO', 0.15);
+  });
+
+  it('keeps documented responsive UI limits aligned with client source', () => {
+    expect(COMPOSER_SOURCE).toContain('export const COMPOSER_CLEARANCE_BUFFER_PX = 16;');
+    expect(MONITORING_SOURCE).toContain('export const MONITORING_COMPACT_MAX_WIDTH_PX = 799;');
+    expectDocumented('COMPOSER_CLEARANCE_BUFFER_PX', 16);
+    expectDocumented('MONITORING_COMPACT_MAX_WIDTH_PX', 799);
   });
 });

@@ -13,6 +13,7 @@ import {
   CollapsibleTrigger,
 } from './ui';
 import { ChevronDown, CircleAlert, Plus, RefreshCw } from 'lucide-react';
+import { errorSupportReferences } from './error-support';
 
 /**
  * What a stakeholder sees when a route throws.
@@ -34,8 +35,10 @@ export function RouteError() {
         ? error
         : 'No further detail was reported.';
   const stack = error instanceof Error ? error.stack : undefined;
+  const references = errorSupportReferences(error);
 
-  return (<div className="page-shell">
+  return (
+    <div className="page-shell">
       <Card>
         <CardHeader>
           <CardTitle className="text-destructive flex items-center gap-2">
@@ -62,18 +65,31 @@ export function RouteError() {
               </Link>
             </Button>
           </div>
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm">
-                Technical detail <ChevronDown />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3">
-              <div className="code-panel">
-                <pre>{stack ? `${detail}\n\n${stack}` : detail}</pre>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+          {references.length > 0 ? (
+            <Alert>
+              <AlertDescription>
+                {references.map((reference) => (
+                  <p className="font-mono text-xs" key={reference.label}>
+                    {reference.label}: {reference.value}
+                  </p>
+                ))}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {import.meta.env.DEV ? (
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  Technical detail <ChevronDown />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-3">
+                <div className="code-panel">
+                  <pre>{stack ? `${detail}\n\n${stack}` : detail}</pre>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          ) : null}
         </CardContent>
       </Card>
     </div>
