@@ -10,7 +10,13 @@ import {
   readingsById,
   type SettingsPayload,
 } from './connection-model';
-import { CONNECTION_STATUS_LABEL, connectionCounts, connectionStatus, driftMarker, inUseSummary } from './connection-status';
+import {
+  CONNECTION_STATUS_LABEL,
+  connectionCounts,
+  connectionStatus,
+  driftMarker,
+  inUseSummary,
+} from './connection-status';
 import { CONNECTED_RESOURCES, connectedResource } from '../../shared/deployment-config';
 import type { PreflightCheck } from './preflight';
 
@@ -65,7 +71,11 @@ function fixture(): { payload: SettingsPayload; checks: PreflightCheck[] } {
     payload: {
       resources: [
         row('agent-endpoint', { configured: 'an-endpoint', actual: 'an-endpoint', actualObserved: true }),
-        row('sql-warehouse', { configured: 'configured-warehouse', actual: 'a-different-warehouse', actualObserved: true }),
+        row('sql-warehouse', {
+          configured: 'configured-warehouse',
+          actual: 'a-different-warehouse',
+          actualObserved: true,
+        }),
         row('genie-data', { configured: 'a-space' }),
         row('lakebase', { configured: 'an-endpoint' }),
         row('catalog', { configured: 'a_catalog' }),
@@ -82,7 +92,14 @@ function fixture(): { payload: SettingsPayload; checks: PreflightCheck[] } {
           detail: '',
           remedy: '',
         },
-        { id: 'pending-genie-dictionary', severity: 'pending', resourceId: 'genie-dictionary', headline: '', detail: '', remedy: '' },
+        {
+          id: 'pending-genie-dictionary',
+          severity: 'pending',
+          resourceId: 'genie-dictionary',
+          headline: '',
+          detail: '',
+          remedy: '',
+        },
       ],
       status: 'blocked',
       appBuildSha: '',
@@ -160,7 +177,8 @@ describe('a node reports what the shared derivation says, and nothing else', () 
   it('counts what the Connections page counts', () => {
     const { payload, checks } = fixture();
     const readings = readConnections(payload, checks);
-    expect(countConnections(readings)).toEqual(connectionCounts({
+    expect(countConnections(readings)).toEqual(
+      connectionCounts({
         statuses: readings.map((reading) => reading.status),
         markers: readings.map((reading) => reading.marker),
       })

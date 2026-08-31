@@ -1119,7 +1119,13 @@ describe('a connection row', () => {
         intendedAt: '2026-08-28T18:00:00Z',
         changedByLabel: 'Model version',
       },
-      { open: true, declaredTables: canonicalDeclaredTableNames(configured, additional.map((name) => check(name, 'ok', { kind: 'table', name }))) }
+      {
+        open: true,
+        declaredTables: canonicalDeclaredTableNames(
+          configured,
+          additional.map((name) => check(name, 'ok', { kind: 'table', name }))
+        ),
+      }
     );
     expect(text(rendered)).toContain('12 tables');
     expect(text(rendered)).not.toContain('Pending model release');

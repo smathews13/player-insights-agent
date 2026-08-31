@@ -381,7 +381,6 @@ describe('what an editor puts on screen for a field', () => {
       expect(text(field(id)), id).not.toMatch(/or type|enter an identifier/i);
     }
   });
-
 });
 
 describe('the copy on screen', () => {

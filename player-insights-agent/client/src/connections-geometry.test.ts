@@ -253,13 +253,10 @@ describe('the parts a reader has to be able to use', () => {
     expect(table).toMatch(/white-space:\s*nowrap/);
   });
 
-  it('keeps Not checked and Configuration rows at Connected-resources density', () => {
+  it('keeps Not checked rows at Connected-resources density', () => {
     expect(CSS).toMatch(
       /\.connection-row-summary,\s*\n\s*\.connection-block-summary\s*\{[^}]*padding:\s*10px 16px[^}]*font-size:\s*var\(--text-base\)/
     );
-    expect(rule('.configuration-row')).toMatch(/padding:\s*10px 16px/);
-    expect(rule('.configuration-row')).toMatch(/font-size:\s*var\(--text-base\)/);
-    expect(rule('.configuration-row')).toMatch(/line-height:\s*1\.4/);
   });
 
   it('paints the add-connection row in the same ink as a configuration label', () => {

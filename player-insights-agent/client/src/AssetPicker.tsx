@@ -468,7 +468,7 @@ export function AssetPicker({
             kind,
             (caught as Error)?.name === 'AbortError'
               ? 'Resource discovery timed out. Try again.'
-              : (caught as Error)?.message ?? ''
+              : ((caught as Error)?.message ?? '')
           )
         )
       );

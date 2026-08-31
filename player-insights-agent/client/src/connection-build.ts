@@ -124,9 +124,7 @@ export function appHealth(input: {
     return {
       state: 'not-working',
       label: 'Not running',
-      note: state
-        ? `The workspace reports the app as ${state}.`
-        : 'The workspace reports the app as not running.',
+      note: state ? `The workspace reports the app as ${state}.` : 'The workspace reports the app as not running.',
     };
   }
   if (tone === 'reachable') {

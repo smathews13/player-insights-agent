@@ -165,7 +165,8 @@ export function forgetStoredSettings(): void {
  * turn one unavailable moment into 45 seconds of resolvers silently falling back
  * to environment defaults, which is a wrong value held on purpose.
  */
-export async function readStoredSettings(client: LakebaseReader,
+export async function readStoredSettings(
+  client: LakebaseReader,
   options: { maxAgeMs?: number; now?: number } = {}
 ): Promise<Map<string, StoredSetting>> {
   const maxAge = options.maxAgeMs ?? 0;
@@ -177,7 +178,8 @@ export async function readStoredSettings(client: LakebaseReader,
     const rows = result?.rows ?? [];
     // Keyed from the row's OWN id rather than from a second reading of the same
     // column, so the key and the record it points at cannot come to disagree.
-    const settings = new Map(rows.map((row) => {
+    const settings = new Map(
+      rows.map((row) => {
         const setting = storedFromRow(row);
         return [setting.resourceId, setting] as const;
       })
@@ -190,7 +192,8 @@ export async function readStoredSettings(client: LakebaseReader,
   }
 }
 
-export async function writeStoredSetting(client: LakebaseReader,
+export async function writeStoredSetting(
+  client: LakebaseReader,
   setting: { resourceId: string; value: string; intent: StoredIntent; note: string; updatedBy: string }
 ): Promise<StoredSetting> {
   const result = await client.lakebase.query(UPSERT_SETTING_QUERY, [
@@ -253,7 +256,7 @@ export function forgetResolvedExperimentIds(): void {
  */
 export async function resolveExperimentId(
   client: LakebaseReader,
-  resolvePath: ExperimentIdResolver = workspaceExperimentIdResolver,
+  resolvePath: ExperimentIdResolver = workspaceExperimentIdResolver
 ): Promise<string> {
   const stored = await readStoredSettings(client, { maxAgeMs: STORED_SETTINGS_TTL_MS });
   const saved = stored.get('experiment-id');
@@ -441,8 +444,7 @@ export function resourceStates(input: {
 }): ResourceState[] {
   const { report, environment, stored } = input;
   const byCheck = new Map((report?.checks ?? []).map((check) => [check.id, check]));
-  const configuration = new Map((report?.configuration ?? []).map((entry) => [String(entry.key), entry])
-  );
+  const configuration = new Map((report?.configuration ?? []).map((entry) => [String(entry.key), entry]));
   const namespace = namespaceInUse(report?.checks ?? []);
 
   return CONNECTED_RESOURCES.map((resource) => {
@@ -582,22 +584,22 @@ export function computeDrift(input: {
   if (!report) {
     if (endpointAnswered !== true) {
       findings.push({
-          id: 'orchestrator-unreachable',
-          severity: 'unknown',
-          resourceId: 'agent-endpoint',
-          // Plainer for the same reason as the constant above, and deliberately NOT
-          // reassuring in the way that one is: this branch means the agent did not
-          // answer, which is a fault, and the two must not read alike at a glance.
-          headline: 'The agent did not answer, so nothing below could be checked',
-          detail:
-            'The serving endpoint did not reply, so the values below are only what this deployment ' +
-            'was set up with. None of them have been checked against anything, and an answer asked ' +
-            'right now would probably fail too.',
-          // Under "What to fix" on the same page since Sources & Capabilities was
-          // merged into Connections. Sending a reader to another page for it would
-          // now be sending them in a circle.
-          remedy: 'Fix the blocked checks under “What to fix” above, then re-check.',
-        });
+        id: 'orchestrator-unreachable',
+        severity: 'unknown',
+        resourceId: 'agent-endpoint',
+        // Plainer for the same reason as the constant above, and deliberately NOT
+        // reassuring in the way that one is: this branch means the agent did not
+        // answer, which is a fault, and the two must not read alike at a glance.
+        headline: 'The agent did not answer, so nothing below could be checked',
+        detail:
+          'The serving endpoint did not reply, so the values below are only what this deployment ' +
+          'was set up with. None of them have been checked against anything, and an answer asked ' +
+          'right now would probably fail too.',
+        // Under "What to fix" on the same page since Sources & Capabilities was
+        // merged into Connections. Sending a reader to another page for it would
+        // now be sending them in a circle.
+        remedy: 'Fix the blocked checks under “What to fix” above, then re-check.',
+      });
     }
     return findings;
   }
@@ -792,7 +794,8 @@ export function settingsPayload(input: {
 /**
  * Whether a value may be written for this resource, and as what.
  */
-export function classifyWrite(resourceId: string,
+export function classifyWrite(
+  resourceId: string,
   requested: StoredIntent
 ): { ok: true; intent: StoredIntent; changedBy: ChangedBy } | { ok: false; reason: string } {
   const resource = connectedResource(resourceId);

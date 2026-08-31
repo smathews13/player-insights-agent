@@ -53,7 +53,6 @@ import {
   Pencil,
   Save,
   Search,
-  Undo2,
   Wrench,
 } from 'lucide-react';
 // The official product marks, from the one module that pairs a product with its
@@ -87,12 +86,7 @@ import { NO_APP_FACTS } from '../../shared/app-facts';
 import { EntityHighlight, EntityParts, VisitInDatabricks } from './DataEntityLinks';
 import { entityRowProps, isRequestedEntity, useRequestedEntity } from './data-entity-state';
 import { entityRowId } from './data-entities';
-import {
-  checkBadgeVariant,
-  checkVerdictLabel,
-  verdictBadgeVariant,
-  type PreflightCheck,
-} from './preflight';
+import { checkBadgeVariant, checkVerdictLabel, verdictBadgeVariant, type PreflightCheck } from './preflight';
 // Refused, unreachable and not-checked-yet are three different next moves, and
 // the words for them are decided in one place so a row and the strip counting
 // the rows cannot disagree. See shared/check-verdict.ts.
@@ -102,7 +96,6 @@ import { NotebookCard } from './NotebookCard';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import { ApplyDeclarationCard } from './ApplyDeclarationCard';
 import {
-  configurationValue,
   DECLARED_TABLES_SECTION_ID,
   RESOURCE_PRODUCT,
   tableReachabilityCopy,
@@ -136,20 +129,11 @@ import {
   splitOptionalScopeFindings,
   type OptionalScopeShortfall,
 } from './optional-scope-findings';
-import {
-  EMPTY_CATALOG_DENYLIST,
-  EMPTY_DATA_CATALOGS,
-  dataCatalogFormLabel,
-  parseCatalogDenylist,
-  parseDataCatalogEntries,
-} from '../../shared/data-catalog-scope';
 // Point and click instead of remembering an identifier. Which list a field
 // browses, and what a chosen row actually stores, are decided in
 // `asset-picker.ts` rather than in either editor below: the same two editors draw
 // ten fields between them, and a mapping written at the call site would be
-// written twice. The picker itself keeps the text input beside it, because
-// catalog browse rides an optional scope and a sign-in without it must still be
-// able to edit the row.
+// written twice.
 import { AssetPickerField } from './AssetPicker';
 import { pickerForField } from './asset-picker';
 import { AppSelect } from './AppSelect';
@@ -163,7 +147,6 @@ import {
   groupConnections,
   readConnections,
   readingsById,
-  type ConnectionGroup,
   type ConnectionGroupKey,
   type ConnectionReading,
   type DriftSeverity,
@@ -633,7 +616,14 @@ export function ConnectionEntityName({ name }: { name: string }) {
 
 // eslint-disable-next-line react-refresh/only-export-components -- pure parser shared with focused render tests
 export function declaredTableNames(configured: string): string[] {
-  return [...new Set(configured.split(',').map((name) => name.trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      configured
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean)
+    ),
+  ];
 }
 
 /** One complete, stable inventory for both the resource row and detail table. */
@@ -1031,9 +1021,7 @@ export function ConnectionRow({
   const { row, check, problems, disagrees, status, marker, summary, driftCount } = reading;
   const { resource } = row;
   const isDeclaredManifest = resource.id === 'declared-manifest';
-  const declaredTables = isDeclaredManifest
-    ? [...(declaredTablesProp ?? declaredTableNames(row.configured))]
-    : [];
+  const declaredTables = isDeclaredManifest ? [...(declaredTablesProp ?? declaredTableNames(row.configured))] : [];
   const displayValue = isDeclaredManifest
     ? `${declaredTables.length} ${declaredTables.length === 1 ? 'table' : 'tables'}`
     : check?.display_name?.trim() || summary.value;
@@ -1263,243 +1251,6 @@ export function ConnectionRow({
         </div>
       ) : null}
     </div>
-  );
-}
-
-/**
- * A configured value, as a boolean where it is one.
- *
- * `true` and `false` are how these arrive from the environment and are not how
- * anybody reads a switch. Everything else is passed through untouched, including
- * the empty string, which the caller renders as `not set`.
- */
-/**
- * The agent's Unity Catalog read boundary: each entry labelled by blast radius.
- *
- * A bare catalog name includes every non-system schema; a `catalog.schema` name
- * limits access to that one schema. Printing the raw strings without that
- * distinction is how the page showed the list and still left a customer unsure
- * what they had opened up. Empty is a real state (no declared read scope), not
- * "not set".
- *
- * Structure only: a later picker can attach beside these rows without rewriting
- * how the forms are named. No editing here.
- */
-export function DataCatalogsValue({ configured }: { configured: string }) {
-  const entries = parseDataCatalogEntries(configured);
-  if (entries.length === 0) {
-    return (
-      <p
-        className="configuration-row-value configuration-row-value--empty"
-        data-testid="configuration-catalog-allowlist-value"
-      >
-        {EMPTY_DATA_CATALOGS}
-      </p>
-    );
-  }
-  return (
-    <ul
-      className="configuration-row-value configuration-scope-list"
-      data-testid="configuration-catalog-allowlist-value"
-    >
-      {entries.map((entry) => (
-        <li key={entry.name} data-scope-form={entry.form}>
-          <code>{entry.name}</code>
-          <span className="configuration-scope-form">{dataCatalogFormLabel(entry.form)}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/**
- * Tables the agent must not declare: patterns, or the default of none.
- *
- * An empty denylist is the normal case. It must not read as a warning, a
- * missing grant, or "not set".
- */
-export function CatalogDenylistValue({ configured }: { configured: string }) {
-  const patterns = parseCatalogDenylist(configured);
-  if (patterns.length === 0) {
-    return (
-      <p
-        className="configuration-row-value configuration-row-value--empty"
-        data-testid="configuration-catalog-denylist-value"
-      >
-        {EMPTY_CATALOG_DENYLIST}
-      </p>
-    );
-  }
-  return (
-    <ul className="configuration-row-value configuration-scope-list" data-testid="configuration-catalog-denylist-value">
-      {patterns.map((pattern) => (
-        <li key={pattern}>
-          <code>{pattern}</code>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/**
- * The deployment's own settings: one card, one grid, no verdicts.
- *
- * These are the values with no remote end -- a token cap, two lists of catalog
- * patterns, a Postgres schema name, a switch -- and they were drawn as
- * dependencies: a caret to expand, a chip reading "Nothing to reach", and a
- * status column that could never say anything else. Five rows of a page's most
- * emphatic furniture spent asserting that there was nothing to assert.
- *
- * So they are a list. No caret, no chip, and the only interactive thing on a row
- * is the pencil, on the rows that have one.
- */
-export function ConfigurationList({
-  group,
-  saving,
-  requestedResource,
-  onSave,
-  onClear,
-  catalogInUse = '',
-  allowMutations = false,
-}: {
-  group: ConnectionGroup;
-  /** The resource id currently being written, if any. */
-  saving: string;
-  requestedResource: string;
-  onSave: (row: ResourceRow, value: string) => Promise<boolean>;
-  onClear: (row: ResourceRow) => Promise<void>;
-  /** The configured catalog, for the pickers that browse inside one. */
-  catalogInUse?: string;
-  /** Administrators only may stage or save. */
-  allowMutations?: boolean;
-}) {
-  // One row open at a time, by id. A list this short with every editor expanded
-  // is a form, and these are values a release owns.
-  const [editing, setEditing] = useState('');
-  const [draft, setDraft] = useState('');
-
-  return (
-    <section className="connection-group">
-      <h3 className="connection-group-title">{group.title}</h3>
-      <Card className="deployment-card">
-        <div className="configuration-rows">
-          {group.readings.map(({ row, resource }) => {
-            const canWrite = Boolean(allowMutations);
-            const raw = row.intended ?? row.configured;
-            const shown = configurationValue(raw);
-            const open = editing === resource.id;
-            return (
-              <div
-                key={resource.id}
-                className="configuration-row"
-                id={entityRowId(resource.id)}
-                data-testid={`configuration-${resource.id}`}
-                data-highlighted={requestedResource === resource.id ? 'true' : undefined}
-                aria-current={requestedResource === resource.id ? 'location' : undefined}
-              >
-                {/* The same mark the dependency rows carry, for the same
-                    reason: these rows name products too -- a Lakebase schema, a
-                    Unity Catalog volume, an MLflow experiment -- and a reader
-                    scanning the page should not have the column stop halfway
-                    down it. */}
-                <BrandIcon product={RESOURCE_PRODUCT[resource.kind]} className="configuration-row-product" />
-                <p className="configuration-row-label">{resource.label}</p>
-                {/* NO TINT IN THIS LIST, INCLUDING ON THE EXPERIMENT.
-                
-                    The design asks for one green value here -- the MLflow
-                    experiment traces land in -- and the grouping has already
-                    granted it, somewhere else. A row is in this section only
-                    when NOTHING checked it; the moment the experiment probe
-                    answers, the row has a remote end and appears under "Checked
-                    and reachable" with the green badge every reachable row
-                    carries. Tinting it here as well would mean a value that was
-                    never reached rendering in the same green as one that was,
-                    which is the distinction this page's whole colour scheme
-                    rests on.
-
-                    data_catalogs and catalog_denylist get their own reading:
-                    each entry labelled by form, and empty states that say what
-                    empty means rather than "not set". */}
-                {resource.id === 'catalog-allowlist' ? (
-                  <DataCatalogsValue configured={raw} />
-                ) : resource.id === 'catalog-denylist' ? (
-                  <CatalogDenylistValue configured={raw} />
-                ) : (
-                  <p className="configuration-row-value" title={shown || NOT_SET}>
-                    {truncateHead(shown || NOT_SET, 44)}
-                  </p>
-                )}
-                {canWrite ? (
-                  <button
-                    type="button"
-                    className="configuration-row-affordance"
-                    data-affordance="write"
-                    aria-label={`Change ${resource.label}`}
-                    aria-expanded={open}
-                    onClick={() => {
-                      setDraft(row.intended ?? row.configured);
-                      setEditing(open ? '' : resource.id);
-                    }}
-                  >
-                    <Pencil className="size-3.5" aria-hidden="true" />
-                  </button>
-                ) : (
-                  <span className="configuration-row-affordance" data-affordance="locked">
-                    <Lock className="size-3.5" aria-hidden="true" />
-                    {/* The tier, for a reader who cannot see the padlock. The
-                        command that WOULD change it is not here: it is one line
-                        of shell per row, and five of them under a list of five
-                        values is the card this replaced. */}
-                    <span className="sr-only">{`${row.changedByLabel}, not changeable here`}</span>
-                  </span>
-                )}
-                {open ? (
-                  <div className="configuration-row-editor">
-                    {/* The two list fields on this card are the ones a picker
-                        helps most: a `data_catalogs` entry decides whether the
-                        agent may read one schema or every non-system schema in a
-                        catalog, and a reader typing that by hand cannot see the
-                        difference until somebody asks what was opened up. Picking
-                        adds an entry rather than replacing the list, which is
-                        decided in `applyPick` and not here. */}
-                    <AssetPickerField field={resource.id} current={draft} catalog={catalogInUse} onPick={setDraft} />
-                    <Input
-                      value={draft}
-                      onChange={(event) => setDraft(event.target.value)}
-                      aria-label={`New value for ${resource.label}`}
-                    />
-                    <Button
-                      size="sm"
-                      disabled={saving === resource.id || !draft.trim()}
-                      onClick={() => {
-                        void onSave(row, draft.trim()).then((took) => {
-                          if (took) setEditing('');
-                        });
-                      }}
-                    >
-                      <Save className="size-3.5" /> Save and apply
-                    </Button>
-                    {row.intended ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={saving === resource.id}
-                        onClick={() => void onClear(row)}
-                      >
-                        <Undo2 className="size-3.5" /> Discard
-                      </Button>
-                    ) : null}
-                    <Button variant="outline" size="sm" onClick={() => setEditing('')}>
-                      Cancel
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-    </section>
   );
 }
 
@@ -1969,36 +1720,36 @@ export function ConnectionsPage() {
           status chip. A blocked warehouse was the eleventh row of the third
           group, and its verdict was a chip a reader had to find. */}
       {groups.map((group) => (
-          <section key={group.key} className="connection-group">
-            {/* No blurb. Each of the four the categories carried was a sentence
+        <section key={group.key} className="connection-group">
+          {/* No blurb. Each of the four the categories carried was a sentence
                 explaining what the category meant, which a header naming a
                 verdict does not need. */}
-            <h3 className="connection-group-title" data-tone={GROUP_TONE[group.key]}>
-              {group.title}
-              {group.aside ? <span className="connection-group-aside">{group.aside}</span> : null}
-            </h3>
-            <div className="connection-rows">
-              {group.readings.map((reading) => (
-                <ConnectionRow
-                  key={reading.resource.id}
-                  reading={reading}
-                  tone={GROUP_TONE[group.key]}
-                  saving={saving === reading.resource.id}
-                  refreshing={refreshing}
-                  declaredTables={canonicalDeclaredTableNames(reading.row.configured, tableChecks)}
-                  requested={requestedResource === reading.resource.id}
-                  catalogInUse={catalogInUse}
-                  allowMutations={allowMutations}
-                  onSave={(value) => write(reading.row, value)}
-                  onClear={() => clear(reading.row)}
-                />
-              ))}
-              {/* Built-in configured resources always lead. The shared declared
+          <h3 className="connection-group-title" data-tone={GROUP_TONE[group.key]}>
+            {group.title}
+            {group.aside ? <span className="connection-group-aside">{group.aside}</span> : null}
+          </h3>
+          <div className="connection-rows">
+            {group.readings.map((reading) => (
+              <ConnectionRow
+                key={reading.resource.id}
+                reading={reading}
+                tone={GROUP_TONE[group.key]}
+                saving={saving === reading.resource.id}
+                refreshing={refreshing}
+                declaredTables={canonicalDeclaredTableNames(reading.row.configured, tableChecks)}
+                requested={requestedResource === reading.resource.id}
+                catalogInUse={catalogInUse}
+                allowMutations={allowMutations}
+                onSave={(value) => write(reading.row, value)}
+                onClear={() => clear(reading.row)}
+              />
+            ))}
+            {/* Built-in configured resources always lead. The shared declared
                   list then adds its own deterministic user-added section, with
                   the closed Add row and form after every saved row. */}
-              {group.key === 'reachable' ? declaredConnections : null}
-            </div>
-          </section>
+            {group.key === 'reachable' ? declaredConnections : null}
+          </div>
+        </section>
       ))}
 
       {/* A deployment where nothing was reachable draws no Connected resources

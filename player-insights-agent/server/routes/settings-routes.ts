@@ -918,6 +918,18 @@ async function readConnections(
 }
 
 /**
+ * Every table named by either release configuration or live schema discovery.
+ *
+ * Counts cannot decide whether two sets are complete: two twelve-row lists can
+ * differ by one table, and a shorter discovery result can still contain a table
+ * omitted from the committed contract. Always take the union and let the shared
+ * helper deduplicate and sort the exact names.
+ */
+export function completeReachabilityTables(configured: readonly string[], discovered: readonly string[]): string[] {
+  return unionTableNames(configured, discovered);
+}
+
+/**
  * What the signed-in user can actually reach, asked of the workspace.
  *
  * THE JOB THE PAGE PROMISED AND NOBODY PICKED UP. `/api/preflight` has said for
@@ -982,7 +994,7 @@ async function readReachability(
         token: executionToken(req) ?? '',
         denylist,
       });
-      if (listed.length > tables.length) tables = unionTableNames(tables, listed);
+      tables = completeReachabilityTables(tables, listed);
     }
     const checks = await probeConnections({
       configured,

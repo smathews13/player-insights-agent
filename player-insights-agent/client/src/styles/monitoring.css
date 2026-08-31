@@ -124,60 +124,6 @@
   color: var(--ast-neg-text);
 }
 
-/*
- * Keep the five KPI cards on one line at the screenshot's laptop width.
- *
- * `responsive.css` historically moved them to two rows at 1180px. These
- * page-scoped rules are more specific because Monitoring now has a wider,
- * internally responsive outcome card and no longer needs that early break.
- */
-@media (max-width: 1180px) {
-  .monitoring-page .monitoring-strip {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    grid-template-areas: none;
-  }
-  .monitoring-page .monitoring-summary-questions,
-  .monitoring-page .monitoring-summary-threads,
-  .monitoring-page .monitoring-outcomes-tile,
-  .monitoring-page .monitoring-summary-rated,
-  .monitoring-page .monitoring-summary-median {
-    grid-area: auto;
-  }
-}
-
-@media (max-width: 800px) {
-  .monitoring-page .monitoring-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-areas:
-      'questions threads'
-      'outcomes outcomes'
-      'rated median';
-  }
-  .monitoring-page .monitoring-summary-questions {
-    grid-area: questions;
-  }
-  .monitoring-page .monitoring-summary-threads {
-    grid-area: threads;
-  }
-  .monitoring-page .monitoring-outcomes-tile {
-    grid-area: outcomes;
-  }
-  .monitoring-page .monitoring-summary-rated {
-    grid-area: rated;
-  }
-  .monitoring-page .monitoring-summary-median {
-    grid-area: median;
-  }
-}
-
-@media (max-width: 480px) {
-  /* Long grouped counts move with their labels, never independently. */
-  .monitoring-outcome-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    row-gap: 10px;
-  }
-}
-
 /* ── The filter row ────────────────────────────────────────────────────── */
 
 .monitoring-filters {

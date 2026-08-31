@@ -48,13 +48,7 @@ type Configured = PreflightReport['configuration'][number];
  * The settings that name one workspace's data, from `agent/config.py`'s
  * `REQUIRED_KEYS`.
  */
-const REQUIRED_KEYS = [
-  'catalog',
-  'schema',
-  'warehouse_id',
-  'data_genie_space_id',
-  'dictionary_genie_space_id',
-];
+const REQUIRED_KEYS = ['catalog', 'schema', 'warehouse_id', 'data_genie_space_id', 'dictionary_genie_space_id'];
 
 /**
  * A resolved orchestrator setting, as `Settings.configuration_report()` emits it.
@@ -110,7 +104,8 @@ function report(partial: Partial<PreflightReport> = {}): PreflightReport {
 }
 
 function stored(...settings: Array<Partial<StoredSetting> & { resourceId: string }>) {
-  return new Map(settings.map((setting) => [
+  return new Map(
+    settings.map((setting) => [
       setting.resourceId,
       {
         value: '',
@@ -354,7 +349,17 @@ describe('what the page refuses to call healthy', () => {
         principal: '',
         principal_resolved: false,
         build_sha: 'aaaa1111',
-        configuration: [{ key: 'catalog', env_var: '', value: 'main', source: 'artifact', mutability: 'model-version', baked: true, required: true }],
+        configuration: [
+          {
+            key: 'catalog',
+            env_var: '',
+            value: 'main',
+            source: 'artifact',
+            mutability: 'model-version',
+            baked: true,
+            required: true,
+          },
+        ],
         counts: { ok: 0, failed: 0, unverified: 0 },
       },
       states: [],
@@ -372,7 +377,17 @@ describe('what the page refuses to call healthy', () => {
         source: 'configuration',
         status: 'unverified',
         build_sha: 'bbbb2222',
-        configuration: [{ key: 'build_sha', env_var: '', value: 'bbbb2222', source: 'artifact', mutability: 'model-version', baked: true, required: false }],
+        configuration: [
+          {
+            key: 'build_sha',
+            env_var: '',
+            value: 'bbbb2222',
+            source: 'artifact',
+            mutability: 'model-version',
+            baked: true,
+            required: false,
+          },
+        ],
         counts: { ok: 0, failed: 0, unverified: 0 },
       },
       states: [],
@@ -510,9 +525,7 @@ describe('what the page refuses to call healthy', () => {
     // A NAMED endpoint resolved from a default is the leak the loop exists for.
     const all = states({
       report: report({
-        configuration: [
-          configured({ key: 'llm_gateway', value: 'gateway-from-a-shell', source: 'default' }),
-        ],
+        configuration: [configured({ key: 'llm_gateway', value: 'gateway-from-a-shell', source: 'default' })],
       }),
       environment: {},
       stored: stored(),
@@ -596,8 +609,9 @@ describe('what the page refuses to call healthy', () => {
       stored: stored(),
     });
 
-    expect(computeDrift({ report: report(), states: all })
-      .map((finding) => finding.id)).not.toContain('provenance-sql-warehouse');
+    expect(computeDrift({ report: report(), states: all }).map((finding) => finding.id)).not.toContain(
+      'provenance-sql-warehouse'
+    );
   });
 
   it('flags a resource in use that is not the one configured', () => {
@@ -652,8 +666,9 @@ describe('a value somebody saved but nobody applied', () => {
       stored: stored({ resourceId: 'genie-data', value: 'space-new', intent: 'intended' }),
     });
 
-    expect(computeDrift({ report: report(), states: all })
-      .map((finding) => finding.id)).not.toContain('pending-genie-data');
+    expect(computeDrift({ report: report(), states: all }).map((finding) => finding.id)).not.toContain(
+      'pending-genie-data'
+    );
   });
 
   it('never presents an orchestrator setting as editable', () => {
@@ -771,7 +786,8 @@ describe('refusing a write the app cannot honour', () => {
 
 describe('the judge model a benchmark run scores with', () => {
   it('prefers a value saved in the app', async () => {
-    const resolved = await resolveJudgeEndpoint(client([{ resource_id: 'judge-endpoint', value: 'saved-judge', intent: 'active', updated_by: 'a@b.c' }])
+    const resolved = await resolveJudgeEndpoint(
+      client([{ resource_id: 'judge-endpoint', value: 'saved-judge', intent: 'active', updated_by: 'a@b.c' }])
     );
 
     expect(resolved).toBe('saved-judge');
@@ -780,7 +796,8 @@ describe('the judge model a benchmark run scores with', () => {
   it('ignores an intention, which is not the same as a saved value', async () => {
     // An `intended` row is a note about a future release. Scoring with it would
     // make the store's two meanings interchangeable.
-    const resolved = await resolveJudgeEndpoint(client([{ resource_id: 'judge-endpoint', value: 'someday-judge', intent: 'intended', updated_by: 'a@b.c' }])
+    const resolved = await resolveJudgeEndpoint(
+      client([{ resource_id: 'judge-endpoint', value: 'someday-judge', intent: 'intended', updated_by: 'a@b.c' }])
     );
 
     expect(resolved).not.toBe('someday-judge');
@@ -791,10 +808,7 @@ describe('the judge model a benchmark run scores with', () => {
     // is what every deployment used before this was configurable at all.
     const broken = {
       lakebase: {
-        query: () =>
-          Promise.reject(
-            new Error('relation "player_insights.deployment_settings" does not exist')
-          ),
+        query: () => Promise.reject(new Error('relation "player_insights.deployment_settings" does not exist')),
       },
     };
 
@@ -806,9 +820,8 @@ describe('the judge model a benchmark run scores with', () => {
     // '[object Object]', which is truthy — so an `active` row of that shape was
     // preferred over the default and every benchmark run went looking for a
     // serving endpoint of that name. Unreadable is not the same as chosen.
-    const resolved = await resolveJudgeEndpoint(client([
-        { resource_id: 'judge-endpoint', value: { endpoint: 'x' }, intent: 'active', updated_by: 'a@b.c' },
-      ])
+    const resolved = await resolveJudgeEndpoint(
+      client([{ resource_id: 'judge-endpoint', value: { endpoint: 'x' }, intent: 'active', updated_by: 'a@b.c' }])
     );
 
     expect(resolved).toMatch(/^databricks-/);
@@ -817,7 +830,8 @@ describe('the judge model a benchmark run scores with', () => {
 
 describe('reading the settings table', () => {
   it('reads a column it cannot render as absent rather than as a value', async () => {
-    const stored = await readStoredSettings(client([
+    const stored = await readStoredSettings(
+      client([
         {
           resource_id: 'judge-endpoint',
           value: { endpoint: 'x' },
@@ -840,7 +854,8 @@ describe('reading the settings table', () => {
     // The id is the key every lookup on the page goes through. Stringifying a
     // non-scalar one files the row under the literal '[object Object]', which is
     // a key that exists, answers `has`, and belongs to no resource.
-    const stored = await readStoredSettings(client([{ resource_id: { id: 'judge-endpoint' }, value: 'x', intent: 'active' }])
+    const stored = await readStoredSettings(
+      client([{ resource_id: { id: 'judge-endpoint' }, value: 'x', intent: 'active' }])
     );
 
     expect(stored.has('[object Object]')).toBe(false);
@@ -850,7 +865,8 @@ describe('reading the settings table', () => {
     // The guard must not cost the normal path. A timestamptz arrives as a Date
     // from the driver and has to keep coming back as an instant, not as the
     // local-time sentence `String(date)` would produce.
-    const stored = await readStoredSettings(client([
+    const stored = await readStoredSettings(
+      client([
         {
           resource_id: 'judge-endpoint',
           value: 'saved-judge',
@@ -885,7 +901,8 @@ describe('every app-runtime resource is actually read at serving time', () => {
     const resolve = APP_RUNTIME_RESOLVERS[resourceId];
     expect(resolve).toBeTypeOf('function');
 
-    const resolved = await resolve(client([
+    const resolved = await resolve(
+      client([
         {
           resource_id: resourceId,
           value: `saved-${resourceId}`,
@@ -901,7 +918,8 @@ describe('every app-runtime resource is actually read at serving time', () => {
   });
 
   it.each(RUNTIME_EDITABLE_IDS)('ignores an intention for %s', async (resourceId) => {
-    const resolved = await APP_RUNTIME_RESOLVERS[resourceId](client([
+    const resolved = await APP_RUNTIME_RESOLVERS[resourceId](
+      client([
         {
           resource_id: resourceId,
           value: `someday-${resourceId}`,
@@ -977,8 +995,10 @@ describe('resolving the experiment id', () => {
     forgetResolvedExperimentIds();
   });
   afterEach(() => {
-    if (savedId === undefined) delete process.env[ID]; else process.env[ID] = savedId;
-    if (savedPath === undefined) delete process.env[PATH]; else process.env[PATH] = savedPath;
+    if (savedId === undefined) delete process.env[ID];
+    else process.env[ID] = savedId;
+    if (savedPath === undefined) delete process.env[PATH];
+    else process.env[PATH] = savedPath;
     forgetResolvedExperimentIds();
   });
 
@@ -998,7 +1018,7 @@ describe('resolving the experiment id', () => {
     const { calls, resolve } = spyResolver('from-path');
     const value = await resolveExperimentId(
       client([{ resource_id: 'experiment-id', value: 'from-store', intent: 'active' }]),
-      resolve,
+      resolve
     );
 
     expect(value).toBe('from-store');

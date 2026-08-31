@@ -4,26 +4,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import {
-  ConfigurationList,
-  ConnectionRow,
-  ConnectionsCounts,
-  DataCatalogsValue,
-  CatalogDenylistValue,
-} from './ConnectionsPage';
-import { configurationValue, RESOURCE_PRODUCT } from './connections-view';
+import { ConnectionRow, ConnectionsCounts } from './ConnectionsPage';
+import { RESOURCE_PRODUCT } from './connections-view';
 import { BRAND_MARKS, BRAND_THEME_MARKS } from './brand-icons';
 import { buildFacts } from './connection-build';
 import { groupConnections, readConnections, type SettingsPayload } from './connection-model';
 import { truncateHead } from './connection-status';
 import type { PreflightCheck } from './preflight';
 import { CONNECTED_RESOURCES, connectedResource } from '../../shared/deployment-config';
-import {
-  EMPTY_CATALOG_DENYLIST,
-  EMPTY_DATA_CATALOGS,
-  SINGLE_SCHEMA_LABEL,
-  WHOLE_CATALOG_LABEL,
-} from '../../shared/data-catalog-scope';
 
 /**
  * The three blocks the Connections redesign introduced, read as a reader reads
@@ -175,62 +163,6 @@ describe('the sections the rows are grouped into', () => {
   });
 });
 
-describe.skip('the retired Configuration list', () => {
-  /**
-   * These are the values with no remote end. They were drawn as dependencies --
-   * a caret to expand, a chip reading "Nothing to reach" -- so five rows of the
-   * page's most emphatic furniture were spent asserting there was nothing to
-   * assert.
-   */
-  function configuration() {
-    const group = groupsFor(CONFIG_ROWS).find((candidate) => candidate.key === 'configuration')!;
-    return render(
-      <ConfigurationList
-        group={group}
-        saving=""
-        requestedResource=""
-        onSave={() => Promise.resolve(true)}
-        onClear={async () => {}}
-      />
-    );
-  }
-
-  it('reaches no verdict about a value with nothing to reach', () => {
-    const rendered = text(configuration());
-    expect(rendered).not.toMatch(/nothing to reach/i);
-    expect(rendered).not.toMatch(/not checked/i);
-  });
-
-  it('opens no disclosure, because there is no second reading behind one', () => {
-    expect(configuration()).not.toMatch(/aria-controls|connection-row-caret/);
-  });
-
-  it('reads a switch as a switch rather than as the word the environment uses', () => {
-    expect(configurationValue('true')).toBe('on');
-    expect(configurationValue('false')).toBe('off');
-    expect(configurationValue(' 4000 ')).toBe('4000');
-  });
-
-  it('offers the pencil only where something can write the value', () => {
-    const editable = render(
-      <ConfigurationList
-        group={
-          groupsFor([row('max-output-tokens', { configured: '4000', editable: true })]).find(
-            (group) => group.key === 'configuration'
-          )!
-        }
-        saving=""
-        requestedResource=""
-        allowMutations
-        onSave={() => Promise.resolve(true)}
-        onClear={async () => {}}
-      />
-    );
-    expect(editable).toContain('data-affordance="write"');
-    expect(configuration()).toContain('data-affordance="locked"');
-  });
-});
-
 /**
  * The two section headers that name a KIND of thing rather than a verdict.
  *
@@ -250,68 +182,11 @@ describe('the headers that say what a section is', () => {
   it('does not emit a Configuration group', () => {
     expect(groupsFor(CONFIG_ROWS).map((group) => group.title)).not.toContain('Configuration');
   });
-});
 
-describe.skip('data_catalogs and catalog_denylist on the retired Configuration list', () => {
-  /**
-   * Both already rode the settings path as configuration rows. What was wrong
-   * was the reading: a truncated string, or "not set", with no way to tell a
-   * whole-catalog grant from a single-schema one, and an empty denylist looking
-   * like a missing value.
-   */
-  function listFor(...rows: ReturnType<typeof row>[]) {
-    const group = groupsFor(rows).find((candidate) => candidate.key === 'configuration')!;
-    return render(
-      <ConfigurationList
-        group={group}
-        saving=""
-        requestedResource=""
-        onSave={() => Promise.resolve(true)}
-        onClear={async () => {}}
-      />
-    );
-  }
-
-  it('labels a whole-catalog entry and a single-schema entry differently', () => {
-    const markup = render(<DataCatalogsValue configured="production_catalog, shared.reference_data" />);
-    expect(markup).toContain('data-scope-form="whole-catalog"');
-    expect(markup).toContain('data-scope-form="single-schema"');
-    expect(markup).toContain('production_catalog');
-    expect(markup).toContain('shared.reference_data');
-    expect(text(markup)).toContain(WHOLE_CATALOG_LABEL);
-    expect(text(markup)).toContain(SINGLE_SCHEMA_LABEL);
-    expect(text(markup)).not.toMatch(/—|–/);
-  });
-
-  it('says an empty read scope means the agent can query nothing', () => {
-    const markup = render(<DataCatalogsValue configured="" />);
-    expect(text(markup)).toBe(EMPTY_DATA_CATALOGS);
-    expect(text(markup)).not.toMatch(/not set|not configured/i);
-  });
-
-  it('reads an empty denylist as nothing excluded, not as an error', () => {
-    const markup = render(<CatalogDenylistValue configured="" />);
-    expect(text(markup)).toBe(EMPTY_CATALOG_DENYLIST);
-    expect(markup).not.toMatch(/warning|error|missing|ast-pill--danger|ast-pill--warn/i);
-    expect(text(markup)).not.toMatch(/not set/i);
-  });
-
-  it('shows denylist patterns when any are set', () => {
-    expect(text(render(<CatalogDenylistValue configured="raw_*, *.scratch" />))).toContain('raw_*');
-    expect(text(render(<CatalogDenylistValue configured="raw_*, *.scratch" />))).toContain('*.scratch');
-  });
-
-  it('draws both through the Configuration list rather than as dependency rows', () => {
-    const rendered = listFor(
-      row('catalog-allowlist', { configured: 'analytics, analytics.demo' }),
-      row('catalog-denylist', { configured: '' })
-    );
-    expect(rendered).toContain('data-testid="configuration-catalog-allowlist"');
-    expect(rendered).toContain('data-testid="configuration-catalog-denylist"');
-    expect(text(rendered)).toContain(WHOLE_CATALOG_LABEL);
-    expect(text(rendered)).toContain(SINGLE_SCHEMA_LABEL);
-    expect(text(rendered)).toContain(EMPTY_CATALOG_DENYLIST);
-    expect(text(rendered)).not.toMatch(/nothing to reach/i);
+  it('keeps the retired Configuration renderer out of production source', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ConnectionsPage.tsx', import.meta.url)), 'utf8');
+    expect(source).not.toContain('ConfigurationList');
+    expect(source).not.toContain('configuration-row-editor');
   });
 });
 
@@ -376,10 +251,7 @@ describe('the product marks on the rows', () => {
    * reader read the product twice.
    */
   it('leaves the announcing to the label beside it', () => {
-    const group = groupsFor(
-      [row('sql-warehouse', { configured: 'warehouse-1' })],
-      [check('sql-warehouse', 'ok')]
-    )[0];
+    const group = groupsFor([row('sql-warehouse', { configured: 'warehouse-1' })], [check('sql-warehouse', 'ok')])[0];
     const rendered = render(
       <ConnectionRow
         reading={group.readings[0]}
@@ -393,65 +265,6 @@ describe('the product marks on the rows', () => {
     );
     expect(rendered).toContain(BRAND_THEME_MARKS.light['databricks-sql']);
     expect(rendered).not.toMatch(/title="Databricks SQL"/);
-  });
-});
-
-describe.skip('the retired Configuration experiment row', () => {
-  const EXPERIMENT = [row('experiment-id', { configured: '<mlflow-experiment-id>' })];
-
-  /**
-   * The design asks for one tinted value in the Configuration list, and names
-   * the one: the MLflow experiment traces land in. THE GROUPING HAS ALREADY
-   * GRANTED IT, somewhere else -- which is why no branch in `ConfigurationList`
-   * tints anything.
-   *
-   * A row is in Configuration only when nothing checked it. The moment the
-   * experiment probe answers, the row has a remote end and moves to "Checked
-   * and reachable", where the value IS a green badge like every other reachable
-   * row's. A second tint inside Configuration would be dead on this deployment
-   * and, if the grouping ever changed, would paint an unreached value the same
-   * green as a reached one.
-   */
-  it('leaves Configuration for a reachable row the moment the probe answers', () => {
-    const keys = groupsFor(EXPERIMENT, [check('experiment-id', 'ok')]).map((group) => group.key);
-    expect(keys).toContain('reachable');
-    expect(keys).not.toContain('configuration');
-  });
-
-  it('is green there, as the design asks, without a rule of its own', () => {
-    const [reading] = groupsFor(EXPERIMENT, [check('experiment-id', 'ok')]).flatMap((group) => group.readings);
-    const rendered = render(
-      <ConnectionRow
-        reading={reading}
-        tone="reachable"
-        saving={false}
-        refreshing={false}
-        requested={false}
-        onSave={() => Promise.resolve(true)}
-        onClear={async () => {}}
-      />
-    );
-    expect(rendered).toContain('data-tone="reachable"');
-    expect(text(rendered)).toContain('<mlflow-experiment-id>');
-  });
-
-  /**
-   * And nothing in Configuration is ever tinted, which is the section's rule:
-   * nothing here was reached, so nothing here carries a verdict.
-   */
-  it('tints nothing in the Configuration list', () => {
-    const group = groupsFor([...EXPERIMENT, ...CONFIG_ROWS]).find((candidate) => candidate.key === 'configuration')!;
-    const rendered = render(
-      <ConfigurationList
-        group={group}
-        saving=""
-        requestedResource=""
-        onSave={() => Promise.resolve(true)}
-        onClear={async () => {}}
-      />
-    );
-    expect(rendered).not.toMatch(/data-tone="(reachable|blocked|drifted)"/);
-    expect(text(rendered)).toContain('<mlflow-experiment-id>');
   });
 });
 

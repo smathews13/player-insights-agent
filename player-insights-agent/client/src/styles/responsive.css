@@ -121,29 +121,21 @@
   .arch-rails {
     grid-template-columns: 1fr;
   }
-  /* Monitoring keeps the outcome card at half the row through laptop widths.
-     Its four full labels stay on one line without reducing the shared 11px
-     eyebrow size; the other cards form a balanced second row. */
-  .monitoring-strip {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-areas:
-      'questions threads outcomes outcomes'
-      'rated rated median median';
+  /* Monitoring keeps all five cards on one line at the screenshot's laptop
+     width. The outcome card now has three of seven tracks and an internally
+     responsive metric grid, so the old early two-row arrangement is no longer
+     needed. Page scoping makes this band the explicit override of the base
+     strip while keeping every structural breakpoint in this file. */
+  .monitoring-page .monitoring-strip {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-areas: none;
   }
-  .monitoring-summary-questions {
-    grid-area: questions;
-  }
-  .monitoring-summary-threads {
-    grid-area: threads;
-  }
-  .monitoring-outcomes-tile {
-    grid-area: outcomes;
-  }
-  .monitoring-summary-rated {
-    grid-area: rated;
-  }
-  .monitoring-summary-median {
-    grid-area: median;
+  .monitoring-page .monitoring-summary-questions,
+  .monitoring-page .monitoring-summary-threads,
+  .monitoring-page .monitoring-outcomes-tile,
+  .monitoring-page .monitoring-summary-rated,
+  .monitoring-page .monitoring-summary-median {
+    grid-area: auto;
   }
   /*
    * The search box gives up the right edge once the row can no longer hold it.
@@ -186,12 +178,27 @@
   }
   /* Two across, at the width the architecture tiles also go to two. Below this the
      tabular figures start colliding with their captions. */
-  .monitoring-strip {
+  .monitoring-page .monitoring-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
       'questions threads'
       'outcomes outcomes'
       'rated median';
+  }
+  .monitoring-page .monitoring-summary-questions {
+    grid-area: questions;
+  }
+  .monitoring-page .monitoring-summary-threads {
+    grid-area: threads;
+  }
+  .monitoring-page .monitoring-outcomes-tile {
+    grid-area: outcomes;
+  }
+  .monitoring-page .monitoring-summary-rated {
+    grid-area: rated;
+  }
+  .monitoring-page .monitoring-summary-median {
+    grid-area: median;
   }
   .monitoring-outcomes-label {
     white-space: normal;
@@ -444,16 +451,6 @@
   .configuration-plane-row {
     grid-template-columns: 1fr;
   }
-  /* A 220px label column, a value and a padlock do not fit beside each other on
-     a phone, and the value is the half that loses. The mark and the label keep
-     the first line, the value takes the second, and the affordance stays pinned
-     to the label's line where a thumb expects it. */
-  .configuration-row {
-    grid-template-columns: 20px 1fr auto;
-  }
-  .configuration-row-value {
-    grid-column: 2 / -1;
-  }
   /* The Build card's two grids, for the same reason: the left column is a URL
      and a description, the right is two commit hashes, and neither survives half
      a phone's width. Stacked, the label column still lines every value up. */
@@ -588,6 +585,12 @@
    width -- the nav went at 1180px -- but a rule that only happens to be unread is
    a rule that is wrong the day something reads it. */
 @media (max-width: 480px) {
+  /* Long grouped Monitoring counts move with their labels, never
+     independently. */
+  .monitoring-outcome-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 10px;
+  }
   .ops-tile-budget {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  completeReachabilityTables,
   configuredNotebookPath,
   readOrchestratorReport,
   releaseDeclaration,
@@ -116,6 +117,33 @@ describe('the configuration survives the retired-preflight shape', () => {
 });
 
 describe('what /api/settings makes of this release, without asking the agent', () => {
+  it('unions configured and discovered tables even when their counts do not grow', () => {
+    const equalSized = completeReachabilityTables(
+      ['a_catalog.a_schema.players', 'a_catalog.a_schema.sessions'],
+      ['a_catalog.a_schema.sessions', 'a_catalog.a_schema.feedback']
+    );
+    expect(equalSized).toHaveLength(3);
+    expect(equalSized).toEqual(
+      expect.arrayContaining([
+        'a_catalog.a_schema.players',
+        'a_catalog.a_schema.sessions',
+        'a_catalog.a_schema.feedback',
+      ])
+    );
+    const shorterDiscovery = completeReachabilityTables(
+      ['a_catalog.a_schema.players', 'a_catalog.a_schema.sessions'],
+      ['a_catalog.a_schema.feedback']
+    );
+    expect(shorterDiscovery).toHaveLength(3);
+    expect(shorterDiscovery).toEqual(
+      expect.arrayContaining([
+        'a_catalog.a_schema.players',
+        'a_catalog.a_schema.sessions',
+        'a_catalog.a_schema.feedback',
+      ])
+    );
+  });
+
   it('reports the configuration from the app container', async () => {
     process.env.PLAYER_INSIGHTS_CATALOG = 'a_catalog';
     process.env.PLAYER_INSIGHTS_SCHEMA = 'a_schema';
@@ -175,9 +203,7 @@ describe('what /api/settings makes of this release, without asking the agent', (
     expect(read.report?.configuration.find((item) => item.key === 'declared_manifest')?.value).toEqual(
       qualifyDataContractTables('a_catalog', 'a_schema')
     );
-    expect(read.report?.configuration.find((item) => item.key === 'declared_manifest')?.source).toBe(
-      'data-contract'
-    );
+    expect(read.report?.configuration.find((item) => item.key === 'declared_manifest')?.source).toBe('data-contract');
   });
 
   it('does not let the page claim agreement it never measured', async () => {
@@ -219,24 +245,20 @@ describe('saving a workspace notebook path', () => {
         },
       ],
     ]);
-    expect(configuredNotebookPath(saved, { PLAYER_INSIGHTS_NOTEBOOK_PATH: '/Shared/default' })).toBe(
-      '/Shared/saved',
-    );
+    expect(configuredNotebookPath(saved, { PLAYER_INSIGHTS_NOTEBOOK_PATH: '/Shared/default' })).toBe('/Shared/saved');
     expect(configuredNotebookPath(new Map(), { PLAYER_INSIGHTS_NOTEBOOK_PATH: '/Shared/default' })).toBe(
-      '/Shared/default',
+      '/Shared/default'
     );
     expect(configuredNotebookPath(new Map(), {})).toBe('');
   });
 
   it('stores the validated path under its own setting without replacing the declarations table', async () => {
-    const write = vi.fn((
-      _appkit: unknown,
-      setting: Parameters<typeof import('../lib/app-settings').writeStoredSetting>[1],
-    ) =>
-      Promise.resolve({
-        ...setting,
-        updatedAt: '2026-08-19T16:00:00.000Z',
-      }),
+    const write = vi.fn(
+      (_appkit: unknown, setting: Parameters<typeof import('../lib/app-settings').writeStoredSetting>[1]) =>
+        Promise.resolve({
+          ...setting,
+          updatedAt: '2026-08-19T16:00:00.000Z',
+        })
     );
     const result = await validateAndStoreNotebookPath({
       appkit: appkitAnswering({}),
@@ -254,7 +276,7 @@ describe('saving a workspace notebook path', () => {
         resourceId: 'notebook-path',
         value: '/Shared/player-insights',
         intent: 'active',
-      }),
+      })
     );
   });
 
@@ -271,7 +293,7 @@ describe('saving a workspace notebook path', () => {
           ok: false as const,
           status: 400 as const,
           detail: 'Choose a notebook, not a workspace folder.',
-        }),
+        })
       ),
       write: write as typeof import('../lib/app-settings').writeStoredSetting,
     });
