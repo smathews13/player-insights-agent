@@ -119,10 +119,13 @@ export class AskUnreachable extends Error {
 export class AskRunFailed extends Error {
   /** Stages that did arrive before it stopped. Evidence, so it is kept. */
   readonly completed: number;
-  constructor(message: string, completed: number) {
+  /** True only when the server sent a terminal error event. */
+  readonly terminal: boolean;
+  constructor(message: string, completed: number, terminal = false) {
     super(message);
     this.name = 'AskRunFailed';
     this.completed = completed;
+    this.terminal = terminal;
   }
 }
 
@@ -307,7 +310,7 @@ export async function askStreaming(
         }
         if (isUnavailableResult(parsed)) throw new AskRefused(parsed, completed);
         const detail = readMessage(data);
-        throw new AskRunFailed(detail ?? 'The agent stopped before it finished this question.', completed);
+        throw new AskRunFailed(detail ?? 'The agent stopped before it finished this question.', completed, true);
       }
     }
   } catch (error) {

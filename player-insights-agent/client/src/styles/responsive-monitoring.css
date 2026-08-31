@@ -1,0 +1,69 @@
+@media (max-width: 1180px) {
+  .monitoring-page .monitoring-strip {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-areas: none;
+  }
+  .monitoring-page .monitoring-summary-questions,
+  .monitoring-page .monitoring-summary-threads,
+  .monitoring-page .monitoring-outcomes-tile,
+  .monitoring-page .monitoring-summary-rated,
+  .monitoring-page .monitoring-summary-median {
+    grid-area: auto;
+  }
+  .monitoring-search {
+    margin-left: 0;
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 800px) {
+  .monitoring-page .monitoring-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      'questions threads'
+      'outcomes outcomes'
+      'rated median';
+  }
+  .monitoring-page .monitoring-summary-questions {
+    grid-area: questions;
+  }
+  .monitoring-page .monitoring-summary-threads {
+    grid-area: threads;
+  }
+  .monitoring-page .monitoring-outcomes-tile {
+    grid-area: outcomes;
+  }
+  .monitoring-page .monitoring-summary-rated {
+    grid-area: rated;
+  }
+  .monitoring-page .monitoring-summary-median {
+    grid-area: median;
+  }
+  .monitoring-outcomes-label {
+    white-space: normal;
+  }
+  .monitoring-panel-grid,
+  .monitoring-refusal-tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .monitoring-panel-grid > .monitoring-panel-tile {
+    grid-column: span 1;
+  }
+  .monitoring-panel-grid > .monitoring-panel-tile-wide {
+    grid-column: 1 / -1;
+  }
+  .monitoring-table-ranking li {
+    gap: 6px;
+  }
+  .monitoring-drawer {
+    width: 100vw;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .monitoring-outcome-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 10px;
+  }
+}

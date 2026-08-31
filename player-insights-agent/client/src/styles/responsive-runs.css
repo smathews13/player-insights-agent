@@ -1,0 +1,18 @@
+@media (max-width: 800px) {
+  .explorer-layout {
+    grid-template-columns: 1fr;
+  }
+  .run-list-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .run-filter-field,
+  .run-conversation-filter,
+  .run-username-filter {
+    width: 100%;
+    max-width: none;
+  }
+  .run-list {
+    position: static;
+    max-height: 300px;
+  }
+}

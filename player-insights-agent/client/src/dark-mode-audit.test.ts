@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_ENTITY_STYLES } from '../../shared/runtime-settings';
 import { partial, stylesheet } from './styles/stylesheet';
 
-const DARK = partial('dark-mode.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+const routeDark = (route: string) => partial(`dark-${route}.css`).replace(/\/\*[\s\S]*?\*\//g, ' ');
+const DARK = [
+  partial('dark-mode.css'),
+  ...['architecture', 'benchmark', 'connections', 'monitoring', 'ops', 'runs', 'settings', 'time-range'].map(routeDark),
+]
+  .join('')
+  .replace(/\/\*[\s\S]*?\*\//g, ' ');
 const ALL_CSS = stylesheet().replace(/\/\*[\s\S]*?\*\//g, ' ');
 const TOKENS = partial('tokens.css');
 const ASTROLABE = partial('astrolabe-tokens.css');
@@ -646,10 +652,16 @@ describe('dark mode covers the shipped surfaces', () => {
      * reduced-transparency path; adding either to only one list is a layout that
      * changes when an accessibility preference is enabled.
      */
-    const reducedAt = DARK.indexOf('@media (prefers-reduced-transparency: reduce)');
-    const normal = DARK.slice(0, reducedAt);
-    const reduced = DARK.slice(reducedAt, DARK.indexOf('@media (prefers-reduced-motion: reduce)'));
-    for (const selector of ['.monitoring-list-pane', '.monitoring-filters .monitoring-search input', '.ops-block']) {
+    const cases = [
+      ['monitoring', '.monitoring-list-pane'],
+      ['monitoring', '.monitoring-filters .monitoring-search input'],
+      ['ops', '.ops-block'],
+    ] as const;
+    for (const [owner, selector] of cases) {
+      const css = routeDark(owner);
+      const reducedAt = css.indexOf('@media (prefers-reduced-transparency: reduce)');
+      const normal = css.slice(0, reducedAt);
+      const reduced = css.slice(reducedAt);
       expect(normal, `${selector} is not frosted in dark`).toContain(`html[data-theme='dark'] ${selector}`);
       expect(reduced, `${selector} has no reduced-transparency fallback`).toContain(
         `html[data-theme='dark'] ${selector}`
@@ -670,9 +682,10 @@ describe('dark mode covers the shipped surfaces', () => {
      * left constellation lines on the type. The opaque sky-to-white mix is
      * the same recipe the Monitoring tiles use: glass, not a window.
      */
-    const reducedAt = DARK.indexOf('@media (prefers-reduced-transparency: reduce)');
-    const normal = DARK.slice(0, reducedAt);
-    const reduced = DARK.slice(reducedAt, DARK.indexOf('@media (prefers-reduced-motion: reduce)'));
+    const css = routeDark('benchmark');
+    const reducedAt = css.indexOf('@media (prefers-reduced-transparency: reduce)');
+    const normal = css.slice(0, reducedAt);
+    const reduced = css.slice(reducedAt);
     expect(normal).toMatch(
       /html\[data-theme='dark'\] \.eval-steps\s*\{[^}]*color-mix\(in srgb, var\(--ast-sky-fill\) 86%, white\)[^}]*backdrop-filter:\s*blur\(10px\)/
     );
@@ -683,9 +696,10 @@ describe('dark mode covers the shipped surfaces', () => {
   });
 
   it('frosts Benchmark Lab v3 surfaces at 4% white', () => {
-    const reducedAt = DARK.indexOf('@media (prefers-reduced-transparency: reduce)');
-    const normal = DARK.slice(0, reducedAt);
-    const reduced = DARK.slice(reducedAt, DARK.indexOf('@media (prefers-reduced-motion: reduce)'));
+    const css = routeDark('benchmark');
+    const reducedAt = css.indexOf('@media (prefers-reduced-transparency: reduce)');
+    const normal = css.slice(0, reducedAt);
+    const reduced = css.slice(reducedAt);
     expect(normal).toMatch(
       /html\[data-theme='dark'\] \.bench-surface\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*0\.04\)[^}]*backdrop-filter:\s*blur\(2px\)/
     );
@@ -696,9 +710,10 @@ describe('dark mode covers the shipped surfaces', () => {
   });
 
   it('frosts the Architecture KPI tiles with the same pane recipe as LIVE DATA FLOW', () => {
-    const reducedAt = DARK.indexOf('@media (prefers-reduced-transparency: reduce)');
-    const normal = DARK.slice(0, reducedAt);
-    const reduced = DARK.slice(reducedAt, DARK.indexOf('@media (prefers-reduced-motion: reduce)'));
+    const css = routeDark('architecture');
+    const reducedAt = css.indexOf('@media (prefers-reduced-transparency: reduce)');
+    const normal = css.slice(0, reducedAt);
+    const reduced = css.slice(reducedAt);
     for (const selector of ['.arch-flow', '.arch-tiles:not(.arch-tiles-loop) li']) {
       expect(bodyFor(normal, `html[data-theme='dark'] ${selector}`)).toMatch(
         /background:\s*var\(--card\)[\s\S]*backdrop-filter:\s*blur\(2px\)/

@@ -223,11 +223,6 @@ html[data-theme='dark'] .header-settings:focus-visible {
   outline-offset: 1px;
 }
 
-html[data-theme='dark'] .time-range-segment:hover:not([aria-checked='true']),
-html[data-theme='dark'] .time-range-segment[aria-checked='true'] {
-  color: var(--foreground);
-}
-
 html[data-theme='dark'] .access-gate-actions button:not(.refresh-button) {
   background: var(--card);
   color: var(--foreground);
@@ -345,22 +340,6 @@ html[data-theme='dark'] .first-open:not(.on-sky) {
 html[data-theme='dark'] .answer-card,
 html[data-theme='dark'] .plan-card,
 html[data-theme='dark'] .user-bubble,
-html[data-theme='dark'] .monitoring-tile,
-html[data-theme='dark'] .monitoring-filters .monitoring-search input,
-html[data-theme='dark'] .monitoring-list-pane,
-html[data-theme='dark'] .ops-block,
-html[data-theme='dark'] .ops-stop-all,
-html[data-theme='dark'] .ops-block-failed,
-html[data-theme='dark'] .ops-absence,
-html[data-theme='dark'] .arch-flow,
-html[data-theme='dark'] .arch-tiles:not(.arch-tiles-loop) li,
-html[data-theme='dark'] .arch-node,
-html[data-theme='dark'] .arch-rail,
-html[data-theme='dark'] .connection-rows,
-html[data-theme='dark'] .connection-block,
-html[data-theme='dark'] .plane-card,
-html[data-theme='dark'] .bench-ledger,
-html[data-theme='dark'] .eval-steps,
 html[data-theme='dark'] .first-open-card,
 html[data-theme='dark'] .access-gate-panel,
 html[data-theme='dark'] [data-slot='card'] {
@@ -405,103 +384,6 @@ html[data-theme='dark'] .role-lost-notice {
 html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) [data-slot='card'] {
   background: color-mix(in srgb, var(--ast-sky-fill) 86%, white);
   backdrop-filter: blur(10px);
-}
-
-/*
- * THE BENCHMARKING HOW-TO. Eight steps of body text on the sky, and not a
- * `[data-slot='card']`, so the mix above never reached it.
- *
- * The settings-prose recipe (92% solid mixed with transparent, 18px blur) still
- * left constellation lines sitting on the sentences: eight percent of a star
- * is a glyph. The working-tab card mix is opaque — both stops are solid — so
- * the pane can stay a slightly lifted glass without a sky showing through it.
- */
-html[data-theme='dark'] .eval-steps {
-  background: color-mix(in srgb, var(--ast-sky-fill) 86%, white);
-  backdrop-filter: blur(10px);
-}
-
-/*
- * Lab v3 regions are 4% white glass, not the working-tab 86% mix. That mix is
- * a slab; the north star is a veil the sky still shows through.
- */
-html[data-theme='dark'] .bench-surface {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(2px);
-  border-color: rgba(255, 255, 255, 0.22);
-}
-html[data-theme='dark'] .bench-failure-drawer {
-  background: color-mix(in srgb, var(--ast-navy) 92%, transparent);
-  border-color: rgba(255, 255, 255, 0.22);
-}
-html[data-theme='dark'] .bench-stage-node {
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--ast-ice-accent);
-}
-html[data-theme='dark'] .bench-btn-primary {
-  background: rgba(34, 114, 180, 0.28);
-  border-color: rgba(143, 193, 232, 0.55);
-  color: var(--ast-ghost-text);
-}
-html[data-theme='dark'] .bench-btn-secondary {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.3);
-  color: var(--ast-ink-on-dark);
-}
-html[data-theme='dark'] .bench-type-tag {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--ast-text-secondary);
-}
-html[data-theme='dark'] .bench-approver,
-html[data-theme='dark'] .bench-space-select {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.22);
-  color: var(--ast-ink-on-dark);
-}
-html[data-theme='dark'] .bench-target-seg {
-  border-color: rgba(255, 255, 255, 0.22);
-}
-html[data-theme='dark'] .bench-target-seg button.is-pressed {
-  background: rgba(255, 255, 255, 0.07);
-}
-html[data-theme='dark'] .bench-delta-pos {
-  color: #9ad6ce;
-}
-html[data-theme='dark'] .bench-delta-neg {
-  color: #e8a9b8;
-}
-html[data-theme='dark'] .bench-failure-list li.is-active {
-  background: rgba(255, 255, 255, 0.07);
-}
-html[data-theme='dark'] .bench-failure-list li:hover,
-html[data-theme='dark'] .bench-sheet tbody tr:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-html[data-theme='dark'] .run-explorer .run-detail,
-html[data-theme='dark'] .run-explorer [data-slot='card'],
-html[data-theme='dark'] .connections-page [data-slot='card'],
-html[data-theme='dark'] .connections-page .connection-block,
-html[data-theme='dark'] .connections-page .connection-rows,
-html[data-theme='dark'] .connections-page .plane-card {
-  background: var(--ast-pane);
-  backdrop-filter: blur(2px);
-  border-color: var(--ast-border-input);
-}
-
-/*
- * A pane inside the detail pane is not another pane.
- *
- * d14871cb put `--ast-pane` on the column AND on the Overview tiles and
- * Final Answer. Two five-percent frosts is the leftover wash: a cooler,
- * lighter slab than Ask's single answer card. The column is the sheet
- * (and now carries the hairline in runs.css). Tiles and the answer destack
- * the way the timeline already does, so every tab sits on one charcoal.
- */
-html[data-theme='dark'] .run-explorer .run-detail [data-slot='card'],
-html[data-theme='dark'] .run-explorer .run-detail .final-answer {
-  background: transparent;
-  backdrop-filter: none;
 }
 
 html[data-theme='dark'] [data-slot='alert'],
@@ -556,42 +438,6 @@ html[data-theme='dark'] .trace-kpi,
 html[data-theme='dark'] .trace-dag.map .dag-node,
 html[data-theme='dark'] .trace-dag.map .dag-detail {
   background: rgba(255, 255, 255, 0.03);
-}
-
-/*
- * Explorer kind pills on navy: soft translucent fills so the notebook hues
- * still read without blasting contrast on the dark shell.
- */
-html[data-theme='dark'] .trace-timeline--explorer .trace-chip-llm {
-  background: color-mix(in srgb, var(--ast-trace-llm-bar) 22%, transparent);
-  color: #b8ebcf;
-  border-color: color-mix(in srgb, var(--ast-trace-llm-bar) 45%, transparent);
-}
-html[data-theme='dark'] .trace-timeline--explorer .trace-chip-sql {
-  background: color-mix(in srgb, var(--ast-trace-sql-bar) 22%, transparent);
-  color: #b5daf0;
-  border-color: color-mix(in srgb, var(--ast-trace-sql-bar) 45%, transparent);
-}
-html[data-theme='dark'] .trace-timeline--explorer .trace-chip-discovery {
-  background: color-mix(in srgb, var(--ast-trace-discovery-bar) 22%, transparent);
-  color: #ebd9a8;
-  border-color: color-mix(in srgb, var(--ast-trace-discovery-bar) 45%, transparent);
-}
-html[data-theme='dark'] .trace-timeline--explorer .trace-chip-plot {
-  background: color-mix(in srgb, var(--ast-trace-plot-bar) 22%, transparent);
-  color: #e0c4ef;
-  border-color: color-mix(in srgb, var(--ast-trace-plot-bar) 45%, transparent);
-}
-html[data-theme='dark'] .trace-timeline--explorer .trace-chip-clarify {
-  background: color-mix(in srgb, var(--ast-trace-clarify-bar) 22%, transparent);
-  color: #f0d0b0;
-  border-color: color-mix(in srgb, var(--ast-trace-clarify-bar) 45%, transparent);
-}
-html[data-theme='dark'] .trace-timeline--explorer .trace-chip-agent,
-html[data-theme='dark'] .trace-timeline--explorer .trace-chip-run {
-  background: rgba(154, 167, 178, 0.18);
-  color: var(--ast-ink-on-dark);
-  border-color: rgba(154, 167, 178, 0.4);
 }
 
 html[data-theme='dark'] .trace-dag.map .dag-detail-head {
@@ -650,16 +496,10 @@ html[data-theme='dark'] .trace-dag.map .dag-inline-code {
 html[data-theme='dark'] .app-select-content,
 html[data-theme='dark'] [data-slot='select-content'],
 html[data-theme='dark'] [data-slot='dropdown-menu-content'],
-html[data-theme='dark'] [data-slot='popover-content'],
-html[data-theme='dark'] .monitoring-chip-menu {
+html[data-theme='dark'] [data-slot='popover-content'] {
   background: var(--ast-surface-solid);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
-  color: var(--foreground);
-}
-
-html[data-theme='dark'] .monitoring-chip-menu [data-slot='select-item'][data-highlighted] {
-  background: rgba(255, 255, 255, 0.12);
   color: var(--foreground);
 }
 
@@ -670,76 +510,11 @@ html[data-theme='dark'] .account-menu {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
-html[data-theme='dark'] .settings-page.settings-modal {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(2px);
-  border-color: var(--ast-border-input);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-}
-
-html[data-theme='dark'] .monitoring-drawer,
 html[data-theme='dark'] [data-slot='sheet-content'] {
   background: var(--ast-surface-solid);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
-}
-
-html[data-theme='dark'] .monitoring-question-modal {
-  /* Same charcoal the Monitoring tab sits on. Sky-fill here was a second,
-     darker sheet; the inner card then lost to the working-tab mix. */
-  background: var(--ast-surface-solid);
-  backdrop-filter: none;
-  border-color: var(--ast-border-input);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-}
-
-/*
- * NOTHING INSIDE A FIXED SCROLLER MAY BLUR WHAT IS BEHIND IT.
- *
- * The person drawer and the question modal are `position: fixed` with their own
- * scrollers, and the answer card carries `backdrop-filter: blur(2px)` from the
- * frosted-pane rung above. A blurred layer inside a fixed scroll container is
- * repainted against a backdrop the compositor has already scrolled, and the old
- * side card showed the answer and the timeline under it drawn at two offsets at
- * once -- text over text. These surfaces are already opaque
- * (`--ast-surface-solid` on the modal and the drawer), so
- * there is nothing behind the card to see: the blur costs the reader the frost
- * they cannot perceive and buys the smear.
- */
-html[data-theme='dark'] .monitoring-drawer [data-slot='card'],
-html[data-theme='dark'] .monitoring-drawer .answer-card,
-html[data-theme='dark'] .monitoring-drawer [data-slot='alert'],
-html[data-theme='dark'] .monitoring-question-modal [data-slot='card'],
-html[data-theme='dark'] .monitoring-question-modal .answer-card,
-html[data-theme='dark'] .monitoring-question-modal [data-slot='alert'] {
-  backdrop-filter: none;
-}
-
-/*
- * THE POPUP IS THE MONITORING TAB'S CHARCOAL, NOT THE WORKING-TAB MIX.
- *
- * `.page-shell:not(.run-explorer):not(.connections-page) [data-slot='card']`
- * mixes sky + 14% white. The question modal lives inside `.monitoring-page`,
- * so that mix painted the answer card, the KPI chips and the timeline as a
- * lifted grey-blue sheet over the tab. The earlier `--ast-pane` override
- * lost: two `:not()`s out-specified `.page-shell .modal .card`. Repeating
- * the same `:not()` chain is what actually wins. `--ast-surface-solid` is
- * the tab's own charcoal -- one family for the outer modal, the inner card,
- * and every `[data-slot='card']` inside, including the step timeline.
- */
-html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) .monitoring-question-modal,
-html[data-theme='dark']
-  .page-shell:not(.run-explorer):not(.connections-page)
-  .monitoring-question-modal
-  [data-slot='card'],
-html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) .monitoring-question-modal .answer-card {
-  background: var(--ast-surface-solid);
-  backdrop-filter: none;
-}
-
-html[data-theme='dark'] .monitoring-page:has(.monitoring-drawer) > :not(.monitoring-drawer) {
-  opacity: 0.55;
 }
 
 html[data-theme='dark'] .trace-empty-mark {
@@ -753,88 +528,16 @@ html[data-theme='dark'] .trace-empty-mark {
  * here were the leftover "blue highlight" the rest of this sheet had already
  * been asked to drop.
  */
-html[data-theme='dark'] .settings-rail button.active,
-html[data-theme='dark'] .settings-rail button[aria-current='page'] {
-  border-color: transparent;
-  background: var(--db-selected-tint);
-  box-shadow: none;
-  color: var(--foreground);
-}
-
 /*
  * The footer has one action and one dismissal. Cancel stays in the same quiet
  * surface-and-hairline family as the modal chrome; Save alone enters the shared
  * primary recipe above.
  */
-html[data-theme='dark'] .settings-footer-actions .settings-cancel {
-  border-color: var(--ast-border-input);
-  background: var(--card);
-  color: var(--foreground);
-}
-
-html[data-theme='dark'] .settings-footer-actions .settings-cancel:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-html[data-theme='dark'] .settings-footer-actions .settings-cancel:active:not(:disabled) {
-  background: rgba(143, 193, 232, 0.16);
-}
-
 /*
  * Environment is a table inside the modal, not a second branded surface. Its
  * tab keeps the header navigation's thin ice rule, while the toolbar, column
  * head and copy affordance remain on ordinary dark surfaces and hairlines.
  */
-html[data-theme='dark'] .environment-tabs button.active {
-  color: var(--ast-ice-accent);
-}
-
-html[data-theme='dark'] .environment-tabs button.active::after {
-  background: var(--ast-ice-accent);
-}
-
-html[data-theme='dark'] .environment-list th {
-  background: var(--muted);
-  color: var(--ast-caption);
-}
-
-html[data-theme='dark'] .environment-tools [data-slot='button'] {
-  border-color: transparent;
-  background: transparent;
-  color: var(--muted-foreground);
-}
-
-html[data-theme='dark'] .environment-tools [data-slot='button']:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--foreground);
-}
-
-html[data-theme='dark'] .environment-tools [data-slot='button']:active:not(:disabled) {
-  background: rgba(143, 193, 232, 0.28);
-  color: var(--ast-white);
-}
-
-html[data-theme='dark'] .environment-list:focus-visible {
-  outline: 1px solid var(--ast-ice-accent);
-  outline-offset: -1px;
-  box-shadow: none;
-}
-
-html[data-theme='dark'] .appearance-grid {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-html[data-theme='dark'] .monitoring-tile-caption,
-html[data-theme='dark'] .settings-save-notice,
-html[data-theme='dark'] .runtime-field-label,
-html[data-theme='dark'] .run-item-date {
-  color: var(--ast-caption);
-}
-
-html[data-theme='dark'] .settings-modal-overlay {
-  background: color-mix(in srgb, var(--ast-scrim) 50%, transparent);
-}
-
 html[data-theme='dark'] .ast-flick-row {
   background: var(--card);
 }
@@ -938,21 +641,8 @@ html[data-theme='dark'] .answer-card:has(.live-progress) {
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
 }
 
-html[data-theme='dark'] .arch-edge {
-  stroke: var(--ast-ice-accent);
-  opacity: 0.8;
-}
-
 html[data-theme='dark'] .trace-bar {
   opacity: 0.8;
-}
-
-html[data-theme='dark'] .ops-lat-bar-track {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-html[data-theme='dark'] .ops-lat-bar-fill {
-  background: rgba(143, 193, 232, 0.75);
 }
 
 html[data-theme='dark'] :focus-visible {
@@ -1012,10 +702,6 @@ html[data-theme='dark'] .plan-card ::selection {
 html[data-theme='dark'] .asset-picker-row:hover {
   background: rgba(255, 255, 255, 0.12);
   color: var(--foreground);
-}
-
-html[data-theme='dark'] .monitoring-search-clear:hover {
-  color: var(--ast-white);
 }
 
 /*
@@ -1082,11 +768,6 @@ html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-shor
   background: rgba(255, 255, 255, 0.07);
 }
 
-html[data-theme='dark'] .ops-lat-chip-get {
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--ast-ink-on-dark);
-}
-
 /*
  * Two more controls whose feedback ran backwards, for the reason Refresh did:
  * the -700 and -800 rungs are hover and press on white and are both darker than
@@ -1107,12 +788,6 @@ html[data-theme='dark'] .trace-inspector .trace-explore:active:not(:disabled) {
   color: var(--ast-navy);
 }
 
-html[data-theme='dark'] .settings-footer-actions [data-slot='button'][data-pressed='true'] {
-  background: color-mix(in srgb, var(--ast-primary-control-fill) 68%, var(--ast-primary-control-border));
-  border-color: var(--ast-ice-accent);
-  color: var(--ast-ink-on-dark);
-}
-
 /*
  * The ghost hover, at a step a reader can see.
  *
@@ -1127,10 +802,7 @@ html[data-theme='dark'] .conversation-owner-trigger[aria-expanded='true'],
 html[data-theme='dark'] .conversation-owner-option:hover,
 html[data-theme='dark'] .conversation-owner-option:focus-visible,
 html[data-theme='dark'] .access-gate-actions button:not(.refresh-button):hover:not(:disabled),
-html[data-theme='dark'] .settings-close:hover,
-html[data-theme='dark'] .run-id-chip:hover,
-html[data-theme='dark'] .conversation-confirm-cancel:hover,
-html[data-theme='dark'] .time-range-segment:hover:not([aria-checked='true']) {
+html[data-theme='dark'] .conversation-confirm-cancel:hover {
   background: rgba(255, 255, 255, 0.12);
 }
 
@@ -1149,11 +821,6 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive'] {
   background: var(--ast-destructive-control);
   border-color: var(--ast-destructive-control);
   color: var(--destructive-foreground);
-}
-
-html[data-theme='dark'] .ops-stop-all strong {
-  color: var(--ast-neg-text);
-  font-weight: 800;
 }
 
 html[data-theme='dark'] .conversation-confirm-delete:hover {
@@ -1182,13 +849,6 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .answer-card,
   html[data-theme='dark'] .plan-card,
   html[data-theme='dark'] .user-bubble,
-  html[data-theme='dark'] .monitoring-tile,
-  html[data-theme='dark'] .monitoring-filters .monitoring-search input,
-  html[data-theme='dark'] .monitoring-list-pane,
-  html[data-theme='dark'] .ops-block,
-  html[data-theme='dark'] .ops-stop-all,
-  html[data-theme='dark'] .ops-block-failed,
-  html[data-theme='dark'] .ops-absence,
   html[data-theme='dark'] .trace-dag.map .dag-detail,
   /* The tiles whose fills are written as literals above rather than taken from
      `--card`, so a reader who has asked for less transparency still gets the
@@ -1196,19 +856,8 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
      de-stacked containers with no fill of their own in the normal path, and
      handing them one only under this query would grow a pane when an
      accessibility preference is switched on. */
-  html[data-theme='dark'] .run-explorer .run-detail,
   html[data-theme='dark'] .trace-kpi,
   html[data-theme='dark'] .trace-dag.map .dag-node,
-  html[data-theme='dark'] .arch-flow,
-  html[data-theme='dark'] .arch-tiles:not(.arch-tiles-loop) li,
-  html[data-theme='dark'] .arch-node,
-  html[data-theme='dark'] .arch-rail,
-  html[data-theme='dark'] .connection-rows,
-  html[data-theme='dark'] .connection-block,
-  html[data-theme='dark'] .plane-card,
-  html[data-theme='dark'] .bench-ledger,
-  html[data-theme='dark'] .eval-steps,
-  html[data-theme='dark'] .bench-surface,
   html[data-theme='dark'] .first-open-card,
   html[data-theme='dark'] .access-gate-panel,
   html[data-theme='dark'] [data-slot='alert'],
@@ -1220,10 +869,6 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] [data-slot='select-content'],
   html[data-theme='dark'] [data-slot='dropdown-menu-content'],
   html[data-theme='dark'] [data-slot='popover-content'],
-  html[data-theme='dark'] .monitoring-chip-menu,
-  html[data-theme='dark'] .settings-page.settings-modal,
-  html[data-theme='dark'] .monitoring-drawer,
-  html[data-theme='dark'] .monitoring-question-modal,
   html[data-theme='dark'] [data-slot='sheet-content'] {
     backdrop-filter: none;
     background: var(--ast-surface-solid);
@@ -1234,9 +879,7 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .app-header,
   html[data-theme='dark'] .conversation-rail,
   html[data-theme='dark'] .composer,
-  html[data-theme='dark'] [data-slot='card'],
-  html[data-theme='dark'] .monitoring-drawer,
-  html[data-theme='dark'] .monitoring-question-modal {
+  html[data-theme='dark'] [data-slot='card'] {
     transition: none;
   }
 }

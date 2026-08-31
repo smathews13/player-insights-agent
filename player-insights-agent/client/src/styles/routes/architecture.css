@@ -1,0 +1,4 @@
+/* Architecture owns its canvas and rail overrides. */
+@import '../architecture.css';
+@import '../responsive-architecture.css';
+@import '../dark-architecture.css';

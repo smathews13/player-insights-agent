@@ -20,7 +20,7 @@ import { partial } from './styles/stylesheet';
  */
 
 const CSS = partial('ops.css');
-const RESPONSIVE = partial('responsive.css');
+const RESPONSIVE = partial('responsive-ops.css');
 
 /** Comments stripped, so a token discussed in prose is not read as one in use. */
 const RULES = CSS.replace(/\/\*[\s\S]*?\*\//g, ' ');

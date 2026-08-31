@@ -1,0 +1,36 @@
+html[data-theme='dark'] .ops-block,
+html[data-theme='dark'] .ops-stop-all,
+html[data-theme='dark'] .ops-block-failed,
+html[data-theme='dark'] .ops-absence {
+  background: var(--card);
+  backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
+}
+
+html[data-theme='dark'] .ops-lat-bar-track {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme='dark'] .ops-lat-bar-fill {
+  background: rgba(143, 193, 232, 0.75);
+}
+
+html[data-theme='dark'] .ops-lat-chip-get {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ast-ink-on-dark);
+}
+
+html[data-theme='dark'] .ops-stop-all strong {
+  color: var(--ast-neg-text);
+  font-weight: 800;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme='dark'] .ops-block,
+  html[data-theme='dark'] .ops-stop-all,
+  html[data-theme='dark'] .ops-block-failed,
+  html[data-theme='dark'] .ops-absence {
+    backdrop-filter: none;
+    background: var(--ast-surface-solid);
+  }
+}

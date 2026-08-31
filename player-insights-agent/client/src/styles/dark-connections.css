@@ -1,0 +1,25 @@
+html[data-theme='dark'] .connection-rows,
+html[data-theme='dark'] .connection-block,
+html[data-theme='dark'] .plane-card {
+  background: var(--card);
+  backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
+}
+
+html[data-theme='dark'] .connections-page [data-slot='card'],
+html[data-theme='dark'] .connections-page .connection-block,
+html[data-theme='dark'] .connections-page .connection-rows,
+html[data-theme='dark'] .connections-page .plane-card {
+  background: var(--ast-pane);
+  backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme='dark'] .connection-rows,
+  html[data-theme='dark'] .connection-block,
+  html[data-theme='dark'] .plane-card {
+    backdrop-filter: none;
+    background: var(--ast-surface-solid);
+  }
+}

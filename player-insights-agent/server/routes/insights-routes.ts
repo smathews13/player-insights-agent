@@ -293,6 +293,8 @@ export const schemaStatements = [
   // collecting every message in the conversation and sorting them.
   `CREATE INDEX IF NOT EXISTS messages_conversation_created_idx
      ON ${APP_SCHEMA}.messages (conversation_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS messages_conversation_keyset_idx
+     ON ${APP_SCHEMA}.messages (conversation_id, created_at DESC, id DESC)`,
   // The window bound itself, which every Monitoring and per-user-panel read
   // applies: the question list, the totals count, the asker list, and the
   // panel's own reads over the same rows. All of them filter `created_at` to the
@@ -2042,6 +2044,31 @@ async function settleSharedConversationRail(appkit: InsightsAppKit): Promise<voi
  * The rail read, and the read of one conversation's messages.
  */
 export const CONVERSATION_RAIL_LIMIT = 100;
+export const DEFAULT_CONVERSATION_MESSAGE_LIMIT = 50;
+export const MAX_CONVERSATION_MESSAGE_LIMIT = 100;
+
+export interface ConversationMessageCursor {
+  createdAt: string;
+  id: string;
+}
+
+export function encodeConversationMessageCursor(cursor: ConversationMessageCursor): string {
+  return Buffer.from(JSON.stringify([cursor.createdAt, cursor.id]), 'utf8').toString('base64url');
+}
+
+export function decodeConversationMessageCursor(value: string): ConversationMessageCursor | null {
+  try {
+    const decoded = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as unknown;
+    if (!Array.isArray(decoded) || decoded.length !== 2) return null;
+    const createdAt: unknown = decoded[0];
+    const id: unknown = decoded[1];
+    if (typeof createdAt !== 'string' || !Number.isFinite(Date.parse(createdAt))) return null;
+    if (typeof id !== 'string' || !id) return null;
+    return { createdAt, id };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * What each conversation's latest answered turn ended on, for the rail's badge.
@@ -2107,7 +2134,12 @@ export function conversationListQuery(email: string, readsShared: boolean) {
       };
 }
 
-function conversationMessagesQuery(conversationId: string, email: string, readsShared: boolean) {
+export function conversationMessagesQuery(
+  conversationId: string,
+  email: string,
+  readsShared: boolean,
+  page?: { limit: number; cursor: ConversationMessageCursor | null }
+) {
   // `c.user_email AS asked_by` rather than a column on the message: the ask
   // route refuses a conversation somebody else owns, so the owner IS the asker
   // and storing it twice would be the same fact in two places. The join was
@@ -2149,17 +2181,32 @@ function conversationMessagesQuery(conversationId: string, email: string, readsS
                  ORDER BY f.created_at DESC LIMIT 1) AS feedback_comment
          FROM ${APP_SCHEMA}.messages m
          JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id`;
+  const ownership = readsShared ? '' : ' AND c.user_email = $2';
+  if (page) {
+    const cursorPredicate = page.cursor ? ' AND (m.created_at, m.id) < ($3::timestamptz, $4)' : '';
+    const limitParameter = page.cursor ? '$5' : '$3';
+    const params = page.cursor
+      ? [conversationId, email, page.cursor.createdAt, page.cursor.id, page.limit + 1]
+      : [conversationId, email, page.limit + 1];
+    return {
+      sql: `${select}
+         WHERE m.conversation_id = $1${ownership}${cursorPredicate}
+         ORDER BY m.created_at DESC, m.id DESC
+         LIMIT ${limitParameter}`,
+      params: params as unknown[],
+    };
+  }
   return readsShared
     ? {
         // `$2` is still the caller on the shared rail, and deliberately so. The
         // rail shares whose question and whose answer; a rating is one reader's
         // opinion of it, and showing it to everybody would turn the thumbs into
         // a vote nobody agreed to publish.
-        sql: `${select}\n         WHERE m.conversation_id = $1\n         ORDER BY m.created_at`,
+        sql: `${select}\n         WHERE m.conversation_id = $1\n         ORDER BY m.created_at, m.id`,
         params: [conversationId, email] as unknown[],
       }
     : {
-        sql: `${select}\n         WHERE m.conversation_id = $1 AND c.user_email = $2\n         ORDER BY m.created_at`,
+        sql: `${select}\n         WHERE m.conversation_id = $1 AND c.user_email = $2\n         ORDER BY m.created_at, m.id`,
         params: [conversationId, email] as unknown[],
       };
 }
@@ -3880,8 +3927,47 @@ export function setupInsightsRoutes(
     app.get('/api/conversations/:id/messages', async (req, res) => {
       const email = userEmail(req);
       const readsShared = await callerReadsSharedConversations(appkit.lakebase, email, options.rolesReady);
-      const { sql, params } = conversationMessagesQuery(req.params.id, email, readsShared);
-      await respondWithStored(appkit, res, 'GET /api/conversations/:id/messages', sql, params);
+      const rawLimit = req.query.limit;
+      const rawCursor = req.query.cursor;
+      const paged = rawLimit !== undefined || rawCursor !== undefined;
+      if (
+        (rawLimit !== undefined && typeof rawLimit !== 'string') ||
+        (rawCursor !== undefined && typeof rawCursor !== 'string')
+      ) {
+        res.status(400).json({ error: 'invalid_message_page', message: 'Message pagination parameters are invalid.' });
+        return;
+      }
+      const limit = rawLimit === undefined ? DEFAULT_CONVERSATION_MESSAGE_LIMIT : Number(rawLimit);
+      const cursor = rawCursor === undefined ? null : decodeConversationMessageCursor(rawCursor);
+      if (
+        !Number.isInteger(limit) ||
+        limit < 1 ||
+        limit > MAX_CONVERSATION_MESSAGE_LIMIT ||
+        (rawCursor !== undefined && !cursor)
+      ) {
+        res.status(400).json({ error: 'invalid_message_page', message: 'Message pagination parameters are invalid.' });
+        return;
+      }
+      const route = 'GET /api/conversations/:id/messages?page';
+      const { sql, params } = conversationMessagesQuery(req.params.id, email, readsShared, { limit, cursor });
+      const read = await readStored(appkit, route, sql, params);
+      const { rows: storedRows, substitution } = chooseRows(route, read);
+      markResponse(res, substitution);
+      const hasMore = storedRows.length > limit;
+      const messages = (hasMore ? storedRows.slice(0, limit) : storedRows).reverse();
+      const oldest = messages[0];
+      const createdAt = oldest?.created_at;
+      const oldestId = oldest?.id;
+      const nextCursor =
+        hasMore && (typeof createdAt === 'string' || createdAt instanceof Date) && typeof oldestId === 'string'
+          ? encodeConversationMessageCursor({
+              createdAt: createdAt instanceof Date ? createdAt.toISOString() : createdAt,
+              id: oldestId,
+            })
+          : null;
+      // Keep the original array envelope for clients that have not opted into
+      // cursors, while still enforcing the server's bounded default.
+      res.json(paged ? { messages, nextCursor, hasMore } : messages);
     });
 
     /**

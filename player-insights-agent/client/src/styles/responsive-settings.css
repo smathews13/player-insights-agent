@@ -1,0 +1,229 @@
+@media (max-width: 800px) {
+  .runtime-entity-row {
+    grid-template-columns: 1fr;
+  }
+  .runtime-answer-body--narrative {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .runtime-answer-body--narrative .runtime-answer-cap {
+    width: 90px;
+    justify-self: start;
+  }
+  .runtime-loop-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .runtime-loop-diagram {
+    width: min(100%, 420px);
+    max-width: 420px;
+    justify-self: start;
+  }
+  .appearance-display-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .egress-summary {
+    grid-template-columns: 1fr;
+  }
+  .egress-storage > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .settings-overlay {
+    padding: 8px;
+  }
+  .settings-page.settings-modal {
+    width: calc(100vw - 16px);
+    height: calc(100vh - 16px);
+    max-height: calc(100vh - 16px);
+  }
+  .settings-modal-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-rail {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-rail button {
+    width: auto;
+    flex: none;
+    white-space: nowrap;
+  }
+  .settings-rail button + button {
+    margin-top: 0;
+  }
+  .settings-modal-content {
+    padding: 14px;
+  }
+  .sp-persona-fields,
+  .sp-grant-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sp-grant-actions {
+    justify-self: end;
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) colgroup {
+    display: none;
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) tbody,
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) tr,
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) td {
+    display: block;
+    width: 100%;
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) tr {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) td {
+    height: auto;
+    padding: 0;
+    border-bottom: 0;
+    text-align: left;
+    white-space: normal;
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) td + td {
+    margin-top: 8px;
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) td::before {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--ast-text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) td:nth-child(1)::before {
+    content: 'Feature';
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) td:nth-child(2)::before {
+    content: 'Status';
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) td:nth-child(3)::before {
+    content: 'Control';
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) .exp-feature-status,
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) .exp-feature-control {
+    width: 100%;
+  }
+  .settings-pane > .exp-feature-table:not(.judge-settings-table) .exp-feature-control-inner {
+    justify-content: flex-start;
+  }
+  .appearance-type-colors {
+    grid-template-columns: 1fr;
+  }
+  .appearance-grid-head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .appearance-grid-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+  .appearance-grid-row strong {
+    padding-bottom: 2px;
+  }
+  .appearance-mobile-label {
+    display: block;
+    color: var(--ast-text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .appearance-grid-row .appearance-color {
+    display: grid;
+    grid-template-columns: 64px 24px minmax(82px, 1fr);
+  }
+  .appearance-grid-row .appearance-color input:not([type='color']) {
+    width: 100%;
+  }
+  .appearance-sample-plaque {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 6px;
+  }
+  .appearance-contrast-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .runtime-loop-row {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  }
+  .judge-settings-table colgroup {
+    display: none;
+  }
+  .judge-settings-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .judge-settings-table tbody,
+  .judge-settings-table tr,
+  .judge-settings-table td {
+    display: block;
+    width: 100%;
+  }
+  .judge-settings-table tr {
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .judge-settings-table td {
+    height: auto;
+    padding: 0;
+    border-bottom: 0;
+  }
+  .judge-settings-table .exp-feature-control {
+    margin-top: 7px;
+    text-align: right;
+  }
+  .appearance-display-choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .appearance-display-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .appearance-display-row .state-switch,
+  .appearance-display-row .appearance-density {
+    justify-self: start;
+  }
+  .appearance-display-family {
+    min-width: min(220px, 100%);
+  }
+  .sp-persona-builder-head,
+  .sp-persona-builder-foot,
+  .sp-capability-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .sp-persona-builder-head [data-slot='button'],
+  .sp-persona-builder-foot [data-slot='button'],
+  .sp-capability-heading [data-slot='button'] {
+    width: 100%;
+  }
+}

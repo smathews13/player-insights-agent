@@ -23,7 +23,7 @@ import { buildLiveRun, nextFollowState, type LiveStep } from './live-progress';
 import { railTiming, stepNumber } from './agent-map';
 import { astPill } from './run-header';
 import { formatMs, toolNameFromId } from './trace-timeline';
-import { EntityText, TableEntityList } from './DataEntityLinks';
+import { EntityText, TableEntityList } from './InlineEntityText';
 import { InlineSqlCode } from './SqlPresentation';
 
 /**

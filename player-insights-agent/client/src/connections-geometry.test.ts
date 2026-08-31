@@ -35,7 +35,7 @@ const CSS = partial('connections.css');
  * it, and reading the recipe is the point: there is one copy to be right about.
  */
 const TOKENS = partial('astrolabe-tokens.css');
-const RESPONSIVE = partial('responsive.css');
+const RESPONSIVE = partial('responsive-connections.css');
 
 /**
  * One rule's body, by exact selector, and a failure rather than an empty string

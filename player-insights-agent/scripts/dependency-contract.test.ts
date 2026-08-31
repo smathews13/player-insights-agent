@@ -11,6 +11,11 @@ const MANIFEST = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'
 const SOURCE_EXTENSIONS = new Set(['.css', '.js', '.mjs', '.mts', '.ts', '.tsx']);
 const IGNORED_DIRECTORIES = new Set(['build', 'dist', 'node_modules', 'playwright-report', 'test-results']);
 const INDIRECT_RUNTIME_OWNERS = new Map([['tw-animate-css', '@databricks/appkit-ui/styles.css']]);
+const SUPPORTED_APPKIT_ENTRIES = new Set([
+  '@databricks/appkit',
+  '@databricks/appkit-ui/react',
+  '@databricks/appkit-ui/styles.css',
+]);
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -46,5 +51,29 @@ describe('direct dependency contract', () => {
     );
 
     expect(unowned).toEqual([]);
+  });
+
+  it('uses only AppKit package exports, never unsupported implementation paths', () => {
+    const sources = sourceFiles(ROOT);
+    const specifierPattern =
+      /(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+|@import\s+)['"](@databricks\/appkit(?:-ui)?[^'"]*)['"]/g;
+    const imports = sources.flatMap((source) =>
+      [...readFileSync(source, 'utf8').matchAll(specifierPattern)].map((match) => ({
+        source: path.relative(ROOT, source),
+        specifier: match[1],
+      }))
+    );
+    const unsupported = imports.filter(({ specifier }) => !SUPPORTED_APPKIT_ENTRIES.has(specifier));
+    expect(unsupported).toEqual([]);
+
+    const appkit = JSON.parse(readFileSync(require.resolve('@databricks/appkit/package.json'), 'utf8')) as {
+      exports: Record<string, string>;
+    };
+    const appkitUi = JSON.parse(readFileSync(require.resolve('@databricks/appkit-ui/package.json'), 'utf8')) as {
+      exports: Record<string, string>;
+    };
+    expect(appkit.exports['.']).toBeDefined();
+    expect(appkitUi.exports['./react']).toBeDefined();
+    expect(appkitUi.exports['./styles.css']).toBeDefined();
   });
 });

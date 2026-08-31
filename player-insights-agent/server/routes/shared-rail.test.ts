@@ -260,7 +260,7 @@ describe('what the rail reads', () => {
     // reads back this reader's own rating of each answer, which is why the rating
     // a reader gave survives reopening the conversation. The rail shares whose
     // question and whose answer; it does not share whose opinion of it.
-    expect(read.params).toEqual(['conv-bob', 'alice@example.example']);
+    expect(read.params).toEqual(['conv-bob', 'alice@example.example', 51]);
     expect(read.sql).toContain('f.user_email = $2');
   });
 
@@ -281,7 +281,7 @@ describe('what the rail reads', () => {
     expect(list.sql).not.toContain('c.user_email = $1');
     expect(list.params).toEqual([]);
     expect(messages.sql).not.toContain('AND c.user_email = $2');
-    expect(messages.params).toEqual(['conv-bob', 'alice@example.example']);
+    expect(messages.params).toEqual(['conv-bob', 'alice@example.example', 51]);
   });
 
   it('fails closed when the authoritative role store cannot be read', async () => {

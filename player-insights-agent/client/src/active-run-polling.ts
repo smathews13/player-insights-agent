@@ -103,6 +103,10 @@ export function startAdaptiveActiveRunPolling(input: {
     }
 
     const allTargets = input.targets();
+    // A terminal stream transition removes its run synchronously, before React
+    // tears this effect down. Do not keep a stale controller alive long enough
+    // to bootstrap one more status read for a run that is already settled.
+    if (allTargets.length === 0) return;
     const targets = allTargets.filter((target) => target.shouldPoll);
     if (targets.length === 0) {
       unchangedRounds = 0;

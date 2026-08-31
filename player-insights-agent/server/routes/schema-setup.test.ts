@@ -114,9 +114,10 @@ describe('the message indexes', () => {
     // the second column because the subquery ends ORDER BY created_at DESC
     // LIMIT 1, so this makes finding the question one walk rather than a sort.
     expect(all).toMatch(/messages_conversation_created_idx[\s\S]*\(conversation_id, created_at DESC\)/);
+    expect(all).toMatch(/messages_conversation_keyset_idx[\s\S]*\(conversation_id, created_at DESC, id DESC\)/);
     // The window every Monitoring and per-user-panel read applies.
     expect(all).toMatch(/messages_created_at_idx[\s\S]*\(created_at DESC\)/);
-    expect(messageIndexes).toHaveLength(2);
+    expect(messageIndexes).toHaveLength(3);
   });
 
   /** A second boot must do nothing, so both carry IF NOT EXISTS. */

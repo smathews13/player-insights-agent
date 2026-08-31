@@ -720,6 +720,17 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
       `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.conversations_owner_updated_idx`,
     ],
   },
+  {
+    version: 25,
+    name: 'conversation message keyset index',
+    lock: 'session',
+    statements: [
+      `DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.messages_conversation_keyset_idx`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS messages_conversation_keyset_idx
+         ON ${APP_SCHEMA}.messages (conversation_id, created_at DESC, id DESC)`,
+    ],
+    down: [`DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.messages_conversation_keyset_idx`],
+  },
 ];
 
 /**

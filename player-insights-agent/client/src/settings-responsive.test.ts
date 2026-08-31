@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 const PANEL = readFileSync(new URL('./RuntimeSettingsPanel.tsx', import.meta.url), 'utf8');
 const PAGE = readFileSync(new URL('./SettingsPage.tsx', import.meta.url), 'utf8');
 const SETTINGS = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
-const RESPONSIVE = readFileSync(new URL('./styles/responsive.css', import.meta.url), 'utf8');
+const RESPONSIVE = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');
 const NARROW = RESPONSIVE.slice(
   RESPONSIVE.indexOf('@media (max-width: 800px)'),
   RESPONSIVE.indexOf('@media (max-width: 480px)')

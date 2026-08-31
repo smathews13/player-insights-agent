@@ -148,7 +148,7 @@ describe('reading a conversation back', () => {
       // the forwarded token was proven to be the reader's, which is a different
       // question from which credential the endpoint was called with, and a route
       // that filled an absent one in would be confirming runs nobody checked.
-      expect(rows[0]).toMatchObject({
+      expect(rows[1]).toMatchObject({
         id: 'msg-recent',
         execution_mode: 'signed_in_user',
         execution_identity_verified: false,
@@ -156,7 +156,7 @@ describe('reading a conversation back', () => {
       // Taken before the columns existed. Null on the way out, because there is
       // nothing to report and no way to work it out afterwards: the reader's
       // session says who is looking now, not who ran this then.
-      expect(rows[1]).toMatchObject({
+      expect(rows[0]).toMatchObject({
         id: 'msg-older-than-the-columns',
         execution_mode: null,
         execution_identity_verified: null,

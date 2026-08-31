@@ -16,7 +16,7 @@ function readable(markup: string): string {
 
 const CHROME = readFileSync(new URL('./BenchmarkLabChrome.tsx', import.meta.url), 'utf8');
 const PAGE = readFileSync(new URL('./BenchmarkLab.tsx', import.meta.url), 'utf8');
-const DARK = partial('dark-mode.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+const DARK = partial('dark-benchmark.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
 
 describe('Benchmark Lab v3 chrome, rendered', () => {
   const markup = renderToStaticMarkup(

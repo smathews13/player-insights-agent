@@ -8,7 +8,7 @@ import { partial } from './styles/stylesheet';
 import type { Run } from './app-types';
 
 const RUNS = partial('runs.css');
-const RESPONSIVE = partial('responsive.css');
+const RESPONSIVE = partial('responsive-runs.css');
 const BASE = partial('base.css');
 const UI = readFileSync(new URL('./ui.ts', import.meta.url), 'utf8');
 

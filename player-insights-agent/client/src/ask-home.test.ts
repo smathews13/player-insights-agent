@@ -22,6 +22,7 @@ import { RUN_TONE_FAMILY } from './run-status';
 
 const STYLESHEET = stylesheet();
 const RESPONSIVE = partial('responsive.css');
+const RESPONSIVE_BASE = readFileSync(new URL('./styles/responsive.css', import.meta.url), 'utf8');
 const RAIL = partial('rail.css');
 const COMPOSER = partial('composer.css');
 const HOME_PAGE = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
@@ -682,18 +683,18 @@ describe('the inspector while a run is still going', () => {
     const statusRead = reconnect.indexOf('readConversationRun(');
     const admissionGap = reconnect.indexOf("if (!live || !status) return 'unchanged' as const;");
     const workingCheck = reconnect.indexOf('isWorkingConversationRun(status)');
-    const transcriptRead = reconnect.indexOf('/messages');
+    const transcriptRead = reconnect.indexOf('readConversationMessagePage(');
 
     expect(statusRead).toBeGreaterThan(-1);
     expect(admissionGap).toBeGreaterThan(statusRead);
     expect(admissionGap).toBeLessThan(workingCheck);
     expect(workingCheck).toBeGreaterThan(statusRead);
     expect(transcriptRead).toBeGreaterThan(workingCheck);
-    expect(reconnect.match(/\/messages/g)).toHaveLength(1);
+    expect(reconnect.match(/readConversationMessagePage\(/g)).toHaveLength(1);
     expect(reconnect).toContain('startAdaptiveActiveRunPolling');
     expect(reconnect).toContain('shouldPoll: !activeAskHasHealthyStream(');
     expect(reconnect).toContain('subscribeToActiveAskChanges(() => controller.wake())');
-    expect(reconnect).toContain('const summaries = await loadRunSummaries()');
+    expect(reconnect).toContain('const summaries = await loadRunSummaries(requests.signal)');
     expect(reconnect).toContain('terminalConversationRunSummary(status, summaries.get(runConversationId) ?? null)');
   });
 
@@ -703,13 +704,13 @@ describe('the inspector while a run is still going', () => {
       HOME_PAGE.indexOf('The rail, in one round trip rather than two')
     );
     const waiting = reconnect.indexOf("status.state === 'AWAITING_APPROVAL'");
-    const summaries = reconnect.indexOf('const summaries = await loadRunSummaries()');
+    const summaries = reconnect.indexOf('const summaries = await loadRunSummaries(requests.signal)');
     const parked = reconnect.slice(waiting, summaries);
 
     expect(waiting).toBeGreaterThan(-1);
     expect(waiting).toBeLessThan(summaries);
     expect(parked).toContain('settleActiveConversationRun');
-    expect(parked).toContain('endLiveAsk(runConversationId)');
+    expect(parked).toContain('endLiveAsk(runConversationId, status.run_id)');
   });
 
   it('keeps the numbered constellation exclusively in the Live Agent harness', () => {
@@ -999,7 +1000,7 @@ describe('there is one set of breakpoints, and this is it', () => {
   });
 
   it('states them largest first, so a narrower rule always overrides the wider one', () => {
-    const widths = [...withoutComments(RESPONSIVE).matchAll(/@media \(max-width: (\d+)px\)/g)].map((match) =>
+    const widths = [...withoutComments(RESPONSIVE_BASE).matchAll(/@media \(max-width: (\d+)px\)/g)].map((match) =>
       Number(match[1])
     );
     expect(widths).toEqual([...widths].sort((a, b) => b - a));

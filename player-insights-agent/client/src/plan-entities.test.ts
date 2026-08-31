@@ -25,6 +25,7 @@ const PLAN = readFileSync(new URL('./PlanCard.tsx', import.meta.url), 'utf8');
 const CARD = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
 const FINAL_ANSWER = readFileSync(new URL('./FinalAnswer.tsx', import.meta.url), 'utf8');
 const LINKS = readFileSync(new URL('./DataEntityLinks.tsx', import.meta.url), 'utf8');
+const INLINE_LINKS = readFileSync(new URL('./InlineEntityText.tsx', import.meta.url), 'utf8');
 const MODULE = readFileSync(new URL('./SourcesModule.tsx', import.meta.url), 'utf8');
 const ANSWER_CSS = partial('answer.css');
 
@@ -178,12 +179,12 @@ describe('every surface that names a source names it the same way', () => {
     expect(MODULE).toContain('<OpenInDatabricks name={name} />');
   });
 
-  it('keeps one implementation of what a named entity looks like', () => {
-    // Every surface above reaches the same two components, the source row
-    // through its own module. A second anchor built somewhere else would drift
-    // on the day one of them is restyled.
-    for (const source of [CARD, PLAN, MODULE, FINAL_ANSWER]) {
+  it('keeps answer entities lazy while the approval plan uses the lightweight renderer', () => {
+    for (const source of [CARD, MODULE, FINAL_ANSWER]) {
       expect(source).toContain("from './DataEntityLinks'");
     }
+    expect(PLAN).toContain("from './InlineEntityText'");
+    expect(INLINE_LINKS).toContain('className="entity-table text-primary');
+    expect(LINKS).toContain('className="entity-table text-primary');
   });
 });

@@ -153,7 +153,8 @@ describe('AI caveat source invariants', () => {
   it('routes every answer-bearing surface through the shared component', () => {
     expect(sourceByName('AnswerCard.tsx')).toContain('<AIAnalysisCaveat');
     expect(sourceByName('FinalAnswer.tsx')).toContain('<AIAnalysisCaveat');
-    expect(sourceByName('HomePage.tsx').match(/<AIAnalysisCaveat/g)).toHaveLength(2);
+    expect(sourceByName('HomePage.tsx').match(/<AIAnalysisCaveat/g)).toHaveLength(1);
+    expect(sourceByName('StoredAnswerRenderer.tsx')).toContain('<AIAnalysisCaveat');
     expect(sourceByName('MonitoringPage.tsx')).toContain('<AnswerCard');
     expect(sourceByName('RunExplorer.tsx')).toContain('<FinalAnswer');
     expect(sourceByName('RunExplorer.tsx').match(/<AIAnalysisCaveat/g)).toHaveLength(2);

@@ -1,0 +1,23 @@
+html[data-theme='dark'] .arch-flow,
+html[data-theme='dark'] .arch-tiles:not(.arch-tiles-loop) li,
+html[data-theme='dark'] .arch-node,
+html[data-theme='dark'] .arch-rail {
+  background: var(--card);
+  backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
+}
+
+html[data-theme='dark'] .arch-edge {
+  stroke: var(--ast-ice-accent);
+  opacity: 0.8;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme='dark'] .arch-flow,
+  html[data-theme='dark'] .arch-tiles:not(.arch-tiles-loop) li,
+  html[data-theme='dark'] .arch-node,
+  html[data-theme='dark'] .arch-rail {
+    backdrop-filter: none;
+    background: var(--ast-surface-solid);
+  }
+}

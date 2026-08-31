@@ -8,6 +8,7 @@
  */
 import { Link } from 'react-router';
 import { useState, useEffect, useCallback } from 'react';
+import './styles/routes/benchmark.css';
 import { astPill, type AstPillFamily } from './astrolabe-pill';
 import { listAvailability, listUnreachable, type ListAvailability } from './list-availability';
 import { UnavailablePanel } from './UnavailablePanel';
@@ -34,16 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from './ui';
-import {
-  Check,
-  FileSearch,
-  FlaskConical,
-  Info,
-  Loader2,
-  Star,
-  TriangleAlert,
-  User,
-} from 'lucide-react';
+import { Check, FileSearch, FlaskConical, Info, Loader2, Star, TriangleAlert, User } from 'lucide-react';
 import {
   benchmarkCaseRows,
   benchmarkQualifications,
@@ -160,17 +152,25 @@ const BENCHMARK_POLL_MS = 5_000;
  */
 export function BenchmarkLedger({ qualifications }: { qualifications: BenchmarkQualification[] }) {
   if (qualifications.length === 0) return null;
-  return (<section className="bench-ledger" aria-labelledby="benchmark-ledger-head">
+  return (
+    <section className="bench-ledger" aria-labelledby="benchmark-ledger-head">
       <h3 className="bench-ledger-head" id="benchmark-ledger-head">
         Read before comparing these scores
       </h3>
       <ul className="bench-ledger-rows">
-        {qualifications.map((row) => (<li key={row.field} className={`bench-ledger-row tone-${row.tone}`}>
+        {qualifications.map((row) => (
+          <li key={row.field} className={`bench-ledger-row tone-${row.tone}`}>
             <QualificationIcon tone={row.tone} />
             <p>
               <strong>
                 {row.lead}
-                {row.identity ? <> <UserIdentityChip identity={row.identity} compact /></> : null}.
+                {row.identity ? (
+                  <>
+                    {' '}
+                    <UserIdentityChip identity={row.identity} compact />
+                  </>
+                ) : null}
+                .
               </strong>{' '}
               {row.sentence}
             </p>
@@ -202,7 +202,8 @@ export function BenchmarkTiles({ summary, hasRun }: { summary: BenchmarkSummary;
   // selected, and a run that has not finished, are both states where a caption
   // about populations would be answering a question nobody has asked yet.
   const pending = !hasRun ? 'No run selected' : summary.inProgress ? 'Run still in progress' : null;
-  return (<>
+  return (
+    <>
       <div className="summary-grid">
         <Card>
           <CardContent>
@@ -258,8 +259,7 @@ export function BenchmarkTiles({ summary, hasRun }: { summary: BenchmarkSummary;
           shape behind the pass count: "2 / 6" reads as a broken agent when
           relevance was 5 of 5 and both cases the demo turns on passed, true and
           misleading, and an errored case must never read as a failed one. */}
-      {!pending && summary.outcomeLabel && (<p className="bench-outcomes">Cases by outcome: {summary.outcomeLabel}.</p>
-      )}
+      {!pending && summary.outcomeLabel && <p className="bench-outcomes">Cases by outcome: {summary.outcomeLabel}.</p>}
     </>
   );
 }
@@ -324,8 +324,8 @@ export function HeldOutEvaluation({
       <p className="bench-caption ast-num">{splitLine}</p>
       {heldOutAudit.length > 0 ? (
         <p className="bench-audit-banner" role="status">
-          {heldOutAudit.length} held-out {heldOutAudit.length === 1 ? 'case was' : 'cases were'} edited after the
-          split. {heldOutAudit[0]?.note}
+          {heldOutAudit.length} held-out {heldOutAudit.length === 1 ? 'case was' : 'cases were'} edited after the split.{' '}
+          {heldOutAudit[0]?.note}
         </p>
       ) : null}
       {!scorecard ? (
@@ -354,34 +354,34 @@ export function HeldOutEvaluation({
             </tr>
           </thead>
           <tbody>
-            {view.rows.length === 0 ? null : (
-              view.rows.map((row) => {
-                const definition = byId.get(row.id);
-                return (
-                  <tr key={row.id} className={row.applicable ? undefined : 'bench-scorer-blocked'}>
-                    <td>
-                      <span className="bench-scorer-name">{row.label}</span>
-                      <span className="bench-case-id ast-num">{row.id}</span>
-                      {!row.applicable && definition?.blockedReason ? (
-                        <span className="bench-case-note">{definition.blockedReason}</span>
-                      ) : null}
-                    </td>
-                    <td className="ast-num">{row.tuning}</td>
-                    <td className="ast-num">{row.heldOut}</td>
-                    <td>
-                      <span className={astPill(HELD_OUT_STATUS_FAMILY[row.status], 'bench-chip')}>
-                        {HELD_OUT_STATUS_LABEL[row.status]}
-                      </span>
-                    </td>
-                    <td>
-                      <a className="bench-text-link" href={row.casesAndTracesHref}>
-                        cases and traces
-                      </a>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
+            {view.rows.length === 0
+              ? null
+              : view.rows.map((row) => {
+                  const definition = byId.get(row.id);
+                  return (
+                    <tr key={row.id} className={row.applicable ? undefined : 'bench-scorer-blocked'}>
+                      <td>
+                        <span className="bench-scorer-name">{row.label}</span>
+                        <span className="bench-case-id ast-num">{row.id}</span>
+                        {!row.applicable && definition?.blockedReason ? (
+                          <span className="bench-case-note">{definition.blockedReason}</span>
+                        ) : null}
+                      </td>
+                      <td className="ast-num">{row.tuning}</td>
+                      <td className="ast-num">{row.heldOut}</td>
+                      <td>
+                        <span className={astPill(HELD_OUT_STATUS_FAMILY[row.status], 'bench-chip')}>
+                          {HELD_OUT_STATUS_LABEL[row.status]}
+                        </span>
+                      </td>
+                      <td>
+                        <a className="bench-text-link" href={row.casesAndTracesHref}>
+                          cases and traces
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })}
           </tbody>
         </table>
       </div>
@@ -495,78 +495,82 @@ export function BenchmarkLab() {
   // the wait is not paid twice.
   useEffect(() => {
     if (!selected || !summary.inProgress) return;
-    return pollWhileVisible(
-      () => setReloadToken((token) => token + 1),
-      BENCHMARK_POLL_MS,
-      browserPollHost()
-    );
+    return pollWhileVisible(() => setReloadToken((token) => token + 1), BENCHMARK_POLL_MS, browserPollHost());
   }, [selected, summary.inProgress]);
 
-  const runSuite = useCallback(async (which: SuiteSide = 'baseline', caseIds?: string[]): Promise<string[]> => {
-    setRunning(true);
-    setRunError(null);
-    const started: string[] = [];
-    try {
-      const sides = compareSides(bakeOff);
-      const side = which === 'candidate' ? sides[1] : sides[0];
-      if (which === 'candidate' && !side) {
-        throw new Error('Add a candidate endpoint in Settings → Experimental.');
-      }
-      const suiteId = OPERATOR_EVAL_SUITE_ID;
-      const response = await fetch('/api/benchmarks/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          suiteId,
-          agentEndpoint: !side || side === 'current' ? undefined : side,
-          bakeOffSide: which,
-          ...(caseIds?.length ? { caseIds } : {}),
-        }),
-      });
-      if (!response.ok) {
-        const refusal = (await response.json().catch(() => null)) as { message?: unknown } | null;
-        const message = typeof refusal?.message === 'string' ? refusal.message.trim() : '';
-        throw new Error(message || `The suite could not be started (HTTP ${response.status}).`);
-      }
-      const created = (await response.json()) as { id?: unknown };
-      const id = typeof created.id === 'string' ? created.id : null;
-      if (id) started.push(id);
-      setLastRunId(id);
-      if (id) setSelectedId(id);
-      setReloadToken((token) => token + 1);
-      const flywheelResponse = await fetch('/api/benchmarks/flywheel');
-      const flywheelBody = flywheelResponse.ok
-        ? ((await flywheelResponse.json()) as { flywheel?: { lastAgentRunIds?: string[]; lastAgentSides?: string[] } })
-        : null;
-      const prevIds = flywheelBody?.flywheel?.lastAgentRunIds ?? [];
-      const prevSides = flywheelBody?.flywheel?.lastAgentSides ?? [];
-      const runIds = which === 'baseline' ? [id, prevIds[1]].filter(Boolean) : [prevIds[0] || id, id].filter(Boolean);
-      const named = which === 'baseline' ? [side || 'current', prevSides[1]].filter(Boolean) : [prevSides[0] || side || 'current', side || 'candidate'];
-      await fetch('/api/admin/benchmarks/last-suite', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          kind: 'agent',
-          at: new Date().toISOString(),
-          runIds,
-          sides: named,
-        }),
-      }).then(async (response) => {
+  const runSuite = useCallback(
+    async (which: SuiteSide = 'baseline', caseIds?: string[]): Promise<string[]> => {
+      setRunning(true);
+      setRunError(null);
+      const started: string[] = [];
+      try {
+        const sides = compareSides(bakeOff);
+        const side = which === 'candidate' ? sides[1] : sides[0];
+        if (which === 'candidate' && !side) {
+          throw new Error('Add a candidate endpoint in Settings → Experimental.');
+        }
+        const suiteId = OPERATOR_EVAL_SUITE_ID;
+        const response = await fetch('/api/benchmarks/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            suiteId,
+            agentEndpoint: !side || side === 'current' ? undefined : side,
+            bakeOffSide: which,
+            ...(caseIds?.length ? { caseIds } : {}),
+          }),
+        });
         if (!response.ok) {
           const refusal = (await response.json().catch(() => null)) as { message?: unknown } | null;
           const message = typeof refusal?.message === 'string' ? refusal.message.trim() : '';
-          throw new Error(message || 'Suite started, but the bake-off pairing was not saved.');
+          throw new Error(message || `The suite could not be started (HTTP ${response.status}).`);
         }
-      });
-      return started;
-    } catch (error) {
-      const message = (error as Error).message || 'The suite could not be started.';
-      setRunError(message);
-      throw error instanceof Error ? error : new Error(message);
-    } finally {
-      setRunning(false);
-    }
-  }, [bakeOff]);
+        const created = (await response.json()) as { id?: unknown };
+        const id = typeof created.id === 'string' ? created.id : null;
+        if (id) started.push(id);
+        setLastRunId(id);
+        if (id) setSelectedId(id);
+        setReloadToken((token) => token + 1);
+        const flywheelResponse = await fetch('/api/benchmarks/flywheel');
+        const flywheelBody = flywheelResponse.ok
+          ? ((await flywheelResponse.json()) as {
+              flywheel?: { lastAgentRunIds?: string[]; lastAgentSides?: string[] };
+            })
+          : null;
+        const prevIds = flywheelBody?.flywheel?.lastAgentRunIds ?? [];
+        const prevSides = flywheelBody?.flywheel?.lastAgentSides ?? [];
+        const runIds = which === 'baseline' ? [id, prevIds[1]].filter(Boolean) : [prevIds[0] || id, id].filter(Boolean);
+        const named =
+          which === 'baseline'
+            ? [side || 'current', prevSides[1]].filter(Boolean)
+            : [prevSides[0] || side || 'current', side || 'candidate'];
+        await fetch('/api/admin/benchmarks/last-suite', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            kind: 'agent',
+            at: new Date().toISOString(),
+            runIds,
+            sides: named,
+          }),
+        }).then(async (response) => {
+          if (!response.ok) {
+            const refusal = (await response.json().catch(() => null)) as { message?: unknown } | null;
+            const message = typeof refusal?.message === 'string' ? refusal.message.trim() : '';
+            throw new Error(message || 'Suite started, but the bake-off pairing was not saved.');
+          }
+        });
+        return started;
+      } catch (error) {
+        const message = (error as Error).message || 'The suite could not be started.';
+        setRunError(message);
+        throw error instanceof Error ? error : new Error(message);
+      } finally {
+        setRunning(false);
+      }
+    },
+    [bakeOff]
+  );
 
   // A leftover cancel flag, or an old stored run auto-selected on first
   // visit, must not freeze Run baseline. Only a suite this page started.
@@ -587,9 +591,7 @@ export function BenchmarkLab() {
     lastRunId,
     reloadToken,
     lastGenieRun: evalLab.lastGenieRun,
-    labelsReviewed: Boolean(
-      publishedHeldOut.published && publishedHeldOut.scorecard.provenance.labelsReviewed
-    ),
+    labelsReviewed: Boolean(publishedHeldOut.published && publishedHeldOut.scorecard.provenance.labelsReviewed),
     inProgress: suiteInProgress,
     attempted: evalLab.lab.contract.liveRun?.caseIndex ?? null,
     total: evalLab.lab.contract.liveRun?.caseTotal ?? null,
@@ -605,51 +607,59 @@ export function BenchmarkLab() {
   // exactly what its alert said: the derivation is the single place they come
   // from, and none of them is conditional on anything but the run.
   const qualifications = benchmarkQualifications(summary);
-  const runProgress = evalLab.lab.contract.liveRun && !evalLab.lab.contract.liveRun.cancelRequested
-    ? liveRunProgressLine(evalLab.lab.contract.liveRun)
-    : selected && summary.inProgress && selected.id === lastRunId
-      ? `${selected.id} in progress`
-      : null;
+  const runProgress =
+    evalLab.lab.contract.liveRun && !evalLab.lab.contract.liveRun.cancelRequested
+      ? liveRunProgressLine(evalLab.lab.contract.liveRun)
+      : selected && summary.inProgress && selected.id === lastRunId
+        ? `${selected.id} in progress`
+        : null;
 
-  return (<div className="page-shell benchmark-lab">
+  return (
+    <div className="page-shell benchmark-lab">
       <BenchmarkLabChrome
-        notices={<>
-      {/* One panel rather than this page's own sentence, so an outage reads the
+        notices={
+          <>
+            {/* One panel rather than this page's own sentence, so an outage reads the
           same here as it does in Run Explorer and the rail. The detail carries
           the line about the blank space not being a zero, which is the claim
           this page was closest to making: every tile above it is a score. */}
-      {availability?.origin === 'unavailable' && (<UnavailablePanel
-          notice={unavailableNotice({ surface: 'benchmarks', code: 'DEPENDENCY_UNAVAILABLE' })}
-          onRetry={() => setReloadToken((token) => token + 1)}
-        />
-      )}
+            {availability?.origin === 'unavailable' && (
+              <UnavailablePanel
+                notice={unavailableNotice({ surface: 'benchmarks', code: 'DEPENDENCY_UNAVAILABLE' })}
+                onRetry={() => setReloadToken((token) => token + 1)}
+              />
+            )}
 
-      {runError && (<Alert>
-          <TriangleAlert />
-          <AlertDescription>{runError}</AlertDescription>
-        </Alert>
-      )}
+            {runError && (
+              <Alert>
+                <TriangleAlert />
+                <AlertDescription>{runError}</AlertDescription>
+              </Alert>
+            )}
 
-      {evalLab.error && evalLab.error !== runError && (<Alert>
-          <TriangleAlert />
-          <AlertDescription>{evalLab.error}</AlertDescription>
-        </Alert>
-      )}
+            {evalLab.error && evalLab.error !== runError && (
+              <Alert>
+                <TriangleAlert />
+                <AlertDescription>{evalLab.error}</AlertDescription>
+              </Alert>
+            )}
 
-      {lastRunId && !runError && (<Alert>
-          {summary.inProgress ? <Loader2 className="animate-spin" /> : <Check />}
-          <AlertDescription>
-            {summary.inProgress
-              ? 'Run started. A suite takes several minutes; this page is polling it and will report what it records.'
-              : 'Run finished. Its recorded metrics are shown below.'}{' '}
-            <Link to={`/runs?run=${encodeURIComponent(lastRunId)}`} className="underline font-medium">
-              Open it in the Run Explorer
-            </Link>
-            .
-          </AlertDescription>
-        </Alert>
-      )}
-        </>}
+            {lastRunId && !runError && (
+              <Alert>
+                {summary.inProgress ? <Loader2 className="animate-spin" /> : <Check />}
+                <AlertDescription>
+                  {summary.inProgress
+                    ? 'Run started. A suite takes several minutes; this page is polling it and will report what it records.'
+                    : 'Run finished. Its recorded metrics are shown below.'}{' '}
+                  <Link to={`/runs?run=${encodeURIComponent(lastRunId)}`} className="underline font-medium">
+                    Open it in the Run Explorer
+                  </Link>
+                  .
+                </AlertDescription>
+              </Alert>
+            )}
+          </>
+        }
         contract={cellsFromPocContract(evalLab.lab.contractView)}
         judges={bakeOff.enabledJudges}
         runProgress={runProgress}
@@ -782,7 +792,8 @@ export function BenchmarkLab() {
  * the run executed, which is why the labels say what scored rather than "Complete"
  * — see `benchmarkStatusLabel`.
  */
-export function RecordedRuns({ runs,
+export function RecordedRuns({
+  runs,
   selectedId,
   onSelect,
 }: {
@@ -790,7 +801,8 @@ export function RecordedRuns({ runs,
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
-  return (<Card>
+  return (
+    <Card>
       <CardHeader>
         <CardTitle>Recorded runs</CardTitle>
         {/* What selecting a row does, because it drives every figure on the page
@@ -806,12 +818,13 @@ export function RecordedRuns({ runs,
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {runs === null ? (<div className="space-y-2">
+        {runs === null ? (
+          <div className="space-y-2">
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-9 w-full" />
           </div>
-        ) : runs.length === 0 ? (/* The state a customer's first visit is in. It used to be unreachable,
-             because the page never asked the store anything. */
+        ) : runs.length === 0 /* The state a customer's first visit is in. It used to be unreachable,
+             because the page never asked the store anything. */ ? (
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -826,7 +839,8 @@ export function RecordedRuns({ runs,
               <EmptyDescription>Start a run and it will appear here with the metrics it recorded.</EmptyDescription>
             </EmptyHeader>
           </Empty>
-        ) : (<div className="table-scroll">
+        ) : (
+          <div className="table-scroll">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -842,7 +856,8 @@ export function RecordedRuns({ runs,
                   const status = benchmarkStatus(run.status);
                   const rating = ratingLabel(run.rating);
                   const isSelected = selectedId === run.id;
-                  return (<TableRow
+                  return (
+                    <TableRow
                       key={run.id}
                       className={`bench-run-row ${isSelected ? 'active' : ''}`}
                       onClick={() => onSelect(run.id)}
@@ -866,7 +881,10 @@ export function RecordedRuns({ runs,
                       </TableCell>
                       <TableCell className="bench-when">{conversationAge(run.created_at)}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={astPill(BENCH_FAMILY[statusTone(status)], `bench-pill ${statusTone(status)}`)}>
+                        <Badge
+                          variant="outline"
+                          className={astPill(BENCH_FAMILY[statusTone(status)], `bench-pill ${statusTone(status)}`)}
+                        >
                           {benchmarkStatusLabel(status)}
                         </Badge>
                       </TableCell>
@@ -878,14 +896,16 @@ export function RecordedRuns({ runs,
                             invents a rating, a person supplies one afterwards through
                             the feedback path. Said in words, because an empty star
                             reads as a rating of zero. */}
-                        {rating.rated ? (<span className="stars">
+                        {rating.rated ? (
+                          <span className="stars">
                             {/* With its scale: a star beside a bare 5 does not say
                                 whether that is five stars or five out of ten.
                                 Mono on the figure alone, because it repeats down
                                 the column and the glyph beside it is not type. */}
                             <Star /> <span className="ast-num">{ratingOutOf(rating.value)}</span>
                           </span>
-                        ) : (<span className="text-muted-foreground">Not rated yet</span>
+                        ) : (
+                          <span className="text-muted-foreground">Not rated yet</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -916,7 +936,8 @@ export function RecordedRuns({ runs,
  * is how a six-row table came to disagree with the tile above it.
  */
 export function PerCaseResults({ rows, inProgress }: { rows: BenchmarkCaseRow[]; inProgress: boolean }) {
-  return (<Card className="bench-percase">
+  return (
+    <Card className="bench-percase">
       <CardHeader>
         <CardTitle className="text-base">Per-case results</CardTitle>
         <CardDescription>
@@ -926,7 +947,8 @@ export function PerCaseResults({ rows, inProgress }: { rows: BenchmarkCaseRow[];
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {rows.length === 0 ? (<Empty>
+        {rows.length === 0 ? (
+          <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <FileSearch />
@@ -943,7 +965,8 @@ export function PerCaseResults({ rows, inProgress }: { rows: BenchmarkCaseRow[];
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
-        ) : (<div className="table-scroll bench-cases">
+        ) : (
+          <div className="table-scroll bench-cases">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -953,7 +976,8 @@ export function PerCaseResults({ rows, inProgress }: { rows: BenchmarkCaseRow[];
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (<TableRow key={row.key}>
+                {rows.map((row) => (
+                  <TableRow key={row.key}>
                     <TableCell>
                       <span className="bench-case-question">{row.question ?? 'The question was not recorded'}</span>
                       {row.caseId && <span className="bench-case-id">{row.caseId}</span>}

@@ -30,76 +30,62 @@ describe('the client shell import graph', () => {
     expect(layout).toContain('data-testid="settings-loading"');
   });
 
-  /*
-   * THE STYLESHEET IS ONE CASCADE AND IT IS DECLARED IN ONE FILE.
-   *
-   * These five partials were moved out of index.css into side-effect imports
-   * inside the lazy page modules, to keep them out of Ask's entry chunk. It
-   * shipped two faults, and this test is what would have caught both.
-   *
-   * timeline.css is not a route stylesheet. `TraceTimeline` is drawn by the
-   * answer card on Ask and by the drawer on Monitoring, and neither imported
-   * it, so the step timeline rendered with no rules at all on both surfaces
-   * while Run Explorer -- the one route that did import it -- looked right.
-   *
-   * The rest changed cascade position. Vite appends a lazy chunk's CSS after
-   * the entry stylesheet, so monitoring.css and ops.css landed AFTER
-   * responsive.css and dark-mode.css instead of before them, and every tie
-   * those two files settle by coming last was inverted.
-   *
-   * A page's stylesheet may only be split out again with a component-level
-   * argument for why nothing outside that route can render its markup. Bundle
-   * size is not that argument.
-   */
-  it('declares every partial in the entry cascade rather than behind a route', () => {
+  it('keeps shared primitives global and route-owned CSS behind lazy modules', () => {
     const entry = source('index.css');
-    const pageStyles = [
+    const routeStyles = [
       'connections.css',
-      'time-range.css',
       'monitoring.css',
       'ops.css',
       'architecture.css',
       'benchmark.css',
       'runs.css',
-      'timeline.css',
+      'settings.css',
+      'egress.css',
     ];
 
     expect(entry).toContain("@import './styles/dark-mode.css'");
-    for (const style of pageStyles) {
-      expect(entry, `${style} is imported by index.css`).toContain(`@import './styles/${style}'`);
+    for (const style of routeStyles) {
+      expect(entry, `${style} stays out of Ask's entry cascade`).not.toContain(`@import './styles/${style}'`);
     }
+    for (const shared of ['timeline.css', 'trace.css', 'page-shell.css', 'summary-grid.css']) {
+      expect(entry, `${shared} remains globally available`).toContain(`@import './styles/${shared}'`);
+    }
+
+    const owners = {
+      'ArchitecturePage.tsx': 'architecture',
+      'BenchmarkLab.tsx': 'benchmark',
+      'ConnectionsPage.tsx': 'connections',
+      'MonitoringPage.tsx': 'monitoring',
+      'OpsPage.tsx': 'ops',
+      'RunExplorer.tsx': 'runs',
+      'SettingsPage.tsx': 'settings',
+    };
+    for (const [owner, route] of Object.entries(owners)) {
+      expect(source(owner), `${owner} imports its CSS entry`).toContain(`./styles/routes/${route}.css`);
+    }
+    expect(source('TimeRangeControl.tsx')).toContain('./styles/routes/time-range.css');
   });
 
-  /*
-   * And the two that may not ALSO be imported by a module.
-   *
-   * A sheet imported by the entry and by a lazy chunk is one module either way,
-   * so the duplicate is harmless and the remaining ones are left where the pages
-   * that own them can tidy them up. These two are the ones that caused the fault
-   * above: `timeline.css` because `TraceTimeline` is drawn on surfaces that are
-   * not its route, and `monitoring.css` because the drawer's own rules have to
-   * stay ahead of responsive.css.
-   */
-  it('keeps the two shared partials out of the page modules entirely', () => {
-    expect(source('RunExplorer.tsx')).not.toContain('./styles/timeline.css');
-    expect(source('BenchmarkLab.tsx')).not.toContain('./styles/timeline.css');
-    expect(source('MonitoringPage.tsx')).not.toContain('./styles/monitoring.css');
-  });
-
-  /*
-   * The two page partials that can be reached from outside their own route, in
-   * the order the sheets that override them expect. `timeline.css` before
-   * `dark-mode.css` is what lets the dark theme de-stack the timeline's panes
-   * inside the answer card; `monitoring.css` before `responsive.css` is what
-   * lets the narrow-window blocks reshape the page.
-   */
-  it('orders the shared page partials before the sheets written to override them', () => {
+  it('preserves each route cascade as base, responsive, then dark', () => {
     const entry = source('index.css');
     const at = (name: string) => entry.indexOf(`@import './styles/${name}'`);
     expect(at('timeline.css')).toBeGreaterThan(-1);
     expect(at('timeline.css')).toBeLessThan(at('dark-mode.css'));
-    expect(at('monitoring.css')).toBeLessThan(at('responsive.css'));
-    expect(at('ops.css')).toBeLessThan(at('responsive.css'));
+
+    for (const route of ['architecture', 'benchmark', 'connections', 'monitoring', 'ops', 'runs', 'settings']) {
+      const css = readFileSync(new URL(`./styles/routes/${route}.css`, import.meta.url), 'utf8');
+      const imports = [...css.matchAll(/@import '\.\.\/([^']+)'/g)].map((match) => match[1]);
+      expect(imports[0]).toMatch(new RegExp(`^(?:${route}|${route === 'runs' ? 'runs' : route})\\.css$`));
+      expect(imports.findIndex((name) => name.startsWith('responsive-'))).toBeLessThan(
+        imports.findIndex((name) => name.startsWith('dark-'))
+      );
+    }
+  });
+
+  it('styles the Settings loading seat before its lazy CSS resolves', () => {
+    const layout = source('Layout.tsx');
+    expect(layout).toContain('settings-overlay fixed inset-0 z-50 grid place-items-center');
+    expect(layout).toContain('rounded-lg border bg-background');
   });
 
   it('does not make every AppKit export reachable through the app barrel', () => {
@@ -112,6 +98,7 @@ describe('the client shell import graph', () => {
 
   it('keeps AppKit in a stable vendor chunk rather than app code', () => {
     const vite = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
+    expect(vite).toContain('manifest: true');
     expect(vite).toContain("id.includes('/node_modules/@databricks/appkit-ui/')");
     expect(vite).toContain("return 'appkit-ui'");
   });

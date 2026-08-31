@@ -16,6 +16,7 @@ import { partial, partialNames, stylesheet } from './styles/stylesheet';
 const CARD = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
 const TIMELINE = readFileSync(new URL('./TraceTimeline.tsx', import.meta.url), 'utf8');
 const HOME = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
+const STORED_ANSWER = readFileSync(new URL('./StoredAnswerRenderer.tsx', import.meta.url), 'utf8');
 const RUN_EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
 const MONITORING = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
 const STYLESHEET = stylesheet();
@@ -41,8 +42,9 @@ describe('the run process panel follows its surface', () => {
   it('defaults dedicated process views open and Ask answers closed', () => {
     expect(CARD).toContain('defaultRunProcessOpen = true');
     expect(CARD).toContain('readRunProcessPreference(runProcessPreferenceKey) ?? defaultRunProcessOpen');
-    expect(HOME).toContain('defaultRunProcessOpen={false}');
-    expect(HOME).toContain('runProcessPreferenceKey={message.id}');
+    expect(STORED_ANSWER).toContain('defaultRunProcessOpen={false}');
+    expect(STORED_ANSWER).toContain('runProcessPreferenceKey={preferenceKey}');
+    expect(HOME).toContain('preferenceKey={message.id}');
     expect(MONITORING).not.toContain('defaultRunProcessOpen={false}');
     expect(CARD).toContain('<Collapsible open={showProcess} onOpenChange={changeProcessVisibility}>');
   });

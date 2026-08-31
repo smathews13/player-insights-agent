@@ -193,6 +193,41 @@ export function settleActiveConversationRun(
   return next;
 }
 
+/**
+ * Settle the exact run whose stream just delivered a terminal event.
+ *
+ * The caller supplies only terminal facts. Everything else is copied from the
+ * registry row after its run id is matched, so a callback holding an old render's
+ * status cannot manufacture a second run or overwrite a newer follow-up.
+ */
+export function settleActiveConversationRunById(
+  current: ActiveConversationRuns,
+  conversationId: string,
+  runId: string,
+  terminal: {
+    state: string;
+    terminalMessageId?: string | null;
+    terminalCode?: string | null;
+    summary?: RailRunSummary | null;
+  }
+): ActiveConversationRuns {
+  const held = current.get(conversationId);
+  if (!held || held.status.run_id !== runId) return current;
+  const now = new Date().toISOString();
+  return settleActiveConversationRun(
+    current,
+    conversationId,
+    {
+      ...held.status,
+      state: terminal.state,
+      updated_at: now,
+      terminal_code: terminal.terminalCode ?? null,
+      terminal_message_id: terminal.terminalMessageId ?? null,
+    },
+    terminal.summary ?? null
+  );
+}
+
 export function conversationIsLive(current: ActiveConversationRuns, conversationId: string, streamed = false): boolean {
   return streamed || isWorkingConversationRun(current.get(conversationId)?.status ?? null);
 }
@@ -201,7 +236,7 @@ type Listener = () => void;
 const listeners = new Set<Listener>();
 let snapshot: ActiveConversationRuns = new Map();
 
-function subscribe(listener: Listener): () => void {
+export function subscribeToActiveConversationRuns(listener: Listener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
@@ -217,10 +252,15 @@ export function updateActiveConversationRuns(
 
 export function useActiveConversationRuns(): ActiveConversationRuns {
   return useSyncExternalStore(
-    subscribe,
+    subscribeToActiveConversationRuns,
     () => snapshot,
     () => snapshot
   );
+}
+
+/** Synchronous registry read for stream/poll race guards. */
+export function readActiveConversationRuns(): ActiveConversationRuns {
+  return snapshot;
 }
 
 /** Clear run summaries when their browser/app session ends. */

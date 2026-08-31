@@ -72,7 +72,7 @@ import {
   Workflow,
   X,
 } from 'lucide-react';
-import { AnswerProse, EntityText } from './DataEntityLinks';
+import { EntityText } from './InlineEntityText';
 import { attachControlState } from './attach-control';
 import { ANSWER_PARAM, CONVERSATION_PARAM, answerRowId } from './conversation-links';
 import { formatDuration, ratingOutOf } from './benchmark-summary';
@@ -106,6 +106,7 @@ import {
   beginLiveAsk,
   endLiveAsk,
   hydrateLiveAsk,
+  identifyLiveAsk,
   openLiveAsk,
   readLiveAsk,
   recordLiveStage,
@@ -125,12 +126,14 @@ import {
 import {
   conversationIsLive,
   forgetActiveConversationRun,
+  readActiveConversationRuns,
   settleActiveConversationRun,
   terminalConversationRunSummary,
   trackActiveConversationRun,
   updateActiveConversationRuns,
   useActiveConversationRuns,
 } from './active-conversation-runs';
+import { failedAskSettlement, settleAskDisplay, terminalSettlementForResponse } from './ask-terminal-state';
 import { AstrolabeMark } from './AstrolabeMark';
 import { ConversationRailRunStatus } from './ConversationRailRunStatus';
 import { ConceptFlicker } from './ConceptFlicker';
@@ -143,7 +146,6 @@ import {
   type TraceStage,
   type WireAnswer,
 } from './answer-shape';
-import { AnswerCard } from './AnswerCard';
 import { EMPTY_FEEDBACK, feedbackFromStored } from './stored-feedback';
 import { useIdentity } from './app-state';
 import { AIAnalysisCaveat } from './AIAnalysisCaveat';
@@ -153,6 +155,15 @@ import { measureComposerClearance, observeComposerClearance } from './composer-c
 import { AgentPathConstellation } from './AgentConstellation';
 import { ConstellationField } from './ConstellationField';
 import { OPENING_CONSTELLATION } from './constellation';
+import { StoredAnswerBoundary } from './StoredAnswerBoundary';
+import { startStoredAnswerRendererPreload } from './stored-answer-loader';
+import {
+  capturePrependAnchor,
+  mergeNewestConversationMessages,
+  prependConversationMessages,
+  readConversationMessagePage,
+  restorePrependAnchor,
+} from './conversation-messages';
 import type {
   AgentResponse,
   Answer,
@@ -333,6 +344,12 @@ export function HomePage() {
   const signedInAddress = signedInOwner(identity.signedInAs);
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [olderMessages, setOlderMessages] = useState<{ hasMore: boolean; cursor: string | null }>({
+    hasMore: false,
+    cursor: null,
+  });
+  const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
+  const [olderMessagesError, setOlderMessagesError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   /**
    * Whether this conversation's documents could not be read, as opposed to there
@@ -457,6 +474,9 @@ export function HomePage() {
    * The conversation on screen, readable from inside a run that is still going.
    */
   const activeConversationRef = useRef(conversationId);
+  /** Every transcript read is cancelled when its conversation stops being current. */
+  const conversationLoadControllerRef = useRef<AbortController | null>(null);
+  const olderMessagesControllerRef = useRef<AbortController | null>(null);
   /** The durable recovery loop, nudged by rail navigation without remounting it. */
   const activeRunPollerRef = useRef<ActiveRunPollingController | null>(null);
   const previousPolledConversationRef = useRef(conversationId);
@@ -484,7 +504,6 @@ export function HomePage() {
    */
   const liveAsk = useLiveAsk(conversationId);
   const activeConversationRun = activeConversationRuns.get(conversationId)?.status ?? null;
-  const activeConversationRunsRef = useRef(activeConversationRuns);
   const liveStages = liveAsk?.stages ?? NO_LIVE_STAGES;
   /**
    * Busy belongs to the conversation on screen, not to this mounted page.
@@ -493,6 +512,12 @@ export function HomePage() {
    * navigation; the durable row covers reloads and other browser tabs.
    */
   const loading = Boolean(liveAsk?.inFlight || isWorkingConversationRun(activeConversationRun));
+  useEffect(() => {
+    // Covers a run recovered from another tab or a reload. The submit path starts
+    // this even earlier, before its POST, while an empty Ask still downloads
+    // nothing.
+    if (loading) startStoredAnswerRendererPreload();
+  }, [loading]);
   const displayedStopNotice = stopNotice ?? liveAsk?.stopNotice ?? null;
   const displayedRunStopped =
     runStopped ??
@@ -525,6 +550,8 @@ export function HomePage() {
   const inspectorRef = useRef<HTMLElement>(null);
   const conversationMainRef = useRef<HTMLElement>(null);
   const wasRunningRef = useRef(false);
+  /** Suppresses the ordinary "new answer" scroll for an older-page prepend. */
+  const prependingMessagesRef = useRef(false);
   /**
    * The Ask question field. New conversation focuses it from the click itself
    * so the existing composer ring lights and the caret is ready to type. An
@@ -738,6 +765,14 @@ export function HomePage() {
   }, [loading, answer]);
 
   const selectConversation = useCallback(async (id: string) => {
+    // Selection is the earliest reliable signal that stored answers may be
+    // needed. Start their chunk while Lakebase and attachment reads are in
+    // flight, so the transcript does not reveal a blank Suspense boundary.
+    startStoredAnswerRendererPreload();
+    conversationLoadControllerRef.current?.abort();
+    olderMessagesControllerRef.current?.abort();
+    const controller = new AbortController();
+    conversationLoadControllerRef.current = controller;
     // Before any await: leaving Ask immediately after clicking a row must still
     // restore that row when the route mounts again.
     rememberSelectedConversation(id);
@@ -747,6 +782,9 @@ export function HomePage() {
     setError(null);
     setStopNotice(null);
     setFeedback({});
+    setOlderMessages({ hasMore: false, cursor: null });
+    setOlderMessagesError(null);
+    setOlderMessagesLoading(false);
     // The run that stopped belongs to the conversation it stopped in. Left
     // standing, its badge narrates whichever conversation is opened next, which
     // is a run that never happened there.
@@ -759,14 +797,14 @@ export function HomePage() {
     setDurableRunOpenedAt(null);
     try {
       const [messageResponse, attachmentResponse, durableRun] = await Promise.all([
-        fetch(`/api/conversations/${encodeURIComponent(id)}/messages`),
-        fetch(`/api/conversations/${encodeURIComponent(id)}/attachments`),
+        readConversationMessagePage(id, { signal: controller.signal }),
+        fetch(`/api/conversations/${encodeURIComponent(id)}/attachments`, { signal: controller.signal }),
         readConversationRun(id).catch(() => null),
       ]);
       if (activeConversationRef.current !== id) return;
-      if (!messageResponse.ok) throw new Error('Conversation unavailable');
-      const stored = (await messageResponse.json()) as ConversationMessage[];
+      const stored = messageResponse.messages;
       setMessages(stored);
+      setOlderMessages({ hasMore: messageResponse.hasMore, cursor: messageResponse.nextCursor });
       // The ratings these answers already carry, from the rows rather than from
       // this session. `setFeedback({})` above is what a reopened conversation
       // used to be left with: the rating was in the store the whole time and the
@@ -844,7 +882,8 @@ export function HomePage() {
           endLiveAsk(id);
         }
       }
-    } catch {
+    } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
       if (activeConversationRef.current !== id) return;
       setDraft('');
       setMessages([]);
@@ -852,9 +891,49 @@ export function HomePage() {
       setAttachmentsUnreadable(false);
       setError('This conversation could not be loaded. Start a new conversation or try again.');
     } finally {
+      if (conversationLoadControllerRef.current === controller) conversationLoadControllerRef.current = null;
       if (activeConversationRef.current === id) setConversationLoading(false);
     }
   }, []);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!olderMessages.hasMore || !olderMessages.cursor || olderMessagesLoading) return;
+    olderMessagesControllerRef.current?.abort();
+    const controller = new AbortController();
+    olderMessagesControllerRef.current = controller;
+    const requestedConversation = conversationId;
+    const anchor = capturePrependAnchor(messages[0]);
+    setOlderMessagesLoading(true);
+    setOlderMessagesError(null);
+    try {
+      const page = await readConversationMessagePage(requestedConversation, {
+        cursor: olderMessages.cursor,
+        signal: controller.signal,
+      });
+      if (activeConversationRef.current !== requestedConversation) return;
+      prependingMessagesRef.current = true;
+      setMessages((current) => prependConversationMessages(current, page.messages));
+      setFeedback((current) => ({ ...feedbackFromStored(page.messages), ...current }));
+      setOlderMessages({ hasMore: page.hasMore, cursor: page.nextCursor });
+      window.requestAnimationFrame(() => restorePrependAnchor(anchor));
+    } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
+      if (activeConversationRef.current === requestedConversation) {
+        setOlderMessagesError('Older messages could not be loaded. Try again.');
+      }
+    } finally {
+      if (olderMessagesControllerRef.current === controller) olderMessagesControllerRef.current = null;
+      if (activeConversationRef.current === requestedConversation) setOlderMessagesLoading(false);
+    }
+  }, [conversationId, messages, olderMessages.cursor, olderMessages.hasMore, olderMessagesLoading]);
+
+  useEffect(
+    () => () => {
+      conversationLoadControllerRef.current?.abort();
+      olderMessagesControllerRef.current?.abort();
+    },
+    []
+  );
 
   /**
    * The three things a transcript row can ask this page to do, as callbacks whose
@@ -907,8 +986,8 @@ export function HomePage() {
    * Called after a turn completes. The read on arrival is not this -- it is one
    * half of `startInitialRail`, which issues both lists at once.
    */
-  const loadRunSummaries = useCallback(async () => {
-    const summaries = await readRunSummaries();
+  const loadRunSummaries = useCallback(async (signal?: AbortSignal) => {
+    const summaries = await readRunSummaries(signal);
     // An empty result is also the endpoint's failure shape. Never replace useful
     // rail state with it, and never use it as evidence that a live run failed.
     if (summaries.size > 0) setRunSummaries(summaries);
@@ -936,16 +1015,14 @@ export function HomePage() {
     .sort()
     .join('\u0000');
   useEffect(() => {
-    activeConversationRunsRef.current = activeConversationRuns;
-  }, [activeConversationRuns]);
-  useEffect(() => {
     if (!activeConversationRunIds) return;
     let live = true;
+    const requests = new AbortController();
     const runIds = activeConversationRunIds.split('\u0000');
     const observed = new Map<string, string>();
     const pollOne = async (runConversationId: string) => {
       try {
-        const status = await readConversationRun(runConversationId);
+        const status = await readConversationRun(runConversationId, fetch, requests.signal);
         // The browser knows this request started before the ledger row is
         // guaranteed to be readable. Null in that admission gap is not a
         // terminal state: settling here exposes the previous turn's Complete
@@ -976,13 +1053,13 @@ export function HomePage() {
           updateActiveConversationRuns((current) =>
             settleActiveConversationRun(current, runConversationId, status, null)
           );
-          endLiveAsk(runConversationId);
+          endLiveAsk(runConversationId, status.run_id);
           return 'stop' as const;
         }
         // Keep Live until the terminal summary for THIS run is readable. A
         // missing/error response, or the previous turn's stale summary, is not
         // evidence that the run ended.
-        const summaries = await loadRunSummaries();
+        const summaries = await loadRunSummaries(requests.signal);
         if (!live) return 'stop' as const;
         if (!terminalConversationRunSummary(status, summaries.get(runConversationId) ?? null)) {
           return changed ? ('changed' as const) : ('unchanged' as const);
@@ -994,14 +1071,9 @@ export function HomePage() {
         // reaches a terminal state and an assistant message may actually exist.
         const response =
           activeConversationRef.current === runConversationId
-            ? await fetch(`/api/conversations/${encodeURIComponent(runConversationId)}/messages`)
+            ? await readConversationMessagePage(runConversationId, { signal: requests.signal }).catch(() => null)
             : null;
-        if (response?.ok) {
-          const stored = (await response.json()) as ConversationMessage[];
-          if (!live || activeConversationRef.current !== runConversationId) return 'stop' as const;
-          setMessages(stored);
-          setFeedback(feedbackFromStored(stored));
-        }
+        if (!live) return 'stop' as const;
         if (status?.state === 'CANCELLED') {
           if (activeConversationRef.current === runConversationId) {
             setRunStopped({
@@ -1013,7 +1085,19 @@ export function HomePage() {
         updateActiveConversationRuns((current) =>
           settleActiveConversationRun(current, runConversationId, status, summaries.get(runConversationId) ?? null)
         );
-        endLiveAsk(runConversationId);
+        endLiveAsk(runConversationId, status.run_id);
+        // The terminal overlay is gone before the persisted answer is exposed.
+        // Reversing these two operations produced one committed frame containing
+        // the answer plus a brand-new "Live" card beneath it.
+        if (response && activeConversationRef.current === runConversationId) {
+          const stored = response.messages;
+          setMessages((current) => mergeNewestConversationMessages(current, stored));
+          setFeedback((current) => ({ ...current, ...feedbackFromStored(stored) }));
+          setOlderMessages((current) => ({
+            hasMore: current.hasMore || response.hasMore,
+            cursor: current.cursor ?? response.nextCursor,
+          }));
+        }
         return 'stop' as const;
       } catch {
         // A transient status-read failure is not evidence that the server work
@@ -1023,10 +1107,16 @@ export function HomePage() {
     };
     const controller = startAdaptiveActiveRunPolling({
       targets: () =>
-        runIds.map((id) => ({
-          conversationId: id,
-          shouldPoll: !activeAskHasHealthyStream(id, activeConversationRunsRef.current.get(id)?.status.run_id ?? ''),
-        })),
+        runIds.flatMap((id) => {
+          const run = readActiveConversationRuns().get(id);
+          if (!run || !isWorkingConversationRun(run.status)) return [];
+          return [
+            {
+              conversationId: id,
+              shouldPoll: !activeAskHasHealthyStream(id, run.status.run_id),
+            },
+          ];
+        }),
       poll: pollOne,
       host: browserActiveRunPollingHost(),
     });
@@ -1034,6 +1124,7 @@ export function HomePage() {
     const unsubscribeStreams = subscribeToActiveAskChanges(() => controller.wake());
     return () => {
       live = false;
+      requests.abort();
       unsubscribeStreams();
       controller.stop();
       if (activeRunPollerRef.current === controller) activeRunPollerRef.current = null;
@@ -1120,6 +1211,8 @@ export function HomePage() {
   const scrolledToAnswerRef = useRef('');
   useEffect(() => {
     if (conversationLoading || messages.length === 0) return;
+    const prepended = prependingMessagesRef.current;
+    prependingMessagesRef.current = false;
     // Once per requested answer, and then never again for it. The parameter
     // stays in the address bar after the jump -- so the link survives a reload
     // and Back still works -- and without this guard asking a new question in a
@@ -1127,6 +1220,12 @@ export function HomePage() {
     // just arrived, back to the one the reader followed a link to.
     if (requestedAnswer && scrolledToAnswerRef.current !== requestedAnswer) {
       const row = document.getElementById(answerRowId(requestedAnswer));
+      // A deep link may name an answer outside the newest page. Walk backward
+      // one bounded page at a time until it is present or history is exhausted.
+      if (!row && olderMessages.hasMore && !olderMessagesLoading) {
+        void loadOlderMessages();
+        return;
+      }
       // No row means that answer is not in this thread, which is what a stale
       // link looks like. Falling through to the end is the behaviour every
       // other visit gets, and is better than not scrolling at all and leaving
@@ -1137,6 +1236,7 @@ export function HomePage() {
         return;
       }
     }
+    if (prepended) return;
     const newest = messages[messages.length - 1];
     if (!loading && newest?.role === 'assistant' && newest.id) {
       // An answer is read from its beginning. Scrolling to the transcript end
@@ -1145,7 +1245,15 @@ export function HomePage() {
       return;
     }
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, loading, conversationLoading, requestedAnswer]);
+  }, [
+    messages,
+    loading,
+    conversationLoading,
+    requestedAnswer,
+    olderMessages.hasMore,
+    olderMessagesLoading,
+    loadOlderMessages,
+  ]);
 
   // Keeps every elapsed counter moving: the parsing chips during a slow PDF
   // extraction, and the agent's own wait, which is the longer of the two.
@@ -1179,25 +1287,7 @@ export function HomePage() {
       if (!streamed) {
         const completed = liveStages.filter((stage) => stage.status !== 'running').length;
         setRunStopped({ steps: completed });
-        const now = new Date().toISOString();
-        updateActiveConversationRuns((runs) =>
-          settleActiveConversationRun(
-            runs,
-            current.conversationId,
-            {
-              ...(activeConversationRun ?? {
-                run_id: current.correlationId,
-                created_at: now,
-                updated_at: now,
-                terminal_code: null,
-              }),
-              state: 'CANCELLED',
-              updated_at: now,
-            },
-            null
-          )
-        );
-        endLiveAsk(current.conversationId);
+        settleAskDisplay(current.conversationId, current.correlationId, failedAskSettlement('CANCELLED'));
       }
     } catch (stopError) {
       current.stopRequested = false;
@@ -1213,6 +1303,9 @@ export function HomePage() {
 
   async function ask(question = draft, approval?: { planId: string; label: string }) {
     if (!question.trim() || readLiveAsk(conversationId)?.inFlight || readActiveAsk(conversationId)) return;
+    // The live and approval UI remains in the eager Home chunk. Only the final
+    // stored answer is split, and a real ask gives it the whole run to preload.
+    startStoredAnswerRendererPreload();
     // Everything below writes into the conversation this run started in. Once
     // the user is somewhere else, none of it is theirs to write: an answer, a
     // step, an error banner or a URL change landing in the conversation they
@@ -1300,6 +1393,7 @@ export function HomePage() {
           },
           onStart: (correlationId) => {
             currentAsk.correlationId = correlationId;
+            identifyLiveAsk(runConversationId, correlationId);
             const now = new Date().toISOString();
             updateActiveConversationRuns((runs) =>
               trackActiveConversationRun(runs, runConversationId, {
@@ -1329,11 +1423,16 @@ export function HomePage() {
         fetch,
         controller.signal
       );
-      if (!stillInThisConversation()) return;
       // Normalized before it is read rather than after it is stored: the envelope
       // below reads `result.narrative` and `result.id`, and those can be absent too.
       const result = normalizeResponse(body);
       if (!result) throw new Error('The live agent returned a response the app could not read.');
+      const terminal = terminalSettlementForResponse(result, body);
+      settleAskDisplay(runConversationId, currentAsk.correlationId, terminal);
+      // The stream result is sent only after the server stores and settles the
+      // message. Clear both live sources first, then expose that persisted row;
+      // no committed render can contain the answer plus a second Live card.
+      if (!stillInThisConversation()) return;
       setMessages((items) => [
         ...items,
         {
@@ -1388,7 +1487,20 @@ export function HomePage() {
       setSearchParams({ c: runConversationId }, { replace: true });
     } catch (askError) {
       if (askError instanceof AskCancelled) {
-        stopLiveAsk(runConversationId, currentAsk.stopRequested ? 'Stopped by you' : 'Stopped by an administrator');
+        stopLiveAsk(
+          runConversationId,
+          currentAsk.stopRequested ? 'Stopped by you' : 'Stopped by an administrator',
+          currentAsk.correlationId
+        );
+        settleAskDisplay(runConversationId, currentAsk.correlationId, failedAskSettlement('CANCELLED'));
+      } else if (askError instanceof AskRefused) {
+        settleAskDisplay(
+          runConversationId,
+          currentAsk.correlationId,
+          failedAskSettlement('REFUSED', askError.result.code)
+        );
+      } else if (askError instanceof AskRunFailed && askError.terminal) {
+        settleAskDisplay(runConversationId, currentAsk.correlationId, failedAskSettlement('FAILED'));
       }
       if (!stillInThisConversation()) return;
       // A run that reached the agent and then stopped is a different event from
@@ -1465,15 +1577,17 @@ export function HomePage() {
         })
       );
     } finally {
-      // Once the server issued a run id, the durable poll owns settlement. It
-      // keeps Live visible until `/api/runs` contains the terminal summary,
-      // including when this stream finishes while another conversation is open.
+      // A terminal SSE result/error settled both display registries above. An
+      // unclassified disconnect deliberately leaves them for durable recovery:
+      // closing a socket is not evidence that its server-side run stopped.
       if (!currentAsk.correlationId) endLiveAsk(runConversationId);
       forgetActiveAsk(runConversationId, currentAsk);
     }
   }
 
   function startNewConversation() {
+    conversationLoadControllerRef.current?.abort();
+    olderMessagesControllerRef.current?.abort();
     // One route back to the starter — the header lockup is the other. Clear
     // before minting the local draft so leaving and returning does not
     // resurrect the old thread.
@@ -1491,6 +1605,9 @@ export function HomePage() {
     ]);
     setDraft('');
     setMessages([]);
+    setOlderMessages({ hasMore: false, cursor: null });
+    setOlderMessagesError(null);
+    setOlderMessagesLoading(false);
     setAttachments([]);
     setError(null);
     setFeedback({});
@@ -1955,10 +2072,13 @@ export function HomePage() {
                     className="conversation-item"
                     aria-pressed={conversation.id === conversationId}
                     disabled={conversationLoading}
+                    onMouseEnter={() => startStoredAnswerRendererPreload()}
+                    onFocus={() => startStoredAnswerRendererPreload()}
                     // Pushes a history entry rather than loading directly, so Back
                     // returns to the conversation the user came from. The effect
                     // watching the URL does the loading.
                     onClick={() => {
+                      startStoredAnswerRendererPreload();
                       // Persist in the click itself, before React processes the
                       // URL change, so an immediate tab switch cannot race the
                       // effect that loads the thread.
@@ -2132,6 +2252,38 @@ export function HomePage() {
           </div>
         )}
 
+        {!conversationLoading && (olderMessages.hasMore || olderMessagesLoading || olderMessagesError) ? (
+          <div className="message-pagination" aria-live="polite">
+            {olderMessages.hasMore ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-message-pagination="older"
+                disabled={olderMessagesLoading}
+                onClick={() => void loadOlderMessages()}
+              >
+                {olderMessagesLoading ? (
+                  <>
+                    <Loader2 className="animate-spin" aria-hidden="true" /> Loading older messages…
+                  </>
+                ) : (
+                  'Load older messages'
+                )}
+              </Button>
+            ) : null}
+            {olderMessagesError ? (
+              <p className="message-pagination-error" role="alert">
+                {olderMessagesError}
+              </p>
+            ) : olderMessagesLoading ? (
+              <span className="sr-only" role="status">
+                Loading older messages
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
         {!conversationLoading &&
           messages.map((message, index) => {
             // The memoized parse, so the object handed to the cards below keeps
@@ -2148,49 +2300,55 @@ export function HomePage() {
                 : undefined;
             const entry = rated ?? emptyFeedback;
             return (
-              <MessageItem
+              <div
                 key={message.id}
-                message={message}
-                response={response}
-                asker={asker}
-                loading={loading}
-                // A plan is answered by the user's approval, before the agent has
-                // produced its next assistant message. Comparing only with the
-                // last ASSISTANT row left the approved card interactive for the
-                // entire continuation run: the approval row was below it, but
-                // `lastAssistantIndex` still pointed at the plan itself.
-                resolved={index < messages.length - 1}
-                // How it was settled, which the row above cannot tell from the
-                // row below being there: a plan is settled by approving it and
-                // also by revising it away, and only one of those two ran
-                // anything. The approval writes a known sentence as its user
-                // turn -- here and on the server -- so the turn under the plan
-                // is what says which happened.
-                approved={messages[index + 1]?.content === PLAN_APPROVAL_LABEL}
-                // The turn this answered, for the timeline's envelope row. Read
-                // from the transcript rather than the trace, which does not
-                // carry the prompt.
-                question={index > 0 && messages[index - 1].role === 'user' ? messages[index - 1].content : ''}
-                feedback={entry}
-                // The last answer, as before, and also any answer that already
-                // carries a rating. Only the last one offered the controls, so an
-                // answer rated earlier in a thread came back with its rating
-                // nowhere on screen -- indistinguishable from the rating having
-                // been lost, which is what it was reported as.
-                showFeedback={(index === lastAssistantIndex && !loading) || Boolean(entry.saved)}
-                onAsk={askRow}
-                onFeedbackChange={changeFeedback}
-                onSaveFeedback={rateRow}
-                processStages={
-                  index === lastAssistantIndex &&
-                  response &&
-                  response.type !== 'plan' &&
-                  response.type !== 'clarification' &&
-                  response.trace.stages.length === 0
-                    ? liveStages
-                    : undefined
-                }
-              />
+                id={`conversation-message-${message.id}`}
+                className="conversation-message"
+                tabIndex={-1}
+              >
+                <MessageItem
+                  message={message}
+                  response={response}
+                  asker={asker}
+                  loading={loading}
+                  // A plan is answered by the user's approval, before the agent has
+                  // produced its next assistant message. Comparing only with the
+                  // last ASSISTANT row left the approved card interactive for the
+                  // entire continuation run: the approval row was below it, but
+                  // `lastAssistantIndex` still pointed at the plan itself.
+                  resolved={index < messages.length - 1}
+                  // How it was settled, which the row above cannot tell from the
+                  // row below being there: a plan is settled by approving it and
+                  // also by revising it away, and only one of those two ran
+                  // anything. The approval writes a known sentence as its user
+                  // turn -- here and on the server -- so the turn under the plan
+                  // is what says which happened.
+                  approved={messages[index + 1]?.content === PLAN_APPROVAL_LABEL}
+                  // The turn this answered, for the timeline's envelope row. Read
+                  // from the transcript rather than the trace, which does not
+                  // carry the prompt.
+                  question={index > 0 && messages[index - 1].role === 'user' ? messages[index - 1].content : ''}
+                  feedback={entry}
+                  // The last answer, as before, and also any answer that already
+                  // carries a rating. Only the last one offered the controls, so an
+                  // answer rated earlier in a thread came back with its rating
+                  // nowhere on screen -- indistinguishable from the rating having
+                  // been lost, which is what it was reported as.
+                  showFeedback={(index === lastAssistantIndex && !loading) || Boolean(entry.saved)}
+                  onAsk={askRow}
+                  onFeedbackChange={changeFeedback}
+                  onSaveFeedback={rateRow}
+                  processStages={
+                    index === lastAssistantIndex &&
+                    response &&
+                    response.type !== 'plan' &&
+                    response.type !== 'clarification' &&
+                    response.trace.stages.length === 0
+                      ? liveStages
+                      : undefined
+                  }
+                />
+              </div>
             );
           })}
 
@@ -2656,17 +2814,14 @@ const MessageItem = memo(function MessageItem({
     );
   }
   if (!response) {
-    // Still the agent's Markdown even when the envelope around it did
-    // not parse, so it is rendered as Markdown. No sources to link
-    // against: the list that would have declared them is the part of
-    // the response the app could not read.
     return (
-      <Card className="answer-card">
-        <CardContent className="pt-6 space-y-4">
-          <AnswerProse text={message.content} sources={[]} />
-          <AIAnalysisCaveat className="ai-note" />
-        </CardContent>
-      </Card>
+      <StoredAnswerBoundary
+        rawContent={message.content}
+        feedback={feedback}
+        onFeedbackChange={() => undefined}
+        saveFeedback={() => Promise.resolve()}
+        showFeedback={false}
+      />
     );
   }
   if (response.type === 'clarification') {
@@ -2703,20 +2858,20 @@ const MessageItem = memo(function MessageItem({
     );
   }
   return (
-    <AnswerCard
+    <StoredAnswerBoundary
       // The message id reaches the DOM as well as being React's key one level
       // up. React needs the key to tell the rows apart between renders; the
       // document needs an id so a link from a trace can name one answer and
       // this page can find it. A key alone never reaches the DOM.
       id={answerRowId(message.id)}
+      preferenceKey={message.id}
       answer={response}
+      rawContent={message.content}
       question={question}
       feedback={feedback}
       onFeedbackChange={(changes) => onFeedbackChange(response.id, changes)}
       saveFeedback={(rating, options) => onSaveFeedback(response.id, rating, options)}
       showFeedback={showFeedback}
-      defaultRunProcessOpen={false}
-      runProcessPreferenceKey={message.id}
       processStages={processStages}
     />
   );

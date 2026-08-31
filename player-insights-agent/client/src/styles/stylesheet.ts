@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -9,22 +9,14 @@ import { fileURLToPath } from 'node:url';
  * alone reads nothing but the imports and passes for the wrong reason -- the
  * failure mode a stylesheet test can least afford, because it looks like green.
  *
- * The order is not restated here. It is parsed out of index.css, which is the
- * cascade, so a partial added or moved there is picked up rather than silently
- * skipped by a list nobody remembered to update.
- *
- * THERE IS NO SECOND SOURCE OF PARTIALS ANY MORE, and the reason is a shipped
- * regression. Five of these were moved out of index.css and into side-effect
- * imports inside lazy route modules, to keep them out of Ask's entry chunk. Two
- * of them are not route stylesheets at all: timeline.css paints `TraceTimeline`,
- * which the answer card draws on Ask and the drawer draws on Monitoring, and
- * neither of those surfaces was a route that imported it -- so the timeline
- * rendered with no rules on both while Run Explorer, which did import it, looked
- * correct. The rest arrived after dark-mode.css and responsive.css instead of
- * before them, which inverts every tie those two files were written to win.
+ * The order is not restated here. Global imports come from index.css and
+ * route-owned imports come from the route entry sheets. Tests can therefore
+ * audit the complete supported cascade without putting route-only bytes back in
+ * Ask's entry bundle.
  */
 
 const HERE = new URL('.', import.meta.url);
+const ROUTES = new URL('./routes/', HERE);
 
 /** fonts.css predates the split. It carries @font-face and no app rules. */
 const NOT_A_PARTIAL = new Set(['fonts.css']);
@@ -32,9 +24,17 @@ const NOT_A_PARTIAL = new Set(['fonts.css']);
 /** The partial filenames, in the order index.css imports them. */
 export function partialNames(): string[] {
   const index = readFileSync(new URL('../index.css', HERE), 'utf8');
-  return [...index.matchAll(/^@import '\.\/styles\/([\w-]+\.css)';/gm)]
+  const global = [...index.matchAll(/^@import '\.\/styles\/([\w-]+\.css)';/gm)]
     .map((match) => match[1])
     .filter((name) => !NOT_A_PARTIAL.has(name));
+  const routes = readdirSync(ROUTES)
+    .filter((name) => name.endsWith('.css'))
+    .sort()
+    .flatMap((entry) => {
+      const source = readFileSync(new URL(entry, ROUTES), 'utf8');
+      return [...source.matchAll(/^@import '\.\.\/([\w-]+\.css)';/gm)].map((match) => match[1]);
+    });
+  return [...new Set([...global, ...routes])];
 }
 
 /** One partial, on its own, for a claim that is about where a rule lives. */

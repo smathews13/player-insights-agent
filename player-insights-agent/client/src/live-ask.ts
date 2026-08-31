@@ -46,6 +46,14 @@ import { mergeLiveStage, mergeReplayedStages, nextRunningSince } from './live-pr
 export interface LiveAsk {
   /** The conversation the run belongs to, which is the key it is filed under. */
   conversationId: string;
+  /**
+   * The exact ledger run, once `askStreaming` has minted its correlation id.
+   *
+   * Null only in the synchronous gap between submit and `onStart`. Terminal
+   * callbacks and delayed polls use this identity so an old completion cannot
+   * settle a newer question in the same conversation.
+   */
+  runId: string | null;
   /** The question asked, for the step rows that avoid echoing it back. */
   question: string;
   /** When the browser sent the question. Not the durable row's `created_at`. */
@@ -146,6 +154,7 @@ export function beginLiveAsk({
 }): void {
   runs.set(conversationId, {
     conversationId,
+    runId: null,
     question,
     startedAt,
     streamOpenedAt: null,
@@ -155,6 +164,17 @@ export function beginLiveAsk({
     stopNotice: null,
     inFlight: true,
   });
+  announce();
+}
+
+/** Bind the browser-minted run id to the placeholder that started it. */
+export function identifyLiveAsk(conversationId: string, runId: string): void {
+  const run = runs.get(conversationId);
+  if (!run || run.runId === runId) return;
+  // A non-null mismatch belongs to a newer attempt. Never relabel it from a
+  // delayed callback belonging to the stream it replaced.
+  if (run.runId !== null) return;
+  runs.set(conversationId, { ...run, runId });
   announce();
 }
 
@@ -202,16 +222,18 @@ export function recordLiveStage(conversationId: string, stage: TraceStage, at = 
  * that row standing and unresolved, and nothing should still be counting against
  * it.
  */
-export function endLiveAsk(conversationId: string): void {
+export function endLiveAsk(conversationId: string, expectedRunId?: string): void {
   const run = runs.get(conversationId);
   if (!run) return;
+  if (expectedRunId && run.runId !== expectedRunId) return;
   runs.set(conversationId, { ...run, inFlight: false, runningSince: null });
   announce();
 }
 
-export function stopLiveAsk(conversationId: string, notice: string): void {
+export function stopLiveAsk(conversationId: string, notice: string, expectedRunId?: string): void {
   const run = runs.get(conversationId);
   if (!run) return;
+  if (expectedRunId && run.runId !== expectedRunId) return;
   runs.set(conversationId, {
     ...run,
     inFlight: false,
@@ -297,6 +319,7 @@ export function hydrateLiveAsk({
   if (run && sameStages(current, merged)) return;
   runs.set(conversationId, {
     conversationId,
+    runId: run?.runId ?? null,
     question: run?.question || question,
     startedAt: run?.startedAt ?? startedAt,
     // Left alone. A run this browser is streaming knows when its own stream

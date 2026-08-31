@@ -7,7 +7,7 @@ import { RuntimeGuidanceField, RuntimeSettingsPanel } from './RuntimeSettingsPan
 const source = fs.readFileSync(path.join(__dirname, 'RuntimeSettingsPanel.tsx'), 'utf8');
 const page = fs.readFileSync(path.join(__dirname, 'SettingsPage.tsx'), 'utf8');
 const styles = fs.readFileSync(path.join(__dirname, 'styles', 'settings.css'), 'utf8');
-const responsiveStyles = fs.readFileSync(path.join(__dirname, 'styles', 'responsive.css'), 'utf8');
+const responsiveStyles = fs.readFileSync(path.join(__dirname, 'styles', 'responsive-settings.css'), 'utf8');
 const appearanceStyles = fs.readFileSync(path.join(__dirname, 'styles', 'appearance-preferences.css'), 'utf8');
 const answerStyles = fs.readFileSync(path.join(__dirname, 'styles', 'answer.css'), 'utf8');
 

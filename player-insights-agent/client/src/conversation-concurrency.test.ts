@@ -27,7 +27,11 @@ describe('conversation-scoped active questions', () => {
   });
 
   it('does not abort active questions from navigation or effect cleanup', () => {
-    expect(HOME).not.toMatch(/return\s*\(\)\s*=>\s*\{[^}]*\.abort\(/s);
+    // Transcript and durable-poll reads are scoped to their effects and must be
+    // aborted when those keys change. The POST/SSE controller is session-owned
+    // and is still never aborted by navigation or effect cleanup.
+    expect(HOME).not.toMatch(/return\s*\(\)\s*=>\s*\{[^}]*(?:currentAsk|streamed)\.controller\.abort\(/s);
+    expect(HOME).toContain('requests.abort()');
     expect(HOME).toContain('const streamed = readActiveAsk(conversationId)');
   });
 });

@@ -81,26 +81,10 @@
 @import './styles/constellation.css';
 @import './styles/trace.css';
 @import './styles/page-shell.css';
-@import './styles/benchmark.css';
-@import './styles/runs.css';
+/* Shared by the Benchmark and Run Explorer lazy routes. It stays in the entry
+   cascade because both routes reshape it and neither route owns the primitive. */
+@import './styles/summary-grid.css';
 @import './styles/timeline.css';
-@import './styles/connections.css';
-@import './styles/architecture.css';
-@import './styles/settings.css';
-/* Directly after settings.css, because the panel it styles is mounted inside that
-   page and reuses its row rules. It declares only what those do not cover, so
-   ordering it here means a later change to a settings row still reaches it. */
-@import './styles/egress.css';
-/* Before the two pages that import the control, so either can override a rule
-   here rather than being overridden by it. Its own partial because the control
-   is shared: a copy in one page's partial is a rule the other page does not get. */
-@import './styles/time-range.css';
-/* With the other page partials and before responsive.css, which is where the
-   blocks that reshape a page for a narrow window are meant to be able to win. */
-@import './styles/monitoring.css';
-/* Beside monitoring.css and before responsive.css, for the same reason: the
-   blocks that reshape a page for a narrow window are meant to be able to win. */
-@import './styles/ops.css';
 @import './styles/responsive.css';
 @import './styles/gate.css';
 /* After gate.css, which holds the access gate's modal treatment. This partial

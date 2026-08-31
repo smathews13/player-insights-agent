@@ -1,0 +1,11 @@
+@media (max-width: 1180px) {
+  .arch-rails {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 800px) {
+  .arch-tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

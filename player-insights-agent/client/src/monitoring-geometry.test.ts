@@ -20,7 +20,7 @@ import { partial } from './styles/stylesheet';
  */
 
 const CSS = partial('monitoring.css');
-const RESPONSIVE = partial('responsive.css');
+const RESPONSIVE = partial('responsive-monitoring.css');
 
 /**
  * One rule's body, by exact selector, and a failure rather than an empty string

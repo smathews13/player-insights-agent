@@ -14,7 +14,7 @@ import { partial } from './styles/stylesheet';
  * row of tiles against another figure.
  */
 
-const CSS = partial('benchmark.css');
+const CSS = `${partial('summary-grid.css')}\n${partial('benchmark.css')}`;
 
 /** Comments stripped, so a token discussed in prose is not read as one in use. */
 const RULES = CSS.replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -36,25 +36,34 @@ describe('amber marks evaluation, in the palette’s own amber', () => {
    */
   it('paints the three evaluation marks from the warning family', () => {
     expect(rule(".summary-grid [data-slot='card'].benchmark-score")).toMatch(
-      /border-top:\s*4px solid var\(--ast-warn-text\)/,
+      /border-top:\s*4px solid var\(--ast-warn-text\)/
     );
     expect(rule(".table-scroll:not(.bench-cases) [data-slot='table'] thead th:last-child")).toMatch(
-      /border-bottom:\s*3px solid var\(--ast-warn-text\)/,
+      /border-bottom:\s*3px solid var\(--ast-warn-text\)/
     );
     expect(rule('.stars svg')).toMatch(/fill:\s*var\(--ast-warn-text\)/);
   });
 
   it('keeps amber off the type, which is the rule that goes with it', () => {
     // The tile's label and caption take the deep rung; the value stays ink.
-    expect(rule(".summary-grid [data-slot='card'].benchmark-score span,\n.summary-grid [data-slot='card'].benchmark-score small")).toMatch(
-      /color:\s*var\(--ast-warn-deep\)/,
-    );
+    expect(
+      rule(
+        ".summary-grid [data-slot='card'].benchmark-score span,\n.summary-grid [data-slot='card'].benchmark-score small"
+      )
+    ).toMatch(/color:\s*var\(--ast-warn-deep\)/);
   });
 
   it('names no DuBois status wash anywhere on the page', () => {
     // The five this file used to carry: a brighter green, an orange-leaning amber
     // and their washes and hairlines.
-    for (const token of ['--db-amber', '--db-green-600', '--db-green-wash', '--db-green-line', '--db-red-wash', '--db-warn-600']) {
+    for (const token of [
+      '--db-amber',
+      '--db-green-600',
+      '--db-green-wash',
+      '--db-green-line',
+      '--db-red-wash',
+      '--db-warn-600',
+    ]) {
       expect(RULES, `benchmark.css still names ${token}`).not.toContain(`var(${token})`);
     }
   });
@@ -101,7 +110,7 @@ describe('the figures line up', () => {
     const claiming = [...RULES.matchAll(/\{([^}]*font-variant-numeric[^}]*)\}/g)].map((match) => match[1]);
     for (const body of claiming) {
       expect(body, `a rule asks for tabular figures without a mono family: ${body.trim()}`).toMatch(
-        /font-family:\s*var\(--font-mono\)/,
+        /font-family:\s*var\(--font-mono\)/
       );
     }
   });
@@ -173,7 +182,9 @@ describe('the v3 Lab chrome', () => {
     expect(rule('.bench-failure-drawer')).toMatch(/position:\s*absolute/);
     expect(rule('.bench-failure.is-open .bench-failure-list')).toMatch(/opacity:\s*0\.4/);
     expect(rule('.bench-tag-capsule')).toMatch(/border-radius:\s*999px/);
-    expect(rule('.bench-sql-triple')).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\) minmax\(0,\s*1fr\) minmax\(0,\s*1fr\)/);
+    expect(rule('.bench-sql-triple')).toMatch(
+      /grid-template-columns:\s*minmax\(0,\s*1fr\) minmax\(0,\s*1fr\) minmax\(0,\s*1fr\)/
+    );
     expect(rule('.bench-sql-triple pre')).toMatch(/overflow:\s*visible/);
     expect(rule('.bench-audit-banner')).toMatch(/rgba\(232,\s*168,\s*152/);
     expect(rule('.bench-chip-fixed')).toMatch(/#9ad6ce/i);

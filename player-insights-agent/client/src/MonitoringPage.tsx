@@ -91,6 +91,7 @@ import {
 } from './monitoring-filters';
 // Shared with Ops, so the two tabs cannot be over different windows.
 import { TimeRangeControl } from './TimeRangeControl';
+import './styles/routes/monitoring.css';
 import { monitoringRangeId, useMonitoringQuestions } from './monitoring-session';
 import {
   beginPanelLoad,

@@ -13,6 +13,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, './dist'),
     emptyOutDir: true,
+    manifest: true,
     sourcemap: process.env.NODE_ENV === 'development',
     rollupOptions: {
       output: {
@@ -21,6 +22,9 @@ export default defineConfig({
         // chunk instead of invalidating it, while route chunks stay independent.
         manualChunks(id) {
           if (id.includes('/node_modules/@databricks/appkit-ui/')) return 'appkit-ui';
+          // Settings and admin-only routes retain authoritative Zod validation,
+          // but their shared validator must not be hoisted into eager Ask.
+          if (id.includes('/node_modules/zod/')) return 'zod';
         },
       },
     },

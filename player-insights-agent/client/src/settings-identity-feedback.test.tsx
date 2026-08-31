@@ -10,7 +10,7 @@ import { RosterRows } from './UserRoleEditor';
 const FEATURES = { benchmarkLab: true, egressControls: true, forecasting: false };
 const SECTIONS = ['runtime', 'appearance', 'experimental', 'identity', 'environment', 'egress'] as const;
 const CSS = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
-const RESPONSIVE = readFileSync(new URL('./styles/responsive.css', import.meta.url), 'utf8');
+const RESPONSIVE = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');
 const PAGE = readFileSync(new URL('./SettingsPage.tsx', import.meta.url), 'utf8');
 const RUNTIME = readFileSync(new URL('./RuntimeSettingsPanel.tsx', import.meta.url), 'utf8');
 const EGRESS = readFileSync(new URL('./EgressPanel.tsx', import.meta.url), 'utf8');

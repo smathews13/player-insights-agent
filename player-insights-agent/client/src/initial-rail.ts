@@ -27,10 +27,7 @@
 import type { Conversation, Run } from './app-types';
 import { listAvailability, listUnreachable, type ListAvailability } from './list-availability';
 import { railRunSummaries, type RailRunSummary } from './rail-run-summary';
-import {
-  applyRememberedRunLabelOverrides,
-  applyRememberedRunLabelOverridesToConversations,
-} from './run-header-labels';
+import { applyRememberedRunLabelOverrides, applyRememberedRunLabelOverridesToConversations } from './run-header-labels';
 
 export interface InitialRail {
   /**
@@ -63,9 +60,9 @@ export interface InitialRail {
  * status and rating appear on its row. That is a refresh of one thing rather
  * than of the whole rail, which is why it is exported separately.
  */
-export async function readRunSummaries(): Promise<Map<string, RailRunSummary>> {
+export async function readRunSummaries(signal?: AbortSignal): Promise<Map<string, RailRunSummary>> {
   try {
-    const response = await fetch('/api/runs');
+    const response = await fetch('/api/runs', { signal });
     if (!response.ok) return new Map();
     const rows = (await response.json()) as Run[];
     // Overlays saved in Run Explorer while Ask was unmounted. Without this the

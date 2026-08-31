@@ -118,9 +118,8 @@ Dry run. Nothing was built or deployed. Re-run with --apply to:
      Run it now, without releasing:  TARGET=$TARGET bundle/release-gate.sh
   1. install exact package-lock dependencies with npm ci when node_modules is absent
   2. resolve the MLflow experiment id for '$TARGET' out of the bundle
-  3. npm run build:deploy        (vite client build + esbuild server bundle)
-  4. print the findings of any local advisory checks this tree carries.
-     They never gate this release.
+  3. run the focused release-critical app/session/migration tests (not full Vitest)
+  4. npm run build:deploy        (vite client build + esbuild server bundle)
   5. check the app owns its Postgres schema. THIS ONE STOPS THE RELEASE, before
      anything is uploaded: ownership cannot be repaired by a later deploy.
   6. resolve the app role, direct Lakebase branch host, Postgres database and
@@ -128,9 +127,7 @@ Dry run. Nothing was built or deployed. Re-run with --apply to:
      scripts/grant-app-db-access.mjs. This STOPS the release on failure.
   7. databricks workspace import-dir build/deploy $SRC_PATH --overwrite
   8. databricks apps deploy $APP_NAME --source-code-path $SRC_PATH
-  9. fail if a declared OAuth scope is not in effect. The code is deployed by
-     then; the app needs a stop/start, which this prints.
- 10. restore player-insights-agent/build/deploy/app.yaml, which the build wrote
+  9. restore player-insights-agent/build/deploy/app.yaml, which the build wrote
      this deployment's administrators and experiment id into. Tracked file, and
      it publishes; nothing to remember afterwards.
 
@@ -190,6 +187,18 @@ fi
 if [[ ! -d "$APP_DIR/node_modules" ]]; then
   step "Installing locked app build dependencies"
   (cd "$APP_DIR" && npm ci)
+fi
+
+# Release-critical only. The complete 7k+ Vitest suite, Python suite, typecheck,
+# lint, format, and checker-regression suites live behind one explicit manual
+# command: bundle/release-checks.sh full. Re-running those on every app upload
+# made the release path slower without making this operation safer.
+FAST_CHECKS="$BUNDLE_ROOT/bundle/release-checks.sh"
+if [[ -f "$FAST_CHECKS" ]]; then
+  bash "$FAST_CHECKS" fast
+else
+  die "bundle/release-checks.sh is missing, so the release-critical app, session,
+migration, and access invariants were not checked. Restore it before releasing."
 fi
 
 # Run Explorer deep-links a stored trace into MLflow, which needs the experiment's
@@ -456,52 +465,10 @@ step "Building the dependency-free deploy tree"
      PLAYER_INSIGHTS_APP_SCHEMA="$LAKEBASE_APP_SCHEMA" \
      npm run build:deploy)
 
-# --live, not the static subset: the static checks cover build properties only
-# (no package.json, minify pin, file sizes) and say nothing about whether the
-# deployment is correct.
-#
-# ADVISORY, and never a gate. Hence `if !` rather than `set -e`, which also
-# tolerates the check crashing outright, and the output is deliberately not
-# redirected.
-#
-# ABSENCE IS A THIRD OUTCOME, distinct from clean and from unclean. These are
-# development checks written against the maintainers' own demo estate, so they
-# are not part of every tree. Left to the `if !` below, a missing file exits 127
-# and prints "did not exit cleanly ... read its findings above" over a bash "No
-# such file or directory", sending the operator to look for a broken release and
-# for findings that were never produced.
-# FOUND BY A MARKER, NOT NAMED BY A PATH, and the publication is the reason
-# rather than taste. The advisory suites are excluded from the published tree,
-# so a hardcoded filename here left a customer reading a release script that
-# points at a file their checkout does not contain, which the publication
-# tooling reports as a dead reference. A suite declares itself instead, which
-# also matches what the step already claimed to do: run whatever this tree
-# carries, however many that is.
-ADVISORY_CHECKS=()
-for candidate in "$BUNDLE_ROOT"/bundle/*.sh; do
-  grep -q '^# advisory-suite:' "$candidate" 2>/dev/null && ADVISORY_CHECKS+=("$candidate")
-done
-
-step "Local advisory checks, if this tree carries any"
-if [ "${#ADVISORY_CHECKS[@]}" -eq 0 ]; then
-  note "This tree carries none, so nothing was checked here. They are development"
-  note "checks against the maintainers' own estate, and no release depends on them."
-  note ""
-  note "What they would have reported is still worth establishing by hand, because"
-  note "none of it fails loudly: both app resources attached, every scope the bundle"
-  note "authors in effect, the serving endpoint reachable, and the app's Postgres"
-  note "grants made. 'databricks apps get $APP_NAME -o json' shows the first two as"
-  note "the platform holds them; the app's own /api/storage reports the last."
-else
-  for suite in "${ADVISORY_CHECKS[@]}"; do
-    if ! TARGET="$TARGET" PROFILE="$PROFILE" bash "$suite" --live; then
-      note ""
-      note "$(basename "$suite") did not exit cleanly. Continuing with the release:"
-      note "these report, they do not gate. Read the findings above: a deployment they"
-      note "describe will start and serve HTTP 200 while being wrong as each one names."
-    fi
-  done
-fi
+# The broad live advisory sweep remains useful before a handoff, but it repeats
+# resource/scope reads already made by release-gate.sh and can wait 75 seconds on
+# storage health. It is intentionally manual, not part of every code upload:
+#   TARGET=<target> PROFILE=<profile> bundle/preflight.sh --live
 
 # Ownership is checked here rather than left to the advisory pass above, because
 # it is the one Postgres condition a release cannot repair and a redeploy cannot
@@ -561,100 +528,10 @@ print('  deployment      :', a.get('active_deployment',{}).get('status',{}).get(
 print('  url             :', a.get('url'))
 "
 
-# A scope the app declares but does not hold is the quietest failure this system
-# has. Scopes take effect at START, not at deploy, so a bundle deploy that adds
-# one leaves the app running on the old set with the new set written down. The
-# app cannot see the difference, nothing logs it, and the symptom arrives later
-# as a permission error or a sign-in loop that looks like a bug in the code.
-#
-# Compared in one direction only. `effective` also carries scopes the platform
-# adds for itself, which are not drift.
-step "OAuth scopes in effect"
-SCOPE_STATUS=0
-printf '%s' "$APP_JSON" | python3 -c "
-import json,sys
-a=json.load(sys.stdin)
-declared=set(a.get('user_api_scopes') or [])
-effective=set(a.get('effective_user_api_scopes') or [])
-for scope in sorted(declared|effective):
-    where='both' if scope in declared and scope in effective else ('declared only' if scope in declared else 'platform')
-    print(f'  {scope:45s} {where}')
-missing=sorted(declared-effective)
-if missing:
-    print()
-    print('  DECLARED BUT NOT IN EFFECT: ' + ', '.join(missing))
-sys.exit(1 if missing else 0)
-" || SCOPE_STATUS=$?
-if [[ "$SCOPE_STATUS" -ne 0 ]]; then
-  die "The app is running without scopes its configuration declares.
-The code is deployed; this is a runtime state, not a bad build. Scopes are read
-when the app STARTS, so a deploy alone will not pick them up:
-
-  databricks apps stop $APP_NAME --profile \"$PROFILE\"
-  databricks apps start $APP_NAME --profile \"$PROFILE\"
-
-Consent is all or nothing. If a scope stays absent after a restart, this
-workspace will not issue it, and every user will loop at sign-in before reaching
-the app rather than see an error. Remove it from the target in databricks.yml."
-fi
-
-# Arch#3, the THIRD leg. The step above holds declared against effective, which
-# are the two the platform can answer. Neither of them notices when the prose
-# explaining what a scope is FOR stops matching the scopes there are, and that is
-# the leg this repository has actually got wrong: a comment claiming the app and
-# model lists matched when one spelling carried `:read` and the other did not, and
-# three counts across two files of which two were stale within a day of the Vector
-# Search pair landing. bundle/scope-contract.json is generated from databricks.yml,
-# the probe table and the agent's own constants, so that leg is now checkable
-# rather than merely written down.
-#
-# NO EXTRA API CALL. It reads the $APP_JSON this step already fetched, so the
-# added cost is one python process on a file. `validate` was being run 14 times
-# per release before the resolution was cached once, and a gate that quietly adds
-# a workspace round trip is how that comes back.
-step "Scope contract: declared vs documented vs effective"
-if [[ -x "$BUNDLE_ROOT/bundle/scope-contract.py" || -f "$BUNDLE_ROOT/bundle/scope-contract.py" ]]; then
-  CONTRACT_APP_JSON="$(mktemp "${TMPDIR:-/tmp}/pia-app-json.XXXXXX")"
-  printf '%s' "$APP_JSON" > "$CONTRACT_APP_JSON"
-  CONTRACT_STATUS=0
-  python3 "$BUNDLE_ROOT/bundle/scope-contract.py" --check --live "$CONTRACT_APP_JSON" \
-    || CONTRACT_STATUS=$?
-  rm -f "$CONTRACT_APP_JSON"
-  # Exit 2 is "could not run", which is not a finding and must not stop a release
-  # over a check that was unavailable; exit 1 is the disagreement itself.
-  if [[ "$CONTRACT_STATUS" -eq 1 ]]; then
-    die "The scopes this deployment declares, documents and holds do not agree.
-
-Read the FAIL lines above. If the contract is simply behind the bundle:
-
-  python3 bundle/scope-contract.py --generate
-
-and commit the result. If a scope is declared and not in effect, that is the
-restart above, not a contract problem."
-  elif [[ "$CONTRACT_STATUS" -ne 0 ]]; then
-    # SAID OUT LOUD, because it was not before. Exit 2 deliberately does not stop
-    # the release, but until now it also printed nothing of its own, so a release
-    # whose contract check never ran looked exactly like one where it passed --
-    # and the loudest way to reach exit 2 is to DELETE bundle/scope-contract.json,
-    # which is the artifact the whole check compares against. A gate that a
-    # missing file turns off quietly is the shape this repository keeps shipping:
-    # a leak rule that matched nothing, four suites that asserted nothing, a `sed`
-    # script whose every rule was a no-op. All of them exited without complaint.
-    note ""
-    note "NOT CHECKED. The scope contract could not run (exit $CONTRACT_STATUS), so the"
-    note "documented leg was not compared against anything. Read the COULD NOT RUN"
-    note "line above: this is not the three legs agreeing, it is nobody having asked."
-    note ""
-    note "This does not stop the release, on purpose -- an unavailable check is not a"
-    note "finding. But do not read the rest of this run as having covered it. If"
-    note "bundle/scope-contract.json is missing, restore or regenerate it:"
-    note ""
-    note "  python3 bundle/scope-contract.py --generate   # then commit the result"
-  fi
-else
-  note "This tree carries no bundle/scope-contract.py, so the documented leg was"
-  note "not checked. The declared-vs-effective comparison above still ran."
-fi
+# release-gate.sh already compared declared, documented, and effective scopes
+# before this code upload. `apps deploy` does not mutate the App resource or its
+# OAuth policy, so repeating the same checker on the same contract here added no
+# safety. The status read above remains the one post-deploy platform read.
 
 # LAST, and in SHADOW, on purpose.
 #

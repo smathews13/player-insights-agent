@@ -90,9 +90,11 @@ export function conversationRunStateKey(status: ConversationRunStatus): string {
 
 export async function readConversationRun(
   conversationId: string,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal
 ): Promise<ConversationRunStatus | null> {
-  const response = await fetchImpl(`/api/conversations/${encodeURIComponent(conversationId)}/run`);
+  const url = `/api/conversations/${encodeURIComponent(conversationId)}/run`;
+  const response = signal ? await fetchImpl(url, { signal }) : await fetchImpl(url);
   if (!response.ok) throw new Error('Conversation run unavailable');
   return (await response.json()) as ConversationRunStatus | null;
 }

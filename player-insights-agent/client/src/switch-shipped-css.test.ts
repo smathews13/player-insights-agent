@@ -38,17 +38,13 @@ import { describe, expect, it } from 'vitest';
 
 const distAssets = path.resolve(__dirname, '../../build/deploy/client/dist/assets');
 
-/** The one stylesheet the built index.html loads. */
+/** Every route stylesheet the committed deployment can load. */
 function shippedCss(): string {
-  const sheets = readdirSync(distAssets).filter((name) => name.endsWith('.css'));
-
-  expect(
-    sheets,
-    `expected exactly one stylesheet in ${distAssets}, found ${sheets.length}. ` +
-      'If the build now emits several, this file needs to read all of them rather than the first.'
-  ).toHaveLength(1);
-
-  return readFileSync(path.join(distAssets, sheets[0]), 'utf8');
+  const sheets = readdirSync(distAssets)
+    .filter((name) => name.endsWith('.css'))
+    .sort();
+  expect(sheets.length, `expected at least one stylesheet in ${distAssets}`).toBeGreaterThan(0);
+  return sheets.map((name) => readFileSync(path.join(distAssets, name), 'utf8')).join('\n');
 }
 
 const CSS = shippedCss();
@@ -127,9 +123,7 @@ function offsetPx(state: 'checked' | 'unchecked'): number {
   const variable = resolve(winning(state, '--tw-translate-x'), THUMB_PX);
 
   const declaredTranslate = winning(state, 'translate');
-  const translate = declaredTranslate.includes('--tw-translate-x')
-    ? variable
-    : resolve(declaredTranslate, THUMB_PX);
+  const translate = declaredTranslate.includes('--tw-translate-x') ? variable : resolve(declaredTranslate, THUMB_PX);
 
   return translate + resolve(winning(state, 'transform'), THUMB_PX);
 }

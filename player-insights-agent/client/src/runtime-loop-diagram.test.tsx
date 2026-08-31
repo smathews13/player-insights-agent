@@ -6,7 +6,7 @@ import { RuntimeLoopDiagram } from './RuntimeLoopDiagram';
 
 const panel = fs.readFileSync(path.join(__dirname, 'RuntimeSettingsPanel.tsx'), 'utf8');
 const styles = fs.readFileSync(path.join(__dirname, 'styles', 'settings.css'), 'utf8');
-const responsiveStyles = fs.readFileSync(path.join(__dirname, 'styles', 'responsive.css'), 'utf8');
+const responsiveStyles = fs.readFileSync(path.join(__dirname, 'styles', 'responsive-settings.css'), 'utf8');
 
 const render = (maxSteps: number, maxToolCalls: number, maxRunSeconds: number): string =>
   renderToStaticMarkup(<RuntimeLoopDiagram loop={{ maxSteps, maxToolCalls, maxRunSeconds }} />);

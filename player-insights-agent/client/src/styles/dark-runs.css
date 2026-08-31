@@ -1,0 +1,59 @@
+html[data-theme='dark'] .run-explorer .run-detail,
+html[data-theme='dark'] .run-explorer [data-slot='card'] {
+  background: var(--ast-pane);
+  backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
+}
+
+html[data-theme='dark'] .run-explorer .run-detail [data-slot='card'],
+html[data-theme='dark'] .run-explorer .run-detail .final-answer {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+html[data-theme='dark'] .trace-timeline--explorer .trace-chip-llm {
+  background: color-mix(in srgb, var(--ast-trace-llm-bar) 22%, transparent);
+  color: #b8ebcf;
+  border-color: color-mix(in srgb, var(--ast-trace-llm-bar) 45%, transparent);
+}
+html[data-theme='dark'] .trace-timeline--explorer .trace-chip-sql {
+  background: color-mix(in srgb, var(--ast-trace-sql-bar) 22%, transparent);
+  color: #b5daf0;
+  border-color: color-mix(in srgb, var(--ast-trace-sql-bar) 45%, transparent);
+}
+html[data-theme='dark'] .trace-timeline--explorer .trace-chip-discovery {
+  background: color-mix(in srgb, var(--ast-trace-discovery-bar) 22%, transparent);
+  color: #ebd9a8;
+  border-color: color-mix(in srgb, var(--ast-trace-discovery-bar) 45%, transparent);
+}
+html[data-theme='dark'] .trace-timeline--explorer .trace-chip-plot {
+  background: color-mix(in srgb, var(--ast-trace-plot-bar) 22%, transparent);
+  color: #e0c4ef;
+  border-color: color-mix(in srgb, var(--ast-trace-plot-bar) 45%, transparent);
+}
+html[data-theme='dark'] .trace-timeline--explorer .trace-chip-clarify {
+  background: color-mix(in srgb, var(--ast-trace-clarify-bar) 22%, transparent);
+  color: #f0d0b0;
+  border-color: color-mix(in srgb, var(--ast-trace-clarify-bar) 45%, transparent);
+}
+html[data-theme='dark'] .trace-timeline--explorer .trace-chip-agent,
+html[data-theme='dark'] .trace-timeline--explorer .trace-chip-run {
+  background: rgba(154, 167, 178, 0.18);
+  color: var(--ast-ink-on-dark);
+  border-color: rgba(154, 167, 178, 0.4);
+}
+
+html[data-theme='dark'] .run-item-date {
+  color: var(--ast-caption);
+}
+
+html[data-theme='dark'] .run-id-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme='dark'] .run-explorer .run-detail {
+    backdrop-filter: none;
+    background: var(--ast-surface-solid);
+  }
+}

@@ -14,6 +14,7 @@
  */
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router';
+import './styles/routes/time-range.css';
 import { normalizeTimeRangeSearch, RANGE_SEGMENTS, rangeFromParams, withRange, type RangeKey } from './time-range';
 
 export interface TimeRangeControlProps {

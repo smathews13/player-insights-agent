@@ -5,7 +5,7 @@ import { MULTI_TURN_JUDGES } from '../../shared/eval-dataset';
 import { BenchmarkSettingsPanel } from './BenchmarkSettingsPanel';
 
 const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
-const RESPONSIVE_STYLES = readFileSync(new URL('./styles/responsive.css', import.meta.url), 'utf8');
+const RESPONSIVE_STYLES = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');
 const JUDGE_CONTROLS = [
   { label: 'Always-on traces', aria: 'Always-on traces' },
   { label: 'Groundedness', aria: 'Groundedness judge' },

@@ -301,7 +301,7 @@ describe('serialized online migrations', () => {
   });
 });
 
-describe('the v22 to v24 upgrade path', () => {
+describe('the v22 to v25 upgrade path', () => {
   const recordedThrough22 = Array.from({ length: 22 }, (_, index) => index + 1);
 
   it('records telemetry rollups before query-path indexes', async () => {
@@ -310,14 +310,14 @@ describe('the v22 to v24 upgrade path', () => {
     const outcome = await runMigrations(store.client, options(MIGRATIONS));
 
     expect(outcome.ok).toBe(true);
-    expect(outcome.attempts.map((attempt) => attempt.version)).toEqual([23, 24]);
-    expect(store.inserts.map((row) => row[0])).toEqual([23, 24]);
+    expect(outcome.attempts.map((attempt) => attempt.version)).toEqual([23, 24, 25]);
+    expect(store.inserts.map((row) => row[0])).toEqual([23, 24, 25]);
     expect(store.migrationSql.findIndex((sql) => sql.includes('request_latency_daily_rollups'))).toBeLessThan(
       store.migrationSql.findIndex((sql) => sql.includes('conversations_owner_updated_idx'))
     );
   });
 
-  it('never attempts or records v24 when v23 is incomplete', async () => {
+  it('never attempts or records later migrations when v23 is incomplete', async () => {
     const store = fakeStore({
       recorded: recordedThrough22,
       refuse: (sql) => (sql.includes('request_latency_daily_rollups') ? 'rollup table refused' : null),
@@ -327,7 +327,7 @@ describe('the v22 to v24 upgrade path', () => {
 
     expect(outcome.ok).toBe(false);
     expect(outcome.attempts.map((attempt) => attempt.version)).toEqual([23]);
-    expect(outcome.pending).toEqual([23, 24]);
+    expect(outcome.pending).toEqual([23, 24, 25]);
     expect(store.inserts.map((row) => row[0])).toEqual([]);
     expect(store.migrationSql.join('\n')).not.toContain('conversations_owner_updated_idx');
   });

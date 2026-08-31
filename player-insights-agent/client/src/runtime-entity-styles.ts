@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import {
-  parseRuntimeSettings,
+  parsePersistedRuntimeSettings,
   runtimeAppearanceCssVariables,
   runtimeTypographyCssVariables,
   type RuntimeSettings,
-} from '../../shared/runtime-settings';
+} from '../../shared/runtime-settings-browser';
 import { applyColorScheme } from './color-scheme';
 import {
   loadLiveRuntimeSettings,
@@ -60,7 +60,7 @@ export function cacheRuntimeAppearance(
 export function runtimeAppearanceFromCache(value: string | null): RuntimeSettings | null {
   if (!value) return null;
   try {
-    return parseRuntimeSettings(JSON.parse(value));
+    return parsePersistedRuntimeSettings(JSON.parse(value));
   } catch {
     return null;
   }

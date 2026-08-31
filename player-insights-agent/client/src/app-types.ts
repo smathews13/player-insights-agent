@@ -265,6 +265,8 @@ export interface ConversationMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  /** Stable keyset order from Lakebase; absent only on optimistic local rows. */
+  created_at?: string;
   /**
    * `unknown` rather than `AgentResponse`, because that is what it is: whatever
    * Lakebase stored or the endpoint returned. Declaring it as the strict shape is

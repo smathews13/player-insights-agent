@@ -128,7 +128,10 @@ describe('the pages at each end of that link', () => {
     // The transcript scrolls to its end on every load. An answer halfway up a
     // long conversation is exactly the case this link exists for, so the
     // end-scroll has to stand down when an answer was named.
-    const effect = /const requestedAnswer[\s\S]*?requestedAnswer\]\);/.exec(HOME_PAGE)?.[0] ?? '';
+    const effect = HOME_PAGE.slice(
+      HOME_PAGE.indexOf('const requestedAnswer'),
+      HOME_PAGE.indexOf('// Keeps every elapsed counter moving')
+    );
     expect(effect, 'the scroll effect reads the requested answer').not.toBe('');
     expect(effect).toContain("scrollIntoView({ block: 'center' })");
     // Honoured once, so asking a new question in a deep-linked conversation

@@ -2,6 +2,7 @@ import { createApp, lakebase, server } from '@databricks/appkit';
 import { lakebasePoolSettings } from './lib/lakebase-pool';
 import { preserveOwnedAppSchema } from './lib/app-schema-bootstrap';
 import { requestLatencyShutdown } from './lib/request-latency-shutdown';
+import { registerStaticDelivery } from './lib/static-delivery';
 
 // The serving() plugin is deliberately NOT registered. Its invoke path runs the
 // request body through two allowlists that drop unknown keys (the plugin's own
@@ -161,6 +162,11 @@ createApp({
         });
       });
     });
+    // AppKit's production server is registered after onPluginsReady. Install
+    // the frontend delivery layer now so it serves immutable Vite assets first,
+    // leaves app-shell HTML revalidating, and wraps neither existing APIs nor
+    // the protected PDF/stream routes above.
+    appkit.server.extend(registerStaticDelivery);
     // Last, because Express only reaches an error handler that sits after the
     // route that failed. Handlers that throw are caught by
     // `answerRatherThanExit` and arrive here to be answered as JSON.

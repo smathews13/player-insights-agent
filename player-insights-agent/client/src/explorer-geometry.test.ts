@@ -15,9 +15,9 @@ import { partial, partialNames } from './styles/stylesheet';
 
 const RUNS = partial('runs.css');
 const SHELL = partial('page-shell.css');
-const BENCHMARK = partial('benchmark.css');
+const BENCHMARK = `${partial('summary-grid.css')}\n${partial('benchmark.css')}`;
 const TIMELINE = partial('timeline.css');
-const RESPONSIVE = partial('responsive.css');
+const RESPONSIVE = `${partial('responsive.css')}\n${partial('responsive-runs.css')}`;
 const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
 const KPIS = readFileSync(new URL('./RunOverviewKpis.tsx', import.meta.url), 'utf8');
 const RATING_BADGE = readFileSync(new URL('./RunRatingBadge.tsx', import.meta.url), 'utf8');

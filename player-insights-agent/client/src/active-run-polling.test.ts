@@ -191,4 +191,55 @@ describe('adaptive active-run polling', () => {
     expect(calledAt).toEqual([1_500, 3_500, 6_500, 8_000]);
     controller.stop();
   });
+
+  it('does not bootstrap a completed target when stream detach wakes the old effect', async () => {
+    const browser = fakeBrowser();
+    const poll = vi.fn<() => Promise<ActiveRunPollOutcome>>().mockResolvedValue('unchanged');
+    let active = true;
+    const controller = startAdaptiveActiveRunPolling({
+      targets: () => (active ? [{ conversationId: 'just-finished', shouldPoll: false }] : []),
+      poll,
+      host: browser.host,
+    });
+
+    active = false;
+    controller.wake();
+    await tick(60_000);
+
+    expect(poll).not.toHaveBeenCalled();
+    controller.stop();
+  });
+
+  it('survives StrictMode-style stop and replay without reviving the first controller', async () => {
+    const browser = fakeBrowser();
+    let resolveFirst: (outcome: ActiveRunPollOutcome) => void = () => undefined;
+    const firstPoll = vi.fn(
+      () =>
+        new Promise<ActiveRunPollOutcome>((resolve) => {
+          resolveFirst = resolve;
+        })
+    );
+    const first = startAdaptiveActiveRunPolling({
+      targets: () => [{ conversationId: 'replayed', shouldPoll: true }],
+      poll: firstPoll,
+      host: browser.host,
+    });
+    await tick(ACTIVE_RUN_INITIAL_POLL_MS);
+    expect(firstPoll).toHaveBeenCalledOnce();
+
+    first.stop();
+    const secondPoll = vi.fn<() => Promise<ActiveRunPollOutcome>>().mockResolvedValue('stop');
+    const second = startAdaptiveActiveRunPolling({
+      targets: () => [{ conversationId: 'replayed', shouldPoll: true }],
+      poll: secondPoll,
+      host: browser.host,
+    });
+    resolveFirst('changed');
+    await tick(ACTIVE_RUN_INITIAL_POLL_MS);
+    await tick(60_000);
+
+    expect(firstPoll).toHaveBeenCalledOnce();
+    expect(secondPoll).toHaveBeenCalledOnce();
+    second.stop();
+  });
 });

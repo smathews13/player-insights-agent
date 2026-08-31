@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   conversationIsLive,
   settleActiveConversationRun,
+  settleActiveConversationRunById,
   trackActiveConversationRun,
   type ActiveConversationRuns,
 } from './active-conversation-runs';
@@ -124,5 +125,30 @@ describe('conversation-keyed rail runs', () => {
       status: { state: 'RUNNING', run_id: 'run-a' },
       summary: null,
     });
+  });
+
+  it.each(['REFUSED', 'FAILED', 'CANCELLED'])(
+    'settles exact-run %s without hiding another conversation that is genuinely live',
+    (state) => {
+      const runningB = { ...runningA, run_id: 'run-b', created_at: '2026-08-27T20:00:01Z' };
+      let active = trackActiveConversationRun(new Map(), 'conversation-a', runningA);
+      active = trackActiveConversationRun(active, 'conversation-b', runningB);
+
+      const settled = settleActiveConversationRunById(active, 'conversation-a', 'run-a', { state });
+
+      expect(conversationIsLive(settled, 'conversation-a')).toBe(false);
+      expect(conversationIsLive(settled, 'conversation-b')).toBe(true);
+      expect(settled.get('conversation-a')?.summary?.status).toBe(state === 'CANCELLED' ? 'Stopped' : 'Failed');
+    }
+  );
+
+  it('refuses to settle a newer run from a stale callback', () => {
+    const active = trackActiveConversationRun(new Map(), 'conversation-a', {
+      ...runningA,
+      run_id: 'run-new',
+    });
+
+    expect(settleActiveConversationRunById(active, 'conversation-a', 'run-old', { state: 'FAILED' })).toBe(active);
+    expect(conversationIsLive(active, 'conversation-a')).toBe(true);
   });
 });

@@ -13,7 +13,6 @@
 import { useEffect, useState } from 'react';
 
 import { fetchWithTimeout } from './fetch-timeout';
-import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 
 type Listener = () => void;
@@ -58,11 +57,12 @@ export function rememberLiveRuntimeSettings(settings: RuntimeSettings): void {
 
 async function fetchLiveRuntimeSettings(): Promise<RuntimeSettings | null> {
   try {
-    const response = await fetchWithTimeout(
-      '/api/runtime-settings',
-      {},
-      LIVE_RUNTIME_SETTINGS_TIMEOUT_MS
-    );
+    // Keep the authoritative Zod response boundary, but load it beside this
+    // non-blocking fetch rather than in the initial Ask module graph.
+    const [response, { runtimeSettingsFromResponse }] = await Promise.all([
+      fetchWithTimeout('/api/runtime-settings', {}, LIVE_RUNTIME_SETTINGS_TIMEOUT_MS),
+      import('./runtime-settings-api'),
+    ]);
     return await runtimeSettingsFromResponse(response, 'loaded');
   } catch {
     return null;

@@ -1,0 +1,58 @@
+@media (max-width: 800px) {
+  .connection-row-summary {
+    flex-wrap: wrap;
+  }
+  .connection-row-value {
+    flex-basis: 100%;
+    text-align: left;
+  }
+  .declared-connection-summary .connection-row-title {
+    max-width: calc(100% - 5rem);
+  }
+  .declared-connection-id,
+  .declared-connection-summary .connection-provenance {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+  .declared-connection-summary .plane-row-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+  .connection-pair {
+    grid-template-columns: 1fr;
+  }
+  .connection-block-head {
+    flex-wrap: wrap;
+  }
+  .connection-block-head > .connection-block-summary {
+    flex-basis: 100%;
+  }
+  .connection-block-controls {
+    width: 100%;
+    margin-left: 0;
+    padding: 0 16px 10px;
+  }
+  .connection-block-controls .connections-table-toolbar {
+    flex-wrap: wrap;
+  }
+  .connection-block-controls .connections-table-search {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+  }
+  .configuration-plane-row {
+    grid-template-columns: 1fr;
+  }
+  .deployment-card-body[data-columns='two'] {
+    grid-template-columns: 1fr;
+  }
+  .identity-section-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .deployment-card-identity .identity-fact {
+    align-items: flex-start;
+  }
+  .deployment-card-identity .identity-fact-label {
+    flex-basis: 132px;
+  }
+}

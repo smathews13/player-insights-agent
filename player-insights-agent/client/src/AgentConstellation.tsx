@@ -80,7 +80,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { StageStatus, TraceStage } from './answer-shape';
 import { formatDuration } from './benchmark-summary';
 import { formatMs } from './trace-timeline';
-import { EntityText } from './DataEntityLinks';
+import { EntityText } from './InlineEntityText';
 import { stageTableEntities, stageToolNames } from './live-progress';
 
 /**

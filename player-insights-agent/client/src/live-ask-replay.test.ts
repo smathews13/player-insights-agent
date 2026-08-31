@@ -24,6 +24,7 @@ import {
   beginLiveAsk,
   endLiveAsk,
   hydrateLiveAsk,
+  identifyLiveAsk,
   liveAskListenerCount,
   openLiveAsk,
   readLiveAsk,
@@ -93,6 +94,22 @@ describe('an in-flight run whose stream this browser is still holding', () => {
     expect(readLiveAsk('conversation-b')).toMatchObject({ inFlight: true, question: 'Question B' });
     expect(readLiveAsk('conversation-a')?.stages.map((entry) => entry.id)).toEqual(['a-step']);
     expect(readLiveAsk('conversation-b')?.stages.map((entry) => entry.id)).toEqual(['b-step']);
+  });
+
+  it('does not let a stale terminal callback end a newer question', () => {
+    beginLiveAsk({ conversationId: CONVERSATION, question: 'First' });
+    identifyLiveAsk(CONVERSATION, 'run-first');
+    endLiveAsk(CONVERSATION, 'run-first');
+    beginLiveAsk({ conversationId: CONVERSATION, question: 'Second' });
+    identifyLiveAsk(CONVERSATION, 'run-second');
+
+    endLiveAsk(CONVERSATION, 'run-first');
+
+    expect(readLiveAsk(CONVERSATION)).toMatchObject({
+      runId: 'run-second',
+      question: 'Second',
+      inFlight: true,
+    });
   });
 
   it('restores a stopped conversation without affecting another active run', () => {

@@ -39,6 +39,7 @@ const ASK = strip(partial('ask.css'));
 const RAIL = partial('rail.css');
 const SETTINGS = strip(partial('settings.css'));
 const DARK = strip(partial('dark-mode.css'));
+const SETTINGS_DARK = strip(partial('dark-settings.css'));
 
 /** One rule's body, by exact selector, from a comment-stripped partial. */
 function rule(css: string, selector: string): string {
@@ -277,7 +278,7 @@ describe('the settings pane, frosted like the account menu', () => {
     expect(guard).toContain(FROST);
     expect(guard).toMatch(/background:\s*var\(--ast-surface-solid\)/);
     expect(guard).toMatch(/backdrop-filter:\s*none/);
-    expect(atRule(DARK, '@media (prefers-reduced-transparency: reduce)')).toContain(
+    expect(atRule(SETTINGS_DARK, '@media (prefers-reduced-transparency: reduce)')).toContain(
       "html[data-theme='dark'] .settings-page.settings-modal"
     );
   });
@@ -287,7 +288,10 @@ describe('the settings pane, frosted like the account menu', () => {
     // `html[data-theme='dark'] .settings-page.settings-modal`, so an equal-weight
     // rule here would lose on order alone. The overlay is the modal's own
     // wrapper, which is one class and no `!important`.
-    expect(partialNames().indexOf('settings.css')).toBeLessThan(partialNames().indexOf('dark-mode.css'));
+    const routeCascade = readFileSync(new URL('./styles/routes/settings.css', import.meta.url), 'utf8');
+    expect(routeCascade.indexOf("@import '../settings.css'")).toBeLessThan(
+      routeCascade.indexOf("@import '../dark-settings.css'")
+    );
     expect(SETTINGS).toContain('.settings-overlay .settings-page.settings-modal');
     expect(SETTINGS).not.toContain('!important');
   });

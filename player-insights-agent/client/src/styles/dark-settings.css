@@ -1,0 +1,80 @@
+html[data-theme='dark'] .settings-page.settings-modal {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme='dark'] .settings-rail button.active,
+html[data-theme='dark'] .settings-rail button[aria-current='page'] {
+  border-color: transparent;
+  background: var(--db-selected-tint);
+  box-shadow: none;
+  color: var(--foreground);
+}
+
+html[data-theme='dark'] .settings-footer-actions .settings-cancel {
+  border-color: var(--ast-border-input);
+  background: var(--card);
+  color: var(--foreground);
+}
+html[data-theme='dark'] .settings-footer-actions .settings-cancel:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+html[data-theme='dark'] .settings-footer-actions .settings-cancel:active:not(:disabled) {
+  background: rgba(143, 193, 232, 0.16);
+}
+
+html[data-theme='dark'] .environment-tabs button.active {
+  color: var(--ast-ice-accent);
+}
+html[data-theme='dark'] .environment-tabs button.active::after {
+  background: var(--ast-ice-accent);
+}
+html[data-theme='dark'] .environment-list th {
+  background: var(--muted);
+  color: var(--ast-caption);
+}
+html[data-theme='dark'] .environment-tools [data-slot='button'] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+html[data-theme='dark'] .environment-tools [data-slot='button']:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--foreground);
+}
+html[data-theme='dark'] .environment-tools [data-slot='button']:active:not(:disabled) {
+  background: rgba(143, 193, 232, 0.28);
+  color: var(--ast-white);
+}
+html[data-theme='dark'] .environment-list:focus-visible {
+  outline: 1px solid var(--ast-ice-accent);
+  outline-offset: -1px;
+  box-shadow: none;
+}
+html[data-theme='dark'] .appearance-grid {
+  background: rgba(255, 255, 255, 0.04);
+}
+html[data-theme='dark'] .settings-save-notice,
+html[data-theme='dark'] .runtime-field-label {
+  color: var(--ast-caption);
+}
+html[data-theme='dark'] .settings-modal-overlay {
+  background: color-mix(in srgb, var(--ast-scrim) 50%, transparent);
+}
+html[data-theme='dark'] .settings-footer-actions [data-slot='button'][data-pressed='true'] {
+  background: color-mix(in srgb, var(--ast-primary-control-fill) 68%, var(--ast-primary-control-border));
+  border-color: var(--ast-ice-accent);
+  color: var(--ast-ink-on-dark);
+}
+html[data-theme='dark'] .settings-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme='dark'] .settings-page.settings-modal {
+    backdrop-filter: none;
+    background: var(--ast-surface-solid);
+  }
+}

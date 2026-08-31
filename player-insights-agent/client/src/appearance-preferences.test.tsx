@@ -14,7 +14,7 @@ import {
 const PANEL = readFileSync(new URL('./RuntimeSettingsPanel.tsx', import.meta.url), 'utf8');
 const ROOT_RUNTIME = readFileSync(new URL('./runtime-entity-styles.ts', import.meta.url), 'utf8');
 const ROOT_STYLES = readFileSync(new URL('./styles/appearance-preferences.css', import.meta.url), 'utf8');
-const RESPONSIVE = readFileSync(new URL('./styles/responsive.css', import.meta.url), 'utf8');
+const RESPONSIVE = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');
 const INDEX = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 describe('Appearance preferences', () => {

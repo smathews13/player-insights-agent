@@ -216,6 +216,7 @@ describe('askStreaming', () => {
 
     expect(failure).toBeInstanceOf(AskRunFailed);
     expect((failure as AskRunFailed).completed).toBe(2);
+    expect((failure as AskRunFailed).terminal).toBe(false);
     // The count is on screen next to two rows the user watched arrive, so it
     // has to be the number of rows and not a generic outage message.
     expect((failure as AskRunFailed).message).toContain('after 2 steps');
@@ -270,6 +271,7 @@ describe('askStreaming', () => {
 
     expect((failure as AskRunFailed).message).toBe('The agent proposed the same plan again.');
     expect((failure as AskRunFailed).completed).toBe(1);
+    expect((failure as AskRunFailed).terminal).toBe(true);
   });
 
   /**

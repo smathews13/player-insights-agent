@@ -9,7 +9,7 @@ import { OpsPage, type Block } from './OpsPage';
 import { autoLoadOpsBlock, forgetOpsSession, opsAutoLoadClaimed } from './ops-session';
 
 const OPS_CSS = readFileSync(new URL('./styles/ops.css', import.meta.url), 'utf8');
-const RESPONSIVE_CSS = readFileSync(new URL('./styles/responsive.css', import.meta.url), 'utf8');
+const RESPONSIVE_CSS = readFileSync(new URL('./styles/responsive-ops.css', import.meta.url), 'utf8');
 const FORECAST_SOURCE = readFileSync(new URL('./ForecastingPanel.tsx', import.meta.url), 'utf8');
 
 function block<T>(data: T | null, overrides: Partial<Block<T>> = {}): Block<T> {

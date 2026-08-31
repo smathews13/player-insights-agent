@@ -39,6 +39,22 @@
 .transcript-end {
   scroll-margin-bottom: var(--composer-reserve);
 }
+.message-pagination {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 auto 22px;
+}
+.message-pagination-error {
+  color: var(--destructive);
+  font-size: var(--ast-fs-12);
+}
+.conversation-message:focus {
+  outline: 2px solid var(--db-blue-600);
+  outline-offset: 4px;
+}
 .conversation-main .answer-card,
 .conversation-main .plan-card {
   max-width: var(--conversation-measure);
@@ -53,6 +69,14 @@
 }
 .conversation-main .answer-card > [data-slot='card-content'] {
   padding-inline: 20px;
+}
+/*
+ * A cold direct link can reach Lakebase before the answer-only graph arrives.
+ * Keep a useful answer-sized surface in place while showing the raw narrative,
+ * so formatting the saved answer does not collapse and then expand the thread.
+ */
+.conversation-main .stored-answer-loading {
+  min-height: min(28rem, 60dvh);
 }
 /* Wide enough for the suggestion grid and the composer, both of which cap at 720px. */
 .ask-hero {

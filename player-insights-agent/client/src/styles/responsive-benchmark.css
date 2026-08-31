@@ -1,0 +1,25 @@
+@media (max-width: 800px) {
+  .bench-contract {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .bench-stat-strip,
+  .bench-lane-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bench-turn-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bench-failure {
+    grid-template-columns: 1fr;
+  }
+  .bench-failure-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--ast-hairline);
+  }
+}
+
+@media (max-width: 480px) {
+  .bench-contract {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

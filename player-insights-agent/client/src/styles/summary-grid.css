@@ -1,0 +1,49 @@
+/*
+ * The metric tile row shared by Run Explorer and Benchmark Lab.
+ *
+ * This is a primitive rather than either route's property: the same five-tile
+ * vocabulary is rendered at two widths and both route sheets reshape it.
+ */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 12px;
+}
+.summary-grid [data-slot='card'] {
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  padding: 0;
+}
+.summary-grid [data-slot='card-content'] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+}
+.summary-grid span {
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+/* Tabular comes from `.ast-num` in the markup: the tiles sit in a row a reader
+   compares across, and `font-variant-numeric` on DM Sans switches nothing on. */
+.summary-grid strong {
+  font-size: var(--text-kpi);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.summary-grid small {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+}
+.summary-grid strong.tile-absent {
+  color: var(--muted-foreground);
+}
+.summary-grid small.tile-mono {
+  font-family: var(--font-mono);
+}
+.summary-grid .tile-link {
+  margin-top: 2px;
+  color: var(--primary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}

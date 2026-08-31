@@ -36,6 +36,7 @@
  * prints what it is waiting for.
  */
 import { Component, Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import './styles/routes/architecture.css';
 import { Link } from 'react-router';
 import { Alert, AlertDescription } from './ui';
 import { CircleAlert, ExternalLink } from 'lucide-react';

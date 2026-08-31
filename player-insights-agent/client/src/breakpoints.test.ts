@@ -35,12 +35,12 @@ describe('the app has one set of breakpoints', () => {
     expect(widthQueries(partial('responsive.css'))).toEqual(DECLARED);
   });
 
-  it('keeps every other structural query out of the page partials', () => {
+  it('keeps route-owned structural queries on the same declared widths', () => {
     const stray = new Map<string, number[]>();
     for (const name of partialNames()) {
-      if (name === 'responsive.css') continue;
       const found = widthQueries(partial(name));
-      if (found.length > 0) stray.set(name, found);
+      if (found.some((width) => !DECLARED.includes(width))) stray.set(name, found);
+      expect(found, `${name} keeps larger breakpoints before smaller ones`).toEqual([...found].sort((a, b) => b - a));
     }
     expect([...stray]).toEqual([]);
   });
@@ -49,12 +49,17 @@ describe('the app has one set of breakpoints', () => {
     // Connections had its own 640px query for the configured-beside-measured pair,
     // and Architecture had a 900px one for its paired columns and then a 1024px
     // one for the graph. None of those numbers came from anywhere.
-    const css = partial('responsive.css');
-    const narrow = css.match(/@media \(max-width: 800px\)\s*\{([\s\S]*?)\n\}/)![1];
-    const laptop = css.match(/@media \(max-width: 1180px\)\s*\{([\s\S]*?)\n\}/)![1];
-    expect(narrow).toMatch(/\.connection-pair\s*\{[^}]*grid-template-columns:\s*1fr/);
-    expect(narrow).toMatch(/\.arch-tiles\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
-    expect(laptop).toMatch(/\.arch-rails\s*\{[^}]*grid-template-columns:\s*1fr/);
+    const connections = partial('responsive-connections.css');
+    const architecture = partial('responsive-architecture.css');
+    expect(connections).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*\.connection-pair\s*\{[^}]*grid-template-columns:\s*1fr/
+    );
+    expect(architecture).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*\.arch-tiles\s*\{[^}]*grid-template-columns:\s*repeat\(2/
+    );
+    expect(architecture).toMatch(
+      /@media \(max-width: 1180px\)[\s\S]*\.arch-rails\s*\{[^}]*grid-template-columns:\s*1fr/
+    );
     for (const name of ['connections.css', 'architecture.css']) {
       expect(widthQueries(partial(name))).not.toContain(640);
       expect(widthQueries(partial(name))).not.toContain(900);
@@ -82,6 +87,6 @@ describe('the exception that went away', () => {
   });
 
   it('still reshapes the one thing on that page that is a column', () => {
-    expect(partial('responsive.css')).toMatch(/\.arch-rails\s*\{/);
+    expect(partial('responsive-architecture.css')).toMatch(/\.arch-rails\s*\{/);
   });
 });

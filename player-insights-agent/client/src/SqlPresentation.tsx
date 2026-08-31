@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 
-import { EntityText } from './DataEntityLinks';
+import { EntityText } from './InlineEntityText';
 import { sqlClauseLines, sqlHighlightRuns, sqlStatements } from './step-results';
 import { compactSql, sanitizeSqlForDisplay, SQL_SUMMARY_LIMIT, truncateSql } from './sql-presentation';
 

@@ -63,7 +63,7 @@ describe('Connections and Settings cleanup', () => {
     expect(style('connections.css')).toMatch(
       /\.configuration-plane-row \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/
     );
-    expect(style('responsive.css')).toMatch(/\.configuration-plane-row \{[^}]*grid-template-columns: 1fr/);
+    expect(style('responsive-connections.css')).toMatch(/\.configuration-plane-row \{[^}]*grid-template-columns: 1fr/);
     expect(style('connections.css')).toMatch(
       /\.notebook-path-editor > \[data-slot='button'\] \{[^}]*width: auto[^}]*justify-self: start/
     );
