@@ -48,6 +48,7 @@ import { evidenceLinkedSourceNames } from './answer-table-origins';
 import type { Answer, FeedbackEntry } from './app-types';
 import { StateSwitch } from './StateSwitch';
 import { SqlCodeBlocks } from './SqlPresentation';
+import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 
 /** Shared by Ask and Monitoring, which mounts this same answer card. */
 export function AnswerSql({ sql }: { sql: string }) {
@@ -515,11 +516,13 @@ export function AnswerCard({
             about their answer this product exists to be trusted on, backwards.
             `dataAccessDisclosure` says what the run reported, and says nothing
             at all where nothing reported one: a run with no recorded identity
-            is not a run to make any claim about, in either direction. */}
-        <p className="ai-note">
-          <AstrolabeMark size={14} /> astrolabe analysis. Verify material decisions against cited sources.
-          {dataAccess ? ` ${dataAccess}` : ''}
-        </p>
+            is not a run to make any claim about, in either direction.
+
+            Kept on its own line because the generic AI caveat must contain only
+            its shared sentence; access provenance is evidence about this run,
+            not boilerplate about AI. */}
+        {dataAccess ? <p className="data-access-note">{dataAccess}</p> : null}
+        <AIAnalysisCaveat className="ai-note" />
       </CardContent>
     </Card>
   );

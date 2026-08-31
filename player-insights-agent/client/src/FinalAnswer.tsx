@@ -18,14 +18,11 @@ import { AnswerProse, EntityText } from './DataEntityLinks';
 import { AnswerEvidence } from './AnswerEvidence';
 import { SourcesModule } from './SourcesModule';
 import { mentionedIdentifiers } from './data-entities';
-import {
-  answerHonesty,
-  readerFacingNarrative,
-  readerFacingTakeaway,
-} from './reader-facing-answer';
+import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './reader-facing-answer';
 import { evidenceLinkedSourceNames } from './answer-table-origins';
 import type { Derivation } from './answer-shape';
 import type { Chart } from './AnswerCharts';
+import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 
 export function FinalAnswer({
   takeaway,
@@ -78,7 +75,11 @@ export function FinalAnswer({
                   <AlertDescription>
                     <p>
                       <strong>{warning.label}.</strong>{' '}
-                      <EntityText text={warning.text} sources={sources} columns={mentionedIdentifiers([warning.text])} />
+                      <EntityText
+                        text={warning.text}
+                        sources={sources}
+                        columns={mentionedIdentifiers([warning.text])}
+                      />
                     </p>
                   </AlertDescription>
                 </Alert>
@@ -106,6 +107,7 @@ export function FinalAnswer({
             Open full response →
           </Link>
         ) : null}
+        <AIAnalysisCaveat className="ai-note" />
       </CardContent>
     </Card>
   );

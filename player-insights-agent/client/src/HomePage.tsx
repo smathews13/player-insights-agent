@@ -127,6 +127,7 @@ import {
 import { AnswerCard } from './AnswerCard';
 import { EMPTY_FEEDBACK, feedbackFromStored } from './stored-feedback';
 import { useIdentity } from './app-state';
+import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { conversationAge } from './conversation-age';
 import { PlanCard } from './PlanCard';
 import { AgentPathConstellation } from './AgentConstellation';
@@ -2350,10 +2351,7 @@ export function HomePage() {
                 the same sentence said about a result instead of about the field.
                 Decorative: the word "astrolabe" is right beside it, so a mark
                 announced again would be the name read twice. */}
-            <span>
-              <AstrolabeMark size={13} />
-              astrolabe can make mistakes. Sources and caveats are included.
-            </span>
+            <AIAnalysisCaveat className="composer-ai-note" />
             {/* One control for one current action. While a question is active it
                 becomes Stop and remains pressable; Stop first records durable
                 cancellation and only then aborts this browser's stream. */}
@@ -2578,8 +2576,9 @@ const MessageItem = memo(function MessageItem({
     // the response the app could not read.
     return (
       <Card className="answer-card">
-        <CardContent className="pt-6">
+        <CardContent className="pt-6 space-y-4">
           <AnswerProse text={message.content} sources={[]} />
+          <AIAnalysisCaveat className="ai-note" />
         </CardContent>
       </Card>
     );

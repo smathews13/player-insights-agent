@@ -78,6 +78,7 @@ import {
   rememberRunLabelOverride,
   type RunLabelOverride,
 } from './run-header-labels';
+import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 
 /** Stages whose time belongs to data work, including older traces that tagged
  * the finder or SQL wrapper as an agent stage instead of a tool stage. */
@@ -522,29 +523,35 @@ export function RunExplorer() {
             <TabsContent value="map" className="space-y-4 pt-5">
               {selected && traceState.status === 'ready' ? <UsedThisRun used={runTrace?.runtimeUsed ?? null} /> : null}
               {stages.length > 0 ? (
-                <TraceDag
-                  stages={stages}
-                  activeIndex={-1}
-                  charts={runTrace?.charts}
-                  trace={runTrace?.trace}
-                  question={runTrace?.prompt ?? ''}
-                  verdict={answerVerdict}
-                  runStatus={displayed?.status}
-                />
+                <>
+                  <TraceDag
+                    stages={stages}
+                    activeIndex={-1}
+                    charts={runTrace?.charts}
+                    trace={runTrace?.trace}
+                    question={runTrace?.prompt ?? ''}
+                    verdict={answerVerdict}
+                    runStatus={displayed?.status}
+                  />
+                  <AIAnalysisCaveat className="ai-note" />
+                </>
               ) : (
                 <TraceUnavailable state={traceState} />
               )}
             </TabsContent>
-            <TabsContent value="timeline" className="pt-5">
+            <TabsContent value="timeline" className="space-y-4 pt-5">
               {/* The prompt, for the envelope row, which is the run's own
                   question here just as it is on the card. */}
               {stages.length > 0 && runTrace?.trace ? (
-                <TraceTimeline
-                  variant="explorer"
-                  trace={runTrace.trace}
-                  question={runTrace.prompt ?? ''}
-                  verdict={answerVerdict}
-                />
+                <>
+                  <TraceTimeline
+                    variant="explorer"
+                    trace={runTrace.trace}
+                    question={runTrace.prompt ?? ''}
+                    verdict={answerVerdict}
+                  />
+                  <AIAnalysisCaveat className="ai-note" />
+                </>
               ) : (
                 <TraceUnavailable state={traceState} />
               )}

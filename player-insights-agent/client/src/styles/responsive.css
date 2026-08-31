@@ -346,7 +346,7 @@
     right: 12px;
     bottom: 12px;
   }
-  .composer-actions > span {
+  .composer-actions > .composer-ai-note {
     display: none;
   }
   .composer-actions {

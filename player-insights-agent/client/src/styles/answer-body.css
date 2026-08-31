@@ -481,6 +481,10 @@
   height: 13px;
   flex: none;
 }
+.data-access-note {
+  font-size: var(--ast-fs-12);
+  color: var(--ast-text-secondary);
+}
 
 /* Primary answer anatomy. Utility disclosures below it use the existing panels. */
 .answer-card-content {

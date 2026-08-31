@@ -635,10 +635,11 @@ describe('the closing note and the feedback row', () => {
     expect(ruleFor(BODY_CSS, '.feedback > button {')).toContain('width: 30px');
   });
 
-  it('keeps the disclosure that names who read the data', () => {
-    // Load-bearing copy, and the sentence a reader needs in order to know whose
-    // grants the figures were computed under.
-    expect(CARD).toContain('astrolabe analysis. Verify material decisions against cited sources.');
+  it('keeps data-access evidence separate from the shared AI caveat', () => {
+    // Load-bearing evidence still reaches the card, but no longer changes the
+    // generic warning's accessible sentence.
+    expect(CARD).toContain('<p className="data-access-note">{dataAccess}</p>');
+    expect(CARD).toContain('<AIAnalysisCaveat className="ai-note" />');
   });
 
   it('takes the identity half of that disclosure from the run, not from a constant', () => {
