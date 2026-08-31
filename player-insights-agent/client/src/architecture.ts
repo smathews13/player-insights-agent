@@ -22,7 +22,7 @@
  * {@link SEMANTIC_INDEX_UNREPORTED}.
  *
  * THE SEMANTIC LANE IS TWO OBJECTS, and drawing it as one hid a real fault. The
- * index is a Unity Catalog object; the endpoint is the compute that serves it,
+ * index is a Unity Catalog object; the endpoint is the compute that hosts it,
  * created by the bundle rather than named in the artifact. They fail separately
  * and cost separately -- an endpoint runs and bills by the hour whether or not
  * anything searches the index on it, and an index can be present and refused on
@@ -124,6 +124,8 @@ export interface ArchitectureNode {
 export interface ArchitectureEdge {
   from: string;
   to: string;
+  /** Query/data movement is directional; hosting is static topology. */
+  relationship: 'flow' | 'hosting';
   /** What crosses this edge, as a sentence a screen reader can be given. */
   meaning: string;
 }
@@ -223,7 +225,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'semantic-index',
     presence: 'connection',
     lane: 'semantic',
-    role: 'Searches field and metric descriptions for source discovery.',
+    role: 'The agent queries this searchable index by name for field and metric descriptions during source discovery.',
     rebuilt: true,
     product: 'mosaic-ai',
   },
@@ -233,7 +235,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'semantic-index-endpoint',
     presence: 'connection',
     lane: 'semantic',
-    role: 'Serves Vector Search queries.',
+    role: 'Hosts the Vector Search index and provides its serving compute.',
     product: 'mosaic-ai',
   },
   {
@@ -265,56 +267,92 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
  * and the one a box-and-arrow diagram normally loses.
  */
 export const ARCHITECTURE_EDGES: readonly ArchitectureEdge[] = [
-  { from: 'browser', to: 'app', meaning: 'The browser sends the question to this app over HTTPS.' },
+  {
+    from: 'browser',
+    to: 'app',
+    relationship: 'flow',
+    meaning: 'The browser sends the question to this app over HTTPS.',
+  },
   {
     from: 'app',
     to: 'agent-endpoint',
+    relationship: 'flow',
     meaning: 'The app invokes the serving endpoint as its own service principal, forwarding the reader\u2019s token.',
   },
   {
     from: 'agent-endpoint',
     to: 'data-source-finder',
+    relationship: 'flow',
     meaning: 'The orchestrator delegates governed source discovery as one self-contained request.',
   },
-  { from: 'agent-endpoint', to: 'llm-endpoint', meaning: 'The orchestrator calls the model to plan and write the final answer.' },
+  {
+    from: 'agent-endpoint',
+    to: 'llm-endpoint',
+    relationship: 'flow',
+    meaning: 'The orchestrator calls the model to plan and write the final answer.',
+  },
   {
     from: 'data-source-finder',
     to: 'llm-endpoint',
+    relationship: 'flow',
     meaning: 'The finder calls the model to choose discovery and validation steps.',
   },
   {
     from: 'data-source-finder',
     to: 'genie-dictionary',
+    relationship: 'flow',
     meaning: 'Ambiguous terms are resolved against the dictionary space before anything is measured.',
   },
   {
     from: 'data-source-finder',
     to: 'genie-data',
-    meaning: 'Metric questions go to the data space, under the reader\u2019s own identity where the version declares it.',
+    relationship: 'flow',
+    meaning:
+      'Metric questions go to the data space, under the reader\u2019s own identity where the version declares it.',
   },
   {
     from: 'data-source-finder',
     to: 'sql-warehouse',
+    relationship: 'flow',
     meaning: 'Resolved tables and validated read-only SQL run under the reader\u2019s grants.',
   },
-  { from: 'genie-data', to: 'sql-warehouse', meaning: 'Genie\u2019s generated SQL is executed by the warehouse.' },
+  {
+    from: 'genie-data',
+    to: 'sql-warehouse',
+    relationship: 'flow',
+    meaning: 'Genie\u2019s generated SQL is executed by the warehouse.',
+  },
   {
     from: 'sql-warehouse',
     to: 'catalog',
+    relationship: 'flow',
     meaning: 'The warehouse reads Unity Catalog, which applies that reader\u2019s row filters and column masks.',
   },
   {
     from: 'data-source-finder',
     to: 'semantic-index',
-    meaning: 'Where a deployment has an index, the finder searches descriptions to choose what to ask about.',
+    relationship: 'flow',
+    meaning:
+      'During source discovery, the agent queries the Vector Search index by name for field and metric descriptions.',
   },
   {
     from: 'semantic-index-endpoint',
     to: 'semantic-index',
-    meaning: 'The index is a Unity Catalog object; this endpoint is the compute a search of it runs on.',
+    relationship: 'hosting',
+    meaning: 'The Vector Search endpoint hosts the index and provides its serving compute. This is not query flow.',
   },
-  { from: 'app', to: 'lakebase', meaning: 'The app writes the conversation, the answer and any feedback to Postgres.' },
-  { from: 'agent-endpoint', to: 'experiment-id', meaning: 'The endpoint traces the run into the MLflow experiment.' },
+  {
+    from: 'app',
+    to: 'lakebase',
+    relationship: 'flow',
+    meaning: 'The app writes the conversation, the answer and any feedback to Postgres.',
+  },
+  {
+    from: 'agent-endpoint',
+    to: 'experiment-id',
+    relationship: 'flow',
+    meaning: 'The endpoint traces the run into the MLflow experiment.',
+  },
 ];
 
 /**
@@ -382,14 +420,13 @@ export const SEMANTIC_INDEX_UNREPORTED =
   'this deployment has one is unknown rather than settled. Nothing here does not mean there is ' +
   'no index. Re-logging the model reports it.';
 
-/** No index to serve, so the endpoint card is a statement rather than a gap. */
-export const SEMANTIC_ENDPOINT_NO_INDEX =
-  'This release searches no index, so no endpoint is serving one for it.';
+/** No index to host, so the endpoint card is a statement rather than a gap. */
+export const SEMANTIC_ENDPOINT_NO_INDEX = 'This release searches no index, so no endpoint is hosting one for it.';
 
 /** The version cannot say whether it searches an index, so nor can this. */
 export const SEMANTIC_ENDPOINT_UNREPORTED =
   'This served model version does not report whether it searches an index, so whether an endpoint ' +
-  'is serving one is unknown rather than settled.';
+  'hosts one is unknown rather than settled.';
 
 /**
  * The index did not answer, and it is the only thing that names its endpoint.
@@ -399,8 +436,7 @@ export const SEMANTIC_ENDPOINT_UNREPORTED =
  * identity cannot read the object that would have named the endpoint.
  */
 export const SEMANTIC_ENDPOINT_UNNAMED =
-  'Only the index names the endpoint serving it, and the index did not answer, so there was ' +
-  'nothing to ask about.';
+  'Only the index names the endpoint hosting it, and the index did not answer, so there was nothing to ask about.';
 
 /**
  * What the semantic lane is doing, as one word per card.
@@ -448,7 +484,8 @@ export function semanticIndexState(reading: ConnectionReading | undefined): Sema
  * that searches nothing is not the same fact as an endpoint with no check on a
  * deployment whose index was refused.
  */
-export function semanticEndpointState(index: ConnectionReading | undefined,
+export function semanticEndpointState(
+  index: ConnectionReading | undefined,
   endpoint: ConnectionReading | undefined
 ): SemanticState {
   const indexState = semanticIndexState(index);
@@ -477,7 +514,8 @@ function notChecked(note: string): NodeReport {
 const NOT_CHECKED_NOTE =
   'No check has run against this one yet, so whether it is reachable is unknown rather than confirmed.';
 
-export function nodeReport(node: ArchitectureNode,
+export function nodeReport(
+  node: ArchitectureNode,
   reading: ConnectionReading | undefined,
   /** The index's reading, which the endpoint card cannot be read without. */
   indexReading?: ConnectionReading
@@ -544,7 +582,8 @@ export function nodeReport(node: ArchitectureNode,
  * else. `contentAge` has no fallback and is given none here: no substitute
  * exists that would not read as freshness.
  */
-export function nodeContentAge(node: ArchitectureNode,
+export function nodeContentAge(
+  node: ArchitectureNode,
   reading: ConnectionReading | undefined,
   now: number
 ): ContentAge | null {
@@ -566,7 +605,8 @@ export function nodeContentAge(node: ArchitectureNode,
  * A mark that only appears on the card is a mark for somebody who already
  * suspects.
  */
-export function staleContent(readings: ReadonlyMap<string, ConnectionReading>,
+export function staleContent(
+  readings: ReadonlyMap<string, ConnectionReading>,
   now: number
 ): Array<{ node: ArchitectureNode; age: ContentAge }> {
   const found: Array<{ node: ArchitectureNode; age: ContentAge }> = [];
@@ -652,7 +692,8 @@ export function checkedAgo(iso: string, now: number): string {
  * and the identifier is included because it is the thing that distinguishes two
  * Genie spaces from each other.
  */
-export function nodeAccessibleName(node: ArchitectureNode,
+export function nodeAccessibleName(
+  node: ArchitectureNode,
   reading: ConnectionReading | undefined,
   indexReading?: ConnectionReading,
   now: number = Date.now()
@@ -688,7 +729,8 @@ export function edgesFor(id: string): ArchitectureEdge[] {
  * each edge means -- has to appear here, because the alternative is a page
  * whose content is only available to some of its readers.
  */
-export function describeArchitecture(readings: ReadonlyMap<string, ConnectionReading>,
+export function describeArchitecture(
+  readings: ReadonlyMap<string, ConnectionReading>,
   now: number = Date.now()
 ): string[] {
   const lines: string[] = [];
@@ -704,7 +746,8 @@ export function describeArchitecture(readings: ReadonlyMap<string, ConnectionRea
     // that says what stale means here is a pill read aloud, not a description.
     if (age) parts.push(age.note);
     if (value) {
-      parts.push(value.measured
+      parts.push(
+        value.measured
           ? `In use: ${value.value}, measured from inside the endpoint.`
           : `Configured as ${value.value}. Nothing has measured what it is actually using.`
       );
@@ -720,7 +763,9 @@ export function describeArchitecture(readings: ReadonlyMap<string, ConnectionRea
   for (const edge of ARCHITECTURE_EDGES) {
     const from = architectureNode(edge.from)?.label ?? edge.from;
     const to = architectureNode(edge.to)?.label ?? edge.to;
-    lines.push(`${from} to ${to}: ${edge.meaning}`);
+    lines.push(
+      edge.relationship === 'hosting' ? `${from} and ${to}: ${edge.meaning}` : `${from} to ${to}: ${edge.meaning}`
+    );
   }
   return lines;
 }

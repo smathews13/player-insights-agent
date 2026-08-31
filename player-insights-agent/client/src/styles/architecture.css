@@ -273,6 +273,15 @@
   transition: stroke-width 120ms ease;
 }
 /*
+ * Hosting is topology, not traffic. A solid, stationary connector distinguishes
+ * the endpoint/index relationship from every dashed, moving request/data path.
+ * It also has no travelling dot in ArchitecturePage.tsx.
+ */
+.arch-edge[data-relationship='hosting'] {
+  stroke-dasharray: none;
+  animation: none;
+}
+/*
  * Only the bound selected by the KPI is painted. The relationship colour still
  * rides on the dot. A thicker solid line in the KPI's legend colour, and no
  * filter: a drop-shadow on these paths restyles the stacking context and was

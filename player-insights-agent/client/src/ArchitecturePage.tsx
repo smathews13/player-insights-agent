@@ -364,8 +364,9 @@ const LEGEND: ReadonlyArray<{ accent: ArchitectureAccent; label: string }> = [
  * The drawing.
  *
  * Three layers, in this order, and the order is the reason it works: the edges
- * in one SVG, the travelling dots as elements following the SAME path strings,
- * and the cards on top. The dots are CSS motion paths rather than SVG
+ * in one SVG, travelling dots on directional flow edges following the SAME path
+ * strings, and the cards on top. Hosting topology stays static so it cannot be
+ * mistaken for a request direction. The dots are CSS motion paths rather than SVG
  * `<animateMotion>` because SMIL's clock does not run in every embedding context
  * and it ignores `prefers-reduced-motion`; the reduced-motion rule in
  * architecture.css switches these off with `!important`, which is what it takes
@@ -481,6 +482,7 @@ export function ArchitectureCanvas({
                     <path
                       className="arch-edge"
                       d={edge.d}
+                      data-relationship={edge.relationship}
                       data-control-bounds={controlBounds.join(' ') || undefined}
                       data-control-active={controlled ? 'true' : undefined}
                       data-control-bound={controlled ? activeBound : undefined}
@@ -492,20 +494,22 @@ export function ArchitectureCanvas({
                 );
               })}
             </svg>
-            {edges.map((edge) => (
-              <span
-                className="arch-dot"
-                key={edge.id}
-                data-testid={`arch-dot-${edge.id}`}
-                aria-hidden="true"
-                style={{
-                  offsetPath: `path('${edge.d}')`,
-                  background: `var(${ACCENT_TOKEN[edge.accent]})`,
-                  animationDuration: `${edge.duration}s`,
-                  animationDelay: `${edge.delay}s`,
-                }}
-              />
-            ))}
+            {edges
+              .filter((edge) => edge.relationship === 'flow')
+              .map((edge) => (
+                <span
+                  className="arch-dot"
+                  key={edge.id}
+                  data-testid={`arch-dot-${edge.id}`}
+                  aria-hidden="true"
+                  style={{
+                    offsetPath: `path('${edge.d}')`,
+                    background: `var(${ACCENT_TOKEN[edge.accent]})`,
+                    animationDuration: `${edge.duration}s`,
+                    animationDelay: `${edge.delay}s`,
+                  }}
+                />
+              ))}
             {ARCHITECTURE_NODES.map((node) => {
               const box = nodeBox(node.id);
               if (!box) return null;

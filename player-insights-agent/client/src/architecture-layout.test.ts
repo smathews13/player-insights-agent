@@ -598,9 +598,10 @@ describe('every connection in the model is drawn', () => {
   it('staggers the dots rather than firing all of them together', () => {
     // Ten dots leaving at once reads as one pulse across the whole page, which
     // says the app does all of this at the same moment. It does not.
-    const delays = drawnEdges().map((edge) => edge.delay);
+    const flows = drawnEdges().filter((edge) => edge.relationship === 'flow');
+    const delays = flows.map((edge) => edge.delay);
     expect(new Set(delays).size).toBeGreaterThan(1);
-    for (const edge of drawnEdges()) {
+    for (const edge of flows) {
       expect(edge.duration, edge.id).toBeGreaterThan(0);
       // Shorter than one traversal, or the line spends part of every loop empty
       // while its neighbours are busy, which reads as a connection that stopped.
@@ -752,6 +753,21 @@ describe('every line can be followed from one card to the other', () => {
 describe('the travelling dot rides the line it belongs to', () => {
   const dot = rule(CSS, '.arch-dot');
 
+  it('keeps hosting static while query and data edges flow', () => {
+    const hosting = drawnEdges().find(
+      (edge) => edge.from === 'semantic-index-endpoint' && edge.to === 'semantic-index'
+    )!;
+    const query = drawnEdges().find((edge) => edge.from === 'data-source-finder' && edge.to === 'semantic-index')!;
+    const page = readFileSync(fileURLToPath(new URL('./ArchitecturePage.tsx', import.meta.url)), 'utf8');
+
+    expect(hosting.relationship).toBe('hosting');
+    expect(hosting.label).toBe('hosts');
+    expect(query.relationship).toBe('flow');
+    expect(page).toMatch(/edges\s*\.filter\(\(edge\) => edge\.relationship === 'flow'\)\s*\.map/);
+    expect(rule(CSS, ".arch-edge[data-relationship='hosting']")).toMatch(/animation:\s*none/);
+    expect(rule(CSS, ".arch-edge[data-relationship='hosting']")).toMatch(/stroke-dasharray:\s*none/);
+  });
+
   it('places the box at the origin the path coordinates are stated in', () => {
     // A motion path is applied as a transform on top of the layout position, so
     // the layout position has to be (0, 0) of the canvas or every coordinate in
@@ -799,7 +815,7 @@ describe('the travelling dot rides the line it belongs to', () => {
     expect(page).toMatch(/viewBox=\{`0 0 \$\{CANVAS_WIDTH\} \$\{CANVAS_HEIGHT\}`\}/);
   });
 
-  it('gives the dot the path itself rather than a second copy of the geometry', () => {
+  it('gives each flow dot the path itself rather than a second copy of the geometry', () => {
     // The page hands each dot `edge.d` -- the same string the `<path>` is drawn
     // from -- and the assertion is on the source because there is no browser here
     // to read a computed motion path back out of. A dot positioned from its
@@ -1177,12 +1193,8 @@ describe('the runtime-bound colour follows the architecture legend', () => {
     expect(rule(CSS, ".arch-tiles-loop li[data-accent='agent']")).toMatch(
       /--arch-bound-color:\s*var\(--ast-primary-control-border\)/
     );
-    expect(rule(CSS, ".arch-tiles-loop li[data-accent='genie']")).toMatch(
-      /--arch-bound-color:\s*var\(--db-teal-600\)/
-    );
-    expect(rule(CSS, ".arch-tiles-loop li[data-accent='question']")).toMatch(
-      /--arch-bound-color:\s*var\(--ast-blue\)/
-    );
+    expect(rule(CSS, ".arch-tiles-loop li[data-accent='genie']")).toMatch(/--arch-bound-color:\s*var\(--db-teal-600\)/);
+    expect(rule(CSS, ".arch-tiles-loop li[data-accent='question']")).toMatch(/--arch-bound-color:\s*var\(--ast-blue\)/);
     expect(rule(CSS, ".arch-canvas[data-active-accent='agent']")).toMatch(
       /--arch-active-bound:\s*var\(--ast-primary-control-border\)/
     );
@@ -1202,23 +1214,22 @@ describe('the runtime-bound colour follows the architecture legend', () => {
     expect(at).toBeGreaterThan(-1);
     const selected = CSS.slice(at, CSS.indexOf('}', at));
     expect(selected).toMatch(/outline:\s*3px solid var\(--arch-active-bound\)/);
-    expect(selected).toMatch(
-      /background:\s*color-mix\(in srgb, var\(--arch-active-bound\) 28%, transparent\)/
-    );
+    expect(selected).toMatch(/background:\s*color-mix\(in srgb, var\(--arch-active-bound\) 28%, transparent\)/);
     expect(selected).not.toMatch(/filter:/);
     expect(selected).not.toMatch(/#fff|#ffffff|white|--card|--ast-white|--background/i);
     expect(rule(CSS, "html[data-theme='dark'] .arch-node.arch-node-selected")).toMatch(
       /background:\s*color-mix\(in srgb, var\(--arch-active-bound\) 28%, transparent\)/
     );
     expect(rule(CSS, '.arch-tiles-loop li')).toMatch(/outline:\s*3px solid transparent/);
-    expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).toMatch(
-      /outline-color:\s*var\(--arch-bound-color\)/
-    );
+    expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).toMatch(/outline-color:\s*var\(--arch-bound-color\)/);
     expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).not.toMatch(/background:/);
     expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).not.toMatch(/filter:/);
-    expect(rule(CSS, '.arch-bound-tile:hover,\n.arch-bound-tile:active,\n.arch-bound-tile:focus,\n.arch-bound-tile:focus-visible')).toMatch(
-      /background:\s*transparent/
-    );
+    expect(
+      rule(
+        CSS,
+        '.arch-bound-tile:hover,\n.arch-bound-tile:active,\n.arch-bound-tile:focus,\n.arch-bound-tile:focus-visible'
+      )
+    ).toMatch(/background:\s*transparent/);
     expect(CSS).not.toMatch(/--arch-active-bound:\s*var\(--ast-navy\)/);
     expect(CSS).not.toMatch(/--arch-bound-color:\s*var\(--ast-navy\)/);
   });

@@ -8,7 +8,7 @@ import { ArchitectureCanvas, ArchitecturePage, ArchitectureTiles, ChainBoundTile
 import { AGENT_CHAIN, ANSWER_CONTRACT, CHAIN_BOUND_LABEL, CHAIN_BOUNDS } from './agent-chain';
 import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES, dependencyNodes, drawnReadings } from './architecture';
 import { ARCHITECTURE_CONTROL_SCOPES, nextActiveBound } from './architecture-control-scopes';
-import { BOTTOM_ROW_NODES, NODE_BOXES, drawnEdges } from './architecture-layout';
+import { BOTTOM_ROW_NODES, NODE_BOXES, drawnEdges, pathEnds } from './architecture-layout';
 import { readConnections, readingsById, type SettingsPayload } from './connection-model';
 import { partial } from './styles/stylesheet';
 import { connectedResource } from '../../shared/deployment-config';
@@ -459,8 +459,11 @@ describe('every card on the drawing reports the live reading and not a literal',
       ['genie-dictionary', 'Defines business terms and fields.'],
       ['sql-warehouse', 'Runs read-only SQL under the reader\u2019s grants.'],
       ['catalog', 'Applies governance to every table read.'],
-      ['semantic-index', 'Searches field and metric descriptions for source discovery.'],
-      ['semantic-index-endpoint', 'Serves Vector Search queries.'],
+      [
+        'semantic-index',
+        'The agent queries this searchable index by name for field and metric descriptions during source discovery.',
+      ],
+      ['semantic-index-endpoint', 'Hosts the Vector Search index and provides its serving compute.'],
       ['lakebase', 'Stores conversations, uploads, feedback, and benchmark runs.'],
       ['experiment-id', 'Stores run traces, tool calls, SQL, and token usage.'],
     ]);
@@ -552,6 +555,40 @@ describe('the semantic lane draws the index and the endpoint separately', () => 
 
     expect(equivalent).toContain('Vector Search index: Reachable');
     expect(equivalent).toContain('Vector Search endpoint: Blocked');
+    expect(equivalent).toContain('queries this searchable index by name');
+    expect(equivalent).toContain('hosts the index and provides its serving compute');
+    expect(equivalent).toContain('This is not query flow.');
+  });
+
+  it('shows query direction separately from static endpoint hosting', () => {
+    const markup = canvasMarkup(lane('ok', 'ok'));
+    const query = drawnEdges().find((edge) => edge.from === 'data-source-finder' && edge.to === 'semantic-index')!;
+    const hosting = drawnEdges().find(
+      (edge) => edge.from === 'semantic-index-endpoint' && edge.to === 'semantic-index'
+    )!;
+
+    expect(query.relationship).toBe('flow');
+    expect(pathEnds(query.d).start.x).toBe(
+      NODE_BOXES['data-source-finder'].left + NODE_BOXES['data-source-finder'].width
+    );
+    expect(pathEnds(query.d).end.x).toBe(NODE_BOXES['semantic-index'].left);
+    expect(markup).toContain(`data-testid="arch-dot-${query.id}"`);
+
+    expect(hosting.relationship).toBe('hosting');
+    expect(hosting.label).toBe('hosts');
+    expect(markup).not.toContain(`data-testid="arch-dot-${hosting.id}"`);
+    expect(markup).toContain(`d="${hosting.d}" data-relationship="hosting"`);
+  });
+
+  it('puts the hosting and query explanation visibly inside the two cards', () => {
+    const markup = canvasMarkup(lane('ok', 'ok'));
+
+    expect(text(card(markup, 'semantic-index'))).toContain(
+      'The agent queries this searchable index by name for field and metric descriptions during source discovery.'
+    );
+    expect(text(card(markup, 'semantic-index-endpoint'))).toContain(
+      'Hosts the Vector Search index and provides its serving compute.'
+    );
   });
 });
 
@@ -689,10 +726,10 @@ describe('the drawing is reachable and readable without seeing it', () => {
    * The CSS side of that -- the box at the canvas origin, anchored by its middle,
    * displaced by nothing -- is pinned in architecture-layout.test.ts.
    */
-  it('draws each dot from the same path string as its line', () => {
+  it('draws each flow dot from the same path string as its line', () => {
     const markup = canvasMarkup();
 
-    for (const edge of drawnEdges()) {
+    for (const edge of drawnEdges().filter((candidate) => candidate.relationship === 'flow')) {
       const dot = markup.slice(markup.indexOf(`data-testid="arch-dot-${edge.id}"`));
       const style = /style="([^"]*)"/.exec(dot)?.[1] ?? '';
       // Entity-escaped in the attribute, so the comparison is against the same
@@ -708,8 +745,13 @@ describe('the drawing is reachable and readable without seeing it', () => {
     const equivalent = markup.slice(markup.indexOf('data-testid="architecture-equivalent"'));
 
     expect(markup).toMatch(/<svg[^>]*aria-hidden="true"/);
-    for (const edge of drawnEdges()) {
+    for (const edge of drawnEdges().filter((candidate) => candidate.relationship === 'flow')) {
       expect(markup, edge.id).toContain(`data-testid="arch-dot-${edge.id}"`);
+    }
+    for (const edge of drawnEdges().filter((candidate) => candidate.relationship === 'hosting')) {
+      expect(markup, edge.id).not.toContain(`data-testid="arch-dot-${edge.id}"`);
+    }
+    for (const edge of drawnEdges()) {
       expect(text(equivalent), edge.meaning).toContain(edge.meaning);
     }
     for (const node of ARCHITECTURE_NODES) {

@@ -113,7 +113,10 @@ describe('nothing on the page is a figure that was not read', () => {
     expect(nodeValue(configured.get('sql-warehouse'))).toEqual({ value: 'an-id', measured: false });
 
     const measured = readingsById(
-      readConnections(payload([row('sql-warehouse', { configured: 'an-id', actual: 'an-id', actualObserved: true })]), [])
+      readConnections(
+        payload([row('sql-warehouse', { configured: 'an-id', actual: 'an-id', actualObserved: true })]),
+        []
+      )
     );
     expect(nodeValue(measured.get('sql-warehouse'))).toEqual({ value: 'an-id', measured: true });
 
@@ -149,7 +152,10 @@ describe('a check that did not run is not a component that is broken', () => {
     const readings = readingsById(
       readConnections(payload([row('sql-warehouse')]), [{ ...unverified, id: resource.actualFromCheck! }])
     );
-    const report = nodeReport(ARCHITECTURE_NODES.find((node) => node.id === 'sql-warehouse')!, readings.get('sql-warehouse'));
+    const report = nodeReport(
+      ARCHITECTURE_NODES.find((node) => node.id === 'sql-warehouse')!,
+      readings.get('sql-warehouse')
+    );
     expect(report.tone).toBe('not-checked');
     expect(report.label).not.toMatch(/blocked/i);
     expect(report.note).not.toMatch(/fail|broken|missing/i);
@@ -168,10 +174,12 @@ describe('a check that did not run is not a component that is broken', () => {
 
   it('keeps not-checked, blocked and nothing-to-reach three different words', () => {
     const words = ['not-checked', 'blocked', 'nothing-to-reach'].map(
-      (status) => nodeReport(
-          { ...ARCHITECTURE_NODES[2], presence: 'connection' },
-          { status, marker: 'none', summary: { value: '', measured: false } } as never
-        ).label
+      (status) =>
+        nodeReport({ ...ARCHITECTURE_NODES[2], presence: 'connection' }, {
+          status,
+          marker: 'none',
+          summary: { value: '', measured: false },
+        } as never).label
     );
     expect(new Set(words).size).toBe(3);
     expect(words).toEqual(['Not checked', 'Blocked', 'Nothing to reach']);
@@ -342,15 +350,17 @@ describe('the semantic lane is two objects, and one can fail without the other',
     expect(architectureNode(INDEX)!.lane).toBe('semantic');
   });
 
-  it('says the index is served by the endpoint, and searched by the finder agent', () => {
+  it('separates endpoint hosting from the finder agent query path', () => {
     // The two relationships are different and the drawing states both. An edge
     // from the finder to the endpoint would say a search goes there directly;
     // an edge only from the finder to the index would leave the
     // endpoint on the page with nothing joining it to anything.
-    const serves = ARCHITECTURE_EDGES.find((edge) => edge.from === ENDPOINT && edge.to === INDEX);
-    const searches = ARCHITECTURE_EDGES.find((edge) => edge.from === 'data-source-finder' && edge.to === INDEX);
-    expect(serves, 'the endpoint serves the index').toBeDefined();
-    expect(searches, 'the finder searches the index').toBeDefined();
+    const hosting = ARCHITECTURE_EDGES.find((edge) => edge.from === ENDPOINT && edge.to === INDEX);
+    const query = ARCHITECTURE_EDGES.find((edge) => edge.from === 'data-source-finder' && edge.to === INDEX);
+    expect(hosting?.relationship).toBe('hosting');
+    expect(hosting?.meaning).toContain('hosts the index');
+    expect(query?.relationship).toBe('flow');
+    expect(query?.meaning).toContain('queries the Vector Search index by name');
     expect(ARCHITECTURE_EDGES.some((edge) => edge.to === ENDPOINT)).toBe(false);
   });
 
@@ -388,10 +398,7 @@ describe('the semantic lane is two objects, and one can fail without the other',
   it('grades each object on its own check once the checks have run', () => {
     const both = reports({
       index: CONFIGURED,
-      checks: [
-        check(INDEX, 'ok', 'a_catalog.a_schema.an_index'),
-        check(ENDPOINT, 'ok', 'an-endpoint'),
-      ],
+      checks: [check(INDEX, 'ok', 'a_catalog.a_schema.an_index'), check(ENDPOINT, 'ok', 'an-endpoint')],
     });
     expect(both.index.label).toBe(CONNECTION_STATUS_LABEL.reachable);
     expect(both.endpoint.label).toBe(CONNECTION_STATUS_LABEL.reachable);
@@ -471,15 +478,22 @@ describe('the semantic lane is two objects, and one can fail without the other',
       index: CONFIGURED,
       checks: [check(INDEX, 'ok', 'a_catalog.a_schema.an_index'), check(ENDPOINT, 'failed')],
     });
-    const lines = describeArchitecture(new Map([[INDEX, index!], [ENDPOINT, endpoint!]]));
+    const lines = describeArchitecture(
+      new Map([
+        [INDEX, index!],
+        [ENDPOINT, endpoint!],
+      ])
+    );
     expect(lines.some((line) => line.startsWith('Vector Search index:'))).toBe(true);
     expect(lines.some((line) => line.startsWith('Vector Search endpoint:'))).toBe(true);
     // And the two are graded differently in the words, not only in the pills.
-    expect(lines.find((line) => line.startsWith('Vector Search index:'))).toContain(
-      CONNECTION_STATUS_LABEL.reachable
+    expect(lines.find((line) => line.startsWith('Vector Search index:'))).toContain(CONNECTION_STATUS_LABEL.reachable);
+    expect(lines.find((line) => line.startsWith('Vector Search endpoint:'))).toContain(CONNECTION_STATUS_LABEL.blocked);
+    expect(lines).toContain(
+      'Vector Search endpoint and Vector Search index: The Vector Search endpoint hosts the index and provides its serving compute. This is not query flow.'
     );
-    expect(lines.find((line) => line.startsWith('Vector Search endpoint:'))).toContain(
-      CONNECTION_STATUS_LABEL.blocked
+    expect(lines).toContain(
+      'Data Source Finder to Vector Search index: During source discovery, the agent queries the Vector Search index by name for field and metric descriptions.'
     );
   });
 });
@@ -666,10 +680,7 @@ describe('an index that answers is not an index that is current', () => {
  * at either end fails here rather than silently dropping a card.
  */
 describe('Architecture cannot know less about the semantic lane than Connections does', () => {
-  const PROBES = readFileSync(
-    fileURLToPath(new URL('../../server/lib/dependency-probes.ts', import.meta.url)),
-    'utf8'
-  );
+  const PROBES = readFileSync(fileURLToPath(new URL('../../server/lib/dependency-probes.ts', import.meta.url)), 'utf8');
 
   it('draws a node for every semantic object the server probes', () => {
     // The two probe ids, read out of the server's own subjects rather than
@@ -699,7 +710,10 @@ describe('Architecture cannot know less about the semantic lane than Connections
     // Connections would put on the same row. Only the two states that are NOT
     // probe verdicts -- no index, and a version that did not say -- may carry
     // wording of their own, and both are asserted above.
-    const rows = [row('semantic-index', { configured: 'a.b.c', configuredFrom: 'artifact' }), row('semantic-index-endpoint', { configuredFrom: '' })];
+    const rows = [
+      row('semantic-index', { configured: 'a.b.c', configuredFrom: 'artifact' }),
+      row('semantic-index-endpoint', { configuredFrom: '' }),
+    ];
     for (const [indexStatus, endpointStatus] of [
       ['ok', 'ok'],
       ['ok', 'failed'],
@@ -707,7 +721,15 @@ describe('Architecture cannot know less about the semantic lane than Connections
     ] as const) {
       const checks = [
         { id: 'semantic-index', label: '', status: indexStatus, name: 'a.b.c', detail: '', error: '', kind: 'x' },
-        { id: 'semantic-index-endpoint', label: '', status: endpointStatus, name: 'an-endpoint', detail: '', error: '', kind: 'x' },
+        {
+          id: 'semantic-index-endpoint',
+          label: '',
+          status: endpointStatus,
+          name: 'an-endpoint',
+          detail: '',
+          error: '',
+          kind: 'x',
+        },
       ] as unknown as PreflightCheck[];
       const readings = readingsById(readConnections(payload(rows), checks));
       for (const id of ['semantic-index', 'semantic-index-endpoint']) {
@@ -732,7 +754,9 @@ describe('nothing about this deployment is written down in source', () => {
    */
   it('names no workspace, catalog, warehouse, space or endpoint', () => {
     for (const file of [PAGE, MODEL, LAYOUT, CSS]) {
-      expect(file).not.toMatch(/https?:\/\/[a-z0-9-]*\.(cloud\.databricks\.com|azuredatabricks\.net|gcp\.databricks\.com)/i);
+      expect(file).not.toMatch(
+        /https?:\/\/[a-z0-9-]*\.(cloud\.databricks\.com|azuredatabricks\.net|gcp\.databricks\.com)/i
+      );
       expect(file).not.toMatch(/\bdbc-[0-9a-f-]+/i);
       expect(file).not.toMatch(/adb-\d+\.\d+/);
       // A warehouse or space id is a 16-character hex string.
@@ -767,10 +791,16 @@ describe('the diagram is not information only a sighted mouse user can get', () 
   it('states every node and every edge in words', () => {
     const lines = describeArchitecture(new Map());
     for (const node of ARCHITECTURE_NODES) {
-      expect(lines.some((line) => line.startsWith(`${node.label}:`)), node.id).toBe(true);
+      expect(
+        lines.some((line) => line.startsWith(`${node.label}:`)),
+        node.id
+      ).toBe(true);
     }
     for (const edge of ARCHITECTURE_EDGES) {
-      expect(lines.some((line) => line.includes(edge.meaning)), `${edge.from}->${edge.to}`).toBe(true);
+      expect(
+        lines.some((line) => line.includes(edge.meaning)),
+        `${edge.from}->${edge.to}`
+      ).toBe(true);
     }
   });
 

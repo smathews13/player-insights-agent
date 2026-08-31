@@ -581,7 +581,7 @@ export interface NodeBox {
  *
  * The two semantic cards are the exception to that row, and they always were:
  * the index is drawn low on the far right and is on the answer path, and the
- * endpoint that serves it sits in the column to its right, beneath the warehouse
+ * endpoint that hosts it sits in the column to its right, beneath the warehouse
  * and the catalog. That column is what-runs-it -- Genie's SQL runs on the
  * warehouse, a search runs on the endpoint -- so the pairing is the one the rest
  * of the drawing already uses.
@@ -669,6 +669,8 @@ export interface DrawnEdge {
   id: string;
   from: string;
   to: string;
+  /** Flow edges animate from `from` to `to`; hosting edges remain static. */
+  relationship: 'flow' | 'hosting';
   /** The sentence this edge means, for the text the diagram is read as. */
   meaning: string;
   /** The two or three words drawn beside the line. */
@@ -1029,12 +1031,11 @@ const EDGE_GEOMETRY: Readonly<
     duration: 3,
     delay: 1.8,
   },
-  // Drawn from the endpoint to the index, in the same shape as everything else
-  // in that corridor and simply reversed, because the endpoint is what a search
-  // of the index runs on.
+  // A static topology connector: the endpoint hosts the index, but no request or
+  // result travels from the endpoint to the index along this line.
   'semantic-index-endpoint->semantic-index': {
     id: 'pe11',
-    label: 'serves',
+    label: 'hosts',
     from: { side: 'left', along: ENTRY_DROP },
     to: { side: 'right', along: 94 },
     route: { kind: 'curve' },
@@ -1097,6 +1098,7 @@ export function drawnEdges(): DrawnEdge[] {
       id: geometry.id,
       from: edge.from,
       to: edge.to,
+      relationship: edge.relationship,
       meaning: edge.meaning,
       label: geometry.label,
       d: edgePath(from, to, geometry),
