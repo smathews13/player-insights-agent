@@ -588,15 +588,54 @@ html body[data-scroll-locked] {
  * on this sheet.
  */
 .run-detail {
+  position: sticky;
+  top: calc(var(--app-header-h) + 24px);
+  height: calc(100dvh - var(--app-header-h) - 46px);
   min-width: 0;
-  display: grid;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  align-content: start;
+  align-items: stretch;
   box-sizing: border-box;
   padding: 16px 20px 20px;
   border: 1px solid var(--ast-hairline);
   border-radius: var(--ast-radius-card);
   background: var(--ast-pane);
+  overflow: hidden;
+}
+/*
+ * The run header and tabs stay in the anchored detail column. Each tab's body
+ * owns the only vertical scroller below them, so expanding a timeline row or an
+ * Agent map detail cannot move the document and cannot shift page chrome.
+ */
+.run-detail-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.run-detail-tab-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+.run-detail-scroll {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding-right: 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
 }
 .run-detail-state {
   min-height: 430px;

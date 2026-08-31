@@ -72,11 +72,61 @@
 }
 /*
  * A cold direct link can reach Lakebase before the answer-only graph arrives.
- * Keep a useful answer-sized surface in place while showing the raw narrative,
- * so formatting the saved answer does not collapse and then expand the thread.
+ * Keep an answer-sized surface in place without exposing the unformatted stored
+ * narrative, so formatting the answer does not collapse and expand the thread.
  */
-.conversation-main .stored-answer-loading {
+.conversation-main .stored-answer-loading,
+.conversation-main .stored-answer-error {
   min-height: min(28rem, 60dvh);
+}
+.stored-answer-skeleton-header {
+  display: grid;
+  gap: 12px;
+  padding: 16px 20px 12px;
+}
+.stored-answer-skeleton-badge {
+  width: 7rem;
+  height: 1.25rem;
+}
+.stored-answer-skeleton-title {
+  width: min(82%, 38rem);
+  height: 2rem;
+}
+.stored-answer-skeleton-subtitle {
+  width: min(58%, 28rem);
+  height: 1rem;
+}
+.stored-answer-skeleton-content {
+  display: grid;
+  gap: 28px;
+  padding-block: 20px 28px;
+}
+.stored-answer-skeleton-copy {
+  display: grid;
+  gap: 10px;
+}
+.stored-answer-skeleton-copy > :nth-child(1),
+.stored-answer-skeleton-copy > :nth-child(2) {
+  width: 100%;
+  height: 1rem;
+}
+.stored-answer-skeleton-copy > :nth-child(3) {
+  width: 72%;
+  height: 1rem;
+}
+.stored-answer-skeleton-figure {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.stored-answer-skeleton-figure > * {
+  min-height: 7rem;
+}
+.stored-answer-error-content {
+  display: grid;
+  place-content: center;
+  min-height: calc(min(28rem, 60dvh) - 4px);
+  justify-items: start;
 }
 /* Wide enough for the suggestion grid and the composer, both of which cap at 720px. */
 .ask-hero {

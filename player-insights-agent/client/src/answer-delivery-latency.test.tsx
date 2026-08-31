@@ -1,11 +1,20 @@
+import { Suspense } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TraceStage } from './answer-shape';
 import { askStreaming } from './ask-stream';
 import { LiveProgress } from './LiveProgress';
+import { StoredAnswerLoadError, StoredAnswerLoading } from './StoredAnswerBoundary';
 import type { StoredAnswerRendererProps } from './StoredAnswerRenderer';
-import { createStoredAnswerRendererPreloader, startStoredAnswerRendererPreload } from './stored-answer-loader';
+import {
+  createLazyStoredAnswerRenderer,
+  createStoredAnswerRendererPreloader,
+  preloadStoredAnswerRendererForHistory,
+  scheduleStoredAnswerRendererPreload,
+  startStoredAnswerRendererPreload,
+  type StoredAnswerRendererPreloader,
+} from './stored-answer-loader';
 
 type RendererModule = typeof import('./StoredAnswerRenderer');
 
@@ -24,8 +33,26 @@ const STAGE: TraceStage = {
 };
 
 function rendererModule(): RendererModule {
-  const Renderer = (_props: StoredAnswerRendererProps) => <div />;
+  const Renderer = (props: StoredAnswerRendererProps) => <div data-formatted={props.id}>Formatted answer</div>;
   return { default: Renderer };
+}
+
+function rendererProps(id: string, rawContent = `RAW-${id}`): StoredAnswerRendererProps {
+  return {
+    id,
+    rawContent,
+    feedback: { usefulness: null, comment: '', saving: false, saved: false, open: false, error: null },
+    onFeedbackChange: () => undefined,
+    saveFeedback: () => Promise.resolve(),
+    showFeedback: false,
+  };
+}
+
+function loadedFrame(preload: StoredAnswerRendererPreloader, props: StoredAnswerRendererProps): string {
+  const loaded = preload.peek();
+  if (!loaded) return renderToStaticMarkup(<StoredAnswerLoading />);
+  const Renderer = loaded.default;
+  return renderToStaticMarkup(<Renderer {...props} />);
 }
 
 function frame(event: string, data: unknown): Uint8Array {
@@ -46,9 +73,7 @@ describe('answer renderer latency isolation', () => {
         })
     );
     const preload = createStoredAnswerRendererPreloader(importer);
-
-    startStoredAnswerRendererPreload(preload);
-    expect(importer).toHaveBeenCalledOnce();
+    const scheduled: Array<() => void> = [];
 
     let stream!: ReadableStreamDefaultController<Uint8Array>;
     const response = new Response(
@@ -70,6 +95,9 @@ describe('answer renderer latency isolation', () => {
     const answer = askStreaming(
       { prompt: 'Which title led?', approvedPlanId: 'plan-1', executePlan: true },
       {
+        onOpen() {
+          scheduleStoredAnswerRendererPreload(preload, (task) => scheduled.push(task));
+        },
         onStage(stage) {
           liveMarkup = renderToStaticMarkup(
             <LiveProgress stages={[stage]} openedAt={Date.now()} question="Which title led?" />
@@ -80,6 +108,10 @@ describe('answer renderer latency isolation', () => {
       fetcher
     );
     expect(fetcher).toHaveBeenCalledOnce();
+    expect(importer).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(scheduled).toHaveLength(1));
+    scheduled[0]();
+    expect(importer).toHaveBeenCalledOnce();
     stream.enqueue(new TextEncoder().encode(': open\n\n'));
     stream.enqueue(frame('stage', STAGE));
     await stageSeen;
@@ -106,7 +138,71 @@ describe('answer renderer latency isolation', () => {
     const preload = createStoredAnswerRendererPreloader(importer);
 
     await expect(preload()).rejects.toThrow('chunk unavailable');
+    const props = rendererProps('answer-retry', 'RAW RETAINED ANSWER');
+    const failure = renderToStaticMarkup(
+      <StoredAnswerLoadError onRetry={() => startStoredAnswerRendererPreload(preload)} />
+    );
+    expect(failure).toContain('Retry answer');
+    expect(failure).not.toContain(props.rawContent);
+
     await expect(preload()).resolves.toBe(loadedRenderer);
     expect(importer).toHaveBeenCalledTimes(2);
+    expect(loadedFrame(preload, props)).toContain('data-formatted="answer-retry"');
+    expect(props.rawContent).toBe('RAW RETAINED ANSWER');
+  });
+
+  it('never emits raw prose while the shared import is unresolved, including rapid switches', () => {
+    const importer = vi.fn(() => new Promise<RendererModule>(() => undefined));
+    const preload = createStoredAnswerRendererPreloader(importer);
+    const Renderer = createLazyStoredAnswerRenderer(preload);
+    const draw = (props: StoredAnswerRendererProps) =>
+      renderToStaticMarkup(
+        <Suspense fallback={<StoredAnswerLoading />}>
+          <Renderer {...props} />
+        </Suspense>
+      );
+
+    const first = draw(rendererProps('answer-a', 'RAW ANSWER A'));
+    const second = draw(rendererProps('answer-b', 'RAW ANSWER B'));
+
+    expect(first).not.toContain('RAW ANSWER A');
+    expect(second).not.toContain('RAW ANSWER A');
+    expect(second).not.toContain('RAW ANSWER B');
+    expect(second).toContain('aria-busy="true"');
+    expect(second).toContain('stored-answer-skeleton-figure');
+    expect(importer).toHaveBeenCalledOnce();
+  });
+
+  it('prefetches once when rail history first proves a saved answer exists', () => {
+    const importer = vi.fn(() => new Promise<RendererModule>(() => undefined));
+    const preload = createStoredAnswerRendererPreloader(importer);
+    const scheduled: Array<() => void> = [];
+    const schedule = (task: () => void) => scheduled.push(task);
+
+    preloadStoredAnswerRendererForHistory([{ status: null }], preload, schedule);
+    expect(scheduled).toHaveLength(0);
+    expect(importer).not.toHaveBeenCalled();
+
+    preloadStoredAnswerRendererForHistory([{ status: 'SUCCEEDED' }], preload, schedule);
+    preloadStoredAnswerRendererForHistory([{ role: 'assistant' }], preload, schedule);
+    expect(scheduled).toHaveLength(2);
+    scheduled.forEach((task) => task());
+    expect(importer).toHaveBeenCalledOnce();
+  });
+
+  it('renders every later answer synchronously after the one module resolves', async () => {
+    const loadedRenderer = rendererModule();
+    const importer = vi.fn(() => Promise.resolve(loadedRenderer));
+    const preload = createStoredAnswerRendererPreloader(importer);
+
+    await preload();
+    const first = loadedFrame(preload, rendererProps('answer-one'));
+    const second = loadedFrame(preload, rendererProps('answer-two'));
+
+    expect(first).toContain('data-formatted="answer-one"');
+    expect(second).toContain('data-formatted="answer-two"');
+    expect(first).not.toContain('stored-answer-loading');
+    expect(second).not.toContain('stored-answer-loading');
+    expect(importer).toHaveBeenCalledOnce();
   });
 });

@@ -58,7 +58,7 @@
  * because vitest runs on `node`: a rule that only exists inside markup can be
  * asserted against a rendered tree and never against itself.
  */
-import { useId, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react';
 import { Badge } from './ui';
 import { ChevronRight, Copy, Database, Search, Wrench } from 'lucide-react';
 import { AstrolabeMark } from './AstrolabeMark';
@@ -113,6 +113,7 @@ import {
   type RailGlyph,
   type RunContainerSummary,
 } from './agent-map';
+import { revealStepDetail, returnToSelectedStep, type StepActivation } from './agent-map-scroll';
 
 /**
  * How many lines of a statement show before the block is clamped.
@@ -503,15 +504,38 @@ function SqlBlock({ sql, tables = [] }: { sql: string; tables?: readonly string[
   );
 }
 
-function RunSummaryDetail({ stage, summary, id }: { stage: TraceStage; summary: RunContainerSummary; id: string }) {
+function RunSummaryDetail({
+  stage,
+  summary,
+  id,
+  step,
+  headingRef,
+  backButtonRef,
+  onBackToMap,
+}: {
+  stage: TraceStage;
+  summary: RunContainerSummary;
+  id: string;
+  step: number;
+  headingRef?: RefObject<HTMLElement | null>;
+  backButtonRef?: RefObject<HTMLButtonElement | null>;
+  onBackToMap?: () => void;
+}) {
   return (
     <div className={`dag-detail run-summary ${summary.status.replaceAll(' ', '-')}`} id={id}>
       <div className="dag-detail-head">
         <KindChip stage={stage} />
-        <strong>Run summary</strong>
+        <strong ref={headingRef} role="heading" aria-level={3} tabIndex={-1}>
+          Step {step} · <StageName stage={stage} mono clamp={false} />
+        </strong>
         <Badge variant="outline" className={astPill(summary.status)}>
           {summary.status}
         </Badge>
+        {onBackToMap && (
+          <button ref={backButtonRef} type="button" className="dag-back-to-map" onClick={onBackToMap} hidden>
+            Back to agent map
+          </button>
+        )}
       </div>
       <dl aria-label="Run summary evidence">
         <dt>Execution</dt>
@@ -599,6 +623,9 @@ export function StageDetail({
   id,
   charts,
   runSummary = null,
+  headingRef,
+  backButtonRef,
+  onBackToMap,
 }: {
   stage: TraceStage;
   step: number;
@@ -606,8 +633,23 @@ export function StageDetail({
   id: string;
   charts?: Chart[];
   runSummary?: RunContainerSummary | null;
+  headingRef?: RefObject<HTMLElement | null>;
+  backButtonRef?: RefObject<HTMLButtonElement | null>;
+  onBackToMap?: () => void;
 }) {
-  if (runSummary) return <RunSummaryDetail stage={stage} summary={runSummary} id={id} />;
+  if (runSummary) {
+    return (
+      <RunSummaryDetail
+        stage={stage}
+        summary={runSummary}
+        id={id}
+        step={step}
+        headingRef={headingRef}
+        backButtonRef={backButtonRef}
+        onBackToMap={onBackToMap}
+      />
+    );
+  }
   // The tool's real name, which the stage id carries verbatim. `_TOOL_STAGE_NAMES`
   // in agent.py gives a tool a reader's label ("Queried governed data") and falls
   // back to "Called {name}" for one it has no label for, so this is the only place
@@ -630,10 +672,15 @@ export function StageDetail({
     <div className={`dag-detail ${stage.status}`} id={id}>
       <div className="dag-detail-head">
         <KindChip stage={stage} />
-        <strong>
+        <strong ref={headingRef} role="heading" aria-level={3} tabIndex={-1}>
           Step {step} · <StageName stage={stage} mono clamp={false} />
         </strong>
         <span className="dag-detail-measures ast-num">{detailTiming(stage, origin)}</span>
+        {onBackToMap && (
+          <button ref={backButtonRef} type="button" className="dag-back-to-map" onClick={onBackToMap} hidden>
+            Back to agent map
+          </button>
+        )}
       </div>
       {tool || stage.status !== 'complete' ? (
         <dl>
@@ -745,6 +792,7 @@ export function TraceDag({
   question = '',
   verdict,
   runStatus,
+  scrollContainerRef,
 }: {
   stages: TraceStage[];
   activeIndex: number;
@@ -772,6 +820,8 @@ export function TraceDag({
   verdict?: RunVerdict;
   /** Stored run state, including waiting/cancelled states outside answer verdicts. */
   runStatus?: string | null;
+  /** Run Explorer's bounded owner; document/window are never scroll targets. */
+  scrollContainerRef?: RefObject<HTMLElement | null>;
 }) {
   const shownStages = [...withDisplayedStageStatus(stages, verdict)];
   const envelope =
@@ -801,12 +851,55 @@ export function TraceDag({
   // open whatever stage had moved into that slot.
   const [openId, setOpenId] = useState<string | null>(null);
   const panelId = `${useId()}detail`;
+  const detailHeadingRef = useRef<HTMLElement>(null);
+  const backButtonRef = useRef<HTMLButtonElement>(null);
+  const nodeRefs = useRef(new Map<string, HTMLButtonElement>());
+  const activationRef = useRef<StepActivation | null>(null);
+  const activationSequence = useRef(0);
   const openIndex = displayedStages.findIndex((item) => item.id === openId);
   const open = openIndex === -1 ? null : displayedStages[openIndex];
   // The instant the panel's offsets are measured from, decided in one place for
   // the whole app. See runOrigin: `start` is milliseconds since the run's own
   // origin today, and an absolute clock if the agent's convention ever changes.
   const { origin } = runOrigin(shownStages);
+  const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  const selectStep = (item: TraceStage, event: MouseEvent<HTMLButtonElement>) => {
+    if (openId === item.id) {
+      activationRef.current = null;
+      setOpenId(null);
+      return;
+    }
+    activationRef.current = {
+      stepId: item.id,
+      kind: event.detail === 0 ? 'keyboard' : 'pointer',
+      sequence: ++activationSequence.current,
+    };
+    setOpenId(item.id);
+  };
+  useEffect(() => {
+    const activation = activationRef.current;
+    const container = scrollContainerRef?.current;
+    const heading = detailHeadingRef.current;
+    const backButton = backButtonRef.current;
+    if (!openId || !activation || !container || !heading || !backButton) return;
+    const result = revealStepDetail({
+      activation,
+      selectedStepId: openId,
+      container,
+      heading,
+      reducedMotion: reducedMotion(),
+    });
+    if (activationRef.current?.sequence === activation.sequence) {
+      backButton.hidden = !result.scrolled;
+    }
+  }, [openId, scrollContainerRef]);
+  const backToMap = () => {
+    const container = scrollContainerRef?.current;
+    const node = openId ? nodeRefs.current.get(openId) : null;
+    if (!container || !node) return;
+    returnToSelectedStep({ container, node, reducedMotion: reducedMotion() });
+    if (backButtonRef.current) backButtonRef.current.hidden = true;
+  };
   // Every stage, in both arrangements, in the order the run recorded them and
   // never re-sorted. The rail used to draw four evenly spread ones and drop the
   // rest, which live.css already records as the defect the live step list was
@@ -842,10 +935,15 @@ export function TraceDag({
             {compact ? (
               <button
                 type="button"
+                ref={(node) => {
+                  if (node) nodeRefs.current.set(item.id, node);
+                  else nodeRefs.current.delete(item.id);
+                }}
                 className={isOpen ? `${nodeClass} open` : nodeClass}
                 aria-expanded={isOpen}
-                aria-controls={isOpen ? panelId : undefined}
-                onClick={() => setOpenId((current) => (current === item.id ? null : item.id))}
+                aria-pressed={isOpen}
+                aria-controls={panelId}
+                onClick={(event) => selectStep(item, event)}
               >
                 {/* The rail's tile: the step's number, the kind mark, the name,
                     and the duration pinned right. One line, and the whole line is
@@ -891,10 +989,15 @@ export function TraceDag({
             ) : (
               <button
                 type="button"
+                ref={(node) => {
+                  if (node) nodeRefs.current.set(item.id, node);
+                  else nodeRefs.current.delete(item.id);
+                }}
                 className={`${nodeClass} ${isOpen ? 'open' : ''}`}
                 aria-expanded={isOpen}
-                aria-controls={isOpen ? panelId : undefined}
-                onClick={() => setOpenId((current) => (current === item.id ? null : item.id))}
+                aria-pressed={isOpen}
+                aria-controls={panelId}
+                onClick={(event) => selectStep(item, event)}
               >
                 <span className={`dag-index ast-num ${item.kind === 'agent' ? 'agent' : 'tool'}`}>
                   {stepNumber(index + 1)}
@@ -961,7 +1064,15 @@ export function TraceDag({
           id={panelId}
           charts={charts}
           runSummary={open.id === '__run__' ? summary : null}
+          headingRef={detailHeadingRef}
+          backButtonRef={backButtonRef}
+          onBackToMap={backToMap}
         />
+      )}
+      {!compact && (
+        <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {open ? `Showing details for Step ${openIndex + 1}` : ''}
+        </span>
       )}
       {!compact && stages.length > 0 && <RawIo stages={stages} />}
     </div>
@@ -983,7 +1094,15 @@ export function TraceDag({
    */
   const railPanel = open ? (
     <div className="trace-dag map">
-      <StageDetail key={open.id} stage={open} step={openIndex + 1} origin={origin} id={panelId} charts={charts} />
+      <StageDetail
+        key={open.id}
+        stage={open}
+        step={openIndex + 1}
+        origin={origin}
+        id={panelId}
+        charts={charts}
+        headingRef={detailHeadingRef}
+      />
     </div>
   ) : null;
   /*

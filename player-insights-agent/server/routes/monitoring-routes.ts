@@ -138,9 +138,8 @@ export function pageFrom(req: Request): {
  *
  * `$1` is the plan-approval sentinel, which is a stored user message and is not a
  * question anybody asked. `$2` and `$3` bound the range. `$4` is one more than
- * the requested page size, `$5` is unused for compatibility with old store test
- * doubles, `$6` optionally scopes to one person, `$7`/`$8` are the keyset cursor,
- * and `$9` is question-or-asker search.
+ * the requested page size, `$5` optionally scopes to one person, `$6`/`$7` are
+ * the keyset cursor, and `$8` is question-or-asker search.
  *
  * An answer is an assistant message that CARRIES A TRACE, which is the same
  * definition `RUNS_QUERY` uses in insights-routes.ts, and the reason this reads
@@ -258,12 +257,12 @@ export const MONITORING_QUESTIONS_QUERY = `
     JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
-      AND ($6 = '' OR lower(c.user_email) = lower($6))
-      AND ($7 = '' OR (u.created_at, u.id) < ($7::timestamptz, $8))
+      AND ($5 = '' OR lower(c.user_email) = lower($5))
+      AND ($6 = '' OR (u.created_at, u.id) < ($6::timestamptz, $7))
       AND (
-        $9 = ''
-        OR lower(u.content) LIKE ('%' || lower($9) || '%')
-        OR lower(c.user_email) LIKE ('%' || lower($9) || '%')
+        $8 = ''
+        OR lower(u.content) LIKE ('%' || lower($8) || '%')
+        OR lower(c.user_email) LIKE ('%' || lower($8) || '%')
       )
     ORDER BY u.created_at DESC, u.id DESC
     LIMIT $4
@@ -276,11 +275,11 @@ export const MONITORING_QUESTIONS_QUERY = `
     JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
-      AND ($6 = '' OR lower(c.user_email) = lower($6))
+      AND ($5 = '' OR lower(c.user_email) = lower($5))
       AND (
-        $9 = ''
-        OR lower(u.content) LIKE ('%' || lower($9) || '%')
-        OR lower(c.user_email) LIKE ('%' || lower($9) || '%')
+        $8 = ''
+        OR lower(u.content) LIKE ('%' || lower($8) || '%')
+        OR lower(c.user_email) LIKE ('%' || lower($8) || '%')
       )
   )
   SELECT t.asked_total, t.thread_total, t.people_list,
@@ -981,7 +980,6 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         range.from,
         range.to,
         page.limit + 1,
-        0,
         filters.person,
         page.cursor?.askedAt ?? '',
         page.cursor?.id ?? '',
@@ -1183,7 +1181,6 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         range.from,
         range.to,
         page.limit + 1,
-        0,
         person,
         page.cursor?.askedAt ?? '',
         page.cursor?.id ?? '',

@@ -156,7 +156,11 @@ import { AgentPathConstellation } from './AgentConstellation';
 import { ConstellationField } from './ConstellationField';
 import { OPENING_CONSTELLATION } from './constellation';
 import { StoredAnswerBoundary } from './StoredAnswerBoundary';
-import { startStoredAnswerRendererPreload } from './stored-answer-loader';
+import {
+  preloadStoredAnswerRendererForHistory,
+  scheduleStoredAnswerRendererPreload,
+  startStoredAnswerRendererPreload,
+} from './stored-answer-loader';
 import {
   capturePrependAnchor,
   mergeNewestConversationMessages,
@@ -803,6 +807,7 @@ export function HomePage() {
       ]);
       if (activeConversationRef.current !== id) return;
       const stored = messageResponse.messages;
+      preloadStoredAnswerRendererForHistory(stored);
       setMessages(stored);
       setOlderMessages({ hasMore: messageResponse.hasMore, cursor: messageResponse.nextCursor });
       // The ratings these answers already carry, from the rows rather than from
@@ -1165,6 +1170,10 @@ export function HomePage() {
     void reads.conversations.then((list) => {
       if (!active) return;
       setRailAvailability(list.availability);
+      // The rail summaries prove which rows already have an answered turn.
+      // Start the one shared import off the critical path instead of waiting for
+      // a reader to click a row and briefly meeting Suspense cold.
+      preloadStoredAnswerRendererForHistory(list.conversations ?? []);
       // The rail lists saved conversations, but the app opens on a fresh chat
       // so the welcome state is the first thing a new user sees.
       if (list.conversations) setConversations(list.conversations);
@@ -1303,9 +1312,6 @@ export function HomePage() {
 
   async function ask(question = draft, approval?: { planId: string; label: string }) {
     if (!question.trim() || readLiveAsk(conversationId)?.inFlight || readActiveAsk(conversationId)) return;
-    // The live and approval UI remains in the eager Home chunk. Only the final
-    // stored answer is split, and a real ask gives it the whole run to preload.
-    startStoredAnswerRendererPreload();
     // Everything below writes into the conversation this run started in. Once
     // the user is somewhere else, none of it is theirs to write: an answer, a
     // step, an error banner or a URL change landing in the conversation they
@@ -1412,6 +1418,10 @@ export function HomePage() {
           onOpen: () => {
             openLiveAsk(runConversationId);
             markActiveAskStreamOpen(currentAsk);
+            // The POST and stream-open path has already completed. Warm the
+            // answer-only graph during the run without putting an import ahead
+            // of the request, its progress, or its first server event.
+            scheduleStoredAnswerRendererPreload();
           },
           // Includes the 15-second SSE keep-alive comments, so a connected but
           // quiet model call remains primary and a silent dead stream falls

@@ -17,7 +17,7 @@
  * that opens onto the arguments and result the agent recorded.
  */
 import { useSearchParams } from 'react-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './styles/routes/runs.css';
 import { listAvailability, listUnreachable, type ListAvailability } from './list-availability';
 import { UnavailablePanel } from './UnavailablePanel';
@@ -214,6 +214,11 @@ export function RunExplorer() {
   // them is the kind of small friction nobody reports and everybody feels. It
   // resets on reload, which is the right scope for a preference nothing stores.
   const [advanced, setAdvanced] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const overviewScrollRef = useRef<HTMLDivElement>(null);
+  const mapScrollRef = useRef<HTMLDivElement>(null);
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const detailsScrollRef = useRef<HTMLDivElement>(null);
   const [searchText, setSearchText] = useState('');
   // Always "All conversations" on arrival. This used to be seeded from
   // `?conversation=`, so clicking through from Ask PIA hid every other run in
@@ -358,6 +363,25 @@ export function RunExplorer() {
   const displayed = selected
     ? applyRunLabelOverride(selected, canEdit && labelOverlay?.runId === selected.id ? labelOverlay.value : null)
     : null;
+
+  // Every tab owns a bounded scroller below the fixed run header and tab row.
+  // A new run or a newly opened tab starts at its own beginning; no selection
+  // path writes document/window scroll, so the Run Explorer chrome stays put.
+  useEffect(() => {
+    for (const scroll of [overviewScrollRef, mapScrollRef, timelineScrollRef, detailsScrollRef]) {
+      scroll.current?.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }, [selected?.id]);
+
+  useEffect(() => {
+    const active = {
+      overview: overviewScrollRef,
+      map: mapScrollRef,
+      timeline: timelineScrollRef,
+      details: detailsScrollRef,
+    }[activeTab];
+    active?.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [activeTab]);
 
   useEffect(() => {
     if (!canEdit || !selected?.id) return;
@@ -516,91 +540,100 @@ export function RunExplorer() {
                   </AlertDescription>
                 </Alert>
               )}
-              <Tabs defaultValue="overview">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="run-detail-tabs">
                 <TabsList>
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="map">Agent map</TabsTrigger>
                   <TabsTrigger value="timeline">Timeline</TabsTrigger>
                   <TabsTrigger value="details">Details</TabsTrigger>
                 </TabsList>
-                <TabsContent value="overview" className="space-y-4 pt-4">
-                  {selected && traceState.status === 'ready' ? (
-                    <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
-                  ) : null}
-                  <RunOverviewKpis
-                    durationMs={selected?.duration_ms}
-                    toolStageMs={runTrace?.trace ? toolStageMs : null}
-                    agentToolCalls={agentToolCalls}
-                    stages={stages}
-                    totalTokens={totalTokens}
-                    promptTokens={promptTokens}
-                    completionTokens={completionTokens}
-                    rating={displayed?.rating}
-                    ratePath={ratePath}
-                  />
-                  {runTrace.takeaway ? (
-                    <FinalAnswer
-                      takeaway={runTrace.takeaway}
-                      narrative={runTrace.narrative}
-                      charts={runTrace.charts}
-                      sources={runTrace.sources}
-                      caveats={runTrace.caveats}
-                      derivation={runTrace.derivation}
-                      truncated={selected?.truncated}
-                      conversationId={selected?.conversation_id}
-                      runId={selected?.id}
+                <TabsContent value="overview" className="run-detail-tab-panel">
+                  <div className="run-detail-scroll space-y-4 pt-4" ref={overviewScrollRef}>
+                    {selected && traceState.status === 'ready' ? (
+                      <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
+                    ) : null}
+                    <RunOverviewKpis
+                      durationMs={selected?.duration_ms}
+                      toolStageMs={runTrace?.trace ? toolStageMs : null}
+                      agentToolCalls={agentToolCalls}
+                      stages={stages}
+                      totalTokens={totalTokens}
+                      promptTokens={promptTokens}
+                      completionTokens={completionTokens}
+                      rating={displayed?.rating}
+                      ratePath={ratePath}
                     />
-                  ) : runTrace?.note ? (
-                    <p className="text-muted-foreground text-sm">{runTrace.note}</p>
-                  ) : null}
-                </TabsContent>
-                <TabsContent value="map" className="space-y-4 pt-5">
-                  {selected && traceState.status === 'ready' ? (
-                    <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
-                  ) : null}
-                  {stages.length > 0 ? (
-                    <>
-                      <TraceDag
-                        stages={stages}
-                        activeIndex={-1}
-                        charts={runTrace?.charts}
-                        trace={runTrace?.trace}
-                        question={runTrace?.prompt ?? ''}
-                        verdict={answerVerdict}
-                        runStatus={displayed?.status}
+                    {runTrace.takeaway ? (
+                      <FinalAnswer
+                        takeaway={runTrace.takeaway}
+                        narrative={runTrace.narrative}
+                        charts={runTrace.charts}
+                        sources={runTrace.sources}
+                        caveats={runTrace.caveats}
+                        derivation={runTrace.derivation}
+                        truncated={selected?.truncated}
+                        conversationId={selected?.conversation_id}
+                        runId={selected?.id}
                       />
-                      <AIAnalysisCaveat className="ai-note" />
-                    </>
-                  ) : (
-                    <TraceUnavailable state={traceState} />
-                  )}
+                    ) : runTrace?.note ? (
+                      <p className="text-muted-foreground text-sm">{runTrace.note}</p>
+                    ) : null}
+                  </div>
                 </TabsContent>
-                <TabsContent value="timeline" className="space-y-4 pt-5">
-                  {/* The prompt, for the envelope row, which is the run's own
-                  question here just as it is on the card. */}
-                  {stages.length > 0 && runTrace?.trace ? (
-                    <>
-                      <TraceTimeline
-                        variant="explorer"
-                        trace={runTrace.trace}
-                        question={runTrace.prompt ?? ''}
-                        verdict={answerVerdict}
-                      />
-                      <AIAnalysisCaveat className="ai-note" />
-                    </>
-                  ) : (
-                    <TraceUnavailable state={traceState} />
-                  )}
+                <TabsContent value="map" className="run-detail-tab-panel">
+                  <div className="run-detail-scroll space-y-4 pt-5" ref={mapScrollRef}>
+                    {selected && traceState.status === 'ready' ? (
+                      <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
+                    ) : null}
+                    {stages.length > 0 ? (
+                      <>
+                        <TraceDag
+                          stages={stages}
+                          activeIndex={-1}
+                          charts={runTrace?.charts}
+                          trace={runTrace?.trace}
+                          question={runTrace?.prompt ?? ''}
+                          verdict={answerVerdict}
+                          runStatus={displayed?.status}
+                          scrollContainerRef={mapScrollRef}
+                        />
+                        <AIAnalysisCaveat className="ai-note" />
+                      </>
+                    ) : (
+                      <TraceUnavailable state={traceState} />
+                    )}
+                  </div>
                 </TabsContent>
-                <TabsContent value="details" className="space-y-4 pt-5">
-                  {/* The switch that governs these panels is drawn by this component
-                  too, which is the point of it being one. See RunDetails.tsx. */}
-                  <RunDetails
-                    trace={runTrace}
-                    advanced={advanced}
-                    onAdvancedChange={setAdvanced}
-                    unavailable={<TraceUnavailable state={traceState} />}
-                  />
+                <TabsContent value="timeline" className="run-detail-tab-panel">
+                  <div className="run-detail-scroll space-y-4 pt-5" ref={timelineScrollRef}>
+                    {/* The prompt, for the envelope row, which is the run's own
+                    question here just as it is on the card. */}
+                    {stages.length > 0 && runTrace?.trace ? (
+                      <>
+                        <TraceTimeline
+                          variant="explorer"
+                          trace={runTrace.trace}
+                          question={runTrace.prompt ?? ''}
+                          verdict={answerVerdict}
+                        />
+                        <AIAnalysisCaveat className="ai-note" />
+                      </>
+                    ) : (
+                      <TraceUnavailable state={traceState} />
+                    )}
+                  </div>
+                </TabsContent>
+                <TabsContent value="details" className="run-detail-tab-panel">
+                  <div className="run-detail-scroll space-y-4 pt-5" ref={detailsScrollRef}>
+                    {/* The switch that governs these panels is drawn by this component
+                    too, which is the point of it being one. See RunDetails.tsx. */}
+                    <RunDetails
+                      trace={runTrace}
+                      advanced={advanced}
+                      onAdvancedChange={setAdvanced}
+                      unavailable={<TraceUnavailable state={traceState} />}
+                    />
+                  </div>
                 </TabsContent>
               </Tabs>
             </>

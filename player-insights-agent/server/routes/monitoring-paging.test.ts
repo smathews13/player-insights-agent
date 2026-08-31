@@ -128,6 +128,6 @@ describe('the keyset order', () => {
     const order = /ORDER BY([^\n]*)/.exec(pageClause)?.[1] ?? '';
     expect(order).toContain('u.created_at DESC');
     expect(order).toContain('u.id DESC');
-    expect(pageClause).toContain('(u.created_at, u.id) < ($7::timestamptz, $8)');
+    expect(pageClause).toContain('(u.created_at, u.id) < ($6::timestamptz, $7)');
   });
 });

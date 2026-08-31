@@ -149,7 +149,7 @@ describe('the query reads questions rather than answers', () => {
   });
 
   it('applies the same person scope to the page and its period totals', () => {
-    expect(MONITORING_QUESTIONS_QUERY.match(/\(\$6 = '' OR lower\(c\.user_email\) = lower\(\$6\)\)/g)).toHaveLength(2);
+    expect(MONITORING_QUESTIONS_QUERY.match(/\(\$5 = '' OR lower\(c\.user_email\) = lower\(\$5\)\)/g)).toHaveLength(2);
   });
 
   /**

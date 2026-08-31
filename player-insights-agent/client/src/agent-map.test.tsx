@@ -743,7 +743,8 @@ describe('a node opens what its stage recorded', () => {
   });
 
   it('presses closed again rather than trapping the reader in one step', () => {
-    expect(SOURCE).toContain('current === item.id ? null : item.id');
+    expect(SOURCE).toContain('if (openId === item.id)');
+    expect(SOURCE).toContain('setOpenId(null)');
   });
 
   it('holds the open step by id, not by position', () => {
@@ -1756,12 +1757,15 @@ describe('the narrow rail is one column of every step', () => {
     // a transcript to read a recorded SQL statement and a step that looks pressable
     // and is not is worse than the record it already is. The column is 340px now,
     // and the press is the map's own rather than a second kind: a real button, one
-    // per step, `aria-expanded` on it, and `aria-controls` naming the panel only
-    // while that panel exists to be named.
+    // per step, `aria-expanded` and `aria-pressed` on it, and `aria-controls`
+    // naming the one stable panel id before and after that panel is opened.
     const markup = renderToStaticMarkup(<TraceDag stages={run} activeIndex={-1} compact />);
     expect(markup.match(/<button type="button" class="dag-node/g)).toHaveLength(run.length);
     expect(markup.match(/aria-expanded="false"/g)).toHaveLength(run.length);
-    expect(markup).not.toContain('aria-controls');
+    expect(markup.match(/aria-pressed="false"/g)).toHaveLength(run.length);
+    const controls = [...markup.matchAll(/aria-controls="([^"]+)"/g)].map((match) => match[1]);
+    expect(controls).toHaveLength(run.length);
+    expect(new Set(controls).size).toBe(1);
     // Shut on arrival, in both arrangements. A panel that opens itself on the
     // newest step is a payload pushing the run's own shape off the column.
     expect(markup).not.toContain('dag-detail');

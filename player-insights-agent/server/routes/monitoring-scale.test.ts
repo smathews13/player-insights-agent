@@ -203,7 +203,6 @@ function executor() {
 
     if (text.includes('WITH page AS')) {
       const limit = Number(params[3]);
-      const offset = Number(params[4]);
       const inRange = questionsIn(from, to);
       // The totals CTE: an index range scan and an aggregate over the range. No
       // answers read, no jsonb touched.
@@ -211,8 +210,9 @@ function executor() {
       const people = [...new Set(inRange.map((entry) => entry.conversation.user_email))].sort();
       const threads = new Set(inRange.map((entry) => entry.conversation.id)).size;
       const totals = { asked_total: inRange.length, thread_total: threads, people_list: people };
-      // The page: LIMIT/OFFSET off the index, so only these rows are read.
-      const page = inRange.slice(offset, offset + limit);
+      // The first keyset page: the production statement applies any cursor
+      // before LIMIT, so this scale fixture reads only the bounded first page.
+      const page = inRange.slice(0, limit);
       examined += page.length;
       if (page.length === 0) return { rows: [{ ...totals }] };
       return {

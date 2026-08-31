@@ -16,9 +16,10 @@ function staticClientGraph(entry: string): Set<string> {
     if (seen.has(path)) return;
     seen.add(path);
     const source = readFileSync(path, 'utf8');
-    const imports = source.matchAll(/^\s*import(?!\s+type\b)[\s\S]*?\sfrom\s+['"](\.[^'"]+)['"];?/gm);
+    const imports = source.matchAll(/^\s*import\s+(?!type\b)[\s\S]*?\sfrom\s+['"]([^'"]+)['"];?/gm);
     for (const match of imports) {
       const target = match[1];
+      if (!target.startsWith('.')) continue;
       for (const extension of ['.ts', '.tsx']) {
         const resolved = join(dirname(path), `${target}${extension}`);
         if (existsSync(resolved)) {
@@ -51,24 +52,30 @@ describe('Home stored-answer split', () => {
     expect(LOADER).toContain("import('./StoredAnswerRenderer')");
   });
 
-  it('preloads on conversation hover, focus, selection and before an active answer', () => {
+  it('preloads on stored history, conversation hover, focus, selection and an active answer', () => {
+    expect(HOME).toContain('preloadStoredAnswerRendererForHistory(list.conversations ?? [])');
+    expect(HOME).toContain('preloadStoredAnswerRendererForHistory(stored)');
     expect(HOME).toContain('onMouseEnter={() => startStoredAnswerRendererPreload()}');
     expect(HOME).toContain('onFocus={() => startStoredAnswerRendererPreload()}');
     expect(HOME).toMatch(/const selectConversation[\s\S]*startStoredAnswerRendererPreload/);
     const ask = HOME.slice(HOME.indexOf('async function ask'), HOME.indexOf('function startNewConversation'));
-    expect(ask.indexOf('startStoredAnswerRendererPreload()')).toBeGreaterThan(-1);
-    expect(ask.indexOf('startStoredAnswerRendererPreload()')).toBeLessThan(ask.indexOf('await askStreaming'));
-    expect(ask).not.toMatch(/await\s+startStoredAnswerRendererPreload/);
+    expect(ask.indexOf('scheduleStoredAnswerRendererPreload()')).toBeGreaterThan(ask.indexOf('onOpen:'));
+    expect(ask.indexOf('scheduleStoredAnswerRendererPreload()')).toBeGreaterThan(ask.indexOf('await askStreaming'));
+    expect(ask).not.toMatch(/await\s+scheduleStoredAnswerRendererPreload/);
     expect(HOME).toMatch(/if \(loading\) startStoredAnswerRendererPreload\(\)/);
   });
 
-  it('keeps geometry, raw content, and a retry instead of a blank answer', () => {
+  it('keeps answer geometry and a retry without exposing raw stored prose', () => {
     expect(BOUNDARY).toContain('Formatting saved answer…');
-    expect(BOUNDARY).toContain('{rawContent}');
+    expect(BOUNDARY).not.toContain('{rawContent}');
+    expect(BOUNDARY).toContain('<StoredAnswerLoading />');
+    expect(BOUNDARY).toContain('preloadStoredAnswerRenderer.peek()');
     expect(BOUNDARY).toContain('role="alert"');
     expect(BOUNDARY).toContain('Retry answer');
-    expect(BOUNDARY).toContain('lazyStoredAnswerRenderer()');
-    expect(ASK_CSS).toMatch(/\.conversation-main \.stored-answer-loading\s*\{[^}]*min-height:/);
+    expect(BOUNDARY).toContain('createLazyStoredAnswerRenderer()');
+    expect(ASK_CSS).toMatch(
+      /\.conversation-main \.stored-answer-loading,\s*\.conversation-main \.stored-answer-error\s*\{[^}]*min-height:/
+    );
   });
 
   it('cancels stale conversation pages and exposes older history accessibly on mobile', () => {

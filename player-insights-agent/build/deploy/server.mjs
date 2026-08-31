@@ -186688,7 +186688,6 @@ function setupMonitoringRoutes(appkit, deps) {
         range.from,
         range.to,
         page.limit + 1,
-        0,
         filters.person,
         page.cursor?.askedAt ?? "",
         page.cursor?.id ?? "",
@@ -186851,7 +186850,6 @@ function setupMonitoringRoutes(appkit, deps) {
         range.from,
         range.to,
         page.limit + 1,
-        0,
         person,
         page.cursor?.askedAt ?? "",
         page.cursor?.id ?? "",
@@ -187006,12 +187004,12 @@ var init_monitoring_routes = __esm({
     JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
-      AND ($6 = '' OR lower(c.user_email) = lower($6))
-      AND ($7 = '' OR (u.created_at, u.id) < ($7::timestamptz, $8))
+      AND ($5 = '' OR lower(c.user_email) = lower($5))
+      AND ($6 = '' OR (u.created_at, u.id) < ($6::timestamptz, $7))
       AND (
-        $9 = ''
-        OR lower(u.content) LIKE ('%' || lower($9) || '%')
-        OR lower(c.user_email) LIKE ('%' || lower($9) || '%')
+        $8 = ''
+        OR lower(u.content) LIKE ('%' || lower($8) || '%')
+        OR lower(c.user_email) LIKE ('%' || lower($8) || '%')
       )
     ORDER BY u.created_at DESC, u.id DESC
     LIMIT $4
@@ -187024,11 +187022,11 @@ var init_monitoring_routes = __esm({
     JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
-      AND ($6 = '' OR lower(c.user_email) = lower($6))
+      AND ($5 = '' OR lower(c.user_email) = lower($5))
       AND (
-        $9 = ''
-        OR lower(u.content) LIKE ('%' || lower($9) || '%')
-        OR lower(c.user_email) LIKE ('%' || lower($9) || '%')
+        $8 = ''
+        OR lower(u.content) LIKE ('%' || lower($8) || '%')
+        OR lower(c.user_email) LIKE ('%' || lower($8) || '%')
       )
   )
   SELECT t.asked_total, t.thread_total, t.people_list,
