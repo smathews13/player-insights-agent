@@ -65,7 +65,7 @@ import { BrandIcon } from './BrandIcon';
 import { GithubMark } from './GithubMark';
 // The word, the icon and the pending state, decided once for the whole app.
 import { RefreshButton, RefreshControl } from './RefreshControl';
-import { CONNECTED_RESOURCES, type ChangedBy } from '../../shared/deployment-config';
+import { CONNECTED_RESOURCES } from '../../shared/deployment-config';
 import { IdentityCard } from './IdentityPanel';
 import { useDeploymentIdentity } from './identity-panel-state';
 // The value that is its own verdict, and the affordance that carries the whole
@@ -90,7 +90,6 @@ import { entityRowId } from './data-entities';
 import {
   checkBadgeVariant,
   checkVerdictLabel,
-  formatCheckedAt,
   verdictBadgeVariant,
   type PreflightCheck,
 } from './preflight';
@@ -152,6 +151,7 @@ import {
 // catalog browse rides an optional scope and a sign-in without it must still be
 // able to edit the row.
 import { AssetPickerField } from './AssetPicker';
+import { pickerForField } from './asset-picker';
 import { AppSelect } from './AppSelect';
 // The derivation itself -- which check belongs to which resource, which
 // findings are about it, and what that makes its badge -- is shared with the
@@ -235,10 +235,6 @@ const SOURCE_WORDS: Record<string, string> = {
   'app-saved': 'saved here, and in force ahead of the deployed value',
   'data-contract': "from this build's data contract",
 };
-
-function tierBadgeVariant(tier: ChangedBy) {
-  return tier === 'app-runtime' ? ('default' as const) : ('outline' as const);
-}
 
 /**
  * One row of the Build and telemetry card, in whichever of the three shapes it is.
@@ -637,31 +633,32 @@ export function ConnectionEntityName({ name }: { name: string }) {
 
 // eslint-disable-next-line react-refresh/only-export-components -- pure parser shared with focused render tests
 export function declaredTableNames(configured: string): string[] {
-  return configured
-    .split(',')
-    .map((name) => name.trim())
-    .filter(Boolean);
+  return [...new Set(configured.split(',').map((name) => name.trim()).filter(Boolean))];
 }
 
-export function DeclaredTableList({ configured, initial = 6 }: { configured: string; initial?: number }) {
-  const [showAll, setShowAll] = useState(false);
+/** One complete, stable inventory for both the resource row and detail table. */
+export function canonicalDeclaredTableNames(configured: string, checks: readonly PreflightCheck[]): string[] {
   const names = declaredTableNames(configured);
-  const shown = showAll ? names : names.slice(0, initial);
+  for (const check of checks) {
+    if (check.kind !== 'table') continue;
+    const name = check.name.trim();
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+export function DeclaredTableList({ configured }: { configured: string }) {
+  const names = declaredTableNames(configured);
   return (
     <div className="declared-table-list">
       <ul>
-        {shown.map((name) => (
+        {names.map((name) => (
           <li key={name}>
             <VisitInDatabricks name={name} />
             <ConnectionEntityName name={name} />
           </li>
         ))}
       </ul>
-      {!showAll && names.length > initial ? (
-        <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
-          Show all {names.length}
-        </Button>
-      ) : null}
     </div>
   );
 }
@@ -975,10 +972,10 @@ export function ConnectionRow({
   reading,
   tone,
   onSave,
-  onClear,
   saving,
   requested,
   refreshing,
+  declaredTables: declaredTablesProp,
   catalogInUse = '',
   allowMutations = false,
 }: {
@@ -1012,6 +1009,7 @@ export function ConnectionRow({
   requested: boolean;
   /** Whether a refresh is in flight, so this row's badge is being re-decided. */
   refreshing: boolean;
+  declaredTables?: readonly string[];
   /**
    * The catalog this deployment is configured with, for the schema picker.
    *
@@ -1033,25 +1031,21 @@ export function ConnectionRow({
   const { row, check, problems, disagrees, status, marker, summary, driftCount } = reading;
   const { resource } = row;
   const isDeclaredManifest = resource.id === 'declared-manifest';
-  const declaredTables = isDeclaredManifest ? declaredTableNames(row.configured) : [];
+  const declaredTables = isDeclaredManifest
+    ? [...(declaredTablesProp ?? declaredTableNames(row.configured))]
+    : [];
   const displayValue = isDeclaredManifest
     ? `${declaredTables.length} ${declaredTables.length === 1 ? 'table' : 'tables'}`
     : check?.display_name?.trim() || summary.value;
   const rawValue = !isDeclaredManifest && displayValue && displayValue !== summary.value ? summary.value : '';
-  const canWrite = Boolean(allowMutations);
+  const picker = pickerForField(resource.id);
+  const canWrite = Boolean(allowMutations && row.editable && picker);
   // Open on arrival when a link named this row. The collapsed line carries the
   // value and its verdict; the reason for either is inside, and somebody who
   // followed a link from a diagram came for the reason.
   const [open, setOpen] = useState(requested);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(row.intended ?? row.configured);
-
-  const pendingState =
-    resource.changedBy === 'model-version'
-      ? 'Pending model release'
-      : resource.changedBy === 'app-redeploy'
-        ? 'Pending app redeploy'
-        : 'Pending deployment';
+  const [draft, setDraft] = useState(row.configured);
 
   /**
    * Whether THIS row is one a refresh will re-decide.
@@ -1157,7 +1151,7 @@ export function ConnectionRow({
         <div className="connection-row-detail">
           {isDeclaredManifest ? (
             <div className="connection-configured-entity-list">
-              <DeclaredTableList configured={row.configured} />
+              <DeclaredTableList configured={declaredTables.join(',')} />
               {row.configuredFrom ? (
                 <p className="connection-tile-note">Source: {SOURCE_WORDS[row.configuredFrom] ?? row.configuredFrom}</p>
               ) : null}
@@ -1208,26 +1202,6 @@ export function ConnectionRow({
             </Alert>
           ) : null}
 
-          {row.intended ? (
-            <Alert>
-              <Clock />
-              <AlertDescription>
-                {/* One span, because the description slot is a grid and every
-                    direct child of it takes a row of its own. Unwrapped, the
-                    <strong> was one row and the clause after it was another
-                    that began with a comma. The sentence is one child now, so
-                    it is one row and wraps as prose. */}
-                <span>
-                  <strong>
-                    {pendingState}: {row.intended}
-                  </strong>
-                  {row.intendedBy ? ` by ${row.intendedBy}` : ''}
-                  {row.intendedAt ? ` on ${formatCheckedAt(row.intendedAt)}` : ''}.
-                </span>
-              </AlertDescription>
-            </Alert>
-          ) : null}
-
           {problems.map((finding) => {
             const Icon = SEVERITY_ICON[finding.severity];
             return (
@@ -1246,29 +1220,21 @@ export function ConnectionRow({
               apply says so before it offers anything, and it never offers a
               control that claims otherwise. */}
           <div className="connection-row-tier">
-            <Badge variant={tierBadgeVariant(resource.changedBy)}>
-              {row.editable ? <Pencil className="size-3" /> : <Lock className="size-3" />}
-              {row.intended ? pendingState : row.changedByLabel}
-            </Badge>
-            {!editing && allowMutations && (canWrite || row.intended) ? (
+            <p className="connection-row-tier-note">
+              {row.editable ? 'Admin-managed · changes apply immediately' : `Deployment-owned · ${row.changedByLabel}`}
+            </p>
+            {!editing && canWrite ? (
               <div className="connection-row-tier-actions">
-                {canWrite ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setDraft(row.intended ?? row.configured);
-                      setEditing(true);
-                    }}
-                  >
-                    <Pencil className="size-3.5" /> {row.editable ? 'Change' : 'Record intended value'}
-                  </Button>
-                ) : null}
-                {row.intended ? (
-                  <Button variant="ghost" size="sm" disabled={saving} onClick={() => void onClear()}>
-                    <Undo2 className="size-3.5" /> Discard intention
-                  </Button>
-                ) : null}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setDraft(row.configured);
+                    setEditing(true);
+                  }}
+                >
+                  <Pencil className="size-3.5" /> Change
+                </Button>
               </div>
             ) : null}
           </div>
@@ -1283,34 +1249,10 @@ export function ConnectionRow({
 
           {editing ? (
             <div className="connection-row-editor">
-              {/* THE BROWSER FIRST, because it is the answer to the question the
-                  pencil raises. A blank box asking for a Genie space id sends
-                  somebody to another tab; the list of spaces their own sign-in
-                  can see does not. The box stays underneath: browsing these
-                  lists rides optional permissions, and a reader whose sign-in
-                  does not carry them still has to be able to change the row. */}
               <AssetPickerField field={resource.id} current={draft} catalog={catalogInUse} onPick={setDraft} />
-              <Input
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                placeholder={resource.label}
-                aria-label={`New value for ${resource.label}`}
-              />
-              {/* The consequence of the button below, in the fewest words that
-                  still state it. Two values are about to look identical on
-                  screen and only one of them will be in force. */}
-              <p className="connection-row-tier-note">
-                {row.editable
-                  ? 'Applied when saved.'
-                  : resource.changedBy === 'app-redeploy'
-                    ? 'Pending app redeploy after this intention is saved.'
-                    : resource.changedBy === 'model-version'
-                      ? 'Pending model release after this intention is saved.'
-                      : 'Pending deployment after this intention is saved.'}
-              </p>
               <div className="flex gap-2">
                 <Button size="sm" disabled={saving || !draft.trim()} onClick={() => void commit()}>
-                  <Save className="size-3.5" /> {row.editable ? 'Save and apply' : 'Record intention'}
+                  <Save className="size-3.5" /> Save and apply
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
                   Cancel
@@ -1535,7 +1477,7 @@ export function ConfigurationList({
                         });
                       }}
                     >
-                      <Save className="size-3.5" /> {row.editable ? 'Save and apply' : 'Record intention'}
+                      <Save className="size-3.5" /> Save and apply
                     </Button>
                     {row.intended ? (
                       <Button
@@ -1983,6 +1925,11 @@ export function ConnectionsPage() {
               {build.artifacts.map((artifact) => (
                 <BuildStampRow key={artifact.key} artifact={artifact} />
               ))}
+              {build.artifacts.length === 2 &&
+              build.artifacts[0].full &&
+              build.artifacts[0].full === build.artifacts[1].full ? (
+                <p className="deployment-release-match">Same release</p>
+              ) : null}
               {telemetryFacts.map((row) => (
                 <BuildFactRow key={row.key} row={row} />
               ))}
@@ -2021,19 +1968,7 @@ export function ConnectionsPage() {
           sentence explaining the category -- with every row carrying its own
           status chip. A blocked warehouse was the eleventh row of the third
           group, and its verdict was a chip a reader had to find. */}
-      {groups.map((group) =>
-        group.key === 'configuration' ? (
-          <ConfigurationList
-            key={group.key}
-            group={group}
-            saving={saving}
-            requestedResource={requestedResource}
-            onSave={write}
-            onClear={clear}
-            catalogInUse={catalogInUse}
-            allowMutations={allowMutations}
-          />
-        ) : (
+      {groups.map((group) => (
           <section key={group.key} className="connection-group">
             {/* No blurb. Each of the four the categories carried was a sentence
                 explaining what the category meant, which a header naming a
@@ -2050,6 +1985,7 @@ export function ConnectionsPage() {
                   tone={GROUP_TONE[group.key]}
                   saving={saving === reading.resource.id}
                   refreshing={refreshing}
+                  declaredTables={canonicalDeclaredTableNames(reading.row.configured, tableChecks)}
                   requested={requestedResource === reading.resource.id}
                   catalogInUse={catalogInUse}
                   allowMutations={allowMutations}
@@ -2063,8 +1999,7 @@ export function ConnectionsPage() {
               {group.key === 'reachable' ? declaredConnections : null}
             </div>
           </section>
-        )
-      )}
+      ))}
 
       {/* A deployment where nothing was reachable draws no Connected resources
           section, and the control must not vanish with it. */}

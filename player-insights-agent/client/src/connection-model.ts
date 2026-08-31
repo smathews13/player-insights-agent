@@ -344,7 +344,9 @@ export function readConnection(input: {
     findings,
     problems: findings.filter((finding) => !finding.id.startsWith('pending-')),
     status: connectionStatus({ check, hasRemoteEnd: remote }),
-    marker: driftMarker({ findingIds, intended: row.intended, severities }),
+    // Legacy staged intentions remain readable on the wire for backwards
+    // compatibility, but are intentionally invisible to current UI state.
+    marker: driftMarker({ findingIds, intended: null, severities }),
     driftCount: driftCount(findingIds, severities),
     summary: connectionSummary(row, check),
     disagrees: Boolean(row.actualObserved && row.configured && row.actual !== row.configured),
@@ -366,7 +368,11 @@ export function readConnections(
   const checksById = indexChecks(allChecks(payload, checks));
   const findings = findingsByResource(payload.drift);
   return payload.resources
-    .filter((row) => SHOW_NOTEBOOK_DECLARATION_EDITOR || row.resource.id !== 'notebook-declaration')
+    .filter(
+      (row) =>
+        row.resource.namesRemoteObject &&
+        (SHOW_NOTEBOOK_DECLARATION_EDITOR || row.resource.id !== 'notebook-declaration')
+    )
     .map((row) =>
       readConnection({
         row,
@@ -405,6 +411,7 @@ export type ConnectionGroupKey =
   | 'unreachable'
   | 'reachable'
   | 'not-checked'
+  /** Retained in the public type for older render helpers; current grouping never emits it. */
   | 'configuration';
 
 export interface ConnectionGroup {
@@ -452,7 +459,6 @@ const GROUP_ORDER: Array<{ key: ConnectionGroupKey; title: string }> = [
   // list under a name that says so.
   { key: 'reachable', title: 'Connected resources' },
   { key: 'not-checked', title: 'Not checked' },
-  { key: 'configuration', title: 'Configuration' },
 ];
 
 /**
@@ -467,7 +473,7 @@ const GROUP_ORDER: Array<{ key: ConnectionGroupKey; title: string }> = [
 export function connectionGroupKey(reading: ConnectionReading): ConnectionGroupKey {
   if (reading.status === 'blocked') return 'blocked';
   if (reading.marker === 'drift') return 'drifted';
-  if (reading.status === 'nothing-to-reach') return 'configuration';
+  if (reading.status === 'nothing-to-reach') return 'not-checked';
   return reading.status;
 }
 

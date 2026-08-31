@@ -330,26 +330,8 @@ describe('what the page refuses to call healthy', () => {
       endpointAnswered: true,
     });
 
-    expect(findings.map((finding) => finding.id)).toEqual(['orchestrator-report-retired']);
-    // Still unknown: nothing below was measured either way.
-    expect(driftStatus(findings)).toBe('unknown');
-    const [finding] = findings;
-    expect(finding.headline).not.toMatch(/could not be read|did not answer/i);
-    /**
-     * The claim, not a word. This asserted /reachable/ and so failed when the copy
-     * was rewritten to say "answering normally" — a rewrite that made the notice
-     * MORE of what this test is defending, because the reader who prompted it had
-     * just told us the old wording did not land. Pinning vocabulary makes a test
-     * argue against its own purpose the first time somebody improves the sentence.
-     *
-     * What has to hold is that a reader learns nothing is wrong. Both halves are
-     * asserted: it says so, and it does not say the opposite.
-     */
-    expect(finding.detail).toMatch(/nothing here means anything is broken/i);
-    expect(finding.detail).not.toMatch(/did not (reply|answer)|failed/i);
-    // No remedy, because there is nothing to do. A remedy offered when nothing
-    // is wrong is one nobody reads when something is.
-    expect(finding.remedy).toBe('');
+    expect(findings).toEqual([]);
+    expect(driftStatus(findings)).toBe('ok');
   });
 
   /**
@@ -379,8 +361,8 @@ describe('what the page refuses to call healthy', () => {
       endpointAnswered: true,
     });
 
-    expect(findings.map((finding) => finding.id)).toContain('orchestrator-report-retired');
-    expect(driftStatus(findings)).toBe('unknown');
+    expect(findings.map((finding) => finding.id)).not.toContain('orchestrator-report-retired');
+    expect(driftStatus(findings)).toBe('ok');
   });
 
   it('does not turn independent build stamps into a compatibility warning', () => {
@@ -398,7 +380,7 @@ describe('what the page refuses to call healthy', () => {
     });
 
     const ids = findings.map((finding) => finding.id);
-    expect(ids).toContain('orchestrator-report-retired');
+    expect(ids).not.toContain('orchestrator-report-retired');
     expect(ids).not.toContain('build-skew');
     expect(ids).not.toContain('build-skew-unknown');
     expect(ids).not.toContain('build-freshness');
@@ -440,7 +422,7 @@ describe('what the page refuses to call healthy', () => {
       states: [],
     });
     expect(findings.map((finding) => finding.id)).not.toContain('configuration-unreported');
-    expect(findings.map((finding) => finding.id)).toContain('orchestrator-report-retired');
+    expect(findings.map((finding) => finding.id)).not.toContain('orchestrator-report-retired');
   });
 
   it('flags an orchestrator value that did not come from the model artifact', () => {

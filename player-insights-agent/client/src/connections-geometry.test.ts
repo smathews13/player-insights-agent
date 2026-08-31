@@ -121,6 +121,29 @@ describe('drift is a qualification, not a failure', () => {
   });
 });
 
+describe('resource picker geometry', () => {
+  it('keeps the value-only resource type control compact', () => {
+    expect(rule('.plane-field-select')).toMatch(/width:\s*min\(240px,\s*100%\)/);
+    expect(rule('.plane-field-select')).toMatch(/height:\s*32px/);
+    expect(rule('.plane-kind-field')).toMatch(/gap:\s*4px/);
+  });
+
+  it('bounds the result list and keeps rows compact', () => {
+    expect(rule('.asset-picker-rows')).toMatch(/max-height:\s*220px/);
+    expect(rule('.asset-picker-rows')).toMatch(/overflow-y:\s*auto/);
+    expect(rule('.asset-picker-row')).toMatch(/padding:\s*6px 8px/);
+  });
+
+  it('uses full width only in the narrow layout', () => {
+    expect(rule('.plane-field-select')).toMatch(/width:\s*min\(240px,\s*100%\)/);
+  });
+
+  it('stops picker motion for both animation preferences', () => {
+    expect(CSS).toMatch(/data-animations='off'[\s\S]*\.asset-picker-spinner[\s\S]*animation:\s*none/);
+    expect(CSS).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.asset-picker-spinner[\s\S]*animation:\s*none/);
+  });
+});
+
 describe('a count of nothing is not a status', () => {
   it('tints a count only through a tone the markup has to ask for', () => {
     // The page sets `data-tone` only when the count is above zero, so "0 blocked"

@@ -34,15 +34,14 @@
  * suppress. The list appears when it arrives.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronRight, Search } from 'lucide-react';
-import { Button, Input, Skeleton } from './ui';
+import { ChevronRight, LoaderCircle, Search } from 'lucide-react';
+import { Button, Input } from './ui';
 import type { BrowseItem, BrowseResponse } from '../../shared/browse-contract';
 import {
   pickerForField,
   BROWSE_APPS_NO_SCOPE_PROMPT,
   BROWSE_FAILED_CHIP,
   BROWSE_GRANT_PROMPT,
-  BROWSE_TYPE_INSTEAD,
   BROWSE_UNAVAILABLE_CHIP,
   browseEmptyNote,
   browsePageUrl,
@@ -111,7 +110,6 @@ export function BrowseGrantPrompt({
           would be a second copy of a vocabulary this repository has already got
           wrong twice. */}
       {detail ? <p className="asset-picker-grant-detail">{detail}</p> : null}
-      <p className="asset-picker-grant-fallback">{BROWSE_TYPE_INSTEAD}</p>
     </div>
   );
 }
@@ -312,9 +310,9 @@ export function AssetPickerPanel({
       ) : null}
 
       {loading ? (
-        <div className="asset-picker-loading" data-testid="asset-picker-loading">
-          <Skeleton className="h-4 w-2/3" />
-          <Skeleton className="h-4 w-1/2" />
+        <div className="asset-picker-loading" data-testid="asset-picker-loading" role="status">
+          <LoaderCircle className="asset-picker-spinner" aria-hidden="true" />
+          <span>Finding resources your sign-in can access…</span>
         </div>
       ) : null}
 
@@ -338,7 +336,6 @@ export function AssetPickerPanel({
               Try again
             </Button>
           </div>
-          <p className="asset-picker-grant-fallback">{BROWSE_TYPE_INSTEAD}</p>
         </div>
       ) : null}
 
@@ -449,19 +446,36 @@ export function AssetPicker({
   useEffect(() => {
     if (answers.has(key)) return;
     let live = true;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15_000);
     const record = (body: BrowseResponse) => {
-      if (live) setAnswers((held) => new Map(held).set(key, body));
+      if (live) {
+        window.clearTimeout(timeout);
+        setAnswers((held) => new Map(held).set(key, body));
+      }
     };
-    fetch(browseUrl(kind, cursor))
-      .then((answer) => answer.json() as Promise<BrowseResponse>)
+    fetch(browseUrl(kind, cursor), { signal: controller.signal })
+      .then((answer) => {
+        if (!answer.ok) throw new Error(`resource discovery answered ${answer.status}`);
+        return answer.json() as Promise<BrowseResponse>;
+      })
       .then(record, (caught: unknown) =>
         // A throw here is the app route being unreachable, not the workspace
         // refusing anything. Reported as `failed`, which is the outcome that
         // means "nothing was established", rather than as an empty list.
-        record(browseTransportFailure(kind, (caught as Error)?.message ?? ''))
+        record(
+          browseTransportFailure(
+            kind,
+            (caught as Error)?.name === 'AbortError'
+              ? 'Resource discovery timed out. Try again.'
+              : (caught as Error)?.message ?? ''
+          )
+        )
       );
     return () => {
       live = false;
+      window.clearTimeout(timeout);
+      controller.abort();
     };
   }, [answers, key, kind, cursor]);
 
@@ -544,13 +558,6 @@ export function AssetPickerField({
           Empty on almost every field, and a sentence on the denylist, whose
           entries may be patterns that no list of existing tables can offer. */}
       {spec.typeNote ? <p className="asset-picker-type-note">{spec.typeNote}</p> : null}
-      {/* NAMES THE BOX BELOW IT, in the words of the value that box takes. The
-          editors print a generic `New value for <label>` on the input itself,
-          which was the only prompt when typing was the only route; now that a
-          list sits above it, the box needs to say that it is the other way and
-          say what shape to type. "Or type a three-part table name" is the
-          difference between a working value and a row this app cannot read. */}
-      <p className="asset-picker-type-label">{spec.typeLabel}</p>
     </>
   );
 }

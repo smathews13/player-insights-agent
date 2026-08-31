@@ -147,6 +147,15 @@ function traffic(overrides: Partial<OpsTrafficPayload> = {}): OpsTrafficPayload 
 }
 
 describe('forecast arithmetic', () => {
+  it('recomputes observed defaults when the selected Cost baseline window changes', () => {
+    const sevenDays = deriveForecastBaseline(cost(), traffic());
+    const oneDay = deriveForecastBaseline(cost({ range: { from: '2026-08-14', to: '2026-08-14' } }), traffic());
+    expect(sevenDays.window.days).toBe(7);
+    expect(oneDay.window.days).toBe(1);
+    expect(sevenDays.defaults.averageDailyUsers).toBe(2);
+    expect(oneDay.defaults.averageDailyUsers).toBe(14);
+  });
+
   it('uses the direct component sum with no hidden contingency and fixed horizons', () => {
     const baseline = deriveForecastBaseline(cost(), traffic());
     const assumptions = baseline.defaults;

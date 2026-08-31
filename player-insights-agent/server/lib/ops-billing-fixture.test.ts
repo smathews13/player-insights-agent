@@ -14,7 +14,9 @@ import {
   buildHonesty,
   buildQuestionAttribution,
   buildTiles,
+  dbuAmountFor,
   pricingFromRow,
+  readComponentRows,
   spendAmountFor,
   type ComponentRow,
   type CostIdentifiers,
@@ -92,6 +94,11 @@ describe('billing SQL contract', () => {
     expect(query?.statement).toContain('price_match_status');
   });
 
+  it('returns a DBU row count so mixed DBU and storage units do not erase measured DBUs', () => {
+    expect(query?.statement).toContain("COUNT(*) FILTER (WHERE UPPER(TRIM(usage_unit)) = 'DBU') AS dbu_rows");
+    expect(query?.statement).toContain("SUM(CASE WHEN UPPER(TRIM(usage_unit)) = 'DBU'");
+  });
+
   it('flags duplicate price matches and mixed currencies', () => {
     expect(query?.statement).toContain("THEN 'duplicate'");
     expect(query?.statement).toContain("THEN 'mixed-currency'");
@@ -113,6 +120,71 @@ describe('billing SQL contract', () => {
     );
     expect(query?.statement).toContain("'propagation'");
     expect(query?.statement).toContain('untagged_rows');
+  });
+});
+
+describe('Vector Search measured-unit fixtures', () => {
+  it('retains DBUs when a realistic endpoint aggregate also contains storage units', () => {
+    const [parsed] = readComponentRows([
+      [
+        'component',
+        'vector-search',
+        '14.00',
+        'USD',
+        '1',
+        '2',
+        null,
+        RANGE.to,
+        '8',
+        '0',
+        '2',
+        '0',
+        '',
+        'priced',
+        '0',
+        '0',
+        '2026-01-01T00:00:00Z',
+        '2',
+        '0',
+        '2',
+        '6.00',
+        '1',
+      ],
+    ]);
+    expect(parsed).toMatchObject({ usageUnitCount: 2, dbuQuantity: 6, dbuRows: 1 });
+    expect(dbuAmountFor(parsed, 'per-day')).toBe(3);
+  });
+
+  it('distinguishes a proven zero DBU from missing DBU evidence', () => {
+    expect(dbuAmountFor(row({ component: 'vector-search', dbuRows: 1, dbuQuantity: 0 }), 'total-in-range')).toBe(0);
+    expect(dbuAmountFor(row({ component: 'vector-search', dbuRows: 0, dbuQuantity: 0 }), 'total-in-range')).toBeNull();
+  });
+
+  it('allocates a shared endpoint by recorded configured-index calls', () => {
+    const vector = buildTiles(
+      IDS,
+      [row({ component: 'vector-search', spend: 12, billedDays: 2, dbuRows: 1, dbuQuantity: 10 })],
+      undefined,
+      [{ tileId: 'vector-search', calls: 2, observedCalls: 10 }]
+    ).find((tile) => tile.id === 'vector-search');
+    expect(vector).toMatchObject({
+      amount: 1.2,
+      dbus: 1,
+      quality: 'estimate',
+      population: 'Recorded query share',
+      attribution: 'deployment',
+    });
+    expect(vector?.note).toContain('2 of 10 recorded Vector Search calls');
+  });
+
+  it('renders a measured zero when other endpoint calls exist but Astrolabe made none to this index', () => {
+    const vector = buildTiles(
+      IDS,
+      [row({ component: 'vector-search', spend: 12, billedDays: 2, dbuRows: 1, dbuQuantity: 10 })],
+      undefined,
+      [{ tileId: 'vector-search', calls: 0, observedCalls: 10 }]
+    ).find((tile) => tile.id === 'vector-search');
+    expect(vector).toMatchObject({ amount: 0, dbus: 0, attribution: 'deployment' });
   });
 });
 

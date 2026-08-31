@@ -23,6 +23,7 @@ import {
   DeclaredTableList,
   DeclaredTablesSection,
   DeclaredTablesTable,
+  canonicalDeclaredTableNames,
   declaredTableNames,
   OptionalScopeLine,
   PreflightRemedyBlock,
@@ -65,7 +66,7 @@ describe('the build stamps stay identifiers rather than duplicate statuses', () 
     expect(markup).not.toContain('deployment-health');
     expect(markup).not.toContain('Running');
     expect(text(markup)).toContain('5b0e675b');
-    expect(markup).toContain('aria-label="Copy the App commit"');
+    expect(markup).toContain('aria-label="Copy the App source commit"');
     expect(markup).toContain('title="5b0e675b1c"');
   });
 
@@ -80,7 +81,7 @@ describe('the build stamps stay identifiers rather than duplicate statuses', () 
     expect(markup).not.toContain('deployment-health');
     expect(markup).not.toContain('Blocked');
     expect(text(markup)).toContain('05d742b2');
-    expect(markup).toContain('aria-label="Copy the Orchestrator commit"');
+    expect(markup).toContain('aria-label="Copy the Agent source commit"');
   });
 
   it('also keeps an unmeasured stamp free of a status pill', () => {
@@ -90,6 +91,15 @@ describe('the build stamps stay identifiers rather than duplicate statuses', () 
     expect(markup).not.toContain('ast-pill');
     expect(markup).not.toContain('data-health');
     expect(text(markup)).toContain('05d742b2');
+  });
+
+  it('labels independently sourced revisions and only calls exact matches the same release', () => {
+    const equal = stamp({ appBuildSha: 'abc123456789', modelBuildSha: 'abc123456789' }).artifacts;
+    const different = stamp({ appBuildSha: 'abc123456789', modelBuildSha: 'def987654321' }).artifacts;
+    expect(equal.map((artifact) => artifact.label)).toEqual(['App source', 'Agent source']);
+    expect(equal[0].full).toBe(equal[1].full);
+    expect(different[0].full).not.toBe(different[1].full);
+    expect(PAGE_SOURCE).toMatch(/build\.artifacts\[0\]\.full === build\.artifacts\[1\]\.full[\s\S]*Same release/);
   });
 });
 
@@ -293,7 +303,7 @@ describe('the counts line under the status headline', () => {
       row('assets-volume'),
     ];
     const counts = countsFor(resources, [check('sql-warehouse', 'ok'), check('catalog', 'failed')]);
-    expect(counts.reachable + counts.blocked + counts.notChecked + counts.nothingToReach).toBe(resources.length);
+    expect(counts.reachable + counts.blocked + counts.notChecked + counts.nothingToReach).toBe(4);
 
     const rendered = text(render(<ConnectionsCounts counts={counts} />));
     expect(rendered).toContain('1 reachable');
@@ -305,7 +315,7 @@ describe('the counts line under the status headline', () => {
    * folding the second into the first would make the line add up while saying
    * something false about four rows.
    */
-  it('names rows with nothing to reach separately from rows nobody checked', () => {
+  it('omits deployment settings that have no remote resource', () => {
     const counts = countsFor([row('genie-data', { configured: 'space-data' }), row('assets-volume')], []);
     const rendered = text(render(<ConnectionsCounts counts={counts} />));
     expect(rendered).toContain('1 not checked');
@@ -313,7 +323,7 @@ describe('the counts line under the status headline', () => {
     // drawn in. The claim is unchanged -- no remote end, so no second reading --
     // and naming them here differently from the heading they appear under read
     // as two populations.
-    expect(rendered).toContain('1 configuration only');
+    expect(rendered).not.toContain('configuration only');
   });
 
   /**
@@ -380,7 +390,7 @@ describe('the counts line under the status headline', () => {
         />
       )
     );
-    expect(line).toBe('1 reachable · 1 blocked · 1 configuration only');
+    expect(line).toBe('1 reachable · 1 blocked');
     expect(line).not.toMatch(/^ ?\u00b7/);
     expect(line).not.toMatch(/\u00b7 ?\u00b7/);
   });
@@ -1060,7 +1070,14 @@ describe('a connection row', () => {
       check,
       tone = 'plain',
       allowMutations = true,
-    }: { open?: boolean; check?: PreflightCheck; tone?: StatusTone; allowMutations?: boolean } = {}
+      declaredTables,
+    }: {
+      open?: boolean;
+      check?: PreflightCheck;
+      tone?: StatusTone;
+      allowMutations?: boolean;
+      declaredTables?: readonly string[];
+    } = {}
   ) {
     return render(
       <ConnectionRow
@@ -1071,6 +1088,7 @@ describe('a connection row', () => {
         tone={tone}
         saving={false}
         refreshing={false}
+        declaredTables={declaredTables}
         requested={open}
         allowMutations={allowMutations}
         onSave={noop}
@@ -1088,6 +1106,10 @@ describe('a connection row', () => {
       '<your_catalog>.<your_schema>.silver_player_profiles',
       '<your_catalog>.<your_schema>.silver_purchases',
     ].join(', ');
+    const additional = Array.from(
+      { length: 6 },
+      (_, index) => `<your_catalog>.<your_schema>.app_table_${index + 1}`
+    );
     const rendered = renderRow(
       'declared-manifest',
       {
@@ -1097,13 +1119,13 @@ describe('a connection row', () => {
         intendedAt: '2026-08-28T18:00:00Z',
         changedByLabel: 'Model version',
       },
-      { open: true }
+      { open: true, declaredTables: canonicalDeclaredTableNames(configured, additional.map((name) => check(name, 'ok', { kind: 'table', name }))) }
     );
-    expect(text(rendered)).toContain('6 tables');
-    expect(text(rendered)).toContain('Pending model release');
-    expect(rendered.match(/data-entity-part="catalog"/g)).toHaveLength(6);
-    expect(rendered.match(/data-entity-part="schema"/g)).toHaveLength(6);
-    expect(rendered.match(/data-entity-part="table"/g)).toHaveLength(6);
+    expect(text(rendered)).toContain('12 tables');
+    expect(text(rendered)).not.toContain('Pending model release');
+    expect(rendered.match(/data-entity-part="catalog"/g)).toHaveLength(12);
+    expect(rendered.match(/data-entity-part="schema"/g)).toHaveLength(12);
+    expect(rendered.match(/data-entity-part="table"/g)).toHaveLength(12);
     expect(rendered).not.toContain(`<p class="connection-tile-value">${configured}</p>`);
     for (const forbidden of [
       'In use',
@@ -1119,12 +1141,13 @@ describe('a connection row', () => {
     expect(PAGE_SOURCE).toMatch(/<VisitInDatabricks name=\{name\}/);
   });
 
-  it('shows a compact initial declared-table set before the full list', () => {
+  it('shows the complete canonical declared-table set', () => {
     const names = Array.from({ length: 8 }, (_, index) => `catalog.schema.table_${index + 1}`);
     const rendered = render(<DeclaredTableList configured={names.join(',')} />);
-    expect(text(rendered)).toContain('Show all 8');
+    expect(text(rendered)).not.toContain('Show all 8');
     expect(text(rendered)).toContain('table_6');
-    expect(text(rendered)).not.toContain('table_7');
+    expect(text(rendered)).toContain('table_7');
+    expect(text(rendered)).toContain('table_8');
     expect(declaredTableNames(names.join(',\n'))).toEqual(names);
   });
 
@@ -1163,11 +1186,12 @@ describe('a connection row', () => {
    * Recording is not applying -- app-redeploy and model-version rows still say
    * so in the editor -- but the affordance itself is no longer locked for admins.
    */
-  it('shows a pencil for every row when mutations are allowed, and a padlock when not', () => {
+  it('shows a pencil only for resources this app can apply immediately', () => {
     const adminLockedKind = renderRow('agent-endpoint', { configured: 'pia-agent-serving' });
-    const adminWritable = renderRow('sql-warehouse', { configured: 'wh-0001' });
-    expect(adminLockedKind).toMatch(/data-affordance="write"/);
-    expect(adminLockedKind).not.toMatch(/data-affordance="locked"/);
+    const adminLockedWarehouse = renderRow('sql-warehouse', { configured: 'wh-0001' });
+    const adminWritable = renderRow('experiment-id', { configured: '123', editable: true });
+    expect(adminLockedKind).toMatch(/data-affordance="locked"/);
+    expect(adminLockedWarehouse).toMatch(/data-affordance="locked"/);
     expect(adminWritable).toMatch(/data-affordance="write"/);
 
     const consumer = renderRow('agent-endpoint', { configured: 'pia-agent-serving' }, { allowMutations: false });
@@ -1176,13 +1200,12 @@ describe('a connection row', () => {
     expect(text(consumer)).toMatch(/not changeable here/);
   });
 
-  it('warns before recording a Shared conversation rail change', () => {
+  it('does not expose shared conversation policy as a Connections editor', () => {
     const rendered = renderRow('shared-conversation-rail', { configured: 'false' }, { open: true });
-    expect(text(rendered)).toMatch(/Widens tenancy/);
-    expect(text(rendered)).toMatch(/app release/i);
+    expect(text(rendered)).not.toMatch(/Widens tenancy|Record intention/);
   });
 
-  it('wires pickers for Lakebase, volume, VS and experiment rows admins can open', () => {
+  it('wires a picker only for rows with an immediate save path', () => {
     // The AssetPickerField only mounts once the pencil puts the row into edit
     // mode (client state), so a static open-row render cannot assert the picker
     // markup. What this page must not regress is the unlock + the field mapping.
@@ -1194,9 +1217,11 @@ describe('a connection row', () => {
       'experiment-id',
     ] as const) {
       expect(pickerForField(id), id).not.toBeNull();
-      const rendered = renderRow(id, { configured: 'placeholder' }, { open: true });
-      expect(rendered, id).toMatch(/data-affordance="write"/);
-      expect(text(rendered), id).toMatch(/Record intended value|Change/);
+      const editable = id === 'experiment-id';
+      const rendered = renderRow(id, { configured: 'placeholder', editable }, { open: true });
+      expect(rendered, id).toMatch(new RegExp(`data-affordance="${editable ? 'write' : 'locked'}"`));
+      if (editable) expect(text(rendered), id).toMatch(/Change/);
+      else expect(text(rendered), id).not.toMatch(/Change/);
     }
   });
 
@@ -1309,9 +1334,8 @@ describe('a connection row', () => {
 
   /**
    * A finding whose own severity is `unknown` is not a disagreement, and badging it
-   * as one was a live defect: `orchestrator-report-retired` says the values came
-   * from this release rather than a live ping, and the page rendered a red
-   * "Drift ×1" over it. Claiming a disagreement that was never measured is
+   * as one was a live defect: an unknown reading rendered a red "Drift ×1"
+   * over it. Claiming a disagreement that was never measured is
    * precisely the dishonesty this page exists to refuse.
    */
   it('does not report an unmeasured value as a disagreement', () => {
@@ -1322,10 +1346,10 @@ describe('a connection row', () => {
           check: undefined,
           findings: [
             {
-              id: 'orchestrator-report-retired',
+              id: 'measurement-unavailable',
               resourceId: 'agent-endpoint',
               severity: 'unknown',
-              detail: 'These values come from this release, not a live check of the agent.',
+              detail: 'No measurement was available.',
             },
           ] as never,
         })}

@@ -38,7 +38,7 @@
  */
 import { useState, type KeyboardEvent } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router';
-import { ChevronLeft, ChevronRight, ExternalLink, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
@@ -86,6 +86,7 @@ import { TimeRangeControl } from './TimeRangeControl';
 import { rangeLabel, rangeWindow } from './time-range';
 import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
 import { ForecastingBody } from './ForecastingPanel';
+import { MethodologySections, type MethodologyGroup } from './MethodologySection';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
 import { EntityText } from './DataEntityLinks';
 import { adjacentCostDisplayUnit, persistCostDisplayUnit, readCostDisplayUnit } from './cost-unit-preference';
@@ -561,7 +562,11 @@ export function CostUnitControl({
   };
   return (
     <div className="time-range cost-unit-control">
-      <div className="time-range-segments cost-unit-segments" role="radiogroup" aria-label="Cost display unit">
+      <span className="cost-unit-filter-label">
+        <SlidersHorizontal aria-hidden="true" />
+        <span>Budget unit</span>
+      </span>
+      <div className="time-range-segments cost-unit-segments" role="radiogroup" aria-label="Budget unit filter">
         {segments.map((segment) => (
           <button
             key={segment.unit}
@@ -766,25 +771,83 @@ function QuestionCostAverage({ payload, unit }: { payload: OpsCostPayload; unit:
 }
 
 function CostMethodology({ payload, billingHref }: { payload: OpsCostPayload; billingHref: string | null }) {
-  const missing = payload.tiles.filter((tile) => tileAttribution(tile) !== 'deployment' || tile.amount === null).length;
+  const calculated = payload.tiles.filter(
+    (tile) =>
+      tileAttribution(tile) === 'deployment' &&
+      ((typeof tile.amount === 'number' && Number.isFinite(tile.amount)) ||
+        (typeof tile.dbus === 'number' && Number.isFinite(tile.dbus)))
+  );
+  const detailFor = (tile: OpsCostPayload['tiles'][number]): string => {
+    if (tile.id === 'serving-endpoint') return 'Exact endpoint billing rows at Databricks list prices.';
+    if (tile.id === 'sql-warehouse') {
+      return 'Matched warehouse spend × Astrolabe’s measured Query History execution-time share.';
+    }
+    if (tile.id.startsWith('genie:')) {
+      return 'Matched warehouse spend × this Genie space’s measured generated-SQL execution-time share.';
+    }
+    if (tile.id === 'vector-search') {
+      return tile.quality === 'estimate'
+        ? 'Exact Vector Search endpoint billing × configured-index calls ÷ observed Vector Search calls.'
+        : 'Exact Vector Search endpoint billing with configured-index activity evidence.';
+    }
+    if (tile.id === 'app-compute') return 'Exact Apps billing rows matched by app name.';
+    return 'Measured attributable billing rows.';
+  };
+  const excluded = payload.tiles.filter(
+    (tile) =>
+      tileAttribution(tile) !== 'deployment' ||
+      ((tile.amount === null || tile.amount === undefined) && (tile.dbus === null || tile.dbus === undefined))
+  );
+  const groups: MethodologyGroup[] = [
+    {
+      title: 'How totals are calculated',
+      rows: [
+        {
+          label: 'Total app spend',
+          detail: 'Direct attributable components only; per-day rates are expanded over the selected Cost period.',
+        },
+        ...calculated.map((tile) => ({ label: tile.label, detail: detailFor(tile) })),
+      ],
+    },
+    {
+      title: 'Not included',
+      rows: excluded.map((tile) => ({
+        label: tile.label,
+        detail: tile.unavailable || 'Shared or incomplete attribution is not included in totals.',
+      })),
+    },
+    {
+      title: 'Limits',
+      rows: [
+        { label: 'Rates', detail: 'Prices use Databricks list rates; contracted rates are not available.' },
+        ...(payload.honesty?.rangeMayStillFill
+          ? [{ label: 'Freshness', detail: 'Recent billing records may still be arriving.' }]
+          : []),
+        ...(billingHref
+          ? [
+              {
+                label: 'Source',
+                detail: (
+                  <a
+                    className="ops-external"
+                    href={billingHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Open billing usage"
+                  >
+                    Billing usage
+                    <ExternalLink className="size-3.5" aria-hidden="true" />
+                  </a>
+                ),
+              },
+            ]
+          : []),
+      ],
+    },
+  ];
   return (
     <Disclosure summary="Cost methodology and limits" className="ops-cost-method">
-      <ul>
-        <li>Prices use Databricks list rates; contracted rates are not available.</li>
-        {missing > 0 ? (
-          <li>
-            {missing} {missing === 1 ? 'component has' : 'components have'} incomplete pricing or attribution and{' '}
-            {missing === 1 ? 'is' : 'are'} not totaled.
-          </li>
-        ) : null}
-        {payload.honesty?.rangeMayStillFill ? <li>Recent billing records may still be arriving.</li> : null}
-      </ul>
-      {billingHref ? (
-        <a className="ops-external" href={billingHref} target="_blank" rel="noreferrer" title="Open billing usage">
-          Billing source
-          <ExternalLink className="size-3.5" aria-hidden="true" />
-        </a>
-      ) : null}
+      <MethodologySections groups={groups} />
     </Disclosure>
   );
 }
@@ -1608,9 +1671,7 @@ export function OpsPage() {
           than one, because they were read at four different moments. */}
       <HealthBody block={health} />
       <CostBody block={cost} periodLabel={selectedPeriodLabel} unit={costUnit} onUnitChange={chooseCostUnit} />
-      {forecastingShown ? (
-        <ForecastingBody cost={cost} traffic={traffic} periodLabel={selectedPeriodLabel} unit={costUnit} />
-      ) : null}
+      {forecastingShown ? <ForecastingBody cost={cost} traffic={traffic} unit={costUnit} /> : null}
       <TrafficBody block={traffic} monitoringHref={monitoringHref} runsHref={runsHref} />
       <LatencyBody block={latency} />
     </div>

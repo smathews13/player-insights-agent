@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { AssetPickerField, AssetPickerPanel, AssetPickerRow, BrowseGrantPrompt } from './AssetPicker';
 import {
   BROWSE_GRANT_PROMPT,
-  BROWSE_TYPE_INSTEAD,
   BROWSE_UNAVAILABLE_CHIP,
   NO_NAME_REPORTED,
   PICKER_FIELDS,
@@ -249,8 +248,8 @@ describe('browsing is unavailable', () => {
     expect(shown).not.toMatch(/visible to your sign-in/);
   });
 
-  it('keeps the fallback reachable and says nothing was established', () => {
-    expect(text(panel('catalog', unavailable))).toContain(BROWSE_TYPE_INSTEAD);
+  it('does not offer free-text entry when discovery is unavailable', () => {
+    expect(text(panel('catalog', unavailable))).not.toMatch(/type instead|enter an identifier/i);
   });
 
   it('takes the neutral pill, not the red one a required shortfall gets', () => {
@@ -298,8 +297,10 @@ describe('a list that could not be read', () => {
     expect(text(markup)).not.toContain(BROWSE_GRANT_PROMPT);
   });
 
-  it('keeps the typed fallback', () => {
-    expect(text(panel('sql-warehouse', failed))).toContain(BROWSE_TYPE_INSTEAD);
+  it('replaces loading with retry and no typed fallback', () => {
+    const shown = text(panel('sql-warehouse', failed));
+    expect(shown).toContain('Try again');
+    expect(shown).not.toMatch(/type instead|enter an identifier/i);
   });
 });
 
@@ -340,6 +341,16 @@ describe('long lists', () => {
   });
 });
 
+describe('resource discovery loading', () => {
+  it('shows one concise live loading state with an animated icon', () => {
+    const markup = panel('sql-warehouse', null, { loading: true });
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('asset-picker-spinner');
+    expect(text(markup)).toContain('Finding resources your sign-in can access…');
+    expect(markup).not.toContain('asset-picker-rows');
+  });
+});
+
 describe('what an editor puts on screen for a field', () => {
   /**
    * Both editors on the Connections page go through this one component, so this
@@ -365,30 +376,12 @@ describe('what an editor puts on screen for a field', () => {
     expect(field('max-output-tokens')).toBe('');
   });
 
-  it('lets the denylist type box name a pattern', () => {
-    expect(text(field('catalog-denylist'))).toContain('Or type a table name or a pattern');
-    expect(text(field('catalog-allowlist'))).not.toContain('may be a pattern');
+  it('does not render a manual-entry prompt beside any picker', () => {
+    for (const id of PICKER_FIELDS) {
+      expect(text(field(id)), id).not.toMatch(/or type|enter an identifier/i);
+    }
   });
 
-  /**
-   * The text box under the browser has to say what it takes.
-   *
-   * The editors label the input `New value for <label>`, which was enough while
-   * typing was the only route in. It is not enough now: the box is the fallback
-   * for a sign-in that cannot browse, and on the table fields the shape of the
-   * value is the difference between something this app can read and something it
-   * cannot. The label is spec copy, so it is asserted against the spec rather
-   * than against a second copy of the words.
-   */
-  it('names what the text box beside each browser takes', () => {
-    for (const id of PICKER_FIELDS) {
-      const spec = pickerForField(id);
-      expect(spec, id).not.toBeNull();
-      expect(text(field(id)), id).toContain(spec?.typeLabel);
-    }
-    expect(text(field('notebook-declaration'))).toContain('three-part table name');
-    expect(text(field('sql-warehouse'))).toContain('warehouse id');
-  });
 });
 
 describe('the copy on screen', () => {

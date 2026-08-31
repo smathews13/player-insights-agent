@@ -20,6 +20,7 @@ import { partial } from './styles/stylesheet';
  */
 
 const CSS = partial('ops.css');
+const RESPONSIVE = partial('responsive.css');
 
 /** Comments stripped, so a token discussed in prose is not read as one in use. */
 const RULES = CSS.replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -162,14 +163,31 @@ describe('the traffic groups share the row', () => {
 });
 
 describe('the Cost controls and values share compact rows', () => {
-  it('keeps every resource budget on one non-wrapping row with intentional narrow-width scrolling', () => {
-    const row = rule('.ops-cost-resource-budget-grid');
-    expect(row).toMatch(/display:\s*flex/);
-    expect(row).toMatch(/flex-wrap:\s*nowrap/);
-    expect(row).toMatch(/overflow-x:\s*auto/);
-    expect(rule('.ops-tile-budget')).toMatch(/flex:\s*0\s+0\s+auto/);
-    expect(rule('.ops-budget-input-row')).toMatch(/grid-template-columns:\s*var\(--ops-budget-input-width\)/);
-    expect(rule('.ops-budget-input-wrap')).toMatch(/width:\s*var\(--ops-budget-input-width\)/);
+  it('aligns component, actual, budget, and status columns without horizontal clipping', () => {
+    const row = rule('.ops-tile-budget');
+    expect(row).toMatch(/display:\s*grid/);
+    expect(row).toMatch(
+      /grid-template-columns:\s*minmax\(10rem,\s*1\.2fr\)\s+minmax\(8rem,\s*0\.8fr\)\s+minmax\(13\.5rem,\s*0\.9fr\)\s+minmax\(9rem,\s*1fr\)/
+    );
+    expect(rule('.ops-cost-budget-matrix')).toMatch(/min-width:\s*0/);
+    expect(rule('.ops-number-ticker-wide')).toMatch(/width:\s*min\(100%,\s*14rem\)/);
+  });
+
+  it('reserves room for long values, unit affixes, and visible arrow controls', () => {
+    expect(rule('.ops-number-ticker-wide')).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)\s+24px/);
+    expect(rule(".ops-number-ticker[data-prefix='true'] input")).toMatch(/padding-left:\s*22px/);
+    expect(rule(".ops-number-ticker[data-suffix='true'] input")).toMatch(/padding-right:\s*40px/);
+    expect(RULES).toMatch(/\.ops-number-ticker-suffix\s*\{[^}]*right:\s*32px/);
+    expect(rule('.ops-budget-actual')).toMatch(/font-variant-numeric:\s*tabular-nums/);
+  });
+
+  it('deliberately reflows at narrow desktop and phone widths', () => {
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*\.ops-tile-budget\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(13\.5rem,\s*14rem\)/
+    );
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 480px\)[\s\S]*\.ops-tile-budget\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
+    );
   });
 
   it('reserves matching amount and evidence rows for values and honest empty states', () => {

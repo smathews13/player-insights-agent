@@ -1,19 +1,18 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 import { ExperimentalBadge } from './ExperimentalBadge';
-import { astPill } from './astrolabe-pill';
 import {
   calculateForecast,
   deriveForecastBaseline,
   normalizeForecastAssumptions,
-  stepForecastAssumption,
   type ForecastAssumptions,
   type ForecastResult,
   type ForecastSuggestionEvidence,
 } from './forecast';
 import { persistForecastAssumptions, readForecastAssumptions } from './forecast-preferences';
+import { MethodologySections, type MethodologyGroup } from './MethodologySection';
+import { NumberTicker, tickerNumber } from './NumberTicker';
 import { Disclosure } from './page-chrome';
-import { Input, Skeleton } from './ui';
+import { Skeleton } from './ui';
 import type { OpsCostPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 
@@ -84,8 +83,6 @@ function exampleRangeText(
   return `Example range: ${formatted(range.min)}–${formatted(range.max)} ${field.exampleUnit}`;
 }
 
-const VISIBLE_LIMITS = 3;
-
 function formulaText(component: { id: string; formula: string }): string {
   if (component.id === 'serving-endpoint') {
     return 'Daily questions × observed serving cost per question × assumed-to-observed token ratio';
@@ -133,39 +130,18 @@ function AssumptionGrid({
             <div className="ops-forecast-assumption" key={field.key}>
               <label htmlFor={inputId}>{field.label}</label>
               <span className="ops-forecast-input-row">
-                <span className="ops-forecast-number-control">
-                  <Input
-                    id={inputId}
-                    type="number"
-                    inputMode={field.step === 1 ? 'numeric' : 'decimal'}
-                    min="0"
-                    step={field.step}
-                    value={value}
-                    onChange={(event) => {
-                      const next = event.target.valueAsNumber;
-                      onChange(field.key, Number.isFinite(next) && next >= 0 ? next : 0);
-                    }}
-                  />
-                  <span className="ops-forecast-steppers" role="group" aria-label={`${field.label} step controls`}>
-                    <button
-                      type="button"
-                      aria-label={`Increase ${field.label.toLowerCase()}`}
-                      aria-controls={inputId}
-                      onClick={() => onChange(field.key, stepForecastAssumption(field.key, value, 1))}
-                    >
-                      <ChevronUp aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Decrease ${field.label.toLowerCase()}`}
-                      aria-controls={inputId}
-                      disabled={value <= 0}
-                      onClick={() => onChange(field.key, stepForecastAssumption(field.key, value, -1))}
-                    >
-                      <ChevronDown aria-hidden="true" />
-                    </button>
-                  </span>
-                </span>
+                <NumberTicker
+                  id={inputId}
+                  label={field.label}
+                  step={field.step}
+                  min={0}
+                  precision={field.step === 1 ? 0 : 1}
+                  value={String(value)}
+                  onChange={(raw) => {
+                    const next = tickerNumber(raw);
+                    if (next.valid && next.value !== null) onChange(field.key, next.value);
+                  }}
+                />
                 {field.unit ? <small>{field.unit}</small> : null}
               </span>
               <small className="ops-forecast-assumption-evidence">
@@ -254,11 +230,11 @@ function ProjectionBreakdown({
 export function ForecastingBody({
   cost,
   traffic,
-  periodLabel = '7 days',
   unit = 'USD',
 }: {
   cost: ForecastBlock<OpsCostPayload>;
   traffic: ForecastBlock<OpsTrafficPayload>;
+  /** Accepted for compatibility; the selected Cost period is disclosed in methodology, not as a horizon badge. */
   periodLabel?: string;
   unit?: CostBudgetUnit;
 }) {
@@ -286,6 +262,29 @@ export function ForecastingBody({
     setSaved(next);
     persistForecastAssumptions(next);
   };
+  const methodologyGroups: MethodologyGroup[] = [
+    {
+      title: 'How totals are calculated',
+      rows: [
+        {
+          label: 'Observed baseline',
+          detail: `${baseline.window.from}–${baseline.window.to} (selected Cost period)`,
+        },
+        ...result.components.map((component) => ({
+          label: component.label,
+          detail: formulaText(component),
+        })),
+      ],
+    },
+    {
+      title: 'Not included',
+      rows: baseline.exclusions.map((item) => ({ label: item.component, detail: item.reason })),
+    },
+    {
+      title: 'Limits',
+      rows: limits.map((limit) => ({ detail: limit })),
+    },
+  ];
 
   return (
     <section className="ops-block ops-forecast" aria-labelledby="ops-forecast-heading" data-testid="ops-forecasting">
@@ -293,7 +292,6 @@ export function ForecastingBody({
         <div className="ops-block-head-text">
           <ExperimentalBadge />
           <h3 id="ops-forecast-heading">Forecasting</h3>
-          <span className={astPill('neutral-outline', 'ops-pill ops-period-pill')}>{periodLabel}</span>
         </div>
       </div>
       <div className="ops-block-body">
@@ -341,52 +339,7 @@ export function ForecastingBody({
             <ProjectionBreakdown result={result} currency={baseline.currency} partial={partial} />
 
             <Disclosure summary="Methodology, formulas, and exclusions" className="ops-forecast-method">
-              <div className="ops-forecast-method-sections">
-                <section>
-                  <h5>How totals are calculated</h5>
-                  <dl className="ops-forecast-formulas">
-                    {result.components.map((component) => (
-                      <div key={component.id}>
-                        <dt>{component.label}</dt>
-                        <dd>{formulaText(component)}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </section>
-                {baseline.exclusions.length > 0 ? (
-                  <section>
-                    <h5>Not included</h5>
-                    <ul className="ops-forecast-not-included">
-                      {baseline.exclusions.map((item) => (
-                        <li key={`${item.component}-${item.reason}`}>
-                          <strong>{item.component}</strong>
-                          <span>{item.reason}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                ) : null}
-                {limits.length > 0 ? (
-                  <section>
-                    <h5>Limits</h5>
-                    <ul className="ops-forecast-limits">
-                      {limits.slice(0, VISIBLE_LIMITS).map((limit) => (
-                        <li key={limit}>{limit}</li>
-                      ))}
-                    </ul>
-                    {limits.length > VISIBLE_LIMITS ? (
-                      <details className="ops-forecast-more-limits">
-                        <summary>{limits.length - VISIBLE_LIMITS} more</summary>
-                        <ul>
-                          {limits.slice(VISIBLE_LIMITS).map((limit) => (
-                            <li key={limit}>{limit}</li>
-                          ))}
-                        </ul>
-                      </details>
-                    ) : null}
-                  </section>
-                ) : null}
-              </div>
+              <MethodologySections groups={methodologyGroups} />
             </Disclosure>
           </>
         )}

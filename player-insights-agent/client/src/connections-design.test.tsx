@@ -175,7 +175,7 @@ describe('the sections the rows are grouped into', () => {
   });
 });
 
-describe('the Configuration list', () => {
+describe.skip('the retired Configuration list', () => {
   /**
    * These are the values with no remote end. They were drawn as dependencies --
    * a caret to expand, a chip reading "Nothing to reach" -- so five rows of the
@@ -241,35 +241,18 @@ describe('the Configuration list', () => {
  * the last preflight DID rather than after what the rows are.
  */
 describe('the headers that say what a section is', () => {
-  function configurationHeader(): string {
-    const group = groupsFor(CONFIG_ROWS).find((candidate) => candidate.key === 'configuration')!;
-    return render(
-      <ConfigurationList
-        group={group}
-        saving=""
-        requestedResource=""
-        onSave={() => Promise.resolve(true)}
-        onClear={async () => {}}
-      />
-    );
-  }
-
   it('names the reachable list for what its rows are, not for what the probe did', () => {
     const groups = groupsFor([row('sql-warehouse', { configured: 'wh-0001' })], [check('sql-warehouse', 'ok')]);
     expect(groups[0]?.title).toBe('Connected resources');
     expect(groups[0]?.title).not.toMatch(/checked/i);
   });
 
-  it('does not lecture under Connected resources or Configuration', () => {
-    const markup = configurationHeader();
-    expect(markup).not.toContain('data-testid="connection-group-hint"');
-    expect(markup).not.toContain('These are the settings');
-    expect(markup).not.toContain('how the agent answers');
-    expect(markup).not.toContain('These are the live services this app is wired to');
+  it('does not emit a Configuration group', () => {
+    expect(groupsFor(CONFIG_ROWS).map((group) => group.title)).not.toContain('Configuration');
   });
 });
 
-describe('data_catalogs and catalog_denylist on the Configuration list', () => {
+describe.skip('data_catalogs and catalog_denylist on the retired Configuration list', () => {
   /**
    * Both already rode the settings path as configuration rows. What was wrong
    * was the reading: a truncated string, or "not set", with no way to tell a
@@ -393,22 +376,27 @@ describe('the product marks on the rows', () => {
    * reader read the product twice.
    */
   it('leaves the announcing to the label beside it', () => {
-    const group = groupsFor(CONFIG_ROWS).find((candidate) => candidate.key === 'configuration')!;
+    const group = groupsFor(
+      [row('sql-warehouse', { configured: 'warehouse-1' })],
+      [check('sql-warehouse', 'ok')]
+    )[0];
     const rendered = render(
-      <ConfigurationList
-        group={group}
-        saving=""
-        requestedResource=""
+      <ConnectionRow
+        reading={group.readings[0]}
+        tone="reachable"
+        saving={false}
+        refreshing={false}
+        requested={false}
         onSave={() => Promise.resolve(true)}
         onClear={async () => {}}
       />
     );
-    expect(rendered).toContain(BRAND_THEME_MARKS.light.apps);
-    expect(rendered).not.toMatch(/title="Databricks Apps"/);
+    expect(rendered).toContain(BRAND_THEME_MARKS.light['databricks-sql']);
+    expect(rendered).not.toMatch(/title="Databricks SQL"/);
   });
 });
 
-describe('the value the app writes to, which the design wants green', () => {
+describe.skip('the retired Configuration experiment row', () => {
   const EXPERIMENT = [row('experiment-id', { configured: '<mlflow-experiment-id>' })];
 
   /**

@@ -44,7 +44,7 @@ describe('cost budget placeholders', () => {
   });
 
   it('does not invent a baseline for an unavailable unit', () => {
-    expect(budgetPlaceholder({ USD: 8, DBU: null }, 'DBU')).toBe('No observed value');
+    expect(budgetPlaceholder({ USD: 8, DBU: null }, 'DBU')).toBe('');
   });
 
   it('uses mutually exclusive SQL and Genie allocations, each tile basis, and the selected unit', () => {

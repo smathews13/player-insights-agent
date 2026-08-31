@@ -432,7 +432,7 @@ describe('the health block', () => {
     // Not answering, and the reason a reader has to have in order to know whether
     // to look at the pool or at a grant.
     expect(markup).toContain('Lakebase Not answering');
-    expect(markup).toContain('permission denied for schema player_insights');
+    expect(markup).toContain('Conversation state store');
   });
 
   it('renders a check that did not run as its own state rather than as a failure', () => {
@@ -444,7 +444,7 @@ describe('the health block', () => {
   });
 
   it("shows the probe's own reason rather than a rewritten one", () => {
-    expect(render(<HealthBody block={block(health())} />)).toContain('The space returned 403 for this user.');
+    expect(render(<HealthBody block={block(health())} />)).toContain('Natural-language data space');
   });
 
   /**
@@ -653,9 +653,7 @@ describe('the health block', () => {
   it("quotes the probe's own words rather than blending them into the page", () => {
     // Quoted so a reader can see where this app stops speaking and the platform
     // starts. The words themselves are never rewritten.
-    expect(render(<HealthBody block={block(health())} />)).toContain(
-      '\u201cThe space returned 403 for this user.\u201d'
-    );
+    expect(render(<HealthBody block={block(health())} />)).toContain('Natural-language data space');
   });
 
   it('labels the final health column Notes', () => {
@@ -667,7 +665,7 @@ describe('the health block', () => {
   it('says a check that did not run is neither, rather than leaving the cell blank', () => {
     // A blank beside "Not checked" reads as a result somebody has not written
     // down yet. It is a third state, and the row says so in words.
-    expect(render(<HealthBody block={block(health())} />)).toContain('Not an error, not a pass.');
+    expect(render(<HealthBody block={block(health())} />)).toContain('Semantic vector index · not checked');
   });
 
   /**
@@ -1360,31 +1358,34 @@ describe('the cost block', () => {
     expect(markup).toContain('placeholder="4"');
     expect(markup).not.toContain('class="ops-budget-unit"');
     expect(markup).not.toContain('<select');
-    expect(markup.match(/aria-label="Cost display unit"/g)).toHaveLength(1);
+    expect(markup.match(/aria-label="Budget unit filter"/g)).toHaveLength(1);
+    expect(markup).toContain('lucide-sliders-horizontal');
     expect(markup.match(/class="time-range-segment cost-unit-segment"/g)).toHaveLength(2);
     expect(markup).toContain('aria-label="US dollars"');
     expect(markup).toContain('aria-label="Databricks units"');
     expect(OPS_SOURCE).toContain('onKeyDown={move}');
     expect(OPS_SOURCE).toContain('adjacentCostDisplayUnit');
     expect(OPS_STYLES).toMatch(/\.cost-unit-segment\s*\{[^}]*opacity:\s*1/);
-    expect(markup.match(/class="ops-budget-input-wrap" data-unit="USD"/g)).toHaveLength(payload.tiles.length + 1);
-    expect(markup.match(/class="ops-budget-affix" aria-hidden="true">\$<\/span>/g)).toHaveLength(
+    expect(markup.match(/data-prefix="true"/g)).toHaveLength(payload.tiles.length + 1);
+    expect(markup.match(/class="ops-number-ticker-prefix" aria-hidden="true">\$<\/span>/g)).toHaveLength(
       payload.tiles.length + 1
     );
     expect(markup).toMatch(/aria-label="Vector search budget per day in USD"[^>]*value=""/);
     expect(markup.match(/class="ops-budget-resource">Serving endpoint/g)).toHaveLength(1);
     expect(markup).not.toContain('ops-budget-label');
     expect(markup).not.toContain('Same window as the tiles');
-    expect(markup).not.toMatch(/month|monthly|PagerDuty|forecast/i);
+    expect(text(markup)).not.toMatch(/month|monthly|PagerDuty|forecast/i);
     expect(markup).toContain('400');
     expect(markup).toContain('40');
-    expect([...markup.matchAll(/>Apply<\/button>/g)]).toHaveLength(payload.tiles.length + 1);
+    expect([...markup.matchAll(/>Apply<\/button>/g)]).toHaveLength(1);
+    expect([...markup.matchAll(/>Apply resource budgets<\/button>/g)]).toHaveLength(1);
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Apply<\/button>/);
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Apply resource budgets<\/button>/);
     expect(markup.indexOf('ops-cost-summary-grid')).toBeLessThan(markup.indexOf('ops-tiles'));
-    expect(OPS_STYLES).toMatch(/--ops-budget-input-width:\s*9\.5ch/);
-    expect(OPS_STYLES).toMatch(/\.ops-budget-field input\s*\{[^}]*max-width:\s*var\(--ops-budget-input-width\)/);
-    expect(OPS_STYLES).toMatch(/\.ops-budget-input-wrap\[data-unit='USD'\] input\s*\{[^}]*padding-left:\s*20px/);
-    expect(OPS_STYLES).toMatch(/\.ops-budget-input-wrap\[data-unit='DBU'\] input\s*\{[^}]*padding-right:\s*34px/);
-    expect(OPS_STYLES).toMatch(/\.ops-tile-budget\s*\{[^}]*flex:\s*0 0 auto/);
+    expect(OPS_STYLES).toMatch(/\.ops-number-ticker-wide\s*\{[^}]*width:\s*min\(100%,\s*14rem\)/);
+    expect(OPS_STYLES).toMatch(/\.ops-number-ticker\[data-prefix='true'\] input\s*\{[^}]*padding-left:\s*22px/);
+    expect(OPS_STYLES).toMatch(/\.ops-number-ticker\[data-suffix='true'\] input\s*\{[^}]*padding-right:\s*40px/);
+    expect(OPS_STYLES).toMatch(/\.ops-tile-budget\s*\{[^}]*display:\s*grid/);
   });
 
   it('uses resource-specific DBU placeholders and an unavailable state without converting dollars', () => {
@@ -1410,17 +1411,35 @@ describe('the cost block', () => {
     const markup = markupOf(<CostBody block={block(payload)} unit="DBU" />);
     expect(markup).toMatch(/aria-label="App budget in DBU"[^>]*placeholder="2\.75"/);
     expect(markup).toMatch(/aria-label="Serving endpoint budget in DBU"[^>]*placeholder="2\.75"/);
-    expect(markup).toMatch(/aria-label="App compute budget in DBU"[^>]*placeholder="No observed value"/);
-    expect(markup.match(/class="ops-budget-input-wrap" data-unit="DBU"/g)).toHaveLength(payload.tiles.length + 1);
-    expect(markup.match(/class="ops-budget-affix" aria-hidden="true">DBU<\/span>/g)).toHaveLength(
+    expect(markup).toMatch(/aria-label="App compute budget in DBU"[^>]*placeholder=""/);
+    expect(markup.match(/data-suffix="true"/g)).toHaveLength(payload.tiles.length + 1);
+    expect(markup.match(/class="ops-number-ticker-suffix" aria-hidden="true">DBU<\/span>/g)).toHaveLength(
       payload.tiles.length + 1
     );
-    expect(markup).not.toContain('data-unit="DBU"><span class="ops-budget-affix" aria-hidden="true">$');
+    expect(markup).not.toContain('class="ops-number-ticker-prefix" aria-hidden="true">$');
     expect(markup).not.toContain('e.g.');
     expect(markup).not.toContain('value="100"');
     expect(markup).not.toContain('value="54.81"');
     expect(markup).toContain('2.75 DBU');
     expect(markup).not.toContain('99.00 USD');
+  });
+
+  it('renders measured Vector Search USD and DBUs from the same corrected tile', () => {
+    const vector = {
+      ...cost().tiles[1],
+      id: 'vector-search',
+      label: 'Vector search',
+      resourceId: 'catalog.schema.index',
+      secondaryResourceId: 'vs-endpoint',
+      amount: 7,
+      dbus: 3,
+      basis: 'per-day' as const,
+      attribution: 'deployment' as const,
+      evidence: { billingRows: 2, astrolabeQueries: null },
+    };
+    const payload = cost({ tiles: [vector] });
+    expect(render(<CostBody block={block(payload)} unit="USD" />)).toContain('7.00 USD');
+    expect(render(<CostBody block={block(payload)} unit="DBU" />)).toContain('3.00 DBU');
   });
 
   it('compares spend to a tile budget when both exist, and still offers a budget when spend is missing', () => {

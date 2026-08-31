@@ -366,6 +366,21 @@
   .ops-cost-resource-budgets {
     grid-column: auto;
   }
+  .ops-cost-budget-matrix-head {
+    display: none;
+  }
+  .ops-tile-budget {
+    grid-template-columns: minmax(0, 1fr) minmax(13.5rem, 14rem);
+    gap: 6px 14px;
+  }
+  .ops-tile-budget > span:nth-child(odd) {
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .ops-tile-budget > span:nth-child(even) {
+    justify-content: flex-end;
+    text-align: right;
+  }
   .egress-summary {
     grid-template-columns: 1fr;
   }
@@ -373,8 +388,7 @@
     grid-template-columns: 1fr;
     gap: 2px;
   }
-  .ops-forecast-formulas > div,
-  .ops-forecast-not-included li {
+  .ops-methodology-rows > div {
     grid-template-columns: minmax(0, 1fr);
     gap: 3px;
   }
@@ -574,6 +588,22 @@
    width -- the nav went at 1180px -- but a rule that only happens to be unread is
    a rule that is wrong the day something reads it. */
 @media (max-width: 480px) {
+  .ops-tile-budget {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ops-tile-budget > span,
+  .ops-tile-budget > span:nth-child(n) {
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .ops-budget-compare {
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .ops-number-ticker-wide,
+  .ops-budget-field {
+    width: 100%;
+  }
   /* Two useful-width inputs and then the third, rather than three controls
      squeezed below their labels or pushed outside the modal. */
   .runtime-loop-row {

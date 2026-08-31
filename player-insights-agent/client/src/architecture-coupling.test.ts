@@ -125,7 +125,8 @@ describe('a node reports what the shared derivation says, and nothing else', () 
     const { payload, checks } = fixture();
     const byResource = readingsById(readConnections(payload, checks));
     for (const row of payload.resources) {
-      const reading = byResource.get(row.resource.id)!;
+      const reading = byResource.get(row.resource.id);
+      if (!reading) continue;
       expect(reading.summary).toEqual(inUseSummary(row));
       const node = ARCHITECTURE_NODES.find((candidate) => candidate.resourceId === row.resource.id);
       if (!node) continue;
@@ -141,9 +142,11 @@ describe('a node reports what the shared derivation says, and nothing else', () 
     for (const row of payload.resources) {
       const expected = driftMarker({
         findingIds: payload.drift.filter((f) => f.resourceId === row.resource.id).map((f) => f.id),
-        intended: row.intended,
+        intended: null,
       });
-      expect(byResource.get(row.resource.id)!.marker, row.resource.id).toBe(expected);
+      const reading = byResource.get(row.resource.id);
+      if (!reading) continue;
+      expect(reading.marker, row.resource.id).toBe(expected);
     }
     // The case the diagram exists to surface: a warehouse that answered, under
     // an id that is not the configured one. Drifted, and NOT blocked -- it
@@ -164,11 +167,11 @@ describe('a node reports what the shared derivation says, and nothing else', () 
     );
   });
 
-  it('says drift and pending in the text equivalent too, so the fact is not sighted-only', () => {
+  it('says drift in the text equivalent and hides legacy pending intentions', () => {
     const { payload, checks } = fixture();
     const lines = describeArchitecture(readingsById(readConnections(payload, checks)));
     expect(lines.some((line) => /SQL warehouse/.test(line) && /drifted/i.test(line))).toBe(true);
-    expect(lines.some((line) => /Dictionary Genie space/.test(line) && /has not been applied/i.test(line))).toBe(true);
+    expect(lines.some((line) => /has not been applied/i.test(line))).toBe(false);
   });
 });
 

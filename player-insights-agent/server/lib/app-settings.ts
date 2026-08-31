@@ -547,21 +547,6 @@ const TRUSTED_PROVENANCE = new Set([ARTIFACT, 'app-environment', 'data-contract'
  * not claim to have confirmed agreement it never measured, which is the defect that
  * was removed from this file earlier.
  */
-const ORCHESTRATOR_REPORT_RETIRED: DriftFinding = {
-  id: 'orchestrator-report-retired',
-  severity: 'unknown',
-  resourceId: 'agent-endpoint',
-  headline: 'These values come from this release, not a live check of the agent',
-  detail:
-    'Connections lists the tables and spaces this build was set up to use. Unity Catalog ' +
-    'answers whether you can reach them. The agent was not asked a fake question to describe ' +
-    'itself. Nothing here means anything is broken.',
-  // Nothing to fix. Re-logging the model does not bring a live ping back, and a
-  // remedy offered for a healthy deployment is how remedies stop being read on the
-  // day one is real.
-  remedy: '',
-};
-
 /**
  * Everywhere the deployment disagrees with itself.
  *
@@ -595,9 +580,8 @@ export function computeDrift(input: {
   //    measurements, and the checks that read a configuration still mean
   //    something there.
   if (!report) {
-    findings.push(endpointAnswered === true
-      ? { ...ORCHESTRATOR_REPORT_RETIRED }
-      : {
+    if (endpointAnswered !== true) {
+      findings.push({
           id: 'orchestrator-unreachable',
           severity: 'unknown',
           resourceId: 'agent-endpoint',
@@ -613,8 +597,8 @@ export function computeDrift(input: {
           // merged into Connections. Sending a reader to another page for it would
           // now be sending them in a circle.
           remedy: 'Fix the blocked checks under “What to fix” above, then re-check.',
-        }
-    );
+        });
+    }
     return findings;
   }
 
@@ -628,10 +612,6 @@ export function computeDrift(input: {
   //     configuration report can genuinely support, and a deployment running a
   //     stale model would have been told nothing. Everything below that needs a
   //     measurement already guards on having one.
-  if (report.source !== 'agent') {
-    findings.push({ ...ORCHESTRATOR_REPORT_RETIRED });
-  }
-
   // 2. The served version predates provenance reporting. Distinguished from
   //    "everything came from the artifact", which looks identical if the absence
   //    of the field is read as an empty answer.

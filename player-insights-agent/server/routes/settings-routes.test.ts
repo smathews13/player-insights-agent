@@ -194,8 +194,8 @@ describe('what /api/settings makes of this release, without asking the agent', (
       endpointAnswered: read.answered,
     });
 
-    expect(payload.status).toBe('unknown');
-    expect(payload.drift.map((finding) => finding.id)).toContain('orchestrator-report-retired');
+    expect(payload.status).toBe('ok');
+    expect(payload.drift.map((finding) => finding.id)).not.toContain('orchestrator-report-retired');
     expect(read.report?.status).toBe('unverified');
     const observed = payload.resources
       .filter((resource) => resource.actualObserved)

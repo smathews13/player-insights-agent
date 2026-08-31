@@ -62,5 +62,14 @@ export function budgetPlaceholder(observed: Record<CostBudgetUnit, number | null
   const baseline = observed[unit];
   return typeof baseline === 'number' && Number.isFinite(baseline)
     ? baseline.toLocaleString('en-US', { maximumFractionDigits: 2 })
-    : 'No observed value';
+    : '';
+}
+
+/** A concise dynamic guide derived from measured spend, never an invented budget. */
+export function budgetHelper(observed: Record<CostBudgetUnit, number | null>, unit: CostBudgetUnit): string {
+  const baseline = observed[unit];
+  if (typeof baseline !== 'number' || !Number.isFinite(baseline)) return 'No measured baseline';
+  const format = (value: number) =>
+    value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return `Observed: ${format(baseline)} ${unit}`;
 }

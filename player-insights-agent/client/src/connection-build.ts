@@ -245,10 +245,10 @@ export function buildFacts(input: {
 
   return {
     artifacts: [
-      artifact('app', 'App', app, appHealth({ serving: input.appServing, answered: input.appAnswered })),
+      artifact('app', 'App source', app, appHealth({ serving: input.appServing, answered: input.appAnswered })),
       artifact(
         'orchestrator',
-        'Orchestrator',
+        'Agent source',
         model,
         orchestratorHealth({ status: input.orchestratorStatus, reported: input.orchestratorReported })
       ),

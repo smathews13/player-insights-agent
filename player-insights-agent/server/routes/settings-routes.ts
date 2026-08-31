@@ -378,6 +378,20 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
         return;
       }
       try {
+        const existing = await readDeclaredConnections(appkit);
+        const duplicate = existing.find(
+          (connection) =>
+            connection.state === 'declared' &&
+            connection.kind === parsed.data.kind &&
+            connection.value === parsed.data.value
+        );
+        if (duplicate) {
+          res.status(409).json({
+            error: 'duplicate_connection',
+            detail: 'That Databricks resource is already in the connection list.',
+          });
+          return;
+        }
         const connection = await writeDeclaredConnection(appkit, {
           id: parsed.data.id,
           label: parsed.data.label,

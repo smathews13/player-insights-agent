@@ -176,25 +176,24 @@ describe('Forecasting visibility and placement', () => {
     ]) {
       expect(markup).toContain(label);
     }
-    expect(markup).toContain('type="number"');
+    expect(markup).toContain('type="text"');
+    expect(markup.match(/ops-number-ticker ops-forecast-number-control/g)).toHaveLength(4);
     expect(markup).toContain('aria-label="Increase average daily users"');
     expect(markup).toContain('aria-label="Decrease average daily users"');
     expect(markup.match(/ops-forecast-steppers/g)).toHaveLength(4);
     expect(markup.match(/aria-controls="ops-forecast-/g)).toHaveLength(8);
-    expect(markup).toMatch(/id="ops-forecast-averageDailyUsers"[^>]*inputMode="numeric"[^>]*min="0"[^>]*step="1"/);
-    expect(markup).toMatch(
-      /id="ops-forecast-questionsPerUserPerDay"[^>]*inputMode="decimal"[^>]*min="0"[^>]*step="0\.1"/
-    );
-    expect(markup).toMatch(
-      /id="ops-forecast-averageModelTokensPerQuestion"[^>]*inputMode="numeric"[^>]*min="0"[^>]*step="1"/
-    );
+    expect(markup).toMatch(/id="ops-forecast-averageDailyUsers"[^>]*inputMode="decimal"/);
+    expect(markup).toMatch(/id="ops-forecast-questionsPerUserPerDay"[^>]*inputMode="decimal"/);
+    expect(markup).toMatch(/id="ops-forecast-averageModelTokensPerQuestion"[^>]*inputMode="decimal"/);
     expect(markup).not.toContain('$');
     expect(markup).not.toContain('List-price estimate only');
     expect(markup).not.toContain('Baseline:');
     expect(markup).not.toContain('Source:');
     expect(markup).not.toContain('Assumption baselines');
     expect(markup).not.toContain('complete days');
-    expect(markup).not.toContain('2026-08-08');
+    expect(markup).toContain('Observed baseline');
+    expect(markup).toContain('2026-08-08–2026-08-14 (selected Cost period)');
+    expect(markup).not.toContain('ops-period-pill');
     expect(markup).toContain('How totals are calculated');
     expect(markup).toContain('Daily questions × observed serving cost per question');
     const helpers = [...markup.matchAll(/class="ops-forecast-assumption-evidence">([^<]*)<\/small>/g)].map(
@@ -340,7 +339,7 @@ describe('Forecasting visibility and placement', () => {
     expect(partial).not.toContain('<span>Serving endpoint</span>');
   });
 
-  it('uses compact responsive rows and caps the initially visible limits', () => {
+  it('uses compact responsive rows and the shared methodology structure', () => {
     const payload = cost();
     payload.perQuestion = { ...payload.perQuestion, runsInRange: 8, tokenCoveredRuns: 2 };
     const trafficPayload = traffic();
@@ -350,24 +349,24 @@ describe('Forecasting visibility and placement', () => {
         <ForecastingBody cost={block(payload)} traffic={block(trafficPayload)} periodLabel="30 days" />
       </MemoryRouter>
     );
-    expect(markup).toContain('30 days');
+    expect(markup).toContain('Next 30 days');
+    expect(markup).not.toContain('ops-period-pill');
     expect(markup).toContain('Serving token coverage is partial');
     expect(markup.match(/Active-minute/g)).toHaveLength(1);
-    expect(OPS_CSS).toMatch(/\.ops-forecast-formulas > div,[\s\S]*grid-template-columns:/);
+    expect(OPS_CSS).toMatch(/\.ops-methodology-rows > div\s*\{[\s\S]*grid-template-columns:/);
     expect(OPS_CSS).toMatch(
       /\.ops-forecast-assumption-grid\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(min\(12rem,\s*100%\),\s*13\.5rem\)\)/
     );
     expect(OPS_CSS).toMatch(
-      /\.ops-forecast-number-control\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*7rem\)\s+20px[^}]*width:\s*min\(100%,\s*8\.25rem\)/
+      /\.ops-number-ticker\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*7rem\)\s+20px[^}]*width:\s*min\(100%,\s*8\.25rem\)/
     );
     expect(OPS_CSS).toMatch(
-      /\.ops-forecast-number-control input\s*\{[^}]*font-size:\s*var\(--text-base\)[^}]*font-weight:\s*700/
+      /\.ops-number-ticker input\s*\{[^}]*font-size:\s*var\(--text-base\)[^}]*font-weight:\s*700/
     );
     expect(OPS_CSS).toMatch(/\.ops-forecast-breakdown-scroll\s*\{[^}]*overflow-x:\s*auto/);
     expect(OPS_CSS).toMatch(/\.ops-forecast-breakdown table\s*\{[^}]*min-width:\s*620px/);
-    expect(RESPONSIVE_CSS).toMatch(/\.ops-forecast-formulas > div,[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
-    expect(FORECAST_SOURCE).toContain('limits.slice(0, VISIBLE_LIMITS)');
-    expect(FORECAST_SOURCE).toContain('ops-forecast-more-limits');
+    expect(RESPONSIVE_CSS).toMatch(/\.ops-methodology-rows > div\s*\{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+    expect(FORECAST_SOURCE).toContain('<MethodologySections groups={methodologyGroups} />');
   });
 });
 

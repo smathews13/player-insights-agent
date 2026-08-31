@@ -291,7 +291,11 @@ export function tileView(tile: CostTile, currency: string, unit: CostBudgetUnit 
     absence: figure
       ? ''
       : unit === 'DBU'
-        ? 'Measured DBU amount unavailable'
+        ? (tile.evidence?.billingRows ?? 0) > 0
+          ? 'Measured DBU unavailable: matched billing rows contain no DBU usage'
+          : tile.unavailable
+            ? `DBU unavailable: ${tile.unavailable}`
+            : 'Measured DBU unavailable: no matched billing rows'
         : tile.unavailable || 'Billing detail unavailable',
     qualityLabel: COST_QUALITY_LABEL[tile.quality],
     estimate: figure !== '' && tile.quality === 'estimate',
@@ -619,11 +623,22 @@ export interface HealthRow {
  * accounts of one failure that a reader has to reconcile, and the probe's is the
  * one that matches the logs.
  */
-function noteFor(reason: string, result: DependencyResult): string {
-  if (reason) return `\u201c${reason}\u201d`;
-  // A check that did not run has said nothing about the dependency, and a blank
-  // cell beside "Not checked" reads as a result nobody has written down yet.
-  return result === 'not-checked' ? 'Not an error, not a pass.' : '';
+const RESOURCE_NOTES: Readonly<Record<string, string>> = {
+  app: 'Databricks App runtime',
+  lakebase: 'Conversation state store',
+  'sql-warehouse': 'SQL query execution',
+  'genie-space': 'Natural-language data space',
+  'serving-endpoint': 'Model inference endpoint',
+  'vector-endpoint': 'Vector Search compute',
+  'vector-index': 'Semantic vector index',
+  catalog: 'Unity Catalog container',
+  schema: 'Unity Catalog namespace',
+  table: 'Governed table',
+};
+
+function noteFor(kind: string, result: DependencyResult): string {
+  const description = RESOURCE_NOTES[kind] ?? 'Connected dependency';
+  return result === 'not-checked' ? `${description} · not checked` : description;
 }
 
 /**
@@ -667,7 +682,7 @@ export function healthRows(
       name: row.name,
       connectionsId: row.connectionsId,
       lastCheckedAt: row.lastCheckedAt,
-      notes: noteFor(row.reason, row.result),
+      notes: noteFor(row.kind, row.result),
       pill: reading
         ? {
             // The platform's own word wins where the platform gave one. It is a
@@ -693,7 +708,7 @@ export function healthRows(
         // The reading was taken on the same pass as the probes, so it is as old as
         // the check the band is dated by. Nothing here invents a fresher time.
         lastCheckedAt: payload.checkedAt ?? '',
-        notes: noteFor(reading.reason ?? '', reading.read ? 'answered' : 'not-checked'),
+        notes: noteFor(reading.id, reading.read ? 'answered' : 'not-checked'),
         pill: {
           label: reading.label,
           value: reading.read && reading.state ? reading.state : 'Not checked',

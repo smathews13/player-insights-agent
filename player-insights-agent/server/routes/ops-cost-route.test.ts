@@ -188,7 +188,7 @@ describe('the ranged cost route', () => {
     expect(payload.honesty?.contractRates).toBe('unavailable');
   });
 
-  it('shows four configured resources and excludes untagged Vector Search calls', async () => {
+  it('traces configured Vector Search identity, activity, USD, and DBUs into one allocated tile', async () => {
     let handler: ((req: Request, res: Response) => Promise<void>) | undefined;
     const app = {
       get: (path: string, registered: (req: Request, res: Response) => Promise<void>) => {
@@ -250,7 +250,58 @@ describe('the ranged cost route', () => {
         new globalThis.Response(
           JSON.stringify({
             status: { state: 'SUCCEEDED' },
-            result: { data_array: [['__range', null, 'USD', '0', null, '']] },
+            result: {
+              data_array: [
+                [
+                  'component',
+                  'vector-search',
+                  '14',
+                  'USD',
+                  '1',
+                  '2',
+                  null,
+                  '2026-08-17',
+                  '8',
+                  '0',
+                  '2',
+                  '0',
+                  '',
+                  'priced',
+                  '0',
+                  '0',
+                  '2026-01-01T00:00:00Z',
+                  '0',
+                  '2',
+                  '2',
+                  '6',
+                  '1',
+                ],
+                [
+                  'range',
+                  '__range',
+                  null,
+                  'USD',
+                  '1',
+                  '2',
+                  null,
+                  '2026-08-17',
+                  '8',
+                  '0',
+                  '2',
+                  '0',
+                  '',
+                  '',
+                  '0',
+                  '0',
+                  '2026-01-01T00:00:00Z',
+                  '0',
+                  '2',
+                  '2',
+                  '6',
+                  '1',
+                ],
+              ],
+            },
           }),
           { status: 200, headers: { 'content-type': 'application/json' } }
         )
@@ -312,19 +363,23 @@ describe('the ranged cost route', () => {
       { json: (body: OpsCostPayload) => (payload = body) } as unknown as Response
     );
 
-    expect(payload.state).toBe('no-rows');
+    expect(payload.state).toBe('ready');
     const genie = payload.tiles.filter((tile) => tile.id.startsWith('genie:'));
     expect(genie.map((tile) => tile.resourceId)).toEqual(['space-data', 'space-dictionary']);
     expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
     expect(genie.map((tile) => tile.evidence?.activity?.calls)).toEqual([3, 2]);
     expect(payload.tiles.some((tile) => tile.id === 'foundation-model')).toBe(false);
-    expect(payload.tiles.find((tile) => tile.id === 'vector-search')).toMatchObject({
+    const vector = payload.tiles.find((tile) => tile.id === 'vector-search');
+    expect(vector).toMatchObject({
       resourceId: 'cat.schema.index',
       secondaryResourceId: 'vs-endpoint-from-connections',
       resourceKind: 'vector-index',
-      unavailable: 'No billing rows',
-      evidence: { billingRows: 0, activity: { calls: 5, observedCalls: 7, unit: 'queries' } },
+      amount: 5,
+      quality: 'estimate',
+      unavailable: '',
+      evidence: { billingRows: 2, activity: { calls: 5, observedCalls: 7, unit: 'queries' } },
     });
+    expect(vector?.dbus).toBeCloseTo(15 / 7);
     expect(payload.tiles.find((tile) => tile.id === 'app-compute')).toMatchObject({
       unavailable: 'No Apps billing rows matched this app.',
       note: 'system_billing=astrolabe is on this app; Apps billing is matched by app name.',

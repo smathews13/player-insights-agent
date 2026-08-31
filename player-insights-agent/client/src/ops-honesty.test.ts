@@ -140,6 +140,13 @@ describe('an absent figure', () => {
     expect(nothing.absence).toBe('');
   });
 
+  it('distinguishes a proven zero DBU from missing DBU evidence', () => {
+    expect(tileView(tile({ dbus: 0 }), 'USD', 'DBU')).toMatchObject({ figure: '0.00 DBU', absence: '' });
+    expect(
+      tileView(tile({ dbus: null, evidence: { billingRows: 2, astrolabeQueries: null } }), 'USD', 'DBU').absence
+    ).toContain('matched billing rows contain no DBU usage');
+  });
+
   it('does not round a real fraction of a cent away to zero', () => {
     // Several of these components cost thousandths of a cent per run. Rounded
     // to two places they read as free, and a free component is one nobody

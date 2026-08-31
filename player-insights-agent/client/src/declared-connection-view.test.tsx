@@ -617,30 +617,36 @@ describe('every addable kind browses', () => {
    * overrides and CSS does not reorder its children.
    */
   it('puts resource type before every field whose meaning depends on it', () => {
-    const kind = CARD_SOURCE.indexOf('label="Resource type"');
+    const kind = CARD_SOURCE.indexOf('Resource type');
     expect(kind).toBeGreaterThan(0);
-    for (const field of ['-identifier`}', '-label`}', '-key`}']) {
-      expect.soft(CARD_SOURCE.indexOf(field), field).toBeGreaterThan(kind);
-    }
+    expect(CARD_SOURCE.indexOf('<AssetPicker')).toBeGreaterThan(kind);
   });
 
-  it('only asks for a separate display name when the workspace identifier is opaque', () => {
-    expect(CARD_SOURCE).toContain(
-      "const needsDisplayName = chosenKind.id === 'genie-space' || chosenKind.id === 'sql-warehouse'"
-    );
-    expect(CARD_SOURCE).toMatch(/\{needsDisplayName \? \([\s\S]*Display name \(optional\)/);
+  it('puts the type label above a value-only dropdown trigger', () => {
+    expect(CARD_SOURCE).toMatch(/plane-field-label[\s\S]*Resource type[\s\S]*<AppSelect/);
+    expect(CARD_SOURCE).toContain('showLabel={false}');
   });
 
-  /**
-   * An empty catalog browser used to leave a titled panel and a dead Load more
-   * action above the manual field. It now disappears from both visual and
-   * accessibility order, while the short fallback line remains.
-   */
-  it('keeps manual entry secondary to user-scoped discovery', () => {
+  it('requires user-scoped discovery and offers no typed identifier or display name', () => {
     expect(CARD_SOURCE).toContain("fetch('/api/browse/connection-types')");
-    expect(CARD_SOURCE).toContain('Enter an identifier manually');
-    expect(CARD_SOURCE).toMatch(/typeChoices\.length > 0 && !manual[\s\S]*<AssetPicker/);
-    expect(CARD_SOURCE).toMatch(/\{manual \? \([\s\S]*plane-field ast-mono/);
+    expect(CARD_SOURCE).toMatch(/typeChoices\.length > 0 \? \([\s\S]*<AssetPicker/);
+    expect(CARD_SOURCE).not.toContain('Enter an identifier manually');
+    expect(CARD_SOURCE).not.toContain('Display name (optional)');
+    expect(CARD_SOURCE).not.toContain('Connection key');
+    expect(CARD_SOURCE).not.toContain('<input');
+  });
+
+  it('uses one ordinary Cancel action and keeps Add selection-gated', () => {
+    expect(CARD_SOURCE.match(/>\s*Cancel\s*</g)).toHaveLength(1);
+    expect(CARD_SOURCE).toContain('disabled={Boolean(disabledReason)}');
+    expect(CARD_SOURCE).toContain('`Add ${chosenKind.label.toLowerCase()}`');
+    expect(CARD_SOURCE).toMatch(/!value\.trim\(\)[\s\S]*Choose a warehouse first/);
+  });
+
+  it('shows the deterministic discovery loading state', () => {
+    expect(CARD_SOURCE).toContain('role="status"');
+    expect(CARD_SOURCE).toContain('asset-picker-spinner');
+    expect(CARD_SOURCE).toContain('Finding resources your sign-in can access…');
   });
 
   it('associates the disabled Add reason with the button that needs it', () => {

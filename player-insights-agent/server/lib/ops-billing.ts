@@ -2,11 +2,13 @@
  * What the Cost resources are read from, and what each is allowed to claim.
  *
  * Every figure here comes from `system.billing.usage` priced against
- * `system.billing.list_prices`. Nothing is modelled, apportioned by a ratio
- * invented in this file, or carried over from a previous read. Where a
- * component cannot be attributed, its tile says so and shows no number, because
- * a component nobody could attribute and a component that cost nothing are
- * different facts and `$0.00` states the second one.
+ * `system.billing.list_prices`. Nothing is modelled, carried over from a
+ * previous read, or apportioned by an invented ratio. A shared Vector Search
+ * endpoint is allocated only by persisted configured-index calls divided by
+ * observed Vector Search calls. Where a component cannot be attributed, its
+ * tile says so and shows no number, because a component nobody could attribute
+ * and a component that cost nothing are different facts and `$0.00` states the
+ * second one.
  *
  * THE IDENTIFIERS ARE THE WHOLE PROBLEM. Billing is workspace-wide, so a query
  * that does not name this deployment's own endpoint, warehouse, app and index
@@ -259,7 +261,7 @@ const TILED_PRODUCTS = new Set(['MODEL_SERVING', 'SQL', 'VECTOR_SEARCH', 'APPS']
 const PRODUCT_REASONS: Record<string, string> = {
   MODEL_SERVING: 'Measured only when an exact tracked endpoint name matches; tag coverage is reported separately.',
   SQL: 'Warehouse billing rows are allocated only by complete Astrolabe Query History execution-time share.',
-  VECTOR_SEARCH: 'Endpoint billing is excluded; the tile uses exact index-tagged Astrolabe calls.',
+  VECTOR_SEARCH: 'Exact endpoint billing is allocated with configured-index activity when the endpoint is shared.',
   APPS: 'Measured by exact app name. App tag presence is a separate organizational signal.',
   GENIE: GENIE_LLM_UNAVAILABLE,
   LAKEBASE: 'Lakebase can be tagged. No documented billing join exists in this model.',
@@ -523,7 +525,8 @@ SELECT
   COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
   COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
   COUNT(DISTINCT usage_unit) AS usage_unit_count,
-  SUM(CASE WHEN usage_unit = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity
+  SUM(CASE WHEN UPPER(TRIM(usage_unit)) = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity,
+  COUNT(*) FILTER (WHERE UPPER(TRIM(usage_unit)) = 'DBU') AS dbu_rows
 FROM priced
 WHERE component IS NOT NULL
 GROUP BY component
@@ -556,7 +559,8 @@ SELECT
   COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
   COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
   COUNT(DISTINCT usage_unit) AS usage_unit_count,
-  SUM(CASE WHEN usage_unit = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity
+  SUM(CASE WHEN UPPER(TRIM(usage_unit)) = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity,
+  COUNT(*) FILTER (WHERE UPPER(TRIM(usage_unit)) = 'DBU') AS dbu_rows
 FROM priced
 GROUP BY billing_origin_product
 UNION ALL
@@ -582,7 +586,8 @@ SELECT
   COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
   COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
   COUNT(DISTINCT usage_unit) AS usage_unit_count,
-  SUM(CASE WHEN usage_unit = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity
+  SUM(CASE WHEN UPPER(TRIM(usage_unit)) = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity,
+  COUNT(*) FILTER (WHERE UPPER(TRIM(usage_unit)) = 'DBU') AS dbu_rows
 FROM priced
 UNION ALL
 SELECT
@@ -609,7 +614,8 @@ SELECT
        OR u.custom_tags['${BILLING_TAG.key}'] <> '${BILLING_TAG.value}'
   ) AS untagged_rows,
   CAST(0 AS BIGINT) AS usage_unit_count,
-  CAST(0 AS DOUBLE) AS dbu_quantity
+  CAST(0 AS DOUBLE) AS dbu_quantity,
+  CAST(0 AS BIGINT) AS dbu_rows
 FROM system.billing.usage u
 WHERE u.usage_date >= :from_day
   AND u.usage_date <= :to_day
@@ -646,6 +652,8 @@ export interface ComponentRow {
   untaggedRows?: number;
   usageUnitCount?: number;
   dbuQuantity?: number;
+  /** Distinguishes a proven zero-DBU row from no DBU evidence. */
+  dbuRows?: number;
 }
 
 function emptyRow(kind: ComponentRow['kind'], component: string): ComponentRow {
@@ -671,6 +679,7 @@ function emptyRow(kind: ComponentRow['kind'], component: string): ComponentRow {
     untaggedRows: 0,
     usageUnitCount: 0,
     dbuQuantity: 0,
+    dbuRows: 0,
   };
 }
 
@@ -745,6 +754,7 @@ export function readComponentRows(dataArray: unknown): ComponentRow[] {
         untaggedRows,
         usageUnitCount,
         dbuQuantity,
+        dbuRows,
       ] = cells;
       if (typeof component !== 'string' || typeof kind !== 'string') continue;
       rows.push({
@@ -769,6 +779,7 @@ export function readComponentRows(dataArray: unknown): ComponentRow[] {
         untaggedRows: asCount(untaggedRows),
         usageUnitCount: asCount(usageUnitCount),
         dbuQuantity: asCount(dbuQuantity),
+        ...(dbuRows === undefined ? {} : { dbuRows: asCount(dbuRows) }),
       });
       continue;
     }
@@ -856,7 +867,9 @@ export function spendAmountFor(row: ComponentRow | undefined, basis: CostTile['b
 
 /** DBUs measured on attributable billing rows, never inferred from dollars. */
 export function dbuAmountFor(row: ComponentRow | undefined, basis: CostTile['basis']): number | null {
-  if (!row || row.usageUnitCount !== 1) return null;
+  if (!row) return null;
+  const hasDbuEvidence = row.dbuRows === undefined ? row.usageUnitCount === 1 : row.dbuRows > 0;
+  if (!hasDbuEvidence) return null;
   const amount = row.dbuQuantity;
   if (typeof amount !== 'number' || !Number.isFinite(amount)) return null;
   return basis === 'per-day' ? amount / Math.max(row.billedDays, 1) : amount;
@@ -1299,6 +1312,49 @@ function componentTile(
         }
       : {}),
   };
+  if (component === 'vector-search') {
+    const share =
+      measuredActivity && measuredActivity.observedCalls > 0
+        ? Math.min(1, Math.max(0, measuredActivity.calls / measuredActivity.observedCalls))
+        : !measuredActivity
+          ? 1
+          : null;
+    if (share === null) {
+      return withMeta({
+        ...base,
+        quality: 'unknown',
+        amount: null,
+        dbus: null,
+        pricing,
+        note: '',
+        unavailable: row
+          ? 'Vector Search endpoint billing matched, but configured-index activity was not measurable'
+          : 'No billing rows',
+        remedy: '',
+        evidence,
+      });
+    }
+    const allocate = (value: number | null) =>
+      value === null ? null : Math.round(value * share * 1_000_000_000_000) / 1_000_000_000_000;
+    const allocatedAmount = allocate(amount);
+    const allocatedDbus = allocate(dbus);
+    return withMeta({
+      ...base,
+      quality: share < 1 ? 'estimate' : base.quality,
+      population: share < 1 ? 'Recorded query share' : 'This endpoint',
+      amount: allocatedAmount,
+      dbus: allocatedDbus,
+      pricing,
+      note:
+        share < 1
+          ? `${measuredActivity?.calls ?? 0} of ${measuredActivity?.observedCalls ?? 0} recorded Vector Search calls matched this index.`
+          : '',
+      unavailable:
+        allocatedAmount === null && allocatedDbus === null ? unpricedUnavailable(pricing) || 'No billing rows' : '',
+      remedy: '',
+      evidence,
+    });
+  }
   if (component === 'sql-warehouse') {
     if (amount === null || !warehouseAttribution.complete || warehouseAttribution.totalExecutionMs <= 0) {
       return withMeta({

@@ -1300,6 +1300,11 @@ html:has(.connections-page) body[data-scroll-locked] {
   font-size: var(--text-sm);
   color: var(--ast-warn-deep);
 }
+.deployment-release-match {
+  margin: 0 0 0 118px;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
 
 /* ── The Configuration list ─────────────────────────────────────────────────
    The values with no remote end. Drawn as a plain grid rather than as
@@ -1770,6 +1775,7 @@ html:has(.connections-page) body[data-scroll-locked] {
 .plane-kind-field {
   display: grid;
   gap: 4px;
+  justify-items: start;
 }
 .plane-identifier-field,
 .plane-field-group {
@@ -1792,8 +1798,10 @@ html:has(.connections-page) body[data-scroll-locked] {
    seven-item menu stretched across the row read as the widest control on the
    card while carrying the least in it. */
 .plane-field-select {
-  width: 100%;
-  max-width: 320px;
+  width: min(240px, 100%);
+  max-width: 240px;
+  height: 32px;
+  padding-inline: 10px 8px;
 }
 /*
  * An empty first page is not a browser. The old panel kept its all-caps title,
@@ -1825,6 +1833,34 @@ html:has(.connections-page) body[data-scroll-locked] {
   padding-block: 10px;
   background: var(--popover);
   border-top: 1px solid var(--border);
+}
+.plane-picker-discovery,
+.asset-picker-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+.asset-picker-spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  animation: asset-picker-spin 0.8s linear infinite;
+}
+@keyframes asset-picker-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+html[data-animations='off'] .asset-picker-spinner {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .asset-picker-spinner {
+    animation: none;
+  }
 }
 .plane-add-reason {
   font-size: var(--ast-fs-12);
@@ -1907,7 +1943,7 @@ html:has(.connections-page) body[data-scroll-locked] {
 .asset-picker {
   display: grid;
   gap: 8px;
-  padding: 10px;
+  padding: 10px 12px;
   border: 1px solid var(--ast-hairline, var(--border));
   border-radius: var(--radius-md);
   background: var(--card);
@@ -1958,9 +1994,10 @@ html:has(.connections-page) body[data-scroll-locked] {
   gap: 6px;
   color: var(--muted-foreground);
 }
-.asset-picker-loading {
-  display: grid;
-  gap: 6px;
+.asset-picker-filter [data-slot='input'] {
+  width: min(320px, 100%);
+  height: 32px;
+  min-height: 32px;
 }
 .asset-picker-rows {
   margin: 0;
@@ -1968,7 +2005,7 @@ html:has(.connections-page) body[data-scroll-locked] {
   list-style: none;
   display: grid;
   gap: 2px;
-  max-height: 260px;
+  max-height: 220px;
   overflow-y: auto;
 }
 .asset-picker-row {
@@ -1977,7 +2014,7 @@ html:has(.connections-page) body[data-scroll-locked] {
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
-  padding: 7px 8px;
+  padding: 6px 8px;
   border-radius: var(--radius-sm);
 }
 .asset-picker-row:hover,
@@ -2002,7 +2039,7 @@ html:has(.connections-page) body[data-scroll-locked] {
   margin: 0;
 }
 .asset-picker-row--warehouse {
-  padding: 7px 8px;
+  padding: 6px 8px;
 }
 .asset-picker-row--warehouse .asset-picker-row-names {
   display: grid;
@@ -2010,19 +2047,6 @@ html:has(.connections-page) body[data-scroll-locked] {
 }
 .warehouse-picker-status {
   flex: none;
-}
-.plane-manual-toggle {
-  justify-self: start;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--ast-blue);
-  font: inherit;
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-.plane-display-name {
-  max-width: 420px;
 }
 .connection-accordion > summary {
   list-style: none;
@@ -2200,3 +2224,4 @@ html:has(.connections-page) body[data-scroll-locked] {
   font-weight: 500;
   color: var(--foreground);
 }
+

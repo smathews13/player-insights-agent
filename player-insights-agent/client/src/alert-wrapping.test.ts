@@ -126,7 +126,7 @@ describe('an alert description breaks where a sentence does, or not at all', () 
   it('finds every alert on the Connections page, so a pass is not an empty pass', () => {
     // The scanner is the load-bearing part of this file. If a rename or a reformat
     // stopped it matching, every assertion below would pass over nothing.
-    expect(descriptions(CONNECTIONS).length).toBeGreaterThanOrEqual(6);
+    expect(descriptions(CONNECTIONS).length).toBeGreaterThanOrEqual(4);
   });
 
   it('never lets a row start with a comma or a lowercase word', () => {
@@ -137,13 +137,8 @@ describe('an alert description breaks where a sentence does, or not at all', () 
     expect(splits).toEqual([]);
   });
 
-  it('keeps the pending-intention sentence inside one wrapper', () => {
-    // The first of the two that shipped split. Named directly as well as caught by
-    // the rule above, because the rule reads the absence of a defect and this reads
-    // the presence of the fix.
-    expect(CONNECTIONS).toMatch(
-      /<span>\s*<strong>\s*\{pendingState\}: \{row\.intended\}\s*<\/strong>\s*\{row\.intendedBy[\s\S]*?<\/span>/
-    );
+  it('does not render legacy pending intentions', () => {
+    expect(CONNECTIONS).not.toMatch(/pendingState|row\.intendedBy|Record intention/);
   });
 
   /**

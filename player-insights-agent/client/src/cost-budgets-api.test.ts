@@ -93,7 +93,7 @@ describe('Cost budget Apply copy', () => {
     expect(markup({ kind: 'saving' })).toContain('ast-flick-slot--button');
     expect(markup({ kind: 'saving' })).toContain('disabled');
     expect(markup({ kind: 'saved' })).toContain('Applied');
-    expect(markup({ kind: 'failed', message: 'no' })).toContain('Failed');
+    expect(markup({ kind: 'failed', message: 'no' })).toContain('Retry');
     expect(markup({ kind: 'failed', message: 'no' })).not.toContain('ast-flick-slot--button');
   });
 });
@@ -102,12 +102,12 @@ describe('Cost budget Apply-retry', () => {
   const source = readFileSync(new URL('CostBudgets.tsx', import.meta.url), 'utf8');
 
   it('uses the reload result after Save retries a failed load, not the stale failure', () => {
-    expect(source).toContain('const result = await loadCostBudgets()');
-    expect(source).toContain('saveRetryAfterLoad(result)');
+    expect(source).toContain('const current = await loadCostBudgets()');
+    expect(source).toContain('saveRetryAfterLoad(current)');
     expect(source).not.toContain("state === 'failed'");
     expect(source).not.toContain('type="number"');
-    expect(source).toContain('inputMode="decimal"');
-    expect(source).toContain('withResourceBudget(base, control.tileId');
-    expect(source).toContain('withTotalBudget(base, budgets.total)');
+    expect(source).toContain('NumberTicker');
+    expect(source).toContain('const current = await loadCostBudgets()');
+    expect(source).toContain('mergeBudgetGroup(current.budgets, submitted, group, tileIds)');
   });
 });

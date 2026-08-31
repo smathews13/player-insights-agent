@@ -19,7 +19,7 @@
  * adding still grants nobody anything.
  */
 import { useEffect, useId, useRef, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { LoaderCircle, Trash2 } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { BrandIcon } from './BrandIcon';
 import { VisitInDatabricks } from './DataEntityLinks';
@@ -93,13 +93,11 @@ export function DeclaredConnectionsCard({
   onChanged,
 }: DeclaredConnectionsCardProps) {
   const [adding, setAdding] = useState(false);
-  const [keyOverride, setKeyOverride] = useState('');
   const [label, setLabel] = useState('');
   const [kindChoice, setKindChoice] = useState<DeclaredResourceType>('catalog');
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [manual, setManual] = useState(false);
   const [typeDiscovery, setTypeDiscovery] = useState<ConnectionTypesResponse | null>(null);
   const [typeDiscoveryError, setTypeDiscoveryError] = useState('');
   const [instantEntries, setInstantEntries] = useState<ConnectionEntry[]>([]);
@@ -149,25 +147,15 @@ export function DeclaredConnectionsCard({
   const listed = ordered;
   const chosenKind = ADDABLE_KINDS.find((entry) => entry.id === kindChoice) ?? ADDABLE_KINDS[0];
   const picker = ADD_CONNECTION_PICKERS[chosenKind.browse];
-  const identifierLabel = picker.typeLabel
-    .replace(/^Or type (an?|a) /i, '')
-    .replace(/^./, (letter) => letter.toUpperCase());
   const discoveredIds = new Set(typeDiscovery?.available.map((entry) => entry.id) ?? []);
-  const typeChoices = manual ? ADDABLE_KINDS : ADDABLE_KINDS.filter((entry) => discoveredIds.has(entry.id));
+  const typeChoices = ADDABLE_KINDS.filter((entry) => discoveredIds.has(entry.id));
   const selectedId = derivedConnectionKey(
     chosenKind.id,
     value.trim(),
     merged.map((entry) => entry.connection.id)
   );
-  const baseConnectionId = derivedConnectionKey(chosenKind.id, value.trim(), []);
-  const keyCollision = merged.some((entry) => entry.connection.id === baseConnectionId);
-  const connectionId = keyOverride.trim() || selectedId;
+  const connectionId = selectedId;
   const valueError = connectionValueError(chosenKind.id, value);
-  // Only workspace-minted hexadecimal ids need a second, human-facing name.
-  // A table, catalog, volume, index or endpoint already carries a readable name
-  // in its identifier, so showing another blank name box asks for the same fact
-  // twice and produces no additional information on the saved row.
-  const needsDisplayName = chosenKind.id === 'genie-space' || chosenKind.id === 'sql-warehouse';
   const disabledReason = !storeAvailable
     ? 'The connection store is not answering.'
     : !value.trim()
@@ -210,10 +198,8 @@ export function DeclaredConnectionsCard({
         result.entry,
       ]);
       setJustAdded(result.entry.connection.id);
-      setKeyOverride('');
       setLabel('');
       setValue('');
-      setManual(false);
       setAdding(false);
       await onChanged();
     } finally {
@@ -387,7 +373,7 @@ export function DeclaredConnectionsCard({
         );
       })}
 
-      {allowMutations ? (
+      {allowMutations && !adding ? (
         <div className="plane-add-row" data-testid="add-connection-row">
           <button
             type="button"
@@ -399,7 +385,7 @@ export function DeclaredConnectionsCard({
               setAdding((open) => !open);
             }}
           >
-            {adding ? 'Cancel' : '+ Add a new connection'}
+            + Add a new connection
           </button>
         </div>
       ) : null}
@@ -407,14 +393,17 @@ export function DeclaredConnectionsCard({
       {allowMutations && adding ? (
         <div className="plane-form" id={`${formId}-form`} data-testid="add-connection-form">
           <div className="plane-kind-field">
+            <label className="plane-field-label" id={`${formId}-type-label`}>
+              Resource type
+            </label>
             {typeChoices.length > 0 ? (
               <AppSelect
                 label="Resource type"
                 ariaLabel="Resource type"
+                showLabel={false}
                 value={kindChoice}
                 onValueChange={(next) => {
                   setKindChoice(next);
-                  setKeyOverride('');
                   setLabel('');
                   setValue('');
                   setError('');
@@ -427,11 +416,14 @@ export function DeclaredConnectionsCard({
             ) : typeDiscovery ? (
               <span className="plane-note">No resource categories returned visible items for your sign-in.</span>
             ) : (
-              <span className="plane-note">Finding resources your sign-in can see…</span>
+              <span className="plane-picker-discovery" role="status">
+                <LoaderCircle className="asset-picker-spinner" aria-hidden="true" />
+                Finding resources your sign-in can access…
+              </span>
             )}
           </div>
 
-          {typeChoices.length > 0 && !manual ? (
+          {typeChoices.length > 0 ? (
             <div className="plane-picker">
               <AssetPicker
                 key={chosenKind.id}
@@ -446,52 +438,6 @@ export function DeclaredConnectionsCard({
                 }}
               />
             </div>
-          ) : null}
-
-          <button type="button" className="plane-manual-toggle" onClick={() => setManual((shown) => !shown)}>
-            {manual ? 'Use visible resources' : 'Enter an identifier manually'}
-          </button>
-
-          {manual ? (
-            <label className="plane-field-group" htmlFor={`${formId}-identifier`}>
-              <span className="plane-field-label">{identifierLabel}</span>
-              <input
-                id={`${formId}-identifier`}
-                className="plane-field ast-mono"
-                value={value}
-                onChange={(event) => {
-                  setValue(event.target.value);
-                  setError('');
-                }}
-                placeholder={picker.typeLabel.replace(/^Or type (an?|a) /i, '')}
-              />
-            </label>
-          ) : null}
-
-          {needsDisplayName ? (
-            <label className="plane-field-group plane-display-name" htmlFor={`${formId}-label`}>
-              <span className="plane-field-label">Display name (optional)</span>
-              <input
-                id={`${formId}-label`}
-                className="plane-field"
-                value={label}
-                onChange={(event) => setLabel(event.target.value)}
-                placeholder="Name shown in this list"
-              />
-            </label>
-          ) : null}
-
-          {value && keyCollision ? (
-            <label className="plane-field-group" htmlFor={`${formId}-key`}>
-              <span className="plane-field-label">Connection key</span>
-              <input
-                id={`${formId}-key`}
-                className="plane-field ast-mono"
-                value={keyOverride}
-                onChange={(event) => setKeyOverride(event.target.value)}
-                placeholder={selectedId}
-              />
-            </label>
           ) : null}
 
           {error ? (
