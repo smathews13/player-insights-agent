@@ -102,16 +102,23 @@ export function setupSpIdentityRoutes(appkit: InsightsAppKit): void {
       }
       const actor = userEmail(req);
       try {
+        // Read the surrounding roster before mutating the pivot. If this fails,
+        // no write has happened and the client can safely retain its prior state.
+        const before = await adminPayload(appkit);
         await writeSpIdentityEnabled(appkit, parsed.data.enabled, actor);
-        await recordAdminAction(appkit.lakebase, {
-          actor,
-          action: parsed.data.enabled ? 'sp-identity-enabled' : 'sp-identity-disabled',
-          subject: 'sp-identity',
-          detail: parsed.data.enabled
-            ? 'Assigned users now run warehouse, Genie, and agent calls as their service-principal persona.'
-            : 'Questions again run as the signed-in OAuth user.',
-        });
-        res.json(await adminPayload(appkit));
+        try {
+          await recordAdminAction(appkit.lakebase, {
+            actor,
+            action: parsed.data.enabled ? 'sp-identity-enabled' : 'sp-identity-disabled',
+            subject: 'sp-identity',
+            detail: parsed.data.enabled
+              ? 'Assigned users now run warehouse, Genie, and agent calls as their service-principal persona.'
+              : 'Questions again run as the signed-in OAuth user.',
+          });
+        } catch (error) {
+          console.warn('[sp-identity] Saved the pivot, but could not write the admin audit row:', error);
+        }
+        res.json({ ...before, enabled: parsed.data.enabled });
       } catch (error) {
         res.status(503).json({
           error: 'sp_identity_store_unavailable',

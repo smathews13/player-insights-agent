@@ -174,9 +174,9 @@ describe('browser runtime settings cache parser', () => {
     expect(live).not.toMatch(/import\s+\{[^}]*runtimeSettingsFromResponse[^}]*\}\s+from/);
     expect(vite).toContain("id.includes('/node_modules/zod/')");
     expect(vite).toContain("return 'zod'");
-    for (const boundary of [api, store, routes]) {
-      expect(boundary).toContain('RuntimeSettingsSchema');
-      expect(boundary).not.toContain('parsePersistedRuntimeSettings');
-    }
+    expect(api).toContain('RuntimeSettingsSchema');
+    expect(store).toContain('parseStoredRuntimeSettings');
+    expect(routes).toContain('RuntimeSettingsPatchSchema');
+    for (const boundary of [api, store, routes]) expect(boundary).not.toContain('parsePersistedRuntimeSettings');
   });
 });

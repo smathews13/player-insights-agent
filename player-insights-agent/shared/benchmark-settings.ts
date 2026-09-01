@@ -52,6 +52,20 @@ export const BenchmarkSettingsSchema = z.strictObject({
   customJudges: z.array(CustomJudgeSchema).max(12).default([]),
 });
 
+/** Partial, strict write shape for revision-protected Settings saves. */
+export const BenchmarkSettingsPatchSchema = z.strictObject({
+  experimentId: z.string().trim().max(80).optional(),
+  alwaysOnTraces: z.boolean().optional(),
+  evalSetId: z.enum(EVAL_SET_IDS).optional(),
+  judgeEndpoint: z.string().trim().min(1).max(200).optional(),
+  compareSideA: z.string().trim().max(200).optional(),
+  compareSideB: z.string().trim().max(200).optional(),
+  guidelinesText: z.string().trim().max(4000).optional(),
+  enabledJudges: z.array(z.enum(AGENT_JUDGE_IDS)).optional(),
+  enabledMultiTurnJudges: z.array(z.enum(MULTI_TURN_JUDGE_IDS)).optional(),
+  customJudges: z.array(CustomJudgeSchema).max(12).optional(),
+});
+
 export type BenchmarkSettings = z.infer<typeof BenchmarkSettingsSchema>;
 
 export const DEFAULT_BENCHMARK_SETTINGS: BenchmarkSettings = {
@@ -69,6 +83,18 @@ export const DEFAULT_BENCHMARK_SETTINGS: BenchmarkSettings = {
 
 export function parseBenchmarkSettings(value: unknown): BenchmarkSettings {
   return BenchmarkSettingsSchema.parse(value);
+}
+
+/** Tolerate newer durable fields without accepting them at the public API. */
+export function parseStoredBenchmarkSettings(value: unknown): BenchmarkSettings {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return BenchmarkSettingsSchema.parse(value);
+  }
+  const source = value as Record<string, unknown>;
+  const keys = Object.keys(BenchmarkSettingsSchema.shape);
+  return BenchmarkSettingsSchema.parse(
+    Object.fromEntries(keys.filter((key) => key in source).map((key) => [key, source[key]]))
+  );
 }
 
 /**

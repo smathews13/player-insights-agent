@@ -12,8 +12,10 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  display: grid;
-  place-items: center;
+  display: flex;
+  min-height: 100dvh;
+  align-items: flex-start;
+  justify-content: center;
   padding: 24px;
   /* #11171C is --db-ink-deep, and the scrim is the darkest fill in the app held
      at half strength. Written as a mix rather than as `rgba(17, 23, 28, 0.5)` so
@@ -34,6 +36,9 @@
 .access-gate-panel {
   width: 640px;
   max-width: 100%;
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  overflow-y: auto;
   background: var(--background);
   border: 1px solid var(--db-line);
   /* The same signature the header and the answer card wear, so the gate is

@@ -53,7 +53,9 @@ describe('what a reader meets on open', () => {
     // Asserted against the source because an effect does not run in this
     // renderer and this repo has no browser to run it in.
     const effect = SOURCE.slice(SOURCE.indexOf('useEffect(() => {'));
-    expect(effect.slice(0, effect.indexOf('fetch('))).toContain('if (!enabled) return;');
+    expect(effect.slice(0, effect.indexOf('fetch('))).toContain(
+      'if (!enabled || preloadedIdentity !== undefined) return;'
+    );
   });
 });
 

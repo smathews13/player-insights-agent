@@ -75,6 +75,21 @@ describe('creating the run for a question', () => {
     expect(result.run.runId).toBe('run-1');
   });
 
+  it('snapshots the persona chosen for this run without requiring one', async () => {
+    const personaRun = value(
+      await createOrGetRun(
+        store,
+        newRun({ runId: 'run-persona', personaId: 'finance', personaName: 'Finance analyst' })
+      )
+    );
+    expect(personaRun.run.personaId).toBe('finance');
+    expect(personaRun.run.personaName).toBe('Finance analyst');
+
+    const oauthRun = value(await createOrGetRun(store, newRun({ runId: 'run-oauth', requestHash: 'other-hash' })));
+    expect(oauthRun.run.personaId).toBeNull();
+    expect(oauthRun.run.personaName).toBeNull();
+  });
+
   it('returns the run that already exists rather than a second one', async () => {
     await createOrGetRun(store, newRun({ runId: 'run-1' }));
     const again = value(await createOrGetRun(store, newRun({ runId: 'run-2' })));
@@ -569,9 +584,7 @@ describe('explicit cancellation', () => {
     const cancelled = value(await cancelAllExecutingRuns(store));
     const future = await storedRun('future-run', 'RUNNING');
 
-    expect(cancelled.map((run) => run.runId).sort()).toEqual(
-      EXECUTING_STATES.map((state) => `active-${state}`).sort()
-    );
+    expect(cancelled.map((run) => run.runId).sort()).toEqual(EXECUTING_STATES.map((state) => `active-${state}`).sort());
     expect(store.runs.filter((run) => run.run_id.startsWith('active-')).every((run) => run.state === 'CANCELLED')).toBe(
       true
     );

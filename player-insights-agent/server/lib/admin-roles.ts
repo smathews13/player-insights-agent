@@ -649,6 +649,8 @@ export type AdminAction =
   | 'conversation-read'
   | 'access-revoked'
   | 'runtime-settings-updated'
+  /** An admin changed which unfinished surfaces this deployment offers. */
+  | 'experimental-settings-updated'
   /** An admin saved nominal Cost budgets for the app total and resource tiles. */
   | 'cost-budgets-updated'
   /** An admin recorded or cleared a Connections setting intention (or live value). */

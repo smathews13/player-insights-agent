@@ -336,28 +336,27 @@ describe('a long value truncates rather than being cut off', () => {
     expect(badge).toMatch(/overflow:\s*hidden/);
   });
 
-  /**
-   * The two cards ask for two label columns, and the difference is not rounding.
-   *
-   * The Build card carries its two grids side by side, so every pixel its labels
-   * take comes off a value column that is already a quarter of the page -- and
-   * the value it comes off first is the app endpoint, the longest string on the
-   * card. The Identity card runs one column at full width and its longest label
-   * wants the room. One shared width split the difference in the direction that
-   * cost the endpoint about four characters.
-   */
-  it('gives each card the label column it was drawn with', () => {
+  it('uses a compact label column inside the three identity groups', () => {
     expect(rule('.deployment-card-build .identity-fact-label')).toMatch(/flex-basis:\s*110px/);
-    expect(rule('.deployment-card-identity .identity-fact-label')).toMatch(/flex-basis:\s*150px/);
+    expect(rule('.deployment-card-identity .identity-fact-label')).toMatch(/flex-basis:\s*96px/);
   });
 
-  it('stacks identity sections before values can clip on a narrow screen', () => {
-    expect(rule('.identity-section-grid')).toMatch(/grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  it('keeps all three identity groups in one dense desktop band', () => {
+    expect(rule('.identity-overview')).toMatch(/grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+    expect(rule('.identity-overview')).toMatch(/gap:\s*8px/);
+    expect(rule('.deployment-card-identity-body')).toMatch(/padding:\s*8px/);
+    expect(rule('.identity-section')).toMatch(/padding:\s*8px 10px/);
+    expect(rule('.identity-section-grid')).toMatch(/gap:\s*2px/);
+    expect(rule('.deployment-card-identity .identity-fact')).toMatch(/min-height:\s*22px/);
     expect(rule('.identity-fact-value')).toMatch(/min-width:\s*0/);
+  });
+
+  it('stacks the three groups cleanly on mobile without clipping values', () => {
     expect(RESPONSIVE).toMatch(
-      /@media \(max-width: 800px\)[\s\S]*?\.identity-section-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
+      /@media \(max-width: 800px\)[\s\S]*?\.identity-overview\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
     );
-    expect(RESPONSIVE).toMatch(/\.deployment-card-identity \.identity-fact-label\s*\{[^}]*flex-basis:\s*132px/);
+    expect(RESPONSIVE).toMatch(/\.deployment-card-identity \.identity-fact-label\s*\{[^}]*flex-basis:\s*104px/);
+    expect(rule('.identity-full-value')).toMatch(/text-overflow:\s*ellipsis/);
   });
 });
 

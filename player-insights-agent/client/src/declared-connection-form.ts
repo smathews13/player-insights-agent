@@ -12,8 +12,27 @@ export interface CreateConnectionInput {
 export type CreateConnectionResult = { ok: true; entry: ConnectionEntry } | { ok: false; detail: string };
 
 export type DeleteConnectionResult =
-  | { ok: true; outcome: 'withdrawn' | 'forgotten'; connection?: ConnectionEntry['connection'] }
+  | { ok: true; outcome: 'forgotten'; deletedCount: number; deletedIds: string[] }
   | { ok: false; detail: string };
+
+/** One in-flight mutation per logical row, even before React can re-render. */
+export function createConnectionDeleteGate() {
+  const pending = new Set<string>();
+  return {
+    async run<T>(id: string, mutation: () => Promise<T>): Promise<T | null> {
+      if (pending.has(id)) return null;
+      pending.add(id);
+      try {
+        return await mutation();
+      } finally {
+        pending.delete(id);
+      }
+    },
+    pending(id: string): boolean {
+      return pending.has(id);
+    },
+  };
+}
 
 /** POST one connection and keep the server's persisted provenance verbatim. */
 export async function createDeclaredConnection(
@@ -44,34 +63,35 @@ export async function createDeclaredConnection(
 }
 
 /**
- * Delete through the backend's two real states.
- *
- * A current declaration is withdrawn first so it remains recoverable. A row
- * already withdrawn is permanently forgotten. Keeping that choice here makes
- * the one destructive control honest without teaching the component two URLs.
+ * Delete once, and accept success only after the server confirms persistence.
  */
 export async function deleteDeclaredConnection(
   connection: Pick<ConnectionEntry['connection'], 'id' | 'state'>,
   fetchImpl: typeof fetch = fetch
 ): Promise<DeleteConnectionResult> {
-  const forgetting = connection.state === 'withdrawn';
-  const url = `/api/settings/connections/${encodeURIComponent(connection.id)}${forgetting ? '/forever' : ''}`;
+  const url = `/api/settings/connections/${encodeURIComponent(connection.id)}`;
   try {
     const response = await fetchImpl(url, { method: 'DELETE' });
     const body = (await response.json().catch(() => ({}))) as {
       connection?: ConnectionEntry['connection'];
       forgotten?: { id: string };
+      deletedCount?: number;
+      deletedIds?: string[];
       detail?: string;
     };
     if (!response.ok) {
       return {
         ok: false,
-        detail: body.detail ?? (forgetting ? 'The connection was not deleted.' : 'The connection was not withdrawn.'),
+        detail: body.detail ?? 'The connection was not deleted.',
       };
     }
-    if (forgetting && body.forgotten?.id === connection.id) return { ok: true, outcome: 'forgotten' };
-    if (!forgetting && body.connection?.state === 'withdrawn') {
-      return { ok: true, outcome: 'withdrawn', connection: body.connection };
+    if (body.forgotten?.id === connection.id && (body.deletedCount ?? 1) > 0) {
+      return {
+        ok: true,
+        outcome: 'forgotten',
+        deletedCount: body.deletedCount ?? 1,
+        deletedIds: body.deletedIds?.filter((id): id is string => typeof id === 'string') ?? [connection.id],
+      };
     }
     return { ok: false, detail: 'The server did not confirm that the connection changed.' };
   } catch (error) {

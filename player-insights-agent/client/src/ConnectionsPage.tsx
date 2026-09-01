@@ -50,7 +50,6 @@ import {
   Clock,
   ExternalLink,
   GitCommitHorizontal,
-  Lock,
   Pencil,
   Save,
   Search,
@@ -153,6 +152,7 @@ import {
   type DriftSeverity,
   type ResourceRow,
 } from './connection-model';
+import { connectionResourceView } from './connection-resource-view';
 
 /**
  * The tone a section's rows carry, decided by the section they are in.
@@ -199,25 +199,6 @@ const SEVERITY_ICON: Record<DriftSeverity, typeof CircleAlert> = {
   pending: Clock,
   unknown: CircleHelp,
   note: CircleHelp,
-};
-
-/**
- * Where a resolved value came from, said plainly.
- *
- * `artifact` is the only answer that means the model version vouches for the
- * value. Everything else is reported as what it is rather than smoothed over,
- * because "the orchestrator read this from a shell" is the defect the whole
- * provenance chain was added to expose.
- */
-const SOURCE_WORDS: Record<string, string> = {
-  artifact: 'from the model artifact',
-  environment: 'from the process environment',
-  profile: 'from a named profile',
-  default: 'a compiled default',
-  'app-environment': 'from the app container',
-  'app-default': 'the app default, because no value was set',
-  'app-saved': 'saved here, and in force ahead of the deployed value',
-  'data-contract': "from this build's data contract",
 };
 
 /**
@@ -967,6 +948,9 @@ export function ConnectionRow({
   requested,
   refreshing,
   declaredTables: declaredTablesProp,
+  tableChecks = [],
+  checkedAt = '',
+  hostedIndex = '',
   catalogInUse = '',
   allowMutations = false,
 }: {
@@ -1001,6 +985,9 @@ export function ConnectionRow({
   /** Whether a refresh is in flight, so this row's badge is being re-decided. */
   refreshing: boolean;
   declaredTables?: readonly string[];
+  tableChecks?: readonly PreflightCheck[];
+  checkedAt?: string;
+  hostedIndex?: string;
   /**
    * The catalog this deployment is configured with, for the schema picker.
    *
@@ -1019,14 +1006,16 @@ export function ConnectionRow({
   // asked about this value; where nothing could, the row says there is nothing
   // to measure against rather than "not measured", which would invite a search
   // for a discrepancy that cannot exist.
-  const { row, check, problems, disagrees, status, marker, summary, driftCount } = reading;
+  const { row, check, problems, status, marker, driftCount } = reading;
   const { resource } = row;
   const isDeclaredManifest = resource.id === 'declared-manifest';
   const declaredTables = isDeclaredManifest ? [...(declaredTablesProp ?? declaredTableNames(row.configured))] : [];
-  const displayValue = isDeclaredManifest
-    ? `${declaredTables.length} ${declaredTables.length === 1 ? 'table' : 'tables'}`
-    : check?.display_name?.trim() || summary.value;
-  const rawValue = !isDeclaredManifest && displayValue && displayValue !== summary.value ? summary.value : '';
+  const view = connectionResourceView(reading, {
+    checkedAt,
+    declaredNames: declaredTables,
+    tableChecks,
+    hostedIndex,
+  });
   const picker = pickerForField(resource.id);
   const canWrite = Boolean(allowMutations && row.editable && picker);
   // Open on arrival when a link named this row. The collapsed line carries the
@@ -1097,16 +1086,21 @@ export function ConnectionRow({
             instead of nineteen of them being read out at once. */}
         <span className="connection-row-value" aria-live="polite" aria-busy={restating || undefined}>
           <StatusBadge
-            value={restating ? 'Refreshing\u2026' : truncateHead(displayValue || NOT_SET)}
-            tone={restating ? 'plain' : summary.value ? tone : 'plain'}
-            title={isDeclaredManifest ? displayValue : summary.value || NOT_SET}
+            value={restating ? 'Refreshing\u2026' : truncateHead(view.displayIdentity)}
+            tone={restating || !view.connected ? 'plain' : tone}
+            title={view.displayIdentity}
           />
-          {!restating && rawValue ? (
-            <code className="connection-row-raw-id" title={rawValue}>
-              {rawValue}
+          {!restating && view.secondaryIdentity ? (
+            <code className="connection-row-raw-id" title={view.secondaryIdentity}>
+              {view.secondaryIdentity}
             </code>
           ) : null}
         </span>
+        {!restating && view.connected ? (
+          <span className="connection-row-state" data-tone={tone}>
+            {view.status}
+          </span>
+        ) : null}
         {/* Announced, not drawn. A row in the Drifted section is under a header
             that says so, and repeating it per row is what the chip did; the
             count is the one thing the header cannot carry, and a reader who
@@ -1128,45 +1122,46 @@ export function ConnectionRow({
             draws a padlock rather than nothing at all -- which is how an icon
             silently disappears and the row reads as offering an edit it does
             not. */}
-        {canWrite ? (
-          <Pencil className="size-3.5 shrink-0 connection-row-affordance" data-affordance="write" />
-        ) : (
-          <Lock className="size-3.5 shrink-0 connection-row-affordance" data-affordance="locked" />
-        )}
-        <span className="sr-only">{canWrite ? row.changedByLabel : `${row.changedByLabel}, not changeable here`}</span>
+        {canWrite ? <Pencil className="size-3.5 shrink-0 connection-row-affordance" data-affordance="write" /> : null}
       </button>
 
       {open ? (
         <div className="connection-row-detail">
-          {isDeclaredManifest ? (
-            <div className="connection-configured-entity-list">
-              <DeclaredTableList configured={declaredTables.join(',')} />
-              {row.configuredFrom ? (
-                <p className="connection-tile-note">Source: {SOURCE_WORDS[row.configuredFrom] ?? row.configuredFrom}</p>
-              ) : null}
-            </div>
-          ) : (
-            <div className={`connection-pair ${row.actualObserved ? '' : 'connection-pair--single'}`}>
-              <div className="connection-tile">
-                <p className="connection-tile-label">Configured</p>
-                <p className="connection-tile-value">{row.configured || 'not set'}</p>
-                {row.configuredFrom ? (
-                  <p className="connection-tile-note">
-                    Source: {SOURCE_WORDS[row.configuredFrom] ?? row.configuredFrom}
-                  </p>
-                ) : null}
-              </div>
-              {row.actualObserved ? (
-                <div className="connection-tile" data-disagrees={disagrees ? 'true' : undefined}>
-                  <p className="connection-tile-label">Observed</p>
-                  <p className="connection-tile-value">{row.actual}</p>
-                  <p className="connection-tile-note">
-                    {disagrees ? 'Differs from configuration' : 'Observed from inside the endpoint'}
+          {view.comparison ? (
+            <div className="connection-drift">
+              <p className="connection-drift-status">Drift · expected and observed resources differ</p>
+              <div className="connection-pair">
+                <div className="connection-tile">
+                  <p className="connection-tile-label">Expected</p>
+                  <p className="connection-tile-value" title={view.comparison.expected}>
+                    {view.comparison.expected}
                   </p>
                 </div>
-              ) : null}
+                <div className="connection-tile" data-disagrees="true">
+                  <p className="connection-tile-label">Observed</p>
+                  <p className="connection-tile-value" title={view.comparison.observed}>
+                    {view.comparison.observed}
+                  </p>
+                </div>
+              </div>
             </div>
+          ) : view.details.length > 0 ? (
+            <dl className="connection-details">
+              {view.details.map((detail) => (
+                <div className="connection-detail" key={`${detail.label}:${detail.value}`}>
+                  <dt>{detail.label}</dt>
+                  <dd title={detail.value}>{detail.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="connection-empty-detail">{view.description}</p>
           )}
+          {isDeclaredManifest && view.declaredNames.length > 0 ? (
+            <div className="connection-configured-entity-list">
+              <DeclaredTableList configured={view.declaredNames.join(',')} />
+            </div>
+          ) : null}
 
           {/* The failure in the dependency's own words. The statement that fixes
               it is not repeated here: it is in What to fix at the top of the
@@ -1203,30 +1198,20 @@ export function ConnectionRow({
             );
           })}
 
-          {/* The badge says what pressing the button below will do, because that
-              is the question asked here; the tier that decides it keeps its own
-              name at the head of the sentence beside it. A row the app cannot
-              apply says so before it offers anything, and it never offers a
-              control that claims otherwise. */}
-          <div className="connection-row-tier">
-            <p className="connection-row-tier-note">
-              {row.editable ? 'Admin-managed · changes apply immediately' : `Deployment-owned · ${row.changedByLabel}`}
-            </p>
-            {!editing && canWrite ? (
-              <div className="connection-row-tier-actions">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setDraft(row.configured);
-                    setEditing(true);
-                  }}
-                >
-                  <Pencil className="size-3.5" /> Change
-                </Button>
-              </div>
-            ) : null}
-          </div>
+          {!editing && canWrite ? (
+            <div className="connection-row-tier-actions">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDraft(view.identity);
+                  setEditing(true);
+                }}
+              >
+                <Pencil className="size-3.5" /> Change
+              </Button>
+            </div>
+          ) : null}
 
           {resource.id === 'shared-conversation-rail' && canWrite ? (
             <p className="connection-row-tier-note connection-row-warning" role="alert">
@@ -1427,6 +1412,11 @@ export function ConnectionsPage() {
    * in the Build card and red in the list.
    */
   const orchestratorReading = useMemo(() => readingsById(readings).get('agent-endpoint'), [readings]);
+  const hostedIndex = useMemo(() => {
+    const index = readingsById(readings).get('semantic-index');
+    if (!index) return '';
+    return ((index.row.actualObserved ? index.row.actual : '') || index.check?.name || index.row.configured).trim();
+  }, [readings]);
 
   /**
    * When these answers were taken.
@@ -1736,6 +1726,9 @@ export function ConnectionsPage() {
                 saving={saving === reading.resource.id}
                 refreshing={refreshing}
                 declaredTables={canonicalDeclaredTableNames(reading.row.configured, tableChecks)}
+                tableChecks={tableChecks}
+                checkedAt={lastCheckedAt}
+                hostedIndex={hostedIndex}
                 requested={requestedResource === reading.resource.id}
                 catalogInUse={catalogInUse}
                 allowMutations={allowMutations}

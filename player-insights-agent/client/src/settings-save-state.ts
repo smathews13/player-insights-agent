@@ -140,3 +140,21 @@ export function changedSettingKeys(before: unknown, after: unknown, prefix = '')
   }
   return JSON.stringify(before) === JSON.stringify(after) ? [] : [prefix || 'value'];
 }
+
+/**
+ * Build the smallest object that changes one saved snapshot into another.
+ *
+ * Sending this patch instead of the whole form prevents an older page from
+ * deleting newer server fields and lets disjoint settings remain disjoint.
+ */
+export function changedSettingsPatch(before: unknown, after: unknown): unknown {
+  if (plainRecord(before) && plainRecord(after)) {
+    const patch: Record<string, unknown> = {};
+    for (const key of Object.keys(after)) {
+      const changed = changedSettingsPatch(before[key], after[key]);
+      if (changed !== undefined) patch[key] = changed;
+    }
+    return Object.keys(patch).length > 0 ? patch : undefined;
+  }
+  return JSON.stringify(before) === JSON.stringify(after) ? undefined : after;
+}

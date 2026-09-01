@@ -11,14 +11,14 @@ function json(body: unknown, status = 200): Response {
 
 describe('runtime settings API responses', () => {
   it('returns and validates a complete settings payload', async () => {
-    await expect(runtimeSettingsFromResponse(json({ settings: DEFAULT_RUNTIME_SETTINGS }), 'loaded')).resolves.toEqual(
-      DEFAULT_RUNTIME_SETTINGS
-    );
+    await expect(
+      runtimeSettingsFromResponse(json({ settings: DEFAULT_RUNTIME_SETTINGS, revision: 0 }), 'loaded')
+    ).resolves.toEqual(DEFAULT_RUNTIME_SETTINGS);
   });
 
   it('does not default a saved light scheme back to dark on the response path', async () => {
     const light = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' as const };
-    await expect(runtimeSettingsFromResponse(json({ settings: light }), 'saved')).resolves.toEqual(light);
+    await expect(runtimeSettingsFromResponse(json({ settings: light, revision: 2 }), 'saved')).resolves.toEqual(light);
   });
 
   it('surfaces the server detail on a failed save', async () => {

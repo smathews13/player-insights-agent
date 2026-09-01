@@ -5,6 +5,7 @@ import {
   configuredNotebookPath,
   readOrchestratorReport,
   releaseDeclaration,
+  setupSettingsRoutes,
   validateAndStoreNotebookPath,
 } from './settings-routes';
 import { extractConfigurationReport, type InsightsAppKit, type ServingTransport } from './insights-routes';
@@ -54,6 +55,36 @@ function appkit(transport: ServingTransport): InsightsAppKit {
 
 function appkitAnswering(raw: unknown): InsightsAppKit {
   return appkit(() => Promise.resolve(raw));
+}
+
+type DeleteHandler = (
+  request: { params: { id: string }; headers: Record<string, string | undefined> },
+  response: { status: (code: number) => unknown; json: (body: unknown) => unknown }
+) => Promise<void>;
+
+function registeredDelete(query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>) {
+  const deletes = new Map<string, DeleteHandler>();
+  const kit = {
+    lakebase: { query },
+    server: {
+      extend: (
+        register: (app: {
+          get: (...args: unknown[]) => void;
+          post: (...args: unknown[]) => void;
+          put: (...args: unknown[]) => void;
+          delete: (path: string, handler: DeleteHandler) => void;
+        }) => void
+      ) =>
+        register({
+          get: () => {},
+          post: () => {},
+          put: () => {},
+          delete: (path, handler) => deletes.set(path, handler),
+        }),
+    },
+  } as unknown as InsightsAppKit;
+  setupSettingsRoutes(kit);
+  return deletes.get('/api/settings/connections/:id')!;
 }
 
 const RELEASE_ENV_KEYS = [
@@ -113,6 +144,64 @@ describe('the configuration survives the retired-preflight shape', () => {
   it('leaves out entries with no key instead of carrying a blank row', () => {
     const mixed = retiredPreflight([entry('catalog', 'a_catalog'), { value: 'orphan' }]);
     expect(extractConfigurationReport(mixed).map((item) => item.key)).toEqual(['catalog']);
+  });
+});
+
+describe('deleting a user-added connection', () => {
+  it('confirms durable first-delete success only after the atomic store mutation', async () => {
+    let mutationFinished = false;
+    let finish!: () => void;
+    const handler = registeredDelete(
+      () =>
+        new Promise((resolve) => {
+          finish = () => {
+            mutationFinished = true;
+            resolve({ rows: [{ id: 'roster-table' }, { id: 'roster-table-duplicate' }] });
+          };
+        })
+    );
+    let body: Record<string, unknown> | undefined;
+    const response = {
+      status: vi.fn(() => response),
+      json: vi.fn((value: unknown) => {
+        body = value as Record<string, unknown>;
+        return response;
+      }),
+    };
+    const request = { params: { id: 'roster-table' }, headers: {} };
+
+    const pending = handler(request, response);
+    expect(response.json).not.toHaveBeenCalled();
+    finish();
+    await pending;
+
+    expect(mutationFinished).toBe(true);
+    expect(body).toMatchObject({
+      forgotten: { id: 'roster-table' },
+      deletedIds: ['roster-table', 'roster-table-duplicate'],
+      deletedCount: 2,
+      restorable: false,
+    });
+  });
+
+  it('reports a persistence failure as unchanged and never emits success', async () => {
+    const handler = registeredDelete(() => Promise.reject(new Error('write conflict')));
+    let status = 200;
+    let body: Record<string, unknown> | undefined;
+    const response = {
+      status: vi.fn((value: number) => {
+        status = value;
+        return response;
+      }),
+      json: vi.fn((value: unknown) => {
+        body = value as Record<string, unknown>;
+        return response;
+      }),
+    };
+    await handler({ params: { id: 'roster-table' }, headers: {} }, response);
+    expect(status).toBe(503);
+    expect(body?.detail).toMatch(/Nothing changed/);
+    expect(body).not.toHaveProperty('forgotten');
   });
 });
 

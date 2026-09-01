@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { createBrowserRouter, RouterProvider, Navigate, useLocation } from 'react-router';
-import { AccessGate } from './AccessGate';
 import { RouteError } from './RouteError';
 import { AdminOnly } from './GatePanel';
 import { HomePage } from './HomePage';
@@ -226,12 +225,5 @@ export default function App() {
   // most per user/minute.
   useEffect(() => startActivityHeartbeat(), []);
 
-  // Outside the router on purpose: the choice is about the session rather than
-  // about a page, and asking again on every navigation would train people to
-  // dismiss it without reading, which is the opposite of what it is for.
-  return (
-    <AccessGate>
-      <RouterProvider router={router} />
-    </AccessGate>
-  );
+  return <RouterProvider router={router} />;
 }

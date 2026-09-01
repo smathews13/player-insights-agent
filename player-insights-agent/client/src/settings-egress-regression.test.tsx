@@ -83,7 +83,7 @@ describe('Experimental Egress controls availability', () => {
   it('wires availability to the saved snapshot rather than the visible draft', () => {
     expect(PAGE).toContain('availableSettingsSections(savedFeatures)');
     expect(PAGE).not.toContain('availableSettingsSections(draftFeatures)');
-    expect(PAGE).toContain('setSavedFeatures({ ...draftFeatures })');
+    expect(PAGE).toContain('setSavedFeatures({ ...document.settings })');
     expect(PAGE).toContain("active === 'egress' ? <EgressPanel");
   });
 });

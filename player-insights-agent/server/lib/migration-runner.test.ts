@@ -301,8 +301,9 @@ describe('serialized online migrations', () => {
   });
 });
 
-describe('the v22 to v25 upgrade path', () => {
+describe('the upgrade path after v22', () => {
   const recordedThrough22 = Array.from({ length: 22 }, (_, index) => index + 1);
+  const pendingAfter22 = MIGRATIONS.filter((migration) => migration.version > 22).map((migration) => migration.version);
 
   it('records telemetry rollups before query-path indexes', async () => {
     const store = fakeStore({ recorded: recordedThrough22 });
@@ -310,8 +311,8 @@ describe('the v22 to v25 upgrade path', () => {
     const outcome = await runMigrations(store.client, options(MIGRATIONS));
 
     expect(outcome.ok).toBe(true);
-    expect(outcome.attempts.map((attempt) => attempt.version)).toEqual([23, 24, 25]);
-    expect(store.inserts.map((row) => row[0])).toEqual([23, 24, 25]);
+    expect(outcome.attempts.map((attempt) => attempt.version)).toEqual(pendingAfter22);
+    expect(store.inserts.map((row) => row[0])).toEqual(pendingAfter22);
     expect(store.migrationSql.findIndex((sql) => sql.includes('request_latency_daily_rollups'))).toBeLessThan(
       store.migrationSql.findIndex((sql) => sql.includes('conversations_owner_updated_idx'))
     );
@@ -327,7 +328,7 @@ describe('the v22 to v25 upgrade path', () => {
 
     expect(outcome.ok).toBe(false);
     expect(outcome.attempts.map((attempt) => attempt.version)).toEqual([23]);
-    expect(outcome.pending).toEqual([23, 24, 25]);
+    expect(outcome.pending).toEqual(pendingAfter22);
     expect(store.inserts.map((row) => row[0])).toEqual([]);
     expect(store.migrationSql.join('\n')).not.toContain('conversations_owner_updated_idx');
   });
@@ -358,6 +359,18 @@ describe('the app idle-session migration', () => {
     expect(ddl).toContain('absolute_expires_at TIMESTAMPTZ NOT NULL');
     expect(ddl).toContain('retention_expires_at');
     expect(ddl).not.toMatch(/\btoken\b|raw_cookie|authorization/i);
+  });
+});
+
+describe('the recorded run persona migration', () => {
+  it('adds nullable historical snapshot columns without backfilling assignments', () => {
+    const migration = MIGRATIONS.find((entry) => entry.name === 'recorded run persona');
+    expect(migration?.version).toBe(26);
+    const ddl = migration?.statements.join('\n') ?? '';
+    expect(ddl).toContain('ADD COLUMN IF NOT EXISTS persona_id TEXT');
+    expect(ddl).toContain('ADD COLUMN IF NOT EXISTS persona_name TEXT');
+    expect(ddl).not.toContain('sp_assignments');
+    expect(ddl).not.toMatch(/UPDATE|DEFAULT/i);
   });
 });
 

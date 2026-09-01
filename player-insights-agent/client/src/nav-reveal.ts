@@ -22,20 +22,19 @@
  *
  * Here rather than in `shared/` because the server must NOT agree with it. That
  * is the opposite of `ACCESS_GATE_ENABLED`, which is in `shared/` precisely
- * because it is deployment state both halves have to read the same way. Here
- * rather than in `experimental-features.ts` because that file is a per-browser
- * preference a reader sets for themselves, and this is a posture for the
- * deployment that no reader should be able to turn off.
+ * because it is deployment state both halves have to read the same way. This
+ * source gate is separate from the Lakebase-backed Experimental settings
+ * because no runtime setting may turn a withdrawn build surface back on.
  */
 export const SHOW_EVERY_TAB_TO_EVERYONE: boolean = true;
 
 /**
  * Whether the Benchmark Lab is offered in the app at all.
  *
- * ON as the emergency gate around the operator-facing preference. The Settings
- * toggle remains off by default and decides whether one browser sees the tab,
- * scorers and judge details. Setting this to false still removes the surface
- * from every browser without deleting its routes or data.
+ * ON as the emergency gate around the operator-facing setting. The Settings
+ * toggle remains off by default and decides whether this deployment shows the
+ * tab, scorers and judge details. Setting this to false still removes the
+ * surface without deleting its routes or data.
  *
  * While off, `/benchmarks` redirects to Ask rather than rendering the empty lab
  * or a permission gate. Server `/api/benchmarks*` routes stay registered; this

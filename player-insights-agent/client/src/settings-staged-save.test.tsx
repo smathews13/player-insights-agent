@@ -24,7 +24,7 @@ describe('staged Settings saves', () => {
     expect(unsavedChangesLabel(dirtyCount)).toBe('Unsaved changes');
     expect(settingsSaveDisabled(false, dirtyCount, true)).toBe(false);
     expect(PAGE).toContain("withExperimentalFeature(current, 'forecasting', enabled)");
-    expect(PAGE).toContain('setFeature(name, draftFeatures[name])');
+    expect(PAGE).toContain('saveExperimentalSettings(experimentalRevision, patch)');
   });
 
   it('counts each key once after repeated edits and returns to clean when reverted', () => {
@@ -45,16 +45,16 @@ describe('staged Settings saves', () => {
     expect(PAGE).not.toMatch(/setTimeout\(\(\) => close\(\), SAVE_PRESS_MS\)/);
   });
 
-  it('keeps dirty drafts after a failed server save', () => {
+  it('restores canonical server state after a failed durable save', () => {
     for (const panel of [RUNTIME, BENCHMARK]) {
       const failure = panel.slice(panel.lastIndexOf('} catch (caught)'));
       expect(failure).toContain("onSaveState({ kind: 'failed'");
-      expect(failure).not.toContain('onDirtyChange(0)');
+      expect(failure).toContain('onDirtyChange(0)');
     }
-    expect(settingsSaveDisabled(false, 2, true)).toBe(false);
+    expect(settingsSaveDisabled(false, 0, true)).toBe(true);
   });
 
-  it('discards staged browser-local changes on Cancel without persisting them', () => {
+  it('discards staged Experimental changes on Cancel without persisting them', () => {
     expect(PAGE).toMatch(/className="settings-cancel"[\s\S]*?type="button"[\s\S]*?onClick=\{requestClose\}/);
     const forecastingHandler = PAGE.slice(
       PAGE.indexOf('aria-label="Show Ops forecasting"') - 500,
@@ -91,7 +91,7 @@ describe('staged Settings saves', () => {
     expect(PAGE).toContain('disabled={section.id !== active && dirtyCount > 0}');
     expect(PAGE).toContain('Save or Cancel the current changes first');
     expect(PAGE).toContain('{dirtyLabel} <span className="ast-num">{dirtyCount}</span>');
-    expect(PAGE).not.toContain('setDraftFeatures({ ...savedFeatures })');
+    expect(PAGE).toContain('setDraftFeatures({ ...savedFeatures })');
   });
 
   it('allows section navigation once the current pane is clean', () => {

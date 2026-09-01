@@ -1,5 +1,10 @@
 import { RuntimeSettingsSchema, type RuntimeSettings } from '../../shared/runtime-settings';
 
+export interface RuntimeSettingsDocument {
+  settings: RuntimeSettings;
+  revision: number;
+}
+
 type FailureBody = {
   detail?: unknown;
   message?: unknown;
@@ -25,6 +30,13 @@ export async function runtimeSettingsFromResponse(
   response: Response,
   operation: 'loaded' | 'saved'
 ): Promise<RuntimeSettings> {
+  return (await runtimeSettingsDocumentFromResponse(response, operation)).settings;
+}
+
+export async function runtimeSettingsDocumentFromResponse(
+  response: Response,
+  operation: 'loaded' | 'saved'
+): Promise<RuntimeSettingsDocument> {
   let body: unknown;
   try {
     body = await response.json();
@@ -41,9 +53,10 @@ export async function runtimeSettingsFromResponse(
   }
 
   const settings = body && typeof body === 'object' ? (body as { settings?: unknown }).settings : undefined;
+  const revision = body && typeof body === 'object' ? (body as { revision?: unknown }).revision : undefined;
   const parsed = RuntimeSettingsSchema.safeParse(settings);
-  if (!parsed.success) {
+  if (!parsed.success || !Number.isInteger(revision) || Number(revision) < 0) {
     throw new Error(`Runtime settings were not ${operation}: the server returned an incomplete settings payload.`);
   }
-  return parsed.data;
+  return { settings: parsed.data, revision: Number(revision) };
 }

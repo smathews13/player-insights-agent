@@ -357,12 +357,11 @@ describe('once per session', () => {
    * tab order and still read out, so a reader on a keyboard would be moving
    * through a card nobody can see.
    */
-  it('opens on the sequence, with no card in the document yet', () => {
+  it('opens directly on the card once startup has resolved identity', () => {
     const opening = renderToStaticMarkup(<FirstOpenGate identity={identity()} />);
-    expect(opening).toContain('ast-opening');
-    expect(opening).toContain('ast-opening-wordmark');
-    expect(opening).not.toContain('You are signing in as');
-    expect(opening).not.toContain('role="dialog"');
+    expect(opening).not.toContain('ast-opening');
+    expect(opening).toContain('You are signing in as');
+    expect(opening).toContain('role="dialog"');
   });
 
   it('keeps the opening sequence populated to the right of the login card', () => {
@@ -396,40 +395,16 @@ describe('once per session', () => {
     expect(connectorXs.some((x) => x > rightEdge)).toBe(true);
   });
 
-  it('never swaps the sky out from under the reader', () => {
-    /*
-     * The reported defect, as a property of the markup rather than of a frame.
-     *
-     * The intro used to render its own navy layer with `OPENING_CONSTELLATION`
-     * drawn progressively on it, and the gate replaced that whole layer with
-     * the ambient field the moment the card arrived. So the right-hand side
-     * filled in and the surface changed at the same instant -- two views in
-     * sequence, which is what "skewed left, then it stutters" was.
-     *
-     * Now the first screen already carries the field the gate ends on, and the
-     * opening layer is transparent over it.
-     */
-    const opening = firstPaint();
-    expect(opening, 'the sky is up on the first frame').toContain('gate-star-motion');
-    expect(opening, 'and the intro is on it rather than instead of it').toContain('ast-opening-on-sky');
-    expect(opening.match(/data-star-motion-field/g)).toHaveLength(1);
-    expect(opening).not.toContain('ast-opening-sky');
+  it('keeps the modal independent from the application sky', () => {
+    const opening = renderToStaticMarkup(<FirstOpenGate identity={identity()} />);
+    expect(opening).not.toContain('data-star-motion-field');
+    expect(opening).not.toContain('ast-opening');
     expect(code(GATE)).not.toContain('StarField');
-    expect(code(GATE)).not.toContain('GateSky');
   });
 
-  it('holds the resolving frame on the sky as well, rather than over it', () => {
-    /*
-     * The frame a session that skips the intro opens on -- reduced motion, or a
-     * reload -- mounts the same field every other stage does and then used to
-     * paint an opaque backdrop across it. So the first thing a reader met was a
-     * flat panel, and the stars looked like they switched on when the frame gave
-     * way. `on-sky` is what makes it transparent; the card already carried it.
-     *
-     * Asserted against the source because this stage needs a session latch to
-     * reach, and this run has no storage to set one in.
-     */
-    expect(GATE).toContain('<div className="first-open on-sky first-open-hold"');
+  it('leaves the resolving frame to the top-level startup loader', () => {
+    expect(GATE).not.toContain('first-open-hold');
+    expect(GATE).not.toContain('ConceptFlicker');
   });
 
   /*
@@ -462,15 +437,7 @@ describe('once per session', () => {
   it('draws the backdrop, and no card, while the identity is still resolving', () => {
     const resolving = identity({ signedInAs: 'Resolving signed-in user\u2026' });
     const markup = renderToStaticMarkup(<FirstOpenGate identity={resolving} />);
-    expect(markup).not.toBe('');
-    // Opaque from the first frame, so there is no moment at which anything behind
-    // it could be seen.
-    expect(markup).toMatch(/ast-opening|first-open-hold/);
-    // And nothing that states a fact the app does not have yet: no address, no
-    // scope verdict, and nothing focusable.
-    expect(markup).not.toContain('You are signing in as');
-    expect(markup).not.toContain('role="dialog"');
-    expect(markup).not.toContain('<button');
+    expect(markup).toBe('');
   });
 
   /* Continue writes the latch before it closes, or the card returns on reload. */

@@ -124,7 +124,7 @@ export async function ledgerQuery(
  */
 const RUN_COLUMNS = `run_id, user_email, conversation_id, turn_id, request_hash, idempotency_key_hash,
   plan_fingerprint, state, deadline_at, identity_mode_requested, identity_mode_effective,
-  identity_verified, terminal_code, terminal_message_id, trace_id, correlation_id, fencing_token,
+  identity_verified, persona_id, persona_name, terminal_code, terminal_message_id, trace_id, correlation_id, fencing_token,
   lease_owner, lease_expires_at, attempts, created_at, updated_at, completed_at`;
 
 export interface LedgerRun {
@@ -140,6 +140,8 @@ export interface LedgerRun {
   identityModeRequested: string | null;
   identityModeEffective: string | null;
   identityVerified: boolean | null;
+  personaId: string | null;
+  personaName: string | null;
   terminalCode: FailureCode | null;
   terminalMessageId: string | null;
   traceId: string | null;
@@ -215,6 +217,8 @@ function toRun(record: Record<string, unknown>): LedgerRun {
       record.identity_verified === null || record.identity_verified === undefined
         ? null
         : Boolean(record.identity_verified),
+    personaId: text(record.persona_id),
+    personaName: text(record.persona_name),
     terminalCode: text(record.terminal_code) as FailureCode | null,
     terminalMessageId: text(record.terminal_message_id),
     traceId: text(record.trace_id),
@@ -237,6 +241,10 @@ export interface NewRun {
   /** Absolute, computed at admission. See the note on `deadlineFrom`. */
   deadlineAt: Date;
   identityModeRequested: string;
+  /** Persisted snapshot; null means this run used no human persona. */
+  personaId?: string | null;
+  /** Name paired with personaId at execution time, never looked up later. */
+  personaName?: string | null;
   releaseIdentity: Record<string, unknown>;
   /**
    * The id the browser minted for this request, or the server's own when it sent
@@ -276,8 +284,9 @@ export async function createOrGetRun(store: LakebaseReader, input: NewRun): Prom
   const sql = `WITH inserted AS (
       INSERT INTO ${APP_SCHEMA}.runs
         (run_id, user_email, conversation_id, turn_id, request_hash, idempotency_key_hash,
-         state, deadline_at, identity_mode_requested, release_identity, correlation_id)
-      VALUES ($1,$2,$3,$4,$5,$6,'RECEIVED',$7,$8,$9::jsonb,$10)
+         state, deadline_at, identity_mode_requested, release_identity, correlation_id,
+         persona_id, persona_name)
+      VALUES ($1,$2,$3,$4,$5,$6,'RECEIVED',$7,$8,$9::jsonb,$10,$11,$12)
       ON CONFLICT DO NOTHING
       RETURNING ${RUN_COLUMNS}
     )
@@ -302,6 +311,8 @@ export async function createOrGetRun(store: LakebaseReader, input: NewRun): Prom
     input.identityModeRequested,
     JSON.stringify(input.releaseIdentity),
     input.correlationId,
+    input.personaId ?? null,
+    input.personaName ?? null,
   ];
 
   for (let attempt = 1; attempt <= RACE_ATTEMPTS; attempt += 1) {

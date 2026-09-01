@@ -19,13 +19,27 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { forgetRunLabelOverrides } from './run-header-labels';
-import { loadInitialRail, readRunSummaries, startInitialRail } from './initial-rail';
+import { loadInitialRail, readConversationList, readRunSummaries, startInitialRail } from './initial-rail';
 
 const HOME = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
 
 const RUNS = [
-  { id: 'run-2', conversation_id: 'conv-a', status: 'complete', created_at: '2026-08-17T10:00:00Z', duration_ms: 4200, rating: 4 },
-  { id: 'run-1', conversation_id: 'conv-a', status: 'failed', created_at: '2026-08-17T09:00:00Z', duration_ms: 900, rating: null },
+  {
+    id: 'run-2',
+    conversation_id: 'conv-a',
+    status: 'complete',
+    created_at: '2026-08-17T10:00:00Z',
+    duration_ms: 4200,
+    rating: 4,
+  },
+  {
+    id: 'run-1',
+    conversation_id: 'conv-a',
+    status: 'failed',
+    created_at: '2026-08-17T09:00:00Z',
+    duration_ms: 900,
+    rating: null,
+  },
 ];
 
 const CONVERSATIONS = [{ id: 'conv-a', title: 'Active players by title', updated_at: '2026-08-17T10:00:00Z' }];
@@ -86,9 +100,7 @@ describe('each list is asked for once per load', () => {
 
 describe('what the page is handed', () => {
   it('collapses the runs to the newest turn of each conversation', async () => {
-    vi.stubGlobal('fetch', (url: string) =>
-      Promise.resolve(ok(url === '/api/runs' ? RUNS : CONVERSATIONS))
-    );
+    vi.stubGlobal('fetch', (url: string) => Promise.resolve(ok(url === '/api/runs' ? RUNS : CONVERSATIONS)));
     const rail = await loadInitialRail();
     // The 10:00 turn, not the 09:00 one, and its rating with it.
     expect(rail.runSummaries.get('conv-a')).toMatchObject({ status: 'complete', rating: 4 });
@@ -105,6 +117,30 @@ describe('what the page is handed', () => {
     expect(rail.availability.origin).toBe('unavailable');
     // Not an empty list: an empty list would be drawn as "no conversations yet".
     expect(rail.conversations).toEqual([]);
+  });
+
+  it('sends normalized owner/persona filters and reads server-computed matches', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', (url: string) => {
+      calls.push(url);
+      return Promise.resolve(
+        ok({
+          conversations: CONVERSATIONS,
+          matching_conversation_ids: ['conv-a'],
+          available_personas: [{ id: 'finance', name: 'Finance analyst' }],
+          persona_filter_rule: 'persisted rule',
+        })
+      );
+    });
+    const list = await readConversationList({
+      owners: ['alice@example.com'],
+      personaIds: ['finance'],
+      includeNoPersona: true,
+    });
+    expect(calls).toEqual(['/api/conversations?owners=alice%40example.com&personas=finance&no_persona=true']);
+    expect(list.matchingConversationIds).toEqual(['conv-a']);
+    expect(list.availablePersonas).toEqual([{ id: 'finance', name: 'Finance analyst' }]);
+    expect(list.personaFilterRule).toBe('persisted rule');
   });
 });
 
@@ -189,7 +225,7 @@ describe('a slow run list does not hold the page shut', () => {
     expect(HOME, 'the page starts both reads and waits on them separately').toContain('startInitialRail()');
     expect(HOME, 'and not on one promise that needs both to have landed').not.toContain('loadInitialRail');
     expect(HOME, 'the gate is cleared by the conversation list').toMatch(
-      /reads\.conversations\.then\([\s\S]{0,800}?setConversationLoading\(false\)/
+      /reads\.conversations\.then\([\s\S]{0,1200}?setConversationLoading\(false\)/
     );
     expect(HOME, 'and never by the run list').not.toMatch(
       /reads\.runSummaries\.then\([\s\S]{0,600}?setConversationLoading\(false\)/

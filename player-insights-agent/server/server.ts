@@ -37,6 +37,7 @@ createApp({
       { setupOpsRoutes },
       { setupEgressRoutes },
       { setupRuntimeSettingsRoutes },
+      { setupExperimentalSettingsRoutes },
       { setupCostBudgetsRoutes },
       { setupBenchmarkSettingsRoutes },
       { setupEvalDatasetRoutes },
@@ -59,6 +60,7 @@ createApp({
       import('./routes/ops-routes'),
       import('./routes/egress-routes'),
       import('./routes/runtime-settings-routes'),
+      import('./routes/experimental-settings-routes'),
       import('./routes/cost-budgets-routes'),
       import('./routes/benchmark-settings-routes'),
       import('./routes/eval-dataset-routes'),
@@ -94,6 +96,7 @@ createApp({
     // the settings routes first would leave the write route unguarded.
     setupSettingsRoutes(appkit);
     setupRuntimeSettingsRoutes(appkit);
+    setupExperimentalSettingsRoutes(appkit);
     setupCostBudgetsRoutes(appkit);
     setupBenchmarkSettingsRoutes(appkit);
     setupSpIdentityRoutes(appkit);

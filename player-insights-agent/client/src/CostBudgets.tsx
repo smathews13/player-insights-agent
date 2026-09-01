@@ -24,9 +24,16 @@ import type { CostTile, OpsCostPayload } from '../../shared/ops-contract';
 import { astPill } from './astrolabe-pill';
 import { budgetFieldText } from './cost-budget-amount';
 import { COST_BUDGETS_UNREADABLE, loadCostBudgets, saveCostBudgets } from './cost-budgets-api';
-import { budgetHelper, budgetPlaceholder, costSpendSummary, resourceBudgetBaseline } from './cost-budget-view';
+import {
+  budgetHelper,
+  budgetPlaceholder,
+  costSpendSummary,
+  monthlyAppBudgetBaseline,
+  monthlyBudgetSuggestion,
+  resourceBudgetBaseline,
+} from './cost-budget-view';
 import { NumberTicker, TickerAssumptionField, TickerAssumptionGrid, tickerNumber } from './NumberTicker';
-import { costAmount, spendVersusBudget, tileView, totalBudgetView } from './ops-view';
+import { totalBudgetView } from './ops-view';
 import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad, type SettingsSaveState } from './settings-save-state';
 import { Button } from './ui';
 import { ConceptFlicker } from './ConceptFlicker';
@@ -227,20 +234,30 @@ export function CostBudgetProvider({
 export function CostTotalBudget() {
   const api = useCostBudgets();
   const state = api.stateFor('total');
-  const usd = costSpendSummary(api.payload, 'USD');
-  const dbu = costSpendSummary(api.payload, 'DBU');
-  const observed = { USD: usd.amount, DBU: dbu.dbus };
+  const observed = {
+    USD: monthlyAppBudgetBaseline(api.payload, 'USD'),
+    DBU: monthlyAppBudgetBaseline(api.payload, 'DBU'),
+  };
+  const suggestion = {
+    USD: monthlyBudgetSuggestion(observed.USD),
+    DBU: monthlyBudgetSuggestion(observed.DBU),
+  };
   const view = totalBudgetView(api.budgets.total, api.currency, observed, api.unit);
   const notice = costBudgetNotice(state);
   return (
     <div className="ops-cost-total">
       <CostBudgetField
         fieldKey="total"
-        label="App budget"
-        ariaLabel="App budget"
+        label="Monthly app budget"
+        ariaLabel="Monthly app budget"
         budget={api.budgets.total}
         unit={api.unit}
-        observed={observed}
+        observed={suggestion}
+        helper={
+          suggestion[api.unit] === null
+            ? 'No complete measured baseline'
+            : "Suggested from the selected period's 30-day run rate"
+        }
         onCommit={api.setTotal}
         onValidityChange={(valid) => api.setValidity('total', valid)}
         controlAfter={
@@ -304,31 +321,6 @@ export function CostResourceBudgets({ tiles }: { tiles: readonly CostTile[] }) {
         />
         <BudgetSaveNotice notice={notice} readable={api.readable} state={state} />
       </div>
-      <section className="ops-forecast-breakdown ops-cost-actual-breakdown" aria-labelledby="ops-cost-actual-heading">
-        <h4 id="ops-cost-actual-heading">Actual cost breakdown</h4>
-        <div
-          className="ops-forecast-breakdown-scroll"
-          role="region"
-          aria-label={`Resource actuals and budgets in ${api.unit}`}
-          tabIndex={0}
-        >
-          <table className="ops-cost-budget-matrix">
-            <thead>
-              <tr>
-                <th scope="col">Component</th>
-                <th scope="col">Actual</th>
-                <th scope="col">Budget</th>
-                <th scope="col">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tiles.map((tile) => (
-                <CostTileBudget key={tile.id} tile={tile} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </section>
   );
 }
@@ -353,47 +345,7 @@ function CostResourceBudgetField({ tile }: { tile: CostTile }) {
   );
 }
 
-export function CostTileBudget({ tile }: { tile: CostTile }) {
-  const api = useCostBudgets();
-  const amount = resourceBudget(api.budgets, tile.id);
-  const compared = spendVersusBudget(tile, amount, api.currency, api.unit);
-  const actual = tileView(tile, api.currency, api.unit);
-  const budget = costBudgetValue(amount, api.unit);
-  return (
-    <tr className="ops-tile-budget">
-      <th className="ops-budget-heading" scope="row" title={tile.label}>
-        <span className="ops-budget-resource">{tile.label}</span>
-        {tile.basis === 'per-day' ? <span className="ops-budget-basis">per day</span> : null}
-      </th>
-      <td className={`ops-budget-actual${actual.figure ? '' : ' ops-budget-actual-unavailable'}`}>
-        {actual.figure || actual.absence}
-      </td>
-      <td className="ops-budget-value">
-        {budget === null ? 'No budget' : <span className="ast-num">{costAmount(budget, api.currency, api.unit)}</span>}
-      </td>
-      <td>
-        <BudgetStatus view={compared} />
-      </td>
-    </tr>
-  );
-}
-
-function BudgetStatus({ view }: { view: ReturnType<typeof spendVersusBudget> }) {
-  if (view.kind === 'compared') {
-    return (
-      <span className={astPill(view.over ? 'warn' : 'pos', 'ops-pill')}>
-        {view.over ? 'Over budget' : 'Within budget'}
-      </span>
-    );
-  }
-  if (view.kind === 'shared-meter') {
-    return <span className={astPill('neutral-outline', 'ops-pill')}>shared meter vs named budget</span>;
-  }
-  if (view.kind === 'budget-only') return <span className="ops-budget-not-set">Spend not measured</span>;
-  return <span className="ops-budget-not-set">No budget</span>;
-}
-
-function BudgetComparison({ view, noun = '' }: { view: ReturnType<typeof spendVersusBudget>; noun?: string }) {
+function BudgetComparison({ view, noun = '' }: { view: ReturnType<typeof totalBudgetView>; noun?: string }) {
   if (view.kind === 'compared') {
     return (
       <span className="ops-budget-compare">
@@ -428,6 +380,7 @@ function CostBudgetField({
   budget,
   unit,
   observed,
+  helper,
   onCommit,
   onValidityChange,
   controlAfter,
@@ -438,6 +391,7 @@ function CostBudgetField({
   budget: CostBudget;
   unit: CostBudgetUnit;
   observed: Record<CostBudgetUnit, number | null>;
+  helper?: string;
   onCommit: (budget: CostBudget) => void;
   onValidityChange: (valid: boolean) => void;
   controlAfter?: ReactNode;
@@ -459,7 +413,7 @@ function CostBudgetField({
   const inputId = `ops-budget-${fieldKey.replace(/[^a-z0-9]+/gi, '-')}`;
   const error = parsed.valid ? undefined : `Enter a number from 0 to ${COST_BUDGET_MAX.toLocaleString('en-US')}.`;
   return (
-    <TickerAssumptionField id={inputId} label={label} helper={budgetHelper(observed, unit)} error={error}>
+    <TickerAssumptionField id={inputId} label={label} helper={helper ?? budgetHelper(observed, unit)} error={error}>
       <NumberTicker
         id={inputId}
         label={`${ariaLabel} in ${unit}`}

@@ -76,17 +76,33 @@ describe('Identity table polish', () => {
 
   it('keeps the Actions column and its controls pinned inside the table frame', () => {
     const markup = roster();
+    const stickyRule = CSS.match(
+      /\.settings-actions-table th:last-child,\s*\.settings-actions-table td:last-child \{([^}]*)\}/s
+    )?.[1];
     expect(markup).toContain('settings-actions-table');
     expect(markup).toContain('<th scope="col">Actions</th>');
     expect(markup).toContain(
       'aria-label="Remove an.identity.with.a.deliberately.long.local.part@outside.example.invalid"'
     );
     expect(markup).toContain('data-variant="destructive"');
-    expect(markup).toContain('> Remove</button>');
+    expect(markup).toMatch(/roster-action-icon[\s\S]*Remove<\/button>/);
     expect(CSS).toMatch(
       /\.settings-actions-table th:last-child,\s*\.settings-actions-table td:last-child \{[^}]*position:\s*sticky[^}]*right:\s*0/s
     );
     expect(CSS).toMatch(/\.settings-actions-table td:last-child \{[^}]*white-space:\s*nowrap/s);
+    expect(stickyRule).not.toMatch(/background|box-shadow/);
+  });
+
+  it('uses the same cell background in normal, hover, selected, and dark themes', () => {
+    expect(CSS).toMatch(/\.roles-table th \{[^}]*background:\s*var\(--settings-table-cell-background\)/s);
+    expect(CSS).toMatch(/\.roles-table td \{[^}]*background:\s*var\(--settings-table-cell-background\)/s);
+    expect(CSS).toMatch(
+      /\.roles-table tbody tr:hover \{[^}]*--settings-table-cell-background:\s*var\(--db-row-hover\)/s
+    );
+    expect(CSS).toMatch(
+      /\.roles-table tbody tr\[aria-selected='true'\],\s*\.roles-table tbody tr\[data-selected='true'\] \{[^}]*--settings-table-cell-background:\s*var\(--db-selected-tint\)/s
+    );
+    expect(CSS).not.toMatch(/html\[data-theme='dark'\][^{]*\.settings-actions-table[^}]*background/s);
   });
 
   it('keeps immutable Super admin and Owner badges complete and separated by columns', () => {
@@ -142,15 +158,42 @@ describe('Identity table polish', () => {
         </tfoot>
       </table>
     );
+    const loading = renderToStaticMarkup(
+      <table>
+        <tfoot>
+          <RosterAddRow
+            draft="person@example.com"
+            role="admin"
+            busy={true}
+            adding={true}
+            onDraftChange={() => {}}
+            onRoleChange={() => {}}
+            onAdd={() => {}}
+          />
+        </tfoot>
+      </table>
+    );
 
     expect(enabled).toContain('class="roster-add-row"');
     expect(enabled.match(/<td/g) ?? []).toHaveLength(5);
     expect(enabled).toContain('aria-label="Email address to put on the roster"');
     expect(enabled).toContain('aria-label="User role to give them: Admin"');
-    expect(enabled).toContain('> Add</button>');
-    expect(enabled).not.toMatch(/> Add<\/button>.*disabled/);
+    expect(enabled).toContain('Add</button>');
+    expect(enabled).toContain('roster-action-icon');
+    expect(roster()).toContain('roster-control settings-destructive roster-action-button');
+    expect(enabled).not.toMatch(/Add<\/button>.*disabled/);
     expect(enabled).toMatch(/focus-visible:[^"]+/);
     expect(disabled).toContain('disabled=""');
+    expect(loading).toContain('aria-busy="true"');
+    expect(loading).toContain('Adding…');
+    expect(CSS).toMatch(
+      /\.roles-table \.roster-action > \[data-slot='button'\]\.roster-action-button \{[^}]*width:\s*92px[^}]*min-width:\s*92px[^}]*max-width:\s*92px[^}]*height:\s*30px[^}]*padding:\s*0 9px[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*gap:\s*6px[^}]*text-align:\s*center/s
+    );
+    expect(CSS).toMatch(
+      /\.roster-action-button \.roster-action-icon \{[^}]*width:\s*14px[^}]*height:\s*14px[^}]*flex:\s*none/s
+    );
+    expect(CSS).toMatch(/\.roles-table\.settings-actions-table th:last-child \{[^}]*text-align:\s*center/s);
+    expect(CSS).toMatch(/\.roles-table \.roster-action \{[^}]*text-align:\s*center/s);
     expect(CSS).toMatch(
       /\.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*background:\s*var\(--db-red-700\)[^}]*color:\s*var\(--destructive-foreground\)/s
     );

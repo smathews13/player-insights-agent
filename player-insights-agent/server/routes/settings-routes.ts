@@ -59,7 +59,6 @@ import {
   readDeclaredConnections,
   removalImpact,
   restoreDeclaredConnection,
-  withdrawDeclaredConnection,
   writeDeclaredConnection,
   type RemovalImpact,
   type StoredDeclaredConnection,
@@ -437,36 +436,25 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
       res.json({ impact: await impactFor(appkit, connection) });
     });
 
-    /**
-     * Withdraw a connection, keeping the row so it can be put back.
-     *
-     * The impact is returned WITH the withdrawal as well as being available before
-     * it, so a caller that skipped the preview still has to be handed what stopped
-     * working rather than a bare success.
-     */
+    /** Permanently delete one logical connection on the first confirmed request. */
     app.delete('/api/settings/connections/:id', async (req, res) => {
       try {
-        const connections = await readDeclaredConnections(appkit);
-        const connection = connections.find((entry) => entry.id === req.params.id);
-        if (!connection || connection.state === 'withdrawn') {
-          res.status(404).json({
-            error: 'no_such_connection',
-            detail: connection ? 'That connection is already withdrawn.' : 'Nothing is declared under that name.',
-          });
+        const deletedIds = await forgetDeclaredConnection(appkit, req.params.id);
+        if (deletedIds.length === 0) {
+          res.status(404).json({ error: 'no_such_connection', detail: 'Nothing is declared under that name.' });
           return;
         }
-        const impact = await impactFor(appkit, connection);
-        const withdrawn = await withdrawDeclaredConnection(appkit, req.params.id, userEmail(req));
-        if (!withdrawn) {
-          res.status(404).json({ error: 'no_such_connection', detail: 'That connection is already withdrawn.' });
-          return;
-        }
-        res.json({ connection: withdrawn, impact, restorable: true });
+        res.json({
+          forgotten: { id: req.params.id },
+          deletedIds,
+          deletedCount: deletedIds.length,
+          restorable: false,
+        });
       } catch (error) {
-        console.error('[connections] The connection could not be withdrawn:', (error as Error).message);
+        console.error('[connections] The connection could not be deleted:', (error as Error).message);
         res.status(503).json({
           error: 'settings_store_unavailable',
-          detail: 'The connection was not withdrawn.',
+          detail: 'The connection was not deleted. Nothing changed; retry when Lakebase is available.',
         });
       }
     });
@@ -499,15 +487,20 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
      */
     app.delete('/api/settings/connections/:id/forever', async (req, res) => {
       try {
-        const forgotten = await forgetDeclaredConnection(appkit, req.params.id);
-        if (!forgotten) {
+        const deletedIds = await forgetDeclaredConnection(appkit, req.params.id);
+        if (deletedIds.length === 0) {
           res.status(404).json({
             error: 'no_such_connection',
             detail: 'There is no remembered connection under that name.',
           });
           return;
         }
-        res.json({ forgotten: { id: req.params.id }, restorable: false });
+        res.json({
+          forgotten: { id: req.params.id },
+          deletedIds,
+          deletedCount: deletedIds.length,
+          restorable: false,
+        });
       } catch (error) {
         console.error('[connections] The connection could not be forgotten:', (error as Error).message);
         res.status(503).json({

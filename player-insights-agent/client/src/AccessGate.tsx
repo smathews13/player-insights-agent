@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- gate parsing and its modal share one authorization contract */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshButton } from './RefreshControl';
 import { principalLabel } from './execution-identity';
@@ -24,7 +25,7 @@ interface ServingPrincipal {
   observedAt: string;
 }
 
-interface GateIdentity {
+export interface GateIdentity {
   signedInAs: string;
   /** 'databricks-apps' when somebody is really signed in; 'development-fallback' when not. */
   identitySource?: string;
@@ -34,7 +35,7 @@ interface GateIdentity {
   servingPrincipal: ServingPrincipal | null;
 }
 
-function gateIdentityFromResponse(value: unknown): GateIdentity {
+export function gateIdentityFromResponse(value: unknown): GateIdentity {
   if (!value || typeof value !== 'object') throw new Error('Identity unavailable');
   const identity = value as Partial<GateIdentity>;
   if (
@@ -49,6 +50,10 @@ function gateIdentityFromResponse(value: unknown): GateIdentity {
     accessDecision: identity.accessDecision ?? null,
     servingPrincipal: identity.servingPrincipal ?? null,
   } as GateIdentity;
+}
+
+export function requiresAccessDecision(identity: GateIdentity | null, enabled = ACCESS_GATE_ENABLED): boolean {
+  return Boolean(enabled && identity && identity.identitySource !== 'development-fallback' && !identity.accessDecision);
 }
 
 interface Remedy {
@@ -489,55 +494,72 @@ function unreachableVerification(status: number, body: Failure | null): Verifica
 export function AccessGate({
   children,
   enabled = ACCESS_GATE_ENABLED,
+  preloadedIdentity,
+  onIdentityChange,
 }: {
   children: React.ReactNode;
   enabled?: boolean;
+  preloadedIdentity?: GateIdentity | null;
+  onIdentityChange?: (identity: GateIdentity) => void;
 }) {
-  const [identity, setIdentity] = useState<GateIdentity | null>(null);
+  const [loadedIdentity, setLoadedIdentity] = useState<GateIdentity | null>(preloadedIdentity ?? null);
   const [unreachable, setUnreachable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const skip = useRef<HTMLButtonElement | null>(null);
+  const identity = preloadedIdentity === undefined ? loadedIdentity : preloadedIdentity;
+  const setIdentity = useCallback(
+    (next: GateIdentity | ((current: GateIdentity | null) => GateIdentity | null)) => {
+      const resolved = typeof next === 'function' ? next(identity) : next;
+      if (!resolved) return;
+      setLoadedIdentity(resolved);
+      onIdentityChange?.(resolved);
+    },
+    [identity, onIdentityChange]
+  );
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || preloadedIdentity !== undefined) return;
     identityRequest()
       .then(gateIdentityFromResponse)
       .then(setIdentity)
       // A gate that cannot reach the server must not become a locked door in
       // front of a working app. It stands aside and says nothing it cannot back.
       .catch(() => setUnreachable(true));
-  }, [enabled]);
+  }, [enabled, preloadedIdentity, setIdentity]);
 
-  const declare = useCallback(async (mode: 'service-principal' | 'skipped') => {
-    setBusy(true);
-    setFailure(null);
-    try {
-      const response = await fetch('/api/access-mode', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ mode }),
-      });
-      if (!response.ok) throw new Error('The app could not record that choice.');
-      const body = (await response.json()) as { decision: AccessDecision; servingPrincipal: ServingPrincipal | null };
-      setIdentity((current) =>
-        current
-          ? {
-              ...current,
-              executionMode: body.decision.mode,
-              accessDecision: body.decision,
-              servingPrincipal: body.servingPrincipal,
-            }
-          : current
-      );
-    } catch (error) {
-      setFailure((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const declare = useCallback(
+    async (mode: 'service-principal' | 'skipped') => {
+      setBusy(true);
+      setFailure(null);
+      try {
+        const response = await fetch('/api/access-mode', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ mode }),
+        });
+        if (!response.ok) throw new Error('The app could not record that choice.');
+        const body = (await response.json()) as { decision: AccessDecision; servingPrincipal: ServingPrincipal | null };
+        setIdentity((current) =>
+          current
+            ? {
+                ...current,
+                executionMode: body.decision.mode,
+                accessDecision: body.decision,
+                servingPrincipal: body.servingPrincipal,
+              }
+            : current
+        );
+      } catch (error) {
+        setFailure((error as Error).message);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [setIdentity]
+  );
 
   const verify = useCallback(async () => {
     setBusy(true);
@@ -578,7 +600,7 @@ export function AccessGate({
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [setIdentity]);
 
   // Off by default, and this is the whole of what that means: the app opens under
   // the reader's own token as if the check had never been written. Nothing below

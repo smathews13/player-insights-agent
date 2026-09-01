@@ -18,7 +18,12 @@ import {
   stageBenchmarkCustomJudge,
   updateBenchmarkSettingsDraft,
 } from './benchmark-settings-draft';
-import { saveRetryAfterLoad, type SettingsLoadResult, type SettingsSaveState } from './settings-save-state';
+import {
+  changedSettingsPatch,
+  saveRetryAfterLoad,
+  type SettingsLoadResult,
+  type SettingsSaveState,
+} from './settings-save-state';
 import { StateSwitch } from './StateSwitch';
 import { Button, Input, Textarea } from './ui';
 import type { Run, RunTrace } from './app-types';
@@ -129,6 +134,7 @@ export function BenchmarkSettingsPanel({
   } | null>(null);
   const settingsDraftRef = useRef(createBenchmarkSettingsDraftStore(DEFAULT_BENCHMARK_SETTINGS));
   const addingCustomJudgeRef = useRef(false);
+  const revisionRef = useRef(0);
 
   const load = useCallback(async (): Promise<SettingsLoadResult> => {
     setFailure(null);
@@ -136,6 +142,7 @@ export function BenchmarkSettingsPanel({
       const response = await fetch('/api/benchmark-settings');
       const loaded = await benchmarkSettingsFromResponse(response, 'loaded');
       replaceBenchmarkSettingsDraft(settingsDraftRef.current, loaded.settings, true);
+      revisionRef.current = loaded.revision;
       setSavedSettings(loaded.settings);
       setSettings(loaded.settings);
       setExperimentUrl(loaded.experimentUrl);
@@ -204,12 +211,18 @@ export function BenchmarkSettingsPanel({
       const result = await saveBenchmarkSettingsDraft(settingsDraftRef.current, {
         additionalChangeCount,
         persist: async (draft) => {
+          const before = settingsDraftRef.current.saved;
+          if (!before) throw new Error('Benchmark settings have not loaded from Lakebase.');
           const response = await fetch('/api/admin/benchmark-settings', {
             method: 'PUT',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(draft),
+            body: JSON.stringify({
+              revision: revisionRef.current,
+              patch: changedSettingsPatch(before, draft) ?? {},
+            }),
           });
           const saved = await benchmarkSettingsFromResponse(response, 'saved');
+          revisionRef.current = saved.revision;
           setExperimentUrl(saved.experimentUrl);
           return saved.settings;
         },
@@ -232,6 +245,12 @@ export function BenchmarkSettingsPanel({
       onDirtyChange(result.remainingCount);
       onSaveState({ kind: 'saved', count: result.count });
     } catch (caught) {
+      const canonical = settingsDraftRef.current.saved;
+      if (canonical) {
+        replaceBenchmarkSettingsDraft(settingsDraftRef.current, canonical, false);
+        setSettings(canonical);
+        onDirtyChange(0);
+      }
       setFailure({ operation: 'save', message: (caught as Error).message });
       onSaveState({ kind: 'failed', message: (caught as Error).message });
     }

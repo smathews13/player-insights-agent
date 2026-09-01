@@ -10,6 +10,24 @@ function completeDays(payload: Pick<OpsCostPayload, 'range'>): number {
   return Number.isFinite(from) && Number.isFinite(to) && to >= from ? Math.round((to - from) / DAY_MS) + 1 : 0;
 }
 
+/** Exact 30-day run rate from a complete measured selected-period total. */
+export function monthlyAppBudgetBaseline(payload: OpsCostPayload, unit: CostBudgetUnit): number | null {
+  if (payload.state !== 'ready' || payload.honesty?.rangeMayStillFill === true) return null;
+  const summary = costSpendSummary(payload, unit);
+  const selected = unit === 'USD' ? summary.amount : summary.dbus;
+  if (summary.partial || summary.days <= 0 || selected === null || !Number.isFinite(selected) || selected <= 0) {
+    return null;
+  }
+  return (selected / summary.days) * 30;
+}
+
+/** A two-significant-digit human increment, with no hidden contingency. */
+export function monthlyBudgetSuggestion(monthly: number | null): number | null {
+  if (monthly === null || !Number.isFinite(monthly) || monthly <= 0) return null;
+  const increment = Math.max(0.01, 10 ** (Math.floor(Math.log10(monthly)) - 1));
+  return Math.round(monthly / increment) * increment;
+}
+
 export function costSpendSummary(
   payload: Pick<OpsCostPayload, 'range' | 'tiles' | 'currency'>,
   unit: CostBudgetUnit = 'USD'

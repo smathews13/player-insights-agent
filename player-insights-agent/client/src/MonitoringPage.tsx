@@ -92,7 +92,12 @@ import {
 // Shared with Ops, so the two tabs cannot be over different windows.
 import { TimeRangeControl } from './TimeRangeControl';
 import './styles/routes/monitoring.css';
-import { monitoringRangeId, useMonitoringQuestions } from './monitoring-session';
+import {
+  monitoringPageForOwner,
+  monitoringRangeId,
+  rememberMonitoringSearch,
+  useMonitoringQuestions,
+} from './monitoring-session';
 import {
   beginPanelLoad,
   idlePanel,
@@ -104,7 +109,7 @@ import {
   resolvePanelLoad,
   type PanelLoadState,
 } from './monitoring-detail-state';
-import { rangeWindow } from './time-range';
+import { rangeLabel, rangeWindow } from './time-range';
 import { codesForCause } from '../../shared/monitoring-contract';
 import type {
   MonitoringDetail,
@@ -118,11 +123,37 @@ import { Dialog } from './Dialog';
 
 /* ── The summary strip ───────────────────────────────────────────────────── */
 
-/** One hairline tile. A tile never renders blank and never renders both. */
-export function SummaryTile({ label, tile, className = '' }: { label: string; tile: TileValue; className?: string }) {
+/** The compact, visual-only timebox repeated on every KPI card. */
+function PeriodBadge({ label }: { label: string }) {
   return (
-    <div className={['monitoring-tile', className].filter(Boolean).join(' ')}>
-      <p className="monitoring-tile-label">{label}</p>
+    <span className={astPill('neutral-outline', 'monitoring-period-badge')} aria-hidden="true">
+      {label}
+    </span>
+  );
+}
+
+/** One hairline tile. A tile never renders blank and never renders both. */
+export function SummaryTile({
+  label,
+  tile,
+  periodLabel,
+  className = '',
+}: {
+  label: string;
+  tile: TileValue;
+  periodLabel: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={['monitoring-tile', className].filter(Boolean).join(' ')}
+      role="group"
+      aria-label={`${label}, ${periodLabel}`}
+    >
+      <div className="monitoring-tile-head">
+        <p className="monitoring-tile-label">{label}</p>
+        <PeriodBadge label={periodLabel} />
+      </div>
       {tile.value !== null ? (
         <p className="monitoring-tile-value ast-num">{tile.value}</p>
       ) : (
@@ -144,7 +175,7 @@ export function SummaryTile({ label, tile, className = '' }: { label: string; ti
  * the app not working. The two are separately coloured and separately counted,
  * and the caption only claims they sum to the questions asked when they do.
  */
-export function SummaryStrip({ payload }: { payload: MonitoringQuestionsPayload; rangeLabel?: string }) {
+export function SummaryStrip({ payload, periodLabel }: { payload: MonitoringQuestionsPayload; periodLabel: string }) {
   const outcomes = outcomeTile(payload.summary);
   const outcomeMetrics = [
     { label: 'Completed', value: outcomes.completed, count: payload.summary.completed, className: '' },
@@ -153,18 +184,28 @@ export function SummaryStrip({ payload }: { payload: MonitoringQuestionsPayload;
     { label: 'Failed', value: outcomes.failed, count: payload.summary.failed, className: 'monitoring-failed' },
   ];
   return (
-    <div className="monitoring-strip" aria-label="Summary for the selected range">
+    <div className="monitoring-strip" aria-label={`Summary for ${periodLabel}`}>
       <SummaryTile
         label="Questions asked"
         tile={questionsAskedTile(payload.summary)}
+        periodLabel={periodLabel}
         className="monitoring-summary-questions"
       />
       <SummaryTile
         label="User threads"
         tile={userThreadsTile(payload.summary)}
+        periodLabel={periodLabel}
         className="monitoring-summary-threads"
       />
-      <div className="monitoring-tile monitoring-outcomes-tile">
+      <div
+        className="monitoring-tile monitoring-outcomes-tile"
+        role="group"
+        aria-label={`Final run outcomes, ${periodLabel}`}
+      >
+        <div className="monitoring-tile-head">
+          <p className="monitoring-tile-label">Final run outcomes</p>
+          <PeriodBadge label={periodLabel} />
+        </div>
         <dl className="monitoring-outcome-grid" aria-label="Final run outcomes">
           {outcomeMetrics.map((metric) => (
             <div
@@ -194,11 +235,13 @@ export function SummaryStrip({ payload }: { payload: MonitoringQuestionsPayload;
       <SummaryTile
         label="Rated helpful"
         tile={ratedHelpfulTile(payload.summary)}
+        periodLabel={periodLabel}
         className="monitoring-summary-rated"
       />
       <SummaryTile
         label="Median answer time"
         tile={medianAnswerTimeTile(payload.summary)}
+        periodLabel={periodLabel}
         className="monitoring-summary-median"
       />
     </div>
@@ -206,12 +249,15 @@ export function SummaryStrip({ payload }: { payload: MonitoringQuestionsPayload;
 }
 
 /** The skeleton strip, which is five tiles of the same geometry and no numbers. */
-function SkeletonStrip() {
+function SkeletonStrip({ periodLabel }: { periodLabel: string }) {
   return (
     <div className="monitoring-strip" aria-hidden="true">
       {[0, 1, 2, 3, 4].map((index) => (
         <div className="monitoring-tile" key={index}>
-          <Skeleton className="h-3 w-24" />
+          <div className="monitoring-tile-head">
+            <Skeleton className="h-3 w-24" />
+            <PeriodBadge label={periodLabel} />
+          </div>
           <Skeleton className="h-6 w-16" />
           <Skeleton className="h-3 w-20" />
         </div>
@@ -393,48 +439,6 @@ export function FilterRow({
 }) {
   return (
     <div className="monitoring-filters">
-      {/* THE PERIOD IS NOT ONE OF THE FILTERS BESIDE IT, and this group exists to
-          say so. A question list is always over some window, so "no period" has
-          no meaning; there is no state this control can be in that is the
-          absence of a choice. The chips to its right are the opposite: every one
-          of them has an off position and a ✕ that reaches it.
-
-          Sam read the segmented control as one of those, tried to unclick the
-          active segment, and nothing happened. That is the control behaving
-          correctly and looking wrong. So it now carries a name, sits in its own
-          bordered group, and is separated from the chips by a rule. A reader who
-          can see it is a labelled selector rather than a set chip stops looking
-          for a cross on it.
-
-          IT HAS AN ALL-TIME SEGMENT, and it no longer rests on the store being
-          small. It used to: the read paired each answer to its question with a
-          correlated subquery and joined on the RESULT of that subquery, which no
-          index can serve, so the pairing ran once per question and the cost grew
-          with the square of the questions in the window. That was held back
-          twice, and shipped once with a line on the page warning about the
-          growth instead of a guard.
-
-          `MONITORING_QUESTIONS_QUERY` now pairs in the other direction: a page
-          of the newest questions first, then two indexed lookups per question on
-          that page. The answer-side work is bounded by the PAGE rather than by
-          the window, so an unbounded range costs a page what a day costs, and
-          the warning it needed is gone with it. The range's own totals are still
-          proportional to the window, deliberately, because an exact denominator
-          is worth an index scan. Section 5.8 of the admin Monitoring and Ops
-          plan has all of it, and the note on that query has the rest. */}
-      <span className="monitoring-period">
-        {/* Visual only. The group inside already carries "Time range for
-            Monitoring" as its accessible name, so a second name here would be
-            read twice. */}
-        <span className="monitoring-period-label" aria-hidden="true">
-          Period
-        </span>
-        {/* The shared control, imported rather than copied, so this tab and Ops
-            cannot be over different windows. It owns the range parameters in the
-            URL; nothing on this page writes them. */}
-        <TimeRangeControl page="Monitoring" />
-      </span>
-      <span className="monitoring-filters-rule" aria-hidden="true" />
       <FilterChip
         label="Person"
         value={filters.person}
@@ -1443,9 +1447,9 @@ export function MonitoringBody({
   return (
     <>
       {state === 'loading' ? (
-        <SkeletonStrip />
+        <SkeletonStrip periodLabel={rangeLabel} />
       ) : payload ? (
-        <SummaryStrip payload={payload} rangeLabel={rangeLabel} />
+        <SummaryStrip payload={payload} periodLabel={rangeLabel} />
       ) : null}
 
       {/* A partial read renders its figures and says what they are over, so a
@@ -1607,8 +1611,33 @@ function cursorFor(owner: string, pages: CursorPages): string {
   return pages.owner === owner ? (pages.cursors[pages.index] ?? '') : '';
 }
 
-function pageFor(owner: string, pages: CursorPages): number {
-  return pages.owner === owner ? pages.index : 0;
+export function MonitoringHeading({
+  loading,
+  checkedAt,
+  now,
+  onRefresh,
+}: {
+  loading: boolean;
+  checkedAt: string;
+  now: number;
+  onRefresh: () => void;
+}) {
+  return (
+    <PageHeading
+      title="Monitoring"
+      actions={
+        <div className="monitoring-heading-actions">
+          <div className="monitoring-heading-period">
+            <span className="monitoring-heading-period-label" aria-hidden="true">
+              Period
+            </span>
+            <TimeRangeControl page="Monitoring" />
+          </div>
+          <RefreshControl busy={loading} checkedAt={checkedAt} now={now} onRefresh={onRefresh} />
+        </div>
+      }
+    />
+  );
 }
 
 export function MonitoringPage() {
@@ -1623,12 +1652,13 @@ export function MonitoringPage() {
   const filters = filtersFromParams(searchParams);
   const drawer = drawerFromParams(searchParams);
   const window_ = rangeWindow(searchParams, now);
+  const periodLabel = rangeLabel(searchParams);
   const rangeId = monitoringRangeId(searchParams);
   const filterKey = JSON.stringify(filters);
   const listOwner = `${rangeId}|${window_.from}|${window_.to}|${filterKey}`;
   const [listPages, setListPages] = useState<CursorPages>({ owner: listOwner, cursors: [''], index: 0 });
   const listCursor = cursorFor(listOwner, listPages);
-  const listPage = pageFor(listOwner, listPages);
+  const listPage = monitoringPageForOwner(listOwner, listPages);
   const { payload, loading, refresh } = useMonitoringQuestions({
     rangeId,
     from: window_.from,
@@ -1637,6 +1667,12 @@ export function MonitoringPage() {
     cursor: listCursor,
   });
 
+  // The top navigation restores this view's controls after another tab. Detail
+  // panel parameters are deliberately excluded by rememberMonitoringSearch.
+  useEffect(() => {
+    rememberMonitoringSearch(location.search);
+  }, [location.search]);
+
   const personOwner = `${drawer.person.toLowerCase()}|${window_.from}|${window_.to}|${filterKey}`;
   const [personPages, setPersonPages] = useState<CursorPages>({
     owner: personOwner,
@@ -1644,7 +1680,7 @@ export function MonitoringPage() {
     index: 0,
   });
   const personCursor = cursorFor(personOwner, personPages);
-  const personPage = pageFor(personOwner, personPages);
+  const personPage = monitoringPageForOwner(personOwner, personPages);
 
   const questionKey = drawer.question ? monitoringDetailKey('question', drawer.question, window_.from, window_.to) : '';
   const questionRequest = usePanelRequest<MonitoringDetail>(
@@ -1704,43 +1740,43 @@ export function MonitoringPage() {
 
   const visible = payload ? applyFilters(payload.questions, filters) : [];
   const state: MonitoringState = monitoringState({
-    loading,
+    // A refresh keeps the last successful strip and page visible. Only a view
+    // with nothing retained uses the full skeleton.
+    loading: loading && !payload,
     readState: payload?.readState ?? null,
     rowCount: visible.length,
     filtersActive: filtersActive(filters),
     searchActive: filters.search !== '',
   });
+  const refreshView = useCallback(() => {
+    const refreshedAt = Date.now();
+    const refreshedWindow = rangeWindow(searchParams, refreshedAt);
+    setNow(refreshedAt);
+    refresh({
+      rangeId,
+      from: refreshedWindow.from,
+      to: refreshedWindow.to,
+      filters,
+      cursor: listCursor,
+    });
+  }, [filters, listCursor, rangeId, refresh, searchParams]);
 
   return (
     <div className="page-shell monitoring-page">
-      <PageHeading
-        title="Monitoring"
-        actions={
-          /* The shared pair. This page supplies the two things only it knows:
-             whether a read is in flight, and when the last one finished. */
-          <RefreshControl
-            busy={loading}
-            checkedAt={payload?.readAt ?? ''}
-            now={now}
-            onRefresh={() => {
-              setNow(Date.now());
-            }}
-          />
-        }
-      />
+      <MonitoringHeading loading={loading} checkedAt={payload?.readAt ?? ''} now={now} onRefresh={refreshView} />
 
       <MonitoringBody
         state={state}
         payload={payload}
         questions={visible}
         filters={filters}
-        rangeLabel={window_.label}
+        rangeLabel={periodLabel}
         selectedId={drawer.question}
         now={now}
         onOpen={open}
         onChangeFilters={changeFilters}
         onClearFilters={() => setSearchParams(new URLSearchParams(clearedFilters(location.search)), { replace: true })}
-        onRetry={refresh}
+        onRetry={refreshView}
         page={listPage}
         onPreviousPage={() =>
           setListPages((current) => ({

@@ -34,8 +34,15 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { MonitoringQuestionsPayload } from '../../shared/monitoring-contract';
-import type { MonitoringFilters } from './monitoring-filters';
-import { rangeFromParams, type ReadableParams } from './time-range';
+import {
+  OUTCOME_PARAM,
+  PERSON_PARAM,
+  RATING_PARAM,
+  SEARCH_PARAM,
+  TABLE_PARAM,
+  type MonitoringFilters,
+} from './monitoring-filters';
+import { RANGE_PARAM, rangeFromParams, type ReadableParams } from './time-range';
 
 type Listener = () => void;
 
@@ -47,8 +54,19 @@ const remembered = new Map<string, MonitoringQuestionsPayload | null>();
 /** Requests whose one automatic run has been taken. */
 const autoClaimed = new Set<string>();
 
+interface InflightRead {
+  promise: Promise<MonitoringQuestionsPayload | null>;
+  controller: AbortController;
+}
+
 /** In-flight read per request. A duplicate caller joins rather than starting another. */
-const inflight = new Map<string, Promise<MonitoringQuestionsPayload | null>>();
+const inflight = new Map<string, InflightRead>();
+
+/** Incremented when the authenticated app session ends. */
+let sessionGeneration = 0;
+
+/** The range and secondary filters the Monitoring nav tab should restore. */
+let rememberedSearch = '';
 
 function announce(): void {
   for (const listener of [...listeners]) listener();
@@ -109,10 +127,13 @@ export function isMonitoringLoading(rangeId: string): boolean {
  * would be testing the second visit while believing it was testing the first.
  */
 export function forgetMonitoringSession(): void {
+  sessionGeneration += 1;
+  for (const read of inflight.values()) read.controller.abort();
   remembered.clear();
   autoClaimed.clear();
   inflight.clear();
   listeners.clear();
+  rememberedSearch = '';
 }
 
 export interface MonitoringListRequest {
@@ -123,17 +144,16 @@ export interface MonitoringListRequest {
   cursor: string;
 }
 
-function normalizedStamp(value: string): string {
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : value.trim();
-}
-
-/** Every value that changes the server result, normalized into one cache key. */
+/**
+ * Every intentional Monitoring choice, normalized into one stable cache key.
+ *
+ * The computed timestamps are deliberately absent. They move between mounts,
+ * while the preset/filter/page represented here does not; including them caused
+ * every return to the tab to miss its retained payload and fetch again.
+ */
 export function monitoringRequestId(request: MonitoringListRequest): string {
   const normalized = {
     range: request.rangeId,
-    from: normalizedStamp(request.from),
-    to: normalizedStamp(request.to),
     person: request.filters.person.trim().toLowerCase(),
     outcome: request.filters.outcome,
     rating: request.filters.rating,
@@ -142,6 +162,35 @@ export function monitoringRequestId(request: MonitoringListRequest): string {
     cursor: request.cursor,
   };
   return JSON.stringify(normalized);
+}
+
+/** Reset pagination when range or filters produce a different request owner. */
+export function monitoringPageForOwner(owner: string, pages: { owner: string; index: number }): number {
+  return pages.owner === owner ? pages.index : 0;
+}
+
+const RESTORED_SEARCH_PARAMS = [
+  RANGE_PARAM,
+  PERSON_PARAM,
+  OUTCOME_PARAM,
+  RATING_PARAM,
+  TABLE_PARAM,
+  SEARCH_PARAM,
+] as const;
+
+/** Remember only view controls, never an open question/person detail panel. */
+export function rememberMonitoringSearch(search: string): void {
+  const current = new URLSearchParams(search);
+  const kept = new URLSearchParams();
+  for (const name of RESTORED_SEARCH_PARAMS) {
+    for (const value of current.getAll(name)) kept.append(name, value);
+  }
+  rememberedSearch = kept.toString();
+}
+
+/** The top-nav destination that restores the last Monitoring view this session. */
+export function monitoringTabHref(): string {
+  return rememberedSearch ? `/monitoring?${rememberedSearch}` : '/monitoring';
 }
 
 export function monitoringQuestionsUrl(request: MonitoringListRequest): string {
@@ -159,19 +208,36 @@ export function monitoringQuestionsUrl(request: MonitoringListRequest): string {
   return `/api/monitoring/questions?${params.toString()}`;
 }
 
-async function readQuestions(request: MonitoringListRequest): Promise<MonitoringQuestionsPayload | null> {
+async function readQuestions(
+  request: MonitoringListRequest,
+  signal: AbortSignal
+): Promise<MonitoringQuestionsPayload | null> {
   try {
-    const response = await fetch(monitoringQuestionsUrl(request));
+    const response = await fetch(monitoringQuestionsUrl(request), { signal });
     // A 403 is the guard doing its job for a consumer who reached the URL.
     // The body still parses as a payload shape, and `readState` carries the
     // outcome, so there is no separate error path to keep in step.
     const body = (await response.json()) as MonitoringQuestionsPayload;
     return response.ok ? body : { ...body, readState: 'unavailable' };
-  } catch {
+  } catch (error) {
+    if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) throw error;
     // No stand-in rows and no invented figures. The page swaps its body for
     // the storage-failure panel, which says the list is blank because nobody
     // could read it.
     return null;
+  }
+}
+
+/**
+ * Cancel list reads that no longer belong to the range/filter/page on screen.
+ *
+ * Results are keyed, so an old response could not paint under a new period.
+ * Cancellation still matters: changing period must not leave an expensive scan
+ * running after every visible KPI, row, and detail panel has moved on.
+ */
+export function abortMonitoringRequestsExcept(requestId: string): void {
+  for (const [id, read] of inflight) {
+    if (id !== requestId) read.controller.abort();
   }
 }
 
@@ -187,27 +253,55 @@ export async function loadMonitoringQuestions(
 ): Promise<MonitoringQuestionsPayload | null> {
   const requestId = monitoringRequestId(request);
   const existing = inflight.get(requestId);
-  if (existing) return existing;
+  if (existing) return existing.promise;
 
-  const work = readQuestions(request)
+  const controller = new AbortController();
+  const generation = sessionGeneration;
+  const work = readQuestions(request, controller.signal)
     .then((payload) => {
-      remembered.set(requestId, payload);
+      if (controller.signal.aborted || generation !== sessionGeneration) {
+        throw new DOMException('Aborted', 'AbortError');
+      }
+      const previous = recallQuestions(requestId);
+      const successful = payload?.readState === 'ok' || payload?.readState === 'partial';
+      // A failed refresh never clears the last successful page and KPI strip.
+      if (successful || !remembered.has(requestId))
+        remembered.set(requestId, successful ? payload : (previous ?? payload));
       return payload;
     })
+    .catch((error: unknown) => {
+      if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
+        // A return to this request later gets a fresh automatic read rather than
+        // restoring an aborted request as an unavailable result.
+        autoClaimed.delete(requestId);
+        return null;
+      }
+      throw error;
+    })
     .finally(() => {
-      inflight.delete(requestId);
+      if (inflight.get(requestId)?.controller === controller) inflight.delete(requestId);
       announce();
     });
-  inflight.set(requestId, work);
+  inflight.set(requestId, { promise: work, controller });
   announce();
   return work;
+}
+
+/** First-open/intentional-change entry point. A remount of the same view is a no-op. */
+export function autoLoadMonitoringQuestions(
+  request: MonitoringListRequest
+): Promise<MonitoringQuestionsPayload | null> | null {
+  const requestId = monitoringRequestId(request);
+  abortMonitoringRequestsExcept(requestId);
+  if (!claimAutoLoad(requestId)) return null;
+  return loadMonitoringQuestions(request);
 }
 
 export interface MonitoringQuestionsSession {
   payload: MonitoringQuestionsPayload | null;
   loading: boolean;
   /** Re-read this range. The only thing that does, after the automatic run. */
-  refresh: () => void;
+  refresh: (nextRequest?: MonitoringListRequest) => void;
 }
 
 /**
@@ -226,12 +320,15 @@ export function useMonitoringQuestions(request: MonitoringListRequest): Monitori
   // are the window for THIS range's first read. A remount recomputes them
   // from a later clock and must not count as a new question.
   useEffect(() => {
-    if (claimAutoLoad(requestId)) void loadMonitoringQuestions(request);
+    void autoLoadMonitoringQuestions(request);
   }, [request, requestId]);
 
-  const refresh = useCallback(() => {
-    void loadMonitoringQuestions(request);
-  }, [request, requestId]);
+  const refresh = useCallback(
+    (nextRequest: MonitoringListRequest = request) => {
+      void loadMonitoringQuestions(nextRequest);
+    },
+    [request]
+  );
 
   return {
     payload: recallQuestions(requestId),

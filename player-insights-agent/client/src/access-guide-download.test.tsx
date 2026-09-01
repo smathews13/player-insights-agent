@@ -9,6 +9,9 @@ import {
 } from './access-guide-api';
 import { AccessGuideDownloadRow } from './AccessGuideDownload';
 
+const CSS = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
+const RESPONSIVE = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');
+
 describe('Settings → Identity access guide', () => {
   it('renders a real PDF download only after availability is confirmed', () => {
     const hidden = renderToStaticMarkup(<AccessGuideDownloadRow available={false} />);
@@ -53,5 +56,19 @@ describe('Settings → Identity access guide', () => {
     expect(heading).toBeGreaterThan(-1);
     expect(guide).toBeGreaterThan(heading);
     expect(guide).toBeLessThan(roster);
+  });
+
+  it('right-aligns a bounded half-width pane and stacks it at tablet widths', () => {
+    expect(CSS).toMatch(
+      /\.access-guide-download-row \{[^}]*width:\s*clamp\(360px,\s*50%,\s*520px\)[^}]*max-width:\s*100%[^}]*justify-self:\s*end/s
+    );
+    expect(CSS).toMatch(
+      /\.access-guide-download-row \{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*justify-content:\s*space-between/s
+    );
+    expect(CSS).toMatch(/\.access-guide-download-button \{[^}]*flex:\s*none[^}]*align-items:\s*center/s);
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width:\s*800px\)[\s\S]*\.access-guide-download-row \{[^}]*width:\s*100%[^}]*max-width:\s*none[^}]*justify-self:\s*stretch[^}]*flex-direction:\s*column/s
+    );
+    expect(RESPONSIVE).toMatch(/\.access-guide-download-button \{[^}]*width:\s*100%/s);
   });
 });

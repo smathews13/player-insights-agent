@@ -3740,7 +3740,7 @@ var require_range = __commonJS({
       parseRange(range) {
         const memoOpts = (this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE);
         const memoKey = memoOpts + ":" + range;
-        const cached3 = cache9.get(memoKey);
+        const cached3 = cache10.get(memoKey);
         if (cached3) {
           return cached3;
         }
@@ -3774,7 +3774,7 @@ var require_range = __commonJS({
           rangeMap.delete("");
         }
         const result = [...rangeMap.values()];
-        cache9.set(memoKey, result);
+        cache10.set(memoKey, result);
         return result;
       }
       intersects(range, options) {
@@ -3813,7 +3813,7 @@ var require_range = __commonJS({
     };
     module.exports = Range;
     var LRU = require_lrucache();
-    var cache9 = new LRU();
+    var cache10 = new LRU();
     var parseOptions = require_parse_options();
     var Comparator = require_comparator();
     var debug = require_debug();
@@ -30173,11 +30173,11 @@ var require_instrumentation5 = __commonJS({
             if (!(0, api_1.isSpanContextValid)(spanContext)) {
               return original.apply(this, args);
             }
-            const record2 = args[0];
-            record2["trace_id"] = spanContext.traceId;
-            record2["span_id"] = spanContext.spanId;
-            record2["trace_flags"] = `0${spanContext.traceFlags.toString(16)}`;
-            instrumentation._callHook(span, record2);
+            const record3 = args[0];
+            record3["trace_id"] = spanContext.traceId;
+            record3["span_id"] = spanContext.spanId;
+            record3["trace_flags"] = `0${spanContext.traceFlags.toString(16)}`;
+            instrumentation._callHook(span, record3);
             return original.apply(this, args);
           };
         };
@@ -30209,12 +30209,12 @@ var require_instrumentation5 = __commonJS({
           level: streamLevel
         });
       }
-      _callHook(span, record2) {
+      _callHook(span, record3) {
         const { logHook } = this.getConfig();
         if (typeof logHook !== "function") {
           return;
         }
-        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record2), (err) => {
+        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record3), (err) => {
           if (err) {
             this._diag.error("error calling logHook", err);
           }
@@ -34987,14 +34987,14 @@ var require_instrumentation18 = __commonJS({
         const instrumentation = this;
         return (original) => {
           return function send(...args) {
-            const record2 = args[0];
-            const spans = record2.messages.map((message) => {
-              return instrumentation._startProducerSpan(record2.topic, message);
+            const record3 = args[0];
+            const spans = record3.messages.map((message) => {
+              return instrumentation._startProducerSpan(record3.topic, message);
             });
-            const pendingMetrics = record2.messages.map((m) => prepareCounter(instrumentation._sentMessages, 1, {
+            const pendingMetrics = record3.messages.map((m) => prepareCounter(instrumentation._sentMessages, 1, {
               [semconv_1.ATTR_MESSAGING_SYSTEM]: semconv_1.MESSAGING_SYSTEM_VALUE_KAFKA,
               [semconv_1.ATTR_MESSAGING_OPERATION_NAME]: "send",
-              [semconv_1.ATTR_MESSAGING_DESTINATION_NAME]: record2.topic,
+              [semconv_1.ATTR_MESSAGING_DESTINATION_NAME]: record3.topic,
               ...m.partition !== void 0 ? {
                 [semconv_1.ATTR_MESSAGING_DESTINATION_PARTITION_ID]: String(m.partition)
               } : {}
@@ -37083,12 +37083,12 @@ var require_utils27 = __commonJS({
       return jdbcString;
     }
     function getQueryText(query, format2, values, maskStatement = false, maskStatementHook = defaultMaskingHook) {
-      const [querySql, queryValues] = typeof query === "string" ? [query, values] : [query.sql, hasValues(query) ? values || query.values : values];
+      const [querySql, queryValues2] = typeof query === "string" ? [query, values] : [query.sql, hasValues(query) ? values || query.values : values];
       try {
         if (maskStatement) {
           return maskStatementHook(querySql);
-        } else if (format2 && queryValues) {
-          return format2(querySql, queryValues);
+        } else if (format2 && queryValues2) {
+          return format2(querySql, queryValues2);
         } else {
           return querySql;
         }
@@ -40355,12 +40355,12 @@ var require_instrumentation31 = __commonJS({
           })
         ];
       }
-      _callHook(span, record2, level) {
+      _callHook(span, record3, level) {
         const { logHook } = this.getConfig();
         if (!logHook) {
           return;
         }
-        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record2, level), (err) => {
+        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record3, level), (err) => {
           if (err) {
             api_1.diag.error("pino instrumentation: error calling logHook", err);
           }
@@ -40381,13 +40381,13 @@ var require_instrumentation31 = __commonJS({
             return {};
           }
           const logKeys = instrumentation.getConfig().logKeys ?? DEFAULT_LOG_KEYS;
-          const record2 = {
+          const record3 = {
             [logKeys.traceId]: spanContext.traceId,
             [logKeys.spanId]: spanContext.spanId,
             [logKeys.traceFlags]: `0${spanContext.traceFlags.toString(16)}`
           };
-          instrumentation._callHook(span, record2, level);
-          return record2;
+          instrumentation._callHook(span, record3, level);
+          return record3;
         };
       }
     };
@@ -42831,12 +42831,12 @@ var require_undici = __commonJS({
       // the remote is established and about to send the first byte. Here we do have info about the
       // remote address and port so we can populate some `network.*` attributes into the span
       onRequestHeaders({ request, socket }) {
-        const record2 = this._recordFromReq.get(request);
-        if (!record2) {
+        const record3 = this._recordFromReq.get(request);
+        if (!record3) {
           return;
         }
         const config2 = this.getConfig();
-        const { span } = record2;
+        const { span } = record3;
         const { remoteAddress, remotePort } = socket;
         const spanAttributes = {
           [semantic_conventions_1.ATTR_NETWORK_PEER_ADDRESS]: remoteAddress,
@@ -42858,11 +42858,11 @@ var require_undici = __commonJS({
       // headers are received, body may not be accessible yet.
       // From the response headers we can set the status and content length
       onResponseHeaders({ request, response }) {
-        const record2 = this._recordFromReq.get(request);
-        if (!record2) {
+        const record3 = this._recordFromReq.get(request);
+        if (!record3) {
           return;
         }
-        const { span, attributes } = record2;
+        const { span, attributes } = record3;
         const spanAttributes = {
           [semantic_conventions_1.ATTR_HTTP_RESPONSE_STATUS_CODE]: response.statusCode
         };
@@ -42889,15 +42889,15 @@ var require_undici = __commonJS({
         span.setStatus({
           code: response.statusCode >= 400 ? api_1.SpanStatusCode.ERROR : api_1.SpanStatusCode.UNSET
         });
-        record2.attributes = Object.assign(attributes, spanAttributes);
+        record3.attributes = Object.assign(attributes, spanAttributes);
       }
       // This is the last event we receive if the request went without any errors
       onDone({ request }) {
-        const record2 = this._recordFromReq.get(request);
-        if (!record2) {
+        const record3 = this._recordFromReq.get(request);
+        if (!record3) {
           return;
         }
-        const { span, attributes, startTime } = record2;
+        const { span, attributes, startTime } = record3;
         span.end();
         this._recordFromReq.delete(request);
         this.recordRequestDuration(attributes, startTime);
@@ -42909,11 +42909,11 @@ var require_undici = __commonJS({
       // NOTE: server errors are considered valid responses and it's the lib consumer
       // who should deal with that.
       onError({ request, error: error48 }) {
-        const record2 = this._recordFromReq.get(request);
-        if (!record2) {
+        const record3 = this._recordFromReq.get(request);
+        if (!record3) {
           return;
         }
-        const { span, attributes, startTime } = record2;
+        const { span, attributes, startTime } = record3;
         span.recordException(error48);
         span.setStatus({
           code: api_1.SpanStatusCode.ERROR,
@@ -43044,12 +43044,12 @@ var require_instrumentation38 = __commonJS({
           winstons2instrumentationNodeModuleDefinition
         ];
       }
-      _callHook(span, record2) {
+      _callHook(span, record3) {
         const { logHook } = this.getConfig();
         if (!logHook) {
           return;
         }
-        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record2), (err) => {
+        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record3), (err) => {
           if (err) {
             this._diag.error("error calling logHook", err);
           }
@@ -43059,8 +43059,8 @@ var require_instrumentation38 = __commonJS({
         return (original) => {
           const instrumentation = this;
           return function patchedWrite(...args) {
-            const record2 = args[0];
-            instrumentation._handleLogCorrelation(record2);
+            const record3 = args[0];
+            instrumentation._handleLogCorrelation(record3);
             return original.apply(this, args);
           };
         };
@@ -43069,19 +43069,19 @@ var require_instrumentation38 = __commonJS({
         return (original) => {
           const instrumentation = this;
           return function patchedLog(...args) {
-            const record2 = {};
-            instrumentation._handleLogCorrelation(record2);
+            const record3 = {};
+            instrumentation._handleLogCorrelation(record3);
             let isDataInjected = false;
             for (let i = args.length - 1; i >= 0; i--) {
               if (typeof args[i] === "object") {
-                args[i] = Object.assign(args[i], record2);
+                args[i] = Object.assign(args[i], record3);
                 isDataInjected = true;
                 break;
               }
             }
             if (!isDataInjected) {
               const insertAt = typeof args[args.length - 1] === "function" ? args.length - 1 : args.length;
-              args.splice(insertAt, 0, record2);
+              args.splice(insertAt, 0, record3);
             }
             return original.apply(this, args);
           };
@@ -43118,7 +43118,7 @@ var require_instrumentation38 = __commonJS({
           };
         };
       }
-      _handleLogCorrelation(record2) {
+      _handleLogCorrelation(record3) {
         if (!this.getConfig().disableLogCorrelation) {
           const span = api_1.trace.getSpan(api_1.context.active());
           if (span) {
@@ -43129,13 +43129,13 @@ var require_instrumentation38 = __commonJS({
                 span_id: spanContext.spanId,
                 trace_flags: `0${spanContext.traceFlags.toString(16)}`
               };
-              const enhancedRecord = Object.assign(record2, fields);
+              const enhancedRecord = Object.assign(record3, fields);
               this._callHook(span, enhancedRecord);
               return enhancedRecord;
             }
           }
         }
-        return record2;
+        return record3;
       }
       _winstonLevelFromSeverity(severity, winstonLevels) {
         if (winstonLevels) {
@@ -46961,25 +46961,25 @@ var require_tr46 = __commonJS({
       };
     }
     var combiningMarksRegex = /[\u0300-\u036F\u0483-\u0489\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0711\u0730-\u074A\u07A6-\u07B0\u07EB-\u07F3\u0816-\u0819\u081B-\u0823\u0825-\u0827\u0829-\u082D\u0859-\u085B\u08E4-\u0903\u093A-\u093C\u093E-\u094F\u0951-\u0957\u0962\u0963\u0981-\u0983\u09BC\u09BE-\u09C4\u09C7\u09C8\u09CB-\u09CD\u09D7\u09E2\u09E3\u0A01-\u0A03\u0A3C\u0A3E-\u0A42\u0A47\u0A48\u0A4B-\u0A4D\u0A51\u0A70\u0A71\u0A75\u0A81-\u0A83\u0ABC\u0ABE-\u0AC5\u0AC7-\u0AC9\u0ACB-\u0ACD\u0AE2\u0AE3\u0B01-\u0B03\u0B3C\u0B3E-\u0B44\u0B47\u0B48\u0B4B-\u0B4D\u0B56\u0B57\u0B62\u0B63\u0B82\u0BBE-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCD\u0BD7\u0C00-\u0C03\u0C3E-\u0C44\u0C46-\u0C48\u0C4A-\u0C4D\u0C55\u0C56\u0C62\u0C63\u0C81-\u0C83\u0CBC\u0CBE-\u0CC4\u0CC6-\u0CC8\u0CCA-\u0CCD\u0CD5\u0CD6\u0CE2\u0CE3\u0D01-\u0D03\u0D3E-\u0D44\u0D46-\u0D48\u0D4A-\u0D4D\u0D57\u0D62\u0D63\u0D82\u0D83\u0DCA\u0DCF-\u0DD4\u0DD6\u0DD8-\u0DDF\u0DF2\u0DF3\u0E31\u0E34-\u0E3A\u0E47-\u0E4E\u0EB1\u0EB4-\u0EB9\u0EBB\u0EBC\u0EC8-\u0ECD\u0F18\u0F19\u0F35\u0F37\u0F39\u0F3E\u0F3F\u0F71-\u0F84\u0F86\u0F87\u0F8D-\u0F97\u0F99-\u0FBC\u0FC6\u102B-\u103E\u1056-\u1059\u105E-\u1060\u1062-\u1064\u1067-\u106D\u1071-\u1074\u1082-\u108D\u108F\u109A-\u109D\u135D-\u135F\u1712-\u1714\u1732-\u1734\u1752\u1753\u1772\u1773\u17B4-\u17D3\u17DD\u180B-\u180D\u18A9\u1920-\u192B\u1930-\u193B\u19B0-\u19C0\u19C8\u19C9\u1A17-\u1A1B\u1A55-\u1A5E\u1A60-\u1A7C\u1A7F\u1AB0-\u1ABE\u1B00-\u1B04\u1B34-\u1B44\u1B6B-\u1B73\u1B80-\u1B82\u1BA1-\u1BAD\u1BE6-\u1BF3\u1C24-\u1C37\u1CD0-\u1CD2\u1CD4-\u1CE8\u1CED\u1CF2-\u1CF4\u1CF8\u1CF9\u1DC0-\u1DF5\u1DFC-\u1DFF\u20D0-\u20F0\u2CEF-\u2CF1\u2D7F\u2DE0-\u2DFF\u302A-\u302F\u3099\u309A\uA66F-\uA672\uA674-\uA67D\uA69F\uA6F0\uA6F1\uA802\uA806\uA80B\uA823-\uA827\uA880\uA881\uA8B4-\uA8C4\uA8E0-\uA8F1\uA926-\uA92D\uA947-\uA953\uA980-\uA983\uA9B3-\uA9C0\uA9E5\uAA29-\uAA36\uAA43\uAA4C\uAA4D\uAA7B-\uAA7D\uAAB0\uAAB2-\uAAB4\uAAB7\uAAB8\uAABE\uAABF\uAAC1\uAAEB-\uAAEF\uAAF5\uAAF6\uABE3-\uABEA\uABEC\uABED\uFB1E\uFE00-\uFE0F\uFE20-\uFE2D]|\uD800[\uDDFD\uDEE0\uDF76-\uDF7A]|\uD802[\uDE01-\uDE03\uDE05\uDE06\uDE0C-\uDE0F\uDE38-\uDE3A\uDE3F\uDEE5\uDEE6]|\uD804[\uDC00-\uDC02\uDC38-\uDC46\uDC7F-\uDC82\uDCB0-\uDCBA\uDD00-\uDD02\uDD27-\uDD34\uDD73\uDD80-\uDD82\uDDB3-\uDDC0\uDE2C-\uDE37\uDEDF-\uDEEA\uDF01-\uDF03\uDF3C\uDF3E-\uDF44\uDF47\uDF48\uDF4B-\uDF4D\uDF57\uDF62\uDF63\uDF66-\uDF6C\uDF70-\uDF74]|\uD805[\uDCB0-\uDCC3\uDDAF-\uDDB5\uDDB8-\uDDC0\uDE30-\uDE40\uDEAB-\uDEB7]|\uD81A[\uDEF0-\uDEF4\uDF30-\uDF36]|\uD81B[\uDF51-\uDF7E\uDF8F-\uDF92]|\uD82F[\uDC9D\uDC9E]|\uD834[\uDD65-\uDD69\uDD6D-\uDD72\uDD7B-\uDD82\uDD85-\uDD8B\uDDAA-\uDDAD\uDE42-\uDE44]|\uD83A[\uDCD0-\uDCD6]|\uDB40[\uDD00-\uDDEF]/;
-    function validateLabel(label, processing_option) {
-      if (label.substr(0, 4) === "xn--") {
-        label = punycode.toUnicode(label);
+    function validateLabel(label2, processing_option) {
+      if (label2.substr(0, 4) === "xn--") {
+        label2 = punycode.toUnicode(label2);
         processing_option = PROCESSING_OPTIONS.NONTRANSITIONAL;
       }
       var error48 = false;
-      if (normalize(label) !== label || label[3] === "-" && label[4] === "-" || label[0] === "-" || label[label.length - 1] === "-" || label.indexOf(".") !== -1 || label.search(combiningMarksRegex) === 0) {
+      if (normalize(label2) !== label2 || label2[3] === "-" && label2[4] === "-" || label2[0] === "-" || label2[label2.length - 1] === "-" || label2.indexOf(".") !== -1 || label2.search(combiningMarksRegex) === 0) {
         error48 = true;
       }
-      var len = countSymbols(label);
+      var len = countSymbols(label2);
       for (var i = 0; i < len; ++i) {
-        var status = findStatus(label.codePointAt(i));
+        var status = findStatus(label2.codePointAt(i));
         if (processing === PROCESSING_OPTIONS.TRANSITIONAL && status[1] !== "valid" || processing === PROCESSING_OPTIONS.NONTRANSITIONAL && status[1] !== "valid" && status[1] !== "deviation") {
           error48 = true;
           break;
         }
       }
       return {
-        label,
+        label: label2,
         error: error48
       };
     }
@@ -53028,20 +53028,20 @@ var require_parse2 = __commonJS({
           }
         }
         error48("Bad array");
-      }, object2 = function() {
-        var key2, object3 = /* @__PURE__ */ Object.create(null);
+      }, object3 = function() {
+        var key2, object4 = /* @__PURE__ */ Object.create(null);
         if (ch === "{") {
           next("{");
           white();
           if (ch === "}") {
             next("}");
-            return object3;
+            return object4;
           }
           while (ch) {
             key2 = string4();
             white();
             next(":");
-            if (_options.strict === true && Object.hasOwnProperty.call(object3, key2)) {
+            if (_options.strict === true && Object.hasOwnProperty.call(object4, key2)) {
               error48('Duplicate key "' + key2 + '"');
             }
             if (suspectProtoRx.test(key2) === true) {
@@ -53050,7 +53050,7 @@ var require_parse2 = __commonJS({
               } else if (_options.protoAction === "ignore") {
                 value();
               } else {
-                object3[key2] = value();
+                object4[key2] = value();
               }
             } else if (suspectConstructorRx.test(key2) === true) {
               if (_options.constructorAction === "error") {
@@ -53058,15 +53058,15 @@ var require_parse2 = __commonJS({
               } else if (_options.constructorAction === "ignore") {
                 value();
               } else {
-                object3[key2] = value();
+                object4[key2] = value();
               }
             } else {
-              object3[key2] = value();
+              object4[key2] = value();
             }
             white();
             if (ch === "}") {
               next("}");
-              return object3;
+              return object4;
             }
             next(",");
             white();
@@ -53078,7 +53078,7 @@ var require_parse2 = __commonJS({
         white();
         switch (ch) {
           case "{":
-            return object2();
+            return object3();
           case "[":
             return array2();
           case '"':
@@ -57425,24 +57425,24 @@ var require_umd = __commonJS({
         var INT_CACHE = {};
         var UINT_CACHE = {};
         function fromInt(value, unsigned) {
-          var obj, cachedObj, cache9;
+          var obj, cachedObj, cache10;
           if (unsigned) {
             value >>>= 0;
-            if (cache9 = 0 <= value && value < 256) {
+            if (cache10 = 0 <= value && value < 256) {
               cachedObj = UINT_CACHE[value];
               if (cachedObj) return cachedObj;
             }
             obj = fromBits(value, 0, true);
-            if (cache9) UINT_CACHE[value] = obj;
+            if (cache10) UINT_CACHE[value] = obj;
             return obj;
           } else {
             value |= 0;
-            if (cache9 = -128 <= value && value < 128) {
+            if (cache10 = -128 <= value && value < 128) {
               cachedObj = INT_CACHE[value];
               if (cachedObj) return cachedObj;
             }
             obj = fromBits(value, value < 0 ? -1 : 0, false);
-            if (cache9) INT_CACHE[value] = obj;
+            if (cache10) INT_CACHE[value] = obj;
             return obj;
           }
         }
@@ -59036,87 +59036,87 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              AnyValue.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.common.v1.AnyValue)
-                  return object2;
+              AnyValue.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.common.v1.AnyValue)
+                  return object3;
                 var message = new $root.opentelemetry.proto.common.v1.AnyValue();
-                if (object2.stringValue != null)
-                  message.stringValue = String(object2.stringValue);
-                if (object2.boolValue != null)
-                  message.boolValue = Boolean(object2.boolValue);
-                if (object2.intValue != null) {
+                if (object3.stringValue != null)
+                  message.stringValue = String(object3.stringValue);
+                if (object3.boolValue != null)
+                  message.boolValue = Boolean(object3.boolValue);
+                if (object3.intValue != null) {
                   if ($util.Long)
-                    (message.intValue = $util.Long.fromValue(object2.intValue)).unsigned = false;
-                  else if (typeof object2.intValue === "string")
-                    message.intValue = parseInt(object2.intValue, 10);
-                  else if (typeof object2.intValue === "number")
-                    message.intValue = object2.intValue;
-                  else if (typeof object2.intValue === "object")
-                    message.intValue = new $util.LongBits(object2.intValue.low >>> 0, object2.intValue.high >>> 0).toNumber();
+                    (message.intValue = $util.Long.fromValue(object3.intValue)).unsigned = false;
+                  else if (typeof object3.intValue === "string")
+                    message.intValue = parseInt(object3.intValue, 10);
+                  else if (typeof object3.intValue === "number")
+                    message.intValue = object3.intValue;
+                  else if (typeof object3.intValue === "object")
+                    message.intValue = new $util.LongBits(object3.intValue.low >>> 0, object3.intValue.high >>> 0).toNumber();
                 }
-                if (object2.doubleValue != null)
-                  message.doubleValue = Number(object2.doubleValue);
-                if (object2.arrayValue != null) {
-                  if (typeof object2.arrayValue !== "object")
+                if (object3.doubleValue != null)
+                  message.doubleValue = Number(object3.doubleValue);
+                if (object3.arrayValue != null) {
+                  if (typeof object3.arrayValue !== "object")
                     throw TypeError(".opentelemetry.proto.common.v1.AnyValue.arrayValue: object expected");
-                  message.arrayValue = $root.opentelemetry.proto.common.v1.ArrayValue.fromObject(object2.arrayValue);
+                  message.arrayValue = $root.opentelemetry.proto.common.v1.ArrayValue.fromObject(object3.arrayValue);
                 }
-                if (object2.kvlistValue != null) {
-                  if (typeof object2.kvlistValue !== "object")
+                if (object3.kvlistValue != null) {
+                  if (typeof object3.kvlistValue !== "object")
                     throw TypeError(".opentelemetry.proto.common.v1.AnyValue.kvlistValue: object expected");
-                  message.kvlistValue = $root.opentelemetry.proto.common.v1.KeyValueList.fromObject(object2.kvlistValue);
+                  message.kvlistValue = $root.opentelemetry.proto.common.v1.KeyValueList.fromObject(object3.kvlistValue);
                 }
-                if (object2.bytesValue != null) {
-                  if (typeof object2.bytesValue === "string")
-                    $util.base64.decode(object2.bytesValue, message.bytesValue = $util.newBuffer($util.base64.length(object2.bytesValue)), 0);
-                  else if (object2.bytesValue.length >= 0)
-                    message.bytesValue = object2.bytesValue;
+                if (object3.bytesValue != null) {
+                  if (typeof object3.bytesValue === "string")
+                    $util.base64.decode(object3.bytesValue, message.bytesValue = $util.newBuffer($util.base64.length(object3.bytesValue)), 0);
+                  else if (object3.bytesValue.length >= 0)
+                    message.bytesValue = object3.bytesValue;
                 }
                 return message;
               };
               AnyValue.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (message.stringValue != null && message.hasOwnProperty("stringValue")) {
-                  object2.stringValue = message.stringValue;
+                  object3.stringValue = message.stringValue;
                   if (options.oneofs)
-                    object2.value = "stringValue";
+                    object3.value = "stringValue";
                 }
                 if (message.boolValue != null && message.hasOwnProperty("boolValue")) {
-                  object2.boolValue = message.boolValue;
+                  object3.boolValue = message.boolValue;
                   if (options.oneofs)
-                    object2.value = "boolValue";
+                    object3.value = "boolValue";
                 }
                 if (message.intValue != null && message.hasOwnProperty("intValue")) {
                   if (typeof message.intValue === "number")
-                    object2.intValue = options.longs === String ? String(message.intValue) : message.intValue;
+                    object3.intValue = options.longs === String ? String(message.intValue) : message.intValue;
                   else
-                    object2.intValue = options.longs === String ? $util.Long.prototype.toString.call(message.intValue) : options.longs === Number ? new $util.LongBits(message.intValue.low >>> 0, message.intValue.high >>> 0).toNumber() : message.intValue;
+                    object3.intValue = options.longs === String ? $util.Long.prototype.toString.call(message.intValue) : options.longs === Number ? new $util.LongBits(message.intValue.low >>> 0, message.intValue.high >>> 0).toNumber() : message.intValue;
                   if (options.oneofs)
-                    object2.value = "intValue";
+                    object3.value = "intValue";
                 }
                 if (message.doubleValue != null && message.hasOwnProperty("doubleValue")) {
-                  object2.doubleValue = options.json && !isFinite(message.doubleValue) ? String(message.doubleValue) : message.doubleValue;
+                  object3.doubleValue = options.json && !isFinite(message.doubleValue) ? String(message.doubleValue) : message.doubleValue;
                   if (options.oneofs)
-                    object2.value = "doubleValue";
+                    object3.value = "doubleValue";
                 }
                 if (message.arrayValue != null && message.hasOwnProperty("arrayValue")) {
-                  object2.arrayValue = $root.opentelemetry.proto.common.v1.ArrayValue.toObject(message.arrayValue, options);
+                  object3.arrayValue = $root.opentelemetry.proto.common.v1.ArrayValue.toObject(message.arrayValue, options);
                   if (options.oneofs)
-                    object2.value = "arrayValue";
+                    object3.value = "arrayValue";
                 }
                 if (message.kvlistValue != null && message.hasOwnProperty("kvlistValue")) {
-                  object2.kvlistValue = $root.opentelemetry.proto.common.v1.KeyValueList.toObject(message.kvlistValue, options);
+                  object3.kvlistValue = $root.opentelemetry.proto.common.v1.KeyValueList.toObject(message.kvlistValue, options);
                   if (options.oneofs)
-                    object2.value = "kvlistValue";
+                    object3.value = "kvlistValue";
                 }
                 if (message.bytesValue != null && message.hasOwnProperty("bytesValue")) {
-                  object2.bytesValue = options.bytes === String ? $util.base64.encode(message.bytesValue, 0, message.bytesValue.length) : options.bytes === Array ? Array.prototype.slice.call(message.bytesValue) : message.bytesValue;
+                  object3.bytesValue = options.bytes === String ? $util.base64.encode(message.bytesValue, 0, message.bytesValue.length) : options.bytes === Array ? Array.prototype.slice.call(message.bytesValue) : message.bytesValue;
                   if (options.oneofs)
-                    object2.value = "bytesValue";
+                    object3.value = "bytesValue";
                 }
-                return object2;
+                return object3;
               };
               AnyValue.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -59197,18 +59197,18 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              ArrayValue.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.common.v1.ArrayValue)
-                  return object2;
+              ArrayValue.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.common.v1.ArrayValue)
+                  return object3;
                 var message = new $root.opentelemetry.proto.common.v1.ArrayValue();
-                if (object2.values) {
-                  if (!Array.isArray(object2.values))
+                if (object3.values) {
+                  if (!Array.isArray(object3.values))
                     throw TypeError(".opentelemetry.proto.common.v1.ArrayValue.values: array expected");
                   message.values = [];
-                  for (var i = 0; i < object2.values.length; ++i) {
-                    if (typeof object2.values[i] !== "object")
+                  for (var i = 0; i < object3.values.length; ++i) {
+                    if (typeof object3.values[i] !== "object")
                       throw TypeError(".opentelemetry.proto.common.v1.ArrayValue.values: object expected");
-                    message.values[i] = $root.opentelemetry.proto.common.v1.AnyValue.fromObject(object2.values[i]);
+                    message.values[i] = $root.opentelemetry.proto.common.v1.AnyValue.fromObject(object3.values[i]);
                   }
                 }
                 return message;
@@ -59216,15 +59216,15 @@ var require_root = __commonJS({
               ArrayValue.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.values = [];
+                  object3.values = [];
                 if (message.values && message.values.length) {
-                  object2.values = [];
+                  object3.values = [];
                   for (var j = 0; j < message.values.length; ++j)
-                    object2.values[j] = $root.opentelemetry.proto.common.v1.AnyValue.toObject(message.values[j], options);
+                    object3.values[j] = $root.opentelemetry.proto.common.v1.AnyValue.toObject(message.values[j], options);
                 }
-                return object2;
+                return object3;
               };
               ArrayValue.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -59305,18 +59305,18 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              KeyValueList.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.common.v1.KeyValueList)
-                  return object2;
+              KeyValueList.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.common.v1.KeyValueList)
+                  return object3;
                 var message = new $root.opentelemetry.proto.common.v1.KeyValueList();
-                if (object2.values) {
-                  if (!Array.isArray(object2.values))
+                if (object3.values) {
+                  if (!Array.isArray(object3.values))
                     throw TypeError(".opentelemetry.proto.common.v1.KeyValueList.values: array expected");
                   message.values = [];
-                  for (var i = 0; i < object2.values.length; ++i) {
-                    if (typeof object2.values[i] !== "object")
+                  for (var i = 0; i < object3.values.length; ++i) {
+                    if (typeof object3.values[i] !== "object")
                       throw TypeError(".opentelemetry.proto.common.v1.KeyValueList.values: object expected");
-                    message.values[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.values[i]);
+                    message.values[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.values[i]);
                   }
                 }
                 return message;
@@ -59324,15 +59324,15 @@ var require_root = __commonJS({
               KeyValueList.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.values = [];
+                  object3.values = [];
                 if (message.values && message.values.length) {
-                  object2.values = [];
+                  object3.values = [];
                   for (var j = 0; j < message.values.length; ++j)
-                    object2.values[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.values[j], options);
+                    object3.values[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.values[j], options);
                 }
-                return object2;
+                return object3;
               };
               KeyValueList.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -59419,32 +59419,32 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              KeyValue.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.common.v1.KeyValue)
-                  return object2;
+              KeyValue.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.common.v1.KeyValue)
+                  return object3;
                 var message = new $root.opentelemetry.proto.common.v1.KeyValue();
-                if (object2.key != null)
-                  message.key = String(object2.key);
-                if (object2.value != null) {
-                  if (typeof object2.value !== "object")
+                if (object3.key != null)
+                  message.key = String(object3.key);
+                if (object3.value != null) {
+                  if (typeof object3.value !== "object")
                     throw TypeError(".opentelemetry.proto.common.v1.KeyValue.value: object expected");
-                  message.value = $root.opentelemetry.proto.common.v1.AnyValue.fromObject(object2.value);
+                  message.value = $root.opentelemetry.proto.common.v1.AnyValue.fromObject(object3.value);
                 }
                 return message;
               };
               KeyValue.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.defaults) {
-                  object2.key = "";
-                  object2.value = null;
+                  object3.key = "";
+                  object3.value = null;
                 }
                 if (message.key != null && message.hasOwnProperty("key"))
-                  object2.key = message.key;
+                  object3.key = message.key;
                 if (message.value != null && message.hasOwnProperty("value"))
-                  object2.value = $root.opentelemetry.proto.common.v1.AnyValue.toObject(message.value, options);
-                return object2;
+                  object3.value = $root.opentelemetry.proto.common.v1.AnyValue.toObject(message.value, options);
+                return object3;
               };
               KeyValue.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -59567,51 +59567,51 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              InstrumentationScope.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.common.v1.InstrumentationScope)
-                  return object2;
+              InstrumentationScope.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.common.v1.InstrumentationScope)
+                  return object3;
                 var message = new $root.opentelemetry.proto.common.v1.InstrumentationScope();
-                if (object2.name != null)
-                  message.name = String(object2.name);
-                if (object2.version != null)
-                  message.version = String(object2.version);
-                if (object2.attributes) {
-                  if (!Array.isArray(object2.attributes))
+                if (object3.name != null)
+                  message.name = String(object3.name);
+                if (object3.version != null)
+                  message.version = String(object3.version);
+                if (object3.attributes) {
+                  if (!Array.isArray(object3.attributes))
                     throw TypeError(".opentelemetry.proto.common.v1.InstrumentationScope.attributes: array expected");
                   message.attributes = [];
-                  for (var i = 0; i < object2.attributes.length; ++i) {
-                    if (typeof object2.attributes[i] !== "object")
+                  for (var i = 0; i < object3.attributes.length; ++i) {
+                    if (typeof object3.attributes[i] !== "object")
                       throw TypeError(".opentelemetry.proto.common.v1.InstrumentationScope.attributes: object expected");
-                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.attributes[i]);
+                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.attributes[i]);
                   }
                 }
-                if (object2.droppedAttributesCount != null)
-                  message.droppedAttributesCount = object2.droppedAttributesCount >>> 0;
+                if (object3.droppedAttributesCount != null)
+                  message.droppedAttributesCount = object3.droppedAttributesCount >>> 0;
                 return message;
               };
               InstrumentationScope.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.attributes = [];
+                  object3.attributes = [];
                 if (options.defaults) {
-                  object2.name = "";
-                  object2.version = "";
-                  object2.droppedAttributesCount = 0;
+                  object3.name = "";
+                  object3.version = "";
+                  object3.droppedAttributesCount = 0;
                 }
                 if (message.name != null && message.hasOwnProperty("name"))
-                  object2.name = message.name;
+                  object3.name = message.name;
                 if (message.version != null && message.hasOwnProperty("version"))
-                  object2.version = message.version;
+                  object3.version = message.version;
                 if (message.attributes && message.attributes.length) {
-                  object2.attributes = [];
+                  object3.attributes = [];
                   for (var j = 0; j < message.attributes.length; ++j)
-                    object2.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
+                    object3.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
                 }
                 if (message.droppedAttributesCount != null && message.hasOwnProperty("droppedAttributesCount"))
-                  object2.droppedAttributesCount = message.droppedAttributesCount;
-                return object2;
+                  object3.droppedAttributesCount = message.droppedAttributesCount;
+                return object3;
               };
               InstrumentationScope.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -59739,57 +59739,57 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              EntityRef.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.common.v1.EntityRef)
-                  return object2;
+              EntityRef.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.common.v1.EntityRef)
+                  return object3;
                 var message = new $root.opentelemetry.proto.common.v1.EntityRef();
-                if (object2.schemaUrl != null)
-                  message.schemaUrl = String(object2.schemaUrl);
-                if (object2.type != null)
-                  message.type = String(object2.type);
-                if (object2.idKeys) {
-                  if (!Array.isArray(object2.idKeys))
+                if (object3.schemaUrl != null)
+                  message.schemaUrl = String(object3.schemaUrl);
+                if (object3.type != null)
+                  message.type = String(object3.type);
+                if (object3.idKeys) {
+                  if (!Array.isArray(object3.idKeys))
                     throw TypeError(".opentelemetry.proto.common.v1.EntityRef.idKeys: array expected");
                   message.idKeys = [];
-                  for (var i = 0; i < object2.idKeys.length; ++i)
-                    message.idKeys[i] = String(object2.idKeys[i]);
+                  for (var i = 0; i < object3.idKeys.length; ++i)
+                    message.idKeys[i] = String(object3.idKeys[i]);
                 }
-                if (object2.descriptionKeys) {
-                  if (!Array.isArray(object2.descriptionKeys))
+                if (object3.descriptionKeys) {
+                  if (!Array.isArray(object3.descriptionKeys))
                     throw TypeError(".opentelemetry.proto.common.v1.EntityRef.descriptionKeys: array expected");
                   message.descriptionKeys = [];
-                  for (var i = 0; i < object2.descriptionKeys.length; ++i)
-                    message.descriptionKeys[i] = String(object2.descriptionKeys[i]);
+                  for (var i = 0; i < object3.descriptionKeys.length; ++i)
+                    message.descriptionKeys[i] = String(object3.descriptionKeys[i]);
                 }
                 return message;
               };
               EntityRef.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults) {
-                  object2.idKeys = [];
-                  object2.descriptionKeys = [];
+                  object3.idKeys = [];
+                  object3.descriptionKeys = [];
                 }
                 if (options.defaults) {
-                  object2.schemaUrl = "";
-                  object2.type = "";
+                  object3.schemaUrl = "";
+                  object3.type = "";
                 }
                 if (message.schemaUrl != null && message.hasOwnProperty("schemaUrl"))
-                  object2.schemaUrl = message.schemaUrl;
+                  object3.schemaUrl = message.schemaUrl;
                 if (message.type != null && message.hasOwnProperty("type"))
-                  object2.type = message.type;
+                  object3.type = message.type;
                 if (message.idKeys && message.idKeys.length) {
-                  object2.idKeys = [];
+                  object3.idKeys = [];
                   for (var j = 0; j < message.idKeys.length; ++j)
-                    object2.idKeys[j] = message.idKeys[j];
+                    object3.idKeys[j] = message.idKeys[j];
                 }
                 if (message.descriptionKeys && message.descriptionKeys.length) {
-                  object2.descriptionKeys = [];
+                  object3.descriptionKeys = [];
                   for (var j = 0; j < message.descriptionKeys.length; ++j)
-                    object2.descriptionKeys[j] = message.descriptionKeys[j];
+                    object3.descriptionKeys[j] = message.descriptionKeys[j];
                 }
-                return object2;
+                return object3;
               };
               EntityRef.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -59915,30 +59915,30 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              Resource.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.resource.v1.Resource)
-                  return object2;
+              Resource.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.resource.v1.Resource)
+                  return object3;
                 var message = new $root.opentelemetry.proto.resource.v1.Resource();
-                if (object2.attributes) {
-                  if (!Array.isArray(object2.attributes))
+                if (object3.attributes) {
+                  if (!Array.isArray(object3.attributes))
                     throw TypeError(".opentelemetry.proto.resource.v1.Resource.attributes: array expected");
                   message.attributes = [];
-                  for (var i = 0; i < object2.attributes.length; ++i) {
-                    if (typeof object2.attributes[i] !== "object")
+                  for (var i = 0; i < object3.attributes.length; ++i) {
+                    if (typeof object3.attributes[i] !== "object")
                       throw TypeError(".opentelemetry.proto.resource.v1.Resource.attributes: object expected");
-                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.attributes[i]);
+                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.attributes[i]);
                   }
                 }
-                if (object2.droppedAttributesCount != null)
-                  message.droppedAttributesCount = object2.droppedAttributesCount >>> 0;
-                if (object2.entityRefs) {
-                  if (!Array.isArray(object2.entityRefs))
+                if (object3.droppedAttributesCount != null)
+                  message.droppedAttributesCount = object3.droppedAttributesCount >>> 0;
+                if (object3.entityRefs) {
+                  if (!Array.isArray(object3.entityRefs))
                     throw TypeError(".opentelemetry.proto.resource.v1.Resource.entityRefs: array expected");
                   message.entityRefs = [];
-                  for (var i = 0; i < object2.entityRefs.length; ++i) {
-                    if (typeof object2.entityRefs[i] !== "object")
+                  for (var i = 0; i < object3.entityRefs.length; ++i) {
+                    if (typeof object3.entityRefs[i] !== "object")
                       throw TypeError(".opentelemetry.proto.resource.v1.Resource.entityRefs: object expected");
-                    message.entityRefs[i] = $root.opentelemetry.proto.common.v1.EntityRef.fromObject(object2.entityRefs[i]);
+                    message.entityRefs[i] = $root.opentelemetry.proto.common.v1.EntityRef.fromObject(object3.entityRefs[i]);
                   }
                 }
                 return message;
@@ -59946,26 +59946,26 @@ var require_root = __commonJS({
               Resource.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults) {
-                  object2.attributes = [];
-                  object2.entityRefs = [];
+                  object3.attributes = [];
+                  object3.entityRefs = [];
                 }
                 if (options.defaults)
-                  object2.droppedAttributesCount = 0;
+                  object3.droppedAttributesCount = 0;
                 if (message.attributes && message.attributes.length) {
-                  object2.attributes = [];
+                  object3.attributes = [];
                   for (var j = 0; j < message.attributes.length; ++j)
-                    object2.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
+                    object3.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
                 }
                 if (message.droppedAttributesCount != null && message.hasOwnProperty("droppedAttributesCount"))
-                  object2.droppedAttributesCount = message.droppedAttributesCount;
+                  object3.droppedAttributesCount = message.droppedAttributesCount;
                 if (message.entityRefs && message.entityRefs.length) {
-                  object2.entityRefs = [];
+                  object3.entityRefs = [];
                   for (var j = 0; j < message.entityRefs.length; ++j)
-                    object2.entityRefs[j] = $root.opentelemetry.proto.common.v1.EntityRef.toObject(message.entityRefs[j], options);
+                    object3.entityRefs[j] = $root.opentelemetry.proto.common.v1.EntityRef.toObject(message.entityRefs[j], options);
                 }
-                return object2;
+                return object3;
               };
               Resource.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -60054,18 +60054,18 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              TracesData.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.trace.v1.TracesData)
-                  return object2;
+              TracesData.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.trace.v1.TracesData)
+                  return object3;
                 var message = new $root.opentelemetry.proto.trace.v1.TracesData();
-                if (object2.resourceSpans) {
-                  if (!Array.isArray(object2.resourceSpans))
+                if (object3.resourceSpans) {
+                  if (!Array.isArray(object3.resourceSpans))
                     throw TypeError(".opentelemetry.proto.trace.v1.TracesData.resourceSpans: array expected");
                   message.resourceSpans = [];
-                  for (var i = 0; i < object2.resourceSpans.length; ++i) {
-                    if (typeof object2.resourceSpans[i] !== "object")
+                  for (var i = 0; i < object3.resourceSpans.length; ++i) {
+                    if (typeof object3.resourceSpans[i] !== "object")
                       throw TypeError(".opentelemetry.proto.trace.v1.TracesData.resourceSpans: object expected");
-                    message.resourceSpans[i] = $root.opentelemetry.proto.trace.v1.ResourceSpans.fromObject(object2.resourceSpans[i]);
+                    message.resourceSpans[i] = $root.opentelemetry.proto.trace.v1.ResourceSpans.fromObject(object3.resourceSpans[i]);
                   }
                 }
                 return message;
@@ -60073,15 +60073,15 @@ var require_root = __commonJS({
               TracesData.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.resourceSpans = [];
+                  object3.resourceSpans = [];
                 if (message.resourceSpans && message.resourceSpans.length) {
-                  object2.resourceSpans = [];
+                  object3.resourceSpans = [];
                   for (var j = 0; j < message.resourceSpans.length; ++j)
-                    object2.resourceSpans[j] = $root.opentelemetry.proto.trace.v1.ResourceSpans.toObject(message.resourceSpans[j], options);
+                    object3.resourceSpans[j] = $root.opentelemetry.proto.trace.v1.ResourceSpans.toObject(message.resourceSpans[j], options);
                 }
-                return object2;
+                return object3;
               };
               TracesData.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -60191,49 +60191,49 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              ResourceSpans.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.trace.v1.ResourceSpans)
-                  return object2;
+              ResourceSpans.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.trace.v1.ResourceSpans)
+                  return object3;
                 var message = new $root.opentelemetry.proto.trace.v1.ResourceSpans();
-                if (object2.resource != null) {
-                  if (typeof object2.resource !== "object")
+                if (object3.resource != null) {
+                  if (typeof object3.resource !== "object")
                     throw TypeError(".opentelemetry.proto.trace.v1.ResourceSpans.resource: object expected");
-                  message.resource = $root.opentelemetry.proto.resource.v1.Resource.fromObject(object2.resource);
+                  message.resource = $root.opentelemetry.proto.resource.v1.Resource.fromObject(object3.resource);
                 }
-                if (object2.scopeSpans) {
-                  if (!Array.isArray(object2.scopeSpans))
+                if (object3.scopeSpans) {
+                  if (!Array.isArray(object3.scopeSpans))
                     throw TypeError(".opentelemetry.proto.trace.v1.ResourceSpans.scopeSpans: array expected");
                   message.scopeSpans = [];
-                  for (var i = 0; i < object2.scopeSpans.length; ++i) {
-                    if (typeof object2.scopeSpans[i] !== "object")
+                  for (var i = 0; i < object3.scopeSpans.length; ++i) {
+                    if (typeof object3.scopeSpans[i] !== "object")
                       throw TypeError(".opentelemetry.proto.trace.v1.ResourceSpans.scopeSpans: object expected");
-                    message.scopeSpans[i] = $root.opentelemetry.proto.trace.v1.ScopeSpans.fromObject(object2.scopeSpans[i]);
+                    message.scopeSpans[i] = $root.opentelemetry.proto.trace.v1.ScopeSpans.fromObject(object3.scopeSpans[i]);
                   }
                 }
-                if (object2.schemaUrl != null)
-                  message.schemaUrl = String(object2.schemaUrl);
+                if (object3.schemaUrl != null)
+                  message.schemaUrl = String(object3.schemaUrl);
                 return message;
               };
               ResourceSpans.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.scopeSpans = [];
+                  object3.scopeSpans = [];
                 if (options.defaults) {
-                  object2.resource = null;
-                  object2.schemaUrl = "";
+                  object3.resource = null;
+                  object3.schemaUrl = "";
                 }
                 if (message.resource != null && message.hasOwnProperty("resource"))
-                  object2.resource = $root.opentelemetry.proto.resource.v1.Resource.toObject(message.resource, options);
+                  object3.resource = $root.opentelemetry.proto.resource.v1.Resource.toObject(message.resource, options);
                 if (message.scopeSpans && message.scopeSpans.length) {
-                  object2.scopeSpans = [];
+                  object3.scopeSpans = [];
                   for (var j = 0; j < message.scopeSpans.length; ++j)
-                    object2.scopeSpans[j] = $root.opentelemetry.proto.trace.v1.ScopeSpans.toObject(message.scopeSpans[j], options);
+                    object3.scopeSpans[j] = $root.opentelemetry.proto.trace.v1.ScopeSpans.toObject(message.scopeSpans[j], options);
                 }
                 if (message.schemaUrl != null && message.hasOwnProperty("schemaUrl"))
-                  object2.schemaUrl = message.schemaUrl;
-                return object2;
+                  object3.schemaUrl = message.schemaUrl;
+                return object3;
               };
               ResourceSpans.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -60343,49 +60343,49 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              ScopeSpans.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.trace.v1.ScopeSpans)
-                  return object2;
+              ScopeSpans.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.trace.v1.ScopeSpans)
+                  return object3;
                 var message = new $root.opentelemetry.proto.trace.v1.ScopeSpans();
-                if (object2.scope != null) {
-                  if (typeof object2.scope !== "object")
+                if (object3.scope != null) {
+                  if (typeof object3.scope !== "object")
                     throw TypeError(".opentelemetry.proto.trace.v1.ScopeSpans.scope: object expected");
-                  message.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.fromObject(object2.scope);
+                  message.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.fromObject(object3.scope);
                 }
-                if (object2.spans) {
-                  if (!Array.isArray(object2.spans))
+                if (object3.spans) {
+                  if (!Array.isArray(object3.spans))
                     throw TypeError(".opentelemetry.proto.trace.v1.ScopeSpans.spans: array expected");
                   message.spans = [];
-                  for (var i = 0; i < object2.spans.length; ++i) {
-                    if (typeof object2.spans[i] !== "object")
+                  for (var i = 0; i < object3.spans.length; ++i) {
+                    if (typeof object3.spans[i] !== "object")
                       throw TypeError(".opentelemetry.proto.trace.v1.ScopeSpans.spans: object expected");
-                    message.spans[i] = $root.opentelemetry.proto.trace.v1.Span.fromObject(object2.spans[i]);
+                    message.spans[i] = $root.opentelemetry.proto.trace.v1.Span.fromObject(object3.spans[i]);
                   }
                 }
-                if (object2.schemaUrl != null)
-                  message.schemaUrl = String(object2.schemaUrl);
+                if (object3.schemaUrl != null)
+                  message.schemaUrl = String(object3.schemaUrl);
                 return message;
               };
               ScopeSpans.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.spans = [];
+                  object3.spans = [];
                 if (options.defaults) {
-                  object2.scope = null;
-                  object2.schemaUrl = "";
+                  object3.scope = null;
+                  object3.schemaUrl = "";
                 }
                 if (message.scope != null && message.hasOwnProperty("scope"))
-                  object2.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.toObject(message.scope, options);
+                  object3.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.toObject(message.scope, options);
                 if (message.spans && message.spans.length) {
-                  object2.spans = [];
+                  object3.spans = [];
                   for (var j = 0; j < message.spans.length; ++j)
-                    object2.spans[j] = $root.opentelemetry.proto.trace.v1.Span.toObject(message.spans[j], options);
+                    object3.spans[j] = $root.opentelemetry.proto.trace.v1.Span.toObject(message.spans[j], options);
                 }
                 if (message.schemaUrl != null && message.hasOwnProperty("schemaUrl"))
-                  object2.schemaUrl = message.schemaUrl;
-                return object2;
+                  object3.schemaUrl = message.schemaUrl;
+                return object3;
               };
               ScopeSpans.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -60703,38 +60703,38 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              Span.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.trace.v1.Span)
-                  return object2;
+              Span.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.trace.v1.Span)
+                  return object3;
                 var message = new $root.opentelemetry.proto.trace.v1.Span();
-                if (object2.traceId != null) {
-                  if (typeof object2.traceId === "string")
-                    $util.base64.decode(object2.traceId, message.traceId = $util.newBuffer($util.base64.length(object2.traceId)), 0);
-                  else if (object2.traceId.length >= 0)
-                    message.traceId = object2.traceId;
+                if (object3.traceId != null) {
+                  if (typeof object3.traceId === "string")
+                    $util.base64.decode(object3.traceId, message.traceId = $util.newBuffer($util.base64.length(object3.traceId)), 0);
+                  else if (object3.traceId.length >= 0)
+                    message.traceId = object3.traceId;
                 }
-                if (object2.spanId != null) {
-                  if (typeof object2.spanId === "string")
-                    $util.base64.decode(object2.spanId, message.spanId = $util.newBuffer($util.base64.length(object2.spanId)), 0);
-                  else if (object2.spanId.length >= 0)
-                    message.spanId = object2.spanId;
+                if (object3.spanId != null) {
+                  if (typeof object3.spanId === "string")
+                    $util.base64.decode(object3.spanId, message.spanId = $util.newBuffer($util.base64.length(object3.spanId)), 0);
+                  else if (object3.spanId.length >= 0)
+                    message.spanId = object3.spanId;
                 }
-                if (object2.traceState != null)
-                  message.traceState = String(object2.traceState);
-                if (object2.parentSpanId != null) {
-                  if (typeof object2.parentSpanId === "string")
-                    $util.base64.decode(object2.parentSpanId, message.parentSpanId = $util.newBuffer($util.base64.length(object2.parentSpanId)), 0);
-                  else if (object2.parentSpanId.length >= 0)
-                    message.parentSpanId = object2.parentSpanId;
+                if (object3.traceState != null)
+                  message.traceState = String(object3.traceState);
+                if (object3.parentSpanId != null) {
+                  if (typeof object3.parentSpanId === "string")
+                    $util.base64.decode(object3.parentSpanId, message.parentSpanId = $util.newBuffer($util.base64.length(object3.parentSpanId)), 0);
+                  else if (object3.parentSpanId.length >= 0)
+                    message.parentSpanId = object3.parentSpanId;
                 }
-                if (object2.flags != null)
-                  message.flags = object2.flags >>> 0;
-                if (object2.name != null)
-                  message.name = String(object2.name);
-                switch (object2.kind) {
+                if (object3.flags != null)
+                  message.flags = object3.flags >>> 0;
+                if (object3.name != null)
+                  message.name = String(object3.name);
+                switch (object3.kind) {
                   default:
-                    if (typeof object2.kind === "number") {
-                      message.kind = object2.kind;
+                    if (typeof object3.kind === "number") {
+                      message.kind = object3.kind;
                       break;
                     }
                     break;
@@ -60763,167 +60763,167 @@ var require_root = __commonJS({
                     message.kind = 5;
                     break;
                 }
-                if (object2.startTimeUnixNano != null) {
+                if (object3.startTimeUnixNano != null) {
                   if ($util.Long)
-                    (message.startTimeUnixNano = $util.Long.fromValue(object2.startTimeUnixNano)).unsigned = false;
-                  else if (typeof object2.startTimeUnixNano === "string")
-                    message.startTimeUnixNano = parseInt(object2.startTimeUnixNano, 10);
-                  else if (typeof object2.startTimeUnixNano === "number")
-                    message.startTimeUnixNano = object2.startTimeUnixNano;
-                  else if (typeof object2.startTimeUnixNano === "object")
-                    message.startTimeUnixNano = new $util.LongBits(object2.startTimeUnixNano.low >>> 0, object2.startTimeUnixNano.high >>> 0).toNumber();
+                    (message.startTimeUnixNano = $util.Long.fromValue(object3.startTimeUnixNano)).unsigned = false;
+                  else if (typeof object3.startTimeUnixNano === "string")
+                    message.startTimeUnixNano = parseInt(object3.startTimeUnixNano, 10);
+                  else if (typeof object3.startTimeUnixNano === "number")
+                    message.startTimeUnixNano = object3.startTimeUnixNano;
+                  else if (typeof object3.startTimeUnixNano === "object")
+                    message.startTimeUnixNano = new $util.LongBits(object3.startTimeUnixNano.low >>> 0, object3.startTimeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.endTimeUnixNano != null) {
+                if (object3.endTimeUnixNano != null) {
                   if ($util.Long)
-                    (message.endTimeUnixNano = $util.Long.fromValue(object2.endTimeUnixNano)).unsigned = false;
-                  else if (typeof object2.endTimeUnixNano === "string")
-                    message.endTimeUnixNano = parseInt(object2.endTimeUnixNano, 10);
-                  else if (typeof object2.endTimeUnixNano === "number")
-                    message.endTimeUnixNano = object2.endTimeUnixNano;
-                  else if (typeof object2.endTimeUnixNano === "object")
-                    message.endTimeUnixNano = new $util.LongBits(object2.endTimeUnixNano.low >>> 0, object2.endTimeUnixNano.high >>> 0).toNumber();
+                    (message.endTimeUnixNano = $util.Long.fromValue(object3.endTimeUnixNano)).unsigned = false;
+                  else if (typeof object3.endTimeUnixNano === "string")
+                    message.endTimeUnixNano = parseInt(object3.endTimeUnixNano, 10);
+                  else if (typeof object3.endTimeUnixNano === "number")
+                    message.endTimeUnixNano = object3.endTimeUnixNano;
+                  else if (typeof object3.endTimeUnixNano === "object")
+                    message.endTimeUnixNano = new $util.LongBits(object3.endTimeUnixNano.low >>> 0, object3.endTimeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.attributes) {
-                  if (!Array.isArray(object2.attributes))
+                if (object3.attributes) {
+                  if (!Array.isArray(object3.attributes))
                     throw TypeError(".opentelemetry.proto.trace.v1.Span.attributes: array expected");
                   message.attributes = [];
-                  for (var i = 0; i < object2.attributes.length; ++i) {
-                    if (typeof object2.attributes[i] !== "object")
+                  for (var i = 0; i < object3.attributes.length; ++i) {
+                    if (typeof object3.attributes[i] !== "object")
                       throw TypeError(".opentelemetry.proto.trace.v1.Span.attributes: object expected");
-                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.attributes[i]);
+                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.attributes[i]);
                   }
                 }
-                if (object2.droppedAttributesCount != null)
-                  message.droppedAttributesCount = object2.droppedAttributesCount >>> 0;
-                if (object2.events) {
-                  if (!Array.isArray(object2.events))
+                if (object3.droppedAttributesCount != null)
+                  message.droppedAttributesCount = object3.droppedAttributesCount >>> 0;
+                if (object3.events) {
+                  if (!Array.isArray(object3.events))
                     throw TypeError(".opentelemetry.proto.trace.v1.Span.events: array expected");
                   message.events = [];
-                  for (var i = 0; i < object2.events.length; ++i) {
-                    if (typeof object2.events[i] !== "object")
+                  for (var i = 0; i < object3.events.length; ++i) {
+                    if (typeof object3.events[i] !== "object")
                       throw TypeError(".opentelemetry.proto.trace.v1.Span.events: object expected");
-                    message.events[i] = $root.opentelemetry.proto.trace.v1.Span.Event.fromObject(object2.events[i]);
+                    message.events[i] = $root.opentelemetry.proto.trace.v1.Span.Event.fromObject(object3.events[i]);
                   }
                 }
-                if (object2.droppedEventsCount != null)
-                  message.droppedEventsCount = object2.droppedEventsCount >>> 0;
-                if (object2.links) {
-                  if (!Array.isArray(object2.links))
+                if (object3.droppedEventsCount != null)
+                  message.droppedEventsCount = object3.droppedEventsCount >>> 0;
+                if (object3.links) {
+                  if (!Array.isArray(object3.links))
                     throw TypeError(".opentelemetry.proto.trace.v1.Span.links: array expected");
                   message.links = [];
-                  for (var i = 0; i < object2.links.length; ++i) {
-                    if (typeof object2.links[i] !== "object")
+                  for (var i = 0; i < object3.links.length; ++i) {
+                    if (typeof object3.links[i] !== "object")
                       throw TypeError(".opentelemetry.proto.trace.v1.Span.links: object expected");
-                    message.links[i] = $root.opentelemetry.proto.trace.v1.Span.Link.fromObject(object2.links[i]);
+                    message.links[i] = $root.opentelemetry.proto.trace.v1.Span.Link.fromObject(object3.links[i]);
                   }
                 }
-                if (object2.droppedLinksCount != null)
-                  message.droppedLinksCount = object2.droppedLinksCount >>> 0;
-                if (object2.status != null) {
-                  if (typeof object2.status !== "object")
+                if (object3.droppedLinksCount != null)
+                  message.droppedLinksCount = object3.droppedLinksCount >>> 0;
+                if (object3.status != null) {
+                  if (typeof object3.status !== "object")
                     throw TypeError(".opentelemetry.proto.trace.v1.Span.status: object expected");
-                  message.status = $root.opentelemetry.proto.trace.v1.Status.fromObject(object2.status);
+                  message.status = $root.opentelemetry.proto.trace.v1.Status.fromObject(object3.status);
                 }
                 return message;
               };
               Span.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults) {
-                  object2.attributes = [];
-                  object2.events = [];
-                  object2.links = [];
+                  object3.attributes = [];
+                  object3.events = [];
+                  object3.links = [];
                 }
                 if (options.defaults) {
                   if (options.bytes === String)
-                    object2.traceId = "";
+                    object3.traceId = "";
                   else {
-                    object2.traceId = [];
+                    object3.traceId = [];
                     if (options.bytes !== Array)
-                      object2.traceId = $util.newBuffer(object2.traceId);
+                      object3.traceId = $util.newBuffer(object3.traceId);
                   }
                   if (options.bytes === String)
-                    object2.spanId = "";
+                    object3.spanId = "";
                   else {
-                    object2.spanId = [];
+                    object3.spanId = [];
                     if (options.bytes !== Array)
-                      object2.spanId = $util.newBuffer(object2.spanId);
+                      object3.spanId = $util.newBuffer(object3.spanId);
                   }
-                  object2.traceState = "";
+                  object3.traceState = "";
                   if (options.bytes === String)
-                    object2.parentSpanId = "";
+                    object3.parentSpanId = "";
                   else {
-                    object2.parentSpanId = [];
+                    object3.parentSpanId = [];
                     if (options.bytes !== Array)
-                      object2.parentSpanId = $util.newBuffer(object2.parentSpanId);
+                      object3.parentSpanId = $util.newBuffer(object3.parentSpanId);
                   }
-                  object2.name = "";
-                  object2.kind = options.enums === String ? "SPAN_KIND_UNSPECIFIED" : 0;
+                  object3.name = "";
+                  object3.kind = options.enums === String ? "SPAN_KIND_UNSPECIFIED" : 0;
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.startTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.startTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.startTimeUnixNano = options.longs === String ? "0" : 0;
+                    object3.startTimeUnixNano = options.longs === String ? "0" : 0;
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.endTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.endTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.endTimeUnixNano = options.longs === String ? "0" : 0;
-                  object2.droppedAttributesCount = 0;
-                  object2.droppedEventsCount = 0;
-                  object2.droppedLinksCount = 0;
-                  object2.status = null;
-                  object2.flags = 0;
+                    object3.endTimeUnixNano = options.longs === String ? "0" : 0;
+                  object3.droppedAttributesCount = 0;
+                  object3.droppedEventsCount = 0;
+                  object3.droppedLinksCount = 0;
+                  object3.status = null;
+                  object3.flags = 0;
                 }
                 if (message.traceId != null && message.hasOwnProperty("traceId"))
-                  object2.traceId = options.bytes === String ? $util.base64.encode(message.traceId, 0, message.traceId.length) : options.bytes === Array ? Array.prototype.slice.call(message.traceId) : message.traceId;
+                  object3.traceId = options.bytes === String ? $util.base64.encode(message.traceId, 0, message.traceId.length) : options.bytes === Array ? Array.prototype.slice.call(message.traceId) : message.traceId;
                 if (message.spanId != null && message.hasOwnProperty("spanId"))
-                  object2.spanId = options.bytes === String ? $util.base64.encode(message.spanId, 0, message.spanId.length) : options.bytes === Array ? Array.prototype.slice.call(message.spanId) : message.spanId;
+                  object3.spanId = options.bytes === String ? $util.base64.encode(message.spanId, 0, message.spanId.length) : options.bytes === Array ? Array.prototype.slice.call(message.spanId) : message.spanId;
                 if (message.traceState != null && message.hasOwnProperty("traceState"))
-                  object2.traceState = message.traceState;
+                  object3.traceState = message.traceState;
                 if (message.parentSpanId != null && message.hasOwnProperty("parentSpanId"))
-                  object2.parentSpanId = options.bytes === String ? $util.base64.encode(message.parentSpanId, 0, message.parentSpanId.length) : options.bytes === Array ? Array.prototype.slice.call(message.parentSpanId) : message.parentSpanId;
+                  object3.parentSpanId = options.bytes === String ? $util.base64.encode(message.parentSpanId, 0, message.parentSpanId.length) : options.bytes === Array ? Array.prototype.slice.call(message.parentSpanId) : message.parentSpanId;
                 if (message.name != null && message.hasOwnProperty("name"))
-                  object2.name = message.name;
+                  object3.name = message.name;
                 if (message.kind != null && message.hasOwnProperty("kind"))
-                  object2.kind = options.enums === String ? $root.opentelemetry.proto.trace.v1.Span.SpanKind[message.kind] === void 0 ? message.kind : $root.opentelemetry.proto.trace.v1.Span.SpanKind[message.kind] : message.kind;
+                  object3.kind = options.enums === String ? $root.opentelemetry.proto.trace.v1.Span.SpanKind[message.kind] === void 0 ? message.kind : $root.opentelemetry.proto.trace.v1.Span.SpanKind[message.kind] : message.kind;
                 if (message.startTimeUnixNano != null && message.hasOwnProperty("startTimeUnixNano"))
                   if (typeof message.startTimeUnixNano === "number")
-                    object2.startTimeUnixNano = options.longs === String ? String(message.startTimeUnixNano) : message.startTimeUnixNano;
+                    object3.startTimeUnixNano = options.longs === String ? String(message.startTimeUnixNano) : message.startTimeUnixNano;
                   else
-                    object2.startTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.startTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.startTimeUnixNano.low >>> 0, message.startTimeUnixNano.high >>> 0).toNumber() : message.startTimeUnixNano;
+                    object3.startTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.startTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.startTimeUnixNano.low >>> 0, message.startTimeUnixNano.high >>> 0).toNumber() : message.startTimeUnixNano;
                 if (message.endTimeUnixNano != null && message.hasOwnProperty("endTimeUnixNano"))
                   if (typeof message.endTimeUnixNano === "number")
-                    object2.endTimeUnixNano = options.longs === String ? String(message.endTimeUnixNano) : message.endTimeUnixNano;
+                    object3.endTimeUnixNano = options.longs === String ? String(message.endTimeUnixNano) : message.endTimeUnixNano;
                   else
-                    object2.endTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.endTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.endTimeUnixNano.low >>> 0, message.endTimeUnixNano.high >>> 0).toNumber() : message.endTimeUnixNano;
+                    object3.endTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.endTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.endTimeUnixNano.low >>> 0, message.endTimeUnixNano.high >>> 0).toNumber() : message.endTimeUnixNano;
                 if (message.attributes && message.attributes.length) {
-                  object2.attributes = [];
+                  object3.attributes = [];
                   for (var j = 0; j < message.attributes.length; ++j)
-                    object2.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
+                    object3.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
                 }
                 if (message.droppedAttributesCount != null && message.hasOwnProperty("droppedAttributesCount"))
-                  object2.droppedAttributesCount = message.droppedAttributesCount;
+                  object3.droppedAttributesCount = message.droppedAttributesCount;
                 if (message.events && message.events.length) {
-                  object2.events = [];
+                  object3.events = [];
                   for (var j = 0; j < message.events.length; ++j)
-                    object2.events[j] = $root.opentelemetry.proto.trace.v1.Span.Event.toObject(message.events[j], options);
+                    object3.events[j] = $root.opentelemetry.proto.trace.v1.Span.Event.toObject(message.events[j], options);
                 }
                 if (message.droppedEventsCount != null && message.hasOwnProperty("droppedEventsCount"))
-                  object2.droppedEventsCount = message.droppedEventsCount;
+                  object3.droppedEventsCount = message.droppedEventsCount;
                 if (message.links && message.links.length) {
-                  object2.links = [];
+                  object3.links = [];
                   for (var j = 0; j < message.links.length; ++j)
-                    object2.links[j] = $root.opentelemetry.proto.trace.v1.Span.Link.toObject(message.links[j], options);
+                    object3.links[j] = $root.opentelemetry.proto.trace.v1.Span.Link.toObject(message.links[j], options);
                 }
                 if (message.droppedLinksCount != null && message.hasOwnProperty("droppedLinksCount"))
-                  object2.droppedLinksCount = message.droppedLinksCount;
+                  object3.droppedLinksCount = message.droppedLinksCount;
                 if (message.status != null && message.hasOwnProperty("status"))
-                  object2.status = $root.opentelemetry.proto.trace.v1.Status.toObject(message.status, options);
+                  object3.status = $root.opentelemetry.proto.trace.v1.Status.toObject(message.status, options);
                 if (message.flags != null && message.hasOwnProperty("flags"))
-                  object2.flags = message.flags;
-                return object2;
+                  object3.flags = message.flags;
+                return object3;
               };
               Span.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -61054,66 +61054,66 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                Event.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.trace.v1.Span.Event)
-                    return object2;
+                Event.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.trace.v1.Span.Event)
+                    return object3;
                   var message = new $root.opentelemetry.proto.trace.v1.Span.Event();
-                  if (object2.timeUnixNano != null) {
+                  if (object3.timeUnixNano != null) {
                     if ($util.Long)
-                      (message.timeUnixNano = $util.Long.fromValue(object2.timeUnixNano)).unsigned = false;
-                    else if (typeof object2.timeUnixNano === "string")
-                      message.timeUnixNano = parseInt(object2.timeUnixNano, 10);
-                    else if (typeof object2.timeUnixNano === "number")
-                      message.timeUnixNano = object2.timeUnixNano;
-                    else if (typeof object2.timeUnixNano === "object")
-                      message.timeUnixNano = new $util.LongBits(object2.timeUnixNano.low >>> 0, object2.timeUnixNano.high >>> 0).toNumber();
+                      (message.timeUnixNano = $util.Long.fromValue(object3.timeUnixNano)).unsigned = false;
+                    else if (typeof object3.timeUnixNano === "string")
+                      message.timeUnixNano = parseInt(object3.timeUnixNano, 10);
+                    else if (typeof object3.timeUnixNano === "number")
+                      message.timeUnixNano = object3.timeUnixNano;
+                    else if (typeof object3.timeUnixNano === "object")
+                      message.timeUnixNano = new $util.LongBits(object3.timeUnixNano.low >>> 0, object3.timeUnixNano.high >>> 0).toNumber();
                   }
-                  if (object2.name != null)
-                    message.name = String(object2.name);
-                  if (object2.attributes) {
-                    if (!Array.isArray(object2.attributes))
+                  if (object3.name != null)
+                    message.name = String(object3.name);
+                  if (object3.attributes) {
+                    if (!Array.isArray(object3.attributes))
                       throw TypeError(".opentelemetry.proto.trace.v1.Span.Event.attributes: array expected");
                     message.attributes = [];
-                    for (var i = 0; i < object2.attributes.length; ++i) {
-                      if (typeof object2.attributes[i] !== "object")
+                    for (var i = 0; i < object3.attributes.length; ++i) {
+                      if (typeof object3.attributes[i] !== "object")
                         throw TypeError(".opentelemetry.proto.trace.v1.Span.Event.attributes: object expected");
-                      message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.attributes[i]);
+                      message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.attributes[i]);
                     }
                   }
-                  if (object2.droppedAttributesCount != null)
-                    message.droppedAttributesCount = object2.droppedAttributesCount >>> 0;
+                  if (object3.droppedAttributesCount != null)
+                    message.droppedAttributesCount = object3.droppedAttributesCount >>> 0;
                   return message;
                 };
                 Event.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.arrays || options.defaults)
-                    object2.attributes = [];
+                    object3.attributes = [];
                   if (options.defaults) {
                     if ($util.Long) {
                       var long = new $util.Long(0, 0, false);
-                      object2.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                      object3.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                     } else
-                      object2.timeUnixNano = options.longs === String ? "0" : 0;
-                    object2.name = "";
-                    object2.droppedAttributesCount = 0;
+                      object3.timeUnixNano = options.longs === String ? "0" : 0;
+                    object3.name = "";
+                    object3.droppedAttributesCount = 0;
                   }
                   if (message.timeUnixNano != null && message.hasOwnProperty("timeUnixNano"))
                     if (typeof message.timeUnixNano === "number")
-                      object2.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
+                      object3.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
                     else
-                      object2.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
+                      object3.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
                   if (message.name != null && message.hasOwnProperty("name"))
-                    object2.name = message.name;
+                    object3.name = message.name;
                   if (message.attributes && message.attributes.length) {
-                    object2.attributes = [];
+                    object3.attributes = [];
                     for (var j = 0; j < message.attributes.length; ++j)
-                      object2.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
+                      object3.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
                   }
                   if (message.droppedAttributesCount != null && message.hasOwnProperty("droppedAttributesCount"))
-                    object2.droppedAttributesCount = message.droppedAttributesCount;
-                  return object2;
+                    object3.droppedAttributesCount = message.droppedAttributesCount;
+                  return object3;
                 };
                 Event.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -61264,81 +61264,81 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                Link.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.trace.v1.Span.Link)
-                    return object2;
+                Link.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.trace.v1.Span.Link)
+                    return object3;
                   var message = new $root.opentelemetry.proto.trace.v1.Span.Link();
-                  if (object2.traceId != null) {
-                    if (typeof object2.traceId === "string")
-                      $util.base64.decode(object2.traceId, message.traceId = $util.newBuffer($util.base64.length(object2.traceId)), 0);
-                    else if (object2.traceId.length >= 0)
-                      message.traceId = object2.traceId;
+                  if (object3.traceId != null) {
+                    if (typeof object3.traceId === "string")
+                      $util.base64.decode(object3.traceId, message.traceId = $util.newBuffer($util.base64.length(object3.traceId)), 0);
+                    else if (object3.traceId.length >= 0)
+                      message.traceId = object3.traceId;
                   }
-                  if (object2.spanId != null) {
-                    if (typeof object2.spanId === "string")
-                      $util.base64.decode(object2.spanId, message.spanId = $util.newBuffer($util.base64.length(object2.spanId)), 0);
-                    else if (object2.spanId.length >= 0)
-                      message.spanId = object2.spanId;
+                  if (object3.spanId != null) {
+                    if (typeof object3.spanId === "string")
+                      $util.base64.decode(object3.spanId, message.spanId = $util.newBuffer($util.base64.length(object3.spanId)), 0);
+                    else if (object3.spanId.length >= 0)
+                      message.spanId = object3.spanId;
                   }
-                  if (object2.traceState != null)
-                    message.traceState = String(object2.traceState);
-                  if (object2.attributes) {
-                    if (!Array.isArray(object2.attributes))
+                  if (object3.traceState != null)
+                    message.traceState = String(object3.traceState);
+                  if (object3.attributes) {
+                    if (!Array.isArray(object3.attributes))
                       throw TypeError(".opentelemetry.proto.trace.v1.Span.Link.attributes: array expected");
                     message.attributes = [];
-                    for (var i = 0; i < object2.attributes.length; ++i) {
-                      if (typeof object2.attributes[i] !== "object")
+                    for (var i = 0; i < object3.attributes.length; ++i) {
+                      if (typeof object3.attributes[i] !== "object")
                         throw TypeError(".opentelemetry.proto.trace.v1.Span.Link.attributes: object expected");
-                      message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.attributes[i]);
+                      message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.attributes[i]);
                     }
                   }
-                  if (object2.droppedAttributesCount != null)
-                    message.droppedAttributesCount = object2.droppedAttributesCount >>> 0;
-                  if (object2.flags != null)
-                    message.flags = object2.flags >>> 0;
+                  if (object3.droppedAttributesCount != null)
+                    message.droppedAttributesCount = object3.droppedAttributesCount >>> 0;
+                  if (object3.flags != null)
+                    message.flags = object3.flags >>> 0;
                   return message;
                 };
                 Link.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.arrays || options.defaults)
-                    object2.attributes = [];
+                    object3.attributes = [];
                   if (options.defaults) {
                     if (options.bytes === String)
-                      object2.traceId = "";
+                      object3.traceId = "";
                     else {
-                      object2.traceId = [];
+                      object3.traceId = [];
                       if (options.bytes !== Array)
-                        object2.traceId = $util.newBuffer(object2.traceId);
+                        object3.traceId = $util.newBuffer(object3.traceId);
                     }
                     if (options.bytes === String)
-                      object2.spanId = "";
+                      object3.spanId = "";
                     else {
-                      object2.spanId = [];
+                      object3.spanId = [];
                       if (options.bytes !== Array)
-                        object2.spanId = $util.newBuffer(object2.spanId);
+                        object3.spanId = $util.newBuffer(object3.spanId);
                     }
-                    object2.traceState = "";
-                    object2.droppedAttributesCount = 0;
-                    object2.flags = 0;
+                    object3.traceState = "";
+                    object3.droppedAttributesCount = 0;
+                    object3.flags = 0;
                   }
                   if (message.traceId != null && message.hasOwnProperty("traceId"))
-                    object2.traceId = options.bytes === String ? $util.base64.encode(message.traceId, 0, message.traceId.length) : options.bytes === Array ? Array.prototype.slice.call(message.traceId) : message.traceId;
+                    object3.traceId = options.bytes === String ? $util.base64.encode(message.traceId, 0, message.traceId.length) : options.bytes === Array ? Array.prototype.slice.call(message.traceId) : message.traceId;
                   if (message.spanId != null && message.hasOwnProperty("spanId"))
-                    object2.spanId = options.bytes === String ? $util.base64.encode(message.spanId, 0, message.spanId.length) : options.bytes === Array ? Array.prototype.slice.call(message.spanId) : message.spanId;
+                    object3.spanId = options.bytes === String ? $util.base64.encode(message.spanId, 0, message.spanId.length) : options.bytes === Array ? Array.prototype.slice.call(message.spanId) : message.spanId;
                   if (message.traceState != null && message.hasOwnProperty("traceState"))
-                    object2.traceState = message.traceState;
+                    object3.traceState = message.traceState;
                   if (message.attributes && message.attributes.length) {
-                    object2.attributes = [];
+                    object3.attributes = [];
                     for (var j = 0; j < message.attributes.length; ++j)
-                      object2.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
+                      object3.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
                   }
                   if (message.droppedAttributesCount != null && message.hasOwnProperty("droppedAttributesCount"))
-                    object2.droppedAttributesCount = message.droppedAttributesCount;
+                    object3.droppedAttributesCount = message.droppedAttributesCount;
                   if (message.flags != null && message.hasOwnProperty("flags"))
-                    object2.flags = message.flags;
-                  return object2;
+                    object3.flags = message.flags;
+                  return object3;
                 };
                 Link.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -61431,16 +61431,16 @@ var require_root = __commonJS({
                   }
                 return null;
               };
-              Status.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.trace.v1.Status)
-                  return object2;
+              Status.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.trace.v1.Status)
+                  return object3;
                 var message = new $root.opentelemetry.proto.trace.v1.Status();
-                if (object2.message != null)
-                  message.message = String(object2.message);
-                switch (object2.code) {
+                if (object3.message != null)
+                  message.message = String(object3.message);
+                switch (object3.code) {
                   default:
-                    if (typeof object2.code === "number") {
-                      message.code = object2.code;
+                    if (typeof object3.code === "number") {
+                      message.code = object3.code;
                       break;
                     }
                     break;
@@ -61462,16 +61462,16 @@ var require_root = __commonJS({
               Status.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.defaults) {
-                  object2.message = "";
-                  object2.code = options.enums === String ? "STATUS_CODE_UNSET" : 0;
+                  object3.message = "";
+                  object3.code = options.enums === String ? "STATUS_CODE_UNSET" : 0;
                 }
                 if (message.message != null && message.hasOwnProperty("message"))
-                  object2.message = message.message;
+                  object3.message = message.message;
                 if (message.code != null && message.hasOwnProperty("code"))
-                  object2.code = options.enums === String ? $root.opentelemetry.proto.trace.v1.Status.StatusCode[message.code] === void 0 ? message.code : $root.opentelemetry.proto.trace.v1.Status.StatusCode[message.code] : message.code;
-                return object2;
+                  object3.code = options.enums === String ? $root.opentelemetry.proto.trace.v1.Status.StatusCode[message.code] === void 0 ? message.code : $root.opentelemetry.proto.trace.v1.Status.StatusCode[message.code] : message.code;
+                return object3;
               };
               Status.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -61590,18 +61590,18 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                ExportTraceServiceRequest.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest)
-                    return object2;
+                ExportTraceServiceRequest.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest)
+                    return object3;
                   var message = new $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest();
-                  if (object2.resourceSpans) {
-                    if (!Array.isArray(object2.resourceSpans))
+                  if (object3.resourceSpans) {
+                    if (!Array.isArray(object3.resourceSpans))
                       throw TypeError(".opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.resourceSpans: array expected");
                     message.resourceSpans = [];
-                    for (var i = 0; i < object2.resourceSpans.length; ++i) {
-                      if (typeof object2.resourceSpans[i] !== "object")
+                    for (var i = 0; i < object3.resourceSpans.length; ++i) {
+                      if (typeof object3.resourceSpans[i] !== "object")
                         throw TypeError(".opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.resourceSpans: object expected");
-                      message.resourceSpans[i] = $root.opentelemetry.proto.trace.v1.ResourceSpans.fromObject(object2.resourceSpans[i]);
+                      message.resourceSpans[i] = $root.opentelemetry.proto.trace.v1.ResourceSpans.fromObject(object3.resourceSpans[i]);
                     }
                   }
                   return message;
@@ -61609,15 +61609,15 @@ var require_root = __commonJS({
                 ExportTraceServiceRequest.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.arrays || options.defaults)
-                    object2.resourceSpans = [];
+                    object3.resourceSpans = [];
                   if (message.resourceSpans && message.resourceSpans.length) {
-                    object2.resourceSpans = [];
+                    object3.resourceSpans = [];
                     for (var j = 0; j < message.resourceSpans.length; ++j)
-                      object2.resourceSpans[j] = $root.opentelemetry.proto.trace.v1.ResourceSpans.toObject(message.resourceSpans[j], options);
+                      object3.resourceSpans[j] = $root.opentelemetry.proto.trace.v1.ResourceSpans.toObject(message.resourceSpans[j], options);
                   }
-                  return object2;
+                  return object3;
                 };
                 ExportTraceServiceRequest.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -61690,26 +61690,26 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                ExportTraceServiceResponse.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse)
-                    return object2;
+                ExportTraceServiceResponse.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse)
+                    return object3;
                   var message = new $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse();
-                  if (object2.partialSuccess != null) {
-                    if (typeof object2.partialSuccess !== "object")
+                  if (object3.partialSuccess != null) {
+                    if (typeof object3.partialSuccess !== "object")
                       throw TypeError(".opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse.partialSuccess: object expected");
-                    message.partialSuccess = $root.opentelemetry.proto.collector.trace.v1.ExportTracePartialSuccess.fromObject(object2.partialSuccess);
+                    message.partialSuccess = $root.opentelemetry.proto.collector.trace.v1.ExportTracePartialSuccess.fromObject(object3.partialSuccess);
                   }
                   return message;
                 };
                 ExportTraceServiceResponse.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.defaults)
-                    object2.partialSuccess = null;
+                    object3.partialSuccess = null;
                   if (message.partialSuccess != null && message.hasOwnProperty("partialSuccess"))
-                    object2.partialSuccess = $root.opentelemetry.proto.collector.trace.v1.ExportTracePartialSuccess.toObject(message.partialSuccess, options);
-                  return object2;
+                    object3.partialSuccess = $root.opentelemetry.proto.collector.trace.v1.ExportTracePartialSuccess.toObject(message.partialSuccess, options);
+                  return object3;
                 };
                 ExportTraceServiceResponse.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -61795,44 +61795,44 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                ExportTracePartialSuccess.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.collector.trace.v1.ExportTracePartialSuccess)
-                    return object2;
+                ExportTracePartialSuccess.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.collector.trace.v1.ExportTracePartialSuccess)
+                    return object3;
                   var message = new $root.opentelemetry.proto.collector.trace.v1.ExportTracePartialSuccess();
-                  if (object2.rejectedSpans != null) {
+                  if (object3.rejectedSpans != null) {
                     if ($util.Long)
-                      (message.rejectedSpans = $util.Long.fromValue(object2.rejectedSpans)).unsigned = false;
-                    else if (typeof object2.rejectedSpans === "string")
-                      message.rejectedSpans = parseInt(object2.rejectedSpans, 10);
-                    else if (typeof object2.rejectedSpans === "number")
-                      message.rejectedSpans = object2.rejectedSpans;
-                    else if (typeof object2.rejectedSpans === "object")
-                      message.rejectedSpans = new $util.LongBits(object2.rejectedSpans.low >>> 0, object2.rejectedSpans.high >>> 0).toNumber();
+                      (message.rejectedSpans = $util.Long.fromValue(object3.rejectedSpans)).unsigned = false;
+                    else if (typeof object3.rejectedSpans === "string")
+                      message.rejectedSpans = parseInt(object3.rejectedSpans, 10);
+                    else if (typeof object3.rejectedSpans === "number")
+                      message.rejectedSpans = object3.rejectedSpans;
+                    else if (typeof object3.rejectedSpans === "object")
+                      message.rejectedSpans = new $util.LongBits(object3.rejectedSpans.low >>> 0, object3.rejectedSpans.high >>> 0).toNumber();
                   }
-                  if (object2.errorMessage != null)
-                    message.errorMessage = String(object2.errorMessage);
+                  if (object3.errorMessage != null)
+                    message.errorMessage = String(object3.errorMessage);
                   return message;
                 };
                 ExportTracePartialSuccess.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.defaults) {
                     if ($util.Long) {
                       var long = new $util.Long(0, 0, false);
-                      object2.rejectedSpans = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                      object3.rejectedSpans = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                     } else
-                      object2.rejectedSpans = options.longs === String ? "0" : 0;
-                    object2.errorMessage = "";
+                      object3.rejectedSpans = options.longs === String ? "0" : 0;
+                    object3.errorMessage = "";
                   }
                   if (message.rejectedSpans != null && message.hasOwnProperty("rejectedSpans"))
                     if (typeof message.rejectedSpans === "number")
-                      object2.rejectedSpans = options.longs === String ? String(message.rejectedSpans) : message.rejectedSpans;
+                      object3.rejectedSpans = options.longs === String ? String(message.rejectedSpans) : message.rejectedSpans;
                     else
-                      object2.rejectedSpans = options.longs === String ? $util.Long.prototype.toString.call(message.rejectedSpans) : options.longs === Number ? new $util.LongBits(message.rejectedSpans.low >>> 0, message.rejectedSpans.high >>> 0).toNumber() : message.rejectedSpans;
+                      object3.rejectedSpans = options.longs === String ? $util.Long.prototype.toString.call(message.rejectedSpans) : options.longs === Number ? new $util.LongBits(message.rejectedSpans.low >>> 0, message.rejectedSpans.high >>> 0).toNumber() : message.rejectedSpans;
                   if (message.errorMessage != null && message.hasOwnProperty("errorMessage"))
-                    object2.errorMessage = message.errorMessage;
-                  return object2;
+                    object3.errorMessage = message.errorMessage;
+                  return object3;
                 };
                 ExportTracePartialSuccess.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -61934,18 +61934,18 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                ExportMetricsServiceRequest.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest)
-                    return object2;
+                ExportMetricsServiceRequest.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest)
+                    return object3;
                   var message = new $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest();
-                  if (object2.resourceMetrics) {
-                    if (!Array.isArray(object2.resourceMetrics))
+                  if (object3.resourceMetrics) {
+                    if (!Array.isArray(object3.resourceMetrics))
                       throw TypeError(".opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest.resourceMetrics: array expected");
                     message.resourceMetrics = [];
-                    for (var i = 0; i < object2.resourceMetrics.length; ++i) {
-                      if (typeof object2.resourceMetrics[i] !== "object")
+                    for (var i = 0; i < object3.resourceMetrics.length; ++i) {
+                      if (typeof object3.resourceMetrics[i] !== "object")
                         throw TypeError(".opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest.resourceMetrics: object expected");
-                      message.resourceMetrics[i] = $root.opentelemetry.proto.metrics.v1.ResourceMetrics.fromObject(object2.resourceMetrics[i]);
+                      message.resourceMetrics[i] = $root.opentelemetry.proto.metrics.v1.ResourceMetrics.fromObject(object3.resourceMetrics[i]);
                     }
                   }
                   return message;
@@ -61953,15 +61953,15 @@ var require_root = __commonJS({
                 ExportMetricsServiceRequest.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.arrays || options.defaults)
-                    object2.resourceMetrics = [];
+                    object3.resourceMetrics = [];
                   if (message.resourceMetrics && message.resourceMetrics.length) {
-                    object2.resourceMetrics = [];
+                    object3.resourceMetrics = [];
                     for (var j = 0; j < message.resourceMetrics.length; ++j)
-                      object2.resourceMetrics[j] = $root.opentelemetry.proto.metrics.v1.ResourceMetrics.toObject(message.resourceMetrics[j], options);
+                      object3.resourceMetrics[j] = $root.opentelemetry.proto.metrics.v1.ResourceMetrics.toObject(message.resourceMetrics[j], options);
                   }
-                  return object2;
+                  return object3;
                 };
                 ExportMetricsServiceRequest.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -62034,26 +62034,26 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                ExportMetricsServiceResponse.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse)
-                    return object2;
+                ExportMetricsServiceResponse.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse)
+                    return object3;
                   var message = new $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse();
-                  if (object2.partialSuccess != null) {
-                    if (typeof object2.partialSuccess !== "object")
+                  if (object3.partialSuccess != null) {
+                    if (typeof object3.partialSuccess !== "object")
                       throw TypeError(".opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse.partialSuccess: object expected");
-                    message.partialSuccess = $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess.fromObject(object2.partialSuccess);
+                    message.partialSuccess = $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess.fromObject(object3.partialSuccess);
                   }
                   return message;
                 };
                 ExportMetricsServiceResponse.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.defaults)
-                    object2.partialSuccess = null;
+                    object3.partialSuccess = null;
                   if (message.partialSuccess != null && message.hasOwnProperty("partialSuccess"))
-                    object2.partialSuccess = $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess.toObject(message.partialSuccess, options);
-                  return object2;
+                    object3.partialSuccess = $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess.toObject(message.partialSuccess, options);
+                  return object3;
                 };
                 ExportMetricsServiceResponse.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -62139,44 +62139,44 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                ExportMetricsPartialSuccess.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess)
-                    return object2;
+                ExportMetricsPartialSuccess.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess)
+                    return object3;
                   var message = new $root.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess();
-                  if (object2.rejectedDataPoints != null) {
+                  if (object3.rejectedDataPoints != null) {
                     if ($util.Long)
-                      (message.rejectedDataPoints = $util.Long.fromValue(object2.rejectedDataPoints)).unsigned = false;
-                    else if (typeof object2.rejectedDataPoints === "string")
-                      message.rejectedDataPoints = parseInt(object2.rejectedDataPoints, 10);
-                    else if (typeof object2.rejectedDataPoints === "number")
-                      message.rejectedDataPoints = object2.rejectedDataPoints;
-                    else if (typeof object2.rejectedDataPoints === "object")
-                      message.rejectedDataPoints = new $util.LongBits(object2.rejectedDataPoints.low >>> 0, object2.rejectedDataPoints.high >>> 0).toNumber();
+                      (message.rejectedDataPoints = $util.Long.fromValue(object3.rejectedDataPoints)).unsigned = false;
+                    else if (typeof object3.rejectedDataPoints === "string")
+                      message.rejectedDataPoints = parseInt(object3.rejectedDataPoints, 10);
+                    else if (typeof object3.rejectedDataPoints === "number")
+                      message.rejectedDataPoints = object3.rejectedDataPoints;
+                    else if (typeof object3.rejectedDataPoints === "object")
+                      message.rejectedDataPoints = new $util.LongBits(object3.rejectedDataPoints.low >>> 0, object3.rejectedDataPoints.high >>> 0).toNumber();
                   }
-                  if (object2.errorMessage != null)
-                    message.errorMessage = String(object2.errorMessage);
+                  if (object3.errorMessage != null)
+                    message.errorMessage = String(object3.errorMessage);
                   return message;
                 };
                 ExportMetricsPartialSuccess.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.defaults) {
                     if ($util.Long) {
                       var long = new $util.Long(0, 0, false);
-                      object2.rejectedDataPoints = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                      object3.rejectedDataPoints = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                     } else
-                      object2.rejectedDataPoints = options.longs === String ? "0" : 0;
-                    object2.errorMessage = "";
+                      object3.rejectedDataPoints = options.longs === String ? "0" : 0;
+                    object3.errorMessage = "";
                   }
                   if (message.rejectedDataPoints != null && message.hasOwnProperty("rejectedDataPoints"))
                     if (typeof message.rejectedDataPoints === "number")
-                      object2.rejectedDataPoints = options.longs === String ? String(message.rejectedDataPoints) : message.rejectedDataPoints;
+                      object3.rejectedDataPoints = options.longs === String ? String(message.rejectedDataPoints) : message.rejectedDataPoints;
                     else
-                      object2.rejectedDataPoints = options.longs === String ? $util.Long.prototype.toString.call(message.rejectedDataPoints) : options.longs === Number ? new $util.LongBits(message.rejectedDataPoints.low >>> 0, message.rejectedDataPoints.high >>> 0).toNumber() : message.rejectedDataPoints;
+                      object3.rejectedDataPoints = options.longs === String ? $util.Long.prototype.toString.call(message.rejectedDataPoints) : options.longs === Number ? new $util.LongBits(message.rejectedDataPoints.low >>> 0, message.rejectedDataPoints.high >>> 0).toNumber() : message.rejectedDataPoints;
                   if (message.errorMessage != null && message.hasOwnProperty("errorMessage"))
-                    object2.errorMessage = message.errorMessage;
-                  return object2;
+                    object3.errorMessage = message.errorMessage;
+                  return object3;
                 };
                 ExportMetricsPartialSuccess.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -62278,18 +62278,18 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                ExportLogsServiceRequest.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest)
-                    return object2;
+                ExportLogsServiceRequest.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest)
+                    return object3;
                   var message = new $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest();
-                  if (object2.resourceLogs) {
-                    if (!Array.isArray(object2.resourceLogs))
+                  if (object3.resourceLogs) {
+                    if (!Array.isArray(object3.resourceLogs))
                       throw TypeError(".opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.resourceLogs: array expected");
                     message.resourceLogs = [];
-                    for (var i = 0; i < object2.resourceLogs.length; ++i) {
-                      if (typeof object2.resourceLogs[i] !== "object")
+                    for (var i = 0; i < object3.resourceLogs.length; ++i) {
+                      if (typeof object3.resourceLogs[i] !== "object")
                         throw TypeError(".opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.resourceLogs: object expected");
-                      message.resourceLogs[i] = $root.opentelemetry.proto.logs.v1.ResourceLogs.fromObject(object2.resourceLogs[i]);
+                      message.resourceLogs[i] = $root.opentelemetry.proto.logs.v1.ResourceLogs.fromObject(object3.resourceLogs[i]);
                     }
                   }
                   return message;
@@ -62297,15 +62297,15 @@ var require_root = __commonJS({
                 ExportLogsServiceRequest.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.arrays || options.defaults)
-                    object2.resourceLogs = [];
+                    object3.resourceLogs = [];
                   if (message.resourceLogs && message.resourceLogs.length) {
-                    object2.resourceLogs = [];
+                    object3.resourceLogs = [];
                     for (var j = 0; j < message.resourceLogs.length; ++j)
-                      object2.resourceLogs[j] = $root.opentelemetry.proto.logs.v1.ResourceLogs.toObject(message.resourceLogs[j], options);
+                      object3.resourceLogs[j] = $root.opentelemetry.proto.logs.v1.ResourceLogs.toObject(message.resourceLogs[j], options);
                   }
-                  return object2;
+                  return object3;
                 };
                 ExportLogsServiceRequest.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -62378,26 +62378,26 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                ExportLogsServiceResponse.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse)
-                    return object2;
+                ExportLogsServiceResponse.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse)
+                    return object3;
                   var message = new $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse();
-                  if (object2.partialSuccess != null) {
-                    if (typeof object2.partialSuccess !== "object")
+                  if (object3.partialSuccess != null) {
+                    if (typeof object3.partialSuccess !== "object")
                       throw TypeError(".opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse.partialSuccess: object expected");
-                    message.partialSuccess = $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess.fromObject(object2.partialSuccess);
+                    message.partialSuccess = $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess.fromObject(object3.partialSuccess);
                   }
                   return message;
                 };
                 ExportLogsServiceResponse.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.defaults)
-                    object2.partialSuccess = null;
+                    object3.partialSuccess = null;
                   if (message.partialSuccess != null && message.hasOwnProperty("partialSuccess"))
-                    object2.partialSuccess = $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess.toObject(message.partialSuccess, options);
-                  return object2;
+                    object3.partialSuccess = $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess.toObject(message.partialSuccess, options);
+                  return object3;
                 };
                 ExportLogsServiceResponse.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -62483,44 +62483,44 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                ExportLogsPartialSuccess.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess)
-                    return object2;
+                ExportLogsPartialSuccess.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess)
+                    return object3;
                   var message = new $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess();
-                  if (object2.rejectedLogRecords != null) {
+                  if (object3.rejectedLogRecords != null) {
                     if ($util.Long)
-                      (message.rejectedLogRecords = $util.Long.fromValue(object2.rejectedLogRecords)).unsigned = false;
-                    else if (typeof object2.rejectedLogRecords === "string")
-                      message.rejectedLogRecords = parseInt(object2.rejectedLogRecords, 10);
-                    else if (typeof object2.rejectedLogRecords === "number")
-                      message.rejectedLogRecords = object2.rejectedLogRecords;
-                    else if (typeof object2.rejectedLogRecords === "object")
-                      message.rejectedLogRecords = new $util.LongBits(object2.rejectedLogRecords.low >>> 0, object2.rejectedLogRecords.high >>> 0).toNumber();
+                      (message.rejectedLogRecords = $util.Long.fromValue(object3.rejectedLogRecords)).unsigned = false;
+                    else if (typeof object3.rejectedLogRecords === "string")
+                      message.rejectedLogRecords = parseInt(object3.rejectedLogRecords, 10);
+                    else if (typeof object3.rejectedLogRecords === "number")
+                      message.rejectedLogRecords = object3.rejectedLogRecords;
+                    else if (typeof object3.rejectedLogRecords === "object")
+                      message.rejectedLogRecords = new $util.LongBits(object3.rejectedLogRecords.low >>> 0, object3.rejectedLogRecords.high >>> 0).toNumber();
                   }
-                  if (object2.errorMessage != null)
-                    message.errorMessage = String(object2.errorMessage);
+                  if (object3.errorMessage != null)
+                    message.errorMessage = String(object3.errorMessage);
                   return message;
                 };
                 ExportLogsPartialSuccess.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.defaults) {
                     if ($util.Long) {
                       var long = new $util.Long(0, 0, false);
-                      object2.rejectedLogRecords = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                      object3.rejectedLogRecords = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                     } else
-                      object2.rejectedLogRecords = options.longs === String ? "0" : 0;
-                    object2.errorMessage = "";
+                      object3.rejectedLogRecords = options.longs === String ? "0" : 0;
+                    object3.errorMessage = "";
                   }
                   if (message.rejectedLogRecords != null && message.hasOwnProperty("rejectedLogRecords"))
                     if (typeof message.rejectedLogRecords === "number")
-                      object2.rejectedLogRecords = options.longs === String ? String(message.rejectedLogRecords) : message.rejectedLogRecords;
+                      object3.rejectedLogRecords = options.longs === String ? String(message.rejectedLogRecords) : message.rejectedLogRecords;
                     else
-                      object2.rejectedLogRecords = options.longs === String ? $util.Long.prototype.toString.call(message.rejectedLogRecords) : options.longs === Number ? new $util.LongBits(message.rejectedLogRecords.low >>> 0, message.rejectedLogRecords.high >>> 0).toNumber() : message.rejectedLogRecords;
+                      object3.rejectedLogRecords = options.longs === String ? $util.Long.prototype.toString.call(message.rejectedLogRecords) : options.longs === Number ? new $util.LongBits(message.rejectedLogRecords.low >>> 0, message.rejectedLogRecords.high >>> 0).toNumber() : message.rejectedLogRecords;
                   if (message.errorMessage != null && message.hasOwnProperty("errorMessage"))
-                    object2.errorMessage = message.errorMessage;
-                  return object2;
+                    object3.errorMessage = message.errorMessage;
+                  return object3;
                 };
                 ExportLogsPartialSuccess.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -62611,18 +62611,18 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              MetricsData.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.MetricsData)
-                  return object2;
+              MetricsData.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.MetricsData)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.MetricsData();
-                if (object2.resourceMetrics) {
-                  if (!Array.isArray(object2.resourceMetrics))
+                if (object3.resourceMetrics) {
+                  if (!Array.isArray(object3.resourceMetrics))
                     throw TypeError(".opentelemetry.proto.metrics.v1.MetricsData.resourceMetrics: array expected");
                   message.resourceMetrics = [];
-                  for (var i = 0; i < object2.resourceMetrics.length; ++i) {
-                    if (typeof object2.resourceMetrics[i] !== "object")
+                  for (var i = 0; i < object3.resourceMetrics.length; ++i) {
+                    if (typeof object3.resourceMetrics[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.MetricsData.resourceMetrics: object expected");
-                    message.resourceMetrics[i] = $root.opentelemetry.proto.metrics.v1.ResourceMetrics.fromObject(object2.resourceMetrics[i]);
+                    message.resourceMetrics[i] = $root.opentelemetry.proto.metrics.v1.ResourceMetrics.fromObject(object3.resourceMetrics[i]);
                   }
                 }
                 return message;
@@ -62630,15 +62630,15 @@ var require_root = __commonJS({
               MetricsData.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.resourceMetrics = [];
+                  object3.resourceMetrics = [];
                 if (message.resourceMetrics && message.resourceMetrics.length) {
-                  object2.resourceMetrics = [];
+                  object3.resourceMetrics = [];
                   for (var j = 0; j < message.resourceMetrics.length; ++j)
-                    object2.resourceMetrics[j] = $root.opentelemetry.proto.metrics.v1.ResourceMetrics.toObject(message.resourceMetrics[j], options);
+                    object3.resourceMetrics[j] = $root.opentelemetry.proto.metrics.v1.ResourceMetrics.toObject(message.resourceMetrics[j], options);
                 }
-                return object2;
+                return object3;
               };
               MetricsData.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -62748,49 +62748,49 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              ResourceMetrics.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.ResourceMetrics)
-                  return object2;
+              ResourceMetrics.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.ResourceMetrics)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.ResourceMetrics();
-                if (object2.resource != null) {
-                  if (typeof object2.resource !== "object")
+                if (object3.resource != null) {
+                  if (typeof object3.resource !== "object")
                     throw TypeError(".opentelemetry.proto.metrics.v1.ResourceMetrics.resource: object expected");
-                  message.resource = $root.opentelemetry.proto.resource.v1.Resource.fromObject(object2.resource);
+                  message.resource = $root.opentelemetry.proto.resource.v1.Resource.fromObject(object3.resource);
                 }
-                if (object2.scopeMetrics) {
-                  if (!Array.isArray(object2.scopeMetrics))
+                if (object3.scopeMetrics) {
+                  if (!Array.isArray(object3.scopeMetrics))
                     throw TypeError(".opentelemetry.proto.metrics.v1.ResourceMetrics.scopeMetrics: array expected");
                   message.scopeMetrics = [];
-                  for (var i = 0; i < object2.scopeMetrics.length; ++i) {
-                    if (typeof object2.scopeMetrics[i] !== "object")
+                  for (var i = 0; i < object3.scopeMetrics.length; ++i) {
+                    if (typeof object3.scopeMetrics[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.ResourceMetrics.scopeMetrics: object expected");
-                    message.scopeMetrics[i] = $root.opentelemetry.proto.metrics.v1.ScopeMetrics.fromObject(object2.scopeMetrics[i]);
+                    message.scopeMetrics[i] = $root.opentelemetry.proto.metrics.v1.ScopeMetrics.fromObject(object3.scopeMetrics[i]);
                   }
                 }
-                if (object2.schemaUrl != null)
-                  message.schemaUrl = String(object2.schemaUrl);
+                if (object3.schemaUrl != null)
+                  message.schemaUrl = String(object3.schemaUrl);
                 return message;
               };
               ResourceMetrics.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.scopeMetrics = [];
+                  object3.scopeMetrics = [];
                 if (options.defaults) {
-                  object2.resource = null;
-                  object2.schemaUrl = "";
+                  object3.resource = null;
+                  object3.schemaUrl = "";
                 }
                 if (message.resource != null && message.hasOwnProperty("resource"))
-                  object2.resource = $root.opentelemetry.proto.resource.v1.Resource.toObject(message.resource, options);
+                  object3.resource = $root.opentelemetry.proto.resource.v1.Resource.toObject(message.resource, options);
                 if (message.scopeMetrics && message.scopeMetrics.length) {
-                  object2.scopeMetrics = [];
+                  object3.scopeMetrics = [];
                   for (var j = 0; j < message.scopeMetrics.length; ++j)
-                    object2.scopeMetrics[j] = $root.opentelemetry.proto.metrics.v1.ScopeMetrics.toObject(message.scopeMetrics[j], options);
+                    object3.scopeMetrics[j] = $root.opentelemetry.proto.metrics.v1.ScopeMetrics.toObject(message.scopeMetrics[j], options);
                 }
                 if (message.schemaUrl != null && message.hasOwnProperty("schemaUrl"))
-                  object2.schemaUrl = message.schemaUrl;
-                return object2;
+                  object3.schemaUrl = message.schemaUrl;
+                return object3;
               };
               ResourceMetrics.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -62900,49 +62900,49 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              ScopeMetrics.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.ScopeMetrics)
-                  return object2;
+              ScopeMetrics.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.ScopeMetrics)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.ScopeMetrics();
-                if (object2.scope != null) {
-                  if (typeof object2.scope !== "object")
+                if (object3.scope != null) {
+                  if (typeof object3.scope !== "object")
                     throw TypeError(".opentelemetry.proto.metrics.v1.ScopeMetrics.scope: object expected");
-                  message.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.fromObject(object2.scope);
+                  message.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.fromObject(object3.scope);
                 }
-                if (object2.metrics) {
-                  if (!Array.isArray(object2.metrics))
+                if (object3.metrics) {
+                  if (!Array.isArray(object3.metrics))
                     throw TypeError(".opentelemetry.proto.metrics.v1.ScopeMetrics.metrics: array expected");
                   message.metrics = [];
-                  for (var i = 0; i < object2.metrics.length; ++i) {
-                    if (typeof object2.metrics[i] !== "object")
+                  for (var i = 0; i < object3.metrics.length; ++i) {
+                    if (typeof object3.metrics[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.ScopeMetrics.metrics: object expected");
-                    message.metrics[i] = $root.opentelemetry.proto.metrics.v1.Metric.fromObject(object2.metrics[i]);
+                    message.metrics[i] = $root.opentelemetry.proto.metrics.v1.Metric.fromObject(object3.metrics[i]);
                   }
                 }
-                if (object2.schemaUrl != null)
-                  message.schemaUrl = String(object2.schemaUrl);
+                if (object3.schemaUrl != null)
+                  message.schemaUrl = String(object3.schemaUrl);
                 return message;
               };
               ScopeMetrics.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.metrics = [];
+                  object3.metrics = [];
                 if (options.defaults) {
-                  object2.scope = null;
-                  object2.schemaUrl = "";
+                  object3.scope = null;
+                  object3.schemaUrl = "";
                 }
                 if (message.scope != null && message.hasOwnProperty("scope"))
-                  object2.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.toObject(message.scope, options);
+                  object3.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.toObject(message.scope, options);
                 if (message.metrics && message.metrics.length) {
-                  object2.metrics = [];
+                  object3.metrics = [];
                   for (var j = 0; j < message.metrics.length; ++j)
-                    object2.metrics[j] = $root.opentelemetry.proto.metrics.v1.Metric.toObject(message.metrics[j], options);
+                    object3.metrics[j] = $root.opentelemetry.proto.metrics.v1.Metric.toObject(message.metrics[j], options);
                 }
                 if (message.schemaUrl != null && message.hasOwnProperty("schemaUrl"))
-                  object2.schemaUrl = message.schemaUrl;
-                return object2;
+                  object3.schemaUrl = message.schemaUrl;
+                return object3;
               };
               ScopeMetrics.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -63169,49 +63169,49 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              Metric.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.Metric)
-                  return object2;
+              Metric.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.Metric)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.Metric();
-                if (object2.name != null)
-                  message.name = String(object2.name);
-                if (object2.description != null)
-                  message.description = String(object2.description);
-                if (object2.unit != null)
-                  message.unit = String(object2.unit);
-                if (object2.gauge != null) {
-                  if (typeof object2.gauge !== "object")
+                if (object3.name != null)
+                  message.name = String(object3.name);
+                if (object3.description != null)
+                  message.description = String(object3.description);
+                if (object3.unit != null)
+                  message.unit = String(object3.unit);
+                if (object3.gauge != null) {
+                  if (typeof object3.gauge !== "object")
                     throw TypeError(".opentelemetry.proto.metrics.v1.Metric.gauge: object expected");
-                  message.gauge = $root.opentelemetry.proto.metrics.v1.Gauge.fromObject(object2.gauge);
+                  message.gauge = $root.opentelemetry.proto.metrics.v1.Gauge.fromObject(object3.gauge);
                 }
-                if (object2.sum != null) {
-                  if (typeof object2.sum !== "object")
+                if (object3.sum != null) {
+                  if (typeof object3.sum !== "object")
                     throw TypeError(".opentelemetry.proto.metrics.v1.Metric.sum: object expected");
-                  message.sum = $root.opentelemetry.proto.metrics.v1.Sum.fromObject(object2.sum);
+                  message.sum = $root.opentelemetry.proto.metrics.v1.Sum.fromObject(object3.sum);
                 }
-                if (object2.histogram != null) {
-                  if (typeof object2.histogram !== "object")
+                if (object3.histogram != null) {
+                  if (typeof object3.histogram !== "object")
                     throw TypeError(".opentelemetry.proto.metrics.v1.Metric.histogram: object expected");
-                  message.histogram = $root.opentelemetry.proto.metrics.v1.Histogram.fromObject(object2.histogram);
+                  message.histogram = $root.opentelemetry.proto.metrics.v1.Histogram.fromObject(object3.histogram);
                 }
-                if (object2.exponentialHistogram != null) {
-                  if (typeof object2.exponentialHistogram !== "object")
+                if (object3.exponentialHistogram != null) {
+                  if (typeof object3.exponentialHistogram !== "object")
                     throw TypeError(".opentelemetry.proto.metrics.v1.Metric.exponentialHistogram: object expected");
-                  message.exponentialHistogram = $root.opentelemetry.proto.metrics.v1.ExponentialHistogram.fromObject(object2.exponentialHistogram);
+                  message.exponentialHistogram = $root.opentelemetry.proto.metrics.v1.ExponentialHistogram.fromObject(object3.exponentialHistogram);
                 }
-                if (object2.summary != null) {
-                  if (typeof object2.summary !== "object")
+                if (object3.summary != null) {
+                  if (typeof object3.summary !== "object")
                     throw TypeError(".opentelemetry.proto.metrics.v1.Metric.summary: object expected");
-                  message.summary = $root.opentelemetry.proto.metrics.v1.Summary.fromObject(object2.summary);
+                  message.summary = $root.opentelemetry.proto.metrics.v1.Summary.fromObject(object3.summary);
                 }
-                if (object2.metadata) {
-                  if (!Array.isArray(object2.metadata))
+                if (object3.metadata) {
+                  if (!Array.isArray(object3.metadata))
                     throw TypeError(".opentelemetry.proto.metrics.v1.Metric.metadata: array expected");
                   message.metadata = [];
-                  for (var i = 0; i < object2.metadata.length; ++i) {
-                    if (typeof object2.metadata[i] !== "object")
+                  for (var i = 0; i < object3.metadata.length; ++i) {
+                    if (typeof object3.metadata[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.Metric.metadata: object expected");
-                    message.metadata[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.metadata[i]);
+                    message.metadata[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.metadata[i]);
                   }
                 }
                 return message;
@@ -63219,51 +63219,51 @@ var require_root = __commonJS({
               Metric.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.metadata = [];
+                  object3.metadata = [];
                 if (options.defaults) {
-                  object2.name = "";
-                  object2.description = "";
-                  object2.unit = "";
+                  object3.name = "";
+                  object3.description = "";
+                  object3.unit = "";
                 }
                 if (message.name != null && message.hasOwnProperty("name"))
-                  object2.name = message.name;
+                  object3.name = message.name;
                 if (message.description != null && message.hasOwnProperty("description"))
-                  object2.description = message.description;
+                  object3.description = message.description;
                 if (message.unit != null && message.hasOwnProperty("unit"))
-                  object2.unit = message.unit;
+                  object3.unit = message.unit;
                 if (message.gauge != null && message.hasOwnProperty("gauge")) {
-                  object2.gauge = $root.opentelemetry.proto.metrics.v1.Gauge.toObject(message.gauge, options);
+                  object3.gauge = $root.opentelemetry.proto.metrics.v1.Gauge.toObject(message.gauge, options);
                   if (options.oneofs)
-                    object2.data = "gauge";
+                    object3.data = "gauge";
                 }
                 if (message.sum != null && message.hasOwnProperty("sum")) {
-                  object2.sum = $root.opentelemetry.proto.metrics.v1.Sum.toObject(message.sum, options);
+                  object3.sum = $root.opentelemetry.proto.metrics.v1.Sum.toObject(message.sum, options);
                   if (options.oneofs)
-                    object2.data = "sum";
+                    object3.data = "sum";
                 }
                 if (message.histogram != null && message.hasOwnProperty("histogram")) {
-                  object2.histogram = $root.opentelemetry.proto.metrics.v1.Histogram.toObject(message.histogram, options);
+                  object3.histogram = $root.opentelemetry.proto.metrics.v1.Histogram.toObject(message.histogram, options);
                   if (options.oneofs)
-                    object2.data = "histogram";
+                    object3.data = "histogram";
                 }
                 if (message.exponentialHistogram != null && message.hasOwnProperty("exponentialHistogram")) {
-                  object2.exponentialHistogram = $root.opentelemetry.proto.metrics.v1.ExponentialHistogram.toObject(message.exponentialHistogram, options);
+                  object3.exponentialHistogram = $root.opentelemetry.proto.metrics.v1.ExponentialHistogram.toObject(message.exponentialHistogram, options);
                   if (options.oneofs)
-                    object2.data = "exponentialHistogram";
+                    object3.data = "exponentialHistogram";
                 }
                 if (message.summary != null && message.hasOwnProperty("summary")) {
-                  object2.summary = $root.opentelemetry.proto.metrics.v1.Summary.toObject(message.summary, options);
+                  object3.summary = $root.opentelemetry.proto.metrics.v1.Summary.toObject(message.summary, options);
                   if (options.oneofs)
-                    object2.data = "summary";
+                    object3.data = "summary";
                 }
                 if (message.metadata && message.metadata.length) {
-                  object2.metadata = [];
+                  object3.metadata = [];
                   for (var j = 0; j < message.metadata.length; ++j)
-                    object2.metadata[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.metadata[j], options);
+                    object3.metadata[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.metadata[j], options);
                 }
-                return object2;
+                return object3;
               };
               Metric.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -63344,18 +63344,18 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              Gauge.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.Gauge)
-                  return object2;
+              Gauge.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.Gauge)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.Gauge();
-                if (object2.dataPoints) {
-                  if (!Array.isArray(object2.dataPoints))
+                if (object3.dataPoints) {
+                  if (!Array.isArray(object3.dataPoints))
                     throw TypeError(".opentelemetry.proto.metrics.v1.Gauge.dataPoints: array expected");
                   message.dataPoints = [];
-                  for (var i = 0; i < object2.dataPoints.length; ++i) {
-                    if (typeof object2.dataPoints[i] !== "object")
+                  for (var i = 0; i < object3.dataPoints.length; ++i) {
+                    if (typeof object3.dataPoints[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.Gauge.dataPoints: object expected");
-                    message.dataPoints[i] = $root.opentelemetry.proto.metrics.v1.NumberDataPoint.fromObject(object2.dataPoints[i]);
+                    message.dataPoints[i] = $root.opentelemetry.proto.metrics.v1.NumberDataPoint.fromObject(object3.dataPoints[i]);
                   }
                 }
                 return message;
@@ -63363,15 +63363,15 @@ var require_root = __commonJS({
               Gauge.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.dataPoints = [];
+                  object3.dataPoints = [];
                 if (message.dataPoints && message.dataPoints.length) {
-                  object2.dataPoints = [];
+                  object3.dataPoints = [];
                   for (var j = 0; j < message.dataPoints.length; ++j)
-                    object2.dataPoints[j] = $root.opentelemetry.proto.metrics.v1.NumberDataPoint.toObject(message.dataPoints[j], options);
+                    object3.dataPoints[j] = $root.opentelemetry.proto.metrics.v1.NumberDataPoint.toObject(message.dataPoints[j], options);
                 }
-                return object2;
+                return object3;
               };
               Gauge.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -63485,24 +63485,24 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              Sum.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.Sum)
-                  return object2;
+              Sum.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.Sum)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.Sum();
-                if (object2.dataPoints) {
-                  if (!Array.isArray(object2.dataPoints))
+                if (object3.dataPoints) {
+                  if (!Array.isArray(object3.dataPoints))
                     throw TypeError(".opentelemetry.proto.metrics.v1.Sum.dataPoints: array expected");
                   message.dataPoints = [];
-                  for (var i = 0; i < object2.dataPoints.length; ++i) {
-                    if (typeof object2.dataPoints[i] !== "object")
+                  for (var i = 0; i < object3.dataPoints.length; ++i) {
+                    if (typeof object3.dataPoints[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.Sum.dataPoints: object expected");
-                    message.dataPoints[i] = $root.opentelemetry.proto.metrics.v1.NumberDataPoint.fromObject(object2.dataPoints[i]);
+                    message.dataPoints[i] = $root.opentelemetry.proto.metrics.v1.NumberDataPoint.fromObject(object3.dataPoints[i]);
                   }
                 }
-                switch (object2.aggregationTemporality) {
+                switch (object3.aggregationTemporality) {
                   default:
-                    if (typeof object2.aggregationTemporality === "number") {
-                      message.aggregationTemporality = object2.aggregationTemporality;
+                    if (typeof object3.aggregationTemporality === "number") {
+                      message.aggregationTemporality = object3.aggregationTemporality;
                       break;
                     }
                     break;
@@ -63519,30 +63519,30 @@ var require_root = __commonJS({
                     message.aggregationTemporality = 2;
                     break;
                 }
-                if (object2.isMonotonic != null)
-                  message.isMonotonic = Boolean(object2.isMonotonic);
+                if (object3.isMonotonic != null)
+                  message.isMonotonic = Boolean(object3.isMonotonic);
                 return message;
               };
               Sum.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.dataPoints = [];
+                  object3.dataPoints = [];
                 if (options.defaults) {
-                  object2.aggregationTemporality = options.enums === String ? "AGGREGATION_TEMPORALITY_UNSPECIFIED" : 0;
-                  object2.isMonotonic = false;
+                  object3.aggregationTemporality = options.enums === String ? "AGGREGATION_TEMPORALITY_UNSPECIFIED" : 0;
+                  object3.isMonotonic = false;
                 }
                 if (message.dataPoints && message.dataPoints.length) {
-                  object2.dataPoints = [];
+                  object3.dataPoints = [];
                   for (var j = 0; j < message.dataPoints.length; ++j)
-                    object2.dataPoints[j] = $root.opentelemetry.proto.metrics.v1.NumberDataPoint.toObject(message.dataPoints[j], options);
+                    object3.dataPoints[j] = $root.opentelemetry.proto.metrics.v1.NumberDataPoint.toObject(message.dataPoints[j], options);
                 }
                 if (message.aggregationTemporality != null && message.hasOwnProperty("aggregationTemporality"))
-                  object2.aggregationTemporality = options.enums === String ? $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] === void 0 ? message.aggregationTemporality : $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] : message.aggregationTemporality;
+                  object3.aggregationTemporality = options.enums === String ? $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] === void 0 ? message.aggregationTemporality : $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] : message.aggregationTemporality;
                 if (message.isMonotonic != null && message.hasOwnProperty("isMonotonic"))
-                  object2.isMonotonic = message.isMonotonic;
-                return object2;
+                  object3.isMonotonic = message.isMonotonic;
+                return object3;
               };
               Sum.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -63642,24 +63642,24 @@ var require_root = __commonJS({
                   }
                 return null;
               };
-              Histogram.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.Histogram)
-                  return object2;
+              Histogram.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.Histogram)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.Histogram();
-                if (object2.dataPoints) {
-                  if (!Array.isArray(object2.dataPoints))
+                if (object3.dataPoints) {
+                  if (!Array.isArray(object3.dataPoints))
                     throw TypeError(".opentelemetry.proto.metrics.v1.Histogram.dataPoints: array expected");
                   message.dataPoints = [];
-                  for (var i = 0; i < object2.dataPoints.length; ++i) {
-                    if (typeof object2.dataPoints[i] !== "object")
+                  for (var i = 0; i < object3.dataPoints.length; ++i) {
+                    if (typeof object3.dataPoints[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.Histogram.dataPoints: object expected");
-                    message.dataPoints[i] = $root.opentelemetry.proto.metrics.v1.HistogramDataPoint.fromObject(object2.dataPoints[i]);
+                    message.dataPoints[i] = $root.opentelemetry.proto.metrics.v1.HistogramDataPoint.fromObject(object3.dataPoints[i]);
                   }
                 }
-                switch (object2.aggregationTemporality) {
+                switch (object3.aggregationTemporality) {
                   default:
-                    if (typeof object2.aggregationTemporality === "number") {
-                      message.aggregationTemporality = object2.aggregationTemporality;
+                    if (typeof object3.aggregationTemporality === "number") {
+                      message.aggregationTemporality = object3.aggregationTemporality;
                       break;
                     }
                     break;
@@ -63681,19 +63681,19 @@ var require_root = __commonJS({
               Histogram.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.dataPoints = [];
+                  object3.dataPoints = [];
                 if (options.defaults)
-                  object2.aggregationTemporality = options.enums === String ? "AGGREGATION_TEMPORALITY_UNSPECIFIED" : 0;
+                  object3.aggregationTemporality = options.enums === String ? "AGGREGATION_TEMPORALITY_UNSPECIFIED" : 0;
                 if (message.dataPoints && message.dataPoints.length) {
-                  object2.dataPoints = [];
+                  object3.dataPoints = [];
                   for (var j = 0; j < message.dataPoints.length; ++j)
-                    object2.dataPoints[j] = $root.opentelemetry.proto.metrics.v1.HistogramDataPoint.toObject(message.dataPoints[j], options);
+                    object3.dataPoints[j] = $root.opentelemetry.proto.metrics.v1.HistogramDataPoint.toObject(message.dataPoints[j], options);
                 }
                 if (message.aggregationTemporality != null && message.hasOwnProperty("aggregationTemporality"))
-                  object2.aggregationTemporality = options.enums === String ? $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] === void 0 ? message.aggregationTemporality : $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] : message.aggregationTemporality;
-                return object2;
+                  object3.aggregationTemporality = options.enums === String ? $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] === void 0 ? message.aggregationTemporality : $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] : message.aggregationTemporality;
+                return object3;
               };
               Histogram.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -63793,24 +63793,24 @@ var require_root = __commonJS({
                   }
                 return null;
               };
-              ExponentialHistogram.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.ExponentialHistogram)
-                  return object2;
+              ExponentialHistogram.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.ExponentialHistogram)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.ExponentialHistogram();
-                if (object2.dataPoints) {
-                  if (!Array.isArray(object2.dataPoints))
+                if (object3.dataPoints) {
+                  if (!Array.isArray(object3.dataPoints))
                     throw TypeError(".opentelemetry.proto.metrics.v1.ExponentialHistogram.dataPoints: array expected");
                   message.dataPoints = [];
-                  for (var i = 0; i < object2.dataPoints.length; ++i) {
-                    if (typeof object2.dataPoints[i] !== "object")
+                  for (var i = 0; i < object3.dataPoints.length; ++i) {
+                    if (typeof object3.dataPoints[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.ExponentialHistogram.dataPoints: object expected");
-                    message.dataPoints[i] = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.fromObject(object2.dataPoints[i]);
+                    message.dataPoints[i] = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.fromObject(object3.dataPoints[i]);
                   }
                 }
-                switch (object2.aggregationTemporality) {
+                switch (object3.aggregationTemporality) {
                   default:
-                    if (typeof object2.aggregationTemporality === "number") {
-                      message.aggregationTemporality = object2.aggregationTemporality;
+                    if (typeof object3.aggregationTemporality === "number") {
+                      message.aggregationTemporality = object3.aggregationTemporality;
                       break;
                     }
                     break;
@@ -63832,19 +63832,19 @@ var require_root = __commonJS({
               ExponentialHistogram.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.dataPoints = [];
+                  object3.dataPoints = [];
                 if (options.defaults)
-                  object2.aggregationTemporality = options.enums === String ? "AGGREGATION_TEMPORALITY_UNSPECIFIED" : 0;
+                  object3.aggregationTemporality = options.enums === String ? "AGGREGATION_TEMPORALITY_UNSPECIFIED" : 0;
                 if (message.dataPoints && message.dataPoints.length) {
-                  object2.dataPoints = [];
+                  object3.dataPoints = [];
                   for (var j = 0; j < message.dataPoints.length; ++j)
-                    object2.dataPoints[j] = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.toObject(message.dataPoints[j], options);
+                    object3.dataPoints[j] = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.toObject(message.dataPoints[j], options);
                 }
                 if (message.aggregationTemporality != null && message.hasOwnProperty("aggregationTemporality"))
-                  object2.aggregationTemporality = options.enums === String ? $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] === void 0 ? message.aggregationTemporality : $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] : message.aggregationTemporality;
-                return object2;
+                  object3.aggregationTemporality = options.enums === String ? $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] === void 0 ? message.aggregationTemporality : $root.opentelemetry.proto.metrics.v1.AggregationTemporality[message.aggregationTemporality] : message.aggregationTemporality;
+                return object3;
               };
               ExponentialHistogram.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -63925,18 +63925,18 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              Summary.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.Summary)
-                  return object2;
+              Summary.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.Summary)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.Summary();
-                if (object2.dataPoints) {
-                  if (!Array.isArray(object2.dataPoints))
+                if (object3.dataPoints) {
+                  if (!Array.isArray(object3.dataPoints))
                     throw TypeError(".opentelemetry.proto.metrics.v1.Summary.dataPoints: array expected");
                   message.dataPoints = [];
-                  for (var i = 0; i < object2.dataPoints.length; ++i) {
-                    if (typeof object2.dataPoints[i] !== "object")
+                  for (var i = 0; i < object3.dataPoints.length; ++i) {
+                    if (typeof object3.dataPoints[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.Summary.dataPoints: object expected");
-                    message.dataPoints[i] = $root.opentelemetry.proto.metrics.v1.SummaryDataPoint.fromObject(object2.dataPoints[i]);
+                    message.dataPoints[i] = $root.opentelemetry.proto.metrics.v1.SummaryDataPoint.fromObject(object3.dataPoints[i]);
                   }
                 }
                 return message;
@@ -63944,15 +63944,15 @@ var require_root = __commonJS({
               Summary.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.dataPoints = [];
+                  object3.dataPoints = [];
                 if (message.dataPoints && message.dataPoints.length) {
-                  object2.dataPoints = [];
+                  object3.dataPoints = [];
                   for (var j = 0; j < message.dataPoints.length; ++j)
-                    object2.dataPoints[j] = $root.opentelemetry.proto.metrics.v1.SummaryDataPoint.toObject(message.dataPoints[j], options);
+                    object3.dataPoints[j] = $root.opentelemetry.proto.metrics.v1.SummaryDataPoint.toObject(message.dataPoints[j], options);
                 }
-                return object2;
+                return object3;
               };
               Summary.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -64149,123 +64149,123 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              NumberDataPoint.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.NumberDataPoint)
-                  return object2;
+              NumberDataPoint.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.NumberDataPoint)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.NumberDataPoint();
-                if (object2.attributes) {
-                  if (!Array.isArray(object2.attributes))
+                if (object3.attributes) {
+                  if (!Array.isArray(object3.attributes))
                     throw TypeError(".opentelemetry.proto.metrics.v1.NumberDataPoint.attributes: array expected");
                   message.attributes = [];
-                  for (var i = 0; i < object2.attributes.length; ++i) {
-                    if (typeof object2.attributes[i] !== "object")
+                  for (var i = 0; i < object3.attributes.length; ++i) {
+                    if (typeof object3.attributes[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.NumberDataPoint.attributes: object expected");
-                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.attributes[i]);
+                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.attributes[i]);
                   }
                 }
-                if (object2.startTimeUnixNano != null) {
+                if (object3.startTimeUnixNano != null) {
                   if ($util.Long)
-                    (message.startTimeUnixNano = $util.Long.fromValue(object2.startTimeUnixNano)).unsigned = false;
-                  else if (typeof object2.startTimeUnixNano === "string")
-                    message.startTimeUnixNano = parseInt(object2.startTimeUnixNano, 10);
-                  else if (typeof object2.startTimeUnixNano === "number")
-                    message.startTimeUnixNano = object2.startTimeUnixNano;
-                  else if (typeof object2.startTimeUnixNano === "object")
-                    message.startTimeUnixNano = new $util.LongBits(object2.startTimeUnixNano.low >>> 0, object2.startTimeUnixNano.high >>> 0).toNumber();
+                    (message.startTimeUnixNano = $util.Long.fromValue(object3.startTimeUnixNano)).unsigned = false;
+                  else if (typeof object3.startTimeUnixNano === "string")
+                    message.startTimeUnixNano = parseInt(object3.startTimeUnixNano, 10);
+                  else if (typeof object3.startTimeUnixNano === "number")
+                    message.startTimeUnixNano = object3.startTimeUnixNano;
+                  else if (typeof object3.startTimeUnixNano === "object")
+                    message.startTimeUnixNano = new $util.LongBits(object3.startTimeUnixNano.low >>> 0, object3.startTimeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.timeUnixNano != null) {
+                if (object3.timeUnixNano != null) {
                   if ($util.Long)
-                    (message.timeUnixNano = $util.Long.fromValue(object2.timeUnixNano)).unsigned = false;
-                  else if (typeof object2.timeUnixNano === "string")
-                    message.timeUnixNano = parseInt(object2.timeUnixNano, 10);
-                  else if (typeof object2.timeUnixNano === "number")
-                    message.timeUnixNano = object2.timeUnixNano;
-                  else if (typeof object2.timeUnixNano === "object")
-                    message.timeUnixNano = new $util.LongBits(object2.timeUnixNano.low >>> 0, object2.timeUnixNano.high >>> 0).toNumber();
+                    (message.timeUnixNano = $util.Long.fromValue(object3.timeUnixNano)).unsigned = false;
+                  else if (typeof object3.timeUnixNano === "string")
+                    message.timeUnixNano = parseInt(object3.timeUnixNano, 10);
+                  else if (typeof object3.timeUnixNano === "number")
+                    message.timeUnixNano = object3.timeUnixNano;
+                  else if (typeof object3.timeUnixNano === "object")
+                    message.timeUnixNano = new $util.LongBits(object3.timeUnixNano.low >>> 0, object3.timeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.asDouble != null)
-                  message.asDouble = Number(object2.asDouble);
-                if (object2.asInt != null) {
+                if (object3.asDouble != null)
+                  message.asDouble = Number(object3.asDouble);
+                if (object3.asInt != null) {
                   if ($util.Long)
-                    (message.asInt = $util.Long.fromValue(object2.asInt)).unsigned = false;
-                  else if (typeof object2.asInt === "string")
-                    message.asInt = parseInt(object2.asInt, 10);
-                  else if (typeof object2.asInt === "number")
-                    message.asInt = object2.asInt;
-                  else if (typeof object2.asInt === "object")
-                    message.asInt = new $util.LongBits(object2.asInt.low >>> 0, object2.asInt.high >>> 0).toNumber();
+                    (message.asInt = $util.Long.fromValue(object3.asInt)).unsigned = false;
+                  else if (typeof object3.asInt === "string")
+                    message.asInt = parseInt(object3.asInt, 10);
+                  else if (typeof object3.asInt === "number")
+                    message.asInt = object3.asInt;
+                  else if (typeof object3.asInt === "object")
+                    message.asInt = new $util.LongBits(object3.asInt.low >>> 0, object3.asInt.high >>> 0).toNumber();
                 }
-                if (object2.exemplars) {
-                  if (!Array.isArray(object2.exemplars))
+                if (object3.exemplars) {
+                  if (!Array.isArray(object3.exemplars))
                     throw TypeError(".opentelemetry.proto.metrics.v1.NumberDataPoint.exemplars: array expected");
                   message.exemplars = [];
-                  for (var i = 0; i < object2.exemplars.length; ++i) {
-                    if (typeof object2.exemplars[i] !== "object")
+                  for (var i = 0; i < object3.exemplars.length; ++i) {
+                    if (typeof object3.exemplars[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.NumberDataPoint.exemplars: object expected");
-                    message.exemplars[i] = $root.opentelemetry.proto.metrics.v1.Exemplar.fromObject(object2.exemplars[i]);
+                    message.exemplars[i] = $root.opentelemetry.proto.metrics.v1.Exemplar.fromObject(object3.exemplars[i]);
                   }
                 }
-                if (object2.flags != null)
-                  message.flags = object2.flags >>> 0;
+                if (object3.flags != null)
+                  message.flags = object3.flags >>> 0;
                 return message;
               };
               NumberDataPoint.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults) {
-                  object2.exemplars = [];
-                  object2.attributes = [];
+                  object3.exemplars = [];
+                  object3.attributes = [];
                 }
                 if (options.defaults) {
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.startTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.startTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.startTimeUnixNano = options.longs === String ? "0" : 0;
+                    object3.startTimeUnixNano = options.longs === String ? "0" : 0;
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.timeUnixNano = options.longs === String ? "0" : 0;
-                  object2.flags = 0;
+                    object3.timeUnixNano = options.longs === String ? "0" : 0;
+                  object3.flags = 0;
                 }
                 if (message.startTimeUnixNano != null && message.hasOwnProperty("startTimeUnixNano"))
                   if (typeof message.startTimeUnixNano === "number")
-                    object2.startTimeUnixNano = options.longs === String ? String(message.startTimeUnixNano) : message.startTimeUnixNano;
+                    object3.startTimeUnixNano = options.longs === String ? String(message.startTimeUnixNano) : message.startTimeUnixNano;
                   else
-                    object2.startTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.startTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.startTimeUnixNano.low >>> 0, message.startTimeUnixNano.high >>> 0).toNumber() : message.startTimeUnixNano;
+                    object3.startTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.startTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.startTimeUnixNano.low >>> 0, message.startTimeUnixNano.high >>> 0).toNumber() : message.startTimeUnixNano;
                 if (message.timeUnixNano != null && message.hasOwnProperty("timeUnixNano"))
                   if (typeof message.timeUnixNano === "number")
-                    object2.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
                   else
-                    object2.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
                 if (message.asDouble != null && message.hasOwnProperty("asDouble")) {
-                  object2.asDouble = options.json && !isFinite(message.asDouble) ? String(message.asDouble) : message.asDouble;
+                  object3.asDouble = options.json && !isFinite(message.asDouble) ? String(message.asDouble) : message.asDouble;
                   if (options.oneofs)
-                    object2.value = "asDouble";
+                    object3.value = "asDouble";
                 }
                 if (message.exemplars && message.exemplars.length) {
-                  object2.exemplars = [];
+                  object3.exemplars = [];
                   for (var j = 0; j < message.exemplars.length; ++j)
-                    object2.exemplars[j] = $root.opentelemetry.proto.metrics.v1.Exemplar.toObject(message.exemplars[j], options);
+                    object3.exemplars[j] = $root.opentelemetry.proto.metrics.v1.Exemplar.toObject(message.exemplars[j], options);
                 }
                 if (message.asInt != null && message.hasOwnProperty("asInt")) {
                   if (typeof message.asInt === "number")
-                    object2.asInt = options.longs === String ? String(message.asInt) : message.asInt;
+                    object3.asInt = options.longs === String ? String(message.asInt) : message.asInt;
                   else
-                    object2.asInt = options.longs === String ? $util.Long.prototype.toString.call(message.asInt) : options.longs === Number ? new $util.LongBits(message.asInt.low >>> 0, message.asInt.high >>> 0).toNumber() : message.asInt;
+                    object3.asInt = options.longs === String ? $util.Long.prototype.toString.call(message.asInt) : options.longs === Number ? new $util.LongBits(message.asInt.low >>> 0, message.asInt.high >>> 0).toNumber() : message.asInt;
                   if (options.oneofs)
-                    object2.value = "asInt";
+                    object3.value = "asInt";
                 }
                 if (message.attributes && message.attributes.length) {
-                  object2.attributes = [];
+                  object3.attributes = [];
                   for (var j = 0; j < message.attributes.length; ++j)
-                    object2.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
+                    object3.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
                 }
                 if (message.flags != null && message.hasOwnProperty("flags"))
-                  object2.flags = message.flags;
-                return object2;
+                  object3.flags = message.flags;
+                return object3;
               };
               NumberDataPoint.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -64542,175 +64542,175 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              HistogramDataPoint.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.HistogramDataPoint)
-                  return object2;
+              HistogramDataPoint.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.HistogramDataPoint)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.HistogramDataPoint();
-                if (object2.attributes) {
-                  if (!Array.isArray(object2.attributes))
+                if (object3.attributes) {
+                  if (!Array.isArray(object3.attributes))
                     throw TypeError(".opentelemetry.proto.metrics.v1.HistogramDataPoint.attributes: array expected");
                   message.attributes = [];
-                  for (var i = 0; i < object2.attributes.length; ++i) {
-                    if (typeof object2.attributes[i] !== "object")
+                  for (var i = 0; i < object3.attributes.length; ++i) {
+                    if (typeof object3.attributes[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.HistogramDataPoint.attributes: object expected");
-                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.attributes[i]);
+                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.attributes[i]);
                   }
                 }
-                if (object2.startTimeUnixNano != null) {
+                if (object3.startTimeUnixNano != null) {
                   if ($util.Long)
-                    (message.startTimeUnixNano = $util.Long.fromValue(object2.startTimeUnixNano)).unsigned = false;
-                  else if (typeof object2.startTimeUnixNano === "string")
-                    message.startTimeUnixNano = parseInt(object2.startTimeUnixNano, 10);
-                  else if (typeof object2.startTimeUnixNano === "number")
-                    message.startTimeUnixNano = object2.startTimeUnixNano;
-                  else if (typeof object2.startTimeUnixNano === "object")
-                    message.startTimeUnixNano = new $util.LongBits(object2.startTimeUnixNano.low >>> 0, object2.startTimeUnixNano.high >>> 0).toNumber();
+                    (message.startTimeUnixNano = $util.Long.fromValue(object3.startTimeUnixNano)).unsigned = false;
+                  else if (typeof object3.startTimeUnixNano === "string")
+                    message.startTimeUnixNano = parseInt(object3.startTimeUnixNano, 10);
+                  else if (typeof object3.startTimeUnixNano === "number")
+                    message.startTimeUnixNano = object3.startTimeUnixNano;
+                  else if (typeof object3.startTimeUnixNano === "object")
+                    message.startTimeUnixNano = new $util.LongBits(object3.startTimeUnixNano.low >>> 0, object3.startTimeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.timeUnixNano != null) {
+                if (object3.timeUnixNano != null) {
                   if ($util.Long)
-                    (message.timeUnixNano = $util.Long.fromValue(object2.timeUnixNano)).unsigned = false;
-                  else if (typeof object2.timeUnixNano === "string")
-                    message.timeUnixNano = parseInt(object2.timeUnixNano, 10);
-                  else if (typeof object2.timeUnixNano === "number")
-                    message.timeUnixNano = object2.timeUnixNano;
-                  else if (typeof object2.timeUnixNano === "object")
-                    message.timeUnixNano = new $util.LongBits(object2.timeUnixNano.low >>> 0, object2.timeUnixNano.high >>> 0).toNumber();
+                    (message.timeUnixNano = $util.Long.fromValue(object3.timeUnixNano)).unsigned = false;
+                  else if (typeof object3.timeUnixNano === "string")
+                    message.timeUnixNano = parseInt(object3.timeUnixNano, 10);
+                  else if (typeof object3.timeUnixNano === "number")
+                    message.timeUnixNano = object3.timeUnixNano;
+                  else if (typeof object3.timeUnixNano === "object")
+                    message.timeUnixNano = new $util.LongBits(object3.timeUnixNano.low >>> 0, object3.timeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.count != null) {
+                if (object3.count != null) {
                   if ($util.Long)
-                    (message.count = $util.Long.fromValue(object2.count)).unsigned = false;
-                  else if (typeof object2.count === "string")
-                    message.count = parseInt(object2.count, 10);
-                  else if (typeof object2.count === "number")
-                    message.count = object2.count;
-                  else if (typeof object2.count === "object")
-                    message.count = new $util.LongBits(object2.count.low >>> 0, object2.count.high >>> 0).toNumber();
+                    (message.count = $util.Long.fromValue(object3.count)).unsigned = false;
+                  else if (typeof object3.count === "string")
+                    message.count = parseInt(object3.count, 10);
+                  else if (typeof object3.count === "number")
+                    message.count = object3.count;
+                  else if (typeof object3.count === "object")
+                    message.count = new $util.LongBits(object3.count.low >>> 0, object3.count.high >>> 0).toNumber();
                 }
-                if (object2.sum != null)
-                  message.sum = Number(object2.sum);
-                if (object2.bucketCounts) {
-                  if (!Array.isArray(object2.bucketCounts))
+                if (object3.sum != null)
+                  message.sum = Number(object3.sum);
+                if (object3.bucketCounts) {
+                  if (!Array.isArray(object3.bucketCounts))
                     throw TypeError(".opentelemetry.proto.metrics.v1.HistogramDataPoint.bucketCounts: array expected");
                   message.bucketCounts = [];
-                  for (var i = 0; i < object2.bucketCounts.length; ++i)
+                  for (var i = 0; i < object3.bucketCounts.length; ++i)
                     if ($util.Long)
-                      (message.bucketCounts[i] = $util.Long.fromValue(object2.bucketCounts[i])).unsigned = false;
-                    else if (typeof object2.bucketCounts[i] === "string")
-                      message.bucketCounts[i] = parseInt(object2.bucketCounts[i], 10);
-                    else if (typeof object2.bucketCounts[i] === "number")
-                      message.bucketCounts[i] = object2.bucketCounts[i];
-                    else if (typeof object2.bucketCounts[i] === "object")
-                      message.bucketCounts[i] = new $util.LongBits(object2.bucketCounts[i].low >>> 0, object2.bucketCounts[i].high >>> 0).toNumber();
+                      (message.bucketCounts[i] = $util.Long.fromValue(object3.bucketCounts[i])).unsigned = false;
+                    else if (typeof object3.bucketCounts[i] === "string")
+                      message.bucketCounts[i] = parseInt(object3.bucketCounts[i], 10);
+                    else if (typeof object3.bucketCounts[i] === "number")
+                      message.bucketCounts[i] = object3.bucketCounts[i];
+                    else if (typeof object3.bucketCounts[i] === "object")
+                      message.bucketCounts[i] = new $util.LongBits(object3.bucketCounts[i].low >>> 0, object3.bucketCounts[i].high >>> 0).toNumber();
                 }
-                if (object2.explicitBounds) {
-                  if (!Array.isArray(object2.explicitBounds))
+                if (object3.explicitBounds) {
+                  if (!Array.isArray(object3.explicitBounds))
                     throw TypeError(".opentelemetry.proto.metrics.v1.HistogramDataPoint.explicitBounds: array expected");
                   message.explicitBounds = [];
-                  for (var i = 0; i < object2.explicitBounds.length; ++i)
-                    message.explicitBounds[i] = Number(object2.explicitBounds[i]);
+                  for (var i = 0; i < object3.explicitBounds.length; ++i)
+                    message.explicitBounds[i] = Number(object3.explicitBounds[i]);
                 }
-                if (object2.exemplars) {
-                  if (!Array.isArray(object2.exemplars))
+                if (object3.exemplars) {
+                  if (!Array.isArray(object3.exemplars))
                     throw TypeError(".opentelemetry.proto.metrics.v1.HistogramDataPoint.exemplars: array expected");
                   message.exemplars = [];
-                  for (var i = 0; i < object2.exemplars.length; ++i) {
-                    if (typeof object2.exemplars[i] !== "object")
+                  for (var i = 0; i < object3.exemplars.length; ++i) {
+                    if (typeof object3.exemplars[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.HistogramDataPoint.exemplars: object expected");
-                    message.exemplars[i] = $root.opentelemetry.proto.metrics.v1.Exemplar.fromObject(object2.exemplars[i]);
+                    message.exemplars[i] = $root.opentelemetry.proto.metrics.v1.Exemplar.fromObject(object3.exemplars[i]);
                   }
                 }
-                if (object2.flags != null)
-                  message.flags = object2.flags >>> 0;
-                if (object2.min != null)
-                  message.min = Number(object2.min);
-                if (object2.max != null)
-                  message.max = Number(object2.max);
+                if (object3.flags != null)
+                  message.flags = object3.flags >>> 0;
+                if (object3.min != null)
+                  message.min = Number(object3.min);
+                if (object3.max != null)
+                  message.max = Number(object3.max);
                 return message;
               };
               HistogramDataPoint.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults) {
-                  object2.bucketCounts = [];
-                  object2.explicitBounds = [];
-                  object2.exemplars = [];
-                  object2.attributes = [];
+                  object3.bucketCounts = [];
+                  object3.explicitBounds = [];
+                  object3.exemplars = [];
+                  object3.attributes = [];
                 }
                 if (options.defaults) {
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.startTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.startTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.startTimeUnixNano = options.longs === String ? "0" : 0;
+                    object3.startTimeUnixNano = options.longs === String ? "0" : 0;
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.timeUnixNano = options.longs === String ? "0" : 0;
+                    object3.timeUnixNano = options.longs === String ? "0" : 0;
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.count = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.count = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.count = options.longs === String ? "0" : 0;
-                  object2.flags = 0;
+                    object3.count = options.longs === String ? "0" : 0;
+                  object3.flags = 0;
                 }
                 if (message.startTimeUnixNano != null && message.hasOwnProperty("startTimeUnixNano"))
                   if (typeof message.startTimeUnixNano === "number")
-                    object2.startTimeUnixNano = options.longs === String ? String(message.startTimeUnixNano) : message.startTimeUnixNano;
+                    object3.startTimeUnixNano = options.longs === String ? String(message.startTimeUnixNano) : message.startTimeUnixNano;
                   else
-                    object2.startTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.startTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.startTimeUnixNano.low >>> 0, message.startTimeUnixNano.high >>> 0).toNumber() : message.startTimeUnixNano;
+                    object3.startTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.startTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.startTimeUnixNano.low >>> 0, message.startTimeUnixNano.high >>> 0).toNumber() : message.startTimeUnixNano;
                 if (message.timeUnixNano != null && message.hasOwnProperty("timeUnixNano"))
                   if (typeof message.timeUnixNano === "number")
-                    object2.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
                   else
-                    object2.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
                 if (message.count != null && message.hasOwnProperty("count"))
                   if (typeof message.count === "number")
-                    object2.count = options.longs === String ? String(message.count) : message.count;
+                    object3.count = options.longs === String ? String(message.count) : message.count;
                   else
-                    object2.count = options.longs === String ? $util.Long.prototype.toString.call(message.count) : options.longs === Number ? new $util.LongBits(message.count.low >>> 0, message.count.high >>> 0).toNumber() : message.count;
+                    object3.count = options.longs === String ? $util.Long.prototype.toString.call(message.count) : options.longs === Number ? new $util.LongBits(message.count.low >>> 0, message.count.high >>> 0).toNumber() : message.count;
                 if (message.sum != null && message.hasOwnProperty("sum")) {
-                  object2.sum = options.json && !isFinite(message.sum) ? String(message.sum) : message.sum;
+                  object3.sum = options.json && !isFinite(message.sum) ? String(message.sum) : message.sum;
                   if (options.oneofs)
-                    object2._sum = "sum";
+                    object3._sum = "sum";
                 }
                 if (message.bucketCounts && message.bucketCounts.length) {
-                  object2.bucketCounts = [];
+                  object3.bucketCounts = [];
                   for (var j = 0; j < message.bucketCounts.length; ++j)
                     if (typeof message.bucketCounts[j] === "number")
-                      object2.bucketCounts[j] = options.longs === String ? String(message.bucketCounts[j]) : message.bucketCounts[j];
+                      object3.bucketCounts[j] = options.longs === String ? String(message.bucketCounts[j]) : message.bucketCounts[j];
                     else
-                      object2.bucketCounts[j] = options.longs === String ? $util.Long.prototype.toString.call(message.bucketCounts[j]) : options.longs === Number ? new $util.LongBits(message.bucketCounts[j].low >>> 0, message.bucketCounts[j].high >>> 0).toNumber() : message.bucketCounts[j];
+                      object3.bucketCounts[j] = options.longs === String ? $util.Long.prototype.toString.call(message.bucketCounts[j]) : options.longs === Number ? new $util.LongBits(message.bucketCounts[j].low >>> 0, message.bucketCounts[j].high >>> 0).toNumber() : message.bucketCounts[j];
                 }
                 if (message.explicitBounds && message.explicitBounds.length) {
-                  object2.explicitBounds = [];
+                  object3.explicitBounds = [];
                   for (var j = 0; j < message.explicitBounds.length; ++j)
-                    object2.explicitBounds[j] = options.json && !isFinite(message.explicitBounds[j]) ? String(message.explicitBounds[j]) : message.explicitBounds[j];
+                    object3.explicitBounds[j] = options.json && !isFinite(message.explicitBounds[j]) ? String(message.explicitBounds[j]) : message.explicitBounds[j];
                 }
                 if (message.exemplars && message.exemplars.length) {
-                  object2.exemplars = [];
+                  object3.exemplars = [];
                   for (var j = 0; j < message.exemplars.length; ++j)
-                    object2.exemplars[j] = $root.opentelemetry.proto.metrics.v1.Exemplar.toObject(message.exemplars[j], options);
+                    object3.exemplars[j] = $root.opentelemetry.proto.metrics.v1.Exemplar.toObject(message.exemplars[j], options);
                 }
                 if (message.attributes && message.attributes.length) {
-                  object2.attributes = [];
+                  object3.attributes = [];
                   for (var j = 0; j < message.attributes.length; ++j)
-                    object2.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
+                    object3.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
                 }
                 if (message.flags != null && message.hasOwnProperty("flags"))
-                  object2.flags = message.flags;
+                  object3.flags = message.flags;
                 if (message.min != null && message.hasOwnProperty("min")) {
-                  object2.min = options.json && !isFinite(message.min) ? String(message.min) : message.min;
+                  object3.min = options.json && !isFinite(message.min) ? String(message.min) : message.min;
                   if (options.oneofs)
-                    object2._min = "min";
+                    object3._min = "min";
                 }
                 if (message.max != null && message.hasOwnProperty("max")) {
-                  object2.max = options.json && !isFinite(message.max) ? String(message.max) : message.max;
+                  object3.max = options.json && !isFinite(message.max) ? String(message.max) : message.max;
                   if (options.oneofs)
-                    object2._max = "max";
+                    object3._max = "max";
                 }
-                return object2;
+                return object3;
               };
               HistogramDataPoint.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -65001,185 +65001,185 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              ExponentialHistogramDataPoint.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint)
-                  return object2;
+              ExponentialHistogramDataPoint.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint();
-                if (object2.attributes) {
-                  if (!Array.isArray(object2.attributes))
+                if (object3.attributes) {
+                  if (!Array.isArray(object3.attributes))
                     throw TypeError(".opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.attributes: array expected");
                   message.attributes = [];
-                  for (var i = 0; i < object2.attributes.length; ++i) {
-                    if (typeof object2.attributes[i] !== "object")
+                  for (var i = 0; i < object3.attributes.length; ++i) {
+                    if (typeof object3.attributes[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.attributes: object expected");
-                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.attributes[i]);
+                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.attributes[i]);
                   }
                 }
-                if (object2.startTimeUnixNano != null) {
+                if (object3.startTimeUnixNano != null) {
                   if ($util.Long)
-                    (message.startTimeUnixNano = $util.Long.fromValue(object2.startTimeUnixNano)).unsigned = false;
-                  else if (typeof object2.startTimeUnixNano === "string")
-                    message.startTimeUnixNano = parseInt(object2.startTimeUnixNano, 10);
-                  else if (typeof object2.startTimeUnixNano === "number")
-                    message.startTimeUnixNano = object2.startTimeUnixNano;
-                  else if (typeof object2.startTimeUnixNano === "object")
-                    message.startTimeUnixNano = new $util.LongBits(object2.startTimeUnixNano.low >>> 0, object2.startTimeUnixNano.high >>> 0).toNumber();
+                    (message.startTimeUnixNano = $util.Long.fromValue(object3.startTimeUnixNano)).unsigned = false;
+                  else if (typeof object3.startTimeUnixNano === "string")
+                    message.startTimeUnixNano = parseInt(object3.startTimeUnixNano, 10);
+                  else if (typeof object3.startTimeUnixNano === "number")
+                    message.startTimeUnixNano = object3.startTimeUnixNano;
+                  else if (typeof object3.startTimeUnixNano === "object")
+                    message.startTimeUnixNano = new $util.LongBits(object3.startTimeUnixNano.low >>> 0, object3.startTimeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.timeUnixNano != null) {
+                if (object3.timeUnixNano != null) {
                   if ($util.Long)
-                    (message.timeUnixNano = $util.Long.fromValue(object2.timeUnixNano)).unsigned = false;
-                  else if (typeof object2.timeUnixNano === "string")
-                    message.timeUnixNano = parseInt(object2.timeUnixNano, 10);
-                  else if (typeof object2.timeUnixNano === "number")
-                    message.timeUnixNano = object2.timeUnixNano;
-                  else if (typeof object2.timeUnixNano === "object")
-                    message.timeUnixNano = new $util.LongBits(object2.timeUnixNano.low >>> 0, object2.timeUnixNano.high >>> 0).toNumber();
+                    (message.timeUnixNano = $util.Long.fromValue(object3.timeUnixNano)).unsigned = false;
+                  else if (typeof object3.timeUnixNano === "string")
+                    message.timeUnixNano = parseInt(object3.timeUnixNano, 10);
+                  else if (typeof object3.timeUnixNano === "number")
+                    message.timeUnixNano = object3.timeUnixNano;
+                  else if (typeof object3.timeUnixNano === "object")
+                    message.timeUnixNano = new $util.LongBits(object3.timeUnixNano.low >>> 0, object3.timeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.count != null) {
+                if (object3.count != null) {
                   if ($util.Long)
-                    (message.count = $util.Long.fromValue(object2.count)).unsigned = false;
-                  else if (typeof object2.count === "string")
-                    message.count = parseInt(object2.count, 10);
-                  else if (typeof object2.count === "number")
-                    message.count = object2.count;
-                  else if (typeof object2.count === "object")
-                    message.count = new $util.LongBits(object2.count.low >>> 0, object2.count.high >>> 0).toNumber();
+                    (message.count = $util.Long.fromValue(object3.count)).unsigned = false;
+                  else if (typeof object3.count === "string")
+                    message.count = parseInt(object3.count, 10);
+                  else if (typeof object3.count === "number")
+                    message.count = object3.count;
+                  else if (typeof object3.count === "object")
+                    message.count = new $util.LongBits(object3.count.low >>> 0, object3.count.high >>> 0).toNumber();
                 }
-                if (object2.sum != null)
-                  message.sum = Number(object2.sum);
-                if (object2.scale != null)
-                  message.scale = object2.scale | 0;
-                if (object2.zeroCount != null) {
+                if (object3.sum != null)
+                  message.sum = Number(object3.sum);
+                if (object3.scale != null)
+                  message.scale = object3.scale | 0;
+                if (object3.zeroCount != null) {
                   if ($util.Long)
-                    (message.zeroCount = $util.Long.fromValue(object2.zeroCount)).unsigned = false;
-                  else if (typeof object2.zeroCount === "string")
-                    message.zeroCount = parseInt(object2.zeroCount, 10);
-                  else if (typeof object2.zeroCount === "number")
-                    message.zeroCount = object2.zeroCount;
-                  else if (typeof object2.zeroCount === "object")
-                    message.zeroCount = new $util.LongBits(object2.zeroCount.low >>> 0, object2.zeroCount.high >>> 0).toNumber();
+                    (message.zeroCount = $util.Long.fromValue(object3.zeroCount)).unsigned = false;
+                  else if (typeof object3.zeroCount === "string")
+                    message.zeroCount = parseInt(object3.zeroCount, 10);
+                  else if (typeof object3.zeroCount === "number")
+                    message.zeroCount = object3.zeroCount;
+                  else if (typeof object3.zeroCount === "object")
+                    message.zeroCount = new $util.LongBits(object3.zeroCount.low >>> 0, object3.zeroCount.high >>> 0).toNumber();
                 }
-                if (object2.positive != null) {
-                  if (typeof object2.positive !== "object")
+                if (object3.positive != null) {
+                  if (typeof object3.positive !== "object")
                     throw TypeError(".opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.positive: object expected");
-                  message.positive = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets.fromObject(object2.positive);
+                  message.positive = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets.fromObject(object3.positive);
                 }
-                if (object2.negative != null) {
-                  if (typeof object2.negative !== "object")
+                if (object3.negative != null) {
+                  if (typeof object3.negative !== "object")
                     throw TypeError(".opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.negative: object expected");
-                  message.negative = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets.fromObject(object2.negative);
+                  message.negative = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets.fromObject(object3.negative);
                 }
-                if (object2.flags != null)
-                  message.flags = object2.flags >>> 0;
-                if (object2.exemplars) {
-                  if (!Array.isArray(object2.exemplars))
+                if (object3.flags != null)
+                  message.flags = object3.flags >>> 0;
+                if (object3.exemplars) {
+                  if (!Array.isArray(object3.exemplars))
                     throw TypeError(".opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.exemplars: array expected");
                   message.exemplars = [];
-                  for (var i = 0; i < object2.exemplars.length; ++i) {
-                    if (typeof object2.exemplars[i] !== "object")
+                  for (var i = 0; i < object3.exemplars.length; ++i) {
+                    if (typeof object3.exemplars[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.exemplars: object expected");
-                    message.exemplars[i] = $root.opentelemetry.proto.metrics.v1.Exemplar.fromObject(object2.exemplars[i]);
+                    message.exemplars[i] = $root.opentelemetry.proto.metrics.v1.Exemplar.fromObject(object3.exemplars[i]);
                   }
                 }
-                if (object2.min != null)
-                  message.min = Number(object2.min);
-                if (object2.max != null)
-                  message.max = Number(object2.max);
-                if (object2.zeroThreshold != null)
-                  message.zeroThreshold = Number(object2.zeroThreshold);
+                if (object3.min != null)
+                  message.min = Number(object3.min);
+                if (object3.max != null)
+                  message.max = Number(object3.max);
+                if (object3.zeroThreshold != null)
+                  message.zeroThreshold = Number(object3.zeroThreshold);
                 return message;
               };
               ExponentialHistogramDataPoint.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults) {
-                  object2.attributes = [];
-                  object2.exemplars = [];
+                  object3.attributes = [];
+                  object3.exemplars = [];
                 }
                 if (options.defaults) {
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.startTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.startTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.startTimeUnixNano = options.longs === String ? "0" : 0;
+                    object3.startTimeUnixNano = options.longs === String ? "0" : 0;
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.timeUnixNano = options.longs === String ? "0" : 0;
+                    object3.timeUnixNano = options.longs === String ? "0" : 0;
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.count = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.count = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.count = options.longs === String ? "0" : 0;
-                  object2.scale = 0;
+                    object3.count = options.longs === String ? "0" : 0;
+                  object3.scale = 0;
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.zeroCount = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.zeroCount = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.zeroCount = options.longs === String ? "0" : 0;
-                  object2.positive = null;
-                  object2.negative = null;
-                  object2.flags = 0;
-                  object2.zeroThreshold = 0;
+                    object3.zeroCount = options.longs === String ? "0" : 0;
+                  object3.positive = null;
+                  object3.negative = null;
+                  object3.flags = 0;
+                  object3.zeroThreshold = 0;
                 }
                 if (message.attributes && message.attributes.length) {
-                  object2.attributes = [];
+                  object3.attributes = [];
                   for (var j = 0; j < message.attributes.length; ++j)
-                    object2.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
+                    object3.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
                 }
                 if (message.startTimeUnixNano != null && message.hasOwnProperty("startTimeUnixNano"))
                   if (typeof message.startTimeUnixNano === "number")
-                    object2.startTimeUnixNano = options.longs === String ? String(message.startTimeUnixNano) : message.startTimeUnixNano;
+                    object3.startTimeUnixNano = options.longs === String ? String(message.startTimeUnixNano) : message.startTimeUnixNano;
                   else
-                    object2.startTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.startTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.startTimeUnixNano.low >>> 0, message.startTimeUnixNano.high >>> 0).toNumber() : message.startTimeUnixNano;
+                    object3.startTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.startTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.startTimeUnixNano.low >>> 0, message.startTimeUnixNano.high >>> 0).toNumber() : message.startTimeUnixNano;
                 if (message.timeUnixNano != null && message.hasOwnProperty("timeUnixNano"))
                   if (typeof message.timeUnixNano === "number")
-                    object2.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
                   else
-                    object2.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
                 if (message.count != null && message.hasOwnProperty("count"))
                   if (typeof message.count === "number")
-                    object2.count = options.longs === String ? String(message.count) : message.count;
+                    object3.count = options.longs === String ? String(message.count) : message.count;
                   else
-                    object2.count = options.longs === String ? $util.Long.prototype.toString.call(message.count) : options.longs === Number ? new $util.LongBits(message.count.low >>> 0, message.count.high >>> 0).toNumber() : message.count;
+                    object3.count = options.longs === String ? $util.Long.prototype.toString.call(message.count) : options.longs === Number ? new $util.LongBits(message.count.low >>> 0, message.count.high >>> 0).toNumber() : message.count;
                 if (message.sum != null && message.hasOwnProperty("sum")) {
-                  object2.sum = options.json && !isFinite(message.sum) ? String(message.sum) : message.sum;
+                  object3.sum = options.json && !isFinite(message.sum) ? String(message.sum) : message.sum;
                   if (options.oneofs)
-                    object2._sum = "sum";
+                    object3._sum = "sum";
                 }
                 if (message.scale != null && message.hasOwnProperty("scale"))
-                  object2.scale = message.scale;
+                  object3.scale = message.scale;
                 if (message.zeroCount != null && message.hasOwnProperty("zeroCount"))
                   if (typeof message.zeroCount === "number")
-                    object2.zeroCount = options.longs === String ? String(message.zeroCount) : message.zeroCount;
+                    object3.zeroCount = options.longs === String ? String(message.zeroCount) : message.zeroCount;
                   else
-                    object2.zeroCount = options.longs === String ? $util.Long.prototype.toString.call(message.zeroCount) : options.longs === Number ? new $util.LongBits(message.zeroCount.low >>> 0, message.zeroCount.high >>> 0).toNumber() : message.zeroCount;
+                    object3.zeroCount = options.longs === String ? $util.Long.prototype.toString.call(message.zeroCount) : options.longs === Number ? new $util.LongBits(message.zeroCount.low >>> 0, message.zeroCount.high >>> 0).toNumber() : message.zeroCount;
                 if (message.positive != null && message.hasOwnProperty("positive"))
-                  object2.positive = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets.toObject(message.positive, options);
+                  object3.positive = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets.toObject(message.positive, options);
                 if (message.negative != null && message.hasOwnProperty("negative"))
-                  object2.negative = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets.toObject(message.negative, options);
+                  object3.negative = $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets.toObject(message.negative, options);
                 if (message.flags != null && message.hasOwnProperty("flags"))
-                  object2.flags = message.flags;
+                  object3.flags = message.flags;
                 if (message.exemplars && message.exemplars.length) {
-                  object2.exemplars = [];
+                  object3.exemplars = [];
                   for (var j = 0; j < message.exemplars.length; ++j)
-                    object2.exemplars[j] = $root.opentelemetry.proto.metrics.v1.Exemplar.toObject(message.exemplars[j], options);
+                    object3.exemplars[j] = $root.opentelemetry.proto.metrics.v1.Exemplar.toObject(message.exemplars[j], options);
                 }
                 if (message.min != null && message.hasOwnProperty("min")) {
-                  object2.min = options.json && !isFinite(message.min) ? String(message.min) : message.min;
+                  object3.min = options.json && !isFinite(message.min) ? String(message.min) : message.min;
                   if (options.oneofs)
-                    object2._min = "min";
+                    object3._min = "min";
                 }
                 if (message.max != null && message.hasOwnProperty("max")) {
-                  object2.max = options.json && !isFinite(message.max) ? String(message.max) : message.max;
+                  object3.max = options.json && !isFinite(message.max) ? String(message.max) : message.max;
                   if (options.oneofs)
-                    object2._max = "max";
+                    object3._max = "max";
                 }
                 if (message.zeroThreshold != null && message.hasOwnProperty("zeroThreshold"))
-                  object2.zeroThreshold = options.json && !isFinite(message.zeroThreshold) ? String(message.zeroThreshold) : message.zeroThreshold;
-                return object2;
+                  object3.zeroThreshold = options.json && !isFinite(message.zeroThreshold) ? String(message.zeroThreshold) : message.zeroThreshold;
+                return object3;
               };
               ExponentialHistogramDataPoint.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -65278,47 +65278,47 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                Buckets.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets)
-                    return object2;
+                Buckets.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets)
+                    return object3;
                   var message = new $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets();
-                  if (object2.offset != null)
-                    message.offset = object2.offset | 0;
-                  if (object2.bucketCounts) {
-                    if (!Array.isArray(object2.bucketCounts))
+                  if (object3.offset != null)
+                    message.offset = object3.offset | 0;
+                  if (object3.bucketCounts) {
+                    if (!Array.isArray(object3.bucketCounts))
                       throw TypeError(".opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets.bucketCounts: array expected");
                     message.bucketCounts = [];
-                    for (var i = 0; i < object2.bucketCounts.length; ++i)
+                    for (var i = 0; i < object3.bucketCounts.length; ++i)
                       if ($util.Long)
-                        (message.bucketCounts[i] = $util.Long.fromValue(object2.bucketCounts[i])).unsigned = true;
-                      else if (typeof object2.bucketCounts[i] === "string")
-                        message.bucketCounts[i] = parseInt(object2.bucketCounts[i], 10);
-                      else if (typeof object2.bucketCounts[i] === "number")
-                        message.bucketCounts[i] = object2.bucketCounts[i];
-                      else if (typeof object2.bucketCounts[i] === "object")
-                        message.bucketCounts[i] = new $util.LongBits(object2.bucketCounts[i].low >>> 0, object2.bucketCounts[i].high >>> 0).toNumber(true);
+                        (message.bucketCounts[i] = $util.Long.fromValue(object3.bucketCounts[i])).unsigned = true;
+                      else if (typeof object3.bucketCounts[i] === "string")
+                        message.bucketCounts[i] = parseInt(object3.bucketCounts[i], 10);
+                      else if (typeof object3.bucketCounts[i] === "number")
+                        message.bucketCounts[i] = object3.bucketCounts[i];
+                      else if (typeof object3.bucketCounts[i] === "object")
+                        message.bucketCounts[i] = new $util.LongBits(object3.bucketCounts[i].low >>> 0, object3.bucketCounts[i].high >>> 0).toNumber(true);
                   }
                   return message;
                 };
                 Buckets.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.arrays || options.defaults)
-                    object2.bucketCounts = [];
+                    object3.bucketCounts = [];
                   if (options.defaults)
-                    object2.offset = 0;
+                    object3.offset = 0;
                   if (message.offset != null && message.hasOwnProperty("offset"))
-                    object2.offset = message.offset;
+                    object3.offset = message.offset;
                   if (message.bucketCounts && message.bucketCounts.length) {
-                    object2.bucketCounts = [];
+                    object3.bucketCounts = [];
                     for (var j = 0; j < message.bucketCounts.length; ++j)
                       if (typeof message.bucketCounts[j] === "number")
-                        object2.bucketCounts[j] = options.longs === String ? String(message.bucketCounts[j]) : message.bucketCounts[j];
+                        object3.bucketCounts[j] = options.longs === String ? String(message.bucketCounts[j]) : message.bucketCounts[j];
                       else
-                        object2.bucketCounts[j] = options.longs === String ? $util.Long.prototype.toString.call(message.bucketCounts[j]) : options.longs === Number ? new $util.LongBits(message.bucketCounts[j].low >>> 0, message.bucketCounts[j].high >>> 0).toNumber(true) : message.bucketCounts[j];
+                        object3.bucketCounts[j] = options.longs === String ? $util.Long.prototype.toString.call(message.bucketCounts[j]) : options.longs === Number ? new $util.LongBits(message.bucketCounts[j].low >>> 0, message.bucketCounts[j].high >>> 0).toNumber(true) : message.bucketCounts[j];
                   }
-                  return object2;
+                  return object3;
                 };
                 Buckets.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -65494,123 +65494,123 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              SummaryDataPoint.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.SummaryDataPoint)
-                  return object2;
+              SummaryDataPoint.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.SummaryDataPoint)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.SummaryDataPoint();
-                if (object2.attributes) {
-                  if (!Array.isArray(object2.attributes))
+                if (object3.attributes) {
+                  if (!Array.isArray(object3.attributes))
                     throw TypeError(".opentelemetry.proto.metrics.v1.SummaryDataPoint.attributes: array expected");
                   message.attributes = [];
-                  for (var i = 0; i < object2.attributes.length; ++i) {
-                    if (typeof object2.attributes[i] !== "object")
+                  for (var i = 0; i < object3.attributes.length; ++i) {
+                    if (typeof object3.attributes[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.SummaryDataPoint.attributes: object expected");
-                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.attributes[i]);
+                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.attributes[i]);
                   }
                 }
-                if (object2.startTimeUnixNano != null) {
+                if (object3.startTimeUnixNano != null) {
                   if ($util.Long)
-                    (message.startTimeUnixNano = $util.Long.fromValue(object2.startTimeUnixNano)).unsigned = false;
-                  else if (typeof object2.startTimeUnixNano === "string")
-                    message.startTimeUnixNano = parseInt(object2.startTimeUnixNano, 10);
-                  else if (typeof object2.startTimeUnixNano === "number")
-                    message.startTimeUnixNano = object2.startTimeUnixNano;
-                  else if (typeof object2.startTimeUnixNano === "object")
-                    message.startTimeUnixNano = new $util.LongBits(object2.startTimeUnixNano.low >>> 0, object2.startTimeUnixNano.high >>> 0).toNumber();
+                    (message.startTimeUnixNano = $util.Long.fromValue(object3.startTimeUnixNano)).unsigned = false;
+                  else if (typeof object3.startTimeUnixNano === "string")
+                    message.startTimeUnixNano = parseInt(object3.startTimeUnixNano, 10);
+                  else if (typeof object3.startTimeUnixNano === "number")
+                    message.startTimeUnixNano = object3.startTimeUnixNano;
+                  else if (typeof object3.startTimeUnixNano === "object")
+                    message.startTimeUnixNano = new $util.LongBits(object3.startTimeUnixNano.low >>> 0, object3.startTimeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.timeUnixNano != null) {
+                if (object3.timeUnixNano != null) {
                   if ($util.Long)
-                    (message.timeUnixNano = $util.Long.fromValue(object2.timeUnixNano)).unsigned = false;
-                  else if (typeof object2.timeUnixNano === "string")
-                    message.timeUnixNano = parseInt(object2.timeUnixNano, 10);
-                  else if (typeof object2.timeUnixNano === "number")
-                    message.timeUnixNano = object2.timeUnixNano;
-                  else if (typeof object2.timeUnixNano === "object")
-                    message.timeUnixNano = new $util.LongBits(object2.timeUnixNano.low >>> 0, object2.timeUnixNano.high >>> 0).toNumber();
+                    (message.timeUnixNano = $util.Long.fromValue(object3.timeUnixNano)).unsigned = false;
+                  else if (typeof object3.timeUnixNano === "string")
+                    message.timeUnixNano = parseInt(object3.timeUnixNano, 10);
+                  else if (typeof object3.timeUnixNano === "number")
+                    message.timeUnixNano = object3.timeUnixNano;
+                  else if (typeof object3.timeUnixNano === "object")
+                    message.timeUnixNano = new $util.LongBits(object3.timeUnixNano.low >>> 0, object3.timeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.count != null) {
+                if (object3.count != null) {
                   if ($util.Long)
-                    (message.count = $util.Long.fromValue(object2.count)).unsigned = false;
-                  else if (typeof object2.count === "string")
-                    message.count = parseInt(object2.count, 10);
-                  else if (typeof object2.count === "number")
-                    message.count = object2.count;
-                  else if (typeof object2.count === "object")
-                    message.count = new $util.LongBits(object2.count.low >>> 0, object2.count.high >>> 0).toNumber();
+                    (message.count = $util.Long.fromValue(object3.count)).unsigned = false;
+                  else if (typeof object3.count === "string")
+                    message.count = parseInt(object3.count, 10);
+                  else if (typeof object3.count === "number")
+                    message.count = object3.count;
+                  else if (typeof object3.count === "object")
+                    message.count = new $util.LongBits(object3.count.low >>> 0, object3.count.high >>> 0).toNumber();
                 }
-                if (object2.sum != null)
-                  message.sum = Number(object2.sum);
-                if (object2.quantileValues) {
-                  if (!Array.isArray(object2.quantileValues))
+                if (object3.sum != null)
+                  message.sum = Number(object3.sum);
+                if (object3.quantileValues) {
+                  if (!Array.isArray(object3.quantileValues))
                     throw TypeError(".opentelemetry.proto.metrics.v1.SummaryDataPoint.quantileValues: array expected");
                   message.quantileValues = [];
-                  for (var i = 0; i < object2.quantileValues.length; ++i) {
-                    if (typeof object2.quantileValues[i] !== "object")
+                  for (var i = 0; i < object3.quantileValues.length; ++i) {
+                    if (typeof object3.quantileValues[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.SummaryDataPoint.quantileValues: object expected");
-                    message.quantileValues[i] = $root.opentelemetry.proto.metrics.v1.SummaryDataPoint.ValueAtQuantile.fromObject(object2.quantileValues[i]);
+                    message.quantileValues[i] = $root.opentelemetry.proto.metrics.v1.SummaryDataPoint.ValueAtQuantile.fromObject(object3.quantileValues[i]);
                   }
                 }
-                if (object2.flags != null)
-                  message.flags = object2.flags >>> 0;
+                if (object3.flags != null)
+                  message.flags = object3.flags >>> 0;
                 return message;
               };
               SummaryDataPoint.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults) {
-                  object2.quantileValues = [];
-                  object2.attributes = [];
+                  object3.quantileValues = [];
+                  object3.attributes = [];
                 }
                 if (options.defaults) {
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.startTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.startTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.startTimeUnixNano = options.longs === String ? "0" : 0;
+                    object3.startTimeUnixNano = options.longs === String ? "0" : 0;
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.timeUnixNano = options.longs === String ? "0" : 0;
+                    object3.timeUnixNano = options.longs === String ? "0" : 0;
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.count = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.count = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.count = options.longs === String ? "0" : 0;
-                  object2.sum = 0;
-                  object2.flags = 0;
+                    object3.count = options.longs === String ? "0" : 0;
+                  object3.sum = 0;
+                  object3.flags = 0;
                 }
                 if (message.startTimeUnixNano != null && message.hasOwnProperty("startTimeUnixNano"))
                   if (typeof message.startTimeUnixNano === "number")
-                    object2.startTimeUnixNano = options.longs === String ? String(message.startTimeUnixNano) : message.startTimeUnixNano;
+                    object3.startTimeUnixNano = options.longs === String ? String(message.startTimeUnixNano) : message.startTimeUnixNano;
                   else
-                    object2.startTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.startTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.startTimeUnixNano.low >>> 0, message.startTimeUnixNano.high >>> 0).toNumber() : message.startTimeUnixNano;
+                    object3.startTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.startTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.startTimeUnixNano.low >>> 0, message.startTimeUnixNano.high >>> 0).toNumber() : message.startTimeUnixNano;
                 if (message.timeUnixNano != null && message.hasOwnProperty("timeUnixNano"))
                   if (typeof message.timeUnixNano === "number")
-                    object2.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
                   else
-                    object2.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
                 if (message.count != null && message.hasOwnProperty("count"))
                   if (typeof message.count === "number")
-                    object2.count = options.longs === String ? String(message.count) : message.count;
+                    object3.count = options.longs === String ? String(message.count) : message.count;
                   else
-                    object2.count = options.longs === String ? $util.Long.prototype.toString.call(message.count) : options.longs === Number ? new $util.LongBits(message.count.low >>> 0, message.count.high >>> 0).toNumber() : message.count;
+                    object3.count = options.longs === String ? $util.Long.prototype.toString.call(message.count) : options.longs === Number ? new $util.LongBits(message.count.low >>> 0, message.count.high >>> 0).toNumber() : message.count;
                 if (message.sum != null && message.hasOwnProperty("sum"))
-                  object2.sum = options.json && !isFinite(message.sum) ? String(message.sum) : message.sum;
+                  object3.sum = options.json && !isFinite(message.sum) ? String(message.sum) : message.sum;
                 if (message.quantileValues && message.quantileValues.length) {
-                  object2.quantileValues = [];
+                  object3.quantileValues = [];
                   for (var j = 0; j < message.quantileValues.length; ++j)
-                    object2.quantileValues[j] = $root.opentelemetry.proto.metrics.v1.SummaryDataPoint.ValueAtQuantile.toObject(message.quantileValues[j], options);
+                    object3.quantileValues[j] = $root.opentelemetry.proto.metrics.v1.SummaryDataPoint.ValueAtQuantile.toObject(message.quantileValues[j], options);
                 }
                 if (message.attributes && message.attributes.length) {
-                  object2.attributes = [];
+                  object3.attributes = [];
                   for (var j = 0; j < message.attributes.length; ++j)
-                    object2.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
+                    object3.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
                 }
                 if (message.flags != null && message.hasOwnProperty("flags"))
-                  object2.flags = message.flags;
-                return object2;
+                  object3.flags = message.flags;
+                return object3;
               };
               SummaryDataPoint.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -65694,29 +65694,29 @@ var require_root = __commonJS({
                   }
                   return null;
                 };
-                ValueAtQuantile.fromObject = function fromObject(object2) {
-                  if (object2 instanceof $root.opentelemetry.proto.metrics.v1.SummaryDataPoint.ValueAtQuantile)
-                    return object2;
+                ValueAtQuantile.fromObject = function fromObject(object3) {
+                  if (object3 instanceof $root.opentelemetry.proto.metrics.v1.SummaryDataPoint.ValueAtQuantile)
+                    return object3;
                   var message = new $root.opentelemetry.proto.metrics.v1.SummaryDataPoint.ValueAtQuantile();
-                  if (object2.quantile != null)
-                    message.quantile = Number(object2.quantile);
-                  if (object2.value != null)
-                    message.value = Number(object2.value);
+                  if (object3.quantile != null)
+                    message.quantile = Number(object3.quantile);
+                  if (object3.value != null)
+                    message.value = Number(object3.value);
                   return message;
                 };
                 ValueAtQuantile.toObject = function toObject(message, options) {
                   if (!options)
                     options = {};
-                  var object2 = {};
+                  var object3 = {};
                   if (options.defaults) {
-                    object2.quantile = 0;
-                    object2.value = 0;
+                    object3.quantile = 0;
+                    object3.value = 0;
                   }
                   if (message.quantile != null && message.hasOwnProperty("quantile"))
-                    object2.quantile = options.json && !isFinite(message.quantile) ? String(message.quantile) : message.quantile;
+                    object3.quantile = options.json && !isFinite(message.quantile) ? String(message.quantile) : message.quantile;
                   if (message.value != null && message.hasOwnProperty("value"))
-                    object2.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
-                  return object2;
+                    object3.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
+                  return object3;
                 };
                 ValueAtQuantile.prototype.toJSON = function toJSON() {
                   return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -65879,111 +65879,111 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              Exemplar.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.metrics.v1.Exemplar)
-                  return object2;
+              Exemplar.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.metrics.v1.Exemplar)
+                  return object3;
                 var message = new $root.opentelemetry.proto.metrics.v1.Exemplar();
-                if (object2.filteredAttributes) {
-                  if (!Array.isArray(object2.filteredAttributes))
+                if (object3.filteredAttributes) {
+                  if (!Array.isArray(object3.filteredAttributes))
                     throw TypeError(".opentelemetry.proto.metrics.v1.Exemplar.filteredAttributes: array expected");
                   message.filteredAttributes = [];
-                  for (var i = 0; i < object2.filteredAttributes.length; ++i) {
-                    if (typeof object2.filteredAttributes[i] !== "object")
+                  for (var i = 0; i < object3.filteredAttributes.length; ++i) {
+                    if (typeof object3.filteredAttributes[i] !== "object")
                       throw TypeError(".opentelemetry.proto.metrics.v1.Exemplar.filteredAttributes: object expected");
-                    message.filteredAttributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.filteredAttributes[i]);
+                    message.filteredAttributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.filteredAttributes[i]);
                   }
                 }
-                if (object2.timeUnixNano != null) {
+                if (object3.timeUnixNano != null) {
                   if ($util.Long)
-                    (message.timeUnixNano = $util.Long.fromValue(object2.timeUnixNano)).unsigned = false;
-                  else if (typeof object2.timeUnixNano === "string")
-                    message.timeUnixNano = parseInt(object2.timeUnixNano, 10);
-                  else if (typeof object2.timeUnixNano === "number")
-                    message.timeUnixNano = object2.timeUnixNano;
-                  else if (typeof object2.timeUnixNano === "object")
-                    message.timeUnixNano = new $util.LongBits(object2.timeUnixNano.low >>> 0, object2.timeUnixNano.high >>> 0).toNumber();
+                    (message.timeUnixNano = $util.Long.fromValue(object3.timeUnixNano)).unsigned = false;
+                  else if (typeof object3.timeUnixNano === "string")
+                    message.timeUnixNano = parseInt(object3.timeUnixNano, 10);
+                  else if (typeof object3.timeUnixNano === "number")
+                    message.timeUnixNano = object3.timeUnixNano;
+                  else if (typeof object3.timeUnixNano === "object")
+                    message.timeUnixNano = new $util.LongBits(object3.timeUnixNano.low >>> 0, object3.timeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.asDouble != null)
-                  message.asDouble = Number(object2.asDouble);
-                if (object2.asInt != null) {
+                if (object3.asDouble != null)
+                  message.asDouble = Number(object3.asDouble);
+                if (object3.asInt != null) {
                   if ($util.Long)
-                    (message.asInt = $util.Long.fromValue(object2.asInt)).unsigned = false;
-                  else if (typeof object2.asInt === "string")
-                    message.asInt = parseInt(object2.asInt, 10);
-                  else if (typeof object2.asInt === "number")
-                    message.asInt = object2.asInt;
-                  else if (typeof object2.asInt === "object")
-                    message.asInt = new $util.LongBits(object2.asInt.low >>> 0, object2.asInt.high >>> 0).toNumber();
+                    (message.asInt = $util.Long.fromValue(object3.asInt)).unsigned = false;
+                  else if (typeof object3.asInt === "string")
+                    message.asInt = parseInt(object3.asInt, 10);
+                  else if (typeof object3.asInt === "number")
+                    message.asInt = object3.asInt;
+                  else if (typeof object3.asInt === "object")
+                    message.asInt = new $util.LongBits(object3.asInt.low >>> 0, object3.asInt.high >>> 0).toNumber();
                 }
-                if (object2.spanId != null) {
-                  if (typeof object2.spanId === "string")
-                    $util.base64.decode(object2.spanId, message.spanId = $util.newBuffer($util.base64.length(object2.spanId)), 0);
-                  else if (object2.spanId.length >= 0)
-                    message.spanId = object2.spanId;
+                if (object3.spanId != null) {
+                  if (typeof object3.spanId === "string")
+                    $util.base64.decode(object3.spanId, message.spanId = $util.newBuffer($util.base64.length(object3.spanId)), 0);
+                  else if (object3.spanId.length >= 0)
+                    message.spanId = object3.spanId;
                 }
-                if (object2.traceId != null) {
-                  if (typeof object2.traceId === "string")
-                    $util.base64.decode(object2.traceId, message.traceId = $util.newBuffer($util.base64.length(object2.traceId)), 0);
-                  else if (object2.traceId.length >= 0)
-                    message.traceId = object2.traceId;
+                if (object3.traceId != null) {
+                  if (typeof object3.traceId === "string")
+                    $util.base64.decode(object3.traceId, message.traceId = $util.newBuffer($util.base64.length(object3.traceId)), 0);
+                  else if (object3.traceId.length >= 0)
+                    message.traceId = object3.traceId;
                 }
                 return message;
               };
               Exemplar.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.filteredAttributes = [];
+                  object3.filteredAttributes = [];
                 if (options.defaults) {
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.timeUnixNano = options.longs === String ? "0" : 0;
+                    object3.timeUnixNano = options.longs === String ? "0" : 0;
                   if (options.bytes === String)
-                    object2.spanId = "";
+                    object3.spanId = "";
                   else {
-                    object2.spanId = [];
+                    object3.spanId = [];
                     if (options.bytes !== Array)
-                      object2.spanId = $util.newBuffer(object2.spanId);
+                      object3.spanId = $util.newBuffer(object3.spanId);
                   }
                   if (options.bytes === String)
-                    object2.traceId = "";
+                    object3.traceId = "";
                   else {
-                    object2.traceId = [];
+                    object3.traceId = [];
                     if (options.bytes !== Array)
-                      object2.traceId = $util.newBuffer(object2.traceId);
+                      object3.traceId = $util.newBuffer(object3.traceId);
                   }
                 }
                 if (message.timeUnixNano != null && message.hasOwnProperty("timeUnixNano"))
                   if (typeof message.timeUnixNano === "number")
-                    object2.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
                   else
-                    object2.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
                 if (message.asDouble != null && message.hasOwnProperty("asDouble")) {
-                  object2.asDouble = options.json && !isFinite(message.asDouble) ? String(message.asDouble) : message.asDouble;
+                  object3.asDouble = options.json && !isFinite(message.asDouble) ? String(message.asDouble) : message.asDouble;
                   if (options.oneofs)
-                    object2.value = "asDouble";
+                    object3.value = "asDouble";
                 }
                 if (message.spanId != null && message.hasOwnProperty("spanId"))
-                  object2.spanId = options.bytes === String ? $util.base64.encode(message.spanId, 0, message.spanId.length) : options.bytes === Array ? Array.prototype.slice.call(message.spanId) : message.spanId;
+                  object3.spanId = options.bytes === String ? $util.base64.encode(message.spanId, 0, message.spanId.length) : options.bytes === Array ? Array.prototype.slice.call(message.spanId) : message.spanId;
                 if (message.traceId != null && message.hasOwnProperty("traceId"))
-                  object2.traceId = options.bytes === String ? $util.base64.encode(message.traceId, 0, message.traceId.length) : options.bytes === Array ? Array.prototype.slice.call(message.traceId) : message.traceId;
+                  object3.traceId = options.bytes === String ? $util.base64.encode(message.traceId, 0, message.traceId.length) : options.bytes === Array ? Array.prototype.slice.call(message.traceId) : message.traceId;
                 if (message.asInt != null && message.hasOwnProperty("asInt")) {
                   if (typeof message.asInt === "number")
-                    object2.asInt = options.longs === String ? String(message.asInt) : message.asInt;
+                    object3.asInt = options.longs === String ? String(message.asInt) : message.asInt;
                   else
-                    object2.asInt = options.longs === String ? $util.Long.prototype.toString.call(message.asInt) : options.longs === Number ? new $util.LongBits(message.asInt.low >>> 0, message.asInt.high >>> 0).toNumber() : message.asInt;
+                    object3.asInt = options.longs === String ? $util.Long.prototype.toString.call(message.asInt) : options.longs === Number ? new $util.LongBits(message.asInt.low >>> 0, message.asInt.high >>> 0).toNumber() : message.asInt;
                   if (options.oneofs)
-                    object2.value = "asInt";
+                    object3.value = "asInt";
                 }
                 if (message.filteredAttributes && message.filteredAttributes.length) {
-                  object2.filteredAttributes = [];
+                  object3.filteredAttributes = [];
                   for (var j = 0; j < message.filteredAttributes.length; ++j)
-                    object2.filteredAttributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.filteredAttributes[j], options);
+                    object3.filteredAttributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.filteredAttributes[j], options);
                 }
-                return object2;
+                return object3;
               };
               Exemplar.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -66072,18 +66072,18 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              LogsData.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.logs.v1.LogsData)
-                  return object2;
+              LogsData.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.logs.v1.LogsData)
+                  return object3;
                 var message = new $root.opentelemetry.proto.logs.v1.LogsData();
-                if (object2.resourceLogs) {
-                  if (!Array.isArray(object2.resourceLogs))
+                if (object3.resourceLogs) {
+                  if (!Array.isArray(object3.resourceLogs))
                     throw TypeError(".opentelemetry.proto.logs.v1.LogsData.resourceLogs: array expected");
                   message.resourceLogs = [];
-                  for (var i = 0; i < object2.resourceLogs.length; ++i) {
-                    if (typeof object2.resourceLogs[i] !== "object")
+                  for (var i = 0; i < object3.resourceLogs.length; ++i) {
+                    if (typeof object3.resourceLogs[i] !== "object")
                       throw TypeError(".opentelemetry.proto.logs.v1.LogsData.resourceLogs: object expected");
-                    message.resourceLogs[i] = $root.opentelemetry.proto.logs.v1.ResourceLogs.fromObject(object2.resourceLogs[i]);
+                    message.resourceLogs[i] = $root.opentelemetry.proto.logs.v1.ResourceLogs.fromObject(object3.resourceLogs[i]);
                   }
                 }
                 return message;
@@ -66091,15 +66091,15 @@ var require_root = __commonJS({
               LogsData.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.resourceLogs = [];
+                  object3.resourceLogs = [];
                 if (message.resourceLogs && message.resourceLogs.length) {
-                  object2.resourceLogs = [];
+                  object3.resourceLogs = [];
                   for (var j = 0; j < message.resourceLogs.length; ++j)
-                    object2.resourceLogs[j] = $root.opentelemetry.proto.logs.v1.ResourceLogs.toObject(message.resourceLogs[j], options);
+                    object3.resourceLogs[j] = $root.opentelemetry.proto.logs.v1.ResourceLogs.toObject(message.resourceLogs[j], options);
                 }
-                return object2;
+                return object3;
               };
               LogsData.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -66209,49 +66209,49 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              ResourceLogs.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.logs.v1.ResourceLogs)
-                  return object2;
+              ResourceLogs.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.logs.v1.ResourceLogs)
+                  return object3;
                 var message = new $root.opentelemetry.proto.logs.v1.ResourceLogs();
-                if (object2.resource != null) {
-                  if (typeof object2.resource !== "object")
+                if (object3.resource != null) {
+                  if (typeof object3.resource !== "object")
                     throw TypeError(".opentelemetry.proto.logs.v1.ResourceLogs.resource: object expected");
-                  message.resource = $root.opentelemetry.proto.resource.v1.Resource.fromObject(object2.resource);
+                  message.resource = $root.opentelemetry.proto.resource.v1.Resource.fromObject(object3.resource);
                 }
-                if (object2.scopeLogs) {
-                  if (!Array.isArray(object2.scopeLogs))
+                if (object3.scopeLogs) {
+                  if (!Array.isArray(object3.scopeLogs))
                     throw TypeError(".opentelemetry.proto.logs.v1.ResourceLogs.scopeLogs: array expected");
                   message.scopeLogs = [];
-                  for (var i = 0; i < object2.scopeLogs.length; ++i) {
-                    if (typeof object2.scopeLogs[i] !== "object")
+                  for (var i = 0; i < object3.scopeLogs.length; ++i) {
+                    if (typeof object3.scopeLogs[i] !== "object")
                       throw TypeError(".opentelemetry.proto.logs.v1.ResourceLogs.scopeLogs: object expected");
-                    message.scopeLogs[i] = $root.opentelemetry.proto.logs.v1.ScopeLogs.fromObject(object2.scopeLogs[i]);
+                    message.scopeLogs[i] = $root.opentelemetry.proto.logs.v1.ScopeLogs.fromObject(object3.scopeLogs[i]);
                   }
                 }
-                if (object2.schemaUrl != null)
-                  message.schemaUrl = String(object2.schemaUrl);
+                if (object3.schemaUrl != null)
+                  message.schemaUrl = String(object3.schemaUrl);
                 return message;
               };
               ResourceLogs.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.scopeLogs = [];
+                  object3.scopeLogs = [];
                 if (options.defaults) {
-                  object2.resource = null;
-                  object2.schemaUrl = "";
+                  object3.resource = null;
+                  object3.schemaUrl = "";
                 }
                 if (message.resource != null && message.hasOwnProperty("resource"))
-                  object2.resource = $root.opentelemetry.proto.resource.v1.Resource.toObject(message.resource, options);
+                  object3.resource = $root.opentelemetry.proto.resource.v1.Resource.toObject(message.resource, options);
                 if (message.scopeLogs && message.scopeLogs.length) {
-                  object2.scopeLogs = [];
+                  object3.scopeLogs = [];
                   for (var j = 0; j < message.scopeLogs.length; ++j)
-                    object2.scopeLogs[j] = $root.opentelemetry.proto.logs.v1.ScopeLogs.toObject(message.scopeLogs[j], options);
+                    object3.scopeLogs[j] = $root.opentelemetry.proto.logs.v1.ScopeLogs.toObject(message.scopeLogs[j], options);
                 }
                 if (message.schemaUrl != null && message.hasOwnProperty("schemaUrl"))
-                  object2.schemaUrl = message.schemaUrl;
-                return object2;
+                  object3.schemaUrl = message.schemaUrl;
+                return object3;
               };
               ResourceLogs.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -66361,49 +66361,49 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              ScopeLogs.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.logs.v1.ScopeLogs)
-                  return object2;
+              ScopeLogs.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.logs.v1.ScopeLogs)
+                  return object3;
                 var message = new $root.opentelemetry.proto.logs.v1.ScopeLogs();
-                if (object2.scope != null) {
-                  if (typeof object2.scope !== "object")
+                if (object3.scope != null) {
+                  if (typeof object3.scope !== "object")
                     throw TypeError(".opentelemetry.proto.logs.v1.ScopeLogs.scope: object expected");
-                  message.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.fromObject(object2.scope);
+                  message.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.fromObject(object3.scope);
                 }
-                if (object2.logRecords) {
-                  if (!Array.isArray(object2.logRecords))
+                if (object3.logRecords) {
+                  if (!Array.isArray(object3.logRecords))
                     throw TypeError(".opentelemetry.proto.logs.v1.ScopeLogs.logRecords: array expected");
                   message.logRecords = [];
-                  for (var i = 0; i < object2.logRecords.length; ++i) {
-                    if (typeof object2.logRecords[i] !== "object")
+                  for (var i = 0; i < object3.logRecords.length; ++i) {
+                    if (typeof object3.logRecords[i] !== "object")
                       throw TypeError(".opentelemetry.proto.logs.v1.ScopeLogs.logRecords: object expected");
-                    message.logRecords[i] = $root.opentelemetry.proto.logs.v1.LogRecord.fromObject(object2.logRecords[i]);
+                    message.logRecords[i] = $root.opentelemetry.proto.logs.v1.LogRecord.fromObject(object3.logRecords[i]);
                   }
                 }
-                if (object2.schemaUrl != null)
-                  message.schemaUrl = String(object2.schemaUrl);
+                if (object3.schemaUrl != null)
+                  message.schemaUrl = String(object3.schemaUrl);
                 return message;
               };
               ScopeLogs.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.logRecords = [];
+                  object3.logRecords = [];
                 if (options.defaults) {
-                  object2.scope = null;
-                  object2.schemaUrl = "";
+                  object3.scope = null;
+                  object3.schemaUrl = "";
                 }
                 if (message.scope != null && message.hasOwnProperty("scope"))
-                  object2.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.toObject(message.scope, options);
+                  object3.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.toObject(message.scope, options);
                 if (message.logRecords && message.logRecords.length) {
-                  object2.logRecords = [];
+                  object3.logRecords = [];
                   for (var j = 0; j < message.logRecords.length; ++j)
-                    object2.logRecords[j] = $root.opentelemetry.proto.logs.v1.LogRecord.toObject(message.logRecords[j], options);
+                    object3.logRecords[j] = $root.opentelemetry.proto.logs.v1.LogRecord.toObject(message.logRecords[j], options);
                 }
                 if (message.schemaUrl != null && message.hasOwnProperty("schemaUrl"))
-                  object2.schemaUrl = message.schemaUrl;
-                return object2;
+                  object3.schemaUrl = message.schemaUrl;
+                return object3;
               };
               ScopeLogs.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -66687,34 +66687,34 @@ var require_root = __commonJS({
                 }
                 return null;
               };
-              LogRecord.fromObject = function fromObject(object2) {
-                if (object2 instanceof $root.opentelemetry.proto.logs.v1.LogRecord)
-                  return object2;
+              LogRecord.fromObject = function fromObject(object3) {
+                if (object3 instanceof $root.opentelemetry.proto.logs.v1.LogRecord)
+                  return object3;
                 var message = new $root.opentelemetry.proto.logs.v1.LogRecord();
-                if (object2.timeUnixNano != null) {
+                if (object3.timeUnixNano != null) {
                   if ($util.Long)
-                    (message.timeUnixNano = $util.Long.fromValue(object2.timeUnixNano)).unsigned = false;
-                  else if (typeof object2.timeUnixNano === "string")
-                    message.timeUnixNano = parseInt(object2.timeUnixNano, 10);
-                  else if (typeof object2.timeUnixNano === "number")
-                    message.timeUnixNano = object2.timeUnixNano;
-                  else if (typeof object2.timeUnixNano === "object")
-                    message.timeUnixNano = new $util.LongBits(object2.timeUnixNano.low >>> 0, object2.timeUnixNano.high >>> 0).toNumber();
+                    (message.timeUnixNano = $util.Long.fromValue(object3.timeUnixNano)).unsigned = false;
+                  else if (typeof object3.timeUnixNano === "string")
+                    message.timeUnixNano = parseInt(object3.timeUnixNano, 10);
+                  else if (typeof object3.timeUnixNano === "number")
+                    message.timeUnixNano = object3.timeUnixNano;
+                  else if (typeof object3.timeUnixNano === "object")
+                    message.timeUnixNano = new $util.LongBits(object3.timeUnixNano.low >>> 0, object3.timeUnixNano.high >>> 0).toNumber();
                 }
-                if (object2.observedTimeUnixNano != null) {
+                if (object3.observedTimeUnixNano != null) {
                   if ($util.Long)
-                    (message.observedTimeUnixNano = $util.Long.fromValue(object2.observedTimeUnixNano)).unsigned = false;
-                  else if (typeof object2.observedTimeUnixNano === "string")
-                    message.observedTimeUnixNano = parseInt(object2.observedTimeUnixNano, 10);
-                  else if (typeof object2.observedTimeUnixNano === "number")
-                    message.observedTimeUnixNano = object2.observedTimeUnixNano;
-                  else if (typeof object2.observedTimeUnixNano === "object")
-                    message.observedTimeUnixNano = new $util.LongBits(object2.observedTimeUnixNano.low >>> 0, object2.observedTimeUnixNano.high >>> 0).toNumber();
+                    (message.observedTimeUnixNano = $util.Long.fromValue(object3.observedTimeUnixNano)).unsigned = false;
+                  else if (typeof object3.observedTimeUnixNano === "string")
+                    message.observedTimeUnixNano = parseInt(object3.observedTimeUnixNano, 10);
+                  else if (typeof object3.observedTimeUnixNano === "number")
+                    message.observedTimeUnixNano = object3.observedTimeUnixNano;
+                  else if (typeof object3.observedTimeUnixNano === "object")
+                    message.observedTimeUnixNano = new $util.LongBits(object3.observedTimeUnixNano.low >>> 0, object3.observedTimeUnixNano.high >>> 0).toNumber();
                 }
-                switch (object2.severityNumber) {
+                switch (object3.severityNumber) {
                   default:
-                    if (typeof object2.severityNumber === "number") {
-                      message.severityNumber = object2.severityNumber;
+                    if (typeof object3.severityNumber === "number") {
+                      message.severityNumber = object3.severityNumber;
                       break;
                     }
                     break;
@@ -66819,113 +66819,113 @@ var require_root = __commonJS({
                     message.severityNumber = 24;
                     break;
                 }
-                if (object2.severityText != null)
-                  message.severityText = String(object2.severityText);
-                if (object2.body != null) {
-                  if (typeof object2.body !== "object")
+                if (object3.severityText != null)
+                  message.severityText = String(object3.severityText);
+                if (object3.body != null) {
+                  if (typeof object3.body !== "object")
                     throw TypeError(".opentelemetry.proto.logs.v1.LogRecord.body: object expected");
-                  message.body = $root.opentelemetry.proto.common.v1.AnyValue.fromObject(object2.body);
+                  message.body = $root.opentelemetry.proto.common.v1.AnyValue.fromObject(object3.body);
                 }
-                if (object2.attributes) {
-                  if (!Array.isArray(object2.attributes))
+                if (object3.attributes) {
+                  if (!Array.isArray(object3.attributes))
                     throw TypeError(".opentelemetry.proto.logs.v1.LogRecord.attributes: array expected");
                   message.attributes = [];
-                  for (var i = 0; i < object2.attributes.length; ++i) {
-                    if (typeof object2.attributes[i] !== "object")
+                  for (var i = 0; i < object3.attributes.length; ++i) {
+                    if (typeof object3.attributes[i] !== "object")
                       throw TypeError(".opentelemetry.proto.logs.v1.LogRecord.attributes: object expected");
-                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object2.attributes[i]);
+                    message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object3.attributes[i]);
                   }
                 }
-                if (object2.droppedAttributesCount != null)
-                  message.droppedAttributesCount = object2.droppedAttributesCount >>> 0;
-                if (object2.flags != null)
-                  message.flags = object2.flags >>> 0;
-                if (object2.traceId != null) {
-                  if (typeof object2.traceId === "string")
-                    $util.base64.decode(object2.traceId, message.traceId = $util.newBuffer($util.base64.length(object2.traceId)), 0);
-                  else if (object2.traceId.length >= 0)
-                    message.traceId = object2.traceId;
+                if (object3.droppedAttributesCount != null)
+                  message.droppedAttributesCount = object3.droppedAttributesCount >>> 0;
+                if (object3.flags != null)
+                  message.flags = object3.flags >>> 0;
+                if (object3.traceId != null) {
+                  if (typeof object3.traceId === "string")
+                    $util.base64.decode(object3.traceId, message.traceId = $util.newBuffer($util.base64.length(object3.traceId)), 0);
+                  else if (object3.traceId.length >= 0)
+                    message.traceId = object3.traceId;
                 }
-                if (object2.spanId != null) {
-                  if (typeof object2.spanId === "string")
-                    $util.base64.decode(object2.spanId, message.spanId = $util.newBuffer($util.base64.length(object2.spanId)), 0);
-                  else if (object2.spanId.length >= 0)
-                    message.spanId = object2.spanId;
+                if (object3.spanId != null) {
+                  if (typeof object3.spanId === "string")
+                    $util.base64.decode(object3.spanId, message.spanId = $util.newBuffer($util.base64.length(object3.spanId)), 0);
+                  else if (object3.spanId.length >= 0)
+                    message.spanId = object3.spanId;
                 }
-                if (object2.eventName != null)
-                  message.eventName = String(object2.eventName);
+                if (object3.eventName != null)
+                  message.eventName = String(object3.eventName);
                 return message;
               };
               LogRecord.toObject = function toObject(message, options) {
                 if (!options)
                   options = {};
-                var object2 = {};
+                var object3 = {};
                 if (options.arrays || options.defaults)
-                  object2.attributes = [];
+                  object3.attributes = [];
                 if (options.defaults) {
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.timeUnixNano = options.longs === String ? "0" : 0;
-                  object2.severityNumber = options.enums === String ? "SEVERITY_NUMBER_UNSPECIFIED" : 0;
-                  object2.severityText = "";
-                  object2.body = null;
-                  object2.droppedAttributesCount = 0;
-                  object2.flags = 0;
+                    object3.timeUnixNano = options.longs === String ? "0" : 0;
+                  object3.severityNumber = options.enums === String ? "SEVERITY_NUMBER_UNSPECIFIED" : 0;
+                  object3.severityText = "";
+                  object3.body = null;
+                  object3.droppedAttributesCount = 0;
+                  object3.flags = 0;
                   if (options.bytes === String)
-                    object2.traceId = "";
+                    object3.traceId = "";
                   else {
-                    object2.traceId = [];
+                    object3.traceId = [];
                     if (options.bytes !== Array)
-                      object2.traceId = $util.newBuffer(object2.traceId);
+                      object3.traceId = $util.newBuffer(object3.traceId);
                   }
                   if (options.bytes === String)
-                    object2.spanId = "";
+                    object3.spanId = "";
                   else {
-                    object2.spanId = [];
+                    object3.spanId = [];
                     if (options.bytes !== Array)
-                      object2.spanId = $util.newBuffer(object2.spanId);
+                      object3.spanId = $util.newBuffer(object3.spanId);
                   }
                   if ($util.Long) {
                     var long = new $util.Long(0, 0, false);
-                    object2.observedTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object3.observedTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                   } else
-                    object2.observedTimeUnixNano = options.longs === String ? "0" : 0;
-                  object2.eventName = "";
+                    object3.observedTimeUnixNano = options.longs === String ? "0" : 0;
+                  object3.eventName = "";
                 }
                 if (message.timeUnixNano != null && message.hasOwnProperty("timeUnixNano"))
                   if (typeof message.timeUnixNano === "number")
-                    object2.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
                   else
-                    object2.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
+                    object3.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
                 if (message.severityNumber != null && message.hasOwnProperty("severityNumber"))
-                  object2.severityNumber = options.enums === String ? $root.opentelemetry.proto.logs.v1.SeverityNumber[message.severityNumber] === void 0 ? message.severityNumber : $root.opentelemetry.proto.logs.v1.SeverityNumber[message.severityNumber] : message.severityNumber;
+                  object3.severityNumber = options.enums === String ? $root.opentelemetry.proto.logs.v1.SeverityNumber[message.severityNumber] === void 0 ? message.severityNumber : $root.opentelemetry.proto.logs.v1.SeverityNumber[message.severityNumber] : message.severityNumber;
                 if (message.severityText != null && message.hasOwnProperty("severityText"))
-                  object2.severityText = message.severityText;
+                  object3.severityText = message.severityText;
                 if (message.body != null && message.hasOwnProperty("body"))
-                  object2.body = $root.opentelemetry.proto.common.v1.AnyValue.toObject(message.body, options);
+                  object3.body = $root.opentelemetry.proto.common.v1.AnyValue.toObject(message.body, options);
                 if (message.attributes && message.attributes.length) {
-                  object2.attributes = [];
+                  object3.attributes = [];
                   for (var j = 0; j < message.attributes.length; ++j)
-                    object2.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
+                    object3.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
                 }
                 if (message.droppedAttributesCount != null && message.hasOwnProperty("droppedAttributesCount"))
-                  object2.droppedAttributesCount = message.droppedAttributesCount;
+                  object3.droppedAttributesCount = message.droppedAttributesCount;
                 if (message.flags != null && message.hasOwnProperty("flags"))
-                  object2.flags = message.flags;
+                  object3.flags = message.flags;
                 if (message.traceId != null && message.hasOwnProperty("traceId"))
-                  object2.traceId = options.bytes === String ? $util.base64.encode(message.traceId, 0, message.traceId.length) : options.bytes === Array ? Array.prototype.slice.call(message.traceId) : message.traceId;
+                  object3.traceId = options.bytes === String ? $util.base64.encode(message.traceId, 0, message.traceId.length) : options.bytes === Array ? Array.prototype.slice.call(message.traceId) : message.traceId;
                 if (message.spanId != null && message.hasOwnProperty("spanId"))
-                  object2.spanId = options.bytes === String ? $util.base64.encode(message.spanId, 0, message.spanId.length) : options.bytes === Array ? Array.prototype.slice.call(message.spanId) : message.spanId;
+                  object3.spanId = options.bytes === String ? $util.base64.encode(message.spanId, 0, message.spanId.length) : options.bytes === Array ? Array.prototype.slice.call(message.spanId) : message.spanId;
                 if (message.observedTimeUnixNano != null && message.hasOwnProperty("observedTimeUnixNano"))
                   if (typeof message.observedTimeUnixNano === "number")
-                    object2.observedTimeUnixNano = options.longs === String ? String(message.observedTimeUnixNano) : message.observedTimeUnixNano;
+                    object3.observedTimeUnixNano = options.longs === String ? String(message.observedTimeUnixNano) : message.observedTimeUnixNano;
                   else
-                    object2.observedTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.observedTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.observedTimeUnixNano.low >>> 0, message.observedTimeUnixNano.high >>> 0).toNumber() : message.observedTimeUnixNano;
+                    object3.observedTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.observedTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.observedTimeUnixNano.low >>> 0, message.observedTimeUnixNano.high >>> 0).toNumber() : message.observedTimeUnixNano;
                 if (message.eventName != null && message.hasOwnProperty("eventName"))
-                  object2.eventName = message.eventName;
-                return object2;
+                  object3.eventName = message.eventName;
+                return object3;
               };
               LogRecord.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
@@ -68541,8 +68541,8 @@ var require_internal2 = __commonJS({
     exports.createExportLogsServiceRequest = createExportLogsServiceRequest;
     function createResourceMap(logRecords) {
       const resourceMap = /* @__PURE__ */ new Map();
-      for (const record2 of logRecords) {
-        const { resource, instrumentationScope: { name: name2, version: version4 = "", schemaUrl = "" } } = record2;
+      for (const record3 of logRecords) {
+        const { resource, instrumentationScope: { name: name2, version: version4 = "", schemaUrl = "" } } = record3;
         let ismMap = resourceMap.get(resource);
         if (!ismMap) {
           ismMap = /* @__PURE__ */ new Map();
@@ -68554,7 +68554,7 @@ var require_internal2 = __commonJS({
           records = [];
           ismMap.set(ismKey, records);
         }
-        records.push(record2);
+        records.push(record3);
       }
       return resourceMap;
     }
@@ -72585,13 +72585,13 @@ var require_TemporalMetricProcessor = __commonJS({
         const iterator = current.entries();
         let next = iterator.next();
         while (next.done !== true) {
-          const [key2, record2, hash2] = next.value;
+          const [key2, record3, hash2] = next.value;
           if (last.has(key2, hash2)) {
             const lastAccumulation = last.get(key2, hash2);
-            const accumulation = aggregator.merge(lastAccumulation, record2);
+            const accumulation = aggregator.merge(lastAccumulation, record3);
             result.set(key2, accumulation, hash2);
           } else {
-            result.set(key2, record2, hash2);
+            result.set(key2, record3, hash2);
           }
           next = iterator.next();
         }
@@ -73014,13 +73014,13 @@ var require_ObservableRegistry = __commonJS({
         });
       }
       _findCallback(callback, instrument) {
-        return this._callbacks.findIndex((record2) => {
-          return record2.callback === callback && record2.instrument === instrument;
+        return this._callbacks.findIndex((record3) => {
+          return record3.callback === callback && record3.instrument === instrument;
         });
       }
       _findBatchCallback(callback, instruments) {
-        return this._batchCallbacks.findIndex((record2) => {
-          return record2.callback === callback && (0, utils_1.setEquals)(record2.instruments, instruments);
+        return this._batchCallbacks.findIndex((record3) => {
+          return record3.callback === callback && (0, utils_1.setEquals)(record3.instruments, instruments);
         });
       }
     };
@@ -73971,19 +73971,19 @@ var require_internal4 = __commonJS({
     exports.createExportTraceServiceRequest = createExportTraceServiceRequest;
     function createResourceMap(readableSpans) {
       const resourceMap = /* @__PURE__ */ new Map();
-      for (const record2 of readableSpans) {
-        let ilsMap = resourceMap.get(record2.resource);
+      for (const record3 of readableSpans) {
+        let ilsMap = resourceMap.get(record3.resource);
         if (!ilsMap) {
           ilsMap = /* @__PURE__ */ new Map();
-          resourceMap.set(record2.resource, ilsMap);
+          resourceMap.set(record3.resource, ilsMap);
         }
-        const instrumentationScopeKey = `${record2.instrumentationScope.name}@${record2.instrumentationScope.version || ""}:${record2.instrumentationScope.schemaUrl || ""}`;
+        const instrumentationScopeKey = `${record3.instrumentationScope.name}@${record3.instrumentationScope.version || ""}:${record3.instrumentationScope.schemaUrl || ""}`;
         let records = ilsMap.get(instrumentationScopeKey);
         if (!records) {
           records = [];
           ilsMap.set(instrumentationScopeKey, records);
         }
-        records.push(record2);
+        records.push(record3);
       }
       return resourceMap;
     }
@@ -86421,9 +86421,9 @@ var require_service_config = __commonJS({
       throw new Error("No matching service config found");
     }
     function extractAndSelectServiceConfig(txtRecord, percentage) {
-      for (const record2 of txtRecord) {
-        if (record2.length > 0 && record2[0].startsWith("grpc_config=")) {
-          const recordString = record2.join("").substring("grpc_config=".length);
+      for (const record3 of txtRecord) {
+        if (record3.length > 0 && record3[0].startsWith("grpc_config=")) {
+          const recordString = record3.join("").substring("grpc_config=".length);
           const recordJson = JSON.parse(recordString);
           return validateAndSelectCanaryConfig(recordJson, percentage);
         }
@@ -89405,9 +89405,9 @@ var require_lodash = __commonJS({
     function asciiWords(string4) {
       return string4.match(reAsciiWord) || [];
     }
-    function basePropertyOf(object2) {
+    function basePropertyOf(object3) {
       return function(key2) {
-        return object2 == null ? void 0 : object2[key2];
+        return object3 == null ? void 0 : object3[key2];
       };
     }
     var deburrLetter = basePropertyOf(deburredLetters);
@@ -89828,32 +89828,32 @@ var require_namespace = __commonJS({
         return this.nested[name2].values;
       throw Error("no such enum: " + name2);
     };
-    Namespace.prototype.add = function add(object2) {
-      if (!(object2 instanceof Field && object2.extend !== void 0 || object2 instanceof Type || object2 instanceof OneOf || object2 instanceof Enum || object2 instanceof Service || object2 instanceof Namespace))
+    Namespace.prototype.add = function add(object3) {
+      if (!(object3 instanceof Field && object3.extend !== void 0 || object3 instanceof Type || object3 instanceof OneOf || object3 instanceof Enum || object3 instanceof Service || object3 instanceof Namespace))
         throw TypeError("object must be a valid nested object");
-      if (object2.name === "__proto__")
+      if (object3.name === "__proto__")
         return this;
       if (!this.nested)
         this.nested = {};
       else {
-        var prev = this.get(object2.name);
+        var prev = this.get(object3.name);
         if (prev) {
-          if (prev instanceof Namespace && object2 instanceof Namespace && !(prev instanceof Type || prev instanceof Service)) {
+          if (prev instanceof Namespace && object3 instanceof Namespace && !(prev instanceof Type || prev instanceof Service)) {
             var nested = prev.nestedArray;
             for (var i = 0; i < nested.length; ++i)
-              object2.add(nested[i]);
+              object3.add(nested[i]);
             this.remove(prev);
             if (!this.nested)
               this.nested = {};
-            object2.setOptions(prev.options, true);
+            object3.setOptions(prev.options, true);
           } else
-            throw Error("duplicate name '" + object2.name + "' in " + this);
+            throw Error("duplicate name '" + object3.name + "' in " + this);
         }
       }
-      this.nested[object2.name] = object2;
+      this.nested[object3.name] = object3;
       if (!(this instanceof Type || this instanceof Service || this instanceof Enum || this instanceof Field)) {
-        if (!object2._edition) {
-          object2._edition = object2._defaultEdition;
+        if (!object3._edition) {
+          object3._edition = object3._defaultEdition;
         }
       }
       this._needsRecursiveFeatureResolution = true;
@@ -89863,18 +89863,18 @@ var require_namespace = __commonJS({
         parent._needsRecursiveFeatureResolution = true;
         parent._needsRecursiveResolve = true;
       }
-      object2.onAdd(this);
+      object3.onAdd(this);
       return clearCache(this);
     };
-    Namespace.prototype.remove = function remove(object2) {
-      if (!(object2 instanceof ReflectionObject))
+    Namespace.prototype.remove = function remove(object3) {
+      if (!(object3 instanceof ReflectionObject))
         throw TypeError("object must be a ReflectionObject");
-      if (object2.parent !== this)
-        throw Error(object2 + " is not a member of " + this);
-      delete this.nested[object2.name];
+      if (object3.parent !== this)
+        throw Error(object3 + " is not a member of " + this);
+      delete this.nested[object3.name];
       if (!Object.keys(this.nested).length)
         this.nested = void 0;
-      object2.onRemove(this);
+      object3.onRemove(this);
       return clearCache(this);
     };
     Namespace.prototype.define = function define2(path21, json2) {
@@ -90212,27 +90212,27 @@ var require_service2 = __commonJS({
       });
       return this;
     };
-    Service.prototype.add = function add(object2) {
-      if (this.get(object2.name))
-        throw Error("duplicate name '" + object2.name + "' in " + this);
-      if (object2 instanceof Method) {
-        if (object2.name === "__proto__")
+    Service.prototype.add = function add(object3) {
+      if (this.get(object3.name))
+        throw Error("duplicate name '" + object3.name + "' in " + this);
+      if (object3 instanceof Method) {
+        if (object3.name === "__proto__")
           return this;
-        this.methods[object2.name] = object2;
-        object2.parent = this;
+        this.methods[object3.name] = object3;
+        object3.parent = this;
         return clearCache(this);
       }
-      return Namespace.prototype.add.call(this, object2);
+      return Namespace.prototype.add.call(this, object3);
     };
-    Service.prototype.remove = function remove(object2) {
-      if (object2 instanceof Method) {
-        if (this.methods[object2.name] !== object2)
-          throw Error(object2 + " is not a member of " + this);
-        delete this.methods[object2.name];
-        object2.parent = null;
+    Service.prototype.remove = function remove(object3) {
+      if (object3 instanceof Method) {
+        if (this.methods[object3.name] !== object3)
+          throw Error(object3 + " is not a member of " + this);
+        delete this.methods[object3.name];
+        object3.parent = null;
         return clearCache(this);
       }
-      return Namespace.prototype.remove.call(this, object2);
+      return Namespace.prototype.remove.call(this, object3);
     };
     Service.prototype.create = function create(rpcImpl, requestDelimited, responseDelimited) {
       var rpcService = new rpc.Service(rpcImpl, requestDelimited, responseDelimited);
@@ -90283,8 +90283,8 @@ var require_message = __commonJS({
     Message.verify = function verify(message) {
       return this.$type.verify(message);
     };
-    Message.fromObject = function fromObject(object2) {
-      return this.$type.fromObject(object2);
+    Message.fromObject = function fromObject(object3) {
+      return this.$type.fromObject(object3);
     };
     Message.toObject = function toObject(message, options) {
       return this.$type.toObject(message, options);
@@ -90669,22 +90669,22 @@ var require_wrappers = __commonJS({
     var Message = require_message();
     var util = require_minimal();
     wrappers[".google.protobuf.Any"] = {
-      fromObject: function(object2, depth) {
-        if (object2 && object2["@type"]) {
-          var name2 = object2["@type"].substring(object2["@type"].lastIndexOf("/") + 1);
+      fromObject: function(object3, depth) {
+        if (object3 && object3["@type"]) {
+          var name2 = object3["@type"].substring(object3["@type"].lastIndexOf("/") + 1);
           var type = this.lookup(name2);
           if (type) {
-            var type_url = object2["@type"].charAt(0) === "." ? object2["@type"].slice(1) : object2["@type"];
+            var type_url = object3["@type"].charAt(0) === "." ? object3["@type"].slice(1) : object3["@type"];
             if (type_url.indexOf("/") === -1) {
               type_url = "/" + type_url;
             }
             return this.create({
               type_url,
-              value: type.encode(type.fromObject(object2, depth === void 0 ? 1 : depth + 1)).finish()
+              value: type.encode(type.fromObject(object3, depth === void 0 ? 1 : depth + 1)).finish()
             });
           }
         }
-        return this.fromObject(object2, depth);
+        return this.fromObject(object3, depth);
       },
       toObject: function(message, options, depth) {
         if (depth === void 0)
@@ -90702,14 +90702,14 @@ var require_wrappers = __commonJS({
             message = type.decode(message.value, void 0, void 0, depth + 1);
         }
         if (!(message instanceof this.ctor) && message instanceof Message) {
-          var object2 = message.$type.toObject(message, options, depth + 1);
+          var object3 = message.$type.toObject(message, options, depth + 1);
           var messageName = message.$type.fullName[0] === "." ? message.$type.fullName.slice(1) : message.$type.fullName;
           if (prefix === "") {
             prefix = googleApi;
           }
           name2 = prefix + messageName;
-          object2["@type"] = name2;
-          return object2;
+          object3["@type"] = name2;
+          return object3;
         }
         return this.toObject(message, options, depth);
       }
@@ -90939,59 +90939,59 @@ var require_type = __commonJS({
         return this.nested[name2];
       return null;
     };
-    Type.prototype.add = function add(object2) {
-      if (this.get(object2.name))
-        throw Error("duplicate name '" + object2.name + "' in " + this);
-      if (object2 instanceof Field && object2.extend === void 0) {
+    Type.prototype.add = function add(object3) {
+      if (this.get(object3.name))
+        throw Error("duplicate name '" + object3.name + "' in " + this);
+      if (object3 instanceof Field && object3.extend === void 0) {
         if (this._fieldsById ? (
           /* istanbul ignore next */
-          this._fieldsById[object2.id]
-        ) : this.fieldsById[object2.id])
-          throw Error("duplicate id " + object2.id + " in " + this);
-        if (this.isReservedId(object2.id))
-          throw Error("id " + object2.id + " is reserved in " + this);
-        if (this.isReservedName(object2.name) || object2.name.charAt(0) === "$")
-          throw Error("name '" + object2.name + "' is reserved in " + this);
-        if (object2.name === "__proto__")
+          this._fieldsById[object3.id]
+        ) : this.fieldsById[object3.id])
+          throw Error("duplicate id " + object3.id + " in " + this);
+        if (this.isReservedId(object3.id))
+          throw Error("id " + object3.id + " is reserved in " + this);
+        if (this.isReservedName(object3.name) || object3.name.charAt(0) === "$")
+          throw Error("name '" + object3.name + "' is reserved in " + this);
+        if (object3.name === "__proto__")
           return this;
-        if (object2.parent)
-          object2.parent.remove(object2);
-        this.fields[object2.name] = object2;
-        object2.message = this;
-        object2.onAdd(this);
+        if (object3.parent)
+          object3.parent.remove(object3);
+        this.fields[object3.name] = object3;
+        object3.message = this;
+        object3.onAdd(this);
         return clearCache(this);
       }
-      if (object2 instanceof OneOf) {
-        if (object2.name.charAt(0) === "$")
-          throw Error("name '" + object2.name + "' is reserved in " + this);
-        if (object2.name === "__proto__")
+      if (object3 instanceof OneOf) {
+        if (object3.name.charAt(0) === "$")
+          throw Error("name '" + object3.name + "' is reserved in " + this);
+        if (object3.name === "__proto__")
           return this;
         if (!this.oneofs)
           this.oneofs = {};
-        this.oneofs[object2.name] = object2;
-        object2.onAdd(this);
+        this.oneofs[object3.name] = object3;
+        object3.onAdd(this);
         return clearCache(this);
       }
-      return Namespace.prototype.add.call(this, object2);
+      return Namespace.prototype.add.call(this, object3);
     };
-    Type.prototype.remove = function remove(object2) {
-      if (object2 instanceof Field && object2.extend === void 0) {
-        if (!this.fields || this.fields[object2.name] !== object2)
-          throw Error(object2 + " is not a member of " + this);
-        delete this.fields[object2.name];
-        object2.parent = null;
-        object2.onRemove(this);
+    Type.prototype.remove = function remove(object3) {
+      if (object3 instanceof Field && object3.extend === void 0) {
+        if (!this.fields || this.fields[object3.name] !== object3)
+          throw Error(object3 + " is not a member of " + this);
+        delete this.fields[object3.name];
+        object3.parent = null;
+        object3.onRemove(this);
         return clearCache(this);
       }
-      if (object2 instanceof OneOf) {
-        if (!this.oneofs || this.oneofs[object2.name] !== object2)
-          throw Error(object2 + " is not a member of " + this);
-        delete this.oneofs[object2.name];
-        object2.parent = null;
-        object2.onRemove(this);
+      if (object3 instanceof OneOf) {
+        if (!this.oneofs || this.oneofs[object3.name] !== object3)
+          throw Error(object3 + " is not a member of " + this);
+        delete this.oneofs[object3.name];
+        object3.parent = null;
+        object3.onRemove(this);
         return clearCache(this);
       }
-      return Namespace.prototype.remove.call(this, object2);
+      return Namespace.prototype.remove.call(this, object3);
     };
     Type.prototype.isReservedId = function isReservedId(id) {
       return Namespace.isReservedId(this.reserved, id);
@@ -91056,8 +91056,8 @@ var require_type = __commonJS({
     Type.prototype.verify = function verify_setup(message, depth) {
       return this.setup().verify(message, depth);
     };
-    Type.prototype.fromObject = function fromObject(object2, depth) {
-      return this.setup().fromObject(object2, depth);
+    Type.prototype.fromObject = function fromObject(object3, depth) {
+      return this.setup().fromObject(object3, depth);
     };
     Type.prototype.toObject = function toObject(message, options) {
       return this.setup().toObject.apply(this, arguments);
@@ -91258,65 +91258,65 @@ var require_root2 = __commonJS({
       }
       return false;
     }
-    Root.prototype._handleAdd = function _handleAdd(object2) {
-      if (object2 instanceof Field) {
+    Root.prototype._handleAdd = function _handleAdd(object3) {
+      if (object3 instanceof Field) {
         if (
           /* an extension field (implies not part of a oneof) */
-          object2.extend !== void 0 && /* not already handled */
-          !object2.extensionField
+          object3.extend !== void 0 && /* not already handled */
+          !object3.extensionField
         ) {
-          if (!tryHandleExtension(this, object2))
-            this.deferred.push(object2);
+          if (!tryHandleExtension(this, object3))
+            this.deferred.push(object3);
         }
-      } else if (object2 instanceof Enum) {
-        if (exposeRe.test(object2.name))
-          object2.parent[object2.name] = object2.values;
-      } else if (!(object2 instanceof OneOf)) {
-        if (object2 instanceof Type)
+      } else if (object3 instanceof Enum) {
+        if (exposeRe.test(object3.name))
+          object3.parent[object3.name] = object3.values;
+      } else if (!(object3 instanceof OneOf)) {
+        if (object3 instanceof Type)
           for (var i = 0; i < this.deferred.length; )
             if (tryHandleExtension(this, this.deferred[i]))
               this.deferred.splice(i, 1);
             else
               ++i;
         for (var j = 0; j < /* initializes */
-        object2.nestedArray.length; ++j)
-          this._handleAdd(object2._nestedArray[j]);
-        if (exposeRe.test(object2.name))
-          object2.parent[object2.name] = object2;
+        object3.nestedArray.length; ++j)
+          this._handleAdd(object3._nestedArray[j]);
+        if (exposeRe.test(object3.name))
+          object3.parent[object3.name] = object3;
       }
-      if (object2 instanceof Type || object2 instanceof Enum || object2 instanceof Field) {
-        this._fullyQualifiedObjects[object2.fullName] = object2;
+      if (object3 instanceof Type || object3 instanceof Enum || object3 instanceof Field) {
+        this._fullyQualifiedObjects[object3.fullName] = object3;
       }
     };
-    Root.prototype._handleRemove = function _handleRemove(object2) {
-      if (object2 instanceof Field) {
+    Root.prototype._handleRemove = function _handleRemove(object3) {
+      if (object3 instanceof Field) {
         if (
           /* an extension field */
-          object2.extend !== void 0
+          object3.extend !== void 0
         ) {
           if (
             /* already handled */
-            object2.extensionField
+            object3.extensionField
           ) {
-            object2.extensionField.parent.remove(object2.extensionField);
-            object2.extensionField = null;
+            object3.extensionField.parent.remove(object3.extensionField);
+            object3.extensionField = null;
           } else {
-            var index = this.deferred.indexOf(object2);
+            var index = this.deferred.indexOf(object3);
             if (index > -1)
               this.deferred.splice(index, 1);
           }
         }
-      } else if (object2 instanceof Enum) {
-        if (exposeRe.test(object2.name))
-          delete object2.parent[object2.name];
-      } else if (object2 instanceof Namespace) {
+      } else if (object3 instanceof Enum) {
+        if (exposeRe.test(object3.name))
+          delete object3.parent[object3.name];
+      } else if (object3 instanceof Namespace) {
         for (var i = 0; i < /* initializes */
-        object2.nestedArray.length; ++i)
-          this._handleRemove(object2._nestedArray[i]);
-        if (exposeRe.test(object2.name))
-          delete object2.parent[object2.name];
+        object3.nestedArray.length; ++i)
+          this._handleRemove(object3._nestedArray[i]);
+        if (exposeRe.test(object3.name))
+          delete object3.parent[object3.name];
       }
-      delete this._fullyQualifiedObjects[object2.fullName];
+      delete this._fullyQualifiedObjects[object3.fullName];
     };
     Root._configure = function(Type_, parse_, common_) {
       Type = Type_;
@@ -91347,23 +91347,23 @@ var require_util3 = __commonJS({
         throw Error("max depth exceeded");
       return depth;
     };
-    util.toArray = function toArray(object2) {
-      if (object2) {
-        var keys = Object.keys(object2), array2 = new Array(keys.length), index = 0;
+    util.toArray = function toArray(object3) {
+      if (object3) {
+        var keys = Object.keys(object3), array2 = new Array(keys.length), index = 0;
         while (index < keys.length)
-          array2[index] = object2[keys[index++]];
+          array2[index] = object3[keys[index++]];
         return array2;
       }
       return [];
     };
     util.toObject = function toObject(array2) {
-      var object2 = {}, index = 0;
+      var object3 = {}, index = 0;
       while (index < array2.length) {
         var key2 = array2[index++], val = array2[index++];
         if (val !== void 0)
-          object2[key2] = val;
+          object3[key2] = val;
       }
-      return object2;
+      return object3;
     };
     util.isReserved = function isReserved(name2) {
       return reservedRe.test(name2);
@@ -91404,14 +91404,14 @@ var require_util3 = __commonJS({
       return type;
     };
     var decorateEnumIndex = 0;
-    util.decorateEnum = function decorateEnum(object2) {
-      if (object2.$type)
-        return object2.$type;
+    util.decorateEnum = function decorateEnum(object3) {
+      if (object3.$type)
+        return object3.$type;
       if (!Enum)
         Enum = require_enum2();
-      var enm = new Enum("Enum" + decorateEnumIndex++, object2);
+      var enm = new Enum("Enum" + decorateEnumIndex++, object3);
       util.decorateRoot.add(enm);
-      Object.defineProperty(object2, "$type", { value: enm, enumerable: false });
+      Object.defineProperty(object3, "$type", { value: enm, enumerable: false });
       return enm;
     };
     util.setProperty = function setProperty(dst, path21, value, ifNotSet) {
@@ -116104,9 +116104,9 @@ function floatSafeRemainder(val, step) {
   const stepInt = Number.parseInt(step.toFixed(decCount).replace(".", ""));
   return valInt % stepInt / 10 ** decCount;
 }
-function defineLazy(object2, key2, getter) {
+function defineLazy(object3, key2, getter) {
   let value = void 0;
-  Object.defineProperty(object2, key2, {
+  Object.defineProperty(object3, key2, {
     get() {
       if (value === EVALUATING) {
         return void 0;
@@ -116118,7 +116118,7 @@ function defineLazy(object2, key2, getter) {
       return value;
     },
     set(v) {
-      Object.defineProperty(object2, key2, {
+      Object.defineProperty(object3, key2, {
         value: v
         // configurable: true,
       });
@@ -151073,13 +151073,13 @@ var require_stringify2 = __commonJS({
       return typeof v === "string" || typeof v === "number" || typeof v === "boolean" || typeof v === "symbol" || typeof v === "bigint";
     };
     var sentinel = {};
-    var stringify2 = function stringify3(object2, prefix, generateArrayPrefix, commaRoundTrip, allowEmptyArrays, strictNullHandling, skipNulls, encodeDotInKeys, encoder, filter, sort, allowDots, serializeDate, format2, formatter, encodeValuesOnly, charset, sideChannel) {
-      var obj = object2;
+    var stringify2 = function stringify3(object3, prefix, generateArrayPrefix, commaRoundTrip, allowEmptyArrays, strictNullHandling, skipNulls, encodeDotInKeys, encoder, filter, sort, allowDots, serializeDate, format2, formatter, encodeValuesOnly, charset, sideChannel) {
+      var obj = object3;
       var tmpSc = sideChannel;
       var step = 0;
       var findFlag = false;
       while ((tmpSc = tmpSc.get(sentinel)) !== void 0 && !findFlag) {
-        var pos = tmpSc.get(object2);
+        var pos = tmpSc.get(object3);
         step += 1;
         if (typeof pos !== "undefined") {
           if (pos === step) {
@@ -151148,7 +151148,7 @@ var require_stringify2 = __commonJS({
         }
         var encodedKey = allowDots && encodeDotInKeys ? String(key2).replace(/\./g, "%2E") : String(key2);
         var keyPrefix = isArray(obj) ? typeof generateArrayPrefix === "function" ? generateArrayPrefix(adjustedPrefix, encodedKey) : adjustedPrefix : adjustedPrefix + (allowDots ? "." + encodedKey : "[" + encodedKey + "]");
-        sideChannel.set(object2, step);
+        sideChannel.set(object3, step);
         var valueSideChannel = getSideChannel();
         valueSideChannel.set(sentinel, sideChannel);
         pushToArray(values, stringify3(
@@ -151237,8 +151237,8 @@ var require_stringify2 = __commonJS({
         strictNullHandling: typeof opts.strictNullHandling === "boolean" ? opts.strictNullHandling : defaults3.strictNullHandling
       };
     };
-    module.exports = function(object2, opts) {
-      var obj = object2;
+    module.exports = function(object3, opts) {
+      var obj = object3;
       var options = normalizeStringifyOptions(opts);
       var objKeys;
       var filter;
@@ -154230,13 +154230,13 @@ var require_stringify3 = __commonJS({
       return typeof v === "string" || typeof v === "number" || typeof v === "boolean" || typeof v === "symbol" || typeof v === "bigint";
     };
     var sentinel = {};
-    var stringify2 = function stringify3(object2, prefix, generateArrayPrefix, commaRoundTrip, allowEmptyArrays, strictNullHandling, skipNulls, encodeDotInKeys, encoder, filter, sort, allowDots, serializeDate, format2, formatter, encodeValuesOnly, charset, sideChannel) {
-      var obj = object2;
+    var stringify2 = function stringify3(object3, prefix, generateArrayPrefix, commaRoundTrip, allowEmptyArrays, strictNullHandling, skipNulls, encodeDotInKeys, encoder, filter, sort, allowDots, serializeDate, format2, formatter, encodeValuesOnly, charset, sideChannel) {
+      var obj = object3;
       var tmpSc = sideChannel;
       var step = 0;
       var findFlag = false;
       while ((tmpSc = tmpSc.get(sentinel)) !== void 0 && !findFlag) {
-        var pos = tmpSc.get(object2);
+        var pos = tmpSc.get(object3);
         step += 1;
         if (typeof pos !== "undefined") {
           if (pos === step) {
@@ -154303,7 +154303,7 @@ var require_stringify3 = __commonJS({
         }
         var encodedKey = allowDots && encodeDotInKeys ? String(key2).replace(/\./g, "%2E") : String(key2);
         var keyPrefix = isArray(obj) ? typeof generateArrayPrefix === "function" ? generateArrayPrefix(adjustedPrefix, encodedKey) : adjustedPrefix : adjustedPrefix + (allowDots ? "." + encodedKey : "[" + encodedKey + "]");
-        sideChannel.set(object2, step);
+        sideChannel.set(object3, step);
         var valueSideChannel = getSideChannel();
         valueSideChannel.set(sentinel, sideChannel);
         pushToArray(values, stringify3(
@@ -154392,8 +154392,8 @@ var require_stringify3 = __commonJS({
         strictNullHandling: typeof opts.strictNullHandling === "boolean" ? opts.strictNullHandling : defaults3.strictNullHandling
       };
     };
-    module.exports = function(object2, opts) {
-      var obj = object2;
+    module.exports = function(object3, opts) {
+      var obj = object3;
       var options = normalizeStringifyOptions(opts);
       var objKeys;
       var filter;
@@ -157509,7 +157509,7 @@ var require_application = __commonJS({
     };
     app.del = deprecate.function(app.delete, "app.del: Use app.delete instead");
     app.render = function render(name2, options, callback) {
-      var cache9 = this.cache;
+      var cache10 = this.cache;
       var done = callback;
       var engines = this.engines;
       var opts = options;
@@ -157528,7 +157528,7 @@ var require_application = __commonJS({
         renderOptions.cache = this.enabled("view cache");
       }
       if (renderOptions.cache) {
-        view = cache9[name2];
+        view = cache10[name2];
       }
       if (!view) {
         var View2 = this.get("view");
@@ -157544,7 +157544,7 @@ var require_application = __commonJS({
           return done(err);
         }
         if (renderOptions.cache) {
-          cache9[name2] = view;
+          cache10[name2] = view;
         }
       }
       tryRender(view, renderOptions, done);
@@ -160874,7 +160874,7 @@ var require_application2 = __commonJS({
     };
     app.del = deprecate.function(app.delete, "app.del: Use app.delete instead");
     app.render = function render(name2, options, callback) {
-      var cache9 = this.cache;
+      var cache10 = this.cache;
       var done = callback;
       var engines = this.engines;
       var opts = options;
@@ -160893,7 +160893,7 @@ var require_application2 = __commonJS({
         renderOptions.cache = this.enabled("view cache");
       }
       if (renderOptions.cache) {
-        view = cache9[name2];
+        view = cache10[name2];
       }
       if (!view) {
         var View2 = this.get("view");
@@ -160909,7 +160909,7 @@ var require_application2 = __commonJS({
           return done(err);
         }
         if (renderOptions.cache) {
-          cache9[name2] = view;
+          cache10[name2] = view;
         }
       }
       tryRender(view, renderOptions, done);
@@ -162178,6 +162178,11 @@ function lakebaseStorageCheck() {
   const database = process.env.PGDATABASE ?? "(unset)";
   const endpoint = process.env.LAKEBASE_ENDPOINT ?? "";
   const name2 = endpoint || database;
+  const facts = {
+    ...endpoint ? { endpoint } : {},
+    ...database !== "(unset)" ? { database } : {},
+    schema: APP_SCHEMA
+  };
   if (snapshot.state === "unavailable") {
     const error48 = snapshot.last_error;
     if (snapshot.access === "denied") {
@@ -162186,6 +162191,7 @@ function lakebaseStorageCheck() {
         kind: "postgres",
         name: name2,
         label: `Lakebase storage \xB7 ${database}`,
+        facts,
         status: "failed",
         detail: `Postgres is answering and REFUSING the app's reads of the ${APP_SCHEMA} schema, so conversation storage is unavailable and the conversations, runs and benchmarks in the app cannot be listed at all. This is a privilege or schema problem, not an outage that will pass: the app's Postgres role has no grant on the schema, which is the state a deployment is in until ${GRANT_HOOK_PATH} has completed. Refused since ${snapshot.since}` + (snapshot.last_ok_at ? `; last successful read ${snapshot.last_ok_at}, so the grant existed and was lost.` : "; no read has ever succeeded, so the grant has most likely never been made."),
         checked_with: error48 ? `${error48.route} (code ${error48.code})` : "app Lakebase pool",
@@ -162207,6 +162213,7 @@ function lakebaseStorageCheck() {
       kind: "postgres",
       name: name2,
       label: `Lakebase storage \xB7 ${database}`,
+      facts,
       status: "failed",
       detail: `The app cannot read its own Postgres store, so conversations, runs and benchmarks cannot be listed and every surface that reads them reports itself unavailable. Unavailable since ${snapshot.since}` + (snapshot.last_ok_at ? `; last successful read ${snapshot.last_ok_at}.` : "; no read has ever succeeded.") + (snapshot.connection_ok_since_failure ? " The endpoint has answered a bare connection check since then, so the network and the credential are fine and this is a privilege or schema problem rather than an outage that will pass." : ""),
       checked_with: error48 ? `${error48.route} (code ${error48.code})` : "app Lakebase pool",
@@ -162228,6 +162235,7 @@ function lakebaseStorageCheck() {
       kind: "postgres",
       name: name2,
       label: `Lakebase storage \xB7 ${database}`,
+      facts,
       status: "ok",
       checked_with: "app Lakebase pool",
       duration_ms: 0,
@@ -162269,6 +162277,7 @@ function lakebaseStorageCheck() {
     kind: "postgres",
     name: name2,
     label: `Lakebase storage \xB7 ${database}`,
+    facts,
     status: "unverified",
     detail: "The app has not read its Postgres store since it started, so its state is unknown.",
     checked_with: "app Lakebase pool",
@@ -162487,6 +162496,403 @@ var init_ops_contract = __esm({
   }
 });
 
+// shared/run-verdict.ts
+function takeawayWhenTablesLanded(output, evidence) {
+  const text21 = output.trim();
+  if (!UNANSWERED_LINE.test(text21)) return output;
+  const held = [evidence, output].filter(Boolean).join("\n");
+  if (/\|.+\|/.test(held)) return TIME_LIMIT_TAKEAWAY;
+  return output;
+}
+function classifiedRunStatusSql(input) {
+  const empty = EMPTY_STAGES_FAILED_SQL.split("trace").join(input.trace);
+  const landed = ANSWER_LANDED_SQL.split("payload").join(input.payload);
+  const synth = bindSynthesisIncompleteSql(input.trace, input.caveats);
+  const prose = PROSE_ONLY_DEGRADED_SQL.split("payload").join(input.payload).split("caveats").join(input.caveats);
+  const incomplete = INCOMPLETE_ANSWER_CAVEAT_SQL.split("caveats").join(input.caveats);
+  const failedStage = `jsonb_path_exists(${input.trace}, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})')`;
+  const partialStage = `jsonb_path_exists(${input.trace}, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})')`;
+  return `CASE
+           WHEN ${empty} THEN 'failed'
+           WHEN ${prose} THEN
+             CASE WHEN ${failedStage} THEN 'failed' ELSE 'partial' END
+           WHEN ${landed} AND ${synth} THEN 'partial'
+           WHEN ${landed} THEN 'complete'
+           WHEN ${failedStage} THEN 'failed'
+           WHEN ${partialStage} THEN 'partial'
+           WHEN ${incomplete} THEN 'partial'
+           ELSE 'complete'
+         END`;
+}
+function bindSynthesisIncompleteSql(trace2, caveats) {
+  return SYNTHESIS_INCOMPLETE_SQL.split("__TRACE__").join(trace2).split("__CAVEATS__").join(caveats);
+}
+var VERDICT_EXEMPT_STAGE_IDS, TIME_LIMIT_TAKEAWAY, UNANSWERED_LINE, WRITER_STOPPED_CAVEAT_SQL, VERDICT_STAGE_EXEMPTION_SQL, EMPTY_STAGES_FAILED_SQL, INCOMPLETE_ANSWER_CAVEAT_SQL, STRUCTURED_EVIDENCE_SQL, ANSWER_LANDED_SQL, PROSE_ONLY_DEGRADED_SQL, SYNTHESIS_INCOMPLETE_SQL, DEADLINE_TRUNCATED_SQL;
+var init_run_verdict = __esm({
+  "shared/run-verdict.ts"() {
+    VERDICT_EXEMPT_STAGE_IDS = ["plot"];
+    TIME_LIMIT_TAKEAWAY = "The run reached its time limit before the answer could be composed.";
+    UNANSWERED_LINE = /^this question was not answered\.?$/i;
+    WRITER_STOPPED_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(__CAVEATS__, '[]'::jsonb)) c WHERE c ~* 'was not reachable|run limit was reached|APITimeoutError|Request timed out|time limit before the answer could be composed|time limit before any data was measured')`;
+    VERDICT_STAGE_EXEMPTION_SQL = VERDICT_EXEMPT_STAGE_IDS.map(
+      (id) => `&& @.id != "${id}"`
+    ).join(" ");
+    EMPTY_STAGES_FAILED_SQL = `(jsonb_typeof(trace->'stages') IS DISTINCT FROM 'array' OR jsonb_array_length(trace->'stages') = 0)`;
+    INCOMPLETE_ANSWER_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable|this answer is degraded|no structured result|without a structured result')`;
+    STRUCTURED_EVIDENCE_SQL = `(
+  (jsonb_typeof(payload->'figures') = 'array' AND jsonb_array_length(payload->'figures') > 0)
+  OR COALESCE(payload->>'narrative', '') ~ '\\|'
+  OR COALESCE(payload->>'content', '') ~ '\\|'
+)`;
+    ANSWER_LANDED_SQL = `(
+  ${STRUCTURED_EVIDENCE_SQL}
+  OR COALESCE(payload->>'narrative', '') ~* 'declared tables'
+  OR COALESCE(payload->>'content', '') ~* 'declared tables'
+  OR (
+    length(trim(BOTH FROM COALESCE(payload->>'narrative', '') || ' ' || COALESCE(payload->>'content', ''))) >= 40
+    AND COALESCE(payload->>'narrative', '') !~* '^this question was not answered'
+    AND COALESCE(payload->>'content', '') !~* '^this question was not answered'
+  )
+)`;
+    PROSE_ONLY_DEGRADED_SQL = `(
+  EXISTS (
+    SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c
+    WHERE c ~* 'this answer is degraded' AND c ~* 'structured result'
+  )
+  AND NOT ${STRUCTURED_EVIDENCE_SQL}
+)`;
+    SYNTHESIS_INCOMPLETE_SQL = `(
+  jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && @.status == "failed")')
+  OR (
+    jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && @.status == "partial")')
+    AND ${WRITER_STOPPED_CAVEAT_SQL}
+  )
+)`;
+    DEADLINE_TRUNCATED_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early')`;
+  }
+});
+
+// server/lib/ops-traffic.ts
+function evidenceCtes(start, end) {
+  return `answers AS (
+    SELECT m.id AS message_id,
+           COALESCE(NULLIF(m.trace_id, ''), NULLIF(m.response_json->'trace'->>'id', '')) AS trace_id,
+           ${answerStatus} AS answer_status,
+           m.response_json->'trace' AS trace,
+           m.created_at
+    FROM ${APP_SCHEMA}.messages m
+    WHERE m.role = 'assistant'
+      AND jsonb_typeof(m.response_json) = 'object'
+  ),
+  ledger_population AS (
+    SELECT 'run:' || r.run_id AS event_id,
+           r.run_id,
+           r.created_at AS event_at,
+           CASE
+             WHEN r.state = 'REFUSED' THEN 'REFUSED'
+             WHEN r.state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED') THEN r.state
+             WHEN a.answer_status = 'failed' THEN 'FAILED'
+             ELSE r.state
+           END AS state,
+           CASE
+             WHEN COALESCE(r.terminal_code, '') <> '' THEN r.terminal_code
+             WHEN r.state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED')
+               THEN 'UNKNOWN_FAILURE_CAUSE'
+             WHEN r.state = 'REFUSED' THEN 'UNKNOWN_REFUSAL_CAUSE'
+             WHEN a.answer_status = 'failed' THEN 'UNKNOWN_STORED_ANSWER_FAILURE'
+             ELSE ''
+           END AS cause,
+           a.trace
+    FROM ${APP_SCHEMA}.runs r
+    LEFT JOIN LATERAL (
+      SELECT candidate.trace, candidate.answer_status
+      FROM answers candidate
+      WHERE candidate.message_id = r.terminal_message_id
+         OR (COALESCE(r.trace_id, '') <> '' AND candidate.trace_id = r.trace_id)
+      ORDER BY (candidate.message_id = r.terminal_message_id) DESC, candidate.created_at DESC
+      LIMIT 1
+    ) a ON TRUE
+    WHERE r.created_at >= ${start}
+      AND r.created_at < ${end}
+  ),
+  legacy_population AS (
+    SELECT 'message:' || a.message_id AS event_id,
+           ''::text AS run_id,
+           a.created_at AS event_at,
+           CASE WHEN a.answer_status = 'failed' THEN 'FAILED' ELSE 'SUCCEEDED' END AS state,
+           CASE WHEN a.answer_status = 'failed' THEN 'UNKNOWN_STORED_ANSWER_FAILURE' ELSE '' END AS cause,
+           a.trace
+    FROM answers a
+    WHERE a.created_at >= ${start}
+      AND a.created_at < ${end}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM ${APP_SCHEMA}.runs r
+        WHERE r.terminal_message_id = a.message_id
+           OR (COALESCE(r.trace_id, '') <> '' AND r.trace_id = a.trace_id)
+      )
+  ),
+  population AS (
+    SELECT * FROM ledger_population
+    UNION ALL
+    SELECT * FROM legacy_population
+  ),
+  answer_tool_events AS (
+    SELECT p.event_id,
+           COALESCE(NULLIF(stage.value->>'id', ''), 'answer-stage:' || stage.ordinality::text) AS call_id,
+           COALESCE(
+             NULLIF(stage.value->>'name', ''),
+             NULLIF(regexp_replace(stage.value->>'id', '^step-[0-9]+-[0-9]+-', ''), ''),
+             'Unknown tool'
+           ) AS tool,
+           CASE WHEN COALESCE(stage.value->>'calls', '') ~ '^[0-9]+$'
+                THEN (stage.value->>'calls')::int ELSE 1 END AS calls,
+           1 AS source_priority
+    FROM population p
+    CROSS JOIN LATERAL jsonb_array_elements(
+      CASE WHEN jsonb_typeof(p.trace->'stages') = 'array' THEN p.trace->'stages' ELSE '[]'::jsonb END
+    ) WITH ORDINALITY AS stage(value, ordinality)
+    WHERE stage.value->>'kind' = 'tool'
+  ),
+  durable_tool_events AS (
+    SELECT p.event_id,
+           COALESCE(NULLIF(e.payload->>'id', ''), 'run-event:' || e.seq::text) AS call_id,
+           COALESCE(
+             NULLIF(e.payload->>'name', ''),
+             NULLIF(regexp_replace(e.payload->>'id', '^step-[0-9]+-[0-9]+-', ''), ''),
+             NULLIF(e.stage, ''),
+             'Unknown tool'
+           ) AS tool,
+           CASE WHEN COALESCE(e.payload->>'calls', '') ~ '^[0-9]+$'
+                THEN (e.payload->>'calls')::int ELSE 1 END AS calls,
+           2 AS source_priority
+    FROM population p
+    JOIN ${APP_SCHEMA}.run_events e ON e.run_id = p.run_id
+    WHERE e.event_type = 'stage'
+      AND e.payload->>'kind' = 'tool'
+  ),
+  deduped_tool_events AS (
+    SELECT DISTINCT ON (event_id, call_id) event_id, call_id, tool, calls
+    FROM (
+      SELECT * FROM answer_tool_events
+      UNION ALL
+      SELECT * FROM durable_tool_events
+    ) evidence
+    ORDER BY event_id, call_id, source_priority DESC
+  )`;
+}
+function metricSelect(population, tools) {
+  return `SELECT 'population' AS kind, '' AS key, COUNT(*)::bigint AS count
+  FROM ${population}
+  UNION ALL
+  SELECT 'failure', cause, COUNT(*)::bigint
+  FROM ${population}
+  WHERE state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED')
+  GROUP BY cause
+  UNION ALL
+  SELECT 'refusal', cause, COUNT(*)::bigint
+  FROM ${population}
+  WHERE state = 'REFUSED'
+  GROUP BY cause
+  UNION ALL
+  SELECT 'tool', tool, SUM(calls)::bigint
+  FROM ${tools}
+  GROUP BY tool`;
+}
+function scalar(value) {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "bigint") return String(value);
+  return "";
+}
+function label(kind, key2) {
+  if (key2 === "UNKNOWN_FAILURE_CAUSE") return "Unknown failure cause";
+  if (key2 === "UNKNOWN_REFUSAL_CAUSE") return "Unknown refusal cause";
+  if (key2 === "UNKNOWN_STORED_ANSWER_FAILURE") return "Unknown historical answer failure";
+  if (!key2) return kind === "tool" ? "Unknown tool" : "Unknown cause";
+  return key2;
+}
+function sortedBars(values, kind) {
+  return [...values].map(([key2, count4]) => ({ key: key2, label: label(kind, key2), count: count4 })).sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
+}
+function readTrafficBreakdowns(rows, input = {}) {
+  const failures = /* @__PURE__ */ new Map();
+  const refusals = /* @__PURE__ */ new Map();
+  const tools = /* @__PURE__ */ new Map();
+  let population = null;
+  let malformed = false;
+  for (const row2 of rows) {
+    const kind = scalar(row2.kind);
+    const key2 = scalar(row2.key);
+    const parsed = Number(scalar(row2.count));
+    if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+      malformed = true;
+      continue;
+    }
+    if (kind === "population") {
+      population = parsed;
+      continue;
+    }
+    const target = kind === "failure" ? failures : kind === "refusal" ? refusals : kind === "tool" ? tools : null;
+    if (!target) {
+      malformed = true;
+      continue;
+    }
+    const named = key2 || (kind === "tool" ? "Unknown tool" : "Unknown cause");
+    target.set(named, (target.get(named) ?? 0) + parsed);
+  }
+  const requested = input.state ?? "complete";
+  const state = population === null ? "unavailable" : malformed && requested === "complete" ? "partial" : requested;
+  const reason = input.reason || (population === null ? "The run population row was missing, so zero was not established." : malformed ? "One or more aggregate rows were malformed and were withheld." : "");
+  const coverage2 = { state, coveredRuns: population ?? 0, reason };
+  return {
+    runsInRange: population ?? 0,
+    failuresByCause: sortedBars(failures, "failure"),
+    refusalsByCause: sortedBars(refusals, "refusal"),
+    toolCalls: sortedBars(tools, "tool"),
+    outcomesCoverage: { ...coverage2 },
+    toolCallsCoverage: { ...coverage2 }
+  };
+}
+var TRAFFIC_DAILY_ROLLUP_TABLE, TRAFFIC_DAILY_ROLLUP_DDL, answerStatus, bounds, endBounds, rawEvidence, RAW_TRAFFIC_BREAKDOWNS_QUERY, TRAFFIC_BREAKDOWNS_QUERY, LEGACY_TRAFFIC_BREAKDOWNS_QUERY, rollupStart, rollupEnd, ROLLUP_TRAFFIC_DAY_QUERY;
+var init_ops_traffic = __esm({
+  "server/lib/ops-traffic.ts"() {
+    init_app_schema();
+    init_run_verdict();
+    TRAFFIC_DAILY_ROLLUP_TABLE = appTable("traffic_daily_rollups");
+    TRAFFIC_DAILY_ROLLUP_DDL = `CREATE TABLE IF NOT EXISTS ${TRAFFIC_DAILY_ROLLUP_TABLE} (
+  day DATE PRIMARY KEY,
+  run_count INTEGER NOT NULL,
+  failure_causes JSONB NOT NULL DEFAULT '{}'::jsonb,
+  refusal_causes JSONB NOT NULL DEFAULT '{}'::jsonb,
+  tool_calls JSONB NOT NULL DEFAULT '{}'::jsonb,
+  completed_at TIMESTAMPTZ NOT NULL,
+  CHECK (run_count >= 0)
+)`;
+    answerStatus = classifiedRunStatusSql({
+      trace: "m.response_json->'trace'",
+      payload: "m.response_json",
+      caveats: "m.response_json->'caveats'"
+    });
+    bounds = `(($2::date::timestamp) AT TIME ZONE $1)`;
+    endBounds = `((($3::date + 1)::timestamp) AT TIME ZONE $1)`;
+    rawEvidence = evidenceCtes(bounds, endBounds);
+    RAW_TRAFFIC_BREAKDOWNS_QUERY = `WITH ${rawEvidence}
+${metricSelect("population", "deduped_tool_events")}
+ORDER BY 1, 3 DESC, 2`;
+    TRAFFIC_BREAKDOWNS_QUERY = `WITH ${rawEvidence},
+  selected_rollups AS (
+    SELECT *
+    FROM ${TRAFFIC_DAILY_ROLLUP_TABLE}
+    WHERE $1 = 'UTC' AND day BETWEEN $2::date AND $3::date
+  ),
+  selected_population AS (
+    SELECT p.*
+    FROM population p
+    WHERE NOT EXISTS (
+      SELECT 1 FROM selected_rollups rolled
+      WHERE rolled.day = (p.event_at AT TIME ZONE 'UTC')::date
+    )
+  ),
+  selected_tools AS (
+    SELECT t.*
+    FROM deduped_tool_events t
+    JOIN population p USING (event_id)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM selected_rollups rolled
+      WHERE rolled.day = (p.event_at AT TIME ZONE 'UTC')::date
+    )
+  ),
+  raw_metrics AS (
+    ${metricSelect("selected_population", "selected_tools")}
+  ),
+  rolled_metrics AS (
+    SELECT 'population' AS kind, '' AS key, SUM(run_count)::bigint AS count FROM selected_rollups
+    UNION ALL
+    SELECT 'failure', item.key, SUM(item.value::bigint)
+    FROM selected_rollups, LATERAL jsonb_each_text(failure_causes) item
+    GROUP BY item.key
+    UNION ALL
+    SELECT 'refusal', item.key, SUM(item.value::bigint)
+    FROM selected_rollups, LATERAL jsonb_each_text(refusal_causes) item
+    GROUP BY item.key
+    UNION ALL
+    SELECT 'tool', item.key, SUM(item.value::bigint)
+    FROM selected_rollups, LATERAL jsonb_each_text(tool_calls) item
+    GROUP BY item.key
+  )
+SELECT kind, key, SUM(count)::bigint AS count
+FROM (
+  SELECT * FROM raw_metrics
+  UNION ALL
+  SELECT * FROM rolled_metrics
+) combined
+GROUP BY kind, key
+ORDER BY 1, 3 DESC, 2`;
+    LEGACY_TRAFFIC_BREAKDOWNS_QUERY = `WITH answers AS (
+  SELECT m.id AS event_id,
+         ${answerStatus} AS answer_status,
+         m.response_json->'trace' AS trace
+  FROM ${APP_SCHEMA}.messages m
+  WHERE m.role = 'assistant'
+    AND m.created_at >= ${bounds}
+    AND m.created_at < ${endBounds}
+    AND jsonb_typeof(m.response_json) = 'object'
+),
+tools AS (
+  SELECT a.event_id,
+         COALESCE(NULLIF(stage.value->>'id', ''), 'answer-stage:' || stage.ordinality::text) AS call_id,
+         COALESCE(
+           NULLIF(stage.value->>'name', ''),
+           NULLIF(regexp_replace(stage.value->>'id', '^step-[0-9]+-[0-9]+-', ''), ''),
+           'Unknown tool'
+         ) AS tool,
+         CASE WHEN COALESCE(stage.value->>'calls', '') ~ '^[0-9]+$'
+              THEN (stage.value->>'calls')::int ELSE 1 END AS calls
+  FROM answers a
+  CROSS JOIN LATERAL jsonb_array_elements(
+    CASE WHEN jsonb_typeof(a.trace->'stages') = 'array' THEN a.trace->'stages' ELSE '[]'::jsonb END
+  ) WITH ORDINALITY AS stage(value, ordinality)
+  WHERE stage.value->>'kind' = 'tool'
+)
+SELECT 'population' AS kind, '' AS key, COUNT(*)::bigint AS count FROM answers
+UNION ALL
+SELECT 'failure', 'UNKNOWN_STORED_ANSWER_FAILURE', COUNT(*)::bigint
+FROM answers WHERE answer_status = 'failed'
+UNION ALL
+SELECT 'tool', tool, SUM(calls)::bigint FROM tools GROUP BY tool
+ORDER BY 1, 3 DESC, 2`;
+    rollupStart = `($1::date::timestamp AT TIME ZONE 'UTC')`;
+    rollupEnd = `(($1::date + 1)::timestamp AT TIME ZONE 'UTC')`;
+    ROLLUP_TRAFFIC_DAY_QUERY = `WITH ${evidenceCtes(rollupStart, rollupEnd)},
+failure_counts AS (
+  SELECT cause, COUNT(*)::int AS count
+  FROM population
+  WHERE state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED')
+  GROUP BY cause
+),
+refusal_counts AS (
+  SELECT cause, COUNT(*)::int AS count FROM population WHERE state = 'REFUSED' GROUP BY cause
+),
+tool_counts AS (
+  SELECT tool, SUM(calls)::int AS count FROM deduped_tool_events GROUP BY tool
+)
+INSERT INTO ${TRAFFIC_DAILY_ROLLUP_TABLE}
+  (day, run_count, failure_causes, refusal_causes, tool_calls, completed_at)
+SELECT $1::date,
+       (SELECT COUNT(*)::int FROM population),
+       COALESCE((SELECT jsonb_object_agg(cause, count) FROM failure_counts), '{}'::jsonb),
+       COALESCE((SELECT jsonb_object_agg(cause, count) FROM refusal_counts), '{}'::jsonb),
+       COALESCE((SELECT jsonb_object_agg(tool, count) FROM tool_counts), '{}'::jsonb),
+       NOW()
+ON CONFLICT (day) DO UPDATE SET
+  run_count = EXCLUDED.run_count,
+  failure_causes = EXCLUDED.failure_causes,
+  refusal_causes = EXCLUDED.refusal_causes,
+  tool_calls = EXCLUDED.tool_calls,
+  completed_at = EXCLUDED.completed_at`;
+  }
+});
+
 // server/lib/telemetry-retention.ts
 function dayText(value) {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
@@ -162564,6 +162970,7 @@ function runTelemetryHousekeeping(lakebase2, options = {}) {
         await inTransaction(connection, async () => {
           await connection.query(ROLLUP_REQUEST_LATENCY_DAY_QUERY, [day]);
           await connection.query(ROLLUP_APP_ACTIVITY_DAY_QUERY, [day]);
+          await connection.query(ROLLUP_TRAFFIC_DAY_QUERY, [day]);
           await connection.query(MARK_ROLLUP_DAY_QUERY, [day]);
         });
         rolledDays.push(day);
@@ -162623,10 +163030,11 @@ function startTelemetryHousekeeping(lakebase2, intervalMs = TELEMETRY_HOUSEKEEPI
   stopActiveScheduler = stop;
   return stop;
 }
-var RAW_TELEMETRY_RETENTION_DAYS, MAX_ROLLUP_DAYS_PER_RUN, MAX_DELETE_BATCHES_PER_RUN, DELETE_BATCH_SIZE, TELEMETRY_HOUSEKEEPING_INTERVAL_MS, RAW_REQUEST_LATENCY_TABLE, RAW_APP_ACTIVITY_TABLE, REQUEST_LATENCY_ROLLUP_TABLE, APP_ACTIVITY_ROLLUP_TABLE, TELEMETRY_ROLLUP_DAYS_TABLE, TELEMETRY_HOUSEKEEPING_STATE_TABLE, REQUEST_LATENCY_ROLLUP_DDL, APP_ACTIVITY_ROLLUP_DDL, TELEMETRY_ROLLUP_DAYS_DDL, TELEMETRY_HOUSEKEEPING_STATE_DDL, APP_ACTIVITY_RETENTION_INDEX_DDL, RUNS_CREATED_AT_INDEX_DDL, TELEMETRY_ROLLUP_MIGRATION_DDL, TELEMETRY_ADVISORY_LOCK_KEYS, CLAIM_TELEMETRY_LOCK_QUERY, RELEASE_TELEMETRY_LOCK_QUERY, LAST_HOUSEKEEPING_DAY_QUERY, PENDING_ROLLUP_DAYS_QUERY, ROLLUP_REQUEST_LATENCY_DAY_QUERY, ROLLUP_APP_ACTIVITY_DAY_QUERY, MARK_ROLLUP_DAY_QUERY, DELETE_REQUEST_LATENCY_BATCH_QUERY, DELETE_APP_ACTIVITY_BATCH_QUERY, MARK_HOUSEKEEPING_COMPLETE_QUERY, activeHousekeeping, stopActiveScheduler;
+var RAW_TELEMETRY_RETENTION_DAYS, MAX_ROLLUP_DAYS_PER_RUN, MAX_DELETE_BATCHES_PER_RUN, DELETE_BATCH_SIZE, TELEMETRY_HOUSEKEEPING_INTERVAL_MS, RAW_REQUEST_LATENCY_TABLE, RAW_APP_ACTIVITY_TABLE, REQUEST_LATENCY_ROLLUP_TABLE, APP_ACTIVITY_ROLLUP_TABLE, TELEMETRY_ROLLUP_DAYS_TABLE, TELEMETRY_HOUSEKEEPING_STATE_TABLE, REQUEST_LATENCY_ROLLUP_DDL, APP_ACTIVITY_ROLLUP_DDL, TELEMETRY_ROLLUP_DAYS_DDL, TELEMETRY_HOUSEKEEPING_STATE_DDL, APP_ACTIVITY_RETENTION_INDEX_DDL, RUNS_CREATED_AT_INDEX_DDL, TELEMETRY_ROLLUP_MIGRATION_DDL, TRAFFIC_ROLLUP_MIGRATION_DDL, TELEMETRY_ADVISORY_LOCK_KEYS, CLAIM_TELEMETRY_LOCK_QUERY, RELEASE_TELEMETRY_LOCK_QUERY, LAST_HOUSEKEEPING_DAY_QUERY, PENDING_ROLLUP_DAYS_QUERY, ROLLUP_REQUEST_LATENCY_DAY_QUERY, ROLLUP_APP_ACTIVITY_DAY_QUERY, MARK_ROLLUP_DAY_QUERY, DELETE_REQUEST_LATENCY_BATCH_QUERY, DELETE_APP_ACTIVITY_BATCH_QUERY, MARK_HOUSEKEEPING_COMPLETE_QUERY, activeHousekeeping, stopActiveScheduler;
 var init_telemetry_retention = __esm({
   "server/lib/telemetry-retention.ts"() {
     init_app_schema();
+    init_ops_traffic();
     RAW_TELEMETRY_RETENTION_DAYS = 90;
     MAX_ROLLUP_DAYS_PER_RUN = 31;
     MAX_DELETE_BATCHES_PER_RUN = 20;
@@ -162688,6 +163096,7 @@ var init_telemetry_retention = __esm({
       APP_ACTIVITY_RETENTION_INDEX_DDL,
       RUNS_CREATED_AT_INDEX_DDL
     ];
+    TRAFFIC_ROLLUP_MIGRATION_DDL = [TRAFFIC_DAILY_ROLLUP_DDL];
     TELEMETRY_ADVISORY_LOCK_KEYS = [5261633, 5522764];
     CLAIM_TELEMETRY_LOCK_QUERY = "SELECT pg_try_advisory_lock($1, $2) AS acquired";
     RELEASE_TELEMETRY_LOCK_QUERY = "SELECT pg_advisory_unlock($1, $2) AS released";
@@ -162698,6 +163107,8 @@ var init_telemetry_retention = __esm({
   SELECT LEAST(
     (SELECT MIN((recorded_at AT TIME ZONE 'UTC')::date) FROM ${RAW_REQUEST_LATENCY_TABLE}),
     (SELECT MIN((active_minute AT TIME ZONE 'UTC')::date) FROM ${RAW_APP_ACTIVITY_TABLE}),
+    (SELECT MIN((created_at AT TIME ZONE 'UTC')::date) FROM ${appTable("runs")}),
+    (SELECT MIN((created_at AT TIME ZONE 'UTC')::date) FROM ${appTable("messages")} WHERE role = 'assistant'),
     (SELECT MIN(day) FROM ${TELEMETRY_ROLLUP_DAYS_TABLE})
   ) AS day
 ),
@@ -162711,7 +163122,8 @@ calendar AS (
 SELECT calendar.day
 FROM calendar
 LEFT JOIN ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled USING (day)
-WHERE rolled.day IS NULL
+LEFT JOIN ${TRAFFIC_DAILY_ROLLUP_TABLE} traffic USING (day)
+WHERE rolled.day IS NULL OR traffic.day IS NULL
 ORDER BY calendar.day
 LIMIT $1`;
     ROLLUP_REQUEST_LATENCY_DAY_QUERY = `INSERT INTO ${REQUEST_LATENCY_ROLLUP_TABLE}
@@ -162927,7 +163339,7 @@ function requestLatencyRecorder(store, { flushMs = FLUSH_MS, maxBuffered = MAX_B
     });
     return activeFlush;
   };
-  const record2 = (span) => {
+  const record3 = (span) => {
     buffered.push(span);
     if (buffered.length >= maxBuffered) {
       void flush();
@@ -162946,7 +163358,7 @@ function requestLatencyRecorder(store, { flushMs = FLUSH_MS, maxBuffered = MAX_B
       const path21 = matchedRoutePath(req);
       if (!path21.startsWith("/api/")) return;
       const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
-      record2([req.method.toUpperCase(), `${req.baseUrl || ""}${path21}`, res.statusCode, durationMs]);
+      record3([req.method.toUpperCase(), `${req.baseUrl || ""}${path21}`, res.statusCode, durationMs]);
     });
     next();
   };
@@ -163696,6 +164108,7 @@ var init_migrations = __esm({
     init_app_activity();
     init_app_session();
     init_telemetry_retention();
+    init_ops_traffic();
     BASELINE_VERSION = 1;
     BASELINE_NAME = "baseline schema";
     LATER_MIGRATIONS = [
@@ -164312,6 +164725,64 @@ var init_migrations = __esm({
          ON ${APP_SCHEMA}.messages (conversation_id, created_at DESC, id DESC)`
         ],
         down: [`DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.messages_conversation_keyset_idx`]
+      },
+      {
+        version: 26,
+        name: "recorded run persona",
+        /**
+         * Snapshots the human-facing persona on the run itself. A later assignment
+         * or rename must not rewrite what an earlier question actually ran as.
+         * Null is intentional for OAuth runs and all history from before this
+         * column existed; those conversations are "No persona" in the rail.
+         */
+        statements: [
+          `ALTER TABLE ${APP_SCHEMA}.runs
+         ADD COLUMN IF NOT EXISTS persona_id TEXT,
+         ADD COLUMN IF NOT EXISTS persona_name TEXT`
+        ],
+        down: [
+          `ALTER TABLE ${APP_SCHEMA}.runs DROP COLUMN IF EXISTS persona_name`,
+          `ALTER TABLE ${APP_SCHEMA}.runs DROP COLUMN IF EXISTS persona_id`
+        ]
+      },
+      {
+        version: 27,
+        name: "traffic evidence rollups",
+        /**
+         * Version 23 preserved request latency and active minutes but omitted the
+         * outcome causes and named tool calls shown by Traffic. This new table
+         * preserves those aggregates without altering or deleting raw history.
+         */
+        statements: TRAFFIC_ROLLUP_MIGRATION_DDL,
+        down: [`DROP TABLE IF EXISTS ${TRAFFIC_DAILY_ROLLUP_TABLE}`]
+      },
+      {
+        version: 28,
+        name: "versioned app settings",
+        /**
+         * Existing JSON documents keep their values byte-for-byte. Revision 1 means
+         * "the row predates conflict protection"; no default or build value is
+         * written into either document. Experimental settings start with no row,
+         * so first boot reads source defaults without turning startup into a write.
+         */
+        statements: [
+          `ALTER TABLE ${APP_SCHEMA}.runtime_settings
+         ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 1`,
+          `ALTER TABLE ${APP_SCHEMA}.benchmark_settings
+         ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 1`,
+          `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.experimental_settings (
+         id TEXT PRIMARY KEY,
+         settings JSONB NOT NULL,
+         revision BIGINT NOT NULL DEFAULT 1,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`
+        ],
+        down: [
+          `DROP TABLE IF EXISTS ${APP_SCHEMA}.experimental_settings`,
+          `ALTER TABLE ${APP_SCHEMA}.benchmark_settings DROP COLUMN IF EXISTS revision`,
+          `ALTER TABLE ${APP_SCHEMA}.runtime_settings DROP COLUMN IF EXISTS revision`
+        ]
       }
     ];
   }
@@ -164346,10 +164817,10 @@ function describeSql(sql3) {
   const dropped = /^DROP\s+INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+EXISTS\s+)?(?:\w+\.)?(\w+)/i.exec(collapsed);
   if (dropped) return `DROP INDEX ${dropped[1]}`;
   const verb = collapsed.split(" ", 1)[0]?.toUpperCase() ?? "QUERY";
-  const object2 = /(?:FROM|INTO|UPDATE|TABLE(?:\s+IF\s+(?:NOT\s+)?EXISTS)?|SCHEMA(?:\s+IF\s+(?:NOT\s+)?EXISTS)?)\s+(\w+(?:\.\w+)?)/i.exec(
+  const object3 = /(?:FROM|INTO|UPDATE|TABLE(?:\s+IF\s+(?:NOT\s+)?EXISTS)?|SCHEMA(?:\s+IF\s+(?:NOT\s+)?EXISTS)?)\s+(\w+(?:\.\w+)?)/i.exec(
     collapsed
   )?.[1];
-  return object2 ? `${verb} ${object2}` : `${verb} statement`;
+  return object3 ? `${verb} ${object3}` : `${verb} statement`;
 }
 async function schemaNames(client, sql3, params, column) {
   try {
@@ -164734,42 +165205,42 @@ function unityCatalogPath(name2, part, segment = "") {
   const parts = name2.trim().split(".").filter((piece) => piece.length > 0);
   return parts.length === 3 ? `/explore/data/${segment}${parts.map(part).join("/")}` : null;
 }
-function workspacePath(object2) {
+function workspacePath(object3) {
   const part = (value) => encodeURIComponent(value.trim());
-  switch (object2.kind) {
+  switch (object3.kind) {
     case "serving-endpoint":
-      return object2.name.trim() ? `/ml/endpoints/${part(object2.name)}` : null;
+      return object3.name.trim() ? `/ml/endpoints/${part(object3.name)}` : null;
     case "genie-space":
-      return object2.spaceId.trim() ? `/genie/rooms/${part(object2.spaceId)}` : null;
+      return object3.spaceId.trim() ? `/genie/rooms/${part(object3.spaceId)}` : null;
     case "sql-warehouse":
-      return object2.warehouseId.trim() ? `/sql/warehouses/${part(object2.warehouseId)}` : null;
+      return object3.warehouseId.trim() ? `/sql/warehouses/${part(object3.warehouseId)}` : null;
     case "catalog":
-      return object2.catalog.trim() ? `/explore/data/${part(object2.catalog)}` : null;
+      return object3.catalog.trim() ? `/explore/data/${part(object3.catalog)}` : null;
     case "schema":
-      return object2.catalog.trim() && object2.schema.trim() ? `/explore/data/${part(object2.catalog)}/${part(object2.schema)}` : null;
+      return object3.catalog.trim() && object3.schema.trim() ? `/explore/data/${part(object3.catalog)}/${part(object3.schema)}` : null;
     case "experiment":
-      return object2.experimentId.trim() ? `/ml/experiments/${part(object2.experimentId)}` : null;
+      return object3.experimentId.trim() ? `/ml/experiments/${part(object3.experimentId)}` : null;
     case "vector-index":
-      return unityCatalogPath(object2.index, part);
+      return unityCatalogPath(object3.index, part);
     case "table":
-      return unityCatalogPath(object2.table, part);
+      return unityCatalogPath(object3.table, part);
     case "registered-model":
-      return unityCatalogPath(object2.model, part, "models/");
+      return unityCatalogPath(object3.model, part, "models/");
     case "app":
-      return object2.name.trim() ? `/apps/${part(object2.name)}` : null;
+      return object3.name.trim() ? `/apps/${part(object3.name)}` : null;
     case "job":
-      return object2.jobId.trim() ? `/jobs/${part(object2.jobId)}` : null;
+      return object3.jobId.trim() ? `/jobs/${part(object3.jobId)}` : null;
     case "model-version": {
-      const model = unityCatalogPath(object2.model, part, "models/");
-      const version4 = object2.version.trim();
+      const model = unityCatalogPath(object3.model, part, "models/");
+      const version4 = object3.version.trim();
       return model && version4 ? `${model}/version/${part(version4)}` : model;
     }
   }
 }
-function databricksLink(host2, object2) {
+function databricksLink(host2, object3) {
   const base = normalizeWorkspaceHost(host2);
   if (!base) return null;
-  const path21 = workspacePath(object2);
+  const path21 = workspacePath(object3);
   return path21 ? `${base}${path21}` : null;
 }
 var init_databricks_links = __esm({
@@ -164807,10 +165278,10 @@ function servingMlflowTraceId(payload) {
 }
 function servingTraceCandidates(payload) {
   if (!payload || typeof payload !== "object") return [];
-  const record2 = payload;
-  const buckets = [record2.custom_outputs, record2.databricks_output, record2];
+  const record3 = payload;
+  const buckets = [record3.custom_outputs, record3.databricks_output, record3];
   for (const key2 of ["data", "response", "result", "body"]) {
-    const nested = record2[key2];
+    const nested = record3[key2];
     if (nested && typeof nested === "object") {
       const inner = nested;
       buckets.push(inner.custom_outputs, inner.databricks_output, inner);
@@ -164926,82 +165397,6 @@ var init_repair_conversation_titles = __esm({
      AND c.title <> m.content
      AND m.content LIKE c.title || '%'
    ORDER BY c.id, m.created_at ASC`;
-  }
-});
-
-// shared/run-verdict.ts
-function takeawayWhenTablesLanded(output, evidence) {
-  const text21 = output.trim();
-  if (!UNANSWERED_LINE.test(text21)) return output;
-  const held = [evidence, output].filter(Boolean).join("\n");
-  if (/\|.+\|/.test(held)) return TIME_LIMIT_TAKEAWAY;
-  return output;
-}
-function classifiedRunStatusSql(input) {
-  const empty = EMPTY_STAGES_FAILED_SQL.split("trace").join(input.trace);
-  const landed = ANSWER_LANDED_SQL.split("payload").join(input.payload);
-  const synth = bindSynthesisIncompleteSql(input.trace, input.caveats);
-  const prose = PROSE_ONLY_DEGRADED_SQL.split("payload").join(input.payload).split("caveats").join(input.caveats);
-  const incomplete = INCOMPLETE_ANSWER_CAVEAT_SQL.split("caveats").join(input.caveats);
-  const failedStage = `jsonb_path_exists(${input.trace}, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})')`;
-  const partialStage = `jsonb_path_exists(${input.trace}, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})')`;
-  return `CASE
-           WHEN ${empty} THEN 'failed'
-           WHEN ${prose} THEN
-             CASE WHEN ${failedStage} THEN 'failed' ELSE 'partial' END
-           WHEN ${landed} AND ${synth} THEN 'partial'
-           WHEN ${landed} THEN 'complete'
-           WHEN ${failedStage} THEN 'failed'
-           WHEN ${partialStage} THEN 'partial'
-           WHEN ${incomplete} THEN 'partial'
-           ELSE 'complete'
-         END`;
-}
-function bindSynthesisIncompleteSql(trace2, caveats) {
-  return SYNTHESIS_INCOMPLETE_SQL.split("__TRACE__").join(trace2).split("__CAVEATS__").join(caveats);
-}
-var VERDICT_EXEMPT_STAGE_IDS, TIME_LIMIT_TAKEAWAY, UNANSWERED_LINE, WRITER_STOPPED_CAVEAT_SQL, VERDICT_STAGE_EXEMPTION_SQL, EMPTY_STAGES_FAILED_SQL, INCOMPLETE_ANSWER_CAVEAT_SQL, STRUCTURED_EVIDENCE_SQL, ANSWER_LANDED_SQL, PROSE_ONLY_DEGRADED_SQL, SYNTHESIS_INCOMPLETE_SQL, DEADLINE_TRUNCATED_SQL;
-var init_run_verdict = __esm({
-  "shared/run-verdict.ts"() {
-    VERDICT_EXEMPT_STAGE_IDS = ["plot"];
-    TIME_LIMIT_TAKEAWAY = "The run reached its time limit before the answer could be composed.";
-    UNANSWERED_LINE = /^this question was not answered\.?$/i;
-    WRITER_STOPPED_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(__CAVEATS__, '[]'::jsonb)) c WHERE c ~* 'was not reachable|run limit was reached|APITimeoutError|Request timed out|time limit before the answer could be composed|time limit before any data was measured')`;
-    VERDICT_STAGE_EXEMPTION_SQL = VERDICT_EXEMPT_STAGE_IDS.map(
-      (id) => `&& @.id != "${id}"`
-    ).join(" ");
-    EMPTY_STAGES_FAILED_SQL = `(jsonb_typeof(trace->'stages') IS DISTINCT FROM 'array' OR jsonb_array_length(trace->'stages') = 0)`;
-    INCOMPLETE_ANSWER_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable|this answer is degraded|no structured result|without a structured result')`;
-    STRUCTURED_EVIDENCE_SQL = `(
-  (jsonb_typeof(payload->'figures') = 'array' AND jsonb_array_length(payload->'figures') > 0)
-  OR COALESCE(payload->>'narrative', '') ~ '\\|'
-  OR COALESCE(payload->>'content', '') ~ '\\|'
-)`;
-    ANSWER_LANDED_SQL = `(
-  ${STRUCTURED_EVIDENCE_SQL}
-  OR COALESCE(payload->>'narrative', '') ~* 'declared tables'
-  OR COALESCE(payload->>'content', '') ~* 'declared tables'
-  OR (
-    length(trim(BOTH FROM COALESCE(payload->>'narrative', '') || ' ' || COALESCE(payload->>'content', ''))) >= 40
-    AND COALESCE(payload->>'narrative', '') !~* '^this question was not answered'
-    AND COALESCE(payload->>'content', '') !~* '^this question was not answered'
-  )
-)`;
-    PROSE_ONLY_DEGRADED_SQL = `(
-  EXISTS (
-    SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c
-    WHERE c ~* 'this answer is degraded' AND c ~* 'structured result'
-  )
-  AND NOT ${STRUCTURED_EVIDENCE_SQL}
-)`;
-    SYNTHESIS_INCOMPLETE_SQL = `(
-  jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && @.status == "failed")')
-  OR (
-    jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && @.status == "partial")')
-    AND ${WRITER_STOPPED_CAVEAT_SQL}
-  )
-)`;
-    DEADLINE_TRUNCATED_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early')`;
   }
 });
 
@@ -166014,18 +166409,18 @@ function parseJudgeResponse(content) {
   if (!payload || typeof payload !== "object") {
     return { ok: false, error: `Judge response was not an object: ${stripped.slice(0, 400)}` };
   }
-  const record2 = payload;
-  if (!("result" in record2)) {
+  const record3 = payload;
+  if (!("result" in record3)) {
     return { ok: false, error: `Judge response missing 'result' field: ${stripped.slice(0, 400)}` };
   }
-  const verdict = typeof record2.result === "string" ? record2.result.trim().toLowerCase() : "";
+  const verdict = typeof record3.result === "string" ? record3.result.trim().toLowerCase() : "";
   if (verdict !== "yes" && verdict !== "no") {
     return {
       ok: false,
-      error: `Judge returned a verdict that is neither yes nor no (${JSON.stringify(record2.result)}), so this case is unscored rather than scored at a guess.`
+      error: `Judge returned a verdict that is neither yes nor no (${JSON.stringify(record3.result)}), so this case is unscored rather than scored at a guess.`
     };
   }
-  const rationale = typeof record2.rationale === "string" ? sanitizeRationale(record2.rationale) : "";
+  const rationale = typeof record3.rationale === "string" ? sanitizeRationale(record3.rationale) : "";
   return { ok: true, value: verdict, rationale };
 }
 function judgeRequestPayload(prompt) {
@@ -166035,11 +166430,11 @@ function judgeRequestPayload(prompt) {
     max_tokens: 2048
   };
 }
-async function withTimeout(work, ms, label) {
+async function withTimeout(work, ms, label2) {
   return withDeadline(
     work,
     ms,
-    `${label} did not answer within ${ms} ms; the call was abandoned, not cancelled.`
+    `${label2} did not answer within ${ms} ms; the call was abandoned, not cancelled.`
   );
 }
 function notApplicable(name2, judgeEndpoint, reason) {
@@ -167974,7 +168369,17 @@ var init_eval_dataset = __esm({
 function parseBenchmarkSettings(value) {
   return BenchmarkSettingsSchema.parse(value);
 }
-var CURRENT_AGENT_SIDE, EVAL_SET_IDS, BenchmarkSettingsSchema, DEFAULT_BENCHMARK_SETTINGS;
+function parseStoredBenchmarkSettings(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return BenchmarkSettingsSchema.parse(value);
+  }
+  const source = value;
+  const keys = Object.keys(BenchmarkSettingsSchema.shape);
+  return BenchmarkSettingsSchema.parse(
+    Object.fromEntries(keys.filter((key2) => key2 in source).map((key2) => [key2, source[key2]]))
+  );
+}
+var CURRENT_AGENT_SIDE, EVAL_SET_IDS, BenchmarkSettingsSchema, BenchmarkSettingsPatchSchema, DEFAULT_BENCHMARK_SETTINGS;
 var init_benchmark_settings = __esm({
   "shared/benchmark-settings.ts"() {
     init_zod();
@@ -167993,6 +168398,18 @@ var init_benchmark_settings = __esm({
       enabledJudges: external_exports.array(external_exports.enum(AGENT_JUDGE_IDS)).default([...AGENT_JUDGE_IDS]),
       enabledMultiTurnJudges: external_exports.array(external_exports.enum(MULTI_TURN_JUDGE_IDS)).default([]),
       customJudges: external_exports.array(CustomJudgeSchema).max(12).default([])
+    });
+    BenchmarkSettingsPatchSchema = external_exports.strictObject({
+      experimentId: external_exports.string().trim().max(80).optional(),
+      alwaysOnTraces: external_exports.boolean().optional(),
+      evalSetId: external_exports.enum(EVAL_SET_IDS).optional(),
+      judgeEndpoint: external_exports.string().trim().min(1).max(200).optional(),
+      compareSideA: external_exports.string().trim().max(200).optional(),
+      compareSideB: external_exports.string().trim().max(200).optional(),
+      guidelinesText: external_exports.string().trim().max(4e3).optional(),
+      enabledJudges: external_exports.array(external_exports.enum(AGENT_JUDGE_IDS)).optional(),
+      enabledMultiTurnJudges: external_exports.array(external_exports.enum(MULTI_TURN_JUDGE_IDS)).optional(),
+      customJudges: external_exports.array(CustomJudgeSchema).max(12).optional()
     });
     DEFAULT_BENCHMARK_SETTINGS = {
       experimentId: "",
@@ -168043,18 +168460,18 @@ var init_benchmark_bakeoff = __esm({
 // shared/eval-review-app.ts
 function reviewAppUrlFromBody(body) {
   if (!body || typeof body !== "object") return "";
-  const record2 = body;
-  const nested = record2.session && typeof record2.session === "object" ? record2.session : record2;
+  const record3 = body;
+  const nested = record3.session && typeof record3.session === "object" ? record3.session : record3;
   for (const key2 of ["url", "review_app_url", "reviewAppUrl"]) {
-    const value = nested[key2] ?? record2[key2];
+    const value = nested[key2] ?? record3[key2];
     if (typeof value === "string" && /^https?:\/\//i.test(value.trim())) return value.trim();
   }
   return "";
 }
 function labelingIdsFromBody(body) {
   if (!body || typeof body !== "object") return { sessionId: "", runId: "", name: "" };
-  const record2 = body;
-  const nested = record2.session && typeof record2.session === "object" ? record2.session : record2;
+  const record3 = body;
+  const nested = record3.session && typeof record3.session === "object" ? record3.session : record3;
   const text21 = (value) => typeof value === "string" ? value.trim() : value != null ? String(value) : "";
   return {
     sessionId: text21(nested.labeling_session_id ?? nested.session_id ?? nested.id),
@@ -168383,50 +168800,131 @@ var init_eval_dataset_store = __esm({
   }
 });
 
+// server/lib/versioned-settings-store.ts
+function object2(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function mergeSettingsPatch(current, patch) {
+  if (!object2(current) || !object2(patch)) return patch;
+  const merged = { ...current };
+  for (const [key2, value] of Object.entries(patch)) {
+    merged[key2] = key2 in current ? mergeSettingsPatch(current[key2], value) : value;
+  }
+  return merged;
+}
+function revisionFrom(value) {
+  const revision = Number(value);
+  return Number.isInteger(revision) && revision > 0 ? revision : 1;
+}
+async function storedRow(client, store) {
+  const result = await client.lakebase.query(`SELECT settings, revision FROM ${store.table} WHERE id = $1`, [
+    store.key
+  ]);
+  const rows = result?.rows ?? [];
+  if (rows.length > 1) {
+    throw new Error(`More than one durable settings row exists for ${store.key}; no value was chosen.`);
+  }
+  const row2 = rows[0];
+  if (!row2) return null;
+  return { raw: row2.settings, revision: revisionFrom(row2.revision) };
+}
+async function readVersionedSettings(client, store) {
+  const row2 = await storedRow(client, store);
+  if (!row2) return { settings: store.parse(store.defaults), revision: 0 };
+  return { settings: store.parse(row2.raw), revision: row2.revision };
+}
+async function writeVersionedSettingsPatch(client, store, patch, expectedRevision, updatedBy) {
+  const current = await storedRow(client, store);
+  if (!current) {
+    if (expectedRevision !== 0) throw new SettingsRevisionConflict();
+    const raw3 = mergeSettingsPatch(store.defaults, patch);
+    const settings2 = store.parse(raw3);
+    const inserted = await client.lakebase.query(
+      `INSERT INTO ${store.table} (id, settings, revision, updated_by, updated_at)
+       VALUES ($1, $2::jsonb, 1, $3, now())
+       ON CONFLICT (id) DO NOTHING
+       RETURNING settings, revision`,
+      [store.key, JSON.stringify(raw3), updatedBy]
+    );
+    const row3 = inserted?.rows?.[0];
+    if (!row3) throw new SettingsRevisionConflict();
+    return { settings: settings2, revision: revisionFrom(row3.revision) };
+  }
+  if (current.revision !== expectedRevision) throw new SettingsRevisionConflict();
+  const raw2 = mergeSettingsPatch(current.raw, patch);
+  const settings = store.parse(raw2);
+  const updated = await client.lakebase.query(
+    `UPDATE ${store.table}
+        SET settings = $2::jsonb,
+            revision = revision + 1,
+            updated_by = $3,
+            updated_at = now()
+      WHERE id = $1 AND revision = $4
+      RETURNING settings, revision`,
+    [store.key, JSON.stringify(raw2), updatedBy, expectedRevision]
+  );
+  const row2 = updated?.rows?.[0];
+  if (!row2) throw new SettingsRevisionConflict();
+  return { settings, revision: revisionFrom(row2.revision) };
+}
+var SettingsRevisionConflict;
+var init_versioned_settings_store = __esm({
+  "server/lib/versioned-settings-store.ts"() {
+    SettingsRevisionConflict = class extends Error {
+      constructor() {
+        super("These settings changed after this page loaded. Reload Settings, review the newer values, and try again.");
+        this.name = "SettingsRevisionConflict";
+      }
+    };
+  }
+});
+
 // server/lib/benchmark-settings-store.ts
 function forgetBenchmarkSettings() {
   cache2 = /* @__PURE__ */ new WeakMap();
 }
 async function readBenchmarkSettings(client, options = {}) {
-  const now = options.now ?? Date.now();
-  const cached3 = cache2.get(client);
-  if (cached3 && now - cached3.at < (options.maxAgeMs ?? BENCHMARK_SETTINGS_TTL_MS)) return cached3.value;
   try {
-    const result = await client.lakebase.query(`SELECT settings FROM ${BENCHMARK_SETTINGS_TABLE} WHERE id = $1`, [KEY2]);
-    const raw2 = result?.rows?.[0]?.settings;
-    const parsed = raw2 === void 0 ? DEFAULT_BENCHMARK_SETTINGS : BenchmarkSettingsSchema.parse(raw2);
-    cache2.set(client, { value: parsed, at: now });
-    return parsed;
+    return (await readBenchmarkSettingsDocument(client, options)).settings;
   } catch (error48) {
     console.warn("[benchmark-settings] Falling back to defaults:", error48.message);
     return DEFAULT_BENCHMARK_SETTINGS;
   }
 }
-async function writeBenchmarkSettings(client, settings, updatedBy) {
-  const parsed = BenchmarkSettingsSchema.parse(settings);
-  await client.lakebase.query(
-    `INSERT INTO ${BENCHMARK_SETTINGS_TABLE} (id, settings, updated_by, updated_at)
-     VALUES ($1, $2::jsonb, $3, now())
-     ON CONFLICT (id) DO UPDATE SET
-       settings = EXCLUDED.settings, updated_by = EXCLUDED.updated_by, updated_at = now()`,
-    [KEY2, JSON.stringify(parsed), updatedBy]
-  );
-  forgetBenchmarkSettings();
-  return parsed;
+async function readBenchmarkSettingsDocument(client, options = {}) {
+  const now = options.now ?? Date.now();
+  const cached3 = cache2.get(client);
+  if (cached3 && now - cached3.at < (options.maxAgeMs ?? BENCHMARK_SETTINGS_TTL_MS)) return cached3.document;
+  const document2 = await readVersionedSettings(client, STORE);
+  cache2.set(client, { document: document2, at: now });
+  return document2;
 }
-var KEY2, BENCHMARK_SETTINGS_TABLE, BENCHMARK_SETTINGS_DDL, cache2, BENCHMARK_SETTINGS_TTL_MS;
+async function writeBenchmarkSettingsPatch(client, patch, revision, updatedBy) {
+  const document2 = await writeVersionedSettingsPatch(client, STORE, patch, revision, updatedBy);
+  forgetBenchmarkSettings();
+  return document2;
+}
+var KEY2, BENCHMARK_SETTINGS_TABLE, BENCHMARK_SETTINGS_DDL, STORE, cache2, BENCHMARK_SETTINGS_TTL_MS;
 var init_benchmark_settings_store = __esm({
   "server/lib/benchmark-settings-store.ts"() {
     init_app_schema();
     init_benchmark_settings();
+    init_versioned_settings_store();
     KEY2 = "effective";
     BENCHMARK_SETTINGS_TABLE = appTable("benchmark_settings");
     BENCHMARK_SETTINGS_DDL = `CREATE TABLE IF NOT EXISTS ${BENCHMARK_SETTINGS_TABLE} (
   id TEXT PRIMARY KEY,
   settings JSONB NOT NULL,
+  revision BIGINT NOT NULL DEFAULT 1,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_by TEXT NOT NULL
 )`;
+    STORE = {
+      table: BENCHMARK_SETTINGS_TABLE,
+      key: KEY2,
+      defaults: DEFAULT_BENCHMARK_SETTINGS,
+      parse: parseStoredBenchmarkSettings
+    };
     cache2 = /* @__PURE__ */ new WeakMap();
     BENCHMARK_SETTINGS_TTL_MS = 15e3;
   }
@@ -168918,9 +169416,9 @@ function parseServedModel(endpointName, endpoint) {
   const trafficConfig = config2.traffic_config ?? config2.trafficConfig;
   const rawRoutes = Array.isArray(trafficConfig?.routes) ? trafficConfig.routes : [];
   const routes = rawRoutes.map((route) => {
-    const record2 = route;
-    const name2 = textOf(record2.served_model_name ?? record2.servedModelName ?? record2.served_entity_name);
-    const percentage = record2.traffic_percentage ?? record2.trafficPercentage;
+    const record3 = route;
+    const name2 = textOf(record3.served_model_name ?? record3.servedModelName ?? record3.served_entity_name);
+    const percentage = record3.traffic_percentage ?? record3.trafficPercentage;
     return { name: name2, trafficPercentage: typeof percentage === "number" ? percentage : 0 };
   });
   const recordList = (value) => Array.isArray(value) ? value.filter((item) => Boolean(item) && typeof item === "object") : [];
@@ -169045,9 +169543,9 @@ function buildMetrics(input) {
   };
 }
 function heartbeatAge(metrics2, nowMs) {
-  const record2 = parseJson(metrics2);
-  if (!record2 || typeof record2 !== "object") return null;
-  const stamp2 = record2.heartbeatAt ?? record2.startedAt;
+  const record3 = parseJson(metrics2);
+  if (!record3 || typeof record3 !== "object") return null;
+  const stamp2 = record3.heartbeatAt ?? record3.startedAt;
   if (typeof stamp2 !== "string") return null;
   const at = Date.parse(stamp2);
   return Number.isFinite(at) ? nowMs - at : null;
@@ -170808,6 +171306,8 @@ var init_run_ledger_schema = __esm({
     identity_mode_requested TEXT,
     identity_mode_effective TEXT,
     identity_verified BOOLEAN,
+    persona_id TEXT,
+    persona_name TEXT,
     release_identity JSONB NOT NULL DEFAULT '{}'::jsonb,
     terminal_code TEXT,
     terminal_message_id TEXT,
@@ -171415,10 +171915,43 @@ function upgradePaperEntityStyles(styles) {
     ])
   );
 }
-var RUNTIME_ENTITY_KINDS, PAPER_ENTITY_STYLES, DEFAULT_ENTITY_STYLES, FONT_FAMILY_IDS, FONT_SIZE_IDS, DENSITY_IDS, THEME_FONT_COLORS, DEFAULT_RUNTIME_SETTINGS;
+var RUNTIME_ENTITY_KINDS, RUNTIME_SETTINGS_KEYS, RUNTIME_LOOP_KEYS, RUNTIME_ANSWER_KEYS, RUNTIME_BEHAVIOR_KEYS, RUNTIME_ENTITY_STYLE_KEYS, PAPER_ENTITY_STYLES, DEFAULT_ENTITY_STYLES, FONT_FAMILY_IDS, FONT_SIZE_IDS, DENSITY_IDS, THEME_FONT_COLORS, DEFAULT_RUNTIME_SETTINGS;
 var init_runtime_settings_browser = __esm({
   "shared/runtime-settings-browser.ts"() {
     RUNTIME_ENTITY_KINDS = ["catalog", "schema", "table", "column", "quote", "tag"];
+    RUNTIME_SETTINGS_KEYS = [
+      "loop",
+      "answer",
+      "behavior",
+      "colorScheme",
+      "entityStyles",
+      "fontBodyColor",
+      "fontMutedColor",
+      "fontFamily",
+      "fontSize",
+      "backgroundGraphics",
+      "animations",
+      "density"
+    ];
+    RUNTIME_LOOP_KEYS = ["maxSteps", "maxToolCalls", "maxRunSeconds"];
+    RUNTIME_ANSWER_KEYS = [
+      "takeaway",
+      "narrative",
+      "charts",
+      "figures",
+      "caveats",
+      "maxCharts",
+      "maxFigures",
+      "maxCaveats",
+      "narrativeMaxCharacters",
+      "sources",
+      "takeawayGuidance",
+      "narrativeGuidance",
+      "figuresOrder",
+      "chartsTypes"
+    ];
+    RUNTIME_BEHAVIOR_KEYS = ["clarification", "timezone", "injectCurrentDate"];
+    RUNTIME_ENTITY_STYLE_KEYS = ["foreground", "background"];
     PAPER_ENTITY_STYLES = {
       catalog: { foreground: "#ffffff", background: "#0e538b" },
       schema: { foreground: "#16324f", background: "#ddeaf4" },
@@ -171479,7 +172012,33 @@ var init_runtime_settings_browser = __esm({
 });
 
 // shared/runtime-settings.ts
-var RuntimeEntityKindSchema, EntityStyleSchema, HexColorSchema, RuntimeEntityStylesObjectSchema, RuntimeSettingsObjectSchema, RuntimeSettingsSchema;
+function storedObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+function knownStoredKeys(value, keys) {
+  const source = storedObject(value);
+  if (!source) return value;
+  return Object.fromEntries(keys.filter((key2) => key2 in source).map((key2) => [key2, source[key2]]));
+}
+function parseStoredRuntimeSettings(value) {
+  const source = storedObject(value);
+  if (!source) return RuntimeSettingsSchema.parse(value);
+  const known = knownStoredKeys(source, RUNTIME_SETTINGS_KEYS);
+  known.loop = knownStoredKeys(source.loop, RUNTIME_LOOP_KEYS);
+  known.answer = knownStoredKeys(source.answer, RUNTIME_ANSWER_KEYS);
+  known.behavior = knownStoredKeys(source.behavior, RUNTIME_BEHAVIOR_KEYS);
+  const styles = storedObject(source.entityStyles);
+  if (styles) {
+    known.entityStyles = Object.fromEntries(
+      RUNTIME_ENTITY_KINDS.filter((kind) => kind in styles).map((kind) => [
+        kind,
+        knownStoredKeys(styles[kind], RUNTIME_ENTITY_STYLE_KEYS)
+      ])
+    );
+  }
+  return RuntimeSettingsSchema.parse(known);
+}
+var RuntimeEntityKindSchema, EntityStyleSchema, HexColorSchema, RuntimeEntityStylesObjectSchema, RuntimeSettingsObjectSchema, RuntimeSettingsSchema, RuntimeSettingsPatchSchema;
 var init_runtime_settings = __esm({
   "shared/runtime-settings.ts"() {
     init_zod();
@@ -171537,6 +172096,50 @@ var init_runtime_settings = __esm({
       fontBodyColor: settings.fontBodyColor ?? THEME_FONT_COLORS[settings.colorScheme].body,
       fontMutedColor: settings.fontMutedColor ?? THEME_FONT_COLORS[settings.colorScheme].muted
     }));
+    RuntimeSettingsPatchSchema = external_exports.strictObject({
+      loop: external_exports.strictObject({
+        maxSteps: external_exports.number().int().min(1).max(20).optional(),
+        maxToolCalls: external_exports.number().int().min(1).max(40).optional(),
+        maxRunSeconds: external_exports.number().int().min(30).max(200).optional()
+      }).optional(),
+      answer: external_exports.strictObject({
+        takeaway: external_exports.boolean().optional(),
+        narrative: external_exports.boolean().optional(),
+        charts: external_exports.boolean().optional(),
+        figures: external_exports.boolean().optional(),
+        caveats: external_exports.boolean().optional(),
+        maxCharts: external_exports.number().int().min(0).max(6).optional(),
+        maxFigures: external_exports.number().int().min(0).max(12).optional(),
+        maxCaveats: external_exports.number().int().min(0).max(20).optional(),
+        narrativeMaxCharacters: external_exports.number().int().min(0).max(12e3).optional(),
+        sources: external_exports.enum(["compact", "standard", "detailed"]).optional(),
+        takeawayGuidance: external_exports.string().trim().max(2e3).optional(),
+        narrativeGuidance: external_exports.string().trim().max(2e3).optional(),
+        figuresOrder: external_exports.enum(["as-ranked", "totals-first", "averages-first"]).optional(),
+        chartsTypes: external_exports.enum(["auto", "bar", "bar-line"]).optional()
+      }).optional(),
+      behavior: external_exports.strictObject({
+        clarification: external_exports.enum(["strict", "balanced", "proceed-with-caveat"]).optional(),
+        timezone: external_exports.string().trim().max(80).optional(),
+        injectCurrentDate: external_exports.boolean().optional()
+      }).optional(),
+      colorScheme: external_exports.enum(["dark", "light"]).optional(),
+      entityStyles: external_exports.strictObject({
+        catalog: EntityStyleSchema.partial().optional(),
+        schema: EntityStyleSchema.partial().optional(),
+        table: EntityStyleSchema.partial().optional(),
+        column: EntityStyleSchema.partial().optional(),
+        quote: EntityStyleSchema.partial().optional(),
+        tag: EntityStyleSchema.partial().optional()
+      }).optional(),
+      fontBodyColor: HexColorSchema.optional(),
+      fontMutedColor: HexColorSchema.optional(),
+      fontFamily: external_exports.enum(FONT_FAMILY_IDS).optional(),
+      fontSize: external_exports.enum(FONT_SIZE_IDS).optional(),
+      backgroundGraphics: external_exports.boolean().optional(),
+      animations: external_exports.boolean().optional(),
+      density: external_exports.enum(DENSITY_IDS).optional()
+    });
   }
 });
 
@@ -171545,45 +172148,47 @@ function forgetRuntimeSettings() {
   cache4 = /* @__PURE__ */ new WeakMap();
 }
 async function readRuntimeSettings(client, options = {}) {
-  const now = options.now ?? Date.now();
-  const cached3 = cache4.get(client);
-  if (cached3 && now - cached3.at < (options.maxAgeMs ?? RUNTIME_SETTINGS_TTL_MS)) return cached3.value;
   try {
-    const result = await client.lakebase.query(`SELECT settings FROM ${RUNTIME_SETTINGS_TABLE} WHERE id = $1`, [KEY4]);
-    const raw2 = result?.rows?.[0]?.settings;
-    const parsed = raw2 === void 0 ? DEFAULT_RUNTIME_SETTINGS : RuntimeSettingsSchema.parse(raw2);
-    cache4.set(client, { value: parsed, at: now });
-    return parsed;
+    return (await readRuntimeSettingsDocument(client, options)).settings;
   } catch (error48) {
     console.warn("[runtime-settings] Falling back to defaults:", error48.message);
     return DEFAULT_RUNTIME_SETTINGS;
   }
 }
-async function writeRuntimeSettings(client, settings, updatedBy) {
-  const parsed = RuntimeSettingsSchema.parse(settings);
-  await client.lakebase.query(
-    `INSERT INTO ${RUNTIME_SETTINGS_TABLE} (id, settings, updated_by, updated_at)
-     VALUES ($1, $2::jsonb, $3, now())
-     ON CONFLICT (id) DO UPDATE SET
-       settings = EXCLUDED.settings, updated_by = EXCLUDED.updated_by, updated_at = now()`,
-    [KEY4, JSON.stringify(parsed), updatedBy]
-  );
-  forgetRuntimeSettings();
-  return parsed;
+async function readRuntimeSettingsDocument(client, options = {}) {
+  const now = options.now ?? Date.now();
+  const cached3 = cache4.get(client);
+  if (cached3 && now - cached3.at < (options.maxAgeMs ?? RUNTIME_SETTINGS_TTL_MS)) return cached3.document;
+  const document2 = await readVersionedSettings(client, STORE2);
+  cache4.set(client, { document: document2, at: now });
+  return document2;
 }
-var KEY4, RUNTIME_SETTINGS_TABLE, RUNTIME_SETTINGS_DDL, cache4, RUNTIME_SETTINGS_TTL_MS;
+async function writeRuntimeSettingsPatch(client, patch, revision, updatedBy) {
+  const document2 = await writeVersionedSettingsPatch(client, STORE2, patch, revision, updatedBy);
+  forgetRuntimeSettings();
+  return document2;
+}
+var KEY4, RUNTIME_SETTINGS_TABLE, RUNTIME_SETTINGS_DDL, STORE2, cache4, RUNTIME_SETTINGS_TTL_MS;
 var init_runtime_settings_store = __esm({
   "server/lib/runtime-settings-store.ts"() {
     init_app_schema();
     init_runtime_settings();
+    init_versioned_settings_store();
     KEY4 = "effective";
     RUNTIME_SETTINGS_TABLE = appTable("runtime_settings");
     RUNTIME_SETTINGS_DDL = `CREATE TABLE IF NOT EXISTS ${RUNTIME_SETTINGS_TABLE} (
   id TEXT PRIMARY KEY,
   settings JSONB NOT NULL,
+  revision BIGINT NOT NULL DEFAULT 1,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_by TEXT NOT NULL
 )`;
+    STORE2 = {
+      table: RUNTIME_SETTINGS_TABLE,
+      key: KEY4,
+      defaults: DEFAULT_RUNTIME_SETTINGS,
+      parse: parseStoredRuntimeSettings
+    };
     cache4 = /* @__PURE__ */ new WeakMap();
     RUNTIME_SETTINGS_TTL_MS = 15e3;
   }
@@ -171837,11 +172442,11 @@ function optionalOrder(value) {
   return value === "as-ranked" || value === "totals-first" || value === "averages-first" ? value : null;
 }
 function storedRuntimeSettings(payload) {
-  const record2 = asObject(payload);
-  if (!record2) return null;
-  const direct = asObject(record2.runtime_settings);
+  const record3 = asObject(payload);
+  if (!record3) return null;
+  const direct = asObject(record3.runtime_settings);
   if (direct) return direct;
-  const inputs = asObject(record2.custom_inputs);
+  const inputs = asObject(record3.custom_inputs);
   return inputs ? asObject(inputs.runtime_settings) : null;
 }
 function recorded(used) {
@@ -172528,8 +173133,8 @@ function sha256(value) {
 function normaliseText(value) {
   return value.replace(/\s+/g, " ").trim();
 }
-function field(label, value) {
-  return `${label}:${value.length}:${value}
+function field(label2, value) {
+  return `${label2}:${value.length}:${value}
 `;
 }
 function canonicalRequestHash(request) {
@@ -172569,7 +173174,7 @@ var init_run_request_hash = __esm({
 });
 
 // server/lib/run-ledger.ts
-async function ledgerQuery(store, label, sql3, params) {
+async function ledgerQuery(store, label2, sql3, params) {
   let last;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
@@ -172587,7 +173192,7 @@ async function ledgerQuery(store, label, sql3, params) {
   const code = typeof raw2 === "string" || typeof raw2 === "number" ? String(raw2) : "none";
   const message = last instanceof Error ? last.message : String(last);
   console.error(
-    `[run-ledger] ${label} failed (code ${code}): ${message}. The run this request belongs to has no durable record, so it must not be started: an answer nobody can look up afterwards is what the ledger exists to prevent.`
+    `[run-ledger] ${label2} failed (code ${code}): ${message}. The run this request belongs to has no durable record, so it must not be started: an answer nobody can look up afterwards is what the ledger exists to prevent.`
   );
   return { available: false, rows: [], error: message, code };
 }
@@ -172604,36 +173209,39 @@ function text4(value) {
   if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return value.toString();
   return JSON.stringify(value);
 }
-function toRun(record2) {
+function toRun(record3) {
   return {
-    runId: String(record2.run_id),
-    userEmail: String(record2.user_email),
-    conversationId: String(record2.conversation_id),
-    turnId: String(record2.turn_id),
-    requestHash: String(record2.request_hash),
-    idempotencyKeyHash: text4(record2.idempotency_key_hash),
-    planFingerprint: text4(record2.plan_fingerprint),
-    state: String(record2.state),
-    deadlineAt: String(record2.deadline_at),
-    identityModeRequested: text4(record2.identity_mode_requested),
-    identityModeEffective: text4(record2.identity_mode_effective),
-    identityVerified: record2.identity_verified === null || record2.identity_verified === void 0 ? null : Boolean(record2.identity_verified),
-    terminalCode: text4(record2.terminal_code),
-    terminalMessageId: text4(record2.terminal_message_id),
-    traceId: text4(record2.trace_id),
-    correlationId: text4(record2.correlation_id),
-    fencingToken: Number(record2.fencing_token ?? 0),
-    leaseOwner: text4(record2.lease_owner),
-    leaseExpiresAt: text4(record2.lease_expires_at),
-    attempts: Number(record2.attempts ?? 0)
+    runId: String(record3.run_id),
+    userEmail: String(record3.user_email),
+    conversationId: String(record3.conversation_id),
+    turnId: String(record3.turn_id),
+    requestHash: String(record3.request_hash),
+    idempotencyKeyHash: text4(record3.idempotency_key_hash),
+    planFingerprint: text4(record3.plan_fingerprint),
+    state: String(record3.state),
+    deadlineAt: String(record3.deadline_at),
+    identityModeRequested: text4(record3.identity_mode_requested),
+    identityModeEffective: text4(record3.identity_mode_effective),
+    identityVerified: record3.identity_verified === null || record3.identity_verified === void 0 ? null : Boolean(record3.identity_verified),
+    personaId: text4(record3.persona_id),
+    personaName: text4(record3.persona_name),
+    terminalCode: text4(record3.terminal_code),
+    terminalMessageId: text4(record3.terminal_message_id),
+    traceId: text4(record3.trace_id),
+    correlationId: text4(record3.correlation_id),
+    fencingToken: Number(record3.fencing_token ?? 0),
+    leaseOwner: text4(record3.lease_owner),
+    leaseExpiresAt: text4(record3.lease_expires_at),
+    attempts: Number(record3.attempts ?? 0)
   };
 }
 async function createOrGetRun(store, input) {
   const sql3 = `WITH inserted AS (
       INSERT INTO ${APP_SCHEMA}.runs
         (run_id, user_email, conversation_id, turn_id, request_hash, idempotency_key_hash,
-         state, deadline_at, identity_mode_requested, release_identity, correlation_id)
-      VALUES ($1,$2,$3,$4,$5,$6,'RECEIVED',$7,$8,$9::jsonb,$10)
+         state, deadline_at, identity_mode_requested, release_identity, correlation_id,
+         persona_id, persona_name)
+      VALUES ($1,$2,$3,$4,$5,$6,'RECEIVED',$7,$8,$9::jsonb,$10,$11,$12)
       ON CONFLICT DO NOTHING
       RETURNING ${RUN_COLUMNS}
     )
@@ -172656,7 +173264,9 @@ async function createOrGetRun(store, input) {
     input.deadlineAt.toISOString(),
     input.identityModeRequested,
     JSON.stringify(input.releaseIdentity),
-    input.correlationId
+    input.correlationId,
+    input.personaId ?? null,
+    input.personaName ?? null
   ];
   for (let attempt = 1; attempt <= RACE_ATTEMPTS; attempt += 1) {
     const read2 = await ledgerQuery(store, "run ledger create-or-get", sql3, params);
@@ -172859,7 +173469,7 @@ var init_run_ledger = __esm({
     RETRYABLE_LEDGER_CODES = /* @__PURE__ */ new Set(["08000", "08001", "08003", "08004", "08006", "57P01", "57P03", "28P01"]);
     RUN_COLUMNS = `run_id, user_email, conversation_id, turn_id, request_hash, idempotency_key_hash,
   plan_fingerprint, state, deadline_at, identity_mode_requested, identity_mode_effective,
-  identity_verified, terminal_code, terminal_message_id, trace_id, correlation_id, fencing_token,
+  identity_verified, persona_id, persona_name, terminal_code, terminal_message_id, trace_id, correlation_id, fencing_token,
   lease_owner, lease_expires_at, attempts, created_at, updated_at, completed_at`;
   }
 });
@@ -172898,6 +173508,8 @@ async function admitRun(store, input) {
     idempotencyKeyHash: key2 === "" ? null : idempotencyKeyHash(input.request.userEmail, key2),
     deadlineAt: new Date(Date.now() + input.budgetMs),
     identityModeRequested: input.identityModeRequested,
+    personaId: input.persona?.id ?? null,
+    personaName: input.persona?.displayName ?? null,
     releaseIdentity: input.releaseIdentity,
     correlationId: input.correlationId
   });
@@ -173145,7 +173757,7 @@ function stageEventPayload(stage) {
 function stageLabel(stage) {
   return typeof stage.name === "string" && stage.name.trim() ? clamp2(stage.name, 120) : null;
 }
-async function stageQuery(store, reporter, label, sql3, params) {
+async function stageQuery(store, reporter, label2, sql3, params) {
   try {
     const result = await store.lakebase.query(sql3, params);
     return result.rows;
@@ -173155,7 +173767,7 @@ async function stageQuery(store, reporter, label, sql3, params) {
       const raw2 = error48.code;
       const code = typeof raw2 === "string" || typeof raw2 === "number" ? String(raw2) : "none";
       console.warn(
-        `[run-stage-events] ${label} failed (code ${code}): ${error48 instanceof Error ? error48.message : String(error48)}. The run is unaffected and its answer is still stored; a browser that reopens this conversation mid-run will see that it is working without the steps it has taken.`
+        `[run-stage-events] ${label2} failed (code ${code}): ${error48 instanceof Error ? error48.message : String(error48)}. The run is unaffected and its answer is still stored; a browser that reopens this conversation mid-run will see that it is working without the steps it has taken.`
       );
     }
     return null;
@@ -173390,9 +174002,9 @@ function parseQueryTags(value) {
   if (Array.isArray(value)) {
     for (const item of value) {
       if (!item || typeof item !== "object") continue;
-      const record2 = item;
-      const key2 = stringValue(record2.key);
-      const tagValue = stringValue(record2.value);
+      const record3 = item;
+      const key2 = stringValue(record3.key);
+      const tagValue = stringValue(record3.value);
       if (!key2 || !tagValue) continue;
       const existing = tags.get(key2);
       if (existing !== void 0 && existing !== tagValue) return /* @__PURE__ */ new Map();
@@ -173425,10 +174037,10 @@ function returnedActiveStatus(row2, requested) {
 }
 function errorStatus(error48) {
   if (!error48 || typeof error48 !== "object") return void 0;
-  const record2 = error48;
-  const direct = record2.statusCode ?? record2.status;
+  const record3 = error48;
+  const direct = record3.statusCode ?? record3.status;
   if (typeof direct === "number" && Number.isFinite(direct)) return direct;
-  const response = record2.response;
+  const response = record3.response;
   if (response && typeof response === "object") {
     const nested = response.status;
     if (typeof nested === "number" && Number.isFinite(nested)) return nested;
@@ -173438,9 +174050,9 @@ function errorStatus(error48) {
 function errorWording(error48) {
   if (typeof error48 === "string") return error48;
   if (!error48 || typeof error48 !== "object") return "";
-  const record2 = error48;
-  const pieces = [record2.message, record2.error_code, record2.errorCode];
-  const response = record2.response;
+  const record3 = error48;
+  const pieces = [record3.message, record3.error_code, record3.errorCode];
+  const response = record3.response;
   if (response && typeof response === "object") {
     const nested = response;
     pieces.push(nested.message, nested.error_code, nested.errorCode);
@@ -173642,11 +174254,11 @@ async function cancelAstrolabeWarehouseQueries(input) {
 }
 function queryHistoryPage(value) {
   if (!value || typeof value !== "object") return {};
-  const record2 = value;
+  const record3 = value;
   return {
-    res: Array.isArray(record2.res) ? record2.res : [],
-    ...typeof record2.next_page_token === "string" ? { next_page_token: record2.next_page_token } : {},
-    ...typeof record2.has_next_page === "boolean" ? { has_next_page: record2.has_next_page } : {}
+    res: Array.isArray(record3.res) ? record3.res : [],
+    ...typeof record3.next_page_token === "string" ? { next_page_token: record3.next_page_token } : {},
+    ...typeof record3.has_next_page === "boolean" ? { has_next_page: record3.has_next_page } : {}
   };
 }
 function createDatabricksWarehouseCancellationTransport(client) {
@@ -173860,18 +174472,78 @@ var init_terminal_response = __esm({
   }
 });
 
+// shared/conversation-filters.ts
+function queryValues(value) {
+  if (value === void 0) return [];
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) return value;
+  return null;
+}
+function normalizedValues(raw2, normalize, maxLength) {
+  const values = queryValues(raw2);
+  if (!values) return { ok: false };
+  const normalized = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of values) {
+    const value = normalize(entry);
+    if (!value || value.length > maxLength) return { ok: false };
+    if (seen.has(value)) continue;
+    seen.add(value);
+    normalized.push(value);
+    if (normalized.length === MAX_CONVERSATION_FILTER_VALUES) break;
+  }
+  return { ok: true, values: normalized };
+}
+function parseConversationFilterQuery(query) {
+  const owners = normalizedValues(query.owners, (value) => value.trim().toLowerCase(), MAX_OWNER_FILTER_LENGTH);
+  const personaIds = normalizedValues(query.personas, (value) => value.trim(), MAX_PERSONA_FILTER_LENGTH);
+  if (!owners.ok || !personaIds.ok) {
+    return { ok: false, message: "Conversation filters contain an invalid owner or persona." };
+  }
+  const noPersonaValues = queryValues(query.no_persona);
+  if (!noPersonaValues || noPersonaValues.length > 1 || !noPersonaValues.every((value) => value === "true")) {
+    return { ok: false, message: "no_persona must be true when it is present." };
+  }
+  return {
+    ok: true,
+    value: {
+      owners: owners.values,
+      personaIds: personaIds.values,
+      includeNoPersona: noPersonaValues.length === 1
+    }
+  };
+}
+function conversationMatchesFilters(conversation, filters) {
+  const owner = typeof conversation.user_email === "string" ? conversation.user_email.trim().toLowerCase() : "";
+  if (filters.owners.length > 0 && !filters.owners.includes(owner)) return false;
+  const persona = typeof conversation.persona_id === "string" ? conversation.persona_id.trim() : "";
+  const personaFilterActive = filters.personaIds.length > 0 || filters.includeNoPersona;
+  if (!personaFilterActive) return true;
+  if (!persona) return filters.includeNoPersona;
+  return filters.personaIds.includes(persona);
+}
+var CONVERSATION_PERSONA_FILTER_RULE, MAX_CONVERSATION_FILTER_VALUES, MAX_OWNER_FILTER_LENGTH, MAX_PERSONA_FILTER_LENGTH;
+var init_conversation_filters = __esm({
+  "shared/conversation-filters.ts"() {
+    CONVERSATION_PERSONA_FILTER_RULE = "Persona is the snapshot recorded on the conversation\u2019s newest active or completed run. If that run recorded no persona, the conversation is classified as No persona.";
+    MAX_CONVERSATION_FILTER_VALUES = 25;
+    MAX_OWNER_FILTER_LENGTH = 254;
+    MAX_PERSONA_FILTER_LENGTH = 80;
+  }
+});
+
 // shared/failure-evidence.ts
 function carriedStatus(error48) {
   if (error48 === null || typeof error48 !== "object") return void 0;
-  const record2 = error48;
-  if (typeof record2.statusCode === "number") return record2.statusCode;
-  if (typeof record2.status === "number") return record2.status;
+  const record3 = error48;
+  if (typeof record3.statusCode === "number") return record3.statusCode;
+  if (typeof record3.status === "number") return record3.status;
   return void 0;
 }
 function carriedProviderCode(error48) {
   if (error48 === null || typeof error48 !== "object") return void 0;
-  const record2 = error48;
-  for (const candidate2 of [record2.error_code, record2.errorCode, record2.code]) {
+  const record3 = error48;
+  for (const candidate2 of [record3.error_code, record3.errorCode, record3.code]) {
     if (typeof candidate2 === "string" && candidate2.trim()) return candidate2.trim();
   }
   return void 0;
@@ -173918,10 +174590,10 @@ function readAgentRefusal(payload, context2) {
 function executionIdentity(outputs) {
   const claim = outputs.execution_identity;
   if (!claim || typeof claim !== "object" || Array.isArray(claim)) return void 0;
-  const record2 = claim;
-  const mode = text5(record2.mode);
+  const record3 = claim;
+  const mode = text5(record3.mode);
   if (!mode) return void 0;
-  return { mode, verified: record2.verified === true };
+  return { mode, verified: record3.verified === true };
 }
 function customOutputs(payload) {
   if (!payload || typeof payload !== "object") return null;
@@ -174603,24 +175275,24 @@ function missingGenieScopeLimit(evidence) {
 }
 function classifyGenieProbe(result, space, principal, age = AGE_NOT_SUPPLIED) {
   const liveTitle = result.ok && typeof result.title === "string" ? result.title.trim() : "";
-  const label = liveTitle ? genieSpaceLabel({
+  const label2 = liveTitle ? genieSpaceLabel({
     id: space.id,
     title: liveTitle,
     role: space.role
   }) : space.label;
-  const base = { space: space.id, label };
+  const base = { space: space.id, label: label2 };
   if (result.ok) {
     if (result.space) {
       return {
         ...base,
         status: "ok",
-        detail: `${label} resolved under your own token, so you hold at least CAN RUN on it. This is about the space being shared with you, not about the tables it curates; those are the table rows above.`
+        detail: `${label2} resolved under your own token, so you hold at least CAN RUN on it. This is about the space being shared with you, not about the tables it curates; those are the table rows above.`
       };
     }
     return {
       ...base,
       status: "error",
-      detail: `Databricks answered for ${label} without naming the space, so nothing about your access to it was established. An empty answer is not a yes, and this is deliberately not reported as one.`,
+      detail: `Databricks answered for ${label2} without naming the space, so nothing about your access to it was established. An empty answer is not a yes, and this is deliberately not reported as one.`,
       apiMessage: "The response carried no space_id."
     };
   }
@@ -174628,7 +175300,7 @@ function classifyGenieProbe(result, space, principal, age = AGE_NOT_SUPPLIED) {
     return {
       ...base,
       status: "denied",
-      detail: `You do not hold CAN RUN on ${label}. Databricks refused the space itself (HTTP 403), so this is one grant on one workspace object and says nothing about your Unity Catalog access.`,
+      detail: `You do not hold CAN RUN on ${label2}. Databricks refused the space itself (HTTP 403), so this is one grant on one workspace object and says nothing about your Unity Catalog access.`,
       missing: { object: space.id, permission: "CAN_RUN", objectKind: "genie-space" },
       remedy: genieSpaceGrant(space.id, principal),
       reason: "no-grant",
@@ -174639,7 +175311,7 @@ function classifyGenieProbe(result, space, principal, age = AGE_NOT_SUPPLIED) {
     return {
       ...base,
       status: "denied",
-      detail: `${label} did not resolve for you (HTTP 404). Databricks reports a space that is not shared with you and a space id that does not exist the same way, so this is either a missing grant or a space that is gone. The grant below covers the first; if it runs and this still fails, the id the agent is configured with is the problem.`,
+      detail: `${label2} did not resolve for you (HTTP 404). Databricks reports a space that is not shared with you and a space id that does not exist the same way, so this is either a missing grant or a space that is gone. The grant below covers the first; if it runs and this still fails, the id the agent is configured with is the problem.`,
       missing: { object: space.id, permission: "CAN_RUN", objectKind: "genie-space" },
       remedy: genieSpaceGrant(space.id, principal),
       reason: "hidden-or-absent",
@@ -174651,7 +175323,7 @@ function classifyGenieProbe(result, space, principal, age = AGE_NOT_SUPPLIED) {
     return {
       ...base,
       status: "error",
-      detail: `${rejected.explanation} Nothing about your access to ${label} was established.`,
+      detail: `${rejected.explanation} Nothing about your access to ${label2} was established.`,
       ...rejected.remedy ? { remedy: rejected.remedy } : {},
       apiMessage: result.message
     };
@@ -174659,7 +175331,7 @@ function classifyGenieProbe(result, space, principal, age = AGE_NOT_SUPPLIED) {
   return {
     ...base,
     status: "error",
-    detail: `The check against ${label} did not complete, so your access to it is unknown rather than refused. This is not a permission result and should not be read as one.`,
+    detail: `The check against ${label2} did not complete, so your access to it is unknown rather than refused. This is not a permission result and should not be read as one.`,
     apiMessage: result.message
   };
 }
@@ -176145,9 +176817,9 @@ var init_run_cancellation = __esm({
 function stageOf(event) {
   const custom2 = event.custom_outputs;
   if (!custom2 || typeof custom2 !== "object") return null;
-  const record2 = custom2;
-  if (record2.type !== "stage") return null;
-  const stage = record2.stage;
+  const record3 = custom2;
+  if (record3.type !== "stage") return null;
+  const stage = record3.stage;
   return stage && typeof stage === "object" ? stage : null;
 }
 function isFlush(event) {
@@ -176481,8 +177153,8 @@ function text7(value) {
 }
 function messageFrom(body, fallback) {
   if (!body || typeof body !== "object") return fallback;
-  const record2 = body;
-  return text7(record2.message) || text7(record2.error) || text7(record2.error_code) || fallback;
+  const record3 = body;
+  return text7(record3.message) || text7(record3.error) || text7(record3.error_code) || fallback;
 }
 function scopesFrom(body) {
   const raw2 = body && typeof body === "object" ? body.user_api_scopes : void 0;
@@ -177518,10 +178190,10 @@ function conversationRunTrace(row2, experimentId) {
   if (!payload || typeof payload !== "object") {
     return runWithoutTrace(identity, "This run stored no response, so there is no trace to show.");
   }
-  const record2 = payload;
-  const runtimeUsed = runRuntimeUsedFromStored(record2);
-  const mode = record2.mode === "representative" ? "representative" : record2.mode === "live" ? "live" : null;
-  if (record2.type === "plan") {
+  const record3 = payload;
+  const runtimeUsed = runRuntimeUsedFromStored(record3);
+  const mode = record3.mode === "representative" ? "representative" : record3.mode === "live" ? "live" : null;
+  if (record3.type === "plan") {
     return runWithoutTrace(
       identity,
       "This turn proposed an analysis plan and the plan was never approved, so no run was executed and there is no trace.",
@@ -177529,8 +178201,8 @@ function conversationRunTrace(row2, experimentId) {
       runtimeUsed
     );
   }
-  if (record2.type === "clarification") {
-    const clarification = ClarificationSchema.safeParse(record2.clarification);
+  if (record3.type === "clarification") {
+    const clarification = ClarificationSchema.safeParse(record3.clarification);
     const asked = clarification.success ? TraceDetailSchema.safeParse(clarification.data.trace) : null;
     if (clarification.success && asked?.success) {
       const recorded3 = isMlflowTraceId(asked.data.id);
@@ -177560,9 +178232,9 @@ function conversationRunTrace(row2, experimentId) {
       runtimeUsed
     );
   }
-  const answer = LiveAnswerSchema.safeParse(record2);
-  const charts = external_exports.array(ChartSchema).safeParse(record2.charts);
-  const trace2 = answer.success ? TraceDetailSchema.safeParse(answer.data.trace) : TraceDetailSchema.safeParse(record2.trace);
+  const answer = LiveAnswerSchema.safeParse(record3);
+  const charts = external_exports.array(ChartSchema).safeParse(record3.charts);
+  const trace2 = answer.success ? TraceDetailSchema.safeParse(answer.data.trace) : TraceDetailSchema.safeParse(record3.trace);
   if (!trace2.success) {
     return runWithoutTrace(
       identity,
@@ -177577,16 +178249,16 @@ function conversationRunTrace(row2, experimentId) {
     ...identity,
     state: "trace",
     mode,
-    takeaway: typeof record2.takeaway === "string" ? record2.takeaway : "",
-    narrative: typeof record2.narrative === "string" ? record2.narrative : "",
-    sql: typeof record2.sql === "string" ? record2.sql : "",
+    takeaway: typeof record3.takeaway === "string" ? record3.takeaway : "",
+    narrative: typeof record3.narrative === "string" ? record3.narrative : "",
+    sql: typeof record3.sql === "string" ? record3.sql : "",
     ...charts.success ? { charts: charts.data } : {},
     sources: answer.success ? answer.data.sources : [],
     // Read off the record rather than off the parse, so a run whose stored answer
     // has drifted in some unrelated key still discloses what it disclosed. The
     // sources above take the parsed value because they are objects with a shape
     // the browser indexes into; these are sentences.
-    caveats: answer.success ? answer.data.caveats : storedSentences(record2.caveats),
+    caveats: answer.success ? answer.data.caveats : storedSentences(record3.caveats),
     // Only from the parse, and only when it succeeded. These are objects the
     // browser indexes into, like the sources above and unlike the caveats, and a
     // half-shaped one read straight off a drifted record would render as a
@@ -177652,16 +178324,16 @@ function candidateAcknowledgement(value) {
 }
 function extractPreflightReport(value) {
   if (!value || typeof value !== "object") return null;
-  const record2 = value;
-  if (isEndpointError(record2)) return null;
-  const custom2 = record2.custom_outputs;
+  const record3 = value;
+  if (isEndpointError(record3)) return null;
+  const custom2 = record3.custom_outputs;
   if (custom2 && typeof custom2 === "object") {
     const parsed = PreflightReportSchema.safeParse(custom2.preflight);
     if (parsed.success) return parsed.data;
   }
   for (const key2 of ["data", "response", "result", "body"]) {
-    if (record2[key2]) {
-      const nested = extractPreflightReport(record2[key2]);
+    if (record3[key2]) {
+      const nested = extractPreflightReport(record3[key2]);
       if (nested) return nested;
     }
   }
@@ -177669,18 +178341,18 @@ function extractPreflightReport(value) {
 }
 function extractConfigurationReport(value) {
   if (!value || typeof value !== "object") return [];
-  const record2 = value;
-  if (isEndpointError(record2)) return [];
-  const custom2 = record2.custom_outputs && typeof record2.custom_outputs === "object" ? record2.custom_outputs : null;
+  const record3 = value;
+  if (isEndpointError(record3)) return [];
+  const custom2 = record3.custom_outputs && typeof record3.custom_outputs === "object" ? record3.custom_outputs : null;
   const nestedReport = custom2?.preflight && typeof custom2.preflight === "object" ? custom2.preflight : null;
-  for (const candidate2 of [custom2?.configuration, nestedReport?.configuration, record2.configuration]) {
+  for (const candidate2 of [custom2?.configuration, nestedReport?.configuration, record3.configuration]) {
     if (!Array.isArray(candidate2)) continue;
     const entries = candidate2.map((entry) => PreflightConfigurationSchema.safeParse(entry)).flatMap((parsed) => parsed.success ? [parsed.data] : []).filter((entry) => entry.key);
     if (entries.length > 0) return entries;
   }
   for (const key2 of ["data", "response", "result", "body"]) {
-    if (record2[key2]) {
-      const nested = extractConfigurationReport(record2[key2]);
+    if (record3[key2]) {
+      const nested = extractConfigurationReport(record3[key2]);
       if (nested.length > 0) return nested;
     }
   }
@@ -177861,10 +178533,10 @@ function decodeConversationMessageCursor(value) {
 }
 function conversationListQuery(email3, readsShared) {
   return readsShared ? {
-    sql: `SELECT ${CONVERSATION_LIST_COLUMNS} FROM ${APP_SCHEMA}.conversations c${CONVERSATION_VERDICT_JOIN} ORDER BY c.updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
+    sql: `SELECT ${CONVERSATION_LIST_COLUMNS} FROM ${APP_SCHEMA}.conversations c${CONVERSATION_VERDICT_JOIN}${CONVERSATION_PERSONA_JOIN} ORDER BY c.updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
     params: []
   } : {
-    sql: `SELECT ${CONVERSATION_LIST_COLUMNS} FROM ${APP_SCHEMA}.conversations c${CONVERSATION_VERDICT_JOIN} WHERE c.user_email = $1 ORDER BY c.updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
+    sql: `SELECT ${CONVERSATION_LIST_COLUMNS} FROM ${APP_SCHEMA}.conversations c${CONVERSATION_VERDICT_JOIN}${CONVERSATION_PERSONA_JOIN} WHERE c.user_email = $1 ORDER BY c.updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
     params: [email3]
   };
 }
@@ -177910,18 +178582,18 @@ function conversationMessagesQuery(conversationId, email3, readsShared, page) {
     params: [conversationId, email3]
   };
 }
-function isEndpointError(record2) {
-  const status = record2.status ?? record2.statusCode;
-  return Boolean(record2.error) || typeof record2.error_code === "string" || typeof status === "number" && status >= 400;
+function isEndpointError(record3) {
+  const status = record3.status ?? record3.statusCode;
+  return Boolean(record3.error) || typeof record3.error_code === "string" || typeof status === "number" && status >= 400;
 }
 function extractLiveText(value) {
   if (!value || typeof value !== "object") return null;
-  const record2 = value;
-  if (isEndpointError(record2)) return null;
-  if (typeof record2.content === "string") return record2.content;
-  if (typeof record2.text === "string") return record2.text;
+  const record3 = value;
+  if (isEndpointError(record3)) return null;
+  if (typeof record3.content === "string") return record3.content;
+  if (typeof record3.text === "string") return record3.text;
   for (const key2 of ["content", "output", "messages", "choices"]) {
-    const items = record2[key2];
+    const items = record3[key2];
     if (Array.isArray(items)) {
       for (const item of items) {
         const text21 = extractLiveText(item);
@@ -177930,8 +178602,8 @@ function extractLiveText(value) {
     }
   }
   for (const key2 of ["message", "data", "response", "result", "body"]) {
-    if (record2[key2]) {
-      const text21 = extractLiveText(record2[key2]);
+    if (record3[key2]) {
+      const text21 = extractLiveText(record3[key2]);
       if (text21) return text21;
     }
   }
@@ -177939,9 +178611,9 @@ function extractLiveText(value) {
 }
 function extractStructuredAnswer(value) {
   if (!value || typeof value !== "object") return null;
-  const record2 = value;
-  if (isEndpointError(record2)) return null;
-  const custom2 = record2.custom_outputs;
+  const record3 = value;
+  if (isEndpointError(record3)) return null;
+  const custom2 = record3.custom_outputs;
   const candidates = [custom2];
   if (custom2 && typeof custom2 === "object") {
     const customRecord = custom2;
@@ -177957,8 +178629,8 @@ function extractStructuredAnswer(value) {
     return parsed.data;
   }
   for (const key2 of ["data", "response", "result", "body"]) {
-    if (record2[key2]) {
-      const nested = extractStructuredAnswer(record2[key2]);
+    if (record3[key2]) {
+      const nested = extractStructuredAnswer(record3[key2]);
       if (nested) return nested;
     }
   }
@@ -177966,9 +178638,9 @@ function extractStructuredAnswer(value) {
 }
 function extractClarification(value) {
   if (!value || typeof value !== "object") return null;
-  const record2 = value;
-  if (isEndpointError(record2)) return null;
-  const custom2 = record2.custom_outputs;
+  const record3 = value;
+  if (isEndpointError(record3)) return null;
+  const custom2 = record3.custom_outputs;
   if (custom2 && typeof custom2 === "object") {
     const customRecord = custom2;
     if (customRecord.type === "clarification") {
@@ -177981,8 +178653,8 @@ function extractClarification(value) {
     }
   }
   for (const key2 of ["data", "response", "result", "body"]) {
-    if (record2[key2]) {
-      const nested = extractClarification(record2[key2]);
+    if (record3[key2]) {
+      const nested = extractClarification(record3[key2]);
       if (nested) return nested;
     }
   }
@@ -177990,9 +178662,9 @@ function extractClarification(value) {
 }
 function extractAnalysisPlan(value) {
   if (!value || typeof value !== "object") return null;
-  const record2 = value;
-  if (isEndpointError(record2)) return null;
-  const custom2 = record2.custom_outputs;
+  const record3 = value;
+  if (isEndpointError(record3)) return null;
+  const custom2 = record3.custom_outputs;
   if (custom2 && typeof custom2 === "object") {
     const customRecord = custom2;
     if (customRecord.type === "plan") {
@@ -178007,8 +178679,8 @@ function extractAnalysisPlan(value) {
     }
   }
   for (const key2 of ["data", "response", "result", "body"]) {
-    if (record2[key2]) {
-      const nested = extractAnalysisPlan(record2[key2]);
+    if (record3[key2]) {
+      const nested = extractAnalysisPlan(record3[key2]);
       if (nested) return nested;
     }
   }
@@ -178028,9 +178700,9 @@ function buildServingHistory(rows) {
       }
     }
     if (response && typeof response === "object") {
-      const record2 = response;
-      if (record2.type === "plan" && record2.plan && typeof record2.plan === "object") {
-        const plan = record2.plan;
+      const record3 = response;
+      if (record3.type === "plan" && record3.plan && typeof record3.plan === "object") {
+        const plan = record3.plan;
         const summary = typeof plan.summary === "string" ? plan.summary : row2.content;
         const planId = typeof plan.id === "string" ? plan.id : "";
         return {
@@ -178038,11 +178710,11 @@ function buildServingHistory(rows) {
           content: `${summary} Plan ID: ${planId}`.trim()
         };
       }
-      if (typeof record2.takeaway === "string") {
-        const narrative = typeof record2.narrative === "string" ? record2.narrative : row2.content;
+      if (typeof record3.takeaway === "string") {
+        const narrative = typeof record3.narrative === "string" ? record3.narrative : row2.content;
         return {
           role: row2.role,
-          content: `${record2.takeaway}
+          content: `${record3.takeaway}
 
 ${narrative}`.slice(0, 4e3)
         };
@@ -178728,10 +179400,42 @@ function setupInsightsRoutes(appkit, options = {}) {
       res.status(preflightHttpStatus(report)).json({ ...report, error: "preflight_metadata_only" });
     });
     app.get("/api/conversations", async (req, res) => {
+      const parsedFilters = parseConversationFilterQuery(req.query);
+      if (!parsedFilters.ok) {
+        res.status(400).json({ error: "invalid_conversation_filters", detail: parsedFilters.message });
+        return;
+      }
       const email3 = userEmail(req);
       const readsShared = await callerReadsSharedConversations(appkit.lakebase, email3, options.rolesReady);
       const { sql: sql3, params } = conversationListQuery(email3, readsShared);
-      await respondWithStored(appkit, res, "GET /api/conversations", sql3, params);
+      const read2 = await readStored(appkit, "GET /api/conversations", sql3, params);
+      const { rows, substitution } = chooseRows("GET /api/conversations", read2);
+      markResponse(res, substitution);
+      if (!readsShared) {
+        res.json(
+          rows.map(
+            ({ persona_id: _personaId, persona_name: _personaName, persona_recorded_at: _recordedAt, ...row2 }) => row2
+          )
+        );
+        return;
+      }
+      const matchingConversationIds = rows.filter((row2) => conversationMatchesFilters(row2, parsedFilters.value)).map((row2) => String(row2.id));
+      const availablePersonaRead = await readStored(
+        appkit,
+        "GET /api/conversations (persona options)",
+        `SELECT id, display_name FROM ${APP_SCHEMA}.sp_personas ORDER BY display_name, id`,
+        []
+      );
+      const availablePersonas = availablePersonaRead.available ? availablePersonaRead.rows.map((row2) => ({
+        id: text8(row2.id)?.trim() ?? "",
+        name: text8(row2.display_name)?.trim() ?? ""
+      })).filter((persona) => persona.id && persona.name) : null;
+      res.json({
+        conversations: rows,
+        matching_conversation_ids: matchingConversationIds,
+        available_personas: availablePersonas,
+        persona_filter_rule: CONVERSATION_PERSONA_FILTER_RULE
+      });
     });
     app.delete("/api/conversations/:id", async (req, res) => {
       const conversationId = req.params.id;
@@ -179285,6 +179989,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           executePlan
         },
         identityModeRequested: executionIdentityClaim(identity).mode,
+        persona: identity.persona ? { id: identity.persona.id, displayName: identity.persona.displayName } : null,
         releaseIdentity: releaseIdentity(),
         // The id the browser minted, so the ledger row can be found from a
         // reader's screenshot, a log line, or a trace attribute -- without any of
@@ -180205,7 +180910,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
   );
   return Promise.resolve({ storeReady });
 }
-var import_express4, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, ResourceCallSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, parseAttachmentBody, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, NO_WAREHOUSE_CANCELLATION, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, DEFAULT_CONVERSATION_MESSAGE_LIMIT, MAX_CONVERSATION_MESSAGE_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient2, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
+var import_express4, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, ResourceCallSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, parseAttachmentBody, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, NO_WAREHOUSE_CANCELLATION, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, DEFAULT_CONVERSATION_MESSAGE_LIMIT, MAX_CONVERSATION_MESSAGE_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_PERSONA_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient2, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
 var init_insights_routes = __esm({
   "server/routes/insights-routes.ts"() {
     init_app_schema();
@@ -180258,6 +180963,7 @@ var init_insights_routes = __esm({
     init_genie_warehouse_warmup();
     init_failure_taxonomy();
     init_terminal_response();
+    init_conversation_filters();
     init_failure_evidence();
     init_agent_refusal();
     init_session_freshness();
@@ -180939,7 +181645,15 @@ var init_insights_routes = __esm({
     ORDER BY m.created_at DESC
     LIMIT 1
   ) verdict ON TRUE`;
-    CONVERSATION_LIST_COLUMNS = "c.id, c.title, c.updated_at, c.user_email, verdict.status, verdict.truncated, verdict.duration_ms";
+    CONVERSATION_PERSONA_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT r.persona_id, r.persona_name, r.created_at AS recorded_at
+    FROM ${APP_SCHEMA}.runs r
+    WHERE r.conversation_id = c.id
+    ORDER BY r.created_at DESC, r.run_id DESC
+    LIMIT 1
+  ) persona ON TRUE`;
+    CONVERSATION_LIST_COLUMNS = "c.id, c.title, c.updated_at, c.user_email, verdict.status, verdict.truncated, verdict.duration_ms, persona.persona_id, persona.persona_name, persona.recorded_at AS persona_recorded_at";
     CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, updated_at, terminal_code, terminal_message_id
   FROM ${APP_SCHEMA}.runs
   WHERE conversation_id = $1 AND ($3 OR user_email = $2)
@@ -181050,18 +181764,18 @@ function parseDeclaration(raw2) {
   if (Array.isArray(rawConnections)) {
     for (const entry of rawConnections.slice(0, MAX_DECLARED_CONNECTIONS)) {
       if (typeof entry !== "object" || entry === null) continue;
-      const record2 = entry;
-      const id = field2(record2.id, 120);
-      const value = field2(record2.value);
-      if (!id || !value || seenIds.has(id) || !isDeclarableKind(record2.kind)) continue;
+      const record3 = entry;
+      const id = field2(record3.id, 120);
+      const value = field2(record3.value);
+      if (!id || !value || seenIds.has(id) || !isDeclarableKind(record3.kind)) continue;
       seenIds.add(id);
       connections.push({
         id,
-        label: field2(record2.label, 200) || id,
-        kind: record2.kind,
-        resourceType: isDeclaredResourceType(record2.resourceType ?? record2.resource_type) ? record2.resourceType ?? record2.resource_type : void 0,
+        label: field2(record3.label, 200) || id,
+        kind: record3.kind,
+        resourceType: isDeclaredResourceType(record3.resourceType ?? record3.resource_type) ? record3.resourceType ?? record3.resource_type : void 0,
         value,
-        note: field2(record2.note)
+        note: field2(record3.note)
       });
     }
   }
@@ -181327,13 +182041,13 @@ function exclusionReason(table, denylist = []) {
 }
 function listedTableFromBody(row2) {
   if (!row2 || typeof row2 !== "object") return null;
-  const record2 = row2;
-  const fullName = String(record2.full_name ?? "").trim();
-  const name2 = String(record2.name ?? "").trim();
+  const record3 = row2;
+  const fullName = String(record3.full_name ?? "").trim();
+  const name2 = String(record3.name ?? "").trim();
   const resolved = fullName || (name2.includes(".") ? name2 : "");
   if (!resolved || resolved.split(".").length !== 3) return null;
   const parts = resolved.split(".");
-  const columns = Array.isArray(record2.columns) ? record2.columns.map((column) => {
+  const columns = Array.isArray(record3.columns) ? record3.columns.map((column) => {
     if (!column || typeof column !== "object") return "";
     return String(column.name ?? "").trim();
   }).filter(Boolean) : null;
@@ -181585,14 +182299,14 @@ function parseModelConfigDocument(source) {
   if (trimmed.startsWith("{")) {
     try {
       const parsed = JSON.parse(trimmed);
-      const record2 = asRecord2(parsed);
-      const nested = asRecord2(record2.model_config);
+      const record3 = asRecord2(parsed);
+      const nested = asRecord2(record3.model_config);
       if (Object.keys(nested).length > 0) return nested;
-      const flavors = asRecord2(asRecord2(record2.flavors).python_function);
+      const flavors = asRecord2(asRecord2(record3.flavors).python_function);
       const fromFlavor = asRecord2(flavors.config ?? flavors.model_config);
       if (Object.keys(fromFlavor).length > 0) return fromFlavor;
-      if ("llm_endpoint" in record2 || "declared_manifest" in record2 || "semantic_index" in record2) {
-        return record2;
+      if ("llm_endpoint" in record3 || "declared_manifest" in record3 || "semantic_index" in record3) {
+        return record3;
       }
     } catch {
       return {};
@@ -181678,22 +182392,22 @@ function parseYamlMap(block) {
 }
 function artifactText(body) {
   if (typeof body === "string") return body;
-  const record2 = asRecord2(body);
-  if (typeof record2.content === "string") return record2.content;
-  if (typeof record2.data === "string") {
+  const record3 = asRecord2(body);
+  if (typeof record3.content === "string") return record3.content;
+  if (typeof record3.data === "string") {
     try {
-      return Buffer.from(record2.data, "base64").toString("utf8");
+      return Buffer.from(record3.data, "base64").toString("utf8");
     } catch {
-      return record2.data;
+      return record3.data;
     }
   }
-  if (typeof record2.text === "string") return record2.text;
+  if (typeof record3.text === "string") return record3.text;
   return "";
 }
 function runIdOf(body) {
-  const record2 = asRecord2(body);
-  const version4 = asRecord2(record2.model_version ?? record2.modelVersion);
-  return text11(version4.run_id ?? version4.runId ?? record2.run_id ?? record2.runId);
+  const record3 = asRecord2(body);
+  const version4 = asRecord2(record3.model_version ?? record3.modelVersion);
+  return text11(version4.run_id ?? version4.runId ?? record3.run_id ?? record3.runId);
 }
 function envVarFor(key2) {
   return APPLY_ENV_VARS[key2] ?? EXTRA_ENV2[key2] ?? "";
@@ -182027,6 +182741,32 @@ function scopeForPath(path21) {
 function text12(value) {
   return typeof value === "string" ? value.trim() : "";
 }
+function record2(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function compactFacts(entries) {
+  return Object.fromEntries(
+    Object.entries(entries).filter(
+      ([, value]) => value !== null && value !== void 0 && (typeof value !== "string" || value.trim().length > 0)
+    )
+  );
+}
+function servingFacts(body) {
+  const state = record2(body.state);
+  const entities = Array.isArray(body.served_entities) ? body.served_entities.map(record2) : [];
+  const routes = Array.isArray(record2(body.traffic_config).routes) ? record2(body.traffic_config).routes.map(record2) : [];
+  const servedModel = entities.map((entity) => {
+    const name2 = text12(entity.entity_name) || text12(entity.name);
+    const version4 = text12(entity.entity_version);
+    return [name2, version4 && `v${version4}`].filter(Boolean).join(" ");
+  }).filter(Boolean).join(", ");
+  const traffic = routes.map((route) => {
+    const name2 = text12(route.served_model_name);
+    const percentage = typeof route.traffic_percentage === "number" && Number.isFinite(route.traffic_percentage) ? `${route.traffic_percentage}%` : "";
+    return [name2, percentage].filter(Boolean).join(" ");
+  }).filter(Boolean).join(", ");
+  return compactFacts({ readiness: text12(state.ready), served_model: servedModel, traffic });
+}
 function sql2(statement, guidance = "") {
   return { kind: "sql", statement, guidance };
 }
@@ -182054,6 +182794,12 @@ function connectionSubjects(input) {
         return [name2 && `named \u201C${name2}\u201D`, state && `state ${state}`].filter(Boolean).join(", ");
       },
       displayName: (body) => text12(body.name),
+      facts: (body) => compactFacts({
+        display_name: text12(body.name),
+        state: text12(body.state),
+        warehouse_type: text12(body.warehouse_type),
+        cluster_size: text12(body.cluster_size)
+      }),
       grant: (principal) => (
         // No guidance. What stood here said a warehouse is a workspace object
         // rather than a Unity Catalog one, which is why the fix is an API call
@@ -182066,7 +182812,7 @@ function connectionSubjects(input) {
       )
     });
   }
-  for (const [id, label] of [
+  for (const [id, label2] of [
     ["genie-data", "Data Genie space"],
     ["genie-dictionary", "Dictionary Genie space"]
   ]) {
@@ -182076,7 +182822,7 @@ function connectionSubjects(input) {
       id,
       kind: "genie-space",
       name: space,
-      label: `${label} \xB7 ${space}`,
+      label: `${label2} \xB7 ${space}`,
       path: `/api/2.0/genie/spaces/${encodeURIComponent(space)}`,
       proves: "It does not prove a question would be answered: a space someone can open can still be backed by tables they cannot read, and CAN RUN is a separate grant from CAN VIEW.",
       observe: (body) => {
@@ -182084,6 +182830,15 @@ function connectionSubjects(input) {
         return title ? `titled \u201C${title}\u201D` : "";
       },
       displayName: (body) => text12(body.title),
+      facts: (body) => {
+        const dataSources = record2(body.data_sources);
+        const tables = Array.isArray(dataSources.tables) ? dataSources.tables.length : Array.isArray(body.tables) ? body.tables.length : null;
+        return compactFacts({
+          display_name: text12(body.title),
+          warehouse_id: text12(body.warehouse_id),
+          table_count: tables
+        });
+      },
       grant: (principal) => (
         // No guidance. The dropped sentence said the tables behind a space are
         // granted separately in Unity Catalog, which is a real fact and one this
@@ -182162,10 +182917,10 @@ function connectionSubjects(input) {
       )
     });
   }
-  for (const { id, label, note } of SERVING_ENDPOINTS) {
+  for (const { id, label: label2, note } of SERVING_ENDPOINTS) {
     const endpoint = value(id);
     if (!endpoint || endpoint.includes("/")) continue;
-    subjects.push(servingEndpointSubject(id, label, endpoint, note));
+    subjects.push(servingEndpointSubject(id, label2, endpoint, note));
   }
   const index = resolveSemanticIndexValue(value("semantic-index"), value("catalog"), value("schema"));
   if (index && index.includes(".")) {
@@ -182182,6 +182937,17 @@ function connectionSubjects(input) {
         return [endpoint && `served by ${endpoint}`, state && `state ${state}`].filter(Boolean).join(", ");
       },
       displayName: (body) => text12(body.name),
+      facts: (body) => {
+        const status = record2(body.status);
+        const delta = record2(body.delta_sync_index_spec);
+        return compactFacts({
+          display_name: text12(body.name),
+          endpoint: text12(body.endpoint_name),
+          state: text12(status.detailed_state),
+          index_type: text12(body.index_type) || text12(delta.pipeline_type),
+          source_table: text12(delta.source_table)
+        });
+      },
       contentAt: (body) => indexContentAt(body),
       // NOW A GRANT, which is what this row always claimed to be offering. What
       // stood here was a `databricks api get` against the index -- the same call
@@ -182215,12 +182981,12 @@ function indexContentAt(body) {
   }
   return "";
 }
-function servingEndpointSubject(id, label, name2, note) {
+function servingEndpointSubject(id, label2, name2, note) {
   return {
     id,
     kind: SERVING_ENDPOINT_KIND,
     name: name2,
-    label: `${label} \xB7 ${name2}`,
+    label: `${label2} \xB7 ${name2}`,
     path: `/api/2.0/serving-endpoints/${encodeURIComponent(name2)}`,
     proves: `${note} Seeing an endpoint is not being allowed to call it: CAN_VIEW and CAN_QUERY are separate grants, and this call needs only the first.`,
     observe: (body) => {
@@ -182228,6 +182994,7 @@ function servingEndpointSubject(id, label, name2, note) {
       const ready = text12(state.ready);
       return ready ? `state ${ready}` : "";
     },
+    facts: servingFacts,
     // No guidance. The dropped sentence classified the object to explain why the
     // fix is an API call; the reader is holding the API call.
     grant: (principal) => cli(
@@ -182250,6 +183017,13 @@ function vectorEndpointSubject(indexBody) {
       const status = body.endpoint_status ?? {};
       const state = text12(status.state);
       return state ? `state ${state}` : "";
+    },
+    facts: (body) => {
+      const status = record2(body.endpoint_status);
+      return compactFacts({
+        state: text12(status.state),
+        endpoint_type: text12(body.endpoint_type)
+      });
     },
     grant: endpointId ? (principal) => cli(
       `databricks permissions update vector-search-endpoints ${endpointId} --json '{"access_control_list":[{"user_name":"${principal || "<the signed-in user>"}","permission_level":"CAN_USE"}]}'`,
@@ -182355,6 +183129,7 @@ function probeVerdict(input) {
     return check2(subject, {
       status: "ok",
       display_name: subject.displayName?.(body) || void 0,
+      facts: subject.facts?.(body),
       duration_ms: durationMs,
       content_at: contentAt,
       detail: `The workspace answered${who}${observed ? `: ${observed}` : ""}. ${freshness}That is a metadata read. ${subject.proves}`
@@ -182553,9 +183328,7 @@ async function probeConnections(input) {
     if (resolved.indexIsCandidate) {
       const indexCheck2 = next.find((entry) => entry.id === "semantic-index");
       if (indexCheck2?.status !== "ok") {
-        next = next.filter(
-          (entry) => entry.id !== "semantic-index" && entry.id !== "semantic-index-endpoint"
-        );
+        next = next.filter((entry) => entry.id !== "semantic-index" && entry.id !== "semantic-index-endpoint");
         return withSemanticFollowUps(withManifestRollup(next), input.configured);
       }
     }
@@ -183052,9 +183825,9 @@ function schemaItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const fullName = text13(record2.full_name);
-    const name2 = text13(record2.name);
+    const record3 = row2;
+    const fullName = text13(record3.full_name);
+    const name2 = text13(record3.name);
     const schemaName = name2.includes(".") ? name2.slice(name2.indexOf(".") + 1) : name2 || (fullName.includes(".") ? fullName.slice(fullName.indexOf(".") + 1) : fullName);
     if (!schemaName) continue;
     items.push({
@@ -183075,14 +183848,14 @@ function tableItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const fullName = text13(record2.full_name) || text13(record2.name);
+    const record3 = row2;
+    const fullName = text13(record3.full_name) || text13(record3.name);
     if (!fullName) continue;
     const short = fullName.includes(".") ? fullName.split(".").pop() : fullName;
     items.push({
       id: fullName,
       label: short,
-      secondary: text13(record2.table_type),
+      secondary: text13(record3.table_type),
       expandable: false
     });
   }
@@ -183093,13 +183866,13 @@ function warehouseItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const id = text13(record2.id);
+    const record3 = row2;
+    const id = text13(record3.id);
     if (!id) continue;
     items.push({
       id,
-      label: text13(record2.name) || id,
-      secondary: text13(record2.state),
+      label: text13(record3.name) || id,
+      secondary: text13(record3.state),
       expandable: false
     });
   }
@@ -183110,12 +183883,12 @@ function genieItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const id = text13(record2.space_id) || text13(record2.id);
+    const record3 = row2;
+    const id = text13(record3.space_id) || text13(record3.id);
     if (!id) continue;
     items.push({
       id,
-      label: text13(record2.title) || id,
+      label: text13(record3.title) || id,
       secondary: "",
       expandable: false
     });
@@ -183127,15 +183900,15 @@ function servingEndpointItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const name2 = text13(record2.name);
+    const record3 = row2;
+    const name2 = text13(record3.name);
     if (!name2) continue;
-    const state = record2.state;
+    const state = record3.state;
     const ready = state && typeof state === "object" ? text13(state.ready) : "";
     items.push({
       id: name2,
       label: name2,
-      secondary: text13(record2.task) || ready,
+      secondary: text13(record3.task) || ready,
       expandable: false
     });
   }
@@ -183146,16 +183919,16 @@ function notebookItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const path21 = text13(record2.path);
+    const record3 = row2;
+    const path21 = text13(record3.path);
     if (!path21) continue;
-    const objectType = text13(record2.object_type).toUpperCase();
+    const objectType = text13(record3.object_type).toUpperCase();
     if (objectType !== "DIRECTORY" && objectType !== "NOTEBOOK") continue;
-    const label = path21.includes("/") ? path21.slice(path21.lastIndexOf("/") + 1) : path21;
+    const label2 = path21.includes("/") ? path21.slice(path21.lastIndexOf("/") + 1) : path21;
     items.push({
       id: path21,
-      label: label || path21,
-      secondary: objectType === "NOTEBOOK" ? text13(record2.language) : "Directory",
+      label: label2 || path21,
+      secondary: objectType === "NOTEBOOK" ? text13(record3.language) : "Directory",
       expandable: objectType === "DIRECTORY"
     });
   }
@@ -183269,14 +184042,14 @@ function volumeItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const fullName = text13(record2.full_name) || text13(record2.name);
+    const record3 = row2;
+    const fullName = text13(record3.full_name) || text13(record3.name);
     if (!fullName) continue;
     const short = fullName.includes(".") ? fullName.split(".").pop() : fullName;
     items.push({
       id: short,
       label: short,
-      secondary: text13(record2.volume_type) || fullName,
+      secondary: text13(record3.volume_type) || fullName,
       expandable: false
     });
   }
@@ -183325,12 +184098,12 @@ function vectorSearchEndpointItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const name2 = text13(record2.name);
+    const record3 = row2;
+    const name2 = text13(record3.name);
     if (!name2) continue;
-    const status = record2.endpoint_status;
+    const status = record3.endpoint_status;
     const state = status && typeof status === "object" ? text13(status.state) : "";
-    const count4 = typeof record2.num_indexes === "number" ? `${record2.num_indexes} indexes` : "";
+    const count4 = typeof record3.num_indexes === "number" ? `${record3.num_indexes} indexes` : "";
     items.push({
       id: name2,
       label: name2,
@@ -183345,14 +184118,14 @@ function vectorSearchIndexItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const name2 = text13(record2.name);
+    const record3 = row2;
+    const name2 = text13(record3.name);
     if (!name2) continue;
     const short = name2.includes(".") ? name2.split(".").pop() : name2;
     items.push({
       id: name2,
       label: short,
-      secondary: text13(record2.index_type) || text13(record2.endpoint_name),
+      secondary: text13(record3.index_type) || text13(record3.endpoint_name),
       expandable: false
     });
   }
@@ -183386,10 +184159,10 @@ function lakebaseProjectItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const name2 = text13(record2.name);
+    const record3 = row2;
+    const name2 = text13(record3.name);
     if (!name2) continue;
-    const status = record2.status;
+    const status = record3.status;
     const display = status && typeof status === "object" ? text13(status.display_name) : "";
     const short = name2.startsWith("projects/") ? name2.slice("projects/".length) : name2;
     items.push({
@@ -183406,11 +184179,11 @@ function lakebaseBranchItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const name2 = text13(record2.name);
+    const record3 = row2;
+    const name2 = text13(record3.name);
     if (!name2) continue;
     const short = name2.includes("/branches/") ? name2.slice(name2.lastIndexOf("/branches/") + "/branches/".length) : name2;
-    const status = record2.status;
+    const status = record3.status;
     const state = status && typeof status === "object" ? text13(status.state) : "";
     items.push({
       id: name2,
@@ -183426,8 +184199,8 @@ function lakebaseDatabaseItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const record2 = row2;
-    const name2 = text13(record2.name);
+    const record3 = row2;
+    const name2 = text13(record3.name);
     if (!name2) continue;
     const short = name2.includes("/databases/") ? name2.slice(name2.lastIndexOf("/databases/") + "/databases/".length) : name2;
     items.push({
@@ -183756,11 +184529,6 @@ async function writeDeclaredConnection(client, connection) {
   if (!row2) throw new Error("the declared connection was not written back");
   return storedFromRow2(row2);
 }
-async function withdrawDeclaredConnection(client, id, changedBy) {
-  const result = await client.lakebase.query(WITHDRAW_DECLARED_CONNECTION_QUERY, [id, changedBy]);
-  const row2 = (result?.rows ?? [])[0];
-  return row2 ? storedFromRow2(row2) : null;
-}
 async function restoreDeclaredConnection(client, id, changedBy) {
   const result = await client.lakebase.query(RESTORE_DECLARED_CONNECTION_QUERY, [id, changedBy]);
   const row2 = (result?.rows ?? [])[0];
@@ -183768,7 +184536,7 @@ async function restoreDeclaredConnection(client, id, changedBy) {
 }
 async function forgetDeclaredConnection(client, id) {
   const result = await client.lakebase.query(FORGET_DECLARED_CONNECTION_QUERY, [id]);
-  return Boolean((result?.rows ?? [])[0]);
+  return (result?.rows ?? []).map((row2) => text14(row2.id)).filter(Boolean);
 }
 function addFault(input) {
   if (!ID_PATTERN.test(input.id)) {
@@ -183832,7 +184600,7 @@ function removalImpact(connection, liveValues) {
   return {
     headline: alsoLive ? `Remove ${connection.label} from the list. The running agent is configured with this value and keeps using it.` : `Remove ${connection.label} from the assets the agent may consider.`,
     consequences,
-    recoverable: true
+    recoverable: false
   };
 }
 var DECLARED_CONNECTIONS_QUERY, UPSERT_DECLARED_CONNECTION_QUERY, WITHDRAW_DECLARED_CONNECTION_QUERY, RESTORE_DECLARED_CONNECTION_QUERY, FORGET_DECLARED_CONNECTION_QUERY, ID_PATTERN;
@@ -183871,9 +184639,25 @@ var init_declared_connections = __esm({
    WHERE id = $1 AND state = 'withdrawn'
   RETURNING id, label, kind, resource_type, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
     FORGET_DECLARED_CONNECTION_QUERY = `
-  DELETE FROM ${APP_SCHEMA}.declared_connections
-   WHERE id = $1
-  RETURNING id`;
+  WITH target AS (
+    SELECT lower(btrim(id)) AS id,
+           lower(btrim(kind)) AS kind,
+           lower(btrim(coalesce(resource_type, ''))) AS resource_type,
+           lower(btrim(value)) AS value
+      FROM ${APP_SCHEMA}.declared_connections
+     WHERE lower(btrim(id)) = lower(btrim($1))
+     ORDER BY created_at, id
+     LIMIT 1
+  )
+  DELETE FROM ${APP_SCHEMA}.declared_connections AS connection
+   USING target
+   WHERE lower(btrim(connection.id)) = target.id
+      OR (
+        lower(btrim(connection.kind)) = target.kind
+        AND lower(btrim(coalesce(connection.resource_type, ''))) = target.resource_type
+        AND lower(btrim(connection.value)) = target.value
+      )
+  RETURNING connection.id`;
     ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,60}$/;
   }
 });
@@ -184091,7 +184875,7 @@ function resourceTagInventory(input = {}) {
       action: "tag"
     });
   }
-  for (const [key2, label] of [
+  for (const [key2, label2] of [
     ["data_genie_space_id", "Data Genie space"],
     ["dictionary_genie_space_id", "Dictionary Genie space"]
   ]) {
@@ -184100,7 +184884,7 @@ function resourceTagInventory(input = {}) {
     targets.push({
       kind: "genie-space",
       name: spaceId,
-      label: `${label} \xB7 ${spaceId}`,
+      label: `${label2} \xB7 ${spaceId}`,
       action: "skip",
       reason: "Genie space tags are organizational only and do not propagate to billing by space id. SQL issued by this space is billed through its associated SQL warehouse."
     });
@@ -184835,27 +185619,22 @@ function setupSettingsRoutes(appkit) {
     });
     app.delete("/api/settings/connections/:id", async (req, res) => {
       try {
-        const connections = await readDeclaredConnections(appkit);
-        const connection = connections.find((entry) => entry.id === req.params.id);
-        if (!connection || connection.state === "withdrawn") {
-          res.status(404).json({
-            error: "no_such_connection",
-            detail: connection ? "That connection is already withdrawn." : "Nothing is declared under that name."
-          });
+        const deletedIds = await forgetDeclaredConnection(appkit, req.params.id);
+        if (deletedIds.length === 0) {
+          res.status(404).json({ error: "no_such_connection", detail: "Nothing is declared under that name." });
           return;
         }
-        const impact = await impactFor(appkit, connection);
-        const withdrawn = await withdrawDeclaredConnection(appkit, req.params.id, userEmail(req));
-        if (!withdrawn) {
-          res.status(404).json({ error: "no_such_connection", detail: "That connection is already withdrawn." });
-          return;
-        }
-        res.json({ connection: withdrawn, impact, restorable: true });
+        res.json({
+          forgotten: { id: req.params.id },
+          deletedIds,
+          deletedCount: deletedIds.length,
+          restorable: false
+        });
       } catch (error48) {
-        console.error("[connections] The connection could not be withdrawn:", error48.message);
+        console.error("[connections] The connection could not be deleted:", error48.message);
         res.status(503).json({
           error: "settings_store_unavailable",
-          detail: "The connection was not withdrawn."
+          detail: "The connection was not deleted. Nothing changed; retry when Lakebase is available."
         });
       }
     });
@@ -184877,15 +185656,20 @@ function setupSettingsRoutes(appkit) {
     });
     app.delete("/api/settings/connections/:id/forever", async (req, res) => {
       try {
-        const forgotten = await forgetDeclaredConnection(appkit, req.params.id);
-        if (!forgotten) {
+        const deletedIds = await forgetDeclaredConnection(appkit, req.params.id);
+        if (deletedIds.length === 0) {
           res.status(404).json({
             error: "no_such_connection",
             detail: "There is no remembered connection under that name."
           });
           return;
         }
-        res.json({ forgotten: { id: req.params.id }, restorable: false });
+        res.json({
+          forgotten: { id: req.params.id },
+          deletedIds,
+          deletedCount: deletedIds.length,
+          restorable: false
+        });
       } catch (error48) {
         console.error("[connections] The connection could not be forgotten:", error48.message);
         res.status(503).json({
@@ -185578,8 +186362,8 @@ function leftInPlaceNote(theirs, kept) {
   }
   return parts.join(" ");
 }
-function kindOf(object2) {
-  const parts = object2.split(".").length;
+function kindOf(object3) {
+  const parts = object3.split(".").length;
   return parts === 1 ? "CATALOG" : parts === 2 ? "SCHEMA" : "TABLE";
 }
 async function withdrawAccess(input) {
@@ -187428,11 +188212,11 @@ async function readWarehouseQueryAttribution(input) {
 }
 function queryHistoryPage2(value) {
   if (!value || typeof value !== "object") return {};
-  const record2 = value;
+  const record3 = value;
   return {
-    res: Array.isArray(record2.res) ? record2.res : [],
-    ...typeof record2.next_page_token === "string" ? { next_page_token: record2.next_page_token } : {},
-    ...typeof record2.has_next_page === "boolean" ? { has_next_page: record2.has_next_page } : {}
+    res: Array.isArray(record3.res) ? record3.res : [],
+    ...typeof record3.next_page_token === "string" ? { next_page_token: record3.next_page_token } : {},
+    ...typeof record3.has_next_page === "boolean" ? { has_next_page: record3.has_next_page } : {}
   };
 }
 function createDatabricksQueryHistoryTransport(client) {
@@ -187530,7 +188314,7 @@ function workspaceEstimateRow(component) {
 function canAsk(component, ids) {
   if (!ids.workspaceId) return false;
   if (component === "genie") return false;
-  if (component === "vector-search") return Boolean(vectorIndexName(ids.vectorIndex) && ids.vectorEndpoint);
+  if (component === "vector-search") return Boolean(ids.vectorEndpoint);
   return Boolean(ids[MATCHERS[component].parameter]);
 }
 function resourceIdFor(component, ids) {
@@ -187542,7 +188326,7 @@ function resourceIdFor(component, ids) {
     case "app-compute":
       return ids.appName;
     case "vector-search":
-      return vectorIndexName(ids.vectorIndex);
+      return vectorIndexName(ids.vectorIndex) || ids.vectorEndpoint;
     case "genie":
       return "";
   }
@@ -187556,7 +188340,7 @@ function resourceKindFor(component, ids) {
     case "app-compute":
       return "app";
     case "vector-search":
-      return vectorIndexName(ids.vectorIndex) ? "vector-index" : "";
+      return vectorIndexName(ids.vectorIndex) ? "vector-index" : ids.vectorEndpoint ? "vector-endpoint" : "";
     case "genie":
       return "";
   }
@@ -188187,7 +188971,7 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
     id: component,
     label: description.label,
     resourceId: resourceIdFor(component, ids),
-    ...component === "vector-search" ? { secondaryResourceId: ids.vectorEndpoint } : {},
+    ...component === "vector-search" && vectorIndexName(ids.vectorIndex) ? { secondaryResourceId: ids.vectorEndpoint } : {},
     resourceKind: resourceKindFor(component, ids),
     quality: description.quality,
     basis: description.basis,
@@ -188261,7 +189045,23 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
     } : {}
   };
   if (component === "vector-search") {
-    const share = measuredActivity && measuredActivity.observedCalls > 0 ? Math.min(1, Math.max(0, measuredActivity.calls / measuredActivity.observedCalls)) : !measuredActivity ? 1 : null;
+    const configuredIndex = vectorIndexName(ids.vectorIndex);
+    if (!configuredIndex) {
+      return withMeta({
+        ...base,
+        label: "Vector Search endpoint",
+        quality: "rate",
+        population: "This endpoint",
+        amount,
+        dbus,
+        pricing,
+        note: row2 ? "Billing identifies the configured endpoint; no active index identity was available for per-index allocation." : "",
+        unavailable: amount === null && dbus === null ? unpricedUnavailable(pricing) || "No billing rows" : "",
+        remedy: "",
+        evidence
+      });
+    }
+    const share = measuredActivity && measuredActivity.observedCalls > 0 ? Math.min(1, Math.max(0, measuredActivity.calls / measuredActivity.observedCalls)) : null;
     if (share === null) {
       return withMeta({
         ...base,
@@ -188342,8 +189142,8 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
   }
   return withMeta({ ...base, amount, dbus, pricing, note: "", unavailable: "", remedy: "", evidence });
 }
-function unknownPart(id, label, unavailable5) {
-  return { id, label, quality: "unknown", amount: null, unavailable: unavailable5 };
+function unknownPart(id, label2, unavailable5) {
+  return { id, label: label2, quality: "unknown", amount: null, unavailable: unavailable5 };
 }
 function buildQuestionAttribution(runs, tiles, limit) {
   const newest = runs.slice(0, limit);
@@ -188503,7 +189303,7 @@ var init_ops_billing = __esm({
         variable: "DATABRICKS_WORKSPACE_ID"
       },
       "vector-search": {
-        label: "Vector search",
+        label: "Vector Search",
         quality: "rate",
         population: "This endpoint",
         basis: "per-day",
@@ -188572,12 +189372,12 @@ var init_cost_budgets = __esm({
     CostBudgetSchema = external_exports.preprocess((raw2) => {
       if (typeof raw2 === "number" || raw2 === null) return { USD: raw2, DBU: null };
       if (!raw2 || typeof raw2 !== "object" || Array.isArray(raw2)) return raw2;
-      const record2 = raw2;
-      if ("USD" in record2 || "DBU" in record2) return raw2;
-      if ("value" in record2 && (record2.unit === "USD" || record2.unit === "DBU")) {
+      const record3 = raw2;
+      if ("USD" in record3 || "DBU" in record3) return raw2;
+      if ("value" in record3 && (record3.unit === "USD" || record3.unit === "DBU")) {
         return {
-          USD: record2.unit === "USD" ? record2.value : null,
-          DBU: record2.unit === "DBU" ? record2.value : null
+          USD: record3.unit === "USD" ? record3.value : null,
+          DBU: record3.unit === "DBU" ? record3.value : null
         };
       }
       return raw2;
@@ -188665,7 +189465,6 @@ __export(ops_routes_exports, {
   RESOURCE_ACTIVITY_QUERY: () => RESOURCE_ACTIVITY_QUERY,
   RUN_OUTCOMES_QUERY: () => RUN_OUTCOMES_QUERY,
   TOOL_CALLS_QUERY: () => TOOL_CALLS_QUERY,
-  causeLabel: () => causeLabel,
   configuredResourceName: () => configuredResourceName,
   forgetWorkspaceId: () => forgetWorkspaceId,
   lakebaseReading: () => lakebaseReading,
@@ -188730,14 +189529,14 @@ async function lookupVectorEndpoint(input) {
   }
 }
 function shownConnectionValue(state) {
-  return (state.intended ?? (state.configured || state.actual)).trim();
+  return (state.actualObserved ? state.actual : state.configured || state.actual).trim();
 }
 function configuredResourceName(value, keys) {
   if (typeof value === "string") return value.trim();
   if (!value || typeof value !== "object" || Array.isArray(value)) return "";
-  const record2 = value;
+  const record3 = value;
   for (const key2 of keys) {
-    const candidate2 = text18(record2[key2]).trim();
+    const candidate2 = text18(record3[key2]).trim();
     if (candidate2) return candidate2;
   }
   return "";
@@ -188777,7 +189576,7 @@ async function costIdentifiersFor(appkit, req, extras) {
   const vectorIndex = vectorIndexName(
     resolveSemanticIndexValue(semanticValue, text18(configured.catalog), text18(configured.schema)) || semanticCheck?.name || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? "")
   );
-  let vectorEndpoint = queryText(req, "vectorEndpoint") || configured["semantic-index-endpoint"] || endpointCheck?.name || configuredResourceName(semanticEntry?.value, ["endpoint_name", "endpoint"]);
+  let vectorEndpoint = endpointCheck?.name || configuredResourceName(semanticEntry?.value, ["endpoint_name", "endpoint"]) || configured["semantic-index-endpoint"];
   if (!vectorEndpoint && vectorIndex) {
     vectorEndpoint = await lookupVectorEndpoint({
       host: host(),
@@ -189043,22 +189842,33 @@ async function readDependencies(appkit, req, fetchImpl) {
     };
   }
 }
-function causeLabel(code) {
-  if (!code) return "No cause recorded";
-  if (!isFailureCode(code)) {
-    console.warn(
-      `[ops] A run ended with terminal code ${code}, which this build\u2019s failure taxonomy does not define. It is charted as recorded rather than dropped.`
-    );
-  }
-  return code;
-}
 function unreadNote(charts, message) {
   const named = charts.length === 1 ? charts[0] : `${charts.slice(0, -1).join(", ")} and ${charts[charts.length - 1]}`;
   const which = charts.length === 1 ? "that chart is" : "those charts are";
   return `${named} could not be read, so ${which} missing rather than empty: ${message || "the store did not answer"}`;
 }
-function toBars(counts) {
-  return [...counts.entries()].map(([key2, count4]) => ({ key: key2, label: causeLabel(key2), count: count4 })).sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
+async function trafficBreakdownsFor(appkit, parameters) {
+  try {
+    const result = await appkit.lakebase.query(TRAFFIC_BREAKDOWNS_QUERY, parameters);
+    return readTrafficBreakdowns(result.rows);
+  } catch (rollupError) {
+    try {
+      const result = await appkit.lakebase.query(RAW_TRAFFIC_BREAKDOWNS_QUERY, parameters);
+      return readTrafficBreakdowns(result.rows);
+    } catch (durableError) {
+      try {
+        const result = await appkit.lakebase.query(LEGACY_TRAFFIC_BREAKDOWNS_QUERY, parameters);
+        return readTrafficBreakdowns(result.rows, {
+          state: "partial",
+          reason: `Durable run/stage evidence was unavailable, so only historical stored answers were counted: ${durableError.message}`
+        });
+      } catch (legacyError) {
+        throw new Error(
+          `Rollup read failed (${rollupError.message}); raw durable read failed (${durableError.message}); historical answer read failed (${legacyError.message}).`
+        );
+      }
+    }
+  }
 }
 async function resourceActivityAttribution(appkit, ids, range) {
   try {
@@ -189354,12 +190164,11 @@ function setupOpsRoutes(appkit, deps) {
       try {
         const runtime = await readRuntimeSettings(appkit);
         const activeMinutesTimeZone = validIanaTimeZone(runtime.behavior.timezone) || validIanaTimeZone(queryText(req, "timeZone")) || "UTC";
-        const [questions, askers, activeMinutes, outcomes, tools] = await Promise.allSettled([
+        const [questions, askers, activeMinutes, breakdowns] = await Promise.allSettled([
           appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
           appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
           appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
-          appkit.lakebase.query(RUN_OUTCOMES_QUERY, [activeMinutesTimeZone, range.from, range.to]),
-          appkit.lakebase.query(TOOL_CALLS_QUERY, [activeMinutesTimeZone, range.from, range.to])
+          trafficBreakdownsFor(appkit, [activeMinutesTimeZone, range.from, range.to])
         ]);
         const questionsPerDay = questions.status === "fulfilled" ? questions.value.rows.map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
         const distinctAskersPerDay = askers.status === "fulfilled" ? askers.value.rows.map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
@@ -189370,36 +190179,27 @@ function setupOpsRoutes(appkit, deps) {
           state: activityCoverageState,
           missingDays: count3(activityBounds?.missing_days)
         } : void 0;
-        const failures = /* @__PURE__ */ new Map();
-        const refusals = /* @__PURE__ */ new Map();
-        let runsInRange = 0;
-        if (outcomes.status === "fulfilled") {
-          for (const row2 of outcomes.value.rows) {
-            const state = text18(row2.state);
-            const code = text18(row2.terminal_code);
-            const runs = count3(row2.count);
-            runsInRange += runs;
-            if (state === "REFUSED") {
-              refusals.set(code, (refusals.get(code) ?? 0) + runs);
-            } else if (FAILURE_STATES.has(state)) {
-              failures.set(code, (failures.get(code) ?? 0) + runs);
-            }
-          }
-        }
-        const toolCalls = tools.status === "fulfilled" ? tools.value.rows.map((row2) => ({
-          key: text18(row2.tool),
-          label: text18(row2.tool),
-          count: count3(row2.count)
-        })) : [];
+        const unavailableCoverage = {
+          state: "unavailable",
+          coveredRuns: 0,
+          reason: breakdowns.status === "rejected" ? breakdowns.reason.message : "The shared run population could not be read."
+        };
+        const measured = breakdowns.status === "fulfilled" ? breakdowns.value : {
+          runsInRange: 0,
+          failuresByCause: [],
+          refusalsByCause: [],
+          toolCalls: [],
+          outcomesCoverage: unavailableCoverage,
+          toolCallsCoverage: unavailableCoverage
+        };
         const outstanding = [
           { done: questions, charts: "Questions per day" },
           { done: askers, charts: "Distinct askers per day" },
           { done: activeMinutes, charts: "Recorded active app minutes per day" },
-          { done: outcomes, charts: "Failures and refusals" },
-          { done: tools, charts: "Tool calls" }
+          { done: breakdowns, charts: "Failures, refusals and tool calls" }
         ].filter((read2) => read2.done.status === "rejected");
         const rejected = outstanding.map((read2) => read2.done);
-        const readCount = 5;
+        const readCount = 4;
         const partialRead = rejected.length > 0 && rejected.length < readCount ? unreadNote(
           outstanding.map((read2) => read2.charts),
           text18(rejected[0].reason?.message)
@@ -189417,10 +190217,14 @@ function setupOpsRoutes(appkit, deps) {
           activeMinutesRecordedFrom: text18(activityBounds?.recorded_from),
           activeMinutesRecordedThrough: text18(activityBounds?.recorded_through),
           activityCoverage,
-          failuresByCause: toBars(failures),
-          refusalsByCause: toBars(refusals),
-          toolCalls,
-          runsInRange
+          failuresByCause: measured.failuresByCause,
+          refusalsByCause: measured.refusalsByCause,
+          toolCalls: measured.toolCalls,
+          runsInRange: measured.runsInRange,
+          breakdownCoverage: {
+            outcomes: measured.outcomesCoverage,
+            toolCalls: measured.toolCallsCoverage
+          }
         };
         res.json(payload);
       } catch (error48) {
@@ -189439,6 +190243,10 @@ function setupOpsRoutes(appkit, deps) {
           refusalsByCause: [],
           toolCalls: [],
           runsInRange: 0,
+          breakdownCoverage: {
+            outcomes: { state: "unavailable", coveredRuns: 0, reason: error48.message },
+            toolCalls: { state: "unavailable", coveredRuns: 0, reason: error48.message }
+          },
           activityCoverage: { state: "unavailable", missingDays: 0 }
         };
         res.json(payload);
@@ -189493,7 +190301,7 @@ function setupOpsRoutes(appkit, deps) {
   });
   console.log("[ops] Registered the Ops read routes. The admin guard's prefix list covers all of them.");
 }
-var STATEMENT_TIMEOUT_MS2, ORG_ID_HEADER, knownWorkspaceId, QUESTIONS_PER_DAY_QUERY, DISTINCT_ASKERS_PER_DAY_QUERY, OPS_ANSWER_STATUS_SQL, RUN_OUTCOMES_QUERY, TOOL_CALLS_QUERY, FAILURE_STATES, QUESTION_COST_RUNS_QUERY, QUESTION_COST_LIMIT, RESOURCE_ACTIVITY_QUERY, OPS_ROUTES;
+var STATEMENT_TIMEOUT_MS2, ORG_ID_HEADER, knownWorkspaceId, QUESTIONS_PER_DAY_QUERY, DISTINCT_ASKERS_PER_DAY_QUERY, RUN_OUTCOMES_QUERY, TOOL_CALLS_QUERY, QUESTION_COST_RUNS_QUERY, QUESTION_COST_LIMIT, RESOURCE_ACTIVITY_QUERY, OPS_ROUTES;
 var init_ops_routes = __esm({
   "server/routes/ops-routes.ts"() {
     init_app_schema();
@@ -189508,7 +190316,6 @@ var init_ops_routes = __esm({
     init_databricks_links();
     init_resource_tagging();
     init_settings_routes();
-    init_run_failure_codes();
     init_cost_budgets_store();
     init_sql_query_tags();
     init_declared_tables();
@@ -189516,9 +190323,9 @@ var init_ops_routes = __esm({
     init_request_latency();
     init_app_activity();
     init_cost_budgets();
-    init_run_verdict();
     init_ops_query_history();
     init_runtime_settings_store();
+    init_ops_traffic();
     init_ops_contract();
     STATEMENT_TIMEOUT_MS2 = 45e3;
     ORG_ID_HEADER = "x-databricks-org-id";
@@ -189541,81 +190348,8 @@ var init_ops_routes = __esm({
     AND m.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
   GROUP BY 1
   ORDER BY 1`;
-    OPS_ANSWER_STATUS_SQL = classifiedRunStatusSql({
-      trace: "m.response_json->'trace'",
-      payload: "m.response_json",
-      caveats: "m.response_json->'caveats'"
-    });
-    RUN_OUTCOMES_QUERY = `
-  WITH answers AS (
-    SELECT m.id,
-           COALESCE(NULLIF(m.trace_id, ''), NULLIF(m.response_json->'trace'->>'id', '')) AS trace_id,
-           ${OPS_ANSWER_STATUS_SQL} AS answer_status,
-           m.created_at
-    FROM ${APP_SCHEMA}.messages m
-    WHERE m.role = 'assistant'
-      AND jsonb_typeof(m.response_json->'trace') = 'object'
-  ),
-  ledger_events AS (
-    SELECT r.run_id AS event_id,
-           CASE
-             WHEN r.state = 'REFUSED' THEN 'REFUSED'
-             WHEN r.state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED') THEN r.state
-             WHEN a.answer_status = 'failed' THEN 'FAILED'
-             ELSE r.state
-           END AS state,
-           CASE
-             WHEN COALESCE(r.terminal_code, '') <> '' THEN r.terminal_code
-             WHEN a.answer_status = 'failed' THEN 'NO_VALID_EVIDENCE'
-             ELSE ''
-           END AS terminal_code
-    FROM ${APP_SCHEMA}.runs r
-    LEFT JOIN LATERAL (
-      SELECT answer_status
-      FROM answers a
-      WHERE a.id = r.terminal_message_id
-         OR (COALESCE(r.trace_id, '') <> '' AND a.trace_id = r.trace_id)
-      ORDER BY (a.id = r.terminal_message_id) DESC
-      LIMIT 1
-    ) a ON TRUE
-    WHERE r.created_at >= ($2::date::timestamp AT TIME ZONE $1)
-      AND r.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
-  ),
-  legacy_answer_events AS (
-    SELECT a.id AS event_id,
-           CASE WHEN a.answer_status = 'failed' THEN 'FAILED' ELSE 'SUCCEEDED' END AS state,
-           CASE WHEN a.answer_status = 'failed' THEN 'NO_VALID_EVIDENCE' ELSE '' END AS terminal_code
-    FROM answers a
-    WHERE NOT EXISTS (
-      SELECT 1
-      FROM ${APP_SCHEMA}.runs r
-      WHERE r.terminal_message_id = a.id
-         OR (COALESCE(r.trace_id, '') <> '' AND r.trace_id = a.trace_id)
-    )
-      AND a.created_at >= ($2::date::timestamp AT TIME ZONE $1)
-      AND a.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
-  ),
-  events AS (
-    SELECT * FROM ledger_events
-    UNION ALL
-    SELECT * FROM legacy_answer_events
-  )
-  SELECT state, terminal_code, COUNT(*)::int AS count
-  FROM events
-  GROUP BY 1, 2`;
-    TOOL_CALLS_QUERY = `
-  SELECT stage->>'name' AS tool, COUNT(*)::int AS count
-  FROM ${APP_SCHEMA}.messages m,
-       LATERAL jsonb_array_elements(m.response_json->'trace'->'stages') AS stage
-  WHERE m.role = 'assistant'
-    AND m.created_at >= ($2::date::timestamp AT TIME ZONE $1)
-    AND m.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
-    AND jsonb_typeof(m.response_json->'trace'->'stages') = 'array'
-    AND stage->>'kind' = 'tool'
-    AND COALESCE(stage->>'name', '') <> ''
-  GROUP BY 1
-  ORDER BY 2 DESC`;
-    FAILURE_STATES = /* @__PURE__ */ new Set(["FAILED", "DEADLINE_EXCEEDED", "PERSISTENCE_FAILED"]);
+    RUN_OUTCOMES_QUERY = TRAFFIC_BREAKDOWNS_QUERY;
+    TOOL_CALLS_QUERY = TRAFFIC_BREAKDOWNS_QUERY;
     QUESTION_COST_RUNS_QUERY = `
   WITH completed AS (
     SELECT r.run_id, COALESCE(r.correlation_id, '') AS correlation_id,
@@ -190071,39 +190805,193 @@ __export(runtime_settings_routes_exports, {
 function setupRuntimeSettingsRoutes(appkit) {
   appkit.server.extend((app) => {
     app.get("/api/runtime-settings", async (_req, res) => {
-      res.json({ settings: await readRuntimeSettings(appkit, { maxAgeMs: 0 }) });
+      try {
+        res.json(await readRuntimeSettingsDocument(appkit, { maxAgeMs: 0 }));
+      } catch (error48) {
+        res.status(503).json({
+          error: "runtime_settings_store_unavailable",
+          detail: `Runtime settings could not be read from Lakebase: ${error48.message}`
+        });
+      }
     });
     app.put("/api/admin/runtime-settings", async (req, res) => {
-      const parsed = RuntimeSettingsSchema.safeParse(req.body);
+      const parsed = RuntimeSettingsWrite.safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({ error: "invalid_runtime_settings", detail: parsed.error.message });
         return;
       }
       const actor = userEmail(req);
+      let document2;
       try {
-        const settings = await writeRuntimeSettings(appkit, parsed.data, actor);
+        document2 = await writeRuntimeSettingsPatch(appkit, parsed.data.patch, parsed.data.revision, actor);
+      } catch (error48) {
+        const conflict = error48 instanceof SettingsRevisionConflict;
+        res.status(conflict ? 409 : 503).json({
+          error: conflict ? "runtime_settings_conflict" : "runtime_settings_store_unavailable",
+          detail: conflict ? error48.message : `The settings were not saved: ${error48.message}`
+        });
+        return;
+      }
+      try {
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: "runtime-settings-updated",
           subject: "runtime-settings",
           detail: "Updated live loop, answer presentation, and request-context settings."
         });
-        res.json({ settings, appliesNow: true });
       } catch (error48) {
-        res.status(503).json({
-          error: "runtime_settings_store_unavailable",
-          detail: `The settings were not saved: ${error48.message}`
-        });
+        console.warn("[runtime-settings] Saved settings, but could not write the admin audit row:", error48);
       }
+      res.json({ ...document2, appliesNow: true });
     });
   });
 }
+var RuntimeSettingsWrite;
 var init_runtime_settings_routes = __esm({
   "server/routes/runtime-settings-routes.ts"() {
+    init_zod();
     init_runtime_settings();
     init_admin_roles();
     init_runtime_settings_store();
+    init_versioned_settings_store();
     init_insights_routes();
+    RuntimeSettingsWrite = external_exports.strictObject({
+      revision: external_exports.number().int().nonnegative(),
+      patch: RuntimeSettingsPatchSchema
+    });
+  }
+});
+
+// shared/experimental-settings-browser.ts
+var NO_EXPERIMENTS;
+var init_experimental_settings_browser = __esm({
+  "shared/experimental-settings-browser.ts"() {
+    NO_EXPERIMENTS = {
+      benchmarkLab: false,
+      egressControls: false,
+      forecasting: false
+    };
+  }
+});
+
+// shared/experimental-settings.ts
+var ExperimentalSettingsSchema, ExperimentalSettingsPatchSchema;
+var init_experimental_settings = __esm({
+  "shared/experimental-settings.ts"() {
+    init_zod();
+    init_experimental_settings_browser();
+    ExperimentalSettingsSchema = external_exports.object({
+      benchmarkLab: external_exports.boolean().default(false),
+      egressControls: external_exports.boolean().default(false),
+      forecasting: external_exports.boolean().default(false)
+    });
+    ExperimentalSettingsPatchSchema = external_exports.strictObject({
+      benchmarkLab: external_exports.boolean().optional(),
+      egressControls: external_exports.boolean().optional(),
+      forecasting: external_exports.boolean().optional()
+    });
+  }
+});
+
+// server/lib/experimental-settings-store.ts
+function forgetExperimentalSettings() {
+  cache8 = /* @__PURE__ */ new WeakMap();
+}
+async function readExperimentalSettings(client, options = {}) {
+  const now = options.now ?? Date.now();
+  const maxAge = options.maxAgeMs ?? EXPERIMENTAL_SETTINGS_TTL_MS;
+  const cached3 = cache8.get(client);
+  if (cached3 && maxAge > 0 && now - cached3.at < maxAge) return cached3.document;
+  const document2 = await readVersionedSettings(client, STORE3);
+  cache8.set(client, { document: document2, at: now });
+  return document2;
+}
+async function writeExperimentalSettings(client, patch, revision, updatedBy) {
+  const document2 = await writeVersionedSettingsPatch(client, STORE3, patch, revision, updatedBy);
+  forgetExperimentalSettings();
+  return document2;
+}
+var KEY6, EXPERIMENTAL_SETTINGS_TABLE, STORE3, cache8, EXPERIMENTAL_SETTINGS_TTL_MS;
+var init_experimental_settings_store = __esm({
+  "server/lib/experimental-settings-store.ts"() {
+    init_app_schema();
+    init_experimental_settings();
+    init_versioned_settings_store();
+    KEY6 = "app-global";
+    EXPERIMENTAL_SETTINGS_TABLE = appTable("experimental_settings");
+    STORE3 = {
+      table: EXPERIMENTAL_SETTINGS_TABLE,
+      key: KEY6,
+      defaults: { ...NO_EXPERIMENTS },
+      parse: (value) => ExperimentalSettingsSchema.parse(value)
+    };
+    cache8 = /* @__PURE__ */ new WeakMap();
+    EXPERIMENTAL_SETTINGS_TTL_MS = 15e3;
+  }
+});
+
+// server/routes/experimental-settings-routes.ts
+var experimental_settings_routes_exports = {};
+__export(experimental_settings_routes_exports, {
+  setupExperimentalSettingsRoutes: () => setupExperimentalSettingsRoutes
+});
+function setupExperimentalSettingsRoutes(appkit) {
+  appkit.server.extend((app) => {
+    app.get("/api/experimental-settings", async (_req, res) => {
+      try {
+        res.json(await readExperimentalSettings(appkit, { maxAgeMs: 0 }));
+      } catch (error48) {
+        res.status(503).json({
+          error: "experimental_settings_store_unavailable",
+          detail: `Experimental settings could not be read from Lakebase: ${error48.message}`
+        });
+      }
+    });
+    app.put("/api/admin/experimental-settings", async (req, res) => {
+      const parsed = ExperimentalSettingsWrite.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_experimental_settings", detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      let document2;
+      try {
+        document2 = await writeExperimentalSettings(appkit, parsed.data.patch, parsed.data.revision, actor);
+      } catch (error48) {
+        const conflict = error48 instanceof SettingsRevisionConflict;
+        res.status(conflict ? 409 : 503).json({
+          error: conflict ? "experimental_settings_conflict" : "experimental_settings_store_unavailable",
+          detail: conflict ? error48.message : `The settings were not saved: ${error48.message}`
+        });
+        return;
+      }
+      try {
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "experimental-settings-updated",
+          subject: "experimental-settings",
+          detail: "Updated deployment-wide experimental feature visibility."
+        });
+      } catch (error48) {
+        console.warn("[experimental-settings] Saved settings, but could not write the admin audit row:", error48);
+      }
+      res.json(document2);
+    });
+  });
+}
+var ExperimentalSettingsWrite;
+var init_experimental_settings_routes = __esm({
+  "server/routes/experimental-settings-routes.ts"() {
+    init_zod();
+    init_experimental_settings();
+    init_admin_roles();
+    init_experimental_settings_store();
+    init_versioned_settings_store();
+    init_insights_routes();
+    ExperimentalSettingsWrite = external_exports.strictObject({
+      revision: external_exports.number().int().nonnegative(),
+      patch: ExperimentalSettingsPatchSchema
+    });
   }
 });
 
@@ -190166,30 +191054,49 @@ function experimentUrl(experimentId) {
 function setupBenchmarkSettingsRoutes(appkit) {
   appkit.server.extend((app) => {
     app.get("/api/benchmark-settings", async (_req, res) => {
-      const stored = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
-      const experimentId = stored.experimentId.trim() || await resolveExperimentId(appkit);
-      const judgeEndpoint = stored.judgeEndpoint.trim() || await resolveJudgeEndpoint(appkit);
-      res.json({
-        settings: {
-          ...stored,
-          experimentId,
-          judgeEndpoint
-        },
-        experimentUrl: experimentUrl(experimentId),
-        currentAgentEndpoint: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "").trim(),
-        tracesAlwaysOnInAgent: true
-      });
+      try {
+        const document2 = await readBenchmarkSettingsDocument(appkit, { maxAgeMs: 0 });
+        const experimentId = document2.settings.experimentId.trim() || await resolveExperimentId(appkit);
+        const judgeEndpoint = document2.settings.judgeEndpoint.trim() || await resolveJudgeEndpoint(appkit);
+        res.json({
+          settings: {
+            ...document2.settings,
+            experimentId,
+            judgeEndpoint
+          },
+          revision: document2.revision,
+          experimentUrl: experimentUrl(experimentId),
+          currentAgentEndpoint: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "").trim(),
+          tracesAlwaysOnInAgent: true
+        });
+      } catch (error48) {
+        res.status(503).json({
+          error: "benchmark_settings_store_unavailable",
+          detail: `Benchmark settings could not be read from Lakebase: ${error48.message}`
+        });
+      }
     });
     app.put("/api/admin/benchmark-settings", async (req, res) => {
-      const parsed = BenchmarkSettingsSchema.safeParse(req.body);
+      const parsed = BenchmarkSettingsWrite.safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({ error: "invalid_benchmark_settings", detail: parsed.error.message });
         return;
       }
       const actor = userEmail(req);
+      let document2;
       try {
-        const settings = await writeBenchmarkSettings(appkit, parsed.data, actor);
-        if (settings.experimentId) {
+        document2 = await writeBenchmarkSettingsPatch(appkit, parsed.data.patch, parsed.data.revision, actor);
+      } catch (error48) {
+        const conflict = error48 instanceof SettingsRevisionConflict;
+        res.status(conflict ? 409 : 503).json({
+          error: conflict ? "benchmark_settings_conflict" : "benchmark_settings_store_unavailable",
+          detail: conflict ? error48.message : `The settings were not saved: ${error48.message}`
+        });
+        return;
+      }
+      const { settings } = document2;
+      try {
+        if (parsed.data.patch.experimentId !== void 0 && settings.experimentId) {
           await writeStoredSetting(appkit, {
             resourceId: "experiment-id",
             value: settings.experimentId,
@@ -190199,7 +191106,7 @@ function setupBenchmarkSettingsRoutes(appkit) {
           });
           forgetResolvedExperimentIds();
         }
-        if (settings.judgeEndpoint) {
+        if (parsed.data.patch.judgeEndpoint !== void 0 && settings.judgeEndpoint) {
           await writeStoredSetting(appkit, {
             resourceId: "judge-endpoint",
             value: settings.judgeEndpoint,
@@ -190208,36 +191115,47 @@ function setupBenchmarkSettingsRoutes(appkit) {
             updatedBy: actor
           });
         }
+      } catch (error48) {
+        console.warn("[benchmark-settings] Saved settings, but could not synchronize Connections:", error48);
+      }
+      try {
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: "benchmark-settings-updated",
           subject: "benchmark-settings",
           detail: "Updated MLflow experiment, traces, judges, and baseline/candidate sides."
         });
-        res.json({
-          settings,
-          experimentUrl: experimentUrl(settings.experimentId),
-          currentAgentEndpoint: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "").trim(),
-          tracesAlwaysOnInAgent: true,
-          appliesNow: true
-        });
       } catch (error48) {
-        res.status(503).json({
-          error: "benchmark_settings_store_unavailable",
-          detail: `The settings were not saved: ${error48.message}`
-        });
+        console.warn("[benchmark-settings] Saved settings, but could not write the admin audit row:", error48);
       }
+      const experimentId = settings.experimentId.trim() || await resolveExperimentId(appkit);
+      const judgeEndpoint = settings.judgeEndpoint.trim() || await resolveJudgeEndpoint(appkit);
+      res.json({
+        settings: { ...settings, experimentId, judgeEndpoint },
+        revision: document2.revision,
+        experimentUrl: experimentUrl(experimentId),
+        currentAgentEndpoint: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "").trim(),
+        tracesAlwaysOnInAgent: true,
+        appliesNow: true
+      });
     });
   });
 }
+var BenchmarkSettingsWrite;
 var init_benchmark_settings_routes = __esm({
   "server/routes/benchmark-settings-routes.ts"() {
+    init_zod();
     init_benchmark_settings();
     init_databricks_links();
     init_admin_roles();
     init_app_settings();
     init_benchmark_settings_store();
+    init_versioned_settings_store();
     init_insights_routes();
+    BenchmarkSettingsWrite = external_exports.strictObject({
+      revision: external_exports.number().int().nonnegative(),
+      patch: BenchmarkSettingsPatchSchema
+    });
   }
 });
 
@@ -190263,8 +191181,8 @@ async function loadCasesForAlignment(client, runIds) {
 }
 function guidelinesFromAlignBody(body) {
   if (!body || typeof body !== "object") return "";
-  const record2 = body;
-  const instructions = record2.instructions ?? record2.guidelines ?? record2.judge?.instructions ?? record2.judge?.guidelines;
+  const record3 = body;
+  const instructions = record3.instructions ?? record3.guidelines ?? record3.judge?.instructions ?? record3.judge?.guidelines;
   return typeof instructions === "string" ? instructions.trim() : "";
 }
 async function tryMLflowJudgeAlign(client, input) {
@@ -190387,14 +191305,14 @@ function promptTemplateFromPromote(input) {
 }
 function parsePromptVersion(body) {
   if (!body || typeof body !== "object") return "";
-  const record2 = body;
-  const version4 = record2.version ?? record2.prompt_version ?? record2.prompt?.version;
+  const record3 = body;
+  const version4 = record3.version ?? record3.prompt_version ?? record3.prompt?.version;
   return version4 !== void 0 && version4 !== null ? String(version4) : "";
 }
 function parsePromptTemplate(body) {
   if (!body || typeof body !== "object") return "";
-  const record2 = body;
-  const template = record2.template ?? record2.prompt_template ?? record2.prompt?.template;
+  const record3 = body;
+  const template = record3.template ?? record3.prompt_template ?? record3.prompt?.template;
   return typeof template === "string" ? template : "";
 }
 async function tryFirstPath(client, method, paths, payload) {
@@ -190720,8 +191638,8 @@ function extractGenieResultTable(payload) {
       if (Array.isArray(row2)) {
         names2.forEach((_, index) => values[index].push(numberish(row2[index])));
       } else {
-        const record2 = asRecord4(row2);
-        names2.forEach((name2, index) => values[index].push(record2 ? numberish(record2[name2]) : null));
+        const record3 = asRecord4(row2);
+        names2.forEach((name2, index) => values[index].push(record3 ? numberish(record3[name2]) : null));
       }
     }
     return { rowCount: rowsRaw.length, columns: names2.map((name2, index) => ({ name: name2, values: values[index] })) };
@@ -191013,8 +191931,8 @@ var init_genie_accuracy = __esm({
 // server/lib/live-monitoring.ts
 function parseScorerNames(body) {
   if (!body || typeof body !== "object") return [];
-  const record2 = body;
-  const lists = [record2.scorers, record2.registered_scorers, record2.entities];
+  const record3 = body;
+  const lists = [record3.scorers, record3.registered_scorers, record3.entities];
   for (const list2 of lists) {
     if (!Array.isArray(list2)) continue;
     const names2 = list2.map((entry) => {
@@ -191087,17 +192005,17 @@ var init_live_monitoring = __esm({
 
 // server/lib/benchmark-lab-store.ts
 function forgetLabState() {
-  cache8 = /* @__PURE__ */ new WeakMap();
+  cache9 = /* @__PURE__ */ new WeakMap();
 }
 async function readLabState(client, options = {}) {
   const now = options.now ?? Date.now();
-  const cached3 = cache8.get(client);
+  const cached3 = cache9.get(client);
   if (cached3 && now - cached3.at < (options.maxAgeMs ?? BENCHMARK_LAB_TTL_MS)) return cached3.value;
   try {
-    const result = await client.lakebase.query(`SELECT state FROM ${BENCHMARK_LAB_TABLE} WHERE id = $1`, [KEY6]);
+    const result = await client.lakebase.query(`SELECT state FROM ${BENCHMARK_LAB_TABLE} WHERE id = $1`, [KEY7]);
     const raw2 = result?.rows?.[0]?.state;
     const parsed = raw2 === void 0 ? EMPTY_LAB_STATE : parseLabState(raw2);
-    cache8.set(client, { value: parsed, at: now });
+    cache9.set(client, { value: parsed, at: now });
     return parsed;
   } catch (error48) {
     console.warn("[benchmark-lab] Falling back to empty lab state:", error48.message);
@@ -191111,7 +192029,7 @@ async function writeLabState(client, state, updatedBy) {
      VALUES ($1, $2::jsonb, $3, now())
      ON CONFLICT (id) DO UPDATE SET
        state = EXCLUDED.state, updated_by = EXCLUDED.updated_by, updated_at = now()`,
-    [KEY6, JSON.stringify(parsed), updatedBy]
+    [KEY7, JSON.stringify(parsed), updatedBy]
   );
   forgetLabState();
   return parsed;
@@ -191129,12 +192047,12 @@ async function snapshotWorkingCopy(client, rows, actor, extra = {}) {
   });
   return writeLabState(client, committed.state, actor);
 }
-var KEY6, BENCHMARK_LAB_TABLE, BENCHMARK_LAB_DDL, cache8, BENCHMARK_LAB_TTL_MS;
+var KEY7, BENCHMARK_LAB_TABLE, BENCHMARK_LAB_DDL, cache9, BENCHMARK_LAB_TTL_MS;
 var init_benchmark_lab_store = __esm({
   "server/lib/benchmark-lab-store.ts"() {
     init_app_schema();
     init_benchmark_lab_v3();
-    KEY6 = "effective";
+    KEY7 = "effective";
     BENCHMARK_LAB_TABLE = appTable("benchmark_lab");
     BENCHMARK_LAB_DDL = `CREATE TABLE IF NOT EXISTS ${BENCHMARK_LAB_TABLE} (
   id TEXT PRIMARY KEY,
@@ -191142,7 +192060,7 @@ var init_benchmark_lab_store = __esm({
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_by TEXT NOT NULL
 )`;
-    cache8 = /* @__PURE__ */ new WeakMap();
+    cache9 = /* @__PURE__ */ new WeakMap();
     BENCHMARK_LAB_TTL_MS = 5e3;
   }
 });
@@ -191335,9 +192253,11 @@ function setupEvalDatasetRoutes(appkit) {
           });
           return;
         }
-        const saved = await writeBenchmarkSettings(
+        const current = await readBenchmarkSettingsDocument(appkit, { maxAgeMs: 0 });
+        const saved = await writeBenchmarkSettingsPatch(
           appkit,
-          { ...settings, guidelinesText: aligned.guidelinesText },
+          { guidelinesText: aligned.guidelinesText },
+          current.revision,
           actor
         );
         await recordAdminAction(appkit.lakebase, {
@@ -191347,7 +192267,7 @@ function setupEvalDatasetRoutes(appkit) {
           detail: aligned.note
         });
         res.json({
-          guidelinesText: saved.guidelinesText,
+          guidelinesText: saved.settings.guidelinesText,
           labeled,
           agreement: aligned.agreement,
           method: aligned.method,
@@ -192195,8 +193115,8 @@ function setupBenchmarkLabRoutes(appkit) {
           });
           return;
         }
-        const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
-        const saved = await writeBenchmarkSettings(appkit, { ...settings, guidelinesText: preview }, actor);
+        const settings = await readBenchmarkSettingsDocument(appkit, { maxAgeMs: 0 });
+        const saved = await writeBenchmarkSettingsPatch(appkit, { guidelinesText: preview }, settings.revision, actor);
         await patchLabState(appkit, {
           alignPreview: state.alignPreview ? { ...state.alignPreview, saved: false, note: "Saved after review." } : null
         }, actor);
@@ -192206,7 +193126,7 @@ function setupBenchmarkLabRoutes(appkit) {
           subject: "benchmark-settings",
           detail: "Aligned guidelines saved after review."
         });
-        res.json({ guidelinesText: saved.guidelinesText, lab: await workspace(appkit) });
+        res.json({ guidelinesText: saved.settings.guidelinesText, lab: await workspace(appkit) });
       } catch (error48) {
         res.status(503).json({
           error: "align_commit_unavailable",
@@ -192239,7 +193159,7 @@ function setupBenchmarkLabRoutes(appkit) {
           gates
         });
         if (decision.status === "blocked" || decision.status === "handoff" || decision.status === "not_configured") {
-          const record3 = {
+          const record4 = {
             at: (/* @__PURE__ */ new Date()).toISOString(),
             actor,
             approver: approver || actor,
@@ -192254,11 +193174,11 @@ function setupBenchmarkLabRoutes(appkit) {
             note: decision.note
           };
           if (decision.status !== "blocked") {
-            await patchLabState(appkit, { applyHistory: [record3, ...state.applyHistory].slice(0, 50) }, actor);
+            await patchLabState(appkit, { applyHistory: [record4, ...state.applyHistory].slice(0, 50) }, actor);
           }
           res.status(decision.status === "blocked" ? 400 : 200).json({
             decision,
-            apply: record3,
+            apply: record4,
             lab: await workspace(appkit)
           });
           return;
@@ -192308,7 +193228,7 @@ function setupBenchmarkLabRoutes(appkit) {
           },
           actor
         );
-        const record2 = {
+        const record3 = {
           at: (/* @__PURE__ */ new Date()).toISOString(),
           actor,
           approver,
@@ -192322,16 +193242,16 @@ function setupBenchmarkLabRoutes(appkit) {
           wroteGenieInstructions: false,
           note: promotedPrompt?.note || decision.note
         };
-        await patchLabState(appkit, { applyHistory: [record2, ...state.applyHistory].slice(0, 50) }, actor);
+        await patchLabState(appkit, { applyHistory: [record3, ...state.applyHistory].slice(0, 50) }, actor);
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: "eval-lab-applied",
           subject: identifier || "prompt-registry",
-          detail: record2.note
+          detail: record3.note
         });
-        res.status(record2.status === "moved" ? 200 : 503).json({
-          decision: { ...decision, status: record2.status, note: record2.note },
-          apply: record2,
+        res.status(record3.status === "moved" ? 200 : 503).json({
+          decision: { ...decision, status: record3.status, note: record3.note },
+          apply: record3,
           promotedPrompt,
           lab: await workspace(appkit)
         });
@@ -192617,9 +193537,9 @@ var init_run_label_routes = __esm({
 });
 
 // server/lib/sp-grant-resources.ts
-function candidate(type, id, label, source = "configured") {
+function candidate(type, id, label2, source = "configured") {
   const value = id?.trim() ?? "";
-  return value ? { type, id: value, label, source } : null;
+  return value ? { type, id: value, label: label2, source } : null;
 }
 function unityCatalogType(value) {
   const parts = value.split(".");
@@ -192723,13 +193643,13 @@ var init_sp_grant_resources = __esm({
 });
 
 // shared/default-sp-persona-templates.ts
-function single(resourceType, action, privilege, label, choiceLabel, optional2 = false) {
+function single(resourceType, action, privilege, label2, choiceLabel, optional2 = false) {
   return {
     resourceType,
     action,
     privilege,
     optional: optional2,
-    selector: { match: "single", labels: [label], choiceLabel }
+    selector: { match: "single", labels: [label2], choiceLabel }
   };
 }
 function curatedTables(idSuffixes, choiceLabel) {
@@ -193088,14 +194008,19 @@ function setupSpIdentityRoutes(appkit) {
       }
       const actor = userEmail(req);
       try {
+        const before = await adminPayload(appkit);
         await writeSpIdentityEnabled(appkit, parsed.data.enabled, actor);
-        await recordAdminAction(appkit.lakebase, {
-          actor,
-          action: parsed.data.enabled ? "sp-identity-enabled" : "sp-identity-disabled",
-          subject: "sp-identity",
-          detail: parsed.data.enabled ? "Assigned users now run warehouse, Genie, and agent calls as their service-principal persona." : "Questions again run as the signed-in OAuth user."
-        });
-        res.json(await adminPayload(appkit));
+        try {
+          await recordAdminAction(appkit.lakebase, {
+            actor,
+            action: parsed.data.enabled ? "sp-identity-enabled" : "sp-identity-disabled",
+            subject: "sp-identity",
+            detail: parsed.data.enabled ? "Assigned users now run warehouse, Genie, and agent calls as their service-principal persona." : "Questions again run as the signed-in OAuth user."
+          });
+        } catch (error48) {
+          console.warn("[sp-identity] Saved the pivot, but could not write the admin audit row:", error48);
+        }
+        res.json({ ...before, enabled: parsed.data.enabled });
       } catch (error48) {
         res.status(503).json({
           error: "sp_identity_store_unavailable",
@@ -196256,10 +197181,10 @@ var logger7 = createLogger("interceptors:retry");
 function isRetryableError(error48) {
   if (error48 instanceof AppKitError) return error48.isRetryable;
   if (error48 instanceof Error && "statusCode" in error48) {
-    const record2 = error48;
-    if (typeof record2.statusCode !== "number") return true;
-    if (typeof record2.isRetryable === "function") return record2.isRetryable();
-    return record2.statusCode >= 500 || record2.statusCode === 429;
+    const record3 = error48;
+    if (typeof record3.statusCode !== "number") return true;
+    if (typeof record3.isRetryable === "function") return record3.isRetryable();
+    return record3.statusCode >= 500 || record3.statusCode === 429;
   }
   return true;
 }
@@ -199997,7 +200922,7 @@ var FilesPlugin = class FilesPlugin2 extends Plugin {
     return true;
   }
   _readSettings(cacheKey3, authMode) {
-    const cache9 = authMode === "on-behalf-of-user" ? {
+    const cache10 = authMode === "on-behalf-of-user" ? {
       ...FILES_READ_DEFAULTS.cache,
       enabled: false,
       cacheKey: cacheKey3
@@ -200007,7 +200932,7 @@ var FilesPlugin = class FilesPlugin2 extends Plugin {
     };
     return { default: {
       ...FILES_READ_DEFAULTS,
-      cache: cache9,
+      cache: cache10,
       telemetryInterceptor: { attributes: this._authModeAttributes(authMode) }
     } };
   }
@@ -200245,7 +201170,7 @@ var FilesPlugin = class FilesPlugin2 extends Plugin {
     }
     const path21 = rawPath;
     if (!await this._enforcePolicy(req, res, volumeKey, opts.mode, path21)) return;
-    const label = opts.mode === "download" ? "Download" : "Raw fetch";
+    const label2 = opts.mode === "download" ? "Download" : "Raw fetch";
     const volumeCfg = this.volumeConfigs[volumeKey];
     const { mode, userCtx } = this._resolveAuthForRequest(req, volumeKey);
     await this._runWithAuth(userCtx, async () => {
@@ -200274,7 +201199,7 @@ var FilesPlugin = class FilesPlugin2 extends Plugin {
           nodeStream.pipe(res);
         } else res.end();
       } catch (error48) {
-        this._handleApiError(res, error48, `${label} failed`);
+        this._handleApiError(res, error48, `${label2} failed`);
       }
     });
   }
@@ -202295,8 +203220,8 @@ async function loadCache() {
   try {
     await fs5.mkdir(CACHE_DIR, { recursive: true });
     const raw2 = await fs5.readFile(cachePath, "utf8");
-    const cache9 = JSON.parse(raw2);
-    if (cache9.version === CACHE_VERSION) return cache9;
+    const cache10 = JSON.parse(raw2);
+    if (cache10.version === CACHE_VERSION) return cache10;
   } catch (err) {
     if (err.code !== "ENOENT") logger28.warn("Cache file is corrupted, flushing cache completely.");
   }
@@ -202305,9 +203230,9 @@ async function loadCache() {
     queries: {}
   };
 }
-async function saveCache(cache9) {
+async function saveCache(cache10) {
   const cachePath = path5.join(CACHE_DIR, CACHE_FILE);
-  await fs5.writeFile(cachePath, JSON.stringify(cache9, null, 2), "utf8");
+  await fs5.writeFile(cachePath, JSON.stringify(cache10, null, 2), "utf8");
 }
 
 // node_modules/@databricks/appkit/dist/type-generator/spinner.js
@@ -202517,7 +203442,7 @@ function inferParameterTypes(sql3, ranges) {
 async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = {}) {
   const { noCache = false, concurrency: rawConcurrency = 10 } = options;
   const concurrency = typeof rawConcurrency === "number" && Number.isFinite(rawConcurrency) ? Math.max(1, Math.floor(rawConcurrency)) : 10;
-  const [allFiles, cache9] = await Promise.all([fs6.readdir(queryFolder), noCache ? {
+  const [allFiles, cache10] = await Promise.all([fs6.readdir(queryFolder), noCache ? {
     version: CACHE_VERSION,
     queries: {}
   } : loadCache()]);
@@ -202535,7 +203460,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
     const queryName = normalizeQueryName(path6.basename(file2, ".sql"));
     const sql3 = sqlContents[i];
     const sqlHash = hashSQL(sql3);
-    const cached3 = cache9.queries[queryName];
+    const cached3 = cache10.queries[queryName];
     if (cached3 && cached3.hash === sqlHash && !cached3.retry) {
       cachedResults.push({
         index: i,
@@ -202632,7 +203557,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
             index: res.index,
             schema: res.schema
           });
-          cache9.queries[queryName] = res.cacheEntry;
+          cache10.queries[queryName] = res.cacheEntry;
           logEntries.push({
             queryName,
             status: "MISS",
@@ -202651,7 +203576,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
               type
             }
           });
-          cache9.queries[queryName] = {
+          cache10.queries[queryName] = {
             hash: sqlHash,
             type,
             retry: true
@@ -202668,11 +203593,11 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
     if (uncachedQueries.length > concurrency) for (let b = 0; b < uncachedQueries.length; b += concurrency) {
       const batch = uncachedQueries.slice(b, b + concurrency);
       processBatchResults(await Promise.allSettled(batch.map(describeOne)), b);
-      await saveCache(cache9);
+      await saveCache(cache10);
     }
     else {
       processBatchResults(await Promise.allSettled(uncachedQueries.map(describeOne)), 0);
-      await saveCache(cache9);
+      await saveCache(cache10);
     }
     spinner.stop("");
   }
@@ -202753,8 +203678,8 @@ async function loadServingCache() {
   try {
     await fs7.mkdir(CACHE_DIR2, { recursive: true });
     const raw2 = await fs7.readFile(cachePath, "utf8");
-    const cache9 = JSON.parse(raw2);
-    if (cache9.version === CACHE_VERSION2) return cache9;
+    const cache10 = JSON.parse(raw2);
+    if (cache10.version === CACHE_VERSION2) return cache10;
     logger30.debug("Cache version mismatch, starting fresh");
   } catch (err) {
     if (err.code !== "ENOENT") logger30.warn("Cache file is corrupted, flushing cache completely.");
@@ -202764,10 +203689,10 @@ async function loadServingCache() {
     endpoints: {}
   };
 }
-async function saveServingCache(cache9) {
+async function saveServingCache(cache10) {
   const cachePath = path7.join(CACHE_DIR2, CACHE_FILE2);
   await fs7.mkdir(CACHE_DIR2, { recursive: true });
-  await fs7.writeFile(cachePath, JSON.stringify(cache9, null, 2), "utf8");
+  await fs7.writeFile(cachePath, JSON.stringify(cache10, null, 2), "utf8");
 }
 
 // node_modules/@databricks/appkit/dist/type-generator/serving/converter.js
@@ -202926,7 +203851,7 @@ async function generateServingTypes(options) {
     return;
   }
   const startTime = performance.now();
-  const cache9 = noCache ? {
+  const cache10 = noCache ? {
     version: CACHE_VERSION2,
     endpoints: {}
   } : await loadServingCache();
@@ -202936,7 +203861,7 @@ async function generateServingTypes(options) {
   const logEntries = [];
   for (const [alias, config2] of Object.entries(endpoints)) {
     client ??= new WorkspaceClient5({});
-    const result = await processEndpoint(alias, config2, client, cache9);
+    const result = await processEndpoint(alias, config2, client, cache10);
     if (result.cacheUpdated) updated = true;
     registryEntries.push(result.entry);
     logEntries.push(result.log);
@@ -202949,12 +203874,12 @@ async function generateServingTypes(options) {
   await migrateProjectConfig(projectRoot);
   if (registryEntries.length === 0) logger32.debug("Wrote empty serving types to %s (no endpoints resolved)", outFile);
   else logger32.debug("Wrote serving types to %s", outFile);
-  if (updated) await saveServingCache(cache9);
+  if (updated) await saveServingCache(cache10);
 }
 function genericEntry(alias) {
   return buildRegistryEntry(alias, GENERIC_REQUEST, GENERIC_RESPONSE, GENERIC_CHUNK);
 }
-async function processEndpoint(alias, config2, client, cache9) {
+async function processEndpoint(alias, config2, client, cache10) {
   const endpointName = process.env[config2.env];
   if (!endpointName) return {
     entry: genericEntry(alias),
@@ -202977,7 +203902,7 @@ async function processEndpoint(alias, config2, client, cache9) {
   };
   const { spec, pathKey } = result;
   const hash2 = hashSchema(JSON.stringify(spec));
-  const cached3 = cache9.endpoints[alias];
+  const cached3 = cache10.endpoints[alias];
   if (cached3 && cached3.hash === hash2) return {
     entry: buildRegistryEntry(alias, cached3.requestType, cached3.responseType, cached3.chunkType),
     log: {
@@ -203001,7 +203926,7 @@ async function processEndpoint(alias, config2, client, cache9) {
     const responseType = convertResponseSchema(operation);
     const chunkType = deriveChunkType(operation);
     const requestKeys = extractRequestKeys(operation);
-    cache9.endpoints[alias] = {
+    cache10.endpoints[alias] = {
       hash: hash2,
       requestType,
       responseType,
@@ -205401,8 +206326,8 @@ async function loadEndpointSchemas(cacheFile) {
       logger42.warn("Serving types cache has invalid structure, skipping");
       return allowlists;
     }
-    const cache9 = parsed;
-    for (const [alias, entry] of Object.entries(cache9.endpoints)) if (entry.requestKeys && entry.requestKeys.length > 0) allowlists.set(alias, new Set(entry.requestKeys));
+    const cache10 = parsed;
+    for (const [alias, entry] of Object.entries(cache10.endpoints)) if (entry.requestKeys && entry.requestKeys.length > 0) allowlists.set(alias, new Set(entry.requestKeys));
   } catch (err) {
     if (err.code !== "ENOENT") logger42.warn("Failed to load serving types cache: %s", err.message);
   }
@@ -205818,6 +206743,7 @@ createApp({
       { setupOpsRoutes: setupOpsRoutes2 },
       { setupEgressRoutes: setupEgressRoutes2 },
       { setupRuntimeSettingsRoutes: setupRuntimeSettingsRoutes2 },
+      { setupExperimentalSettingsRoutes: setupExperimentalSettingsRoutes2 },
       { setupCostBudgetsRoutes: setupCostBudgetsRoutes2 },
       { setupBenchmarkSettingsRoutes: setupBenchmarkSettingsRoutes2 },
       { setupEvalDatasetRoutes: setupEvalDatasetRoutes2 },
@@ -205840,6 +206766,7 @@ createApp({
       Promise.resolve().then(() => (init_ops_routes(), ops_routes_exports)),
       Promise.resolve().then(() => (init_egress_routes(), egress_routes_exports)),
       Promise.resolve().then(() => (init_runtime_settings_routes(), runtime_settings_routes_exports)),
+      Promise.resolve().then(() => (init_experimental_settings_routes(), experimental_settings_routes_exports)),
       Promise.resolve().then(() => (init_cost_budgets_routes(), cost_budgets_routes_exports)),
       Promise.resolve().then(() => (init_benchmark_settings_routes(), benchmark_settings_routes_exports)),
       Promise.resolve().then(() => (init_eval_dataset_routes(), eval_dataset_routes_exports)),
@@ -205861,6 +206788,7 @@ createApp({
     });
     setupSettingsRoutes2(appkit);
     setupRuntimeSettingsRoutes2(appkit);
+    setupExperimentalSettingsRoutes2(appkit);
     setupCostBudgetsRoutes2(appkit);
     setupBenchmarkSettingsRoutes2(appkit);
     setupSpIdentityRoutes2(appkit);

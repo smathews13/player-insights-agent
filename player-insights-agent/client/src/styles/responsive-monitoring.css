@@ -17,6 +17,10 @@
 }
 
 @media (max-width: 800px) {
+  .monitoring-heading-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
   .monitoring-page .monitoring-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
@@ -62,8 +66,35 @@
 }
 
 @media (max-width: 480px) {
+  .monitoring-heading-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .monitoring-heading-period,
+  .monitoring-heading-actions .refresh-control {
+    max-width: 100%;
+  }
   .monitoring-outcome-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 10px;
+  }
+}
+
+@media (max-width: 380px) {
+  .monitoring-heading-period {
+    width: 100%;
+  }
+  .monitoring-heading-period-label {
+    display: none;
+  }
+  .monitoring-heading-period .time-range,
+  .monitoring-heading-period .time-range-segments {
+    width: 100%;
+  }
+  .monitoring-heading-period .time-range-segment {
+    min-width: 0;
+    flex: 1 1 0;
+    padding-right: 6px;
+    padding-left: 6px;
   }
 }

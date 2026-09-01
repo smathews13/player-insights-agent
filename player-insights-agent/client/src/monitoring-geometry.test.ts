@@ -298,7 +298,9 @@ describe('the figures line up and the palette is the palette', () => {
     expect(tile).toMatch(/grid-template-rows:\s*auto\s+1fr\s+auto/);
     expect(tile).toMatch(/min-height:\s*82px/);
     expect(tile).toMatch(/gap:\s*4px/);
-    expect(rule('.monitoring-outcomes-tile')).toMatch(/grid-template-rows:\s*1fr\s+auto/);
+    expect(rule('.monitoring-outcomes-tile')).toMatch(/grid-template-rows:\s*auto\s+1fr\s+auto/);
+    expect(rule('.monitoring-tile-head')).toMatch(/justify-content:\s*space-between/);
+    expect(rule('.monitoring-period-badge')).toMatch(/white-space:\s*nowrap/);
   });
 
   it('keeps outcome labels and values in one four-column metric grid', () => {

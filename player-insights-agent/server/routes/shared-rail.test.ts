@@ -17,7 +17,11 @@ import { announceSeedAdmins } from '../lib/admin-roles';
  * The switch that decides whether the rail is one person's or everyone's.
  */
 
-function recordingStore(role?: 'admin' | 'super_admin') {
+function recordingStore(
+  role?: 'admin' | 'super_admin',
+  conversationRows: Record<string, unknown>[] = [],
+  personaRows: Record<string, unknown>[] = []
+) {
   const queries: { sql: string; params: unknown[] }[] = [];
   return {
     queries,
@@ -35,6 +39,12 @@ function recordingStore(role?: 'admin' | 'super_admin') {
               ? [{ email: 'alice@example.example', role, added_by: 'operator@example.example', added_at: new Date(0) }]
               : [],
           });
+        }
+        if (/FROM player_insights\.conversations c/i.test(sql)) {
+          return Promise.resolve({ rows: conversationRows });
+        }
+        if (/FROM player_insights\.sp_personas/i.test(sql)) {
+          return Promise.resolve({ rows: personaRows });
         }
         return Promise.resolve({ rows: [] as Record<string, unknown>[] });
       },
@@ -302,6 +312,119 @@ describe('what the rail reads', () => {
       await app.close();
     }
     const [read] = base.reads();
+    expect(read.sql).toContain('WHERE c.user_email = $1');
+    expect(read.params).toEqual(['alice@example.example']);
+  });
+
+  it('derives persona from the newest persisted run, never the current assignment', async () => {
+    process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
+    const store = recordingStore('admin');
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+    try {
+      await app.fetch('/api/conversations', { headers: asAlice });
+    } finally {
+      await app.close();
+    }
+    const [read] = store.reads();
+    expect(read.sql).toContain('r.persona_id');
+    expect(read.sql).toContain('r.persona_name');
+    expect(read.sql).toContain('ORDER BY r.created_at DESC, r.run_id DESC');
+    expect(read.sql).not.toContain('sp_assignments');
+  });
+
+  it('ANDs owner and persona while preserving the full authorized set for counts', async () => {
+    process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
+    const rows = [
+      { id: 'alice-finance', user_email: 'alice@example.example', persona_id: 'finance' },
+      { id: 'alice-none', user_email: 'alice@example.example', persona_id: null },
+      { id: 'bob-finance', user_email: 'bob@example.example', persona_id: 'finance' },
+      { id: 'bob-sales', user_email: 'bob@example.example', persona_id: 'sales' },
+    ];
+    const store = recordingStore('admin', rows, [
+      { id: 'finance', display_name: 'Finance analyst' },
+      { id: 'sales', display_name: 'Sales analyst' },
+    ]);
+    const app = await startApp(store.lakebase);
+    try {
+      const response = await app.fetch('/api/conversations?owners=alice%40example.example&personas=finance', {
+        headers: asAlice,
+      });
+      const body = (await response.json()) as {
+        conversations: Record<string, unknown>[];
+        matching_conversation_ids: string[];
+        available_personas: { id: string; name: string }[];
+        persona_filter_rule: string;
+      };
+      expect(body.conversations).toHaveLength(4);
+      expect(body.matching_conversation_ids).toEqual(['alice-finance']);
+      expect(body.available_personas).toEqual([
+        { id: 'finance', name: 'Finance analyst' },
+        { id: 'sales', name: 'Sales analyst' },
+      ]);
+      expect(body.persona_filter_rule).toContain('newest active or completed run');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('matches No persona without reclassifying a recorded persona', async () => {
+    process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
+    const store = recordingStore('admin', [
+      { id: 'old-oauth', user_email: 'alice@example.example', persona_id: null },
+      { id: 'recorded', user_email: 'alice@example.example', persona_id: 'finance' },
+    ]);
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+    try {
+      const response = await app.fetch('/api/conversations?no_persona=true', { headers: asAlice });
+      const body = (await response.json()) as { matching_conversation_ids: string[] };
+      expect(body.matching_conversation_ids).toEqual(['old-oauth']);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('rejects malformed filter parameters before reading conversations', async () => {
+    process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
+    const store = recordingStore('admin');
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+    try {
+      const response = await app.fetch('/api/conversations?no_persona=yes', { headers: asAlice });
+      expect(response.status).toBe(400);
+    } finally {
+      await app.close();
+    }
+    expect(store.reads()).toEqual([]);
+  });
+
+  it('does not expose persona evidence or metadata to a consumer', async () => {
+    process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
+    const store = recordingStore(undefined, [
+      {
+        id: 'alice-only',
+        user_email: 'alice@example.example',
+        persona_id: 'finance',
+        persona_name: 'Finance analyst',
+        persona_recorded_at: new Date(),
+      },
+    ]);
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+    try {
+      const response = await app.fetch('/api/conversations?owners=bob%40example.example&personas=finance', {
+        headers: asAlice,
+      });
+      const body = (await response.json()) as Record<string, unknown>[];
+      expect(Array.isArray(body)).toBe(true);
+      expect(body[0]).not.toHaveProperty('persona_id');
+      expect(body[0]).not.toHaveProperty('persona_name');
+      expect(body[0]).not.toHaveProperty('persona_recorded_at');
+    } finally {
+      await app.close();
+    }
+    const [read] = store.reads();
     expect(read.sql).toContain('WHERE c.user_email = $1');
     expect(read.params).toEqual(['alice@example.example']);
   });

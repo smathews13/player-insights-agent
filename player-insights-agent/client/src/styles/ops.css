@@ -674,40 +674,6 @@ a.ops-dependency-name:hover {
   overflow-wrap: anywhere;
 }
 
-.ops-cost-budget-matrix {
-  table-layout: fixed;
-}
-
-.ops-tile-budget {
-  min-width: 0;
-}
-
-.ops-budget-actual {
-  color: var(--ast-text-long);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  text-align: right;
-}
-
-.ops-budget-actual-unavailable {
-  color: var(--ast-text-secondary);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  font-weight: 400;
-}
-
-.ops-budget-value {
-  color: var(--ast-text-long);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.ops-cost-actual-breakdown {
-  margin-top: 14px;
-}
-
 .ops-resource-budget-actions {
   display: flex;
   flex-wrap: wrap;
@@ -950,22 +916,6 @@ a.ops-dependency-name:hover {
   max-width: 100%;
   font-size: var(--text-xs);
   color: var(--ast-text-secondary);
-}
-
-.ops-budget-heading {
-  color: var(--ast-text-long);
-  text-align: left;
-}
-
-.ops-budget-resource {
-  min-width: 0;
-  color: var(--ast-text-long);
-}
-
-.ops-budget-basis {
-  margin-left: 4px;
-  font-weight: 500;
-  white-space: nowrap;
 }
 
 .ops-budget-compare {

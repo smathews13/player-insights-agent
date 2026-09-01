@@ -186,6 +186,23 @@ describe('Vector Search measured-unit fixtures', () => {
     ).find((tile) => tile.id === 'vector-search');
     expect(vector).toMatchObject({ amount: 0, dbus: 0, attribution: 'deployment' });
   });
+
+  it('uses the verified billed endpoint when no active index identity is available', () => {
+    const vector = buildTiles({ ...IDS, vectorIndex: '' }, [
+      row({ component: 'vector-search', spend: 12, billedDays: 2, dbuRows: 1, dbuQuantity: 10 }),
+    ]).find((tile) => tile.id === 'vector-search');
+    expect(vector).toMatchObject({
+      label: 'Vector Search endpoint',
+      resourceId: 'vs-endpoint',
+      resourceKind: 'vector-endpoint',
+      amount: 6,
+      dbus: 5,
+      attribution: 'deployment',
+      unavailable: '',
+    });
+    expect(vector?.note).toContain('configured endpoint');
+    expect(vector?.secondaryResourceId).toBeUndefined();
+  });
 });
 
 describe('price join golden outputs', () => {
@@ -198,7 +215,7 @@ describe('price join golden outputs', () => {
     ]);
     const measured = tiles.filter((tile) => tile.amount !== null);
     expect(new Set(measured.map((tile) => tile.id)).size).toBe(measured.length);
-    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(10);
+    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(6);
     expect(tiles.some((tile) => tile.id === 'foundation-model')).toBe(false);
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.amount).toBeNull();
     expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);

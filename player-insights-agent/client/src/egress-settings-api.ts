@@ -1,7 +1,6 @@
 import {
   EGRESS_PATHS,
   egressControlsFrom,
-  type EgressChannel,
   type EgressControls,
   type EgressControlsPayload,
   type EgressEvent,
@@ -18,17 +17,6 @@ export interface LoadedEgressControls {
   controls: EgressControls;
   stored: boolean;
   storage: EgressStorageMetadata;
-}
-
-/** Adopt the server snapshot while preserving only writes that have not landed. */
-export function retainPendingEgressDrafts(
-  draft: EgressControls,
-  persisted: EgressControls,
-  pending: ReadonlySet<EgressChannel>
-): EgressControls {
-  const next = { ...persisted };
-  for (const channel of pending) next[channel] = draft[channel];
-  return next;
 }
 
 function serverDetail(body: unknown): string {

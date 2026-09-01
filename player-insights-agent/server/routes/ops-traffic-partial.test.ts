@@ -29,10 +29,10 @@ import {
   DISTINCT_ASKERS_PER_DAY_QUERY,
   QUESTIONS_PER_DAY_QUERY,
   RUN_OUTCOMES_QUERY,
-  TOOL_CALLS_QUERY,
   setupOpsRoutes,
 } from './ops-routes';
 import { ACTIVE_MINUTES_PER_DAY_QUERY } from '../lib/app-activity';
+import { LEGACY_TRAFFIC_BREAKDOWNS_QUERY, RAW_TRAFFIC_BREAKDOWNS_QUERY } from '../lib/ops-traffic';
 import type { OpsTrafficPayload } from '../../shared/ops-contract';
 import type { InsightsAppKit } from './insights-routes';
 import type { Application, Request, Response } from 'express';
@@ -52,8 +52,11 @@ const ROWS: Record<string, Record<string, unknown>[]> = {
   [QUESTIONS_PER_DAY_QUERY]: [{ day: '2026-08-14', count: 12 }],
   [DISTINCT_ASKERS_PER_DAY_QUERY]: [{ day: '2026-08-14', count: 4 }],
   [ACTIVE_MINUTES_PER_DAY_QUERY]: [{ day: '2026-08-14', count: 80 }],
-  [RUN_OUTCOMES_QUERY]: [{ state: 'FAILED', terminal_code: 'WAREHOUSE_UNAVAILABLE', count: 2 }],
-  [TOOL_CALLS_QUERY]: [{ tool: 'genie', count: 30 }],
+  [RUN_OUTCOMES_QUERY]: [
+    { kind: 'population', key: '', count: 2 },
+    { kind: 'failure', key: 'WAREHOUSE_UNAVAILABLE', count: 2 },
+    { kind: 'tool', key: 'genie', count: 30 },
+  ],
 };
 
 /** The traffic handler, over three reads that answer or reject as asked. */
@@ -69,16 +72,24 @@ function trafficRoute(answers: Answers, rows: Record<string, Record<string, unkn
     [QUESTIONS_PER_DAY_QUERY]: answers.questions,
     [DISTINCT_ASKERS_PER_DAY_QUERY]: answers.askers ?? true,
     [ACTIVE_MINUTES_PER_DAY_QUERY]: answers.activeMinutes ?? true,
-    [RUN_OUTCOMES_QUERY]: answers.outcomes,
-    [TOOL_CALLS_QUERY]: answers.tools,
   };
 
   const log = vi.spyOn(console, 'log').mockImplementation(() => {});
   setupOpsRoutes(
     {
       lakebase: {
-        query: (text: string) =>
-          answering[text] ? Promise.resolve({ rows: rows[text] ?? [] }) : Promise.reject(new Error(REFUSAL)),
+        query: (text: string) => {
+          if (
+            text === RUN_OUTCOMES_QUERY ||
+            text === RAW_TRAFFIC_BREAKDOWNS_QUERY ||
+            text === LEGACY_TRAFFIC_BREAKDOWNS_QUERY
+          ) {
+            return answers.outcomes && answers.tools
+              ? Promise.resolve({ rows: rows[RUN_OUTCOMES_QUERY] ?? [] })
+              : Promise.reject(new Error(REFUSAL));
+          }
+          return answering[text] ? Promise.resolve({ rows: rows[text] ?? [] }) : Promise.reject(new Error(REFUSAL));
+        },
       },
       server: { extend: (fn: (target: Application) => void) => fn(app) },
     } as unknown as InsightsAppKit,
@@ -135,15 +146,14 @@ describe('the Traffic block when a read is cut off', () => {
   });
 
   /** Two gone names both, in one line rather than two sentences. */
-  it('names both when two are cut off', async () => {
+  it('names both when questions and the consolidated breakdown are cut off', async () => {
     const payload = await trafficPayload({ questions: false, outcomes: false, tools: true });
 
     const said = payload.unread.toLowerCase();
     expect(said).toContain('questions per day');
-    expect(said).toContain('failures and refusals');
-    expect(said).not.toContain('tool calls');
+    expect(said).toContain('failures, refusals and tool calls');
     expect(payload.reason).toBe('');
-    expect(payload.toolCalls).toHaveLength(1);
+    expect(payload.toolCalls).toEqual([]);
   });
 
   it('keeps question and run charts when recorded active minutes cannot be read', async () => {
@@ -164,7 +174,7 @@ describe('the Traffic block when a read is cut off', () => {
     const payload = await trafficPayload({ ...ALL, outcomes: false });
 
     expect(payload.runsInRange).toBe(0);
-    expect(payload.unread.toLowerCase()).toContain('failures and refusals');
+    expect(payload.unread.toLowerCase()).toContain('failures, refusals and tool calls');
   });
 
   /**
@@ -197,8 +207,7 @@ describe('the Traffic block over a range that genuinely holds nothing', () => {
       [QUESTIONS_PER_DAY_QUERY]: [],
       [DISTINCT_ASKERS_PER_DAY_QUERY]: [],
       [ACTIVE_MINUTES_PER_DAY_QUERY]: [],
-      [RUN_OUTCOMES_QUERY]: [],
-      [TOOL_CALLS_QUERY]: [],
+      [RUN_OUTCOMES_QUERY]: [{ kind: 'population', key: '', count: 0 }],
     });
 
     expect(payload.unread).toBe('');

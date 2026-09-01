@@ -155,6 +155,8 @@ export interface ProbeSubject {
   observe?: (body: Record<string, unknown>) => string;
   /** Human-readable object name, kept separately from the configured identifier. */
   displayName?: (body: Record<string, unknown>) => string;
+  /** Type-specific scalar facts that a concise Connections row can render. */
+  facts?: (body: Record<string, unknown>) => Record<string, string | number | boolean>;
   /**
    * When the content this object serves was last written, off the same payload.
    *
@@ -185,6 +187,48 @@ function text(value: unknown): string {
 
 function list(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function compactFacts(
+  entries: Record<string, string | number | boolean | null | undefined>
+): Record<string, string | number | boolean> {
+  return Object.fromEntries(
+    Object.entries(entries).filter(
+      ([, value]) => value !== null && value !== undefined && (typeof value !== 'string' || value.trim().length > 0)
+    )
+  ) as Record<string, string | number | boolean>;
+}
+
+function servingFacts(body: Record<string, unknown>): Record<string, string | number | boolean> {
+  const state = record(body.state);
+  const entities = Array.isArray(body.served_entities) ? body.served_entities.map(record) : [];
+  const routes = Array.isArray(record(body.traffic_config).routes)
+    ? (record(body.traffic_config).routes as unknown[]).map(record)
+    : [];
+  const servedModel = entities
+    .map((entity) => {
+      const name = text(entity.entity_name) || text(entity.name);
+      const version = text(entity.entity_version);
+      return [name, version && `v${version}`].filter(Boolean).join(' ');
+    })
+    .filter(Boolean)
+    .join(', ');
+  const traffic = routes
+    .map((route) => {
+      const name = text(route.served_model_name);
+      const percentage =
+        typeof route.traffic_percentage === 'number' && Number.isFinite(route.traffic_percentage)
+          ? `${route.traffic_percentage}%`
+          : '';
+      return [name, percentage].filter(Boolean).join(' ');
+    })
+    .filter(Boolean)
+    .join(', ');
+  return compactFacts({ readiness: text(state.ready), served_model: servedModel, traffic });
 }
 
 /** The configuration entry the orchestrator reported for one of its settings. */
@@ -320,6 +364,13 @@ export function connectionSubjects(input: {
         return [name && `named \u201c${name}\u201d`, state && `state ${state}`].filter(Boolean).join(', ');
       },
       displayName: (body) => text(body.name),
+      facts: (body) =>
+        compactFacts({
+          display_name: text(body.name),
+          state: text(body.state),
+          warehouse_type: text(body.warehouse_type),
+          cluster_size: text(body.cluster_size),
+        }),
       grant: (principal) =>
         // No guidance. What stood here said a warehouse is a workspace object
         // rather than a Unity Catalog one, which is why the fix is an API call
@@ -354,6 +405,19 @@ export function connectionSubjects(input: {
         return title ? `titled \u201c${title}\u201d` : '';
       },
       displayName: (body) => text(body.title),
+      facts: (body) => {
+        const dataSources = record(body.data_sources);
+        const tables = Array.isArray(dataSources.tables)
+          ? dataSources.tables.length
+          : Array.isArray(body.tables)
+            ? body.tables.length
+            : null;
+        return compactFacts({
+          display_name: text(body.title),
+          warehouse_id: text(body.warehouse_id),
+          table_count: tables,
+        });
+      },
       grant: (principal) =>
         // No guidance. The dropped sentence said the tables behind a space are
         // granted separately in Unity Catalog, which is a real fact and one this
@@ -472,6 +536,17 @@ export function connectionSubjects(input: {
         return [endpoint && `served by ${endpoint}`, state && `state ${state}`].filter(Boolean).join(', ');
       },
       displayName: (body) => text(body.name),
+      facts: (body) => {
+        const status = record(body.status);
+        const delta = record(body.delta_sync_index_spec);
+        return compactFacts({
+          display_name: text(body.name),
+          endpoint: text(body.endpoint_name),
+          state: text(status.detailed_state),
+          index_type: text(body.index_type) || text(delta.pipeline_type),
+          source_table: text(delta.source_table),
+        });
+      },
       contentAt: (body) => indexContentAt(body),
       // NOW A GRANT, which is what this row always claimed to be offering. What
       // stood here was a `databricks api get` against the index -- the same call
@@ -542,6 +617,7 @@ function servingEndpointSubject(id: string, label: string, name: string, note: s
       const ready = text(state.ready);
       return ready ? `state ${ready}` : '';
     },
+    facts: servingFacts,
     // No guidance. The dropped sentence classified the object to explain why the
     // fix is an API call; the reader is holding the API call.
     grant: (principal) =>
@@ -594,6 +670,13 @@ export function vectorEndpointSubject(indexBody: Record<string, unknown>): Probe
       const status = (body.endpoint_status as Record<string, unknown> | undefined) ?? {};
       const state = text(status.state);
       return state ? `state ${state}` : '';
+    },
+    facts: (body) => {
+      const status = record(body.endpoint_status);
+      return compactFacts({
+        state: text(status.state),
+        endpoint_type: text(body.endpoint_type),
+      });
     },
     grant: endpointId
       ? (principal) =>
@@ -832,6 +915,7 @@ export function probeVerdict(input: {
     return check(subject, {
       status: 'ok',
       display_name: subject.displayName?.(body) || undefined,
+      facts: subject.facts?.(body),
       duration_ms: durationMs,
       content_at: contentAt,
       detail:
@@ -1165,9 +1249,7 @@ export async function probeConnections(input: {
     if (resolved.indexIsCandidate) {
       const indexCheck = next.find((entry) => entry.id === 'semantic-index');
       if (indexCheck?.status !== 'ok') {
-        next = next.filter(
-          (entry) => entry.id !== 'semantic-index' && entry.id !== 'semantic-index-endpoint'
-        );
+        next = next.filter((entry) => entry.id !== 'semantic-index' && entry.id !== 'semantic-index-endpoint');
         return withSemanticFollowUps(withManifestRollup(next), input.configured);
       }
     }

@@ -230,20 +230,15 @@ export function RosterAddRow({
           type="button"
           variant="outline"
           data-variant="outline"
-          className="roster-control"
+          className="roster-control roster-action-button"
           disabled={Boolean(disabledReason)}
           title={disabledReason || `Add ${normalizeRosterEmail(draft)} as ${roleWord(role)}`}
           aria-describedby={descriptionId}
           aria-busy={adding}
           onClick={onAdd}
         >
-          {adding ? (
-            'Adding…'
-          ) : (
-            <>
-              <UserPlus className="size-3.5" aria-hidden="true" /> Add
-            </>
-          )}
+          <UserPlus className="roster-action-icon" aria-hidden="true" />
+          {adding ? 'Adding…' : 'Add'}
         </Button>
       </td>
     </tr>
@@ -384,13 +379,14 @@ export function RosterRows({
                         <Button
                           variant="destructive"
                           data-variant="destructive"
-                          className="roster-control settings-destructive"
+                          className="roster-control settings-destructive roster-action-button"
                           size="sm"
                           disabled={busy}
                           onClick={() => onRemove(entry)}
                           aria-label={`Remove ${entry.email}`}
                         >
-                          <Trash2 className="size-3.5" /> Remove
+                          <Trash2 className="roster-action-icon" aria-hidden="true" />
+                          Remove
                         </Button>
                       ) : null}
                     </td>

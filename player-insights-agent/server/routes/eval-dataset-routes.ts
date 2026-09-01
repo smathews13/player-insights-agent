@@ -12,7 +12,11 @@ import { scoreSampledAskTurn } from '../lib/live-ask-scoring';
 import { formatConversationTurns } from '../../shared/eval-conversation';
 import { DEFAULT_LIVE_SAMPLE_RATE } from '../../shared/eval-live-scoring';
 import { recordAdminAction } from '../lib/admin-roles';
-import { readBenchmarkSettings, writeBenchmarkSettings } from '../lib/benchmark-settings-store';
+import {
+  readBenchmarkSettings,
+  readBenchmarkSettingsDocument,
+  writeBenchmarkSettingsPatch,
+} from '../lib/benchmark-settings-store';
 import {
   readEvalDataset,
   readEvalDatasetEnvelope,
@@ -259,9 +263,11 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
           });
           return;
         }
-        const saved = await writeBenchmarkSettings(
+        const current = await readBenchmarkSettingsDocument(appkit, { maxAgeMs: 0 });
+        const saved = await writeBenchmarkSettingsPatch(
           appkit,
-          { ...settings, guidelinesText: aligned.guidelinesText },
+          { guidelinesText: aligned.guidelinesText },
+          current.revision,
           actor
         );
         await recordAdminAction(appkit.lakebase, {
@@ -271,7 +277,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
           detail: aligned.note,
         });
         res.json({
-          guidelinesText: saved.guidelinesText,
+          guidelinesText: saved.settings.guidelinesText,
           labeled,
           agreement: aligned.agreement,
           method: aligned.method,

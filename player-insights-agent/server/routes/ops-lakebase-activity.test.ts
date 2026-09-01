@@ -5,7 +5,6 @@ import {
   DISTINCT_ASKERS_PER_DAY_QUERY,
   QUESTIONS_PER_DAY_QUERY,
   RUN_OUTCOMES_QUERY,
-  TOOL_CALLS_QUERY,
   setupOpsRoutes,
 } from './ops-routes';
 import { REQUEST_LATENCY_QUERY } from '../lib/request-latency';
@@ -26,8 +25,10 @@ function routes() {
     [QUESTIONS_PER_DAY_QUERY]: [{ day: '2026-08-20', count: 3 }],
     [DISTINCT_ASKERS_PER_DAY_QUERY]: [{ day: '2026-08-20', count: 2 }],
     [ACTIVE_MINUTES_PER_DAY_QUERY]: [{ day: '2026-08-20', count: 18 }],
-    [RUN_OUTCOMES_QUERY]: [{ state: 'SUCCEEDED', terminal_code: '', count: 3 }],
-    [TOOL_CALLS_QUERY]: [{ tool: 'genie', count: 5 }],
+    [RUN_OUTCOMES_QUERY]: [
+      { kind: 'population', key: '', count: 3 },
+      { kind: 'tool', key: 'genie', count: 5 },
+    ],
     [REQUEST_LATENCY_QUERY]: [
       {
         route: 'POST /api/insights/ask',
@@ -103,7 +104,6 @@ describe('Ops activity without billed telemetry', () => {
     expect(payload.activeMinutesPerDay).toEqual([{ day: '2026-08-20', count: 18 }]);
     expect(calls.filter((call) => call.sql !== REQUEST_LATENCY_QUERY).map((call) => call.params)).toEqual([
       ['effective'],
-      ['UTC', '2026-08-19', '2026-08-19'],
       ['UTC', '2026-08-19', '2026-08-19'],
       ['UTC', '2026-08-19', '2026-08-19'],
       ['UTC', '2026-08-19', '2026-08-19'],

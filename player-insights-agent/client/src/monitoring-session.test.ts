@@ -27,6 +27,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MonitoringQuestionsPayload } from '../../shared/monitoring-contract';
 import { NO_FILTERS } from './monitoring-filters';
 import {
+  abortMonitoringRequestsExcept,
+  autoLoadMonitoringQuestions,
   autoLoadClaimed,
   claimAutoLoad,
   forgetMonitoringSession,
@@ -34,7 +36,9 @@ import {
   monitoringRangeId,
   monitoringRequestId,
   monitoringQuestionsUrl,
+  monitoringTabHref,
   recallQuestions,
+  rememberMonitoringSearch,
 } from './monitoring-session';
 
 function payload(readAt = '2026-08-24T12:00:00.000Z'): MonitoringQuestionsPayload {
@@ -166,12 +170,127 @@ describe('what one read keeps, and what a later visit reuses', () => {
     expect(listReads(paths)).toBe(2);
   });
 
+  it('fetches on first open, then returns from another tab without another request', async () => {
+    const { paths } = stubFetch({ body: payload('2026-08-24T12:00:00.000Z') });
+    const firstOpen = request('7d', '2026-08-17T12:00:00.000Z', '2026-08-24T12:00:00.000Z');
+    const returnVisit = request('7d', '2026-08-17T12:05:00.000Z', '2026-08-24T12:05:00.000Z');
+
+    await autoLoadMonitoringQuestions(firstOpen);
+    const returningLoad = autoLoadMonitoringQuestions(returnVisit);
+
+    expect(returningLoad).toBeNull();
+    expect(listReads(paths)).toBe(1);
+    expect(monitoringRequestId(returnVisit)).toBe(monitoringRequestId(firstOpen));
+    expect(recallQuestions(monitoringRequestId(returnVisit))?.readAt).toBe('2026-08-24T12:00:00.000Z');
+  });
+
+  it('fetches intentionally when a filter changes', async () => {
+    const { paths } = stubFetch();
+    const initial = request();
+    const filtered = { ...initial, filters: { ...NO_FILTERS, person: 'reader@example.test' } };
+
+    await autoLoadMonitoringQuestions(initial);
+    await autoLoadMonitoringQuestions(filtered);
+
+    expect(listReads(paths)).toBe(2);
+    expect(paths[1]).toContain('person=reader%40example.test');
+  });
+
+  it('invalidates retained Monitoring data when the app session changes', async () => {
+    const { paths } = stubFetch();
+    const initial = request();
+
+    await autoLoadMonitoringQuestions(initial);
+    forgetMonitoringSession();
+    await autoLoadMonitoringQuestions(initial);
+
+    expect(listReads(paths)).toBe(2);
+  });
+
+  it('aborts a stale range read and leaves it eligible for a later fresh load', async () => {
+    const signals: AbortSignal[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: string, init?: RequestInit) => {
+        const signal = init?.signal;
+        if (!signal) throw new Error('Monitoring fetch did not receive an abort signal');
+        signals.push(signal);
+        return new Promise<Response>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+        });
+      })
+    );
+    const stale = request('7d', '2026-08-17T00:00:00.000Z', '2026-08-24T00:00:00.000Z');
+    const current = request('30d', '2026-07-25T00:00:00.000Z', '2026-08-24T00:00:00.000Z');
+    const staleId = monitoringRequestId(stale);
+    claimAutoLoad(staleId);
+
+    const staleRead = loadMonitoringQuestions(stale);
+    abortMonitoringRequestsExcept(monitoringRequestId(current));
+
+    expect(signals).toHaveLength(1);
+    expect(signals[0].aborted).toBe(true);
+    await expect(staleRead).resolves.toBeNull();
+    expect(recallQuestions(staleId)).toBeNull();
+    expect(autoLoadClaimed(staleId)).toBe(false);
+  });
+
+  it('cannot commit a late response after a newer range wins', async () => {
+    const resolvers: Array<(response: Response) => void> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolvers.push(resolve);
+          })
+      )
+    );
+    const stale = request('7d', '2026-08-17T00:00:00.000Z', '2026-08-24T00:00:00.000Z');
+    const current = request('30d', '2026-07-25T00:00:00.000Z', '2026-08-24T00:00:00.000Z');
+
+    const staleRead = autoLoadMonitoringQuestions(stale);
+    const currentRead = autoLoadMonitoringQuestions(current);
+    const resolveCurrent = resolvers[1];
+    const resolveStale = resolvers[0];
+    if (!resolveCurrent || !resolveStale) throw new Error('Both Monitoring reads did not start');
+    resolveCurrent(
+      new Response(JSON.stringify(payload('2026-08-24T12:05:00.000Z')), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    await currentRead;
+    resolveStale(
+      new Response(JSON.stringify(payload('2026-08-24T11:55:00.000Z')), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    await staleRead;
+
+    expect(recallQuestions(monitoringRequestId(current))?.readAt).toBe('2026-08-24T12:05:00.000Z');
+    expect(recallQuestions(monitoringRequestId(stale))).toBeNull();
+  });
+
   it('treats a 403 body as an unavailable payload rather than as a thrown read', async () => {
     stubFetch({ ok: false, status: 403, body: { ...payload(), readState: 'ok' } });
     const asked = request();
     const body = await loadMonitoringQuestions(asked);
     expect(body?.readState).toBe('unavailable');
     expect(recallQuestions(monitoringRequestId(asked))?.readState).toBe('unavailable');
+  });
+
+  it('keeps the last successful page visible through a failed explicit refresh', async () => {
+    const asked = request();
+    stubFetch({ body: payload('2026-08-24T12:00:00.000Z') });
+    await loadMonitoringQuestions(asked);
+    vi.unstubAllGlobals();
+    stubFetch({ throws: true });
+
+    await loadMonitoringQuestions({ ...asked, to: '2026-08-24T13:00:00.000Z' });
+
+    expect(recallQuestions(monitoringRequestId(asked))?.readAt).toBe('2026-08-24T12:00:00.000Z');
   });
 });
 
@@ -182,7 +301,8 @@ describe('paged list request contracts', () => {
     const paged = { ...filtered, cursor: 'opaque-next' };
     const moved = { ...base, from: '2026-08-02' };
 
-    expect(new Set([base, filtered, paged, moved].map(monitoringRequestId))).toHaveLength(4);
+    expect(new Set([base, filtered, paged, moved].map(monitoringRequestId))).toHaveLength(3);
+    expect(monitoringRequestId(moved)).toBe(monitoringRequestId(base));
   });
 
   it('sends every active filter and the opaque cursor to the server', () => {
@@ -235,6 +355,24 @@ describe('the range identity a remount must reuse', () => {
   });
 });
 
+describe('the Monitoring tab restores its view controls', () => {
+  it('keeps range and filters but does not reopen detail panels', () => {
+    rememberMonitoringSearch(
+      '?range=30d&person=reader%40example.test&outcome=failed&rating=down&table=main.gold.fact&q=refund&question=q1&who=reader'
+    );
+
+    expect(monitoringTabHref()).toBe(
+      '/monitoring?range=30d&person=reader%40example.test&outcome=failed&rating=down&table=main.gold.fact&q=refund'
+    );
+  });
+
+  it('clears the restored view with the authenticated app session', () => {
+    rememberMonitoringSearch('?range=all&outcome=refused');
+    forgetMonitoringSession();
+    expect(monitoringTabHref()).toBe('/monitoring');
+  });
+});
+
 /**
  * The page through this mechanism, asserted on the source.
  *
@@ -249,6 +387,8 @@ describe('the page no longer fetches the list itself', () => {
 
   it('reads the list through useMonitoringQuestions', () => {
     expect(source).toContain('useMonitoringQuestions(');
+    expect(source).toContain('rangeLabel(searchParams)');
+    expect(source).toContain('loading: loading && !payload');
   });
 
   it('does not fetch /api/monitoring/questions itself', () => {

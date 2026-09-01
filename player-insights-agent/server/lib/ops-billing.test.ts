@@ -296,18 +296,23 @@ describe('billing attribution', () => {
       "u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint"
     );
 
-    const vector = buildTiles(ids, [
-      {
-        component: 'vector-search',
-        spend: 14,
-        currency: 'USD',
-        billedDays: 2,
-        jobRuns: null,
-        lastDay: RANGE.to,
-        usageUnitCount: 1,
-        dbuQuantity: 6,
-      },
-    ]).find((item) => item.id === 'vector-search');
+    const vector = buildTiles(
+      ids,
+      [
+        {
+          component: 'vector-search',
+          spend: 14,
+          currency: 'USD',
+          billedDays: 2,
+          jobRuns: null,
+          lastDay: RANGE.to,
+          usageUnitCount: 1,
+          dbuQuantity: 6,
+        },
+      ],
+      undefined,
+      [{ tileId: 'vector-search', calls: 1, observedCalls: 1 }]
+    ).find((item) => item.id === 'vector-search');
     expect(vector).toMatchObject({ amount: 7, dbus: 3, basis: 'per-day', attribution: 'deployment' });
   });
 

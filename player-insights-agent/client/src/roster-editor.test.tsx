@@ -234,7 +234,11 @@ describe('the #24a Roles geometry', () => {
     expect(css).toMatch(/\.admin-add \[data-slot='button'\] \{[^}]*flex:\s*none/);
     expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*min-width:\s*0/);
     expect(css).toMatch(/\.settings-actions-table th:last-child \{[^}]*text-align:\s*right/);
-    expect(css).toMatch(/\.roster-action \{[^}]*text-align:\s*right/);
+    expect(css).toMatch(/\.roles-table\.settings-actions-table th:last-child \{[^}]*text-align:\s*center/);
+    expect(css).toMatch(/\.roles-table \.roster-action \{[^}]*text-align:\s*center/);
+    expect(css).toMatch(
+      /\.roles-table \.roster-action > \[data-slot='button'\]\.roster-action-button \{[^}]*width:\s*92px[^}]*height:\s*30px/
+    );
   });
 
   it('keeps Actions above scrolled cells without covering the Add feedback', () => {

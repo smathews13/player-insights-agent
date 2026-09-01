@@ -1,10 +1,8 @@
 /**
  * Adding and removing declared assets.
  *
- * Ordinary removal is recoverable: a removed asset stays listed with a way to put
- * it back, because this app is usually mid demonstration when somebody removes
- * the wrong thing. A separate trash control permanently forgets stale remembered
- * rows, and it asks an irreversible question before touching the store.
+ * Delete is permanent on the first confirmed click. Legacy withdrawn records can
+ * still be restored, but choosing Delete removes their logical record as well.
  *
  * THE PALETTE IS NO LONGER IN THIS FILE, and neither is the operating system's
  * menu. Both arrived with the plane as working markup to be restyled: the colours
@@ -13,10 +11,8 @@
  * geometry is now `.plane-*` in `connections.css` and the picker is the same Radix
  * Select the rest of the app opens, through `./ui`.
  *
- * None of what the card DOES moved. Every string is still
- * `declared-connection-view.ts`'s, the list is still addable and removable, a
- * ordinary removal still offers "Put back", permanent removal is explicit, and
- * adding still grants nobody anything.
+ * Legacy removed rows still offer "Put back"; every Delete confirmation is
+ * explicit that the stored connection is removed permanently.
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import { LoaderCircle, Trash2 } from 'lucide-react';
@@ -43,6 +39,7 @@ import { StatusBadge } from './StatusBadge';
 import { UserIdentityChip } from './UserIdentityChip';
 import {
   connectionValueError,
+  createConnectionDeleteGate,
   createDeclaredConnection,
   deleteDeclaredConnection,
   derivedConnectionKey,
@@ -50,6 +47,9 @@ import {
 import type { ConnectionTypesResponse } from '../../shared/browse-contract';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
 import { Button } from './ui';
+import { beginConnectionMutation, commitConnectionDeletion } from './session-checks';
+
+const DELETE_TOMBSTONE_MS = 10_000;
 
 function ConnectionProvenance({ connection }: { connection: ConnectionEntry['connection'] }) {
   const created = connection.createdAt ? new Date(connection.createdAt) : null;
@@ -81,7 +81,7 @@ export interface DeclaredConnectionsCardProps {
   entries?: ConnectionEntry[];
   /** Whether the store that holds these is answering. */
   storeAvailable?: boolean;
-  /** Administrators only may add, withdraw or forget. Consumers still see the list. */
+  /** Administrators only may add, restore or delete. Consumers still see the list. */
   allowMutations?: boolean;
   onChanged: () => void | Promise<void>;
 }
@@ -101,7 +101,9 @@ export function DeclaredConnectionsCard({
   const [typeDiscovery, setTypeDiscovery] = useState<ConnectionTypesResponse | null>(null);
   const [typeDiscoveryError, setTypeDiscoveryError] = useState('');
   const [instantEntries, setInstantEntries] = useState<ConnectionEntry[]>([]);
-  const [hiddenEntries, setHiddenEntries] = useState<Set<string>>(() => new Set());
+  const [deleteTombstones, setDeleteTombstones] = useState<Map<string, number>>(() => new Map());
+  const [successNotice, setSuccessNotice] = useState('');
+  const deleteGate = useRef(createConnectionDeleteGate());
   /** The id awaiting a confirmed removal, so the impact is read before it happens. */
   const [confirming, setConfirming] = useState('');
   /** The row added in this sitting, which carries the badge until the page is left. */
@@ -150,12 +152,24 @@ export function DeclaredConnectionsCard({
   useEffect(() => {
     const persisted = new Set((entries ?? []).map((entry) => entry.connection.id));
     setInstantEntries((current) => current.filter((entry) => !persisted.has(entry.connection.id)));
-    setHiddenEntries((current) => new Set([...current].filter((id) => persisted.has(id))));
   }, [entries]);
+
+  useEffect(() => {
+    if (deleteTombstones.size === 0) return;
+    const expiresAt = Math.min(...deleteTombstones.values());
+    const timeout = window.setTimeout(
+      () => {
+        const now = Date.now();
+        setDeleteTombstones((current) => new Map([...current].filter(([, expiry]) => expiry > now)));
+      },
+      Math.max(0, expiresAt - Date.now())
+    );
+    return () => window.clearTimeout(timeout);
+  }, [deleteTombstones]);
 
   const mergedById = new Map((entries ?? []).map((entry) => [entry.connection.id, entry]));
   for (const entry of instantEntries) mergedById.set(entry.connection.id, entry);
-  const merged = [...mergedById.values()].filter((entry) => !hiddenEntries.has(entry.connection.id));
+  const merged = [...mergedById.values()].filter((entry) => !deleteTombstones.has(entry.connection.id));
   const ordered = orderConnections(merged);
   const listed = ordered;
   const chosenKind = ADDABLE_KINDS.find((entry) => entry.id === kindChoice) ?? ADDABLE_KINDS[0];
@@ -247,24 +261,36 @@ export function DeclaredConnectionsCard({
   }
 
   async function remove(entry: ConnectionEntry) {
-    if (busy) return;
+    if (busy || deleteGate.current.pending(entry.connection.id)) return;
     setBusy(true);
     setRowError(null);
+    setSuccessNotice('');
     try {
-      const result = await deleteDeclaredConnection(entry.connection);
+      const result = await deleteGate.current.run(entry.connection.id, async () => {
+        beginConnectionMutation();
+        return deleteDeclaredConnection(entry.connection);
+      });
+      if (!result) return;
       if (!result.ok) {
         setRowError({ id: entry.connection.id, detail: result.detail });
         return;
       }
-      if (result.outcome === 'forgotten') {
-        setHiddenEntries((current) => new Set(current).add(entry.connection.id));
-      } else if (result.connection) {
-        setInstantEntries((current) => [
-          ...current.filter((candidate) => candidate.connection.id !== entry.connection.id),
-          { ...entry, connection: result.connection! },
-        ]);
-      }
+      const expires = Date.now() + DELETE_TOMBSTONE_MS;
+      setDeleteTombstones((current) => {
+        const next = new Map(current);
+        for (const id of result.deletedIds) next.set(id, expires);
+        return next;
+      });
+      setInstantEntries((current) =>
+        current.filter((candidate) => !result.deletedIds.includes(candidate.connection.id))
+      );
+      commitConnectionDeletion(result.deletedIds);
       setConfirming('');
+      setSuccessNotice(
+        result.deletedCount === 1
+          ? 'Connection deleted.'
+          : `Connection deleted with ${result.deletedCount - 1} duplicate ${result.deletedCount === 2 ? 'record' : 'records'}.`
+      );
       await onChanged();
     } finally {
       setBusy(false);
@@ -276,6 +302,11 @@ export function DeclaredConnectionsCard({
       {!storeAvailable ? (
         <span className="plane-error">
           The store that holds this list is not answering, so nothing can be added or removed.
+        </span>
+      ) : null}
+      {successNotice ? (
+        <span className="plane-success" role="status">
+          {successNotice}
         </span>
       ) : null}
 
@@ -348,18 +379,13 @@ export function DeclaredConnectionsCard({
 
             {allowMutations && confirmOpen ? (
               <div className="plane-confirm" role="group" aria-label={`${DELETE_CONNECTION_LABEL}: ${name}`}>
-                <span className="plane-confirm-headline">
-                  {removed ? 'Delete this remembered connection permanently?' : entry.impact.headline}
-                </span>
-                {removed ? (
-                  <span className="plane-confirm-detail">{forgetConnectionDetail(entry.connection.origin)}</span>
-                ) : (
-                  <ul className="plane-confirm-list">
-                    {entry.impact.consequences.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
-                )}
+                <span className="plane-confirm-headline">Delete this connection permanently?</span>
+                <span className="plane-confirm-detail">{forgetConnectionDetail(entry.connection.origin)}</span>
+                <ul className="plane-confirm-list">
+                  {entry.impact.consequences.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
                 <span className="plane-confirm-actions">
                   <Button
                     variant="destructive"

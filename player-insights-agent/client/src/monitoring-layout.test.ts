@@ -1,305 +1,105 @@
 import { describe, expect, it } from 'vitest';
 
-import { RANGE_SEGMENTS } from './time-range';
-import { stylesheet } from './styles/stylesheet';
+import { partial, stylesheet } from './styles/stylesheet';
 
-/**
- * Whether Monitoring's filter row still fits on one line, as arithmetic.
- *
- * WHY THIS FILE EXISTS. The row holds the period control, a rule, four chips and
- * the search box, and the search box is pushed to the right edge by
- * `margin-left: auto`. That is right while everything is on one line. Once the row
- * wraps, the same margin strands the field at the far end of a line of its own
- * with a gap where the chips used to be, and a field floating away from
- * everything reads as belonging to whatever wrapped above it. `responsive.css`
- * answers that by giving the field its own full-width line below a breakpoint, so
- * the question that decides whether the row is broken is a single one: is that
- * breakpoint at least as wide as the width at which the row runs out of line?
- *
- * Nobody could answer it. It was raised as a concern, guessed at as "somewhere
- * between 800px and full width", and left unverified through two releases, because
- * the honest way to check is to look at a screen and this repository must not open
- * a browser. Adding a fifth segment to the period control made it worse and made
- * it urgent. So it is computed instead.
- *
- * THE ESTIMATE, AND WHICH WAY IT IS WRONG. Every box measurement below is read out
- * of the stylesheet the app ships, so a change to any padding, border, gap or flex
- * basis moves this test. The one thing that cannot be read is how wide a string of
- * DM Sans renders, because that needs a font engine. `CHAR_PX` is a deliberate
- * OVER-estimate of the average advance, so the widths here are upper bounds and
- * the wrap point they produce is earlier than the real one. A test built on an
- * under-estimate would report a row fitting when it does not, which is the failure
- * this whole file is a reaction to.
- *
- * WHAT IT DOES NOT PROVE. Not that the row looks right, not where anything sits,
- * and not that a row with filters SET fits: a set chip prints its value, and a
- * table name is allowed 34 characters, so that row is wider than this one and
- * wraps sooner. The same full-width rule catches it. What is asserted is the
- * default row, which is what every reader sees on first load.
- */
-
-/** Rules only, comments stripped, so a number quoted in prose is not read as CSS. */
 const CSS = stylesheet().replace(/\/\*[\s\S]*?\*\//g, ' ');
+const MONITORING = partial('monitoring.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+const RESPONSIVE = partial('responsive-monitoring.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
 
-/**
- * An upper bound on the average character advance, as a fraction of font size.
- *
- * DM Sans is a humanist sans whose lowercase advances sit around 0.5em to 0.55em
- * at these sizes, with digits and capitals wider. 0.58 is above all of them, which
- * is the direction this has to err in: see the note above.
- */
-const CHAR_PX = 0.58;
-
-/** Uppercase, 700, and letter-spaced, so the eyebrow is measured on its own terms. */
-const CAPS_CHAR_PX = 0.7;
-
-/** `--text-sm`, the size the segments, the chips and the search box all render at. */
-const TEXT_SM = 12;
-
-/** `--text-xs`, the size of the PERIOD eyebrow, plus its 0.06em tracking. */
-const TEXT_XS = 11;
-const TRACKING_EM = 0.06;
-
-/** `.page-shell`: 1440px wide, padded `clamp(20px, 4vw, 56px)` a side. */
-const SHELL_MAX = 1440;
-const SHELL_PAD_MAX = 56;
-const SHELL_PAD_VW = 0.04;
-
-function textWidth(label: string, size = TEXT_SM): number {
-  return label.length * size * CHAR_PX;
+function rule(selector: string, source = MONITORING): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const body = source.match(new RegExp(`(?:^|[};])\\s*${escaped}\\s*\\{([^{}]*)\\}`))?.[1];
+  if (body === undefined) throw new Error(`no rule for ${selector}`);
+  return body;
 }
 
-function capsWidth(label: string): number {
-  return label.length * TEXT_XS * (CAPS_CHAR_PX + TRACKING_EM);
+function media(maxWidth: number): string {
+  const start = RESPONSIVE.indexOf(`@media (max-width: ${maxWidth}px)`);
+  if (start < 0) throw new Error(`no ${maxWidth}px Monitoring media query`);
+  const next = RESPONSIVE.indexOf('@media ', start + 1);
+  return RESPONSIVE.slice(start, next < 0 ? undefined : next);
 }
 
-/**
- * One declaration from one rule, as a number of pixels.
- *
- * Throws rather than defaulting when the rule or the property is not found. A
- * missing value silently read as zero is a budget that shrinks every time somebody
- * renames a class, and it would pass.
- */
-function px(selector: string, property: string, which = 0): number {
-  const rule = new RegExp(`${selector.replace(/[.[\]']/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(CSS);
-  if (!rule) throw new Error(`no rule for ${selector}`);
-  const found = new RegExp(`(?:^|;)\\s*${property}:\\s*([^;]+)`).exec(rule[1]);
-  if (!found) throw new Error(`no ${property} on ${selector}`);
-  const parts = found[1].trim().split(/\s+/);
-  const value = Number.parseFloat(parts[which] ?? parts[0]);
-  if (!Number.isFinite(value)) throw new Error(`${property} on ${selector} is not a length: ${found[1]}`);
-  return value;
-}
+describe('Monitoring heading and action geometry', () => {
+  it('keeps the heading left and the compact action group right on desktop', () => {
+    const heading = rule('.page-heading', CSS);
+    const actions = rule('.monitoring-heading-actions');
 
-/** Horizontal padding, from a one-to-four-value shorthand. */
-function padX(selector: string): number {
-  const rule = new RegExp(`${selector.replace(/[.[\]']/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(CSS);
-  if (!rule) throw new Error(`no rule for ${selector}`);
-  const found = /(?:^|;)\s*padding:\s*([^;]+)/.exec(rule[1]);
-  if (!found) throw new Error(`no padding on ${selector}`);
-  const parts = found[1].trim().split(/\s+/).map(Number.parseFloat);
-  const right = parts[1] ?? parts[0];
-  const left = parts[3] ?? right;
-  return right + left;
-}
-
-/** Both borders, from a `1px solid var(--x)` shorthand. */
-function borderX(selector: string): number {
-  return px(selector, 'border') * 2;
-}
-
-function ruleBody(selector: string, css = CSS): string {
-  const rule = new RegExp(`${selector.replace(/[.[\]']/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css);
-  if (!rule) throw new Error(`no rule for ${selector}`);
-  return rule[1];
-}
-
-function mediaBody(maxWidth: number): string {
-  const marker = `@media (max-width: ${maxWidth}px)`;
-  // responsive.css is the final partial and owns the canonical breakpoint.
-  // A concurrent page partial carrying a stray query must not make this test
-  // inspect that earlier block instead of the responsive band under test.
-  const start = CSS.lastIndexOf(marker);
-  if (start < 0) throw new Error(`no media query for ${maxWidth}px`);
-  const next = CSS.indexOf('@media ', start + marker.length);
-  return CSS.slice(start, next < 0 ? undefined : next);
-}
-
-/* ── The row's preferred width ───────────────────────────────────────────── */
-
-/** The segmented control, including the group's own border and the separators. */
-function periodSegments(): number {
-  const pad = padX('.time-range-segment');
-  const labels = RANGE_SEGMENTS.map((segment) => textWidth(segment.label) + pad);
-  // One `border-left` on every segment after the first.
-  const separators = RANGE_SEGMENTS.length - 1;
-  return borderX('.time-range-segments') + separators + labels.reduce((total, width) => total + width, 0);
-}
-
-/** The bordered group: the eyebrow, a gap, and the segments. */
-function periodGroup(): number {
-  return (
-    borderX('.monitoring-period') +
-    padX('.monitoring-period') +
-    capsWidth('Period') +
-    px('.monitoring-period', 'gap') +
-    periodSegments()
-  );
-}
-
-/**
- * One unset chip, which is now the shared app-select trigger inside the
- * Monitoring wrapper and prints its name, separator dot and off word.
- */
-function chip(name: string, off: string): number {
-  return (
-    borderX('.app-select-trigger') +
-    padX('.app-select-trigger') +
-    // Two gaps: name to dot, dot to value.
-    px('.app-select-trigger', 'gap') * 2 +
-    textWidth(`${name}\u00b7${off}`)
-  );
-}
-
-const CHIPS: [string, string][] = [
-  ['Person', 'All'],
-  ['Outcome', 'All'],
-  ['Rating', 'All'],
-  ['Table', 'Any'],
-];
-
-const ROW_GAP = () => px('.monitoring-filters', 'gap');
-
-/** The 1px divider and its 2px margins. */
-const RULE = () => px('.monitoring-filters-rule', 'width') + px('.monitoring-filters-rule', 'margin', 1) * 2;
-
-/** `flex: 0 1 240px` -- what the search box asks for before any shrinking. */
-const SEARCH_BASIS = () => px('.monitoring-search', 'flex', 2);
-
-/** Its floor. Below this the field stops giving width back to the row. */
-const SEARCH_MIN = () => px('.monitoring-search', 'min-width');
-
-function rowPreferred(): number {
-  const items = [periodGroup(), RULE(), ...CHIPS.map(([name, off]) => chip(name, off)), SEARCH_BASIS()];
-  const gaps = (items.length - 1) * ROW_GAP();
-  return gaps + items.reduce((total, width) => total + width, 0);
-}
-
-/** The content box inside `.page-shell` at a viewport width. */
-function contentWidth(viewport: number): number {
-  const pad = Math.min(SHELL_PAD_MAX, Math.max(20, viewport * SHELL_PAD_VW));
-  return Math.min(SHELL_MAX, viewport) - pad * 2;
-}
-
-/**
- * The widest viewport at which the row cannot hold everything on one line.
- *
- * The search box shrinks first, down to its floor, so the row survives until the
- * content box is narrower than the preferred width less that much give.
- */
-function wrapViewport(): number {
-  const survives = rowPreferred() - (SEARCH_BASIS() - SEARCH_MIN());
-  for (let viewport = 1440; viewport > 320; viewport -= 1) {
-    if (contentWidth(viewport) < survives) return viewport;
-  }
-  return 0;
-}
-
-/** The `max-width` of the query that gives the search box its own full line. */
-function searchOwnLineBreakpoint(): number {
-  const widths = [...CSS.matchAll(/@media\s*\(max-width:\s*(\d+)px\)\s*\{([\s\S]*?)\n\}/g)]
-    .filter(([, , body]) => /\.monitoring-search\s*\{[^}]*flex:\s*1\s+1\s+100%/.test(body))
-    .map(([, width]) => Number.parseInt(width, 10));
-  return widths.length === 0 ? 0 : Math.max(...widths);
-}
-
-describe("Monitoring's filter row at three widths", () => {
-  /**
-   * Full width, which is the one width the design was drawn at. Everything on one
-   * line, the search box at the right edge, nothing wrapped.
-   */
-  it('fits on one line at full width', () => {
-    expect(rowPreferred()).toBeLessThan(contentWidth(1440));
+    expect(heading).toMatch(/display:\s*flex/);
+    expect(heading).toMatch(/justify-content:\s*space-between/);
+    expect(actions).toMatch(/display:\s*flex/);
+    expect(actions).toMatch(/justify-content:\s*flex-end/);
+    expect(actions).toMatch(/flex-wrap:\s*wrap/);
+    expect(actions).toMatch(/min-width:\s*0/);
   });
 
-  /**
-   * The claim that would have failed before All time shipped, and the reason this
-   * file was written. The row runs out of line above 1090px; the rule that stops
-   * the search box being stranded lived at 800px, so for nearly 300px of viewport
-   * the row wrapped with `margin-left: auto` still in force and nothing said so.
-   */
-  it('gives the search box its own line before the row runs out of room', () => {
-    expect(searchOwnLineBreakpoint()).toBeGreaterThanOrEqual(wrapViewport());
+  it('wraps actions beneath the heading at tablet width', () => {
+    const tablet = media(800);
+
+    expect(CSS).toMatch(/@media\s*\(max-width:\s*800px\)[\s\S]*?\.page-heading\s*\{[^}]*flex-direction:\s*column/);
+    expect(tablet).toMatch(/\.monitoring-heading-actions\s*\{[^}]*width:\s*100%/);
+    expect(tablet).toMatch(/\.monitoring-heading-actions\s*\{[^}]*justify-content:\s*flex-start/);
   });
 
-  /**
-   * And below that breakpoint the field is full width rather than merely
-   * unpinned. `margin-left: 0` alone would leave a 240px box at the left of an
-   * otherwise empty line, which is the same orphan the other way round.
-   */
-  it('makes it full width there, not just unpinned', () => {
-    const band = mediaBody(searchOwnLineBreakpoint());
+  it('stacks the selector and freshness controls on a phone', () => {
+    const phone = media(480);
 
-    const rule = /\.monitoring-search\s*\{([^}]*)\}/.exec(band);
-    expect(rule?.[1]).toContain('margin-left: 0');
-    expect(rule?.[1]).toMatch(/flex:\s*1\s+1\s+100%/);
+    expect(phone).toMatch(/\.monitoring-heading-actions\s*\{[^}]*flex-direction:\s*column/);
+    expect(phone).toMatch(/\.monitoring-heading-actions\s*\{[^}]*align-items:\s*flex-start/);
+    expect(phone).toMatch(
+      /\.monitoring-heading-period,\s*\.monitoring-heading-actions \.refresh-control\s*\{[^}]*max-width:\s*100%/
+    );
   });
 
-  it('keeps the icon and its text gutter intact when the field takes a narrow row', () => {
-    expect(ruleBody('.monitoring-search .monitoring-search-icon')).toMatch(/width:\s*16px/);
-    expect(ruleBody(".monitoring-search input[type='search']")).toMatch(/padding-left:\s*34px/);
-    expect(mediaBody(searchOwnLineBreakpoint())).not.toMatch(/monitoring-search-icon|padding-left/);
-  });
+  it('lets all four segments share the narrowest supported row without clipping', () => {
+    const narrow = media(380);
 
-  /**
-   * The widest state of the row that is still bounded: every chip set, so Clear
-   * filters is drawn too. A set chip is wider than the unset one measured above
-   * because it prints a value, and a set Table chip is allowed 34 characters, so
-   * this is the row at its worst before wrapping is the intended behaviour.
-   */
-  it('still fits at full width with Clear filters drawn', () => {
-    // shadcn's `size="sm"`: 12px of padding a side.
-    const clearFilters = textWidth('Clear filters', 13) + 24;
-
-    expect(rowPreferred() + clearFilters + ROW_GAP()).toBeLessThan(contentWidth(1440));
-  });
-
-  /**
-   * The four supported presets leave a bounded amount of slack before the
-   * search moves to its own line. This catches an unexpectedly widened control
-   * without preserving the space that the retired Custom segment occupied.
-   */
-  it('leaves the period control room to grow before the breakpoint must move', () => {
-    const headroom = searchOwnLineBreakpoint() - wrapViewport();
-
-    expect(headroom).toBeLessThan(180);
-    expect(headroom).toBeGreaterThanOrEqual(0);
+    expect(narrow).toMatch(/\.monitoring-heading-period\s*\{[^}]*width:\s*100%/);
+    expect(narrow).toMatch(
+      /\.monitoring-heading-period \.time-range,\s*\.monitoring-heading-period \.time-range-segments\s*\{[^}]*width:\s*100%/
+    );
+    expect(narrow).toMatch(
+      /\.monitoring-heading-period \.time-range-segment\s*\{[^}]*min-width:\s*0[^}]*flex:\s*1\s+1\s+0/
+    );
   });
 });
 
-describe("Monitoring's KPI card layout", () => {
-  it('keeps all five cards on one desktop row and gives outcomes three tracks', () => {
-    expect(ruleBody('.monitoring-strip')).toContain('grid-template-columns: repeat(7, minmax(0, 1fr))');
-    expect(ruleBody('.monitoring-outcomes-tile')).toContain('grid-column: span 3');
-    // The screenshot-width laptop band must override the old early two-row rule.
-    expect(CSS).toMatch(
-      /@media\s*\(max-width:\s*1180px\)[\s\S]*?\.monitoring-page \.monitoring-strip\s*\{[^}]*grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)[^}]*grid-template-areas:\s*none/
+describe('Monitoring KPI and secondary-filter geometry', () => {
+  it('keeps every card header shrinkable while its period badge stays intact', () => {
+    const head = rule('.monitoring-tile-head');
+    const badge = rule('.monitoring-period-badge');
+
+    expect(head).toMatch(/min-width:\s*0/);
+    expect(head).toMatch(/display:\s*flex/);
+    expect(head).toMatch(/justify-content:\s*space-between/);
+    expect(badge).toMatch(/flex:\s*none/);
+    expect(badge).toMatch(/white-space:\s*nowrap/);
+  });
+
+  it('preserves equal card heights and aligned outcome rows', () => {
+    expect(rule('.monitoring-tile')).toMatch(/grid-template-rows:\s*auto\s+1fr\s+auto/);
+    expect(rule('.monitoring-tile')).toMatch(/min-height:\s*82px/);
+    expect(rule('.monitoring-outcomes-tile')).toMatch(/grid-template-rows:\s*auto\s+1fr\s+auto/);
+    expect(rule('.monitoring-outcome-grid')).toMatch(/grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
+  });
+
+  it('keeps all five cards on one desktop row and reflows them on tablet and phone', () => {
+    expect(rule('.monitoring-strip')).toContain('grid-template-columns: repeat(7, minmax(0, 1fr))');
+    expect(rule('.monitoring-outcomes-tile')).toContain('grid-column: span 3');
+    expect(media(800)).toMatch(
+      /\.monitoring-page \.monitoring-strip\s*\{[^}]*'questions threads'[^}]*'outcomes outcomes'[^}]*'rated median'/
+    );
+    expect(media(480)).toMatch(
+      /\.monitoring-outcome-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
     );
   });
 
-  it('moves the whole outcomes card to its own row at the narrow breakpoint', () => {
-    expect(CSS).toMatch(
-      /@media\s*\(max-width:\s*800px\)[\s\S]*?\.monitoring-page \.monitoring-strip\s*\{[^}]*'questions threads'[^}]*'outcomes outcomes'[^}]*'rated median'/
-    );
-    expect(CSS).toMatch(
-      /@media\s*\(max-width:\s*800px\)[\s\S]*?\.monitoring-page \.monitoring-outcomes-tile\s*\{[^}]*grid-area:\s*outcomes/
-    );
-  });
-
-  it('reflows outcome label-value pairs together on a phone', () => {
-    expect(CSS).toMatch(
-      /@media\s*\(max-width:\s*480px\)[\s\S]*?\.monitoring-outcome-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
-    );
-    expect(CSS).toMatch(/@media\s*\(max-width:\s*480px\)[\s\S]*?\.monitoring-outcome-grid\s*\{[^}]*row-gap:\s*10px/);
+  it('leaves the lower row to Person, Outcome, Rating, Table, and Search', () => {
+    expect(rule('.monitoring-filters')).toMatch(/display:\s*flex/);
+    expect(rule('.monitoring-filters')).toMatch(/flex-wrap:\s*wrap/);
+    expect(MONITORING).not.toContain('.monitoring-period {');
+    expect(MONITORING).not.toContain('.monitoring-filters-rule');
+    expect(rule('.monitoring-search')).toMatch(/margin-left:\s*auto/);
+    expect(media(1180)).toMatch(/\.monitoring-search\s*\{[^}]*flex:\s*1\s+1\s+100%/);
   });
 });

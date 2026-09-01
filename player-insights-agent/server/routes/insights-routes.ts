@@ -100,6 +100,11 @@ import { createGenieWarehouseWarmup } from '../lib/genie-warehouse-warmup';
 import { FAILURE_TAXONOMY, type FailureCode } from '../../shared/failure-taxonomy';
 import { type ExecutionIdentityClaim, unavailableHttpStatus, unavailableResult } from '../../shared/terminal-response';
 import {
+  CONVERSATION_PERSONA_FILTER_RULE,
+  conversationMatchesFilters,
+  parseConversationFilterQuery,
+} from '../../shared/conversation-filters';
+import {
   carriedStatus,
   providerFailure,
   type FailedDependency,
@@ -2113,22 +2118,41 @@ const CONVERSATION_VERDICT_JOIN = `
     LIMIT 1
   ) verdict ON TRUE`;
 
+/**
+ * Historical persona evidence for the rail.
+ *
+ * The newest ledger row wins whether it is active or terminal. Its nullable
+ * snapshot was written when that run was admitted. We never join the current
+ * assignment table here: doing that would rewrite old conversations whenever
+ * an administrator moved a person to another persona.
+ */
+const CONVERSATION_PERSONA_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT r.persona_id, r.persona_name, r.created_at AS recorded_at
+    FROM ${APP_SCHEMA}.runs r
+    WHERE r.conversation_id = c.id
+    ORDER BY r.created_at DESC, r.run_id DESC
+    LIMIT 1
+  ) persona ON TRUE`;
+
 const CONVERSATION_LIST_COLUMNS =
-  'c.id, c.title, c.updated_at, c.user_email, ' + 'verdict.status, verdict.truncated, verdict.duration_ms';
+  'c.id, c.title, c.updated_at, c.user_email, ' +
+  'verdict.status, verdict.truncated, verdict.duration_ms, ' +
+  'persona.persona_id, persona.persona_name, persona.recorded_at AS persona_recorded_at';
 
 export function conversationListQuery(email: string, readsShared: boolean) {
   return readsShared
     ? {
         sql:
           `SELECT ${CONVERSATION_LIST_COLUMNS} FROM ${APP_SCHEMA}.conversations c` +
-          `${CONVERSATION_VERDICT_JOIN} ` +
+          `${CONVERSATION_VERDICT_JOIN}${CONVERSATION_PERSONA_JOIN} ` +
           `ORDER BY c.updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
         params: [] as unknown[],
       }
     : {
         sql:
           `SELECT ${CONVERSATION_LIST_COLUMNS} FROM ${APP_SCHEMA}.conversations c` +
-          `${CONVERSATION_VERDICT_JOIN} ` +
+          `${CONVERSATION_VERDICT_JOIN}${CONVERSATION_PERSONA_JOIN} ` +
           `WHERE c.user_email = $1 ORDER BY c.updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
         params: [email] as unknown[],
       };
@@ -3804,10 +3828,58 @@ export function setupInsightsRoutes(
     });
 
     app.get('/api/conversations', async (req, res) => {
+      const parsedFilters = parseConversationFilterQuery(req.query as Record<string, unknown>);
+      if (!parsedFilters.ok) {
+        res.status(400).json({ error: 'invalid_conversation_filters', detail: parsedFilters.message });
+        return;
+      }
+
       const email = userEmail(req);
       const readsShared = await callerReadsSharedConversations(appkit.lakebase, email, options.rolesReady);
       const { sql, params } = conversationListQuery(email, readsShared);
-      await respondWithStored(appkit, res, 'GET /api/conversations', sql, params);
+      const read = await readStored(appkit, 'GET /api/conversations', sql, params);
+      const { rows, substitution } = chooseRows('GET /api/conversations', read);
+      markResponse(res, substitution);
+
+      if (!readsShared) {
+        // Consumers receive the same array contract as before and no persona
+        // evidence or filter metadata. Forged filters can never widen this set:
+        // the SQL owner predicate ran before this response was shaped.
+        res.json(
+          rows.map(
+            ({ persona_id: _personaId, persona_name: _personaName, persona_recorded_at: _recordedAt, ...row }) => row
+          )
+        );
+        return;
+      }
+
+      // The full authorized rail stays in the payload so owner/persona options
+      // and counts do not collapse when one filter is selected. The server's
+      // matching ids are the result of AND-ing owner and persona filters over
+      // that already-authorized set; the browser never supplies an access set.
+      const matchingConversationIds = rows
+        .filter((row) => conversationMatchesFilters(row, parsedFilters.value))
+        .map((row) => String(row.id));
+      const availablePersonaRead = await readStored(
+        appkit,
+        'GET /api/conversations (persona options)',
+        `SELECT id, display_name FROM ${APP_SCHEMA}.sp_personas ORDER BY display_name, id`,
+        []
+      );
+      const availablePersonas = availablePersonaRead.available
+        ? availablePersonaRead.rows
+            .map((row) => ({
+              id: text(row.id)?.trim() ?? '',
+              name: text(row.display_name)?.trim() ?? '',
+            }))
+            .filter((persona) => persona.id && persona.name)
+        : null;
+      res.json({
+        conversations: rows,
+        matching_conversation_ids: matchingConversationIds,
+        available_personas: availablePersonas,
+        persona_filter_rule: CONVERSATION_PERSONA_FILTER_RULE,
+      });
     });
 
     /**
@@ -4585,6 +4657,7 @@ export function setupInsightsRoutes(
           executePlan,
         },
         identityModeRequested: executionIdentityClaim(identity).mode,
+        persona: identity.persona ? { id: identity.persona.id, displayName: identity.persona.displayName } : null,
         releaseIdentity: releaseIdentity(),
         // The id the browser minted, so the ledger row can be found from a
         // reader's screenshot, a log line, or a trace attribute -- without any of

@@ -11,6 +11,7 @@ describe('benchmark settings response', () => {
     const payload = await benchmarkSettingsFromResponse(
       jsonResponse(200, {
         settings: { ...DEFAULT_BENCHMARK_SETTINGS, evalSetId: 'held-out-eval' },
+        revision: 1,
         experimentUrl: 'https://example.databricks.com/ml/experiments/1',
         currentAgentEndpoint: 'player-insights-agent',
         tracesAlwaysOnInAgent: true,
@@ -32,6 +33,7 @@ describe('benchmark settings response', () => {
     const payload = await benchmarkSettingsFromResponse(
       jsonResponse(200, {
         settings: { ...DEFAULT_BENCHMARK_SETTINGS, customJudges: [customJudge] },
+        revision: 2,
       }),
       'saved'
     );

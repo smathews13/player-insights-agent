@@ -19,6 +19,33 @@
   position: relative;
 }
 
+/* The range and freshness are one compact action group opposite the title.
+   PageHeading supplies the desktop split; this group owns wrapping within the
+   right-hand side so neither control can push the other out of the viewport. */
+.monitoring-heading-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.monitoring-heading-period {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.monitoring-heading-period-label {
+  flex: none;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ast-text-secondary);
+  white-space: nowrap;
+}
+
 /* ── The summary strip ──────────────────────────────────────────────────── */
 
 .monitoring-strip {
@@ -33,7 +60,7 @@
 }
 .monitoring-outcomes-tile {
   grid-column: span 3;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: auto 1fr auto;
 }
 .monitoring-tile {
   border: 1px solid var(--ast-hairline);
@@ -45,6 +72,20 @@
   align-content: stretch;
   min-height: 82px;
   min-width: 0;
+}
+.monitoring-tile-head {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.monitoring-tile-head .monitoring-tile-label {
+  min-width: 0;
+}
+.monitoring-period-badge {
+  flex: none;
+  white-space: nowrap;
 }
 .monitoring-tile-label {
   margin: 0;
@@ -124,76 +165,13 @@
   color: var(--ast-neg-text);
 }
 
-/* ── The filter row ────────────────────────────────────────────────────── */
+/* ── The secondary filter row ──────────────────────────────────────────── */
 
 .monitoring-filters {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-/*
- * The period, marked out as a REQUIRED SELECTOR rather than a removable filter.
- *
- * This is the fix for a real confusion, not decoration. The segmented control
- * has no off position, because a list of questions is always over some window.
- * The chips beside it all have one, and all show a ✕ when set. Sitting in the
- * same row at the same height with the same hairline border, the segmented
- * control read as a set chip, so the sensible thing to try was clicking the
- * active segment to unset it. Nothing happens, correctly, and the control looked
- * broken.
- *
- * Three things separate them now, and the brief asked for obvious rather than
- * subtle: a standing label, so it reads as "Period: one of these" instead of a
- * value someone has chosen; a tinted, fully enclosed group, so it is one object
- * and not four chips; and a rule after it, so the chips are visibly a different
- * set of controls. None of them can be mistaken for a chip with its ✕ missing.
- */
-.monitoring-period {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-  padding: 3px 8px 3px 10px;
-  border: 1px solid var(--ast-border-input);
-  border-radius: var(--radius-sm);
-  /*
-   * NEUTRAL, and that is the point. A set chip is filled with
-   * `--db-selected-tint`, which is the app's blue; a group filled with any weight
-   * of that blue would read as a chip somebody had set, which is the confusion
-   * this is meant to end. `--db-wash` is the neutral panel grey.
-   *
-   * Not `--db-chip` either, even though it is also neutral: that is the fill on
-   * the ACTIVE SEGMENT inside this group, and using it here would flatten the
-   * chosen segment against its own background.
-   */
-  background: var(--ast-surface-solid);
-}
-/* The app's eyebrow, to the letter: 11px, 700, +0.06em, uppercase, --db-slate.
-   Same treatment as the tile labels in the strip above, so the row reads as
-   labelled rather than as carrying one odd piece of text. */
-.monitoring-period-label {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ast-text-secondary);
-  white-space: nowrap;
-}
-/*
- * The divider between the required selector and the removable filters.
- *
- * Decoration, and hidden from the accessibility tree, because the distinction it
- * draws is already carried semantically: the period is a `radiogroup` with a
- * name, and each chip is a combobox with a clear button.
- */
-.monitoring-filters-rule {
-  flex: none;
-  align-self: stretch;
-  width: 1px;
-  min-height: 24px;
-  margin: 0 2px;
-  background: var(--ast-hairline);
 }
 /*
  * The chip is the bordered box; the Select inside it is borderless.

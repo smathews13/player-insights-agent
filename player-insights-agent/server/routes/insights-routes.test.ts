@@ -633,9 +633,9 @@ function memoryLakebase(
         return Promise.resolve({ rows: settings });
       }
 
-      if (sql.includes('.runtime_settings') && sql.startsWith('SELECT settings FROM')) {
+      if (sql.includes('.runtime_settings') && sql.startsWith('SELECT settings')) {
         return Promise.resolve({
-          rows: runtimeSettings === undefined ? [] : [{ settings: runtimeSettings }],
+          rows: runtimeSettings === undefined ? [] : [{ settings: runtimeSettings, revision: 1 }],
         });
       }
 

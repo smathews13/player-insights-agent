@@ -19,11 +19,13 @@ import {
   REQUEST_LATENCY_ROLLUP_TABLE,
   ROLLUP_APP_ACTIVITY_DAY_QUERY,
   ROLLUP_REQUEST_LATENCY_DAY_QUERY,
+  TRAFFIC_ROLLUP_MIGRATION_DDL,
   TELEMETRY_HOUSEKEEPING_STATE_TABLE,
   TELEMETRY_ROLLUP_DAYS_TABLE,
   runTelemetryHousekeeping,
   type TelemetryRetentionStore,
 } from './telemetry-retention';
+import { ROLLUP_TRAFFIC_DAY_QUERY, TRAFFIC_BREAKDOWNS_QUERY, TRAFFIC_DAILY_ROLLUP_TABLE } from './ops-traffic';
 
 interface FakeState {
   lockHeld: boolean;
@@ -116,6 +118,14 @@ describe('the versioned telemetry rollup schema', () => {
     expect(ddl).toContain('cardinality(minute_counts) = 1440');
   });
 
+  it('adds Traffic causes and tool counts in a forward migration without deleting data', () => {
+    const migration = LATER_MIGRATIONS.find((entry) => entry.name === 'traffic evidence rollups');
+    expect(migration?.version).toBe(27);
+    expect(migration?.statements).toEqual(TRAFFIC_ROLLUP_MIGRATION_DDL);
+    expect(migration?.statements.join('\n')).toContain(TRAFFIC_DAILY_ROLLUP_TABLE);
+    expect(migration?.statements.join('\n')).not.toMatch(/DROP|TRUNCATE|DELETE/i);
+  });
+
   it('rolls version 23 back through the migration runner without touching raw tables', async () => {
     const migration = LATER_MIGRATIONS.find((entry) => entry.version === 23)!;
     const issued: string[] = [];
@@ -154,6 +164,18 @@ describe('raw plus rollup query invariants', () => {
     expect(REQUEST_LATENCY_QUERY).not.toMatch(/percentile_approx|histogram/i);
     expect(REQUEST_LATENCY_QUERY).toContain('$1::date AS from_day');
     expect(REQUEST_LATENCY_QUERY).toContain('$2::date AS to_day');
+  });
+
+  it('replaces raw Traffic evidence only on rolled UTC days at the retention boundary', () => {
+    expect(TRAFFIC_BREAKDOWNS_QUERY).toContain("WHERE $1 = 'UTC'");
+    expect(TRAFFIC_BREAKDOWNS_QUERY).toContain('selected_population AS');
+    expect(TRAFFIC_BREAKDOWNS_QUERY).toContain('selected_tools AS');
+    expect(TRAFFIC_BREAKDOWNS_QUERY.match(/NOT EXISTS/g)).toHaveLength(3);
+    expect(TRAFFIC_BREAKDOWNS_QUERY).toContain('UNION ALL');
+    expect(ROLLUP_TRAFFIC_DAY_QUERY).toContain('ON CONFLICT (day) DO UPDATE');
+    const boundary = new Date('2026-08-31T00:00:00Z');
+    boundary.setUTCDate(boundary.getUTCDate() - RAW_TELEMETRY_RETENTION_DAYS);
+    expect(boundary.toISOString().slice(0, 10)).toBe('2026-06-02');
   });
 
   it('preserves timezone and DST honesty from minute-grain counts', () => {
@@ -214,6 +236,7 @@ describe('bounded daily housekeeping', () => {
       CLAIM_TELEMETRY_LOCK_QUERY,
       ROLLUP_REQUEST_LATENCY_DAY_QUERY,
       ROLLUP_APP_ACTIVITY_DAY_QUERY,
+      ROLLUP_TRAFFIC_DAY_QUERY,
       MARK_ROLLUP_DAY_QUERY,
       DELETE_REQUEST_LATENCY_BATCH_QUERY,
       DELETE_APP_ACTIVITY_BATCH_QUERY,

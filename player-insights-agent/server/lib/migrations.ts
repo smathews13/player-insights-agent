@@ -9,7 +9,9 @@ import {
   TELEMETRY_HOUSEKEEPING_STATE_TABLE,
   TELEMETRY_ROLLUP_DAYS_TABLE,
   TELEMETRY_ROLLUP_MIGRATION_DDL,
+  TRAFFIC_ROLLUP_MIGRATION_DDL,
 } from './telemetry-retention';
+import { TRAFFIC_DAILY_ROLLUP_TABLE } from './ops-traffic';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -730,6 +732,64 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
          ON ${APP_SCHEMA}.messages (conversation_id, created_at DESC, id DESC)`,
     ],
     down: [`DROP INDEX CONCURRENTLY IF EXISTS ${APP_SCHEMA}.messages_conversation_keyset_idx`],
+  },
+  {
+    version: 26,
+    name: 'recorded run persona',
+    /**
+     * Snapshots the human-facing persona on the run itself. A later assignment
+     * or rename must not rewrite what an earlier question actually ran as.
+     * Null is intentional for OAuth runs and all history from before this
+     * column existed; those conversations are "No persona" in the rail.
+     */
+    statements: [
+      `ALTER TABLE ${APP_SCHEMA}.runs
+         ADD COLUMN IF NOT EXISTS persona_id TEXT,
+         ADD COLUMN IF NOT EXISTS persona_name TEXT`,
+    ],
+    down: [
+      `ALTER TABLE ${APP_SCHEMA}.runs DROP COLUMN IF EXISTS persona_name`,
+      `ALTER TABLE ${APP_SCHEMA}.runs DROP COLUMN IF EXISTS persona_id`,
+    ],
+  },
+  {
+    version: 27,
+    name: 'traffic evidence rollups',
+    /**
+     * Version 23 preserved request latency and active minutes but omitted the
+     * outcome causes and named tool calls shown by Traffic. This new table
+     * preserves those aggregates without altering or deleting raw history.
+     */
+    statements: TRAFFIC_ROLLUP_MIGRATION_DDL,
+    down: [`DROP TABLE IF EXISTS ${TRAFFIC_DAILY_ROLLUP_TABLE}`],
+  },
+  {
+    version: 28,
+    name: 'versioned app settings',
+    /**
+     * Existing JSON documents keep their values byte-for-byte. Revision 1 means
+     * "the row predates conflict protection"; no default or build value is
+     * written into either document. Experimental settings start with no row,
+     * so first boot reads source defaults without turning startup into a write.
+     */
+    statements: [
+      `ALTER TABLE ${APP_SCHEMA}.runtime_settings
+         ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 1`,
+      `ALTER TABLE ${APP_SCHEMA}.benchmark_settings
+         ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 1`,
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.experimental_settings (
+         id TEXT PRIMARY KEY,
+         settings JSONB NOT NULL,
+         revision BIGINT NOT NULL DEFAULT 1,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+    ],
+    down: [
+      `DROP TABLE IF EXISTS ${APP_SCHEMA}.experimental_settings`,
+      `ALTER TABLE ${APP_SCHEMA}.benchmark_settings DROP COLUMN IF EXISTS revision`,
+      `ALTER TABLE ${APP_SCHEMA}.runtime_settings DROP COLUMN IF EXISTS revision`,
+    ],
   },
 ];
 

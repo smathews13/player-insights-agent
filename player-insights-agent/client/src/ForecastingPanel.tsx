@@ -95,19 +95,6 @@ function formulaText(component: { id: string; formula: string }): string {
   return 'Measured attributable daily spend, held fixed';
 }
 
-function methodologyLimits(caveats: readonly string[], exclusions: readonly { reason: string }[]): string[] {
-  const seen = new Set<string>();
-  const activeMinuteExcluded = exclusions.some((item) => item.reason.toLowerCase().includes('active-minute'));
-  return caveats.filter((caveat) => {
-    const key = caveat.trim().toLowerCase().replace(/\s+/g, ' ');
-    if (!key || seen.has(key)) return false;
-    if (key.includes('databricks list prices')) return false;
-    if (activeMinuteExcluded && key.includes('active-minute')) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
 function AssumptionGrid({
   assumptions,
   examples,
@@ -197,13 +184,20 @@ function ProjectionBreakdown({
             {result.components.map((component) => (
               <tr key={component.id}>
                 <th scope="row">{component.label}</th>
-                {result.horizons.map((horizon) => (
-                  <td key={horizon.days}>
-                    <span className="ast-num">
-                      {money(horizon.components.find((item) => item.id === component.id)!.amount, currency)}
-                    </span>
-                  </td>
-                ))}
+                {result.horizons.map((horizon) => {
+                  const projected = horizon.components.find((item) => item.id === component.id)!;
+                  return (
+                    <td key={horizon.days}>
+                      {projected.amount === null ? (
+                        <span className="ops-when-absent" title={projected.unavailable}>
+                          Unavailable
+                        </span>
+                      ) : (
+                        <span className="ast-num">{money(projected.amount, currency)}</span>
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -238,7 +232,6 @@ export function ForecastingBody({
   const baseline = deriveForecastBaseline(cost.data, traffic.data, unit);
   const assumptions = saved ?? baseline.defaults;
   const result = calculateForecast(baseline, assumptions);
-  const limits = methodologyLimits(baseline.caveats, baseline.exclusions);
   const unavailable =
     cost.failed && !cost.data
       ? `Cost could not be read: ${cost.failed}`
@@ -250,6 +243,7 @@ export function ForecastingBody({
   const waiting = !unavailable && ((cost.busy && !cost.data) || (traffic.busy && !traffic.data && !traffic.failed));
   const partial =
     baseline.exclusions.length > 0 ||
+    result.components.some((component) => component.dailyAmount === null) ||
     baseline.caveats.some((caveat) => caveat.toLowerCase().includes('partial')) ||
     Boolean(traffic.failed || traffic.data?.unread);
 
@@ -271,14 +265,6 @@ export function ForecastingBody({
           detail: formulaText(component),
         })),
       ],
-    },
-    {
-      title: 'Not included',
-      rows: baseline.exclusions.map((item) => ({ label: item.component, detail: item.reason })),
-    },
-    {
-      title: 'Limits',
-      rows: limits.map((limit) => ({ detail: limit })),
     },
   ];
 

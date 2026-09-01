@@ -277,6 +277,30 @@ describe('the ranged cost route', () => {
                   '1',
                 ],
                 [
+                  'component',
+                  'app-compute',
+                  '21',
+                  'USD',
+                  '1',
+                  '2',
+                  null,
+                  '2026-08-17',
+                  '7',
+                  '0',
+                  '2',
+                  '0',
+                  '',
+                  'priced',
+                  '0',
+                  '0',
+                  '2026-01-01T00:00:00Z',
+                  '2',
+                  '0',
+                  '1',
+                  '7',
+                  '1',
+                ],
+                [
                   'range',
                   '__range',
                   null,
@@ -381,8 +405,13 @@ describe('the ranged cost route', () => {
     });
     expect(vector?.dbus).toBeCloseTo(15 / 7);
     expect(payload.tiles.find((tile) => tile.id === 'app-compute')).toMatchObject({
-      unavailable: 'No Apps billing rows matched this app.',
-      note: 'system_billing=astrolabe is on this app; Apps billing is matched by app name.',
+      amount: 10.5,
+      dbus: 3.5,
+      basis: 'per-day',
+      resourceId: 'player-insights',
+      attribution: 'deployment',
+      unavailable: '',
+      note: '',
       remedy: '',
     });
     expect(payload.tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);

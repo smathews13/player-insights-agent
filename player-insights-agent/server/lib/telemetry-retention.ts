@@ -1,4 +1,5 @@
 import { appTable } from '../../shared/app-schema';
+import { ROLLUP_TRAFFIC_DAY_QUERY, TRAFFIC_DAILY_ROLLUP_DDL, TRAFFIC_DAILY_ROLLUP_TABLE } from './ops-traffic';
 
 /** Raw telemetry remains queryable for exactly this moving window. */
 export const RAW_TELEMETRY_RETENTION_DAYS = 90;
@@ -91,6 +92,9 @@ export const TELEMETRY_ROLLUP_MIGRATION_DDL: readonly string[] = [
   RUNS_CREATED_AT_INDEX_DDL,
 ];
 
+/** Forward-only extension for Traffic evidence omitted by the original rollup. */
+export const TRAFFIC_ROLLUP_MIGRATION_DDL: readonly string[] = [TRAFFIC_DAILY_ROLLUP_DDL];
+
 /** Stable two-key PostgreSQL advisory lock namespace for telemetry retention. */
 export const TELEMETRY_ADVISORY_LOCK_KEYS = [0x504941, 0x54454c] as const;
 
@@ -110,6 +114,8 @@ export const PENDING_ROLLUP_DAYS_QUERY = `WITH first_day AS (
   SELECT LEAST(
     (SELECT MIN((recorded_at AT TIME ZONE 'UTC')::date) FROM ${RAW_REQUEST_LATENCY_TABLE}),
     (SELECT MIN((active_minute AT TIME ZONE 'UTC')::date) FROM ${RAW_APP_ACTIVITY_TABLE}),
+    (SELECT MIN((created_at AT TIME ZONE 'UTC')::date) FROM ${appTable('runs')}),
+    (SELECT MIN((created_at AT TIME ZONE 'UTC')::date) FROM ${appTable('messages')} WHERE role = 'assistant'),
     (SELECT MIN(day) FROM ${TELEMETRY_ROLLUP_DAYS_TABLE})
   ) AS day
 ),
@@ -123,7 +129,8 @@ calendar AS (
 SELECT calendar.day
 FROM calendar
 LEFT JOIN ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled USING (day)
-WHERE rolled.day IS NULL
+LEFT JOIN ${TRAFFIC_DAILY_ROLLUP_TABLE} traffic USING (day)
+WHERE rolled.day IS NULL OR traffic.day IS NULL
 ORDER BY calendar.day
 LIMIT $1`;
 
@@ -377,6 +384,7 @@ export function runTelemetryHousekeeping(
         await inTransaction(connection, async () => {
           await connection.query(ROLLUP_REQUEST_LATENCY_DAY_QUERY, [day]);
           await connection.query(ROLLUP_APP_ACTIVITY_DAY_QUERY, [day]);
+          await connection.query(ROLLUP_TRAFFIC_DAY_QUERY, [day]);
           await connection.query(MARK_ROLLUP_DAY_QUERY, [day]);
         });
         rolledDays.push(day);

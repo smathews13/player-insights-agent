@@ -68,13 +68,7 @@ import { checkVerdict, type CheckStop } from '../../shared/check-verdict';
  * returns one verdict per check and each verdict maps to one status here -- so the
  * counts below sum to the number of rows drawn, in every state.
  */
-export type ConnectionStatus =
-  | 'reachable'
-  | 'blocked'
-  | 'refused'
-  | 'unreachable'
-  | 'not-checked'
-  | 'nothing-to-reach';
+export type ConnectionStatus = 'reachable' | 'blocked' | 'refused' | 'unreachable' | 'not-checked' | 'nothing-to-reach';
 
 export const CONNECTION_STATUS_LABEL: Record<ConnectionStatus, string> = {
   reachable: 'Reachable',
@@ -241,9 +235,7 @@ const ASSERTS_DISAGREEMENT: ReadonlySet<string> = new Set(['blocking', 'warning'
  * map does not mention counts, because a finding of unstated severity is more
  * safely reported than silently dropped.
  */
-function disagreeing(findingIds: readonly string[],
-  severities?: Readonly<Record<string, string>>
-): string[] {
+function disagreeing(findingIds: readonly string[], severities?: Readonly<Record<string, string>>): string[] {
   return findingIds.filter((id) => {
     if (id.startsWith('pending-')) return false;
     if (!severities) return true;
@@ -270,9 +262,7 @@ export function driftMarker(input: {
 }
 
 /** How many findings the marker is standing for, so a row can say "2". */
-export function driftCount(findingIds: readonly string[],
-  severities?: Readonly<Record<string, string>>
-): number {
+export function driftCount(findingIds: readonly string[], severities?: Readonly<Record<string, string>>): number {
   return disagreeing(findingIds, severities).length;
 }
 
@@ -285,11 +275,10 @@ export function driftCount(findingIds: readonly string[],
  * the configured value is shown and SAID to be the configured one, because a
  * bare string in the in-use column is a claim that it is in use.
  */
-export function inUseSummary(input: {
-  actual: string;
-  actualObserved: boolean;
-  configured: string;
-}): { value: string; measured: boolean } {
+export function inUseSummary(input: { actual: string; actualObserved: boolean; configured: string }): {
+  value: string;
+  measured: boolean;
+} {
   if (input.actualObserved && input.actual) return { value: input.actual, measured: true };
   return { value: input.configured, measured: false };
 }
@@ -301,10 +290,7 @@ export function inUseSummary(input: {
  * from the settings payload, and they are reported side by side rather than
  * added together, for the same reason a row carries two marks.
  */
-export function connectionCounts(input: {
-  statuses: readonly ConnectionStatus[];
-  markers: readonly DriftMarker[];
-}) {
+export function connectionCounts(input: { statuses: readonly ConnectionStatus[]; markers: readonly DriftMarker[] }) {
   const tally = (wanted: ConnectionStatus) => input.statuses.filter((status) => status === wanted).length;
   return {
     reachable: tally('reachable'),
@@ -379,13 +365,6 @@ export function visibleCounts(counts: ConnectionCounts): CountEntry[] {
     // untinted word under an unticked headline is the disagreement this file exists
     // to prevent.
     { key: 'unreachable', word: 'unreachable', tone: 'drifted' as const, count: counts.unreachable },
-    { key: 'notChecked', word: 'not checked', count: counts.notChecked },
-    // "Configuration only" rather than "nothing to reach", because the rows it
-    // counts are now drawn under a Configuration heading of their own and a line
-    // that named them differently from the section they are in would read as two
-    // populations. The claim is the same one: the app resolves and applies these,
-    // so there is no remote end and no second reading.
-    { key: 'nothingToReach', word: 'configuration only', count: counts.nothingToReach },
     { key: 'pending', word: 'pending', count: counts.pending },
   ]
     .filter((entry) => entry.count > 0)

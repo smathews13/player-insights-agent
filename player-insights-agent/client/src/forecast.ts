@@ -35,6 +35,8 @@ export interface ForecastBaseline {
     sqlCostPerQuestion: number | null;
     appCostPerActiveMinute: number | null;
   };
+  /** Why the required App compute projection row has no numeric rate. */
+  appComputeUnavailable: string;
   fixedDailyCosts: Array<{ id: string; label: string; amount: number }>;
   exclusions: ForecastExclusion[];
   caveats: string[];
@@ -50,15 +52,16 @@ export interface ForecastSuggestionEvidence {
 export interface ForecastComponent {
   id: string;
   label: string;
-  dailyAmount: number;
+  dailyAmount: number | null;
   formula: string;
+  unavailable: string;
 }
 
 export interface ForecastHorizon {
   days: number;
   label: string;
   total: number | null;
-  components: Array<{ id: string; label: string; amount: number }>;
+  components: Array<{ id: string; label: string; amount: number | null; unavailable: string }>;
 }
 
 export interface ForecastResult {
@@ -194,6 +197,7 @@ export function deriveForecastBaseline(
       sqlCostPerQuestion: null,
       appCostPerActiveMinute: null,
     },
+    appComputeUnavailable: 'No measured, attributable App compute rate is available.',
     fixedDailyCosts: [],
     exclusions: [],
     caveats:
@@ -371,18 +375,16 @@ export function deriveForecastBaseline(
   const appTotal = totalInWindow(app, days, unit);
   if (appTotal !== null && activeMinutesReadable && activeMinutesComplete && activeMinutes > 0) {
     baseline.observed.appCostPerActiveMinute = appTotal / activeMinutes;
+    baseline.appComputeUnavailable = '';
   } else {
-    baseline.exclusions.push({
-      component: app?.label || 'App compute',
-      reason:
-        appTotal === null
-          ? tileReason(app, 'No priced app-compute spend was measured.', unit)
-          : activeMinutesReadable
-            ? activeMinutesComplete
-              ? 'No active app minutes overlap the Cost window.'
-              : 'Active-minute history starts after the Cost window begins, so cost per active minute is withheld.'
-            : 'Active app minutes could not be read.',
-    });
+    baseline.appComputeUnavailable =
+      appTotal === null
+        ? tileReason(app, 'No priced app-compute spend was measured.', unit)
+        : activeMinutesReadable
+          ? activeMinutesComplete
+            ? 'No active app minutes overlap the Cost window.'
+            : 'Active-minute history starts after the Cost window begins, so cost per active minute is withheld.'
+          : 'Active app minutes could not be read.';
   }
 
   const vector = cost.tiles.find((tile) => tile.id === 'vector-search');
@@ -452,6 +454,7 @@ export function calculateForecast(baseline: ForecastBaseline, assumptions: Forec
       label: 'Serving endpoint',
       dailyAmount: dailyQuestions * baseline.observed.servingCostPerQuestion * tokenRatio,
       formula: 'daily stored questions × observed serving cost/stored question × assumed-to-observed token ratio',
+      unavailable: '',
     });
   }
   if (baseline.observed.sqlCostPerQuestion !== null) {
@@ -460,33 +463,42 @@ export function calculateForecast(baseline: ForecastBaseline, assumptions: Forec
       label: 'Astrolabe SQL',
       dailyAmount: dailyQuestions * baseline.observed.sqlCostPerQuestion,
       formula: 'daily stored questions × observed attributed SQL cost/stored question',
+      unavailable: '',
     });
   }
-  if (baseline.observed.appCostPerActiveMinute !== null) {
-    components.push({
-      id: 'app-compute',
-      label: 'App compute',
-      dailyAmount: dailyActiveMinutes * baseline.observed.appCostPerActiveMinute,
-      formula: 'daily active app minutes × observed app cost/active minute',
-    });
-  }
+  components.push({
+    id: 'app-compute',
+    label: 'App compute',
+    dailyAmount:
+      baseline.observed.appCostPerActiveMinute === null
+        ? null
+        : dailyActiveMinutes * baseline.observed.appCostPerActiveMinute,
+    formula: 'daily active app minutes × observed app cost/active minute',
+    unavailable: baseline.appComputeUnavailable,
+  });
   for (const fixed of baseline.fixedDailyCosts) {
     components.push({
       ...fixed,
       dailyAmount: fixed.amount,
       formula: 'observed attributable daily baseline (held fixed)',
+      unavailable: '',
     });
   }
 
-  const baseDaily = components.reduce((total, component) => total + component.dailyAmount, 0);
+  const numeric = components.filter(
+    (component): component is ForecastComponent & { dailyAmount: number } =>
+      component.dailyAmount !== null && Number.isFinite(component.dailyAmount)
+  );
+  const baseDaily = numeric.reduce((total, component) => total + component.dailyAmount, 0);
   const horizons = FORECAST_HORIZONS.map((horizon): ForecastHorizon => {
-    if (!baseline.available || components.length === 0) {
+    if (!baseline.available || numeric.length === 0) {
       return { ...horizon, total: null, components: [] };
     }
     const breakdown = components.map((component) => ({
       id: component.id,
       label: component.label,
-      amount: component.dailyAmount * horizon.days,
+      amount: component.dailyAmount === null ? null : component.dailyAmount * horizon.days,
+      unavailable: component.unavailable,
     }));
     return {
       ...horizon,

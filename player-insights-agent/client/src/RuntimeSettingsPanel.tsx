@@ -13,7 +13,7 @@ import {
   type RuntimeSettings,
 } from '../../shared/runtime-settings';
 import { applyColorScheme, type ColorScheme } from './color-scheme';
-import { runtimeSettingsFromResponse } from './runtime-settings-api';
+import { runtimeSettingsDocumentFromResponse } from './runtime-settings-api';
 import { AppSelect } from './AppSelect';
 import { adoptRuntimeEntityStyles, previewRuntimeAppearance } from './runtime-entity-styles';
 import { RuntimeLoopDiagram } from './RuntimeLoopDiagram';
@@ -21,18 +21,13 @@ import { RuntimeTimezoneField } from './RuntimeTimezoneField';
 import { wholeNumberFrom } from './runtime-number';
 import {
   changedSettingKeys,
+  changedSettingsPatch,
   saveRetryAfterLoad,
   type SettingsLoadResult,
   type SettingsSaveState,
 } from './settings-save-state';
 import { StateSwitch } from './StateSwitch';
 import { Input } from './ui';
-import {
-  appearanceContrastChecks,
-  restoreSafeAppearancePalette,
-  WCAG_AA_NORMAL_TEXT_RATIO,
-} from './appearance-contrast';
-
 const FONT_FAMILY_OPTIONS: { value: FontFamilyId; label: string }[] = [
   { value: 'dm-sans', label: 'DM Sans' },
   { value: 'system', label: 'System' },
@@ -215,28 +210,31 @@ export function RuntimeSettingsPanel({
   section,
   onSaveState = () => {},
   onDirtyChange = () => {},
+  initialSettings = DEFAULT_RUNTIME_SETTINGS,
 }: {
   section: 'runtime' | 'appearance';
   /** Reports Save's progress to the modal footer, which is the part on screen. */
   onSaveState?: (state: SettingsSaveState) => void;
   onDirtyChange?: (count: number) => void;
+  /** Seeds server-rendered and focused test states; live settings replace it after load. */
+  initialSettings?: RuntimeSettings;
 }) {
-  const [settings, setSettings] = useState<RuntimeSettings>(DEFAULT_RUNTIME_SETTINGS);
+  const [settings, setSettings] = useState<RuntimeSettings>(initialSettings);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
   const savedSettings = useRef<RuntimeSettings | null>(null);
-  const contrastChecks = appearanceContrastChecks(settings);
-  const contrastFailures = contrastChecks.filter((result) => !result.passes);
+  const revision = useRef(0);
 
   const load = useCallback(async (): Promise<SettingsLoadResult> => {
     setState('loading');
     setFailure(null);
     try {
       const response = await fetch('/api/runtime-settings');
-      const loaded = await runtimeSettingsFromResponse(response, 'loaded');
-      savedSettings.current = loaded;
-      setSettings(loaded);
-      applyColorScheme(loaded.colorScheme);
+      const loaded = await runtimeSettingsDocumentFromResponse(response, 'loaded');
+      savedSettings.current = loaded.settings;
+      revision.current = loaded.revision;
+      setSettings(loaded.settings);
+      applyColorScheme(loaded.settings.colorScheme);
       setState('ready');
       return { ok: true };
     } catch (caught) {
@@ -249,7 +247,6 @@ export function RuntimeSettingsPanel({
 
   useEffect(() => {
     // Mount fetch: the first paint has to come from the server.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- load() writes the fetched settings
     void load();
   }, [load]);
 
@@ -288,19 +285,31 @@ export function RuntimeSettingsPanel({
     onSaveState({ kind: 'saving' });
     try {
       const changed = savedSettings.current ? changedSettingKeys(savedSettings.current, settings).length : 0;
+      const before = savedSettings.current;
+      if (!before) throw new Error('Runtime settings have not loaded from Lakebase.');
       const response = await fetch('/api/admin/runtime-settings', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(settings),
+        body: JSON.stringify({
+          revision: revision.current,
+          patch: changedSettingsPatch(before, settings) ?? {},
+        }),
       });
-      const saved = await runtimeSettingsFromResponse(response, 'saved');
-      savedSettings.current = saved;
-      setSettings(saved);
-      adoptRuntimeEntityStyles(saved);
+      const saved = await runtimeSettingsDocumentFromResponse(response, 'saved');
+      savedSettings.current = saved.settings;
+      revision.current = saved.revision;
+      setSettings(saved.settings);
+      adoptRuntimeEntityStyles(saved.settings);
       setState('saved');
       onDirtyChange(0);
       onSaveState({ kind: 'saved', count: changed });
     } catch (caught) {
+      const prior = savedSettings.current;
+      if (prior) {
+        setSettings(prior);
+        adoptRuntimeEntityStyles(prior);
+        onDirtyChange(0);
+      }
       setState('failed');
       setFailure({ operation: 'save', message: (caught as Error).message });
       onSaveState({ kind: 'failed', message: (caught as Error).message });
@@ -605,57 +614,10 @@ export function RuntimeSettingsPanel({
                 </div>
               </div>
             </div>
-            <div className="appearance-display-choices">
-              {(
-                [
-                  ['fontBodyColor', 'Body text', 'Body text color'],
-                  ['fontMutedColor', 'Secondary', 'Secondary text color'],
-                ] as const
-              ).map(([key, label, aria]) => {
-                const hex = settings[key];
-                return (
-                  <div className="appearance-choice appearance-color-choice" key={key}>
-                    <span className="appearance-choice-label">{label}</span>
-                    <div className="appearance-color">
-                      <span className="appearance-color-swatch">
-                        <span aria-hidden="true" style={{ background: hex }} />
-                        <input
-                          type="color"
-                          className="appearance-color-picker"
-                          aria-label={`${aria} picker`}
-                          value={isHexColor(hex) ? hex : '#000000'}
-                          onChange={(event) =>
-                            setSettings((current) => ({
-                              ...current,
-                              [key]: event.target.value,
-                            }))
-                          }
-                        />
-                      </span>
-                      <Input
-                        aria-label={aria}
-                        pattern="#[0-9a-fA-F]{6}"
-                        title="Use a six-digit hex color, including #."
-                        value={hex}
-                        onChange={(event) =>
-                          setSettings((current) => ({
-                            ...current,
-                            [key]: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </section>
-          <section className="runtime-section appearance-typography-section">
-            <div className="appearance-section-heading">
-              <h4 className="runtime-section-label">Typography</h4>
-            </div>
-            <div className="appearance-typography-controls">
-              <label className="runtime-field appearance-display-family">
+          <div className="appearance-text-panel" role="group" aria-label="Text">
+            <div className="appearance-text-controls">
+              <label className="runtime-field appearance-text-family">
                 <span className="runtime-field-label">Font</span>
                 <AppSelect
                   label="Font"
@@ -700,6 +662,48 @@ export function RuntimeSettingsPanel({
                   ))}
                 </div>
               </div>
+              {(
+                [
+                  ['fontBodyColor', 'Body text', 'Body text color'],
+                  ['fontMutedColor', 'Secondary', 'Secondary text color'],
+                ] as const
+              ).map(([key, label, aria]) => {
+                const hex = settings[key];
+                return (
+                  <div className="appearance-choice appearance-color-choice" key={key}>
+                    <span className="appearance-choice-label">{label}</span>
+                    <div className="appearance-color">
+                      <span className="appearance-color-swatch">
+                        <span aria-hidden="true" style={{ background: hex }} />
+                        <input
+                          type="color"
+                          className="appearance-color-picker"
+                          aria-label={`${aria} picker`}
+                          value={isHexColor(hex) ? hex : '#000000'}
+                          onChange={(event) =>
+                            setSettings((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                        />
+                      </span>
+                      <Input
+                        aria-label={aria}
+                        pattern="#[0-9a-fA-F]{6}"
+                        title="Use a six-digit hex color, including #."
+                        value={hex}
+                        onChange={(event) =>
+                          setSettings((current) => ({
+                            ...current,
+                            [key]: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <div
               className="appearance-display-preview"
@@ -718,8 +722,8 @@ export function RuntimeSettingsPanel({
               <p className="appearance-display-preview-body">How many players returned this week?</p>
               <p className="appearance-display-preview-muted">Secondary text · timestamps · captions</p>
             </div>
-          </section>
-          <section className="runtime-section appearance-palette-section">
+          </div>
+          <section className="runtime-section runtime-section-last appearance-palette-section">
             <div className="appearance-section-heading">
               <h4 className="runtime-section-label">Entity colors</h4>
             </div>
@@ -783,42 +787,6 @@ export function RuntimeSettingsPanel({
                 </div>
               ))}
             </div>
-          </section>
-          <section
-            className="runtime-section runtime-section-last appearance-contrast-section"
-            aria-label="Color contrast"
-          >
-            <div className="appearance-contrast-summary" role="status" aria-live="polite">
-              <div>
-                <strong>{contrastFailures.length === 0 ? 'AA contrast passed' : 'AA contrast warning'}</strong>
-                <p>
-                  {contrastFailures.length === 0
-                    ? `All ${contrastChecks.length} editable color pairs meet ${WCAG_AA_NORMAL_TEXT_RATIO}:1.`
-                    : `${contrastFailures.length} of ${contrastChecks.length} editable color pairs are below ${WCAG_AA_NORMAL_TEXT_RATIO}:1 or invalid.`}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="appearance-restore-palette"
-                onClick={() => setSettings((current) => restoreSafeAppearancePalette(current))}
-              >
-                Restore safe palette
-              </button>
-            </div>
-            {contrastFailures.length > 0 ? (
-              <ul className="appearance-contrast-failures">
-                {contrastFailures.map((result) => (
-                  <li key={result.id}>
-                    <strong>{result.label}</strong>
-                    <span>
-                      {result.ratio === null
-                        ? 'Enter two six-digit hex colors.'
-                        : `${result.ratio.toFixed(2)}:1 — needs ${WCAG_AA_NORMAL_TEXT_RATIO}:1.`}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
           </section>
         </>
       )}

@@ -418,7 +418,8 @@ describe('Settings modal', () => {
     const app = readFileSync(new URL('App.tsx', import.meta.url), 'utf8');
     expect(layout).not.toContain("entry.to === '/settings'");
     expect(layout).toContain('aria-label="App settings"');
-    expect(layout).toContain('onClick={() => setSettingsOpen(true)}');
+    expect(layout).toContain('setSettingsOpen(true)');
+    expect(layout).toContain('void refreshExperimental()');
     expect(layout).toContain("const settingsDeepLink = location.pathname === '/settings'");
     const settingsRoute = app.slice(app.indexOf("path: '/settings'"), app.indexOf("path: '/connections'"));
     expect(settingsRoute).toContain('<AdminOnly>');

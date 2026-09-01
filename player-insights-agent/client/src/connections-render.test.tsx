@@ -310,19 +310,10 @@ describe('the counts line under the status headline', () => {
     expect(rendered).toContain('1 blocked');
   });
 
-  /**
-   * "Nobody looked" and "there is nothing to look at" are different claims, and
-   * folding the second into the first would make the line add up while saying
-   * something false about four rows.
-   */
-  it('omits deployment settings that have no remote resource', () => {
+  it('does not publish a separate not-checked count', () => {
     const counts = countsFor([row('genie-data', { configured: 'space-data' }), row('assets-volume')], []);
     const rendered = text(render(<ConnectionsCounts counts={counts} />));
-    expect(rendered).toContain('1 not checked');
-    // "Configuration only", which is the name of the section those rows are now
-    // drawn in. The claim is unchanged -- no remote end, so no second reading --
-    // and naming them here differently from the heading they appear under read
-    // as two populations.
+    expect(rendered).not.toContain('not checked');
     expect(rendered).not.toContain('configuration only');
   });
 
@@ -1186,24 +1177,16 @@ describe('a connection row', () => {
     expect(rendered).not.toContain('connection-row-raw-id');
   });
 
-  /**
-   * Option B (Sam 2026-08-18): every padlock unlocks for admins. A pencil says
-   * an admin can record (or apply live); a padlock is for non-admins only.
-   * Recording is not applying -- app-redeploy and model-version rows still say
-   * so in the editor -- but the affordance itself is no longer locked for admins.
-   */
-  it('shows a pencil only for resources this app can apply immediately', () => {
+  it('shows Change only for resources this app can apply immediately', () => {
     const adminLockedKind = renderRow('agent-endpoint', { configured: 'pia-agent-serving' });
     const adminLockedWarehouse = renderRow('sql-warehouse', { configured: 'wh-0001' });
-    const adminWritable = renderRow('experiment-id', { configured: '123', editable: true });
-    expect(adminLockedKind).toMatch(/data-affordance="locked"/);
-    expect(adminLockedWarehouse).toMatch(/data-affordance="locked"/);
-    expect(adminWritable).toMatch(/data-affordance="write"/);
+    const adminWritable = renderRow('experiment-id', { configured: '123', editable: true }, { open: true });
+    expect(adminLockedKind).not.toMatch(/data-affordance|Change/);
+    expect(adminLockedWarehouse).not.toMatch(/data-affordance|Change/);
+    expect(text(adminWritable)).toContain('Change');
 
     const consumer = renderRow('agent-endpoint', { configured: 'pia-agent-serving' }, { allowMutations: false });
-    expect(consumer).toMatch(/data-affordance="locked"/);
-    expect(consumer).not.toMatch(/data-affordance="write"/);
-    expect(text(consumer)).toMatch(/not changeable here/);
+    expect(consumer).not.toMatch(/data-affordance|Change|not changeable here/);
   });
 
   it('does not expose shared conversation policy as a Connections editor', () => {
@@ -1225,18 +1208,12 @@ describe('a connection row', () => {
       expect(pickerForField(id), id).not.toBeNull();
       const editable = id === 'experiment-id';
       const rendered = renderRow(id, { configured: 'placeholder', editable }, { open: true });
-      expect(rendered, id).toMatch(new RegExp(`data-affordance="${editable ? 'write' : 'locked'}"`));
       if (editable) expect(text(rendered), id).toMatch(/Change/);
       else expect(text(rendered), id).not.toMatch(/Change/);
     }
   });
 
-  /**
-   * The pair the whole expanded row is for. Both panels are always drawn, because
-   * the absence of a measurement is itself the thing being reported and a missing
-   * panel would read as a missing value.
-   */
-  it('draws the configured value beside the one in use, and names where each came from', () => {
+  it('draws Expected and Observed only for a real mismatch', () => {
     const rendered = text(
       renderRow(
         'agent-endpoint',
@@ -1249,13 +1226,11 @@ describe('a connection row', () => {
         { open: true }
       )
     );
-    expect(rendered).toContain('Configured');
+    expect(rendered).toContain('Expected');
     expect(rendered).toContain('temperature = 0.1');
     expect(rendered).toContain('Observed');
     expect(rendered).toContain('temperature = 0.2');
-    // Provenance, so a reader can tell a value somebody recorded from one the
-    // deployment demonstrably reported about itself.
-    expect(rendered).toMatch(/Differs from configuration/);
+    expect(rendered).toMatch(/Drift · expected and observed resources differ/);
   });
 
   /**
@@ -1290,7 +1265,7 @@ describe('a connection row', () => {
       { configured: 'a_catalog', actual: '', actualObserved: false },
       { open: true }
     );
-    expect(text(rendered)).toContain('Configured');
+    expect(text(rendered)).toContain('Catalog');
     expect(text(rendered)).not.toContain('Observed');
     expect(text(rendered)).not.toMatch(/not measured/i);
     expect(rendered).not.toMatch(/data-disagrees/);
@@ -1307,7 +1282,8 @@ describe('a connection row', () => {
   it('does not render a resource with no configured value as a failure', () => {
     const rendered = text(renderRow('llm-gateway', { configured: '' }, { open: true }));
     expect(rendered).not.toMatch(/blocked/i);
-    expect(rendered).toMatch(/not set|nothing to reach/i);
+    expect(rendered).toContain('Not connected');
+    expect(rendered).not.toMatch(/not set|nothing to reach|Not checked/i);
   });
 
   /**

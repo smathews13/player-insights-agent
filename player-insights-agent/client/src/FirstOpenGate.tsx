@@ -43,28 +43,18 @@
  * three states can be rendered and asserted with `renderToStaticMarkup` in a test
  * run that has no DOM. `FirstOpenGate` holds the session latch and the identity.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import { Button } from './ui';
 import { RefreshButton } from './RefreshControl';
 import type { Identity } from './app-types';
 import { AstrolabeLockup } from './AstrolabeMark';
 import { UserIdentityChip } from './UserIdentityChip';
-import { ConceptFlicker } from './ConceptFlicker';
 import { DATABRICKS_LOGO, DATABRICKS_SYMBOL } from './brand-icons';
 // The same octocat the Connections tab links its repository with. One copy, so
 // the two seatings cannot come apart. See GithubMark.tsx.
 import { GithubMark } from './GithubMark';
 import { Dialog } from './Dialog';
-import { OpeningSequence } from './OpeningSequence';
-import {
-  RISE_SETTLE_MS,
-  gateRiseMs,
-  gateRiseStyle,
-  prefersReducedMotion,
-  showsOpeningSequence,
-} from './opening-sequence';
-import { TRANSITION_MS, transitionRuns, type GateStage } from './login-transition';
 import {
   CONTINUE_LABEL,
   DISCLAIMER_TITLE,
@@ -234,9 +224,6 @@ export function FirstOpenPanel({
   allowingRequiredScopes = false,
   requestingScope = null,
   scopeUpdateMessage = null,
-  onSky = false,
-  rising = false,
-  leaving = false,
 }: {
   report: FirstOpenReport;
   onContinue: () => void;
@@ -253,35 +240,15 @@ export function FirstOpenPanel({
   allowingRequiredScopes?: boolean;
   requestingScope?: string | null;
   scopeUpdateMessage?: { kind: 'success' | 'error'; text: string } | null;
-  /**
-   * Whether the opening sequence is drawing underneath. The backdrop goes
-   * transparent so the constellation shows through it, which `loading-suite.md`
-   * asks for: "The constellation keeps drawing behind the gate."
-   */
-  onSky?: boolean;
-  /** Whether the card is mid-rise (`ast-gate-in`). True only for its first 1.2s. */
-  rising?: boolean;
-  /**
-   * Whether Continue has been taken and the card is on its way out
-   * (`login-transition.md` phases 1 and 2: the button dips, then the card sinks
-   * 26px and fades). Never true under `prefers-reduced-motion: reduce`, where the
-   * gate is cut rather than animated away.
-   */
-  leaving?: boolean;
 }) {
-  // The rise's own timing, inline because a duration is a property of a seating.
-  // See `gateRiseStyle`: the negative delay is what starts the keyframe at its 60%
-  // mark, which is the frame the card first becomes visible on.
-  const rise = rising ? gateRiseStyle() : undefined;
   const { before, emphasis, after } = disclaimerParts();
   const showRefresh = offersRefresh(report);
   const showSkip = offersSkip(report);
   const canApplyRequiredScopes = report.verdict === 'missing' && Boolean(onAllowRequiredScopes);
   return (
     <Dialog
-      overlayClassName={`first-open${onSky ? ' on-sky' : ''}${leaving ? ' fo-leaving' : ''}`}
-      contentClassName={`first-open-card${rising ? ' ast-anim-gate-in' : ''}${leaving ? ' ast-anim-x-card' : ''}`}
-      contentStyle={rise}
+      overlayClassName="first-open"
+      contentClassName="first-open-card"
       labelledBy="first-open-title"
       describedBy="first-open-description"
       dismissOnEscape={false}
@@ -380,10 +347,7 @@ export function FirstOpenPanel({
               {allowingRequiredScopes ? 'Adding access\u2026' : 'Allow serving, SQL, Genie, and workspace browsing'}
             </Button>
           ) : (
-            <Button
-              className={`fo-continue${leaving ? ' ast-anim-x-click' : ''}`}
-              onClick={showSkip ? onSkip : onContinue}
-            >
+            <Button className="fo-continue" onClick={showSkip ? onSkip : onContinue}>
               {showSkip ? SKIP_LABEL : CONTINUE_LABEL}
             </Button>
           )}
@@ -405,109 +369,16 @@ export function FirstOpenPanel({
   );
 }
 
-/**
- * The opaque first frame, drawn before the report is known.
- *
- * THIS IS THE FLICKER FIX AND IT IS THE WHOLE OF IT. The gate used to render
- * nothing at all while `/api/identity` was in flight -- `showsFirstOpen` is false
- * on the `resolving` verdict -- so the app drew its header, its tabs and the Ask
- * tab for as long as that request took, and then a full-viewport login gate
- * dropped over the lot. Nothing was wrong with the gate's timing; what was wrong
- * is that the app treated "we do not know yet" as "there is no gate".
- *
- * Whether the gate shows is answerable on the FIRST FRAME, without asking the
- * server anything: the session latch is in `sessionStorage` and is read
- * synchronously. So this layer goes up immediately, and the report only decides
- * what goes ON it. `Layout` holds the shell back for exactly this stage, so there
- * is no app underneath to be glimpsed rather than an app hidden behind a curtain.
- *
- * It carries the cycling mark rather than a spinner, and it carries the EXISTING
- * one: `ConceptFlicker` is the app's four-glyph slot, seated on the splash, in the
- * working strip and in the primary button. Under `prefers-reduced-motion: reduce`
- * the guard in astrolabe-animation.css resolves the slot to the single d-pad, so
- * this frame is a still mark on Ice for a reader who asked for no motion.
- */
-/**
- * The hold frame: the cycling mark on the layout's sky, nothing else.
- *
- * THE SKY IS NOT DRAWN HERE. Layout mounts one `AppSky` for the whole session,
- * including this frame. This used to paint a second canvas as a sibling of the
- * mark, and Continue then unmounted it — same stars, new SVG, every line
- * restarted from undrawn. The hold is now only the mark ON that sky.
- *
- * `on-sky` FOR THE SAME REASON THE CARD CARRIES IT. `.first-open` is an opaque
- * backdrop -- Ice in daylight, `--ast-sky-fill` under the dark theme -- which is
- * right only while nothing is drawn behind it. Something is: the field Layout
- * already seated. Opaque, this frame covered it completely, so the first thing
- * a reader met was a flat panel and the stars appeared to switch on when the
- * frame gave way. Transparent, the hold is the mark ON the sky the rest of the
- * gate is on.
- */
-function FirstOpenHold() {
-  return (
-    <div className="first-open on-sky first-open-hold" aria-hidden="true">
-      <ConceptFlicker seat="splash" className="fo-hold-mark" />
-    </div>
-  );
-}
+export type FirstOpenStage = 'pending' | 'gate' | 'open';
 
-/**
- * Everything the app needs to know about the gate: what to draw, and what it may
- * draw itself.
- *
- * A HOOK RATHER THAN A SELF-CONTAINED COMPONENT, because two of the transition's
- * six phases are not the gate's to run. The app surface crossfades in
- * (`ast-x-app`), the top bar's lockup pops at the point the stars converged on
- * (`ast-x-mark`) and the progress line runs under the bar (`ast-x-bar`) -- all
- * three belong to the shell, and the shell cannot join an animation it is not told
- * about. The same call answers the flicker question, which is the other thing only
- * the shell can act on: while the stage is `pending` there is nothing for it to
- * draw.
- *
- * IT DOES NOT READ `/api/identity` ITSELF. The header already read it and this is
- * handed the answer, because two reads are two answers that can disagree and a
- * card contradicting the address in the header is worse than no card. Refresh is
- * a reload for the same reason: the app re-reads identity on load, the latch is
- * still unset so this card comes straight back, and the recheck the spec asks for
- * happens without a second reader of the same endpoint being introduced to do it.
- */
 export interface FirstOpen {
-  /** Where the gate is in its life. `Layout` reads this and nothing else. */
-  stage: GateStage;
-  /** The gate's layers, or null once it is gone. */
+  stage: FirstOpenStage;
   gate: ReactNode;
 }
 
-// Kept with the gate components because this hook owns their one-session state
-// and returns those private layers; extracting it would split one state machine.
 // eslint-disable-next-line react-refresh/only-export-components
 export function useFirstOpen(identity: Identity): FirstOpen {
   const [dismissed, setDismissed] = useState(() => firstOpenAcknowledged());
-  /*
-   * Whether the opening sequence is playing, and how far through it is.
-   *
-   * ONE LATCH FOR BOTH, which is `opening-sequence.ts`'s argument: the sequence
-   * precedes the gate and the gate shows once a session, so the gate's own
-   * acknowledgement is what says whether this is the session's first open. A
-   * second key would be a second answer to the same question.
-   *
-   * Read once on mount rather than on every render, so a reader who acknowledges
-   * the card does not re-decide the sequence on the way out.
-   */
-  const [sequence] = useState(() =>
-    showsOpeningSequence({ acknowledged: firstOpenAcknowledged(), reducedMotion: prefersReducedMotion() })
-  );
-  const [intro, setIntro] = useState(sequence);
-  const [rising, setRising] = useState(false);
-  /*
-   * Whether the transition to Ask is running.
-   *
-   * Read once on mount, like the sequence above and for the same reason: a reader
-   * who changes the system preference mid-session must not have a transition
-   * half-decided by two different answers to the same question.
-   */
-  const [animates] = useState(() => transitionRuns({ reducedMotion: prefersReducedMotion() }));
-  const [leaving, setLeaving] = useState(false);
   const [allowingRequiredScopes, setAllowingRequiredScopes] = useState(false);
   const [requestingScope, setRequestingScope] = useState<string | null>(null);
   const [scopeUpdateMessage, setScopeUpdateMessage] = useState<{
@@ -515,107 +386,11 @@ export function useFirstOpen(identity: Identity): FirstOpen {
     text: string;
   } | null>(null);
 
-  /*
-   * The intro's clock, and the two ways out of it.
-   *
-   * SKIPPABLE WITH ANY CLICK OR KEY (`loading-suite.md`), and the listeners are
-   * removed the moment the intro is over rather than living as long as the gate.
-   * That is not tidiness: past 60% the card is on screen and being read, and a
-   * listener still treating a click as a skip would fire on the reader pressing
-   * Continue or opening the source link.
-   *
-   * `pointerdown` rather than `click` so a press registers on the frame it
-   * happens, and `capture` so nothing between here and the window can swallow it.
-   */
-  useEffect(() => {
-    if (!intro) return;
-    const arrive = () => {
-      setIntro(false);
-      setRising(true);
-    };
-    const timer = window.setTimeout(arrive, gateRiseMs());
-    window.addEventListener('pointerdown', arrive, { capture: true });
-    window.addEventListener('keydown', arrive, { capture: true });
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('pointerdown', arrive, { capture: true });
-      window.removeEventListener('keydown', arrive, { capture: true });
-    };
-  }, [intro]);
-
-  /*
-   * Taking the rise class away once the card has arrived.
-   *
-   * See RISE_SETTLE_MS: `ast-gate-in` is verbatim from a demo loop and ends by
-   * fading the card out so the loop can restart. The app plays the rise and stops
-   * before the tail, which leaves the card at its own opacity with no animation on
-   * it -- where the keyframe's hold would have put it anyway.
-   */
-  useEffect(() => {
-    if (!rising) return;
-    const timer = window.setTimeout(() => setRising(false), RISE_SETTLE_MS);
-    return () => window.clearTimeout(timer);
-  }, [rising]);
-
-  /*
-   * The transition's clock, and the cut that beats it.
-   *
-   * "The animation never blocks input: a click anywhere during it cuts to the
-   * landed state" (`login-transition.md`, Rules). So the same `pointerdown` and
-   * `keydown` capture pair the intro uses, for the same reason and with the same
-   * caveat about removing them the moment the phase is over: the app is live
-   * underneath by this point, and a listener that outlived the transition would
-   * treat the reader's first real click as a skip.
-   *
-   * The latch is already written by the time this runs -- Continue records it
-   * before starting the transition -- so a reader who reloads mid-animation gets
-   * the app rather than the gate again. An animation is not a thing to be halfway
-   * through.
-   */
-  useEffect(() => {
-    if (!leaving) return;
-    const land = () => {
-      setLeaving(false);
-      setDismissed(true);
-    };
-    const timer = window.setTimeout(land, TRANSITION_MS);
-    window.addEventListener('pointerdown', land, { capture: true });
-    window.addEventListener('keydown', land, { capture: true });
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('pointerdown', land, { capture: true });
-      window.removeEventListener('keydown', land, { capture: true });
-    };
-  }, [leaving]);
-
   const report = firstOpenReport(identity);
-  /*
-   * Which of the four stages this is.
-   *
-   * `pending` IS THE ONE THAT DID NOT EXIST, and its absence is the flicker. The
-   * old line here was `if (dismissed || !showsFirstOpen(report)) return null`,
-   * which conflated "the reader has been through the gate" with "the app cannot
-   * tell yet whether they have" and answered both with an empty render. The first
-   * is a reason to draw nothing; the second is a reason to draw the backdrop and
-   * hold the app back, because the answer is a request away and the gate is going
-   * to win it in every case but one that never happens (a reader who is somehow
-   * acknowledged, which is the `dismissed` branch above).
-   */
-  const stage: GateStage = dismissed ? 'open' : leaving ? 'arriving' : showsFirstOpen(report) ? 'gate' : 'pending';
-
-  /**
-   * Getting past the card, either way.
-   *
-   * The outcome is filed FIRST and by the caller's own function, because the two
-   * record different facts and `first-open.ts` is explicit that a skip must never
-   * be written as a pass. Only then does the transition start: an animation that
-   * ran before the latch was written would leave a reload mid-animation showing
-   * the gate again.
-   */
+  const stage: FirstOpenStage = dismissed ? 'open' : showsFirstOpen(report) ? 'gate' : 'pending';
   const leave = (record: () => void) => () => {
     record();
-    if (animates) setLeaving(true);
-    else setDismissed(true);
+    setDismissed(true);
   };
 
   const allowRequiredScopes = async () => {
@@ -663,61 +438,22 @@ export function useFirstOpen(identity: Identity): FirstOpen {
   };
 
   if (stage === 'open') return { stage, gate: null };
-  if (stage === 'pending') {
-    return {
-      stage,
-      gate: sequence ? <OpeningSequence intro={intro} onSky /> : <FirstOpenHold />,
-    };
-  }
-
-  /*
-   * The card, drawn only once the intro has handed over.
-   *
-   * NOT RENDERED AT OPACITY 0 DURING THE INTRO, which is where the design
-   * reference and the app part company. The reference has the card present from
-   * the first frame because it is a demo loop and `ast-gate-in` reveals it; an
-   * invisible dialog is still in the tab order and still read by a screen reader,
-   * so a reader on a keyboard would be moving through a login card nobody can see.
-   */
-  const card = intro ? null : (
-    <FirstOpenPanel
-      report={report}
-      onSky
-      rising={rising}
-      leaving={leaving}
-      onContinue={leave(acknowledgeFirstOpen)}
-      onAllowRequiredScopes={() => void allowRequiredScopes()}
-      onRequestScope={(scope) => void requestOptionalScope(scope)}
-      allowingRequiredScopes={allowingRequiredScopes}
-      requestingScope={requestingScope}
-      scopeUpdateMessage={scopeUpdateMessage}
-      /*
-       * Identical in effect to Continue, and that is the requirement rather than
-       * a shortcut: the only difference between them is which outcome is filed.
-       * Skip closes the card. It does not grant a scope, does not re-run the
-       * comparison, does not ask the server for anything, and cannot move data
-       * access onto the app's own service principal -- there is no call here that
-       * could, and `POST /api/access-mode` is the only route that can.
-       */
-      onSkip={leave(skipFirstOpenChecks)}
-      onRefresh={() => window.location.reload()}
-    />
-  );
+  if (stage === 'pending') return { stage, gate: null };
 
   return {
     stage,
     gate: (
-      <>
-        {/*
-         * THE SKY IS NOT HERE. Layout mounts one `AppSky` for the whole session
-         * and this overlay sits on it. The opening layer goes ON that sky
-         * (`onSky`), carrying only the concepts and the wordmark. Continue fades
-         * the card out and the shell in; the constellation is the same SVG the
-         * reader has been looking at since the first frame.
-         */}
-        {sequence && intro ? <OpeningSequence intro onSky /> : null}
-        {card}
-      </>
+      <FirstOpenPanel
+        report={report}
+        onContinue={leave(acknowledgeFirstOpen)}
+        onAllowRequiredScopes={() => void allowRequiredScopes()}
+        onRequestScope={(scope) => void requestOptionalScope(scope)}
+        allowingRequiredScopes={allowingRequiredScopes}
+        requestingScope={requestingScope}
+        scopeUpdateMessage={scopeUpdateMessage}
+        onSkip={leave(skipFirstOpenChecks)}
+        onRefresh={() => window.location.reload()}
+      />
     ),
   };
 }
@@ -725,9 +461,8 @@ export function useFirstOpen(identity: Identity): FirstOpen {
 /**
  * The gate on its own, for a caller that wants the layers and not the stage.
  *
- * Thin by design. `Layout` uses the hook, because it has to hold its own first
- * paint back and to join the crossfade; this is the same thing for anywhere that
- * only needs the overlay, and it is what the render tests draw.
+ * Thin by design. The startup coordinator uses the hook so the modal and the
+ * application can never own the viewport together.
  */
 export function FirstOpenGate({ identity }: { identity: Identity }) {
   return useFirstOpen(identity).gate;

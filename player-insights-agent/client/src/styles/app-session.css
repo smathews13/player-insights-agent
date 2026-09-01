@@ -1,9 +1,33 @@
+.startup-surface {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  background: var(--ast-sky-fill);
+  color: var(--ast-white);
+}
+
+.startup-loader {
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.startup-loader [data-startup-symbol] {
+  display: grid;
+  place-items: center;
+}
+
 .app-session-block {
   position: fixed;
   inset: 0;
   z-index: 200;
   display: grid;
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 24px;
   place-items: center;
   background:

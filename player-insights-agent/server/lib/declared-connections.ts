@@ -10,14 +10,9 @@
  * safety property rather than a gap). A reader will assume the opposite, so
  * `addedConnectionEffect` states it and the surface shows it on the row.
  *
- * WHY ORDINARY REMOVAL IS A STATE CHANGE AND NOT A DELETE. The demo this app
- * runs is a conversation, and an asset withdrawn halfway through one is exactly
- * when somebody needs it back. A withdrawn row keeps its value, so restoring it
- * is a click rather than a three-part table name recalled from memory.
- * `removalImpact` is the other half of the same idea: it says what stops working
- * BEFORE the withdrawal, because the alternative is finding out from the next
- * question. Permanent forgetting is a separate query and an explicitly
- * destructive UI path; it does not weaken this safe default.
+ * Historical builds withdrew a row before deleting it. Current deletion is
+ * permanent on the first confirmed request; restore remains only so historical
+ * withdrawn rows are not stranded.
  */
 import { APP_SCHEMA } from '../../shared/app-schema';
 import {
@@ -94,9 +89,25 @@ export const RESTORE_DECLARED_CONNECTION_QUERY = `
  * route distinguish a completed deletion from an id that was never there.
  */
 export const FORGET_DECLARED_CONNECTION_QUERY = `
-  DELETE FROM ${APP_SCHEMA}.declared_connections
-   WHERE id = $1
-  RETURNING id`;
+  WITH target AS (
+    SELECT lower(btrim(id)) AS id,
+           lower(btrim(kind)) AS kind,
+           lower(btrim(coalesce(resource_type, ''))) AS resource_type,
+           lower(btrim(value)) AS value
+      FROM ${APP_SCHEMA}.declared_connections
+     WHERE lower(btrim(id)) = lower(btrim($1))
+     ORDER BY created_at, id
+     LIMIT 1
+  )
+  DELETE FROM ${APP_SCHEMA}.declared_connections AS connection
+   USING target
+   WHERE lower(btrim(connection.id)) = target.id
+      OR (
+        lower(btrim(connection.kind)) = target.kind
+        AND lower(btrim(coalesce(connection.resource_type, ''))) = target.resource_type
+        AND lower(btrim(connection.value)) = target.value
+      )
+  RETURNING connection.id`;
 
 function text(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -199,10 +210,17 @@ export async function restoreDeclaredConnection(
   return row ? storedFromRow(row) : null;
 }
 
-/** Permanently remove one remembered declaration. */
-export async function forgetDeclaredConnection(client: LakebaseReader, id: string): Promise<boolean> {
+/**
+ * Permanently remove the exact logical declaration.
+ *
+ * Historical rows can carry different generated ids for the same kind/type/value.
+ * The single SQL statement resolves the requested id and deletes every normalized
+ * duplicate atomically, so a concurrent list read can see either side of the
+ * mutation but never a half-deleted set.
+ */
+export async function forgetDeclaredConnection(client: LakebaseReader, id: string): Promise<string[]> {
   const result = await client.lakebase.query(FORGET_DECLARED_CONNECTION_QUERY, [id]);
-  return Boolean((result?.rows ?? [])[0]);
+  return (result?.rows ?? []).map((row) => text(row.id)).filter(Boolean);
 }
 
 /** Characters an id may use, so it is safe as a URL path segment and a key. */
@@ -275,25 +293,25 @@ export function addedConnectionEffect(): string {
   return 'Recorded as an asset the agent may consider. It grants nobody access: whether a person can read it is decided by their own Unity Catalog grants.';
 }
 
-/** What a withdrawal costs, and whether it can be undone. */
+/** What a deletion costs, and whether it can be undone. */
 export interface RemovalImpact {
-  /** The single line shown before the withdrawal is confirmed. */
+  /** The single line shown before the deletion is confirmed. */
   headline: string;
   /** What specifically stops working. Empty when nothing does. */
   consequences: string[];
-  /** Whether this app can put it back. */
+  /** Whether this app can put it back after deletion. */
   recoverable: boolean;
 }
 
 /**
- * What stops working if this declaration is withdrawn.
+ * What stops working if this declaration is deleted.
  *
- * ASKED BEFORE THE WITHDRAWAL, NOT AFTER. The reason removal is dangerous here is
+ * ASKED BEFORE THE DELETION, NOT AFTER. The reason removal is dangerous here is
  * that the deployment is usually mid demo, and the failure shows up as the next
  * question answering worse rather than as an error anyone connects to a click.
  *
  * The honest content is narrow, and saying only what is true is the point. A
- * withdrawn declaration stops being offered to the agent as an asset to consider
+ * deleted declaration stops being offered to the agent as an asset to consider
  * and stops appearing on this page. It does NOT revoke a grant, and it does not
  * shrink what the agent may read, because that list is in the model artifact. So
  * a row whose value is also one of the deployment's live resources gets the
@@ -320,6 +338,6 @@ export function removalImpact(connection: StoredDeclaredConnection, liveValues: 
       ? `Remove ${connection.label} from the list. The running agent is configured with this value and keeps using it.`
       : `Remove ${connection.label} from the assets the agent may consider.`,
     consequences,
-    recoverable: true,
+    recoverable: false,
   };
 }

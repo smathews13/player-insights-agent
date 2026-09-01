@@ -17,7 +17,7 @@ describe('Ops active-minute timezone and freshness', () => {
       },
     } as unknown as Application;
     const query = vi.fn((sql: string) => {
-      if (sql.includes(`SELECT settings FROM ${RUNTIME_SETTINGS_TABLE}`)) {
+      if (sql.includes(`FROM ${RUNTIME_SETTINGS_TABLE}`) && sql.includes('SELECT settings')) {
         return Promise.resolve({
           rows: [
             {
@@ -25,6 +25,7 @@ describe('Ops active-minute timezone and freshness', () => {
                 ...DEFAULT_RUNTIME_SETTINGS,
                 behavior: { ...DEFAULT_RUNTIME_SETTINGS.behavior, timezone: 'America/Los_Angeles' },
               },
+              revision: 1,
             },
           ],
         });

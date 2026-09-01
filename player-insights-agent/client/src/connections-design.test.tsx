@@ -110,7 +110,7 @@ describe('the sections the rows are grouped into', () => {
    * three more like it -- so a blocked warehouse was the eleventh row of the
    * third group and its verdict was a chip a reader had to go and find.
    */
-  it('says each verdict once, in the header, and not again on any row', () => {
+  it('keeps actionable verdict groups while each row states its exact status', () => {
     const groups = groupsFor(
       [row('sql-warehouse', { configured: 'wh-0001' }), row('catalog', { configured: 'a_catalog' })],
       [check('sql-warehouse', 'failed'), check('catalog', 'ok')]
@@ -133,17 +133,12 @@ describe('the sections the rows are grouped into', () => {
         )
       )
       .join('');
-    // The chip's own words, which are what a per-row verdict looked like.
-    expect(text(rows)).not.toMatch(/\bBlocked\b|\bNot checked\b|\bReachable\b/);
+    expect(text(rows)).toContain('Blocked');
+    expect(text(rows)).toContain('Reachable');
+    expect(text(rows)).not.toContain('Not checked');
   });
 
-  /**
-   * A count belongs beside "Not checked" and nowhere else. That section is the
-   * extent of what this page does not know, which is the thing somebody wants
-   * the size of; a number beside "Blocked" would read as a second severity, and
-   * the rows under a verdict are countable at a glance anyway.
-   */
-  it('measures the section nobody checked, and none of the others', () => {
+  it('keeps resources without a completed check in the main list', () => {
     const groups = groupsFor(
       [
         row('sql-warehouse', { configured: 'wh-0001' }),
@@ -152,14 +147,15 @@ describe('the sections the rows are grouped into', () => {
       ],
       [check('sql-warehouse', 'ok')]
     );
-    const asides = new Map(groups.map((group) => [group.key, group.aside]));
-    expect(asides.get('not-checked')).toBe('2 dependencies');
-    expect(asides.get('reachable')).toBe('');
+    expect(groups.map((group) => group.key)).toEqual(['reachable']);
+    expect(groups[0].readings).toHaveLength(3);
+    expect(groups[0].aside).toBe('');
   });
 
-  it('counts one unchecked dependency in the singular', () => {
+  it('does not emit a separate unchecked section or dependency count', () => {
     const groups = groupsFor([row('genie-data', { configured: 'space-data' })], []);
-    expect(groups[0]?.aside).toBe('1 dependency');
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ key: 'reachable', title: 'Connections', aside: '' });
   });
 });
 
@@ -175,7 +171,7 @@ describe('the sections the rows are grouped into', () => {
 describe('the headers that say what a section is', () => {
   it('names the reachable list for what its rows are, not for what the probe did', () => {
     const groups = groupsFor([row('sql-warehouse', { configured: 'wh-0001' })], [check('sql-warehouse', 'ok')]);
-    expect(groups[0]?.title).toBe('Connected resources');
+    expect(groups[0]?.title).toBe('Connections');
     expect(groups[0]?.title).not.toMatch(/checked/i);
   });
 
@@ -449,7 +445,7 @@ describe('the counts line, where the figures had to become tabular', () => {
   it('sets the figures in mono and leaves the words alone', () => {
     const markup = renderToStaticMarkup(<ConnectionsCounts counts={{ ...NONE, reachable: 12, notChecked: 9 }} />);
     expect(markup).toContain('<span class="ast-num">12</span> reachable');
-    expect(markup).toContain('<span class="ast-num">9</span> not checked');
+    expect(markup).not.toContain('not checked');
   });
 
   /** The tone stays on the pair, so a tinted count colours its number and its word. */

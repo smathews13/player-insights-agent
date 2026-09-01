@@ -6,13 +6,10 @@
  * App.tsx is the router, and this is the element it wraps every route in.
  */
 import { NavLink, Outlet, Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { lazy, Suspense, useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { storageBannerNotice } from './storage-banner-copy';
-import {
-  persistExperimentalFeatures,
-  readExperimentalFeatures,
-  type ExperimentalFeatures,
-} from './experimental-features';
+import { NO_EXPERIMENTS, type ExperimentalFeatures } from './experimental-features';
+import { loadExperimentalSettings, type ExperimentalSettingsDocument } from './experimental-settings-api';
 import { Alert, AlertDescription, Button, Sheet, SheetContent, SheetHeader, SheetTitle } from './ui';
 import {
   Activity,
@@ -28,8 +25,6 @@ import {
   Workflow,
 } from 'lucide-react';
 import type { ComponentType, ReactNode } from 'react';
-import { useFirstOpen } from './FirstOpenGate';
-import { LANDED_ANNOUNCEMENT, drawsAppShell, isArriving, skyCoversShell } from './login-transition';
 import { Disclosure } from './page-chrome';
 import { formatCheckedAt } from './preflight';
 import { useDeployment, useIdentity, useStorageHealth } from './app-state';
@@ -54,6 +49,7 @@ import {
   type RoleResolution,
 } from './role';
 import { prefetchLazyRoute } from './lazy-routes';
+import { monitoringTabHref } from './monitoring-session';
 
 const SettingsPage = lazy(() => import('./SettingsPage').then((loaded) => ({ default: loaded.SettingsPage })));
 
@@ -233,10 +229,11 @@ export function NavLinks({
     <nav className={className}>
       {navEntries(role.state, features).map((entry) => {
         const Icon = NAV_ICONS[entry.to];
+        const destination = entry.to === '/runs' ? runsTo : entry.to === '/monitoring' ? monitoringTabHref() : entry.to;
         return (
           <NavLink
             key={entry.to}
-            to={entry.to === '/runs' ? runsTo : entry.to}
+            to={destination}
             // Public React events plus the same public dynamic import React.lazy
             // uses below: no private lazy payload or router manifest access.
             onMouseEnter={() => prefetchLazyRoute(entry.to)}
@@ -294,13 +291,11 @@ export function HeaderBrand({
   deployedAt,
   deployedBy,
   buildSha,
-  arriving,
   onHome,
 }: {
   deployedAt?: string;
   deployedBy?: string;
   buildSha?: string;
-  arriving?: boolean;
   /** Close overlays the tabs already dismiss, so home matches that path. */
   onHome?: () => void;
 }) {
@@ -319,13 +314,7 @@ export function HeaderBrand({
           onHome?.();
         }}
       >
-        {/* The lockup pops in at the exact point the stars converged on
-            (`login-transition.md` phase 5). The class is on the lockup rather than
-            on the column so neither the chip nor the divider beside it pops with
-            it, and it is only ever carried for the 1.2s of the transition -- an app
-            identity that animates every time the header re-renders is an identity
-            in motion, which is the opposite of what an identity is for. */}
-        <AstrolabeLockup as="h1" seat="bar" className={arriving ? 'ast-anim-x-mark' : undefined} />
+        <AstrolabeLockup as="h1" seat="bar" />
       </Link>
       {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
       <span className="app-chrome-rule" aria-hidden="true" />
@@ -400,24 +389,6 @@ export function Layout() {
   const navigate = useNavigate();
   const identity = useIdentity();
   const deployment = useDeployment();
-  /*
-   * The gate, and whether this frame is allowed to draw the app at all.
-   *
-   * THE FLICKER WAS HERE, in what this file did with an answer it did not have
-   * yet. `/api/identity` takes about a second on a cold open, the gate drew nothing
-   * while it was in flight, and everything below drew as usual -- so the reader got
-   * the header, the tabs and the Ask tab, and then a full-viewport login gate
-   * landed on top of them. It was not a timing problem to be nudged with a delay;
-   * the app was painting a screen it had not yet earned the right to paint.
-   *
-   * `drawsAppShell` is the permission, and `pending` is the one stage that
-   * withholds it. Once the gate is up the shell mounts behind it, which the
-   * transition depends on: `login-transition.md`'s landing is explicit that the Ask
-   * tab is already fully rendered under the crossfade, with no skeleton and no
-   * second load.
-   */
-  const firstOpen = useFirstOpen(identity);
-  const arriving = isArriving(firstOpen.stage);
   // Derived from the identity read that already happened rather than fetched
   // again. `/api/identity` carries the role beside the address, so a second
   // request would be a second answer to the same question and the two could
@@ -448,46 +419,56 @@ export function Layout() {
     setSettingsOpen(false);
     if (settingsDeepLink) void navigate(settingsOrigin, { replace: true });
   }, [navigate, settingsDeepLink, settingsOrigin]);
-  // Read once, when the app opens, and held here. `useState(fn)` rather than
-  // `useState(readExperimentalFeatures())` so the read happens on mount instead
-  // of on every render of the header.
-  const [features, setFeatures] = useState<ExperimentalFeatures>(readExperimentalFeatures);
-  // Written on the change rather than from an effect watching `features`: an
-  // effect also runs on first mount, which would turn opening the app into a
-  // write of the defaults over whatever is stored. A store that refuses the
-  // write is not surfaced, because the toggle still moves and the preference
-  // simply does not outlive the tab.
-  const setFeature = useCallback((name: keyof ExperimentalFeatures, enabled: boolean) => {
-    setFeatures((current) => {
-      const next = { ...current, [name]: enabled };
-      persistExperimentalFeatures(next);
-      return next;
-    });
+  // Lakebase is authoritative. Defaults paint fail-closed while the first GET is
+  // in flight, but are never written on mount and cannot overwrite a saved row.
+  const [features, setFeatures] = useState<ExperimentalFeatures>(() => ({ ...NO_EXPERIMENTS }));
+  const [experimentalRevision, setExperimentalRevision] = useState(0);
+  const [experimentalLoaded, setExperimentalLoaded] = useState(false);
+  const [experimentalFailure, setExperimentalFailure] = useState('');
+  const refreshExperimental = useCallback(async () => {
+    setExperimentalLoaded(false);
+    setExperimentalFailure('');
+    try {
+      const document = await loadExperimentalSettings();
+      setFeatures(document.settings);
+      setExperimentalRevision(document.revision);
+      setExperimentalLoaded(true);
+    } catch (error) {
+      setExperimentalFailure((error as Error).message);
+    }
+  }, []);
+  useEffect(() => {
+    let live = true;
+    void loadExperimentalSettings()
+      .then((document) => {
+        if (!live) return;
+        setFeatures(document.settings);
+        setExperimentalRevision(document.revision);
+        setExperimentalLoaded(true);
+      })
+      .catch((error) => {
+        if (live) setExperimentalFailure((error as Error).message);
+      });
+    return () => {
+      live = false;
+    };
   }, []);
 
-  /*
-   * ONE SKY FOR THE WHOLE SESSION, seated here so Continue cannot take it down.
-   *
-   * Login used to paint its own canvas and the shell painted another the moment
-   * the card closed. Same stars, same seed — and a brand-new SVG, so every line
-   * restarted from undrawn and the sky vanished for a beat. This host is the
-   * parent that survives that click: first child is always `AppSky`, whether
-   * the shell is withheld (`pending`) or fading in. `cover` only changes
-   * stacking. The chrome — not the sky — is what `ast-x-app` fades.
-   */
-  if (!drawsAppShell(firstOpen.stage)) {
-    return (
-      <div className="app-sky-host">
-        <AppSky cover={skyCoversShell(firstOpen.stage)} />
-        {firstOpen.gate}
-      </div>
-    );
-  }
+  // Kept in outlet context for pages that need the same live snapshot.
+  const setFeature = useCallback((name: keyof ExperimentalFeatures, enabled: boolean) => {
+    setFeatures((current) => ({ ...current, [name]: enabled }));
+  }, []);
+  const adoptExperimental = useCallback((document: ExperimentalSettingsDocument) => {
+    setFeatures(document.settings);
+    setExperimentalRevision(document.revision);
+    setExperimentalLoaded(true);
+    setExperimentalFailure('');
+  }, []);
 
   return (
     <div className="app-sky-host">
-      <AppSky cover={skyCoversShell(firstOpen.stage)} />
-      <div className={`min-h-screen flex flex-col app-frame${arriving ? ' ast-anim-x-app' : ''}`}>
+      <AppSky />
+      <div className="min-h-screen flex flex-col app-frame">
         {/* The page is white. It was `bg-muted/30`, a 30% wash under every card in
           the app, which is the soft-ground treatment DuBois replaces with
           hairlines on a solid surface.
@@ -512,7 +493,6 @@ export function Layout() {
             deployedAt={deployment.deployedAt}
             deployedBy={deployment.deployedBy}
             buildSha={deployment.buildSha}
-            arriving={arriving}
             onHome={() => setSettingsOpen(false)}
           />
           {/* Four links for a consumer, six for an admin, and one more than either
@@ -554,13 +534,11 @@ export function Layout() {
             catalogs, warehouses and endpoint ids reads as a mis-click, which is
             the complaint this control kept attracting.
 
-            So there are two surfaces, split by whose they are. `/settings` holds
-            what belongs to the person reading and lives in their browser.
-            Connections holds what the DEPLOYMENT is -- resources, deployment
-            reporting, the identity and permission record -- which is shared,
-            server-side, and consequential for everybody using the app. Those are
-            different things to change and different things to be careful about,
-            and one page for both is what made a gear land on a warehouse id.
+            So there are two surfaces, split by what they configure. `/settings`
+            holds app behavior and appearance in the deployment's Lakebase store.
+            Connections holds external resources, deployment reporting, identity
+            and permission evidence. Both are shared admin state; only Connections
+            describes what the deployment can reach.
 
             Neutral by construction. `ghost` and `text-muted-foreground` are
             tokens rather than hues, so it comes through a repaint of the
@@ -602,7 +580,10 @@ export function Layout() {
                   className="header-settings text-muted-foreground hover:text-foreground"
                   aria-label="App settings"
                   title="App settings"
-                  onClick={() => setSettingsOpen(true)}
+                  onClick={() => {
+                    setSettingsOpen(true);
+                    void refreshExperimental();
+                  }}
                 >
                   <Settings className="size-5" />
                 </Button>
@@ -646,21 +627,7 @@ export function Layout() {
               </SheetContent>
             </Sheet>
           </div>
-          {/* The 2px line under the top bar, and the only loading signal in the
-            transition (`login-transition.md` phase 6). It removes itself with the
-            rest of the arriving state, and it is decorative: what a screen reader
-            gets is the one status string below. */}
-          {arriving ? <span className="ast-anim-x-bar fo-x-bar" aria-hidden="true" /> : null}
         </header>
-
-        {/* The ONE thing the transition says out loud (spec, Keyframes). Every layer
-          of the animation is aria-hidden, so without this a reader on a screen
-          reader gets a second of silence and then a different page. */}
-        {arriving ? (
-          <p className="sr-only" role="status" aria-live="polite">
-            {LANDED_ANNOUNCEMENT}
-          </p>
-        ) : null}
 
         <StorageBanner />
 
@@ -689,24 +656,24 @@ export function Layout() {
         {settingsVisible ? (
           <AdminOnly role={role}>
             <Suspense fallback={<SettingsFallback />}>
-              <SettingsPage onClose={closeSettings} features={features} setFeature={setFeature} role={role} />
+              {experimentalLoaded || experimentalFailure ? (
+                <SettingsPage
+                  onClose={closeSettings}
+                  features={features}
+                  setFeature={setFeature}
+                  role={role}
+                  experimentalRevision={experimentalRevision}
+                  experimentalLoaded={experimentalLoaded}
+                  experimentalFailure={experimentalFailure}
+                  onExperimentalSaved={adoptExperimental}
+                />
+              ) : (
+                <SettingsFallback />
+              )}
             </Suspense>
           </AdminOnly>
         ) : null}
       </div>
-      {/* Once per session, above everything, and handed the identity this frame
-          has already read rather than fetching a second one. In the layout rather
-          than around the router in App.tsx for exactly that reason: App.tsx has no
-          identity, so a gate mounted there would have to ask for one, and two
-          reads of `/api/identity` are two answers that can disagree. Being
-          re-rendered on every navigation costs nothing -- the panel's own latch is
-          what makes it once per session rather than once per page.
-
-          Sibling of the fading frame, not a child of it: Continue fades the
-          chrome in and the card out. Putting the overlay inside `ast-x-app`
-          took the stars with it (fill-mode backwards starts the frame at
-          opacity 0). */}
-      {firstOpen.gate}
     </div>
   );
 }

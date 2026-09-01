@@ -20,13 +20,6 @@ html[data-background-graphics='off'] .app-sky {
   display: none !important;
 }
 
-.appearance-typography-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px 20px;
-}
-
 .appearance-size,
 .appearance-density {
   display: flex;
@@ -55,10 +48,6 @@ html[data-background-graphics='off'] .app-sky {
 
 .appearance-display-rows {
   display: grid;
-}
-
-.appearance-display-choices {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .appearance-display-row {
@@ -171,6 +160,17 @@ html[data-animations='off'] .app-sky[data-star-motion-field] .star-motion-draw {
 
 html[data-animations='off'] .run-status.is-alive .run-status-dot {
   animation: none;
+}
+
+html[data-animations='off'] .refresh-spin,
+html[data-animations='off'] .asset-picker-spinner {
+  animation: none !important;
+}
+
+html[data-animations='off'] [data-slot='progress'][data-state='indeterminate'] > [data-slot='progress-indicator'] {
+  width: 40%;
+  animation: none !important;
+  opacity: 0.45;
 }
 
 html[data-animations='off'] .arch-canvas * {

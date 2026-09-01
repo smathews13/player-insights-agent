@@ -69,7 +69,6 @@ import {
   p50BarWidths,
   productForCostTile,
   productForProbe,
-  queryHistoryCoverageDetail,
   QUESTION_COST_FORMULA,
   questionServingAverage,
   splitMethod,
@@ -603,7 +602,6 @@ export function CostBody({
 }) {
   const payload = block.data;
   const host = useWorkspaceHost();
-  const billingHref = databricksLink(host, { kind: 'table', table: 'system.billing.usage' });
 
   if (block.failed) {
     return (
@@ -626,11 +624,8 @@ export function CostBody({
     <section className="ops-block" aria-labelledby="ops-cost-heading">
       <BlockHead
         id="ops-cost-heading"
-        title="Cost"
-        badges={[
-          { word: 'Experimental', tone: astPill('warn', 'ops-pill') },
-          { word: periodLabel, tone: astPill('neutral-outline', 'ops-pill ops-period-pill') },
-        ]}
+        title="Cost Tracking"
+        meta={<span className={astPill('neutral-outline', 'ops-pill ops-period-pill')}>{periodLabel}</span>}
         control={
           <div className="ops-cost-head-controls">
             <CostUnitControl unit={unit} onChange={onUnitChange} />
@@ -694,7 +689,7 @@ export function CostBody({
               </div>
             </div>
             {!replaceGrid && absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
-            <CostMethodology payload={payload} billingHref={billingHref} />
+            <CostMethodology payload={payload} />
           </CostBudgetProvider>
         ) : null}
       </BlockBody>
@@ -769,7 +764,7 @@ function QuestionCostAverage({ payload, unit }: { payload: OpsCostPayload; unit:
   );
 }
 
-function CostMethodology({ payload, billingHref }: { payload: OpsCostPayload; billingHref: string | null }) {
+function CostMethodology({ payload }: { payload: OpsCostPayload }) {
   const calculated = payload.tiles.filter(
     (tile) =>
       tileAttribution(tile) === 'deployment' &&
@@ -792,13 +787,6 @@ function CostMethodology({ payload, billingHref }: { payload: OpsCostPayload; bi
     if (tile.id === 'app-compute') return 'Exact Apps billing rows matched by app name.';
     return 'Measured attributable billing rows.';
   };
-  const excluded = payload.tiles.filter(
-    (tile) =>
-      tileAttribution(tile) !== 'deployment' ||
-      ((tile.amount === null || tile.amount === undefined) && (tile.dbus === null || tile.dbus === undefined))
-  );
-  const queryHistoryCoverage = payload.tiles.find((tile) => tile.id === 'sql-warehouse' || tile.id.startsWith('genie:'))
-    ?.evidence?.queryHistoryCoverage;
   const groups: MethodologyGroup[] = [
     {
       title: 'How totals are calculated',
@@ -810,47 +798,9 @@ function CostMethodology({ payload, billingHref }: { payload: OpsCostPayload; bi
         ...calculated.map((tile) => ({ label: tile.label, detail: detailFor(tile) })),
       ],
     },
-    {
-      title: 'Not included',
-      rows: excluded.map((tile) => ({
-        label: tile.label,
-        detail: tile.unavailable || 'Shared or incomplete attribution is not included in totals.',
-      })),
-    },
-    {
-      title: 'Limits',
-      rows: [
-        { label: 'Rates', detail: 'Prices use Databricks list rates; contracted rates are not available.' },
-        ...(payload.honesty?.rangeMayStillFill
-          ? [{ label: 'Freshness', detail: 'Recent billing records may still be arriving.' }]
-          : []),
-        ...(queryHistoryCoverage && queryHistoryCoverage.state !== 'complete'
-          ? [{ label: 'Query History', detail: queryHistoryCoverageDetail(queryHistoryCoverage) }]
-          : []),
-        ...(billingHref
-          ? [
-              {
-                label: 'Source',
-                detail: (
-                  <a
-                    className="ops-external"
-                    href={billingHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Open billing usage"
-                  >
-                    Billing usage
-                    <ExternalLink className="size-3.5" aria-hidden="true" />
-                  </a>
-                ),
-              },
-            ]
-          : []),
-      ],
-    },
   ];
   return (
-    <Disclosure summary="Cost methodology and limits" className="ops-cost-method">
+    <Disclosure summary="Cost methodology" className="ops-cost-method">
       <MethodologySections groups={groups} />
     </Disclosure>
   );
@@ -868,6 +818,7 @@ function CostMethodology({ payload, billingHref }: { payload: OpsCostPayload; bi
 function BarChart({
   title,
   caption,
+  note = '',
   series,
   tone,
   href,
@@ -875,6 +826,8 @@ function BarChart({
   title: string;
   /** Shown INSTEAD of the bars when there are none, never under them. */
   caption: string;
+  /** Coverage qualification shown with returned bars or an incomplete empty state. */
+  note?: string;
   series: ReturnType<typeof bars>;
   /** Which ink the bars take: the failure red, the refusal slate, or the blue. */
   tone: 'failure' | 'refusal' | 'tool';
@@ -884,6 +837,7 @@ function BarChart({
   return (
     <div className={`ops-chart ops-chart-${tone}`}>
       <h4>{title}</h4>
+      {note ? <p className="ops-chart-freshness">{note}</p> : null}
       {series.length === 0 ? (
         <p className="ops-chart-empty">{caption}</p>
       ) : (
@@ -1417,6 +1371,8 @@ export function TrafficBody({
 }) {
   const payload = block.data;
   const activity = payload ? activeMinutesDisplay(payload) : { title: 'Active app minutes', note: '' };
+  const coverageCaption = (state: 'complete' | 'partial' | 'unavailable', complete: string): string =>
+    state === 'complete' ? complete : state === 'partial' ? 'Partial coverage' : 'Unavailable';
 
   if (block.failed) {
     return (
@@ -1494,14 +1450,32 @@ export function TrafficBody({
               <div className="ops-chart-pair" data-testid="ops-traffic-causes">
                 <BarChart
                   title="Failures by cause"
-                  caption={trafficCaption(payload.failuresByCause, 'failure', 'failures', payload.runsInRange)}
+                  caption={coverageCaption(
+                    payload.breakdownCoverage.outcomes.state,
+                    trafficCaption(payload.failuresByCause, 'failure', 'failures', payload.runsInRange)
+                  )}
+                  note={
+                    payload.breakdownCoverage.outcomes.state === 'complete'
+                      ? ''
+                      : payload.breakdownCoverage.outcomes.reason ||
+                        `${payload.breakdownCoverage.outcomes.state} run-outcome coverage`
+                  }
                   series={bars(payload.failuresByCause)}
                   tone="failure"
                   href={() => monitoringHref('failed')}
                 />
                 <BarChart
                   title="Refusals by cause"
-                  caption={trafficCaption(payload.refusalsByCause, 'refusal', 'refusals', payload.runsInRange)}
+                  caption={coverageCaption(
+                    payload.breakdownCoverage.outcomes.state,
+                    trafficCaption(payload.refusalsByCause, 'refusal', 'refusals', payload.runsInRange)
+                  )}
+                  note={
+                    payload.breakdownCoverage.outcomes.state === 'complete'
+                      ? ''
+                      : payload.breakdownCoverage.outcomes.reason ||
+                        `${payload.breakdownCoverage.outcomes.state} run-outcome coverage`
+                  }
                   series={bars(payload.refusalsByCause)}
                   tone="refusal"
                   href={() => monitoringHref('refused')}
@@ -1514,7 +1488,13 @@ export function TrafficBody({
                 // run count is in the band above, once, and the three charts under
                 // it were each repeating it back in a full sentence about nothing
                 // having happened.
-                caption="No tool calls"
+                caption={coverageCaption(payload.breakdownCoverage.toolCalls.state, 'No tool calls')}
+                note={
+                  payload.breakdownCoverage.toolCalls.state === 'complete'
+                    ? ''
+                    : payload.breakdownCoverage.toolCalls.reason ||
+                      `${payload.breakdownCoverage.toolCalls.state} tool-call coverage`
+                }
                 series={bars(payload.toolCalls)}
                 tone="tool"
               />
@@ -1630,8 +1610,10 @@ export function OpsPage() {
     }
   });
   const trafficParams = new URLSearchParams();
+  trafficParams.set('from', range.from);
+  trafficParams.set('to', range.to);
   if (browserTimeZone) trafficParams.set('timeZone', browserTimeZone);
-  const trafficSearch = trafficParams.size > 0 ? `?${trafficParams.toString()}` : '';
+  const trafficSearch = `?${trafficParams.toString()}`;
 
   // Four reads, started together on the first visit and finishing whenever
   // each finishes. Nothing below waits on anything else, which is the whole

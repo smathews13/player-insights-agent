@@ -805,6 +805,11 @@ export function lakebaseStorageCheck(): PreflightCheck {
   const database = process.env.PGDATABASE ?? '(unset)';
   const endpoint = process.env.LAKEBASE_ENDPOINT ?? '';
   const name = endpoint || database;
+  const facts = {
+    ...(endpoint ? { endpoint } : {}),
+    ...(database !== '(unset)' ? { database } : {}),
+    schema: APP_SCHEMA,
+  };
   if (snapshot.state === 'unavailable') {
     const error = snapshot.last_error;
     if (snapshot.access === 'denied') {
@@ -819,6 +824,7 @@ export function lakebaseStorageCheck(): PreflightCheck {
         kind: 'postgres',
         name,
         label: `Lakebase storage · ${database}`,
+        facts,
         status: 'failed',
         detail:
           `Postgres is answering and REFUSING the app's reads of the ${APP_SCHEMA} schema, so ` +
@@ -849,6 +855,7 @@ export function lakebaseStorageCheck(): PreflightCheck {
       kind: 'postgres',
       name,
       label: `Lakebase storage · ${database}`,
+      facts,
       status: 'failed',
       detail:
         `The app cannot read its own Postgres store, so conversations, runs and benchmarks cannot be ` +
@@ -883,6 +890,7 @@ export function lakebaseStorageCheck(): PreflightCheck {
       kind: 'postgres',
       name,
       label: `Lakebase storage · ${database}`,
+      facts,
       status: 'ok' as const,
       checked_with: 'app Lakebase pool',
       duration_ms: 0,
@@ -934,6 +942,7 @@ export function lakebaseStorageCheck(): PreflightCheck {
     kind: 'postgres',
     name,
     label: `Lakebase storage · ${database}`,
+    facts,
     status: 'unverified',
     detail: 'The app has not read its Postgres store since it started, so its state is unknown.',
     checked_with: 'app Lakebase pool',

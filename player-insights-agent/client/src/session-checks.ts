@@ -44,12 +44,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 
-import {
-  claimAutoCheck,
-  recallChecks,
-  rememberChecks,
-  type CheckSession,
-} from './check-session';
+import { claimAutoCheck, recallChecks, rememberChecks, type CheckSession } from './check-session';
 import type { SettingsPayload } from './connection-model';
 import { fetchWithTimeout } from './fetch-timeout';
 import { isPreflightReport, type PreflightReport } from './preflight';
@@ -71,6 +66,8 @@ let running = false;
  * ones even though the store is full. Only the count distinguishes them.
  */
 let completed = 0;
+let settingsMutationGeneration = 0;
+let latestSettingsRequest = 0;
 
 /** Longer than a healthy preflight, but never an unbounded screen wait. */
 export const SESSION_CHECK_TIMEOUT_MS = 25_000;
@@ -91,12 +88,51 @@ export function resetSessionChecks(): void {
   listeners.clear();
   running = false;
   completed = 0;
+  settingsMutationGeneration = 0;
+  latestSettingsRequest = 0;
 }
 
-async function readSettings(): Promise<SettingsPayload> {
+interface SettingsRead {
+  payload: SettingsPayload;
+  generation: number;
+  request: number;
+}
+
+async function readSettings(): Promise<SettingsRead> {
+  const generation = settingsMutationGeneration;
+  const request = ++latestSettingsRequest;
   const response = await fetchWithTimeout('/api/settings', {}, SESSION_CHECK_TIMEOUT_MS);
   if (!response.ok) throw new Error(`the settings endpoint answered ${response.status}`);
-  return (await response.json()) as SettingsPayload;
+  return { payload: (await response.json()) as SettingsPayload, generation, request };
+}
+
+function currentSettings(read: SettingsRead): boolean {
+  return read.generation === settingsMutationGeneration && read.request === latestSettingsRequest;
+}
+
+/** Fence every settings GET that started before a connection mutation. */
+export function beginConnectionMutation(): void {
+  settingsMutationGeneration += 1;
+}
+
+/**
+ * Commit a confirmed deletion into the session cache before navigation can
+ * remount Connections from it. Lakebase remains the source of truth; this only
+ * prevents a known-stale cached payload from replaying records it still held.
+ */
+export function commitConnectionDeletion(ids: readonly string[]): void {
+  settingsMutationGeneration += 1;
+  const removed = new Set(ids);
+  const previous = recallChecks();
+  if (!previous?.settings) return;
+  rememberChecks({
+    ...previous,
+    settings: {
+      ...previous.settings,
+      connections: (previous.settings.connections ?? []).filter((entry) => !removed.has(entry.connection.id)),
+    },
+  });
+  announce();
 }
 
 /**
@@ -136,7 +172,10 @@ export async function runSessionChecks(): Promise<void> {
   const [settings, report] = await Promise.allSettled([readSettings(), readPreflight()]);
 
   const next: CheckSession = {
-    settings: settings.status === 'fulfilled' ? settings.value : (previous?.settings ?? null),
+    settings:
+      settings.status === 'fulfilled' && currentSettings(settings.value)
+        ? settings.value.payload
+        : (recallChecks()?.settings ?? previous?.settings ?? null),
     report: report.status === 'fulfilled' ? report.value : (previous?.report ?? null),
     error: '',
   };
@@ -171,9 +210,11 @@ export async function runSessionChecks(): Promise<void> {
 export async function reloadSessionSettings(): Promise<string> {
   const previous = recallChecks();
   try {
-    const settings = await readSettings();
-    rememberChecks({ settings, report: previous?.report ?? null, error: previous?.error ?? '' });
-    announce();
+    const read = await readSettings();
+    if (currentSettings(read)) {
+      rememberChecks({ settings: read.payload, report: previous?.report ?? null, error: previous?.error ?? '' });
+      announce();
+    }
     return '';
   } catch (caught) {
     return `The app could not read its own configuration: ${(caught as Error).message}. Nothing below is current.`;

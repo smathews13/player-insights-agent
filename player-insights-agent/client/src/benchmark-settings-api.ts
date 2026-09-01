@@ -15,6 +15,7 @@ function serverDetail(body: unknown): string {
 
 export interface BenchmarkSettingsPayload {
   settings: BenchmarkSettings;
+  revision: number;
   experimentUrl: string | null;
   currentAgentEndpoint: string;
   tracesAlwaysOnInAgent: boolean;
@@ -41,11 +42,12 @@ export async function benchmarkSettingsFromResponse(
 
   const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
   const parsed = BenchmarkSettingsSchema.safeParse(record.settings);
-  if (!parsed.success) {
+  if (!parsed.success || !Number.isInteger(record.revision) || Number(record.revision) < 0) {
     throw new Error(`Benchmark settings were not ${operation}: the server returned an incomplete settings payload.`);
   }
   return {
     settings: parsed.data,
+    revision: Number(record.revision),
     experimentUrl: typeof record.experimentUrl === 'string' ? record.experimentUrl : null,
     currentAgentEndpoint: typeof record.currentAgentEndpoint === 'string' ? record.currentAgentEndpoint : '',
     tracesAlwaysOnInAgent: record.tracesAlwaysOnInAgent === true,

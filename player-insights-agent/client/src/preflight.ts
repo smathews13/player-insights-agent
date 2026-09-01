@@ -50,6 +50,13 @@ export interface PreflightCheck {
   name: string;
   /** Human-readable workspace name when the API returned one; raw id stays in `name`. */
   display_name?: string;
+  /**
+   * Type-specific facts returned by the app-side workspace probe.
+   *
+   * Optional because older app builds and orchestrator-originated checks do not
+   * carry them. Renderers must omit a missing fact rather than invent a value.
+   */
+  facts?: Record<string, string | number | boolean>;
   label: string;
   status: PreflightStatus;
   detail: string;

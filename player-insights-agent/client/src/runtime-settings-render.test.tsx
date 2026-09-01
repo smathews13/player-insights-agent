@@ -8,7 +8,6 @@ const source = fs.readFileSync(path.join(__dirname, 'RuntimeSettingsPanel.tsx'),
 const page = fs.readFileSync(path.join(__dirname, 'SettingsPage.tsx'), 'utf8');
 const styles = fs.readFileSync(path.join(__dirname, 'styles', 'settings.css'), 'utf8');
 const responsiveStyles = fs.readFileSync(path.join(__dirname, 'styles', 'responsive-settings.css'), 'utf8');
-const appearanceStyles = fs.readFileSync(path.join(__dirname, 'styles', 'appearance-preferences.css'), 'utf8');
 const answerStyles = fs.readFileSync(path.join(__dirname, 'styles', 'answer.css'), 'utf8');
 
 /**
@@ -39,8 +38,8 @@ describe('runtime and appearance modal sections', () => {
 
   it('writes through the admin route and preserves real errors and load retry', () => {
     expect(source).toContain("fetch('/api/admin/runtime-settings'");
-    expect(source).toContain("runtimeSettingsFromResponse(response, 'loaded')");
-    expect(source).toContain("runtimeSettingsFromResponse(response, 'saved')");
+    expect(source).toContain("runtimeSettingsDocumentFromResponse(response, 'loaded')");
+    expect(source).toContain("runtimeSettingsDocumentFromResponse(response, 'saved')");
     expect(source).toContain("failure?.operation === 'load'");
     expect(source).toContain('failure.message');
   });
@@ -194,12 +193,9 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('appearance-display-preview');
   });
 
-  it('keeps interface controls and text colors together in Display', () => {
+  it('ends Display after Density', () => {
     const markup = renderToStaticMarkup(<RuntimeSettingsPanel section="appearance" />);
-    const display = markup.slice(
-      markup.indexOf('appearance-display-section'),
-      markup.indexOf('appearance-typography-section')
-    );
+    const display = markup.slice(markup.indexOf('appearance-display-section'), markup.indexOf('appearance-text-panel'));
 
     expect(markup).not.toContain('appearance-theme-section');
     expect(markup).not.toMatch(/<h4[^>]*>Theme<\/h4>/);
@@ -207,15 +203,14 @@ describe('runtime and appearance modal sections', () => {
     expect(markup).not.toMatch(/<h4[^>]*>Interface<\/h4>/);
     expect(display).toContain('<h4 class="runtime-section-label">Display</h4>');
     expect(display).toContain('appearance-display-rows');
-    expect(display).toContain('appearance-display-choices');
     expect(display).toContain('>Dark mode</span>');
     expect(display).toContain('aria-label="Dark mode"');
     expect(display).toContain('>Background graphics</span>');
     expect(display).toContain('>Animations</span>');
     expect(display).toContain('>Density</span>');
-    expect(display).toContain('>Body text</span>');
-    expect(display).toContain('>Secondary</span>');
-    const labels = ['Dark mode', 'Background graphics', 'Animations', 'Density', 'Body text', 'Secondary'];
+    expect(display).not.toContain('>Body text</span>');
+    expect(display).not.toContain('>Secondary</span>');
+    const labels = ['Dark mode', 'Background graphics', 'Animations', 'Density'];
     for (let index = 1; index < labels.length; index += 1) {
       expect(display.indexOf(labels[index - 1])).toBeLessThan(display.indexOf(labels[index]));
     }
@@ -223,36 +218,36 @@ describe('runtime and appearance modal sections', () => {
     expect(display).not.toContain('>Size</span>');
   });
 
-  it('keeps typography controls and preview in their own section', () => {
+  it('keeps text controls and preview in one compact group without a Typography section', () => {
     const markup = renderToStaticMarkup(<RuntimeSettingsPanel section="appearance" />);
-    const display = markup.slice(
-      markup.indexOf('appearance-display-section'),
-      markup.indexOf('appearance-typography-section')
-    );
-    const typography = markup.slice(
-      markup.indexOf('appearance-typography-section'),
-      markup.indexOf('appearance-palette-section')
-    );
+    const text = markup.slice(markup.indexOf('appearance-text-panel'), markup.indexOf('appearance-palette-section'));
 
-    expect(display).toContain('aria-label="Body text color picker"');
-    expect(display).toContain('aria-label="Body text color"');
-    expect(display).toContain('aria-label="Secondary text color picker"');
-    expect(display).toContain('aria-label="Secondary text color"');
-    expect(typography).toContain('aria-label="Font: DM Sans"');
-    expect(typography).toContain('role="radiogroup"');
-    expect(typography).toContain('aria-label="Font size L"');
-    expect(typography).toContain('appearance-display-preview');
+    expect(text).toContain('role="group" aria-label="Text"');
+    expect(text).toContain('aria-label="Body text color picker"');
+    expect(text).toContain('aria-label="Body text color"');
+    expect(text).toContain('aria-label="Secondary text color picker"');
+    expect(text).toContain('aria-label="Secondary text color"');
+    expect(text).toContain('aria-label="Font: DM Sans"');
+    expect(text).toContain('role="radiogroup"');
+    expect(text).toContain('aria-label="Font size L"');
+    expect(text).toContain('appearance-display-preview');
+    expect(markup).not.toContain(['appearance', 'typography', 'section'].join('-'));
+    expect(markup).not.toMatch(/<h4[^>]*>Typography<\/h4>/);
     expect(source).toContain('data-color-scheme={settings.colorScheme}');
     expect(source).toContain("'--appearance-preview-body': settings.fontBodyColor");
     expect(source).toContain("'--appearance-preview-font': FONT_FAMILY_STACKS[settings.fontFamily]");
   });
 
-  it('lays out merged choices across supported responsive breakpoints', () => {
-    expect(appearanceStyles).toMatch(
-      /\.appearance-display-choices\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+  it('lays out the consolidated text panel across supported responsive breakpoints', () => {
+    expect(styles).toMatch(/\.appearance-text-panel\s*\{[^}]*display:\s*grid[^}]*border:\s*1px solid/s);
+    expect(styles).toMatch(
+      /\.appearance-text-controls\s*\{[^}]*grid-template-columns:\s*minmax\(190px,\s*1\.35fr\)\s*auto\s*repeat\(2,\s*minmax\(150px,\s*1fr\)\)/
     );
     expect(responsiveStyles).toMatch(
-      /@media \(max-width:\s*480px\)\s*\{[\s\S]*?\.appearance-display-choices\s*\{[^}]*minmax\(0,\s*1fr\)/
+      /@media \(max-width:\s*800px\)\s*\{[\s\S]*?\.appearance-text-controls\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+    );
+    expect(responsiveStyles).toMatch(
+      /@media \(max-width:\s*480px\)\s*\{[\s\S]*?\.appearance-text-controls\s*\{[^}]*minmax\(0,\s*1fr\)/
     );
     expect(styles).toContain(".appearance-display-preview[data-color-scheme='dark']");
     expect(styles).toContain(".appearance-display-preview[data-color-scheme='light']");
@@ -280,7 +275,7 @@ describe('runtime and appearance modal sections', () => {
     expect(source).not.toContain('Limits how many reasoning passes');
     expect(source).toContain('2026-07-22 – 2026-08-03');
     expect(source).toContain('Northwind, Contoso');
-    expect(source).toContain('adoptRuntimeEntityStyles(saved)');
+    expect(source).toContain('adoptRuntimeEntityStyles(saved.settings)');
     expect(source).not.toContain('previewColorScheme(on)');
     expect(source).not.toContain('previewRuntimeTypography(settings)');
     expect(styles).toMatch(/\.appearance-sample-plaque\s*\{[^}]*background:\s*var\(--background\)/);

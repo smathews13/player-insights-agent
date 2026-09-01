@@ -62,9 +62,7 @@ function stored(overrides: Partial<StoredDeclaredConnection> = {}): StoredDeclar
 
 describe('what adding a connection is allowed to be', () => {
   it('accepts a plain named asset', () => {
-    expect(
-      addFault({ id: 'roster-table', kind: 'unity-catalog', value: 'a.b.c' })
-    ).toBeNull();
+    expect(addFault({ id: 'roster-table', kind: 'unity-catalog', value: 'a.b.c' })).toBeNull();
   });
 
   /**
@@ -161,19 +159,36 @@ describe('reading and writing declarations', () => {
     expect(restored?.state).toBe('declared');
   });
 
-  it('forgets a declaration only when the store deleted a row', async () => {
+  it('forgets every logical duplicate only when the store deleted rows', async () => {
     const params: unknown[][] = [];
-    await expect(forgetDeclaredConnection(client([{ id: 'roster-table' }], params), 'roster-table')).resolves.toBe(
-      true
-    );
+    await expect(
+      forgetDeclaredConnection(client([{ id: 'roster-table' }, { id: 'roster-table-2' }], params), 'roster-table')
+    ).resolves.toEqual(['roster-table', 'roster-table-2']);
     expect(params).toEqual([['roster-table']]);
-    await expect(forgetDeclaredConnection(client([]), 'absent')).resolves.toBe(false);
+    await expect(forgetDeclaredConnection(client([]), 'absent')).resolves.toEqual([]);
+  });
+
+  it('deletes duplicate logical records atomically with normalized keys, types and values', async () => {
+    let sql = '';
+    const duplicateClient = {
+      lakebase: {
+        query: (statement: string) => {
+          sql = statement;
+          return Promise.resolve({ rows: [{ id: 'one' }, { id: 'two' }] });
+        },
+      },
+    } as unknown as LakebaseReader;
+    await forgetDeclaredConnection(duplicateClient, 'one');
+    expect(sql).toMatch(/WITH target[\s\S]*DELETE FROM[\s\S]*USING target/);
+    expect(sql).toMatch(/lower\(btrim\(connection\.kind\)\)/);
+    expect(sql).toMatch(/lower\(btrim\(coalesce\(connection\.resource_type/);
+    expect(sql).toMatch(/lower\(btrim\(connection\.value\)\)/);
   });
 });
 
 describe('what removing a connection costs', () => {
-  it('is recoverable, always', () => {
-    expect(removalImpact(stored(), []).recoverable).toBe(true);
+  it('does not claim a first-click deletion can be restored', () => {
+    expect(removalImpact(stored(), []).recoverable).toBe(false);
   });
 
   it('says the agent stops being offered the asset', () => {

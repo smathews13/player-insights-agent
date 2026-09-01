@@ -18,12 +18,7 @@ import {
   enforcementBoundary,
   eventFacts,
 } from './egress-panel';
-import {
-  EgressRecordsError,
-  egressControlsFromResponse,
-  fetchEgressRecordsPage,
-  retainPendingEgressDrafts,
-} from './egress-settings-api';
+import { EgressRecordsError, egressControlsFromResponse, fetchEgressRecordsPage } from './egress-settings-api';
 import type { SettingsSaveState } from './settings-save-state';
 import { StateSwitch } from './StateSwitch';
 
@@ -284,7 +279,6 @@ export function EgressPanel({
     setFailure(null);
     onSaveState({ kind: 'saving' });
     const changes = controllablePaths().filter((path) => controls[path.channel] !== savedControls[path.channel]);
-    const pending = new Set<EgressChannel>(changes.map((path) => path.channel));
     let latest = savedControls;
     try {
       for (const path of changes) {
@@ -302,7 +296,6 @@ export function EgressPanel({
         } catch (caught) {
           throw new Error(`Could not save ${path.label.toLowerCase()}. ${(caught as Error).message}`);
         }
-        pending.delete(channel);
       }
       setControls(latest);
       setSavedControls(latest);
@@ -312,10 +305,10 @@ export function EgressPanel({
       onSaveState({ kind: 'saved', count: changedCount });
     } catch (caught) {
       const message = (caught as Error).message;
-      setControls((current) => retainPendingEgressDrafts(current, latest, pending));
+      setControls(latest);
       setSavedControls(latest);
       adoptEgressControls(latest);
-      onDirtyChange(pending.size);
+      onDirtyChange(0);
       setFailure({ operation: 'save', message });
       setState('ready');
       onSaveState({ kind: 'failed', message });

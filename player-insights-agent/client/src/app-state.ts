@@ -17,6 +17,7 @@ import { IDENTITY_RESOLVING, IDENTITY_UNAVAILABLE } from './user-initials';
 import { browserPollHost, pollWhileVisible } from './visibility-polling';
 
 let identityPromise: Promise<unknown> | null = null;
+let resolvedIdentity: Identity | null = null;
 
 /**
  * The session's one read of who is signed in.
@@ -47,6 +48,7 @@ export function identityRequest(): Promise<unknown> {
 /** Tests that stub `fetch` must forget a prior answer, or they read that answer. */
 export function forgetIdentityRequest() {
   identityPromise = null;
+  resolvedIdentity = null;
 }
 
 /**
@@ -124,6 +126,12 @@ export function identityFromResponse(value: unknown): Identity {
   };
 }
 
+/** Seed every ready-shell identity consumer from the verified startup read. */
+export function rememberResolvedIdentity(identity: Identity): Identity {
+  resolvedIdentity = identity;
+  return identity;
+}
+
 /**
  * Who the app believes is signed in, per `GET /api/identity`.
  *
@@ -133,14 +141,21 @@ export function identityFromResponse(value: unknown): Identity {
  * consumer already recognises as "no name" rather than treating as one.
  */
 export function useIdentity(deadlineMs = IDENTITY_DEADLINE_MS) {
-  const [identity, setIdentity] = useState<Identity>({
-    // Both placeholders are named in user-initials.ts, which has to recognise
-    // them: they are sentences, and an avatar built from one reads "RS".
-    signedInAs: IDENTITY_RESOLVING,
-    executionIdentity: 'Astrolabe service principal',
-    executionMode: 'service-principal',
-  });
+  const [identity, setIdentity] = useState<Identity>(
+    () =>
+      resolvedIdentity ?? {
+        // Both placeholders are named in user-initials.ts, which has to recognise
+        // them: they are sentences, and an avatar built from one reads "RS".
+        signedInAs: IDENTITY_RESOLVING,
+        executionIdentity: 'Astrolabe service principal',
+        executionMode: 'service-principal',
+      }
+  );
   useEffect(() => {
+    if (resolvedIdentity) {
+      setIdentity(resolvedIdentity);
+      return;
+    }
     let settled = false;
     // Only ever moves a read that is STILL resolving. An answer that lands after
     // the deadline is still the truth and still replaces this, and the timer

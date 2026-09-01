@@ -35,6 +35,8 @@ export interface Row {
   identity_mode_requested: string | null;
   identity_mode_effective: string | null;
   identity_verified: boolean | null;
+  persona_id: string | null;
+  persona_name: string | null;
   terminal_code: string | null;
   terminal_message_id: string | null;
   trace_id: string | null;
@@ -143,8 +145,20 @@ export class FakeStore implements LakebaseReader {
   }
 
   private createOrGet(params: unknown[]): Record<string, unknown>[] {
-    const [runId, email, conversationId, turnId, requestHash, keyHash, deadline, requested, , correlationId] =
-      params as string[];
+    const [
+      runId,
+      email,
+      conversationId,
+      turnId,
+      requestHash,
+      keyHash,
+      deadline,
+      requested,
+      ,
+      correlationId,
+      personaId,
+      personaName,
+    ] = params as string[];
     const executing = (row: Row) => (EXECUTING_STATES as readonly string[]).includes(row.state);
     const visible = this.runs;
     const all = [...this.runs, ...this.hidden];
@@ -169,6 +183,8 @@ export class FakeStore implements LakebaseReader {
         identity_mode_requested: requested,
         identity_mode_effective: null,
         identity_verified: null,
+        persona_id: personaId ?? null,
+        persona_name: personaName ?? null,
         terminal_code: null,
         terminal_message_id: null,
         trace_id: null,

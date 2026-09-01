@@ -31,7 +31,17 @@
           root.dataset.density = saved.density === 'compact' ? 'compact' : 'comfortable';
           const hex = /^#[0-9a-f]{6}$/i;
           if (hex.test(saved.fontBodyColor)) {
-            for (const token of ['--ast-text', '--ast-text-long', '--foreground', '--db-ink', '--db-body']) {
+            for (const token of [
+              '--ast-text',
+              '--ast-text-long',
+              '--foreground',
+              '--card-foreground',
+              '--popover-foreground',
+              '--secondary-foreground',
+              '--accent-foreground',
+              '--db-ink',
+              '--db-body',
+            ]) {
               root.style.setProperty(token, saved.fontBodyColor);
             }
           }
@@ -46,6 +56,30 @@
             'dm-mono': "'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
           };
           if (families[saved.fontFamily]) root.style.setProperty('--font-sans', families[saved.fontFamily]);
+          const sizeScale = { s: 0.92, m: 1, l: 1.15 }[saved.fontSize];
+          if (sizeScale) {
+            for (const [token, px] of [
+              ['--text-xs', 11],
+              ['--text-sm', 12],
+              ['--text-base', 13],
+              ['--text-h-sub', 14],
+              ['--text-h-section', 16],
+              ['--text-h-card', 18],
+              ['--text-h-page', 22],
+              ['--text-kpi', 22],
+              ['--text-hero', 32],
+              ['--ast-fs-11', 11],
+              ['--ast-fs-12', 12],
+              ['--ast-fs-13', 13],
+              ['--ast-fs-14', 14],
+              ['--ast-fs-16', 16],
+              ['--ast-fs-18', 18],
+              ['--ast-fs-22', 22],
+              ['--ast-fs-32', 32],
+            ]) {
+              root.style.setProperty(token, `${Math.round(px * sizeScale)}px`);
+            }
+          }
           for (const kind of ['catalog', 'schema', 'table', 'column', 'quote', 'tag']) {
             const style = saved.entityStyles?.[kind];
             if (hex.test(style?.foreground)) root.style.setProperty(`--entity-${kind}-fg`, style.foreground);
@@ -56,6 +90,20 @@
         // Defaults above are the safe first paint when storage is unavailable.
       }
     </script>
+    <style>
+      html,
+      body,
+      #root {
+        min-height: 100%;
+      }
+      body {
+        margin: 0;
+        background: #ffffff;
+      }
+      html[data-theme='dark'] body {
+        background: #11171c;
+      }
+    </style>
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
@@ -86,13 +134,7 @@
       same-origin, and Databricks Apps egress rules forbid the font CDN. A preconnect
       to an origin the browser is already connected to buys nothing.
     -->
-    <link
-      rel="preload"
-      href="/fonts/DMSans-variable.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin="anonymous"
-    />
+    <link rel="preload" href="/fonts/DMSans-variable.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
     <title>astrolabe</title>
   </head>
   <body>

@@ -19,6 +19,8 @@ function run(overrides: Partial<LedgerRun> = {}): LedgerRun {
     identityModeRequested: 'signed_in_user',
     identityModeEffective: 'signed_in_user',
     identityVerified: true,
+    personaId: null,
+    personaName: null,
     terminalCode: null,
     terminalMessageId: 'msg-1',
     traceId: 'tr-1',

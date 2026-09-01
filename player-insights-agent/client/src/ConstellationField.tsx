@@ -1,8 +1,8 @@
 /**
  * A constellation drawing itself: connectors on `ast-draw`, stars on `ast-pop`.
  *
- * One renderer for the splash, the working strip and the opening sequence, so a
- * star pops the same way in all three. The coordinates are `constellation.ts`.
+ * One renderer for the splash and working strip, so a star pops the same way in
+ * both. The coordinates are `constellation.ts`.
  *
  * DECORATIVE, ENTIRELY. The whole SVG is `aria-hidden`, and the surface that
  * seats it carries the one `aria-live="polite"` string that says what is
@@ -70,7 +70,9 @@ function StarGlyphShape({ star }: { star: Star }) {
   if (PRODUCT_GLYPHS.includes(star.glyph)) {
     const href = starHref(star.glyph);
     if (!href) return null;
-    return <image href={href} x={star.x - star.size} y={star.y - star.size} width={star.size * 2} height={star.size * 2} />;
+    return (
+      <image href={href} x={star.x - star.size} y={star.y - star.size} width={star.size * 2} height={star.size * 2} />
+    );
   }
   if (star.glyph === 'dot') {
     return <circle cx={star.x} cy={star.y} r={star.size} className="ast-star-ink" opacity={star.opacity} />;
@@ -96,26 +98,7 @@ function StarGlyphShape({ star }: { star: Star }) {
   );
 }
 
-export function ConstellationField({
-  shape,
-  className,
-  exitTo,
-}: {
-  shape: ConstellationShape;
-  className?: string;
-  /**
-   * Where the stars travel to when the sky is leaving, in this shape's own
-   * coordinates. Absent everywhere but the login transition, which is the only
-   * seating a constellation exits from.
-   *
-   * ADDITIVE ON PURPOSE. Three surfaces draw a constellation and a fourth is
-   * being added beside this one, so the exit is an extra wrapper around each star
-   * rather than a change to how a star pops: the pop's own delay stays on the
-   * element that owns it, and a seating that passes nothing renders exactly the
-   * markup it rendered before.
-   */
-  exitTo?: (star: Star, at: number) => { dx: number; dy: number; delaySeconds: number };
-}) {
+export function ConstellationField({ shape, className }: { shape: ConstellationShape; className?: string }) {
   const loop = `${shape.loopSeconds}s`;
   return (
     <svg
@@ -146,50 +129,31 @@ export function ConstellationField({
       {/* Each star pops as its connector reaches it. The transform origin is the
           star's own centre, or the 1.25 overshoot pulls it towards the panel's
           corner instead of growing in place. */}
-      {shape.stars.map((star, at) => {
-        const exit = exitTo?.(star, at);
-        const pop = (
-          <g
-            key={`${star.x}-${star.y}`}
-            className="ast-anim-pop"
-            style={{
-              transformOrigin: `${star.x}px ${star.y}px`,
-              animationDuration: loop,
-              animationDelay: `${star.delay}s`,
-            }}
-          >
-            <StarGlyphShape star={star} />
-          </g>
-        );
-        if (!exit) return pop;
-        // A second group AROUND the pop rather than a second animation on it:
-        // `animation-delay` is one list per element, so a travel delay written
-        // beside the pop's would have to replace it, and the star would pop at the
-        // moment it was supposed to leave. A seating with no exit renders the
-        // group above and nothing else, unchanged.
-        return (
-          <g
-            key={`x-${star.x}-${star.y}`}
-            className="ast-anim-x-star"
-            style={{
-              transformOrigin: `${star.x}px ${star.y}px`,
-              animationDelay: `${exit.delaySeconds}s`,
-              // Each star's own path to the lockup, which is why these are custom
-              // properties and not a keyframe: one keyframe has to move
-              // twenty-two stars along twenty-two different vectors.
-              ['--dx' as string]: `${exit.dx}px`,
-              ['--dy' as string]: `${exit.dy}px`,
-            }}
-          >
-            {pop}
-          </g>
-        );
-      })}
+      {shape.stars.map((star) => (
+        <g
+          key={`${star.x}-${star.y}`}
+          className="ast-anim-pop"
+          style={{
+            transformOrigin: `${star.x}px ${star.y}px`,
+            animationDuration: loop,
+            animationDelay: `${star.delay}s`,
+          }}
+        >
+          <StarGlyphShape star={star} />
+        </g>
+      ))}
       {/* The sky behind the chains: fixed, dim, and never animated. Without it
           the panel reads as a diagram on a dark rectangle rather than as a night
           sky with a constellation in it. */}
       {shape.backdrop.map((dot) => (
-        <circle key={`${dot.x}-${dot.y}`} cx={dot.x} cy={dot.y} r={1.3} className="ast-star-ink" opacity={dot.opacity} />
+        <circle
+          key={`${dot.x}-${dot.y}`}
+          cx={dot.x}
+          cy={dot.y}
+          r={1.3}
+          className="ast-star-ink"
+          opacity={dot.opacity}
+        />
       ))}
     </svg>
   );

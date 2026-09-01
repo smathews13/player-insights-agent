@@ -58,7 +58,13 @@ export const COST_QUALITY_LABEL: Record<CostQuality, string> = {
  * the first as `$0.00` is the invented number the honesty rules forbid.
  */
 /** The workspace object a cost tile can open, when it can open one. */
-export type CostResourceKind = 'serving-endpoint' | 'sql-warehouse' | 'app' | 'genie-space' | 'vector-index';
+export type CostResourceKind =
+  | 'serving-endpoint'
+  | 'sql-warehouse'
+  | 'app'
+  | 'genie-space'
+  | 'vector-index'
+  | 'vector-endpoint';
 
 /**
  * Whose money a tile's figure is, independent of the chip wording.
@@ -584,6 +590,15 @@ export interface TelemetryCoverage {
   missingDays: number;
 }
 
+/** What one Traffic breakdown established over the shared run population. */
+export interface TrafficBreakdownCoverage {
+  state: 'complete' | 'partial' | 'unavailable';
+  /** Runs represented by this read. Zero is meaningful only when state is complete. */
+  coveredRuns: number;
+  /** Human-readable source/read limitation. Empty only for complete coverage. */
+  reason: string;
+}
+
 export interface OpsTrafficPayload {
   readAt: string;
   /** '' or the storage-failure sentence, which replaces the block. */
@@ -638,6 +653,14 @@ export interface OpsTrafficPayload {
   toolCalls: TrafficBar[];
   /** Runs that ended in the range, whatever they ended as. */
   runsInRange: number;
+  /**
+   * Coverage travels with the empty arrays so the client cannot turn an
+   * unavailable query into "No failures", "No refusals", or "No tool calls".
+   */
+  breakdownCoverage: {
+    outcomes: TrafficBreakdownCoverage;
+    toolCalls: TrafficBreakdownCoverage;
+  };
   /** Complete-day period the traffic reads actually used. */
   range?: OpsDayRange;
   /** Coverage of raw plus durable activity rollups. */

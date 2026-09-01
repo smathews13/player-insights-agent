@@ -32,13 +32,7 @@ vi.mock('./nav-reveal', () => ({ SHOW_EVERY_TAB_TO_EVERYONE: false, BENCHMARK_LA
 
 import { NavLinks } from './Layout';
 import { mobileNavLinkClass } from './layout-view';
-import {
-  NO_EXPERIMENTS,
-  persistExperimentalFeatures,
-  readExperimentalFeatures,
-  type ExperimentalFeatures,
-  type PreferenceStore,
-} from './experimental-features';
+import { NO_EXPERIMENTS, type ExperimentalFeatures } from './experimental-features';
 import { navEntries, type RoleResolution } from './role';
 import { partial } from './styles/stylesheet';
 
@@ -168,16 +162,12 @@ describe('flipping it is wired to something', () => {
     expect(navEntries('admin', on).some((entry) => entry.to === '/benchmarks')).toBe(true);
   });
 
-  it('survives a reload, by writing what a later read recognises', () => {
-    const written = new Map<string, string>();
-    const store: PreferenceStore = {
-      getItem: (key) => written.get(key) ?? null,
-      setItem: (key, value) => void written.set(key, value),
-    };
-    expect(persistExperimentalFeatures(on, store)).toBe(true);
-    expect(readExperimentalFeatures(store)).toEqual(on);
-    persistExperimentalFeatures(off, store);
-    expect(readExperimentalFeatures(store)).toEqual(off);
+  it('loads and saves the deployment-wide value through the durable API', () => {
+    const layout = readFileSync(new URL('Layout.tsx', import.meta.url), 'utf8');
+    const settings = readFileSync(new URL('SettingsPage.tsx', import.meta.url), 'utf8');
+    expect(layout).toContain('loadExperimentalSettings()');
+    expect(settings).toContain('saveExperimentalSettings(experimentalRevision, patch)');
+    expect(layout).not.toContain('persistExperimentalFeatures');
   });
 
   it('draws the Benchmarking switch in the Experimental table’s current order', () => {
@@ -190,7 +180,7 @@ describe('flipping it is wired to something', () => {
     expect(source).toContain("withExperimentalFeature(current, 'benchmarkLab', enabled)");
     expect(source).toContain("withExperimentalFeature(current, 'forecasting', enabled)");
     expect(source).toContain("withExperimentalFeature(current, 'egressControls', enabled)");
-    expect(source).toContain('setFeature(name, draftFeatures[name])');
+    expect(source).toContain('saveExperimentalSettings(experimentalRevision, patch)');
     expect(source).not.toMatch(/setFeature\('spIdentities'/);
     expect(source).toMatch(/persistSpIdentityMode/);
     expect(source).toMatch(/loadSpIdentityAdmin/);

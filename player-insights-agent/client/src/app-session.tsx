@@ -24,7 +24,7 @@ export const APP_SESSION_TIMEOUT_KEY = 'astrolabe.app-session.timed-out';
 export const USER_ACTIVITY_THROTTLE_MS = 60_000;
 export const SIGN_OUT_END_WAIT_MS = 1_500;
 
-type AppSessionState = 'booting' | 'ready' | 'timed-out' | 'unavailable';
+export type AppSessionState = 'booting' | 'ready' | 'timed-out' | 'unavailable';
 type Listener = () => void;
 export type AppSessionFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -290,7 +290,7 @@ export function returnToSignIn(
   navigate(NATIVE_APP_SIGN_OUT_PATH);
 }
 
-function SessionTimedOut() {
+export function SessionTimedOut() {
   return (
     <main className="app-session-block" role="alert" aria-labelledby="app-session-timeout-title">
       <section className="app-session-card">
@@ -311,7 +311,7 @@ function SessionTimedOut() {
   );
 }
 
-function SessionUnavailable() {
+export function SessionUnavailable() {
   return (
     <main className="app-session-block" role="alert" aria-labelledby="app-session-unavailable-title">
       <section className="app-session-card">
@@ -327,7 +327,7 @@ function SessionUnavailable() {
 }
 
 export function AppSessionBoundary({ children }: { children: ReactNode }) {
-  const current = useSyncExternalStore(subscribe, currentState, currentState);
+  const current = useAppSessionState();
   useEffect(() => {
     void bootstrapAppSession();
   }, []);
@@ -344,6 +344,11 @@ export function AppSessionBoundary({ children }: { children: ReactNode }) {
     );
   }
   return children;
+}
+
+/** The startup coordinator reads the same module latch as timeout handling. */
+export function useAppSessionState(): AppSessionState {
+  return useSyncExternalStore(subscribe, currentState, currentState);
 }
 
 /** Test isolation for the module-level fetch/session latch. */

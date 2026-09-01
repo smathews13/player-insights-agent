@@ -179,7 +179,7 @@ describe('the night sky belongs to dark mode alone', () => {
      * later "improvement" from reintroducing exactly that flash.
      */
     expect(code('AppSky.tsx')).not.toMatch(/data-theme|appliedColorScheme|matchMedia/);
-    expect(source('Layout.tsx')).toContain('<AppSky cover={skyCoversShell(firstOpen.stage)} />');
+    expect(source('Layout.tsx')).toContain('<AppSky />');
     expect(code('Layout.tsx')).not.toMatch(/data-theme|appliedColorScheme/);
   });
 

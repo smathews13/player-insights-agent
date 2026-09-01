@@ -108,6 +108,10 @@ function traffic(): OpsTrafficPayload {
     refusalsByCause: [],
     toolCalls: [],
     runsInRange: 7,
+    breakdownCoverage: {
+      outcomes: { state: 'complete', coveredRuns: 7, reason: '' },
+      toolCalls: { state: 'complete', coveredRuns: 7, reason: '' },
+    },
   };
 }
 
@@ -215,11 +219,16 @@ describe('Forecasting visibility and placement', () => {
     expect(markup.indexOf('experimental-pane-badge')).toBeLessThan(markup.indexOf('>Forecasting</h3>'));
     expect(markup).toContain('Projected breakdown');
     expect(markup).toContain('Projected cost breakdown by horizon');
+    expect(markup).toContain('<th scope="row">App compute</th>');
+    expect(markup).toContain('Users × active minutes per user per day × observed app cost per active minute');
     expect(markup).toMatch(/<th scope="col">Component<\/th>/);
     expect(markup).toMatch(/<th scope="col">Next 7 days<\/th>/);
     expect(markup).toMatch(/<th scope="col">Next 30 days<\/th>/);
     expect(markup).toMatch(/<th scope="col">Six months<\/th>/);
     expect(markup).toMatch(/<tfoot>[\s\S]*?<th scope="row">Total<\/th>/);
+    expect(markup).not.toContain('Not included');
+    expect(markup).not.toContain('Limits');
+    expect(markup).not.toContain('token coverage');
   });
 
   it('renders exact calculated component horizons, omits unpriced rows, and matches headline subtotals', () => {
@@ -282,7 +291,7 @@ describe('Forecasting visibility and placement', () => {
       expect(breakdown).toContain(`<th scope="row">${component}</th>`);
     }
     expect(breakdown).not.toContain('Dictionary Genie');
-    expect(markup).toContain('Dictionary Genie pricing is unavailable.');
+    expect(markup).not.toContain('Dictionary Genie pricing is unavailable.');
     expect(breakdown).toContain('<th scope="row">Subtotal</th>');
     expect(markup.match(/84\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
     expect(markup.match(/360\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
@@ -299,7 +308,7 @@ describe('Forecasting visibility and placement', () => {
     const projection = markup.slice(markup.indexOf('ops-forecast-horizons'), markup.indexOf('ops-forecast-method'));
     expect(projection).toContain('DBU');
     expect(projection).not.toContain(' USD');
-    expect(markup).toContain('do not apply a USD conversion rate');
+    expect(markup).not.toContain('USD conversion rate');
   });
 
   it('renders loading, unavailable, and partial states without inventing totals', () => {
@@ -333,13 +342,13 @@ describe('Forecasting visibility and placement', () => {
       </MemoryRouter>
     );
     expect(partial).not.toContain('Partial estimate');
-    expect(partial).toContain('Partial list-price coverage; spend withheld.');
-    expect(partial).toContain('Not included');
     expect(partial).toContain('estimated subtotal');
     expect(partial).not.toContain('<span>Serving endpoint</span>');
+    expect(partial).not.toContain('Not included');
+    expect(partial).not.toContain('Limits');
   });
 
-  it('uses compact responsive rows and the shared methodology structure', () => {
+  it('shows unavailable App compute in place and ends methodology after formulas', () => {
     const payload = cost();
     payload.perQuestion = { ...payload.perQuestion, runsInRange: 8, tokenCoveredRuns: 2 };
     const trafficPayload = traffic();
@@ -351,8 +360,13 @@ describe('Forecasting visibility and placement', () => {
     );
     expect(markup).toContain('Next 30 days');
     expect(markup).not.toContain('ops-period-pill');
-    expect(markup).toContain('Serving token coverage is partial');
-    expect(markup.match(/Active-minute/g)).toHaveLength(1);
+    expect(markup).not.toContain('Serving token coverage is partial');
+    expect(markup.match(/Active-minute/g)).toHaveLength(3);
+    expect(markup).toContain('<th scope="row">App compute</th>');
+    expect(markup.match(/Unavailable/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(markup).toContain('Users × active minutes per user per day × observed app cost per active minute');
+    expect(markup).not.toContain('Not included');
+    expect(markup).not.toContain('Limits');
     expect(OPS_CSS).toMatch(/\.ops-methodology-rows > div\s*\{[\s\S]*grid-template-columns:/);
     expect(OPS_CSS).toMatch(
       /\.ops-ticker-assumption-grid\s*\{[^}]*grid-template-columns:\s*repeat\(var\(--ops-assumption-columns\),\s*minmax\(0,\s*1fr\)\)/

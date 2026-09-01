@@ -59,12 +59,12 @@ describe('the first-open card', () => {
     const card = rule('.first-open-card');
     // Bounded, so the card's own edges stay visible and the reader can see that
     // there is more of it to reach. 32px is the overlay's 16px padding, doubled.
-    expect(card).toMatch(/max-height:\s*calc\(100vh - 32px\)/);
+    expect(card).toMatch(/max-height:\s*calc\(100dvh - 32px\)/);
     // And the two have to stay in step: a cap that does not equal the overlay's
     // own padding either wastes room the card needed or lets it run under the
     // edge of the screen. Read off the stylesheet rather than restated.
     const overlayPadding = Number(rule('.first-open').match(/padding:\s*(\d+)px/)?.[1] ?? 0);
-    const cap = Number(card.match(/max-height:\s*calc\(100vh - (\d+)px\)/)?.[1] ?? 0);
+    const cap = Number(card.match(/max-height:\s*calc\(100dvh - (\d+)px\)/)?.[1] ?? 0);
     expect(cap).toBe(overlayPadding * 2);
     expect(card).toContain('overflow-y: auto');
   });

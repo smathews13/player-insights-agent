@@ -142,6 +142,10 @@ function traffic(overrides: Partial<OpsTrafficPayload> = {}): OpsTrafficPayload 
     refusalsByCause: [],
     toolCalls: [],
     runsInRange: 7,
+    breakdownCoverage: {
+      outcomes: { state: 'complete', coveredRuns: 7, reason: '' },
+      toolCalls: { state: 'complete', coveredRuns: 7, reason: '' },
+    },
     ...overrides,
   };
 }
@@ -179,7 +183,9 @@ describe('forecast arithmetic', () => {
     expect(result.horizons[1].total).toBeCloseTo(240);
     expect(result.horizons[2].total).toBeCloseTo(1440);
     for (const horizon of result.horizons) {
-      expect(horizon.components.reduce((total, component) => total + component.amount, 0)).toBeCloseTo(horizon.total!);
+      expect(horizon.components.reduce((total, component) => total + (component.amount ?? 0), 0)).toBeCloseTo(
+        horizon.total!
+      );
       expect(new Set(horizon.components.map((component) => component.id)).size).toBe(horizon.components.length);
     }
     expect(JSON.stringify(result)).not.toMatch(/buffer|contingency/i);
@@ -333,10 +339,14 @@ describe('missing and excluded baselines', () => {
     );
     const result = calculateForecast(baseline, baseline.defaults);
 
-    expect(result.components.map((component) => component.id)).toEqual(['vector-search']);
+    expect(result.components.map((component) => [component.id, component.dailyAmount])).toEqual([
+      ['app-compute', null],
+      ['vector-search', 3],
+    ]);
     expect(baseline.exclusions.map((item) => item.component)).toEqual(
-      expect.arrayContaining(['Serving endpoint', 'Astrolabe SQL', 'App compute', 'Data Genie'])
+      expect.arrayContaining(['Serving endpoint', 'Astrolabe SQL', 'Data Genie'])
     );
+    expect(baseline.exclusions.map((item) => item.component)).not.toContain('App compute');
     expect(baseline.exclusions.find((item) => item.component === 'Astrolabe SQL')?.reason).toContain(
       'Query History is incomplete'
     );
@@ -360,11 +370,51 @@ describe('missing and excluded baselines', () => {
 
   it('withholds app cost per minute when heartbeat coverage does not span the Cost window', () => {
     const baseline = deriveForecastBaseline(cost(), traffic({ activeMinutesRecordedFrom: '2026-08-12T12:00:00.000Z' }));
+    const result = calculateForecast(baseline, baseline.defaults);
 
     expect(baseline.observed.appCostPerActiveMinute).toBeNull();
-    expect(baseline.exclusions.find((item) => item.component === 'App compute')?.reason).toContain(
-      'starts after the Cost window begins'
-    );
+    expect(baseline.appComputeUnavailable).toContain('starts after the Cost window begins');
+    const appCompute = result.components.find((item) => item.id === 'app-compute');
+    expect(appCompute?.dailyAmount).toBeNull();
+    expect(appCompute?.unavailable).toContain('starts after the Cost window begins');
+    expect(result.horizons[0].components.find((item) => item.id === 'app-compute')?.amount).toBeNull();
+    expect(result.horizons[0].total).toBeCloseTo(42);
+  });
+
+  it.each([
+    ['USD', 2, 56, 240],
+    ['DBU', 1, 17.5, 75],
+  ] as const)(
+    'projects measured App compute in %s without conversion or double counting',
+    (unit, appDaily, next7, next30) => {
+      const payload = cost({ currency: unit });
+      payload.tiles = payload.tiles.map((tile) =>
+        tile.id === 'app-compute' ? { ...tile, amount: appDaily, dbus: unit === 'DBU' ? appDaily : tile.dbus } : tile
+      );
+      if (unit === 'DBU') {
+        payload.tiles = payload.tiles.map((tile) => ({
+          ...tile,
+          dbus: tile.id === 'serving-endpoint' ? 7 : tile.id === 'sql-warehouse' ? 3.5 : tile.dbus,
+        }));
+      }
+      const baseline = deriveForecastBaseline(payload, traffic(), unit);
+      const result = calculateForecast(baseline, baseline.defaults);
+
+      expect(result.components.find((item) => item.id === 'app-compute')?.dailyAmount).toBe(appDaily);
+      expect(result.horizons[0].total).toBeCloseTo(next7);
+      expect(result.horizons[1].total).toBeCloseTo(next30);
+    }
+  );
+
+  it('keeps a measured zero App compute row and includes zero in reconciled totals', () => {
+    const payload = cost();
+    payload.tiles = payload.tiles.map((tile) => (tile.id === 'app-compute' ? { ...tile, amount: 0 } : tile));
+    const baseline = deriveForecastBaseline(payload, traffic());
+    const result = calculateForecast(baseline, baseline.defaults);
+
+    expect(result.components.find((item) => item.id === 'app-compute')?.dailyAmount).toBe(0);
+    expect(result.horizons[0].components.find((item) => item.id === 'app-compute')?.amount).toBe(0);
+    expect(result.horizons[0].total).toBeCloseTo(42);
   });
 });
 

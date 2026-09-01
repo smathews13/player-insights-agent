@@ -481,6 +481,21 @@ html:has(.connections-page) body[data-scroll-locked] {
   color: var(--muted-foreground);
   font-size: var(--text-xs);
 }
+.connection-row-state {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.connection-row-state[data-tone='reachable'] {
+  color: var(--ast-pos-text);
+}
+.connection-row-state[data-tone='blocked'] {
+  color: var(--ast-neg-text);
+}
+.connection-row-state[data-tone='drifted'] {
+  color: var(--ast-warn-deep);
+}
 .connection-row-affordance {
   flex: none;
   margin-left: auto;
@@ -496,6 +511,59 @@ html:has(.connections-page) body[data-scroll-locked] {
   gap: 10px;
   padding: 12px 16px 16px;
   font-size: var(--text-base);
+}
+.connection-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 24px;
+  margin: 0;
+}
+.connection-detail {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  min-width: 0;
+}
+.connection-detail dt {
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+.connection-detail dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--ast-text-long);
+}
+@media (max-width: 800px) {
+  .connection-row-state {
+    flex-basis: 100%;
+    margin-left: 42px;
+  }
+  .connection-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .connection-detail {
+    grid-template-columns: 104px minmax(0, 1fr);
+  }
+}
+.connection-empty-detail,
+.connection-drift-status {
+  margin: 0;
+}
+.connection-empty-detail {
+  color: var(--muted-foreground);
+}
+.connection-drift {
+  display: grid;
+  gap: 6px;
+}
+.connection-drift-status {
+  color: var(--ast-neg-text);
+  font-size: var(--text-sm);
+  font-weight: 500;
 }
 /* Two readings of one value, side by side, which is the comparison the whole
    page exists to make. It stacks on a narrow screen, because two 12px monospace
@@ -603,6 +671,7 @@ html:has(.connections-page) body[data-scroll-locked] {
   flex-wrap: wrap;
   gap: 8px;
   margin-left: auto;
+  justify-content: flex-end;
 }
 .connection-row-tier-note strong {
   color: var(--ast-text-long);
@@ -963,26 +1032,14 @@ html:has(.connections-page) body[data-scroll-locked] {
   font-size: var(--text-base);
   color: var(--muted-foreground);
 }
-/*
- * TWO CARDS, TWO LABEL COLUMNS, which is the handoff's and is not a rounding
- * difference. The Build card asks for 110px and the Identity card for 150px,
- * and one shared 140px split the difference in the direction that costs the
- * most: the Build card carries its two grids SIDE BY SIDE, so every pixel the
- * label column takes comes off a value column that is already a quarter of the
- * page, and the value it comes off first is the app endpoint -- the longest
- * string on the card and the one the handoff wants legible to 420px. Thirty
- * pixels there is about four characters of a hostname.
- *
- * The Identity card runs one column at full card width and its longest label,
- * "Questions run as", wants the room. Neither can wrap: these rows are read as
- * a column, and a label that took a second line would push its own value out of
- * step with the rows above it.
- */
+/* Build keeps its wider value column. Identity uses three compact groups below,
+   where shorter labels leave room for IDs and hostnames. */
 .deployment-card-build .identity-fact-label {
   flex-basis: 110px;
 }
 .deployment-card-identity .identity-fact-label {
-  flex-basis: 150px;
+  flex-basis: 96px;
+  font-size: var(--text-sm);
 }
 .identity-fact-value {
   display: flex;
@@ -1016,20 +1073,29 @@ html:has(.connections-page) body[data-scroll-locked] {
   width: 100%;
   height: 100%;
 }
+/* The three identity subjects are one compact band at desktop widths. Each
+   group owns its boundary, so removing the former lower sections leaves no
+   divider or reserved whitespace behind. */
+.deployment-card-identity-body {
+  gap: 0;
+  padding: 8px;
+}
+.identity-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+  min-width: 0;
+}
 .identity-section {
   min-width: 0;
-  padding: 12px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
 }
-.identity-section:first-child {
-  padding-top: 0;
-}
-.identity-section + .identity-section,
-.identity-section + .identity-scope-table-wrap {
-  border-top: 1px solid var(--border);
-}
-.identity-section h4,
-.identity-scope-title {
-  margin: 0 0 8px;
+.identity-section h4 {
+  margin: 0 0 6px;
   color: var(--ast-text-long);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -1038,25 +1104,30 @@ html:has(.connections-page) body[data-scroll-locked] {
 }
 .identity-section-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px 28px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
 }
 .identity-section-grid .identity-fact {
   min-width: 0;
 }
+.deployment-card-identity .identity-fact {
+  min-height: 22px;
+  gap: 6px;
+}
+.deployment-card-identity .identity-fact-value {
+  gap: 4px;
+  overflow: hidden;
+  font-size: var(--text-sm);
+}
 .identity-full-value {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   overflow-wrap: anywhere;
 }
 .identity-not-reported {
   color: var(--muted-foreground);
-}
-.identity-boundary ul {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding-left: 18px;
-  color: var(--ast-text-long);
 }
 /*
  * Whether the half of the deployment a stamp names is working.
@@ -1074,92 +1145,12 @@ html:has(.connections-page) body[data-scroll-locked] {
   white-space: nowrap;
 }
 
-/* A long fact can still use the ordinary label/value grid above the table. */
+/* A long fact can align its label with a wrapping value. */
 .identity-fact[data-wrap='true'] {
   align-items: flex-start;
 }
 .identity-fact[data-wrap='true'] .identity-fact-label {
   padding-top: 3px;
-}
-
-/* Permissions are reference data, not tags: two explicit columns keep every
-   exact scope beside the explanation a reader needs to understand it.
-
-   AND IT IS ITS OWN BLOCK. The card's 6px row gap is the spacing between facts
-   that are read as one column; the table is a different kind of thing, and at
-   6px its header row sat flush under "App client id" and read as a third
-   identity row. The rule and the room above it say where the facts stop. */
-.identity-scope-table-wrap {
-  width: 100%;
-  overflow-x: auto;
-  padding-top: 12px;
-}
-.identity-scope-table {
-  width: 100%;
-  min-width: 720px;
-  border-collapse: collapse;
-  font-size: var(--text-base);
-}
-.identity-scope-table th,
-.identity-scope-table td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  vertical-align: top;
-}
-.identity-scope-table th {
-  font-weight: 600;
-  color: var(--ast-text);
-  background: var(--muted);
-}
-.identity-scope-table th:first-child,
-.identity-scope-table td:first-child {
-  width: 30%;
-}
-.identity-scope-table code {
-  font-size: var(--text-sm);
-  color: var(--ast-text-long);
-  overflow-wrap: anywhere;
-}
-/*
- * The scope, as a granted chip.
- *
- * It carries `.ast-pill--pos` for the fill, the edge and the green, so there is no
- * colour declared here -- the app has one positive family and this is it. What this
- * rule does is let a chip hold a monospace string, which the recipe was not written
- * for: the pill sets its own 11px label face, and a scope name has to stay in the
- * mono face at the table's own size or it stops being the exact string a reader
- * copies into app.yaml.
- *
- * `align-items: baseline` rather than `center`, which the pill sets: a mono
- * descender against an 11px tick is the one case where centring the box leaves the
- * text looking a pixel low.
- *
- * Wrapping is allowed. `vectorsearch.vector-search-indexes:read` is 38 characters
- * in a column that is 36% of a card, and a chip that refuses to wrap either
- * overflows the cell or forces the Details column into two words per line.
- */
-.identity-scope-code {
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
-}
-/* Anything after the table needs the same break, in the other direction. */
-.identity-scope-table-wrap + .identity-fact {
-  margin-top: 10px;
-}
-
-/* ── Sign in again ──────────────────────────────────────────────────────────
-   The one value on this card a reader ACTS on, so it carries weight, and it is a
-   row like every other rather than a washed box: the box, its lead paragraph and
-   its closing caveat were three lines restating what What to fix says once at the
-   top of the same page. Weighted, not tinted -- the sign-in authenticates fine
-   and is short of a permission, which is not a failure and must not be drawn as
-   one, and the amber is already on the chips in the row above. */
-.identity-stale-do {
-  font-size: var(--text-base);
-  line-height: 1.45;
-  font-weight: 500;
-  color: var(--ast-text);
 }
 
 /* ── The two deployment cards ───────────────────────────────────────────────
@@ -1640,6 +1631,12 @@ html:has(.connections-page) body[data-scroll-locked] {
 .plane-error {
   font-size: var(--ast-fs-12);
   color: var(--ast-neg-text);
+}
+.plane-success {
+  display: block;
+  padding: 8px 16px;
+  color: var(--ast-pos-text);
+  font-size: var(--text-sm);
 }
 /* The confirmation a removal asks for, carrying what stops working. Warning
    rather than danger: nothing has happened yet, and the reader can still keep

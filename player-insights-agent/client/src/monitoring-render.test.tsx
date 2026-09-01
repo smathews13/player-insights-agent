@@ -7,6 +7,7 @@ import {
   FilterRow,
   MonitoringBody,
   MONITORING_COMPACT_QUERY,
+  MonitoringHeading,
   MonitoringPaginationControls,
   MonitoringPage,
   PersonPanel,
@@ -17,6 +18,7 @@ import {
   SummaryStrip,
   TablesReadMost,
 } from './MonitoringPage';
+import { monitoringPageForOwner } from './monitoring-session';
 import { GRANTS_UNRESOLVED_LINE, LIVE_VERSUS_RECORDED } from './monitoring-view';
 import { NO_FILTERS, type MonitoringFilters } from './monitoring-filters';
 import type {
@@ -57,6 +59,10 @@ function text(markup: string): string {
 
 function render(node: React.ReactElement): string {
   return renderToStaticMarkup(<MemoryRouter>{node}</MemoryRouter>);
+}
+
+function renderAt(node: React.ReactElement, entry: string): string {
+  return renderToStaticMarkup(<MemoryRouter initialEntries={[entry]}>{node}</MemoryRouter>);
 }
 
 /** How many times a phrase appears, for the tests that care about duplicates. */
@@ -127,7 +133,7 @@ function body(
       payload={data}
       questions={data?.questions ?? []}
       filters={filters}
-      rangeLabel="last 7 days"
+      rangeLabel="7 days"
       selectedId=""
       now={NOW}
       onOpen={() => {}}
@@ -161,16 +167,39 @@ describe('who asked, in the list', () => {
 });
 
 describe('the summary strip', () => {
-  it('labels and counts distinct conversation threads, not distinct people', () => {
-    const rendered = text(render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />));
+  it.each(['24h', '7 days', '30 days', 'All time'])(
+    'puts the active %s badge on every KPI card without repeating it in each accessible name',
+    (periodLabel) => {
+      const markup = render(<SummaryStrip payload={payload()} periodLabel={periodLabel} />);
+      const cards = markup.match(/<div class="monitoring-tile[^"]*"[^>]*aria-label="[^"]*"[\s\S]*?<\/div>/g) ?? [];
 
-    expect(rendered).toContain('User threads 17');
+      expect(markup.match(/monitoring-period-badge/g)).toHaveLength(5);
+      expect(markup.match(/monitoring-period-badge" aria-hidden="true"/g)).toHaveLength(5);
+      expect(cards).toHaveLength(5);
+      for (const card of cards) {
+        const openingTag = card.slice(0, card.indexOf('>') + 1);
+        expect(occurrences(openingTag, periodLabel)).toBe(1);
+      }
+    }
+  );
+
+  it('does not turn All time into a fixed-day label', () => {
+    const rendered = text(render(<SummaryStrip payload={payload()} periodLabel="All time" />));
+
+    expect(rendered).toContain('All time');
+    expect(rendered).not.toMatch(/(?:last|past)\s+\d+\s+days/i);
+  });
+
+  it('labels and counts distinct conversation threads, not distinct people', () => {
+    const rendered = text(render(<SummaryStrip payload={payload()} periodLabel="7 days" />));
+
+    expect(rendered).toContain('User threads 7 days 17');
     expect(rendered).toContain('Distinct conversation threads');
     expect(rendered).not.toContain('People asking');
   });
 
   it('shows each outcome as its own labelled metric and never merges refused with failed', () => {
-    const markup = render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />);
+    const markup = render(<SummaryStrip payload={payload()} periodLabel="7 days" />);
     const rendered = text(markup);
 
     expect(markup).toContain('aria-label="Final run outcomes"');
@@ -186,7 +215,7 @@ describe('the summary strip', () => {
   });
 
   it('carries the word for each outcome, so nothing rides on colour alone', () => {
-    const markup = render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />);
+    const markup = render(<SummaryStrip payload={payload()} periodLabel="7 days" />);
 
     // The colours are applied to spans whose meaning is in the label above them.
     expect(markup).toContain('monitoring-refused');
@@ -196,13 +225,11 @@ describe('the summary strip', () => {
   });
 
   it('names the denominator beside the rated share', () => {
-    expect(text(render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />))).toContain(
-      '36 of 46 rated answers'
-    );
+    expect(text(render(<SummaryStrip payload={payload()} periodLabel="7 days" />))).toContain('36 of 46 rated answers');
   });
 
   it('gives every KPI a concise information line', () => {
-    const rendered = text(render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />));
+    const rendered = text(render(<SummaryStrip payload={payload()} periodLabel="7 days" />));
 
     expect(rendered).toContain('Submitted in this period');
     expect(rendered).toContain('Distinct conversation threads');
@@ -215,7 +242,7 @@ describe('the summary strip', () => {
     const unrated = payload({
       summary: { ...payload().summary, ratedUp: 0, ratedTotal: 0 },
     });
-    const rendered = text(render(<SummaryStrip payload={unrated} rangeLabel="last 7 days" />));
+    const rendered = text(render(<SummaryStrip payload={unrated} periodLabel="7 days" />));
 
     expect(rendered).toContain('Not rated yet');
     expect(rendered).toContain('No rated answers in this period');
@@ -233,7 +260,7 @@ describe('the summary strip', () => {
         failed: 0,
       },
     });
-    const markup = render(<SummaryStrip payload={empty} rangeLabel="last 7 days" />);
+    const markup = render(<SummaryStrip payload={empty} periodLabel="7 days" />);
 
     expect(markup.match(/monitoring-outcome-value-zero/g)).toHaveLength(4);
     for (const label of ['Completed', 'Partial', 'Refused', 'Failed']) {
@@ -260,9 +287,7 @@ describe('the summary strip', () => {
     },
   ])('renders plain finished-question copy for $label outcomes', ({ counts, expected }) => {
     const rendered = text(
-      render(
-        <SummaryStrip payload={payload({ summary: { ...payload().summary, ...counts } })} rangeLabel="last 7 days" />
-      )
+      render(<SummaryStrip payload={payload({ summary: { ...payload().summary, ...counts } })} periodLabel="7 days" />)
     );
 
     expect(rendered).toContain(expected);
@@ -280,7 +305,7 @@ describe('the summary strip', () => {
         failed: 3_000,
       },
     });
-    const markup = render(<SummaryStrip payload={large} rangeLabel="last 7 days" />);
+    const markup = render(<SummaryStrip payload={large} periodLabel="7 days" />);
 
     expect(markup).toContain('aria-label="Completed: 81,234"');
     expect(markup).toContain('aria-label="Partial: 4,000"');
@@ -299,7 +324,7 @@ describe('the summary strip', () => {
         timedCount: 0,
       },
     });
-    const rendered = text(render(<SummaryStrip payload={missing} rangeLabel="last 7 days" />));
+    const rendered = text(render(<SummaryStrip payload={missing} periodLabel="7 days" />));
 
     expect(rendered).toContain('Not rated yet No rated answers in this period');
     expect(rendered).toContain('No run times recorded Over 0 of 12 runs');
@@ -524,46 +549,82 @@ describe('removing a filter', () => {
     expect(text(markup)).toContain('Clear filters');
   });
 
-  /**
-   * THE PERIOD IS NOT CLEARABLE AND MUST NOT LOOK AS IF IT IS.
-   *
-   * A question list is always over some window, so there is no state this
-   * control can be in that is the absence of a choice. The fix for Sam's
-   * complaint is therefore not a cross on it — that would have to do nothing —
-   * but for it to stop reading as one of the removable chips beside it. It
-   * carries a standing label, its own group, and a rule separating it from them.
-   */
-  it('draws the period as a required selector rather than a removable filter', () => {
-    const markup = withEverythingSet();
-
-    expect(markup).toContain('monitoring-period');
-    expect(text(markup)).toContain('Period');
-    // Its own group and the divider that separates it from the chips.
-    expect(markup).toContain('monitoring-filters-rule');
-    // A radio group, which is what "exactly one of these, always" means to a
-    // screen reader. Not a set of independent buttons.
-    expect(markup).toContain('role="radiogroup"');
-    expect(markup).toContain('aria-label="Time range for Monitoring"');
-  });
-
-  /** No cross on it, at any setting, because there is nothing for one to do. */
-  it('offers no clear button on the period', () => {
+  it('contains only secondary filters, with no old Period field or divider', () => {
     for (const markup of [withEverythingSet(), unfiltered()]) {
+      expect(text(markup)).not.toContain('Period');
+      expect(markup).not.toContain('role="radiogroup"');
+      expect(markup).not.toContain('monitoring-heading-period');
+      expect(markup).not.toContain('monitoring-filters-rule');
       expect(markup).not.toContain('aria-label="Clear the period filter"');
       expect(markup).not.toContain('aria-label="Clear the time range"');
     }
   });
+});
 
-  it('offers only the four supported preset periods', () => {
-    const markup = unfiltered();
+describe('the Monitoring heading actions', () => {
+  it.each([
+    ['/monitoring?range=24h', '24h'],
+    ['/monitoring', '7 days'],
+    ['/monitoring?range=30d', '30 days'],
+    ['/monitoring?range=all', 'All time'],
+  ])('selects %s in the heading before the KPI DOM', (entry, selected) => {
+    const markup = renderAt(
+      <>
+        <MonitoringHeading loading={false} checkedAt="" now={NOW} onRefresh={() => {}} />
+        <SummaryStrip payload={payload()} periodLabel={selected} />
+      </>,
+      entry
+    );
 
-    for (const label of ['24h', '7 days', '30 days', 'All time']) {
-      expect(markup).toContain(`>${label}<`);
-    }
-    expect(markup.match(/role="radio"/g)).toHaveLength(4);
-    expect(markup).not.toContain('>Custom<');
-    expect(markup).not.toContain('type="date"');
-    expect(markup).not.toContain('Pick both dates');
+    expect(markup.indexOf('<h2>Monitoring</h2>')).toBeLessThan(markup.indexOf('monitoring-strip'));
+    expect(markup.indexOf('monitoring-heading-actions')).toBeLessThan(markup.indexOf('monitoring-strip'));
+    expect(markup).toContain('aria-label="Time range for Monitoring"');
+    expect(markup).toMatch(new RegExp(`aria-checked="true"[^>]*>${selected}</button>`));
+    expect(text(markup)).toContain('Refresh');
+  });
+
+  it('keeps Period visual-only because the radio group already has the accessible name', () => {
+    const markup = render(<MonitoringHeading loading={false} checkedAt="" now={NOW} onRefresh={() => {}} />);
+
+    expect(markup).toContain('monitoring-heading-period-label" aria-hidden="true">Period');
+    expect(markup.match(/aria-label="Time range for Monitoring"/g)).toHaveLength(1);
+  });
+
+  it('shows a subtle refresh state without replacing retained KPIs or rows with skeletons', () => {
+    const data = payload();
+    const markup = render(
+      <>
+        <MonitoringHeading loading checkedAt={data.readAt} now={NOW} onRefresh={() => {}} />
+        <MonitoringBody
+          state="ready"
+          payload={data}
+          questions={data.questions}
+          filters={NO_FILTERS}
+          rangeLabel="7 days"
+          selectedId=""
+          now={NOW}
+          onOpen={() => {}}
+          onChangeFilters={() => {}}
+          onClearFilters={() => {}}
+          onRetry={() => {}}
+        />
+      </>
+    );
+
+    expect(text(markup)).toContain('Refreshing…');
+    expect(text(markup)).toContain('Questions asked 7 days 214');
+    expect(text(markup)).toContain('Compare active players by title over the last 30 days');
+    expect(markup).not.toContain('animate-pulse');
+  });
+});
+
+describe('period-change pagination', () => {
+  it('returns to page one when the normalized range changes the request owner', () => {
+    const pages = { owner: '7d|from-a|to-a|filters', cursors: ['', 'page-2', 'page-3'], index: 2 };
+
+    expect(monitoringPageForOwner(pages.owner, pages)).toBe(2);
+    expect(monitoringPageForOwner('30d|from-b|to-b|filters', pages)).toBe(0);
+    expect(monitoringPageForOwner('all|1970-01-01|to-b|filters', pages)).toBe(0);
   });
 });
 

@@ -28,6 +28,11 @@ import type { Conversation, Run } from './app-types';
 import { listAvailability, listUnreachable, type ListAvailability } from './list-availability';
 import { railRunSummaries, type RailRunSummary } from './rail-run-summary';
 import { applyRememberedRunLabelOverrides, applyRememberedRunLabelOverridesToConversations } from './run-header-labels';
+import {
+  conversationFilterQueryString,
+  type ConversationAvailablePersona,
+  type ConversationFilterSelection,
+} from '../../shared/conversation-filters';
 
 export interface InitialRail {
   /**
@@ -50,6 +55,12 @@ export interface InitialRail {
    * render it as a sentence.
    */
   conversations: Conversation[] | null;
+  /** Server-computed matches within conversations; null means every row. */
+  matchingConversationIds: string[] | null;
+  /** Current persona definitions when the admin-only read succeeded. */
+  availablePersonas: ConversationAvailablePersona[] | null;
+  /** Exact persisted-evidence rule returned to administrators. */
+  personaFilterRule: string | null;
   availability: ListAvailability;
 }
 
@@ -74,7 +85,10 @@ export async function readRunSummaries(signal?: AbortSignal): Promise<Map<string
   }
 }
 
-export type ConversationList = Pick<InitialRail, 'conversations' | 'availability'>;
+export type ConversationList = Pick<
+  InitialRail,
+  'conversations' | 'matchingConversationIds' | 'availablePersonas' | 'personaFilterRule' | 'availability'
+>;
 
 /**
  * The canonical list of conversations in Lakebase.
@@ -83,19 +97,61 @@ export type ConversationList = Pick<InitialRail, 'conversations' | 'availability
  * conversation filter. Runs can describe a conversation, but they no longer
  * decide whether that conversation exists.
  */
-export async function readConversationList(): Promise<ConversationList> {
+export async function readConversationList(
+  filters?: ConversationFilterSelection,
+  signal?: AbortSignal
+): Promise<ConversationList> {
   try {
-    const response = await fetch('/api/conversations');
+    const query = filters ? conversationFilterQueryString(filters) : '';
+    const url = `/api/conversations${query ? `?${query}` : ''}`;
+    const response = signal ? await fetch(url, { signal }) : await fetch(url);
     if (!response.ok) throw new Error('Conversations unavailable');
-    const items = (await response.json()) as Conversation[];
+    const payload: unknown = await response.json();
+    const sharedPayload =
+      payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? (payload as {
+            conversations?: unknown;
+            matching_conversation_ids?: unknown;
+            available_personas?: unknown;
+            persona_filter_rule?: unknown;
+          })
+        : null;
+    const rawItems = sharedPayload?.conversations ?? payload;
+    if (!Array.isArray(rawItems)) throw new Error('Conversations returned an invalid response');
+    const items = rawItems as Conversation[];
+    const rawMatches = sharedPayload?.matching_conversation_ids;
+    const matchingConversationIds =
+      Array.isArray(rawMatches) && rawMatches.every((value) => typeof value === 'string') ? rawMatches : null;
+    const rawPersonas = sharedPayload?.available_personas;
+    const availablePersonas =
+      Array.isArray(rawPersonas) &&
+      rawPersonas.every(
+        (value) =>
+          value &&
+          typeof value === 'object' &&
+          typeof (value as { id?: unknown }).id === 'string' &&
+          typeof (value as { name?: unknown }).name === 'string'
+      )
+        ? (rawPersonas as ConversationAvailablePersona[])
+        : null;
     return {
       conversations: applyRememberedRunLabelOverridesToConversations(items),
+      matchingConversationIds,
+      availablePersonas,
+      personaFilterRule:
+        typeof sharedPayload?.persona_filter_rule === 'string' ? sharedPayload.persona_filter_rule : null,
       // From the headers rather than from the row count: an unreadable store
       // answers with an empty array too, and only the header tells them apart.
       availability: listAvailability({ headers: response.headers, rowCount: items.length }),
     };
   } catch {
-    return { conversations: null, availability: listUnreachable() };
+    return {
+      conversations: null,
+      matchingConversationIds: null,
+      availablePersonas: null,
+      personaFilterRule: null,
+      availability: listUnreachable(),
+    };
   }
 }
 

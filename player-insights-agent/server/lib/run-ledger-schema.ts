@@ -76,6 +76,8 @@ export const RUN_LEDGER_DDL: readonly string[] = [
     identity_mode_requested TEXT,
     identity_mode_effective TEXT,
     identity_verified BOOLEAN,
+    persona_id TEXT,
+    persona_name TEXT,
     release_identity JSONB NOT NULL DEFAULT '{}'::jsonb,
     terminal_code TEXT,
     terminal_message_id TEXT,

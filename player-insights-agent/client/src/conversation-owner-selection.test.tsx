@@ -81,14 +81,28 @@ describe('owner selection persistence', () => {
 
   it('restores only owners still present in the current data scope', () => {
     installStorage();
-    values.set(CONVERSATION_OWNER_SELECTION_KEY, JSON.stringify([ME, 'gone@example.com']));
-    expect(readOwnerSelectionPreference(owners.map((owner) => owner.key))).toEqual([ME]);
+    values.set(CONVERSATION_OWNER_SELECTION_KEY, JSON.stringify({ subject: ME, selected: [ME, 'gone@example.com'] }));
+    expect(
+      readOwnerSelectionPreference(
+        ME,
+        owners.map((owner) => owner.key)
+      )
+    ).toEqual([ME]);
+    expect(
+      readOwnerSelectionPreference(
+        'someone-else@example.com',
+        owners.map((owner) => owner.key)
+      )
+    ).toEqual([]);
   });
 
   it('saves admin selections and clears legacy state for consumers', () => {
     installStorage();
-    rememberOwnerSelectionPreference([ME, owners[1].key]);
-    expect(JSON.parse(values.get(CONVERSATION_OWNER_SELECTION_KEY) ?? '[]')).toEqual([ME, owners[1].key]);
+    rememberOwnerSelectionPreference(ME, [ME, owners[1].key]);
+    expect(JSON.parse(values.get(CONVERSATION_OWNER_SELECTION_KEY) ?? '{}')).toEqual({
+      subject: ME,
+      selected: [ME, owners[1].key],
+    });
     clearOwnerSelectionPreference();
     expect(values.has(CONVERSATION_OWNER_SELECTION_KEY)).toBe(false);
   });
@@ -154,7 +168,7 @@ describe('the admin owner dropdown', () => {
     expect(CSS).toMatch(/\.conversation-owner-trigger \{[^}]*width:\s*100%[^}]*min-width:\s*0/s);
     expect(CSS).toMatch(/\.conversation-owner-summary \{[^}]*text-overflow:\s*ellipsis/s);
     expect(CSS).toMatch(
-      /\.conversation-owner-menu \{[^}]*width:\s*var\(--radix-popover-trigger-width\)[^}]*max-width:\s*calc\(100vw - 16px\)/s
+      /\.conversation-owner-menu \{[^}]*width:\s*max\([^}]*var\(--radix-popover-trigger-width\)[^}]*max-width:\s*calc\(100vw - 16px\)/s
     );
     expect(CSS).not.toMatch(/\.conversation-owner-menu \{[^}]*position:\s*absolute/s);
   });

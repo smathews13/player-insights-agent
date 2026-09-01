@@ -27,8 +27,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { autoCheckClaimed, claimAutoCheck, forgetChecks, recallChecks } from './check-session';
+import { autoCheckClaimed, claimAutoCheck, forgetChecks, recallChecks, rememberChecks } from './check-session';
 import {
+  beginConnectionMutation,
+  commitConnectionDeletion,
   reloadSessionSettings,
   resetSessionChecks,
   runSessionChecks,
@@ -76,8 +78,7 @@ function stubFetch(routes: Record<string, Route> = {}) {
     const route = routes[input] ?? {};
     if (route.throws) return Promise.reject(new Error('the server is not answering'));
     if (route.hangs) return new Promise<Response>(() => undefined);
-    const body =
-      route.body ?? (input === '/api/settings' ? settingsBody() : reportBody());
+    const body = route.body ?? (input === '/api/settings' ? settingsBody() : reportBody());
     return Promise.resolve({
       ok: route.ok ?? true,
       status: route.status ?? 200,
@@ -258,6 +259,95 @@ describe('a write re-reads the configuration and nothing else', () => {
     const said = await reloadSessionSettings();
     expect(said).toContain('could not read its own configuration');
     expect(said).toContain('Nothing below is current');
+  });
+});
+
+describe('a confirmed connection delete fences stale settings', () => {
+  const connection = {
+    connection: {
+      id: 'roster-table',
+      label: 'Title roster',
+      kind: 'unity-catalog',
+      value: 'analytics.players.roster',
+      state: 'declared',
+      origin: 'app',
+      createdAt: '2026-08-31T12:00:00.000Z',
+      createdBy: 'analyst@example.invalid',
+      changedAt: '2026-08-31T12:00:00.000Z',
+      changedBy: 'analyst@example.invalid',
+    },
+    impact: { headline: 'Delete it.', consequences: [], recoverable: false },
+  };
+
+  function withConnection() {
+    return { ...settingsBody(), connections: [connection] };
+  }
+
+  it('removes the row from the session cache before a tab can remount', () => {
+    rememberChecks({ settings: withConnection() as never, report: reportBody() as never, error: '' });
+    beginConnectionMutation();
+    commitConnectionDeletion(['roster-table']);
+    expect(recallChecks()?.settings?.connections).toEqual([]);
+  });
+
+  it('rejects a late list response that started before the delete', async () => {
+    let resolveSettings!: (response: Response) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string) => {
+        if (input === '/api/settings') {
+          return new Promise<Response>((resolve) => {
+            resolveSettings = resolve;
+          });
+        }
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(reportBody()) } as Response);
+      })
+    );
+    rememberChecks({ settings: withConnection() as never, report: reportBody() as never, error: '' });
+    const refresh = runSessionChecks();
+    await vi.waitFor(() => expect(resolveSettings).toBeTypeOf('function'));
+
+    beginConnectionMutation();
+    commitConnectionDeletion(['roster-table']);
+    resolveSettings({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(withConnection()),
+    } as Response);
+    await refresh;
+
+    expect(recallChecks()?.settings?.connections).toEqual([]);
+  });
+
+  it('lets the newest post-delete revalidation win over an older overlapping list', async () => {
+    const resolvers: Array<(response: Response) => void> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolvers.push(resolve);
+          })
+      )
+    );
+    rememberChecks({ settings: withConnection() as never, report: null, error: '' });
+    const stale = reloadSessionSettings();
+    await vi.waitFor(() => expect(resolvers).toHaveLength(1));
+    beginConnectionMutation();
+    commitConnectionDeletion(['roster-table']);
+    const current = reloadSessionSettings();
+    await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+
+    resolvers[1]({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ ...settingsBody(), connections: [] }),
+    } as Response);
+    await current;
+    resolvers[0]({ ok: true, status: 200, json: () => Promise.resolve(withConnection()) } as Response);
+    await stale;
+
+    expect(recallChecks()?.settings?.connections).toEqual([]);
   });
 });
 

@@ -93,6 +93,8 @@
    22px top and bottom with 28px between, which put the first conversation 50px
    below the button that makes one. */
 .conversation-rail {
+  container-name: conversation-rail;
+  container-type: inline-size;
   border-right: 1px solid var(--db-line);
   display: flex;
   flex-direction: column;
@@ -864,15 +866,38 @@
   border-color: var(--db-line-strong);
 }
 
-/* Admin-only owner picker. It stays one row wide no matter how many people the
-   rail contains; the options use AppKit's portalled Popover rather than becoming
-   descendants of either rail scroller. That is what lets the menu flip at the
-   viewport edge instead of being clipped by the desktop rail or the mobile sheet. */
+/* The two admin filters share the available rail width exactly. minmax(0, 1fr)
+   is load-bearing: long owner/persona names shrink and ellipsize inside their
+   own half instead of making one control push or clip the other. */
+.conversation-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+  margin: 0 0 8px;
+}
+
+/* A sheet narrower than two usable 101px controls may stack. The normal 232px
+   rail remains two equal columns at every desktop width. */
+@container conversation-rail (max-width: 210px) {
+  .conversation-filter-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Admin-only owner/persona picker. The options use AppKit's portalled Popover
+   rather than becoming descendants of either rail scroller. That lets the menu
+   flip at the viewport edge instead of being clipped by desktop rail or sheet. */
 .conversation-owner-select {
   position: relative;
   width: 100%;
   min-width: 0;
   margin: 0 0 8px;
+}
+
+.conversation-filter-row .conversation-owner-select {
+  margin: 0;
 }
 
 .conversation-owner-trigger {
@@ -927,8 +952,8 @@
    */
   z-index: 90;
   isolation: isolate;
-  width: var(--radix-popover-trigger-width);
-  min-width: 0;
+  width: max(var(--radix-popover-trigger-width), min(240px, var(--radix-popover-content-available-width)));
+  min-width: var(--radix-popover-trigger-width);
   max-width: calc(100vw - 16px);
   max-height: min(280px, var(--radix-popover-content-available-height));
   padding: 4px;

@@ -885,7 +885,7 @@ describe('the drawing is reachable and readable without seeing it', () => {
     expect(PAGE_SOURCE).toContain('useLiveRuntimeSettings');
     expect(PAGE_SOURCE).toContain('refreshLiveRuntimeSettings');
     expect(PAGE_SOURCE).not.toContain("'/api/runtime-settings'");
-    expect(RUNTIME_PANEL).toContain('adoptRuntimeEntityStyles(saved)');
+    expect(RUNTIME_PANEL).toContain('adoptRuntimeEntityStyles(saved.settings)');
   });
 
   it('makes every KPI a keyboard-reachable toggle for its architecture scope', () => {

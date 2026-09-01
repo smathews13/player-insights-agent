@@ -68,7 +68,6 @@ import { appEnvironment, readStoredSettings, resourceStates, type ResourceState 
 import { normalizeWorkspaceHost, workspaceAppsUrl } from '../../shared/databricks-links';
 import { readAppBillingTag } from '../lib/resource-tagging';
 import { readOrchestratorReport } from './settings-routes';
-import { isFailureCode } from '../lib/run-failure-codes';
 import { readCostBudgets } from '../lib/cost-budgets-store';
 import { sqlQueryTags } from '../lib/sql-query-tags';
 import { isDataContractFallback, listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
@@ -76,7 +75,6 @@ import { userEmail, type InsightsAppKit, type PreflightReport } from './insights
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
 import { ACTIVE_MINUTES_PER_DAY_QUERY, validIanaTimeZone } from '../lib/app-activity';
 import { attributableCostBudgets } from '../../shared/cost-budgets';
-import { classifiedRunStatusSql } from '../../shared/run-verdict';
 import {
   createWorkspaceQueryHistoryTransport,
   EMPTY_WAREHOUSE_QUERY_ATTRIBUTION,
@@ -85,6 +83,13 @@ import {
   type WarehouseQueryHistoryTransport,
 } from '../lib/ops-query-history';
 import { readRuntimeSettings } from '../lib/runtime-settings-store';
+import {
+  LEGACY_TRAFFIC_BREAKDOWNS_QUERY,
+  RAW_TRAFFIC_BREAKDOWNS_QUERY,
+  TRAFFIC_BREAKDOWNS_QUERY,
+  readTrafficBreakdowns,
+  type TrafficBreakdownRead,
+} from '../lib/ops-traffic';
 import type {
   AppMeasurement,
   DependencyResult,
@@ -95,7 +100,6 @@ import type {
   OpsLatencyPayload,
   OpsTrafficPayload,
   PlatformReading,
-  TrafficBar,
 } from '../../shared/ops-contract';
 import { opsDayRange } from '../../shared/ops-contract';
 
@@ -250,9 +254,9 @@ async function lookupVectorEndpoint(input: {
   }
 }
 
-/** The identifier Connections shows for a resource, not a second guess. */
+/** The active identifier Connections established, never an unapplied intention. */
 function shownConnectionValue(state: ResourceState): string {
-  return (state.intended ?? (state.configured || state.actual)).trim();
+  return (state.actualObserved ? state.actual : state.configured || state.actual).trim();
 }
 
 /** Resource names in current model configuration may be scalars or descriptor objects. */
@@ -324,10 +328,9 @@ async function costIdentifiersFor(
       (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '')
   );
   let vectorEndpoint =
-    queryText(req, 'vectorEndpoint') ||
-    configured['semantic-index-endpoint'] ||
     endpointCheck?.name ||
-    configuredResourceName(semanticEntry?.value, ['endpoint_name', 'endpoint']);
+    configuredResourceName(semanticEntry?.value, ['endpoint_name', 'endpoint']) ||
+    configured['semantic-index-endpoint'];
   if (!vectorEndpoint && vectorIndex) {
     vectorEndpoint = await lookupVectorEndpoint({
       host: host(),
@@ -768,121 +771,6 @@ export const DISTINCT_ASKERS_PER_DAY_QUERY = `
   GROUP BY 1
   ORDER BY 1`;
 
-const OPS_ANSWER_STATUS_SQL = classifiedRunStatusSql({
-  trace: "m.response_json->'trace'",
-  payload: 'm.response_json',
-  caveats: "m.response_json->'caveats'",
-});
-
-/**
- * How runs ended, from both durable ledger state and stored-answer evidence.
- *
- * The rail and Run Explorer have always been able to classify answers stored
- * before the ledger existed, and can classify a failed answer whose durable run
- * itself reached SUCCEEDED. Reading only runs.state made those visible failures
- * disappear from Ops. The trace/message joins below use terminal message first
- * and trace id second, then add only answers with no matching ledger row.
- */
-export const RUN_OUTCOMES_QUERY = `
-  WITH answers AS (
-    SELECT m.id,
-           COALESCE(NULLIF(m.trace_id, ''), NULLIF(m.response_json->'trace'->>'id', '')) AS trace_id,
-           ${OPS_ANSWER_STATUS_SQL} AS answer_status,
-           m.created_at
-    FROM ${APP_SCHEMA}.messages m
-    WHERE m.role = 'assistant'
-      AND jsonb_typeof(m.response_json->'trace') = 'object'
-  ),
-  ledger_events AS (
-    SELECT r.run_id AS event_id,
-           CASE
-             WHEN r.state = 'REFUSED' THEN 'REFUSED'
-             WHEN r.state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED') THEN r.state
-             WHEN a.answer_status = 'failed' THEN 'FAILED'
-             ELSE r.state
-           END AS state,
-           CASE
-             WHEN COALESCE(r.terminal_code, '') <> '' THEN r.terminal_code
-             WHEN a.answer_status = 'failed' THEN 'NO_VALID_EVIDENCE'
-             ELSE ''
-           END AS terminal_code
-    FROM ${APP_SCHEMA}.runs r
-    LEFT JOIN LATERAL (
-      SELECT answer_status
-      FROM answers a
-      WHERE a.id = r.terminal_message_id
-         OR (COALESCE(r.trace_id, '') <> '' AND a.trace_id = r.trace_id)
-      ORDER BY (a.id = r.terminal_message_id) DESC
-      LIMIT 1
-    ) a ON TRUE
-    WHERE r.created_at >= ($2::date::timestamp AT TIME ZONE $1)
-      AND r.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
-  ),
-  legacy_answer_events AS (
-    SELECT a.id AS event_id,
-           CASE WHEN a.answer_status = 'failed' THEN 'FAILED' ELSE 'SUCCEEDED' END AS state,
-           CASE WHEN a.answer_status = 'failed' THEN 'NO_VALID_EVIDENCE' ELSE '' END AS terminal_code
-    FROM answers a
-    WHERE NOT EXISTS (
-      SELECT 1
-      FROM ${APP_SCHEMA}.runs r
-      WHERE r.terminal_message_id = a.id
-         OR (COALESCE(r.trace_id, '') <> '' AND r.trace_id = a.trace_id)
-    )
-      AND a.created_at >= ($2::date::timestamp AT TIME ZONE $1)
-      AND a.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
-  ),
-  events AS (
-    SELECT * FROM ledger_events
-    UNION ALL
-    SELECT * FROM legacy_answer_events
-  )
-  SELECT state, terminal_code, COUNT(*)::int AS count
-  FROM events
-  GROUP BY 1, 2`;
-
-/** Tool-tagged stages, counted by the tool each one named. */
-export const TOOL_CALLS_QUERY = `
-  SELECT stage->>'name' AS tool, COUNT(*)::int AS count
-  FROM ${APP_SCHEMA}.messages m,
-       LATERAL jsonb_array_elements(m.response_json->'trace'->'stages') AS stage
-  WHERE m.role = 'assistant'
-    AND m.created_at >= ($2::date::timestamp AT TIME ZONE $1)
-    AND m.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
-    AND jsonb_typeof(m.response_json->'trace'->'stages') = 'array'
-    AND stage->>'kind' = 'tool'
-    AND COALESCE(stage->>'name', '') <> ''
-  GROUP BY 1
-  ORDER BY 2 DESC`;
-
-/** The terminal states that mean something broke, as opposed to something was declined. */
-const FAILURE_STATES = new Set(['FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED']);
-
-/**
- * A cause's label, which is the terminal code itself.
- *
- * Deliberately not the taxonomy's `uiMessage`. That is a sentence written for
- * somebody who cannot fix the system, and it is the wrong text for a chart an
- * administrator reads: they want the token that appears in the Run Explorer, in
- * the logs and in the deep link, so that a bar they click matches the rows they
- * land on. Prettifying it here would put a phrase on the chart that appears
- * nowhere else they could search for.
- *
- * A code the taxonomy does not define is still shown, unchanged, because the
- * run really did end that way and hiding it would shrink a chart to the causes
- * this build happens to know about.
- */
-export function causeLabel(code: string): string {
-  if (!code) return 'No cause recorded';
-  if (!isFailureCode(code)) {
-    console.warn(
-      `[ops] A run ended with terminal code ${code}, which this build\u2019s failure taxonomy does not ` +
-        'define. It is charted as recorded rather than dropped.'
-    );
-  }
-  return code;
-}
-
 /**
  * The one line that stands beside the charts that did answer.
  *
@@ -901,11 +789,41 @@ function unreadNote(charts: string[], message: string): string {
   return `${named} could not be read, so ${which} missing rather than empty: ${message || 'the store did not answer'}`;
 }
 
-/** Sort bars by count, then by key, so a redraw does not reshuffle equal bars. */
-function toBars(counts: Map<string, number>): TrafficBar[] {
-  return [...counts.entries()]
-    .map(([key, count]) => ({ key, label: causeLabel(key), count }))
-    .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
+// Compatibility exports for tests and callers that named the two former reads.
+// They now point at the one shared-population query so their denominators cannot drift.
+export const RUN_OUTCOMES_QUERY = TRAFFIC_BREAKDOWNS_QUERY;
+export const TOOL_CALLS_QUERY = TRAFFIC_BREAKDOWNS_QUERY;
+
+async function trafficBreakdownsFor(
+  appkit: InsightsAppKit,
+  parameters: [string, string, string]
+): Promise<TrafficBreakdownRead> {
+  try {
+    const result = await appkit.lakebase.query(TRAFFIC_BREAKDOWNS_QUERY, parameters);
+    return readTrafficBreakdowns(result.rows);
+  } catch (rollupError) {
+    try {
+      // A forward migration may still be applying. Raw evidence is complete
+      // when both durable and historical stores answer, so no warning is needed.
+      const result = await appkit.lakebase.query(RAW_TRAFFIC_BREAKDOWNS_QUERY, parameters);
+      return readTrafficBreakdowns(result.rows);
+    } catch (durableError) {
+      try {
+        const result = await appkit.lakebase.query(LEGACY_TRAFFIC_BREAKDOWNS_QUERY, parameters);
+        return readTrafficBreakdowns(result.rows, {
+          state: 'partial',
+          reason:
+            `Durable run/stage evidence was unavailable, so only historical stored answers were counted: ` +
+            `${(durableError as Error).message}`,
+        });
+      } catch (legacyError) {
+        throw new Error(
+          `Rollup read failed (${(rollupError as Error).message}); raw durable read failed ` +
+            `(${(durableError as Error).message}); historical answer read failed (${(legacyError as Error).message}).`
+        );
+      }
+    }
+  }
 }
 
 /* ── Per-question cost attribution ───────────────────────────────────────── */
@@ -1453,12 +1371,11 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         // Settled rather than awaited together: the run ledger is newer than the
         // messages table and a deployment that has not created it yet should
         // still get its questions chart rather than an empty block.
-        const [questions, askers, activeMinutes, outcomes, tools] = await Promise.allSettled([
+        const [questions, askers, activeMinutes, breakdowns] = await Promise.allSettled([
           appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
           appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
           appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY, [activeMinutesTimeZone, range.from, range.to]),
-          appkit.lakebase.query(RUN_OUTCOMES_QUERY, [activeMinutesTimeZone, range.from, range.to]),
-          appkit.lakebase.query(TOOL_CALLS_QUERY, [activeMinutesTimeZone, range.from, range.to]),
+          trafficBreakdownsFor(appkit, [activeMinutesTimeZone, range.from, range.to]),
         ]);
 
         const questionsPerDay =
@@ -1487,31 +1404,25 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               }
             : undefined;
 
-        const failures = new Map<string, number>();
-        const refusals = new Map<string, number>();
-        let runsInRange = 0;
-        if (outcomes.status === 'fulfilled') {
-          for (const row of outcomes.value.rows) {
-            const state = text(row.state);
-            const code = text(row.terminal_code);
-            const runs = count(row.count);
-            runsInRange += runs;
-            if (state === 'REFUSED') {
-              refusals.set(code, (refusals.get(code) ?? 0) + runs);
-            } else if (FAILURE_STATES.has(state)) {
-              failures.set(code, (failures.get(code) ?? 0) + runs);
-            }
-          }
-        }
-
-        const toolCalls =
-          tools.status === 'fulfilled'
-            ? tools.value.rows.map((row) => ({
-                key: text(row.tool),
-                label: text(row.tool),
-                count: count(row.count),
-              }))
-            : [];
+        const unavailableCoverage = {
+          state: 'unavailable' as const,
+          coveredRuns: 0,
+          reason:
+            breakdowns.status === 'rejected'
+              ? (breakdowns.reason as Error).message
+              : 'The shared run population could not be read.',
+        };
+        const measured =
+          breakdowns.status === 'fulfilled'
+            ? breakdowns.value
+            : {
+                runsInRange: 0,
+                failuresByCause: [],
+                refusalsByCause: [],
+                toolCalls: [],
+                outcomesCoverage: unavailableCoverage,
+                toolCallsCoverage: unavailableCoverage,
+              };
 
         // Only when every read failed does the block itself report a reason,
         // because `reason` REPLACES the block: one read failing must leave the
@@ -1526,11 +1437,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           { done: questions, charts: 'Questions per day' },
           { done: askers, charts: 'Distinct askers per day' },
           { done: activeMinutes, charts: 'Recorded active app minutes per day' },
-          { done: outcomes, charts: 'Failures and refusals' },
-          { done: tools, charts: 'Tool calls' },
+          { done: breakdowns, charts: 'Failures, refusals and tool calls' },
         ].filter((read) => read.done.status === 'rejected');
         const rejected = outstanding.map((read) => read.done as PromiseRejectedResult);
-        const readCount = 5;
+        const readCount = 4;
         const partialRead =
           rejected.length > 0 && rejected.length < readCount
             ? unreadNote(
@@ -1557,10 +1467,14 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           activeMinutesRecordedFrom: text(activityBounds?.recorded_from),
           activeMinutesRecordedThrough: text(activityBounds?.recorded_through),
           activityCoverage,
-          failuresByCause: toBars(failures),
-          refusalsByCause: toBars(refusals),
-          toolCalls,
-          runsInRange,
+          failuresByCause: measured.failuresByCause,
+          refusalsByCause: measured.refusalsByCause,
+          toolCalls: measured.toolCalls,
+          runsInRange: measured.runsInRange,
+          breakdownCoverage: {
+            outcomes: measured.outcomesCoverage,
+            toolCalls: measured.toolCallsCoverage,
+          },
         };
         res.json(payload);
       } catch (error) {
@@ -1579,6 +1493,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           refusalsByCause: [],
           toolCalls: [],
           runsInRange: 0,
+          breakdownCoverage: {
+            outcomes: { state: 'unavailable', coveredRuns: 0, reason: (error as Error).message },
+            toolCalls: { state: 'unavailable', coveredRuns: 0, reason: (error as Error).message },
+          },
           activityCoverage: { state: 'unavailable', missingDays: 0 },
         };
         res.json(payload);

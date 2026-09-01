@@ -296,10 +296,9 @@ export function canAsk(component: CostComponent, ids: CostIdentifiers): boolean 
   // Genie billing has no space identifier. A workspace id is not a safe
   // substitute: it would attribute every space in the workspace to this app.
   if (component === 'genie') return false;
-  // Vector billing names the serving endpoint. Require both the configured index
-  // and the endpoint resolved from that index before treating the meter as this
-  // configured Vector Search resource.
-  if (component === 'vector-search') return Boolean(vectorIndexName(ids.vectorIndex) && ids.vectorEndpoint);
+  // Vector billing names the serving endpoint. An index improves shared-endpoint
+  // allocation, but the endpoint itself is still an exact billable identity.
+  if (component === 'vector-search') return Boolean(ids.vectorEndpoint);
   return Boolean(ids[MATCHERS[component].parameter]);
 }
 
@@ -319,7 +318,7 @@ export function resourceIdFor(component: CostComponent, ids: CostIdentifiers): s
     case 'app-compute':
       return ids.appName;
     case 'vector-search':
-      return vectorIndexName(ids.vectorIndex);
+      return vectorIndexName(ids.vectorIndex) || ids.vectorEndpoint;
     case 'genie':
       return '';
   }
@@ -334,7 +333,7 @@ function resourceKindFor(component: CostComponent, ids: CostIdentifiers): CostRe
     case 'app-compute':
       return 'app';
     case 'vector-search':
-      return vectorIndexName(ids.vectorIndex) ? 'vector-index' : '';
+      return vectorIndexName(ids.vectorIndex) ? 'vector-index' : ids.vectorEndpoint ? 'vector-endpoint' : '';
     case 'genie':
       return '';
   }
@@ -1060,7 +1059,7 @@ const DESCRIPTIONS: Record<
     variable: 'DATABRICKS_WORKSPACE_ID',
   },
   'vector-search': {
-    label: 'Vector search',
+    label: 'Vector Search',
     quality: 'rate',
     population: 'This endpoint',
     basis: 'per-day',
@@ -1229,7 +1228,9 @@ function componentTile(
     id: component,
     label: description.label,
     resourceId: resourceIdFor(component, ids),
-    ...(component === 'vector-search' ? { secondaryResourceId: ids.vectorEndpoint } : {}),
+    ...(component === 'vector-search' && vectorIndexName(ids.vectorIndex)
+      ? { secondaryResourceId: ids.vectorEndpoint }
+      : {}),
     resourceKind: resourceKindFor(component, ids),
     quality: description.quality,
     basis: description.basis,
@@ -1315,12 +1316,28 @@ function componentTile(
       : {}),
   };
   if (component === 'vector-search') {
+    const configuredIndex = vectorIndexName(ids.vectorIndex);
+    if (!configuredIndex) {
+      return withMeta({
+        ...base,
+        label: 'Vector Search endpoint',
+        quality: 'rate',
+        population: 'This endpoint',
+        amount,
+        dbus,
+        pricing,
+        note: row
+          ? 'Billing identifies the configured endpoint; no active index identity was available for per-index allocation.'
+          : '',
+        unavailable: amount === null && dbus === null ? unpricedUnavailable(pricing) || 'No billing rows' : '',
+        remedy: '',
+        evidence,
+      });
+    }
     const share =
       measuredActivity && measuredActivity.observedCalls > 0
         ? Math.min(1, Math.max(0, measuredActivity.calls / measuredActivity.observedCalls))
-        : !measuredActivity
-          ? 1
-          : null;
+        : null;
     if (share === null) {
       return withMeta({
         ...base,

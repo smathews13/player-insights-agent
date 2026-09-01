@@ -39,6 +39,7 @@ import { notebookPathView, persistNotebookPath } from './notebook-card-state';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import {
   connectionValueError,
+  createConnectionDeleteGate,
   createDeclaredConnection,
   deleteDeclaredConnection,
   derivedConnectionKey,
@@ -101,7 +102,7 @@ function entry(overrides: Partial<ConnectionEntry['connection']> = {}): Connecti
     impact: {
       headline: `Remove ${connection.label} from the assets the agent may consider.`,
       consequences: ['The agent stops being offered this asset when it chooses where to look.'],
-      recoverable: true,
+      recoverable: false,
     },
   };
 }
@@ -403,17 +404,18 @@ describe('the list of assets the agent may consider', () => {
     expect(failure).not.toHaveProperty('entry');
   });
 
-  it('withdraws a current row and permanently forgets only an already withdrawn row', async () => {
+  it('permanently deletes a current or legacy withdrawn row on the first request', async () => {
     const active = entry().connection;
     const withdrawn = entry({ state: 'withdrawn' }).connection;
     const fetchImpl = vi.fn((url: string, _init?: RequestInit) =>
       Promise.resolve(
         new Response(
-          JSON.stringify(
-            url.endsWith('/forever')
-              ? { forgotten: { id: withdrawn.id }, restorable: false }
-              : { connection: { ...active, state: 'withdrawn' }, restorable: true }
-          ),
+          JSON.stringify({
+            forgotten: { id: url.split('/').at(-1) },
+            deletedIds: [url.split('/').at(-1)],
+            deletedCount: 1,
+            restorable: false,
+          }),
           { status: 200 }
         )
       )
@@ -421,15 +423,15 @@ describe('the list of assets the agent may consider', () => {
 
     await expect(deleteDeclaredConnection(active, fetchImpl as typeof fetch)).resolves.toMatchObject({
       ok: true,
-      outcome: 'withdrawn',
+      outcome: 'forgotten',
     });
-    await expect(deleteDeclaredConnection(withdrawn, fetchImpl as typeof fetch)).resolves.toEqual({
+    await expect(deleteDeclaredConnection(withdrawn, fetchImpl as typeof fetch)).resolves.toMatchObject({
       ok: true,
       outcome: 'forgotten',
     });
     expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([
       '/api/settings/connections/roster-table',
-      '/api/settings/connections/roster-table/forever',
+      '/api/settings/connections/roster-table',
     ]);
     expect(fetchImpl.mock.calls.every(([, init]) => init?.method === 'DELETE')).toBe(true);
   });
@@ -445,6 +447,25 @@ describe('the list of assets the agent may consider', () => {
     );
     expect(result).toEqual({ ok: false, detail: 'The connection store is unavailable.' });
     expect(result).not.toHaveProperty('connection');
+  });
+
+  it('coalesces a rapid double delete before React can disable the row', async () => {
+    const gate = createConnectionDeleteGate();
+    let release!: () => void;
+    const mutation = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          release = () => resolve('deleted');
+        })
+    );
+    const first = gate.run('roster-table', mutation);
+    const second = gate.run('roster-table', mutation);
+    expect(gate.pending('roster-table')).toBe(true);
+    await expect(second).resolves.toBeNull();
+    expect(mutation).toHaveBeenCalledTimes(1);
+    release();
+    await expect(first).resolves.toBe('deleted');
+    expect(gate.pending('roster-table')).toBe(false);
   });
 
   it('never claims the asset is granted, connected or accessible', () => {

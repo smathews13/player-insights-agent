@@ -233,7 +233,23 @@ export function checkFor(
 }
 
 export function indexChecks(checks: readonly PreflightCheck[]): Map<string, PreflightCheck> {
-  return new Map(checks.map((check) => [check.id, check]));
+  const indexed = new Map<string, PreflightCheck>();
+  for (const check of checks) {
+    const prior = indexed.get(check.id);
+    indexed.set(
+      check.id,
+      prior
+        ? {
+            ...prior,
+            ...check,
+            facts: { ...(prior.facts ?? {}), ...(check.facts ?? {}) },
+            display_name: check.display_name || prior.display_name,
+            content_at: check.content_at || prior.content_at,
+          }
+        : check
+    );
+  }
+  return indexed;
 }
 
 /**
@@ -418,15 +434,7 @@ export interface ConnectionGroup {
   key: ConnectionGroupKey;
   /** Said once, here, instead of as a chip repeated down every row. */
   title: string;
-  /**
-   * How many rows the section holds, where the number is the useful part.
-   *
-   * Only `not-checked` carries one. The other headers name a verdict a reader
-   * acts on and the rows under them are countable in a glance, where "not
-   * checked" is the section somebody wants the SIZE of -- it is the extent of
-   * what this page does not know. Empty for every other section, because a count
-   * beside "Blocked" would read as a second severity.
-   */
+  /** Optional short qualifier beside the section heading. */
   aside: string;
   readings: ConnectionReading[];
 }
@@ -453,12 +461,7 @@ const GROUP_ORDER: Array<{ key: ConnectionGroupKey; title: string }> = [
   // A refusal is answered by a permission and an unreachable call by a retry or an
   // escalation, which is two next moves and so two headings.
   { key: 'unreachable', title: 'Unreachable' },
-  // Named for what the rows ARE rather than for what the probe did to them.
-  // "Checked and reachable" described the last preflight; a reader opening this
-  // tab wants the list of live services the app is wired to, which is the same
-  // list under a name that says so.
-  { key: 'reachable', title: 'Connected resources' },
-  { key: 'not-checked', title: 'Not checked' },
+  { key: 'reachable', title: 'Connections' },
 ];
 
 /**
@@ -473,8 +476,11 @@ const GROUP_ORDER: Array<{ key: ConnectionGroupKey; title: string }> = [
 export function connectionGroupKey(reading: ConnectionReading): ConnectionGroupKey {
   if (reading.status === 'blocked') return 'blocked';
   if (reading.marker === 'drift') return 'drifted';
-  if (reading.status === 'nothing-to-reach') return 'not-checked';
-  return reading.status;
+  if (reading.status === 'refused') return 'refused';
+  if (reading.status === 'unreachable') return 'unreachable';
+  // Reachable, absent and unavailable checks all remain in the main logical
+  // resource list. Each row states its own exact status from its canonical view.
+  return 'reachable';
 }
 
 /**
@@ -500,11 +506,10 @@ export function groupConnections(readings: readonly ConnectionReading[]): Connec
   }
   return GROUP_ORDER.filter((group) => (byKey.get(group.key) ?? []).length > 0).map((group) => {
     const readings = byKey.get(group.key) ?? [];
-    const count = readings.length;
     return {
       key: group.key,
       title: group.title,
-      aside: group.key === 'not-checked' ? `${count} ${count === 1 ? 'dependency' : 'dependencies'}` : '',
+      aside: '',
       readings,
     };
   });

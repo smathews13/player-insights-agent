@@ -7,7 +7,7 @@ import {
   type EgressControls,
   type EgressStorageMetadata,
 } from '../../shared/egress-contract';
-import { egressControlsFromResponse, fetchEgressRecordsPage, retainPendingEgressDrafts } from './egress-settings-api';
+import { egressControlsFromResponse, fetchEgressRecordsPage } from './egress-settings-api';
 
 const PANEL = readFileSync(new URL('./EgressPanel.tsx', import.meta.url), 'utf8');
 const STORAGE: EgressStorageMetadata = {
@@ -55,23 +55,12 @@ describe('Egress Settings API responses', () => {
     ).rejects.toThrow('incomplete controls payload');
   });
 
-  it('keeps only unsaved drafts after one of several writes fails', () => {
-    const original = defaultEgressControls();
-    const draft = { ...original, 'chart-image': !original['chart-image'], 'workspace-link': false };
-    const afterFirstWrite = { ...original, 'chart-image': draft['chart-image'] };
-
-    expect(retainPendingEgressDrafts(draft, afterFirstWrite, new Set(['workspace-link']))).toEqual({
-      ...afterFirstWrite,
-      'workspace-link': false,
-    });
-  });
-
   it('keeps panel reads open and writes on the admin route with footer feedback', () => {
     expect(PANEL).toContain("fetch('/api/egress/controls'");
     expect(PANEL).toContain("fetch('/api/egress/admin/controls'");
     expect(PANEL).toContain("onSaveState({ kind: 'saved'");
     expect(PANEL).toContain("onSaveState({ kind: 'failed'");
-    expect(PANEL).toContain('retainPendingEgressDrafts');
+    expect(PANEL).toContain('setControls(latest)');
   });
 
   it('loads only the fixed recent-records endpoint and encodes the opaque cursor', async () => {

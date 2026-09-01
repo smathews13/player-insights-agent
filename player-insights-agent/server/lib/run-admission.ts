@@ -116,6 +116,8 @@ export interface AdmissionInput {
   idempotencyKey: string;
   request: CanonicalRequest;
   identityModeRequested: string;
+  /** Persona snapshot chosen for this request; absent means OAuth/no persona. */
+  persona?: { id: string; displayName: string } | null;
   releaseIdentity: Record<string, unknown>;
   /** The id every other record of this question carries. See `shared/correlation.ts`. */
   correlationId: string;
@@ -168,6 +170,8 @@ export async function admitRun(store: LakebaseReader, input: AdmissionInput): Pr
     idempotencyKeyHash: key === '' ? null : idempotencyKeyHash(input.request.userEmail, key),
     deadlineAt: new Date(Date.now() + input.budgetMs),
     identityModeRequested: input.identityModeRequested,
+    personaId: input.persona?.id ?? null,
+    personaName: input.persona?.displayName ?? null,
     releaseIdentity: input.releaseIdentity,
     correlationId: input.correlationId,
   });

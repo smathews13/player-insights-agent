@@ -260,6 +260,13 @@ export interface Conversation {
   status?: string | null;
   truncated?: boolean | null;
   duration_ms?: number | null;
+  /**
+   * Snapshot recorded on this conversation's newest active or completed run.
+   * Null/absent is No persona; it must never be filled from today's assignment.
+   */
+  persona_id?: string | null;
+  persona_name?: string | null;
+  persona_recorded_at?: string | null;
 }
 export interface ConversationMessage {
   id: string;

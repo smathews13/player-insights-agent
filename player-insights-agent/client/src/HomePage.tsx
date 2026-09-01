@@ -12,13 +12,14 @@
 import { Link, useSearchParams } from 'react-router';
 import { memo, useCallback, useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { type ListAvailability } from './list-availability';
-import { readRunSummaries, startInitialRail } from './initial-rail';
+import { readConversationList, readRunSummaries, startInitialRail } from './initial-rail';
 import { UnavailablePanel } from './UnavailablePanel';
 import { unavailableNotice, unavailableNoticeFor, type UnavailableNotice } from './unavailable-copy';
 import { submitsOnEnter } from './submit-on-enter';
 import { PASSWORD_MANAGER_OPT_OUT } from './password-manager-optout';
 import { UserIdentityChip } from './UserIdentityChip';
 import { ConversationOwnerSelect } from './ConversationOwnerSelect';
+import { ConversationPersonaSelect } from './ConversationPersonaSelect';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import {
   claimConversationTitle,
@@ -33,6 +34,20 @@ import {
   readOwnerSelectionPreference,
   rememberOwnerSelectionPreference,
 } from './conversation-owner-selection';
+import {
+  clearPersonaSelectionPreference,
+  normalizePersonaSelection,
+  railPersonas,
+  readPersonaSelectionPreference,
+  rememberPersonaSelectionPreference,
+} from './conversation-persona-selection';
+import {
+  NO_PERSONA_SELECTION,
+  personaIdFromSelection,
+  personaSelectionKey,
+  type ConversationAvailablePersona,
+  type ConversationFilterSelection,
+} from '../../shared/conversation-filters';
 import { subscribeAskHome } from './ask-home-control';
 import {
   clearSelectedConversation,
@@ -459,12 +474,22 @@ export function HomePage() {
    * Whose conversations the rail is narrowed to. Empty means everyone in it.
    */
   const [ownerFilters, setOwnerFilters] = useState<readonly string[]>([]);
+  /** Which recorded run personas the rail is narrowed to. Empty means all. */
+  const [personaFilters, setPersonaFilters] = useState<readonly string[]>([]);
+  /** Current definitions gate stale/deleted persona preferences when readable. */
+  const [availablePersonas, setAvailablePersonas] = useState<ConversationAvailablePersona[] | null>(null);
+  /** Matching ids computed by the server for the filter key beside them. */
+  const [serverConversationMatches, setServerConversationMatches] = useState<{
+    key: string;
+    ids: ReadonlySet<string>;
+  } | null>(null);
   /**
    * Whether the rail's sheet is open. Only reachable below 800px, where the aside
    * is hidden and its trigger is the rail.
    */
   const [railSheetOpen, setRailSheetOpen] = useState(false);
   const ownerPreferenceLoadedFor = useRef('');
+  const personaPreferenceLoadedFor = useRef('');
   /**
    * The URL wins for deep links and Back/Forward. When Ask is mounted without
    * one after visiting another top-level tab, the browser-session selection
@@ -1176,7 +1201,13 @@ export function HomePage() {
       preloadStoredAnswerRendererForHistory(list.conversations ?? []);
       // The rail lists saved conversations, but the app opens on a fresh chat
       // so the welcome state is the first thing a new user sees.
-      if (list.conversations) setConversations(list.conversations);
+      if (list.conversations) {
+        setConversations(list.conversations);
+        setAvailablePersonas(list.availablePersonas);
+        setServerConversationMatches(
+          list.matchingConversationIds ? { key: '', ids: new Set(list.matchingConversationIds) } : null
+        );
+      }
       setConversationLoading(false);
     });
     void reads.runSummaries.then((summaries) => {
@@ -1490,6 +1521,10 @@ export function HomePage() {
       // what the store recorded, and a turn with a failed stage in it is
       // 'partial' there while looking like a success from up here.
       void loadRunSummaries();
+      // Persona is historical run evidence, not a current assignment. Re-read
+      // the server row after settlement so this new run is classified from the
+      // snapshot it actually stored.
+      void refreshConversationEvidence();
       // Now that this conversation has something stored in it, name it in the URL
       // so it can be linked to and so Back and Forward have somewhere to land.
       // Replace rather than push: asking a question is not a navigation.
@@ -1865,14 +1900,21 @@ export function HomePage() {
    * which reads as a colleague having quietly used their rail.
    */
   const rail = useMemo(() => railOwnership(conversations, identity.signedInAs), [conversations, identity.signedInAs]);
+  const personas = useMemo(
+    () => railPersonas(conversations, availablePersonas ?? undefined),
+    [availablePersonas, conversations]
+  );
   const adminSharedRail =
     identity.sharedConversationRail === true && (identity.role === 'admin' || identity.role === 'super_admin');
 
   useEffect(() => {
     if (identity.role === 'consumer') {
       ownerPreferenceLoadedFor.current = '';
+      personaPreferenceLoadedFor.current = '';
       setOwnerFilters([]);
+      setPersonaFilters([]);
       clearOwnerSelectionPreference();
+      clearPersonaSelectionPreference();
       return;
     }
     if (identity.role !== 'admin' && identity.role !== 'super_admin') return;
@@ -1885,18 +1927,43 @@ export function HomePage() {
     const available = rail.owners.map((owner) => owner.key);
     if (ownerPreferenceLoadedFor.current !== identity.signedInAs) {
       ownerPreferenceLoadedFor.current = identity.signedInAs;
-      setOwnerFilters(readOwnerSelectionPreference(available));
+      setOwnerFilters(readOwnerSelectionPreference(identity.signedInAs, available));
       return;
     }
     setOwnerFilters((current) => {
       const normalized = normalizeOwnerSelection(current, available);
       if (normalized.length !== current.length || normalized.some((value, index) => value !== current[index])) {
-        rememberOwnerSelectionPreference(normalized);
+        rememberOwnerSelectionPreference(identity.signedInAs, normalized);
         return normalized;
       }
       return current;
     });
   }, [adminSharedRail, conversationLoading, identity.role, identity.signedInAs, rail.owners]);
+
+  useEffect(() => {
+    if (identity.role === 'consumer') return;
+    if (identity.role !== 'admin' && identity.role !== 'super_admin') return;
+    if (!adminSharedRail) {
+      setPersonaFilters([]);
+      return;
+    }
+    if (conversationLoading) return;
+
+    const available = personas.map((persona) => persona.key);
+    if (personaPreferenceLoadedFor.current !== identity.signedInAs) {
+      personaPreferenceLoadedFor.current = identity.signedInAs;
+      setPersonaFilters(readPersonaSelectionPreference(identity.signedInAs, available));
+      return;
+    }
+    setPersonaFilters((current) => {
+      const normalized = normalizePersonaSelection(current, available);
+      if (normalized.length !== current.length || normalized.some((value, index) => value !== current[index])) {
+        rememberPersonaSelectionPreference(identity.signedInAs, normalized);
+        return normalized;
+      }
+      return current;
+    });
+  }, [adminSharedRail, conversationLoading, identity.role, identity.signedInAs, personas]);
 
   /**
    * The selection, narrowed to people the rail is actually showing.
@@ -1915,6 +1982,59 @@ export function HomePage() {
     const present = new Set(rail.owners.map((owner) => owner.key));
     return ownerFilters.filter((key) => present.has(key));
   }, [ownerFilters, rail]);
+  const activePersonaFilters = useMemo(() => {
+    const present = new Set(personas.map((persona) => persona.key));
+    return personaFilters.filter((key) => present.has(key));
+  }, [personaFilters, personas]);
+  const conversationFilterKey = useMemo(
+    () =>
+      JSON.stringify([
+        activeOwnerFilters,
+        activePersonaFilters
+          .map((selection) => personaIdFromSelection(selection))
+          .filter((personaId): personaId is string => personaId !== null),
+        activePersonaFilters.includes(NO_PERSONA_SELECTION),
+      ]),
+    [activeOwnerFilters, activePersonaFilters]
+  );
+  // Reconstructed from the canonical key so an evidence refresh returning a
+  // new array of the same rows does not create a new dependency and refetch in
+  // a loop while a filter is active.
+  const conversationFilters = useMemo<ConversationFilterSelection>(() => {
+    const [owners, personaIds, includeNoPersona] = JSON.parse(conversationFilterKey) as [string[], string[], boolean];
+    return { owners, personaIds, includeNoPersona };
+  }, [conversationFilterKey]);
+
+  const refreshConversationEvidence = useCallback(
+    async (signal?: AbortSignal) => {
+      const list = await readConversationList(conversationFilters, signal);
+      if (!list.conversations) return;
+      setConversations(list.conversations);
+      setAvailablePersonas(list.availablePersonas);
+      if (list.matchingConversationIds) {
+        setServerConversationMatches({
+          key: conversationFilterKey,
+          ids: new Set(list.matchingConversationIds),
+        });
+      }
+    },
+    [conversationFilterKey, conversationFilters]
+  );
+
+  useEffect(() => {
+    if (!adminSharedRail || conversationLoading) return;
+    const hasFilter =
+      conversationFilters.owners.length > 0 ||
+      conversationFilters.personaIds.length > 0 ||
+      conversationFilters.includeNoPersona;
+    if (!hasFilter) {
+      setServerConversationMatches(null);
+      return;
+    }
+    const controller = new AbortController();
+    void refreshConversationEvidence(controller.signal);
+    return () => controller.abort();
+  }, [adminSharedRail, conversationFilters, conversationLoading, refreshConversationEvidence]);
 
   /**
    * Whose question every bubble in this transcript is, which is the CONVERSATION'S
@@ -1942,12 +2062,23 @@ export function HomePage() {
     return typeof owner === 'string' && owner.trim() ? owner : identity.signedInAs;
   }, [conversations, conversationId, identity.signedInAs]);
 
-  /** The rail, narrowed to the selected owners. Empty selection is everyone. */
+  /** Owner and persona are ANDed; each multiselect is ORed within itself. */
   const visibleEntries = useMemo(() => {
-    if (activeOwnerFilters.length === 0) return rail.entries;
-    const selected = new Set(activeOwnerFilters);
-    return rail.entries.filter((entry) => entry.ownerKey !== null && selected.has(entry.ownerKey));
-  }, [rail, activeOwnerFilters]);
+    if (serverConversationMatches?.key === conversationFilterKey) {
+      return rail.entries.filter((entry) => serverConversationMatches.ids.has(entry.conversation.id));
+    }
+    const selectedOwners = new Set(activeOwnerFilters);
+    const selectedPersonas = new Set(activePersonaFilters);
+    return rail.entries.filter((entry) => {
+      if (selectedOwners.size > 0 && (entry.ownerKey === null || !selectedOwners.has(entry.ownerKey))) {
+        return false;
+      }
+      if (selectedPersonas.size === 0) return true;
+      const personaId = entry.conversation.persona_id?.trim() ?? '';
+      const key = personaId ? personaSelectionKey(personaId) : NO_PERSONA_SELECTION;
+      return selectedPersonas.has(key);
+    });
+  }, [activeOwnerFilters, activePersonaFilters, conversationFilterKey, rail, serverConversationMatches]);
 
   /*
    * The rail's contents, drawn twice.
@@ -1980,15 +2111,26 @@ export function HomePage() {
       <div>
         <p className="section-label">Conversations</p>
         {adminSharedRail && rail.owners.length > 0 ? (
-          <ConversationOwnerSelect
-            owners={rail.owners}
-            total={rail.entries.length}
-            selected={activeOwnerFilters}
-            onChange={(next) => {
-              setOwnerFilters(next);
-              rememberOwnerSelectionPreference(next);
-            }}
-          />
+          <div className="conversation-filter-row">
+            <ConversationOwnerSelect
+              owners={rail.owners}
+              total={rail.entries.length}
+              selected={activeOwnerFilters}
+              onChange={(next) => {
+                setOwnerFilters(next);
+                rememberOwnerSelectionPreference(identity.signedInAs, next);
+              }}
+            />
+            <ConversationPersonaSelect
+              personas={personas}
+              total={rail.entries.length}
+              selected={activePersonaFilters}
+              onChange={(next) => {
+                setPersonaFilters(next);
+                rememberPersonaSelectionPreference(identity.signedInAs, next);
+              }}
+            />
+          </div>
         ) : null}
         {conversationLoading && conversations.length === 0 ? (
           <div className="space-y-2">
@@ -2007,7 +2149,7 @@ export function HomePage() {
         ) : conversations.length === 0 ? (
           <p className="conversation-empty">{railEmptyNotice(identity.sharedConversationRail)}</p>
         ) : visibleEntries.length === 0 ? (
-          <p className="conversation-empty">No conversations for the selected users.</p>
+          <p className="conversation-empty">No conversations match the selected owner and persona.</p>
         ) : (
           visibleEntries.map(({ conversation, owner, you }) => {
             // What this conversation's latest answered turn recorded, or null

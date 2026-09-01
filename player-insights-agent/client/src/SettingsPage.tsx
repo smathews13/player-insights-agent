@@ -40,9 +40,9 @@ import { UserRoleEditor } from './UserRoleEditor';
 import { Button, Switch } from './ui';
 import { Dialog } from './Dialog';
 import { settingsDismissalAction } from './settings-dismissal';
+import { saveExperimentalSettings, type ExperimentalSettingsDocument } from './experimental-settings-api';
 
 const noopClose = () => {};
-const noopSetFeature = () => {};
 
 const DEFAULT_ROLE: RoleResolution = { state: 'failed', addedAdminsReadable: false };
 
@@ -123,15 +123,22 @@ export function SettingsPage({
   onClose,
   initialSection = 'runtime',
   features: featuresProp,
-  setFeature: setFeatureProp,
   role: roleProp,
   spIdentityEnabled: spIdentityEnabledProp,
+  experimentalRevision: experimentalRevisionProp = 0,
+  experimentalLoaded = true,
+  experimentalFailure = '',
+  onExperimentalSaved = () => {},
 }: {
   onClose?: () => void;
   initialSection?: SettingsSection;
   features?: ExperimentalFeatures | null;
   setFeature?: (name: keyof ExperimentalFeatures, enabled: boolean) => void;
   role?: RoleResolution | null;
+  experimentalRevision?: number;
+  experimentalLoaded?: boolean;
+  experimentalFailure?: string;
+  onExperimentalSaved?: (document: ExperimentalSettingsDocument) => void;
   /**
    * The deployment-wide pivot (`sp-identity-enabled`). Live Settings loads this
    * from the admin API. Passing it seeds the first paint — tests, and never a
@@ -164,8 +171,8 @@ export function SettingsPage({
   // than one section of it.
   const [draftFeatures, setDraftFeatures] = useState<ExperimentalFeatures>(() => ({ ...features }));
   const [savedFeatures, setSavedFeatures] = useState<ExperimentalFeatures>(() => ({ ...features }));
+  const [experimentalRevision, setExperimentalRevision] = useState(experimentalRevisionProp);
   const role = roleProp ?? DEFAULT_ROLE;
-  const setFeature = setFeatureProp ?? noopSetFeature;
   const sections = availableSettingsSections(savedFeatures);
 
   /**
@@ -218,6 +225,22 @@ export function SettingsPage({
   const dirtyCount = paneDirtyCount + (active === 'experimental' ? experimentalShellDirtyCount : 0);
 
   const commitExperimental = useCallback(async () => {
+    if (featureChanges.length > 0) {
+      const patch = Object.fromEntries(
+        featureChanges.map((key) => [key, draftFeatures[key as keyof ExperimentalFeatures]])
+      ) as Partial<ExperimentalFeatures>;
+      let document: ExperimentalSettingsDocument;
+      try {
+        document = await saveExperimentalSettings(experimentalRevision, patch);
+      } catch (error) {
+        setDraftFeatures({ ...savedFeatures });
+        throw error;
+      }
+      setDraftFeatures({ ...document.settings });
+      setSavedFeatures({ ...document.settings });
+      setExperimentalRevision(document.revision);
+      onExperimentalSaved(document);
+    }
     let committedSpMode = spIdentityEnabled;
     if (spIdentityEnabled !== savedSpIdentityEnabled) {
       setSpModeBusy(true);
@@ -227,18 +250,26 @@ export function SettingsPage({
         if (committedSpMode !== spIdentityEnabled) {
           throw new Error('The service-principal identity setting was not saved as requested.');
         }
+        setSpModeError(null);
+      } catch (error) {
+        setSpModeError((error as Error).message);
+        setSpIdentityEnabled(savedSpIdentityEnabled);
+        throw error;
       } finally {
         setSpModeBusy(false);
       }
     }
-    for (const key of featureChanges) {
-      const name = key as keyof ExperimentalFeatures;
-      setFeature(name, draftFeatures[name]);
-    }
-    setSavedFeatures({ ...draftFeatures });
     setSavedSpIdentityEnabled(committedSpMode);
     setSpIdentityEnabled(committedSpMode);
-  }, [draftFeatures, featureChanges, savedSpIdentityEnabled, setFeature, spIdentityEnabled]);
+  }, [
+    draftFeatures,
+    experimentalRevision,
+    featureChanges,
+    onExperimentalSaved,
+    savedFeatures,
+    savedSpIdentityEnabled,
+    spIdentityEnabled,
+  ]);
 
   const form =
     active === 'runtime' || active === 'appearance'
@@ -348,6 +379,11 @@ export function SettingsPage({
                 <div className="settings-pane-heading">
                   <h3>Experimental</h3>
                 </div>
+                {!experimentalLoaded ? (
+                  <p className="settings-status settings-error" role="alert">
+                    {experimentalFailure || 'Experimental settings are still loading from Lakebase.'}
+                  </p>
+                ) : null}
                 <table className="exp-feature-table">
                   <colgroup>
                     <col className="exp-feature-name-column" />
@@ -373,6 +409,7 @@ export function SettingsPage({
                         <div className="exp-feature-control-inner">
                           <Switch
                             checked={showsEgressControls(draftFeatures)}
+                            disabled={!experimentalLoaded}
                             onCheckedChange={(enabled) => {
                               setDraftFeatures((current) =>
                                 withExperimentalFeature(current, 'egressControls', enabled)
@@ -438,6 +475,7 @@ export function SettingsPage({
                         <div className="exp-feature-control-inner">
                           <Switch
                             checked={showsForecasting(draftFeatures)}
+                            disabled={!experimentalLoaded}
                             onCheckedChange={(enabled) => {
                               setDraftFeatures((current) => withExperimentalFeature(current, 'forecasting', enabled));
                               setSaveState(SETTINGS_SAVE_IDLE);
@@ -458,6 +496,7 @@ export function SettingsPage({
                         <div className="exp-feature-control-inner">
                           <Switch
                             checked={showsBenchmarkLab(draftFeatures)}
+                            disabled={!experimentalLoaded}
                             onCheckedChange={(enabled) => {
                               setDraftFeatures((current) => withExperimentalFeature(current, 'benchmarkLab', enabled));
                               setSaveState(SETTINGS_SAVE_IDLE);

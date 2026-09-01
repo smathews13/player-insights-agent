@@ -162,14 +162,14 @@ describe('the traffic groups share the row', () => {
   });
 });
 
-describe('the Cost assumptions and actuals stay separate', () => {
-  it('uses the shared assumption grid for one desktop row and a read-only projection-style matrix', () => {
+describe('the Cost budget layout', () => {
+  it('uses the shared assumption grid for one desktop row without a duplicate actuals table', () => {
     expect(rule('.ops-ticker-assumption-grid')).toMatch(
       /grid-template-columns:\s*repeat\(var\(--ops-assumption-columns\),\s*minmax\(0,\s*1fr\)\)/
     );
-    expect(rule('.ops-cost-budget-matrix')).toMatch(/table-layout:\s*fixed/);
     expect(rule('.ops-forecast-breakdown table')).toMatch(/min-width:\s*620px/);
-    expect(rule('.ops-tile-budget')).not.toMatch(/display:\s*grid/);
+    expect(RULES).not.toContain('.ops-cost-actual-breakdown');
+    expect(RULES).not.toContain('.ops-cost-budget-matrix');
   });
 
   it('reserves room for long values, unit affixes, and visible arrow controls', () => {
@@ -178,7 +178,6 @@ describe('the Cost assumptions and actuals stay separate', () => {
     expect(rule(".ops-number-ticker[data-prefix='true'] input")).toMatch(/padding-left:\s*22px/);
     expect(rule(".ops-number-ticker[data-suffix='true'] input")).toMatch(/padding-right:\s*40px/);
     expect(RULES).toMatch(/\.ops-number-ticker-suffix\s*\{[^}]*right:\s*32px/);
-    expect(rule('.ops-budget-actual')).toMatch(/font-variant-numeric:\s*tabular-nums/);
   });
 
   it('deliberately reflows the six assumptions through 3, 2, and 1 columns', () => {
@@ -204,6 +203,13 @@ describe('the Cost assumptions and actuals stay separate', () => {
     expect(RESPONSIVE).toMatch(
       /@media \(max-width: 480px\)[\s\S]*\.ops-cost-total \.ops-ticker-input-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto/
     );
+  });
+
+  it('keeps the Cost title/period rail wrapping independently from right-side controls', () => {
+    expect(rule('.ops-block-head')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.ops-block-head-text')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.ops-cost-head-controls')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.ops-block-head-control')).toMatch(/margin-left:\s*auto/);
   });
 });
 

@@ -19,7 +19,11 @@ import {
 } from '../../shared/benchmark-lab-v3';
 import { EvalRowSchema, extraJudgesFromSettings, labeledRowCount, newEvalRowId, uniqueQuestionsToAdd } from '../../shared/eval-dataset';
 import { recordAdminAction } from '../lib/admin-roles';
-import { readBenchmarkSettings, writeBenchmarkSettings } from '../lib/benchmark-settings-store';
+import {
+  readBenchmarkSettings,
+  readBenchmarkSettingsDocument,
+  writeBenchmarkSettingsPatch,
+} from '../lib/benchmark-settings-store';
 import { patchLabState, readLabState, snapshotWorkingCopy } from '../lib/benchmark-lab-store';
 import { readEvalDataset, readEvalDatasetEnvelope, writeEvalDataset } from '../lib/eval-dataset-store';
 import { patchFlywheelState, readFlywheelState } from '../lib/eval-flywheel-store';
@@ -491,8 +495,8 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
           });
           return;
         }
-        const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
-        const saved = await writeBenchmarkSettings(appkit, { ...settings, guidelinesText: preview }, actor);
+        const settings = await readBenchmarkSettingsDocument(appkit, { maxAgeMs: 0 });
+        const saved = await writeBenchmarkSettingsPatch(appkit, { guidelinesText: preview }, settings.revision, actor);
         await patchLabState(appkit, {
           alignPreview: state.alignPreview ? { ...state.alignPreview, saved: false, note: 'Saved after review.' } : null,
         }, actor);
@@ -502,7 +506,7 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
           subject: 'benchmark-settings',
           detail: 'Aligned guidelines saved after review.',
         });
-        res.json({ guidelinesText: saved.guidelinesText, lab: await workspace(appkit) });
+        res.json({ guidelinesText: saved.settings.guidelinesText, lab: await workspace(appkit) });
       } catch (error) {
         res.status(503).json({
           error: 'align_commit_unavailable',

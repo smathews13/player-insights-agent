@@ -1,6 +1,6 @@
 import type { RailOwner } from './conversation-rail';
 
-export const CONVERSATION_OWNER_SELECTION_KEY = 'astrolabe.ask.conversation-owners';
+export const CONVERSATION_OWNER_SELECTION_KEY = 'astrolabe.ask.conversation-owners.v2';
 export const MAX_OWNER_SELECTIONS = 25;
 
 /** Empty is the single canonical representation of “All users”. */
@@ -51,14 +51,16 @@ export function clearOwnerSelectionPreference(): void {
   }
 }
 
-export function readOwnerSelectionPreference(available: readonly string[]): string[] {
+export function readOwnerSelectionPreference(subject: string, available: readonly string[]): string[] {
   try {
     const raw = browserStorage()?.getItem(CONVERSATION_OWNER_SELECTION_KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
+    if (!parsed || typeof parsed !== 'object') return [];
+    const stored = parsed as { subject?: unknown; selected?: unknown };
+    if (stored.subject !== subject.trim().toLowerCase() || !Array.isArray(stored.selected)) return [];
     return normalizeOwnerSelection(
-      parsed.filter((value): value is string => typeof value === 'string'),
+      stored.selected.filter((value): value is string => typeof value === 'string'),
       available
     );
   } catch {
@@ -66,11 +68,14 @@ export function readOwnerSelectionPreference(available: readonly string[]): stri
   }
 }
 
-export function rememberOwnerSelectionPreference(selected: readonly string[]): void {
+export function rememberOwnerSelectionPreference(subject: string, selected: readonly string[]): void {
   try {
     browserStorage()?.setItem(
       CONVERSATION_OWNER_SELECTION_KEY,
-      JSON.stringify(selected.slice(0, MAX_OWNER_SELECTIONS))
+      JSON.stringify({
+        subject: subject.trim().toLowerCase(),
+        selected: selected.slice(0, MAX_OWNER_SELECTIONS),
+      })
     );
   } catch {
     // A blocked preference store must not block the rail.
