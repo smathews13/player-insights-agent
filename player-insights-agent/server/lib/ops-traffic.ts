@@ -460,7 +460,7 @@ function scalar(value: unknown): string {
 function label(kind: string, key: string): string {
   if (key === 'UNKNOWN_FAILURE_CAUSE') return 'Unknown failure cause';
   if (key === 'UNKNOWN_REFUSAL_CAUSE') return 'Unknown refusal cause';
-  if (key === 'UNKNOWN_STORED_ANSWER_FAILURE') return 'Unknown historical answer failure';
+  if (key === 'UNKNOWN_STORED_ANSWER_FAILURE') return 'Legacy failure \u00b7 cause unavailable';
   if (key === 'REASONING_ENDPOINT_TIMEOUT') return 'Reasoning endpoint timed out';
   if (key === 'SQL_UNRESOLVED_COLUMN') return 'SQL referenced a missing column';
   if (key === 'SQL_TOOL_FAILURE') return 'SQL query failed';
@@ -470,9 +470,42 @@ function label(kind: string, key: string): string {
   return key;
 }
 
+/**
+ * Collapse only canonical refusal codes into a small operator taxonomy.
+ *
+ * The run state is already REFUSED before this function is called. Operational
+ * codes never enter this map, so a timeout, cancellation, query error or run
+ * limit cannot be relabelled as a refusal by matching incidental prose.
+ */
+function refusalKey(key: string): string {
+  if (['IDENTITY_REQUIRED', 'IDENTITY_MISMATCH', 'USER_AUTH_REJECTED', 'USER_NOT_AUTHORIZED'].includes(key)) {
+    return 'REFUSAL_PERMISSION_ACCESS_SCOPE';
+  }
+  if (['COLUMN_POLICY_VIOLATION', 'RESULT_COLUMN_POLICY_VIOLATION'].includes(key)) {
+    return 'REFUSAL_POLICY_SAFETY';
+  }
+  if (['IDEMPOTENCY_CONFLICT', 'IDEMPOTENCY_KEY_MALFORMED', 'ASSET_NOT_IN_MANIFEST'].includes(key)) {
+    return 'REFUSAL_UNSUPPORTED_REQUEST';
+  }
+  if (key === 'NO_VALID_EVIDENCE') return 'REFUSAL_MISSING_INPUT';
+  if (key === 'BUDGET_APPROVAL_REQUIRED') return 'REFUSAL_BUDGET_GUARD';
+  if (['GENIE_UNATTRIBUTABLE', 'RELEASE_NOT_CERTIFIED'].includes(key)) return 'REFUSAL_UPSTREAM_RESOURCE';
+  return key;
+}
+
+function displayLabel(kind: string, key: string): string {
+  if (key === 'REFUSAL_PERMISSION_ACCESS_SCOPE') return 'Permission, access or scope';
+  if (key === 'REFUSAL_POLICY_SAFETY') return 'Policy or safety';
+  if (key === 'REFUSAL_UNSUPPORTED_REQUEST') return 'Unsupported request';
+  if (key === 'REFUSAL_MISSING_INPUT') return 'Missing input or clarification';
+  if (key === 'REFUSAL_BUDGET_GUARD') return 'Budget guard';
+  if (key === 'REFUSAL_UPSTREAM_RESOURCE') return 'Upstream or resource refusal';
+  return label(kind, key);
+}
+
 function sortedBars(values: Map<string, number>, kind: string): TrafficBar[] {
   return [...values]
-    .map(([key, count]) => ({ key, label: label(kind, key), count }))
+    .map(([key, count]) => ({ key, label: displayLabel(kind, key), count }))
     .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
 }
 
@@ -513,7 +546,8 @@ export function readTrafficBreakdowns(
       malformed = true;
       continue;
     }
-    const named = key || (kind === 'tool' ? 'Unknown tool' : 'Unknown cause');
+    const normalized = kind === 'refusal' ? refusalKey(key) : key;
+    const named = normalized || (kind === 'tool' ? 'Unknown tool' : 'Unknown cause');
     target.set(named, (target.get(named) ?? 0) + parsed);
   }
   const requested = input.state ?? 'complete';

@@ -211,12 +211,68 @@ export function openQuestion(search: string, id: string): string {
   const next = new URLSearchParams(search);
   next.set(QUESTION_PARAM, id);
   next.delete(PERSON_PANEL_PARAM);
+  next.delete('users');
   return next.toString();
 }
 
 export function openPerson(search: string, email: string): string {
   const next = new URLSearchParams(search);
   next.set(PERSON_PANEL_PARAM, email);
+  next.delete(QUESTION_PARAM);
+  next.delete('users');
+  return next.toString();
+}
+
+export type UserMonitoringUnit = 'USD' | 'DBU';
+
+export interface UserBrowserState {
+  open: boolean;
+  search: string;
+  role: string;
+  unit: UserMonitoringUnit;
+  cursor: string;
+}
+
+export function userBrowserFromParams(params: ReadableParams): UserBrowserState {
+  return {
+    open: params.get('users') === '1',
+    search: (params.get('userSearch') ?? '').trim(),
+    role: (params.get('userRole') ?? '').trim(),
+    unit: params.get('userUnit') === 'DBU' ? 'DBU' : 'USD',
+    cursor: (params.get('userCursor') ?? '').trim(),
+  };
+}
+
+export function openUserBrowser(search: string, unit: UserMonitoringUnit = 'USD'): string {
+  const next = new URLSearchParams(search);
+  next.set('users', '1');
+  next.set('userUnit', unit);
+  next.delete(QUESTION_PARAM);
+  next.delete(PERSON_PANEL_PARAM);
+  return next.toString();
+}
+
+/** Keep browser filters and cursor while replacing its list with one profile. */
+export function openUserFromBrowser(search: string, email: string): string {
+  const next = new URLSearchParams(search);
+  next.set('users', '1');
+  next.set(PERSON_PANEL_PARAM, email);
+  next.delete(QUESTION_PARAM);
+  return next.toString();
+}
+
+export function backToUserBrowser(search: string): string {
+  const next = new URLSearchParams(search);
+  next.set('users', '1');
+  next.delete(PERSON_PANEL_PARAM);
+  next.delete(QUESTION_PARAM);
+  return next.toString();
+}
+
+export function closedUserMonitoring(search: string): string {
+  const next = new URLSearchParams(search);
+  for (const name of ['users', 'userSearch', 'userRole', 'userUnit', 'userCursor']) next.delete(name);
+  next.delete(PERSON_PANEL_PARAM);
   next.delete(QUESTION_PARAM);
   return next.toString();
 }

@@ -156,6 +156,23 @@ describe('Monitoring details open as centered modals, not side drawers', () => {
     );
     expect(narrow).not.toMatch(/\.monitoring-person-modal\s*\{[^}]*width:\s*100vw/);
   });
+
+  it('keeps Spend in normal flow before the KPI grid and gives the browser a wider shared modal', () => {
+    const spend = rule('.monitoring-spend');
+    expect(spend).not.toMatch(/position:\s*(absolute|fixed)/);
+    expect(spend).not.toMatch(/(^|;)\s*height:/);
+    expect(rule('.monitoring-person-modal-body')).toMatch(/display:\s*flex/);
+    expect(rule('.monitoring-person-modal-body')).toMatch(/flex-direction:\s*column/);
+    expect(rule('.monitoring-users-modal')).toMatch(/width:\s*min\(1080px/);
+    expect(rule('.monitoring-user-row')).toMatch(/grid-template-columns/);
+  });
+
+  it('turns browser rows into readable cards on narrow screens', () => {
+    const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
+    expect(narrow).toMatch(/\.monitoring-users-columns\s*\{[^}]*display:\s*none/);
+    expect(narrow).toMatch(/\.monitoring-user-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/);
+    expect(narrow).toMatch(/\.monitoring-users-mobile-label\s*\{[^}]*display:\s*inline/);
+  });
 });
 
 describe('the panel head and the scope badges cannot be clipped either', () => {

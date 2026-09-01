@@ -76,6 +76,7 @@ import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } 
 import { ACTIVE_MINUTES_PER_DAY_QUERY, validIanaTimeZone } from '../lib/app-activity';
 import {
   buildSpendByUser,
+  buildUserMonitoringPage,
   cachedUserSpend,
   cacheUserSpend,
   capUserSpendRange,
@@ -83,8 +84,13 @@ import {
   readUserRunSpendEvidence,
   USER_ACTIVE_MINUTES_QUERY,
   USER_SPEND_RUNS_QUERY,
+  userSpendDataRevision,
   userSpendCacheKey,
 } from '../lib/user-spend';
+import { seedRoles } from '../lib/admin-roles';
+import { effectiveRole, everyKnownUser, readRosterForRequest } from '../lib/user-roster';
+import { isRole, type Role } from '../../shared/user-roster-contract';
+import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import { attributableCostBudgets } from '../../shared/cost-budgets';
 import {
   createWorkspaceQueryHistoryTransport,
@@ -93,6 +99,11 @@ import {
   type WarehouseQueryAttribution,
   type WarehouseQueryHistoryTransport,
 } from '../lib/ops-query-history';
+import {
+  buildGenieAccountingStatement,
+  classifyGenieAccounting,
+  readGenieAccountingRows,
+} from '../lib/genie-accounting';
 import { readRuntimeSettings } from '../lib/runtime-settings-store';
 import {
   LEGACY_TRAFFIC_BREAKDOWNS_QUERY,
@@ -118,6 +129,8 @@ import { opsDayRange } from '../../shared/ops-contract';
 
 /** How long any one Ops statement is given before it is reported as unanswered. */
 const STATEMENT_TIMEOUT_MS = 45_000;
+const USER_MONITORING_CACHE_MS = 30_000;
+const userMonitoringCache = new Map<string, { expiresAt: number; payload: OpsCostPayload }>();
 
 /**
  * One query parameter, and only where it arrived as a single string.
@@ -248,6 +261,8 @@ export interface VectorConnectionEvidence {
   endpoint: string;
   endpointIndexCount: number | null;
   reason: string;
+  /** Released endpoint differs from the index's current host; informational, not an attribution failure. */
+  drift?: string;
 }
 
 /**
@@ -295,13 +310,10 @@ export async function lookupVectorConnection(input: {
     if (!endpoint) {
       return { endpoint: configuredEndpoint, endpointIndexCount: null, reason: 'The active index named no endpoint.' };
     }
-    if (configuredEndpoint && configuredEndpoint !== endpoint) {
-      return {
-        endpoint,
-        endpointIndexCount: null,
-        reason: 'The released endpoint name disagrees with the endpoint reported by the active index.',
-      };
-    }
+    const drift =
+      configuredEndpoint && configuredEndpoint !== endpoint
+        ? `Released endpoint ${configuredEndpoint} differs from the active index host ${endpoint}.`
+        : '';
     const endpointResponse = await call(
       `${input.host}/api/2.0/vector-search/endpoints/${encodeURIComponent(endpoint)}`,
       {
@@ -323,6 +335,7 @@ export async function lookupVectorConnection(input: {
       endpoint,
       endpointIndexCount,
       reason: endpointIndexCount === null ? 'The hosting endpoint response carried no usable index count.' : '',
+      ...(drift ? { drift } : {}),
     };
   } catch (error) {
     return {
@@ -433,6 +446,7 @@ export async function costIdentifiersFor(
       vectorIndex,
       vectorEndpointIndexCount: vectorConnection.endpointIndexCount,
       vectorIdentityError: vectorConnection.reason,
+      vectorIdentityDrift: vectorConnection.drift,
       genieSpaces: [
         {
           id: dataGenie?.id || '',
@@ -1266,6 +1280,40 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
     app.get('/api/ops/cost', async (req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
       const range = opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
+      const userBrowse = queryText(req, 'userBrowse') === '1';
+      const spendUser = queryText(req, 'spendUser').toLowerCase();
+      const requestedUnit = queryText(req, 'unit');
+      const userUnit: CostBudgetUnit = requestedUnit === 'DBU' ? 'DBU' : 'USD';
+      const requestedRole = queryText(req, 'role');
+      const userRole: Role | '' = isRole(requestedRole) ? requestedRole : '';
+      const userMonitoringCacheKey = [
+        userEmail(req),
+        range.from,
+        range.to,
+        userUnit,
+        queryText(req, 'userSearch').toLowerCase(),
+        userRole,
+        queryText(req, 'userCursor'),
+        queryText(req, 'pageSize'),
+        userSpendDataRevision(),
+      ].join('|');
+      if (userBrowse) {
+        const cached = userMonitoringCache.get(userMonitoringCacheKey);
+        if (cached && cached.expiresAt > clock()) {
+          res.json(cached.payload);
+          return;
+        }
+        if (cached) userMonitoringCache.delete(userMonitoringCacheKey);
+      }
+      const sendCost = (payload: OpsCostPayload) => {
+        if (userBrowse) {
+          userMonitoringCache.set(userMonitoringCacheKey, {
+            expiresAt: clock() + USER_MONITORING_CACHE_MS,
+            payload,
+          });
+        }
+        res.json(payload);
+      };
       const spendWindow = capUserSpendRange(range);
       const requestAbort = new AbortController();
       res.once?.('close', () => {
@@ -1283,7 +1331,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         readReport: deps.readOrchestratorReport,
       });
       const ids = resolved.ids;
-      const [storedBudgets, resourceActivity, userRunsRead, userActivityRead] = await Promise.all([
+      const [storedBudgets, resourceActivity, userRunsRead, userActivityRead, rosterRead] = await Promise.all([
         readCostBudgets(appkit),
         resourceActivityAttribution(appkit, ids, range),
         appkit.lakebase
@@ -1308,6 +1356,15 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             recordedThrough: '',
             reason: `Per-user active-minute evidence could not be read: ${error.message}`,
           })),
+        userBrowse
+          ? readRosterForRequest(appkit.lakebase, req)
+              .then((roster) => ({ available: true as const, rows: roster.rows, reason: '' }))
+              .catch((error: Error) => ({
+                available: false as const,
+                rows: [],
+                reason: `Current app roles could not be read: ${error.message}`,
+              }))
+          : Promise.resolve({ available: true as const, rows: [], reason: '' }),
       ]);
       const costBudgets = attributableCostBudgets(storedBudgets.budgets);
       const empty = {
@@ -1329,12 +1386,54 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         budgets: costBudgets,
         budgetsReadable: storedBudgets.readable,
       };
+      const userMonitoringFor = (spend: ReturnType<typeof buildSpendByUser>) => {
+        if (!userBrowse) return undefined;
+        const seed = seedRoles();
+        const roles = new Map(
+          everyKnownUser({ seed, stored: rosterRead.rows }).map((entry) => [entry.email, entry.role])
+        );
+        for (const email of spend.users.map((profile) => profile.email)) {
+          if (!roles.has(email)) roles.set(email, effectiveRole({ seed, stored: rosterRead.rows, email }));
+        }
+        return buildUserMonitoringPage({
+          spend: rosterRead.available
+            ? spend
+            : { ...spend, state: 'partial', reason: [spend.reason, rosterRead.reason].filter(Boolean).join(' ') },
+          runs: userRunsRead.users,
+          activity: userActivityRead.users,
+          roles,
+          unit: userUnit,
+          search: queryText(req, 'userSearch'),
+          role: userRole,
+          cursor: queryText(req, 'userCursor'),
+          pageSize: Number(queryText(req, 'pageSize')) || undefined,
+        });
+      };
+      const unavailableUserSpend = (tiles: ReturnType<typeof buildTiles>, reason: string) =>
+        buildSpendByUser({
+          readAt,
+          requestedRange: range,
+          range: spendWindow.range,
+          tiles,
+          queryComplete: false,
+          queryUsers: [],
+          runs: userRunsRead.users,
+          activity: {
+            available: userActivityRead.available,
+            users: userActivityRead.users,
+            recordedFrom: userActivityRead.recordedFrom,
+            recordedThrough: userActivityRead.recordedThrough,
+          },
+          partialReason: reason,
+        });
 
       if (!workspace || !warehouse || !token) {
-        res.json({
+        const tiles = buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity);
+        sendCost({
           ...empty,
           state: 'no-warehouse',
-          tiles: buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity),
+          tiles,
+          userMonitoring: userMonitoringFor(unavailableUserSpend(tiles, 'Billing could not be read.')),
           reason:
             'Billing could not be read because this app has no SQL warehouse, no workspace address, ' +
             'or no forwarded sign-in to read it with. Nothing about spend was established.',
@@ -1344,16 +1443,19 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
       const built = buildCostStatement(ids, range);
       if (!built) {
-        res.json({
+        const tiles = buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity);
+        sendCost({
           ...empty,
           state: 'ready',
-          tiles: buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity),
+          tiles,
+          userMonitoring: userMonitoringFor(unavailableUserSpend(tiles, 'No billable app resources were resolved.')),
         } satisfies OpsCostPayload);
         return;
       }
 
       try {
-        const [outcome, queryAttribution] = await Promise.all([
+        const genieStatement = buildGenieAccountingStatement(ids.workspaceId, range);
+        const [outcome, queryAttribution, genieOutcome] = await Promise.all([
           runStatement({
             host: workspace,
             token,
@@ -1370,17 +1472,41 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             transport: deps.queryHistoryTransport,
             signal: requestAbort.signal,
           }),
+          genieStatement
+            ? runStatement({
+                host: workspace,
+                token,
+                warehouseId: warehouse,
+                statement: genieStatement.statement,
+                parameters: genieStatement.parameters,
+                fetchImpl: deps.fetchImpl,
+              })
+            : Promise.resolve({ ok: false as const, message: 'No workspace id is configured for Genie billing.' }),
         ]);
+        const genieRows = genieOutcome.ok
+          ? readGenieAccountingRows(genieOutcome.rows as readonly Record<string, unknown>[])
+          : [];
+        const genieMonth = genieOutcome.ok ? classifyGenieAccounting(genieRows, range.to) : null;
+        const geniePeriod = genieOutcome.ok
+          ? classifyGenieAccounting(
+              genieRows.filter((row) => row.usageDay >= range.from && row.usageDay <= range.to),
+              range.to
+            )
+          : null;
+        const genieAccounting = genieMonth && geniePeriod ? { month: genieMonth, period: geniePeriod } : null;
+        const genieReason = genieOutcome.ok ? '' : `Genie billing could not be read: ${genieOutcome.message}`;
         const inventoryCount = resourceTagInventory({ environment: process.env, report: resolved.report }).length;
 
         if (!outcome.ok) {
           const denial = classifyDenial(outcome.message, 'system.billing.usage');
           if (denial.kind === 'no-grant') {
-            res.json({
+            const tiles = buildTiles(ids, [], queryAttribution, resourceActivity, null, genieReason);
+            sendCost({
               ...empty,
               state: 'no-grant',
               grant: billingGrant(userEmail(req) || UNKNOWN_PRINCIPAL),
-              tiles: buildTiles(ids, [], queryAttribution, resourceActivity),
+              tiles,
+              userMonitoring: userMonitoringFor(unavailableUserSpend(tiles, 'Billing access is unavailable.')),
               reason:
                 `You do not have ${denial.permission} on ${denial.object}, so no spend was read. Billing ` +
                 'runs under your own grants rather than this app\u2019s, so being an administrator here ' +
@@ -1388,10 +1514,12 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             } satisfies OpsCostPayload);
             return;
           }
-          res.json({
+          const tiles = buildTiles(ids, [], queryAttribution, resourceActivity, null, genieReason);
+          sendCost({
             ...empty,
             state: 'unreadable',
-            tiles: buildTiles(ids, [], queryAttribution, resourceActivity),
+            tiles,
+            userMonitoring: userMonitoringFor(unavailableUserSpend(tiles, 'Billing could not be read.')),
             reason: `Billing could not be read, so nothing about spend was established. Databricks said: ${outcome.message}`,
           } satisfies OpsCostPayload);
           return;
@@ -1411,16 +1539,17 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
         // No exact component rows is its OWN state and not a missing grant.
         if (split.components.length === 0 && (!split.meta || split.meta.billedDays === 0)) {
-          const tiles = buildTiles(ids, [], queryAttribution, resourceActivity);
+          const tiles = buildTiles(ids, [], queryAttribution, resourceActivity, genieAccounting, genieReason);
           const reason = unpropagated.length
             ? 'Matching usage exists without the Astrolabe tag, but exact resource attribution remains available.'
             : delayed
               ? 'No exact tracked-resource billing rows yet. Later days may still be filling.'
               : 'No billing rows matched an exact tracked resource.';
-          res.json({
+          sendCost({
             ...empty,
             state: 'no-rows',
             tiles,
+            userMonitoring: userMonitoringFor(unavailableUserSpend(tiles, reason)),
             currency: split.meta?.currency ?? '',
             throughDay: split.meta?.lastDay || '',
             billingLagDays: lagDays(range.to, split.meta?.lastDay || ''),
@@ -1431,7 +1560,14 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           return;
         }
 
-        const tiles = buildTiles(ids, split.components, queryAttribution, resourceActivity);
+        const tiles = buildTiles(
+          ids,
+          split.components,
+          queryAttribution,
+          resourceActivity,
+          genieAccounting,
+          genieReason
+        );
         const spendCacheKey = userSpendCacheKey(userEmail(req), spendWindow.range);
         const spendByUser =
           cachedUserSpend(spendCacheKey, clock()) ??
@@ -1449,6 +1585,14 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               recordedFrom: userActivityRead.recordedFrom,
               recordedThrough: userActivityRead.recordedThrough,
             },
+            direct:
+              geniePeriod?.users.map((user) => ({
+                email: user.identity,
+                componentId: 'genie:charged',
+                quality: 'direct' as const,
+                usd: user.paidUsd,
+                dbu: user.chargedEffectiveDbus,
+              })) ?? [],
             partialReason: [
               spendWindow.partial
                 ? 'Individual spend is limited to the most recent 90 complete days because raw user telemetry is retained for 90 days.'
@@ -1459,7 +1603,39 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               .filter(Boolean)
               .join(' '),
           });
-        cacheUserSpend(spendCacheKey, spendByUser, clock());
+        const spendWithGenie = genieMonth
+          ? {
+              ...spendByUser,
+              users: spendByUser.users.map((profile) => {
+                const allowance = genieMonth.users.find(
+                  (user) => user.identity.toLowerCase() === profile.email.toLowerCase()
+                );
+                return {
+                  ...profile,
+                  genieAllowance: allowance
+                    ? {
+                        month: genieMonth.month,
+                        usedDbus: allowance.allowanceUsedDbus,
+                        remainingDbus: allowance.allowanceRemainingDbus,
+                        promotionalDbus: allowance.promotionalDbus,
+                        chargedEffectiveDbus: allowance.chargedEffectiveDbus,
+                        chargedRawEquivalentDbus: allowance.chargedRawEquivalentDbus,
+                      }
+                    : null,
+                };
+              }),
+            }
+          : spendByUser;
+        cacheUserSpend(spendCacheKey, spendWithGenie, clock());
+        const userMonitoring = userMonitoringFor(spendWithGenie);
+        const selectedSpendByUser = spendUser
+          ? {
+              ...spendWithGenie,
+              users: spendWithGenie.users.filter((profile) => profile.email.toLowerCase() === spendUser),
+            }
+          : userBrowse
+            ? { ...spendWithGenie, users: [] }
+            : spendWithGenie;
         let perQuestion: OpsCostPayload['perQuestion'] = {
           ...empty.perQuestion,
           reason: 'Per-question attribution could not be read from the run ledger.',
@@ -1475,7 +1651,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           perQuestion.reason = `Per-question attribution could not be read from the run ledger: ${(error as Error).message}`;
         }
 
-        res.json({
+        sendCost({
           ...empty,
           state: 'ready',
           currency: split.meta?.currency ?? tiles.find((tile) => tile.pricing?.currency)?.pricing?.currency ?? '',
@@ -1483,15 +1659,18 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           billingLagDays: lagDays(range.to, split.meta?.lastDay || ''),
           tiles,
           perQuestion,
-          spendByUser,
+          spendByUser: selectedSpendByUser,
+          userMonitoring,
           coverage,
           honesty: buildHonesty(range, split.meta, tiles),
         } satisfies OpsCostPayload);
       } catch (error) {
-        res.json({
+        const tiles = buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity);
+        sendCost({
           ...empty,
           state: 'unreadable',
-          tiles: buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity),
+          tiles,
+          userMonitoring: userMonitoringFor(unavailableUserSpend(tiles, 'Billing could not be read.')),
           reason: `Billing could not be read, so nothing about spend was established: ${(error as Error).message}`,
         } satisfies OpsCostPayload);
       }

@@ -64,7 +64,11 @@ describe('Ops failure and refusal population', () => {
       { key: 'RUN_DEADLINE_EXCEEDED', label: 'RUN_DEADLINE_EXCEEDED', count: 2 },
       { key: 'UNKNOWN_FAILURE_CAUSE', label: 'Unknown failure cause', count: 1 },
     ]);
-    expect(read.refusalsByCause[0]).toMatchObject({ key: 'USER_NOT_AUTHORIZED', count: 3 });
+    expect(read.refusalsByCause[0]).toMatchObject({
+      key: 'REFUSAL_PERMISSION_ACCESS_SCOPE',
+      label: 'Permission, access or scope',
+      count: 3,
+    });
     expect(read.toolCalls.map((row) => [row.label, row.count])).toEqual([
       ['Ran a governed read-only query', 19],
       ['Called search_semantics', 7],
@@ -103,7 +107,7 @@ describe('Ops failure and refusal population', () => {
     ]);
     expect(read.failuresByCause.map((item) => item.label)).toEqual([
       'SQL referenced a missing column',
-      'Unknown historical answer failure',
+      'Legacy failure · cause unavailable',
     ]);
     expect(read.outcomesCoverage).toEqual({
       state: 'partial',
@@ -125,5 +129,28 @@ describe('Ops failure and refusal population', () => {
     ]);
     expect(read.toolCalls).toEqual([]);
     expect(read.toolCallsCoverage).toEqual({ state: 'complete', coveredRuns: 2, reason: '' });
+  });
+
+  it('combines only canonical refusal codes into the compact refusal taxonomy', () => {
+    const read = readTrafficBreakdowns([
+      { kind: 'population', key: '', count: 8 },
+      { kind: 'outcome_covered', key: '', count: 8 },
+      { kind: 'tool_covered', key: '', count: 8 },
+      { kind: 'refusal', key: 'IDENTITY_REQUIRED', count: 1 },
+      { kind: 'refusal', key: 'USER_NOT_AUTHORIZED', count: 2 },
+      { kind: 'refusal', key: 'COLUMN_POLICY_VIOLATION', count: 1 },
+      { kind: 'refusal', key: 'IDEMPOTENCY_KEY_MALFORMED', count: 1 },
+      { kind: 'refusal', key: 'NO_VALID_EVIDENCE', count: 1 },
+      { kind: 'refusal', key: 'BUDGET_APPROVAL_REQUIRED', count: 1 },
+      { kind: 'refusal', key: 'RELEASE_NOT_CERTIFIED', count: 1 },
+    ]);
+    expect(read.refusalsByCause).toEqual([
+      { key: 'REFUSAL_PERMISSION_ACCESS_SCOPE', label: 'Permission, access or scope', count: 3 },
+      { key: 'REFUSAL_BUDGET_GUARD', label: 'Budget guard', count: 1 },
+      { key: 'REFUSAL_MISSING_INPUT', label: 'Missing input or clarification', count: 1 },
+      { key: 'REFUSAL_POLICY_SAFETY', label: 'Policy or safety', count: 1 },
+      { key: 'REFUSAL_UNSUPPORTED_REQUEST', label: 'Unsupported request', count: 1 },
+      { key: 'REFUSAL_UPSTREAM_RESOURCE', label: 'Upstream or resource refusal', count: 1 },
+    ]);
   });
 });

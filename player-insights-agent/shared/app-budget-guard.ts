@@ -4,6 +4,7 @@ import { CostBudgetUnitSchema } from './cost-budgets';
 import {
   APP_BUDGET_COVERAGES,
   APP_BUDGET_LEVELS,
+  APP_BUDGET_APPROVAL_PERCENT,
   APP_BUDGET_WARNING_PERCENT,
   type AppBudgetApproval,
   type AppBudgetStatus,
@@ -59,7 +60,7 @@ export function budgetLevelFor(
   };
   const used = fixed(measured);
   const limit = fixed(budget);
-  const approvalRequired = limit === 0n ? true : used >= limit;
+  const approvalRequired = limit === 0n ? true : used * 100n >= limit * BigInt(APP_BUDGET_APPROVAL_PERCENT);
   const warning = approvalRequired || used * 100n >= limit * BigInt(APP_BUDGET_WARNING_PERCENT);
   const ratio = limit === 0n ? (used === 0n ? 1 : Number.POSITIVE_INFINITY) : Number(used) / Number(limit);
   const finiteRatio = Number.isFinite(ratio) ? ratio : Number.MAX_SAFE_INTEGER;

@@ -88,9 +88,7 @@ function formulaText(component: { id: string; formula: string }): string {
     return 'Daily questions × observed serving cost per question × assumed-to-observed token ratio';
   }
   if (component.id === 'sql-warehouse') return 'Daily questions × observed attributed SQL cost per question';
-  if (component.id === 'app-compute') {
-    return 'Users × active minutes per user per day × observed app cost per active minute';
-  }
+  if (component.id === 'app-compute') return 'Measured app-compute daily billing rate, held fixed';
   if (component.id === 'vector-search') return 'Measured daily spend, held fixed';
   return 'Measured attributable daily spend, held fixed';
 }

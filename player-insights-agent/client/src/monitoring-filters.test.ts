@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyFilters,
+  backToUserBrowser,
   chipsActive,
   clearedFilters,
   closedDrawer,
+  closedUserMonitoring,
   drawerFromParams,
   filtersActive,
   filtersFromParams,
@@ -12,8 +14,11 @@ import {
   onlyDrawerChanged,
   openPerson,
   openQuestion,
+  openUserBrowser,
+  openUserFromBrowser,
   scrollMemory,
   withFilters,
+  userBrowserFromParams,
 } from './monitoring-filters';
 import type { MonitoringQuestion } from '../../shared/monitoring-contract';
 
@@ -117,6 +122,37 @@ describe('the filters live in the URL', () => {
     // the window somebody chose.
     expect(after.get('range')).toBe('30d');
     expect(after.get('question')).toBe('q9');
+  });
+});
+
+describe('the User Monitoring modal lives in the URL', () => {
+  it('deep-links the browser with its selected cost unit and preserves the period', () => {
+    const opened = params(openUserBrowser('range=30d&outcome=failed', 'DBU'));
+    expect(opened.get('users')).toBe('1');
+    expect(opened.get('userUnit')).toBe('DBU');
+    expect(opened.get('range')).toBe('30d');
+    expect(opened.get('outcome')).toBe('failed');
+    expect(userBrowserFromParams(opened)).toMatchObject({ open: true, unit: 'DBU' });
+  });
+
+  it('moves browser to profile and back without losing search, role, unit, or cursor', () => {
+    const browser = 'users=1&userSearch=ada&userRole=admin&userUnit=USD&userCursor=next';
+    const profile = params(openUserFromBrowser(browser, 'ada@example.test'));
+    expect(profile.get('who')).toBe('ada@example.test');
+    const returned = params(backToUserBrowser(profile.toString()));
+    expect(returned.get('who')).toBeNull();
+    expect(returned.get('userSearch')).toBe('ada');
+    expect(returned.get('userRole')).toBe('admin');
+    expect(returned.get('userCursor')).toBe('next');
+  });
+
+  it('closes the whole modal without clearing Monitoring filters or period', () => {
+    const closed = params(closedUserMonitoring('range=24h&outcome=partial&users=1&who=a%40b.test&userUnit=DBU'));
+    expect(closed.get('users')).toBeNull();
+    expect(closed.get('who')).toBeNull();
+    expect(closed.get('userUnit')).toBeNull();
+    expect(closed.get('range')).toBe('24h');
+    expect(closed.get('outcome')).toBe('partial');
   });
 });
 

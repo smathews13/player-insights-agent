@@ -23,6 +23,15 @@ export interface UserSpendProfile {
     dbu: UserSpendAmount;
   };
   components: UserSpendComponent[];
+  /** Human-only calendar-month Genie allowance and promotion figures. */
+  genieAllowance?: {
+    month: string;
+    usedDbus: number;
+    remainingDbus: number;
+    promotionalDbus: number;
+    chargedEffectiveDbus: number;
+    chargedRawEquivalentDbus: number;
+  } | null;
 }
 
 export interface UserSpendReconciliation {

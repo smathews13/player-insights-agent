@@ -6,7 +6,7 @@
  * this audience already knows. The strip and the list stay on the page. Opening
  * a question puts Ask PIA's own `AnswerCard` in a centered modal over that list,
  * so closing either detail returns the reader to their filters and their place.
- * Person activity uses the same centered modal foundation without stacking.
+ * User activity uses the same centered modal foundation without stacking.
  *
  * WHAT THIS FILE DOES NOT DECIDE. Every claim about a number is made in
  * `monitoring-view.ts` and every claim about the URL in `monitoring-filters.ts`,
@@ -31,7 +31,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { Search, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Search, ThumbsDown, ThumbsUp, Users, X } from 'lucide-react';
 import { astPill, type AstPillFamily } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
 import { Button, Input, Skeleton } from './ui';
@@ -79,13 +79,18 @@ import {
   applyFilters,
   chipsActive,
   clearedFilters,
+  backToUserBrowser,
+  closedUserMonitoring,
   closedDrawer,
   drawerFromParams,
   filtersActive,
   filtersFromParams,
   openPerson,
   openQuestion,
+  openUserBrowser,
+  openUserFromBrowser,
   scrollMemory,
+  userBrowserFromParams,
   withFilters,
   type MonitoringFilters,
 } from './monitoring-filters';
@@ -120,6 +125,8 @@ import type {
 } from '../../shared/monitoring-contract';
 import type { OpsCostPayload } from '../../shared/ops-contract';
 import type { UserSpendProfile, UserSpendQuality } from '../../shared/user-spend-contract';
+import type { UserMonitoringPayload, UserMonitoringRow } from '../../shared/user-monitoring-contract';
+import { ROLE_WORD, isRole } from '../../shared/user-roster-contract';
 import { UsedThisRun } from './UsedThisRun';
 import { Dialog } from './Dialog';
 
@@ -292,7 +299,7 @@ const NO_FILTER = '__any__';
  *
  * Accessibility is not traded for the appearance. The trigger is a combobox
  * whose accessible name is the filter and whose value is the current choice, so
- * a reader hears "Person, All" as it heard from the native control. Arrow keys
+ * a reader hears "User, All" as it heard from the native control. Arrow keys
  * move through the options, typing jumps to one, Escape dismisses, and the
  * chosen option carries a tick in the open menu rather than being marked only on
  * the closed trigger.
@@ -359,7 +366,19 @@ function FilterChip({
  */
 const SEARCH_URL_DELAY_MS = 250;
 
-function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function SearchBox({
+  value,
+  onChange,
+  placeholder = 'Search questions or users…',
+  ariaLabel = 'Search questions by text or user',
+  className = '',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  ariaLabel?: string;
+  className?: string;
+}) {
   const [typed, setTyped] = useState(value);
   // Held in a ref so the debounce timer below does not restart every time the
   // parent re-renders and hands down a new closure. Written in an effect rather
@@ -392,12 +411,12 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
   };
 
   return (
-    <div className="run-search monitoring-search">
+    <div className={`run-search monitoring-search ${className}`.trim()}>
       <Search className="monitoring-search-icon" aria-hidden="true" focusable="false" />
       <Input
         type="search"
-        placeholder="Search questions or people…"
-        aria-label="Search questions by text or person"
+        placeholder={placeholder}
+        aria-label={ariaLabel}
         value={typed}
         onChange={(event) => setTyped(event.target.value)}
       />
@@ -432,17 +451,19 @@ export function FilterRow({
   tables,
   onChange,
   onClearFilters,
+  onOpenUsers,
 }: {
   filters: MonitoringFilters;
   people: string[];
   tables: string[];
   onChange: (next: MonitoringFilters) => void;
   onClearFilters: () => void;
+  onOpenUsers?: () => void;
 }) {
   return (
     <div className="monitoring-filters">
       <FilterChip
-        label="Person"
+        label="User"
         value={filters.person}
         onChange={(person) => onChange({ ...filters, person })}
         options={[{ value: '', label: 'All' }, ...people.map((email) => ({ value: email, label: localPart(email) }))]}
@@ -499,7 +520,7 @@ export function FilterRow({
         </Button>
       ) : null}
       {/* Last in the row and pushed to the right edge, which is where Sam asked
-          for it. It was between the range control and the Person chip, which put
+          for it. It was between the range control and the User chip, which put
           a 240px field in the middle of a row of chips and separated the range
           from the filters it applies to.
 
@@ -508,6 +529,12 @@ export function FilterRow({
           described is unchanged and still tested, and the row now says nothing a
           reader has to decide whether to act on. */}
       <SearchBox value={filters.search} onChange={(search) => onChange({ ...filters, search })} />
+      {onOpenUsers ? (
+        <Button variant="default" size="sm" className="monitoring-user-browser-trigger" onClick={onOpenUsers}>
+          <Users aria-hidden="true" />
+          User Monitoring
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -1177,7 +1204,15 @@ function SpendQualityBadge({ quality }: { quality: UserSpendQuality }) {
   );
 }
 
-export function PersonSpend({ email, state }: { email: string; state: PanelLoadState<OpsCostPayload> }) {
+export function PersonSpend({
+  email,
+  state,
+  refreshing = false,
+}: {
+  email: string;
+  state: PanelLoadState<OpsCostPayload>;
+  refreshing?: boolean;
+}) {
   if (state.status === 'loading' || state.status === 'idle') {
     return (
       <section className="monitoring-spend" aria-labelledby="monitoring-spend-title" aria-busy="true">
@@ -1185,8 +1220,14 @@ export function PersonSpend({ email, state }: { email: string; state: PanelLoadS
           Spend
         </h4>
         <div role="status" className="monitoring-spend-loading">
-          <Skeleton className="h-8 w-40" />
-          <Skeleton className="h-16 w-full" />
+          <Skeleton className="monitoring-spend-skeleton-total" />
+          {[0, 1, 2].map((row) => (
+            <div className="monitoring-spend-skeleton-row" key={row}>
+              <Skeleton />
+              <Skeleton />
+              <Skeleton />
+            </div>
+          ))}
           <span className="sr-only">Loading attributable spend</span>
         </div>
       </section>
@@ -1217,19 +1258,49 @@ export function PersonSpend({ email, state }: { email: string; state: PanelLoadS
       </section>
     );
   }
-  return <SpendProfile profile={profile} payload={state.data} />;
+  return <SpendProfile profile={profile} payload={state.data} refreshing={refreshing} />;
 }
 
-function SpendProfile({ profile, payload }: { profile: UserSpendProfile; payload: OpsCostPayload }) {
+function profileCoverage(profile: UserSpendProfile): UserSpendQuality {
+  const readings = [profile.total.usd, profile.total.dbu];
+  const measured = readings.filter((reading) => reading.amount !== null);
+  if (measured.length === 0) return 'unavailable';
+  if (measured.length !== readings.length || measured.some((reading) => reading.quality === 'partial'))
+    return 'partial';
+  if (measured.some((reading) => reading.quality === 'allocated')) return 'allocated';
+  if (measured.some((reading) => reading.quality === 'joined')) return 'joined';
+  return 'direct';
+}
+
+function SpendProfile({
+  profile,
+  payload,
+  refreshing,
+}: {
+  profile: UserSpendProfile;
+  payload: OpsCostPayload;
+  refreshing: boolean;
+}) {
   const spend = payload.spendByUser!;
   const visible = profile.components.filter(
     (component) => component.usd.amount !== null || component.dbu.amount !== null || component.reason
   );
-  const qualities = new Set(
-    visible.flatMap((component) => [component.usd, component.dbu]).map((reading) => reading.quality)
-  );
+  const allUnavailable =
+    visible.length > 0 && visible.every((component) => component.usd.amount === null && component.dbu.amount === null);
+  if (allUnavailable) {
+    return (
+      <section className="monitoring-spend" aria-labelledby="monitoring-spend-title">
+        <h4 id="monitoring-spend-title" className="monitoring-eyebrow">
+          Spend
+        </h4>
+        <p className="monitoring-spend-absent">
+          Unavailable for {spend.range.from} to {spend.range.to}. {spend.reason}
+        </p>
+      </section>
+    );
+  }
   return (
-    <section className="monitoring-spend" aria-labelledby="monitoring-spend-title">
+    <section className="monitoring-spend" aria-labelledby="monitoring-spend-title" aria-busy={refreshing || undefined}>
       <div className="monitoring-spend-heading">
         <div>
           <h4 id="monitoring-spend-title" className="monitoring-eyebrow">
@@ -1241,16 +1312,28 @@ function SpendProfile({ profile, payload }: { profile: UserSpendProfile; payload
           </p>
         </div>
         <div className="monitoring-spend-badges" aria-label="Attribution coverage">
-          {[...qualities].map((quality) => (
-            <SpendQualityBadge key={quality} quality={quality} />
-          ))}
+          <SpendQualityBadge quality={profileCoverage(profile)} />
+          {refreshing ? <span className="monitoring-spend-refreshing">Refreshing…</span> : null}
         </div>
       </div>
       <p className="monitoring-spend-note">
         Attributable for {spend.range.from} to {spend.range.to}. Allocated figures apportion shared measured cost and
         are not an individual invoice.
       </p>
+      {profile.genieAllowance ? (
+        <p className="monitoring-spend-note">
+          Genie {profile.genieAllowance.month}: {profile.genieAllowance.usedDbus.toFixed(2)} DBU allowance used ·{' '}
+          {profile.genieAllowance.remainingDbus.toFixed(2)} remaining ·{' '}
+          {profile.genieAllowance.promotionalDbus.toFixed(2)} promotional ·{' '}
+          {profile.genieAllowance.chargedEffectiveDbus.toFixed(2)} charged
+        </p>
+      ) : null}
       <ul className="monitoring-spend-components">
+        <li className="monitoring-spend-columns" aria-hidden="true">
+          <span>Resource</span>
+          <span>Amount</span>
+          <span>Attribution</span>
+        </li>
         {visible.map((component) => {
           const quality =
             component.usd.amount !== null
@@ -1260,10 +1343,13 @@ function SpendProfile({ profile, payload }: { profile: UserSpendProfile; payload
                 : 'unavailable';
           return (
             <li key={component.id}>
-              <span className="monitoring-spend-component-name">{component.label}</span>
+              <span className="monitoring-spend-component-name">
+                {component.label}
+                {component.reason ? <small title={component.reason}>{component.reason}</small> : null}
+              </span>
               <span className="monitoring-spend-component-amount ast-num">
                 {component.usd.amount === null && component.dbu.amount === null
-                  ? component.reason || 'Unavailable'
+                  ? 'Unavailable'
                   : `${spendFigure(component.usd.amount, 'USD', payload.currency)} · ${spendFigure(component.dbu.amount, 'DBU')}`}
               </span>
               <SpendQualityBadge quality={quality} />
@@ -1278,6 +1364,7 @@ function SpendProfile({ profile, payload }: { profile: UserSpendProfile; payload
 export function PersonPanel({
   panel,
   spendState = idlePanel<OpsCostPayload>(),
+  spendRefreshing = false,
   now,
   rangeLabel,
   onClose,
@@ -1286,9 +1373,11 @@ export function PersonPanel({
   onPreviousPage = () => {},
   onNextPage = () => {},
   compactQuestions,
+  onBack,
 }: {
   panel: PersonPanelPayload;
   spendState?: PanelLoadState<OpsCostPayload>;
+  spendRefreshing?: boolean;
   now: number;
   /**
    * The window everything on this panel is counted over.
@@ -1307,6 +1396,7 @@ export function PersonPanel({
   onPreviousPage?: () => void;
   onNextPage?: () => void;
   compactQuestions?: boolean;
+  onBack?: () => void;
 }) {
   const times = answerTimeTile(panel.durationsMs);
   const outcomes = outcomeTile(panel.summary);
@@ -1322,6 +1412,12 @@ export function PersonPanel({
     >
       <div className="monitoring-person-modal-head">
         <div className="monitoring-panel-who">
+          {onBack ? (
+            <Button variant="ghost" size="sm" className="monitoring-users-back" onClick={onBack}>
+              <ArrowLeft aria-hidden="true" />
+              Back to all users
+            </Button>
+          ) : null}
           <div className="min-w-0">
             <h3 id="monitoring-person-title" className="monitoring-panel-name">
               <UserIdentityChip identity={panel.email} />
@@ -1339,7 +1435,7 @@ export function PersonPanel({
         </Button>
       </div>
       <div className="monitoring-person-modal-body">
-        <PersonSpend email={panel.email} state={spendState} />
+        <PersonSpend email={panel.email} state={spendState} refreshing={spendRefreshing} />
         <h4 className="monitoring-eyebrow">
           What they asked <span className="monitoring-eyebrow-range">{rangeLabel}</span>
         </h4>
@@ -1488,6 +1584,7 @@ export function PersonPanel({
 export function PersonPanelShell({
   state,
   spendState = idlePanel<OpsCostPayload>(),
+  spendRefreshing = false,
   email,
   now,
   rangeLabel,
@@ -1497,9 +1594,11 @@ export function PersonPanelShell({
   onPreviousPage,
   onNextPage,
   onRetry,
+  onBack,
 }: {
   state: PanelLoadState<PersonPanelPayload>;
   spendState?: PanelLoadState<OpsCostPayload>;
+  spendRefreshing?: boolean;
   email: string;
   now: number;
   rangeLabel: string;
@@ -1509,12 +1608,14 @@ export function PersonPanelShell({
   onPreviousPage: () => void;
   onNextPage: () => void;
   onRetry: () => void;
+  onBack?: () => void;
 }) {
   if (state.status === 'ready') {
     return (
       <PersonPanel
         panel={state.data}
         spendState={spendState}
+        spendRefreshing={spendRefreshing}
         now={now}
         rangeLabel={rangeLabel}
         page={page}
@@ -1522,6 +1623,7 @@ export function PersonPanelShell({
         onOpenQuestion={onOpenQuestion}
         onPreviousPage={onPreviousPage}
         onNextPage={onNextPage}
+        onBack={onBack}
       />
     );
   }
@@ -1536,8 +1638,14 @@ export function PersonPanelShell({
     >
       <div className="monitoring-person-modal-head">
         <div>
+          {onBack ? (
+            <Button variant="ghost" size="sm" className="monitoring-users-back" onClick={onBack}>
+              <ArrowLeft aria-hidden="true" />
+              Back to all users
+            </Button>
+          ) : null}
           <h3 id="monitoring-person-title" className="monitoring-panel-name">
-            {localPart(email) || 'Person activity'}
+            {localPart(email) || 'User activity'}
           </h3>
           <p id="monitoring-person-description" className="sr-only">
             User activity and attributable spend
@@ -1569,6 +1677,197 @@ export function PersonPanelShell({
   );
 }
 
+function userSpendFigure(row: UserMonitoringRow, unit: 'USD' | 'DBU'): string {
+  const reading = unit === 'USD' ? row.spend.usd : row.spend.dbu;
+  if (reading.amount === null) return 'Unavailable';
+  return unit === 'USD'
+    ? `$${reading.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `${reading.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DBU`;
+}
+
+export function UserMonitoringPanel({
+  state,
+  browser,
+  rangeLabel,
+  now,
+  onClose,
+  onOpenUser,
+  onSearch,
+  onRole,
+  onUnit,
+  onClear,
+  onNext,
+  onPrevious,
+}: {
+  state: PanelLoadState<OpsCostPayload>;
+  browser: ReturnType<typeof userBrowserFromParams>;
+  rangeLabel: string;
+  now: number;
+  onClose: () => void;
+  onOpenUser: (email: string) => void;
+  onSearch: (search: string) => void;
+  onRole: (role: string) => void;
+  onUnit: (unit: 'USD' | 'DBU') => void;
+  onClear: () => void;
+  onNext: (cursor: string) => void;
+  onPrevious: () => void;
+}) {
+  const payload: UserMonitoringPayload | null = state.status === 'ready' ? (state.data.userMonitoring ?? null) : null;
+  const changed = Boolean(browser.search || browser.role);
+  return (
+    <Dialog
+      overlayClassName="monitoring-person-overlay"
+      contentClassName="monitoring-person-modal monitoring-users-modal"
+      labelledBy="monitoring-users-title"
+      describedBy="monitoring-users-description"
+      ariaBusy={state.status === 'loading' || state.status === 'idle'}
+      onDismiss={onClose}
+    >
+      <div className="monitoring-person-modal-head">
+        <div>
+          <h3 id="monitoring-users-title" className="monitoring-users-title">
+            User Monitoring
+          </h3>
+          <p id="monitoring-users-description" className="monitoring-drawer-meta">
+            Per-user activity and attributable spend · {rangeLabel}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" className="monitoring-drawer-close" onClick={onClose}>
+          <X className="size-3" aria-hidden="true" />
+          <span className="sr-only">Close User Monitoring</span>
+        </Button>
+      </div>
+      <div className="monitoring-person-modal-body monitoring-users-body">
+        <div className="monitoring-users-toolbar">
+          <SearchBox
+            value={browser.search}
+            onChange={onSearch}
+            placeholder="Search users…"
+            ariaLabel="Search users by display name or email"
+            className="monitoring-users-search"
+          />
+          <AppSelect
+            label="Role"
+            ariaLabel="Filter users by role"
+            value={browser.role || NO_FILTER}
+            options={[
+              { value: NO_FILTER, label: 'All roles' },
+              { value: 'super_admin', label: 'Super admin' },
+              { value: 'admin', label: 'Admin' },
+              { value: 'consumer', label: 'Consumer' },
+            ]}
+            onValueChange={(role) => onRole(role === NO_FILTER ? '' : role)}
+          />
+          <TimeRangeControl page="User Monitoring" />
+          <div className="monitoring-users-unit" role="radiogroup" aria-label="Per-user spend unit">
+            {(['USD', 'DBU'] as const).map((unit) => (
+              <Button
+                key={unit}
+                variant={browser.unit === unit ? 'default' : 'outline'}
+                size="sm"
+                role="radio"
+                aria-checked={browser.unit === unit}
+                onClick={() => onUnit(unit)}
+              >
+                {unit === 'USD' ? '$' : unit}
+              </Button>
+            ))}
+          </div>
+          {changed ? (
+            <Button variant="ghost" size="sm" onClick={onClear}>
+              Clear filters
+            </Button>
+          ) : null}
+        </div>
+
+        {state.status === 'error' ? (
+          <p className="monitoring-spend-absent" role="alert">
+            {state.error}
+          </p>
+        ) : state.status === 'loading' || state.status === 'idle' ? (
+          <div className="monitoring-users-skeleton" role="status">
+            {[0, 1, 2, 3, 4].map((row) => (
+              <Skeleton key={row} />
+            ))}
+            <span className="sr-only">Loading users</span>
+          </div>
+        ) : !payload ? (
+          <p className="monitoring-spend-absent" role="status">
+            User activity is available only when the server-authorized spend snapshot can be read.
+          </p>
+        ) : (
+          <>
+            {payload.reason ? <p className="monitoring-users-coverage">{payload.reason}</p> : null}
+            <div className="monitoring-users-list" role="list" aria-label="Users ordered by attributable spend">
+              <div className="monitoring-users-columns" aria-hidden="true">
+                <span>User</span>
+                <span>Role</span>
+                <span>Last active</span>
+                <span>Questions / runs</span>
+                <span>Amount</span>
+                <span>Coverage</span>
+              </div>
+              {payload.users.map((row) => (
+                <button
+                  type="button"
+                  className="monitoring-user-row"
+                  role="listitem"
+                  key={row.email}
+                  onClick={() => onOpenUser(row.email)}
+                  aria-label={`Open ${localPart(row.email)} User Overview`}
+                >
+                  <span className="monitoring-user-identity">
+                    <UserIdentityChip identity={row.email} compact />
+                  </span>
+                  <span>
+                    <span className="monitoring-users-mobile-label">Role</span>
+                    {ROLE_WORD[row.role]}
+                  </span>
+                  <span>
+                    <span className="monitoring-users-mobile-label">Last active</span>
+                    {row.lastActive ? whenLabel(row.lastActive, now) : 'Not recorded'}
+                  </span>
+                  <span className="ast-num">
+                    <span className="monitoring-users-mobile-label">Questions / runs</span>
+                    {row.questions.toLocaleString()} / {row.runs.toLocaleString()}
+                  </span>
+                  <span className="monitoring-user-amount ast-num">
+                    <span className="monitoring-users-mobile-label">Amount</span>
+                    {userSpendFigure(row, browser.unit)}
+                  </span>
+                  <span className="monitoring-user-coverage">
+                    <SpendQualityBadge quality={row.coverage} />
+                    <ChevronRight aria-hidden="true" />
+                  </span>
+                </button>
+              ))}
+            </div>
+            {payload.users.length === 0 ? (
+              <p className="monitoring-empty-line">
+                No users match {browser.search ? `"${browser.search}"` : 'the active filters'}
+                {browser.role ? ` and ${ROLE_WORD[isRole(browser.role) ? browser.role : 'consumer']} role` : ''}.
+              </p>
+            ) : null}
+            <div className="monitoring-users-pagination">
+              <Button variant="outline" size="sm" disabled={!browser.cursor} onClick={onPrevious}>
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!payload.pagination.nextCursor}
+                onClick={() => payload.pagination.nextCursor && onNext(payload.pagination.nextCursor)}
+              >
+                Next
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
 /* ── The body, which is the state machine ────────────────────────────────── */
 
 export interface MonitoringBodyProps {
@@ -1581,6 +1880,7 @@ export interface MonitoringBodyProps {
   now: number;
   onOpen: (question: MonitoringQuestion) => void;
   onOpenPerson?: (email: string) => void;
+  onOpenUsers?: () => void;
   onChangeFilters: (next: MonitoringFilters) => void;
   onClearFilters: () => void;
   onRetry: () => void;
@@ -1608,6 +1908,7 @@ export function MonitoringBody({
   now,
   onOpen,
   onOpenPerson,
+  onOpenUsers,
   onChangeFilters,
   onClearFilters,
   onRetry,
@@ -1656,6 +1957,7 @@ export function MonitoringBody({
         tables={payload?.tables ?? []}
         onChange={onChangeFilters}
         onClearFilters={onClearFilters}
+        onOpenUsers={onOpenUsers}
       />
 
       {/* One line, in body text, no warning colour. Nothing is hidden when the
@@ -1756,9 +2058,13 @@ function EmptyList({
 
 /* ── The page ────────────────────────────────────────────────────────────── */
 
+const PANEL_CACHE_MS = 60_000;
+const panelCache = new Map<string, { expiresAt: number; data: unknown }>();
+
 function usePanelRequest<T>(key: string, url: string, errorMessage: string) {
   const [state, setState] = useState<PanelLoadState<T>>(() => idlePanel<T>());
   const [attempt, setAttempt] = useState(0);
+  const [refreshingKey, setRefreshingKey] = useState('');
 
   useEffect(() => {
     if (!key || !url) {
@@ -1767,22 +2073,32 @@ function usePanelRequest<T>(key: string, url: string, errorMessage: string) {
     }
     const controller = new AbortController();
     const requestId = ++panelRequestSequence;
-    setState(beginPanelLoad<T>(key, requestId));
+    const cached = panelCache.get(key);
+    const retained = cached && cached.expiresAt > Date.now() ? (cached.data as T) : null;
+    if (cached && !retained) panelCache.delete(key);
+    setState(
+      retained ? { status: 'ready', key, requestId, data: retained, error: null } : beginPanelLoad<T>(key, requestId)
+    );
+    setRefreshingKey(retained ? key : '');
 
     void fetch(url, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(response.status === 403 ? 'forbidden' : `http_${response.status}`);
         return (await response.json()) as T;
       })
-      .then((data) => setState((current) => resolvePanelLoad(current, key, requestId, data)))
+      .then((data) => {
+        panelCache.set(key, { expiresAt: Date.now() + PANEL_CACHE_MS, data });
+        setState((current) => resolvePanelLoad(current, key, requestId, data));
+      })
       .catch((error: unknown) => {
         if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) return;
         const message =
           error instanceof Error && error.message === 'forbidden'
             ? 'You do not have access to these Monitoring details.'
             : errorMessage;
-        setState((current) => rejectPanelLoad(current, key, requestId, message));
-      });
+        if (!retained) setState((current) => rejectPanelLoad(current, key, requestId, message));
+      })
+      .finally(() => setRefreshingKey((current) => (current === key ? '' : current)));
 
     return () => controller.abort();
   }, [attempt, errorMessage, key, url]);
@@ -1791,7 +2107,11 @@ function usePanelRequest<T>(key: string, url: string, errorMessage: string) {
   // URL/range change cannot paint old-range data under the new range label for
   // even one frame while the abort and replacement request are being scheduled.
   const visibleState = panelStateForKey(state, key, 0);
-  return { state: visibleState, retry: () => setAttempt((value) => value + 1) };
+  return {
+    state: visibleState,
+    refreshing: refreshingKey === key && visibleState.status === 'ready',
+    retry: () => setAttempt((value) => value + 1),
+  };
 }
 
 let panelRequestSequence = 0;
@@ -1846,6 +2166,7 @@ export function MonitoringPage() {
 
   const filters = filtersFromParams(searchParams);
   const drawer = drawerFromParams(searchParams);
+  const userBrowser = userBrowserFromParams(searchParams);
   const window_ = rangeWindow(searchParams, now);
   const periodLabel = rangeLabel(searchParams);
   const rangeId = monitoringRangeId(searchParams);
@@ -1889,9 +2210,10 @@ export function MonitoringPage() {
   const personRequest = usePanelRequest<PersonPanelPayload>(
     personKey,
     drawer.person ? personDetailUrl(drawer.person, window_.from, window_.to, filters, personCursor) : '',
-    'Person activity could not be loaded.'
+    'User activity could not be loaded.'
   );
   const spendParams = new URLSearchParams({ from: window_.from, to: window_.to });
+  if (drawer.person) spendParams.set('spendUser', drawer.person);
   const personSpendKey = drawer.person
     ? monitoringDetailKey('person', `spend:${drawer.person}`, window_.from, window_.to)
     : '';
@@ -1899,6 +2221,25 @@ export function MonitoringPage() {
     personSpendKey,
     drawer.person ? `/api/ops/cost?${spendParams.toString()}` : '',
     'Attributable spend could not be loaded.'
+  );
+  const userBrowserParams = new URLSearchParams({
+    from: window_.from,
+    to: window_.to,
+    userBrowse: '1',
+    unit: userBrowser.unit,
+    pageSize: '25',
+  });
+  if (userBrowser.search) userBrowserParams.set('userSearch', userBrowser.search);
+  if (userBrowser.role) userBrowserParams.set('role', userBrowser.role);
+  if (userBrowser.cursor) userBrowserParams.set('userCursor', userBrowser.cursor);
+  const userBrowserKey =
+    userBrowser.open && !drawer.person
+      ? `users|${window_.from}|${window_.to}|${userBrowser.unit}|${userBrowser.search}|${userBrowser.role}|${userBrowser.cursor}`
+      : '';
+  const userBrowserRequest = usePanelRequest<OpsCostPayload>(
+    userBrowserKey,
+    userBrowserKey ? `/api/ops/cost?${userBrowserParams.toString()}` : '',
+    'User Monitoring could not be loaded.'
   );
 
   /**
@@ -1917,6 +2258,12 @@ export function MonitoringPage() {
     }
   }, [location.search, navigate]);
 
+  const closeUserMonitoring = useCallback(() => {
+    void navigate({ search: closedUserMonitoring(location.search) }, { replace: true });
+    const offset = scroll.current.take();
+    if (offset !== null && typeof globalThis.scrollTo === 'function') globalThis.scrollTo({ top: offset });
+  }, [location.search, navigate]);
+
   const open = useCallback(
     (question: MonitoringQuestion) => {
       scroll.current.capture(typeof globalThis.scrollY === 'number' ? globalThis.scrollY : 0);
@@ -1929,6 +2276,24 @@ export function MonitoringPage() {
     (email: string) => {
       scroll.current.capture(typeof globalThis.scrollY === 'number' ? globalThis.scrollY : 0);
       void navigate({ search: openPerson(location.search, email) });
+    },
+    [location.search, navigate]
+  );
+
+  const userBrowserUnit = userBrowser.unit;
+  const openUsers = () => {
+    scroll.current.capture(typeof globalThis.scrollY === 'number' ? globalThis.scrollY : 0);
+    void navigate({ search: openUserBrowser(location.search, userBrowserUnit) });
+  };
+
+  const updateUserBrowser = useCallback(
+    (name: 'userSearch' | 'userRole' | 'userUnit' | 'userCursor', value: string) => {
+      const next = new URLSearchParams(location.search);
+      next.set('users', '1');
+      if (value) next.set(name, value);
+      else next.delete(name);
+      if (name !== 'userCursor') next.delete('userCursor');
+      void navigate({ search: next.toString() }, { replace: name === 'userSearch' });
     },
     [location.search, navigate]
   );
@@ -1979,6 +2344,7 @@ export function MonitoringPage() {
         now={now}
         onOpen={open}
         onOpenPerson={openPersonPanel}
+        onOpenUsers={openUsers}
         onChangeFilters={changeFilters}
         onClearFilters={() => setSearchParams(new URLSearchParams(clearedFilters(location.search)), { replace: true })}
         onRetry={refreshView}
@@ -2013,11 +2379,13 @@ export function MonitoringPage() {
         <PersonPanelShell
           state={personRequest.state}
           spendState={personSpendRequest.state}
+          spendRefreshing={personSpendRequest.refreshing}
           email={drawer.person}
           now={now}
           rangeLabel={window_.label}
           page={personPage}
-          onClose={close}
+          onClose={userBrowser.open ? closeUserMonitoring : close}
+          onBack={userBrowser.open ? () => void navigate({ search: backToUserBrowser(location.search) }) : undefined}
           onOpenQuestion={open}
           onRetry={personRequest.retry}
           onPreviousPage={() =>
@@ -2035,6 +2403,28 @@ export function MonitoringPage() {
               return { owner: personOwner, cursors: [...cursors, next], index: cursors.length };
             });
           }}
+        />
+      ) : null}
+      {userBrowser.open && !drawer.person && !drawer.question ? (
+        <UserMonitoringPanel
+          state={userBrowserRequest.state}
+          browser={userBrowser}
+          rangeLabel={window_.label}
+          now={now}
+          onClose={closeUserMonitoring}
+          onOpenUser={(email) => void navigate({ search: openUserFromBrowser(location.search, email) })}
+          onSearch={(search) => updateUserBrowser('userSearch', search)}
+          onRole={(role) => updateUserBrowser('userRole', role)}
+          onUnit={(unit) => updateUserBrowser('userUnit', unit)}
+          onClear={() => {
+            const next = new URLSearchParams(location.search);
+            next.delete('userSearch');
+            next.delete('userRole');
+            next.delete('userCursor');
+            void navigate({ search: next.toString() }, { replace: true });
+          }}
+          onNext={(cursor) => updateUserBrowser('userCursor', cursor)}
+          onPrevious={() => void navigate(-1)}
         />
       ) : null}
     </div>

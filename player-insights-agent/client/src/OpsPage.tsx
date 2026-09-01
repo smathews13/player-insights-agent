@@ -38,7 +38,7 @@
  */
 import { useState, type KeyboardEvent } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router';
-import { ChevronLeft, ChevronRight, ExternalLink, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Search, SlidersHorizontal, Users, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
@@ -88,10 +88,13 @@ import { rangeLabel, rangeWindow } from './time-range';
 import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
 import { ForecastingBody } from './ForecastingPanel';
 import { MethodologySections, type MethodologyGroup } from './MethodologySection';
+import { APP_BUDGET_GUARDRAILS } from '../../shared/app-budget-contract';
+import { GATEWAY_USAGE_ATTRIBUTION_HOOKS } from '../../shared/ai-gateway-contract';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
 import { EntityText } from './DataEntityLinks';
 import { adjacentCostDisplayUnit, persistCostDisplayUnit, readCostDisplayUnit } from './cost-unit-preference';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
+import { perUserSpendHref } from './cost-user-monitoring-link';
 import type {
   DependencyResult,
   GrantRemedy,
@@ -594,11 +597,13 @@ export function CostBody({
   periodLabel = '7 days',
   unit = 'USD',
   onUnitChange = () => {},
+  userMonitoringHref,
 }: {
   block: Block<OpsCostPayload>;
   periodLabel?: string;
   unit?: CostBudgetUnit;
   onUnitChange?: (unit: CostBudgetUnit) => void;
+  userMonitoringHref?: string;
 }) {
   const payload = block.data;
   const host = useWorkspaceHost();
@@ -628,6 +633,14 @@ export function CostBody({
         meta={<span className={astPill('neutral-outline', 'ops-pill ops-period-pill')}>{periodLabel}</span>}
         control={
           <div className="ops-cost-head-controls">
+            {userMonitoringHref ? (
+              <Button variant="default" size="sm" className="ops-user-spend-link" asChild>
+                <Link to={userMonitoringHref}>
+                  <Users aria-hidden="true" />
+                  See per-user spend
+                </Link>
+              </Button>
+            ) : null}
             <CostUnitControl unit={unit} onChange={onUnitChange} />
             <RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />
           </div>
@@ -698,6 +711,27 @@ export function CostBody({
 }
 
 function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
+  if (tile.genieAccounting) {
+    const genie = tile.genieAccounting;
+    return (
+      <dl className="ops-genie-accounting" aria-label="Genie month-to-date accounting">
+        <div>
+          <dt>Allowance</dt>
+          <dd className="ast-num">
+            {genie.allowanceUsedDbus.toFixed(2)} used · {genie.allowanceRemainingDbus.toFixed(2)} remaining
+          </dd>
+        </div>
+        <div>
+          <dt>Promotional</dt>
+          <dd className="ast-num">{genie.promotionalDbus.toFixed(2)} DBU</dd>
+        </div>
+        <div>
+          <dt>Underlying total</dt>
+          <dd className="ast-num">{genie.underlyingTotalDbus.toFixed(2)} DBU</dd>
+        </div>
+      </dl>
+    );
+  }
   const evidence = tile.evidence;
   const billingRows = evidence?.billingRows ?? 0;
   const fact =
@@ -770,6 +804,12 @@ function QuestionCostAverage({ payload, unit }: { payload: OpsCostPayload; unit:
 }
 
 function CostMethodology({ payload }: { payload: OpsCostPayload }) {
+  const budgetGuardrails = [
+    ...APP_BUDGET_GUARDRAILS,
+    ...(GATEWAY_USAGE_ATTRIBUTION_HOOKS.every((hook) => !hook.enabled)
+      ? [{ label: 'AI Gateway controls', value: 'Separate and currently inactive' }]
+      : []),
+  ];
   const calculated = payload.tiles.filter(
     (tile) =>
       tileAttribution(tile) === 'deployment' &&
@@ -782,7 +822,7 @@ function CostMethodology({ payload }: { payload: OpsCostPayload }) {
       return 'Matched warehouse spend × Astrolabe’s measured Query History execution-time share.';
     }
     if (tile.id.startsWith('genie:')) {
-      return 'Matched warehouse spend × this Genie space’s measured generated-SQL execution-time share.';
+      return 'Charged Genie billing only. Human monthly allowance and promotional usage are shown separately and never added to paid spend.';
     }
     if (tile.id === 'vector-search') {
       return 'Exact hosting-endpoint billing. Included only when the active index reports this endpoint and the endpoint hosts one index; index-sync pipeline compute is separate.';
@@ -806,10 +846,13 @@ function CostMethodology({ payload }: { payload: OpsCostPayload }) {
       rows: [
         {
           label: 'Monthly app budget',
-          detail:
-            'Budget controls are guardrails, not hard billing ceilings. Astrolabe warns at 80% of the monthly app budget and requires an administrator to approve new questions after measured month-to-date spend reaches 100%. Billing data can lag, concurrent or in-flight requests may exceed the threshold, and resource budgets remain advisory.',
+          detail: 'A guardrail, not a hard billing ceiling; enforcement follows the structured rules below.',
         },
       ],
+    },
+    {
+      title: 'Budget guardrails',
+      rows: budgetGuardrails.map((row) => ({ label: row.label, detail: row.value })),
     },
   ];
   return (
@@ -1386,6 +1429,20 @@ export function TrafficBody({
   const activity = payload ? activeMinutesDisplay(payload) : { title: 'Active app minutes', note: '' };
   const coverageCaption = (state: 'complete' | 'partial' | 'unavailable', complete: string): string =>
     state === 'complete' ? complete : state === 'partial' ? 'Partial coverage' : 'Unavailable';
+  const outcomeEvidence = payload?.breakdownCoverage.outcomes;
+  const legacyRuns = payload && outcomeEvidence ? Math.max(0, payload.runsInRange - outcomeEvidence.coveredRuns) : 0;
+  const outcomeEvidenceLabel = !outcomeEvidence
+    ? ''
+    : outcomeEvidence.state === 'unavailable'
+      ? 'Outcome detail unavailable'
+      : `${count(outcomeEvidence.coveredRuns)} classified${
+          legacyRuns > 0 ? ` \u00b7 ${count(legacyRuns)} legacy runs lack detail` : ''
+        }`;
+  const emptyOutcomeCaption = (noun: 'failures' | 'refusals'): string => {
+    if (!payload || !outcomeEvidence || outcomeEvidence.state === 'unavailable') return 'Unavailable';
+    if (outcomeEvidence.state === 'complete') return `No ${noun} recorded`;
+    return `0 recorded \u00b7 ${count(outcomeEvidence.coveredRuns)} classified \u00b7 ${count(legacyRuns)} legacy runs lack detail`;
+  };
 
   if (block.failed) {
     return (
@@ -1461,17 +1518,13 @@ export function TrafficBody({
                 own layout to a reader who can see two headings, and it is the
                 comment above rather than words on the page. */}
               <div className="ops-chart-pair" data-testid="ops-traffic-causes">
+                {outcomeEvidenceLabel ? <p className="ops-chart-evidence">{outcomeEvidenceLabel}</p> : null}
                 <BarChart
                   title="Failures by cause"
-                  caption={coverageCaption(
-                    payload.breakdownCoverage.outcomes.state,
-                    trafficCaption(payload.failuresByCause, 'failure', 'failures', payload.runsInRange)
-                  )}
-                  note={
-                    payload.breakdownCoverage.outcomes.state === 'complete'
-                      ? ''
-                      : payload.breakdownCoverage.outcomes.reason ||
-                        `${payload.breakdownCoverage.outcomes.state} run-outcome coverage`
+                  caption={
+                    payload.failuresByCause.length > 0
+                      ? trafficCaption(payload.failuresByCause, 'failure', 'failures', payload.runsInRange)
+                      : emptyOutcomeCaption('failures')
                   }
                   series={bars(payload.failuresByCause)}
                   tone="failure"
@@ -1479,15 +1532,10 @@ export function TrafficBody({
                 />
                 <BarChart
                   title="Refusals by cause"
-                  caption={coverageCaption(
-                    payload.breakdownCoverage.outcomes.state,
-                    trafficCaption(payload.refusalsByCause, 'refusal', 'refusals', payload.runsInRange)
-                  )}
-                  note={
-                    payload.breakdownCoverage.outcomes.state === 'complete'
-                      ? ''
-                      : payload.breakdownCoverage.outcomes.reason ||
-                        `${payload.breakdownCoverage.outcomes.state} run-outcome coverage`
+                  caption={
+                    payload.refusalsByCause.length > 0
+                      ? trafficCaption(payload.refusalsByCause, 'refusal', 'refusals', payload.runsInRange)
+                      : emptyOutcomeCaption('refusals')
                   }
                   series={bars(payload.refusalsByCause)}
                   tone="refusal"
@@ -1657,6 +1705,7 @@ export function OpsPage() {
     setCostUnit(unit);
     persistCostDisplayUnit(unit);
   };
+  const userMonitoringHref = perUserSpendHref(params.toString(), costUnit);
 
   return (
     <div className="page-shell ops-page">
@@ -1669,7 +1718,13 @@ export function OpsPage() {
       {/* Each measured block reads itself. Four read times on one page rather
           than one, because they were read at four different moments. */}
       <HealthBody block={health} />
-      <CostBody block={cost} periodLabel={selectedPeriodLabel} unit={costUnit} onUnitChange={chooseCostUnit} />
+      <CostBody
+        block={cost}
+        periodLabel={selectedPeriodLabel}
+        unit={costUnit}
+        onUnitChange={chooseCostUnit}
+        userMonitoringHref={showsAdminSurfaces(role.state) ? userMonitoringHref : undefined}
+      />
       {forecastingShown ? <ForecastingBody cost={cost} traffic={traffic} unit={costUnit} /> : null}
       <TrafficBody block={traffic} monitoringHref={monitoringHref} runsHref={runsHref} />
       <LatencyBody block={latency} />

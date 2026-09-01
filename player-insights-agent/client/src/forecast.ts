@@ -8,6 +8,7 @@ export const FORECAST_HORIZONS = [
   { days: 30, label: 'Next 30 days' },
   { days: 180, label: 'Six months' },
 ] as const;
+const GENIE_PROMOTION_END = '2027-01-31';
 
 export interface ForecastAssumptions {
   averageDailyUsers: number;
@@ -35,6 +36,14 @@ export interface ForecastBaseline {
     sqlCostPerQuestion: number | null;
     appCostPerActiveMinute: number | null;
   };
+  /**
+   * Canonical app-level Apps billing rate.
+   *
+   * This is deliberately independent of active-minute coverage. Active minutes
+   * support per-user allocation, but they do not decide whether the app's own
+   * measured billing total can be projected.
+   */
+  appComputeDaily: number | null;
   /** Why the required App compute projection row has no numeric rate. */
   appComputeUnavailable: string;
   fixedDailyCosts: Array<{ id: string; label: string; amount: number }>;
@@ -197,6 +206,7 @@ export function deriveForecastBaseline(
       sqlCostPerQuestion: null,
       appCostPerActiveMinute: null,
     },
+    appComputeDaily: null,
     appComputeUnavailable: 'No measured, attributable App compute rate is available.',
     fixedDailyCosts: [],
     exclusions: [],
@@ -372,19 +382,15 @@ export function deriveForecastBaseline(
   }
 
   const app = cost.tiles.find((tile) => tile.id === 'app-compute');
-  const appTotal = totalInWindow(app, days, unit);
-  if (appTotal !== null && activeMinutesReadable && activeMinutesComplete && activeMinutes > 0) {
-    baseline.observed.appCostPerActiveMinute = appTotal / activeMinutes;
+  const appDaily = dailyInWindow(app, days, unit);
+  baseline.appComputeDaily = appDaily;
+  if (appDaily !== null) {
     baseline.appComputeUnavailable = '';
+    if (activeMinutesReadable && activeMinutesComplete && activeMinutes > 0) {
+      baseline.observed.appCostPerActiveMinute = (appDaily * days) / activeMinutes;
+    }
   } else {
-    baseline.appComputeUnavailable =
-      appTotal === null
-        ? tileReason(app, 'No priced app-compute spend was measured.', unit)
-        : activeMinutesReadable
-          ? activeMinutesComplete
-            ? 'No active app minutes overlap the Cost window.'
-            : 'Active-minute history starts after the Cost window begins, so cost per active minute is withheld.'
-          : 'Active app minutes could not be read.';
+    baseline.appComputeUnavailable = tileReason(app, 'No priced app-compute spend was measured.', unit);
   }
 
   const vector = cost.tiles.find((tile) => tile.id === 'vector-search');
@@ -424,7 +430,7 @@ export function deriveForecastBaseline(
   const hasMeasuredRate =
     baseline.observed.servingCostPerQuestion !== null ||
     baseline.observed.sqlCostPerQuestion !== null ||
-    baseline.observed.appCostPerActiveMinute !== null ||
+    baseline.appComputeDaily !== null ||
     baseline.fixedDailyCosts.length > 0;
   baseline.available = hasMeasuredRate;
   if (!hasMeasuredRate) {
@@ -469,11 +475,8 @@ export function calculateForecast(baseline: ForecastBaseline, assumptions: Forec
   components.push({
     id: 'app-compute',
     label: 'App compute',
-    dailyAmount:
-      baseline.observed.appCostPerActiveMinute === null
-        ? null
-        : dailyActiveMinutes * baseline.observed.appCostPerActiveMinute,
-    formula: 'daily active app minutes × observed app cost/active minute',
+    dailyAmount: baseline.appComputeDaily,
+    formula: 'observed attributable app-compute daily baseline (held fixed)',
     unavailable: baseline.appComputeUnavailable,
   });
   for (const fixed of baseline.fixedDailyCosts) {
@@ -489,7 +492,23 @@ export function calculateForecast(baseline: ForecastBaseline, assumptions: Forec
     (component): component is ForecastComponent & { dailyAmount: number } =>
       component.dailyAmount !== null && Number.isFinite(component.dailyAmount)
   );
-  const baseDaily = numeric.reduce((total, component) => total + component.dailyAmount, 0);
+  const projectedAmount = (component: ForecastComponent, days: number): number | null => {
+    if (component.dailyAmount === null) return null;
+    if (component.id !== 'genie:charged' || baseline.window.to > GENIE_PROMOTION_END) {
+      return component.dailyAmount * days;
+    }
+    const firstForecastDay = new Date(`${baseline.window.to}T00:00:00Z`);
+    firstForecastDay.setUTCDate(firstForecastDay.getUTCDate() + 1);
+    const promotionEnd = Date.parse(`${GENIE_PROMOTION_END}T00:00:00Z`);
+    const promoDays = Math.min(
+      days,
+      Math.max(0, Math.floor((promotionEnd - firstForecastDay.getTime()) / DAY_MS) + 1)
+    );
+    const postPromotionDays = days - promoDays;
+    // Charged Genie rows during the promotion are effective DBUs after the 25%
+    // promotion. At the boundary the same raw usage is 75% of that rate.
+    return component.dailyAmount * (promoDays + postPromotionDays * 0.75);
+  };
   const horizons = FORECAST_HORIZONS.map((horizon): ForecastHorizon => {
     if (!baseline.available || numeric.length === 0) {
       return { ...horizon, total: null, components: [] };
@@ -497,12 +516,12 @@ export function calculateForecast(baseline: ForecastBaseline, assumptions: Forec
     const breakdown = components.map((component) => ({
       id: component.id,
       label: component.label,
-      amount: component.dailyAmount === null ? null : component.dailyAmount * horizon.days,
+      amount: projectedAmount(component, horizon.days),
       unavailable: component.unavailable,
     }));
     return {
       ...horizon,
-      total: baseDaily * horizon.days,
+      total: breakdown.reduce((total, component) => total + (component.amount ?? 0), 0),
       components: breakdown,
     };
   });

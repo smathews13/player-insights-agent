@@ -52,6 +52,7 @@ import type {
   CostResourceKind,
   CostTile,
   CostTilePricing,
+  GenieAccounting,
   QuestionCostAttribution,
   QuestionCostPart,
   QuestionCostRun,
@@ -98,6 +99,8 @@ export interface CostIdentifiers {
   vectorEndpointIndexCount?: number | null;
   /** Precise read/configuration failure when the index-to-endpoint relationship is unknown. */
   vectorIdentityError?: string;
+  /** Released endpoint drift; the live index host remains authoritative for attribution. */
+  vectorIdentityDrift?: string;
   /** The two configured Genie roles, kept separate even if they point at the same space. */
   genieSpaces: readonly {
     id: string;
@@ -1116,7 +1119,9 @@ export function buildTiles(
   ids: CostIdentifiers,
   rows: ComponentRow[],
   warehouseAttribution: WarehouseQueryAttribution = EMPTY_WAREHOUSE_QUERY_ATTRIBUTION,
-  resourceActivity: readonly ResourceActivity[] = []
+  resourceActivity: readonly ResourceActivity[] = [],
+  genie?: { month: GenieAccounting; period: GenieAccounting } | null,
+  genieReason = ''
 ): CostTile[] {
   const byComponent = new Map(
     rows.filter((row) => (row.kind ?? 'component') === 'component').map((row) => [row.component, row])
@@ -1125,7 +1130,7 @@ export function buildTiles(
 
   for (const component of COST_COMPONENTS) {
     if (component === 'genie') {
-      tiles.push(...genieSpaceTiles(ids, byComponent.get('sql-warehouse'), warehouseAttribution, resourceActivity));
+      tiles.push(genieAccountingTile(genie, genieReason));
       continue;
     }
     tiles.push(componentTile(component, ids, byComponent, warehouseAttribution, resourceActivity));
@@ -1133,80 +1138,60 @@ export function buildTiles(
   return tiles;
 }
 
-function genieSpaceTiles(
-  ids: CostIdentifiers,
-  warehouseRow: ComponentRow | undefined,
-  warehouseAttribution: WarehouseQueryAttribution,
-  activity: readonly ResourceActivity[]
-): CostTile[] {
-  const warehouseSpend = spendAmountFor(warehouseRow, 'total-in-range');
-  const warehouseDbus = dbuAmountFor(warehouseRow, 'total-in-range');
-  const warehousePricing = pricingFromRow(warehouseRow);
-  const billingRows = warehouseRow ? (warehouseRow.pricedRows ?? 0) + (warehouseRow.unpricedRows ?? 0) : 0;
-  const representedSpaces = new Map<string, string>();
-  return ids.genieSpaces.map((space) => {
-    const spaceId = space.id.trim();
-    const representedBy = spaceId ? representedSpaces.get(spaceId) : undefined;
-    if (spaceId && !representedBy) representedSpaces.set(spaceId, space.label);
-    const measured = activity.find((item) => item.tileId === space.tileId);
-    const generatedSql = warehouseAttribution.genieSpaces.find((item) => item.spaceId === spaceId);
-    const canAllocate =
-      Boolean(spaceId) &&
-      !representedBy &&
-      (warehouseSpend !== null || warehouseDbus !== null) &&
-      warehouseAttribution.complete &&
-      warehouseAttribution.totalExecutionMs > 0 &&
-      Boolean(generatedSql && generatedSql.executionMs > 0);
-    const amount =
-      canAllocate && generatedSql && warehouseSpend !== null
-        ? (warehouseSpend * generatedSql.executionMs) / warehouseAttribution.totalExecutionMs
-        : null;
-    const dbus =
-      canAllocate && generatedSql && warehouseDbus !== null
-        ? (warehouseDbus * generatedSql.executionMs) / warehouseAttribution.totalExecutionMs
-        : null;
-    const hasAllocation = amount !== null || dbus !== null;
-    const sqlGap = representedBy
-      ? `This Genie space is already represented by ${representedBy}; cost is not repeated`
-      : !spaceId
-        ? 'Resource identifier unavailable'
-        : warehouseSpend === null
-          ? unpricedUnavailable(warehousePricing) ||
-            'Generated SQL cost unavailable: no priced SQL warehouse billing rows'
-          : !warehouseAttribution.complete
-            ? 'Generated SQL cost unavailable: incomplete Query History'
-            : warehouseAttribution.totalExecutionMs <= 0
-              ? 'Generated SQL cost unavailable: Query History has no execution-time denominator'
-              : !generatedSql || generatedSql.executionMs <= 0
-                ? 'Generated SQL cost unavailable: no Query History execution matched this Genie space'
-                : '';
-    const unavailable = sqlGap ? `${sqlGap}. ${GENIE_LLM_UNAVAILABLE}` : GENIE_LLM_UNAVAILABLE;
+function genieAccountingTile(
+  accounting: { month: GenieAccounting; period: GenieAccounting } | null | undefined,
+  reason: string
+): CostTile {
+  if (!accounting) {
     return {
-      id: space.tileId,
-      label: space.label,
-      resourceId: spaceId,
-      resourceKind: spaceId ? ('genie-space' as const) : '',
-      quality: hasAllocation ? ('estimate' as const) : ('unknown' as const),
-      amount,
-      dbus,
-      basis: 'total-in-range' as const,
-      population: 'Generated SQL share',
-      attribution: hasAllocation ? ('deployment' as const) : ('unavailable' as const),
-      pricing: warehousePricing,
-      unavailable: hasAllocation ? '' : unavailable,
-      remedy: spaceId ? '' : `Configure the ${space.label} space.`,
-      note: GENIE_SQL_NOT_COMPLETE,
-      evidence: {
-        billingRows: hasAllocation ? billingRows : null,
-        astrolabeQueries: null,
-        queryHistoryComplete: warehouseAttribution.complete,
-        queryHistoryCoverage: warehouseAttribution.coverage,
-        activity: measured
-          ? { calls: measured.calls, observedCalls: measured.observedCalls, unit: 'requests' as const }
-          : null,
-      },
+      id: 'genie:charged',
+      label: 'Genie charged usage',
+      resourceId: '',
+      resourceKind: '',
+      quality: 'unknown',
+      amount: null,
+      dbus: null,
+      basis: 'total-in-range',
+      population: 'This workspace',
+      attribution: 'unavailable',
+      pricing: EMPTY_PRICING,
+      unavailable: reason || 'Genie billing could not be classified.',
+      remedy: '',
+      note: '',
+      evidence: { billingRows: null, astrolabeQueries: null },
+      genieAccounting: null,
     };
-  });
+  }
+  const { month, period } = accounting;
+  const pricing: CostTilePricing = {
+    ...EMPTY_PRICING,
+    source: 'list_prices',
+    match: period.pricingState,
+    currency: period.paidUsd === null ? '' : 'USD',
+    pricedQuantity: period.paidUsd === null ? 0 : period.chargedEffectiveDbus,
+    unpricedQuantity: period.paidUsd === null ? period.chargedEffectiveDbus : 0,
+  };
+  return {
+    id: 'genie:charged',
+    label: 'Genie charged usage',
+    resourceId: '',
+    resourceKind: '',
+    quality: period.paidUsd === null ? 'unknown' : 'real',
+    amount: period.paidUsd,
+    dbus: period.chargedEffectiveDbus,
+    basis: 'total-in-range',
+    population: 'This workspace',
+    attribution: period.paidUsd === null && period.chargedEffectiveDbus === 0 ? 'unavailable' : 'deployment',
+    pricing,
+    unavailable:
+      period.paidUsd === null
+        ? 'Charged Genie DBUs are measured, but USD is unavailable because pricing is incomplete.'
+        : '',
+    remedy: '',
+    note: `${month.allowanceUsedDbus.toFixed(2)} allowance DBU · ${month.promotionalDbus.toFixed(2)} promotional DBU`,
+    evidence: { billingRows: null, astrolabeQueries: null },
+    genieAccounting: month,
+  };
 }
 
 /**
@@ -1356,9 +1341,14 @@ function componentTile(
       amount,
       dbus,
       pricing,
-      note: noUsage
-        ? 'No billable usage in this period'
-        : 'Billing is endpoint-level; this endpoint hosts only the active index.',
+      note: [
+        noUsage
+          ? 'No billable usage in this period'
+          : 'Billing is endpoint-level; this endpoint hosts only the active index.',
+        ids.vectorIdentityDrift,
+      ]
+        .filter(Boolean)
+        .join(' '),
       unavailable:
         amount === null && dbus === null
           ? unpricedUnavailable(pricing) || 'No billing rows matched the hosting endpoint'

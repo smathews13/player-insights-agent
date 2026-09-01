@@ -141,6 +141,26 @@ describe('the ranged cost route', () => {
     expect(failed.reason).toContain('permission denied');
   });
 
+  it('uses the active index host when the released endpoint is stale', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ endpoint_name: 'active-endpoint' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ num_indexes: 1 }), { status: 200 })) as typeof fetch;
+    const evidence = await lookupVectorConnection({
+      host: 'https://workspace.example.test',
+      token: 'redacted',
+      index: 'catalog.schema.semantic_index',
+      configuredEndpoint: 'stale-released-endpoint',
+      fetchImpl,
+    });
+    expect(evidence).toEqual({
+      endpoint: 'active-endpoint',
+      endpointIndexCount: 1,
+      reason: '',
+      drift: 'Released endpoint stale-released-endpoint differs from the active index host active-endpoint.',
+    });
+  });
+
   it('attributes legacy Genie traces by configured space without double-counting current resource calls', () => {
     expect(RESOURCE_ACTIVITY_QUERY).toContain("trace->'genie_spaces'");
     expect(RESOURCE_ACTIVITY_QUERY).toContain("space->>'id' = c.resource_id");
@@ -466,9 +486,9 @@ describe('the ranged cost route', () => {
 
     expect(payload.state).toBe('ready');
     const genie = payload.tiles.filter((tile) => tile.id.startsWith('genie:'));
-    expect(genie.map((tile) => tile.resourceId)).toEqual(['space-data', 'space-dictionary']);
-    expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
-    expect(genie.map((tile) => tile.evidence?.activity?.calls)).toEqual([3, 2]);
+    expect(genie).toHaveLength(1);
+    expect(genie[0].id).toBe('genie:charged');
+    expect(genie[0].resourceId).toBe('');
     expect(payload.tiles.some((tile) => tile.id === 'foundation-model')).toBe(false);
     const vector = payload.tiles.find((tile) => tile.id === 'vector-search');
     expect(vector).toMatchObject({

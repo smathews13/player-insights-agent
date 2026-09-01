@@ -360,14 +360,13 @@ describe('coverage, shared meters, and Genie', () => {
     expect(tile?.attribution).toBe('unavailable');
   });
 
-  it('keeps Genie space cards dollar-free and names the unavailable dollar join', () => {
+  it('does not reuse generated-SQL estimates as Genie charged billing', () => {
     const genie = buildTiles(IDS, [row({ component: 'genie', spend: 99 })]).filter((tile) =>
       tile.id.startsWith('genie:')
     );
-    expect(genie).toHaveLength(2);
+    expect(genie).toHaveLength(1);
     expect(genie[0].amount).toBeNull();
-    expect(genie[0].unavailable).toContain('Genie LLM dollars unavailable');
-    expect(genie[0].note).toContain('Genie model cost is excluded');
+    expect(genie[0].unavailable).toContain('Genie billing could not be classified');
   });
 
   it('says list prices, not contracted rates, and when the range may still fill', () => {

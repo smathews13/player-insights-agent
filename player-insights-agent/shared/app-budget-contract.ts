@@ -6,7 +6,30 @@
  * so opening the composer does not load Zod.
  */
 export const APP_BUDGET_WARNING_PERCENT = 80;
+export const APP_BUDGET_APPROVAL_PERCENT = 100;
 export const BUDGET_APPROVAL_REQUIRED = 'BUDGET_APPROVAL_REQUIRED' as const;
+
+/** Shared copy for enforcement documentation; values derive from the same threshold constants as the guard. */
+export const APP_BUDGET_GUARDRAILS = [
+  { label: 'Scope', value: 'Monthly app budget only' },
+  { label: 'Measurement window', value: 'Calendar month-to-date, UTC' },
+  { label: 'Warning', value: `${APP_BUDGET_WARNING_PERCENT}% — questions continue` },
+  {
+    label: 'Approval required',
+    value: `${APP_BUDGET_APPROVAL_PERCENT}% — new questions pause until an administrator approves`,
+  },
+  {
+    label: 'Approval duration',
+    value: 'Through month end, for the exact current budget value, unit and revision; changing budget invalidates it',
+  },
+  { label: 'In-flight work', value: 'Continues' },
+  { label: 'Resource budgets', value: 'Advisory only' },
+  {
+    label: 'Billing freshness',
+    value:
+      'Authoritative system billing can lag by hours; concurrent requests may pass before the threshold is observed',
+  },
+] as const;
 
 export const APP_BUDGET_LEVELS = [
   'unset',

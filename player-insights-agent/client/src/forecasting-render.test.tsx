@@ -220,7 +220,7 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).toContain('Projected breakdown');
     expect(markup).toContain('Projected cost breakdown by horizon');
     expect(markup).toContain('<th scope="row">App compute</th>');
-    expect(markup).toContain('Users × active minutes per user per day × observed app cost per active minute');
+    expect(markup).toContain('Measured app-compute daily billing rate, held fixed');
     expect(markup).toMatch(/<th scope="col">Component<\/th>/);
     expect(markup).toMatch(/<th scope="col">Next 7 days<\/th>/);
     expect(markup).toMatch(/<th scope="col">Next 30 days<\/th>/);
@@ -348,7 +348,7 @@ describe('Forecasting visibility and placement', () => {
     expect(partial).not.toContain('Limits');
   });
 
-  it('shows unavailable App compute in place and ends methodology after formulas', () => {
+  it('keeps measured App compute available when active-minute allocation is partial', () => {
     const payload = cost();
     payload.perQuestion = { ...payload.perQuestion, runsInRange: 8, tokenCoveredRuns: 2 };
     const trafficPayload = traffic();
@@ -361,10 +361,9 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).toContain('Next 30 days');
     expect(markup).not.toContain('ops-period-pill');
     expect(markup).not.toContain('Serving token coverage is partial');
-    expect(markup.match(/Active-minute/g)).toHaveLength(3);
+    expect(markup).not.toContain('Active-minute history starts after');
     expect(markup).toContain('<th scope="row">App compute</th>');
-    expect(markup.match(/Unavailable/g)?.length).toBeGreaterThanOrEqual(2);
-    expect(markup).toContain('Users × active minutes per user per day × observed app cost per active minute');
+    expect(markup).toContain('Measured app-compute daily billing rate, held fixed');
     expect(markup).not.toContain('Not included');
     expect(markup).not.toContain('Limits');
     expect(OPS_CSS).toMatch(/\.ops-methodology-rows > div\s*\{[\s\S]*grid-template-columns:/);

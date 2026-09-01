@@ -288,6 +288,35 @@ note "dictionary genie     $DICT_GENIE_ID"
 note "semantic index       ${SEMANTIC_INDEX_NAME:-(not configured)}"
 note "semantic endpoint    ${SEMANTIC_INDEX_ENDPOINT:-(not configured)}"
 
+# One live source of truth before any upload. The index names its hosting
+# endpoint; a second independently maintained release value may describe drift
+# but may never be shipped as though it were current.
+if [[ -n "$SEMANTIC_INDEX_NAME" ]]; then
+  SEMANTIC_INDEX_JSON="$(databricks vector-search-indexes get-index "$SEMANTIC_INDEX_NAME" --profile "$PROFILE" -o json)" \
+    || die "Could not read semantic index $SEMANTIC_INDEX_NAME. No app files were uploaded."
+  read -r LIVE_SEMANTIC_ENDPOINT SEMANTIC_INDEX_READY < <(
+    python3 -c 'import json,sys
+body=json.load(sys.stdin)
+print((body.get("endpoint_name") or "").strip(), str(bool((body.get("status") or {}).get("ready"))).lower())' \
+      <<<"$SEMANTIC_INDEX_JSON"
+  )
+  [[ "$SEMANTIC_INDEX_READY" == "true" ]] \
+    || die "Semantic index $SEMANTIC_INDEX_NAME is not ready. No app files were uploaded."
+  [[ -n "$LIVE_SEMANTIC_ENDPOINT" ]] \
+    || die "Semantic index $SEMANTIC_INDEX_NAME reported no hosting endpoint. No app files were uploaded."
+  [[ "$SEMANTIC_INDEX_ENDPOINT" == "$LIVE_SEMANTIC_ENDPOINT" ]] \
+    || die "semantic_index_endpoint does not match the active index host. Update the target override before release."
+  SEMANTIC_ENDPOINT_JSON="$(
+    databricks vector-search-endpoints get-endpoint "$LIVE_SEMANTIC_ENDPOINT" --profile "$PROFILE" -o json
+  )" || die "Could not read semantic endpoint $LIVE_SEMANTIC_ENDPOINT. No app files were uploaded."
+  SEMANTIC_ENDPOINT_STATE="$(
+    python3 -c 'import json,sys; print(((json.load(sys.stdin).get("endpoint_status") or {}).get("state") or "").upper())' \
+      <<<"$SEMANTIC_ENDPOINT_JSON"
+  )"
+  [[ "$SEMANTIC_ENDPOINT_STATE" == "ONLINE" ]] \
+    || die "Semantic endpoint $LIVE_SEMANTIC_ENDPOINT is not ONLINE. No app files were uploaded."
+fi
+
 # The semantic rebuild job is bundle-owned when the target declares it. Its id
 # is the billing join key; a name match would be guesswork and can collide with
 # another deployment. Targets without the job keep the authored empty value.

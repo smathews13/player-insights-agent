@@ -3,6 +3,7 @@ import type { CostTile } from '../../shared/ops-contract';
 import {
   allocateDeterministically,
   buildSpendByUser,
+  buildUserMonitoringPage,
   cachedUserSpend,
   cacheUserSpend,
   capUserSpendRange,
@@ -125,7 +126,11 @@ describe('individual user spend attribution', () => {
       payload.reconciliation.usd.appTotal
     );
     expect(payload.users.map((user) => user.email)).toEqual(['a@example.test', 'b@example.test']);
-    expect(payload.users[0].components.every((part) => part.usd.quality === 'allocated')).toBe(true);
+    expect(
+      payload.users[0].components
+        .filter((part) => part.usd.amount !== null)
+        .every((part) => part.usd.quality === 'allocated')
+    ).toBe(true);
   });
 
   it('leaves shared app compute unattributed when active-minute coverage is incomplete', () => {
@@ -227,5 +232,66 @@ describe('individual user spend attribution', () => {
     expect(USER_ACTIVE_MINUTES_QUERY).toContain('GROUP BY selected.user_email');
     expect(USER_SPEND_RUNS_QUERY).not.toMatch(/WHERE\s+lower\(r\.user_email\)\s*=\s*\$/i);
     expect(USER_ACTIVE_MINUTES_QUERY).not.toMatch(/WHERE\s+lower\(user_email\)\s*=\s*\$/i);
+  });
+
+  it('keyset-pages measured spend before zero and unavailable users with a stable email tie-break', () => {
+    const spend = build();
+    spend.users.push({
+      email: 'service-principal-id',
+      total: {
+        usd: { amount: 999, quality: 'direct' },
+        dbu: { amount: 999, quality: 'direct' },
+      },
+      components: [],
+    });
+    const first = buildUserMonitoringPage({
+      spend,
+      runs,
+      activity: [],
+      roles: new Map([
+        ['a@example.test', 'admin'],
+        ['b@example.test', 'consumer'],
+        ['zero@example.test', 'consumer'],
+      ]),
+      unit: 'USD',
+      pageSize: 1,
+    });
+    expect(first.users).toHaveLength(1);
+    expect(first.users[0].email).toBe('b@example.test');
+    expect(first.users.some((row) => row.email === 'service-principal-id')).toBe(false);
+    expect(first.pagination.nextCursor).toBeTruthy();
+
+    const second = buildUserMonitoringPage({
+      spend,
+      runs,
+      activity: [],
+      roles: new Map([
+        ['a@example.test', 'admin'],
+        ['b@example.test', 'consumer'],
+        ['zero@example.test', 'consumer'],
+      ]),
+      unit: 'USD',
+      pageSize: 1,
+      cursor: first.pagination.nextCursor ?? '',
+    });
+    expect(second.users[0].email).toBe('a@example.test');
+  });
+
+  it('applies normalized search and canonical role filters after one shared aggregation', () => {
+    const page = buildUserMonitoringPage({
+      spend: build(),
+      runs,
+      activity: [],
+      roles: new Map([
+        ['a@example.test', 'admin'],
+        ['b@example.test', 'consumer'],
+      ]),
+      unit: 'DBU',
+      search: 'A@EXAMPLE',
+      role: 'admin',
+    });
+    expect(page.users.map((row) => row.email)).toEqual(['a@example.test']);
+    expect(page.unit).toBe('DBU');
+    expect(page.reconciliation.dbu.difference).toBe(0);
   });
 });

@@ -512,8 +512,7 @@ const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {
 const EMPTY_COST_TILES: readonly CostTile[] = [
   { ...EMPTY_COST_TILE, id: 'serving-endpoint', label: 'Serving endpoint', resourceKind: 'serving-endpoint' },
   { ...EMPTY_COST_TILE, id: 'sql-warehouse', label: 'SQL warehouse', resourceKind: 'sql-warehouse' },
-  { ...EMPTY_COST_TILE, id: 'genie:data', label: 'Data Genie', resourceKind: 'genie-space' },
-  { ...EMPTY_COST_TILE, id: 'genie:dictionary', label: 'Dictionary Genie', resourceKind: 'genie-space' },
+  { ...EMPTY_COST_TILE, id: 'genie:charged', label: 'Genie charged usage', resourceKind: '' },
   { ...EMPTY_COST_TILE, id: 'vector-search', label: 'Vector search', resourceKind: 'vector-index' },
   { ...EMPTY_COST_TILE, id: 'app-compute', label: 'App compute', resourceKind: 'app' },
 ];

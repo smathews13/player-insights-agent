@@ -213,6 +213,15 @@ describe('the Cost budget layout', () => {
   });
 });
 
+describe('the Cost Tracking user-spend action', () => {
+  it('keeps its label visible while the header action group wraps', () => {
+    expect(rule('.ops-cost-head-controls')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.ops-user-spend-link')).toMatch(/white-space:\s*nowrap/);
+    expect(rule('.ops-user-spend-link')).toMatch(/flex:\s*none/);
+    expect(CSS).toMatch(/@media \(max-width:\s*640px\)[\s\S]*\.ops-cost-head-controls\s*\{[^}]*width:\s*100%[^}]*\}/);
+  });
+});
+
 describe('nothing on this tab is louder than what it is reporting', () => {
   /**
    * NO ORANGE, which §2 states as a palette rule and this tab was breaking in one

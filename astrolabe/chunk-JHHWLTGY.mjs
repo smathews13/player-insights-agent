@@ -1,0 +1,25 @@
+
+import {
+  external_exports
+} from "./chunk-5DRRUJAY.mjs";
+
+// shared/organization-mapping.ts
+var OrganizationMappingSchema = external_exports.object({
+  domain: external_exports.string().trim().min(1).max(253).transform((value) => value.toLocaleLowerCase()),
+  name: external_exports.string().trim().min(1).max(120),
+  monogram: external_exports.string().trim().min(1).max(4)
+}).strict();
+var OrganizationMappingsSchema = external_exports.array(OrganizationMappingSchema).max(50);
+function parseOrganizationMappings(raw) {
+  if (!raw?.trim()) return [];
+  try {
+    const parsed = OrganizationMappingsSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : [];
+  } catch {
+    return [];
+  }
+}
+
+export {
+  parseOrganizationMappings
+};

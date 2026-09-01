@@ -96,6 +96,7 @@ describe('production bundle budget', () => {
     const artifactCheck = readFileSync(new URL('./check-deploy-artifact.mjs', import.meta.url), 'utf8');
     expect(artifactCheck).toContain('inspectBundle(deployDir)');
     expect(artifactCheck).toContain('budgetFindings(budgetReport, LIMITS)');
+    expect(artifactCheck).toContain('validateRuntimePersonas(serverPath)');
     expect(artifactCheck).toContain('smokeDeployArtifact(deployDir)');
 
     // bundle/ and mirror/ are publication tooling and are intentionally absent
@@ -125,6 +126,7 @@ describe('production bundle budget', () => {
     expect(bundler).not.toContain("import * as namespace from '${pkg}'");
     expect(bundler).toContain("chunkNames: '[name]-[hash]'");
     expect(bundler).toContain('splitting: true');
+    expect(bundler.match(/charset: 'utf8'/g)).toHaveLength(3);
     expect(bundler).toContain('Dynamic require of "');
     expect(bundler).toContain('split CommonJS helper');
   });

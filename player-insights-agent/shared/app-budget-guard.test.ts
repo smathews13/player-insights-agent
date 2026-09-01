@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { appBudgetPeriod, budgetLevelFor } from './app-budget-guard';
+import {
+  APP_BUDGET_APPROVAL_PERCENT,
+  APP_BUDGET_GUARDRAILS,
+  APP_BUDGET_WARNING_PERCENT,
+  appBudgetPeriod,
+  budgetLevelFor,
+} from './app-budget-guard';
 
 describe('app budget threshold math', () => {
   it.each([
@@ -16,6 +22,20 @@ describe('app budget threshold math', () => {
   it('rounds binary-float noise before equality decisions', () => {
     expect(budgetLevelFor(0.799999999999, 1).level).toBe('warning');
     expect(budgetLevelFor(0.999999999999, 1).level).toBe('approval-required');
+  });
+
+  it('publishes methodology from the same enforcement thresholds', () => {
+    expect(APP_BUDGET_WARNING_PERCENT).toBe(80);
+    expect(APP_BUDGET_APPROVAL_PERCENT).toBe(100);
+    expect(APP_BUDGET_GUARDRAILS).toContainEqual({
+      label: 'Warning',
+      value: `${APP_BUDGET_WARNING_PERCENT}% — questions continue`,
+    });
+    expect(APP_BUDGET_GUARDRAILS).toContainEqual({
+      label: 'Approval required',
+      value: `${APP_BUDGET_APPROVAL_PERCENT}% — new questions pause until an administrator approves`,
+    });
+    expect(APP_BUDGET_GUARDRAILS).toContainEqual({ label: 'Resource budgets', value: 'Advisory only' });
   });
 
   it('uses UTC calendar months and complete billing days', () => {

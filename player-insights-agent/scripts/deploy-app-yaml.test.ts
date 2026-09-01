@@ -3,6 +3,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- a build script, deliberately outside the tsconfig projects.
 import { envNames, renderDeployAppYaml } from './deploy-app-yaml.mjs';
+// @ts-expect-error -- a build script, deliberately outside the tsconfig projects.
+import { validateRuntimePersonas } from './check-runtime-personas.mjs';
 
 const repoRoot = path.resolve(__dirname, '..');
 const authored = readFileSync(path.join(repoRoot, 'app.yaml'), 'utf8');
@@ -253,6 +255,12 @@ describe('every authored variable reaches the deploy target', () => {
     expect(appRelease).toContain('PLAYER_INSIGHTS_SEMANTIC_INDEX="$SEMANTIC_INDEX_NAME"');
     expect(appRelease).toContain('PLAYER_INSIGHTS_SEMANTIC_ENDPOINT="$SEMANTIC_INDEX_ENDPOINT"');
     expect(appRelease).toContain('semantic_index_endpoint is set but semantic_index_name is empty');
+    expect(appRelease).toContain('vector-search-indexes get-index "$SEMANTIC_INDEX_NAME"');
+    expect(appRelease).toContain('semantic_index_endpoint does not match the active index host');
+    expect(appRelease).toContain('vector-search-endpoints get-endpoint "$LIVE_SEMANTIC_ENDPOINT"');
+    expect(appRelease.indexOf('vector-search-indexes get-index')).toBeLessThan(
+      appRelease.indexOf('workspace import-dir "$DEPLOY_TREE"')
+    );
   });
 
   it('carries no administrator address in the authored file', () => {
@@ -425,11 +433,8 @@ describe('the committed deploy tree names no administrator', () => {
       ).toBe(false);
       return;
     }
-    const server = readFileSync(DEPLOYED_SERVER, 'utf8');
-    expect(server).toContain('business-analyst');
-    expect(server).toContain('Business Analyst');
-    expect(server).toContain('marketing-scientist');
-    expect(server).toContain('Marketing Scientist');
+    const result = validateRuntimePersonas(DEPLOYED_SERVER);
+    expect(result.findings, `${result.findings.join('\n')}\nInspected: ${result.files.join(', ')}`).toEqual([]);
   });
 });
 

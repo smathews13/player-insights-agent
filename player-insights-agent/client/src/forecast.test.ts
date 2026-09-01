@@ -384,17 +384,20 @@ describe('missing and excluded baselines', () => {
     );
   });
 
-  it('withholds app cost per minute when heartbeat coverage does not span the Cost window', () => {
+  it('projects app compute even when per-user heartbeat coverage does not span the Cost window', () => {
     const baseline = deriveForecastBaseline(cost(), traffic({ activeMinutesRecordedFrom: '2026-08-12T12:00:00.000Z' }));
     const result = calculateForecast(baseline, baseline.defaults);
 
     expect(baseline.observed.appCostPerActiveMinute).toBeNull();
-    expect(baseline.appComputeUnavailable).toContain('starts after the Cost window begins');
+    expect(baseline.appComputeDaily).toBe(2);
+    expect(baseline.appComputeUnavailable).toBe('');
     const appCompute = result.components.find((item) => item.id === 'app-compute');
-    expect(appCompute?.dailyAmount).toBeNull();
-    expect(appCompute?.unavailable).toContain('starts after the Cost window begins');
-    expect(result.horizons[0].components.find((item) => item.id === 'app-compute')?.amount).toBeNull();
-    expect(result.horizons[0].total).toBeCloseTo(42);
+    expect(appCompute?.dailyAmount).toBe(2);
+    expect(appCompute?.unavailable).toBe('');
+    expect(
+      result.horizons.map((horizon) => horizon.components.find((item) => item.id === 'app-compute')?.amount)
+    ).toEqual([14, 60, 360]);
+    expect(result.horizons[0].total).toBeCloseTo(56);
   });
 
   it.each([
@@ -419,6 +422,14 @@ describe('missing and excluded baselines', () => {
       expect(result.components.find((item) => item.id === 'app-compute')?.dailyAmount).toBe(appDaily);
       expect(result.horizons[0].total).toBeCloseTo(next7);
       expect(result.horizons[1].total).toBeCloseTo(next30);
+      for (const horizon of result.horizons) {
+        const appProjection = horizon.components.find((item) => item.id === 'app-compute')?.amount;
+        expect(appProjection).toBe(appDaily * horizon.days);
+        const subtotalWithoutApp = horizon.components
+          .filter((item) => item.id !== 'app-compute')
+          .reduce((total, item) => total + (item.amount ?? 0), 0);
+        expect((horizon.total ?? 0) - subtotalWithoutApp).toBeCloseTo(appProjection ?? 0);
+      }
     }
   );
 
@@ -431,6 +442,37 @@ describe('missing and excluded baselines', () => {
     expect(result.components.find((item) => item.id === 'app-compute')?.dailyAmount).toBe(0);
     expect(result.horizons[0].components.find((item) => item.id === 'app-compute')?.amount).toBe(0);
     expect(result.horizons[0].total).toBeCloseTo(42);
+  });
+
+  it('uses exact horizon days and removes the Genie promotion at the 2027 boundary', () => {
+    const payload = cost({
+      range: { from: '2027-01-24', to: '2027-01-30' },
+      throughDay: '2027-01-30',
+      tiles: [
+        {
+          id: 'genie:charged',
+          label: 'Genie charged usage',
+          resourceId: '',
+          quality: 'real',
+          amount: 7,
+          dbus: 7,
+          basis: 'total-in-range',
+          population: 'This workspace',
+          attribution: 'deployment',
+          unavailable: '',
+          remedy: '',
+          note: '',
+        },
+      ],
+    });
+    const result = calculateForecast(
+      deriveForecastBaseline(payload, traffic()),
+      deriveForecastBaseline(payload, traffic()).defaults
+    );
+    const next7 = result.horizons[0];
+    expect(next7.days).toBe(7);
+    expect(next7.components.find((item) => item.id === 'genie:charged')?.amount).toBeCloseTo(5.5);
+    expect(next7.total).toBeCloseTo(5.5);
   });
 });
 

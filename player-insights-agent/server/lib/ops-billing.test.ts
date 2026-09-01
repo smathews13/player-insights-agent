@@ -96,8 +96,7 @@ describe('billing attribution', () => {
     expect(tiles.find((tile) => tile.id === 'serving-endpoint')?.resourceId).toBe(IDS.endpointName);
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.resourceId).toBe(IDS.warehouseId);
     expect(tiles.find((tile) => tile.id === 'app-compute')?.resourceId).toBe(IDS.appName);
-    expect(tiles.find((tile) => tile.id === 'genie:data')?.resourceId).toBe('');
-    expect(tiles.find((tile) => tile.id === 'genie:dictionary')?.resourceId).toBe('');
+    expect(tiles.find((tile) => tile.id === 'genie:charged')?.resourceId).toBe('');
     expect(tiles.find((tile) => tile.id === 'vector-search')?.resourceId).toBe('');
     expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
@@ -126,7 +125,7 @@ describe('billing attribution', () => {
     expect(app?.note).toContain('still matched by app name');
   });
 
-  it('reports both configured Genie roles even before their identifiers are available', () => {
+  it('keeps Genie charged usage unavailable when the identity-aware billing read is unavailable', () => {
     const genie = buildTiles(IDS, [
       {
         component: 'genie',
@@ -138,146 +137,64 @@ describe('billing attribution', () => {
       },
     ]).filter((tile) => tile.id.startsWith('genie:'));
 
-    expect(genie).toHaveLength(2);
-    expect(genie.map((tile) => tile.label)).toEqual(['Data Genie', 'Dictionary Genie']);
-    expect(genie.every((tile) => tile.amount === null)).toBe(true);
-    expect(genie.every((tile) => tile.unavailable.startsWith('Resource identifier unavailable.'))).toBe(true);
-    expect(genie.every((tile) => tile.unavailable.includes('billing exposes surface and channel'))).toBe(true);
-  });
-
-  it('emits one Genie tile per configured space and links the space id', () => {
-    const tiles = buildTiles(
-      {
-        ...IDS,
-        genieSpaces: [
-          { id: 'space-data', label: 'Data Genie', tool: 'data_genie', tileId: 'genie:data' },
-          {
-            id: 'space-dictionary',
-            label: 'Dictionary Genie',
-            tool: 'dictionary_genie',
-            tileId: 'genie:dictionary',
-          },
-        ],
-      },
-      [],
-      undefined,
-      [
-        { tileId: 'genie:data', calls: 3, observedCalls: 4 },
-        { tileId: 'genie:dictionary', calls: 2, observedCalls: 2 },
-      ]
-    );
-    const genie = tiles.filter((tile) => tile.id.startsWith('genie:'));
-    expect(genie).toHaveLength(2);
-    expect(genie.map((tile) => tile.resourceId)).toEqual(['space-data', 'space-dictionary']);
-    expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
-    expect(genie.map((tile) => tile.id)).toEqual(['genie:data', 'genie:dictionary']);
-    expect(genie.every((tile) => tile.unavailable.includes('billing exposes surface and channel'))).toBe(true);
-    expect(genie.map((tile) => tile.evidence?.activity?.calls)).toEqual([3, 2]);
-    expect(tiles.some((tile) => tile.id === 'genie')).toBe(false);
-  });
-
-  it('separates generated SQL cost by Genie space without double-counting the SQL warehouse share', () => {
-    const tiles = buildTiles(
-      {
-        ...IDS,
-        genieSpaces: [
-          { id: 'space-data', label: 'Data Genie', tool: 'data_genie', tileId: 'genie:data' },
-          {
-            id: 'space-dictionary',
-            label: 'Dictionary Genie',
-            tool: 'dictionary_genie',
-            tileId: 'genie:dictionary',
-          },
-        ],
-      },
-      [
-        {
-          component: 'sql-warehouse',
-          spend: 100,
-          currency: 'USD',
-          billedDays: 2,
-          jobRuns: null,
-          lastDay: RANGE.to,
-          pricedRows: 4,
-          unpricedRows: 0,
-          priceMatchStatus: 'priced',
-        },
-      ],
-      {
-        complete: true,
-        astrolabeQueries: 1,
-        totalQueries: 4,
-        astrolabeExecutionMs: 20,
-        totalExecutionMs: 100,
-        genieSpaces: [
-          { spaceId: 'space-data', queries: 2, executionMs: 30 },
-          { spaceId: 'space-dictionary', queries: 1, executionMs: 10 },
-        ],
-      }
-    );
-
-    expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.amount).toBe(20);
-    expect(tiles.find((tile) => tile.id === 'genie:data')).toMatchObject({
-      amount: 30,
-      quality: 'estimate',
-      population: 'Generated SQL share',
-      attribution: 'deployment',
-      evidence: { billingRows: 4, queryHistoryComplete: true },
-    });
-    expect(tiles.find((tile) => tile.id === 'genie:dictionary')?.amount).toBe(10);
-    const allocatedSql = tiles
-      .filter((tile) => tile.id === 'sql-warehouse' || tile.id.startsWith('genie:'))
-      .reduce((sum, tile) => sum + (tile.amount ?? 0), 0);
-    expect(allocatedSql).toBe(60);
-    expect(allocatedSql).toBeLessThanOrEqual(100);
-  });
-
-  it('does not repeat generated SQL cost when both Genie roles use one space', () => {
-    const tiles = buildTiles(
-      {
-        ...IDS,
-        genieSpaces: [
-          { id: 'shared-space', label: 'Data Genie', tool: 'data_genie', tileId: 'genie:data' },
-          {
-            id: 'shared-space',
-            label: 'Dictionary Genie',
-            tool: 'dictionary_genie',
-            tileId: 'genie:dictionary',
-          },
-        ],
-      },
-      [
-        {
-          component: 'sql-warehouse',
-          spend: 100,
-          currency: 'USD',
-          billedDays: 2,
-          jobRuns: null,
-          lastDay: RANGE.to,
-          pricedRows: 4,
-          unpricedRows: 0,
-          priceMatchStatus: 'priced',
-        },
-      ],
-      {
-        complete: true,
-        astrolabeQueries: 1,
-        totalQueries: 2,
-        astrolabeExecutionMs: 20,
-        totalExecutionMs: 100,
-        genieSpaces: [{ spaceId: 'shared-space', queries: 1, executionMs: 30 }],
-      }
-    );
-
-    expect(tiles.find((tile) => tile.id === 'genie:data')?.amount).toBe(30);
-    expect(tiles.find((tile) => tile.id === 'genie:dictionary')).toMatchObject({
+    expect(genie).toHaveLength(1);
+    expect(genie[0]).toMatchObject({
+      id: 'genie:charged',
+      label: 'Genie charged usage',
       amount: null,
+      dbus: null,
       attribution: 'unavailable',
-      quality: 'unknown',
     });
-    expect(tiles.find((tile) => tile.id === 'genie:dictionary')?.unavailable).toContain(
-      'already represented by Data Genie'
-    );
+  });
+
+  it('uses charged Genie spend only and carries allowance and promotion as separate evidence', () => {
+    const tiles = buildTiles(IDS, [], undefined, [], {
+      month: {
+        month: '2026-09',
+        throughDay: '2026-09-01',
+        humanUsers: 1,
+        allowanceDbusPerUser: 150,
+        allowanceUsedDbus: 40,
+        allowanceRemainingDbus: 110,
+        allowanceUtilization: 40 / 150,
+        promotionalDbus: 15,
+        chargedEffectiveDbus: 20,
+        chargedRawEquivalentDbus: 15,
+        paidUsd: 4,
+        underlyingTotalDbus: 70,
+        pricingState: 'priced',
+        diagnostics: [],
+        users: [],
+      },
+      period: {
+        month: '2026-09',
+        throughDay: '2026-09-01',
+        humanUsers: 1,
+        allowanceDbusPerUser: 150,
+        allowanceUsedDbus: 40,
+        allowanceRemainingDbus: 110,
+        allowanceUtilization: 40 / 150,
+        promotionalDbus: 15,
+        chargedEffectiveDbus: 20,
+        chargedRawEquivalentDbus: 15,
+        paidUsd: 4,
+        underlyingTotalDbus: 70,
+        pricingState: 'priced',
+        diagnostics: [],
+        users: [],
+      },
+    });
+    expect(tiles.find((tile) => tile.id === 'genie:charged')).toMatchObject({
+      amount: 4,
+      dbus: 20,
+      attribution: 'deployment',
+      genieAccounting: {
+        allowanceUsedDbus: 40,
+        promotionalDbus: 15,
+        chargedRawEquivalentDbus: 15,
+        underlyingTotalDbus: 70,
+      },
+    });
   });
 
   it('opens Vector Search as the index when a three-level name is known', () => {

@@ -34,6 +34,7 @@ import {
   TrafficBody,
   type Block,
 } from './OpsPage';
+import { perUserSpendHref } from './cost-user-monitoring-link';
 import { activeMinutesDisplay, queryHistoryCoverageDetail } from './ops-view';
 import { REFRESH_LABEL } from './refresh-state';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
@@ -294,6 +295,30 @@ describe('one block failing', () => {
     const other = render(<TrafficBody block={block(traffic({ readAt: '2026-08-15T09:00:00Z' }))} />);
     expect(one).toMatch(/Read /);
     expect(other).toMatch(/Read /);
+  });
+});
+
+describe('the Cost Tracking user-spend cross-link', () => {
+  it('maps compatible ranges and units into the shared Monitoring URL', () => {
+    expect(perUserSpendHref('range=30d', 'DBU')).toBe('/monitoring?range=30d&users=1&userUnit=DBU');
+    expect(perUserSpendHref('range=custom', 'USD')).toBe('/monitoring?users=1&userUnit=USD');
+    expect(perUserSpendHref('', 'USD')).toBe('/monitoring?users=1&userUnit=USD');
+  });
+
+  it('uses the shared primary action and carries Monitoring deep-link state', () => {
+    const markup = markupOf(
+      <CostBody block={block(cost())} userMonitoringHref="/monitoring?range=30d&users=1&userUnit=DBU" />
+    );
+    expect(text(markup)).toContain('See per-user spend');
+    expect(markup).toContain('ops-user-spend-link');
+    expect(markup).toContain('lucide-users');
+    expect(markup).toContain('/monitoring?range=30d');
+    expect(markup).toContain('users=1');
+    expect(markup).toContain('userUnit=DBU');
+  });
+
+  it('renders no user enumeration action when no admin-authorized link is supplied', () => {
+    expect(text(markupOf(<CostBody block={block(cost())} />))).not.toContain('See per-user spend');
   });
 });
 
@@ -943,6 +968,18 @@ describe('the cost block', () => {
     expect(visible).toContain('Cost methodology');
     expect(visible).toContain('How totals are calculated');
     expect(visible).toContain('Vector Search endpoint');
+    expect(visible).toContain('Budget guardrails');
+    expect(visible).toContain('Scope Monthly app budget only');
+    expect(visible).toContain('Measurement window Calendar month-to-date, UTC');
+    expect(visible).toContain('Warning 80% — questions continue');
+    expect(visible).toContain('Approval required 100% — new questions pause until an administrator approves');
+    expect(visible).toContain(
+      'Approval duration Through month end, for the exact current budget value, unit and revision'
+    );
+    expect(visible).toContain('In-flight work Continues');
+    expect(visible).toContain('Resource budgets Advisory only');
+    expect(visible).toContain('AI Gateway controls Separate and currently inactive');
+    expect(visible).toContain('not a hard billing ceiling');
     expect(visible).not.toContain('NOT INCLUDED');
     expect(visible).not.toContain('LIMITS');
     expect(visible).not.toContain('Billing usage');
@@ -1116,7 +1153,7 @@ describe('the cost block', () => {
     expect(markup).toContain('No billing rows');
     expect(markup).toContain('No billing rows matched an exact tracked resource');
     expect(markup).not.toContain('system_billing');
-    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(7);
+    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(6);
   });
 
   it('draws one box per connected Genie space and Vector Search when billing is empty', () => {
@@ -1749,6 +1786,63 @@ describe('the traffic block', () => {
     expect(markup).toContain('Refusals by cause');
     // Two headings say this. The title no longer narrates the layout under them.
     expect(markup).not.toContain('never this one');
+  });
+
+  it('renders one compact partial-evidence summary and no empty refusal wall', () => {
+    const markup = text(
+      render(
+        <TrafficBody
+          block={block(
+            traffic({
+              runsInRange: 34,
+              failuresByCause: [
+                { key: 'UNKNOWN_STORED_ANSWER_FAILURE', label: 'Legacy failure · cause unavailable', count: 2 },
+              ],
+              refusalsByCause: [],
+              breakdownCoverage: {
+                outcomes: {
+                  state: 'partial',
+                  coveredRuns: 32,
+                  reason: '32 of 34 recorded runs have specific outcome evidence.',
+                },
+                toolCalls: { state: 'complete', coveredRuns: 34, reason: '' },
+              },
+            })
+          )}
+        />
+      )
+    );
+    expect(markup).toContain('32 classified · 2 legacy runs lack detail');
+    expect(markup).toContain('0 recorded · 32 classified · 2 legacy runs lack detail');
+    expect(markup.match(/32 of 34 recorded runs/g)).toBeNull();
+    expect(markup).not.toContain('Partial coverage');
+    expect(markup).toContain('Legacy failure · cause unavailable');
+    expect(markup).not.toContain('Unknown historical answer failure');
+  });
+
+  it('distinguishes complete-zero and unavailable refusal reads', () => {
+    const complete = text(render(<TrafficBody block={block(traffic({ failuresByCause: [], refusalsByCause: [] }))} />));
+    expect(complete).toContain('No refusals recorded');
+
+    const unavailable = text(
+      render(
+        <TrafficBody
+          block={block(
+            traffic({
+              failuresByCause: [],
+              refusalsByCause: [],
+              breakdownCoverage: {
+                outcomes: { state: 'unavailable', coveredRuns: 0, reason: 'Outcome query failed.' },
+                toolCalls: { state: 'complete', coveredRuns: 34, reason: '' },
+              },
+            })
+          )}
+        />
+      )
+    );
+    expect(unavailable).toContain('Outcome detail unavailable');
+    expect(unavailable).toContain('Refusals by cause Unavailable');
+    expect(unavailable).not.toContain('No refusals recorded');
   });
 
   it('keeps both cause charts together as the middle visual group', () => {

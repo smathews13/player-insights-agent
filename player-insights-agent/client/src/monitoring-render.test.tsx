@@ -17,6 +17,7 @@ import {
   QuestionPanel,
   SummaryStrip,
   TablesReadMost,
+  UserMonitoringPanel,
 } from './MonitoringPage';
 import { monitoringPageForOwner } from './monitoring-session';
 import { GRANTS_UNRESOLVED_LINE, LIVE_VERSUS_RECORDED } from './monitoring-view';
@@ -378,20 +379,37 @@ describe('the filter row is built from the app, not from the platform', () => {
 
     expect(markup.match(/role="combobox"/g)).toHaveLength(4);
     expect(markup).toContain('aria-expanded="false"');
-    expect(markup).not.toContain('aria-label="Person"');
+    expect(markup).not.toContain('aria-label="User"');
   });
 
   /**
    * The label and the current value on one line, as the design shows, and present
    * on first paint. Rendered from the options rather than resolved out of the open
-   * menu, which is empty until Radix mounts and left the chip reading "Person ·".
+   * menu, which is empty until Radix mounts and left the chip reading "User ·".
    */
   it('reads label and value together on the trigger', () => {
     const rendered = text(row());
 
-    expect(rendered).toContain('Person · All');
+    expect(rendered).toContain('User · All');
     expect(rendered).toContain('Outcome · All');
     expect(rendered).toContain('Rating · All');
+  });
+
+  it('offers the primary User Monitoring action without changing the secondary filters', () => {
+    const markup = render(
+      <FilterRow
+        filters={NO_FILTERS}
+        people={[]}
+        tables={[]}
+        onChange={() => {}}
+        onClearFilters={() => {}}
+        onOpenUsers={() => {}}
+      />
+    );
+    expect(text(markup)).toContain('User · All');
+    expect(text(markup)).toContain('User Monitoring');
+    expect(markup).toContain('monitoring-user-browser-trigger');
+    expect(markup).toContain('lucide-users');
   });
 
   /**
@@ -426,7 +444,7 @@ describe('the filter row is built from the app, not from the platform', () => {
     const markup = row();
 
     expect(markup).toContain('run-search');
-    expect(markup).toContain('aria-label="Search questions by text or person"');
+    expect(markup).toContain('aria-label="Search questions by text or user"');
   });
 
   it('renders the standard Search glyph as labelled-input decoration', () => {
@@ -438,7 +456,7 @@ describe('the filter row is built from the app, not from the platform', () => {
     expect(icon).toContain('aria-hidden="true"');
     expect(icon).toContain('focusable="false"');
     expect(icon).not.toContain('role="button"');
-    expect(markup).toContain('aria-label="Search questions by text or person"');
+    expect(markup).toContain('aria-label="Search questions by text or user"');
   });
 });
 
@@ -477,7 +495,7 @@ describe('removing a filter', () => {
   it('gives every set filter its own labelled clear button', () => {
     const markup = withEverythingSet();
 
-    expect(markup).toContain('aria-label="Clear the person filter"');
+    expect(markup).toContain('aria-label="Clear the user filter"');
     expect(markup).toContain('aria-label="Clear the outcome filter"');
     expect(markup).toContain('aria-label="Clear the rating filter"');
     expect(markup).toContain('aria-label="Clear the table filter"');
@@ -497,7 +515,7 @@ describe('removing a filter', () => {
   it('reads its own off state on each closed chip', () => {
     const rendered = text(unfiltered());
 
-    expect(rendered).toContain('Person · All');
+    expect(rendered).toContain('User · All');
     expect(rendered).toContain('Outcome · All');
     expect(rendered).toContain('Rating · All');
     expect(rendered).toContain('Table · Any');
@@ -656,7 +674,7 @@ describe('every state in the list', () => {
     const markup = body('loading');
     const rendered = text(markup);
 
-    expect(rendered).toContain('Person');
+    expect(rendered).toContain('User');
     expect(rendered).toContain('Outcome');
     expect(rendered).toContain('Rating');
     expect(rendered).toContain('Table');
@@ -957,7 +975,7 @@ function detail(overrides: Partial<MonitoringDetail> = {}): MonitoringDetail {
 describe('the detail modal', () => {
   it('uses the shared dialog contract for every question and person state', () => {
     expect(MONITORING_SOURCE).toContain("import { Dialog } from './Dialog'");
-    expect(MONITORING_SOURCE.match(/<Dialog/g)).toHaveLength(4);
+    expect(MONITORING_SOURCE.match(/<Dialog/g)).toHaveLength(5);
     expect(MONITORING_SOURCE).not.toContain("window.addEventListener('keydown'");
 
     const readyQuestion = render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />);
@@ -1196,6 +1214,88 @@ describe('the detail modal', () => {
 
     expect(rendered).toContain('This run was not metred, so no token count was recorded.');
     expect(rendered).not.toContain('0 tokens');
+  });
+});
+
+describe('the User Monitoring browser', () => {
+  const browser = { open: true, search: '', role: '', unit: 'USD' as const, cursor: '' };
+  const noop = () => {};
+  const payload = {
+    userMonitoring: {
+      readAt: '2026-08-15T12:00:00Z',
+      range: { from: '2026-08-09', to: '2026-08-15' },
+      unit: 'USD',
+      state: 'partial',
+      reason: 'Vector Search coverage is partial.',
+      users: [
+        {
+          email: 'ada.reader@example.test',
+          role: 'admin',
+          lastActive: '2026-08-15T10:00:00Z',
+          questions: 12,
+          runs: 12,
+          spend: {
+            usd: { amount: 8.5, quality: 'allocated' },
+            dbu: { amount: 3.25, quality: 'allocated' },
+          },
+          coverage: 'allocated',
+        },
+      ],
+      pagination: { pageSize: 25, hasMore: false, nextCursor: null },
+      reconciliation: {
+        usd: { unit: 'USD', appTotal: 8.5, users: 8.5, unattributed: 0, difference: 0 },
+        dbu: { unit: 'DBU', appTotal: 3.25, users: 3.25, unattributed: 0, difference: 0 },
+      },
+    },
+  } as unknown as OpsCostPayload;
+
+  it('renders one centered dialog with filters and spend-ordered user rows', () => {
+    const markup = render(
+      <UserMonitoringPanel
+        state={{ status: 'ready', key: 'users', requestId: 1, data: payload, error: null }}
+        browser={browser}
+        rangeLabel="last 7 days"
+        now={NOW}
+        onClose={noop}
+        onOpenUser={noop}
+        onSearch={noop}
+        onRole={noop}
+        onUnit={noop}
+        onClear={noop}
+        onNext={noop}
+        onPrevious={noop}
+      />
+    );
+    const visible = text(markup);
+    expect(markup).toContain('role="dialog"');
+    expect(markup).toContain('aria-modal="true"');
+    expect(visible).toContain('User Monitoring');
+    expect(markup).toContain('placeholder="Search users…');
+    expect(visible).toContain('ada.reader');
+    expect(visible).toContain('$8.50');
+    expect(visible).toContain('Admin');
+    expect(markup).toContain('aria-label="Open ada.reader User Overview"');
+  });
+
+  it('uses a stable row-shaped skeleton before results arrive', () => {
+    const markup = render(
+      <UserMonitoringPanel
+        state={beginPanelLoad<OpsCostPayload>('users', 1)}
+        browser={browser}
+        rangeLabel="last 7 days"
+        now={NOW}
+        onClose={noop}
+        onOpenUser={noop}
+        onSearch={noop}
+        onRole={noop}
+        onUnit={noop}
+        onClear={noop}
+        onNext={noop}
+        onPrevious={noop}
+      />
+    );
+    expect(markup).toContain('monitoring-users-skeleton');
+    expect(markup.match(/data-slot="skeleton"/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
   });
 });
 

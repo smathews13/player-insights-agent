@@ -1,5 +1,6 @@
 import type { CostBudgets } from './cost-budgets';
 import type { SpendByUserPayload } from './user-spend-contract';
+import type { UserMonitoringPayload } from './user-monitoring-contract';
 
 /**
  * What the three Ops blocks answer with, declared once for both sides.
@@ -246,6 +247,43 @@ export interface CostTile {
       unit: 'requests' | 'queries';
     } | null;
   } | null;
+  /** Calendar-month Genie allowance/promotion/charged reconciliation for the workspace. */
+  genieAccounting?: GenieAccounting | null;
+}
+
+export interface GenieUserAccounting {
+  identity: string;
+  allowanceUsedDbus: number;
+  allowanceRemainingDbus: number;
+  promotionalDbus: number;
+  chargedEffectiveDbus: number;
+  chargedRawEquivalentDbus: number;
+  paidUsd: number | null;
+}
+
+/**
+ * Genie billing is monthly and identity-aware.
+ *
+ * Free allowance is human-only. Promotional usage is distinct from charged
+ * usage, and `underlyingTotalDbus` reconciles the three without adding the
+ * 25%-promotion uplift a second time.
+ */
+export interface GenieAccounting {
+  month: string;
+  throughDay: string;
+  humanUsers: number;
+  allowanceDbusPerUser: number;
+  allowanceUsedDbus: number;
+  allowanceRemainingDbus: number;
+  allowanceUtilization: number;
+  promotionalDbus: number;
+  chargedEffectiveDbus: number;
+  chargedRawEquivalentDbus: number;
+  paidUsd: number | null;
+  underlyingTotalDbus: number;
+  pricingState: 'priced' | 'partial' | 'unpriced' | 'none';
+  diagnostics: string[];
+  users: GenieUserAccounting[];
 }
 
 /** A missing grant, in the shape the app already uses for one. */
@@ -367,6 +405,8 @@ export interface OpsCostPayload {
    * Optional only for compatibility with older deployments and fixtures.
    */
   spendByUser?: SpendByUserPayload;
+  /** Present only for the admin User Monitoring browser request. */
+  userMonitoring?: UserMonitoringPayload;
 }
 
 /**

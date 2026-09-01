@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { budgetFindings, inspectBundle } from './bundle-budget.mjs';
+import { validateRuntimePersonas } from './check-runtime-personas.mjs';
 import { smokeDeployArtifact } from './smoke-deploy-artifact.mjs';
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -150,6 +151,13 @@ function main() {
     findings.push(...budgetFindings(budgetReport, LIMITS).map((finding) => `bundle budget: ${finding}`));
   } catch (error) {
     fail(findings, `bundle budget could not be checked: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  try {
+    const personas = validateRuntimePersonas(serverPath);
+    findings.push(...personas.findings.map((finding) => `runtime personas: ${finding}`));
+  } catch (error) {
+    fail(findings, `runtime personas could not be checked: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   if (findings.length === 0) {

@@ -6,6 +6,16 @@ import { DATABRICKS_SYMBOL } from './brand-icons';
 import { RosterAddRow, RosterRows } from './UserRoleEditor';
 
 const CSS = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
+const RESPONSIVE = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');
+const TOKENS = readFileSync(new URL('./styles/tokens.css', import.meta.url), 'utf8');
+
+function bodyFor(css: string, selector: string): string {
+  const declarations = css.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  return [...declarations.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter((match) => match[1].split(',').some((candidate) => candidate.trim() === selector))
+    .map((match) => match[2])
+    .join('\n');
+}
 
 const payload: RosterPayload = {
   entries: [
@@ -72,6 +82,7 @@ describe('Identity table polish', () => {
     expect(CSS).toMatch(
       /\.settings-modal-content \{[^}]*overflow-x:\s*hidden[^}]*overflow-y:\s*auto[^}]*scrollbar-gutter:\s*stable/s
     );
+    expect(RESPONSIVE).toMatch(/@media \(max-width:\s*800px\)[\s\S]*\.settings-modal-content \{[^}]*padding:\s*14px/s);
   });
 
   it('keeps the Actions column and its controls pinned inside the table frame', () => {
@@ -93,16 +104,56 @@ describe('Identity table polish', () => {
     expect(stickyRule).not.toMatch(/background|box-shadow/);
   });
 
-  it('uses the same cell background in normal, hover, selected, and dark themes', () => {
+  it('uses semantic panel, header, row, hover, focus, and selected surfaces in both themes', () => {
+    const frame = bodyFor(CSS, '.roster-frame');
+    expect(frame).toMatch(/--roster-panel-surface:\s*var\(--background\)/);
+    expect(frame).toMatch(/--roster-header-surface:\s*var\(--muted\)/);
+    expect(frame).toMatch(/--roster-interaction-surface:\s*var\(--db-selected-tint\)/);
+    expect(frame).toMatch(/border-color:\s*var\(--border\)/);
+    expect(frame).toMatch(/border-radius:\s*var\(--radius-md\)/);
+    expect(frame).toMatch(/background:\s*var\(--roster-panel-surface\)/);
+    expect(frame).toMatch(/box-shadow:[^;]*var\(--db-ink-deep\)/);
+    expect(bodyFor(CSS, '.roles-table tr')).toMatch(
+      /--settings-table-cell-background:\s*var\(--roster-panel-surface\)/
+    );
+    expect(bodyFor(CSS, '.roles-table thead tr')).toMatch(
+      /--settings-table-cell-background:\s*var\(--roster-header-surface\)/
+    );
     expect(CSS).toMatch(/\.roles-table th \{[^}]*background:\s*var\(--settings-table-cell-background\)/s);
     expect(CSS).toMatch(/\.roles-table td \{[^}]*background:\s*var\(--settings-table-cell-background\)/s);
     expect(CSS).toMatch(
-      /\.roles-table tbody tr:hover \{[^}]*--settings-table-cell-background:\s*var\(--db-row-hover\)/s
+      /\.roles-table tbody tr:hover,\s*\.roles-table tbody tr:focus-within \{[^}]*--settings-table-cell-background:\s*var\(--roster-interaction-surface\)/s
     );
+    expect(bodyFor(CSS, '.roles-table tbody tr:hover')).not.toMatch(/(?:^|;)\s*(?:color|opacity):/);
     expect(CSS).toMatch(
-      /\.roles-table tbody tr\[aria-selected='true'\],\s*\.roles-table tbody tr\[data-selected='true'\] \{[^}]*--settings-table-cell-background:\s*var\(--db-selected-tint\)/s
+      /\.roles-table tbody tr\[aria-selected='true'\],\s*\.roles-table tbody tr\[data-selected='true'\] \{[^}]*--settings-table-cell-background:\s*var\(--roster-interaction-surface\)/s
     );
+    expect(bodyFor(TOKENS, ':root')).toMatch(/--background:\s*#ffffff/);
+    expect(bodyFor(TOKENS, "html[data-theme='dark']")).toMatch(/--background:\s*var\(--ast-navy\)/);
     expect(CSS).not.toMatch(/html\[data-theme='dark'\][^{]*\.settings-actions-table[^}]*background/s);
+  });
+
+  it('keeps controls integrated and contains no roster-specific flat gray paint', () => {
+    const controls = bodyFor(CSS, '.roles-table .roster-control');
+    const inputs = bodyFor(CSS, ".roles-table [data-slot='input']");
+    for (const body of [controls, inputs]) {
+      expect(body).toMatch(/border-color:\s*var\(--input\)/);
+      expect(body).toMatch(/background:\s*var\(--roster-panel-surface\)/);
+      expect(body).toMatch(/color:\s*var\(--foreground\)/);
+    }
+
+    const declarations = CSS.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const rosterPaint = [...declarations.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(
+        (match) =>
+          (/\.roles-table|\.roster-frame/.test(match[1]) && !match[1].includes(':not(.roles-table)')) ||
+          match[1].includes('.roster-frame')
+      )
+      .map((match) => match[2])
+      .join('\n');
+    expect(rosterPaint).not.toMatch(/#[0-9a-f]{3,8}\b|\brgba?\(|\bgr[ae]y\b/i);
+    expect(rosterPaint).not.toMatch(/background:\s*var\(--card\)/);
+    expect(CSS).not.toMatch(/\.roles-table--(?:gray|grey)|\.roster-(?:gray|grey)/i);
   });
 
   it('keeps immutable Super admin and Owner badges complete and separated by columns', () => {

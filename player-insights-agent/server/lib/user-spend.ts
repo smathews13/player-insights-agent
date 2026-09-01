@@ -9,6 +9,8 @@ import type {
   UserSpendProfile,
   UserSpendQuality,
 } from '../../shared/user-spend-contract';
+import type { Role } from '../../shared/user-roster-contract';
+import type { UserMonitoringPayload, UserMonitoringRow } from '../../shared/user-monitoring-contract';
 
 const DAY_MS = 86_400_000;
 const MAX_USER_SPEND_DAYS = 90;
@@ -21,6 +23,10 @@ const spendCache = new Map<string, { expiresAt: number; payload: SpendByUserPayl
 export function invalidateUserSpendCache(): void {
   spendDataRevision += 1;
   spendCache.clear();
+}
+
+export function userSpendDataRevision(): number {
+  return spendDataRevision;
 }
 
 export function userSpendCacheKey(principal: string, range: OpsDayRange): string {
@@ -45,6 +51,7 @@ export interface UserRunSpendEvidence {
   totalRuns: number;
   tokenCoveredRuns: number;
   totalTokens: number;
+  lastActive?: string;
   resources: Array<{ tool: string; resourceId: string; calls: number }>;
 }
 
@@ -57,6 +64,7 @@ export interface UserQuerySpendEvidence {
 export interface UserActivitySpendEvidence {
   email: string;
   activeMinutes: number;
+  lastActive?: string;
 }
 
 export interface DirectUserSpendEvidence {
@@ -71,6 +79,7 @@ export const USER_SPEND_RUNS_QUERY = `
   WITH completed AS (
     SELECT lower(r.user_email) AS user_email,
            r.run_id,
+           r.completed_at,
            m.response_json->'trace' AS trace,
            CASE
              WHEN COALESCE(m.response_json->'trace'->>'total_tokens', '') ~ '^[0-9]+$'
@@ -91,7 +100,8 @@ export const USER_SPEND_RUNS_QUERY = `
            COUNT(*)::int AS total_runs,
            COUNT(*) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0)::int AS token_covered_runs,
            COALESCE(SUM(total_tokens) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0), 0)::bigint
-             AS total_tokens
+             AS total_tokens,
+           MAX(completed_at) AS last_active
     FROM completed
     GROUP BY user_email
   ),
@@ -138,11 +148,13 @@ export const USER_SPEND_RUNS_QUERY = `
   )
   SELECT 'run' AS row_kind, totals.user_email,
          totals.total_runs, totals.token_covered_runs, totals.total_tokens,
+         totals.last_active,
          ''::text AS tool, ''::text AS resource_id, 0::bigint AS calls
   FROM run_totals totals
   UNION ALL
   SELECT 'resource' AS row_kind, resources.user_email,
          0::int, 0::int, 0::bigint,
+         NULL::timestamptz,
          resources.tool, resources.resource_id, SUM(resources.calls)::bigint
   FROM resources
   GROUP BY resources.user_email, resources.tool, resources.resource_id
@@ -161,6 +173,7 @@ export const USER_ACTIVE_MINUTES_QUERY = `
   )
   SELECT selected.user_email,
          COUNT(*)::int AS active_minutes,
+         MAX(selected.active_minute) AS last_active,
          bounds.recorded_from,
          bounds.recorded_through
   FROM bounds
@@ -205,6 +218,8 @@ export function readUserRunSpendEvidence(rows: readonly Record<string, unknown>[
       current.totalRuns = number(row.total_runs);
       current.tokenCoveredRuns = number(row.token_covered_runs);
       current.totalTokens = number(row.total_tokens);
+      const lastActive = row.last_active instanceof Date ? row.last_active.toISOString() : text(row.last_active);
+      if (lastActive) current.lastActive = lastActive;
     } else if (text(row.row_kind) === 'resource') {
       const tool = text(row.tool);
       const calls = number(row.calls);
@@ -223,7 +238,11 @@ export function readUserActivitySpendEvidence(rows: readonly Record<string, unkn
   const first = rows[0];
   return {
     users: rows
-      .map((row) => ({ email: text(row.user_email).toLowerCase(), activeMinutes: number(row.active_minutes) }))
+      .map((row) => ({
+        email: text(row.user_email).toLowerCase(),
+        activeMinutes: number(row.active_minutes),
+        lastActive: row.last_active instanceof Date ? row.last_active.toISOString() : text(row.last_active),
+      }))
       .filter((row) => row.email && row.activeMinutes > 0),
     recordedFrom: first?.recorded_from instanceof Date ? first.recorded_from.toISOString() : text(first?.recorded_from),
     recordedThrough:
@@ -321,14 +340,7 @@ export function buildSpendByUser(input: {
   const days = completeDays(input.range);
   const activityByUser = new Map(input.activity.users.map((row) => [row.email, row]));
   const tileById = new Map(input.tiles.map((tile) => [tile.id, tile]));
-  const componentIds = [
-    'serving-endpoint',
-    'sql-warehouse',
-    'genie:data',
-    'genie:dictionary',
-    'vector-search',
-    'app-compute',
-  ];
+  const componentIds = ['serving-endpoint', 'sql-warehouse', 'genie:charged', 'vector-search', 'app-compute'];
   const labels = new Map(input.tiles.map((tile) => [tile.id, tile.label]));
   const perUser = new Map<string, UserSpendComponent[]>();
   for (const email of users) perUser.set(email, []);
@@ -509,5 +521,130 @@ export function buildSpendByUser(input: {
     users: profiles,
     unattributed,
     reconciliation: { usd: reconcile('USD'), dbu: reconcile('DBU') },
+  };
+}
+
+const USER_MONITORING_PAGE_SIZE = 25;
+const USER_MONITORING_MAX_PAGE_SIZE = 50;
+
+interface MonitoringCursor {
+  bucket: number;
+  amount: number;
+  email: string;
+}
+
+function paidBucket(reading: UserSpendAmount): number {
+  if (reading.amount === null || !Number.isFinite(reading.amount)) return 2;
+  return reading.amount > 0 ? 0 : 1;
+}
+
+function encodeMonitoringCursor(cursor: MonitoringCursor): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+function decodeMonitoringCursor(raw: string): MonitoringCursor | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<MonitoringCursor>;
+    return typeof value.bucket === 'number' && typeof value.amount === 'number' && typeof value.email === 'string'
+      ? { bucket: value.bucket, amount: value.amount, email: value.email }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function afterMonitoringCursor(row: UserMonitoringRow, unit: CostBudgetUnit, cursor: MonitoringCursor): boolean {
+  const reading = unit === 'USD' ? row.spend.usd : row.spend.dbu;
+  const bucket = paidBucket(reading);
+  const amount = reading.amount ?? 0;
+  return (
+    bucket > cursor.bucket ||
+    (bucket === cursor.bucket &&
+      (amount < cursor.amount || (amount === cursor.amount && row.email.localeCompare(cursor.email) > 0)))
+  );
+}
+
+/**
+ * The summary browser is derived once from the same reconciled spend snapshot as
+ * the profile modal. Filtering and keyset paging happen only after aggregation,
+ * so a page never changes the denominator or causes one cost query per user.
+ */
+export function buildUserMonitoringPage(input: {
+  spend: SpendByUserPayload;
+  runs: UserRunSpendEvidence[];
+  activity: UserActivitySpendEvidence[];
+  roles: ReadonlyMap<string, Role>;
+  unit: CostBudgetUnit;
+  search?: string;
+  role?: Role | '';
+  cursor?: string;
+  pageSize?: number;
+}): UserMonitoringPayload {
+  const profiles = new Map(input.spend.users.map((profile) => [profile.email.toLowerCase(), profile]));
+  const runs = new Map(input.runs.map((row) => [row.email.toLowerCase(), row]));
+  const activity = new Map(input.activity.map((row) => [row.email.toLowerCase(), row]));
+  const emails = new Set<string>([...profiles.keys(), ...runs.keys(), ...activity.keys(), ...input.roles.keys()]);
+  const search = (input.search ?? '').trim().toLowerCase().slice(0, 120);
+
+  const unavailable: UserSpendAmount = { amount: null, quality: 'unavailable' };
+  const rows: UserMonitoringRow[] = [...emails]
+    .filter((email) => email.includes('@'))
+    .map((email) => {
+      const profile = profiles.get(email);
+      const run = runs.get(email);
+      const active = activity.get(email);
+      const activeTimes = [run?.lastActive ?? '', active?.lastActive ?? ''].filter(Boolean).sort();
+      const lastActive = activeTimes[activeTimes.length - 1] ?? '';
+      const usd = profile?.total.usd ?? unavailable;
+      const dbu = profile?.total.dbu ?? unavailable;
+      return {
+        email,
+        role: input.roles.get(email) ?? 'consumer',
+        lastActive,
+        questions: run?.totalRuns ?? 0,
+        runs: run?.totalRuns ?? 0,
+        spend: { usd, dbu },
+        coverage: (input.unit === 'USD' ? usd : dbu).quality,
+      };
+    })
+    .filter((row) => (!search || row.email.includes(search)) && (!input.role || row.role === input.role))
+    .sort((left, right) => {
+      const leftReading = input.unit === 'USD' ? left.spend.usd : left.spend.dbu;
+      const rightReading = input.unit === 'USD' ? right.spend.usd : right.spend.dbu;
+      return (
+        paidBucket(leftReading) - paidBucket(rightReading) ||
+        (rightReading.amount ?? 0) - (leftReading.amount ?? 0) ||
+        left.email.localeCompare(right.email)
+      );
+    });
+
+  const cursor = decodeMonitoringCursor(input.cursor ?? '');
+  const eligible = cursor ? rows.filter((row) => afterMonitoringCursor(row, input.unit, cursor)) : rows;
+  const pageSize = Math.min(USER_MONITORING_MAX_PAGE_SIZE, Math.max(1, input.pageSize ?? USER_MONITORING_PAGE_SIZE));
+  const users = eligible.slice(0, pageSize);
+  const last = users[users.length - 1];
+  const lastReading = last ? (input.unit === 'USD' ? last.spend.usd : last.spend.dbu) : null;
+
+  return {
+    readAt: input.spend.readAt,
+    range: input.spend.range,
+    unit: input.unit,
+    state: input.spend.state,
+    reason: input.spend.reason,
+    users,
+    pagination: {
+      pageSize,
+      hasMore: eligible.length > users.length,
+      nextCursor:
+        last && eligible.length > users.length && lastReading
+          ? encodeMonitoringCursor({
+              bucket: paidBucket(lastReading),
+              amount: lastReading.amount ?? 0,
+              email: last.email,
+            })
+          : null,
+    },
+    reconciliation: input.spend.reconciliation,
   };
 }

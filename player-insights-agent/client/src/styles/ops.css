@@ -145,6 +145,23 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+.ops-user-spend-link {
+  flex: none;
+  white-space: nowrap;
+}
+.ops-user-spend-link svg {
+  width: 14px;
+  height: 14px;
+}
+@media (max-width: 640px) {
+  .ops-block-head-control,
+  .ops-cost-head-controls {
+    width: 100%;
+  }
+  .ops-cost-head-controls {
+    justify-content: flex-start;
+  }
+}
 
 .cost-unit-control {
   display: flex;
@@ -852,6 +869,28 @@ a.ops-dependency-name:hover {
   white-space: nowrap;
 }
 
+.ops-genie-accounting {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.ops-genie-accounting > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ops-genie-accounting dt {
+  color: var(--ast-text-secondary);
+}
+
+.ops-genie-accounting dd {
+  margin: 0;
+  text-align: right;
+}
+
 /*
  * The foot of a card: a badge, a remedy, or nothing at all.
  *
@@ -1519,6 +1558,13 @@ a.ops-dependency-name:hover {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+}
+
+.ops-chart-evidence {
+  margin: 0;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.35;
 }
 
 /* The three daily series share one column and one compact chart vocabulary. */

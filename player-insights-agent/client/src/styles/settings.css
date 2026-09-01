@@ -703,6 +703,16 @@
   background: var(--card);
 }
 
+.roster-frame {
+  --roster-panel-surface: var(--background);
+  --roster-header-surface: var(--muted);
+  --roster-interaction-surface: var(--db-selected-tint);
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+  background: var(--roster-panel-surface);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--db-ink-deep) 10%, transparent);
+}
+
 .settings-table-frame::-webkit-scrollbar {
   height: 10px;
 }
@@ -724,7 +734,11 @@
 }
 
 .roles-table tr {
-  --settings-table-cell-background: var(--card);
+  --settings-table-cell-background: var(--roster-panel-surface);
+}
+
+.roles-table thead tr {
+  --settings-table-cell-background: var(--roster-header-surface);
 }
 
 .settings-data-table th,
@@ -739,13 +753,14 @@
   background: var(--settings-table-cell-background);
 }
 
-.roles-table tbody tr:hover {
-  --settings-table-cell-background: var(--db-row-hover);
+.roles-table tbody tr:hover,
+.roles-table tbody tr:focus-within {
+  --settings-table-cell-background: var(--roster-interaction-surface);
 }
 
 .roles-table tbody tr[aria-selected='true'],
 .roles-table tbody tr[data-selected='true'] {
-  --settings-table-cell-background: var(--db-selected-tint);
+  --settings-table-cell-background: var(--roster-interaction-surface);
 }
 
 .settings-data-table th {
@@ -938,6 +953,13 @@
 .roles-table .roster-role-status {
   margin: 0;
   vertical-align: middle;
+}
+
+.roles-table .roster-control,
+.roles-table [data-slot='input'] {
+  border-color: var(--input);
+  background: var(--roster-panel-surface);
+  color: var(--foreground);
 }
 
 .roster-role-status {
