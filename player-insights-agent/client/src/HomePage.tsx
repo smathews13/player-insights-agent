@@ -162,6 +162,7 @@ import {
 import { EMPTY_FEEDBACK, feedbackFromStored } from './stored-feedback';
 import { useIdentity } from './app-state';
 import { acceptAppBudgetStatus, approveContinuedUsage, useAppBudgetStatus } from './app-budget-status';
+import { ComposerBudgetStatus } from './ComposerBudgetStatus';
 import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { conversationAge } from './conversation-age';
 import { PlanCard } from './PlanCard';
@@ -2677,43 +2678,13 @@ export function HomePage() {
                 </Link>
               ))}
           </div>
-          {budgetStatus &&
-          (budgetStatus.level === 'warning' ||
-            budgetStatus.level === 'approval-required' ||
-            budgetStatus.level === 'approved-overage' ||
-            budgetStatus.level === 'unavailable/partial') ? (
-            <Alert className="composer-budget-status">
-              <CircleAlert />
-              <AlertDescription>
-                {budgetStatus.level === 'warning' ? (
-                  <>Monthly app budget is {budgetStatus.percent?.toFixed(2)}% used. Questions continue.</>
-                ) : budgetStatus.level === 'approval-required' ? (
-                  <>
-                    {identity.role === 'admin' || identity.role === 'super_admin' ? (
-                      <>
-                        Monthly app budget reached.{' '}
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={budgetApprovalBusy}
-                          onClick={() => void approveBudgetOverage()}
-                        >
-                          {budgetApprovalBusy ? 'Approving…' : 'Approve continued usage'}
-                        </Button>
-                      </>
-                    ) : (
-                      'An administrator must approve continued usage.'
-                    )}
-                  </>
-                ) : budgetStatus.level === 'approved-overage' ? (
-                  <>Over budget · Admin approved through {budgetStatus.approval?.through} (UTC).</>
-                ) : (
-                  budgetStatus.detail
-                )}
-                {budgetApprovalError ? <span role="alert"> {budgetApprovalError}</span> : null}
-              </AlertDescription>
-            </Alert>
-          ) : null}
+          <ComposerBudgetStatus
+            status={budgetStatus}
+            admin={identity.role === 'admin' || identity.role === 'super_admin'}
+            busy={budgetApprovalBusy}
+            error={budgetApprovalError}
+            onApprove={() => void approveBudgetOverage()}
+          />
           {attachmentsUnreadable && (
             <p className="composer-notice" role="status">
               Any documents attached to this conversation could not be read just now, so none are listed. Whatever was

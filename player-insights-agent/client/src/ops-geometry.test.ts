@@ -21,6 +21,7 @@ import { partial } from './styles/stylesheet';
 
 const CSS = partial('ops.css');
 const RESPONSIVE = partial('responsive-ops.css');
+const TOKENS = partial('astrolabe-tokens.css');
 
 /** Comments stripped, so a token discussed in prose is not read as one in use. */
 const RULES = CSS.replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -36,6 +37,41 @@ function rule(selector: string): string {
   expect(body, `ops.css has no rule for ${selector}`).toBeDefined();
   return body!;
 }
+
+describe('latency baseline filter states', () => {
+  it('uses semantic color states without dim opacity or geometry changes', () => {
+    const control = rule('.ops-latency-trend-filter');
+    expect(control).toContain('border-color 120ms ease');
+    expect(control).toContain('background-color 120ms ease');
+    expect(control).not.toContain('transition: all');
+    expect(control).not.toMatch(/border-width/);
+
+    const within = rule(".ops-latency-trend-filter.ast-pill--pos[aria-pressed='false']");
+    const outside = rule(".ops-latency-trend-filter.ast-pill--neg[aria-pressed='false']");
+    expect(within).toContain('var(--ast-pos-text)');
+    expect(within).toContain('var(--ast-pos-border)');
+    expect(outside).toContain('var(--ast-neg-text)');
+    expect(outside).toContain('var(--ast-neg-border)');
+    expect(`${within}${outside}`).not.toMatch(/opacity:\s*0\./);
+  });
+
+  it('makes focus explicit and keeps disabled controls from brightening', () => {
+    expect(rule('.ops-latency-trend-filter:focus-visible')).toMatch(/outline:\s*2px solid var\(--ast-blue\)/);
+    const disabled = RULES.match(
+      /\.ops-latency-trend-filter:disabled,\s*\.ops-latency-trend-filter:disabled:hover\s*\{([^}]*)\}/
+    )?.[1];
+    expect(disabled).toContain('var(--ast-text-secondary)');
+    expect(disabled).toContain('var(--ast-border-input)');
+    expect(disabled).toContain('opacity: 1');
+    expect(RULES).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+
+  it('uses positive and negative tokens that have light and dark theme values', () => {
+    for (const token of ['pos-text', 'pos-border', 'pos-fill', 'neg-text', 'neg-border', 'neg-fill']) {
+      expect((TOKENS.match(new RegExp(`--ast-${token}:`, 'g')) ?? []).length).toBeGreaterThanOrEqual(2);
+    }
+  });
+});
 
 describe('the figures line up', () => {
   it('keeps resource-status badges compact and never wraps the two-part label', () => {

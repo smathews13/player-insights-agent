@@ -144,7 +144,7 @@ describe('Monitoring details open as centered modals, not side drawers', () => {
     expect(rule('.monitoring-person-modal')).toMatch(/overflow:\s*hidden/);
     expect(rule('.monitoring-person-modal-head')).toMatch(/flex:\s*none/);
     expect(rule('.monitoring-person-modal-body')).toMatch(/overflow-y:\s*auto/);
-    expect(rule('.monitoring-person-modal-body')).toMatch(/overflow-x:\s*hidden/);
+    expect(rule('.monitoring-person-modal-body')).toMatch(/overflow-x:\s*auto/);
   });
 
   it('uses viewport margins instead of a clipped full-width mobile panel', () => {
@@ -165,11 +165,22 @@ describe('Monitoring details open as centered modals, not side drawers', () => {
     expect(rule('.monitoring-person-modal-body')).toMatch(/flex-direction:\s*column/);
     expect(rule('.monitoring-users-modal')).toMatch(/width:\s*min\(1080px/);
     expect(rule('.monitoring-user-row')).toMatch(/grid-template-columns/);
+    for (const selector of ['.monitoring-spend', '.monitoring-spend-components li', '.monitoring-panel-grid']) {
+      const css = rule(selector);
+      expect(css).not.toMatch(/position:\s*(absolute|fixed)/);
+      expect(css).not.toMatch(/(^|;)\s*height:\s*\d/);
+      expect(css).not.toMatch(/overflow:\s*hidden/);
+      expect(css).not.toMatch(/margin-(top|bottom):\s*-\d/);
+    }
   });
 
   it('turns browser rows into readable cards on narrow screens', () => {
     const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
     expect(narrow).toMatch(/\.monitoring-users-columns\s*\{[^}]*display:\s*none/);
+    expect(narrow).toMatch(/\.monitoring-spend-component-name\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
+    expect(narrow).toMatch(/\.monitoring-spend-component-amount\s*\{[^}]*grid-row:\s*2/);
+    expect(narrow).toMatch(/\.monitoring-spend-component-attribution\s*\{[^}]*grid-row:\s*2/);
+    expect(CSS).not.toContain('.monitoring-user-coverage');
     expect(narrow).toMatch(/\.monitoring-user-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/);
     expect(narrow).toMatch(/\.monitoring-users-mobile-label\s*\{[^}]*display:\s*inline/);
   });
@@ -280,8 +291,12 @@ describe('the filter-row search is a field, not a hole in the sky', () => {
     expect(rule('.monitoring-filters .monitoring-search input')).not.toMatch(/height:|min-width:|flex:|margin-left:/);
     expect(rule('.monitoring-search')).toMatch(/flex:\s*0\s+1\s+240px/);
     expect(rule('.monitoring-search')).toMatch(/min-width:\s*160px/);
-    expect(rule('.monitoring-search')).toMatch(/margin-left:\s*auto/);
-    expect(rule('.monitoring-search')).not.toMatch(/height:/);
+    expect(rule('.monitoring-filter-actions')).toMatch(/margin-left:\s*auto/);
+    expect(rule('.monitoring-search')).toMatch(/margin-left:\s*0/);
+    expect(rule('.monitoring-user-browser-trigger')).toMatch(/height:\s*36px/);
+    expect(rule(".monitoring-search input[type='search']")).toMatch(/height:\s*36px/);
+    expect(rule('.monitoring-filter-actions')).toMatch(/align-items:\s*center/);
+    expect(rule('.monitoring-filter-actions')).toMatch(/gap:\s*8px/);
   });
 
   it('keeps a crisp standard-size icon above the field backdrop', () => {

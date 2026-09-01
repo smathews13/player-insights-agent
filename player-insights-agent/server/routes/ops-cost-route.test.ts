@@ -486,9 +486,12 @@ describe('the ranged cost route', () => {
 
     expect(payload.state).toBe('ready');
     const genie = payload.tiles.filter((tile) => tile.id.startsWith('genie:'));
-    expect(genie).toHaveLength(1);
-    expect(genie[0].id).toBe('genie:charged');
-    expect(genie[0].resourceId).toBe('');
+    expect(genie).toHaveLength(2);
+    expect(genie.map((tile) => [tile.id, tile.resourceId])).toEqual([
+      ['genie:data', 'space-data'],
+      ['genie:dictionary', 'space-dictionary'],
+    ]);
+    expect(payload.genieInstances?.map((instance) => instance.spaceId)).toEqual(['space-data', 'space-dictionary']);
     expect(payload.tiles.some((tile) => tile.id === 'foundation-model')).toBe(false);
     const vector = payload.tiles.find((tile) => tile.id === 'vector-search');
     expect(vector).toMatchObject({

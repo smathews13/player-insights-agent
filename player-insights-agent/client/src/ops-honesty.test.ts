@@ -373,7 +373,8 @@ describe('an empty cost block', () => {
     expect(tiles.map((tile) => tile.id)).toEqual([
       'serving-endpoint',
       'sql-warehouse',
-      'genie:charged',
+      'genie:data',
+      'genie:dictionary',
       'vector-search',
       'app-compute',
     ]);

@@ -247,8 +247,32 @@ export interface CostTile {
       unit: 'requests' | 'queries';
     } | null;
   } | null;
-  /** Calendar-month Genie allowance/promotion/charged reconciliation for the workspace. */
-  genieAccounting?: GenieAccounting | null;
+  /** This configured Genie's contribution to the shared monthly accounting. */
+  genieInstanceAccounting?: GenieInstanceAccounting | null;
+}
+
+export interface GenieSurfaceAccounting {
+  surface: 'GENIE_CODE' | 'GENIE_ONE' | 'GENIE_AGENTS' | 'UNKNOWN';
+  allowanceUsedDbus: number;
+  promotionalDbus: number;
+  chargedEffectiveDbus: number;
+  chargedRawEquivalentDbus: number;
+  paidUsd: number | null;
+}
+
+export interface GenieInstanceAccounting {
+  spaceId: string;
+  label: string;
+  tileId: string;
+  attribution: 'query-history-exact' | 'query-history-allocation' | 'unattributed';
+  allowanceUsedDbus: number;
+  promotionalDbus: number;
+  chargedEffectiveDbus: number;
+  chargedRawEquivalentDbus: number;
+  paidUsd: number | null;
+  underlyingTotalDbus: number;
+  pricingState: 'priced' | 'partial' | 'unpriced' | 'none';
+  surfaces: GenieSurfaceAccounting[];
 }
 
 export interface GenieUserAccounting {
@@ -259,6 +283,8 @@ export interface GenieUserAccounting {
   chargedEffectiveDbus: number;
   chargedRawEquivalentDbus: number;
   paidUsd: number | null;
+  /** Per-space contributions; allowance remaining deliberately stays overall. */
+  instances?: Array<Omit<GenieInstanceAccounting, 'surfaces' | 'pricingState'>>;
 }
 
 /**
@@ -282,6 +308,14 @@ export interface GenieAccounting {
   paidUsd: number | null;
   underlyingTotalDbus: number;
   pricingState: 'priced' | 'partial' | 'unpriced' | 'none';
+  instances?: GenieInstanceAccounting[];
+  unattributed?: GenieInstanceAccounting | null;
+  reconciliation?: {
+    sourceDbus: number;
+    attributedDbus: number;
+    unattributedDbus: number;
+    attributedShare: number;
+  };
   diagnostics: string[];
   users: GenieUserAccounting[];
 }
@@ -381,6 +415,10 @@ export interface OpsCostPayload {
   /** ISO stamp of this read. Per block, because the three will differ. */
   readAt: string;
   tiles: CostTile[];
+  /** Overall shared allowance plus exact, allocated, and unattributed instance reconciliation. */
+  genieAccounting?: GenieAccounting | null;
+  /** Convenience list for API consumers; absent only on legacy cached payloads. */
+  genieInstances?: GenieInstanceAccounting[];
   /** Component-by-component attribution, never a cross-quality total. */
   perQuestion: QuestionCostAttribution;
   /**

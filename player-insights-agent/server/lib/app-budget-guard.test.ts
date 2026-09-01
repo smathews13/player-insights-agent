@@ -110,7 +110,7 @@ describe('authoritative app budget status', () => {
     expect(measure).not.toHaveBeenCalled();
   });
 
-  it('fails open visibly for partial coverage, delayed data, and query errors', async () => {
+  it('retains silent fail-open telemetry for partial coverage, delayed data, and query errors', async () => {
     const partialMeasure = async () => {
       const result = await measured(120, 'USD')();
       const tile = result.payload.tiles[0] as {
@@ -133,8 +133,26 @@ describe('authoritative app budget status', () => {
       });
       expect(status.level).toBe('unavailable/partial');
       expect(status.code).toMatch(/PARTIAL|FAILED/);
-      expect(status.detail).toMatch(/New questions remain available/);
+      expect(status.detail).not.toMatch(/New questions remain available|UTC month/i);
     }
+  });
+
+  it('does not read spend or approvals before the current month has one complete billing day', async () => {
+    const appkit = appkitFor(budgets('USD', 100));
+    const measure = vi.fn(measured(923.27, 'USD'));
+    const status = await readAppBudgetStatus(appkit as never, {} as never, {
+      now: Date.parse('2026-09-01T18:00:00Z'),
+      measure,
+    });
+    expect(status).toMatchObject({
+      level: 'unavailable/partial',
+      coverage: 'partial',
+      measured: null,
+      percent: null,
+      code: 'APP_BUDGET_MONTH_HAS_NO_COMPLETE_DAY',
+    });
+    expect(measure).not.toHaveBeenCalled();
+    expect(appkit.lakebase.query.mock.calls.some(([sql]) => String(sql).includes('app_budget_approvals'))).toBe(false);
   });
 
   it('uses the fixed UTC MTD range independently of any Cost page range', async () => {

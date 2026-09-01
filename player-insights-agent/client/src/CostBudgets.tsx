@@ -24,16 +24,8 @@ import type { CostTile, OpsCostPayload } from '../../shared/ops-contract';
 import { astPill } from './astrolabe-pill';
 import { budgetFieldText } from './cost-budget-amount';
 import { COST_BUDGETS_UNREADABLE, loadCostBudgets, saveCostBudgets } from './cost-budgets-api';
-import {
-  budgetHelper,
-  budgetPlaceholder,
-  costSpendSummary,
-  monthlyAppBudgetBaseline,
-  monthlyBudgetSuggestion,
-  resourceBudgetBaseline,
-} from './cost-budget-view';
+import { budgetHelper, budgetPlaceholder, costSpendSummary, resourceBudgetBaseline } from './cost-budget-view';
 import { NumberTicker, TickerAssumptionField, TickerAssumptionGrid, tickerNumber } from './NumberTicker';
-import { totalBudgetView } from './ops-view';
 import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad, type SettingsSaveState } from './settings-save-state';
 import { Badge, Button, Progress } from './ui';
 import { ConceptFlicker } from './ConceptFlicker';
@@ -246,16 +238,8 @@ export function CostTotalBudget() {
   const identity = useIdentity();
   const budgetStatus = useAppBudgetStatus();
   const state = api.stateFor('total');
-  const observed = {
-    USD: monthlyAppBudgetBaseline(api.payload, 'USD'),
-    DBU: monthlyAppBudgetBaseline(api.payload, 'DBU'),
-  };
-  const suggestion = {
-    USD: monthlyBudgetSuggestion(observed.USD),
-    DBU: monthlyBudgetSuggestion(observed.DBU),
-  };
-  const view = totalBudgetView(api.budgets.total, api.currency, observed, api.unit);
   const notice = costBudgetNotice(state);
+  const showStatus = hasCompleteBudgetMeasurement(budgetStatus);
   return (
     <div className="ops-cost-total">
       <CostBudgetField
@@ -264,12 +248,8 @@ export function CostTotalBudget() {
         ariaLabel="Monthly app budget"
         budget={api.budgets.total}
         unit={api.unit}
-        observed={suggestion}
-        helper={
-          suggestion[api.unit] === null
-            ? 'No complete measured baseline'
-            : "Suggested from the selected period's 30-day run rate"
-        }
+        observed={{ USD: null, DBU: null }}
+        helper="Applies to paid, attributable month-to-date spend."
         onCommit={api.setTotal}
         onValidityChange={(valid) => api.setValidity('total', valid)}
         controlAfter={
@@ -279,13 +259,15 @@ export function CostTotalBudget() {
               disabled={api.applying || !api.dirtyFor('total') || !api.validFor('total')}
               onClick={() => api.apply('total')}
             />
-            <span className="ops-app-budget-status">
-              {notice || !api.readable ? (
-                <BudgetSaveNotice notice={notice} readable={api.readable} state={state} />
-              ) : (
-                <BudgetComparison view={view} noun="app budget" />
-              )}
-            </span>
+            {notice || !api.readable || showStatus ? (
+              <span className="ops-app-budget-status">
+                {notice || !api.readable ? (
+                  <BudgetSaveNotice notice={notice} readable={api.readable} state={state} />
+                ) : (
+                  <AppBudgetMeasurement status={budgetStatus} />
+                )}
+              </span>
+            ) : null}
           </>
         }
       />
@@ -311,21 +293,22 @@ export function BudgetGuardStatus({ status, admin }: { status: AppBudgetStatus; 
       setBusy(null);
     }
   };
+  if (
+    status.coverage !== 'complete' ||
+    (status.level !== 'warning' && status.level !== 'approval-required' && status.level !== 'approved-overage')
+  ) {
+    return null;
+  }
   const label =
     status.level === 'warning'
       ? '80% warning'
       : status.level === 'approval-required'
         ? 'Approval required'
-        : status.level === 'approved-overage'
-          ? 'Over budget · Admin approved'
-          : status.level === 'unavailable/partial'
-            ? 'Budget status unavailable/partial'
-            : '';
-  if (status.level === 'unset') return null;
+        : 'Admin approved';
   return (
     <div className="ops-app-budget-guard" data-budget-level={status.level}>
       <div className="ops-cost-summary-head">
-        <Badge variant="outline">{label || 'Within budget'}</Badge>
+        <Badge variant="outline">{label}</Badge>
         {status.percent !== null ? <span className="ast-num">{status.percent.toFixed(2)}%</span> : null}
       </div>
       {status.percent !== null ? (
@@ -336,7 +319,7 @@ export function BudgetGuardStatus({ status, admin }: { status: AppBudgetStatus; 
       ) : null}
       {status.approval ? (
         <p>
-          {status.approval.approvedBy} approved continued usage through {status.approval.through} (UTC).
+          {status.approval.approvedBy} approved continued usage through {status.approval.through}.
         </p>
       ) : status.detail ? (
         <p>{status.detail}</p>
@@ -415,17 +398,17 @@ export function CostResourceBudgets({ tiles }: { tiles: readonly CostTile[] }) {
 
 function CostResourceBudgetField({ tile }: { tile: CostTile }) {
   const api = useCostBudgets();
-  const label = `${tile.label}${tile.basis === 'per-day' ? ' per day' : ''}`;
+  const label = `${tile.label} monthly budget`;
   return (
     <CostBudgetField
       fieldKey={`resource:${tile.id}`}
       label={label}
-      ariaLabel={`${tile.label} budget${tile.basis === 'per-day' ? ' per day' : ''}`}
+      ariaLabel={`${tile.label} monthly budget`}
       budget={resourceBudget(api.budgets, tile.id)}
       unit={api.unit}
       observed={{
-        USD: resourceBudgetBaseline(tile, 'USD'),
-        DBU: resourceBudgetBaseline(tile, 'DBU'),
+        USD: resourceBudgetBaseline(api.payload, tile, 'USD'),
+        DBU: resourceBudgetBaseline(api.payload, tile, 'DBU'),
       }}
       onCommit={(value) => api.setResource(tile.id, value)}
       onValidityChange={(valid) => api.setValidity(`resource:${tile.id}`, valid)}
@@ -433,32 +416,38 @@ function CostResourceBudgetField({ tile }: { tile: CostTile }) {
   );
 }
 
-function BudgetComparison({ view, noun = '' }: { view: ReturnType<typeof totalBudgetView>; noun?: string }) {
-  if (view.kind === 'compared') {
-    return (
-      <span className="ops-budget-compare">
-        <span className="ast-num">{view.spendLabel}</span> of <span className="ast-num">{view.budgetLabel}</span>
-        {view.over ? <span className={astPill('warn', 'ops-pill')}>Over budget</span> : null}
-      </span>
-    );
-  }
-  if (view.kind === 'shared-meter') {
-    return (
-      <span className="ops-budget-compare">
-        <span className="ast-num">{view.spendLabel}</span> of <span className="ast-num">{view.budgetLabel}</span>
-        <span className={astPill('neutral-outline', 'ops-pill')}>shared meter vs named budget</span>
-      </span>
-    );
-  }
-  if (view.kind === 'budget-only') {
-    return (
-      <span className="ops-budget-compare">
-        <span className="ast-num">{view.budgetLabel}</span>
-        {noun ? ` ${noun}` : ' · spend not measured'}
-      </span>
-    );
-  }
-  return <span className="ops-budget-compare ops-budget-not-set">No budget</span>;
+function hasCompleteBudgetMeasurement(
+  status: AppBudgetStatus | null
+): status is AppBudgetStatus & { measured: number; budget: number; unit: CostBudgetUnit; percent: number } {
+  return Boolean(
+    status &&
+      status.coverage === 'complete' &&
+      status.level !== 'unset' &&
+      status.level !== 'unavailable/partial' &&
+      status.measured !== null &&
+      status.budget !== null &&
+      status.unit !== null &&
+      status.percent !== null
+  );
+}
+
+export function AppBudgetMeasurement({ status }: { status: AppBudgetStatus | null }) {
+  if (!hasCompleteBudgetMeasurement(status)) return null;
+  const format = (value: number) =>
+    value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <span className="ops-budget-compare">
+      Month to date{' '}
+      <span className="ast-num">
+        {format(status.measured)} {status.unit}
+      </span>{' '}
+      of{' '}
+      <span className="ast-num">
+        {format(status.budget)} {status.unit}
+      </span>{' '}
+      · <span className="ast-num">{status.percent.toFixed(2)}%</span>
+    </span>
+  );
 }
 
 function CostBudgetField({

@@ -295,7 +295,7 @@ describe('Forecasting visibility and placement', () => {
     expect(breakdown).toContain('<th scope="row">Subtotal</th>');
     expect(markup.match(/84\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
     expect(markup.match(/360\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
-    expect(markup.match(/2,160\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(markup.match(/2,150\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
     expect(breakdown.match(/<th scope="row">Astrolabe SQL<\/th>/g)).toHaveLength(1);
   });
 

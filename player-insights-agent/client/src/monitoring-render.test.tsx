@@ -410,6 +410,10 @@ describe('the filter row is built from the app, not from the platform', () => {
     expect(text(markup)).toContain('User Monitoring');
     expect(markup).toContain('monitoring-user-browser-trigger');
     expect(markup).toContain('lucide-users');
+    expect(markup.indexOf('monitoring-user-browser-trigger')).toBeLessThan(
+      markup.indexOf('run-search monitoring-search')
+    );
+    expect(markup.match(/lucide-search monitoring-search-icon/g)).toHaveLength(1);
   });
 
   /**
@@ -444,7 +448,7 @@ describe('the filter row is built from the app, not from the platform', () => {
     const markup = row();
 
     expect(markup).toContain('run-search');
-    expect(markup).toContain('aria-label="Search questions by text or user"');
+    expect(markup).toContain('aria-label="Search questions or users"');
   });
 
   it('renders the standard Search glyph as labelled-input decoration', () => {
@@ -456,7 +460,7 @@ describe('the filter row is built from the app, not from the platform', () => {
     expect(icon).toContain('aria-hidden="true"');
     expect(icon).toContain('focusable="false"');
     expect(icon).not.toContain('role="button"');
-    expect(markup).toContain('aria-label="Search questions by text or user"');
+    expect(markup).toContain('aria-label="Search questions or users"');
   });
 });
 
@@ -1218,7 +1222,7 @@ describe('the detail modal', () => {
 });
 
 describe('the User Monitoring browser', () => {
-  const browser = { open: true, search: '', role: '', unit: 'USD' as const, cursor: '' };
+  const browser = { open: true, search: '', role: '', persona: '', unit: 'USD' as const, cursor: '' };
   const noop = () => {};
   const payload = {
     userMonitoring: {
@@ -1227,10 +1231,13 @@ describe('the User Monitoring browser', () => {
       unit: 'USD',
       state: 'partial',
       reason: 'Vector Search coverage is partial.',
+      personas: [{ id: 'analyst', name: 'Analyst', count: 1 }],
+      dataRevision: 7,
       users: [
         {
           email: 'ada.reader@example.test',
           role: 'admin',
+          persona: { id: 'analyst', name: 'Analyst' },
           lastActive: '2026-08-15T10:00:00Z',
           questions: 12,
           runs: 12,
@@ -1239,6 +1246,19 @@ describe('the User Monitoring browser', () => {
             dbu: { amount: 3.25, quality: 'allocated' },
           },
           coverage: 'allocated',
+        },
+        {
+          email: 'no.cost@example.test',
+          role: 'consumer',
+          persona: null,
+          lastActive: '2026-08-14T10:00:00Z',
+          questions: 1,
+          runs: 1,
+          spend: {
+            usd: { amount: null, quality: 'unavailable' },
+            dbu: { amount: null, quality: 'unavailable' },
+          },
+          coverage: 'unavailable',
         },
       ],
       pagination: { pageSize: 25, hasMore: false, nextCursor: null },
@@ -1274,6 +1294,14 @@ describe('the User Monitoring browser', () => {
     expect(visible).toContain('ada.reader');
     expect(visible).toContain('$8.50');
     expect(visible).toContain('Admin');
+    expect(visible).toContain('Analyst');
+    expect(visible.match(/Unavailable/g)?.length).toBe(1);
+    expect(markup).not.toMatch(/>\s*Coverage\s*</);
+    expect(markup).not.toContain('Attribution coverage');
+    expect(visible).not.toContain('Allocated');
+    expect(markup.indexOf('>Persona<')).toBeLessThan(markup.indexOf('>Activity<'));
+    expect(markup.indexOf('>Activity<')).toBeLessThan(markup.indexOf('>Questions / runs<'));
+    expect(markup.indexOf('>Questions / runs<')).toBeLessThan(markup.indexOf('>Spend<'));
     expect(markup).toContain('aria-label="Open ada.reader User Overview"');
   });
 
@@ -1294,8 +1322,10 @@ describe('the User Monitoring browser', () => {
         onPrevious={noop}
       />
     );
-    expect(markup).toContain('monitoring-users-skeleton');
-    expect(markup.match(/data-slot="skeleton"/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
+    expect(markup).toContain('monitoring-users-loading');
+    expect(markup).toContain('ast-flick-slot');
+    expect(markup.match(/monitoring-users-loading-mark/g)?.length).toBe(1);
+    expect(markup.match(/monitoring-users-loading-list/g)?.length).toBe(1);
   });
 });
 
@@ -1431,6 +1461,35 @@ describe('the per-user panel', () => {
                 dbu: { amount: null, quality: 'unavailable' },
                 reason: 'Active-minute coverage is incomplete.',
               },
+              {
+                id: 'sql-warehouse',
+                label: 'SQL warehouse',
+                usd: { amount: 1.25, quality: 'joined' },
+                dbu: { amount: 0.5, quality: 'joined' },
+                reason:
+                  'Joined through a durable query identifier for a very long catalog.schema.table_name_that_must_wrap_without_crossing_columns.',
+              },
+              {
+                id: 'data-genie',
+                label: 'Data Genie · sales-space',
+                usd: { amount: null, quality: 'unavailable' },
+                dbu: { amount: null, quality: 'unavailable' },
+                reason: 'No charged usage was returned for this space.',
+              },
+              {
+                id: 'dictionary-genie',
+                label: 'Dictionary Genie · dictionary-space',
+                usd: { amount: null, quality: 'unavailable' },
+                dbu: { amount: null, quality: 'unavailable' },
+                reason: 'No charged usage was returned for this separate space.',
+              },
+              {
+                id: 'vector-search',
+                label: 'Vector Search',
+                usd: { amount: null, quality: 'unavailable' },
+                dbu: { amount: null, quality: 'unavailable' },
+                reason: 'Resource-scoped requester evidence was incomplete.',
+              },
             ],
           },
         ],
@@ -1456,7 +1515,13 @@ describe('the per-user panel', () => {
     expect(rendered).toContain('Spend 12.50 USD 6.25 DBU');
     expect(rendered).toContain('Serving endpoint 12.50 USD · 6.25 DBU Allocated');
     expect(rendered).toContain('App compute Active-minute coverage is incomplete. Unavailable');
+    expect(rendered).toContain('Data Genie · sales-space');
+    expect(rendered).toContain('Dictionary Genie · dictionary-space');
     expect(rendered).toContain('not an individual invoice');
+    expect(markup.indexOf('monitoring-spend')).toBeLessThan(markup.indexOf('What they asked'));
+    expect(markup.indexOf('What they asked')).toBeLessThan(markup.indexOf('monitoring-panel-grid'));
+    expect(markup.match(/monitoring-spend-component-name/g)).toHaveLength(6);
+    expect(new Set(markup.match(/id="[^"]+"/g)).size).toBe(markup.match(/id="[^"]+"/g)?.length);
   });
 
   it('mounts person status and retry states before data arrives', () => {

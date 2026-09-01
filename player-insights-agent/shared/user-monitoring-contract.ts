@@ -6,6 +6,8 @@ import type { UserSpendAmount, UserSpendQuality, UserSpendReconciliation } from 
 export interface UserMonitoringRow {
   email: string;
   role: Role;
+  /** Current assignment only. Historical run persona remains immutable elsewhere. */
+  persona: { id: string; name: string } | null;
   lastActive: string;
   questions: number;
   runs: number;
@@ -23,6 +25,8 @@ export interface UserMonitoringPayload {
   state: 'ready' | 'partial' | 'unavailable';
   reason: string;
   users: UserMonitoringRow[];
+  personas: Array<{ id: string; name: string; count: number }>;
+  dataRevision: number;
   pagination: {
     pageSize: number;
     hasMore: boolean;

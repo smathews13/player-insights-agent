@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { budgetPlaceholder, costSpendSummary, resourceBudgetBaseline } from './cost-budget-view';
+import { budgetPlaceholder, costCoveredDays, costSpendSummary, resourceBudgetBaseline } from './cost-budget-view';
 import type { CostTile, OpsCostPayload } from '../../shared/ops-contract';
 
 function tile(overrides: Partial<CostTile>): CostTile {
@@ -36,6 +36,21 @@ function tile(overrides: Partial<CostTile>): CostTile {
   };
 }
 
+function range(from = '2026-08-08', to = '2026-08-14', throughDay = to) {
+  return {
+    state: 'ready' as const,
+    range: { from, to },
+    throughDay,
+    honesty: {
+      priceSource: 'list_prices' as const,
+      contractRates: 'unavailable' as const,
+      dataThrough: throughDay,
+      rangeMayStillFill: false,
+      currencyConsistent: true,
+    },
+  };
+}
+
 describe('cost budget placeholders', () => {
   it('selects only the observed value for the active unit', () => {
     const observed = { USD: 12.345, DBU: 98.765 };
@@ -56,8 +71,8 @@ describe('cost budget placeholders', () => {
       note: 'No billable usage in this period',
       evidence: { billingRows: 0, astrolabeQueries: null },
     });
-    expect(resourceBudgetBaseline(vector, 'USD')).toBe(0);
-    expect(resourceBudgetBaseline(vector, 'DBU')).toBe(0);
+    expect(resourceBudgetBaseline(range(), vector, 'USD')).toBe(0);
+    expect(resourceBudgetBaseline(range(), vector, 'DBU')).toBe(0);
     expect(budgetPlaceholder({ USD: 0, DBU: 0 }, 'USD')).toBe('0');
   });
 
@@ -67,9 +82,37 @@ describe('cost budget placeholders', () => {
       dbus: 3,
       pricing: { ...tile({}).pricing!, match: 'partial' },
     });
-    expect(resourceBudgetBaseline(partial, 'USD')).toBeNull();
-    expect(resourceBudgetBaseline(partial, 'DBU')).toBe(3);
-    expect(resourceBudgetBaseline(tile({ amount: null, dbus: null }), 'USD')).toBeNull();
+    expect(resourceBudgetBaseline(range(), partial, 'USD')).toBeNull();
+    expect(resourceBudgetBaseline(range(), partial, 'DBU')).toBeCloseTo((3 / 7) * 30);
+    expect(resourceBudgetBaseline(range(), tile({ amount: null, dbus: null }), 'USD')).toBeNull();
+  });
+
+  it('normalizes totals by covered days and per-day rates exactly once', () => {
+    expect(resourceBudgetBaseline(range(), tile({ amount: 65.67 }), 'USD')).toBeCloseTo(281.442857, 6);
+    expect(resourceBudgetBaseline(range('2026-08-14', '2026-08-14'), tile({ amount: 10 }), 'USD')).toBe(300);
+    expect(resourceBudgetBaseline(range('2026-08-01', '2026-08-30'), tile({ amount: 300 }), 'USD')).toBe(300);
+    expect(resourceBudgetBaseline(range('2026-01-01', '2026-08-14'), tile({ amount: 2260 }), 'USD')).toBe(300);
+    expect(resourceBudgetBaseline(range(), tile({ amount: 10, basis: 'per-day' }), 'USD')).toBe(300);
+    expect(resourceBudgetBaseline(range(), tile({ dbus: 4, basis: 'per-day' }), 'DBU')).toBe(120);
+  });
+
+  it('uses bounded complete days across month and leap boundaries', () => {
+    expect(costCoveredDays(range('2024-02-27', '2024-03-02'))).toBe(5);
+    expect(costCoveredDays(range('2026-08-01', '2026-08-14', '2026-08-07'))).toBe(7);
+  });
+
+  it('withholds partial, unavailable, and zero-day suggestions', () => {
+    expect(
+      resourceBudgetBaseline(
+        { ...range(), honesty: { ...range().honesty, rangeMayStillFill: true } },
+        tile({ amount: 9 }),
+        'USD'
+      )
+    ).toBeNull();
+    expect(resourceBudgetBaseline({ ...range(), state: 'unreadable' }, tile({ amount: 9 }), 'USD')).toBeNull();
+    expect(
+      resourceBudgetBaseline(range('2026-08-14', '2026-08-14', '2026-08-13'), tile({ amount: 9 }), 'USD')
+    ).toBeNull();
   });
 
   it('uses mutually exclusive SQL and Genie allocations, each tile basis, and the selected unit', () => {

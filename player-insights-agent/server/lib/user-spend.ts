@@ -340,7 +340,10 @@ export function buildSpendByUser(input: {
   const days = completeDays(input.range);
   const activityByUser = new Map(input.activity.users.map((row) => [row.email, row]));
   const tileById = new Map(input.tiles.map((tile) => [tile.id, tile]));
-  const componentIds = ['serving-endpoint', 'sql-warehouse', 'genie:charged', 'vector-search', 'app-compute'];
+  const genieComponentIds = input.tiles
+    .filter((tile) => tile.id.startsWith('genie:') && Boolean(tile.resourceId))
+    .map((tile) => tile.id);
+  const componentIds = ['serving-endpoint', 'sql-warehouse', ...genieComponentIds, 'vector-search', 'app-compute'];
   const labels = new Map(input.tiles.map((tile) => [tile.id, tile.label]));
   const perUser = new Map<string, UserSpendComponent[]>();
   for (const email of users) perUser.set(email, []);
@@ -575,9 +578,12 @@ export function buildUserMonitoringPage(input: {
   runs: UserRunSpendEvidence[];
   activity: UserActivitySpendEvidence[];
   roles: ReadonlyMap<string, Role>;
+  personas?: ReadonlyMap<string, { id: string; name: string }>;
+  personaOptions?: Array<{ id: string; name: string }>;
   unit: CostBudgetUnit;
   search?: string;
   role?: Role | '';
+  persona?: string;
   cursor?: string;
   pageSize?: number;
 }): UserMonitoringPayload {
@@ -588,7 +594,7 @@ export function buildUserMonitoringPage(input: {
   const search = (input.search ?? '').trim().toLowerCase().slice(0, 120);
 
   const unavailable: UserSpendAmount = { amount: null, quality: 'unavailable' };
-  const rows: UserMonitoringRow[] = [...emails]
+  const authorizedRows: UserMonitoringRow[] = [...emails]
     .filter((email) => email.includes('@'))
     .map((email) => {
       const profile = profiles.get(email);
@@ -601,6 +607,7 @@ export function buildUserMonitoringPage(input: {
       return {
         email,
         role: input.roles.get(email) ?? 'consumer',
+        persona: input.personas?.get(email) ?? null,
         lastActive,
         questions: run?.totalRuns ?? 0,
         runs: run?.totalRuns ?? 0,
@@ -608,7 +615,13 @@ export function buildUserMonitoringPage(input: {
         coverage: (input.unit === 'USD' ? usd : dbu).quality,
       };
     })
-    .filter((row) => (!search || row.email.includes(search)) && (!input.role || row.role === input.role))
+    .filter((row) => (!search || row.email.includes(search)) && (!input.role || row.role === input.role));
+  const personaCounts = new Map<string, number>();
+  for (const row of authorizedRows) {
+    if (row.persona) personaCounts.set(row.persona.id, (personaCounts.get(row.persona.id) ?? 0) + 1);
+  }
+  const rows = authorizedRows
+    .filter((row) => !input.persona || row.persona?.id === input.persona)
     .sort((left, right) => {
       const leftReading = input.unit === 'USD' ? left.spend.usd : left.spend.dbu;
       const rightReading = input.unit === 'USD' ? right.spend.usd : right.spend.dbu;
@@ -633,6 +646,10 @@ export function buildUserMonitoringPage(input: {
     state: input.spend.state,
     reason: input.spend.reason,
     users,
+    personas: [...(input.personaOptions ?? [])]
+      .map((persona) => ({ ...persona, count: personaCounts.get(persona.id) ?? 0 }))
+      .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)),
+    dataRevision: userSpendDataRevision(),
     pagination: {
       pageSize,
       hasMore: eligible.length > users.length,

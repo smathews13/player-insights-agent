@@ -494,16 +494,17 @@ export function calculateForecast(baseline: ForecastBaseline, assumptions: Forec
   );
   const projectedAmount = (component: ForecastComponent, days: number): number | null => {
     if (component.dailyAmount === null) return null;
-    if (component.id !== 'genie:charged' || baseline.window.to > GENIE_PROMOTION_END) {
+    if (
+      !component.id.startsWith('genie:') ||
+      component.id === 'genie:unattributed' ||
+      baseline.window.to > GENIE_PROMOTION_END
+    ) {
       return component.dailyAmount * days;
     }
     const firstForecastDay = new Date(`${baseline.window.to}T00:00:00Z`);
     firstForecastDay.setUTCDate(firstForecastDay.getUTCDate() + 1);
     const promotionEnd = Date.parse(`${GENIE_PROMOTION_END}T00:00:00Z`);
-    const promoDays = Math.min(
-      days,
-      Math.max(0, Math.floor((promotionEnd - firstForecastDay.getTime()) / DAY_MS) + 1)
-    );
+    const promoDays = Math.min(days, Math.max(0, Math.floor((promotionEnd - firstForecastDay.getTime()) / DAY_MS) + 1));
     const postPromotionDays = days - promoDays;
     // Charged Genie rows during the promotion are effective DBUs after the 25%
     // promotion. At the boundary the same raw usage is 75% of that rate.

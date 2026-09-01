@@ -12,7 +12,7 @@ export const BUDGET_APPROVAL_REQUIRED = 'BUDGET_APPROVAL_REQUIRED' as const;
 /** Shared copy for enforcement documentation; values derive from the same threshold constants as the guard. */
 export const APP_BUDGET_GUARDRAILS = [
   { label: 'Scope', value: 'Monthly app budget only' },
-  { label: 'Measurement window', value: 'Calendar month-to-date, UTC' },
+  { label: 'Measurement window', value: 'Paid, attributable month-to-date spend' },
   { label: 'Warning', value: `${APP_BUDGET_WARNING_PERCENT}% — questions continue` },
   {
     label: 'Approval required',

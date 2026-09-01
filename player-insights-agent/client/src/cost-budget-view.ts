@@ -2,24 +2,6 @@ import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import type { CostTile, OpsCostPayload } from '../../shared/ops-contract';
 import { appCostSummary } from '../../shared/app-cost-summary';
 
-/** Exact 30-day run rate from a complete measured selected-period total. */
-export function monthlyAppBudgetBaseline(payload: OpsCostPayload, unit: CostBudgetUnit): number | null {
-  if (payload.state !== 'ready' || payload.honesty?.rangeMayStillFill === true) return null;
-  const summary = appCostSummary(payload, unit);
-  const selected = unit === 'USD' ? summary.amount : summary.dbus;
-  if (summary.partial || summary.days <= 0 || selected === null || !Number.isFinite(selected) || selected <= 0) {
-    return null;
-  }
-  return (selected / summary.days) * 30;
-}
-
-/** A two-significant-digit human increment, with no hidden contingency. */
-export function monthlyBudgetSuggestion(monthly: number | null): number | null {
-  if (monthly === null || !Number.isFinite(monthly) || monthly <= 0) return null;
-  const increment = Math.max(0.01, 10 ** (Math.floor(Math.log10(monthly)) - 1));
-  return Math.round(monthly / increment) * increment;
-}
-
 export function costSpendSummary(
   payload: Pick<OpsCostPayload, 'range' | 'tiles' | 'currency'>,
   unit: CostBudgetUnit = 'USD'
@@ -37,26 +19,50 @@ export function budgetPlaceholder(observed: Record<CostBudgetUnit, number | null
 /** A concise dynamic guide derived from measured spend, never an invented budget. */
 export function budgetHelper(observed: Record<CostBudgetUnit, number | null>, unit: CostBudgetUnit): string {
   const baseline = observed[unit];
-  if (typeof baseline !== 'number' || !Number.isFinite(baseline)) return 'No measured baseline';
+  if (typeof baseline !== 'number' || !Number.isFinite(baseline)) return 'No monthly run-rate baseline';
   const format = (value: number) =>
     value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  return `Observed: ${format(baseline)} ${unit}`;
+  return `30-day run rate: ${format(baseline)} ${unit}`;
 }
 
-/** Only a usable measured amount may guide an editable resource assumption. */
-export function resourceBudgetBaseline(tile: CostTile, unit: CostBudgetUnit): number | null {
-  const amount = unit === 'DBU' ? (tile.dbus ?? null) : tile.amount;
-  if (typeof amount !== 'number' || !Number.isFinite(amount)) return null;
-  if (unit === 'DBU') return amount;
-  const match = tile.pricing?.match;
-  if (
-    tile.quality === 'unknown' ||
-    match === 'unpriced' ||
-    match === 'duplicate' ||
-    match === 'mixed-currency' ||
-    match === 'partial'
-  ) {
+function inclusiveDays(from: string, to: string): number {
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  return Number.isFinite(start) && Number.isFinite(end) && end >= start
+    ? Math.round((end - start) / 86_400_000) + 1
+    : 0;
+}
+
+/** Complete source days represented by the selected Cost range. */
+export function costCoveredDays(payload: Pick<OpsCostPayload, 'range' | 'throughDay'>): number {
+  const through = payload.throughDay && payload.throughDay < payload.range.to ? payload.throughDay : payload.range.to;
+  return inclusiveDays(payload.range.from, through);
+}
+
+/** A monthly calibration from paid attributable selected-period spend, never a saved value. */
+export function resourceBudgetBaseline(
+  payload: Pick<OpsCostPayload, 'state' | 'range' | 'throughDay' | 'honesty'>,
+  tile: CostTile,
+  unit: CostBudgetUnit
+): number | null {
+  if (payload.state !== 'ready' || payload.honesty?.rangeMayStillFill === true || tile.attribution === 'unavailable') {
     return null;
   }
-  return amount;
+  const amount = unit === 'DBU' ? (tile.dbus ?? null) : tile.amount;
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) return null;
+  if (unit === 'USD') {
+    const match = tile.pricing?.match;
+    if (
+      tile.quality === 'unknown' ||
+      match === 'unpriced' ||
+      match === 'duplicate' ||
+      match === 'mixed-currency' ||
+      match === 'partial'
+    ) {
+      return null;
+    }
+  }
+  if (tile.basis === 'per-day') return amount * 30;
+  const days = costCoveredDays(payload);
+  return days > 0 ? (amount / days) * 30 : null;
 }

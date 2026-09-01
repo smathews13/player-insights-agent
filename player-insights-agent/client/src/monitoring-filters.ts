@@ -229,15 +229,18 @@ export interface UserBrowserState {
   open: boolean;
   search: string;
   role: string;
+  persona?: string;
   unit: UserMonitoringUnit;
   cursor: string;
 }
 
 export function userBrowserFromParams(params: ReadableParams): UserBrowserState {
+  const persona = (params.get('userPersona') ?? '').trim();
   return {
     open: params.get('users') === '1',
     search: (params.get('userSearch') ?? '').trim(),
     role: (params.get('userRole') ?? '').trim(),
+    persona: persona === 'none' ? '' : persona,
     unit: params.get('userUnit') === 'DBU' ? 'DBU' : 'USD',
     cursor: (params.get('userCursor') ?? '').trim(),
   };
@@ -271,7 +274,7 @@ export function backToUserBrowser(search: string): string {
 
 export function closedUserMonitoring(search: string): string {
   const next = new URLSearchParams(search);
-  for (const name of ['users', 'userSearch', 'userRole', 'userUnit', 'userCursor']) next.delete(name);
+  for (const name of ['users', 'userSearch', 'userRole', 'userPersona', 'userUnit', 'userCursor']) next.delete(name);
   next.delete(PERSON_PANEL_PARAM);
   next.delete(QUESTION_PARAM);
   return next.toString();

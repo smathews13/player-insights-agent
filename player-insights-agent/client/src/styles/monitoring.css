@@ -171,9 +171,18 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+.monitoring-filter-actions {
+  min-width: min(100%, 410px);
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .monitoring-user-browser-trigger {
   flex: none;
   margin-left: 0;
+  height: 36px;
   white-space: nowrap;
 }
 .monitoring-user-browser-trigger svg,
@@ -287,7 +296,7 @@
 .monitoring-search {
   flex: 0 1 240px;
   min-width: 160px;
-  margin-left: auto;
+  margin-left: 0;
   /* Room for the clear button, which is positioned over the right end of the
      field by `.run-search`'s own relative positioning. */
   position: relative;
@@ -305,6 +314,8 @@
  * field layer, and explicitly opts out of every image and backdrop effect.
  */
 .monitoring-search .monitoring-search-icon {
+  position: absolute;
+  display: block;
   top: 50%;
   left: 10px;
   width: 16px;
@@ -379,6 +390,7 @@
 .monitoring-search input[type='search'] {
   position: relative;
   z-index: 1;
+  height: 36px;
   padding-left: 34px;
   padding-right: 26px;
 }
@@ -800,7 +812,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   min-width: 0;
   min-height: 0;
   padding: 16px 24px 32px;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -990,7 +1002,13 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 /* ── The per-user panel ────────────────────────────────────────────────── */
 
 .monitoring-spend {
-  min-height: 180px;
+  position: static;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+  transform: none;
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
   padding: 12px 14px;
@@ -1058,13 +1076,20 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   margin: 0;
   padding: 0;
   display: grid;
+  max-height: none;
+  overflow: visible;
 }
 .monitoring-spend-components li {
+  position: static;
   min-width: 0;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+  transform: none;
   padding: 7px 0;
   display: grid;
   grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1.6fr) auto;
-  align-items: center;
+  align-items: start;
   gap: 8px;
 }
 .monitoring-spend-components .monitoring-spend-columns {
@@ -1099,8 +1124,13 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   min-width: 0;
   color: var(--ast-text-long);
   font-size: var(--text-sm);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
   text-align: right;
+}
+.monitoring-spend-component-attribution {
+  min-width: 92px;
+  display: flex;
+  justify-content: flex-end;
 }
 .monitoring-spend-refreshing {
   color: var(--ast-text-secondary);
@@ -1131,7 +1161,10 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   background: var(--card);
 }
 .monitoring-users-toolbar .monitoring-users-search {
-  flex: 1 1 260px;
+  flex: 1 1 210px;
+  width: clamp(180px, 24vw, 300px);
+  min-width: 180px;
+  max-width: 300px;
   margin-left: 0;
 }
 .monitoring-users-toolbar [data-slot='select-trigger'] {
@@ -1151,7 +1184,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   margin-left: -1px;
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
-.monitoring-users-coverage {
+.monitoring-users-note {
   margin: 0;
   color: var(--ast-text-long);
   font-size: var(--text-sm);
@@ -1159,14 +1192,13 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .monitoring-users-list {
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
-  overflow: hidden;
 }
 .monitoring-users-columns,
 .monitoring-user-row {
   display: grid;
   grid-template-columns:
-    minmax(190px, 1.5fr) minmax(90px, 0.65fr) minmax(112px, 0.8fr) 72px minmax(112px, 0.8fr)
-    minmax(104px, 0.75fr);
+    minmax(176px, 1.5fr) minmax(86px, 0.62fr) minmax(120px, 0.85fr) minmax(94px, 0.72fr)
+    minmax(104px, 0.72fr) minmax(104px, 0.75fr) 18px;
   align-items: center;
   gap: 10px;
 }
@@ -1183,8 +1215,8 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.monitoring-users-columns > :nth-child(4),
-.monitoring-users-columns > :nth-child(5) {
+.monitoring-users-columns > :nth-child(5),
+.monitoring-users-columns > :nth-child(6) {
   text-align: right;
 }
 .monitoring-user-row {
@@ -1219,13 +1251,12 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .monitoring-user-amount {
   text-align: right;
 }
-.monitoring-user-coverage {
+.monitoring-user-open {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  justify-content: flex-end;
 }
-.monitoring-user-coverage > svg {
+.monitoring-user-open > svg {
   width: 14px;
   height: 14px;
   flex: none;
@@ -1238,18 +1269,45 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   justify-content: flex-end;
   gap: 8px;
 }
-.monitoring-users-skeleton {
+.monitoring-users-loading {
   display: grid;
-  gap: 8px;
+  gap: 12px;
 }
-.monitoring-users-skeleton > * {
-  height: 48px;
+.monitoring-users-loading-mark {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--ast-text-long);
+  font-size: var(--text-sm);
+}
+.monitoring-users-loading-list {
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+}
+.monitoring-users-loading-list > span {
+  display: block;
+  min-height: 48px;
+}
+.monitoring-users-loading-list > span + span {
+  border-top: 1px solid var(--ast-hairline);
+}
+.monitoring-users-refreshing {
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
 }
 .monitoring-users-back {
   flex: none;
 }
 
 .monitoring-panel-grid {
+  position: static;
+  min-width: 0;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+  transform: none;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
@@ -1261,6 +1319,11 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   grid-column: span 3;
 }
 .monitoring-panel-tile {
+  position: static;
+  min-width: 0;
+  max-height: none;
+  overflow: visible;
+  transform: none;
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
   padding: 10px 12px;
@@ -1268,6 +1331,21 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   gap: 2px;
   align-content: start;
   min-width: 0;
+}
+.monitoring-panel-tile p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.monitoring-person-modal-body > .monitoring-eyebrow,
+.monitoring-person-modal-body > .monitoring-scopes,
+.monitoring-person-modal-body > .monitoring-grants,
+.monitoring-person-modal-body > .monitoring-refusal-tiles,
+.monitoring-person-modal-body > .monitoring-question-list,
+.monitoring-person-modal-body > .monitoring-pagination {
+  position: static;
+  min-width: 0;
+  max-height: none;
+  transform: none;
 }
 .monitoring-panel-tile-label {
   margin: 0;

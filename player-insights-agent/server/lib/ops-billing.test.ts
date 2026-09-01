@@ -8,6 +8,7 @@ import {
   workspaceEstimateRow,
   type CostIdentifiers,
 } from './ops-billing';
+import { classifyGenieAccounting, GENIE_FREE_SKU, type GenieAccountingRow } from './genie-accounting';
 
 const IDS: CostIdentifiers = {
   appName: 'player-insights',
@@ -96,7 +97,8 @@ describe('billing attribution', () => {
     expect(tiles.find((tile) => tile.id === 'serving-endpoint')?.resourceId).toBe(IDS.endpointName);
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.resourceId).toBe(IDS.warehouseId);
     expect(tiles.find((tile) => tile.id === 'app-compute')?.resourceId).toBe(IDS.appName);
-    expect(tiles.find((tile) => tile.id === 'genie:charged')?.resourceId).toBe('');
+    expect(tiles.find((tile) => tile.id === 'genie:data')?.resourceId).toBe('');
+    expect(tiles.find((tile) => tile.id === 'genie:dictionary')?.resourceId).toBe('');
     expect(tiles.find((tile) => tile.id === 'vector-search')?.resourceId).toBe('');
     expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
@@ -125,7 +127,7 @@ describe('billing attribution', () => {
     expect(app?.note).toContain('still matched by app name');
   });
 
-  it('keeps Genie charged usage unavailable when the identity-aware billing read is unavailable', () => {
+  it('keeps each configured Genie unavailable when the identity-aware billing read is unavailable', () => {
     const genie = buildTiles(IDS, [
       {
         component: 'genie',
@@ -137,63 +139,75 @@ describe('billing attribution', () => {
       },
     ]).filter((tile) => tile.id.startsWith('genie:'));
 
-    expect(genie).toHaveLength(1);
-    expect(genie[0]).toMatchObject({
-      id: 'genie:charged',
-      label: 'Genie charged usage',
-      amount: null,
-      dbus: null,
-      attribution: 'unavailable',
-    });
+    expect(genie).toHaveLength(2);
+    expect(genie.map((tile) => tile.id)).toEqual(['genie:data', 'genie:dictionary']);
+    expect(genie.every((tile) => tile.amount === null && tile.attribution === 'unavailable')).toBe(true);
   });
 
-  it('uses charged Genie spend only and carries allowance and promotion as separate evidence', () => {
-    const tiles = buildTiles(IDS, [], undefined, [], {
-      month: {
-        month: '2026-09',
-        throughDay: '2026-09-01',
-        humanUsers: 1,
-        allowanceDbusPerUser: 150,
-        allowanceUsedDbus: 40,
-        allowanceRemainingDbus: 110,
-        allowanceUtilization: 40 / 150,
-        promotionalDbus: 15,
-        chargedEffectiveDbus: 20,
-        chargedRawEquivalentDbus: 15,
-        paidUsd: 4,
-        underlyingTotalDbus: 70,
-        pricingState: 'priced',
-        diagnostics: [],
-        users: [],
-      },
-      period: {
-        month: '2026-09',
-        throughDay: '2026-09-01',
-        humanUsers: 1,
-        allowanceDbusPerUser: 150,
-        allowanceUsedDbus: 40,
-        allowanceRemainingDbus: 110,
-        allowanceUtilization: 40 / 150,
-        promotionalDbus: 15,
-        chargedEffectiveDbus: 20,
-        chargedRawEquivalentDbus: 15,
-        paidUsd: 4,
-        underlyingTotalDbus: 70,
-        pricingState: 'priced',
-        diagnostics: [],
-        users: [],
-      },
-    });
-    expect(tiles.find((tile) => tile.id === 'genie:charged')).toMatchObject({
+  it('uses each Genie space charged spend and keeps allowance and promotion as evidence', () => {
+    const testIds: CostIdentifiers = {
+      ...IDS,
+      genieSpaces: [
+        { id: 'space-data', label: 'Data Genie', tool: 'data_genie', tileId: 'genie:data' },
+        {
+          id: 'space-dictionary',
+          label: 'Dictionary Genie',
+          tool: 'dictionary_genie',
+          tileId: 'genie:dictionary',
+        },
+      ],
+    };
+    const spaces = testIds.genieSpaces.map(({ id, label, tileId }) => ({ id, label, tileId }));
+    const base: GenieAccountingRow = {
+      usageDay: '2026-09-01',
+      identity: 'person@example.test',
+      identityKind: 'human',
+      surface: 'GENIE_CODE',
+      channel: 'UI',
+      offeringType: 'PAYGO',
+      skuName: GENIE_FREE_SKU,
+      spaceId: '',
+      attributionMethod: 'unattributed',
+      dbus: 0,
+      paidUsd: 0,
+      pricedRows: 0,
+      unpricedRows: 0,
+      correctionRows: 0,
+      throughDay: '2026-09-01',
+    };
+    const accounting = classifyGenieAccounting(
+      [
+        { ...base, spaceId: '', attributionMethod: 'unattributed', dbus: 5 },
+        { ...base, spaceId: '', attributionMethod: 'unattributed', surface: 'GENIE_ONE', dbus: 15 },
+        {
+          ...base,
+          spaceId: '',
+          attributionMethod: 'unattributed',
+          skuName: 'PAID',
+          dbus: 20,
+          paidUsd: 4,
+          pricedRows: 1,
+        },
+      ].map((row, index) => ({
+        ...row,
+        spaceId: index < 2 ? 'space-data' : 'space-dictionary',
+        attributionMethod: index === 1 ? ('query-history-allocation' as const) : ('query-history-exact' as const),
+      })),
+      '2026-09-01',
+      spaces
+    );
+    const tiles = buildTiles(testIds, [], undefined, [], { month: accounting, period: accounting });
+    expect(tiles.find((tile) => tile.id === 'genie:dictionary')).toMatchObject({
       amount: 4,
       dbus: 20,
       attribution: 'deployment',
-      genieAccounting: {
-        allowanceUsedDbus: 40,
-        promotionalDbus: 15,
+      genieInstanceAccounting: {
         chargedRawEquivalentDbus: 15,
-        underlyingTotalDbus: 70,
       },
+    });
+    expect(tiles.find((tile) => tile.id === 'genie:data')?.genieInstanceAccounting).toMatchObject({
+      allowanceUsedDbus: 5,
+      promotionalDbus: 15,
     });
   });
 

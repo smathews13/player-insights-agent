@@ -411,6 +411,8 @@ export interface AppOutletContext {
   features: ExperimentalFeatures;
   setFeature: (name: keyof ExperimentalFeatures, enabled: boolean) => void;
   role: RoleResolution;
+  /** Canonical signed-in subject used to isolate client-side admin caches. */
+  subject?: string;
 }
 
 /**

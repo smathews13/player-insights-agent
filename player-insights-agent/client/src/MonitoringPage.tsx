@@ -30,12 +30,14 @@
  * behind it scans every message in the range.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useOutletContext, useSearchParams } from 'react-router';
 import { ArrowLeft, ChevronRight, Search, ThumbsDown, ThumbsUp, Users, X } from 'lucide-react';
 import { astPill, type AstPillFamily } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
 import { Button, Input, Skeleton } from './ui';
 import { AppSelect } from './AppSelect';
+import { ConceptFlicker } from './ConceptFlicker';
+import type { AppOutletContext } from './role';
 import { PageHeading } from './page-chrome';
 import { RefreshControl } from './RefreshControl';
 import { UnavailablePanel } from './UnavailablePanel';
@@ -370,7 +372,7 @@ function SearchBox({
   value,
   onChange,
   placeholder = 'Search questions or users…',
-  ariaLabel = 'Search questions by text or user',
+  ariaLabel = 'Search questions or users',
   className = '',
 }: {
   value: string;
@@ -528,13 +530,15 @@ export function FilterRow({
           note on `.monitoring-search` in monitoring.css: the behaviour it
           described is unchanged and still tested, and the row now says nothing a
           reader has to decide whether to act on. */}
-      <SearchBox value={filters.search} onChange={(search) => onChange({ ...filters, search })} />
-      {onOpenUsers ? (
-        <Button variant="default" size="sm" className="monitoring-user-browser-trigger" onClick={onOpenUsers}>
-          <Users aria-hidden="true" />
-          User Monitoring
-        </Button>
-      ) : null}
+      <div className="monitoring-filter-actions">
+        {onOpenUsers ? (
+          <Button variant="default" size="sm" className="monitoring-user-browser-trigger" onClick={onOpenUsers}>
+            <Users aria-hidden="true" />
+            User Monitoring
+          </Button>
+        ) : null}
+        <SearchBox value={filters.search} onChange={(search) => onChange({ ...filters, search })} />
+      </div>
     </div>
   );
 }
@@ -1352,7 +1356,13 @@ function SpendProfile({
                   ? 'Unavailable'
                   : `${spendFigure(component.usd.amount, 'USD', payload.currency)} · ${spendFigure(component.dbu.amount, 'DBU')}`}
               </span>
-              <SpendQualityBadge quality={quality} />
+              <span className="monitoring-spend-component-attribution">
+                {quality === 'unavailable' ? (
+                  <span aria-hidden="true">—</span>
+                ) : (
+                  <SpendQualityBadge quality={quality} />
+                )}
+              </span>
             </li>
           );
         })}
@@ -1685,6 +1695,16 @@ function userSpendFigure(row: UserMonitoringRow, unit: 'USD' | 'DBU'): string {
     : `${reading.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DBU`;
 }
 
+const userBrowserScroll = new Map<string, number>();
+function rememberUserBrowserScroll(key: string, top: number): void {
+  userBrowserScroll.delete(key);
+  userBrowserScroll.set(key, top);
+  if (userBrowserScroll.size > 40) {
+    const oldest = userBrowserScroll.keys().next().value;
+    if (oldest) userBrowserScroll.delete(oldest);
+  }
+}
+
 export function UserMonitoringPanel({
   state,
   browser,
@@ -1694,10 +1714,13 @@ export function UserMonitoringPanel({
   onOpenUser,
   onSearch,
   onRole,
+  onPersona = () => {},
   onUnit,
   onClear,
   onNext,
   onPrevious,
+  refreshing = false,
+  cacheKey = '',
 }: {
   state: PanelLoadState<OpsCostPayload>;
   browser: ReturnType<typeof userBrowserFromParams>;
@@ -1707,13 +1730,21 @@ export function UserMonitoringPanel({
   onOpenUser: (email: string) => void;
   onSearch: (search: string) => void;
   onRole: (role: string) => void;
+  onPersona?: (persona: string) => void;
   onUnit: (unit: 'USD' | 'DBU') => void;
   onClear: () => void;
   onNext: (cursor: string) => void;
   onPrevious: () => void;
+  refreshing?: boolean;
+  cacheKey?: string;
 }) {
   const payload: UserMonitoringPayload | null = state.status === 'ready' ? (state.data.userMonitoring ?? null) : null;
-  const changed = Boolean(browser.search || browser.role);
+  const changed = Boolean(browser.search || browser.role || browser.persona);
+  const body = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!cacheKey || !body.current) return;
+    body.current.scrollTop = userBrowserScroll.get(cacheKey) ?? 0;
+  }, [cacheKey]);
   return (
     <Dialog
       overlayClassName="monitoring-person-overlay"
@@ -1737,7 +1768,13 @@ export function UserMonitoringPanel({
           <span className="sr-only">Close User Monitoring</span>
         </Button>
       </div>
-      <div className="monitoring-person-modal-body monitoring-users-body">
+      <div
+        className="monitoring-person-modal-body monitoring-users-body"
+        ref={body}
+        onScroll={(event) => {
+          if (cacheKey) rememberUserBrowserScroll(cacheKey, event.currentTarget.scrollTop);
+        }}
+      >
         <div className="monitoring-users-toolbar">
           <SearchBox
             value={browser.search}
@@ -1757,6 +1794,19 @@ export function UserMonitoringPanel({
               { value: 'consumer', label: 'Consumer' },
             ]}
             onValueChange={(role) => onRole(role === NO_FILTER ? '' : role)}
+          />
+          <AppSelect
+            label="Persona"
+            ariaLabel="Filter users by current persona"
+            value={browser.persona || NO_FILTER}
+            options={[
+              { value: NO_FILTER, label: 'All personas' },
+              ...(payload?.personas ?? []).map((persona) => ({
+                value: persona.id,
+                label: `${persona.name} (${persona.count})`,
+              })),
+            ]}
+            onValueChange={(persona) => onPersona(persona === NO_FILTER ? '' : persona)}
           />
           <TimeRangeControl page="User Monitoring" />
           <div className="monitoring-users-unit" role="radiogroup" aria-label="Per-user spend unit">
@@ -1778,6 +1828,7 @@ export function UserMonitoringPanel({
               Clear filters
             </Button>
           ) : null}
+          {refreshing ? <span className="monitoring-users-refreshing">Refreshing…</span> : null}
         </div>
 
         {state.status === 'error' ? (
@@ -1785,11 +1836,16 @@ export function UserMonitoringPanel({
             {state.error}
           </p>
         ) : state.status === 'loading' || state.status === 'idle' ? (
-          <div className="monitoring-users-skeleton" role="status">
-            {[0, 1, 2, 3, 4].map((row) => (
-              <Skeleton key={row} />
-            ))}
-            <span className="sr-only">Loading users</span>
+          <div className="monitoring-users-loading" role="status">
+            <div className="monitoring-users-loading-mark">
+              <ConceptFlicker seat="inline" />
+              <span>Loading users</span>
+            </div>
+            <div className="monitoring-users-loading-list" aria-hidden="true">
+              {[0, 1, 2, 3, 4].map((row) => (
+                <span key={row} />
+              ))}
+            </div>
           </div>
         ) : !payload ? (
           <p className="monitoring-spend-absent" role="status">
@@ -1797,15 +1853,20 @@ export function UserMonitoringPanel({
           </p>
         ) : (
           <>
-            {payload.reason ? <p className="monitoring-users-coverage">{payload.reason}</p> : null}
+            {payload.reason ? (
+              <p className="monitoring-users-note">
+                Some spend sources could not be measured. Open a user for details.
+              </p>
+            ) : null}
             <div className="monitoring-users-list" role="list" aria-label="Users ordered by attributable spend">
               <div className="monitoring-users-columns" aria-hidden="true">
                 <span>User</span>
                 <span>Role</span>
-                <span>Last active</span>
+                <span>Persona</span>
+                <span>Activity</span>
                 <span>Questions / runs</span>
-                <span>Amount</span>
-                <span>Coverage</span>
+                <span>Spend</span>
+                <span />
               </div>
               {payload.users.map((row) => (
                 <button
@@ -1824,7 +1885,11 @@ export function UserMonitoringPanel({
                     {ROLE_WORD[row.role]}
                   </span>
                   <span>
-                    <span className="monitoring-users-mobile-label">Last active</span>
+                    <span className="monitoring-users-mobile-label">Persona</span>
+                    <span title={row.persona?.name}>{row.persona?.name ?? '—'}</span>
+                  </span>
+                  <span>
+                    <span className="monitoring-users-mobile-label">Activity</span>
                     {row.lastActive ? whenLabel(row.lastActive, now) : 'Not recorded'}
                   </span>
                   <span className="ast-num">
@@ -1832,11 +1897,10 @@ export function UserMonitoringPanel({
                     {row.questions.toLocaleString()} / {row.runs.toLocaleString()}
                   </span>
                   <span className="monitoring-user-amount ast-num">
-                    <span className="monitoring-users-mobile-label">Amount</span>
+                    <span className="monitoring-users-mobile-label">Spend</span>
                     {userSpendFigure(row, browser.unit)}
                   </span>
-                  <span className="monitoring-user-coverage">
-                    <SpendQualityBadge quality={row.coverage} />
+                  <span className="monitoring-user-open">
                     <ChevronRight aria-hidden="true" />
                   </span>
                 </button>
@@ -1846,6 +1910,7 @@ export function UserMonitoringPanel({
               <p className="monitoring-empty-line">
                 No users match {browser.search ? `"${browser.search}"` : 'the active filters'}
                 {browser.role ? ` and ${ROLE_WORD[isRole(browser.role) ? browser.role : 'consumer']} role` : ''}.
+                {browser.persona ? ' No users have the selected current persona.' : ''}
               </p>
             ) : null}
             <div className="monitoring-users-pagination">
@@ -2059,12 +2124,34 @@ function EmptyList({
 /* ── The page ────────────────────────────────────────────────────────────── */
 
 const PANEL_CACHE_MS = 60_000;
-const panelCache = new Map<string, { expiresAt: number; data: unknown }>();
+const PANEL_CACHE_MAX = 80;
+const panelCache = new Map<string, { expiresAt: number; dataRevision: number; data: unknown }>();
 
-function usePanelRequest<T>(key: string, url: string, errorMessage: string) {
+function cachePanel(key: string, data: unknown): void {
+  panelCache.delete(key);
+  panelCache.set(key, {
+    expiresAt: Date.now() + PANEL_CACHE_MS,
+    dataRevision:
+      typeof data === 'object' &&
+      data !== null &&
+      'userMonitoring' in data &&
+      typeof (data as OpsCostPayload).userMonitoring?.dataRevision === 'number'
+        ? (data as OpsCostPayload).userMonitoring!.dataRevision
+        : 0,
+    data,
+  });
+  while (panelCache.size > PANEL_CACHE_MAX) {
+    const oldest = panelCache.keys().next().value;
+    if (!oldest) break;
+    panelCache.delete(oldest);
+  }
+}
+
+function usePanelRequest<T>(key: string, url: string, errorMessage: string, cacheScope = 'session') {
   const [state, setState] = useState<PanelLoadState<T>>(() => idlePanel<T>());
   const [attempt, setAttempt] = useState(0);
   const [refreshingKey, setRefreshingKey] = useState('');
+  const scopedKey = key ? `${cacheScope}|${key}` : '';
 
   useEffect(() => {
     if (!key || !url) {
@@ -2073,12 +2160,16 @@ function usePanelRequest<T>(key: string, url: string, errorMessage: string) {
     }
     const controller = new AbortController();
     const requestId = ++panelRequestSequence;
-    const cached = panelCache.get(key);
+    const cached = panelCache.get(scopedKey);
     const retained = cached && cached.expiresAt > Date.now() ? (cached.data as T) : null;
-    if (cached && !retained) panelCache.delete(key);
+    if (cached && !retained) panelCache.delete(scopedKey);
     setState(
       retained ? { status: 'ready', key, requestId, data: retained, error: null } : beginPanelLoad<T>(key, requestId)
     );
+    if (retained && attempt === 0) {
+      setRefreshingKey('');
+      return () => controller.abort();
+    }
     setRefreshingKey(retained ? key : '');
 
     void fetch(url, { signal: controller.signal })
@@ -2087,7 +2178,7 @@ function usePanelRequest<T>(key: string, url: string, errorMessage: string) {
         return (await response.json()) as T;
       })
       .then((data) => {
-        panelCache.set(key, { expiresAt: Date.now() + PANEL_CACHE_MS, data });
+        cachePanel(scopedKey, data);
         setState((current) => resolvePanelLoad(current, key, requestId, data));
       })
       .catch((error: unknown) => {
@@ -2101,7 +2192,7 @@ function usePanelRequest<T>(key: string, url: string, errorMessage: string) {
       .finally(() => setRefreshingKey((current) => (current === key ? '' : current)));
 
     return () => controller.abort();
-  }, [attempt, errorMessage, key, url]);
+  }, [attempt, errorMessage, key, scopedKey, url]);
 
   // Effects start after render. Mask a completed prior key synchronously so a
   // URL/range change cannot paint old-range data under the new range label for
@@ -2159,6 +2250,8 @@ export function MonitoringPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const outlet = useOutletContext<AppOutletContext | null>();
+  const cacheScope = `${outlet?.subject?.trim().toLowerCase() || 'unknown'}|${outlet?.role.state ?? 'unknown'}`;
   // The clock is read once per render pass rather than per row, so every
   // relative stamp on one paint is relative to the same instant.
   const [now, setNow] = useState(() => Date.now());
@@ -2202,7 +2295,8 @@ export function MonitoringPage() {
   const questionRequest = usePanelRequest<MonitoringDetail>(
     questionKey,
     drawer.question ? questionDetailUrl(drawer.question, window_.from, window_.to) : '',
-    'Question details could not be loaded.'
+    'Question details could not be loaded.',
+    cacheScope
   );
   const personKey = drawer.person
     ? monitoringDetailKey('person', drawer.person, window_.from, window_.to, personCursor)
@@ -2210,7 +2304,8 @@ export function MonitoringPage() {
   const personRequest = usePanelRequest<PersonPanelPayload>(
     personKey,
     drawer.person ? personDetailUrl(drawer.person, window_.from, window_.to, filters, personCursor) : '',
-    'User activity could not be loaded.'
+    'User activity could not be loaded.',
+    cacheScope
   );
   const spendParams = new URLSearchParams({ from: window_.from, to: window_.to });
   if (drawer.person) spendParams.set('spendUser', drawer.person);
@@ -2220,7 +2315,8 @@ export function MonitoringPage() {
   const personSpendRequest = usePanelRequest<OpsCostPayload>(
     personSpendKey,
     drawer.person ? `/api/ops/cost?${spendParams.toString()}` : '',
-    'Attributable spend could not be loaded.'
+    'Attributable spend could not be loaded.',
+    cacheScope
   );
   const userBrowserParams = new URLSearchParams({
     from: window_.from,
@@ -2231,15 +2327,17 @@ export function MonitoringPage() {
   });
   if (userBrowser.search) userBrowserParams.set('userSearch', userBrowser.search);
   if (userBrowser.role) userBrowserParams.set('role', userBrowser.role);
+  if (userBrowser.persona) userBrowserParams.set('persona', userBrowser.persona);
   if (userBrowser.cursor) userBrowserParams.set('userCursor', userBrowser.cursor);
   const userBrowserKey =
     userBrowser.open && !drawer.person
-      ? `users|${window_.from}|${window_.to}|${userBrowser.unit}|${userBrowser.search}|${userBrowser.role}|${userBrowser.cursor}`
+      ? `users|${window_.from}|${window_.to}|${userBrowser.unit}|${userBrowser.search}|${userBrowser.role}|${userBrowser.persona}|${userBrowser.cursor}|25`
       : '';
   const userBrowserRequest = usePanelRequest<OpsCostPayload>(
     userBrowserKey,
     userBrowserKey ? `/api/ops/cost?${userBrowserParams.toString()}` : '',
-    'User Monitoring could not be loaded.'
+    'User Monitoring could not be loaded.',
+    cacheScope
   );
 
   /**
@@ -2287,7 +2385,7 @@ export function MonitoringPage() {
   };
 
   const updateUserBrowser = useCallback(
-    (name: 'userSearch' | 'userRole' | 'userUnit' | 'userCursor', value: string) => {
+    (name: 'userSearch' | 'userRole' | 'userPersona' | 'userUnit' | 'userCursor', value: string) => {
       const next = new URLSearchParams(location.search);
       next.set('users', '1');
       if (value) next.set(name, value);
@@ -2415,16 +2513,20 @@ export function MonitoringPage() {
           onOpenUser={(email) => void navigate({ search: openUserFromBrowser(location.search, email) })}
           onSearch={(search) => updateUserBrowser('userSearch', search)}
           onRole={(role) => updateUserBrowser('userRole', role)}
+          onPersona={(persona) => updateUserBrowser('userPersona', persona)}
           onUnit={(unit) => updateUserBrowser('userUnit', unit)}
           onClear={() => {
             const next = new URLSearchParams(location.search);
             next.delete('userSearch');
             next.delete('userRole');
+            next.delete('userPersona');
             next.delete('userCursor');
             void navigate({ search: next.toString() }, { replace: true });
           }}
           onNext={(cursor) => updateUserBrowser('userCursor', cursor)}
           onPrevious={() => void navigate(-1)}
+          refreshing={userBrowserRequest.refreshing}
+          cacheKey={`${cacheScope}|${userBrowserKey}`}
         />
       ) : null}
     </div>

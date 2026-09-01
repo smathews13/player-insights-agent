@@ -166,6 +166,27 @@ describe('individual user spend attribution', () => {
     expect(payload.reconciliation.usd.difference).toBe(0);
   });
 
+  it('keeps direct Data and Dictionary Genie amounts in separate user rows', () => {
+    const payload = build({
+      direct: [
+        { email: 'a@example.test', componentId: 'genie:data', quality: 'direct', usd: 1.5, dbu: 0.75 },
+        {
+          email: 'a@example.test',
+          componentId: 'genie:dictionary',
+          quality: 'direct',
+          usd: 0.5,
+          dbu: 0.25,
+        },
+      ],
+    });
+    const components = payload.users[0].components.filter((part) => part.id.startsWith('genie:'));
+    expect(components.map((part) => [part.id, part.usd.amount, part.dbu.amount])).toEqual([
+      ['genie:data', 1.5, 0.75],
+      ['genie:dictionary', 0.5, 0.25],
+    ]);
+    expect(payload.reconciliation.usd.difference).toBe(0);
+  });
+
   it('does not turn missing USD price coverage into zero when DBUs are measurable', () => {
     const payload = build({
       tiles: [tile('serving-endpoint', null, 4)],
@@ -293,5 +314,29 @@ describe('individual user spend attribution', () => {
     expect(page.users.map((row) => row.email)).toEqual(['a@example.test']);
     expect(page.unit).toBe('DBU');
     expect(page.reconciliation.dbu.difference).toBe(0);
+  });
+
+  it('filters by the authorized current persona assignment and returns named options', () => {
+    const page = buildUserMonitoringPage({
+      spend: build(),
+      runs,
+      activity: [],
+      roles: new Map([
+        ['a@example.test', 'admin'],
+        ['b@example.test', 'consumer'],
+      ]),
+      personas: new Map([['b@example.test', { id: 'analyst', name: 'Analyst' }]]),
+      personaOptions: [
+        { id: 'engineer', name: 'Engineer' },
+        { id: 'analyst', name: 'Analyst' },
+      ],
+      persona: 'analyst',
+      unit: 'USD',
+    });
+
+    expect(page.users.map((row) => row.email)).toEqual(['b@example.test']);
+    expect(page.users[0].persona).toEqual({ id: 'analyst', name: 'Analyst' });
+    expect(page.personas.map((persona) => persona.name)).toEqual(['Analyst', 'Engineer']);
+    expect(page.personas.map((persona) => persona.count)).toEqual([1, 0]);
   });
 });

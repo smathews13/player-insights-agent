@@ -970,7 +970,7 @@ describe('the cost block', () => {
     expect(visible).toContain('Vector Search endpoint');
     expect(visible).toContain('Budget guardrails');
     expect(visible).toContain('Scope Monthly app budget only');
-    expect(visible).toContain('Measurement window Calendar month-to-date, UTC');
+    expect(visible).toContain('Measurement window Paid, attributable month-to-date spend');
     expect(visible).toContain('Warning 80% — questions continue');
     expect(visible).toContain('Approval required 100% — new questions pause until an administrator approves');
     expect(visible).toContain(
@@ -1153,7 +1153,7 @@ describe('the cost block', () => {
     expect(markup).toContain('No billing rows');
     expect(markup).toContain('No billing rows matched an exact tracked resource');
     expect(markup).not.toContain('system_billing');
-    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(6);
+    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(7);
   });
 
   it('draws one box per connected Genie space and Vector Search when billing is empty', () => {
@@ -1423,7 +1423,7 @@ describe('the cost block', () => {
     expect(markup).not.toContain('0.00');
   });
 
-  it('lets an operator set a monthly app budget and per-tile resource budgets', () => {
+  it('lets an operator set monthly app and resource budgets without replacing saved values', () => {
     const baseTiles = cost().tiles;
     const payload = cost({
       budgets: {
@@ -1454,28 +1454,31 @@ describe('the cost block', () => {
     expect(markup).toContain('aria-label="Monthly app budget in USD"');
     expect(appControlRow).toContain('ops-number-ticker-wide');
     expect(appControlRow).toContain('ops-budget-apply');
-    expect(appControlRow).toContain('ops-app-budget-status');
+    expect(appControlRow).not.toContain('ops-app-budget-status');
     expect(appEditor.indexOf('ops-ticker-input-row')).toBeLessThan(appEditor.indexOf('ops-ticker-assumption-helper'));
-    expect(markup).toContain('aria-label="Serving endpoint budget in USD"');
-    expect(markup).toContain('aria-label="Vector Search budget per day in USD"');
+    expect(markup).toContain('aria-label="Serving endpoint monthly budget in USD"');
+    expect(markup).toContain('aria-label="Vector Search monthly budget in USD"');
     expect(editor).toContain('data-columns="6"');
     expect(editor.match(/ops-number-ticker ops-forecast-number-control/g)).toHaveLength(6);
     for (const label of [
-      'Serving endpoint',
-      'SQL warehouse',
-      'Data Genie',
-      'Dictionary Genie',
-      'Vector Search per day',
-      'App compute per day',
+      'Serving endpoint monthly budget',
+      'SQL warehouse monthly budget',
+      'Data Genie monthly budget',
+      'Dictionary Genie monthly budget',
+      'Vector Search monthly budget',
+      'App compute monthly budget',
     ]) {
       expect(editor).toContain(label);
     }
     expect(markup).not.toContain('Actual cost breakdown');
     expect(markup).not.toContain('ops-cost-actual-breakdown');
-    expect(text(markup)).toContain("Suggested from the selected period's 30-day run rate");
-    expect(markup).toMatch(/aria-label="Monthly app budget in USD"[^>]*placeholder="71"[^>]*value="400"/);
-    expect(markup).toMatch(/aria-label="Serving endpoint budget in USD"[^>]*placeholder="1\.5"[^>]*value="40"/);
-    expect(markup).toContain('placeholder="4"');
+    expect(text(markup)).toContain('Applies to paid, attributable month-to-date spend.');
+    expect(markup).toMatch(/aria-label="Monthly app budget in USD"[^>]*placeholder=""[^>]*value="400"/);
+    expect(markup).toMatch(
+      /aria-label="Serving endpoint monthly budget in USD"[^>]*placeholder="6\.43"[^>]*value="40"/
+    );
+    expect(markup).toContain('placeholder="120"');
+    expect(text(markup)).toContain('30-day run rate: 6.43 USD');
     expect(markup).not.toContain('class="ops-budget-unit"');
     expect(markup).not.toContain('<select');
     expect(markup.match(/aria-label="Budget unit filter"/g)).toHaveLength(1);
@@ -1490,7 +1493,8 @@ describe('the cost block', () => {
     expect(markup.match(/class="ops-number-ticker-prefix" aria-hidden="true">\$<\/span>/g)).toHaveLength(
       payload.tiles.length + 1
     );
-    expect(markup).toMatch(/aria-label="Vector Search budget per day in USD"[^>]*value=""/);
+    expect(markup).toMatch(/aria-label="Vector Search monthly budget in USD"[^>]*value=""/);
+    expect(editor).not.toContain('budget per day');
     expect(markup).not.toContain('Same window as the tiles');
     expect(text(markup)).toMatch(/monthly/i);
     expect(markup).toContain('400');
@@ -1534,9 +1538,9 @@ describe('the cost block', () => {
       appEditor.indexOf('ops-ticker-input-row'),
       appEditor.indexOf('ops-ticker-assumption-helper')
     );
-    expect(markup).toMatch(/aria-label="Monthly app budget in DBU"[^>]*placeholder="12"/);
-    expect(markup).toMatch(/aria-label="Serving endpoint budget in DBU"[^>]*placeholder="2\.75"/);
-    expect(markup).toMatch(/aria-label="App compute budget in DBU"[^>]*placeholder=""/);
+    expect(markup).toMatch(/aria-label="Monthly app budget in DBU"[^>]*placeholder=""/);
+    expect(markup).toMatch(/aria-label="Serving endpoint monthly budget in DBU"[^>]*placeholder="11\.79"/);
+    expect(markup).toMatch(/aria-label="App compute monthly budget in DBU"[^>]*placeholder=""/);
     expect(markup.match(/data-suffix="true"/g)).toHaveLength(payload.tiles.length + 1);
     expect(markup.match(/class="ops-number-ticker-suffix" aria-hidden="true">DBU<\/span>/g)).toHaveLength(
       payload.tiles.length + 1
@@ -1545,14 +1549,45 @@ describe('the cost block', () => {
     expect(markup).not.toContain('e.g.');
     expect(markup).not.toContain('value="100"');
     expect(markup).not.toContain('value="54.81"');
-    expect(markup).toContain('2.75 DBU');
+    expect(markup).toContain('11.79 DBU');
     expect(markup).not.toContain('99.00 USD');
     expect(appControlRow).toContain('ops-number-ticker-suffix');
     expect(appControlRow).toContain('ops-budget-apply');
-    expect(appControlRow).toContain('ops-app-budget-status');
-    expect(appEditor).toContain('title="12 DBU observed"');
-    expect(markup).toContain('No measured baseline');
-    expect(markup).not.toContain('Observed: 99 USD');
+    expect(appControlRow).not.toContain('ops-app-budget-status');
+    expect(appEditor).toContain('title="DBU observed amount unavailable"');
+    expect(markup).toContain('No monthly run-rate baseline');
+    expect(markup).not.toContain('30-day run rate: 99 USD');
+  });
+
+  it('recalibrates monthly suggestions when the range changes without changing a saved budget', () => {
+    const tile = {
+      ...cost().tiles[0],
+      id: 'serving-endpoint',
+      label: 'Serving endpoint',
+      amount: 65.67,
+      quality: 'real' as const,
+      attribution: 'deployment' as const,
+    };
+    const budgets = { total: { USD: null, DBU: null }, resources: { 'serving-endpoint': { USD: 40, DBU: null } } };
+    const week = markupOf(<CostBody block={block(cost({ tiles: [tile], budgets }))} />);
+    const day = markupOf(
+      <CostBody
+        block={block(
+          cost({
+            tiles: [tile],
+            budgets,
+            range: { from: '2026-08-14', to: '2026-08-14' },
+            throughDay: '2026-08-14',
+          })
+        )}
+      />
+    );
+    expect(week).toMatch(
+      /aria-label="Serving endpoint monthly budget in USD"[^>]*placeholder="281\.44"[^>]*value="40"/
+    );
+    expect(day).toMatch(
+      /aria-label="Serving endpoint monthly budget in USD"[^>]*placeholder="1,970\.1"[^>]*value="40"/
+    );
   });
 
   it('renders measured Vector Search USD and DBUs from the same corrected tile', () => {
@@ -1606,7 +1641,7 @@ describe('the cost block', () => {
     expect(markup).toContain('value="11"');
     expect(markup).toContain('value="25"');
     expect(markup).toContain('No billing rows');
-    expect(markup).toContain('No measured baseline');
+    expect(markup).toContain('No monthly run-rate baseline');
     expect(markup).not.toContain('Over budget');
   });
 
@@ -1643,7 +1678,7 @@ describe('the cost block', () => {
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('Partial list-price coverage; spend withheld');
     expect(markup).toContain('Budget');
-    expect(markup).toContain('No measured baseline');
+    expect(markup).toContain('No monthly run-rate baseline');
     expect(markup).not.toContain('Over budget');
     expect(markup).not.toContain('Under budget');
     expect(markup).not.toContain('12.00 USD');
@@ -1671,30 +1706,68 @@ describe('the cost block', () => {
     expect(markup).not.toContain('Over budget');
   });
 
-  it('keeps Genie cards dollar-free and names LLM spend as not attributable', () => {
+  it('renders charged, allowance, promotion, and identifiers on each Genie card', () => {
+    const genieAccounting = (spaceId: string, label: string, tileId: string) => ({
+      spaceId,
+      label,
+      tileId,
+      attribution: 'query-history-exact' as const,
+      allowanceUsedDbus: 12,
+      promotionalDbus: 3,
+      chargedEffectiveDbus: 5,
+      chargedRawEquivalentDbus: 3.75,
+      paidUsd: 2,
+      underlyingTotalDbus: 18.75,
+      pricingState: 'priced' as const,
+      surfaces: [],
+    });
     const payload = cost({
       tiles: [
         {
-          id: 'genie:space-data',
-          label: 'Player data',
+          ...cost().tiles[0],
+          id: 'genie:data',
+          label: 'Data Genie',
           resourceId: 'space-data',
           resourceKind: 'genie-space',
-          quality: 'unknown',
-          amount: null,
+          quality: 'real',
+          amount: 2,
+          dbus: 5,
           basis: 'total-in-range',
-          population: 'This space',
-          attribution: 'unavailable',
-          unavailable: 'Genie LLM dollars unavailable',
+          population: 'This Genie space',
+          attribution: 'deployment',
+          unavailable: '',
           remedy: '',
-          note: 'SQL from this space is billed on the SQL warehouse tile. That warehouse figure is not the complete Genie cost.',
+          note: '',
+          genieInstanceAccounting: genieAccounting('space-data', 'Data Genie', 'genie:data'),
+        },
+        {
+          ...cost().tiles[0],
+          id: 'genie:dictionary',
+          label: 'Dictionary Genie',
+          resourceId: 'space-dictionary',
+          resourceKind: 'genie-space',
+          quality: 'estimate',
+          amount: 1,
+          dbus: 2,
+          basis: 'total-in-range',
+          population: 'This Genie space',
+          attribution: 'deployment',
+          unavailable: '',
+          remedy: '',
+          note: 'Allocated',
+          genieInstanceAccounting: genieAccounting('space-dictionary', 'Dictionary Genie', 'genie:dictionary'),
         },
       ],
     });
     const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('Genie LLM dollars unavailable');
+    expect(markup).toContain('Data Genie');
+    expect(markup).toContain('Dictionary Genie');
     expect(markup).toContain('space-data');
-    expect(markup).not.toContain('not the complete Genie cost');
-    expect(markup).not.toContain('0.00');
+    expect(markup).toContain('space-dictionary');
+    expect(markup).toContain('Charged · selected period 5.00 effective DBU');
+    expect(markup).toContain('Allowance used 12.00 DBU');
+    expect(markup).toContain('Promotional 3.00 DBU');
+    expect(markup).toContain('Underlying total 18.75 DBU');
   });
 
   it('removes mapped coverage explanations from the simplified product tile', () => {
@@ -1738,7 +1811,9 @@ describe('the cost block', () => {
   it('keeps budget fields when billing has no rows and when the grant is missing', () => {
     const empty = render(<CostBody block={block(cost({ state: 'no-rows', tiles: [] }))} />);
     expect(empty).toContain('Monthly app budget');
-    expect(empty).toContain('No complete measured baseline');
+    expect(empty).toContain('Data Genie monthly budget');
+    expect(empty).toContain('Dictionary Genie monthly budget');
+    expect(empty).toContain('No monthly run-rate baseline');
     const denied = render(
       <CostBody
         block={block(
@@ -2271,6 +2346,15 @@ describe('the latency block', () => {
     expect(header).toContain('Within baseline');
     expect(header).toContain('Outside baseline');
     expect(header).toContain('Refresh');
+  });
+
+  it('keeps baseline filter state semantic and disables both controls during refresh', () => {
+    const selected = markupOf(<LatencyBody block={block(latency())} initialWithin />);
+    expect(selected).toMatch(/ast-pill--pos[^"]*ops-latency-trend-filter" aria-pressed="true"/);
+    expect(selected).toMatch(/ast-pill--neg[^"]*ops-latency-trend-filter" aria-pressed="false"/);
+    const busy = markupOf(<LatencyBody block={block(latency(), { busy: true })} />);
+    expect(busy.match(/ops-latency-trend-filter"[^>]*disabled=""/g)).toHaveLength(2);
+    expect(busy).not.toMatch(/ops-latency-trend-filter"[^>]*style="[^"]*opacity/);
   });
 
   it('hides the TREND pills when the table has no TREND column', () => {

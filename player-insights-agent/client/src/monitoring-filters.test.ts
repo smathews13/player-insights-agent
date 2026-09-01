@@ -135,22 +135,27 @@ describe('the User Monitoring modal lives in the URL', () => {
     expect(userBrowserFromParams(opened)).toMatchObject({ open: true, unit: 'DBU' });
   });
 
-  it('moves browser to profile and back without losing search, role, unit, or cursor', () => {
-    const browser = 'users=1&userSearch=ada&userRole=admin&userUnit=USD&userCursor=next';
+  it('moves browser to profile and back without losing search, role, persona, unit, or cursor', () => {
+    const browser = 'users=1&userSearch=ada&userRole=admin&userPersona=analyst&userUnit=USD&userCursor=next';
     const profile = params(openUserFromBrowser(browser, 'ada@example.test'));
     expect(profile.get('who')).toBe('ada@example.test');
     const returned = params(backToUserBrowser(profile.toString()));
     expect(returned.get('who')).toBeNull();
     expect(returned.get('userSearch')).toBe('ada');
     expect(returned.get('userRole')).toBe('admin');
+    expect(returned.get('userPersona')).toBe('analyst');
     expect(returned.get('userCursor')).toBe('next');
+    expect(userBrowserFromParams(returned).persona).toBe('analyst');
   });
 
   it('closes the whole modal without clearing Monitoring filters or period', () => {
-    const closed = params(closedUserMonitoring('range=24h&outcome=partial&users=1&who=a%40b.test&userUnit=DBU'));
+    const closed = params(
+      closedUserMonitoring('range=24h&outcome=partial&users=1&who=a%40b.test&userPersona=analyst&userUnit=DBU')
+    );
     expect(closed.get('users')).toBeNull();
     expect(closed.get('who')).toBeNull();
     expect(closed.get('userUnit')).toBeNull();
+    expect(closed.get('userPersona')).toBeNull();
     expect(closed.get('range')).toBe('24h');
     expect(closed.get('outcome')).toBe('partial');
   });

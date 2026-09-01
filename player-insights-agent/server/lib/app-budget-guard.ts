@@ -168,7 +168,7 @@ export async function readAppBudgetStatus(
   if (!stored.readable) {
     return unavailable(period, readAt, {
       code: 'APP_BUDGET_STORE_UNAVAILABLE',
-      detail: 'Budget status unavailable: the monthly app budget could not be read. New questions remain available.',
+      detail: 'Monthly app budget configuration could not be read.',
     });
   }
   const fingerprint = appBudgetFingerprint(stored.budgets.total);
@@ -184,7 +184,7 @@ export async function readAppBudgetStatus(
   if (period.measurementThrough < period.monthStart) {
     return unavailable(period, readAt, {
       code: 'APP_BUDGET_MONTH_HAS_NO_COMPLETE_DAY',
-      detail: 'Budget status partial: this UTC month has no complete billing day yet. New questions remain available.',
+      detail: 'No complete billing day is available in the current month.',
       fingerprint,
       unit: configured[0].unit,
       budget: configured[0].budget,
@@ -198,7 +198,7 @@ export async function readAppBudgetStatus(
   } catch (error) {
     return unavailable(period, readAt, {
       code: 'APP_BUDGET_MEASUREMENT_FAILED',
-      detail: `Budget status unavailable: attributable month-to-date billing failed to read (${(error as Error).message}). New questions remain available.`,
+      detail: `Attributable month-to-date billing failed to read (${(error as Error).message}).`,
       fingerprint,
       unit: configured[0].unit,
       budget: configured[0].budget,
@@ -207,8 +207,7 @@ export async function readAppBudgetStatus(
   if (!measurement) {
     return unavailable(period, readAt, {
       code: 'APP_BUDGET_MEASUREMENT_UNAVAILABLE',
-      detail:
-        'Budget status unavailable: attributable month-to-date billing could not be read. New questions remain available.',
+      detail: 'Attributable month-to-date billing could not be read.',
       fingerprint,
       unit: configured[0].unit,
       budget: configured[0].budget,
@@ -242,8 +241,7 @@ export async function readAppBudgetStatus(
     const first = candidates[0];
     return unavailable(period, measurement.readAt, {
       code: 'APP_BUDGET_COVERAGE_PARTIAL',
-      detail:
-        'Budget status unavailable/partial: current attributable coverage is incomplete or billing is delayed. New questions remain available.',
+      detail: 'Current attributable billing coverage is incomplete or delayed.',
       fingerprint,
       unit: first.unit,
       budget: first.budget,
@@ -276,7 +274,7 @@ export async function readAppBudgetStatus(
     } catch {
       return unavailable(period, measurement.readAt, {
         code: 'APP_BUDGET_APPROVAL_STORE_UNAVAILABLE',
-        detail: 'Budget status unavailable: approval records could not be read. New questions remain available.',
+        detail: 'Budget approval records could not be read.',
         fingerprint,
         unit: selected.unit,
         budget: selected.budget,

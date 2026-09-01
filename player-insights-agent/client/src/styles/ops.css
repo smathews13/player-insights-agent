@@ -1812,15 +1812,58 @@ a.ops-bar-count:hover {
   height: 32px;
   box-sizing: border-box;
   align-items: center;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background-color 120ms ease;
 }
 
-.ops-latency-trend-filter[aria-pressed='false'] {
-  opacity: 0.55;
+.ops-latency-trend-filter.ast-pill--pos[aria-pressed='false'] {
+  color: color-mix(in srgb, var(--ast-pos-text) 78%, var(--ast-text));
+  border-color: color-mix(in srgb, var(--ast-pos-border) 62%, var(--ast-border-input));
+  background: color-mix(in srgb, var(--ast-pos-fill) 72%, transparent);
+  opacity: 1;
+}
+
+.ops-latency-trend-filter.ast-pill--neg[aria-pressed='false'] {
+  color: color-mix(in srgb, var(--ast-neg-text) 78%, var(--ast-text));
+  border-color: color-mix(in srgb, var(--ast-neg-border) 62%, var(--ast-border-input));
+  background: color-mix(in srgb, var(--ast-neg-fill) 72%, transparent);
+  opacity: 1;
+}
+
+.ops-latency-trend-filter.ast-pill--pos:hover:not(:disabled),
+.ops-latency-trend-filter.ast-pill--pos:focus-visible {
+  color: var(--ast-pos-text);
+  border-color: var(--ast-pos-border);
+  background: var(--ast-pos-fill);
+}
+
+.ops-latency-trend-filter.ast-pill--neg:hover:not(:disabled),
+.ops-latency-trend-filter.ast-pill--neg:focus-visible {
+  color: var(--ast-neg-text);
+  border-color: var(--ast-neg-border);
+  background: var(--ast-neg-fill);
 }
 
 .ops-latency-trend-filter:focus-visible {
   outline: 2px solid var(--ast-blue);
   outline-offset: 2px;
+}
+
+.ops-latency-trend-filter:disabled,
+.ops-latency-trend-filter:disabled:hover {
+  cursor: not-allowed;
+  color: var(--ast-text-secondary);
+  border-color: var(--ast-border-input);
+  background: var(--ast-neutral-fill);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ops-latency-trend-filter {
+    transition-duration: 0ms;
+  }
 }
 
 .ops-latency-block .ops-block-head {

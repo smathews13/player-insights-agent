@@ -16,6 +16,8 @@ function row(overrides: Partial<GenieAccountingRow> = {}): GenieAccountingRow {
     channel: 'UI',
     offeringType: 'PAYGO',
     skuName: GENIE_FREE_SKU,
+    spaceId: '',
+    attributionMethod: 'unattributed',
     dbus: 40,
     paidUsd: 0,
     pricedRows: 0,
@@ -26,18 +28,139 @@ function row(overrides: Partial<GenieAccountingRow> = {}): GenieAccountingRow {
   };
 }
 
+const SPACES = [
+  { id: 'space-data', label: 'Data Genie', tileId: 'genie:data' },
+  { id: 'space-dictionary', label: 'Dictionary Genie', tileId: 'genie:dictionary' },
+] as const;
+
 describe('Genie billing classification', () => {
   it('uses only verified the demo workspace fields and bounds the query to one calendar month', () => {
-    const built = buildGenieAccountingStatement('workspace-redacted', {
-      from: '2026-08-26',
-      to: '2026-09-01',
-    });
+    const built = buildGenieAccountingStatement(
+      'workspace-redacted',
+      {
+        from: '2026-08-26',
+        to: '2026-09-01',
+      },
+      SPACES
+    );
     expect(built?.statement).toContain('usage_metadata.genie.surface');
     expect(built?.statement).toContain('usage_metadata.genie.channel');
     expect(built?.statement).toContain('product_features.genie.offering_type');
     expect(built?.statement).toContain('identity_metadata.run_as');
     expect(built?.statement).toContain("DATE_TRUNC('MONTH', :through_day)");
-    expect(built?.statement).not.toContain('genie_space_id');
+    expect(built?.statement).toContain('query_source.genie_space_id');
+    expect(built?.statement).toContain('GROUP BY record_id');
+    expect(built?.statement).toContain('allocation_weight');
+    expect(built?.parameters).toEqual(
+      expect.arrayContaining([
+        { name: 'genieSpace0', value: 'space-data', type: 'STRING' },
+        { name: 'genieSpace1', value: 'space-dictionary', type: 'STRING' },
+      ])
+    );
+  });
+
+  it('attributes exact and allocated rows once and keeps unmapped usage separate', () => {
+    const result = classifyGenieAccounting(
+      [
+        row({ spaceId: 'space-data', attributionMethod: 'query-history-exact', dbus: 30 }),
+        row({
+          spaceId: 'space-dictionary',
+          attributionMethod: 'query-history-allocation',
+          surface: 'GENIE_ONE',
+          dbus: 20,
+        }),
+        row({
+          spaceId: 'space-data',
+          attributionMethod: 'query-history-allocation',
+          skuName: 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_REGION',
+          dbus: 10,
+          paidUsd: 2,
+          pricedRows: 1,
+        }),
+        row({ identity: 'other@example.test', spaceId: '', attributionMethod: 'unattributed', dbus: 5 }),
+      ],
+      '2026-09-01',
+      SPACES
+    );
+    expect(result.instances).toMatchObject([
+      {
+        spaceId: 'space-data',
+        allowanceUsedDbus: 30,
+        chargedEffectiveDbus: 10,
+        paidUsd: 2,
+      },
+      {
+        spaceId: 'space-dictionary',
+        attribution: 'query-history-allocation',
+        promotionalDbus: 20,
+      },
+    ]);
+    expect(result.instances?.[0].surfaces.find((surface) => surface.surface === 'GENIE_CODE')?.allowanceUsedDbus).toBe(
+      30
+    );
+    expect(result.instances?.[1].surfaces.find((surface) => surface.surface === 'GENIE_ONE')?.promotionalDbus).toBe(20);
+    expect(result.unattributed?.allowanceUsedDbus).toBe(5);
+    expect(result.reconciliation).toMatchObject({
+      sourceDbus: 65,
+      attributedDbus: 60,
+      unattributedDbus: 5,
+    });
+    expect(result.reconciliation?.attributedShare).toBeCloseTo(60 / 65);
+  });
+
+  it('caps each human once across spaces and distributes contributions proportionally', () => {
+    const result = classifyGenieAccounting(
+      [
+        row({ spaceId: 'space-data', attributionMethod: 'query-history-exact', dbus: 100 }),
+        row({ spaceId: 'space-dictionary', attributionMethod: 'query-history-allocation', dbus: 100 }),
+        row({
+          identity: 'second@example.test',
+          spaceId: 'space-dictionary',
+          attributionMethod: 'query-history-exact',
+          dbus: 40,
+        }),
+      ],
+      '2026-09-01',
+      SPACES
+    );
+    expect(result.allowanceUsedDbus).toBe(190);
+    expect(result.allowanceRemainingDbus).toBe(110);
+    expect(result.instances?.map((instance) => instance.allowanceUsedDbus)).toEqual([75, 115]);
+    expect(result.users[0].allowanceRemainingDbus + result.users[1].allowanceRemainingDbus).toBe(110);
+  });
+
+  it('supports one configured space and keeps no-space rows unattributed', () => {
+    const one = classifyGenieAccounting(
+      [row({ spaceId: 'space-data', attributionMethod: 'query-history-exact', dbus: 10 })],
+      '2026-09-01',
+      [SPACES[0]]
+    );
+    expect(one.instances).toHaveLength(1);
+    expect(one.instances?.[0]).toMatchObject({ spaceId: 'space-data', allowanceUsedDbus: 10 });
+    expect(one.unattributed).toBeNull();
+
+    const none = classifyGenieAccounting([row({ dbus: 10 })], '2026-09-01', []);
+    expect(none.instances).toEqual([]);
+    expect(none.unattributed?.allowanceUsedDbus).toBe(10);
+    expect(none.reconciliation?.attributedShare).toBe(0);
+  });
+
+  it('does not duplicate usage when two configured roles point to one physical space', () => {
+    const result = classifyGenieAccounting(
+      [row({ spaceId: 'shared-space', attributionMethod: 'query-history-exact', dbus: 20 })],
+      '2026-09-01',
+      [
+        { ...SPACES[0], id: 'shared-space' },
+        { ...SPACES[1], id: 'shared-space' },
+      ]
+    );
+    expect(result.instances).toHaveLength(1);
+    expect(result.instances?.[0]).toMatchObject({
+      spaceId: 'shared-space',
+      label: 'Data Genie / Dictionary Genie',
+      allowanceUsedDbus: 20,
+    });
+    expect(result.allowanceUsedDbus).toBe(20);
   });
 
   it('separates human allowance, promotional surfaces, and charged paid usage during promotion', () => {

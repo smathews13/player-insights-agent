@@ -91,6 +91,7 @@ import { seedRoles } from '../lib/admin-roles';
 import { effectiveRole, everyKnownUser, readRosterForRequest } from '../lib/user-roster';
 import { isRole, type Role } from '../../shared/user-roster-contract';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
+import { MAX_PERSONA_FILTER_LENGTH } from '../../shared/conversation-filters';
 import { attributableCostBudgets } from '../../shared/cost-budgets';
 import {
   createWorkspaceQueryHistoryTransport,
@@ -105,6 +106,7 @@ import {
   readGenieAccountingRows,
 } from '../lib/genie-accounting';
 import { readRuntimeSettings } from '../lib/runtime-settings-store';
+import { listSpAssignments, listSpPersonas } from '../lib/sp-identity-store';
 import {
   LEGACY_TRAFFIC_BREAKDOWNS_QUERY,
   RAW_TRAFFIC_BREAKDOWNS_QUERY,
@@ -1286,6 +1288,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       const userUnit: CostBudgetUnit = requestedUnit === 'DBU' ? 'DBU' : 'USD';
       const requestedRole = queryText(req, 'role');
       const userRole: Role | '' = isRole(requestedRole) ? requestedRole : '';
+      const requestedPersona = queryText(req, 'persona').trim();
+      const userPersona = requestedPersona === 'none' ? '' : requestedPersona.slice(0, MAX_PERSONA_FILTER_LENGTH);
       const userMonitoringCacheKey = [
         userEmail(req),
         range.from,
@@ -1293,6 +1297,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         userUnit,
         queryText(req, 'userSearch').toLowerCase(),
         userRole,
+        userPersona,
         queryText(req, 'userCursor'),
         queryText(req, 'pageSize'),
         userSpendDataRevision(),
@@ -1331,41 +1336,52 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         readReport: deps.readOrchestratorReport,
       });
       const ids = resolved.ids;
-      const [storedBudgets, resourceActivity, userRunsRead, userActivityRead, rosterRead] = await Promise.all([
-        readCostBudgets(appkit),
-        resourceActivityAttribution(appkit, ids, range),
-        appkit.lakebase
-          .query(USER_SPEND_RUNS_QUERY, [spendWindow.range.from, spendWindow.range.to])
-          .then((result) => ({ available: true as const, users: readUserRunSpendEvidence(result.rows), reason: '' }))
-          .catch((error: Error) => ({
-            available: false as const,
-            users: [],
-            reason: `Run identity evidence could not be read: ${error.message}`,
-          })),
-        appkit.lakebase
-          .query(USER_ACTIVE_MINUTES_QUERY, [spendWindow.range.from, spendWindow.range.to])
-          .then((result) => ({
-            available: true as const,
-            ...readUserActivitySpendEvidence(result.rows),
-            reason: '',
-          }))
-          .catch((error: Error) => ({
-            available: false as const,
-            users: [],
-            recordedFrom: '',
-            recordedThrough: '',
-            reason: `Per-user active-minute evidence could not be read: ${error.message}`,
-          })),
-        userBrowse
-          ? readRosterForRequest(appkit.lakebase, req)
-              .then((roster) => ({ available: true as const, rows: roster.rows, reason: '' }))
-              .catch((error: Error) => ({
-                available: false as const,
-                rows: [],
-                reason: `Current app roles could not be read: ${error.message}`,
-              }))
-          : Promise.resolve({ available: true as const, rows: [], reason: '' }),
-      ]);
+      const [storedBudgets, resourceActivity, userRunsRead, userActivityRead, rosterRead, personaRead] =
+        await Promise.all([
+          readCostBudgets(appkit),
+          resourceActivityAttribution(appkit, ids, range),
+          appkit.lakebase
+            .query(USER_SPEND_RUNS_QUERY, [spendWindow.range.from, spendWindow.range.to])
+            .then((result) => ({ available: true as const, users: readUserRunSpendEvidence(result.rows), reason: '' }))
+            .catch((error: Error) => ({
+              available: false as const,
+              users: [],
+              reason: `Run identity evidence could not be read: ${error.message}`,
+            })),
+          appkit.lakebase
+            .query(USER_ACTIVE_MINUTES_QUERY, [spendWindow.range.from, spendWindow.range.to])
+            .then((result) => ({
+              available: true as const,
+              ...readUserActivitySpendEvidence(result.rows),
+              reason: '',
+            }))
+            .catch((error: Error) => ({
+              available: false as const,
+              users: [],
+              recordedFrom: '',
+              recordedThrough: '',
+              reason: `Per-user active-minute evidence could not be read: ${error.message}`,
+            })),
+          userBrowse
+            ? readRosterForRequest(appkit.lakebase, req)
+                .then((roster) => ({ available: true as const, rows: roster.rows, reason: '' }))
+                .catch((error: Error) => ({
+                  available: false as const,
+                  rows: [],
+                  reason: `Current app roles could not be read: ${error.message}`,
+                }))
+            : Promise.resolve({ available: true as const, rows: [], reason: '' }),
+          userBrowse
+            ? Promise.all([listSpPersonas(appkit), listSpAssignments(appkit)])
+                .then(([personas, assignments]) => ({ available: true as const, personas, assignments, reason: '' }))
+                .catch((error: Error) => ({
+                  available: false as const,
+                  personas: [],
+                  assignments: [],
+                  reason: `Current persona assignments could not be read: ${error.message}`,
+                }))
+            : Promise.resolve({ available: true as const, personas: [], assignments: [], reason: '' }),
+        ]);
       const costBudgets = attributableCostBudgets(storedBudgets.budgets);
       const empty = {
         grant: null,
@@ -1375,6 +1391,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         range,
         billingLagDays: null,
         readAt,
+        genieAccounting: null,
+        genieInstances: [],
         perQuestion: {
           runs: [],
           runsInRange: 0,
@@ -1395,16 +1413,33 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         for (const email of spend.users.map((profile) => profile.email)) {
           if (!roles.has(email)) roles.set(email, effectiveRole({ seed, stored: rosterRead.rows, email }));
         }
+        const personaOptions = personaRead.personas.map((persona) => ({ id: persona.id, name: persona.displayName }));
+        const personaNames = new Map(personaOptions.map((persona) => [persona.id, persona.name]));
+        const personas = new Map(
+          personaRead.assignments.flatMap((assignment) => {
+            const name = personaNames.get(assignment.personaId);
+            return name ? [[assignment.email.toLowerCase(), { id: assignment.personaId, name }] as const] : [];
+          })
+        );
+        const personaReason = personaRead.available ? '' : personaRead.reason;
         return buildUserMonitoringPage({
-          spend: rosterRead.available
-            ? spend
-            : { ...spend, state: 'partial', reason: [spend.reason, rosterRead.reason].filter(Boolean).join(' ') },
+          spend:
+            rosterRead.available && personaRead.available
+              ? spend
+              : {
+                  ...spend,
+                  state: 'partial',
+                  reason: [spend.reason, rosterRead.reason, personaReason].filter(Boolean).join(' '),
+                },
           runs: userRunsRead.users,
           activity: userActivityRead.users,
           roles,
+          personas,
+          personaOptions,
           unit: userUnit,
           search: queryText(req, 'userSearch'),
           role: userRole,
+          persona: userPersona,
           cursor: queryText(req, 'userCursor'),
           pageSize: Number(queryText(req, 'pageSize')) || undefined,
         });
@@ -1454,7 +1489,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       }
 
       try {
-        const genieStatement = buildGenieAccountingStatement(ids.workspaceId, range);
+        const genieStatement = buildGenieAccountingStatement(ids.workspaceId, range, ids.genieSpaces);
         const [outcome, queryAttribution, genieOutcome] = await Promise.all([
           runStatement({
             host: workspace,
@@ -1486,11 +1521,12 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         const genieRows = genieOutcome.ok
           ? readGenieAccountingRows(genieOutcome.rows as readonly Record<string, unknown>[])
           : [];
-        const genieMonth = genieOutcome.ok ? classifyGenieAccounting(genieRows, range.to) : null;
+        const genieMonth = genieOutcome.ok ? classifyGenieAccounting(genieRows, range.to, ids.genieSpaces) : null;
         const geniePeriod = genieOutcome.ok
           ? classifyGenieAccounting(
               genieRows.filter((row) => row.usageDay >= range.from && row.usageDay <= range.to),
-              range.to
+              range.to,
+              ids.genieSpaces
             )
           : null;
         const genieAccounting = genieMonth && geniePeriod ? { month: genieMonth, period: geniePeriod } : null;
@@ -1519,6 +1555,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             ...empty,
             state: 'unreadable',
             tiles,
+            genieAccounting: genieMonth,
+            genieInstances: geniePeriod?.instances ?? [],
             userMonitoring: userMonitoringFor(unavailableUserSpend(tiles, 'Billing could not be read.')),
             reason: `Billing could not be read, so nothing about spend was established. Databricks said: ${outcome.message}`,
           } satisfies OpsCostPayload);
@@ -1549,6 +1587,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             ...empty,
             state: 'no-rows',
             tiles,
+            genieAccounting: genieMonth,
+            genieInstances: geniePeriod?.instances ?? [],
             userMonitoring: userMonitoringFor(unavailableUserSpend(tiles, reason)),
             currency: split.meta?.currency ?? '',
             throughDay: split.meta?.lastDay || '',
@@ -1586,13 +1626,17 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               recordedThrough: userActivityRead.recordedThrough,
             },
             direct:
-              geniePeriod?.users.map((user) => ({
-                email: user.identity,
-                componentId: 'genie:charged',
-                quality: 'direct' as const,
-                usd: user.paidUsd,
-                dbu: user.chargedEffectiveDbus,
-              })) ?? [],
+              geniePeriod?.users.flatMap((user) =>
+                (user.instances ?? [])
+                  .filter((instance) => Boolean(instance.spaceId))
+                  .map((instance) => ({
+                    email: user.identity,
+                    componentId: instance.tileId,
+                    quality: 'direct' as const,
+                    usd: instance.paidUsd,
+                    dbu: instance.chargedEffectiveDbus,
+                  }))
+              ) ?? [],
             partialReason: [
               spendWindow.partial
                 ? 'Individual spend is limited to the most recent 90 complete days because raw user telemetry is retained for 90 days.'
@@ -1658,6 +1702,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           throughDay: split.meta?.lastDay || '',
           billingLagDays: lagDays(range.to, split.meta?.lastDay || ''),
           tiles,
+          genieAccounting: genieMonth,
+          genieInstances: geniePeriod?.instances ?? [],
           perQuestion,
           spendByUser: selectedSpendByUser,
           userMonitoring,

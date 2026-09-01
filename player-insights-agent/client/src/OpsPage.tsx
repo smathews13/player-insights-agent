@@ -711,15 +711,17 @@ export function CostBody({
 }
 
 function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
-  if (tile.genieAccounting) {
-    const genie = tile.genieAccounting;
+  if (tile.genieInstanceAccounting) {
+    const genie = tile.genieInstanceAccounting;
     return (
-      <dl className="ops-genie-accounting" aria-label="Genie month-to-date accounting">
+      <dl className="ops-genie-accounting" aria-label={`${tile.label} month-to-date accounting`}>
         <div>
-          <dt>Allowance</dt>
-          <dd className="ast-num">
-            {genie.allowanceUsedDbus.toFixed(2)} used · {genie.allowanceRemainingDbus.toFixed(2)} remaining
-          </dd>
+          <dt>Charged · selected period</dt>
+          <dd className="ast-num">{tile.dbus == null ? 'Unavailable' : `${tile.dbus.toFixed(2)} effective DBU`}</dd>
+        </div>
+        <div>
+          <dt>Allowance used</dt>
+          <dd className="ast-num">{genie.allowanceUsedDbus.toFixed(2)} DBU</dd>
         </div>
         <div>
           <dt>Promotional</dt>
@@ -1146,6 +1148,7 @@ export function LatencyBody({
                   className={astPill('pos', 'ops-pill ops-latency-trend-filter')}
                   aria-pressed={showWithin}
                   aria-label="Show routes within baseline"
+                  disabled={block.busy}
                   onClick={() => setShowWithin((on) => !on)}
                 >
                   Within baseline
@@ -1155,6 +1158,7 @@ export function LatencyBody({
                   className={astPill('neg', 'ops-pill ops-latency-trend-filter')}
                   aria-pressed={showOutside}
                   aria-label="Show routes outside baseline"
+                  disabled={block.busy}
                   onClick={() => setShowOutside((on) => !on)}
                 >
                   Outside baseline

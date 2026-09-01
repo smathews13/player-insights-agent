@@ -14,8 +14,11 @@
     margin-left: 0;
     flex: 1 1 100%;
   }
-  .monitoring-user-browser-trigger {
-    margin-left: auto;
+  .monitoring-filter-actions {
+    flex: 1 1 410px;
+  }
+  .monitoring-filter-actions .monitoring-search {
+    flex: 1 1 180px;
   }
 }
 
@@ -88,10 +91,18 @@
   .monitoring-spend-components .monitoring-spend-columns {
     display: none;
   }
-  .monitoring-spend-component-amount {
+  .monitoring-spend-component-name {
     grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .monitoring-spend-component-amount {
+    grid-column: 1;
     grid-row: 2;
     text-align: left;
+  }
+  .monitoring-spend-component-attribution {
+    grid-column: 2;
+    grid-row: 2;
   }
   .monitoring-users-columns {
     display: none;
@@ -102,9 +113,10 @@
     padding: 12px;
   }
   .monitoring-user-identity {
-    grid-column: 1 / -1;
+    grid-column: 1;
+    grid-row: 1;
   }
-  .monitoring-user-row > span:not(.monitoring-user-identity):not(.monitoring-user-coverage) {
+  .monitoring-user-row > span:not(.monitoring-user-identity):not(.monitoring-user-open) {
     display: flex;
     justify-content: space-between;
     gap: 12px;
@@ -113,8 +125,9 @@
   .monitoring-user-amount {
     text-align: left;
   }
-  .monitoring-user-coverage {
-    grid-column: 1 / -1;
+  .monitoring-user-open {
+    grid-column: 2;
+    grid-row: 1;
   }
   .monitoring-users-mobile-label {
     display: inline;
@@ -142,6 +155,18 @@
   .monitoring-user-browser-trigger {
     width: 100%;
     justify-content: center;
+  }
+  .monitoring-filter-actions {
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .monitoring-filter-actions .monitoring-search {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex-basis: auto;
   }
   .monitoring-users-toolbar > * {
     width: 100%;

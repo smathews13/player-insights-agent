@@ -677,7 +677,9 @@ export function Layout() {
             same render. The role travels the same way and for the same reason:
             a page that fetched it again could disagree with the header about
             which set of tabs the reader is entitled to. */}
-          <RouteTransitionOutlet context={{ features, setFeature, role } satisfies AppOutletContext} />
+          <RouteTransitionOutlet
+            context={{ features, setFeature, role, subject: identity.signedInAs } satisfies AppOutletContext}
+          />
         </main>
         {/* THE ROLE IS HANDED DOWN RATHER THAN READ FROM THE OUTLET HERE. This is
           a sibling of `<Outlet />`, not a descendant of it, so the outlet

@@ -450,9 +450,9 @@ describe('missing and excluded baselines', () => {
       throughDay: '2027-01-30',
       tiles: [
         {
-          id: 'genie:charged',
-          label: 'Genie charged usage',
-          resourceId: '',
+          id: 'genie:data',
+          label: 'Data Genie',
+          resourceId: 'space-data',
           quality: 'real',
           amount: 7,
           dbus: 7,
@@ -463,6 +463,20 @@ describe('missing and excluded baselines', () => {
           remedy: '',
           note: '',
         },
+        {
+          id: 'genie:dictionary',
+          label: 'Dictionary Genie',
+          resourceId: 'space-dictionary',
+          quality: 'estimate',
+          amount: 14,
+          dbus: 14,
+          basis: 'total-in-range',
+          population: 'This Genie space',
+          attribution: 'deployment',
+          unavailable: '',
+          remedy: '',
+          note: 'Allocated',
+        },
       ],
     });
     const result = calculateForecast(
@@ -471,8 +485,9 @@ describe('missing and excluded baselines', () => {
     );
     const next7 = result.horizons[0];
     expect(next7.days).toBe(7);
-    expect(next7.components.find((item) => item.id === 'genie:charged')?.amount).toBeCloseTo(5.5);
-    expect(next7.total).toBeCloseTo(5.5);
+    expect(next7.components.find((item) => item.id === 'genie:data')?.amount).toBeCloseTo(5.5);
+    expect(next7.components.find((item) => item.id === 'genie:dictionary')?.amount).toBeCloseTo(11);
+    expect(next7.total).toBeCloseTo(16.5);
   });
 });
 

@@ -111,7 +111,7 @@ function unavailableStatus(detail: string): AppBudgetStatus {
     level: 'unavailable/partial',
     coverage: 'unavailable',
     code: 'APP_BUDGET_STATUS_UNAVAILABLE',
-    detail: `Budget status unavailable: ${detail} New questions remain available.`,
+    detail: `Budget status unavailable: ${detail}`,
   });
 }
 
