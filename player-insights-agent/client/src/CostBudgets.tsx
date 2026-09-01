@@ -35,8 +35,17 @@ import {
 import { NumberTicker, TickerAssumptionField, TickerAssumptionGrid, tickerNumber } from './NumberTicker';
 import { totalBudgetView } from './ops-view';
 import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad, type SettingsSaveState } from './settings-save-state';
-import { Button } from './ui';
+import { Badge, Button, Progress } from './ui';
 import { ConceptFlicker } from './ConceptFlicker';
+import { ADVISORY_RESOURCE_BUDGET_ENFORCEMENT } from '../../shared/ai-gateway-contract';
+import {
+  approveContinuedUsage,
+  refreshAppBudgetStatus,
+  revokeContinuedUsage,
+  useAppBudgetStatus,
+} from './app-budget-status';
+import { useIdentity } from './app-state';
+import type { AppBudgetStatus } from '../../shared/app-budget-guard';
 
 export type BudgetSaveGroup = 'total' | 'resources';
 
@@ -175,6 +184,7 @@ export function CostBudgetProvider({
           }
           const changed = mergeBudgetGroup(current.budgets, submitted, group, tileIds);
           const saved = await saveCostBudgets(changed);
+          if (group === 'total') refreshAppBudgetStatus();
           setLoaded(saved);
           setDraft((latest) => {
             if (!latest) return null;
@@ -233,6 +243,8 @@ export function CostBudgetProvider({
 
 export function CostTotalBudget() {
   const api = useCostBudgets();
+  const identity = useIdentity();
+  const budgetStatus = useAppBudgetStatus();
   const state = api.stateFor('total');
   const observed = {
     USD: monthlyAppBudgetBaseline(api.payload, 'USD'),
@@ -277,6 +289,79 @@ export function CostTotalBudget() {
           </>
         }
       />
+      {budgetStatus ? (
+        <BudgetGuardStatus status={budgetStatus} admin={identity.role === 'admin' || identity.role === 'super_admin'} />
+      ) : null}
+    </div>
+  );
+}
+
+export function BudgetGuardStatus({ status, admin }: { status: AppBudgetStatus; admin: boolean }) {
+  const [busy, setBusy] = useState<'approve' | 'revoke' | null>(null);
+  const [failure, setFailure] = useState('');
+  const action = async (kind: 'approve' | 'revoke') => {
+    setBusy(kind);
+    setFailure('');
+    try {
+      if (kind === 'approve') await approveContinuedUsage(status);
+      else await revokeContinuedUsage(status);
+    } catch (error) {
+      setFailure((error as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const label =
+    status.level === 'warning'
+      ? '80% warning'
+      : status.level === 'approval-required'
+        ? 'Approval required'
+        : status.level === 'approved-overage'
+          ? 'Over budget · Admin approved'
+          : status.level === 'unavailable/partial'
+            ? 'Budget status unavailable/partial'
+            : '';
+  if (status.level === 'unset') return null;
+  return (
+    <div className="ops-app-budget-guard" data-budget-level={status.level}>
+      <div className="ops-cost-summary-head">
+        <Badge variant="outline">{label || 'Within budget'}</Badge>
+        {status.percent !== null ? <span className="ast-num">{status.percent.toFixed(2)}%</span> : null}
+      </div>
+      {status.percent !== null ? (
+        <Progress
+          value={Math.min(100, status.percent)}
+          aria-label={`${status.percent.toFixed(2)}% of monthly app budget`}
+        />
+      ) : null}
+      {status.approval ? (
+        <p>
+          {status.approval.approvedBy} approved continued usage through {status.approval.through} (UTC).
+        </p>
+      ) : status.detail ? (
+        <p>{status.detail}</p>
+      ) : null}
+      {admin && status.level === 'approval-required' ? (
+        <Button type="button" size="sm" disabled={busy !== null} onClick={() => void action('approve')}>
+          {busy === 'approve' ? 'Approving…' : 'Approve continued usage'}
+        </Button>
+      ) : null}
+      {admin && status.level === 'approved-overage' ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={busy !== null}
+          onClick={() => void action('revoke')}
+        >
+          {busy === 'revoke' ? 'Revoking…' : 'Revoke approval'}
+        </Button>
+      ) : null}
+      {failure ? (
+        <p className="ops-budget-save-error" role="alert">
+          {failure}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -306,6 +391,9 @@ export function CostResourceBudgets({ tiles }: { tiles: readonly CostTile[] }) {
     <section className="ops-cost-resource-budgets" aria-labelledby="ops-resource-budgets-heading">
       <div className="ops-cost-summary-head">
         <span id="ops-resource-budgets-heading">Resource budgets</span>
+        <span className={astPill('neutral-outline', 'ops-pill')} title={ADVISORY_RESOURCE_BUDGET_ENFORCEMENT.detail}>
+          Advisory
+        </span>
       </div>
       <TickerAssumptionGrid columns={tiles.length} labelledBy="ops-resource-budgets-heading" framed={false}>
         {tiles.map((tile) => (

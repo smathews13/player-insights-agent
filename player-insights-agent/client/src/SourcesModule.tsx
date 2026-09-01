@@ -78,6 +78,7 @@ export function SourcesModule({
   sources,
   caveats,
   derivation = [],
+  sql = '',
   hideWorkspaceLinks = [],
 }: {
   sources: readonly SourceRef[];
@@ -89,6 +90,8 @@ export function SourcesModule({
    * Explorer has no banner to lift one into and passes everything.
    */
   caveats: readonly string[];
+  /** Generated statement, used only to keep validation copy evidence-aware. */
+  sql?: string;
   /**
    * What each statement measured, over what window, with what filter.
    *
@@ -202,7 +205,7 @@ export function SourcesModule({
   return (
     <>
       {provenance}
-      <KeepInMind caveats={caveats} sources={rows} />
+      <KeepInMind caveats={caveats} sources={rows} sql={sql} />
     </>
   );
 }

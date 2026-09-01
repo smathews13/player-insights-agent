@@ -55,6 +55,20 @@ describe('apply-declaration', () => {
     ).toEqual({ warehouse_id: 'wh-x' });
   });
 
+  it('keeps Direct as an explicit empty Gateway route paired with its model', () => {
+    const intended = intendedFromResources([
+      { resource: { agentKey: 'llm_gateway' }, intended: '' },
+      { resource: { agentKey: 'llm_endpoint' }, intended: 'databricks-gpt-5' },
+    ]);
+    expect(intended).toEqual({ llm_gateway: '', llm_endpoint: 'databricks-gpt-5' });
+    const plan = resolveApplyPlan({ intended, target: 'customer' });
+    expect(plan.knobs.find((knob) => knob.key === 'llm_gateway')).toMatchObject({
+      value: '',
+      source: 'intended',
+    });
+    expect(plan.notes.join(' ')).toMatch(/Direct.*databricks-gpt-5.*revalidates/);
+  });
+
   it('lists the same applyable keys the Python resolver exports', () => {
     for (const key of APPLYABLE_KEYS) {
       expect(PYTHON, `${key} missing from apply_from_declaration.py`).toContain(`"${key}"`);

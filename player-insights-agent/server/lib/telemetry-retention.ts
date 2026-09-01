@@ -1,5 +1,10 @@
 import { appTable } from '../../shared/app-schema';
-import { ROLLUP_TRAFFIC_DAY_QUERY, TRAFFIC_DAILY_ROLLUP_DDL, TRAFFIC_DAILY_ROLLUP_TABLE } from './ops-traffic';
+import {
+  ROLLUP_TRAFFIC_DAY_QUERY,
+  TRAFFIC_DAILY_ROLLUP_DDL,
+  TRAFFIC_DAILY_ROLLUP_TABLE,
+  TRAFFIC_EVIDENCE_VERSION,
+} from './ops-traffic';
 
 /** Raw telemetry remains queryable for exactly this moving window. */
 export const RAW_TELEMETRY_RETENTION_DAYS = 90;
@@ -94,6 +99,13 @@ export const TELEMETRY_ROLLUP_MIGRATION_DDL: readonly string[] = [
 
 /** Forward-only extension for Traffic evidence omitted by the original rollup. */
 export const TRAFFIC_ROLLUP_MIGRATION_DDL: readonly string[] = [TRAFFIC_DAILY_ROLLUP_DDL];
+/** Marks old rollups stale so housekeeping safely re-derives them from raw evidence. */
+export const TRAFFIC_EVIDENCE_V2_MIGRATION_DDL: readonly string[] = [
+  `ALTER TABLE ${TRAFFIC_DAILY_ROLLUP_TABLE}
+     ADD COLUMN IF NOT EXISTS outcome_covered_count INTEGER NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS tool_covered_count INTEGER NOT NULL DEFAULT 0,
+     ADD COLUMN IF NOT EXISTS evidence_version INTEGER NOT NULL DEFAULT 1`,
+];
 
 /** Stable two-key PostgreSQL advisory lock namespace for telemetry retention. */
 export const TELEMETRY_ADVISORY_LOCK_KEYS = [0x504941, 0x54454c] as const;
@@ -130,7 +142,9 @@ SELECT calendar.day
 FROM calendar
 LEFT JOIN ${TELEMETRY_ROLLUP_DAYS_TABLE} rolled USING (day)
 LEFT JOIN ${TRAFFIC_DAILY_ROLLUP_TABLE} traffic USING (day)
-WHERE rolled.day IS NULL OR traffic.day IS NULL
+WHERE rolled.day IS NULL
+   OR traffic.day IS NULL
+   OR traffic.evidence_version < ${TRAFFIC_EVIDENCE_VERSION}
 ORDER BY calendar.day
 LIMIT $1`;
 

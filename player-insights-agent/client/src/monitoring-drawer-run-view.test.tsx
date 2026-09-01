@@ -258,11 +258,11 @@ describe("the modal draws one run view, the card's own", () => {
     expect(occurrences(rendered, 'Advanced trace details')).toBe(1);
   });
 
-  it('says so plainly, once, when the run recorded no steps at all', () => {
+  it('does not add process-omission copy when the timeline is empty', () => {
     const empty = { ...trace, id: 'tr-2', totalMs: 0, toolCalls: 0, stages: [] };
     const bare = text(drawer({ trace: empty, answer: answerWith(empty) }));
 
-    expect(occurrences(bare, 'No steps recorded.')).toBe(1);
+    expect(bare).not.toContain('No steps recorded.');
   });
 });
 

@@ -17,6 +17,18 @@ export interface WarehouseQueryAttribution {
   totalExecutionMs: number;
   /** Generated SQL measured for each exact Query History Genie space id. */
   genieSpaces: Array<{ spaceId: string; queries: number; executionMs: number }>;
+  /**
+   * Internal user-level execution evidence.
+   *
+   * Populated only when Query History names the same human for both the actor
+   * and the privilege identity. Service-principal and ambiguous rows never
+   * enter this list.
+   */
+  users?: Array<{
+    email: string;
+    astrolabeExecutionMs: number;
+    genieSpaces: Array<{ spaceId: string; executionMs: number }>;
+  }>;
   /** Present on every new read; optional only for legacy injected fixtures. */
   coverage?: QueryHistoryCoverage;
 }
@@ -28,6 +40,7 @@ export const EMPTY_WAREHOUSE_QUERY_ATTRIBUTION: WarehouseQueryAttribution = {
   astrolabeExecutionMs: 0,
   totalExecutionMs: 0,
   genieSpaces: [],
+  users: [],
   coverage: {
     state: 'unavailable',
     requestedRange: null,
@@ -77,6 +90,14 @@ function genieSpaceId(row: QueryHistoryRow): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function attributableUser(row: QueryHistoryRow): string {
+  const executedBy = typeof row.user_name === 'string' ? row.user_name.trim().toLowerCase() : '';
+  const executedAs =
+    typeof row.executed_as_user_name === 'string' ? row.executed_as_user_name.trim().toLowerCase() : '';
+  if (!executedBy.includes('@') || executedBy !== executedAs) return '';
+  return executedBy;
+}
+
 class QueryHistoryDeadlineError extends Error {
   constructor() {
     super('Query History read deadline reached.');
@@ -121,8 +142,9 @@ function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
 /**
  * Read the complete Query History denominator for one warehouse and bounded range.
  *
- * The result contains counts and durations only. Query text and user identity are
- * intentionally never copied out of the provider response.
+ * The result contains counts and durations plus normalized human identity only
+ * where actor and privilege identity agree. Query text is never copied. The
+ * identity list is consumed only by the admin-guarded spend contract.
  */
 export async function readWarehouseQueryAttribution(input: {
   warehouseId: string;
@@ -180,6 +202,7 @@ export async function readWarehouseQueryAttribution(input: {
   let astrolabeExecutionMs = 0;
   let totalExecutionMs = 0;
   const genieSpaces = new Map<string, { queries: number; executionMs: number }>();
+  const users = new Map<string, { astrolabeExecutionMs: number; genieSpaces: Map<string, number> }>();
   let totalQueries = 0;
   const aggregate = (row: QueryHistoryRow): void => {
     if (row.warehouse_id !== undefined && row.warehouse_id !== warehouseId) {
@@ -212,6 +235,13 @@ export async function readWarehouseQueryAttribution(input: {
     totalExecutionMs += duration;
     if (astrolabe) astrolabeExecutionMs += duration;
     if (spaceId) genieSpaces.get(spaceId)!.executionMs += duration;
+    const user = attributableUser(row);
+    if (user) {
+      const current = users.get(user) ?? { astrolabeExecutionMs: 0, genieSpaces: new Map<string, number>() };
+      if (astrolabe) current.astrolabeExecutionMs += duration;
+      if (spaceId) current.genieSpaces.set(spaceId, (current.genieSpaces.get(spaceId) ?? 0) + duration);
+      users.set(user, current);
+    }
   };
 
   let stop = controller.signal.aborted;
@@ -312,6 +342,15 @@ export async function readWarehouseQueryAttribution(input: {
     astrolabeExecutionMs,
     totalExecutionMs,
     genieSpaces: [...genieSpaces].map(([spaceId, values]) => ({ spaceId, ...values })),
+    users: [...users]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([email, values]) => ({
+        email,
+        astrolabeExecutionMs: values.astrolabeExecutionMs,
+        genieSpaces: [...values.genieSpaces]
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([spaceId, executionMs]) => ({ spaceId, executionMs })),
+      })),
     coverage,
   };
 }

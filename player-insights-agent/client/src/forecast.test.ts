@@ -191,6 +191,22 @@ describe('forecast arithmetic', () => {
     expect(JSON.stringify(result)).not.toMatch(/buffer|contingency/i);
   });
 
+  it('carries a measured zero Vector Search baseline through every horizon', () => {
+    const base = cost();
+    const withZero = cost({
+      tiles: base.tiles.map((item) =>
+        item.id === 'vector-search' ? { ...item, amount: 0, dbus: 0, note: 'No billable usage in this period' } : item
+      ),
+    });
+    const baseline = deriveForecastBaseline(withZero, traffic());
+    const result = calculateForecast(baseline, baseline.defaults);
+    expect(baseline.fixedDailyCosts).toContainEqual({ id: 'vector-search', label: 'Vector Search', amount: 0 });
+    expect(result.components.find((item) => item.id === 'vector-search')?.dailyAmount).toBe(0);
+    expect(
+      result.horizons.map((horizon) => horizon.components.find((item) => item.id === 'vector-search')?.amount)
+    ).toEqual([0, 0, 0]);
+  });
+
   it('uses the editable token ratio for serving without changing SQL', () => {
     const baseline = deriveForecastBaseline(cost(), traffic());
     const result = calculateForecast(baseline, {

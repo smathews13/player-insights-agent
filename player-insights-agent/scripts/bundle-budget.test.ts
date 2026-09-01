@@ -92,9 +92,11 @@ describe('production bundle budget', () => {
       scripts: Record<string, string>;
     };
     expect(manifest.scripts['build:deploy']).toMatch(/bundle:deploy.*check:deploy-artifact/);
+    expect(manifest.scripts['smoke:deploy-artifact']).toBe('node scripts/smoke-deploy-artifact.mjs');
     const artifactCheck = readFileSync(new URL('./check-deploy-artifact.mjs', import.meta.url), 'utf8');
     expect(artifactCheck).toContain('inspectBundle(deployDir)');
     expect(artifactCheck).toContain('budgetFindings(budgetReport, LIMITS)');
+    expect(artifactCheck).toContain('smokeDeployArtifact(deployDir)');
 
     // bundle/ and mirror/ are publication tooling and are intentionally absent
     // from the derived public checkout. The internal suite verifies their wiring;
@@ -109,5 +111,21 @@ describe('production bundle budget', () => {
       expect(sync).toContain('check-deploy-artifact.mjs');
       expect(sync).toContain('--committed --deploy-dir');
     }
+  });
+
+  it('routes SDK roots and subpaths through one deploy vendor module', () => {
+    const bundler = readFileSync(new URL('./bundle-server.mjs', import.meta.url), 'utf8');
+
+    expect(bundler).toContain(')(?:/.*)?$');
+    expect(bundler).toContain('vendor package code was duplicated in server.mjs');
+    expect(bundler).toContain('input.includes(`node_modules/${pkg}/`)');
+    expect(bundler).toContain('path: `./${vendorFileName(pkg)}`');
+    expect(bundler).toContain("export { WorkspaceClient } from '${base}/WorkspaceClient.js'");
+    expect(bundler).toContain("export { Context } from '${base}/context/Context.js'");
+    expect(bundler).not.toContain("import * as namespace from '${pkg}'");
+    expect(bundler).toContain("chunkNames: '[name]-[hash]'");
+    expect(bundler).toContain('splitting: true');
+    expect(bundler).toContain('Dynamic require of "');
+    expect(bundler).toContain('split CommonJS helper');
   });
 });

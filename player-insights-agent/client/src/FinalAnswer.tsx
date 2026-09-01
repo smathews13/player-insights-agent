@@ -23,6 +23,7 @@ import { evidenceLinkedSourceNames } from './answer-table-origins';
 import type { Derivation } from './answer-shape';
 import type { Chart } from './AnswerCharts';
 import { AIAnalysisCaveat } from './AIAnalysisCaveat';
+import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 
 export function FinalAnswer({
   takeaway,
@@ -31,6 +32,7 @@ export function FinalAnswer({
   sources,
   caveats,
   derivation,
+  sql = '',
   truncated,
   conversationId,
   runId,
@@ -41,16 +43,18 @@ export function FinalAnswer({
   sources: { name: string; freshness: string }[];
   caveats: readonly string[];
   derivation?: readonly Derivation[];
+  sql?: string;
   truncated?: boolean | null;
   conversationId?: string | null;
   runId?: string | null;
 }) {
-  const honesty = answerHonesty({ truncated, caveats, narrative });
-  const headline = readerFacingTakeaway(takeaway, narrative);
-  const story = readerFacingNarrative(takeaway, narrative);
+  const displayed = normalizeReaderAnswer({ takeaway, narrative, sources, caveats, sql });
+  const honesty = answerHonesty({ truncated, caveats: displayed.caveats ?? [], narrative: displayed.narrative });
+  const headline = readerFacingTakeaway(displayed.takeaway ?? '', displayed.narrative ?? '');
+  const story = readerFacingNarrative(displayed.takeaway ?? '', displayed.narrative ?? '');
   const warningTexts = new Set(honesty.warnings.map((warning) => warning.text));
-  const restCaveats = caveats.filter((caveat) => !warningTexts.has(caveat.trim()));
-  const columns = mentionedIdentifiers([narrative]);
+  const restCaveats = (displayed.caveats ?? []).filter((caveat) => !warningTexts.has(caveat.trim()));
+  const columns = mentionedIdentifiers([story]);
   return (
     <Card className="final-answer" data-tone={honesty.tone}>
       <CardContent>
@@ -100,6 +104,7 @@ export function FinalAnswer({
           sources={sources}
           caveats={restCaveats}
           derivation={derivation}
+          sql={sql}
           hideWorkspaceLinks={evidenceLinkedSourceNames(story, null, charts, sources)}
         />
         {conversationId ? (

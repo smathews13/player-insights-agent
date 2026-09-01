@@ -100,7 +100,7 @@ describe('dataAccessDisclosure', () => {
     // rather than deleted: an undisclosed run as the application is the same
     // misreporting in the other direction.
     const line = dataAccessDisclosure({ mode: 'app_service_principal', verified: false });
-    expect(line).toBe('Data read as the application, not as you.');
+    expect(line).toBe('Data access scope: application Unity Catalog grants.');
     expect(line).not.toMatch(/your own/i);
   });
 

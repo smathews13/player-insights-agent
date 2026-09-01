@@ -28,6 +28,7 @@ import { mentionedIdentifiers } from './data-entities';
 import { caveatScope, emphasiseFigures } from './caveat-emphasis';
 import { rankCaveats } from './caveat-priority';
 import { caveatSurface } from './caveat-surface';
+import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 
 /**
  * One bullet, rendered whole.
@@ -46,14 +47,17 @@ import { caveatSurface } from './caveat-surface';
 function CaveatBullet({ caveat, sources }: { caveat: string; sources: readonly { name: string }[] }) {
   const scope = caveatScope(caveat, sources);
   const columns = mentionedIdentifiers([caveat]);
-  return (<li data-surface={caveatSurface(caveat)}>
+  return (
+    <li data-surface={caveatSurface(caveat)}>
       {/* The table this caveat is about, in front of the sentence rather than
           buried in it. Only where the caveat names exactly one of the answer's
           own tables; a run-level warning carries no tag. */}
       {scope && <span className="caveat-scope">{scope}</span>}
       {emphasiseFigures(caveat).map((run) =>
-        run.figure ? (<b key={run.start}>{run.text}</b>
-        ) : (<EntityText key={run.start} text={run.text} sources={sources} columns={columns} />
+        run.figure ? (
+          <b key={run.start}>{run.text}</b>
+        ) : (
+          <EntityText key={run.start} text={run.text} sources={sources} columns={columns} />
         )
       )}
     </li>
@@ -71,11 +75,14 @@ function CaveatBullet({ caveat, sources }: { caveat: string; sources: readonly {
 export function KeepInMind({
   caveats,
   sources,
+  sql = '',
   limit = 3,
 }: {
   caveats: readonly string[];
   /** The tables this answer cited, which is what may be tagged inside a caveat. */
   sources: readonly { name: string }[];
+  /** Generated statement, used only to keep validation copy evidence-aware. */
+  sql?: string;
   /**
    * How many are shown before the fold. Three is the answer-card specification
    * and both surfaces use it; the parameter exists so a test can state a smaller one
@@ -84,10 +91,12 @@ export function KeepInMind({
   limit?: number;
 }) {
   const [showAll, setShowAll] = useState(false);
-  const { top, rest } = rankCaveats(caveats, limit);
+  const displayed = normalizeReaderAnswer({ caveats, sources, sql });
+  const { top, rest } = rankCaveats(displayed.caveats ?? [], limit);
   if (top.length === 0) return null;
 
-  return (<div className="keep-in-mind">
+  return (
+    <div className="keep-in-mind">
       {/* No colon and no warning glyph. The heading is a label on the list, and
           the amber wash under it is already the whole of the alarm. */}
       <p className="keep-in-mind-heading">Keep in mind</p>
@@ -96,18 +105,13 @@ export function KeepInMind({
           continuous and the fold does not read as a second unrelated panel
           opening underneath the first. */}
       <ul className="answer-list keep-in-mind-list">
-        {top.map((caveat) => (<CaveatBullet caveat={caveat} sources={sources} key={caveat} />
+        {top.map((caveat) => (
+          <CaveatBullet caveat={caveat} sources={sources} key={caveat} />
         ))}
-        {showAll &&
-          rest.map((caveat) => (<CaveatBullet caveat={caveat} sources={sources} key={caveat} />
-          ))}
+        {showAll && rest.map((caveat) => <CaveatBullet caveat={caveat} sources={sources} key={caveat} />)}
       </ul>
-      {rest.length > 0 && (<Button
-          className="keep-in-mind-toggle"
-          onClick={() => setShowAll((open) => !open)}
-          size="sm"
-          variant="ghost"
-        >
+      {rest.length > 0 && (
+        <Button className="keep-in-mind-toggle" onClick={() => setShowAll((open) => !open)} size="sm" variant="ghost">
           {showAll ? 'show fewer' : 'show more'}
           <ChevronDown className={showAll ? 'rotate-180 transition-transform' : 'transition-transform'} />
         </Button>

@@ -204,6 +204,8 @@ describe('every authored variable reaches the deploy target', () => {
       'PLAYER_INSIGHTS_DATA_GENIE_ID',
       'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID',
       'PLAYER_INSIGHTS_LLM_ENDPOINT',
+      'PLAYER_INSIGHTS_SEMANTIC_INDEX',
+      'PLAYER_INSIGHTS_SEMANTIC_ENDPOINT',
     ]) {
       expect(envNames(authored)).toContain(name);
       const authoredValue = new RegExp(`- name: ${name}\\n\\s+value: '?([^'\\n]*)'?`).exec(authored)?.[1] ?? 'MISSING';
@@ -221,6 +223,8 @@ describe('every authored variable reaches the deploy target', () => {
         { name: 'PLAYER_INSIGHTS_DATA_GENIE_ID', value: "'space-data'" },
         { name: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID', value: "'space-dict'" },
         { name: 'PLAYER_INSIGHTS_LLM_ENDPOINT', value: "'databricks-claude-sonnet-4-6'" },
+        { name: 'PLAYER_INSIGHTS_SEMANTIC_INDEX', value: "'example_catalog.example_schema.semantic_index'" },
+        { name: 'PLAYER_INSIGHTS_SEMANTIC_ENDPOINT', value: "'semantic-endpoint'" },
       ],
     });
     expect(generated).toContain("name: PLAYER_INSIGHTS_CATALOG\n    value: 'example_catalog'");
@@ -228,6 +232,10 @@ describe('every authored variable reaches the deploy target', () => {
     expect(generated).toContain("name: PLAYER_INSIGHTS_DATA_GENIE_ID\n    value: 'space-data'");
     expect(generated).toContain("name: PLAYER_INSIGHTS_DICTIONARY_GENIE_ID\n    value: 'space-dict'");
     expect(generated).toContain("name: PLAYER_INSIGHTS_LLM_ENDPOINT\n    value: 'databricks-claude-sonnet-4-6'");
+    expect(generated).toContain(
+      "name: PLAYER_INSIGHTS_SEMANTIC_INDEX\n    value: 'example_catalog.example_schema.semantic_index'"
+    );
+    expect(generated).toContain("name: PLAYER_INSIGHTS_SEMANTIC_ENDPOINT\n    value: 'semantic-endpoint'");
     expect(generated.match(/name: PLAYER_INSIGHTS_CATALOG/g)).toHaveLength(1);
   });
 
@@ -236,6 +244,15 @@ describe('every authored variable reaches the deploy target', () => {
     expect(bundleServer).toContain("name: 'PLAYER_INSIGHTS_LLM_ENDPOINT'");
     expect(appRelease).toContain('LLM_ENDPOINT="$(bundle_var llm_endpoint)"');
     expect(appRelease).toContain('PLAYER_INSIGHTS_LLM_ENDPOINT="$LLM_ENDPOINT"');
+  });
+
+  it('carries both active Vector Search identities and rejects a one-sided release', () => {
+    expect(bundleServer).toContain('process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX');
+    expect(bundleServer).toContain('process.env.PLAYER_INSIGHTS_SEMANTIC_ENDPOINT');
+    expect(appRelease).toContain('SEMANTIC_INDEX_NAME="$(bundle_var_or_empty semantic_index_name)"');
+    expect(appRelease).toContain('PLAYER_INSIGHTS_SEMANTIC_INDEX="$SEMANTIC_INDEX_NAME"');
+    expect(appRelease).toContain('PLAYER_INSIGHTS_SEMANTIC_ENDPOINT="$SEMANTIC_INDEX_ENDPOINT"');
+    expect(appRelease).toContain('semantic_index_endpoint is set but semantic_index_name is empty');
   });
 
   it('carries no administrator address in the authored file', () => {

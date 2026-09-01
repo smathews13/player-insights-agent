@@ -32,7 +32,7 @@ import type { ConversationMessage } from './app-types';
  */
 
 const RAN_AS_READER = 'Data read under your own Unity Catalog grants.';
-const RAN_AS_APP = 'Data read as the application, not as you.';
+const RAN_AS_APP = 'Data access scope: application Unity Catalog grants.';
 /**
  * No footer line at all, which is what a run with no recorded identity gets.
  *
@@ -84,7 +84,13 @@ function liveFooterOf(reply: WireAnswer): string | null {
 }
 
 function reopened(columns: Partial<ConversationMessage>): ConversationMessage {
-  return { id: 'msg-1', role: 'assistant', content: 'Active players rose 4%.', response_json: storedAnswer(), ...columns };
+  return {
+    id: 'msg-1',
+    role: 'assistant',
+    content: 'Active players rose 4%.',
+    response_json: storedAnswer(),
+    ...columns,
+  };
 }
 
 describe('an answer reopened from the conversation rail', () => {
@@ -104,7 +110,9 @@ describe('an answer reopened from the conversation rail', () => {
       ...storedAnswer(),
       execution_identity: { mode: 'app_service_principal', verified: false },
     });
-    const reloaded = footerOf(reopened({ execution_mode: 'app_service_principal', execution_identity_verified: false }));
+    const reloaded = footerOf(
+      reopened({ execution_mode: 'app_service_principal', execution_identity_verified: false })
+    );
 
     expect(reloaded).toBe(RAN_AS_APP);
     expect(reloaded).toBe(live);
@@ -160,7 +168,10 @@ describe('an answer reopened from the conversation rail', () => {
     ['a mode with no verification flag', { execution_mode: 'signed_in_user', execution_identity_verified: null }],
     ['a verification flag with no mode', { execution_mode: null, execution_identity_verified: true }],
     ['a blank mode beside a flag', { execution_mode: '   ', execution_identity_verified: true }],
-    ['a flag the column did not hold as a boolean', { execution_mode: 'signed_in_user', execution_identity_verified: 'yes' }],
+    [
+      'a flag the column did not hold as a boolean',
+      { execution_mode: 'signed_in_user', execution_identity_verified: 'yes' },
+    ],
   ])('shows no identity line for %s rather than completing it', (_label, columns) => {
     expect(footerOf(reopened(columns))).toBe(NO_LINE);
   });

@@ -4,6 +4,7 @@ import { AnswerProse } from './DataEntityLinks';
 import { Card, CardContent } from './ui';
 import type { Answer, FeedbackEntry } from './app-types';
 import type { TraceStage } from './answer-shape';
+import { normalizeReaderText } from '../../shared/answer-content-policy';
 
 export interface StoredAnswerRendererProps {
   answer?: Answer;
@@ -31,10 +32,11 @@ export default function StoredAnswerRenderer({
   processStages,
 }: StoredAnswerRendererProps) {
   if (!answer) {
+    const displayedContent = normalizeReaderText(rawContent, {}, 'raw');
     return (
       <Card className="answer-card">
         <CardContent className="pt-6 space-y-4">
-          <AnswerProse text={rawContent} sources={[]} />
+          <AnswerProse text={displayedContent} sources={[]} />
           <AIAnalysisCaveat className="ai-note" />
         </CardContent>
       </Card>

@@ -61,6 +61,8 @@ describe('attached document footnotes', () => {
   });
 
   it('warns when an attachment was used without a snippet', () => {
-    expect(render([])).toContain('includes no document footnotes or quoted snippets');
+    expect(render([])).toContain(
+      'Validation: Verify document-based claims against the attached reports before using them.'
+    );
   });
 });

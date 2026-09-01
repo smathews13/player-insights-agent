@@ -533,7 +533,7 @@ export function TraceTimeline({
   const [expanded, setExpanded] = useState<string | null>(null);
 
   if (model.rows.length === 0) {
-    return <p className="trace-note">No steps recorded.</p>;
+    return null;
   }
 
   const shell = ['trace-timeline', variant === 'explorer' ? 'trace-timeline--explorer' : '', className]

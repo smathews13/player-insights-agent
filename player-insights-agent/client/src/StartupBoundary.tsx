@@ -1,8 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- startup state, policy, and blocking boundary are one contract */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ACCESS_GATE_ENABLED } from '../../shared/access-gate';
 import { AccessGate, gateIdentityFromResponse, requiresAccessDecision, type GateIdentity } from './AccessGate';
-import { AstrolabeMark } from './AstrolabeMark';
+import { ConceptFlicker } from './ConceptFlicker';
 import { useFirstOpen, type FirstOpenStage } from './FirstOpenGate';
 import {
   SessionTimedOut,
@@ -19,12 +19,14 @@ import {
   rememberResolvedIdentity,
 } from './app-state';
 import type { Identity } from './app-types';
-import { useStartupLoaderPolicy } from './startup-loader-policy';
+import { StartupReadinessProvider } from './startup-readiness';
+import { focusAfterLogin } from './motion-transitions';
 
 export type StartupPhase =
   | 'native-auth-pending'
   | 'app-session-bootstrap'
   | 'access-bootstrap'
+  | 'application-bootstrap'
   | 'access-decision'
   | 'first-open'
   | 'application-ready'
@@ -36,6 +38,7 @@ export interface StartupSnapshot {
   appSession: AppSessionState;
   identityResolved: boolean;
   accessDecisionRequired: boolean;
+  applicationReady: boolean;
   firstOpen: FirstOpenStage;
 }
 
@@ -53,12 +56,23 @@ export function startupPhase(snapshot: StartupSnapshot): StartupPhase {
   if (snapshot.appSession !== 'ready') return 'app-session-bootstrap';
   if (!snapshot.identityResolved) return 'access-bootstrap';
   if (snapshot.accessDecisionRequired) return 'access-decision';
+  if (!snapshot.applicationReady) return 'application-bootstrap';
   if (snapshot.firstOpen !== 'open') return 'first-open';
   return 'application-ready';
 }
 
 export function startupIsPending(phase: StartupPhase): boolean {
-  return phase === 'native-auth-pending' || phase === 'app-session-bootstrap' || phase === 'access-bootstrap';
+  return (
+    phase === 'native-auth-pending' ||
+    phase === 'app-session-bootstrap' ||
+    phase === 'access-bootstrap' ||
+    phase === 'application-bootstrap'
+  );
+}
+
+/** Protected route code may mount only after session and identity authorization. */
+export function startupCanMountApplication(snapshot: StartupSnapshot): boolean {
+  return snapshot.appSession === 'ready' && snapshot.identityResolved && !snapshot.accessDecisionRequired;
 }
 
 export type StartupSurfaceOwner =
@@ -69,8 +83,8 @@ export type StartupSurfaceOwner =
   | 'first-open-modal'
   | 'application';
 
-export function startupSurfaceOwner(phase: StartupPhase, loaderVisible: boolean): StartupSurfaceOwner {
-  if (startupIsPending(phase) || loaderVisible) return 'loader';
+export function startupSurfaceOwner(phase: StartupPhase): StartupSurfaceOwner {
+  if (startupIsPending(phase)) return 'loader';
   if (phase === 'timed-out') return 'session-timeout';
   if (phase === 'unavailable') return 'session-error';
   if (phase === 'access-decision') return 'access-modal';
@@ -80,30 +94,32 @@ export function startupSurfaceOwner(phase: StartupPhase, loaderVisible: boolean)
 
 const resolvingIdentity: Identity = {
   signedInAs: 'Resolving signed-in user…',
-  executionIdentity: 'Astrolabe service principal',
   executionMode: 'service-principal',
 };
 
-export function StartupLoadingSurface({ visible, phase }: { visible: boolean; phase: StartupPhase }) {
-  const label = phase === 'access-bootstrap' ? 'Verifying access' : 'Starting secure app session';
+export function StartupLoadingSurface({ phase }: { phase: StartupPhase }) {
+  const label =
+    phase === 'access-bootstrap'
+      ? 'Checking access'
+      : phase === 'application-bootstrap'
+        ? 'Preparing Ask'
+        : 'Starting secure app session';
   return (
     <main
-      className={`startup-surface${visible ? ' is-visible' : ''}`}
+      className="startup-surface"
       data-startup-phase={phase}
+      data-startup-loader="astrolabe-primary"
       aria-busy="true"
       aria-label={label}
     >
       <p className="sr-only" role="status" aria-live="polite">
         {label}
       </p>
-      {visible ? (
-        <div className="startup-loader" aria-hidden="true">
-          <span data-startup-symbol>
-            <AstrolabeMark size={64} ink="dark" />
-          </span>
-          <span>{label}</span>
-        </div>
-      ) : null}
+      <div className="startup-loader" aria-hidden="true">
+        <ConceptFlicker seat="splash" />
+        <strong>astrolabe</strong>
+        <span>{label}</span>
+      </div>
     </main>
   );
 }
@@ -113,7 +129,19 @@ export function StartupBoundary({ children }: { children: ReactNode }) {
   const [identity, setIdentity] = useState<Identity>(resolvingIdentity);
   const [identityResolved, setIdentityResolved] = useState(false);
   const [gateIdentity, setGateIdentity] = useState<GateIdentity | null>(null);
-  const firstOpen = useFirstOpen(identity);
+  const [applicationReady, setApplicationReady] = useState(false);
+  const focusTarget = useRef<(() => void) | null>(null);
+  const focusedAfterLogin = useRef(false);
+  const readiness = useMemo(
+    () => ({
+      markReady: () => setApplicationReady(true),
+      registerFocusTarget: (target: (() => void) | null) => {
+        focusTarget.current = target;
+      },
+    }),
+    []
+  );
+  const firstOpen = useFirstOpen(identity, applicationReady);
 
   useEffect(() => {
     void bootstrapAppSession();
@@ -156,7 +184,7 @@ export function StartupBoundary({ children }: { children: ReactNode }) {
   }, [appSession]);
 
   const accessDecisionRequired = requiresAccessDecision(gateIdentity);
-  const phase = startupPhase({
+  const snapshot: StartupSnapshot = {
     // If this module is executing, the native Apps authorization redirect has
     // already returned the document. The preceding blank index shell represents
     // the external pending state without mounting a competing symbol.
@@ -164,24 +192,45 @@ export function StartupBoundary({ children }: { children: ReactNode }) {
     appSession,
     identityResolved,
     accessDecisionRequired,
+    applicationReady,
     firstOpen: firstOpen.stage,
-  });
-  const pending = startupIsPending(phase);
-  const loaderVisible = useStartupLoaderPolicy(pending);
-  const owner = startupSurfaceOwner(phase, loaderVisible);
+  };
+  const phase = startupPhase(snapshot);
+  const owner = startupSurfaceOwner(phase);
+  const applicationMounted = startupCanMountApplication(snapshot);
+  const applicationCovered = !applicationReady || firstOpen.stage !== 'open';
+  const applicationEntering = firstOpen.stage === 'leaving';
+  const applicationFirstReveal = applicationReady && firstOpen.stage === 'open' && !firstOpen.focusOnOpen;
+  const applicationBlockedByLoader = owner === 'loader';
 
-  // If a delayed loader has appeared, it keeps the viewport through its minimum
-  // display window. The authoritative phase above still advances immediately.
-  if (owner === 'loader') return <StartupLoadingSurface visible={loaderVisible} phase={phase} />;
+  useEffect(() => {
+    if (firstOpen.stage !== 'open' || !firstOpen.focusOnOpen || focusedAfterLogin.current) return;
+    focusedAfterLogin.current = true;
+    const frame = window.requestAnimationFrame(() => focusAfterLogin(focusTarget.current));
+    return () => window.cancelAnimationFrame(frame);
+  }, [firstOpen.focusOnOpen, firstOpen.stage]);
+
   if (owner === 'session-timeout') return <SessionTimedOut />;
   if (owner === 'session-error') return <SessionUnavailable />;
-  if (owner === 'access-modal' && ACCESS_GATE_ENABLED) {
-    return (
-      <AccessGate enabled preloadedIdentity={gateIdentity} onIdentityChange={setGateIdentity}>
-        {null}
-      </AccessGate>
-    );
-  }
-  if (owner === 'first-open-modal') return firstOpen.gate;
-  return children;
+
+  return (
+    <StartupReadinessProvider value={readiness}>
+      <div
+        className={`startup-app-shell${applicationCovered ? ' is-covered' : ''}${
+          applicationEntering ? ' is-entering' : ''
+        }${applicationFirstReveal ? ' is-first-reveal' : ''}`}
+        aria-hidden={applicationBlockedByLoader || undefined}
+        inert={applicationBlockedByLoader || undefined}
+      >
+        {applicationMounted ? children : null}
+      </div>
+      {owner === 'loader' ? <StartupLoadingSurface phase={phase} /> : null}
+      {owner === 'access-modal' && ACCESS_GATE_ENABLED ? (
+        <AccessGate enabled preloadedIdentity={gateIdentity} onIdentityChange={setGateIdentity}>
+          {null}
+        </AccessGate>
+      ) : null}
+      {owner === 'first-open-modal' ? firstOpen.gate : null}
+    </StartupReadinessProvider>
+  );
 }

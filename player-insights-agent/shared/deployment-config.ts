@@ -195,7 +195,7 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
   },
   {
     id: 'llm-gateway',
-    label: 'AI Gateway route',
+    label: 'AI Gateway',
     kind: 'model',
     changedBy: 'model-version',
     arrivesBy: 'MLflow model_config, baked by agent/log_model.py at log time.',
@@ -421,7 +421,7 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
       'to the orchestrator, so it is read back from the index, which reports the endpoint serving it.',
     bundleVariable: 'semantic_index_endpoint',
     agentKey: null,
-    appEnvVar: null,
+    appEnvVar: 'PLAYER_INSIGHTS_SEMANTIC_ENDPOINT',
     // The app's own probe, keyed by this id. Named here rather than left null so
     // an unprobed row reads `Not checked` -- `nothing-to-reach` is for a value
     // the app both resolves and applies, and this one has a real remote end.

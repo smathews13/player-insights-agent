@@ -80,7 +80,6 @@ function identity(session?: SessionReport, signedInAs = 'someone@example.com'): 
     // The deployed app, unless a test says otherwise: the development fallback is
     // the one state that is red, so it must never be the default here.
     identitySource: 'databricks-apps',
-    executionIdentity: 'Astrolabe service principal',
     executionMode: 'service-principal',
     ...(session ? { session } : {}),
   };

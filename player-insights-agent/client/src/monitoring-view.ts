@@ -489,7 +489,7 @@ export function askerGrantsLine(execution: { mode: string; verified: boolean } |
   if (!base) return null;
   const name = asker.trim();
   if (!name) return base;
-  return base.replace('your own', `${name}'s own`).replace('not as you', 'not as them');
+  return base.replace('your own', `${name}'s own`);
 }
 
 /** The local part, which is what the list shows. Full address goes on `title`. */

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { createBrowserRouter, RouterProvider, Navigate, useLocation } from 'react-router';
 import { RouteError } from './RouteError';
 import { AdminOnly } from './GatePanel';
@@ -18,6 +18,7 @@ import {
   loadOpsPage,
   loadRunExplorer,
 } from './lazy-routes';
+import { useStartupReadiness } from './startup-readiness';
 
 /**
  * The six pages that are fetched when somebody opens them, not when the app
@@ -60,7 +61,17 @@ const RunExplorer = lazy(() => loadRunExplorer().then((loaded) => ({ default: lo
  * import from being requested at all for a reader who is not an administrator.
  */
 function LazyRoute({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<RouteFallback />}>{children}</Suspense>;
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <ReadyRoute>{children}</ReadyRoute>
+    </Suspense>
+  );
+}
+
+function ReadyRoute({ children }: { children: ReactNode }) {
+  const { markReady } = useStartupReadiness();
+  useLayoutEffect(markReady, [markReady]);
+  return children;
 }
 
 // AppKit flips its palette under `@media (prefers-color-scheme: dark)` via

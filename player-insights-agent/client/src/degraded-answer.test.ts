@@ -36,14 +36,17 @@ describe('recognising a degradation', () => {
   });
 
   it('recognises the Genie refusal caveat', () => {
-    expect(isDegradationCaveat('This answer is degraded: Genie space 01ef REFUSED the agent’s serving principal, so it was ' +
+    expect(
+      isDegradationCaveat(
+        'This answer is degraded: Genie space 01ef REFUSED the agent’s serving principal, so it was ' +
           'not consulted and anything answered here came from another surface instead.'
       )
     ).toBe(true);
   });
 
   it('recognises the surface-outage caveat, which is the same class of statement', () => {
-    expect(isDegradationCaveat('This answer is degraded: the governed data Genie space did not respond during this run.')
+    expect(
+      isDegradationCaveat('This answer is degraded: the governed data Genie space did not respond during this run.')
     ).toBe(true);
   });
 
@@ -136,7 +139,8 @@ describe('deciding whether a card may be read as an answer', () => {
    * the seeded conversations a demo deployment still shows.
    */
   it('flags a stored demo response that reached the card with a reason attached', () => {
-    expect(answerFallback({
+    expect(
+      answerFallback({
         mode: 'representative',
         caveats: [
           `${DEGRADED_ANSWER_MARKER} the agent endpoint call failed (socket hang up), so every figure ` +
@@ -157,7 +161,8 @@ describe('deciding whether a card may be read as an answer', () => {
   it('separates the agent answering on fallback data from the app answering instead of it', () => {
     // Two different failures with two different owners. The agent answered
     // here, from a surface it fell back to; nobody answered in the case above.
-    expect(answerFallback({
+    expect(
+      answerFallback({
         mode: 'live',
         caveats: [`${DEGRADED_ANSWER_MARKER} the governed data Genie space did not respond.`],
       })
@@ -220,7 +225,8 @@ describe('reading the provenance the server stated', () => {
     // 'live' means the contents came from the run, not that the run went well.
     // A Genie space that refused is the agent's report about its own sources and
     // the marker says nothing about it, so it must still reach the card.
-    expect(answerFallback({
+    expect(
+      answerFallback({
         mode: 'live',
         provenance: 'live',
         caveats: [`${DEGRADED_ANSWER_MARKER} the governed data Genie space did not respond.`],
@@ -262,10 +268,11 @@ describe('an answer carrying prose and nothing else', () => {
     expect(answerFallback(proseOnly)).toBe('no-evidence');
   });
 
-  it('says what is missing instead of naming data that is not there', () => {
+  it('gives an actionable retry without narrating absent work', () => {
     const notice = ANSWER_FALLBACK_NOTICES['no-evidence'];
     expect(notice.headline).not.toContain('fallback data');
-    expect(notice.headline).toContain('no structured result');
+    expect(notice.headline).toContain('Retry the question');
+    expect(notice.headline).not.toMatch(/no steps|no structured result/i);
     expect(notice.badge).not.toBe(ANSWER_FALLBACK_NOTICES['degraded-data'].badge);
   });
 
@@ -277,21 +284,24 @@ describe('an answer carrying prose and nothing else', () => {
     expect(answerFallback({ ...proseOnly, sql: 'SELECT 1' })).toBeNull();
   });
 
-  it('names a run that took steps and still produced no result, rather than claiming nothing ran', () => {
+  it('uses the same actionable failure for an incomplete response after steps', () => {
     const withSteps = { ...proseOnly, trace: { id: '', stages: [{}, {}] } };
     expect(answerFallback(withSteps)).toBe('failed-after-steps');
     const notice = answerFallbackNotice(withSteps);
-    expect(notice?.badge).toBe('Failed after 2 steps');
-    expect(notice?.headline).toBe('The run stopped after 2 steps without a structured result.');
+    expect(notice?.badge).toBe('Answer incomplete');
+    expect(notice?.headline).toBe(
+      'The response ended before the answer was complete. Retry the question before using this result.'
+    );
     expect(notice?.tone).toBe('failed');
-    expect(notice?.headline.split('.').filter(Boolean)).toHaveLength(1);
+    expect(notice?.headline).not.toMatch(/steps|structured result/i);
   });
 
   it('keeps the older wording for a payload that states no sections at all', () => {
     // A stub, or a row from a build that predates the keys. An absent section is
     // not an empty one, and claiming otherwise would print "no figures" over a
     // card that has five.
-    expect(answerFallback({
+    expect(
+      answerFallback({
         mode: 'live',
         caveats: [`${DEGRADED_ANSWER_MARKER} the governed data Genie space did not respond.`],
       })
@@ -330,7 +340,8 @@ describe('an answer that stated no provenance', () => {
   });
 
   it('still shows a degradation it does carry', () => {
-    expect(answerFallback({
+    expect(
+      answerFallback({
         mode: 'live',
         caveats: [`${DEGRADED_ANSWER_MARKER} the governed data Genie space did not respond.`],
       })

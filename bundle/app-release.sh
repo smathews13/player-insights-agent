@@ -260,6 +260,18 @@ note "foundation model     $LLM_ENDPOINT"
 # qualify the committed data contract when catalog+schema are present.
 CATALOG="$(bundle_var app_catalog)"
 SCHEMA="$(bundle_var app_schema)"
+SEMANTIC_INDEX_ENDPOINT="$(bundle_var_or_empty semantic_index_endpoint)"
+SEMANTIC_INDEX_NAME="$(bundle_var_or_empty semantic_index_name)"
+if [[ -n "$SEMANTIC_INDEX_ENDPOINT" && -z "$SEMANTIC_INDEX_NAME" ]]; then
+  die "semantic_index_endpoint is set but semantic_index_name is empty. Cost and
+Connections need the active full index name to verify that endpoint billing
+belongs to this deployment. Set semantic_index_name to the index used by the
+served model, or clear semantic_index_endpoint for a deployment without it."
+fi
+if [[ -z "$SEMANTIC_INDEX_ENDPOINT" && -n "$SEMANTIC_INDEX_NAME" ]]; then
+  die "semantic_index_name is set but semantic_index_endpoint is empty. Set both
+active Vector Search identities or clear both."
+fi
 if [[ -n "${PLAYER_INSIGHTS_DATA_GENIE_ID:-}" ]]; then
   DATA_GENIE_ID="$PLAYER_INSIGHTS_DATA_GENIE_ID"
 else
@@ -273,6 +285,8 @@ fi
 note "data contract        $CATALOG.$SCHEMA"
 note "data genie space     $DATA_GENIE_ID"
 note "dictionary genie     $DICT_GENIE_ID"
+note "semantic index       ${SEMANTIC_INDEX_NAME:-(not configured)}"
+note "semantic endpoint    ${SEMANTIC_INDEX_ENDPOINT:-(not configured)}"
 
 # The semantic rebuild job is bundle-owned when the target declares it. Its id
 # is the billing join key; a name match would be guesswork and can collide with
@@ -454,6 +468,8 @@ step "Building the dependency-free deploy tree"
      PLAYER_INSIGHTS_LLM_ENDPOINT="$LLM_ENDPOINT" \
      PLAYER_INSIGHTS_CATALOG="$CATALOG" \
      PLAYER_INSIGHTS_SCHEMA="$SCHEMA" \
+     PLAYER_INSIGHTS_SEMANTIC_INDEX="$SEMANTIC_INDEX_NAME" \
+     PLAYER_INSIGHTS_SEMANTIC_ENDPOINT="$SEMANTIC_INDEX_ENDPOINT" \
      PLAYER_INSIGHTS_DATA_GENIE_ID="$DATA_GENIE_ID" \
      PLAYER_INSIGHTS_DICTIONARY_GENIE_ID="$DICT_GENIE_ID" \
      PLAYER_INSIGHTS_TELEMETRY_SCHEMA="$TELEMETRY_SCHEMA" \

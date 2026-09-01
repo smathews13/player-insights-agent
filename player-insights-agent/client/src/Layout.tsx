@@ -5,8 +5,8 @@
  * Split out of App.tsx so each page could become its own module. What is left in
  * App.tsx is the router, and this is the element it wraps every route in.
  */
-import { NavLink, Outlet, Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { NavLink, Link, useLocation, useNavigate, useOutlet, useSearchParams } from 'react-router';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { storageBannerNotice } from './storage-banner-copy';
 import { NO_EXPERIMENTS, type ExperimentalFeatures } from './experimental-features';
 import { loadExperimentalSettings, type ExperimentalSettingsDocument } from './experimental-settings-api';
@@ -50,8 +50,35 @@ import {
 } from './role';
 import { prefetchLazyRoute } from './lazy-routes';
 import { monitoringTabHref } from './monitoring-session';
+import { browserMotionRuns, startRouteEnter } from './motion-transitions';
+import { useStartupReadiness } from './startup-readiness';
 
 const SettingsPage = lazy(() => import('./SettingsPage').then((loaded) => ({ default: loaded.SettingsPage })));
+
+/**
+ * Animate only the route body. The wrapper never receives a key, so it cannot
+ * add a remount beyond the router's own route contract.
+ */
+export function RouteTransitionOutlet({ context }: { context: AppOutletContext }) {
+  const location = useLocation();
+  const outlet = useOutlet(context);
+  const page = useRef<HTMLDivElement>(null);
+  const previousPath = useRef(location.pathname);
+
+  useLayoutEffect(() => {
+    if (previousPath.current === location.pathname) return;
+    previousPath.current = location.pathname;
+    return startRouteEnter(page.current, browserMotionRuns());
+  }, [location.pathname]);
+
+  return (
+    <div className="route-transition-host">
+      <div ref={page} className="route-transition-page" data-route-path={location.pathname}>
+        {outlet}
+      </div>
+    </div>
+  );
+}
 
 function SettingsFallback() {
   return (
@@ -386,6 +413,7 @@ export function Layout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const location = useLocation();
+  const startupReadiness = useStartupReadiness();
   const navigate = useNavigate();
   const identity = useIdentity();
   const deployment = useDeployment();
@@ -396,6 +424,11 @@ export function Layout() {
   // layout is what is drawn: under-offering costs a reader some tabs, and
   // over-offering sends them to a page the server refuses.
   const role = roleFrom(identity);
+  useLayoutEffect(() => {
+    const adminPath =
+      location.pathname === '/monitoring' || location.pathname === '/ops' || location.pathname === '/settings';
+    if (adminPath && role.state === 'consumer') startupReadiness.markReady();
+  }, [location.pathname, role.state, startupReadiness]);
   const settingsDeepLink = location.pathname === '/settings';
   const settingsVisible = settingsOpen || settingsDeepLink;
   /**
@@ -644,7 +677,7 @@ export function Layout() {
             same render. The role travels the same way and for the same reason:
             a page that fetched it again could disagree with the header about
             which set of tabs the reader is entitled to. */}
-          <Outlet context={{ features, setFeature, role } satisfies AppOutletContext} />
+          <RouteTransitionOutlet context={{ features, setFeature, role } satisfies AppOutletContext} />
         </main>
         {/* THE ROLE IS HANDED DOWN RATHER THAN READ FROM THE OUTLET HERE. This is
           a sibling of `<Outlet />`, not a descendant of it, so the outlet

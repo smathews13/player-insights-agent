@@ -47,6 +47,20 @@ describe('cost budget placeholders', () => {
     expect(budgetPlaceholder({ USD: 8, DBU: null }, 'DBU')).toBe('');
   });
 
+  it('keeps a successful zero Vector Search read as an editable zero baseline', () => {
+    const vector = tile({
+      id: 'vector-search',
+      amount: 0,
+      dbus: 0,
+      basis: 'per-day',
+      note: 'No billable usage in this period',
+      evidence: { billingRows: 0, astrolabeQueries: null },
+    });
+    expect(resourceBudgetBaseline(vector, 'USD')).toBe(0);
+    expect(resourceBudgetBaseline(vector, 'DBU')).toBe(0);
+    expect(budgetPlaceholder({ USD: 0, DBU: 0 }, 'USD')).toBe('0');
+  });
+
   it('withholds unavailable and partial USD baselines while preserving measured DBUs', () => {
     const partial = tile({
       amount: 9,

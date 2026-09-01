@@ -131,7 +131,7 @@ export function executionSummary(execution: AnalyticalExecution | null | undefin
 export function dataAccessDisclosure(execution: AnalyticalExecution | null | undefined): string | null {
   if (!execution) return null;
   if (execution.mode === SIGNED_IN_USER) return 'Data read under your own Unity Catalog grants.';
-  if (execution.mode === APP_SERVICE_PRINCIPAL) return 'Data read as the application, not as you.';
+  if (execution.mode === APP_SERVICE_PRINCIPAL) return 'Data access scope: application Unity Catalog grants.';
   // A mode this build has no sentence for. Printing the raw word to a reader of
   // an answer would be asking them to interpret an internal identifier, and
   // guessing which of the two it resembles is how a footer comes to reassure.

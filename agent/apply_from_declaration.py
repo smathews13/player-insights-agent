@@ -114,8 +114,11 @@ def intended_from_resources(resources: list[Mapping[str, Any]] | None) -> dict[s
     for entry in resources or []:
         resource = entry.get("resource") or {}
         key = resource.get("agentKey")
+        raw_intended = entry.get("intended")
+        if raw_intended is None:
+            continue
         intended = _text(entry.get("intended"))
-        if not key or not intended:
+        if not key or (not intended and key != "llm_gateway"):
             continue
         if key not in APPLYABLE_KEYS:
             continue
@@ -138,9 +141,11 @@ def intended_from_stored(
     for row in rows:
         resource_id = _text(row.get("resource_id") or row.get("resourceId"))
         value = _text(row.get("value"))
-        if not resource_id or not value:
+        if not resource_id:
             continue
         key = RESOURCE_TO_AGENT_KEY.get(resource_id)
+        if not value and key != "llm_gateway":
+            continue
         if not key or key not in APPLYABLE_KEYS:
             continue
         # Soft/live overrides are out of scope; only staged "intended" rows.
@@ -187,7 +192,9 @@ def resolve_apply_plan(
     baseline: Mapping[str, str] | None = None,
 ) -> ApplyPlan:
     """Merge intended + notebook + baseline into exportable knobs."""
-    intended_map = {k: _text(v) for k, v in (intended or {}).items() if _text(v)}
+    intended_map = {
+        k: _text(v) for k, v in (intended or {}).items() if _text(v) or k == "llm_gateway"
+    }
     notebook_map = {k: _text(v) for k, v in (notebook or {}).items() if _text(v)}
     baseline_map = {k: _text(v) for k, v in (baseline or {}).items() if _text(v)}
 
@@ -317,7 +324,7 @@ def main(argv: list[str] | None = None) -> int:
         intended = intended_from_stored(intended_raw)
     elif isinstance(intended_raw, Mapping):
         # Bare agentKey -> value map
-        intended = {k: _text(v) for k, v in intended_raw.items() if _text(v)}
+        intended = {k: _text(v) for k, v in intended_raw.items() if _text(v) or k == "llm_gateway"}
 
     baseline: dict[str, str] = {}
     if isinstance(baseline_raw, Mapping):

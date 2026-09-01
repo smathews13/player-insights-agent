@@ -74,6 +74,17 @@ import { isDataContractFallback, listDeclarableTablesInSchema, unionTableNames }
 import { userEmail, type InsightsAppKit, type PreflightReport } from './insights-routes';
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
 import { ACTIVE_MINUTES_PER_DAY_QUERY, validIanaTimeZone } from '../lib/app-activity';
+import {
+  buildSpendByUser,
+  cachedUserSpend,
+  cacheUserSpend,
+  capUserSpendRange,
+  readUserActivitySpendEvidence,
+  readUserRunSpendEvidence,
+  USER_ACTIVE_MINUTES_QUERY,
+  USER_SPEND_RUNS_QUERY,
+  userSpendCacheKey,
+} from '../lib/user-spend';
 import { attributableCostBudgets } from '../../shared/cost-budgets';
 import {
   createWorkspaceQueryHistoryTransport,
@@ -233,24 +244,92 @@ export function forgetWorkspaceId(): void {
  * Only the index payload names it. A failure here is not a cost failure: the
  * tile can still open the index, and spend stays blank rather than guessed.
  */
-async function lookupVectorEndpoint(input: {
+export interface VectorConnectionEvidence {
+  endpoint: string;
+  endpointIndexCount: number | null;
+  reason: string;
+}
+
+/**
+ * Verify the active index, its hosting endpoint, and whether that endpoint is
+ * dedicated to the index.
+ *
+ * Billing in the demo workspace identifies `usage_metadata.endpoint_name` only. The endpoint
+ * total is therefore safe to attribute to the configured index only after both
+ * metadata GETs establish the relationship and an endpoint count of one.
+ */
+export async function lookupVectorConnection(input: {
   host: string;
   token: string;
   index: string;
+  configuredEndpoint?: string;
   fetchImpl?: typeof fetch;
-}): Promise<string> {
-  if (!input.host || !input.token || !input.index) return '';
+}): Promise<VectorConnectionEvidence> {
+  const configuredEndpoint = input.configuredEndpoint?.trim() ?? '';
+  if (!input.index) return { endpoint: configuredEndpoint, endpointIndexCount: null, reason: 'No active index name.' };
+  if (!input.host) {
+    return { endpoint: configuredEndpoint, endpointIndexCount: null, reason: 'No workspace address is configured.' };
+  }
+  if (!input.token) {
+    return {
+      endpoint: configuredEndpoint,
+      endpointIndexCount: null,
+      reason: 'No forwarded sign-in was available to verify the active Vector Search index.',
+    };
+  }
   const call = input.fetchImpl ?? fetch;
   try {
     const response = await call(`${input.host}/api/2.0/vector-search/indexes/${encodeURIComponent(input.index)}`, {
       headers: { authorization: `Bearer ${input.token}`, accept: 'application/json' },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!response.ok) return '';
+    if (!response.ok) {
+      return {
+        endpoint: configuredEndpoint,
+        endpointIndexCount: null,
+        reason: `The active Vector Search index metadata read returned HTTP ${response.status}.`,
+      };
+    }
     const body = (await response.json()) as { endpoint_name?: unknown };
-    return typeof body.endpoint_name === 'string' ? body.endpoint_name.trim() : '';
-  } catch {
-    return '';
+    const endpoint = typeof body.endpoint_name === 'string' ? body.endpoint_name.trim() : '';
+    if (!endpoint) {
+      return { endpoint: configuredEndpoint, endpointIndexCount: null, reason: 'The active index named no endpoint.' };
+    }
+    if (configuredEndpoint && configuredEndpoint !== endpoint) {
+      return {
+        endpoint,
+        endpointIndexCount: null,
+        reason: 'The released endpoint name disagrees with the endpoint reported by the active index.',
+      };
+    }
+    const endpointResponse = await call(
+      `${input.host}/api/2.0/vector-search/endpoints/${encodeURIComponent(endpoint)}`,
+      {
+        headers: { authorization: `Bearer ${input.token}`, accept: 'application/json' },
+        signal: AbortSignal.timeout(10_000),
+      }
+    );
+    if (!endpointResponse.ok) {
+      return {
+        endpoint,
+        endpointIndexCount: null,
+        reason: `The hosting Vector Search endpoint metadata read returned HTTP ${endpointResponse.status}.`,
+      };
+    }
+    const endpointBody = (await endpointResponse.json()) as { num_indexes?: unknown };
+    const parsedCount = Number(endpointBody.num_indexes);
+    const endpointIndexCount = Number.isInteger(parsedCount) && parsedCount >= 0 ? parsedCount : null;
+    return {
+      endpoint,
+      endpointIndexCount,
+      reason: endpointIndexCount === null ? 'The hosting endpoint response carried no usable index count.' : '',
+    };
+  } catch (error) {
+    return {
+      endpoint: configuredEndpoint,
+      endpointIndexCount: null,
+      reason: `Vector Search connection metadata could not be read: ${(error as Error).message}`,
+    };
   }
 }
 
@@ -277,7 +356,7 @@ export function configuredResourceName(value: unknown, keys: readonly string[]):
  * Cost used to ask the live agent for those ids. It now reads the same release
  * configuration Connections uses, so a missing ping cannot empty the tiles.
  */
-async function costIdentifiersFor(
+export async function costIdentifiersFor(
   appkit: InsightsAppKit,
   req: Request,
   extras: {
@@ -327,26 +406,33 @@ async function costIdentifiersFor(
       semanticCheck?.name ||
       (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '')
   );
-  let vectorEndpoint =
+  const configuredVectorEndpoint =
     endpointCheck?.name ||
     configuredResourceName(semanticEntry?.value, ['endpoint_name', 'endpoint']) ||
     configured['semantic-index-endpoint'];
-  if (!vectorEndpoint && vectorIndex) {
-    vectorEndpoint = await lookupVectorEndpoint({
-      host: host(),
-      token: executionToken(req) ?? '',
-      index: vectorIndex,
-      fetchImpl: extras.fetchImpl,
-    });
-  }
+  const vectorConnection = vectorIndex
+    ? await lookupVectorConnection({
+        host: host(),
+        token: executionToken(req) ?? '',
+        index: vectorIndex,
+        configuredEndpoint: configuredVectorEndpoint,
+        fetchImpl: extras.fetchImpl,
+      })
+    : {
+        endpoint: configuredVectorEndpoint,
+        endpointIndexCount: null,
+        reason: 'The active Vector Search index was not present in release configuration.',
+      };
   return {
     report,
     ids: {
       appName,
       endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim(),
       warehouseId: extras.warehouse,
-      vectorEndpoint,
+      vectorEndpoint: vectorConnection.endpoint,
       vectorIndex,
+      vectorEndpointIndexCount: vectorConnection.endpointIndexCount,
+      vectorIdentityError: vectorConnection.reason,
       genieSpaces: [
         {
           id: dataGenie?.id || '',
@@ -377,7 +463,7 @@ async function costIdentifiersFor(
  * design and an exception here would take the other two blocks' route with it if
  * anybody ever merged them.
  */
-async function runStatement(input: {
+export async function runStatement(input: {
   host: string;
   token: string;
   warehouseId: string;
@@ -441,11 +527,11 @@ async function runStatement(input: {
 }
 
 /** Where this app is, or '' when the container was told nothing. */
-function host(): string {
+export function host(): string {
   return normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
 }
 
-function warehouseId(): string {
+export function warehouseId(): string {
   return (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? '').trim();
 }
 
@@ -957,7 +1043,7 @@ export const RESOURCE_ACTIVITY_QUERY = `
   LEFT JOIN observed o ON o.tool = c.tool
   ORDER BY c.tile_id`;
 
-async function resourceActivityAttribution(
+export async function resourceActivityAttribution(
   appkit: InsightsAppKit,
   ids: CostIdentifiers,
   range: { from: string; to: string }
@@ -1001,7 +1087,7 @@ function lagDays(rangeEnd: string, newestBillingDay: string): number | null {
   return Math.max(0, Math.round((end - newest) / 86_400_000));
 }
 
-async function warehouseQueryAttribution(input: {
+export async function warehouseQueryAttribution(input: {
   host: string;
   token: string;
   warehouseId: string;
@@ -1180,6 +1266,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
     app.get('/api/ops/cost', async (req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
       const range = opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
+      const spendWindow = capUserSpendRange(range);
       const requestAbort = new AbortController();
       res.once?.('close', () => {
         if (!res.writableEnded) requestAbort.abort(new Error('The Cost caller disconnected.'));
@@ -1196,9 +1283,31 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         readReport: deps.readOrchestratorReport,
       });
       const ids = resolved.ids;
-      const [storedBudgets, resourceActivity] = await Promise.all([
+      const [storedBudgets, resourceActivity, userRunsRead, userActivityRead] = await Promise.all([
         readCostBudgets(appkit),
         resourceActivityAttribution(appkit, ids, range),
+        appkit.lakebase
+          .query(USER_SPEND_RUNS_QUERY, [spendWindow.range.from, spendWindow.range.to])
+          .then((result) => ({ available: true as const, users: readUserRunSpendEvidence(result.rows), reason: '' }))
+          .catch((error: Error) => ({
+            available: false as const,
+            users: [],
+            reason: `Run identity evidence could not be read: ${error.message}`,
+          })),
+        appkit.lakebase
+          .query(USER_ACTIVE_MINUTES_QUERY, [spendWindow.range.from, spendWindow.range.to])
+          .then((result) => ({
+            available: true as const,
+            ...readUserActivitySpendEvidence(result.rows),
+            reason: '',
+          }))
+          .catch((error: Error) => ({
+            available: false as const,
+            users: [],
+            recordedFrom: '',
+            recordedThrough: '',
+            reason: `Per-user active-minute evidence could not be read: ${error.message}`,
+          })),
       ]);
       const costBudgets = attributableCostBudgets(storedBudgets.budgets);
       const empty = {
@@ -1323,6 +1432,34 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         }
 
         const tiles = buildTiles(ids, split.components, queryAttribution, resourceActivity);
+        const spendCacheKey = userSpendCacheKey(userEmail(req), spendWindow.range);
+        const spendByUser =
+          cachedUserSpend(spendCacheKey, clock()) ??
+          buildSpendByUser({
+            readAt,
+            requestedRange: range,
+            range: spendWindow.range,
+            tiles: spendWindow.partial ? [] : tiles,
+            queryComplete: !spendWindow.partial && queryAttribution.complete,
+            queryUsers: !spendWindow.partial ? (queryAttribution.users ?? []) : [],
+            runs: userRunsRead.users,
+            activity: {
+              available: userActivityRead.available,
+              users: userActivityRead.users,
+              recordedFrom: userActivityRead.recordedFrom,
+              recordedThrough: userActivityRead.recordedThrough,
+            },
+            partialReason: [
+              spendWindow.partial
+                ? 'Individual spend is limited to the most recent 90 complete days because raw user telemetry is retained for 90 days.'
+                : '',
+              userRunsRead.reason,
+              userActivityRead.reason,
+            ]
+              .filter(Boolean)
+              .join(' '),
+          });
+        cacheUserSpend(spendCacheKey, spendByUser, clock());
         let perQuestion: OpsCostPayload['perQuestion'] = {
           ...empty.perQuestion,
           reason: 'Per-question attribution could not be read from the run ledger.',
@@ -1346,6 +1483,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           billingLagDays: lagDays(range.to, split.meta?.lastDay || ''),
           tiles,
           perQuestion,
+          spendByUser,
           coverage,
           honesty: buildHonesty(range, split.meta, tiles),
         } satisfies OpsCostPayload);

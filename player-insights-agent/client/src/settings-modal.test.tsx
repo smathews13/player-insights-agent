@@ -310,7 +310,6 @@ describe('Settings modal', () => {
       { signedInAs: '<your-username>' }, // missing role
       {
         signedInAs: 'service-principal',
-        executionIdentity: 'Astrolabe service principal',
         executionMode: 'service-principal',
       },
     ];

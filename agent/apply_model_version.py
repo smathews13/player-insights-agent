@@ -170,6 +170,19 @@ def apply_model_version(
     if _revision(declaration) != declaration.get("revision"):
         raise RuntimeError("The approved declaration payload does not match its revision.")
 
+    # A Gateway candidate can disappear, lose readiness, or become incompatible
+    # after approval. Recheck it immediately before claiming the release so a
+    # stale selection stops before any model is logged. Releases with no Gateway
+    # change keep their existing path and make no extra call.
+    if "llm_gateway" in (declaration.get("settings") or {}):
+        _request(
+            transport,
+            headers,
+            "POST",
+            app_url,
+            f"/api/admin/ai-gateway/releases/{request_id}/validate",
+        )
+
     claimed = _request(
         transport,
         headers,

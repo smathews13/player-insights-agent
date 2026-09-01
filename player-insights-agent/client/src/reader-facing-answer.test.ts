@@ -7,8 +7,7 @@ import {
   stripToolCallDumps,
 } from './reader-facing-answer';
 
-const DUMP =
-  'data_genie({"question": "For the title \\"Iron Frontier Reckoning 2\\", distinct players by platform"})';
+const DUMP = 'data_genie({"question": "For the title \\"Iron Frontier Reckoning 2\\", distinct players by platform"})';
 
 const GRID = [
   'platform | total_distinct_players | avg_sessions',
@@ -44,8 +43,9 @@ describe('the takeaway a reader is shown', () => {
 
   it('will not promote a canned completion line over a surviving sentence', () => {
     expect(isCannedTakeaway('The analysis completed from assessed sources.')).toBe(true);
-    expect(readerFacingTakeaway('The analysis completed from assessed sources.', `${DUMP}\n\nPC led on distinct players.`))
-      .toBe('PC led on distinct players.');
+    expect(
+      readerFacingTakeaway('The analysis completed from assessed sources.', `${DUMP}\n\nPC led on distinct players.`)
+    ).toBe('PC led on distinct players.');
   });
 
   it('does not print the canned headline again as the first line of the body', () => {
@@ -66,8 +66,7 @@ describe('whether the section may call itself a final answer', () => {
   const incomplete =
     'The sources for this answer are incomplete: part of it came from a query whose tables could not be determined.';
   const deadline = 'The turn deadline was reached before the answer could be written.';
-  const identity =
-    'This answer was produced as analyst@example.com and covers only the data that identity is granted.';
+  const identity = 'This answer was produced as analyst@example.com and covers only the data that identity is granted.';
   const table = '| Franchise | Players |\n| VLH | 6655 |';
 
   it('labels a clean run as a final answer and lifts nothing', () => {
@@ -97,15 +96,11 @@ describe('whether the section may call itself a final answer', () => {
     });
     expect(honesty.eyebrow).toBe('Final answer');
     expect(honesty.tone).toBe('complete');
-    expect(honesty.warnings.map((warning) => warning.label)).toEqual([
-      'Turn deadline reached',
-      'Incomplete sources',
-    ]);
+    expect(honesty.warnings.map((warning) => warning.label)).toEqual(['Turn deadline reached', 'Incomplete sources']);
   });
 
   it('calls a writer timeout after tables landed a partial answer, not unanswered', () => {
-    const timeout =
-      'The model that writes the answer was not reachable: APITimeoutError: Request timed out.';
+    const timeout = 'The model that writes the answer was not reachable: APITimeoutError: Request timed out.';
     const honesty = answerHonesty({
       truncated: true,
       caveats: [timeout, incomplete, identity],
@@ -128,13 +123,13 @@ describe('whether the section may call itself a final answer', () => {
   });
 
   it('will not headline a landed card with This question was not answered', () => {
-    expect(
-      readerFacingTakeaway('This question was not answered.', `${table}\n\nVLH Online led the window.`)
-    ).toBe('VLH Online led the window.');
+    expect(readerFacingTakeaway('This question was not answered.', `${table}\n\nVLH Online led the window.`)).toBe(
+      'VLH Online led the window.'
+    );
     expect(readerFacingTakeaway('This question was not answered.', '')).toBe('This question was not answered.');
-    expect(
-      readerFacingTakeaway('This question was not answered.', '| Title | Players |\n| VLH Online | 9575 |')
-    ).toBe('The run reached its time limit before the answer could be composed.');
+    expect(readerFacingTakeaway('This question was not answered.', '| Title | Players |\n| VLH Online | 9575 |')).toBe(
+      'The run reached its time limit before the answer could be composed.'
+    );
   });
 
   /**
@@ -193,8 +188,7 @@ describe('whether the section may call itself a final answer', () => {
   });
 
   it('does not call a words-only degraded reply a refused final answer', () => {
-    const degraded =
-      'This answer is degraded: no structured result arrived and no tool steps were recorded.';
+    const degraded = 'This answer is degraded: no structured result arrived and no tool steps were recorded.';
     const honesty = answerHonesty({
       truncated: false,
       caveats: [degraded],
@@ -203,6 +197,6 @@ describe('whether the section may call itself a final answer', () => {
 
     expect(honesty.eyebrow).toBe('Partial answer');
     expect(honesty.tone).toBe('partial');
-    expect(honesty.warnings).toEqual([{ label: 'No structured result', text: degraded }]);
+    expect(honesty.warnings).toEqual([{ label: 'Answer incomplete', text: degraded }]);
   });
 });

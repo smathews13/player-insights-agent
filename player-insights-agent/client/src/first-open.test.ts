@@ -57,7 +57,6 @@ function session(over: Partial<SessionReport> = {}): SessionReport {
 function identity(over: Partial<Identity> = {}): Identity {
   return {
     signedInAs: 'jordan.lee@example.com',
-    executionIdentity: 'jordan.lee@example.com',
     executionMode: 'user',
     identitySource: 'databricks-apps',
     session: session(),

@@ -24,7 +24,6 @@ import {
   ASSIGNED_SERVICE_PRINCIPAL,
   SP_EXECUTION_OAUTH,
   SP_EXECUTION_SERVICE_PRINCIPAL,
-  type SpIdentityAssigned,
   type SpIdentitySummary,
   type SpPersona,
 } from '../../shared/sp-identity';
@@ -40,17 +39,23 @@ import type { LakebaseReader } from './lakebase-store';
 import { assignmentForEmail, isSpIdentityEnabled, listSpPersonas, readSpPersona } from './sp-identity-store';
 import { describeSpTokenMinting, mintPersonaToken, type SpTokenDeps } from './sp-token';
 
+interface AssignedExecutionPersona {
+  id: string;
+  displayName: string;
+  clientId: string;
+}
+
 export type ExecutionCredential =
   | { kind: 'oauth'; token: string | null }
   | {
       kind: 'assigned_service_principal';
       token: string;
-      persona: SpIdentityAssigned;
+      persona: AssignedExecutionPersona;
     }
   | {
       kind: 'oauth-fallback';
       token: string | null;
-      persona: SpIdentityAssigned | null;
+      persona: AssignedExecutionPersona | null;
       reason: string;
     };
 
@@ -78,7 +83,7 @@ function signedInEmail(req: Request): string {
   return normalizeAdminEmail(req.header('x-forwarded-email') ?? '');
 }
 
-function publicPersona(persona: SpPersona): SpIdentityAssigned {
+function executionPersona(persona: SpPersona): AssignedExecutionPersona {
   return { id: persona.id, displayName: persona.displayName, clientId: persona.clientId };
 }
 
@@ -115,14 +120,14 @@ export async function resolveExecutionCredential(
     return {
       kind: 'oauth-fallback',
       token: userToken,
-      persona: publicPersona(persona),
+      persona: executionPersona(persona),
       reason: minted.reason,
     };
   }
   return {
     kind: 'assigned_service_principal',
     token: minted.token,
-    persona: publicPersona(persona),
+    persona: executionPersona(persona),
   };
 }
 
@@ -193,12 +198,12 @@ export async function describeSpIdentity(
   const minting = describeSpTokenMinting(env);
   const enabled = await isSpIdentityEnabled(store);
   const email = signedInEmail(req);
-  let assigned: SpIdentityAssigned | null = null;
+  let assigned: SpIdentitySummary['assigned'] = null;
   if (email && (await resolveRole(store.lakebase, email)).role !== 'super_admin') {
     const assignment = await assignmentForEmail(store, email);
     if (assignment) {
       const persona = await readSpPersona(store, assignment.personaId);
-      if (persona) assigned = publicPersona(persona);
+      if (persona) assigned = { displayName: persona.displayName };
     }
   }
   const credential = attached.get(req);
@@ -206,7 +211,7 @@ export async function describeSpIdentity(
     return {
       enabled,
       minting,
-      assigned: credential.persona,
+      assigned: { displayName: credential.persona.displayName },
       executingAs: SP_EXECUTION_SERVICE_PRINCIPAL,
       fallbackReason: null,
     };
@@ -215,7 +220,7 @@ export async function describeSpIdentity(
     return {
       enabled,
       minting,
-      assigned: credential.persona ?? assigned,
+      assigned: credential.persona ? { displayName: credential.persona.displayName } : assigned,
       executingAs: SP_EXECUTION_OAUTH,
       fallbackReason: credential.reason,
     };

@@ -139,6 +139,7 @@ export const FAILURE_CODES = [
   'USER_NOT_AUTHORIZED',
   'IDEMPOTENCY_CONFLICT',
   'IDEMPOTENCY_KEY_MALFORMED',
+  'BUDGET_APPROVAL_REQUIRED',
   'DEPENDENCY_UNAVAILABLE',
   'GENIE_UNATTRIBUTABLE',
   'ASSET_NOT_IN_MANIFEST',
@@ -233,7 +234,8 @@ export const FAILURE_TAXONOMY: Record<FailureCode, FailureDefinition> = {
     // Sending the identical request again reaches the identical conflict. What
     // gets past this is a new key, which is a different request.
     mayRerouteOrReidentify: false,
-    uiMessage: 'This matched an earlier request that asked something different, so nothing was run. Ask again to start a new one.',
+    uiMessage:
+      'This matched an earlier request that asked something different, so nothing was run. Ask again to start a new one.',
     trace: 'record_failure',
     alert: 'info',
     mayGenerateAnswer: false,
@@ -285,6 +287,18 @@ export const FAILURE_TAXONOMY: Record<FailureCode, FailureDefinition> = {
     alert: 'info',
     mayGenerateAnswer: false,
   },
+  BUDGET_APPROVAL_REQUIRED: {
+    code: 'BUDGET_APPROVAL_REQUIRED',
+    layer: 'governance',
+    httpStatus: 429,
+    retryable: false,
+    mayRerouteOrReidentify: false,
+    uiMessage:
+      'Measured month-to-date spend reached the monthly app budget. An administrator must approve continued usage before a new question can start.',
+    trace: 'may_have_no_trace',
+    alert: 'info',
+    mayGenerateAnswer: false,
+  },
   DEPENDENCY_UNAVAILABLE: {
     code: 'DEPENDENCY_UNAVAILABLE',
     layer: 'dependency',
@@ -296,7 +310,8 @@ export const FAILURE_TAXONOMY: Record<FailureCode, FailureDefinition> = {
     // where nothing was being read and there is nothing below the panel to
     // point at, and a sentence naming screen furniture that is not there is a
     // small version of the fabrication this taxonomy exists to stop.
-    uiMessage: 'A service this needed did not respond just now, and nothing has been substituted for what it would have returned.',
+    uiMessage:
+      'A service this needed did not respond just now, and nothing has been substituted for what it would have returned.',
     trace: 'record_failure',
     alert: 'warning',
     mayGenerateAnswer: false,
@@ -374,7 +389,8 @@ export const FAILURE_TAXONOMY: Record<FailureCode, FailureDefinition> = {
     httpStatus: 403,
     retryable: false,
     mayRerouteOrReidentify: false,
-    uiMessage: 'The result included a protected field, so the rows were discarded and that part of the question was not answered.',
+    uiMessage:
+      'The result included a protected field, so the rows were discarded and that part of the question was not answered.',
     trace: 'record_security_event',
     alert: 'warning',
     mayGenerateAnswer: false,

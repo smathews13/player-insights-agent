@@ -42,10 +42,8 @@ import {
   rememberPersonaSelectionPreference,
 } from './conversation-persona-selection';
 import {
-  NO_PERSONA_SELECTION,
   personaIdFromSelection,
   personaSelectionKey,
-  type ConversationAvailablePersona,
   type ConversationFilterSelection,
 } from '../../shared/conversation-filters';
 import { subscribeAskHome } from './ask-home-control';
@@ -90,7 +88,7 @@ import {
 import { EntityText } from './InlineEntityText';
 import { attachControlState } from './attach-control';
 import { ANSWER_PARAM, CONVERSATION_PARAM, answerRowId } from './conversation-links';
-import { formatDuration, ratingOutOf } from './benchmark-summary';
+import { formatDuration, ratingOutOf } from './benchmark-format';
 import { conversationRunSummary, railDuration, type RailRunSummary } from './rail-run-summary';
 import {
   applyRunLabelOverrideToConversations,
@@ -163,6 +161,7 @@ import {
 } from './answer-shape';
 import { EMPTY_FEEDBACK, feedbackFromStored } from './stored-feedback';
 import { useIdentity } from './app-state';
+import { acceptAppBudgetStatus, approveContinuedUsage, useAppBudgetStatus } from './app-budget-status';
 import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { conversationAge } from './conversation-age';
 import { PlanCard } from './PlanCard';
@@ -171,6 +170,7 @@ import { AgentPathConstellation } from './AgentConstellation';
 import { ConstellationField } from './ConstellationField';
 import { OPENING_CONSTELLATION } from './constellation';
 import { StoredAnswerBoundary } from './StoredAnswerBoundary';
+import { useStartupReadiness } from './startup-readiness';
 import {
   preloadStoredAnswerRendererForHistory,
   scheduleStoredAnswerRendererPreload,
@@ -352,7 +352,9 @@ const railUnreadableNotice = unavailableNotice({
 });
 
 export function HomePage() {
+  const { markReady: markStartupReady, registerFocusTarget } = useStartupReadiness();
   const identity = useIdentity();
+  const budgetStatus = useAppBudgetStatus();
   /**
    * The address to stamp on a conversation this session creates, or nothing
    * while `/api/identity` has not answered. Undefined is left as undefined all
@@ -452,6 +454,8 @@ export function HomePage() {
    */
   const [askUnavailable, setAskUnavailable] = useState<UnavailableNotice | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [budgetApprovalBusy, setBudgetApprovalBusy] = useState(false);
+  const [budgetApprovalError, setBudgetApprovalError] = useState('');
   /**
    * Feedback state per answer, keyed by the message id it belongs to.
    */
@@ -476,8 +480,6 @@ export function HomePage() {
   const [ownerFilters, setOwnerFilters] = useState<readonly string[]>([]);
   /** Which recorded run personas the rail is narrowed to. Empty means all. */
   const [personaFilters, setPersonaFilters] = useState<readonly string[]>([]);
-  /** Current definitions gate stale/deleted persona preferences when readable. */
-  const [availablePersonas, setAvailablePersonas] = useState<ConversationAvailablePersona[] | null>(null);
   /** Matching ids computed by the server for the filter key beside them. */
   const [serverConversationMatches, setServerConversationMatches] = useState<{
     key: string;
@@ -620,7 +622,8 @@ export function HomePage() {
   // One condition for the Ask button and for Return, so the key cannot start a
   // run the button is disabled for -- a second submission while one is in
   // flight, or an empty prompt.
-  const canAsk = draft.trim().length > 0 && !loading && !conversationLoading && !parsing;
+  const budgetBlocked = budgetStatus?.level === 'approval-required';
+  const canAsk = draft.trim().length > 0 && !loading && !conversationLoading && !parsing && !budgetBlocked;
   // The rail draws the run that happened, or the one happening, or nothing. No
   // reference stages stand in, and a run in flight draws its OWN steps or none:
   // the fallback to the last answer's trace used to apply whenever the live list
@@ -744,6 +747,16 @@ export function HomePage() {
   // Warehouse and Genie warmup is App's separate fire-and-forget arrival call;
   // painting this pill never invokes the serving endpoint.
   const readiness = useAgentReadiness();
+  useLayoutEffect(() => {
+    const focus = () => composerRef.current?.querySelector('textarea')?.focus();
+    registerFocusTarget(focus);
+    return () => registerFocusTarget(null);
+  }, [registerFocusTarget]);
+  useLayoutEffect(() => {
+    if (!conversationLoading && readiness !== 'checking' && composerRef.current?.querySelector('textarea')) {
+      markStartupReady();
+    }
+  }, [conversationLoading, markStartupReady, readiness]);
 
   /*
    * What the run is doing, as a word, a tone, and whether the dot may move.
@@ -1203,7 +1216,6 @@ export function HomePage() {
       // so the welcome state is the first thing a new user sees.
       if (list.conversations) {
         setConversations(list.conversations);
-        setAvailablePersonas(list.availablePersonas);
         setServerConversationMatches(
           list.matchingConversationIds ? { key: '', ids: new Set(list.matchingConversationIds) } : null
         );
@@ -1343,11 +1355,13 @@ export function HomePage() {
 
   async function ask(question = draft, approval?: { planId: string; label: string }) {
     if (!question.trim() || readLiveAsk(conversationId)?.inFlight || readActiveAsk(conversationId)) return;
+    if (budgetStatus?.level === 'approval-required') return;
     // Everything below writes into the conversation this run started in. Once
     // the user is somewhere else, none of it is theirs to write: an answer, a
     // step, an error banner or a URL change landing in the conversation they
     // moved to describes a question that was never asked there.
     const runConversationId = conversationId;
+    const conversationBefore = conversations.find((conversation) => conversation.id === runConversationId) ?? null;
     // A blank draft becomes a selected conversation the instant it is used.
     // Persist before the request starts, so leaving Ask while the run is active
     // returns to this thread rather than to another starter.
@@ -1531,6 +1545,30 @@ export function HomePage() {
       loadedConversationRef.current = runConversationId;
       setSearchParams({ c: runConversationId }, { replace: true });
     } catch (askError) {
+      const budgetRefusal =
+        askError instanceof AskRefused && askError.result.code === 'BUDGET_APPROVAL_REQUIRED'
+          ? askError.result.budget_status
+          : undefined;
+      if (budgetRefusal) {
+        // The server won the race before creating a conversation, message, run,
+        // lease, or invocation. Restore the exact draft and optimistic rail state
+        // instead of drawing a failed answer for work that never started.
+        acceptAppBudgetStatus(budgetRefusal);
+        setDraft(question);
+        setMessages((items) => items.filter((item) => item.id !== userMessage.id));
+        setConversations((items) =>
+          conversationBefore
+            ? items.map((item) => (item.id === runConversationId ? conversationBefore : item))
+            : items.filter((item) => item.id !== runConversationId)
+        );
+        endLiveAsk(runConversationId);
+        updateActiveConversationRuns((runs) => forgetActiveConversationRun(runs, runConversationId));
+        setAskStartedAt(null);
+        setAskedQuestion('');
+        setRunStopped(null);
+        setAskUnavailable(null);
+        return;
+      }
       if (askError instanceof AskCancelled) {
         stopLiveAsk(
           runConversationId,
@@ -1627,6 +1665,19 @@ export function HomePage() {
       // closing a socket is not evidence that its server-side run stopped.
       if (!currentAsk.correlationId) endLiveAsk(runConversationId);
       forgetActiveAsk(runConversationId, currentAsk);
+    }
+  }
+
+  async function approveBudgetOverage() {
+    if (!budgetStatus || budgetStatus.level !== 'approval-required' || budgetApprovalBusy) return;
+    setBudgetApprovalBusy(true);
+    setBudgetApprovalError('');
+    try {
+      await approveContinuedUsage(budgetStatus);
+    } catch (approvalError) {
+      setBudgetApprovalError((approvalError as Error).message);
+    } finally {
+      setBudgetApprovalBusy(false);
     }
   }
 
@@ -1900,10 +1951,7 @@ export function HomePage() {
    * which reads as a colleague having quietly used their rail.
    */
   const rail = useMemo(() => railOwnership(conversations, identity.signedInAs), [conversations, identity.signedInAs]);
-  const personas = useMemo(
-    () => railPersonas(conversations, availablePersonas ?? undefined),
-    [availablePersonas, conversations]
-  );
+  const personas = useMemo(() => railPersonas(conversations), [conversations]);
   const adminSharedRail =
     identity.sharedConversationRail === true && (identity.role === 'admin' || identity.role === 'super_admin');
 
@@ -1993,7 +2041,6 @@ export function HomePage() {
         activePersonaFilters
           .map((selection) => personaIdFromSelection(selection))
           .filter((personaId): personaId is string => personaId !== null),
-        activePersonaFilters.includes(NO_PERSONA_SELECTION),
       ]),
     [activeOwnerFilters, activePersonaFilters]
   );
@@ -2001,8 +2048,8 @@ export function HomePage() {
   // new array of the same rows does not create a new dependency and refetch in
   // a loop while a filter is active.
   const conversationFilters = useMemo<ConversationFilterSelection>(() => {
-    const [owners, personaIds, includeNoPersona] = JSON.parse(conversationFilterKey) as [string[], string[], boolean];
-    return { owners, personaIds, includeNoPersona };
+    const [owners, personaIds] = JSON.parse(conversationFilterKey) as [string[], string[]];
+    return { owners, personaIds };
   }, [conversationFilterKey]);
 
   const refreshConversationEvidence = useCallback(
@@ -2010,7 +2057,6 @@ export function HomePage() {
       const list = await readConversationList(conversationFilters, signal);
       if (!list.conversations) return;
       setConversations(list.conversations);
-      setAvailablePersonas(list.availablePersonas);
       if (list.matchingConversationIds) {
         setServerConversationMatches({
           key: conversationFilterKey,
@@ -2023,10 +2069,7 @@ export function HomePage() {
 
   useEffect(() => {
     if (!adminSharedRail || conversationLoading) return;
-    const hasFilter =
-      conversationFilters.owners.length > 0 ||
-      conversationFilters.personaIds.length > 0 ||
-      conversationFilters.includeNoPersona;
+    const hasFilter = conversationFilters.owners.length > 0 || conversationFilters.personaIds.length > 0;
     if (!hasFilter) {
       setServerConversationMatches(null);
       return;
@@ -2075,8 +2118,7 @@ export function HomePage() {
       }
       if (selectedPersonas.size === 0) return true;
       const personaId = entry.conversation.persona_id?.trim() ?? '';
-      const key = personaId ? personaSelectionKey(personaId) : NO_PERSONA_SELECTION;
-      return selectedPersonas.has(key);
+      return personaId ? selectedPersonas.has(personaSelectionKey(personaId)) : false;
     });
   }, [activeOwnerFilters, activePersonaFilters, conversationFilterKey, rail, serverConversationMatches]);
 
@@ -2635,6 +2677,43 @@ export function HomePage() {
                 </Link>
               ))}
           </div>
+          {budgetStatus &&
+          (budgetStatus.level === 'warning' ||
+            budgetStatus.level === 'approval-required' ||
+            budgetStatus.level === 'approved-overage' ||
+            budgetStatus.level === 'unavailable/partial') ? (
+            <Alert className="composer-budget-status">
+              <CircleAlert />
+              <AlertDescription>
+                {budgetStatus.level === 'warning' ? (
+                  <>Monthly app budget is {budgetStatus.percent?.toFixed(2)}% used. Questions continue.</>
+                ) : budgetStatus.level === 'approval-required' ? (
+                  <>
+                    {identity.role === 'admin' || identity.role === 'super_admin' ? (
+                      <>
+                        Monthly app budget reached.{' '}
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={budgetApprovalBusy}
+                          onClick={() => void approveBudgetOverage()}
+                        >
+                          {budgetApprovalBusy ? 'Approving…' : 'Approve continued usage'}
+                        </Button>
+                      </>
+                    ) : (
+                      'An administrator must approve continued usage.'
+                    )}
+                  </>
+                ) : budgetStatus.level === 'approved-overage' ? (
+                  <>Over budget · Admin approved through {budgetStatus.approval?.through} (UTC).</>
+                ) : (
+                  budgetStatus.detail
+                )}
+                {budgetApprovalError ? <span role="alert"> {budgetApprovalError}</span> : null}
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {attachmentsUnreadable && (
             <p className="composer-notice" role="status">
               Any documents attached to this conversation could not be read just now, so none are listed. Whatever was

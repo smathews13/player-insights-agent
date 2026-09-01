@@ -4,7 +4,7 @@
 // contains a package.json, so the deploy tree deliberately has none.
 import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
-import { cp, mkdir, readdir, rm, writeFile, stat } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, writeFile, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,6 +56,40 @@ const require = __createRequire(import.meta.url);
 const __appkitFilename = __fileURLToPath(import.meta.url);
 const __appkitDirname = __pathDirname(__appkitFilename);
 `;
+
+async function stripUnusedChunkBanners(result) {
+  for (const output of Object.keys(result.metafile.outputs)) {
+    if (path.basename(output) === 'server.mjs') continue;
+    const file = path.resolve(root, output);
+    const source = await readFile(file, 'utf8');
+    if (!source.startsWith(banner)) continue;
+    const body = source.slice(banner.length);
+    // esbuild centralizes its CommonJS runtime in a shared split chunk. That
+    // chunk references `require` through `typeof require` rather than a direct
+    // call, then every bundled CJS package (including Lakebase's pg) imports its
+    // __require helper. Keep createRequire in that helper's lexical scope so
+    // every Node builtin resolves natively; a bridge in server.mjs cannot be
+    // seen across the ESM module boundary.
+    if (/Dynamic require of "|__appkitFilename|__appkitDirname/.test(body)) continue;
+    await writeFile(file, body);
+  }
+}
+
+async function assertSplitRequireBridge(result) {
+  const helperOutputs = [];
+  for (const output of Object.keys(result.metafile.outputs)) {
+    const file = path.resolve(root, output);
+    const source = await readFile(file, 'utf8');
+    if (!source.includes('Dynamic require of "')) continue;
+    helperOutputs.push(path.basename(file));
+    if (!source.startsWith(banner)) {
+      throw new Error(`split CommonJS helper ${path.basename(file)} has no native Node require bridge`);
+    }
+  }
+  if (helperOutputs.length === 0) {
+    throw new Error('server bundle emitted no split CommonJS require helper');
+  }
+}
 
 // Databricks Apps refuses to export any single source file larger than 10 MB
 // during deployment. The heaviest packages are emitted as sibling vendor
@@ -130,54 +164,49 @@ function vendorFileName(pkg) {
 }
 
 function vendorExternalsPlugin() {
-  const pattern = new RegExp(`^(${vendorPackages.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`);
+  // AppKit imports both the package root and generated SDK subpaths. Route code
+  // imports the root. Send both forms to the same complete vendor module;
+  // otherwise esbuild bundles the subpaths into server.mjs while also shipping
+  // those implementations through the vendor entry.
+  const pattern = new RegExp(
+    `^(${vendorPackages.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?:/.*)?$`
+  );
   return {
     name: 'vendor-externals',
     setup(builder) {
-      builder.onResolve({ filter: pattern }, (args) => ({
-        path: `./${vendorFileName(args.path)}`,
-        external: true,
-      }));
+      builder.onResolve({ filter: pattern }, (args) => {
+        const pkg = vendorPackages.find(
+          (candidate) => args.path === candidate || args.path.startsWith(`${candidate}/`)
+        );
+        if (!pkg) return null;
+        return {
+          path: `./${vendorFileName(pkg)}`,
+          external: true,
+        };
+      });
     },
   };
 }
 
-const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
-const RESERVED = new Set([
-  'default',
-  'delete',
-  'class',
-  'function',
-  'return',
-  'import',
-  'export',
-  'const',
-  'let',
-  'var',
-  'new',
-  'typeof',
-  'void',
-  'null',
-  'true',
-  'false',
-  'this',
-  'super',
-  'switch',
-  'case',
-  'catch',
-]);
-
-// `export * from` cannot re-export a CommonJS package, because the names are
-// not statically analysable. Resolving the package here and emitting explicit
-// bindings works for both CJS and ESM vendors.
-async function vendorEntrySource(pkg) {
-  const namespace = await import(pkg);
-  const source = namespace.default && typeof namespace.default === 'object' ? namespace.default : namespace;
-  const names = Object.keys(source).filter((n) => IDENTIFIER.test(n) && !RESERVED.has(n));
-  return `import * as namespace from '${pkg}';
-const source = namespace.default && typeof namespace.default === 'object' ? namespace.default : namespace;
-export const { ${names.join(', ')} } = source;
-export default source;
+/**
+ * The SDK surface the production server actually imports.
+ *
+ * The package root eagerly re-exports every account and workspace service, so
+ * bundling that CommonJS barrel defeats tree shaking. AppKit and this server
+ * use only these five runtime values. Pointing the vendor entry at their
+ * implementation modules keeps the same public objects without shipping the
+ * unrelated account client and generated service barrels.
+ */
+function vendorEntrySource(pkg) {
+  if (pkg !== '@databricks/sdk-experimental') throw new Error(`No selective vendor entry is defined for ${pkg}.`);
+  const base = '../../node_modules/@databricks/sdk-experimental/dist';
+  return `export { WorkspaceClient } from '${base}/WorkspaceClient.js';
+export { ApiError } from '${base}/apierr.js';
+export { ConfigError } from '${base}/config/Config.js';
+export { Context } from '${base}/context/Context.js';
+import Time from '${base}/retries/Time.js';
+export { Time };
+export default { Time };
 `;
 }
 
@@ -212,9 +241,18 @@ async function bundleVendors() {
 
 async function bundleServer() {
   const result = await build({
-    entryPoints: [path.join(root, 'server', 'server.ts')],
-    outfile: path.join(outDir, 'server.mjs'),
+    entryPoints: { server: path.join(root, 'server', 'server.ts') },
+    outdir: outDir,
+    entryNames: '[name]',
+    // Keep the source module name in every lazy chunk without repeating a
+    // server-only prefix in hundreds of generated import specifiers.
+    chunkNames: '[name]-[hash]',
+    outExtension: { '.js': '.mjs' },
     bundle: true,
+    // Route registration is already expressed as dynamic imports. Preserve
+    // those boundaries so optional/admin planes do not inflate the main file,
+    // while esbuild shares their common modules instead of duplicating them.
+    splitting: true,
     platform: 'node',
     format: 'esm',
     target: 'node20',
@@ -237,9 +275,17 @@ async function bundleServer() {
       __dirname: '__appkitDirname',
     },
   });
+  await stripUnusedChunkBanners(result);
+  await assertSplitRequireBridge(result);
   const eagerUnpdfInputs = Object.keys(result.metafile.inputs).filter((input) => input.includes('node_modules/unpdf/'));
   if (eagerUnpdfInputs.length > 0) {
     throw new Error(`unpdf entered the normal server startup graph: ${eagerUnpdfInputs.join(', ')}`);
+  }
+  const duplicatedVendorInputs = Object.keys(result.metafile.inputs).filter((input) =>
+    vendorPackages.some((pkg) => input.includes(`node_modules/${pkg}/`))
+  );
+  if (duplicatedVendorInputs.length > 0) {
+    throw new Error(`vendor package code was duplicated in server.mjs: ${duplicatedVendorInputs.join(', ')}`);
   }
 }
 
@@ -413,6 +459,8 @@ async function main() {
   const indexRebuildJobId = (process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID ?? '').trim();
   const catalog = (process.env.PLAYER_INSIGHTS_CATALOG ?? '').trim();
   const schema = (process.env.PLAYER_INSIGHTS_SCHEMA ?? '').trim();
+  const semanticIndex = (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '').trim();
+  const semanticEndpoint = (process.env.PLAYER_INSIGHTS_SEMANTIC_ENDPOINT ?? '').trim();
   const dataGenieId = (process.env.PLAYER_INSIGHTS_DATA_GENIE_ID ?? '').trim();
   const dictionaryGenieId = (process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID ?? '').trim();
   const llmEndpoint = (process.env.PLAYER_INSIGHTS_LLM_ENDPOINT ?? '').trim();
@@ -456,6 +504,8 @@ async function main() {
       ...(idleTimeout ? [{ name: 'PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES', value: `'${idleTimeout}'` }] : []),
       ...(catalog ? [{ name: 'PLAYER_INSIGHTS_CATALOG', value: `'${catalog}'` }] : []),
       ...(schema ? [{ name: 'PLAYER_INSIGHTS_SCHEMA', value: `'${schema}'` }] : []),
+      ...(semanticIndex ? [{ name: 'PLAYER_INSIGHTS_SEMANTIC_INDEX', value: `'${semanticIndex}'` }] : []),
+      ...(semanticEndpoint ? [{ name: 'PLAYER_INSIGHTS_SEMANTIC_ENDPOINT', value: `'${semanticEndpoint}'` }] : []),
       ...(dataGenieId ? [{ name: 'PLAYER_INSIGHTS_DATA_GENIE_ID', value: `'${dataGenieId}'` }] : []),
       ...(dictionaryGenieId ? [{ name: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID', value: `'${dictionaryGenieId}'` }] : []),
       ...(llmEndpoint ? [{ name: 'PLAYER_INSIGHTS_LLM_ENDPOINT', value: `'${llmEndpoint}'` }] : []),

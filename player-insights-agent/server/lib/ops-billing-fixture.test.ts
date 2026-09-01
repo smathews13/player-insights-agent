@@ -28,6 +28,8 @@ const IDS: CostIdentifiers = {
   warehouseId: 'warehouse-1',
   vectorEndpoint: 'vs-endpoint',
   vectorIndex: 'cat.schema.index',
+  vectorEndpointIndexCount: 1,
+  vectorIdentityError: '',
   genieSpaces: [
     { id: 'space-data', label: 'Data Genie', tool: 'data_genie', tileId: 'genie:data' },
     {
@@ -95,8 +97,10 @@ describe('billing SQL contract', () => {
   });
 
   it('returns a DBU row count so mixed DBU and storage units do not erase measured DBUs', () => {
-    expect(query?.statement).toContain("COUNT(*) FILTER (WHERE UPPER(TRIM(usage_unit)) = 'DBU') AS dbu_rows");
-    expect(query?.statement).toContain("SUM(CASE WHEN UPPER(TRIM(usage_unit)) = 'DBU'");
+    expect(query?.statement).toContain(
+      "COUNT(priced.record_id) FILTER (WHERE UPPER(TRIM(priced.usage_unit)) = 'DBU') AS dbu_rows"
+    );
+    expect(query?.statement).toContain("SUM(CASE WHEN UPPER(TRIM(priced.usage_unit)) = 'DBU'");
   });
 
   it('flags duplicate price matches and mixed currencies', () => {
@@ -106,7 +110,9 @@ describe('billing SQL contract', () => {
 
   it('keeps correction metadata and does not reduce currency with a bare MAX', () => {
     expect(query?.statement).toContain("record_type ILIKE '%CORRECT%'");
-    expect(query?.statement).toContain('COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END)');
+    expect(query?.statement).toContain(
+      'COUNT(DISTINCT CASE WHEN priced.currency_code IS NOT NULL THEN priced.currency_code END)'
+    );
   });
 
   it('measures exact untagged resources, including the configured Vector Search endpoint', () => {
@@ -160,7 +166,7 @@ describe('Vector Search measured-unit fixtures', () => {
     expect(dbuAmountFor(row({ component: 'vector-search', dbuRows: 0, dbuQuantity: 0 }), 'total-in-range')).toBeNull();
   });
 
-  it('allocates a shared endpoint by recorded configured-index calls', () => {
+  it('uses the full dedicated endpoint meter without query-share apportionment', () => {
     const vector = buildTiles(
       IDS,
       [row({ component: 'vector-search', spend: 12, billedDays: 2, dbuRows: 1, dbuQuantity: 10 })],
@@ -168,40 +174,52 @@ describe('Vector Search measured-unit fixtures', () => {
       [{ tileId: 'vector-search', calls: 2, observedCalls: 10 }]
     ).find((tile) => tile.id === 'vector-search');
     expect(vector).toMatchObject({
-      amount: 1.2,
-      dbus: 1,
-      quality: 'estimate',
-      population: 'Recorded query share',
+      amount: 6,
+      dbus: 5,
+      quality: 'rate',
+      population: 'Hosting endpoint',
       attribution: 'deployment',
     });
-    expect(vector?.note).toContain('2 of 10 recorded Vector Search calls');
+    expect(vector?.note).toContain('endpoint hosts only the active index');
   });
 
-  it('renders a measured zero when other endpoint calls exist but Astrolabe made none to this index', () => {
-    const vector = buildTiles(
-      IDS,
-      [row({ component: 'vector-search', spend: 12, billedDays: 2, dbuRows: 1, dbuQuantity: 10 })],
-      undefined,
-      [{ tileId: 'vector-search', calls: 0, observedCalls: 10 }]
-    ).find((tile) => tile.id === 'vector-search');
+  it('renders a measured zero only when the exact endpoint query returned no billable rows', () => {
+    const vector = buildTiles(IDS, [
+      row({
+        component: 'vector-search',
+        spend: 0,
+        billedDays: 0,
+        pricedRows: 0,
+        unpricedRows: 0,
+        priceMatchStatus: 'none',
+        dbuRows: 0,
+        dbuQuantity: 0,
+      }),
+    ]).find((tile) => tile.id === 'vector-search');
     expect(vector).toMatchObject({ amount: 0, dbus: 0, attribution: 'deployment' });
+    expect(vector?.note).toBe('No billable usage in this period');
   });
 
-  it('uses the verified billed endpoint when no active index identity is available', () => {
+  it('does not attribute endpoint spend when the active index identity is unavailable', () => {
     const vector = buildTiles({ ...IDS, vectorIndex: '' }, [
       row({ component: 'vector-search', spend: 12, billedDays: 2, dbuRows: 1, dbuQuantity: 10 }),
     ]).find((tile) => tile.id === 'vector-search');
     expect(vector).toMatchObject({
-      label: 'Vector Search endpoint',
       resourceId: 'vs-endpoint',
       resourceKind: 'vector-endpoint',
-      amount: 6,
-      dbus: 5,
-      attribution: 'deployment',
-      unavailable: '',
+      amount: null,
+      attribution: 'unavailable',
     });
-    expect(vector?.note).toContain('configured endpoint');
+    expect(vector?.unavailable).toContain('active Vector Search index was not carried');
     expect(vector?.secondaryResourceId).toBeUndefined();
+  });
+
+  it('withholds a shared endpoint meter instead of inventing per-index precision', () => {
+    const vector = buildTiles({ ...IDS, vectorEndpointIndexCount: 2 }, [
+      row({ component: 'vector-search', spend: 12, billedDays: 2, dbuRows: 1, dbuQuantity: 10 }),
+    ]).find((tile) => tile.id === 'vector-search');
+    expect(vector).toMatchObject({ amount: null, attribution: 'unavailable', resourceId: 'cat.schema.index' });
+    expect(vector?.unavailable).toContain('serves 2 indexes');
   });
 });
 
@@ -215,7 +233,7 @@ describe('price join golden outputs', () => {
     ]);
     const measured = tiles.filter((tile) => tile.amount !== null);
     expect(new Set(measured.map((tile) => tile.id)).size).toBe(measured.length);
-    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(6);
+    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(10);
     expect(tiles.some((tile) => tile.id === 'foundation-model')).toBe(false);
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.amount).toBeNull();
     expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);

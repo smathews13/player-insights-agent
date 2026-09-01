@@ -4,6 +4,14 @@ import { preserveOwnedAppSchema } from './lib/app-schema-bootstrap';
 import { requestLatencyShutdown } from './lib/request-latency-shutdown';
 import { registerStaticDelivery } from './lib/static-delivery';
 
+// Static ESM imports have completed before this guard runs, so the production
+// artifact has already evaluated AppKit, Lakebase, and pg. Stop here during the
+// release smoke instead of opening a socket or attempting a database connection.
+if (process.argv.includes('--module-smoke')) {
+  console.log('module-smoke ok');
+  process.exit(0);
+}
+
 // The serving() plugin is deliberately NOT registered. Its invoke path runs the
 // request body through two allowlists that drop unknown keys (the plugin's own
 // schema filter, then the SDK's servingEndpoints.query() field list), and
@@ -28,6 +36,7 @@ createApp({
     const [
       { setupInsightsRoutes },
       { setupSettingsRoutes },
+      { setupAiGatewayRoutes },
       { setupBrowseRoutes },
       { setupArchitectureRoutes },
       { setupAdminRoutes },
@@ -39,6 +48,7 @@ createApp({
       { setupRuntimeSettingsRoutes },
       { setupExperimentalSettingsRoutes },
       { setupCostBudgetsRoutes },
+      { setupAppBudgetRoutes },
       { setupBenchmarkSettingsRoutes },
       { setupEvalDatasetRoutes },
       { setupBenchmarkLabRoutes },
@@ -51,6 +61,7 @@ createApp({
     ] = await Promise.all([
       import('./routes/insights-routes'),
       import('./routes/settings-routes'),
+      import('./routes/ai-gateway-routes'),
       import('./routes/browse-routes'),
       import('./routes/architecture-routes'),
       import('./routes/admin-routes'),
@@ -62,6 +73,7 @@ createApp({
       import('./routes/runtime-settings-routes'),
       import('./routes/experimental-settings-routes'),
       import('./routes/cost-budgets-routes'),
+      import('./routes/app-budget-routes'),
       import('./routes/benchmark-settings-routes'),
       import('./routes/eval-dataset-routes'),
       import('./routes/benchmark-lab-routes'),
@@ -95,9 +107,16 @@ createApp({
     // and Express applies middleware to whatever is added afterwards. Registering
     // the settings routes first would leave the write route unguarded.
     setupSettingsRoutes(appkit);
+    // Metadata-only AI Gateway discovery and atomic staging. Registered under
+    // /api/admin so the existing fail-closed role middleware protects every
+    // list, validation and write without a client-side role claim.
+    setupAiGatewayRoutes(appkit);
     setupRuntimeSettingsRoutes(appkit);
     setupExperimentalSettingsRoutes(appkit);
     setupCostBudgetsRoutes(appkit);
+    // The safe status read is consumer-visible; approve/revoke remain under the
+    // existing server-authorized /api/admin role boundary.
+    setupAppBudgetRoutes(appkit);
     setupBenchmarkSettingsRoutes(appkit);
     setupSpIdentityRoutes(appkit);
     setupEvalDatasetRoutes(appkit);

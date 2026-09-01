@@ -29,6 +29,7 @@ import type {
 } from '../../shared/monitoring-contract';
 import type { MonitoringState } from './monitoring-view';
 import { beginPanelLoad, idlePanel, rejectPanelLoad } from './monitoring-detail-state';
+import type { OpsCostPayload } from '../../shared/ops-contract';
 
 const MONITORING_SOURCE = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
 
@@ -842,13 +843,24 @@ describe('the question list', () => {
     expect(text(markup)).toContain('first.person');
   });
 
+  it('makes the person mark open the shared profile contract without replacing the row action', () => {
+    const markup = render(
+      <QuestionList questions={[question()]} selectedId="" now={NOW} onOpen={() => {}} onOpenPerson={() => {}} />
+    );
+
+    expect(markup).toContain('class="monitoring-asker-button"');
+    expect(markup).toContain('aria-label="Open first.person&#x27;s profile"');
+    expect(markup).toContain('<tr role="button"');
+  });
+
   it('renders one accessible card tree below 800px instead of the clipped table', () => {
     expect(MONITORING_COMPACT_QUERY).toBe('(max-width: 799px)');
     const markup = render(<QuestionList questions={[question()]} selectedId="" now={NOW} onOpen={() => {}} compact />);
 
     expect(markup).toContain('class="monitoring-card-list"');
     expect(markup).toContain('aria-label="Questions"');
-    expect(markup).toContain('<button');
+    expect(markup).toContain('role="button"');
+    expect(markup).toContain('tabindex="0"');
     expect(markup).not.toContain('<table');
     expect(markup).not.toContain('<tr');
     expect(text(markup)).toContain('Time 76.2s');
@@ -1241,7 +1253,7 @@ function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload 
 }
 
 describe('the per-user panel', () => {
-  it('uses the same one-tree card representation in the narrow person drawer', () => {
+  it('uses the same one-tree card representation in the centered person modal', () => {
     const markup = render(
       <PersonPanel
         panel={panel()}
@@ -1255,6 +1267,96 @@ describe('the per-user panel', () => {
     const questions = markup.slice(markup.indexOf('Their questions'));
     expect(questions).toContain('monitoring-card-list');
     expect(questions).not.toContain('<table');
+  });
+
+  it('is a labelled centered modal with no side-panel semantics', () => {
+    const markup = render(
+      <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+    );
+
+    expect(markup).toContain('class="monitoring-person-modal"');
+    expect(markup).toContain('role="dialog"');
+    expect(markup).toContain('aria-modal="true"');
+    expect(markup).toContain('aria-describedby="monitoring-person-description"');
+    expect(markup).not.toContain('<aside');
+    expect(markup).not.toContain('class="monitoring-drawer"');
+  });
+
+  it('shows compact USD and DBU spend with attribution quality', () => {
+    const cost = {
+      state: 'ready',
+      grant: null,
+      reason: '',
+      currency: 'USD',
+      throughDay: '2026-08-31',
+      range: { from: '2026-08-25', to: '2026-08-31' },
+      billingLagDays: 0,
+      readAt: '2026-09-01T12:00:00Z',
+      tiles: [],
+      perQuestion: {
+        runs: [],
+        runsInRange: 0,
+        tokenCoveredRuns: 0,
+        totalRecordedTokens: 0,
+        limited: false,
+        reason: '',
+      },
+      budgets: { total: { USD: null, DBU: null }, resources: {} },
+      budgetsReadable: true,
+      spendByUser: {
+        readAt: '2026-08-31T12:00:00Z',
+        requestedRange: { from: '2026-08-25', to: '2026-08-31' },
+        range: { from: '2026-08-25', to: '2026-08-31' },
+        state: 'ready',
+        reason: '',
+        users: [
+          {
+            email: 'first.person@example.test',
+            total: {
+              usd: { amount: 12.5, quality: 'allocated' },
+              dbu: { amount: 6.25, quality: 'allocated' },
+            },
+            components: [
+              {
+                id: 'serving-endpoint',
+                label: 'Serving endpoint',
+                usd: { amount: 12.5, quality: 'allocated' },
+                dbu: { amount: 6.25, quality: 'allocated' },
+                reason: '',
+              },
+              {
+                id: 'app-compute',
+                label: 'App compute',
+                usd: { amount: null, quality: 'unavailable' },
+                dbu: { amount: null, quality: 'unavailable' },
+                reason: 'Active-minute coverage is incomplete.',
+              },
+            ],
+          },
+        ],
+        unattributed: [],
+        reconciliation: {
+          usd: { unit: 'USD', appTotal: 12.5, users: 12.5, unattributed: 0, difference: 0 },
+          dbu: { unit: 'DBU', appTotal: 6.25, users: 6.25, unattributed: 0, difference: 0 },
+        },
+      },
+    } satisfies OpsCostPayload;
+    const markup = render(
+      <PersonPanel
+        panel={panel()}
+        spendState={{ status: 'ready', key: 'spend', requestId: 1, data: cost, error: null }}
+        now={NOW}
+        rangeLabel="last 7 days"
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+      />
+    );
+    const rendered = text(markup);
+
+    expect(rendered).toContain('Spend 12.50 USD 6.25 DBU');
+    expect(rendered).toContain('Serving endpoint 12.50 USD · 6.25 DBU Allocated');
+    expect(rendered).toContain('App compute Active-minute coverage is incomplete. Unavailable');
+    expect(rendered).toContain('not an individual invoice');
   });
 
   it('mounts person status and retry states before data arrives', () => {

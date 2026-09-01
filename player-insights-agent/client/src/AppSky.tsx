@@ -1,8 +1,9 @@
 /**
  * The one sky for the whole session: login, Continue, Ask, every other tab.
  *
- * Layout mounts this only after startup gates are complete. Login and access
- * surfaces do not mount a second sky or hide one behind their cards.
+ * Layout mounts this while the startup loader still covers the hidden shell.
+ * It is therefore already settled behind login and remains the same element
+ * through the handoff to Ask.
  *
  * It remains mounted in both themes because theme previews update the root
  * attribute without updating React state. base.css and dark-mode.css therefore

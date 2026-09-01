@@ -11,12 +11,10 @@
  * THIS CONSTANT IS NOT PART OF THAT and must not be removed with it. It is not
  * about the demo answer; it is the disclosure applied to ANY answer that came
  * back without an MLflow trace id, which a live run can also produce.
- * `discloseAnswerProvenance` adds it in server/routes/insights-routes.ts and
- * the browser renders it as one of the answer's caveats. The process view is
- * stripped separately (`withoutUntracedProcess`) so the card cannot show a
- * timeline that looks recorded. Answers stored before the removal still carry
- * this sentence in `response_json`, and those rows have to keep rendering with
- * the disclosure they were written with.
+ * Older app builds added it in `discloseAnswerProvenance`. Current builds keep
+ * the constant only to recognize historical records: trace availability belongs
+ * to the process inspector, so the answer-content policy removes this sentence
+ * at read time without rewriting the stored `response_json`.
  *
  * IT IS NOT READ FOR ANYTHING ELSE. The browser used to key a "Synthetic data"
  * chip off the caveats beside a cited table, and this constant was one of the

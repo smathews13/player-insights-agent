@@ -213,3 +213,12 @@ html[data-animations='off'] .ast-flick-slot > [data-ast-rest] {
   opacity: 1;
   transform: none;
 }
+
+html[data-animations='off'] .startup-app-shell.is-covered.is-entering .app-frame,
+html[data-animations='off'] .startup-app-shell.is-first-reveal .app-frame,
+html[data-animations='off'] .first-open.is-leaving,
+html[data-animations='off'] .first-open.is-leaving .first-open-card {
+  animation: none !important;
+  opacity: 1;
+  transform: none;
+}

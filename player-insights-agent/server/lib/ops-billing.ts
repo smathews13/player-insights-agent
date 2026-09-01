@@ -88,6 +88,16 @@ export interface CostIdentifiers {
   vectorEndpoint: string;
   /** Three-level Vector Search index name, or ''. Used to open the index, not to bill. */
   vectorIndex: string;
+  /**
+   * Number of indexes the resolved endpoint currently hosts.
+   *
+   * the demo workspace billing exposes endpoint identity, not index identity. One means the
+   * endpoint meter belongs wholly to this active index; greater than one is an
+   * ambiguous shared meter and null means the relationship was not established.
+   */
+  vectorEndpointIndexCount?: number | null;
+  /** Precise read/configuration failure when the index-to-endpoint relationship is unknown. */
+  vectorIdentityError?: string;
   /** The two configured Genie roles, kept separate even if they point at the same space. */
   genieSpaces: readonly {
     id: string;
@@ -296,9 +306,12 @@ export function canAsk(component: CostComponent, ids: CostIdentifiers): boolean 
   // Genie billing has no space identifier. A workspace id is not a safe
   // substitute: it would attribute every space in the workspace to this app.
   if (component === 'genie') return false;
-  // Vector billing names the serving endpoint. An index improves shared-endpoint
-  // allocation, but the endpoint itself is still an exact billable identity.
-  if (component === 'vector-search') return Boolean(ids.vectorEndpoint);
+  // Live Vector Search rows expose endpoint_name, not an index name. The full
+  // endpoint meter is attributable to this index only when the index GET names
+  // that endpoint and the endpoint GET proves it hosts exactly one index.
+  if (component === 'vector-search') {
+    return Boolean(vectorIndexName(ids.vectorIndex) && ids.vectorEndpoint && ids.vectorEndpointIndexCount === 1);
+  }
   return Boolean(ids[MATCHERS[component].parameter]);
 }
 
@@ -419,7 +432,12 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
   }
   const leakPredicate = resourcePredicates.length > 0 ? resourcePredicates.join('\n     OR ') : 'FALSE';
 
-  const statement = `WITH tagged AS (
+  const requestedComponents = covered.map((component) => `('${component}')`).join(',\n    ');
+  const statement = `WITH requested_components(component) AS (
+  VALUES
+    ${requestedComponents}
+),
+tagged AS (
   SELECT
     u.usage_date,
     u.usage_quantity,
@@ -498,37 +516,41 @@ priced AS (
 )
 SELECT
   'component' AS row_kind,
-  component AS key,
-  SUM(spend) AS spend,
-  CASE WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) = 1
-       THEN MAX(currency_code) ELSE CAST('' AS STRING) END AS currency,
-  COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) AS currency_count,
-  COUNT(DISTINCT usage_date) AS billed_days,
+  requested.component AS key,
+  COALESCE(SUM(priced.spend), 0) AS spend,
+  CASE WHEN COUNT(DISTINCT CASE WHEN priced.currency_code IS NOT NULL THEN priced.currency_code END) = 1
+       THEN MAX(priced.currency_code) ELSE CAST('' AS STRING) END AS currency,
+  COUNT(DISTINCT CASE WHEN priced.currency_code IS NOT NULL THEN priced.currency_code END) AS currency_count,
+  COUNT(DISTINCT priced.usage_date) AS billed_days,
   CAST(NULL AS BIGINT) AS job_runs,
-  MAX(usage_date) AS last_day,
-  SUM(CASE WHEN row_match = 'priced' THEN usage_quantity ELSE 0 END) AS priced_quantity,
-  SUM(CASE WHEN row_match <> 'priced' THEN usage_quantity ELSE 0 END) AS unpriced_quantity,
-  COUNT(*) FILTER (WHERE row_match = 'priced') AS priced_rows,
-  COUNT(*) FILTER (WHERE row_match <> 'priced') AS unpriced_rows,
-  array_join(collect_set(CASE WHEN row_match <> 'priced' THEN sku_name END), ',') AS unpriced_skus,
+  MAX(priced.usage_date) AS last_day,
+  COALESCE(SUM(CASE WHEN priced.row_match = 'priced' THEN priced.usage_quantity ELSE 0 END), 0) AS priced_quantity,
+  COALESCE(SUM(CASE WHEN priced.row_match <> 'priced' THEN priced.usage_quantity ELSE 0 END), 0) AS unpriced_quantity,
+  COUNT(priced.record_id) FILTER (WHERE priced.row_match = 'priced') AS priced_rows,
+  COUNT(priced.record_id) FILTER (WHERE priced.row_match <> 'priced') AS unpriced_rows,
+  array_join(collect_set(CASE WHEN priced.row_match <> 'priced' THEN priced.sku_name END), ',') AS unpriced_skus,
   CASE
-    WHEN COUNT(*) FILTER (WHERE row_match = 'duplicate') > 0 THEN 'duplicate'
-    WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) > 1 THEN 'mixed-currency'
-    WHEN COUNT(*) FILTER (WHERE row_match = 'unpriced') > 0 AND COUNT(*) FILTER (WHERE row_match = 'priced') > 0 THEN 'partial'
-    WHEN COUNT(*) FILTER (WHERE row_match = 'priced') = 0 THEN 'unpriced'
+    WHEN COUNT(priced.record_id) = 0 THEN 'none'
+    WHEN COUNT(priced.record_id) FILTER (WHERE priced.row_match = 'duplicate') > 0 THEN 'duplicate'
+    WHEN COUNT(DISTINCT CASE WHEN priced.currency_code IS NOT NULL THEN priced.currency_code END) > 1 THEN 'mixed-currency'
+    WHEN COUNT(priced.record_id) FILTER (WHERE priced.row_match = 'unpriced') > 0
+     AND COUNT(priced.record_id) FILTER (WHERE priced.row_match = 'priced') > 0 THEN 'partial'
+    WHEN COUNT(priced.record_id) FILTER (WHERE priced.row_match = 'priced') = 0 THEN 'unpriced'
     ELSE 'priced'
   END AS price_match_status,
-  COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
-  COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
-  MAX(price_start_time) AS price_effective_at,
-  COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
-  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
-  COUNT(DISTINCT usage_unit) AS usage_unit_count,
-  SUM(CASE WHEN UPPER(TRIM(usage_unit)) = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity,
-  COUNT(*) FILTER (WHERE UPPER(TRIM(usage_unit)) = 'DBU') AS dbu_rows
-FROM priced
-WHERE component IS NOT NULL
-GROUP BY component
+  COUNT(priced.record_id) FILTER (
+    WHERE priced.record_type ILIKE '%CORRECT%' OR priced.usage_quantity < 0
+  ) AS correction_rows,
+  COUNT(priced.record_id) FILTER (WHERE priced.price_match_count > 1) AS duplicate_matches,
+  MAX(priced.price_start_time) AS price_effective_at,
+  COUNT(priced.record_id) FILTER (WHERE priced.tag_matches) AS tagged_rows,
+  COUNT(priced.record_id) FILTER (WHERE NOT priced.tag_matches) AS untagged_rows,
+  COUNT(DISTINCT priced.usage_unit) AS usage_unit_count,
+  COALESCE(SUM(CASE WHEN UPPER(TRIM(priced.usage_unit)) = 'DBU' THEN priced.usage_quantity ELSE 0 END), 0) AS dbu_quantity,
+  COUNT(priced.record_id) FILTER (WHERE UPPER(TRIM(priced.usage_unit)) = 'DBU') AS dbu_rows
+FROM requested_components requested
+LEFT JOIN priced ON priced.component = requested.component
+GROUP BY requested.component
 UNION ALL
 SELECT
   'coverage' AS row_kind,
@@ -1061,7 +1083,7 @@ const DESCRIPTIONS: Record<
   'vector-search': {
     label: 'Vector Search',
     quality: 'rate',
-    population: 'This endpoint',
+    population: 'Hosting endpoint',
     basis: 'per-day',
     variable: '',
   },
@@ -1259,14 +1281,24 @@ function componentTile(
     const pricing = EMPTY_PRICING;
     if (component === 'vector-search') {
       const activity = resourceActivity.find((item) => item.tileId === 'vector-search');
+      const configuredIndex = vectorIndexName(ids.vectorIndex);
+      const identityReason = !configuredIndex
+        ? ids.vectorIdentityError || 'The active Vector Search index was not carried into this app release.'
+        : !ids.vectorEndpoint
+          ? ids.vectorIdentityError || 'The active index did not identify its hosting endpoint.'
+          : ids.vectorEndpointIndexCount === null || ids.vectorEndpointIndexCount === undefined
+            ? ids.vectorIdentityError || 'The hosting endpoint index count could not be read.'
+            : ids.vectorEndpointIndexCount > 1
+              ? `The hosting endpoint serves ${ids.vectorEndpointIndexCount} indexes; billing exposes endpoint identity only.`
+              : ids.vectorIdentityError || 'The active index-to-endpoint relationship was not established.';
       return withMeta({
         ...base,
         quality: 'unknown',
         amount: null,
         pricing,
         note: '',
-        unavailable: base.resourceId ? 'Vector Search dollars unavailable' : 'Resource identifier unavailable',
-        remedy: base.resourceId ? '' : 'Configure the Vector Search index.',
+        unavailable: `Vector Search cost unavailable: ${identityReason}`,
+        remedy: configuredIndex ? '' : 'Release the app with the active Vector Search index identity.',
         evidence: {
           billingRows: null,
           astrolabeQueries: null,
@@ -1289,8 +1321,8 @@ function componentTile(
   const row = byComponent.get(component);
   const pricing = pricingFromRow(row);
   const amount = spendAmountFor(row, description.basis);
-  const dbus = dbuAmountFor(row, description.basis);
   const billingRows = row ? (row.pricedRows ?? 0) + (row.unpricedRows ?? 0) : 0;
+  const dbus = component === 'vector-search' && row && billingRows === 0 ? 0 : dbuAmountFor(row, description.basis);
   const measuredActivity =
     component === 'vector-search' ? resourceActivity.find((item) => item.tileId === 'vector-search') : undefined;
   const evidence = {
@@ -1316,60 +1348,21 @@ function componentTile(
       : {}),
   };
   if (component === 'vector-search') {
-    const configuredIndex = vectorIndexName(ids.vectorIndex);
-    if (!configuredIndex) {
-      return withMeta({
-        ...base,
-        label: 'Vector Search endpoint',
-        quality: 'rate',
-        population: 'This endpoint',
-        amount,
-        dbus,
-        pricing,
-        note: row
-          ? 'Billing identifies the configured endpoint; no active index identity was available for per-index allocation.'
-          : '',
-        unavailable: amount === null && dbus === null ? unpricedUnavailable(pricing) || 'No billing rows' : '',
-        remedy: '',
-        evidence,
-      });
-    }
-    const share =
-      measuredActivity && measuredActivity.observedCalls > 0
-        ? Math.min(1, Math.max(0, measuredActivity.calls / measuredActivity.observedCalls))
-        : null;
-    if (share === null) {
-      return withMeta({
-        ...base,
-        quality: 'unknown',
-        amount: null,
-        dbus: null,
-        pricing,
-        note: '',
-        unavailable: row
-          ? 'Vector Search endpoint billing matched, but configured-index activity was not measurable'
-          : 'No billing rows',
-        remedy: '',
-        evidence,
-      });
-    }
-    const allocate = (value: number | null) =>
-      value === null ? null : Math.round(value * share * 1_000_000_000_000) / 1_000_000_000_000;
-    const allocatedAmount = allocate(amount);
-    const allocatedDbus = allocate(dbus);
+    const noUsage = Boolean(row && billingRows === 0);
     return withMeta({
       ...base,
-      quality: share < 1 ? 'estimate' : base.quality,
-      population: share < 1 ? 'Recorded query share' : 'This endpoint',
-      amount: allocatedAmount,
-      dbus: allocatedDbus,
+      quality: 'rate',
+      population: 'Hosting endpoint',
+      amount,
+      dbus,
       pricing,
-      note:
-        share < 1
-          ? `${measuredActivity?.calls ?? 0} of ${measuredActivity?.observedCalls ?? 0} recorded Vector Search calls matched this index.`
-          : '',
+      note: noUsage
+        ? 'No billable usage in this period'
+        : 'Billing is endpoint-level; this endpoint hosts only the active index.',
       unavailable:
-        allocatedAmount === null && allocatedDbus === null ? unpricedUnavailable(pricing) || 'No billing rows' : '',
+        amount === null && dbus === null
+          ? unpricedUnavailable(pricing) || 'No billing rows matched the hosting endpoint'
+          : '',
       remedy: '',
       evidence,
     });

@@ -1,0 +1,186 @@
+import { z } from 'zod';
+
+import type { AppBudgetStatus } from '../../shared/app-budget-guard';
+import { approveAppBudget, revokeAppBudgetApproval } from '../lib/app-budget-approval-store';
+import { forgetAppBudgetStatus, readAppBudgetStatus } from '../lib/app-budget-guard';
+import { recordAdminAction } from '../lib/admin-roles';
+import { userEmail, type InsightsAppKit } from './insights-routes';
+
+const ApprovalMutationSchema = z.strictObject({
+  budgetFingerprint: z.string().length(64),
+});
+
+function sameRevision(status: AppBudgetStatus, expected: string): boolean {
+  return Boolean(status.budgetFingerprint) && status.budgetFingerprint === expected;
+}
+
+export function setupAppBudgetRoutes(
+  appkit: InsightsAppKit,
+  deps: { readStatus?: typeof readAppBudgetStatus } = {}
+): void {
+  const readStatus = deps.readStatus ?? readAppBudgetStatus;
+  appkit.server.extend((app) => {
+    app.get('/api/budget-status', async (req, res) => {
+      try {
+        res.json(await readStatus(appkit, req));
+      } catch (error) {
+        res.status(503).json({
+          error: 'app_budget_status_unavailable',
+          detail: `Budget status could not be assembled: ${(error as Error).message}`,
+        });
+      }
+    });
+
+    app.post('/api/admin/budget-approval', async (req, res) => {
+      const parsed = ApprovalMutationSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'invalid_budget_approval', detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      const status = await readStatus(appkit, req);
+      if (!sameRevision(status, parsed.data.budgetFingerprint)) {
+        res.status(409).json({
+          error: 'budget_revision_changed',
+          detail: 'The monthly app budget changed. Refresh its status before approving continued usage.',
+          status,
+        });
+        return;
+      }
+      if (
+        (status.level !== 'approval-required' && status.level !== 'approved-overage') ||
+        status.unit === null ||
+        status.budget === null ||
+        status.measured === null ||
+        status.coverage !== 'complete'
+      ) {
+        res.status(409).json({
+          error: 'budget_approval_not_required',
+          detail: 'The current authoritative budget status does not require approval.',
+          status,
+        });
+        return;
+      }
+      try {
+        const period = {
+          monthStart: status.monthStart,
+          monthEnd: status.monthEnd,
+          measurementThrough: status.measuredThrough,
+        };
+        const approval = await approveAppBudget(appkit, {
+          period,
+          budgetFingerprint: status.budgetFingerprint,
+          unit: status.unit,
+          budget: status.budget,
+          measured: status.measured,
+          coverage: status.coverage,
+          readAt: status.readAt,
+          measuredThrough: status.measuredThrough,
+          actor,
+        });
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'app-budget-overage-approved',
+          subject: `${period.monthStart}:${status.budgetFingerprint}`,
+          detail:
+            `Approved new questions through ${period.monthEnd} for the current ${status.unit} app budget revision. ` +
+            `Measured ${status.measured} ${status.unit} against ${status.budget} ${status.unit}; ` +
+            `coverage was ${status.coverage} through ${status.measuredThrough}.`,
+        });
+        forgetAppBudgetStatus();
+        res.json({
+          status: {
+            ...status,
+            level: 'approved-overage',
+            code: 'APP_BUDGET_APPROVED_OVERAGE',
+            detail: '',
+            approval: {
+              approved: true,
+              approvedAt: approval.approvedAt,
+              approvedBy: 'An administrator',
+              through: period.monthEnd,
+              revokedAt: '',
+            },
+          } satisfies AppBudgetStatus,
+        });
+      } catch (error) {
+        res.status(503).json({
+          error: 'budget_approval_store_unavailable',
+          detail: `Continued usage was not approved: ${(error as Error).message}`,
+          status,
+        });
+      }
+    });
+
+    app.delete('/api/admin/budget-approval', async (req, res) => {
+      const parsed = ApprovalMutationSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'invalid_budget_approval', detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      const status = await readStatus(appkit, req);
+      if (!sameRevision(status, parsed.data.budgetFingerprint)) {
+        res.status(409).json({
+          error: 'budget_revision_changed',
+          detail: 'The monthly app budget changed. Refresh its status before revoking approval.',
+          status,
+        });
+        return;
+      }
+      if (status.level !== 'approved-overage' || status.unit === null || status.budget === null) {
+        res.status(404).json({
+          error: 'budget_approval_not_found',
+          detail: 'There is no current app-budget approval to revoke.',
+          status,
+        });
+        return;
+      }
+      try {
+        const period = {
+          monthStart: status.monthStart,
+          monthEnd: status.monthEnd,
+          measurementThrough: status.measuredThrough,
+        };
+        const revoked = await revokeAppBudgetApproval(appkit, {
+          period,
+          budgetFingerprint: status.budgetFingerprint,
+          unit: status.unit,
+          budget: status.budget,
+          actor,
+        });
+        if (!revoked) {
+          res.status(404).json({
+            error: 'budget_approval_not_found',
+            detail: 'The current app-budget approval was already revoked.',
+            status,
+          });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'app-budget-overage-revoked',
+          subject: `${period.monthStart}:${status.budgetFingerprint}`,
+          detail: `Revoked continued usage for the current ${status.unit} app budget revision.`,
+        });
+        forgetAppBudgetStatus();
+        res.json({
+          status: {
+            ...status,
+            level: 'approval-required',
+            code: 'BUDGET_APPROVAL_REQUIRED',
+            detail:
+              'Measured month-to-date app-attributable spend reached the monthly app budget. An administrator must approve continued usage.',
+            approval: null,
+          } satisfies AppBudgetStatus,
+        });
+      } catch (error) {
+        res.status(503).json({
+          error: 'budget_approval_store_unavailable',
+          detail: `The approval was not revoked: ${(error as Error).message}`,
+          status,
+        });
+      }
+    });
+  });
+}

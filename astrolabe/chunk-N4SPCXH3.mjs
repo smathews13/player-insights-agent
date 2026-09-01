@@ -1,0 +1,21 @@
+
+import {
+  __commonJS,
+  __require
+} from "./chunk-LLUDDZ3A.mjs";
+
+// ../../.wt-chart-readonly/player-insights-agent/node_modules/@databricks/appkit/node_modules/@opentelemetry/resources/build/src/detectors/platform/node/machine-id/execAsync.js
+var require_execAsync = __commonJS({
+  "../../.wt-chart-readonly/player-insights-agent/node_modules/@databricks/appkit/node_modules/@opentelemetry/resources/build/src/detectors/platform/node/machine-id/execAsync.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.execAsync = void 0;
+    var child_process = __require("child_process");
+    var util = __require("util");
+    exports.execAsync = util.promisify(child_process.exec);
+  }
+});
+
+export {
+  require_execAsync
+};

@@ -316,13 +316,14 @@ describe('one clock', () => {
    * Architecture used to state freshness twice: this control, and a LAST CHECK
    * tile below it reading the same `checkedAt` through `checkedAgo`. The tile is
    * gone, and this is what stops it coming back -- a second reading is a second
-   * thing to round differently, word differently, or leave stale.
+   * thing to round differently, word differently, or leave stale. The formatter
+   * now lives beside this state so the eager login retry does not import the
+   * route-only Architecture model.
    */
   it('leaves the reading of the clock to this control alone', () => {
     const here = fileURLToPath(new URL('.', import.meta.url));
     const callers = readdirSync(here)
       .filter((name) => /\.tsx?$/.test(name) && !name.includes('.test.'))
-      .filter((name) => name !== 'architecture.ts') // where it is defined
       .filter((name) => source(name).includes('checkedAgo('));
 
     expect(callers).toEqual(['refresh-state.ts']);

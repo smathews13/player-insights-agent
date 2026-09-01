@@ -153,6 +153,7 @@ import {
   type ResourceRow,
 } from './connection-model';
 import { connectionResourceView } from './connection-resource-view';
+import { AiGatewayConnection } from './AiGatewayConnection';
 
 /**
  * The tone a section's rows carry, decided by the section they are in.
@@ -1412,6 +1413,10 @@ export function ConnectionsPage() {
    * in the Build card and red in the list.
    */
   const orchestratorReading = useMemo(() => readingsById(readings).get('agent-endpoint'), [readings]);
+  const foundationModel = useMemo(() => {
+    const model = readingsById(readings).get('llm-endpoint')?.row;
+    return (model?.intended ?? model?.configured ?? '').trim();
+  }, [readings]);
   const hostedIndex = useMemo(() => {
     const index = readingsById(readings).get('semantic-index');
     if (!index) return '';
@@ -1718,24 +1723,35 @@ export function ConnectionsPage() {
             {group.aside ? <span className="connection-group-aside">{group.aside}</span> : null}
           </h3>
           <div className="connection-rows">
-            {group.readings.map((reading) => (
-              <ConnectionRow
-                key={reading.resource.id}
-                reading={reading}
-                tone={GROUP_TONE[group.key]}
-                saving={saving === reading.resource.id}
-                refreshing={refreshing}
-                declaredTables={canonicalDeclaredTableNames(reading.row.configured, tableChecks)}
-                tableChecks={tableChecks}
-                checkedAt={lastCheckedAt}
-                hostedIndex={hostedIndex}
-                requested={requestedResource === reading.resource.id}
-                catalogInUse={catalogInUse}
-                allowMutations={allowMutations}
-                onSave={(value) => write(reading.row, value)}
-                onClear={() => clear(reading.row)}
-              />
-            ))}
+            {group.readings.map((reading) =>
+              reading.resource.id === 'llm-gateway' ? (
+                <AiGatewayConnection
+                  key={reading.resource.id}
+                  reading={reading}
+                  foundationModel={foundationModel}
+                  requested={requestedResource === reading.resource.id}
+                  allowMutations={allowMutations}
+                  onStaged={rereadSettings}
+                />
+              ) : (
+                <ConnectionRow
+                  key={reading.resource.id}
+                  reading={reading}
+                  tone={GROUP_TONE[group.key]}
+                  saving={saving === reading.resource.id}
+                  refreshing={refreshing}
+                  declaredTables={canonicalDeclaredTableNames(reading.row.configured, tableChecks)}
+                  tableChecks={tableChecks}
+                  checkedAt={lastCheckedAt}
+                  hostedIndex={hostedIndex}
+                  requested={requestedResource === reading.resource.id}
+                  catalogInUse={catalogInUse}
+                  allowMutations={allowMutations}
+                  onSave={(value) => write(reading.row, value)}
+                  onClear={() => clear(reading.row)}
+                />
+              )
+            )}
             {/* Built-in configured resources always lead. The shared declared
                   list then adds its own deterministic user-added section, with
                   the closed Add row and form after every saved row. */}

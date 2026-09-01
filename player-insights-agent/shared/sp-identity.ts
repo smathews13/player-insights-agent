@@ -314,9 +314,7 @@ export interface SpMintingStatus {
 }
 
 export interface SpIdentityAssigned {
-  id: string;
   displayName: string;
-  clientId: string;
 }
 
 /** What `/api/identity` adds so every page can say who the next call would run as. */

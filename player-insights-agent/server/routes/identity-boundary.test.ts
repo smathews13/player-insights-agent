@@ -6,11 +6,11 @@ import { DEVELOPMENT_IDENTITY, setupInsightsRoutes, type InsightsAppKit } from '
 import { announceSeedAdmins } from '../lib/admin-roles';
 import { resetLakebaseHealth } from '../lib/lakebase-store';
 import {
-  SCIM_ME_PATH,
   SCIM_USERS_PATH,
   forgetControlPlaneIdentityMetadata,
   type ControlPlaneReader,
 } from '../lib/control-plane-identity';
+import { appServicePrincipal } from './execution-identity';
 
 /**
  * The row-level tenancy boundary, from the outside.
@@ -226,7 +226,8 @@ describe('a deployed app with a forwarded identity', () => {
     try {
       const response = await app.fetch('/api/activity/heartbeat', {
         method: 'POST',
-        headers: { 'x-forwarded-email': 'analyst@example.example' },
+        headers: { 'x-forwarded-email': 'Analyst@the demo workspace.Example', 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'spoofed.person@example.test' }),
       });
       expect(response.status).toBe(204);
     } finally {
@@ -235,6 +236,7 @@ describe('a deployed app with a forwarded identity', () => {
 
     const write = store.queries.find((entry) => entry.sql.includes('app_activity_minutes'));
     expect(write?.params).toEqual(['analyst@example.example']);
+    expect(write?.params).not.toContain('spoofed.person@example.test');
     expect(write?.sql).toContain("date_trunc('minute', now())");
     expect(write?.sql).not.toMatch(/content|question|token|session/i);
   });
@@ -298,7 +300,7 @@ describe('a deployed app with a forwarded identity', () => {
     }
   });
 
-  it('adds safe authoritative user, app, and service-principal metadata to the identity API', async () => {
+  it('returns user and app metadata without exposing the application principal', async () => {
     const prior = {
       host: process.env.DATABRICKS_HOST,
       app: process.env.DATABRICKS_APP_NAME,
@@ -308,13 +310,6 @@ describe('a deployed app with a forwarded identity', () => {
     process.env.DATABRICKS_APP_NAME = 'player-insights-agent';
     process.env.DATABRICKS_CLIENT_ID = '071769f1-5623-45b6-a172-c8b0060adf31';
     const reader: ControlPlaneReader = (path) => {
-      if (path === SCIM_ME_PATH) {
-        return Promise.resolve({
-          id: '9988776655443322',
-          applicationId: process.env.DATABRICKS_CLIENT_ID,
-          displayName: 'Astrolabe application service principal',
-        });
-      }
       if (path === SCIM_USERS_PATH) {
         return Promise.resolve({
           Resources: [{ id: '1122334455667788', userName: 'analyst@example.example', displayName: 'the demo workspace Analyst' }],
@@ -338,14 +333,16 @@ describe('a deployed app with a forwarded identity', () => {
           workspaceHost: process.env.DATABRICKS_HOST,
           workspaceId: '<workspace-id>',
         },
-        servicePrincipal: {
-          displayName: 'Astrolabe application service principal',
-          applicationId: process.env.DATABRICKS_CLIENT_ID,
-          objectId: '9988776655443322',
-          state: 'verified',
-        },
       });
-      expect(JSON.stringify(body)).not.toMatch(/client.?secret|authorization|bearer|database.?password/i);
+      const wire = JSON.stringify(body);
+      expect(wire).not.toContain(process.env.DATABRICKS_CLIENT_ID);
+      expect(wire).not.toMatch(
+        /servicePrincipal|applicationId|Astrolabe application service principal|9988776655443322|client.?secret|authorization|bearer|database.?password/i
+      );
+      expect(body).not.toHaveProperty('executionIdentity');
+      // Removing the browser field does not remove the credential from the
+      // server process; internal authorization and Databricks calls still read it.
+      expect(appServicePrincipal()).toBe(process.env.DATABRICKS_CLIENT_ID);
     } finally {
       await app.close();
       if (prior.host === undefined) delete process.env.DATABRICKS_HOST;

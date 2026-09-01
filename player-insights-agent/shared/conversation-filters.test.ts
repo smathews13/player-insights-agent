@@ -15,14 +15,12 @@ describe('conversation filter query contract', () => {
     const parsed = parseConversationFilterQuery({
       owners: [owners[0], owners[0].toLowerCase(), ...owners.slice(1)],
       personas: [personas[0], personas[0], ...personas.slice(1)],
-      no_persona: 'true',
     });
     expect(parsed).toMatchObject({ ok: true });
     if (!parsed.ok) return;
     expect(parsed.value.owners).toHaveLength(MAX_CONVERSATION_FILTER_VALUES);
     expect(parsed.value.owners[0]).toBe('user-0@example.com');
     expect(parsed.value.personaIds).toHaveLength(MAX_CONVERSATION_FILTER_VALUES);
-    expect(parsed.value.includeNoPersona).toBe(true);
   });
 
   it('rejects malformed and oversized values', () => {
@@ -30,13 +28,20 @@ describe('conversation filter query contract', () => {
     expect(parseConversationFilterQuery({ personas: 'x'.repeat(81) }).ok).toBe(false);
     expect(parseConversationFilterQuery({ no_persona: 'yes' }).ok).toBe(false);
   });
+
+  it('retires a stale missing-persona URL filter to the unfiltered persona set', () => {
+    const parsed = parseConversationFilterQuery({ no_persona: 'true' });
+    expect(parsed).toEqual({ ok: true, value: { owners: [], personaIds: [] } });
+    if (!parsed.ok) return;
+    expect(conversationMatchesFilters({ id: 'missing', persona_id: null }, parsed.value)).toBe(true);
+    expect(conversationMatchesFilters({ id: 'named', persona_id: 'finance' }, parsed.value)).toBe(true);
+  });
 });
 
 describe('owner and persisted-persona AND semantics', () => {
   const filters = {
     owners: ['alice@example.com'],
     personaIds: ['finance'],
-    includeNoPersona: false,
   };
 
   it('requires both filters while OR-ing selected persona values', () => {
@@ -51,11 +56,14 @@ describe('owner and persisted-persona AND semantics', () => {
     ).toBe(false);
   });
 
-  it('matches No persona only when historical evidence is absent', () => {
-    const noPersona = { owners: [], personaIds: [], includeNoPersona: true };
-    expect(conversationMatchesFilters({ id: 'old', user_email: 'alice@example.com' }, noPersona)).toBe(true);
+  it('keeps missing evidence under All and excludes it from named filters', () => {
+    const allPersonas = { owners: [], personaIds: [] };
+    expect(conversationMatchesFilters({ id: 'old', user_email: 'alice@example.com' }, allPersonas)).toBe(true);
     expect(
-      conversationMatchesFilters({ id: 'recorded', user_email: 'alice@example.com', persona_id: 'finance' }, noPersona)
+      conversationMatchesFilters(
+        { id: 'old', user_email: 'alice@example.com' },
+        { owners: [], personaIds: ['finance'] }
+      )
     ).toBe(false);
   });
 });

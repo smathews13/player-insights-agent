@@ -74,6 +74,25 @@ def test_intended_from_settings_resources():
     }
 
 
+def test_direct_gateway_clear_is_an_explicit_empty_override():
+    intended = apply.intended_from_resources(
+        [
+            {"resource": {"agentKey": "llm_gateway"}, "intended": ""},
+            {
+                "resource": {"agentKey": "llm_endpoint"},
+                "intended": "databricks-gpt-5",
+            },
+        ]
+    )
+    plan = apply.resolve_apply_plan(intended=intended)
+    assert intended == {
+        "llm_gateway": "",
+        "llm_endpoint": "databricks-gpt-5",
+    }
+    assert plan.env_exports()["PLAYER_INSIGHTS_LLM_GATEWAY"] == ""
+    assert plan.env_exports()["PLAYER_INSIGHTS_LLM_ENDPOINT"] == "databricks-gpt-5"
+
+
 def test_intended_from_stored_rows():
     rows = [
         {"resource_id": "sql-warehouse", "value": "wh-a", "intent": "intended"},

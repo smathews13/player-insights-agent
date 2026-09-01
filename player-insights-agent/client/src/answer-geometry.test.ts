@@ -173,7 +173,7 @@ describe('the provenance chip has three tones and none is the action colour', ()
     // than chosen beside it: one call drives the label, the variant and the
     // attribute the stylesheet keys on. A literal label here would be a second
     // opinion about provenance living in the presentation layer.
-    expect(CARD).toContain('const badge = answerBadge(answer);');
+    expect(CARD).toContain('const badge = answerBadge(readerAnswer);');
     expect(CARD).toContain('<Badge variant={badge.variant} className="provenance-chip" data-tone={badge.tone}>');
     expect(CARD).toContain('{badge.label}');
   });
@@ -195,11 +195,11 @@ describe('the compact stat rail preserves every figure', () => {
     // the second. The content signature stays stable when figures move; exact
     // duplicates receive an occurrence suffix rather than an array-position key.
     expect(CARD).toContain('const figureOccurrences = new Map<string, number>();');
-    expect(CARD).toContain('const keyedFigures = answer.figures.map((figure) => {');
+    expect(CARD).toContain('const keyedFigures = readerAnswer.figures.map((figure) => {');
     expect(CARD).toContain('{keyedFigures.map(({ figure, key }) => (');
     expect(CARD).toContain('<div className="answer-stat" key={key}>');
     expect(CARD).not.toContain('key={`${position}-');
-    expect(CARD).not.toMatch(/answer\.figures\.(slice|sort|filter)\(/);
+    expect(CARD).not.toMatch(/(?:answer|readerAnswer)\.figures\.(slice|sort|filter)\(/);
   });
 });
 
@@ -639,7 +639,7 @@ describe('the closing note and the feedback row', () => {
     // started being forwarded to the endpoint. A constant cannot be right about
     // an arrangement a release can change, so the sentence is derived from the
     // claim the run reported and the assertion is that no literal survives.
-    expect(CARD).toContain('dataAccessDisclosure(answer.executionIdentity)');
+    expect(CARD).toContain('dataAccessDisclosure(readerAnswer.executionIdentity)');
     expect(PROSE).not.toMatch(/service principal/i);
     expect(PROSE).not.toMatch(/Data access executed by/i);
   });

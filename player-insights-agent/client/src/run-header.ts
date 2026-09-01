@@ -17,7 +17,7 @@
  * only exists inside markup can be asserted against a rendered tree and never
  * against itself.
  */
-import { ratingOutOf } from './benchmark-summary';
+import { ratingOutOf } from './benchmark-format';
 
 /**
  * How much of an id is enough to recognise it by.

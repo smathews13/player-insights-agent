@@ -45,6 +45,7 @@ import {
   VERDICT_STAGE_EXEMPTION_SQL,
 } from '../../shared/run-verdict';
 import { unavailableHttpStatus } from '../../shared/terminal-response';
+import { appBudgetPeriod, emptyAppBudgetStatus } from '../../shared/app-budget-guard';
 import type { FailureEvidence } from '../../shared/failure-evidence';
 import {
   forgetAccessDecisions,
@@ -867,7 +868,18 @@ async function startInsightsApp(
   // is the correct refusal and not what any of these tests are checking. The
   // refusal itself is tested in admin-roles.test.ts, against a consumer.
   announceSeedAdmins(DEVELOPMENT_IDENTITY);
-  await setupInsightsRoutes(appkit);
+  const budgetPeriod = appBudgetPeriod(Date.parse('2026-09-15T12:00:00Z'));
+  await setupInsightsRoutes(appkit, {
+    // Existing Ask tests isolate serving, persistence, identity, and sessions.
+    // Budget admission has dedicated route tests with blocking status.
+    readBudgetStatus: () =>
+      Promise.resolve(
+        emptyAppBudgetStatus(budgetPeriod, '2026-09-15T12:00:00Z', {
+          coverage: 'complete',
+          budgetFingerprint: 'test-unset',
+        })
+      ),
+  });
 
   const port = await harnessPort();
   const mountId = String((nextMountId += 1));
@@ -2117,12 +2129,11 @@ describe('Plotly charts on the answer contract', () => {
 });
 
 describe('identity and benchmark records', () => {
-  it('discloses the service-principal execution identity', () => {
+  it('reports execution responsibility without disclosing the application principal id', () => {
     process.env.DATABRICKS_CLIENT_ID = 'sp-1234';
     expect(identityPayload(request({ 'x-forwarded-email': 'analyst@example.example' }))).toEqual({
       signedInAs: 'analyst@example.example',
       identitySource: 'databricks-apps',
-      executionIdentity: 'sp-1234',
       executionMode: 'service-principal',
       // Nobody has been through the access gate in this process, so there is no
       // decision to report. The default gate mode is service-principal (own access
@@ -2175,9 +2186,9 @@ describe('identity and benchmark records', () => {
 
     // The whole point of the pair: the app authenticates as one principal and
     // the thing that touches the data authenticates as another.
-    expect(payload.executionIdentity).toBe('app-sp');
     expect(payload.servingPrincipal?.id).toBe('serving-sp');
-    expect(payload.servingPrincipal?.id).not.toBe(payload.executionIdentity);
+    expect(payload).not.toHaveProperty('executionIdentity');
+    expect(JSON.stringify(payload)).not.toContain('app-sp');
     forgetServingPrincipal();
   });
 
@@ -2205,9 +2216,9 @@ describe('identity and benchmark records', () => {
     expect(payload.signedInAs).not.toContain('@example.com');
   });
 
-  it('falls back to a readable execution identity when the client id is absent', () => {
+  it('never adds an application identity field when the client id is absent', () => {
     delete process.env.DATABRICKS_CLIENT_ID;
-    expect(identityPayload(request()).executionIdentity).toBe('Astrolabe service principal');
+    expect(identityPayload(request())).not.toHaveProperty('executionIdentity');
   });
 });
 
@@ -3478,11 +3489,11 @@ describe('a canned answer discloses that no live query produced it', () => {
     };
   }
 
-  it('marks an answer that carries evidence with no MLflow trace behind it', () => {
+  it('does not add trace-omission narration to an answer', () => {
     const disclosed = discloseAnswerProvenance(untraced());
 
     expect(disclosed.trace.id).not.toMatch(/^tr-[0-9a-f]+$/i);
-    expect(disclosed.caveats[0]).toBe(REPRESENTATIVE_ANSWER_CAVEAT);
+    expect(disclosed.caveats).toEqual([]);
   });
 
   it('leaves an answer that carries a real MLflow trace id untouched', () => {
@@ -3577,7 +3588,7 @@ describe('a canned answer discloses that no live query produced it', () => {
         executePlan: true,
       });
 
-      expect(answered.caveats).toContain(REPRESENTATIVE_ANSWER_CAVEAT);
+      expect(answered.caveats).not.toContain(REPRESENTATIVE_ANSWER_CAVEAT);
       expect((answered.trace as { id: string }).id).toBe('trace-local');
       expect((answered.trace as { stages: unknown[] }).stages).toEqual([]);
       expect((answered.trace as { totalMs: number; toolCalls: number }).totalMs).toBe(
@@ -3986,10 +3997,12 @@ describe('an answer says which of its parts came from the run', () => {
         executePlan: true,
       });
       expect((answered.trace as { stages: unknown[] }).stages).toEqual([]);
-      expect((answered.caveats as string[]).some((caveat) => caveat.includes('stopped after 2 steps'))).toBe(true);
-      expect((answered.caveats as string[]).some((caveat) => caveat.includes('no tool steps were recorded'))).toBe(
-        false
-      );
+      expect(
+        (answered.caveats as string[]).some((caveat) =>
+          caveat.includes('response ended before the answer format completed')
+        )
+      ).toBe(true);
+      expect((answered.caveats as string[]).join(' ')).not.toMatch(/stopped after|no tool steps were recorded/);
     } finally {
       await app.close();
     }
@@ -4153,6 +4166,11 @@ function lakebaseWithLedger(store: ReturnType<typeof memoryLakebase>) {
               return Promise.resolve({ rows: [] as Record<string, unknown>[] });
             }
           }
+          return store.query(sql, params);
+        }
+        // Conversation rail reads include a lateral join to runs for persona
+        // evidence, but the rows themselves still belong to this memory store.
+        if (/^\s*SELECT c\.id, c\.title, c\.updated_at, c\.user_email/i.test(sql)) {
           return store.query(sql, params);
         }
         return /player_insights\.(runs|run_attempts|run_events)/.test(sql)

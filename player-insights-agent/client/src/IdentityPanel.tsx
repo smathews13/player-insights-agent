@@ -1,4 +1,4 @@
-/** Compact user, app, and application-service-principal identity summary. */
+/** Compact signed-in user and app identity summary. */
 import { Card } from './ui';
 import { OAuthBadge } from './OAuthBadge';
 import { CopyButton, StatusBadge } from './StatusBadge';
@@ -14,32 +14,21 @@ import { ROLE_WORD } from '../../shared/user-roster-contract';
  * and `session`. A local shape that happened to omit either would draw a neutral
  * badge on a deployment whose sign-in had failed.
  */
-const NOT_REPORTED = 'Not reported';
-
-/** A stamp as a reader's own local time, or '' when there is nothing to show. */
-function when(iso: string | undefined): string {
-  if (!iso) return '';
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? '' : at.toLocaleString();
-}
-
 /** One label-and-value line. Nothing renders when there is no value. */
-function Fact({ label, wrap, children }: { label: string; wrap?: boolean; children: React.ReactNode }) {
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="identity-fact" data-wrap={wrap ? 'true' : undefined}>
+    <div className="identity-fact">
       <p className="identity-fact-label">{label}</p>
       <div className="identity-fact-value">{children}</div>
     </div>
   );
 }
 
-function Identifier({ label, value }: { label: string; value: string | undefined }) {
-  const reported = value?.trim() ?? '';
-  if (!reported) return <span className="identity-not-reported">{NOT_REPORTED}</span>;
+function Identifier({ label, value }: { label: string; value: string }) {
   return (
     <>
-      <StatusBadge value={reported} tone="plain" title={reported} />
-      <CopyButton value={reported} label={`Copy ${label}`} />
+      <StatusBadge value={value} tone="plain" title={value} />
+      <CopyButton value={value} label={`Copy ${label}`} />
     </>
   );
 }
@@ -63,7 +52,7 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
   const { identity, failed } = read ?? own;
   const session = identity?.session;
   const metadata = identity?.identityMetadata;
-  const role = identity?.role ? ROLE_WORD[identity.role] : NOT_REPORTED;
+  const role = identity?.role ? ROLE_WORD[identity.role] : '';
   const userVerified =
     identity?.identitySource === 'databricks-apps' && session?.signedIn === true
       ? metadata?.user.state === 'verified'
@@ -73,16 +62,14 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
   const authMode =
     identity?.identitySource === 'databricks-apps' ? 'Databricks Apps OAuth' : 'Local development fallback';
   const assignedPersona = identity?.spIdentity?.assigned?.displayName ?? '';
-  const appSp = metadata?.servicePrincipal;
-  const clientId =
-    appSp?.applicationId?.trim() ||
-    (identity?.executionIdentity && identity.executionIdentity !== 'Astrolabe service principal'
-      ? identity.executionIdentity.trim()
-      : '');
-  const spReadAt = when(appSp?.readAt);
-  const spMetadataReported = Boolean(
-    appSp?.displayName?.trim() || appSp?.objectId?.trim() || appSp?.state === 'verified'
-  );
+  const execution =
+    identity?.analyticalExecution?.mode === 'app_service_principal'
+      ? 'Astrolabe app'
+      : identity?.spIdentity?.executingAs === 'service_principal' && assignedPersona
+        ? `Assigned persona · ${assignedPersona}`
+        : assignedPersona
+          ? `Signed-in user · assigned persona ${assignedPersona}`
+          : 'Signed-in user';
 
   return (
     <Card className="deployment-card deployment-card-identity" data-testid="identity-panel">
@@ -105,20 +92,21 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
             <section className="identity-section" aria-labelledby="identity-user-heading">
               <h4 id="identity-user-heading">Signed-in user</h4>
               <div className="identity-section-grid">
-                <Fact label="Display name">
-                  <span>{metadata?.user.displayName || NOT_REPORTED}</span>
-                </Fact>
-                <Fact label="Email">
-                  <span className="identity-full-value" title={identity?.signedInAs || NOT_REPORTED}>
-                    {identity?.signedInAs || NOT_REPORTED}
-                  </span>
-                </Fact>
-                <Fact label="Astrolabe role">
-                  <span>{role}</span>
-                </Fact>
-                {assignedPersona ? (
-                  <Fact label="Assigned persona">
-                    <span>{assignedPersona}</span>
+                {metadata?.user.displayName ? (
+                  <Fact label="Display name">
+                    <span>{metadata.user.displayName}</span>
+                  </Fact>
+                ) : null}
+                {identity?.signedInAs ? (
+                  <Fact label="Email">
+                    <span className="identity-full-value" title={identity.signedInAs}>
+                      {identity.signedInAs}
+                    </span>
+                  </Fact>
+                ) : null}
+                {role ? (
+                  <Fact label="Astrolabe role">
+                    <span>{role}</span>
                   </Fact>
                 ) : null}
                 <Fact label="Authentication">
@@ -142,57 +130,25 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
                 <Fact label="Display name">
                   <span>{metadata?.app.displayName || 'Astrolabe'}</span>
                 </Fact>
-                <Fact label="Resource name">
-                  <Identifier label="Databricks app resource name" value={metadata?.app.resourceName} />
-                </Fact>
-                <Fact label="Workspace host">
-                  <span className="identity-full-value" title={metadata?.app.workspaceHost || NOT_REPORTED}>
-                    {metadata?.app.workspaceHost || NOT_REPORTED}
-                  </span>
-                </Fact>
+                {metadata?.app.resourceName ? (
+                  <Fact label="Resource name">
+                    <Identifier label="Databricks app resource name" value={metadata.app.resourceName} />
+                  </Fact>
+                ) : null}
+                {metadata?.app.workspaceHost ? (
+                  <Fact label="Workspace host">
+                    <span className="identity-full-value" title={metadata.app.workspaceHost}>
+                      {metadata.app.workspaceHost}
+                    </span>
+                  </Fact>
+                ) : null}
                 {metadata?.app.workspaceId ? (
                   <Fact label="Workspace ID">
                     <Identifier label="workspace ID" value={metadata.app.workspaceId} />
                   </Fact>
                 ) : null}
-              </div>
-            </section>
-
-            <section className="identity-section" aria-labelledby="identity-sp-heading">
-              <h4 id="identity-sp-heading">Service principal</h4>
-              <div className="identity-section-grid">
-                {appSp?.displayName ? (
-                  <Fact label="Display name">
-                    <span className="identity-full-value" title={appSp.displayName}>
-                      {appSp.displayName}
-                    </span>
-                  </Fact>
-                ) : null}
-                <Fact label="Application ID">
-                  <Identifier label="application ID" value={clientId} />
-                </Fact>
-                {appSp?.objectId ? (
-                  <Fact label="Object ID">
-                    <Identifier label="service principal object ID" value={appSp.objectId} />
-                  </Fact>
-                ) : null}
-                {appSp?.state === 'verified' ? (
-                  <Fact label="Verification">
-                    <span>Verified by Databricks SCIM</span>
-                  </Fact>
-                ) : null}
-                {spMetadataReported && spReadAt ? (
-                  <Fact label="Metadata read">
-                    <span>{spReadAt}</span>
-                  </Fact>
-                ) : null}
-                {!spMetadataReported ? (
-                  <Fact label="Metadata">
-                    <span className="identity-not-reported">{NOT_REPORTED}</span>
-                  </Fact>
-                ) : null}
-                <Fact label="Responsibility" wrap>
-                  <span>Lakebase and app state · control-plane metadata</span>
+                <Fact label="Execution">
+                  <span>{execution}</span>
                 </Fact>
               </div>
             </section>

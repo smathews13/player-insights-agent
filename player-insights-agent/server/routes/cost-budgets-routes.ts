@@ -1,5 +1,6 @@
 import { attributableCostBudgets, CostBudgetsSchema } from '../../shared/cost-budgets';
 import { recordAdminAction } from '../lib/admin-roles';
+import { forgetAppBudgetStatus } from '../lib/app-budget-guard';
 import { readCostBudgets, writeCostBudgets } from '../lib/cost-budgets-store';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 
@@ -19,11 +20,12 @@ export function setupCostBudgetsRoutes(appkit: InsightsAppKit): void {
       const actor = userEmail(req);
       try {
         const budgets = await writeCostBudgets(appkit, attributableCostBudgets(parsed.data), actor);
+        forgetAppBudgetStatus();
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: 'cost-budgets-updated',
           subject: 'cost-budgets',
-          detail: 'Updated nominal Cost budgets for the app total and resource tiles.',
+          detail: 'Updated the monthly app budget and advisory resource budgets.',
         });
         res.json({ budgets, readable: true });
       } catch (error) {

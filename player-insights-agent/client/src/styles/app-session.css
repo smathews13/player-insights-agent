@@ -12,14 +12,105 @@
 .startup-loader {
   display: grid;
   place-items: center;
-  gap: 14px;
+  gap: 8px;
   font-size: 13px;
   font-weight: 600;
 }
 
-.startup-loader [data-startup-symbol] {
-  display: grid;
-  place-items: center;
+.startup-loader .ast-mark--light {
+  --ast-mark-ink: var(--ast-white);
+  --ast-mark-accent: var(--ast-blue-on-dark);
+}
+
+.startup-loader strong {
+  margin-top: 4px;
+  font-size: 19px;
+}
+
+.startup-loader > span:last-child {
+  color: var(--ast-text-on-dark-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/*
+ * This wrapper remains the parent of the router before, during and after login.
+ * Only the chrome fades; AppSky is fixed and keeps the same animation clock.
+ */
+.startup-app-shell {
+  min-height: 100vh;
+}
+
+.startup-app-shell.is-covered .app-frame {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.startup-app-shell.is-covered.is-entering .app-frame {
+  animation: startup-shell-enter 180ms ease-out both;
+}
+
+.startup-app-shell.is-first-reveal .app-frame {
+  animation: startup-shell-enter 180ms ease-out both;
+}
+
+.first-open.is-leaving {
+  pointer-events: none;
+  animation: startup-gate-exit 180ms ease-out both;
+}
+
+.first-open.is-leaving .first-open-card {
+  animation: startup-gate-card-exit 180ms ease-out both;
+}
+
+.route-transition-host,
+.route-transition-page {
+  min-width: 0;
+}
+
+.route-transition-host {
+  position: relative;
+  isolation: isolate;
+}
+
+@keyframes startup-shell-enter {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes startup-gate-exit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes startup-gate-card-exit {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .startup-app-shell.is-covered.is-entering .app-frame,
+  .startup-app-shell.is-first-reveal .app-frame,
+  .first-open.is-leaving,
+  .first-open.is-leaving .first-open-card {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .app-session-block {

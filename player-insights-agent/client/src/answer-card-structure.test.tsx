@@ -410,7 +410,7 @@ describe('a failed run’s process', () => {
     expect(markup).toContain('Step timeline');
     expect(markup).toContain('Querying governed data');
     expect(markup).toContain('failed');
-    expect(markup).toContain('Failed after 2 steps');
+    expect(markup).toContain('Answer incomplete');
     expect(markup).not.toContain('No steps recorded.');
     expect(markup).not.toContain('data-tone="stored"');
     expect(markup).toContain('data-tone="failed"');
@@ -527,7 +527,7 @@ describe('a failed run’s process', () => {
     expect(markup).toContain('<p><strong>Gold (aggregates — preferred starting point)</strong></p>');
   });
 
-  it('still says no result was recorded when the run truly had no steps', () => {
+  it('states the actionable retry when the response format is incomplete', () => {
     const markup = processCard(
       answer({
         takeaway: 'The agent did not return a structured result.',
@@ -539,9 +539,9 @@ describe('a failed run’s process', () => {
         trace: { id: 'tr-1', stages: [] },
       })
     );
-    expect(markup).toContain('No result recorded');
-    expect(markup).toContain('No steps recorded.');
+    expect(markup).toContain('Answer incomplete');
     expect(markup).toContain('data-tone="failed"');
-    expect(markup.match(/No steps and no structured result were recorded/g)?.length).toBe(1);
+    expect(markup).toContain('Retry the question before using this result.');
+    expect(markup).not.toMatch(/No steps|no structured result/i);
   });
 });

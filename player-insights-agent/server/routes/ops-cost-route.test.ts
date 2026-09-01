@@ -4,6 +4,7 @@ import type { Application, Request, Response } from 'express';
 import {
   configuredResourceName,
   forgetWorkspaceId,
+  lookupVectorConnection,
   QUESTION_COST_RUNS_QUERY,
   RESOURCE_ACTIVITY_QUERY,
   setupOpsRoutes,
@@ -21,6 +22,7 @@ const saved = {
   dictGenie: process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID,
   dictTitle: process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE,
   index: process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX,
+  semanticEndpoint: process.env.PLAYER_INSIGHTS_SEMANTIC_ENDPOINT,
   rebuildJob: process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID,
 };
 
@@ -34,6 +36,7 @@ const ENV_NAMES: Record<keyof typeof saved, string> = {
   dictGenie: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID',
   dictTitle: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE',
   index: 'PLAYER_INSIGHTS_SEMANTIC_INDEX',
+  semanticEndpoint: 'PLAYER_INSIGHTS_SEMANTIC_ENDPOINT',
   rebuildJob: 'PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID',
 };
 
@@ -48,6 +51,7 @@ beforeEach(() => {
   delete process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID;
   delete process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE;
   delete process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX;
+  delete process.env.PLAYER_INSIGHTS_SEMANTIC_ENDPOINT;
   delete process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID;
 });
 
@@ -70,6 +74,71 @@ describe('the ranged cost route', () => {
     expect(configuredResourceName(configured, ['index_name', 'name'])).toBe('catalog.schema.semantic_index');
     expect(configuredResourceName(configured, ['endpoint_name', 'endpoint'])).toBe('semantic-endpoint');
     expect(configuredResourceName({ value: true }, ['value'])).toBe('true');
+  });
+
+  it('establishes an exact active-index relationship only for a one-index endpoint', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ endpoint_name: 'semantic-endpoint' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ num_indexes: 1 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      ) as typeof fetch;
+    await expect(
+      lookupVectorConnection({
+        host: 'https://workspace.example.test',
+        token: 'redacted',
+        index: 'catalog.schema.semantic_index',
+        configuredEndpoint: 'semantic-endpoint',
+        fetchImpl,
+      })
+    ).resolves.toEqual({ endpoint: 'semantic-endpoint', endpointIndexCount: 1, reason: '' });
+  });
+
+  it('keeps shared, absent-key, and failed endpoint metadata unavailable', async () => {
+    const sharedFetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ endpoint_name: 'shared-endpoint' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ num_indexes: 3 }), { status: 200 })) as typeof fetch;
+    await expect(
+      lookupVectorConnection({
+        host: 'https://workspace.example.test',
+        token: 'redacted',
+        index: 'catalog.schema.semantic_index',
+        fetchImpl: sharedFetch,
+      })
+    ).resolves.toMatchObject({ endpoint: 'shared-endpoint', endpointIndexCount: 3 });
+
+    const absentFetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ name: 'index-without-endpoint' }), { status: 200 })
+      ) as typeof fetch;
+    await expect(
+      lookupVectorConnection({
+        host: 'https://workspace.example.test',
+        token: 'redacted',
+        index: 'catalog.schema.semantic_index',
+        fetchImpl: absentFetch,
+      })
+    ).resolves.toMatchObject({ endpointIndexCount: null, reason: 'The active index named no endpoint.' });
+
+    const failedFetch = vi.fn().mockRejectedValue(new Error('permission denied')) as typeof fetch;
+    const failed = await lookupVectorConnection({
+      host: 'https://workspace.example.test',
+      token: 'redacted',
+      index: 'catalog.schema.semantic_index',
+      fetchImpl: failedFetch,
+    });
+    expect(failed.endpointIndexCount).toBeNull();
+    expect(failed.reason).toContain('permission denied');
   });
 
   it('attributes legacy Genie traces by configured space without double-counting current resource calls', () => {
@@ -240,7 +309,15 @@ describe('the ranged cost route', () => {
       }
       if (url.includes('/vector-search/indexes/')) {
         return Promise.resolve(
-          new globalThis.Response(JSON.stringify({ endpoint_name: 'vs-endpoint' }), {
+          new globalThis.Response(JSON.stringify({ endpoint_name: 'vs-endpoint-from-connections' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        );
+      }
+      if (url.includes('/vector-search/endpoints/')) {
+        return Promise.resolve(
+          new globalThis.Response(JSON.stringify({ num_indexes: 1 }), {
             status: 200,
             headers: { 'content-type': 'application/json' },
           })
@@ -398,12 +475,12 @@ describe('the ranged cost route', () => {
       resourceId: 'cat.schema.index',
       secondaryResourceId: 'vs-endpoint-from-connections',
       resourceKind: 'vector-index',
-      amount: 5,
-      quality: 'estimate',
+      amount: 7,
+      quality: 'rate',
       unavailable: '',
       evidence: { billingRows: 2, activity: { calls: 5, observedCalls: 7, unit: 'queries' } },
     });
-    expect(vector?.dbus).toBeCloseTo(15 / 7);
+    expect(vector?.dbus).toBe(3);
     expect(payload.tiles.find((tile) => tile.id === 'app-compute')).toMatchObject({
       amount: 10.5,
       dbus: 3.5,

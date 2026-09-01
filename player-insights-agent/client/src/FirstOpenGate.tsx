@@ -43,7 +43,7 @@
  * three states can be rendered and asserted with `renderToStaticMarkup` in a test
  * run that has no DOM. `FirstOpenGate` holds the session latch and the identity.
  */
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import { Button } from './ui';
 import { RefreshButton } from './RefreshControl';
@@ -55,6 +55,15 @@ import { DATABRICKS_LOGO, DATABRICKS_SYMBOL } from './brand-icons';
 // the two seatings cannot come apart. See GithubMark.tsx.
 import { GithubMark } from './GithubMark';
 import { Dialog } from './Dialog';
+import {
+  SURFACE_TRANSITION_MS,
+  browserMotionRuns,
+  completeLoginHandoff,
+  initialLoginHandoff,
+  readyLoginHandoff,
+  requestLoginHandoff,
+  type LoginHandoff,
+} from './motion-transitions';
 import {
   CONTINUE_LABEL,
   DISCLAIMER_TITLE,
@@ -224,6 +233,8 @@ export function FirstOpenPanel({
   allowingRequiredScopes = false,
   requestingScope = null,
   scopeUpdateMessage = null,
+  preparing = false,
+  leaving = false,
 }: {
   report: FirstOpenReport;
   onContinue: () => void;
@@ -240,6 +251,10 @@ export function FirstOpenPanel({
   allowingRequiredScopes?: boolean;
   requestingScope?: string | null;
   scopeUpdateMessage?: { kind: 'success' | 'error'; text: string } | null;
+  /** Continue was requested before the hidden Ask shell reached a stable frame. */
+  preparing?: boolean;
+  /** The panel is fading out and must stop accepting pointer input immediately. */
+  leaving?: boolean;
 }) {
   const { before, emphasis, after } = disclaimerParts();
   const showRefresh = offersRefresh(report);
@@ -247,7 +262,7 @@ export function FirstOpenPanel({
   const canApplyRequiredScopes = report.verdict === 'missing' && Boolean(onAllowRequiredScopes);
   return (
     <Dialog
-      overlayClassName="first-open"
+      overlayClassName={`first-open on-sky${leaving ? ' is-leaving' : ''}`}
       contentClassName="first-open-card"
       labelledBy="first-open-title"
       describedBy="first-open-description"
@@ -347,8 +362,8 @@ export function FirstOpenPanel({
               {allowingRequiredScopes ? 'Adding access\u2026' : 'Allow serving, SQL, Genie, and workspace browsing'}
             </Button>
           ) : (
-            <Button className="fo-continue" onClick={showSkip ? onSkip : onContinue}>
-              {showSkip ? SKIP_LABEL : CONTINUE_LABEL}
+            <Button className="fo-continue" disabled={preparing || leaving} onClick={showSkip ? onSkip : onContinue}>
+              {preparing ? 'Preparing Ask\u2026' : showSkip ? SKIP_LABEL : CONTINUE_LABEL}
             </Button>
           )}
           {showRefresh ? <RefreshButton onRefresh={onRefresh} className="fo-refresh" /> : null}
@@ -363,22 +378,29 @@ export function FirstOpenPanel({
             {scopeUpdateMessage.text}
           </p>
         ) : null}
+        {preparing ? (
+          <p className="fo-skip-note" role="status" aria-live="polite">
+            Ask is finishing its initial readiness check.
+          </p>
+        ) : null}
         {showSkip && !canApplyRequiredScopes ? <p className="fo-skip-note">{SKIP_NOTE}</p> : null}
       </div>
     </Dialog>
   );
 }
 
-export type FirstOpenStage = 'pending' | 'gate' | 'open';
+export type FirstOpenStage = 'pending' | LoginHandoff['stage'];
 
 export interface FirstOpen {
   stage: FirstOpenStage;
   gate: ReactNode;
+  focusOnOpen: boolean;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function useFirstOpen(identity: Identity): FirstOpen {
-  const [dismissed, setDismissed] = useState(() => firstOpenAcknowledged());
+export function useFirstOpen(identity: Identity, shellReady = true): FirstOpen {
+  const [handoff, setHandoff] = useState<LoginHandoff>(() => initialLoginHandoff(firstOpenAcknowledged()));
+  const [focusOnOpen, setFocusOnOpen] = useState(false);
   const [allowingRequiredScopes, setAllowingRequiredScopes] = useState(false);
   const [requestingScope, setRequestingScope] = useState<string | null>(null);
   const [scopeUpdateMessage, setScopeUpdateMessage] = useState<{
@@ -387,11 +409,31 @@ export function useFirstOpen(identity: Identity): FirstOpen {
   } | null>(null);
 
   const report = firstOpenReport(identity);
-  const stage: FirstOpenStage = dismissed ? 'open' : showsFirstOpen(report) ? 'gate' : 'pending';
+  const stage: FirstOpenStage = handoff.stage === 'open' ? 'open' : showsFirstOpen(report) ? handoff.stage : 'pending';
   const leave = (record: () => void) => () => {
     record();
-    setDismissed(true);
+    setFocusOnOpen(true);
+    setHandoff((current) =>
+      requestLoginHandoff(current, {
+        shellReady,
+        animate: browserMotionRuns(),
+      })
+    );
   };
+
+  useEffect(() => {
+    if (!shellReady) return;
+    setHandoff((current) => readyLoginHandoff(current, browserMotionRuns()));
+  }, [shellReady]);
+
+  useEffect(() => {
+    if (handoff.stage !== 'leaving') return;
+    const generation = handoff.generation;
+    const timer = globalThis.setTimeout(() => {
+      setHandoff((current) => completeLoginHandoff(current, generation));
+    }, SURFACE_TRANSITION_MS);
+    return () => globalThis.clearTimeout(timer);
+  }, [handoff]);
 
   const allowRequiredScopes = async () => {
     setAllowingRequiredScopes(true);
@@ -437,11 +479,12 @@ export function useFirstOpen(identity: Identity): FirstOpen {
     }
   };
 
-  if (stage === 'open') return { stage, gate: null };
-  if (stage === 'pending') return { stage, gate: null };
+  if (stage === 'open') return { stage, gate: null, focusOnOpen };
+  if (stage === 'pending') return { stage, gate: null, focusOnOpen };
 
   return {
     stage,
+    focusOnOpen,
     gate: (
       <FirstOpenPanel
         report={report}
@@ -451,6 +494,8 @@ export function useFirstOpen(identity: Identity): FirstOpen {
         allowingRequiredScopes={allowingRequiredScopes}
         requestingScope={requestingScope}
         scopeUpdateMessage={scopeUpdateMessage}
+        preparing={stage === 'waiting-for-shell'}
+        leaving={stage === 'leaving'}
         onSkip={leave(skipFirstOpenChecks)}
         onRefresh={() => window.location.reload()}
       />
@@ -461,8 +506,8 @@ export function useFirstOpen(identity: Identity): FirstOpen {
 /**
  * The gate on its own, for a caller that wants the layers and not the stage.
  *
- * Thin by design. The startup coordinator uses the hook so the modal and the
- * application can never own the viewport together.
+ * Thin by design. The startup coordinator uses the hook to keep the mounted
+ * application inert until the modal has completed its handoff.
  */
 export function FirstOpenGate({ identity }: { identity: Identity }) {
   return useFirstOpen(identity).gate;

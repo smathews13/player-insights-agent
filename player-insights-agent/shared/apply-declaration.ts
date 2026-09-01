@@ -69,8 +69,11 @@ export function intendedFromResources(
   const out: Record<string, string> = {};
   for (const entry of resources ?? []) {
     const key = entry.resource?.agentKey;
+    if (entry.intended === null || entry.intended === undefined) continue;
     const intended = text(entry.intended);
-    if (!key || !intended || !APPLYABLE_KEYS.has(key)) continue;
+    // Empty is meaningful only for llm_gateway: it stages Direct and clears the
+    // route while the paired llm_endpoint remains explicit.
+    if (!key || (!intended && key !== 'llm_gateway') || !APPLYABLE_KEYS.has(key)) continue;
     out[key] = intended;
   }
   return out;
@@ -109,7 +112,7 @@ export function resolveApplyPlan(input: {
   for (const key of [...APPLYABLE_KEYS].sort()) {
     const envVar = APPLY_ENV_VARS[key];
     if (!envVar) continue;
-    if (intended[key]) {
+    if (Object.prototype.hasOwnProperty.call(intended, key)) {
       knobs.push({
         key,
         label: LABELS[key] ?? key,
@@ -138,6 +141,14 @@ export function resolveApplyPlan(input: {
   if (knobs.some((knob) => knob.source === 'notebook') && !knobs.some((knob) => knob.source === 'intended')) {
     notes.push(
       'Values come from the notebook declaration. Intended settings on Connections override the notebook when both name the same key.'
+    );
+  }
+  const gateway = knobs.find((knob) => knob.key === 'llm_gateway' && knob.source === 'intended');
+  const gatewayModel = knobs.find((knob) => knob.key === 'llm_endpoint');
+  if (gateway) {
+    notes.push(
+      `AI Gateway release pair: ${gateway.value || 'Direct'} with ${gatewayModel?.value || '(missing model)'}. ` +
+        'The notebook helper revalidates it before claiming the release. Rollback is Direct plus the existing endpoint through the same confirmed release.'
     );
   }
   const target = text(input.target) || '<your-target>';

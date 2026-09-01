@@ -173,7 +173,7 @@ export function ApplyDeclarationCard({ notebook, onRefresh }: { notebook?: Noteb
               <strong>{knob.label}</strong>
               <span className="plane-muted"> ({knob.source === 'intended' ? 'Connections' : 'notebook'})</span>
               {': '}
-              <code>{knob.value}</code>
+              <code>{knob.key === 'llm_gateway' && !knob.value ? 'Direct (empty route)' : knob.value}</code>
             </li>
           ))}
         </ul>

@@ -59,9 +59,32 @@
   .monitoring-table-ranking li {
     gap: 6px;
   }
-  .monitoring-drawer {
-    width: 100vw;
-    border-left: 0;
+  .monitoring-person-overlay {
+    padding: 12px;
+  }
+  .monitoring-person-modal {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - var(--app-header-h) - 24px);
+  }
+  .monitoring-person-modal-head {
+    padding: 14px 16px 12px;
+  }
+  .monitoring-person-modal-body {
+    padding: 14px 16px 24px;
+  }
+  .monitoring-spend-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .monitoring-spend-badges {
+    justify-content: flex-start;
+  }
+  .monitoring-spend-components li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .monitoring-spend-component-amount {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
 

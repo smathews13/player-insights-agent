@@ -28,12 +28,31 @@ describe('Ops failure and refusal population', () => {
   });
 
   it('prefers durable stage evidence when the stored answer repeats the same tool call', () => {
-    expect(RUN_OUTCOMES_QUERY).toContain('source_priority DESC');
+    expect(RUN_OUTCOMES_QUERY).toContain('source_priority DESC, status_priority DESC');
+    expect(RUN_OUTCOMES_QUERY).toContain('status_priority DESC, seq DESC');
+  });
+
+  it('recognizes current and legacy external-tool shapes without counting agent lifecycle stages', () => {
+    expect(RUN_OUTCOMES_QUERY).toContain("'(^|-)run_sql$'");
+    expect(RUN_OUTCOMES_QUERY).toContain("'(^|-)search_semantics$'");
+    expect(RUN_OUTCOMES_QUERY).toContain("'(^|-)dictionary_genie$'");
+    expect(RUN_OUTCOMES_QUERY).toContain("->>'kind' IN ('tool', 'sql', 'discovery', 'genie')");
+    expect(RUN_OUTCOMES_QUERY).toContain("THEN 'unknown_tool'");
+    expect(RUN_OUTCOMES_QUERY).not.toContain("->>'kind' = 'agent' THEN");
+  });
+
+  it('uses one timezone-bounded population for outcomes, tools, and coverage', () => {
+    expect(RUN_OUTCOMES_QUERY).toContain('FROM selected_population');
+    expect(RUN_OUTCOMES_QUERY).toContain('FROM selected_tools');
+    expect(RUN_OUTCOMES_QUERY).toContain("SELECT 'outcome_covered'");
+    expect(RUN_OUTCOMES_QUERY).toContain("SELECT 'tool_covered'");
   });
 
   it('parses the production-shaped 32-run aggregate without losing names or counts', () => {
     const read = readTrafficBreakdowns([
       { kind: 'population', key: '', count: '32' },
+      { kind: 'outcome_covered', key: '', count: '32' },
+      { kind: 'tool_covered', key: '', count: '32' },
       { kind: 'failure', key: 'RUN_DEADLINE_EXCEEDED', count: '2' },
       { kind: 'failure', key: 'UNKNOWN_FAILURE_CAUSE', count: '1' },
       { kind: 'refusal', key: 'USER_NOT_AUTHORIZED', count: '3' },
@@ -58,11 +77,53 @@ describe('Ops failure and refusal population', () => {
     const partial = readTrafficBreakdowns(
       [
         { kind: 'population', key: '', count: 32 },
+        { kind: 'outcome_covered', key: '', count: 32 },
+        { kind: 'tool_covered', key: '', count: 32 },
         { kind: 'tool', key: 'search_semantics', count: 'not-a-count' },
       ],
       { state: 'partial', reason: 'durable stages unavailable' }
     );
     expect(partial.toolCalls).toEqual([]);
     expect(partial.toolCallsCoverage).toMatchObject({ state: 'partial', coveredRuns: 32 });
+  });
+
+  it('keeps genuine retries and unknown external tools while reporting partial run coverage', () => {
+    const read = readTrafficBreakdowns([
+      { kind: 'population', key: '', count: 5 },
+      { kind: 'outcome_covered', key: '', count: 4 },
+      { kind: 'tool_covered', key: '', count: 3 },
+      { kind: 'failure', key: 'SQL_UNRESOLVED_COLUMN', count: 1 },
+      { kind: 'failure', key: 'UNKNOWN_STORED_ANSWER_FAILURE', count: 1 },
+      { kind: 'tool', key: 'run_sql', count: 2 },
+      { kind: 'tool', key: 'unknown_tool', count: 1 },
+    ]);
+    expect(read.toolCalls).toEqual([
+      { key: 'run_sql', label: 'run_sql', count: 2 },
+      { key: 'unknown_tool', label: 'Unknown tool', count: 1 },
+    ]);
+    expect(read.failuresByCause.map((item) => item.label)).toEqual([
+      'SQL referenced a missing column',
+      'Unknown historical answer failure',
+    ]);
+    expect(read.outcomesCoverage).toEqual({
+      state: 'partial',
+      coveredRuns: 4,
+      reason: '4 of 5 recorded runs have specific outcome evidence.',
+    });
+    expect(read.toolCallsCoverage).toEqual({
+      state: 'partial',
+      coveredRuns: 3,
+      reason: '3 of 5 recorded runs have named stage evidence.',
+    });
+  });
+
+  it('reports complete zero tool calls only with complete explicit coverage', () => {
+    const read = readTrafficBreakdowns([
+      { kind: 'population', key: '', count: 2 },
+      { kind: 'outcome_covered', key: '', count: 2 },
+      { kind: 'tool_covered', key: '', count: 2 },
+    ]);
+    expect(read.toolCalls).toEqual([]);
+    expect(read.toolCallsCoverage).toEqual({ state: 'complete', coveredRuns: 2, reason: '' });
   });
 });

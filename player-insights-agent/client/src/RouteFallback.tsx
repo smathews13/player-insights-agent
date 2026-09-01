@@ -1,12 +1,9 @@
-import { useEffect, useState } from 'react';
-import { scheduleRouteSkeleton } from './route-fallback-delay';
-
 /**
- * The route's page box exists immediately; only its neutral placeholders wait.
+ * The route's page box and neutral placeholders exist immediately.
  *
  * The shell uses the same page geometry as the eventual route. Placeholders
  * carry no labels, values, charts or table rows, so nothing can be mistaken for
- * data. The status stays available to assistive technology during the delay.
+ * data. The status is available to assistive technology in the same frame.
  */
 export function RouteSkeleton({ visible }: { visible: boolean }) {
   return (
@@ -31,9 +28,5 @@ export function RouteSkeleton({ visible }: { visible: boolean }) {
 }
 
 export function RouteFallback() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => scheduleRouteSkeleton(() => setVisible(true)), []);
-
-  return <RouteSkeleton visible={visible} />;
+  return <RouteSkeleton visible />;
 }

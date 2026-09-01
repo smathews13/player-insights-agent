@@ -23,6 +23,7 @@
  */
 import { failureDefinition, type FailureCode, type FailureLayer } from './failure-taxonomy';
 import type { FailureEvidence } from './failure-evidence';
+import type { AppBudgetStatus } from './app-budget-guard';
 
 /** The four terminal outcomes. Exactly one of these ends a request. */
 export const TERMINAL_KINDS = ['plan', 'clarification', 'answer', 'unavailable'] as const;
@@ -108,6 +109,8 @@ export interface UnavailableResult {
    * `insights-routes.test.ts` asserts it on the serving failure paths.
    */
   evidence?: FailureEvidence;
+  /** Safe authoritative status when an app-budget guard refused a new Ask. */
+  budget_status?: AppBudgetStatus;
 }
 
 /**
@@ -117,15 +120,7 @@ export interface UnavailableResult {
  * same list, and so adding a field to the answer contract prompts a decision
  * here rather than silently widening what a failure may carry.
  */
-export const ANSWER_CONTENT_KEYS = [
-  'takeaway',
-  'narrative',
-  'figures',
-  'charts',
-  'sources',
-  'sql',
-  'trace',
-] as const;
+export const ANSWER_CONTENT_KEYS = ['takeaway', 'narrative', 'figures', 'charts', 'sources', 'sql', 'trace'] as const;
 
 /**
  * Which forbidden keys a value carries, in the order above. Empty is the pass.
@@ -151,6 +146,7 @@ export interface UnavailableInput {
   detail?: string;
   /** The named fields behind the failure. See {@link UnavailableResult.evidence}. */
   evidence?: FailureEvidence;
+  budgetStatus?: AppBudgetStatus;
   /**
    * Overrides the taxonomy's sentence.
    *
@@ -179,6 +175,7 @@ export function unavailableResult(input: UnavailableInput): UnavailableResult {
   if (input.executionIdentity) result.execution_identity = input.executionIdentity;
   if (input.detail) result.detail = input.detail;
   if (input.evidence) result.evidence = input.evidence;
+  if (input.budgetStatus) result.budget_status = input.budgetStatus;
   return result;
 }
 

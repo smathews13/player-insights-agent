@@ -7,7 +7,6 @@ import { accountSlackHref } from './account-slack-links';
 
 const IDENTITY: Identity = {
   signedInAs: 'jordan.lee@example.com',
-  executionIdentity: 'app service principal',
   executionMode: 'user-verified',
 };
 

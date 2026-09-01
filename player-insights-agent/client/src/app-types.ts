@@ -75,7 +75,6 @@ export interface Identity {
    * nothing was established.
    */
   identitySource?: 'databricks-apps' | 'development-fallback';
-  executionIdentity: string;
   executionMode: string;
   /**
    * Whether the rail is carrying everyone's conversations. Optional because a
@@ -262,7 +261,8 @@ export interface Conversation {
   duration_ms?: number | null;
   /**
    * Snapshot recorded on this conversation's newest active or completed run.
-   * Null/absent is No persona; it must never be filled from today's assignment.
+   * Null/absent remains valid history and must never be filled from today's
+   * assignment or promoted into a selectable rail option.
    */
   persona_id?: string | null;
   persona_name?: string | null;

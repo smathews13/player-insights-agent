@@ -22,6 +22,13 @@ env:
   # reports that it could not check rather than that access was refused.
   - name: DATABRICKS_SQL_WAREHOUSE_ID
     valueFrom: sql-warehouse
+  # Active Vector Search identity copied from the bundle release. These are
+  # app-side evidence only: changing them does not change or re-log the model.
+  # Empty is the neutral public default for deployments without semantic search.
+  - name: PLAYER_INSIGHTS_SEMANTIC_INDEX
+    value: ''
+  - name: PLAYER_INSIGHTS_SEMANTIC_ENDPOINT
+    value: ''
   # Bundle-owned semantic rebuild job. Empty for deployments that do not create
   # one; bundle/app-release.sh fills the resolved job id when present so Ops can
   # join JOBS billing rows to this deployment without guessing by name.

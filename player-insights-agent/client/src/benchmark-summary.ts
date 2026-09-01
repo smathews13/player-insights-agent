@@ -2,6 +2,9 @@
  * The single derivation of every headline the Benchmark Lab shows.
  */
 import { FAILURE_TAXONOMY } from '../../shared/failure-taxonomy';
+import { formatDuration } from './benchmark-format';
+
+export { formatDuration, RATING_SCALE, ratingOutOf } from './benchmark-format';
 
 /**
  * The truncation codes that are about the run's own credential.
@@ -303,17 +306,6 @@ function passedCoverage(
     return `of the ${total} in the suite · ${unresolved} never ran`;
   }
   return 'of cases that ran';
-}
-
-/**
- * Seconds below ninety, minutes and seconds above it.
- *
- * A suite takes four to five minutes, and "268.0s" makes the reader divide.
- */
-export function formatDuration(ms: number) {
-  if (ms < 90_000) return `${(ms / 1000).toFixed(1)}s`;
-  const totalSeconds = Math.round(ms / 1000);
-  return `${Math.floor(totalSeconds / 60)}m ${String(totalSeconds % 60).padStart(2, '0')}s`;
 }
 
 /**
@@ -822,26 +814,4 @@ export function benchmarkStatusLabel(status: BenchmarkStatus) {
  */
 export function ratingLabel(rating: number | null | undefined) {
   return isFiniteNumber(rating) ? { rated: true as const, value: rating } : { rated: false as const };
-}
-
-/**
- * The top of the scale a rating is given on.
- *
- * Not a choice made here: the feedback write path constrains the column to 1-5,
- * and `storedRating` in stored-feedback.ts treats anything outside that as absent.
- * This is that same 5, named, so the surfaces that print a rating can say what it
- * is out of without each one asserting the scale on its own.
- */
-export const RATING_SCALE = 5;
-
-/**
- * A rating with its scale attached.
- *
- * A star and a number alone read as a count -- "★ 5" was reported as unreadable
- * for exactly that reason, since it could as easily have been five stars, a score
- * out of ten, or five ratings. The denominator costs two characters and removes
- * the question.
- */
-export function ratingOutOf(rating: number) {
-  return `${rating}/${RATING_SCALE}`;
 }

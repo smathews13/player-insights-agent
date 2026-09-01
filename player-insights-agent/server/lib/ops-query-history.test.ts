@@ -214,6 +214,50 @@ describe('Ops Query History attribution', () => {
     ]);
   });
 
+  it('keeps only matching human actor and privilege identities for user allocation', async () => {
+    const result = await readWarehouseQueryAttribution({
+      warehouseId: 'warehouse-1',
+      startTimeMs: 1_000,
+      endTimeMs: 2_000,
+      transport: {
+        listQueries: vi.fn().mockResolvedValue({
+          res: [
+            {
+              ...row('human-sql', 40, 'Astrolabe'),
+              user_name: 'Person@Example.Test',
+              executed_as_user_name: 'person@example.test',
+            },
+            {
+              ...row('human-genie', 20, 'Astrolabe'),
+              user_name: 'person@example.test',
+              executed_as_user_name: 'person@example.test',
+              query_source: { genie_space_id: 'space-data' },
+            },
+            {
+              ...row('sp-only', 80, 'Astrolabe'),
+              user_name: 'app-service-principal',
+              executed_as_user_name: 'app-service-principal',
+            },
+            {
+              ...row('mixed', 10, 'Astrolabe'),
+              user_name: 'person@example.test',
+              executed_as_user_name: 'app-service-principal',
+            },
+          ],
+          has_next_page: false,
+        }),
+      },
+    });
+
+    expect(result.users).toEqual([
+      {
+        email: 'person@example.test',
+        astrolabeExecutionMs: 40,
+        genieSpaces: [{ spaceId: 'space-data', executionMs: 20 }],
+      },
+    ]);
+  });
+
   it('stops on a repeated next-page token and returns the rows already evidenced as partial', async () => {
     const listQueries = vi.fn().mockResolvedValue({
       res: [row('same', 10, 'Astrolabe')],

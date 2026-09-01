@@ -62,7 +62,6 @@ function resolution(state: RoleState): RoleResolution {
 function identity(signedInAs = '<your-username>'): Identity {
   return {
     signedInAs,
-    executionIdentity: 'Astrolabe service principal',
     executionMode: 'service-principal',
   };
 }
@@ -525,12 +524,14 @@ describe('an unresolved read ends up saying Role unknown rather than staying bla
   it('keeps a normal identity and role intact', () => {
     const normalized = identityFromResponse({
       signedInAs: '<your-username>',
-      executionIdentity: 'Astrolabe service principal',
+      executionIdentity: 'legacy-client-id-must-be-dropped',
       executionMode: 'service-principal',
       role: 'super_admin',
     });
     expect(normalized.signedInAs).toBe('<your-username>');
     expect(roleFrom(normalized).state).toBe('super_admin');
+    expect(normalized).not.toHaveProperty('executionIdentity');
+    expect(JSON.stringify(normalized)).not.toContain('legacy-client-id-must-be-dropped');
   });
 
   it('turns a read that never landed into the unavailable identity', () => {

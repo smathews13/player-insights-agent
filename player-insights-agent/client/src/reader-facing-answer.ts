@@ -22,7 +22,8 @@ import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 import { CAVEAT_RISK, caveatRisk } from './caveat-priority';
 
 /** Words arrived, but no figures or tables. Not a policy deny. */
-const NO_STRUCTURED_RESULT = /no structured result|without a structured result/i;
+const NO_STRUCTURED_RESULT =
+  /no structured result|without a structured result|response format was incomplete|response ended before the answer format completed/i;
 
 /** Governed tools whose call-site JSON has been seen dumped into a stored narrative. */
 const TOOL_CALL = /\b(data_genie|dictionary_genie|query_named_table|run_sql|search_sources)\s*\(/;
@@ -175,7 +176,8 @@ export function readerFacingNarrative(
     first === headline ||
     first === takeaway.trim() ||
     isCannedTakeaway(first) ||
-    (UNANSWERED_TAKEAWAY.test(first) && answerHasLanded({ figures: extras?.figures, narrative, content: extras?.content }))
+    (UNANSWERED_TAKEAWAY.test(first) &&
+      answerHasLanded({ figures: extras?.figures, narrative, content: extras?.content }))
   ) {
     lines.splice(firstAt, 1);
     return lines.join('\n').replace(/^\n+/, '').trim();
@@ -206,7 +208,7 @@ function warningLabel(text: string): string {
   // path uses that marker for "no result contract arrived", which is not a
   // grant deny -- calling it Request refused was the leftover false alarm.
   if (text.startsWith(DEGRADED_ANSWER_MARKER) && NO_STRUCTURED_RESULT.test(text)) {
-    return 'No structured result';
+    return 'Answer incomplete';
   }
   if (caveatRisk(text) === CAVEAT_RISK.refused) return 'Request refused';
   return 'Partial evidence';
@@ -221,7 +223,9 @@ function hasStructuredEvidence(input: {
   return /\|.+\|/.test([input.narrative, input.content].filter(Boolean).join('\n'));
 }
 
-function isProseOnlyDegraded(input: { caveats: readonly string[] } & Parameters<typeof hasStructuredEvidence>[0]): boolean {
+function isProseOnlyDegraded(
+  input: { caveats: readonly string[] } & Parameters<typeof hasStructuredEvidence>[0]
+): boolean {
   if (hasStructuredEvidence(input)) return false;
   return input.caveats.some(
     (text) => text.trimStart().startsWith(DEGRADED_ANSWER_MARKER) && NO_STRUCTURED_RESULT.test(text)
@@ -266,8 +270,7 @@ export function answerHonesty(input: {
     const stages = input.stages ?? [];
     const writerStopped =
       synthesisIncomplete(stages, caveats) ||
-      (!stages.some((stage) => stage.id === 'synthesis') &&
-        caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text)));
+      (!stages.some((stage) => stage.id === 'synthesis') && caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text)));
     if (writerStopped) {
       return { eyebrow: 'Partial answer', tone: 'partial', warnings };
     }

@@ -54,6 +54,8 @@ const ROWS: Record<string, Record<string, unknown>[]> = {
   [ACTIVE_MINUTES_PER_DAY_QUERY]: [{ day: '2026-08-14', count: 80 }],
   [RUN_OUTCOMES_QUERY]: [
     { kind: 'population', key: '', count: 2 },
+    { kind: 'outcome_covered', key: '', count: 2 },
+    { kind: 'tool_covered', key: '', count: 2 },
     { kind: 'failure', key: 'WAREHOUSE_UNAVAILABLE', count: 2 },
     { kind: 'tool', key: 'genie', count: 30 },
   ],
@@ -207,7 +209,11 @@ describe('the Traffic block over a range that genuinely holds nothing', () => {
       [QUESTIONS_PER_DAY_QUERY]: [],
       [DISTINCT_ASKERS_PER_DAY_QUERY]: [],
       [ACTIVE_MINUTES_PER_DAY_QUERY]: [],
-      [RUN_OUTCOMES_QUERY]: [{ kind: 'population', key: '', count: 0 }],
+      [RUN_OUTCOMES_QUERY]: [
+        { kind: 'population', key: '', count: 0 },
+        { kind: 'outcome_covered', key: '', count: 0 },
+        { kind: 'tool_covered', key: '', count: 0 },
+      ],
     });
 
     expect(payload.unread).toBe('');

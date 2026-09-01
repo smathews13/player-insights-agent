@@ -1,27 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { RouteSkeleton } from './RouteFallback';
-import { ROUTE_SKELETON_DELAY_MS, scheduleRouteSkeleton } from './route-fallback-delay';
+import { RouteFallback, RouteSkeleton } from './RouteFallback';
 
 const source = (name: string) => readFileSync(new URL(`./${name}`, import.meta.url), 'utf8');
 
-afterEach(() => {
-  vi.useRealTimers();
-});
-
 describe('lazy route loading', () => {
-  it('delays the visual skeleton to avoid flashing on fast chunk loads', () => {
-    vi.useFakeTimers();
-    const show = vi.fn();
-
-    scheduleRouteSkeleton(show);
-    vi.advanceTimersByTime(ROUTE_SKELETON_DELAY_MS - 1);
-    expect(show).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(1);
-    expect(show).toHaveBeenCalledOnce();
+  it('renders stable placeholder geometry immediately instead of a blank frame', () => {
+    const markup = renderToStaticMarkup(<RouteFallback />);
+    expect(markup).toContain('route-skeleton-shell is-visible');
+    expect(markup).toContain('route-skeleton-heading');
+    expect(markup).toContain('route-skeleton-panel');
   });
 
   it('announces loading immediately without presenting fake data', () => {
@@ -37,13 +27,11 @@ describe('lazy route loading', () => {
     expect(visible).not.toMatch(/player|run count|revenue|sample/i);
   });
 
-  it('reserves the route canvas and disables its only transition for reduced motion', () => {
+  it('reserves the route canvas and never animates skeletons independently', () => {
     const css = source('styles/page-shell.css');
 
     expect(css).toMatch(/\.route-skeleton-shell\s*\{[^}]*min-height:\s*calc\(100vh - var\(--app-header-h\)\)/s);
-    expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.route-skeleton\s*\{\s*transition:\s*none;/s
-    );
+    expect(css.match(/\.route-skeleton\s*\{[^}]*\}/s)?.[0]).not.toMatch(/animation|transition/);
   });
 
   it('keeps app-owned error UI on every lazy route', () => {

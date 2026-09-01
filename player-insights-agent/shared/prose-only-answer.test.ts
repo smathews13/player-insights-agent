@@ -93,8 +93,8 @@ describe('the answer for a prose-only reply', () => {
     expect(answer.trace.stages[1]?.output).toBe('');
     expect(answer.trace.toolCalls).toBe(1);
     expect(answer.trace.totalMs).toBe(52);
-    expect(answer.caveats[0]).toContain('stopped after 2 steps');
-    expect(answer.caveats[0]).not.toContain('no tool steps were recorded');
+    expect(answer.caveats[0]).toContain('response ended before the answer format completed');
+    expect(answer.caveats[0]).not.toMatch(/stopped after|no tool steps were recorded/);
   });
 });
 

@@ -8,6 +8,13 @@ variables:
       Leave empty to disable semantic retrieval. When enabling it, also set
       semantic_index_endpoints and semantic_index_indexes.
     default: ""
+  semantic_index_name:
+    description: >-
+      Fully qualified active Vector Search index copied into the app release for
+      Connections and endpoint-level cost attribution. Leave empty when semantic
+      retrieval is disabled. A target that sets semantic_index_endpoint must set
+      this to the index its served model actually uses.
+    default: ""
   semantic_index_endpoint_type:
     description: >-
       STANDARD or STORAGE_OPTIMIZED endpoint type.

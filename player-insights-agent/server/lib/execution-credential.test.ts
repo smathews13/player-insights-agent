@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import { SIGNED_IN_USER } from './identity-binding';
 import {
   attachExecutionCredential,
+  describeSpIdentity,
   executionToken,
   overlayAssignedPersona,
   resolveExecutionCredential,
@@ -100,6 +101,27 @@ describe('executionToken', () => {
     const request = req();
     await attachExecutionCredential(request, store as never);
     expect(executionToken(request)).toBe('sp-token');
+    expect(mintPersonaToken).toHaveBeenCalledWith(PERSONA, {});
+  });
+
+  it('keeps persona credential ids server-side while exposing only its display name', async () => {
+    vi.mocked(isSpIdentityEnabled).mockResolvedValue(true);
+    vi.mocked(assignmentForEmail).mockResolvedValue({
+      email: 'ada@example.com',
+      personaId: 'persona-1',
+      updatedAt: '2026-08-26T00:00:00.000Z',
+      updatedBy: 'admin@example.com',
+    });
+    vi.mocked(readSpPersona).mockResolvedValue(PERSONA);
+    vi.mocked(mintPersonaToken).mockResolvedValue({ ok: true, token: 'sp-token' });
+    const request = req();
+
+    await attachExecutionCredential(request, store as never);
+    const summary = await describeSpIdentity(request, store as never);
+
+    expect(executionToken(request)).toBe('sp-token');
+    expect(summary.assigned).toEqual({ displayName: 'Finance analyst' });
+    expect(JSON.stringify(summary)).not.toMatch(/persona-1|aaaaaaaa-0000-4000-8000-000000000001|clientId/);
   });
 
   it('stays on OAuth with a reason when minting fails', async () => {

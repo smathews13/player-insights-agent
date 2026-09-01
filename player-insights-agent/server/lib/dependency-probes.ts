@@ -305,7 +305,7 @@ const SERVING_ENDPOINTS = [
   },
   {
     id: 'llm-gateway',
-    label: 'AI Gateway route',
+    label: 'AI Gateway',
     onAnswerPath: false,
     note: 'Model calls are routed through this gateway when one is configured.',
   },

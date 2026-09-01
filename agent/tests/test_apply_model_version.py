@@ -131,3 +131,41 @@ def test_revision_mismatch_refuses_before_claim(tmp_path):
             token="short-lived",
         )
     assert [call[0] for call in calls] == ["GET"]
+
+
+def test_gateway_candidate_is_revalidated_before_claim(tmp_path, monkeypatch):
+    (tmp_path / "bundle").mkdir()
+    (tmp_path / "bundle" / "apply-declaration.sh").write_text("#!/bin/sh\n")
+    (tmp_path / "bundle" / "preflight.sh").write_text("#!/bin/sh\n")
+    document = {
+        "source": "connections-apply",
+        "settings": {
+            "llm_gateway": "mlflow",
+            "llm_endpoint": "main.ai.routed",
+        },
+    }
+    document["revision"] = helper._revision(document)
+    calls = []
+
+    def transport(method, url, headers, body):
+        calls.append((method, url, dict(headers), body))
+        if "/ai-gateway/releases/" in url:
+            return 409, {"detail": "The selected model service is no longer ready."}
+        return 200, {"release": release(document)}
+
+    monkeypatch.setattr(
+        helper.subprocess,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("release subprocess must not start"),
+    )
+    with pytest.raises(RuntimeError, match="no longer ready"):
+        helper.apply_model_version(
+            "request-1",
+            "https://app.example",
+            repo_root=str(tmp_path),
+            _transport=transport,
+            token="short-lived",
+        )
+    assert [call[0] for call in calls] == ["GET", "POST"]
+    assert calls[1][1].endswith("/api/admin/ai-gateway/releases/request-1/validate")
+    assert all("/claim" not in call[1] for call in calls)

@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { IdentityCard } from './IdentityPanel';
-import { questionsRunAs, type DeploymentIdentity, type PanelIdentity } from './identity-panel-state';
+import type { DeploymentIdentity, PanelIdentity } from './identity-panel-state';
 import { DATABRICKS_SYMBOL } from './brand-icons';
 
 /**
@@ -28,7 +28,6 @@ import { DATABRICKS_SYMBOL } from './brand-icons';
 const IDENTITY: PanelIdentity = {
   signedInAs: 'someone@example.com',
   identitySource: 'databricks-apps',
-  executionIdentity: 'abcdefab-0000-4000-8000-000000000000',
   executionMode: 'signed_in_user',
   role: 'admin',
   session: {
@@ -63,13 +62,6 @@ const IDENTITY: PanelIdentity = {
       workspaceHost: 'https://dbc-example.cloud.databricks.com',
       workspaceId: '<workspace-id>',
     },
-    servicePrincipal: {
-      displayName: 'Astrolabe application service principal',
-      applicationId: 'abcdefab-0000-4000-8000-000000000000',
-      objectId: '9988776655443322',
-      state: 'verified',
-      readAt: '2026-08-31T17:00:00.000Z',
-    },
   },
 };
 
@@ -89,14 +81,14 @@ describe('IdentityCard', () => {
     expect(textOf(SIGNED_IN)).toContain('someone');
   });
 
-  it('renders the three retained identity groups in one overview', () => {
+  it('renders the two retained identity groups in one overview', () => {
     const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
     const text = textOf(SIGNED_IN);
 
-    for (const section of ['Signed-in user', 'App', 'Service principal']) {
+    for (const section of ['Signed-in user', 'App']) {
       expect(text).toContain(section);
     }
-    expect(markup.match(/class="identity-section"/g)).toHaveLength(3);
+    expect(markup.match(/class="identity-section"/g)).toHaveLength(2);
     expect(markup).toContain('class="identity-overview"');
     for (const value of [
       'Someone Example',
@@ -108,13 +100,13 @@ describe('IdentityCard', () => {
       'player-insights-agent',
       'https://dbc-example.cloud.databricks.com',
       '<workspace-id>',
-      'Astrolabe application service principal',
-      'abcdefab-0000-4000-8000-000000000000',
-      '9988776655443322',
-      'Lakebase and app state · control-plane metadata',
+      'Execution',
+      'Signed-in user',
     ]) {
       expect(text).toContain(value);
     }
+    expect(text).not.toMatch(/service principal|application id|object id|metadata read|responsibility/i);
+    expect(markup).not.toMatch(/identity-sp-heading|Copy application ID|Copy service principal object ID/i);
     expect(markup).toContain(DATABRICKS_SYMBOL);
   });
 
@@ -139,43 +131,29 @@ describe('IdentityCard', () => {
       ['workspace user ID', '1122334455667788'],
       ['Databricks app resource name', 'player-insights-agent'],
       ['workspace ID', '<workspace-id>'],
-      ['application ID', 'abcdefab-0000-4000-8000-000000000000'],
-      ['service principal object ID', '9988776655443322'],
     ]) {
       expect(markup).toContain(`title="${value}"`);
       expect(markup).toContain(`aria-label="Copy ${label}"`);
     }
-    expect(IDENTITY.signedInAs).not.toBe(IDENTITY.identityMetadata?.servicePrincipal.applicationId);
-    expect(IDENTITY.identityMetadata?.user.objectId).not.toBe(IDENTITY.identityMetadata?.servicePrincipal.objectId);
   });
 
-  it('collapses unavailable SP metadata into one compact Not reported row', () => {
+  it('omits unavailable optional metadata without placeholders or empty rows', () => {
     const read: DeploymentIdentity = {
       identity: {
         ...IDENTITY,
         identityMetadata: {
-          ...IDENTITY.identityMetadata!,
-          servicePrincipal: {
-            displayName: '',
-            applicationId: 'abcdefab-0000-4000-8000-000000000000',
-            objectId: '',
-            state: 'not_reported',
-            readAt: '2026-08-31T17:01:00.000Z',
-          },
+          user: { displayName: '', objectId: '', state: 'not_reported', readAt: '' },
+          app: { displayName: 'Astrolabe', resourceName: '', workspaceHost: '', workspaceId: '' },
         },
       },
       failed: false,
     };
     const markup = renderToStaticMarkup(<IdentityCard read={read} />);
-    const sp = markup.slice(markup.indexOf('identity-sp-heading'));
-    expect(sp).toContain(
-      'Metadata</p><div class="identity-fact-value"><span class="identity-not-reported">Not reported'
-    );
-    expect(sp.match(/Not reported/g)).toHaveLength(1);
-    expect(sp).not.toContain('Display name');
-    expect(sp).not.toContain('Object ID');
-    expect(sp).not.toContain('Verification');
-    expect(sp).not.toContain('abcdefab service principal');
+    expect(markup).not.toContain('Not reported');
+    expect(markup).not.toContain('identity-not-reported');
+    expect(markup).not.toContain('Resource name');
+    expect(markup).not.toContain('Workspace host');
+    expect(markup).not.toContain('Workspace ID');
   });
 
   it('names an effective assigned persona without adding execution prose', () => {
@@ -187,7 +165,7 @@ describe('IdentityCard', () => {
         spIdentity: {
           enabled: true,
           minting: { available: true, detail: '' },
-          assigned: { id: 'p1', displayName: 'Finance analyst', clientId: 'persona-client-id' },
+          assigned: { displayName: 'Finance analyst' },
           executingAs: 'service_principal',
           fallbackReason: null,
         },
@@ -195,7 +173,7 @@ describe('IdentityCard', () => {
       failed: false,
     });
     expect(text).toContain('Astrolabe role Super admin');
-    expect(text).toContain('Assigned persona Finance analyst');
+    expect(text).toContain('Execution Assigned persona · Finance analyst');
     expect(text).not.toContain('Execution boundary');
     expect(text).not.toContain('reads run as');
   });
@@ -203,17 +181,25 @@ describe('IdentityCard', () => {
   it('never renders credential-shaped or raw-error fields accidentally present on the payload', () => {
     const identity = {
       ...IDENTITY,
+      executionIdentity: 'abcdefab-0000-4000-8000-000000000000',
       clientSecret: 'client-secret-must-not-render',
       authorization: 'Bearer bearer-must-not-render',
       databasePassword: 'database-password-must-not-render',
       identityMetadata: {
         ...IDENTITY.identityMetadata!,
+        servicePrincipal: {
+          displayName: 'Legacy app principal',
+          applicationId: 'abcdefab-0000-4000-8000-000000000000',
+          objectId: '9988776655443322',
+          state: 'verified',
+          readAt: '2026-08-31T17:00:00.000Z',
+        },
         rawError: '403 with token-must-not-render',
       },
     };
     const markup = renderToStaticMarkup(<IdentityCard read={{ identity, failed: false }} />);
     expect(markup).not.toMatch(
-      /client-secret-must-not-render|bearer-must-not-render|database-password-must-not-render|token-must-not-render/
+      /client-secret-must-not-render|bearer-must-not-render|database-password-must-not-render|token-must-not-render|Legacy app principal|abcdefab|9988776655443322/
     );
   });
 
@@ -232,14 +218,14 @@ describe('IdentityCard', () => {
         spIdentity: {
           enabled: true,
           minting: { available: false, detail: 'minting unavailable' },
-          assigned: { id: 'p1', displayName: 'Finance analyst', clientId: 'aaaaaaaa-0000-4000-8000-000000000001' },
+          assigned: { displayName: 'Finance analyst' },
           executingAs: 'oauth',
           fallbackReason: 'This app cannot mint a token for another service principal. Questions stay on OAuth.',
         },
       },
       failed: false,
     });
-    expect(text).toContain('Assigned persona Finance analyst');
+    expect(text).toContain('Execution Signed-in user · assigned persona Finance analyst');
     expect(text).not.toContain('Execution boundary');
     expect(text).not.toContain('Effective user API scopes');
   });
@@ -274,25 +260,6 @@ describe('IdentityCard', () => {
     expect(markup.match(/data-testid="oauth-badge"/g)).toHaveLength(1);
   });
 
-  it('says the client id is not reported rather than leaving the row blank', () => {
-    // The absence is the finding: an app with no client id in its environment
-    // cannot authenticate its own writes. A gap beside the label would read as
-    // a rendering bug instead.
-    const identity = {
-      ...IDENTITY,
-      executionIdentity: '',
-      identityMetadata: {
-        ...IDENTITY.identityMetadata!,
-        servicePrincipal: {
-          ...IDENTITY.identityMetadata!.servicePrincipal,
-          applicationId: '',
-          state: 'not_reported' as const,
-        },
-      },
-    };
-    expect(textOf({ identity, failed: false })).toContain('Application ID Not reported');
-  });
-
   it('reports a failed read as unreadable, not as nothing being connected', () => {
     const text = textOf({ identity: null, failed: true });
     expect(text).toContain('could not be read');
@@ -308,68 +275,32 @@ describe('IdentityCard', () => {
   });
 });
 
-/**
- * Whose grants the next question would be computed with.
- *
- * The mode string itself is an internal identifier and is never printed: this
- * row is read by somebody deciding whether an answer could have been computed
- * with grants they do not hold, and `app_service_principal` is not an answer to
- * that question.
- */
-describe('questionsRunAs', () => {
-  it("names the app's own client id where the app is what executes", () => {
-    expect(
-      questionsRunAs({ ...IDENTITY, analyticalExecution: { mode: 'app_service_principal', verified: true } })
-    ).toBe('abcdefab-0000-4000-8000-000000000000');
+describe('execution responsibility', () => {
+  it('names app execution without exposing an application identity', () => {
+    const text = textOf({
+      identity: { ...IDENTITY, analyticalExecution: { mode: 'app_service_principal', verified: true } },
+      failed: false,
+    });
+    expect(text).toContain('Execution Astrolabe app');
+    expect(text).not.toMatch(/service principal|abcdefab/i);
   });
 
-  it('names the reader where on-behalf-of execution is what that mode means', () => {
-    expect(questionsRunAs(IDENTITY)).toBe('someone@example.com');
-  });
-
-  it('never prints the internal mode string at a reader', () => {
-    for (const mode of [
-      'signed_in_user',
-      'app_service_principal',
-      'on_behalf_of_group',
-      'assigned_service_principal',
-    ]) {
-      expect(questionsRunAs({ ...IDENTITY, analyticalExecution: { mode, verified: true } })).not.toContain('_');
-    }
-  });
-
-  it('names the assigned persona when that is who questions run as', () => {
-    expect(
-      questionsRunAs({
+  it('names an assigned persona without returning its internal ids', () => {
+    const text = textOf({
+      identity: {
         ...IDENTITY,
         analyticalExecution: { mode: 'assigned_service_principal', verified: true },
         spIdentity: {
           enabled: true,
           minting: { available: true, detail: 'ok' },
-          assigned: { id: 'p1', displayName: 'Finance analyst', clientId: 'aaaaaaaa-0000-4000-8000-000000000001' },
+          assigned: { displayName: 'Finance analyst' },
           executingAs: 'service_principal',
           fallbackReason: null,
         },
-      })
-    ).toBe('Finance analyst');
-  });
-
-  it('names the reader when the pivot is on but this person has no persona', () => {
-    expect(
-      questionsRunAs({
-        ...IDENTITY,
-        spIdentity: {
-          enabled: true,
-          minting: { available: true, detail: 'ok' },
-          assigned: null,
-          executingAs: 'oauth',
-          fallbackReason: null,
-        },
-      })
-    ).toBe('someone@example.com');
-  });
-
-  it('returns nothing at all when there is no identity, so no row is drawn', () => {
-    expect(questionsRunAs(null)).toBe('');
+      },
+      failed: false,
+    });
+    expect(text).toContain('Execution Assigned persona · Finance analyst');
+    expect(text).not.toMatch(/client id|application id|object id/i);
   });
 });

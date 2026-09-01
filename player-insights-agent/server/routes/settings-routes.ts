@@ -525,6 +525,14 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
         return;
       }
       const { resourceId } = req.params;
+      if (resourceId === 'llm-gateway') {
+        res.status(409).json({
+          error: 'atomic_gateway_selection_required',
+          detail:
+            'AI Gateway mode cannot be staged by itself. Use the Gateway connection action so the mode and foundation model are validated and recorded together.',
+        });
+        return;
+      }
       const decision = classifyWrite(resourceId, parsed.data.intent);
       if (!decision.ok) {
         res.status(409).json({ error: 'not_changeable_here', detail: decision.reason });

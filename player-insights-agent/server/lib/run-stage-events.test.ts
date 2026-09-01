@@ -67,6 +67,30 @@ describe('what a stage may leave in the table', () => {
     expect(payload).not.toHaveProperty('output');
   });
 
+  it('persists a safe structured failure code without retaining the error text', () => {
+    const payload = stageEventPayload(
+      stage({
+        id: 'step-4-1-run_sql',
+        kind: 'sql',
+        status: 'failed',
+        output: 'SQL FAILED: [UNRESOLVED_COLUMN] private_catalog.private_schema.private_table.secret_field',
+      })
+    );
+
+    expect(payload.outcome_code).toBe('SQL_UNRESOLVED_COLUMN');
+    expect(payload).not.toHaveProperty('output');
+    expect(JSON.stringify(payload)).not.toContain('private_catalog');
+  });
+
+  it('keeps an explicit bounded error code and rejects message-shaped codes', () => {
+    expect(stageEventPayload(stage({ status: 'failed', error_code: 'WAREHOUSE_UNAVAILABLE' })).outcome_code).toBe(
+      'WAREHOUSE_UNAVAILABLE'
+    );
+    expect(
+      stageEventPayload(stage({ status: 'failed', error_code: 'private table customer_a failed' })).outcome_code
+    ).toBe('UNKNOWN_STAGE_FAILURE');
+  });
+
   it('stores only the explicit fully-qualified table projection', () => {
     const payload = stageEventPayload(
       stage({

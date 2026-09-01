@@ -67,15 +67,3 @@ export function useDeploymentIdentity(enabled = true, checkedAt = ''): Deploymen
 
   return { identity, failed };
 }
-
-export function questionsRunAs(identity: PanelIdentity | null): string {
-  if (!identity) return '';
-  if (identity.analyticalExecution?.mode === 'app_service_principal') {
-    return identity.executionIdentity ?? '';
-  }
-  const assigned = identity.spIdentity?.assigned;
-  if (identity.spIdentity?.executingAs === 'service_principal' && assigned) {
-    return assigned.displayName;
-  }
-  return identity.signedInAs ?? '';
-}

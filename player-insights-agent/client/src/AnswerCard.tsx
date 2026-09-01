@@ -50,6 +50,8 @@ import { StateSwitch } from './StateSwitch';
 import { SqlCodeBlocks } from './SqlPresentation';
 import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { readRunProcessPreference, writeRunProcessPreference } from './run-process-preference';
+import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
+import { answerHasGeneratedSql } from './answer-sql';
 
 /** Shared by Ask and Monitoring, which mounts this same answer card. */
 export function AnswerSql({ sql }: { sql: string }) {
@@ -146,6 +148,8 @@ export function AnswerCard({
    */
   headerExtra?: ReactNode;
 }) {
+  const readerAnswer = normalizeReaderAnswer(answer);
+  const hasGeneratedSql = answerHasGeneratedSql(readerAnswer.sql);
   const [advanced, setAdvanced] = useState(false);
   /** Which thumb this answer's rating lights, or neither. See stored-feedback.ts. */
   const rated = ratedThumb(feedback.usefulness);
@@ -159,7 +163,7 @@ export function AnswerCard({
   // A degradation is not a caveat about the answer, it is a statement about
   // whether the answer is the answer. Separated so it can be shown above the
   // figures instead of below them in a list of five, see degraded-answer.ts.
-  const { ordinary: ordinaryCaveats } = splitCaveats(answer.caveats);
+  const { ordinary: ordinaryCaveats } = splitCaveats(readerAnswer.caveats);
   // Whether this card may be read as an answer to the question at all, and if
   // not, which of the two ways it failed. See degraded-answer.ts for why this
   // reads `mode` rather than looking for the representative caveat.
@@ -180,37 +184,39 @@ export function AnswerCard({
           totalMs: processStages.reduce((sum, stage) => sum + stage.duration, 0),
         };
   const displayed = processTrace === answer.trace ? answer : { ...answer, trace: processTrace };
-  const fallbackNotice = answerFallbackNotice(displayed);
+  const fallbackNotice = answerFallbackNotice(
+    displayed === answer ? readerAnswer : { ...readerAnswer, trace: displayed.trace }
+  );
   const honesty = answerHonesty({
-    caveats: answer.caveats,
-    figures: answer.figures,
-    narrative: answer.narrative,
-    content: answer.content,
+    caveats: readerAnswer.caveats,
+    figures: readerAnswer.figures,
+    narrative: readerAnswer.narrative,
+    content: readerAnswer.content,
     stages: displayed.trace.stages,
   });
   const processVerdict = answerRunVerdict({
     stages: displayed.trace.stages,
-    caveats: answer.caveats,
-    figures: answer.figures,
-    narrative: answer.narrative,
-    content: answer.content,
+    caveats: readerAnswer.caveats,
+    figures: readerAnswer.figures,
+    narrative: readerAnswer.narrative,
+    content: readerAnswer.content,
   });
-  const headline = readerFacingTakeaway(answer.takeaway, answer.narrative, {
-    figures: answer.figures,
-    content: answer.content,
+  const headline = readerFacingTakeaway(readerAnswer.takeaway, readerAnswer.narrative, {
+    figures: readerAnswer.figures,
+    content: readerAnswer.content,
   });
-  const narrative = readerFacingNarrative(answer.takeaway, answer.narrative, {
-    figures: answer.figures,
-    content: answer.content,
+  const narrative = readerFacingNarrative(readerAnswer.takeaway, readerAnswer.narrative, {
+    figures: readerAnswer.figures,
+    content: readerAnswer.content,
   });
   const warningTexts = new Set(honesty.warnings.map((warning) => warning.text));
   const keepCaveats = ordinaryCaveats.filter((caveat) => !warningTexts.has(caveat.trim()));
-  const badge = answerBadge(answer);
+  const badge = answerBadge(readerAnswer);
   const usedAttachments = processTrace.stages.some((stage) => stage.id === 'attachment');
-  const missingDocumentFootnotes = usedAttachments && answer.document_snippets.length === 0;
+  const missingDocumentFootnotes = usedAttachments && readerAnswer.document_snippets.length === 0;
   // Null on a run that did not record which identity read the data, and the
   // footer then simply ends earlier. See analytical-execution.ts.
-  const dataAccess = dataAccessDisclosure(answer.executionIdentity);
+  const dataAccess = dataAccessDisclosure(readerAnswer.executionIdentity);
   /*
    * A label is not an id: two measures can both be called "Current", and keying
    * only on it makes React reconcile the second against the first. The content
@@ -218,7 +224,7 @@ export function AnswerCard({
    * duplicates get an occurrence suffix so even a repeated object stays present.
    */
   const figureOccurrences = new Map<string, number>();
-  const keyedFigures = answer.figures.map((figure) => {
+  const keyedFigures = readerAnswer.figures.map((figure) => {
     const signature = JSON.stringify([figure.label, figure.value, figure.display, figure.comparison]);
     const occurrence = figureOccurrences.get(signature) ?? 0;
     figureOccurrences.set(signature, occurrence + 1);
@@ -251,7 +257,7 @@ export function AnswerCard({
           </div>
           {headline ? (
             <CardTitle className="answer-takeaway">
-              <EntityText text={headline} sources={answer.sources} />
+              <EntityText text={headline} sources={readerAnswer.sources} />
             </CardTitle>
           ) : null}
         </div>
@@ -282,7 +288,10 @@ export function AnswerCard({
             <AlertDescription>
               <p>
                 <strong>{honesty.warnings[0].label}.</strong>{' '}
-                <EntityText text={honesty.warnings.map((warning) => warning.text).join(' ')} sources={answer.sources} />
+                <EntityText
+                  text={honesty.warnings.map((warning) => warning.text).join(' ')}
+                  sources={readerAnswer.sources}
+                />
               </p>
             </AlertDescription>
           </Alert>
@@ -291,21 +300,21 @@ export function AnswerCard({
           <div className="answer-narrative">
             <AnswerProse
               text={narrative}
-              sources={answer.sources}
+              sources={readerAnswer.sources}
               columns={mentionedIdentifiers([narrative])}
               blocks="prose"
             />
-            {answer.content ? (
+            {readerAnswer.content ? (
               <AnswerProse
-                text={answer.content}
-                sources={answer.sources}
-                columns={mentionedIdentifiers([answer.content])}
+                text={readerAnswer.content}
+                sources={readerAnswer.sources}
+                columns={mentionedIdentifiers([readerAnswer.content])}
                 badges
                 blocks="prose"
               />
             ) : null}
           </div>
-          {answer.figures.length > 0 ? (
+          {readerAnswer.figures.length > 0 ? (
             <aside className="answer-stat-rail" aria-label="Key figures">
               {keyedFigures.map(({ figure, key }) => (
                 <div className="answer-stat" key={key}>
@@ -350,22 +359,28 @@ export function AnswerCard({
             so nothing the agent measured is only in a picture. */}
         <AnswerEvidence
           narrative={narrative}
-          content={answer.content}
-          charts={answer.charts}
-          sources={answer.sources}
+          content={readerAnswer.content}
+          charts={readerAnswer.charts}
+          sources={readerAnswer.sources}
         />
         {afterEvidence}
         <SourcesModule
-          sources={answer.sources}
+          sources={readerAnswer.sources}
           caveats={keepCaveats}
-          derivation={answer.derivation}
-          hideWorkspaceLinks={evidenceLinkedSourceNames(narrative, answer.content, answer.charts, answer.sources)}
+          derivation={readerAnswer.derivation}
+          sql={readerAnswer.sql}
+          hideWorkspaceLinks={evidenceLinkedSourceNames(
+            narrative,
+            readerAnswer.content,
+            readerAnswer.charts,
+            readerAnswer.sources
+          )}
         />
-        {answer.document_snippets.length > 0 ? (
+        {readerAnswer.document_snippets.length > 0 ? (
           <section className="answer-content document-footnotes" aria-label="Document footnotes">
             <h3 className="answer-heading">Document footnotes</h3>
             <ol>
-              {answer.document_snippets.map((snippet) => (
+              {readerAnswer.document_snippets.map((snippet) => (
                 <li key={`${snippet.filename}-${snippet.quote}-${snippet.supports}`}>
                   <q>{snippet.quote}</q>
                   <p>
@@ -380,8 +395,7 @@ export function AnswerCard({
           <Alert variant="destructive">
             <CircleAlert />
             <AlertDescription>
-              Attached reports were used, but this answer includes no document footnotes or quoted snippets. Verify its
-              document-based claims against the attachments before using them.
+              Validation: Verify document-based claims against the attached reports before using them.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -434,17 +448,19 @@ export function AnswerCard({
               <StateSwitch checked={advanced} onCheckedChange={setAdvanced} aria-label="Show advanced trace details" />
             </div>
             {advanced && (
-              <Tabs defaultValue="sql">
+              <Tabs defaultValue={hasGeneratedSql ? 'sql' : 'raw'}>
                 <TabsList>
-                  <TabsTrigger value="sql">Generated SQL</TabsTrigger>
+                  {hasGeneratedSql ? <TabsTrigger value="sql">Generated SQL</TabsTrigger> : null}
                   <TabsTrigger value="raw">Raw I/O</TabsTrigger>
                 </TabsList>
-                <TabsContent value="sql">
-                  {/* The one pill recipe stays outlined on this tinted header.
+                {hasGeneratedSql ? (
+                  <TabsContent value="sql">
+                    {/* The one pill recipe stays outlined on this tinted header.
                       SQL itself uses the same structural renderer as live,
                       reloaded Explorer, and Monitoring trace payloads. */}
-                  <AnswerSql sql={answer.sql} />
-                </TabsContent>
+                    <AnswerSql sql={readerAnswer.sql} />
+                  </TabsContent>
+                ) : null}
                 <TabsContent value="raw">
                   <div className="code-panel">
                     <pre>

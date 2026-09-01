@@ -64,6 +64,24 @@ function asFiniteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
+/** Safe structured outcome derived from persisted stage evidence, never raw output. */
+export function stageOutcomeCode(stage: Record<string, unknown>): string | undefined {
+  const status = typeof stage.status === 'string' ? stage.status.toLowerCase() : '';
+  if (!['failed', 'refused'].includes(status)) return undefined;
+  for (const key of ['outcome_code', 'error_code', 'code']) {
+    const candidate = typeof stage[key] === 'string' ? stage[key].trim().toUpperCase() : '';
+    if (/^[A-Z][A-Z0-9_]{1,79}$/.test(candidate)) return candidate;
+  }
+  const output = typeof stage.output === 'string' ? stage.output : '';
+  if (/APITimeoutError|Request timed out|reasoning endpoint.*not reachable/i.test(output)) {
+    return 'REASONING_ENDPOINT_TIMEOUT';
+  }
+  if (/UNRESOLVED_COLUMN/i.test(output)) return 'SQL_UNRESOLVED_COLUMN';
+  if (stage.kind === 'sql') return 'SQL_TOOL_FAILURE';
+  if (stage.id === 'synthesis') return 'ANSWER_SYNTHESIS_FAILED';
+  return status === 'refused' ? 'TOOL_REFUSED' : 'UNKNOWN_STAGE_FAILURE';
+}
+
 /** Fully-qualified table names from the agent's explicit discovery projection. */
 function stageTables(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -109,6 +127,7 @@ export function stageEventPayload(stage: Record<string, unknown>): Record<string
   put('calls', asFiniteNumber(stage.calls));
   put('depth', asFiniteNumber(stage.depth));
   put('parent_id', typeof stage.parent_id === 'string' ? stage.parent_id : undefined);
+  put('outcome_code', stageOutcomeCode(stage));
   const tables = stageTables(stage.tables);
   if (tables.length > 0) payload.tables = tables;
   // The arguments, clamped. Never `output`: see the note at the top of the file.

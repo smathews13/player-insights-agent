@@ -2,29 +2,23 @@
  * Conversation-rail filtering is based only on persisted run evidence.
  *
  * A conversation belongs to the persona snapshot on its newest recorded run,
- * whether that run is active or completed. A null/missing snapshot is
- * "No persona". Current assignments are deliberately never consulted, so
- * changing a person's assignment cannot relabel their earlier conversations.
+ * whether that run is active or completed. Current assignments are deliberately
+ * never consulted, so changing a person's assignment cannot relabel their
+ * earlier conversations. Missing snapshots remain in the unfiltered set and
+ * never become a selectable persona.
  */
 export const CONVERSATION_PERSONA_FILTER_RULE =
   'Persona is the snapshot recorded on the conversation’s newest active or completed run. ' +
-  'If that run recorded no persona, the conversation is classified as No persona.';
+  'Conversations without a recorded persona remain included when All personas is selected.';
 
 export const MAX_CONVERSATION_FILTER_VALUES = 25;
 export const MAX_OWNER_FILTER_LENGTH = 254;
 export const MAX_PERSONA_FILTER_LENGTH = 80;
-export const NO_PERSONA_SELECTION = 'none';
 const PERSONA_SELECTION_PREFIX = 'id:';
 
 export interface ConversationFilterSelection {
   owners: string[];
   personaIds: string[];
-  includeNoPersona: boolean;
-}
-
-export interface ConversationAvailablePersona {
-  id: string;
-  name: string;
 }
 
 export interface ConversationPersonaEvidence {
@@ -82,8 +76,15 @@ export function parseConversationFilterQuery(
   if (!owners.ok || !personaIds.ok) {
     return { ok: false, message: 'Conversation filters contain an invalid owner or persona.' };
   }
-  const noPersonaValues = queryValues(query.no_persona);
-  if (!noPersonaValues || noPersonaValues.length > 1 || !noPersonaValues.every((value) => value === 'true')) {
+  // Old bookmarked requests may still carry this retired flag. Validate its
+  // former shape, then ignore it so the request safely falls back to the
+  // unfiltered persona set instead of reviving a client-selectable state.
+  const retiredMissingPersonaValues = queryValues(query.no_persona);
+  if (
+    !retiredMissingPersonaValues ||
+    retiredMissingPersonaValues.length > 1 ||
+    !retiredMissingPersonaValues.every((value) => value === 'true')
+  ) {
     return { ok: false, message: 'no_persona must be true when it is present.' };
   }
   return {
@@ -91,7 +92,6 @@ export function parseConversationFilterQuery(
     value: {
       owners: owners.values,
       personaIds: personaIds.values,
-      includeNoPersona: noPersonaValues.length === 1,
     },
   };
 }
@@ -104,9 +104,8 @@ export function conversationMatchesFilters(
   if (filters.owners.length > 0 && !filters.owners.includes(owner)) return false;
 
   const persona = typeof conversation.persona_id === 'string' ? conversation.persona_id.trim() : '';
-  const personaFilterActive = filters.personaIds.length > 0 || filters.includeNoPersona;
-  if (!personaFilterActive) return true;
-  if (!persona) return filters.includeNoPersona;
+  if (filters.personaIds.length === 0) return true;
+  if (!persona) return false;
   return filters.personaIds.includes(persona);
 }
 
@@ -116,6 +115,5 @@ export function conversationFilterQueryString(filters: ConversationFilterSelecti
   for (const personaId of filters.personaIds.slice(0, MAX_CONVERSATION_FILTER_VALUES)) {
     query.append('personas', personaId);
   }
-  if (filters.includeNoPersona) query.set('no_persona', 'true');
   return query.toString();
 }

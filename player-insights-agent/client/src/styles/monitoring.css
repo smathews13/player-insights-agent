@@ -1,6 +1,6 @@
 /*
  * Monitoring: the summary strip, the question list, a centered question modal,
- * and the person drawer over the list.
+ * and centered question and person dialogs over the list.
  *
  * Every colour here is a token and every one of them means one thing. Green is
  * reachable, red is failure, neutral grey-blue is a refusal, blue is action and
@@ -14,8 +14,6 @@
  */
 
 .monitoring-page {
-  /* The drawer is positioned against this, so the page is the containing block
-     rather than the viewport. A viewport-fixed drawer sat over the header. */
   position: relative;
 }
 
@@ -546,6 +544,20 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   display: inline-flex;
   max-width: 100%;
 }
+.monitoring-asker-button {
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.monitoring-asker-button:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
+}
 .monitoring-when {
   color: var(--ast-text-secondary);
   white-space: nowrap;
@@ -738,7 +750,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   justify-self: start;
 }
 
-/* ── The person drawer ─────────────────────────────────────────────────── */
+/* ── The centered person modal ─────────────────────────────────────────── */
 
 .monitoring-person-overlay {
   position: fixed;
@@ -747,31 +759,42 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   bottom: 0;
   left: 0;
   z-index: 80;
-  background: color-mix(in oklab, var(--db-ink-deep) 38%, transparent);
+  display: grid;
+  place-items: center;
+  padding: 16px 24px 24px;
+  background: color-mix(in oklab, var(--db-ink-deep) 50%, transparent);
 }
 
-/*
- * Over the list, not instead of it.
- *
- * Fixed to the right edge and scrollable on its own, because the reader's place
- * in the list underneath is something they get back when they close this. It is
- * not a route change and the list does not unmount. Question detail used to live
- * here too; it is the centered modal above. This rule is the person panel only.
- */
-.monitoring-drawer {
-  position: fixed;
-  top: var(--app-header-h);
-  right: 0;
-  bottom: 0;
-  width: min(620px, 100vw);
+.monitoring-person-modal {
+  width: min(760px, calc(100vw - 48px));
+  max-height: min(calc(100vh - var(--app-header-h) - 40px), 920px);
   background: var(--card);
-  border-left: 1px solid var(--ast-hairline);
-  padding: 20px 24px 40px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
+}
+.monitoring-person-modal-head {
+  flex: none;
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid var(--ast-hairline);
+  background: var(--card);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.monitoring-person-modal-body {
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 24px 32px;
+  overflow-x: hidden;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  z-index: 30;
 }
 .monitoring-drawer-head {
   display: flex;
@@ -785,6 +808,9 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
  * the row first and pushes the only way out of the panel off the edge.
  */
 .monitoring-drawer-head > div {
+  min-width: 0;
+}
+.monitoring-person-modal-head > div {
   min-width: 0;
 }
 .monitoring-drawer-question {
@@ -952,6 +978,79 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 }
 
 /* ── The per-user panel ────────────────────────────────────────────────── */
+
+.monitoring-spend {
+  min-height: 132px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+}
+.monitoring-spend-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.monitoring-spend-total {
+  margin: 4px 0 0;
+  font-size: var(--ast-fs-18);
+  font-weight: 700;
+}
+.monitoring-spend-total > span {
+  margin-left: 10px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ast-text-secondary);
+}
+.monitoring-spend-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.monitoring-spend-quality {
+  white-space: nowrap;
+}
+.monitoring-spend-note,
+.monitoring-spend-absent {
+  margin: 0;
+  color: var(--ast-text-long);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.monitoring-spend-loading {
+  display: grid;
+  gap: 10px;
+}
+.monitoring-spend-components {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.monitoring-spend-components li {
+  min-width: 0;
+  padding: 7px 0;
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1.6fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.monitoring-spend-components li + li {
+  border-top: 1px solid var(--ast-hairline);
+}
+.monitoring-spend-component-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.monitoring-spend-component-amount {
+  min-width: 0;
+  color: var(--ast-text-long);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
 
 .monitoring-panel-grid {
   display: grid;

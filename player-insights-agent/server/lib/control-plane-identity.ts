@@ -1,43 +1,33 @@
 /**
  * Identity metadata read from the Databricks control plane as this app.
  *
- * The app's own service principal calls SCIM /Me for its verified name and
- * object id, SCIM Users for the signed-in user's optional workspace metadata,
- * and Apps for deployment context. No forwarded user token is used and no
- * credential or raw control-plane error is returned.
+ * The app calls SCIM Users for the signed-in user's optional workspace
+ * metadata and Apps for deployment context. No forwarded user token is used
+ * and no credential or raw control-plane error is returned.
  */
 import type { ControlPlaneIdentityMetadata } from '../../shared/identity-metadata';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { APP_NAME_ENV, APPS_PATH, workspaceIdFromAppUrl } from './app-metadata';
 import { ExpiringLruCache } from './expiring-lru';
 
-export const SERVICE_PRINCIPAL_METADATA_TTL_MS = 5 * 60_000;
-export const SERVICE_PRINCIPAL_METADATA_CACHE_MAX_ENTRIES = 64;
 export const USER_METADATA_TTL_MS = 60_000;
 export const USER_METADATA_CACHE_MAX_ENTRIES = 512;
 export const APP_CONTEXT_TTL_MS = 5 * 60_000;
 export const APP_CONTEXT_CACHE_MAX_ENTRIES = 64;
 
-export const SCIM_ME_PATH = '/api/2.0/preview/scim/v2/Me';
 export const SCIM_USERS_PATH = '/api/2.0/preview/scim/v2/Users';
 
 export type ControlPlaneReader = (path: string, query?: Record<string, string>) => Promise<unknown>;
 
 type UserRead = ControlPlaneIdentityMetadata['user'];
-type ServicePrincipalRead = ControlPlaneIdentityMetadata['servicePrincipal'];
 type AppRead = Pick<ControlPlaneIdentityMetadata['app'], 'workspaceId'>;
 
 const userCache = new ExpiringLruCache<UserRead>(USER_METADATA_CACHE_MAX_ENTRIES, USER_METADATA_TTL_MS);
-const servicePrincipalCache = new ExpiringLruCache<ServicePrincipalRead>(
-  SERVICE_PRINCIPAL_METADATA_CACHE_MAX_ENTRIES,
-  SERVICE_PRINCIPAL_METADATA_TTL_MS
-);
 const appCache = new ExpiringLruCache<AppRead>(APP_CONTEXT_CACHE_MAX_ENTRIES, APP_CONTEXT_TTL_MS);
 
 /** Test seam and deployment-reload seam. */
 export function forgetControlPlaneIdentityMetadata(): void {
   userCache.clear();
-  servicePrincipalCache.clear();
   appCache.clear();
 }
 
@@ -90,49 +80,6 @@ async function readUser(email: string, host: string, reader: ControlPlaneReader,
   return result;
 }
 
-async function readServicePrincipal(
-  expectedApplicationId: string,
-  host: string,
-  reader: ControlPlaneReader,
-  now: number
-): Promise<ServicePrincipalRead> {
-  const key = `${keyPart(host)}\u0000${keyPart(expectedApplicationId)}`;
-  const cached = servicePrincipalCache.get(key, now);
-  if (cached) return cached;
-  const empty: ServicePrincipalRead = {
-    displayName: '',
-    applicationId: expectedApplicationId,
-    objectId: '',
-    state: 'not_reported',
-    readAt: readAt(now),
-  };
-  if (!host) {
-    servicePrincipalCache.set(key, empty, now);
-    return empty;
-  }
-  let result = empty;
-  try {
-    const me = recordOf(await reader(SCIM_ME_PATH));
-    const reportedApplicationId = textOf(me.applicationId);
-    const identityMatches =
-      Boolean(reportedApplicationId) &&
-      (!expectedApplicationId || keyPart(reportedApplicationId) === keyPart(expectedApplicationId));
-    if (identityMatches) {
-      result = {
-        displayName: textOf(me.displayName),
-        applicationId: reportedApplicationId,
-        objectId: textOf(me.id),
-        state: 'verified',
-        readAt: readAt(now),
-      };
-    }
-  } catch {
-    // Never return the SDK error: it can include request and credential context.
-  }
-  servicePrincipalCache.set(key, result, now);
-  return result;
-}
-
 async function readAppContext(
   appName: string,
   host: string,
@@ -177,18 +124,15 @@ export async function readControlPlaneIdentityMetadata(
     email: string;
     appName?: string;
     workspaceHost?: string;
-    applicationId?: string;
   },
   deps: { read?: ControlPlaneReader; now?: number } = {}
 ): Promise<ControlPlaneIdentityMetadata> {
   const appName = (input.appName ?? process.env[APP_NAME_ENV] ?? '').trim();
   const workspaceHost = normalizeWorkspaceHost(input.workspaceHost ?? process.env.DATABRICKS_HOST);
-  const applicationId = (input.applicationId ?? process.env.DATABRICKS_CLIENT_ID ?? '').trim();
   const now = deps.now ?? Date.now();
   const reader = deps.read ?? workspaceControlPlaneReader;
-  const [user, servicePrincipal, app] = await Promise.all([
+  const [user, app] = await Promise.all([
     readUser(input.email.trim(), workspaceHost, reader, now),
-    readServicePrincipal(applicationId, workspaceHost, reader, now),
     readAppContext(appName, workspaceHost, reader, now),
   ]);
   return {
@@ -199,6 +143,5 @@ export async function readControlPlaneIdentityMetadata(
       workspaceHost,
       workspaceId: app.workspaceId,
     },
-    servicePrincipal,
   };
 }

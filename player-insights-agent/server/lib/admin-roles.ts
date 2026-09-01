@@ -653,9 +653,14 @@ export type AdminAction =
   | 'experimental-settings-updated'
   /** An admin saved nominal Cost budgets for the app total and resource tiles. */
   | 'cost-budgets-updated'
+  /** An admin explicitly allowed or revoked new questions after an app-budget overage. */
+  | 'app-budget-overage-approved'
+  | 'app-budget-overage-revoked'
   /** An admin recorded or cleared a Connections setting intention (or live value). */
   | 'connection-setting-saved'
   | 'connection-setting-cleared'
+  /** An admin atomically staged a validated Gateway mode + model pair. */
+  | 'ai-gateway-selection-staged'
   /** An admin asked the app identity to backfill system_billing=astrolabe on managed resources. */
   | 'resource-tags-applied'
   /** An admin corrected a run’s outcome or rating on the Run Explorer rail. */

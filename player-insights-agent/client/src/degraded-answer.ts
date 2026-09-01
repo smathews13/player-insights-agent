@@ -62,7 +62,7 @@ export type AnswerFallback = 'representative' | 'degraded-data' | 'no-evidence' 
  */
 export const ANSWER_FALLBACK_NOTICES: Record<AnswerFallback, { badge: string; headline: string }> = {
   representative: {
-    badge: 'Provenance unconfirmed',
+    badge: 'Validation required',
     // NAMED A STORED DEMO RESPONSE, and there is no longer one to name.
     //
     // The sentence was true while `shared/demo-content.ts` existed and this
@@ -77,22 +77,19 @@ export const ANSWER_FALLBACK_NOTICES: Record<AnswerFallback, { badge: string; he
     //
     // What is true in every remaining case is only that the app cannot confirm
     // where the answer came from, so that is all this says now.
-    headline:
-      'The app cannot confirm this answer came from a live agent run: the record of where it came ' +
-      'from is missing or incomplete. The figures below may be correct, but nothing here ' +
-      'establishes that they are.',
+    headline: 'Validate these figures against current source data before operational use.',
   },
   'degraded-data': {
     badge: 'Degraded, fallback data',
     headline: 'This answer was built on fallback data.',
   },
   'no-evidence': {
-    badge: 'No result recorded',
-    headline: 'No steps and no structured result were recorded.',
+    badge: 'Answer incomplete',
+    headline: 'The response format was incomplete. Retry the question before using this result.',
   },
   'failed-after-steps': {
-    badge: 'Failed after steps',
-    headline: 'The run stopped without a structured result.',
+    badge: 'Answer incomplete',
+    headline: 'The response ended before the answer was complete. Retry the question before using this result.',
   },
 };
 
@@ -103,20 +100,20 @@ export const ANSWER_FALLBACK_NOTICES: Record<AnswerFallback, { badge: string; he
  * talks about "prose": that sentence was written for a reply that had words and
  * no contract, and it is the wrong diagnosis when nothing ran.
  */
-export function answerFallbackNotice(answer: AnswerEvidenceSections & {
-  mode: string;
-  caveats: string[];
-  provenance?: string;
-}): { badge: string; headline: string; kind: AnswerFallback; tone: 'stored' | 'mixed' | 'failed' } | null {
+export function answerFallbackNotice(
+  answer: AnswerEvidenceSections & {
+    mode: string;
+    caveats: string[];
+    provenance?: string;
+  }
+): { badge: string; headline: string; kind: AnswerFallback; tone: 'stored' | 'mixed' | 'failed' } | null {
   const kind = answerFallback(answer);
   if (!kind) return null;
   if (kind === 'failed-after-steps') {
-    const steps = stageCount(answer.trace);
-    const label = steps === 1 ? '1 step' : `${steps} steps`;
     return {
       kind,
-      badge: `Failed after ${label}`,
-      headline: `The run stopped after ${label} without a structured result.`,
+      badge: ANSWER_FALLBACK_NOTICES[kind].badge,
+      headline: ANSWER_FALLBACK_NOTICES[kind].headline,
       tone: 'failed',
     };
   }
@@ -143,10 +140,7 @@ export function answerFallbackNotice(answer: AnswerEvidenceSections & {
  */
 export type AnswerContentProvenance = AnswerProvenance | 'unstated';
 
-export function answerContentProvenance(answer: {
-  mode: string;
-  provenance?: string;
-}): AnswerContentProvenance {
+export function answerContentProvenance(answer: { mode: string; provenance?: string }): AnswerContentProvenance {
   if (answer.mode !== 'live') return 'stored';
   return isAnswerProvenance(answer.provenance) ? answer.provenance : 'unstated';
 }
@@ -209,11 +203,13 @@ export function answerBadge(answer: { mode: string; provenance?: string }): {
  * the marker existed, most of them fully live, which is the same false alarm in
  * a new costume.
  */
-export function answerFallback(answer: AnswerEvidenceSections & {
-  mode: string;
-  caveats: string[];
-  provenance?: string;
-}): AnswerFallback | null {
+export function answerFallback(
+  answer: AnswerEvidenceSections & {
+    mode: string;
+    caveats: string[];
+    provenance?: string;
+  }
+): AnswerFallback | null {
   const provenance = answerContentProvenance(answer);
   if (provenance === 'stored') return 'representative';
   if (provenance === 'mixed') return 'degraded-data';

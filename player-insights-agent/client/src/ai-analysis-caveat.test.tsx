@@ -110,7 +110,7 @@ describe('the shared reader-facing AI caveat', () => {
     expect(markup).toContain('Data read under your own Unity Catalog grants.');
     expect(caveatTexts(markup)[0]).not.toMatch(/Unity Catalog|sources|model/i);
     expect(visibleText(markup)).toContain(
-      'Attached reports were used, but this answer includes no document footnotes or quoted snippets.'
+      'Validation: Verify document-based claims against the attached reports before using them.'
     );
   });
 

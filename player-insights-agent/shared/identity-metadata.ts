@@ -1,5 +1,5 @@
 /**
- * Authoritative control-plane metadata shown in Connections → Identity.
+ * Authoritative user and app metadata shown in Connections → Identity.
  *
  * Every value is safe deployment context or an identifier. Credentials,
  * request headers, tokens, and control-plane error bodies are deliberately not
@@ -27,32 +27,12 @@ export interface AppIdentityMetadata {
   workspaceId: string;
 }
 
-export interface AppServicePrincipalMetadata {
-  /** SCIM displayName, only after the authenticated /Me response is verified. */
-  displayName: string;
-  /** OAuth application/client id. */
-  applicationId: string;
-  /** Workspace SCIM service-principal object id. */
-  objectId: string;
-  state: IdentityMetadataReadState;
-  /** Time of the lookup attempt, whether it answered or not. */
-  readAt: string;
-}
-
 export interface ControlPlaneIdentityMetadata {
   user: WorkspaceUserMetadata;
   app: AppIdentityMetadata;
-  servicePrincipal: AppServicePrincipalMetadata;
 }
 
 export const NO_CONTROL_PLANE_IDENTITY_METADATA: ControlPlaneIdentityMetadata = {
   user: { displayName: '', objectId: '', state: 'not_reported', readAt: '' },
   app: { displayName: 'Astrolabe', resourceName: '', workspaceHost: '', workspaceId: '' },
-  servicePrincipal: {
-    displayName: '',
-    applicationId: '',
-    objectId: '',
-    state: 'not_reported',
-    readAt: '',
-  },
 };

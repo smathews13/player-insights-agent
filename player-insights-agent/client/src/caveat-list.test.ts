@@ -65,10 +65,8 @@ const REPORTED_CAVEATS = [
   'Totals are cumulative player-days, not unique players across the period.',
   'active_players is not additive across labels; figures here aggregate across labels and ' +
     'countries within each title, which the data dictionary flags as a guardrail to observe.',
-  'Meridian Drift and Harbor City Nights are close in rank but omitted from figures due to the ' +
-    '6-figure limit.',
-  'Terrace Rally 27 and Ashfall Provinces are not shown in figures but are included in the ' +
-    'narrative.',
+  'Meridian Drift and Harbor City Nights are close in rank but omitted from figures due to the ' + '6-figure limit.',
+  'Terrace Rally 27 and Ashfall Provinces are not shown in figures but are included in the ' + 'narrative.',
   'Player data in this deployment is synthetic and representative, not live production data.',
 ];
 
@@ -120,7 +118,7 @@ describe('the caveats under an answer', () => {
    * cap outright.
    */
   it('renders the folded remainder rather than discarding it', () => {
-    expect(PANEL_SOURCE).toContain('rest.map((caveat) => (<CaveatBullet');
+    expect(PANEL_SOURCE).toMatch(/rest\.map\(\(caveat\) =>\s*<CaveatBullet/);
     expect(PANEL_SOURCE).not.toMatch(/\brest\b[^\n]*\.slice\(/);
   });
 
@@ -195,9 +193,7 @@ describe('every caveat reaching a bullet', () => {
    * word does not.
    */
   it('leaves both synthetic-data disclosures for the layer above to judge', () => {
-    const synthetic = splitCaveats(REPORTED_CAVEATS).ordinary.filter((caveat) =>
-      caveat.includes('synthetic'),
-    );
+    const synthetic = splitCaveats(REPORTED_CAVEATS).ordinary.filter((caveat) => caveat.includes('synthetic'));
 
     expect(synthetic).toHaveLength(2);
   });

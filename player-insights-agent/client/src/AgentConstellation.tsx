@@ -78,7 +78,7 @@ import { BrandIcon } from './BrandIcon';
 import { ConceptFlicker } from './ConceptFlicker';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { StageStatus, TraceStage } from './answer-shape';
-import { formatDuration } from './benchmark-summary';
+import { formatDuration } from './benchmark-format';
 import { formatMs } from './trace-timeline';
 import { EntityText } from './InlineEntityText';
 import { stageTableEntities, stageToolNames } from './live-progress';

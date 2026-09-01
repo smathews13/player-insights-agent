@@ -4,12 +4,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SessionReport } from '../../shared/session-contract';
 import { AccessGate, type GateIdentity } from './AccessGate';
 import { FirstOpenGate } from './FirstOpenGate';
-import { StartupLoadingSurface, startupPhase, startupSurfaceOwner, type StartupSnapshot } from './StartupBoundary';
+import {
+  StartupLoadingSurface,
+  startupCanMountApplication,
+  startupPhase,
+  startupSurfaceOwner,
+  type StartupSnapshot,
+} from './StartupBoundary';
 import type { Identity } from './app-types';
 import { bootstrapAppSession, resetAppSessionForTests } from './app-session';
 import { forgetIdentityRequest, identityRequest } from './app-state';
 import { forgetFirstOpen } from './first-open';
-import { STARTUP_LOADER_DELAY_MS, STARTUP_LOADER_MINIMUM_MS, createStartupLoaderPolicy } from './startup-loader-policy';
+import { FLICKER_ORDER } from './astrolabe-mark';
 
 const startupSource = readFileSync(new URL('./StartupBoundary.tsx', import.meta.url), 'utf8');
 const indexShell = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -19,6 +25,7 @@ const base: StartupSnapshot = {
   appSession: 'booting',
   identityResolved: false,
   accessDecisionRequired: false,
+  applicationReady: false,
   firstOpen: 'pending',
 };
 
@@ -40,7 +47,6 @@ function session(over: Partial<SessionReport> = {}): SessionReport {
 function identity(over: Partial<Identity> = {}): Identity {
   return {
     signedInAs: 'reader@example.com',
-    executionIdentity: 'reader@example.com',
     executionMode: 'user',
     identitySource: 'databricks-apps',
     session: session(),
@@ -52,7 +58,6 @@ function gateIdentity(over: Partial<GateIdentity> = {}): GateIdentity {
   return {
     signedInAs: 'reader@example.com',
     identitySource: 'databricks-apps',
-    executionIdentity: 'reader@example.com',
     executionMode: 'user-verified',
     accessDecision: null,
     servingPrincipal: null,
@@ -75,13 +80,29 @@ describe('authoritative startup sequence', () => {
       { ...base, nativeAuthReturned: true },
       { ...base, nativeAuthReturned: true, appSession: 'ready' },
       { ...base, nativeAuthReturned: true, appSession: 'ready', identityResolved: true, firstOpen: 'gate' },
-      { ...base, nativeAuthReturned: true, appSession: 'ready', identityResolved: true, firstOpen: 'open' },
+      {
+        ...base,
+        nativeAuthReturned: true,
+        appSession: 'ready',
+        identityResolved: true,
+        applicationReady: true,
+        firstOpen: 'gate',
+      },
+      {
+        ...base,
+        nativeAuthReturned: true,
+        appSession: 'ready',
+        identityResolved: true,
+        applicationReady: true,
+        firstOpen: 'open',
+      },
     ];
 
     expect(frames.map(startupPhase)).toEqual([
       'native-auth-pending',
       'app-session-bootstrap',
       'access-bootstrap',
+      'application-bootstrap',
       'first-open',
       'application-ready',
     ]);
@@ -95,6 +116,7 @@ describe('authoritative startup sequence', () => {
         appSession: 'ready',
         identityResolved: true,
         accessDecisionRequired: true,
+        applicationReady: true,
         firstOpen: 'gate',
       })
     ).toBe('access-decision');
@@ -107,71 +129,41 @@ describe('authoritative startup sequence', () => {
 
   it('keeps every phase under exactly one viewport owner', () => {
     const owners = [
-      startupSurfaceOwner('native-auth-pending', false),
-      startupSurfaceOwner('app-session-bootstrap', true),
-      startupSurfaceOwner('access-bootstrap', true),
-      startupSurfaceOwner('access-decision', false),
-      startupSurfaceOwner('first-open', false),
-      startupSurfaceOwner('application-ready', false),
+      startupSurfaceOwner('native-auth-pending'),
+      startupSurfaceOwner('app-session-bootstrap'),
+      startupSurfaceOwner('access-bootstrap'),
+      startupSurfaceOwner('application-bootstrap'),
+      startupSurfaceOwner('access-decision'),
+      startupSurfaceOwner('first-open'),
+      startupSurfaceOwner('application-ready'),
     ];
-    expect(owners).toEqual(['loader', 'loader', 'loader', 'access-modal', 'first-open-modal', 'application']);
-  });
-});
-
-describe('startup loader timing', () => {
-  it('never paints for a fast boundary', () => {
-    vi.useFakeTimers();
-    const changes: boolean[] = [];
-    const policy = createStartupLoaderPolicy((visible) => changes.push(visible));
-
-    policy.setPending(true);
-    vi.advanceTimersByTime(STARTUP_LOADER_DELAY_MS - 1);
-    policy.setPending(false);
-    vi.runAllTimers();
-
-    expect(changes).toEqual([]);
-  });
-
-  it('uses one reveal clock across adjacent pending states and one minimum hold after painting', () => {
-    vi.useFakeTimers();
-    const changes: boolean[] = [];
-    const policy = createStartupLoaderPolicy((visible) => changes.push(visible));
-
-    policy.setPending(true);
-    vi.advanceTimersByTime(STARTUP_LOADER_DELAY_MS);
-    expect(changes).toEqual([true]);
-
-    // Native auth -> app session -> identity remains one pending episode.
-    policy.setPending(true);
-    vi.advanceTimersByTime(STARTUP_LOADER_MINIMUM_MS);
-    policy.setPending(false);
-    vi.runAllTimers();
-    expect(changes).toEqual([true, false]);
-  });
-
-  it('holds a freshly painted loader only for the remainder of the minimum', () => {
-    vi.useFakeTimers();
-    const changes: boolean[] = [];
-    const policy = createStartupLoaderPolicy((visible) => changes.push(visible));
-
-    policy.setPending(true);
-    vi.advanceTimersByTime(STARTUP_LOADER_DELAY_MS);
-    policy.setPending(false);
-    vi.advanceTimersByTime(STARTUP_LOADER_MINIMUM_MS - 1);
-    expect(changes).toEqual([true]);
-    vi.advanceTimersByTime(1);
-    expect(changes).toEqual([true, false]);
+    expect(owners).toEqual(['loader', 'loader', 'loader', 'loader', 'access-modal', 'first-open-modal', 'application']);
   });
 });
 
 describe('frame ownership', () => {
-  it('mounts at most one Astrolabe symbol in every loader frame', () => {
-    for (const phase of ['native-auth-pending', 'app-session-bootstrap', 'access-bootstrap'] as const) {
-      const hidden = renderToStaticMarkup(<StartupLoadingSurface visible={false} phase={phase} />);
-      const visible = renderToStaticMarkup(<StartupLoadingSurface visible phase={phase} />);
-      expect(hidden.match(/data-startup-symbol/g) ?? []).toHaveLength(0);
-      expect(visible.match(/data-startup-symbol/g) ?? []).toHaveLength(1);
+  it('keeps one original Astrolabe flicker slot while startup status advances', () => {
+    expect(startupSource.match(/<StartupLoadingSurface/g)).toHaveLength(1);
+    for (const phase of [
+      'native-auth-pending',
+      'app-session-bootstrap',
+      'access-bootstrap',
+      'application-bootstrap',
+    ] as const) {
+      const markup = renderToStaticMarkup(<StartupLoadingSurface phase={phase} />);
+      expect(markup.match(/data-startup-loader="astrolabe-primary"/g)).toHaveLength(1);
+      expect(markup.match(/class="ast-flick-slot /g)).toHaveLength(1);
+      expect(markup.match(/class="ast-mark /g)).toHaveLength(FLICKER_ORDER.length);
     }
+  });
+
+  it('changes permission/readiness copy without mounting a permission animation', () => {
+    const access = renderToStaticMarkup(<StartupLoadingSurface phase="access-bootstrap" />);
+    const readiness = renderToStaticMarkup(<StartupLoadingSurface phase="application-bootstrap" />);
+    expect(access).toContain('Checking access');
+    expect(readiness).toContain('Preparing Ask');
+    expect(access.match(/class="ast-flick-slot /g)).toHaveLength(1);
+    expect(access).not.toMatch(/permission.*(?:spin|anim)/i);
   });
 
   it('renders no protected child or route loader behind the access modal', () => {
@@ -215,8 +207,17 @@ describe('frame ownership', () => {
     expect(indexShell).toContain("html[data-theme='dark'] body");
   });
 
-  it('does not mount protected children anywhere except the application owner', () => {
-    expect(startupSource).toMatch(/if \(owner === 'first-open-modal'\) return firstOpen\.gate;\s*return children;/);
+  it('mounts the hidden shell for readiness only after session and access resolve', () => {
+    expect(startupCanMountApplication(base)).toBe(false);
+    expect(startupCanMountApplication({ ...base, appSession: 'ready', identityResolved: true })).toBe(true);
+    expect(
+      startupCanMountApplication({
+        ...base,
+        appSession: 'ready',
+        identityResolved: true,
+        accessDecisionRequired: true,
+      })
+    ).toBe(false);
   });
 });
 
@@ -237,12 +238,12 @@ describe('StrictMode replay', () => {
     expect(identityFetch).toHaveBeenCalledTimes(1);
   });
 
-  it('uses static startup and modal surfaces under reduced motion and Animations Off', () => {
-    const loader = renderToStaticMarkup(<StartupLoadingSurface visible phase="app-session-bootstrap" />);
+  it('keeps a static essential startup indicator available when motion is suppressed', () => {
+    const loader = renderToStaticMarkup(<StartupLoadingSurface phase="app-session-bootstrap" />);
     const firstOpen = renderToStaticMarkup(<FirstOpenGate identity={identity()} />);
-    expect(loader).not.toContain('ast-anim-');
+    expect(loader).toContain('data-ast-rest');
+    expect(loader).toContain('Starting secure app session');
     expect(firstOpen).not.toContain('ast-anim-');
-    expect(startupSource).not.toContain('OpeningSequence');
-    expect(startupSource).not.toContain('ConceptFlicker');
+    expect(startupSource).toContain('ConceptFlicker');
   });
 });

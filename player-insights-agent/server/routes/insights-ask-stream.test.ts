@@ -4,6 +4,7 @@ import { setupInsightsRoutes, type InsightsAppKit, type ServingTransport } from 
 import servingResponses from './__fixtures__/serving-responses.json';
 import { FakeStore } from '../lib/__fixtures__/fake-run-store';
 import { RUN_LEDGER_MODE_ENV } from '../lib/run-admission';
+import { appBudgetPeriod, emptyAppBudgetStatus } from '../../shared/app-budget-guard';
 
 /**
  * `/api/insights/ask` over Server-Sent Events, end to end through the real
@@ -17,15 +18,19 @@ interface SseFrame {
 
 async function startApp(
   transport: ServingTransport,
-  lakebase: InsightsAppKit['lakebase'] = { query: () => Promise.resolve({ rows: [] }) }
+  lakebase: InsightsAppKit['lakebase'] = { query: () => Promise.resolve({ rows: [] }) },
+  options: Parameters<typeof setupInsightsRoutes>[1] = {}
 ) {
   const app = express();
   app.use(express.json());
-  await setupInsightsRoutes({
-    lakebase,
-    server: { extend: (fn) => fn(app) },
-    servingTransport: transport,
-  } satisfies InsightsAppKit);
+  await setupInsightsRoutes(
+    {
+      lakebase,
+      server: { extend: (fn) => fn(app) },
+      servingTransport: transport,
+    } satisfies InsightsAppKit,
+    options
+  );
 
   // Loopback rather than the wildcard, or this binds a port another process holds
   // on 127.0.0.1 and the fetch below reaches that process. See shared-rail.test.ts.
@@ -102,6 +107,58 @@ describe('POST /api/insights/ask, asked for as a stream', () => {
   afterEach(() => {
     if (savedEndpoint === undefined) delete process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
     else process.env.DATABRICKS_SERVING_ENDPOINT_NAME = savedEndpoint;
+  });
+
+  it('refuses JSON and stream asks before persistence or serving, including for an administrator', async () => {
+    const transport = vi.fn(() => Promise.resolve(servingResponses.liveAnswerResponse));
+    const queries: string[] = [];
+    const period = appBudgetPeriod(Date.parse('2026-09-15T12:00:00Z'));
+    const blocked = emptyAppBudgetStatus(period, '2026-09-15T12:00:00Z', {
+      level: 'approval-required',
+      measured: 100,
+      budget: 100,
+      unit: 'USD',
+      ratio: 1,
+      percent: 100,
+      coverage: 'complete',
+      budgetFingerprint: 'a'.repeat(64),
+      code: 'BUDGET_APPROVAL_REQUIRED',
+      detail: 'An administrator must approve continued usage.',
+    });
+    const app = await startApp(
+      transport,
+      {
+        query: (sql: string) => {
+          queries.push(sql);
+          return Promise.resolve({ rows: [] });
+        },
+      },
+      { readBudgetStatus: vi.fn(() => Promise.resolve(blocked)) }
+    );
+    const before = queries.length;
+    const json = await app.askJson({ conversationId: 'conv-budget-json', prompt: 'Should this run?' });
+    const stream = await app.askStreaming(
+      { conversationId: 'conv-budget-stream', prompt: 'Should this run either?' },
+      { 'x-forwarded-email': 'admin@example.com' }
+    );
+
+    expect(json.response.status).toBe(429);
+    expect(json.body).toMatchObject({
+      code: 'BUDGET_APPROVAL_REQUIRED',
+      persistence_status: 'not_stored',
+      budget_status: { level: 'approval-required' },
+    });
+    expect(stream.response.status).toBe(429);
+    expect(stream.contentType).toContain('application/json');
+    expect(stream.json).toMatchObject({ code: 'BUDGET_APPROVAL_REQUIRED' });
+    expect(transport).not.toHaveBeenCalled();
+    expect(
+      queries
+        .slice(before)
+        .join('\n')
+        .match(/INSERT INTO\s+\S+\.(conversations|messages|runs)/i)
+    ).toBeNull();
+    await app.close();
   });
 
   it('sends each stage before the answer, in the order the agent finished them', async () => {

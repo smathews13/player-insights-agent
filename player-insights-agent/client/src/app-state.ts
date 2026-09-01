@@ -86,7 +86,6 @@ export function identityAfterDeadline(current: Identity): Identity {
 
 const unavailableIdentity = (): Identity => ({
   signedInAs: IDENTITY_UNAVAILABLE,
-  executionIdentity: 'Astrolabe service principal',
   executionMode: 'service-principal',
 });
 
@@ -105,8 +104,6 @@ export function identityFromResponse(value: unknown): Identity {
 
   return {
     signedInAs: candidate.signedInAs,
-    executionIdentity:
-      typeof candidate.executionIdentity === 'string' ? candidate.executionIdentity : 'Astrolabe service principal',
     executionMode: typeof candidate.executionMode === 'string' ? candidate.executionMode : 'service-principal',
     ...(candidate.identitySource === 'databricks-apps' || candidate.identitySource === 'development-fallback'
       ? { identitySource: candidate.identitySource }
@@ -147,7 +144,6 @@ export function useIdentity(deadlineMs = IDENTITY_DEADLINE_MS) {
         // Both placeholders are named in user-initials.ts, which has to recognise
         // them: they are sentences, and an avatar built from one reads "RS".
         signedInAs: IDENTITY_RESOLVING,
-        executionIdentity: 'Astrolabe service principal',
         executionMode: 'service-principal',
       }
   );

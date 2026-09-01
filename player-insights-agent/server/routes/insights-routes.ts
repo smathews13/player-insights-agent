@@ -15,6 +15,8 @@ import {
 import { describeSql, runMigrations, type SchemaStatementFailure } from '../lib/migration-runner';
 import { buildMigrations } from '../lib/migrations';
 import { recordAppActivityMinute } from '../lib/app-activity';
+import { normalizeAdminEmail } from '../lib/admin-identity';
+import { invalidateUserSpendCache } from '../lib/user-spend';
 import {
   registerAppSessionControls,
   resolveIdleTimeout,
@@ -23,7 +25,7 @@ import {
 } from '../lib/app-session';
 import { startTelemetryHousekeeping } from '../lib/telemetry-retention';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
-import { REPRESENTATIVE_ANSWER_CAVEAT } from '../../shared/representative-answer';
+import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 import {
   bindServingMlflowTraceId,
   isMlflowTraceId,
@@ -33,7 +35,7 @@ import {
 } from '../../shared/mlflow-trace-id';
 import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
-import { attachRecordedStages, carriesEvidence, proseOnlyAnswer } from '../../shared/prose-only-answer';
+import { attachRecordedStages, proseOnlyAnswer } from '../../shared/prose-only-answer';
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
 import { overlayJoinSql, overlayRatingSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
@@ -112,6 +114,7 @@ import {
   type FailureStage,
 } from '../../shared/failure-evidence';
 import { readAgentRefusal } from '../lib/agent-refusal';
+import { budgetGuardBlocks, readAppBudgetStatus } from '../lib/app-budget-guard';
 import { declaredUserApiScopes, sessionFreshness } from '../lib/session-freshness';
 import {
   authorizationFailureFor,
@@ -152,7 +155,6 @@ import { readControlPlaneIdentityMetadata, type ControlPlaneReader } from '../li
 import {
   accessDecisionFor,
   accessModeFor,
-  appServicePrincipal,
   declareAccessMode,
   executionIdentityColumns,
   isAccessMode,
@@ -1109,20 +1111,12 @@ export {
 } from '../../shared/mlflow-trace-id';
 
 /**
- * Marks any answer that did not come from a traced agent run.
+ * Legacy compatibility hook.
  *
- * The signal is the trace id, which is the one thing only a recorded run can
- * produce: `agent.py` sets `trace.id` from the bound MLflow span, and anything
- * that is not `tr-<hex>` is treated as untraced. `mlflowReference` already
- * refuses to link those. Deriving the caveat from the same predicate means a
- * later answer without a real id cannot be shipped without the disclosure.
- *
- * An answer carrying no evidence at all is left alone, and that is not a hole
- * in the rule. The caveat's sentence is about whether the run can be opened in
- * MLflow, so putting it on an answer that has no figures, SQL or stages tells a
- * reader there is a stored demo response on the screen when what is on the
- * screen is prose and four empty sections. The prose-only path says what it is
- * in its own words. See shared/prose-only-answer.ts.
+ * Trace availability belongs to the process inspector, not the answer's
+ * caveats. Keep the function so older callers and focused tests retain one
+ * route through the enrichment pipeline, but do not add process-omission copy
+ * to canonical answer data.
  */
 export function discloseAnswerProvenance<
   T extends {
@@ -1133,10 +1127,7 @@ export function discloseAnswerProvenance<
     sql?: string;
   },
 >(answer: T): T {
-  if (isMlflowTraceId(answer.trace.id)) return answer;
-  if (!carriesEvidence(answer)) return answer;
-  if (answer.caveats.includes(REPRESENTATIVE_ANSWER_CAVEAT)) return answer;
-  return { ...answer, caveats: [REPRESENTATIVE_ANSWER_CAVEAT, ...answer.caveats] };
+  return answer;
 }
 
 /**
@@ -1295,7 +1286,7 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
   const recorded = isMlflowTraceId(trace.data.id);
   const process = withoutUntracedTimeline(trace.data);
 
-  return {
+  return normalizeReaderAnswer({
     ...identity,
     state: 'trace',
     mode,
@@ -1319,13 +1310,13 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
     mlflow: recorded ? mlflowReference(trace.data.id, experimentId) : null,
     benchmark: null,
     note: !recorded
-      ? 'No MLflow trace was recorded for this answer, so there is no run timeline to show.'
+      ? ''
       : mode === 'representative'
         ? 'This run was answered offline from the representative dataset, so these are reference stages rather than a live agent run.'
         : '',
     undeclaredKeys: answer.success ? undeclaredAnswerKeys(answer.data) : [],
     runtimeUsed,
-  };
+  });
 }
 
 /**
@@ -1873,7 +1864,7 @@ export class IdentityUnavailableError extends Error {
  */
 export function userEmail(req: Request): string {
   const forwarded = req.header('x-forwarded-email')?.trim();
-  if (forwarded) return forwarded;
+  if (forwarded) return normalizeAdminEmail(forwarded);
   if (isDeployed()) throw new IdentityUnavailableError();
   return DEVELOPMENT_IDENTITY;
 }
@@ -2300,7 +2291,7 @@ export function extractStructuredAnswer(value: unknown): LiveAnswer | null {
       // agent contract has moved ahead of the UI and someone needs to catch up.
       console.warn('[serving] Answer contains fields the app does not read:', undeclared.join(', '));
     }
-    return parsed.data;
+    return normalizeReaderAnswer(parsed.data);
   }
   for (const key of ['data', 'response', 'result', 'body']) {
     if (record[key]) {
@@ -2450,7 +2441,6 @@ export function identityPayload(req: Request) {
     // rendering "You are signed in as …" over an address nobody is signed in as.
     identitySource:
       signedInAs === DEVELOPMENT_IDENTITY ? ('development-fallback' as const) : ('databricks-apps' as const),
-    executionIdentity: appServicePrincipal() ?? 'Astrolabe service principal',
     // Was a literal, which was true of every deployment right up until the gate
     // gave a user something else to choose. It is now whatever this server last
     // established for this user, and established is the operative word: see
@@ -3044,8 +3034,8 @@ function agentEndpointEvidence(error: unknown, context: { principal?: string; st
  * nothing in production can call the endpoint without a user token.
  */
 export const SERVICE_PRINCIPAL_FALLBACK_CAVEAT =
-  'This answer ran as the application, not as you. Your own permissions were not what the ' +
-  'warehouse enforced, so it may include data your account cannot read directly.';
+  'Data access scope: this answer used the application’s Unity Catalog grants, which may include ' +
+  'data outside the signed-in account’s direct access.';
 
 /**
  * The endpoint would not run this question as the user who asked it.
@@ -3370,6 +3360,8 @@ export function setupInsightsRoutes(
     onRequestLatencyRecorder?: (recorder: ReturnType<typeof requestLatencyRecorder>) => void;
     /** Test seam; production reads the Databricks control plane as the app SP. */
     identityControlPlaneReader?: ControlPlaneReader;
+    /** Test seam for authoritative app-budget admission. */
+    readBudgetStatus?: typeof readAppBudgetStatus;
   } = {}
 ): Promise<{ storeReady: Promise<void> }> {
   // BEFORE `prepareStore`, not after, and that ordering is load-bearing rather
@@ -3514,6 +3506,7 @@ export function setupInsightsRoutes(
      */
     app.post('/api/activity/heartbeat', async (req, res) => {
       await recordAppActivityMinute(appkit, userEmail(req));
+      invalidateUserSpendCache();
       res.status(204).send();
     });
 
@@ -3860,24 +3853,9 @@ export function setupInsightsRoutes(
       const matchingConversationIds = rows
         .filter((row) => conversationMatchesFilters(row, parsedFilters.value))
         .map((row) => String(row.id));
-      const availablePersonaRead = await readStored(
-        appkit,
-        'GET /api/conversations (persona options)',
-        `SELECT id, display_name FROM ${APP_SCHEMA}.sp_personas ORDER BY display_name, id`,
-        []
-      );
-      const availablePersonas = availablePersonaRead.available
-        ? availablePersonaRead.rows
-            .map((row) => ({
-              id: text(row.id)?.trim() ?? '',
-              name: text(row.display_name)?.trim() ?? '',
-            }))
-            .filter((persona) => persona.id && persona.name)
-        : null;
       res.json({
         conversations: rows,
         matching_conversation_ids: matchingConversationIds,
-        available_personas: availablePersonas,
         persona_filter_rule: CONVERSATION_PERSONA_FILTER_RULE,
       });
     });
@@ -4454,6 +4432,7 @@ export function setupInsightsRoutes(
       }
       const { conversationId, prompt, approvedPlanId, executePlan } = parsed.data;
       const email = userEmail(req);
+      invalidateUserSpendCache();
 
       // BEFORE ANY WRITE. A request that will not be executed must not leave a
       // conversation row, a user turn, or an `updated_at` behind it: the rail
@@ -4508,6 +4487,32 @@ export function setupInsightsRoutes(
           })
         );
         return;
+      }
+
+      // App-budget admission is server-authoritative and happens before the
+      // conversation, user turn, run lease, or serving invocation exists. It
+      // applies to administrators too: role only controls who may approve.
+      try {
+        const budgetStatus = await (options.readBudgetStatus ?? readAppBudgetStatus)(appkit, req);
+        if (budgetGuardBlocks(budgetStatus)) {
+          reply.status(unavailableHttpStatus('BUDGET_APPROVAL_REQUIRED')).json(
+            unavailableResult({
+              code: 'BUDGET_APPROVAL_REQUIRED',
+              requestId: identity.correlationId,
+              runId: null,
+              persistence: 'not_stored',
+              executionIdentity: refusedIdentityClaim(),
+              detail: budgetStatus.detail,
+              budgetStatus,
+            })
+          );
+          return;
+        }
+      } catch (error) {
+        // Billing and approval-state uncertainty fail open. The status endpoint
+        // reports the same uncertainty visibly; a query failure is never read as
+        // evidence that the threshold was reached.
+        console.warn(`[app-budget] Admission status was unavailable; allowing the Ask: ${(error as Error).message}`);
       }
 
       const userMessageId = crypto.randomUUID();
@@ -5341,9 +5346,8 @@ export function setupInsightsRoutes(
         // Disclosed on the way out rather than only where the fallback is built,
         // so a stored answer reaching here by any route is covered rather than
         // whichever ones somebody remembered.
-        const disclosed = discloseExecutingIdentity(
-          withoutUntracedProcess(discloseAnswerProvenance(answer)),
-          ranAsSignedInUser
+        const disclosed = normalizeReaderAnswer(
+          discloseExecutingIdentity(withoutUntracedProcess(discloseAnswerProvenance(answer)), ranAsSignedInUser)
         );
         if (replyIfCancelled()) return;
         // Not `safeQuery`, whose contract is that a failed write does not change

@@ -658,33 +658,6 @@ export function drawnReadings(readings: ReadonlyMap<string, ConnectionReading>):
 }
 
 /**
- * How long ago the checks were run.
- *
- * `readAgo` in `RefreshControl` is the only caller, and the Refresh control is
- * the only place in the app that states freshness. The Architecture tile strip
- * used to print this as well; one clock with two readings is one too many.
- *
- * Rounded to the coarsest unit that is still true, and "not yet" where nothing
- * has been run. That is now a brief state rather than a resting one -- the checks
- * start themselves when the app is opened -- but it is still reachable, while the
- * first run is in flight and on a deployment where it failed. Never an absolute
- * clock time: the question a reader has is whether the statuses below are from
- * this sitting, and a timestamp makes them work that out.
- */
-export function checkedAgo(iso: string, now: number): string {
-  if (!iso) return 'not yet';
-  const at = new Date(iso).getTime();
-  if (Number.isNaN(at)) return 'not yet';
-  const seconds = Math.max(0, Math.round((now - at) / 1000));
-  if (seconds < 60) return 'just now';
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  return `${Math.round(hours / 24)} d ago`;
-}
-
-/**
  * What a screen reader is told a node card is.
  *
  * The status word is IN the name rather than only in the pill beside it, so the

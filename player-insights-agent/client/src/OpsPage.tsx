@@ -700,7 +700,12 @@ export function CostBody({
 function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
   const evidence = tile.evidence;
   const billingRows = evidence?.billingRows ?? 0;
-  const fact = billingRows > 0 ? `${count(billingRows)} billing ${billingRows === 1 ? 'row' : 'rows'}` : '';
+  const fact =
+    billingRows > 0
+      ? `${count(billingRows)} billing ${billingRows === 1 ? 'row' : 'rows'}`
+      : tile.note === 'No billable usage in this period'
+        ? tile.note
+        : '';
   return (
     <p className="ops-tile-evidence" title={fact || undefined} aria-hidden={fact ? undefined : true}>
       {fact || '\u00a0'}
@@ -780,9 +785,7 @@ function CostMethodology({ payload }: { payload: OpsCostPayload }) {
       return 'Matched warehouse spend × this Genie space’s measured generated-SQL execution-time share.';
     }
     if (tile.id === 'vector-search') {
-      return tile.quality === 'estimate'
-        ? 'Exact Vector Search endpoint billing × configured-index calls ÷ observed Vector Search calls.'
-        : 'Exact Vector Search endpoint billing with configured-index activity evidence.';
+      return 'Exact hosting-endpoint billing. Included only when the active index reports this endpoint and the endpoint hosts one index; index-sync pipeline compute is separate.';
     }
     if (tile.id === 'app-compute') return 'Exact Apps billing rows matched by app name.';
     return 'Measured attributable billing rows.';
@@ -796,6 +799,16 @@ function CostMethodology({ payload }: { payload: OpsCostPayload }) {
           detail: 'Direct attributable components only; per-day rates are expanded over the selected Cost period.',
         },
         ...calculated.map((tile) => ({ label: tile.label, detail: detailFor(tile) })),
+      ],
+    },
+    {
+      title: 'Budget controls',
+      rows: [
+        {
+          label: 'Monthly app budget',
+          detail:
+            'Budget controls are guardrails, not hard billing ceilings. Astrolabe warns at 80% of the monthly app budget and requires an administrator to approve new questions after measured month-to-date spend reaches 100%. Billing data can lag, concurrent or in-flight requests may exceed the threshold, and resource budgets remain advisory.',
+        },
       ],
     },
   ];

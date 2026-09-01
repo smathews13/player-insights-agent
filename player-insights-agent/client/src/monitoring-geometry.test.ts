@@ -114,16 +114,18 @@ describe('a fully-qualified table name remains readable beside its count', () =>
   });
 });
 
-describe('a question opens as a centered modal, not a side drawer', () => {
-  it('places the dialog in the middle of a full-page overlay', () => {
+describe('Monitoring details open as centered modals, not side drawers', () => {
+  it('places both dialogs in the middle of full-page overlays', () => {
     expect(rule('.monitoring-question-overlay')).toMatch(/position:\s*fixed/);
     expect(rule('.monitoring-question-overlay')).toMatch(/place-items:\s*center/);
     expect(rule('.monitoring-question-overlay')).toMatch(/top:\s*var\(--app-header-h\)/);
     expect(rule('.monitoring-question-overlay')).not.toMatch(/inset:\s*0/);
     expect(rule('.monitoring-question-modal')).not.toMatch(/position:\s*fixed/);
     expect(rule('.monitoring-question-modal')).not.toMatch(/right:\s*0/);
-    // The person panel is still the right-hand drawer. Question detail is not.
-    expect(rule('.monitoring-drawer')).toMatch(/right:\s*0/);
+    expect(rule('.monitoring-person-overlay')).toMatch(/place-items:\s*center/);
+    expect(rule('.monitoring-person-modal')).not.toMatch(/position:\s*fixed/);
+    expect(rule('.monitoring-person-modal')).not.toMatch(/right:\s*0/);
+    expect(CSS).not.toContain('.monitoring-drawer {');
   });
 
   it('lets the dialog scroll and forbids its children from shrinking over each other', () => {
@@ -137,6 +139,23 @@ describe('a question opens as a centered modal, not a side drawer', () => {
     expect(child).toMatch(/min-height:\s*min-content/);
     expect(child).toMatch(/position:\s*static/);
   });
+
+  it('keeps the person title fixed while only its body scrolls', () => {
+    expect(rule('.monitoring-person-modal')).toMatch(/overflow:\s*hidden/);
+    expect(rule('.monitoring-person-modal-head')).toMatch(/flex:\s*none/);
+    expect(rule('.monitoring-person-modal-body')).toMatch(/overflow-y:\s*auto/);
+    expect(rule('.monitoring-person-modal-body')).toMatch(/overflow-x:\s*hidden/);
+  });
+
+  it('uses viewport margins instead of a clipped full-width mobile panel', () => {
+    const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
+    expect(narrow).toMatch(/\.monitoring-person-overlay\s*\{[^}]*padding:\s*12px/);
+    expect(narrow).toMatch(/\.monitoring-person-modal\s*\{[^}]*width:\s*calc\(100vw - 24px\)/);
+    expect(narrow).toMatch(
+      /\.monitoring-person-modal\s*\{[^}]*max-height:\s*calc\(100vh - var\(--app-header-h\) - 24px\)/
+    );
+    expect(narrow).not.toMatch(/\.monitoring-person-modal\s*\{[^}]*width:\s*100vw/);
+  });
 });
 
 describe('the panel head and the scope badges cannot be clipped either', () => {
@@ -146,7 +165,7 @@ describe('the panel head and the scope badges cannot be clipped either', () => {
    * out of the panel off the edge.
    */
   it('lets the name block shrink so the close button stays on screen', () => {
-    expect(rule('.monitoring-drawer-head > div')).toMatch(/min-width:\s*0/);
+    expect(rule('.monitoring-person-modal-head > div')).toMatch(/min-width:\s*0/);
     expect(rule('.monitoring-drawer-close')).toMatch(/flex:\s*none/);
     // An address has no space to wrap at, and this is the one place a break
     expect(rule('.monitoring-panel-name')).toMatch(/min-width:\s*0/);

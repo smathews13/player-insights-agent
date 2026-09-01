@@ -20,12 +20,18 @@ import {
   ROLLUP_APP_ACTIVITY_DAY_QUERY,
   ROLLUP_REQUEST_LATENCY_DAY_QUERY,
   TRAFFIC_ROLLUP_MIGRATION_DDL,
+  TRAFFIC_EVIDENCE_V2_MIGRATION_DDL,
   TELEMETRY_HOUSEKEEPING_STATE_TABLE,
   TELEMETRY_ROLLUP_DAYS_TABLE,
   runTelemetryHousekeeping,
   type TelemetryRetentionStore,
 } from './telemetry-retention';
-import { ROLLUP_TRAFFIC_DAY_QUERY, TRAFFIC_BREAKDOWNS_QUERY, TRAFFIC_DAILY_ROLLUP_TABLE } from './ops-traffic';
+import {
+  ROLLUP_TRAFFIC_DAY_QUERY,
+  TRAFFIC_BREAKDOWNS_QUERY,
+  TRAFFIC_DAILY_ROLLUP_TABLE,
+  TRAFFIC_EVIDENCE_VERSION,
+} from './ops-traffic';
 
 interface FakeState {
   lockHeld: boolean;
@@ -126,6 +132,17 @@ describe('the versioned telemetry rollup schema', () => {
     expect(migration?.statements.join('\n')).not.toMatch(/DROP|TRUNCATE|DELETE/i);
   });
 
+  it('versions stale Traffic evidence so the bounded housekeeper safely rebuilds it', () => {
+    const migration = LATER_MIGRATIONS.find((entry) => entry.name === 'traffic evidence coverage');
+    expect(migration?.version).toBe(29);
+    expect(migration?.statements).toEqual(TRAFFIC_EVIDENCE_V2_MIGRATION_DDL);
+    expect(migration?.statements.join('\n')).toContain('evidence_version INTEGER NOT NULL DEFAULT 1');
+    expect(PENDING_ROLLUP_DAYS_QUERY).toContain(`traffic.evidence_version < ${TRAFFIC_EVIDENCE_VERSION}`);
+    expect(ROLLUP_TRAFFIC_DAY_QUERY).toContain(`${TRAFFIC_EVIDENCE_VERSION}`);
+    expect(ROLLUP_TRAFFIC_DAY_QUERY).toContain('outcome_covered_count');
+    expect(ROLLUP_TRAFFIC_DAY_QUERY).toContain('tool_covered_count');
+  });
+
   it('rolls version 23 back through the migration runner without touching raw tables', async () => {
     const migration = LATER_MIGRATIONS.find((entry) => entry.version === 23)!;
     const issued: string[] = [];
@@ -168,6 +185,7 @@ describe('raw plus rollup query invariants', () => {
 
   it('replaces raw Traffic evidence only on rolled UTC days at the retention boundary', () => {
     expect(TRAFFIC_BREAKDOWNS_QUERY).toContain("WHERE $1 = 'UTC'");
+    expect(TRAFFIC_BREAKDOWNS_QUERY).toContain(`evidence_version = ${TRAFFIC_EVIDENCE_VERSION}`);
     expect(TRAFFIC_BREAKDOWNS_QUERY).toContain('selected_population AS');
     expect(TRAFFIC_BREAKDOWNS_QUERY).toContain('selected_tools AS');
     expect(TRAFFIC_BREAKDOWNS_QUERY.match(/NOT EXISTS/g)).toHaveLength(3);

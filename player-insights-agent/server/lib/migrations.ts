@@ -9,6 +9,7 @@ import {
   TELEMETRY_HOUSEKEEPING_STATE_TABLE,
   TELEMETRY_ROLLUP_DAYS_TABLE,
   TELEMETRY_ROLLUP_MIGRATION_DDL,
+  TRAFFIC_EVIDENCE_V2_MIGRATION_DDL,
   TRAFFIC_ROLLUP_MIGRATION_DDL,
 } from './telemetry-retention';
 import { TRAFFIC_DAILY_ROLLUP_TABLE } from './ops-traffic';
@@ -740,7 +741,8 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
      * Snapshots the human-facing persona on the run itself. A later assignment
      * or rename must not rewrite what an earlier question actually ran as.
      * Null is intentional for OAuth runs and all history from before this
-     * column existed; those conversations are "No persona" in the rail.
+     * column existed; those conversations stay in the unfiltered rail without
+     * becoming a selectable persona option.
      */
     statements: [
       `ALTER TABLE ${APP_SCHEMA}.runs
@@ -789,6 +791,56 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
       `DROP TABLE IF EXISTS ${APP_SCHEMA}.experimental_settings`,
       `ALTER TABLE ${APP_SCHEMA}.benchmark_settings DROP COLUMN IF EXISTS revision`,
       `ALTER TABLE ${APP_SCHEMA}.runtime_settings DROP COLUMN IF EXISTS revision`,
+    ],
+  },
+  {
+    version: 29,
+    name: 'traffic evidence coverage',
+    /**
+     * Version 27 stored the right population but recognized only the obsolete
+     * `kind=tool` shape. Mark every old row as evidence version 1; housekeeping
+     * then replays at most 31 bounded complete days per pass and atomically
+     * replaces each row from the still-retained durable evidence.
+     */
+    statements: TRAFFIC_EVIDENCE_V2_MIGRATION_DDL,
+    down: [
+      `ALTER TABLE ${TRAFFIC_DAILY_ROLLUP_TABLE} DROP COLUMN IF EXISTS evidence_version`,
+      `ALTER TABLE ${TRAFFIC_DAILY_ROLLUP_TABLE} DROP COLUMN IF EXISTS tool_covered_count`,
+      `ALTER TABLE ${TRAFFIC_DAILY_ROLLUP_TABLE} DROP COLUMN IF EXISTS outcome_covered_count`,
+    ],
+  },
+  {
+    version: 30,
+    name: 'app budget approvals',
+    /**
+     * One durable, bounded approval per UTC month and exact app-budget
+     * fingerprint. Changing either budget slot changes the fingerprint, and a
+     * new month changes the period, so neither can inherit an old approval.
+     */
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.app_budget_approvals (
+         id TEXT PRIMARY KEY,
+         period_start DATE NOT NULL,
+         period_end DATE NOT NULL,
+         budget_fingerprint TEXT NOT NULL,
+         budget_unit TEXT NOT NULL CHECK (budget_unit IN ('USD', 'DBU')),
+         budget_value NUMERIC NOT NULL,
+         measured_amount NUMERIC NOT NULL,
+         coverage JSONB NOT NULL,
+         approved_by TEXT NOT NULL,
+         approved_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         revoked_by TEXT,
+         revoked_at TIMESTAMPTZ,
+         UNIQUE (period_start, budget_fingerprint, budget_unit, budget_value)
+       )`,
+      `CREATE INDEX IF NOT EXISTS app_budget_approvals_current_idx
+         ON ${APP_SCHEMA}.app_budget_approvals
+         (period_start, budget_fingerprint, budget_unit, budget_value)
+         WHERE revoked_at IS NULL`,
+    ],
+    down: [
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.app_budget_approvals_current_idx`,
+      `DROP TABLE IF EXISTS ${APP_SCHEMA}.app_budget_approvals`,
     ],
   },
 ];

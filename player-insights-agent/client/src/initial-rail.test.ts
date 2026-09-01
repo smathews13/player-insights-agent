@@ -127,7 +127,6 @@ describe('what the page is handed', () => {
         ok({
           conversations: CONVERSATIONS,
           matching_conversation_ids: ['conv-a'],
-          available_personas: [{ id: 'finance', name: 'Finance analyst' }],
           persona_filter_rule: 'persisted rule',
         })
       );
@@ -135,11 +134,9 @@ describe('what the page is handed', () => {
     const list = await readConversationList({
       owners: ['alice@example.com'],
       personaIds: ['finance'],
-      includeNoPersona: true,
     });
-    expect(calls).toEqual(['/api/conversations?owners=alice%40example.com&personas=finance&no_persona=true']);
+    expect(calls).toEqual(['/api/conversations?owners=alice%40example.com&personas=finance']);
     expect(list.matchingConversationIds).toEqual(['conv-a']);
-    expect(list.availablePersonas).toEqual([{ id: 'finance', name: 'Finance analyst' }]);
     expect(list.personaFilterRule).toBe('persisted rule');
   });
 });

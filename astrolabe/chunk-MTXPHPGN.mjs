@@ -1,0 +1,24 @@
+
+
+// server/lib/semantic-index-name.ts
+var SEMANTIC_LAYER_INDEX = "semantic_layer_index";
+var DERIVE_SEMANTIC_INDEX = "true";
+function derivedSemanticIndexName(catalog, schema) {
+  const nsCatalog = catalog.trim();
+  const nsSchema = schema.trim();
+  if (!nsCatalog || !nsSchema) return "";
+  return `${nsCatalog}.${nsSchema}.${SEMANTIC_LAYER_INDEX}`;
+}
+function resolveSemanticIndexValue(raw, catalog, schema) {
+  const value = raw.trim();
+  if (!value || value.toLowerCase() === "false") return "";
+  if (value.toLowerCase() === DERIVE_SEMANTIC_INDEX) {
+    return derivedSemanticIndexName(catalog, schema) || value;
+  }
+  return value;
+}
+
+export {
+  derivedSemanticIndexName,
+  resolveSemanticIndexValue
+};

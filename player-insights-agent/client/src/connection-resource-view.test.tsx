@@ -193,7 +193,7 @@ describe('canonical Connections resource views', () => {
     );
     const readable = text(markup);
     expect(view.status).toBe('Not connected');
-    expect(readable).toContain('AI Gateway route Not connected');
+    expect(readable).toContain('AI Gateway Not connected');
     expect(readable).toContain('can sit between the orchestrator and its foundation model');
     expect(readable).not.toMatch(/lock|dependency/i);
     for (const phrase of BANNED) expect(readable).not.toContain(phrase);

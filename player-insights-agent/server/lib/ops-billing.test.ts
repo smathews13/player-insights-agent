@@ -15,6 +15,8 @@ const IDS: CostIdentifiers = {
   warehouseId: 'warehouse-1',
   vectorEndpoint: '',
   vectorIndex: '',
+  vectorEndpointIndexCount: null,
+  vectorIdentityError: '',
   genieSpaces: [
     { id: '', label: 'Data Genie', tool: 'data_genie', tileId: 'genie:data' },
     { id: '', label: 'Dictionary Genie', tool: 'dictionary_genie', tileId: 'genie:dictionary' },
@@ -55,7 +57,7 @@ describe('billing attribution', () => {
 
   it('deduplicates tag and metadata overlap by billing record id before summing', () => {
     const statement = buildCostStatement(IDS, RANGE)!.statement;
-    const spendInput = statement.slice(statement.indexOf('WITH tagged AS ('), statement.indexOf('price_hits AS ('));
+    const spendInput = statement.slice(statement.indexOf('tagged AS ('), statement.indexOf('price_hits AS ('));
     expect(spendInput).toContain("u.custom_tags['system_billing'] = 'astrolabe'");
     expect(spendInput).toContain('OR (u.billing_origin_product');
     expect(statement).toContain('COALESCE(\n      CAST(u.record_id AS STRING)');
@@ -279,17 +281,23 @@ describe('billing attribution', () => {
   });
 
   it('opens Vector Search as the index when a three-level name is known', () => {
-    const tile = buildTiles({ ...IDS, vectorIndex: 'cat.schema.index', vectorEndpoint: 'vs-endpoint' }, []).find(
-      (item) => item.id === 'vector-search'
-    );
+    const tile = buildTiles(
+      { ...IDS, vectorIndex: 'cat.schema.index', vectorEndpoint: 'vs-endpoint', vectorEndpointIndexCount: null },
+      []
+    ).find((item) => item.id === 'vector-search');
     expect(tile?.resourceId).toBe('cat.schema.index');
     expect(tile?.secondaryResourceId).toBe('vs-endpoint');
     expect(tile?.resourceKind).toBe('vector-index');
-    expect(tile?.unavailable).toBe('No billing rows');
+    expect(tile?.unavailable).toContain('hosting endpoint index count could not be read');
   });
 
   it('attributes measured Vector Search dollars and DBUs only after index-to-endpoint recovery', () => {
-    const ids = { ...IDS, vectorIndex: 'cat.schema.index', vectorEndpoint: 'vs-endpoint' };
+    const ids = {
+      ...IDS,
+      vectorIndex: 'cat.schema.index',
+      vectorEndpoint: 'vs-endpoint',
+      vectorEndpointIndexCount: 1,
+    };
     const query = buildCostStatement(ids, RANGE)!;
     expect(query.parameters).toContainEqual({ name: 'vectorEndpoint', value: 'vs-endpoint', type: 'STRING' });
     expect(query.statement).toContain(
@@ -308,6 +316,9 @@ describe('billing attribution', () => {
           lastDay: RANGE.to,
           usageUnitCount: 1,
           dbuQuantity: 6,
+          dbuRows: 1,
+          pricedRows: 1,
+          unpricedRows: 0,
         },
       ],
       undefined,
@@ -317,18 +328,29 @@ describe('billing attribution', () => {
   });
 
   it('does not combine mixed usage units into a DBU figure', () => {
-    const vector = buildTiles({ ...IDS, vectorIndex: 'cat.schema.index', vectorEndpoint: 'vs-endpoint' }, [
+    const vector = buildTiles(
       {
-        component: 'vector-search',
-        spend: 14,
-        currency: 'USD',
-        billedDays: 2,
-        jobRuns: null,
-        lastDay: RANGE.to,
-        usageUnitCount: 2,
-        dbuQuantity: 6,
+        ...IDS,
+        vectorIndex: 'cat.schema.index',
+        vectorEndpoint: 'vs-endpoint',
+        vectorEndpointIndexCount: 1,
       },
-    ]).find((item) => item.id === 'vector-search');
+      [
+        {
+          component: 'vector-search',
+          spend: 14,
+          currency: 'USD',
+          billedDays: 2,
+          jobRuns: null,
+          lastDay: RANGE.to,
+          usageUnitCount: 2,
+          dbuQuantity: 6,
+          dbuRows: 0,
+          pricedRows: 1,
+          unpricedRows: 0,
+        },
+      ]
+    ).find((item) => item.id === 'vector-search');
     expect(vector?.dbus).toBeNull();
   });
 
@@ -338,7 +360,7 @@ describe('billing attribution', () => {
     );
     expect(tile?.resourceId).toBe('cat.schema.index');
     expect(tile?.resourceKind).toBe('vector-index');
-    expect(tile?.unavailable).toBe('Vector Search dollars unavailable');
+    expect(tile?.unavailable).toContain('active index did not identify its hosting endpoint');
   });
 
   it('apportions serving by recorded tokens while keeping SQL an estimate', () => {

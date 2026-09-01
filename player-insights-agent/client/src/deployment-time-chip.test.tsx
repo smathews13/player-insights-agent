@@ -36,7 +36,6 @@ const tooltipTextOf = (markup: string): string => {
 };
 const identity: Identity = {
   signedInAs: 'current.viewer@example.test',
-  executionIdentity: 'application service principal',
   executionMode: 'service-principal',
 };
 const role: RoleResolution = { state: 'super_admin', addedAdminsReadable: true };

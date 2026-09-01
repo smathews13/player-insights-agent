@@ -571,6 +571,7 @@ export function RunExplorer() {
                         sources={runTrace.sources}
                         caveats={runTrace.caveats}
                         derivation={runTrace.derivation}
+                        sql={runTrace.sql}
                         truncated={selected?.truncated}
                         conversationId={selected?.conversation_id}
                         runId={selected?.id}

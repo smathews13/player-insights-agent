@@ -88,7 +88,8 @@ const feedback: FeedbackEntry = {
 
 /** The card as Ask PIA mounts it, as markup. */
 function renderWire(raw: WireAnswer): string {
-  return renderToStaticMarkup(<AnswerCard
+  return renderToStaticMarkup(
+    <AnswerCard
       answer={normalizeAnswer(raw) as Answer}
       feedback={feedback}
       onFeedbackChange={() => {}}
@@ -114,18 +115,22 @@ function caveatBullets(markup: string): string[] {
   const panel = keepInMind(markup);
   const list = panel.slice(panel.indexOf('<ul'), panel.indexOf('</ul>'));
   return [...list.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((match) =>
-    match[1].replace(/<[^>]+>/g, '').replace(/&#x27;/g, '\u2019').replace(/&quot;/g, '"').trim(),
+    match[1]
+      .replace(/<[^>]+>/g, '')
+      .replace(/&#x27;/g, '\u2019')
+      .replace(/&quot;/g, '"')
+      .trim()
   );
 }
 
 describe('the caveats an answer arrives with', () => {
-  it('shows the first three under its heading and reports the folded remainder', () => {
+  it('shows material caveats and drops process-only figure omissions', () => {
     const markup = renderCard(WIRE_CAVEATS);
 
     expect(markup).toContain('Keep in mind');
     expect(caveatBullets(markup)).toHaveLength(3);
-    expect(markup).toContain('show more');
-    expect(markup).not.toMatch(/Show all \d/);
+    expect(markup).not.toContain('show more');
+    expect(markup).not.toContain(OMITTED);
   });
 
   /**
@@ -154,24 +159,22 @@ describe('the caveats an answer arrives with', () => {
    * half of one item, so a normaliser that truncated or a renderer that took a
    * first sentence would still leave a plausible-looking panel on screen.
    */
-  it('does not delete lower-ranked disclosures when it folds them', () => {
+  it('drops identity and presentation-process notes without hiding material caveats', () => {
     const markup = renderCard(WIRE_CAVEATS);
-    expect(markup).toContain('show more');
     expect(markup).not.toContain('produced as analyst@example.com');
+    expect(markup).not.toContain(OMITTED);
+    expect(caveatBullets(markup)).toHaveLength(3);
   });
 
   /**
    * The order on screen, against the order on the wire.
    *
    * Ranked by what each one threatens about the figures: the coverage gap, then
-   * what the total actually counts, then what was left out of the chart, and only
-   * then the identity boilerplate and the synthetic-data statement. The reader who
-   * reads three bullets and stops now reads the three that could make a number
-   * wrong.
+   * what the total actually counts, then the synthetic-data statement.
    */
   it('draws them in risk order rather than the order they arrived', () => {
     const bullets = caveatBullets(renderCard(WIRE_CAVEATS));
-    const ranked = [COVERAGE, PLAYER_DAYS, OMITTED, SYNTHETIC];
+    const ranked = [COVERAGE, PLAYER_DAYS, SYNTHETIC];
 
     // Compared whole. Each caveat is rendered through `EntityText`, which links
     // table names and bolds column names inside it, so a bullet is the caveat's
@@ -191,7 +194,8 @@ describe('the caveats an answer arrives with', () => {
    * which is `proseForms`' existing precedence rule and not a new one.
    */
   it('marks the identifiers named inside a caveat', () => {
-    const panel = keepInMind(renderCard([
+    const panel = keepInMind(
+      renderCard([
         'active_players is not additive across labels; the value in gold_title_daily_summary is a daily count.',
       ])
     );
@@ -214,7 +218,9 @@ describe('the caveats an answer arrives with', () => {
    */
   it('tags a caveat with the one table it is about, and only then', () => {
     const scoped = caveatBullets(renderCard(['gold_title_daily_summary counts a player once per day.']));
-    expect(keepInMind(renderCard(['gold_title_daily_summary counts a player once per day.']))).toContain('caveat-scope');
+    expect(keepInMind(renderCard(['gold_title_daily_summary counts a player once per day.']))).toContain(
+      'caveat-scope'
+    );
     // Short name, because the catalog and schema are the same on every row and
     // are already said in full above.
     expect(scoped[0]).toContain('gold_title_daily_summary');

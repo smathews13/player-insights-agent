@@ -29,7 +29,6 @@ export interface GateIdentity {
   signedInAs: string;
   /** 'databricks-apps' when somebody is really signed in; 'development-fallback' when not. */
   identitySource?: string;
-  executionIdentity: string;
   executionMode: AccessMode;
   accessDecision: AccessDecision | null;
   servingPrincipal: ServingPrincipal | null;
@@ -40,7 +39,6 @@ export function gateIdentityFromResponse(value: unknown): GateIdentity {
   const identity = value as Partial<GateIdentity>;
   if (
     typeof identity.signedInAs !== 'string' ||
-    typeof identity.executionIdentity !== 'string' ||
     typeof identity.executionMode !== 'string'
   ) {
     throw new Error('Identity unavailable');

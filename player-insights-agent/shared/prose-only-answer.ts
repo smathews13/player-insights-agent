@@ -39,7 +39,7 @@ import { normalizeReaderStageStatus, projectReaderStage, type ReaderStageStatus 
  * reader looking at a narrative with no figures under it cannot tell "the agent
  * had nothing to show" from "this app dropped them".
  */
-export const PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} no structured result arrived and no tool steps were recorded.`;
+export const PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} the response format was incomplete. Retry the question before using this result.`;
 
 /**
  * The caveat when a run did take steps and still produced no result contract.
@@ -50,8 +50,7 @@ export const PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} no structured
  */
 export function proseOnlyCaveat(stageCount: number): string {
   if (stageCount <= 0) return PROSE_ONLY_ANSWER_CAVEAT;
-  const steps = stageCount === 1 ? '1 step' : `${stageCount} steps`;
-  return `${DEGRADED_ANSWER_MARKER} the run stopped after ${steps} without a structured result.`;
+  return `${DEGRADED_ANSWER_MARKER} the response ended before the answer format completed. Retry the question before using this result.`;
 }
 
 /**
@@ -159,7 +158,7 @@ export function attachRecordedStages<
  * about data. Anything with a subject from the question in it would be this
  * module writing a finding.
  */
-export const PROSE_ONLY_FALLBACK_TAKEAWAY = 'The agent did not return a structured result.';
+export const PROSE_ONLY_FALLBACK_TAKEAWAY = 'Answer format incomplete. Retry the question.';
 
 const CANNED_FIRST_LINE = [
   /^the analysis completed\b/i,

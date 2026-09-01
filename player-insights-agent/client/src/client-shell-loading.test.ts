@@ -30,6 +30,24 @@ describe('the client shell import graph', () => {
     expect(layout).toContain('data-testid="settings-loading"');
   });
 
+  it('keeps route-only Architecture data behind its boundary without dropping shell motion', () => {
+    const refresh = source('refresh-state.ts');
+    const layout = source('Layout.tsx');
+
+    expect(refresh).not.toContain("from './architecture'");
+    expect(refresh).toContain('export function checkedAgo');
+    expect(source('lazy-routes.ts')).toContain("loadArchitecturePage = () => import('./ArchitecturePage')");
+    for (const eager of ['HomePage.tsx', 'AgentConstellation.tsx', 'run-header.ts']) {
+      expect(source(eager), `${eager} imports only the tiny benchmark formatters`).not.toContain(
+        "from './benchmark-summary'"
+      );
+      expect(source(eager)).toContain("from './benchmark-format'");
+    }
+
+    expect(layout).toContain('startRouteEnter(page.current, browserMotionRuns())');
+    expect(layout).toContain('className="route-transition-page"');
+  });
+
   it('keeps shared primitives global and route-owned CSS behind lazy modules', () => {
     const entry = source('index.css');
     const routeStyles = [

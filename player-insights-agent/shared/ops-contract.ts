@@ -1,4 +1,5 @@
 import type { CostBudgets } from './cost-budgets';
+import type { SpendByUserPayload } from './user-spend-contract';
 
 /**
  * What the three Ops blocks answer with, declared once for both sides.
@@ -360,6 +361,12 @@ export interface OpsCostPayload {
   coverage?: CostCoverage | null;
   /** List-price source, lag, and currency consistency. */
   honesty?: CostHonesty | null;
+  /**
+   * Server-authoritative human attribution over the same bounded cost window.
+   *
+   * Optional only for compatibility with older deployments and fixtures.
+   */
+  spendByUser?: SpendByUserPayload;
 }
 
 /**
