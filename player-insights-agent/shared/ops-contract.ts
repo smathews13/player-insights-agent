@@ -237,6 +237,14 @@ export interface CostTile {
     interactiveRequests?: number | null;
     /** Requests with the identifier and timing evidence required by this allocation. */
     coveredRequests?: number | null;
+    /** Whether every eligible completed Ask has matched evidence for this component. */
+    coverageComplete?: boolean;
+    /** Eligible completed Asks with no matching component evidence. */
+    missingEligibleRequests?: number;
+    /** Shared-endpoint requests excluded because they are known non-Ask or external. */
+    excludedRequests?: number;
+    /** Requests excluded because more than one Ask interval could own them. */
+    ambiguousRequests?: number;
     warehouseQueries?: number | null;
     queryHistoryComplete?: boolean;
     /** Exact read bounds and any reason the SQL denominator was withheld. */
@@ -283,7 +291,12 @@ export interface GenieInstanceAccounting {
   spaceId: string;
   label: string;
   tileId: string;
-  attribution: 'query-history-exact' | 'query-history-allocation' | 'unattributed';
+  attribution:
+    | 'query-history-exact'
+    | 'query-history-allocation'
+    | 'app-ledger-exact'
+    | 'app-ledger-allocation'
+    | 'unattributed';
   /** Allocated source usage_quantity before allowance/promotion classification. */
   sourceDbus: number;
   allowanceUsedDbus: number;
@@ -343,6 +356,10 @@ export interface GenieAccounting {
     attributedDbus: number;
     unattributedDbus: number;
     attributedShare: number;
+    /** Internal coverage counters; excluded workspace usage is never presented as app spend. */
+    directDbus?: number;
+    allocatedDbus?: number;
+    excludedDbus?: number;
   };
   diagnostics: string[];
   users: GenieUserAccounting[];

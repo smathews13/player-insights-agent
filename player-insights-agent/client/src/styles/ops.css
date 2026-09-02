@@ -583,25 +583,45 @@ a.ops-dependency-name:hover {
 
 /* ── Cost ────────────────────────────────────────────────────────────────── */
 
-/*
- * THREE COLUMNS, AND THE CARDS LINE UP AT EVERY WIDTH THE TAB IS READ AT.
- *
- * `auto-fit` with a floor wide enough for the longest figure a card can hold:
- * "918.51 USD in range" at the figure size needs about 13rem of text box, so the
- * track floor is 16rem, which gives three columns on the widths this page is
- * designed for and collapses to fewer rather than clipping. Below two tracks'
- * worth it is one column of full-width cards, which is the readable outcome on a
- * narrow window.
- */
 .ops-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  align-items: stretch;
   gap: 12px;
 }
 
 .ops-cost-resources {
   min-width: 0;
   margin-top: 12px;
+}
+
+.ops-genie-section {
+  min-width: 0;
+  margin-top: 20px;
+}
+
+.ops-genie-section > h4 {
+  margin: 0 0 10px;
+  font-size: var(--ast-fs-16);
+}
+
+.ops-genie-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.ops-genie-method {
+  margin-top: 8px;
+}
+
+.ops-genie-method p {
+  margin: 8px 0 0;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
 }
 
 .ops-cost-summary-grid {
@@ -695,18 +715,13 @@ a.ops-dependency-name:hover {
   margin-top: 8px;
 }
 
-/*
- * Label, figure, foot: three rows, and the middle one takes the slack, so the
- * badges sit on one line across a row however tall the figure above them turned
- * out to be. A flex column would leave each card's badge wherever its own
- * content ended and the row would read as ragged.
- */
 .ops-tile {
   border: 1px solid var(--border);
   border-radius: var(--ast-radius-card);
   padding: 12px 14px;
   display: grid;
-  grid-template-rows: auto minmax(28px, 1fr) minmax(1lh, auto);
+  grid-template-rows: auto auto auto auto auto;
+  align-content: start;
   gap: 6px;
   min-width: 0;
 }
@@ -719,7 +734,7 @@ a.ops-dependency-name:hover {
   min-width: 0;
 }
 
-.ops-tile-head .experimental-pane-badge {
+.ops-cost-status {
   flex: none;
 }
 
@@ -739,6 +754,11 @@ a.ops-dependency-name:hover {
      the card. Without it a flex item refuses to go below its content width and
      the eyebrow overflows the border it is meant to sit inside. */
   min-width: 0;
+}
+
+h4.ops-tile-label,
+h5.ops-tile-label {
+  line-height: 1.35;
 }
 
 /*
@@ -770,6 +790,32 @@ a.ops-dependency-name:hover {
   color: var(--ast-blue);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.ops-cost-resource {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--ast-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+a.ops-cost-resource {
+  display: flex;
+}
+
+.ops-cost-resource > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ops-tile-label-link:hover {
@@ -822,6 +868,10 @@ a.ops-dependency-name:hover {
   overflow-wrap: anywhere;
 }
 
+.ops-primary-cost-card .ops-tile-figure {
+  min-height: 1.5em;
+}
+
 /*
  * The per-day basis, beside the figure rather than under it. A rate read
  * as a total is the single most expensive misreading available on this block:
@@ -833,6 +883,7 @@ a.ops-dependency-name:hover {
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--ast-text-secondary);
+  margin: 0;
 }
 
 /*
@@ -855,13 +906,11 @@ a.ops-dependency-name:hover {
   min-height: 1lh;
   min-width: 0;
   margin: 0;
-  overflow: hidden;
   color: var(--ast-text-secondary);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .ops-genie-accounting {
@@ -872,9 +921,10 @@ a.ops-dependency-name:hover {
 }
 
 .ops-genie-accounting > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.45fr) minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: baseline;
 }
 
 .ops-genie-accounting dt {
@@ -884,6 +934,29 @@ a.ops-dependency-name:hover {
 .ops-genie-accounting dd {
   margin: 0;
   text-align: right;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 72rem) {
+  .ops-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 40rem) {
+  .ops-tiles,
+  .ops-genie-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ops-genie-accounting > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .ops-genie-accounting dd {
+    text-align: left;
+  }
 }
 
 /*

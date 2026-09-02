@@ -16,6 +16,11 @@ export interface FoundationBillingResult {
   unmappedBillingRows: number;
   requests: number;
   coveredRequests: number;
+  expectedRuns: number;
+  coveredRuns: number;
+  missingEvidenceRequests: number;
+  ambiguousRequests: number;
+  excludedRequests: number;
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
@@ -65,9 +70,12 @@ export function buildFoundationCostStatement(
     )
   ) AS source(run)
 ),
-model_requests AS (
+raw_model_requests AS (
   SELECT
-    CAST(u.databricks_request_id AS STRING) AS request_id,
+    COALESCE(
+      NULLIF(LOWER(TRIM(CAST(u.databricks_request_id AS STRING))), ''),
+      CONCAT('anonymous:', CAST(u.request_time AS STRING), ':', CAST(u.served_entity_id AS STRING))
+    ) AS request_id,
     u.request_time,
     COALESCE(u.input_token_count, 0) AS input_tokens,
     COALESCE(u.output_token_count, 0) AS output_tokens
@@ -76,9 +84,19 @@ model_requests AS (
     ON u.served_entity_id = e.served_entity_id
   WHERE u.workspace_id = :workspaceId
     AND e.workspace_id = :workspaceId
-    AND e.endpoint_name = :foundationModel
+    AND REGEXP_REPLACE(LOWER(e.endpoint_name), '[^a-z0-9]', '') =
+        REGEXP_REPLACE(LOWER(:foundationModel), '[^a-z0-9]', '')
     AND u.request_time >= CAST(:from_day AS DATE)
     AND u.request_time < DATEADD(DAY, 1, CAST(:to_day AS DATE))
+),
+model_requests AS (
+  SELECT
+    request_id,
+    MIN(request_time) AS request_time,
+    MAX(input_tokens) AS input_tokens,
+    MAX(output_tokens) AS output_tokens
+  FROM raw_model_requests
+  GROUP BY request_id
 ),
 request_candidates AS (
   SELECT
@@ -87,10 +105,20 @@ request_candidates AS (
     request.input_tokens,
     request.output_tokens,
     run.run_id,
-    CASE WHEN request.request_id IN (run.run_id, run.request_id, run.correlation_id, run.trace_id) THEN 1 ELSE 0 END AS exact_match
+    CASE WHEN request.request_id IN (
+      LOWER(TRIM(run.run_id)),
+      LOWER(TRIM(run.request_id)),
+      LOWER(TRIM(run.correlation_id)),
+      LOWER(TRIM(run.trace_id))
+    ) THEN 1 ELSE 0 END AS exact_match
   FROM model_requests request
   LEFT JOIN run_evidence run
-    ON request.request_id IN (run.run_id, run.request_id, run.correlation_id, run.trace_id)
+    ON request.request_id IN (
+      LOWER(TRIM(run.run_id)),
+      LOWER(TRIM(run.request_id)),
+      LOWER(TRIM(run.correlation_id)),
+      LOWER(TRIM(run.trace_id))
+    )
     OR request.request_time BETWEEN CAST(run.started_at AS TIMESTAMP) AND CAST(run.completed_at AS TIMESTAMP)
 ),
 classified_requests AS (
@@ -100,11 +128,24 @@ classified_requests AS (
     MAX(input_tokens) AS input_tokens,
     MAX(output_tokens) AS output_tokens,
     CASE
-      WHEN COUNT(DISTINCT CASE WHEN exact_match = 1 THEN run_id END) = 1 THEN TRUE
+      WHEN COUNT(DISTINCT CASE WHEN exact_match = 1 THEN run_id END) = 1 THEN
+        MAX(CASE WHEN exact_match = 1 THEN run_id END)
       WHEN COUNT(DISTINCT CASE WHEN exact_match = 1 THEN run_id END) = 0
-       AND COUNT(DISTINCT run_id) = 1 THEN TRUE
-      ELSE FALSE
-    END AS interactive_ask
+       AND COUNT(DISTINCT run_id) = 1 THEN MAX(run_id)
+      ELSE CAST(NULL AS STRING)
+    END AS matched_run_id,
+    CASE
+      WHEN COUNT(DISTINCT CASE WHEN exact_match = 1 THEN run_id END) = 1
+       AND MAX(input_tokens + output_tokens) = 0 THEN 'ask-missing-token'
+      WHEN COUNT(DISTINCT CASE WHEN exact_match = 1 THEN run_id END) = 1 THEN 'ask-exact'
+      WHEN COUNT(DISTINCT CASE WHEN exact_match = 1 THEN run_id END) = 0
+       AND COUNT(DISTINCT run_id) = 1
+       AND MAX(input_tokens + output_tokens) = 0 THEN 'ask-missing-token'
+      WHEN COUNT(DISTINCT CASE WHEN exact_match = 1 THEN run_id END) = 0
+       AND COUNT(DISTINCT run_id) = 1 THEN 'ask-bounded'
+      WHEN COUNT(DISTINCT run_id) > 1 THEN 'ambiguous'
+      ELSE 'known-excluded'
+    END AS request_class
   FROM request_candidates
   GROUP BY request_id, request_time
 ),
@@ -125,7 +166,8 @@ billing AS (
   WHERE u.workspace_id = :workspaceId
     AND u.usage_date >= :from_day
     AND u.usage_date <= :to_day
-    AND u.usage_metadata.endpoint_name = :foundationModel
+    AND REGEXP_REPLACE(LOWER(u.usage_metadata.endpoint_name), '[^a-z0-9]', '') =
+        REGEXP_REPLACE(LOWER(:foundationModel), '[^a-z0-9]', '')
     AND u.billing_origin_product IN ('MODEL_SERVING', 'AI_GATEWAY')
     AND u.usage_metadata.endpoint_name <> :agentEndpoint
 ),
@@ -174,7 +216,7 @@ weighted AS (
       END
     ) AS all_weight,
     SUM(
-      CASE WHEN request.interactive_ask THEN
+      CASE WHEN request.request_class IN ('ask-exact', 'ask-bounded') THEN
         CASE
           WHEN UPPER(billing.sku_name) LIKE '%CACHE%READ%' THEN 0
           WHEN UPPER(billing.sku_name) LIKE '%CACHE%WRITE%' THEN 0
@@ -190,41 +232,140 @@ weighted AS (
    AND request.request_time < billing.usage_end_time
   GROUP BY ALL
 ),
+request_billing_coverage AS (
+  SELECT
+    request.*,
+    MAX(CASE
+      WHEN billing.record_id IS NOT NULL
+       AND billing.price_match_count = 1
+       AND billing.unit_price IS NOT NULL
+       AND (
+         (UPPER(billing.sku_name) LIKE '%INPUT%' AND UPPER(billing.sku_name) NOT LIKE '%CACHE%')
+         OR (
+           UPPER(billing.sku_name) NOT LIKE '%INPUT%'
+           AND UPPER(billing.sku_name) NOT LIKE '%OUTPUT%'
+           AND UPPER(billing.sku_name) NOT LIKE '%CACHE%'
+         )
+         OR request.input_tokens = 0
+       )
+      THEN 1 ELSE 0
+    END) AS input_billing_covered,
+    MAX(CASE
+      WHEN billing.record_id IS NOT NULL
+       AND billing.price_match_count = 1
+       AND billing.unit_price IS NOT NULL
+       AND (
+         UPPER(billing.sku_name) LIKE '%OUTPUT%'
+         OR (
+           UPPER(billing.sku_name) NOT LIKE '%INPUT%'
+           AND UPPER(billing.sku_name) NOT LIKE '%OUTPUT%'
+           AND UPPER(billing.sku_name) NOT LIKE '%CACHE%'
+         )
+         OR request.output_tokens = 0
+       )
+      THEN 1 ELSE 0
+    END) AS output_billing_covered
+  FROM classified_requests request
+  LEFT JOIN deduped billing
+    ON request.request_time >= billing.usage_start_time
+   AND request.request_time < billing.usage_end_time
+  GROUP BY ALL
+),
 request_totals AS (
   SELECT
     COUNT(*) AS requests,
-    COUNT(*) FILTER (WHERE interactive_ask) AS covered_requests,
-    COALESCE(SUM(input_tokens) FILTER (WHERE interactive_ask), 0) AS input_tokens,
-    COALESCE(SUM(output_tokens) FILTER (WHERE interactive_ask), 0) AS output_tokens
-  FROM classified_requests
+    COUNT(*) FILTER (
+      WHERE request_class IN ('ask-exact', 'ask-bounded')
+        AND input_billing_covered = 1
+        AND output_billing_covered = 1
+    ) AS covered_requests,
+    COUNT(DISTINCT CASE
+      WHEN request_class IN ('ask-exact', 'ask-bounded')
+       AND input_billing_covered = 1
+       AND output_billing_covered = 1
+      THEN matched_run_id
+    END) AS covered_runs,
+    COUNT(*) FILTER (
+      WHERE request_class = 'ask-missing-token'
+         OR (
+           request_class IN ('ask-exact', 'ask-bounded')
+           AND (input_billing_covered = 0 OR output_billing_covered = 0)
+         )
+    ) AS missing_evidence_requests,
+    COUNT(*) FILTER (WHERE request_class = 'ambiguous') AS ambiguous_requests,
+    COUNT(*) FILTER (WHERE request_class = 'known-excluded') AS excluded_requests,
+    COALESCE(
+      SUM(input_tokens) FILTER (WHERE request_class IN ('ask-exact', 'ask-bounded')),
+      0
+    ) AS input_tokens,
+    COALESCE(
+      SUM(output_tokens) FILTER (WHERE request_class IN ('ask-exact', 'ask-bounded')),
+      0
+    ) AS output_tokens
+  FROM request_billing_coverage
+),
+run_totals AS (
+  SELECT COUNT(DISTINCT run_id) AS expected_runs
+  FROM run_evidence
 )
 SELECT
   CASE
-    WHEN COUNT(*) FILTER (WHERE price_match_count <> 1 OR unit_price IS NULL OR COALESCE(all_weight, 0) = 0) > 0
+    WHEN COUNT(*) FILTER (
+      WHERE COALESCE(ask_weight, 0) > 0
+        AND (price_match_count <> 1 OR unit_price IS NULL)
+    ) > 0
       THEN CAST(NULL AS DOUBLE)
-    ELSE COALESCE(SUM(usage_quantity * unit_price * COALESCE(ask_weight / NULLIF(all_weight, 0), 0)), 0)
+    ELSE COALESCE(SUM(
+      CASE WHEN unit_price IS NOT NULL AND price_match_count = 1
+        THEN usage_quantity * unit_price * COALESCE(ask_weight / NULLIF(all_weight, 0), 0)
+        ELSE 0
+      END
+    ), 0)
   END AS spend,
-  CASE WHEN COUNT(DISTINCT currency_code) = 1 THEN MAX(currency_code) ELSE CAST('' AS STRING) END AS currency,
   CASE
-    WHEN COUNT(*) FILTER (WHERE UPPER(TRIM(usage_unit)) <> 'DBU') > 0 THEN CAST(NULL AS DOUBLE)
+    WHEN COUNT(DISTINCT currency_code) FILTER (WHERE COALESCE(ask_weight, 0) > 0) = 1
+      THEN MAX(currency_code) FILTER (WHERE COALESCE(ask_weight, 0) > 0)
+    WHEN COUNT(*) FILTER (WHERE COALESCE(ask_weight, 0) > 0) = 0 THEN 'USD'
+    ELSE CAST('' AS STRING)
+  END AS currency,
+  CASE
+    WHEN COUNT(*) FILTER (
+      WHERE COALESCE(ask_weight, 0) > 0 AND UPPER(TRIM(usage_unit)) <> 'DBU'
+    ) > 0 THEN CAST(NULL AS DOUBLE)
     ELSE COALESCE(SUM(usage_quantity * COALESCE(ask_weight / NULLIF(all_weight, 0), 0)), 0)
   END AS dbus,
   CASE
     WHEN COUNT(*) = 0 THEN 'none'
-    WHEN COUNT(*) FILTER (WHERE price_match_count > 1) > 0 THEN 'duplicate'
-    WHEN COUNT(DISTINCT currency_code) > 1 THEN 'mixed-currency'
-    WHEN COUNT(*) FILTER (WHERE unit_price IS NULL) > 0
-     AND COUNT(*) FILTER (WHERE unit_price IS NOT NULL) > 0 THEN 'partial'
-    WHEN COUNT(*) FILTER (WHERE unit_price IS NOT NULL) = 0 THEN 'unpriced'
-    WHEN COUNT(*) FILTER (WHERE COALESCE(all_weight, 0) = 0) > 0 THEN 'partial'
+    WHEN COUNT(*) FILTER (WHERE COALESCE(ask_weight, 0) > 0 AND price_match_count > 1) > 0 THEN 'duplicate'
+    WHEN COUNT(DISTINCT currency_code) FILTER (WHERE COALESCE(ask_weight, 0) > 0) > 1
+      THEN 'mixed-currency'
+    WHEN COUNT(*) FILTER (WHERE COALESCE(ask_weight, 0) > 0 AND unit_price IS NULL) > 0
+     AND COUNT(*) FILTER (WHERE COALESCE(ask_weight, 0) > 0 AND unit_price IS NOT NULL) > 0 THEN 'partial'
+    WHEN COUNT(*) FILTER (WHERE COALESCE(ask_weight, 0) > 0 AND unit_price IS NOT NULL) = 0
+     AND COUNT(*) FILTER (WHERE COALESCE(ask_weight, 0) > 0) > 0 THEN 'unpriced'
     ELSE 'priced'
   END AS price_match_status,
-  COALESCE(SUM(CASE WHEN unit_price IS NOT NULL AND price_match_count = 1 THEN usage_quantity ELSE 0 END), 0) AS priced_quantity,
-  COALESCE(SUM(CASE WHEN unit_price IS NULL OR price_match_count <> 1 THEN usage_quantity ELSE 0 END), 0) AS unpriced_quantity,
-  COUNT(*) FILTER (WHERE unit_price IS NOT NULL AND price_match_count = 1) AS priced_rows,
-  COUNT(*) FILTER (WHERE unit_price IS NULL OR price_match_count <> 1) AS unpriced_rows,
-  ARRAY_JOIN(COLLECT_SET(CASE WHEN unit_price IS NULL OR price_match_count <> 1 THEN sku_name END), ',') AS unpriced_skus,
-  COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
+  COALESCE(SUM(CASE
+    WHEN COALESCE(ask_weight, 0) > 0 AND unit_price IS NOT NULL AND price_match_count = 1
+      THEN usage_quantity * COALESCE(ask_weight / NULLIF(all_weight, 0), 0)
+    ELSE 0
+  END), 0) AS priced_quantity,
+  COALESCE(SUM(CASE
+    WHEN COALESCE(ask_weight, 0) > 0 AND (unit_price IS NULL OR price_match_count <> 1)
+      THEN usage_quantity * COALESCE(ask_weight / NULLIF(all_weight, 0), 0)
+    ELSE 0
+  END), 0) AS unpriced_quantity,
+  COUNT(*) FILTER (
+    WHERE COALESCE(ask_weight, 0) > 0 AND unit_price IS NOT NULL AND price_match_count = 1
+  ) AS priced_rows,
+  COUNT(*) FILTER (
+    WHERE COALESCE(ask_weight, 0) > 0 AND (unit_price IS NULL OR price_match_count <> 1)
+  ) AS unpriced_rows,
+  ARRAY_JOIN(COLLECT_SET(CASE
+    WHEN COALESCE(ask_weight, 0) > 0 AND (unit_price IS NULL OR price_match_count <> 1)
+      THEN sku_name
+  END), ',') AS unpriced_skus,
+  COUNT(*) FILTER (WHERE COALESCE(ask_weight, 0) > 0 AND price_match_count > 1) AS duplicate_matches,
   COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
   MAX(price_start_time) AS price_effective_at,
   COUNT(*) AS billing_rows,
@@ -233,9 +374,15 @@ SELECT
   MAX(request_totals.covered_requests) AS covered_requests,
   MAX(request_totals.input_tokens) AS input_tokens,
   MAX(request_totals.output_tokens) AS output_tokens,
-  MAX(request_totals.input_tokens + request_totals.output_tokens) AS total_tokens
+  MAX(request_totals.input_tokens + request_totals.output_tokens) AS total_tokens,
+  MAX(run_totals.expected_runs) AS expected_runs,
+  MAX(request_totals.covered_runs) AS covered_runs,
+  MAX(request_totals.missing_evidence_requests) AS missing_evidence_requests,
+  MAX(request_totals.ambiguous_requests) AS ambiguous_requests,
+  MAX(request_totals.excluded_requests) AS excluded_requests
 FROM weighted
-CROSS JOIN request_totals`;
+CROSS JOIN request_totals
+CROSS JOIN run_totals`;
   return {
     statement,
     covered: [],
@@ -274,6 +421,11 @@ export function readFoundationBillingRows(data: unknown): FoundationBillingResul
     inputTokens,
     outputTokens,
     totalTokens,
+    expectedRuns,
+    coveredRuns,
+    missingEvidenceRequests,
+    ambiguousRequests,
+    excludedRequests,
   ] = cells;
   const status = text(match);
   const pricing: CostTilePricing = {
@@ -303,6 +455,9 @@ export function readFoundationBillingRows(data: unknown): FoundationBillingResul
   const mapped = finite(coveredRequests);
   const allRequests = finite(requests);
   const unmapped = finite(unmappedBillingRows);
+  const eligibleRuns = finite(expectedRuns);
+  const runsWithEvidence = finite(coveredRuns);
+  const priceComplete = pricing.match === 'priced' || (pricing.match === 'none' && finite(billingRows) === 0);
   return {
     amount: optionalFinite(spend),
     dbus: optionalFinite(dbus),
@@ -312,12 +467,15 @@ export function readFoundationBillingRows(data: unknown): FoundationBillingResul
     unmappedBillingRows: unmapped,
     requests: allRequests,
     coveredRequests: mapped,
+    expectedRuns: eligibleRuns,
+    coveredRuns: runsWithEvidence,
+    missingEvidenceRequests: finite(missingEvidenceRequests),
+    ambiguousRequests: finite(ambiguousRequests),
+    excludedRequests: finite(excludedRequests),
     inputTokens: finite(inputTokens),
     outputTokens: finite(outputTokens),
     totalTokens: finite(totalTokens),
-    complete:
-      (pricing.match === 'priced' && unmapped === 0) ||
-      (pricing.match === 'none' && finite(billingRows) === 0 && allRequests === 0),
+    complete: priceComplete && runsWithEvidence === eligibleRuns && finite(missingEvidenceRequests) === 0,
   };
 }
 
@@ -326,39 +484,55 @@ export function foundationCostTile(
   result: FoundationBillingResult | null,
   reason = ''
 ): CostTile {
-  const complete = Boolean(result?.complete);
+  const amountAvailable =
+    result?.amount !== null &&
+    result?.amount !== undefined &&
+    (result.pricing.match === 'priced' || (result.pricing.match === 'none' && result.billingRows === 0));
+  const coverageComplete = Boolean(result?.complete);
+  const missingEligibleRequests = Math.max(
+    result?.missingEvidenceRequests ?? 0,
+    (result?.expectedRuns ?? 0) - (result?.coveredRuns ?? 0)
+  );
   return {
     id: 'foundation-model',
     label: 'Foundation model tokens',
     resourceId: ids.foundationModel,
     resourceKind: ids.foundationModel ? 'serving-endpoint' : '',
-    quality: complete ? 'per-token' : 'unknown',
-    amount: complete ? (result?.amount ?? 0) : null,
-    dbus: complete ? (result?.dbus ?? null) : null,
+    quality: amountAvailable ? (coverageComplete ? 'per-token' : 'estimate') : 'unknown',
+    amount: amountAvailable ? (result?.amount ?? 0) : null,
+    dbus: amountAvailable ? (result?.dbus ?? null) : null,
     basis: 'total-in-range',
     population: 'Interactive Ask tokens',
-    attribution: complete ? 'deployment' : 'unavailable',
+    attribution: amountAvailable ? 'deployment' : 'unavailable',
     pricing: result?.pricing ?? EMPTY_PRICING,
-    unavailable:
-      reason ||
-      (!ids.foundationModel
-        ? 'Configured foundation model unavailable.'
-        : result?.pricing.match === 'partial'
-          ? 'Foundation-model request or price coverage is partial; spend is withheld.'
-          : 'Foundation-model billing could not be attributed.'),
+    unavailable: amountAvailable
+      ? ''
+      : reason ||
+        (!ids.foundationModel
+          ? 'Configured foundation model unavailable.'
+          : result?.pricing.match === 'partial' || result?.pricing.match === 'unpriced'
+            ? 'Matched Ask model usage is missing a list price.'
+            : 'Foundation-model billing could not be attributed.'),
     remedy: '',
-    note: '',
+    note:
+      amountAvailable && !coverageComplete
+        ? `Measured lower bound; ${missingEligibleRequests} eligible Ask${missingEligibleRequests === 1 ? '' : 's'} missing model evidence`
+        : '',
     evidence: {
       billingRows: null,
       astrolabeQueries: null,
       interactiveRequests: result?.coveredRequests ?? 0,
       coveredRequests: result?.coveredRequests ?? 0,
+      coverageComplete,
+      missingEligibleRequests,
+      excludedRequests: result?.excludedRequests ?? 0,
+      ambiguousRequests: result?.ambiguousRequests ?? 0,
       tokens: result
         ? {
             input: result.inputTokens,
             output: result.outputTokens,
             total: result.totalTokens,
-            requests: result.requests,
+            requests: result.coveredRequests,
             coveredRequests: result.coveredRequests,
           }
         : null,

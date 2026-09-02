@@ -258,6 +258,32 @@ export interface TileView {
   note: string;
 }
 
+export type CostCardStatus = 'Estimate' | 'Partial' | 'Unavailable' | 'Zero' | '';
+
+export interface CostCardView {
+  id: string;
+  title: string;
+  amount: string;
+  status: CostCardStatus;
+  basis: string;
+  evidence: string;
+  detail: string;
+  resource: string;
+}
+
+export interface GenieCardView {
+  id: string;
+  title: string;
+  charged: string;
+  freeUsage: string;
+  allowance: string;
+  promotional: string;
+  attribution: 'Direct' | 'Estimated' | 'Unavailable';
+  detail: string;
+  resource: string;
+  tile: CostTile;
+}
+
 /** The words for the two bases. A rate drawn as a total is the whole hazard. */
 export const BASIS_LABEL: Record<CostTile['basis'], string> = {
   'total-in-range': '',
@@ -336,6 +362,196 @@ export function tileView(tile: CostTile, currency: string, unit: CostBudgetUnit 
     remedy: figure ? '' : tile.remedy,
     note: tile.note,
   };
+}
+
+const PRIMARY_COST_TITLES: Readonly<Record<string, string>> = {
+  'serving-endpoint': 'Agent serving',
+  'foundation-model': 'Foundation model tokens',
+  'sql-warehouse': 'Ask SQL',
+  'vector-search': 'Vector Search',
+  'app-compute': 'App compute',
+};
+
+const PRIMARY_COST_ORDER = [
+  'serving-endpoint',
+  'foundation-model',
+  'sql-warehouse',
+  'vector-search',
+  'app-compute',
+] as const;
+
+function tokenEvidence(tile: CostTile): string {
+  const tokens = tile.evidence?.tokens;
+  if (!tokens) return '';
+  const expectedRequests = tokens.coveredRequests + (tile.evidence?.missingEligibleRequests ?? 0);
+  const calls = `${count(tokens.coveredRequests)} of ${count(expectedRequests)} Ask model ${
+    expectedRequests === 1 ? 'call' : 'calls'
+  }`;
+  const coverage =
+    tile.evidence?.coverageComplete === false
+      ? `${count(tile.evidence.missingEligibleRequests ?? 0)} eligible Ask missing evidence`
+      : 'complete coverage';
+  if (tokens.total === null) return `${calls} · ${coverage}`;
+  const cache =
+    tokens.cachedRead === undefined && tokens.cacheWrite === undefined
+      ? 'Cache not reported'
+      : `${count(tokens.cachedRead ?? 0)} cached input`;
+  return `${calls} · ${count(tokens.input)} input · ${count(tokens.output)} output · ${count(
+    tokens.total
+  )} total · ${cache} · ${coverage}`;
+}
+
+function primaryEvidence(tile: CostTile, throughDay: string): string {
+  if (tile.id === 'foundation-model') return tokenEvidence(tile);
+  if (tile.id === 'serving-endpoint') {
+    const requests = tile.evidence?.interactiveRequests;
+    const covered = tile.evidence?.coveredRequests;
+    return requests === null || requests === undefined
+      ? ''
+      : `${count(covered ?? 0)} of ${count(requests)} interactive requests`;
+  }
+  if (tile.id === 'sql-warehouse') {
+    const queries = tile.evidence?.astrolabeQueries;
+    return queries === null || queries === undefined
+      ? ''
+      : `${count(queries)} Ask ${queries === 1 ? 'query' : 'queries'} · ${
+          tile.evidence?.queryHistoryComplete === false ? 'partial' : 'complete'
+        } history`;
+  }
+  return throughDay ? `Billing through ${throughDay}` : '';
+}
+
+function primaryBasis(tile: CostTile): string {
+  if (tile.id === 'serving-endpoint') return 'Marginal interactive Ask';
+  if (tile.id === 'foundation-model') return 'Interactive Ask tokens';
+  if (tile.id === 'sql-warehouse') return 'Marginal Ask SQL';
+  return BASIS_LABEL[tile.basis] || 'Selected period';
+}
+
+function isPartialFoundation(tile: CostTile): boolean {
+  return (
+    tile.id === 'foundation-model' && (tile.pricing?.match === 'partial' || tile.evidence?.coverageComplete === false)
+  );
+}
+
+/** The single presentation contract used by every standard Cost card. */
+export function costCardView(
+  tile: CostTile,
+  payload: Pick<OpsCostPayload, 'currency' | 'throughDay'>,
+  unit: CostBudgetUnit = 'USD'
+): CostCardView {
+  const view = tileView(tile, payload.currency, unit);
+  const selected = unit === 'DBU' ? (tile.dbus ?? null) : tile.amount;
+  const partial = isPartialFoundation(tile);
+  const unavailable = !view.figure;
+  const status: CostCardStatus = partial
+    ? 'Partial'
+    : unavailable
+      ? 'Unavailable'
+      : selected === 0
+        ? 'Zero'
+        : view.estimate
+          ? 'Estimate'
+          : '';
+  return {
+    id: tile.id,
+    title: PRIMARY_COST_TITLES[tile.id] ?? tile.label,
+    amount: view.figure || (partial ? 'Measured amount unavailable' : 'No measured amount'),
+    status,
+    basis: primaryBasis(tile),
+    evidence: primaryEvidence(tile, payload.throughDay),
+    detail: view.absence,
+    resource: [tile.resourceId, tile.secondaryResourceId].filter(Boolean).join(' · '),
+  };
+}
+
+function usableQuestionComponent(tile: CostTile | undefined, unit: CostBudgetUnit): number | null {
+  if (!tile || tileAttribution(tile) !== 'deployment' || tile.quality === 'unknown') return null;
+  if (unit === 'USD' && tile.pricing && tile.pricing.match !== 'priced' && tile.pricing.match !== 'none') {
+    return null;
+  }
+  const value = unit === 'DBU' ? tile.dbus : tile.amount;
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** A measured partial average is preferable to discarding every usable marginal component. */
+export function questionCostCardView(payload: OpsCostPayload, unit: CostBudgetUnit = 'USD'): CostCardView {
+  const legacy = payload.perQuestion.complete === undefined;
+  const ids = legacy
+    ? (['serving-endpoint', 'sql-warehouse'] as const)
+    : (['serving-endpoint', 'foundation-model', 'sql-warehouse'] as const);
+  const components = ids.map((id) => payload.tiles.find((tile) => tile.id === id));
+  const usable = components
+    .map((tile) => usableQuestionComponent(tile, unit))
+    .filter((value): value is number => value !== null);
+  const completed = payload.perQuestion.runsInRange;
+  const value = completed > 0 && usable.length > 0 ? usable.reduce((sum, amount) => sum + amount, 0) / completed : null;
+  const partial =
+    value !== null &&
+    (usable.length < ids.length || components.some((tile) => Boolean(tile && isPartialFoundation(tile))));
+  const estimated = components.some((tile) => tile?.quality === 'estimate');
+  return {
+    id: 'average-cost-question',
+    title: 'Average cost / question',
+    amount: value === null ? 'No measured average' : costAmount(value, payload.currency, unit),
+    status: value === null ? 'Unavailable' : partial ? 'Partial' : value === 0 ? 'Zero' : estimated ? 'Estimate' : '',
+    basis: partial ? 'Available marginal components' : 'Marginal interactive Ask',
+    evidence:
+      completed > 0
+        ? `${usable.length} of ${ids.length} components · ${count(completed)} completed ${
+            completed === 1 ? 'Ask' : 'Asks'
+          }`
+        : 'No completed interactive Asks',
+    detail:
+      value === null
+        ? payload.perQuestion.reason || 'No usable numerator and denominator were measured.'
+        : partial
+          ? 'Components without a safe measured amount are excluded from this partial average.'
+          : QUESTION_COST_FORMULA,
+    resource: '',
+  };
+}
+
+export function primaryCostCardViews(payload: OpsCostPayload, unit: CostBudgetUnit = 'USD'): CostCardView[] {
+  const displayed = costTilesForDisplay(payload.tiles);
+  const byId = new Map(displayed.map((tile) => [tile.id, tile]));
+  const emptyById = new Map(EMPTY_COST_TILES.map((tile) => [tile.id, tile]));
+  const cards = PRIMARY_COST_ORDER.map((id) => byId.get(id) ?? emptyById.get(id)).filter((tile): tile is CostTile =>
+    Boolean(tile)
+  );
+  return [...cards.map((tile) => costCardView(tile, payload, unit)), questionCostCardView(payload, unit)];
+}
+
+function isAllocatedGenie(attribution: NonNullable<CostTile['genieInstanceAccounting']>['attribution']): boolean {
+  return attribution === 'query-history-allocation' || attribution === 'app-ledger-allocation';
+}
+
+export function genieCostCardViews(payload: OpsCostPayload): GenieCardView[] {
+  return costTilesForDisplay(payload.tiles)
+    .filter((tile) => tile.id.startsWith('genie:') && tile.id !== 'genie:unattributed')
+    .map((tile) => {
+      const accounting = tile.genieInstanceAccounting;
+      const paid = accounting?.paidUsd ?? tile.amount;
+      const chargedDbus = accounting?.chargedEffectiveDbus ?? tile.dbus;
+      const allowance = accounting?.allowanceUsedDbus ?? 0;
+      const promotional = accounting?.promotionalDbus ?? 0;
+      return {
+        id: tile.id,
+        title:
+          tile.id === 'genie:data' ? 'Data Genie' : tile.id === 'genie:dictionary' ? 'Dictionary Genie' : tile.label,
+        charged:
+          paid === null || chargedDbus === null || chargedDbus === undefined
+            ? 'Measured charge unavailable'
+            : `${money(paid, payload.currency)} · ${chargedDbus.toFixed(2)} effective DBU`,
+        freeUsage: `${(allowance + promotional).toFixed(2)} DBU`,
+        allowance: `${allowance.toFixed(2)} DBU`,
+        promotional: `${promotional.toFixed(2)} DBU`,
+        attribution: !accounting ? 'Unavailable' : isAllocatedGenie(accounting.attribution) ? 'Estimated' : 'Direct',
+        detail: tile.unavailable,
+        resource: tile.resourceId,
+        tile,
+      };
+    });
 }
 
 /*
@@ -495,19 +711,7 @@ export function costAbsenceReplacesGrid(payload: OpsCostPayload): boolean {
  */
 export function costTilesForDisplay(tiles: readonly CostTile[]): CostTile[] {
   if (tiles.length === 0) return EMPTY_COST_TILES.map((tile) => ({ ...tile }));
-  const unattributed = tiles.find((tile) => tile.id === 'genie:unattributed');
-  const configuredGenie = tiles.filter(
-    (tile) => tile.id.startsWith('genie:') && tile.id !== 'genie:unattributed' && Boolean(tile.resourceId)
-  );
-  if (
-    (unattributed?.genieInstanceAccounting?.underlyingTotalDbus ?? 0) > 0 &&
-    configuredGenie.every((tile) => (tile.genieInstanceAccounting?.underlyingTotalDbus ?? 0) === 0)
-  ) {
-    return tiles.filter(
-      (tile) => !(tile.id.startsWith('genie:') && tile.id !== 'genie:unattributed' && Boolean(tile.resourceId))
-    );
-  }
-  return [...tiles];
+  return tiles.filter((tile) => tile.id !== 'genie:unattributed');
 }
 
 const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {

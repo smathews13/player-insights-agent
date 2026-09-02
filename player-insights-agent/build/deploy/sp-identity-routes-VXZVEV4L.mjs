@@ -1,0 +1,696 @@
+
+import {
+  parseOrganizationMappings
+} from "./chunk-JHHWLTGY.mjs";
+import {
+  readDeclaredConnections
+} from "./chunk-PXBJ4ROO.mjs";
+import {
+  resolveSemanticIndexValue
+} from "./chunk-MTXPHPGN.mjs";
+import {
+  userEmail
+} from "./chunk-Z54N5YP3.mjs";
+import {
+  DATA_GENIE_TABLES,
+  SP_GRANT_ACTIONS,
+  SP_GRANT_MATRIX,
+  SP_GRANT_RESOURCE_TYPES,
+  SpAssignmentWriteSchema,
+  SpPersonaDefinitionPatchSchema,
+  SpPersonaDefinitionWriteSchema,
+  SpPersonaPatchSchema,
+  SpPersonaWriteSchema,
+  deleteSpPersona,
+  deleteSpPersonaDefinition,
+  describeSpTokenMinting,
+  insertSpPersona,
+  insertSpPersonaDefinition,
+  listSpAssignments,
+  listSpPersonaDefinitions,
+  listSpPersonas,
+  qualifyDataContractTables,
+  updateSpPersona,
+  updateSpPersonaDefinition,
+  writeSpAssignment
+} from "./chunk-TPU7NP2N.mjs";
+import "./chunk-Y3XGZW4B.mjs";
+import "./chunk-ENWPWZ4F.mjs";
+import {
+  accountConsoleUrlForWorkspace
+} from "./chunk-VHHJDNLO.mjs";
+import {
+  invalidAdminEmail,
+  normalizeAdminEmail,
+  readRoster,
+  recordAdminAction
+} from "./chunk-TIMY5ERW.mjs";
+import "./chunk-FHPVN4JA.mjs";
+import "./chunk-JHCBSJGB.mjs";
+import "./chunk-P6LGY7M5.mjs";
+import {
+  external_exports
+} from "./chunk-5DRRUJAY.mjs";
+import "./chunk-7DTM6FIL.mjs";
+import "./chunk-LLUDDZ3A.mjs";
+
+// server/lib/sp-grant-resources.ts
+var SP_GRANT_RESOURCE_LIMIT = 500;
+function candidate(type, id, label, source = "configured") {
+  const value = id?.trim() ?? "";
+  return value ? { type, id: value, label, source } : null;
+}
+function unityCatalogType(value) {
+  const parts = value.split(".");
+  if (parts.length === 1) return "CATALOG";
+  if (parts.length === 2) return "SCHEMA";
+  if (parts.length === 3) return "TABLE";
+  return null;
+}
+var DECLARED_GRANT_RESOURCE_TYPES = {
+  catalog: "CATALOG",
+  schema: "SCHEMA",
+  table: "TABLE",
+  "sql-warehouse": "SQL_WAREHOUSE",
+  "serving-endpoint": "SERVING_ENDPOINT",
+  "genie-space": "GENIE_SPACE",
+  "vector-search-endpoint": "VECTOR_SEARCH_ENDPOINT",
+  "vector-search-index": "VECTOR_SEARCH_INDEX",
+  volume: "VOLUME"
+};
+function declaredGrantResourceType(input) {
+  if (input.resourceType) return DECLARED_GRANT_RESOURCE_TYPES[input.resourceType];
+  switch (input.kind) {
+    case "agent":
+    case "model":
+      return "SERVING_ENDPOINT";
+    case "genie-space":
+      return "GENIE_SPACE";
+    case "sql-warehouse":
+      return "SQL_WAREHOUSE";
+    case "unity-catalog":
+      return unityCatalogType(input.value);
+    case "volume":
+      return "VOLUME";
+    case "vector-search":
+      return /endpoint/i.test(`${input.id} ${input.label}`) ? "VECTOR_SEARCH_ENDPOINT" : "VECTOR_SEARCH_INDEX";
+    default:
+      return null;
+  }
+}
+async function discoverSpGrantResources(client, env = process.env) {
+  const catalog2 = env.PLAYER_INSIGHTS_CATALOG ?? "";
+  const schema2 = env.PLAYER_INSIGHTS_SCHEMA ?? "";
+  const semanticIndex2 = resolveSemanticIndexValue(env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? "", catalog2, schema2);
+  const configured = [
+    candidate("SERVING_ENDPOINT", env.DATABRICKS_SERVING_ENDPOINT_NAME, "Orchestrator serving endpoint"),
+    candidate("SERVING_ENDPOINT", env.PLAYER_INSIGHTS_LLM_ENDPOINT, "Foundation model endpoint"),
+    candidate("SERVING_ENDPOINT", env.PLAYER_INSIGHTS_JUDGE_ENDPOINT, "Benchmark judge endpoint"),
+    candidate("SQL_WAREHOUSE", env.DATABRICKS_SQL_WAREHOUSE_ID, "SQL warehouse"),
+    candidate("CATALOG", catalog2, "App catalog"),
+    candidate("SCHEMA", catalog2 && schema2 ? `${catalog2}.${schema2}` : void 0, "App schema"),
+    ...qualifyDataContractTables(catalog2, schema2, DATA_GENIE_TABLES).map((id) => {
+      const parts = id.split(".");
+      return candidate("TABLE", id, parts[parts.length - 1] ?? id);
+    }),
+    candidate("GENIE_SPACE", env.PLAYER_INSIGHTS_DATA_GENIE_ID, "Data Genie space"),
+    candidate("GENIE_SPACE", env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID, "Dictionary Genie space"),
+    candidate(
+      "VECTOR_SEARCH_INDEX",
+      semanticIndex2.split(".").length === 3 ? semanticIndex2 : void 0,
+      "Vector Search index"
+    )
+  ];
+  const declared = await readDeclaredConnections(client);
+  const rows = configured.filter((entry) => Boolean(entry));
+  for (const entry of declared) {
+    if (entry.state !== "declared") continue;
+    const type = declaredGrantResourceType(entry);
+    if (!type) continue;
+    rows.push({ type, id: entry.value.trim(), label: entry.label || entry.value, source: "declared" });
+  }
+  const unique = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    if (!row.id) continue;
+    const key = `${row.type}\0${row.id.toLocaleLowerCase()}`;
+    if (!unique.has(key)) unique.set(key, row);
+  }
+  return [...unique.values()].sort(
+    (left, right) => left.type.localeCompare(right.type) || left.label.localeCompare(right.label)
+  );
+}
+function boundedSpGrantResources(resources, limit = SP_GRANT_RESOURCE_LIMIT) {
+  const bounded = resources.slice(0, Math.max(0, limit));
+  return {
+    resources: bounded,
+    pagination: {
+      complete: bounded.length === resources.length,
+      returned: bounded.length,
+      limit,
+      incompleteReason: bounded.length === resources.length ? "" : "result_cap"
+    }
+  };
+}
+
+// shared/default-sp-persona-templates.ts
+var analysisTables = [
+  "gold_player_180d_summary",
+  "gold_title_daily_summary",
+  "silver_gameplay_activity",
+  "silver_player_profiles"
+];
+var marketingTables = [...analysisTables, "silver_purchases"];
+function single(resourceType, action, privilege, label, choiceLabel, optional = false) {
+  return {
+    resourceType,
+    action,
+    privilege,
+    optional,
+    selector: { match: "single", labels: [label], choiceLabel }
+  };
+}
+function curatedTables(idSuffixes, choiceLabel) {
+  return {
+    resourceType: "TABLE",
+    action: "READ",
+    privilege: "SELECT",
+    selector: {
+      match: "all",
+      sources: ["configured", "declared"],
+      idSuffixes: [...idSuffixes],
+      choiceLabel
+    }
+  };
+}
+var warehouse = single("SQL_WAREHOUSE", "USE", "CAN USE", "SQL warehouse", "Analysis SQL warehouse");
+var catalog = single("CATALOG", "USE", "USE CATALOG", "App catalog", "Governed analysis catalog");
+var schema = single("SCHEMA", "USE", "USE SCHEMA", "App schema", "Governed analysis schema");
+var dataGenie = single("GENIE_SPACE", "USE", "CAN RUN", "Data Genie space", "Data Genie space");
+var dictionaryGenie = single("GENIE_SPACE", "USE", "CAN RUN", "Dictionary Genie space", "Dictionary Genie space");
+var serving = single(
+  "SERVING_ENDPOINT",
+  "USE",
+  "CAN QUERY",
+  "Orchestrator serving endpoint",
+  "Astrolabe serving endpoint"
+);
+var semanticIndex = single(
+  "VECTOR_SEARCH_INDEX",
+  "READ",
+  "SELECT",
+  "Vector Search index",
+  "Metadata search index",
+  true
+);
+var analystGrants = [
+  warehouse,
+  catalog,
+  schema,
+  curatedTables(analysisTables, "Curated performance and player-analysis tables"),
+  dataGenie,
+  serving
+];
+var marketingScientistGrants = [
+  warehouse,
+  catalog,
+  schema,
+  curatedTables(marketingTables, "Curated audience, marketing, purchase, and player-profile tables"),
+  dataGenie,
+  dictionaryGenie,
+  serving
+];
+var DEFAULT_SP_PERSONA_TEMPLATES = [
+  {
+    id: "business-analyst",
+    displayName: "Business Analyst",
+    roleSummary: "Read-only analyst for governed performance and player investigation.",
+    purpose: "Investigate curated performance and player trends through Astrolabe without changing source data or administering platform resources.",
+    duties: [
+      "Run governed analytical questions and validate results against curated tables.",
+      "Use the Data Genie space for approved exploratory analysis.",
+      "Query the Astrolabe serving endpoint to obtain governed answers."
+    ],
+    dataBoundaries: [
+      "Only resources configured or declared by this Astrolabe deployment may be selected.",
+      "Table access is limited to the exact curated performance and player-analysis tables in the product data contract.",
+      "Metadata search is optional, read-only, and does not grant access to table rows."
+    ],
+    exclusions: [
+      "No MODIFY, WRITE, CREATE, EDIT, MANAGE, or ownership privileges.",
+      "No uncurated catalogs, schemas, tables, Genie spaces, or endpoints.",
+      "No account, workspace, identity, secret, or permission administration."
+    ],
+    keyCapabilities: [
+      "Run governed SQL and Data Genie analysis",
+      "Read only exact curated performance and player tables",
+      "Optionally add read-only metadata search"
+    ],
+    variants: [
+      {
+        id: "least-privilege",
+        label: "least-privilege profile",
+        description: "Read-only SQL, curated tables, Data Genie, and Astrolabe query access.",
+        leastPrivilege: true,
+        grants: analystGrants
+      },
+      {
+        id: "semantic-discovery",
+        label: "Add metadata search",
+        description: "Adds read-only Vector Search access so Astrolabe can find relevant table and column metadata; it does not grant access to table rows.",
+        leastPrivilege: false,
+        grants: [...analystGrants, semanticIndex]
+      }
+    ]
+  },
+  {
+    id: "marketing-scientist",
+    displayName: "Marketing Scientist",
+    roleSummary: "Read-only marketing scientist for governed audience, purchase, and player-profile analysis.",
+    purpose: "Analyze curated marketing, addressability, purchase, and player-profile data through Astrolabe without changing data or managing platform resources.",
+    duties: [
+      "Evaluate audience and campaign questions against approved curated data.",
+      "Use Data Genie for analysis and Dictionary Genie for governed metric definitions.",
+      "Query the Astrolabe serving endpoint for evidence-backed responses."
+    ],
+    dataBoundaries: [
+      "Only resources configured or declared by this Astrolabe deployment may be selected.",
+      "Table access is limited to the exact audience, marketing, purchase, and player-profile tables in the product data contract.",
+      "Metadata search is optional, read-only, and does not grant access to table rows."
+    ],
+    exclusions: [
+      "No MODIFY, WRITE, CREATE, EDIT, MANAGE, or ownership privileges.",
+      "No raw identity, contact, payment, or uncurated behavioral data.",
+      "No account, workspace, identity, secret, or permission administration."
+    ],
+    keyCapabilities: [
+      "Run governed marketing and audience analysis",
+      "Use Data Genie and Dictionary Genie",
+      "Read only exact curated audience, purchase, and player-profile tables"
+    ],
+    variants: [
+      {
+        id: "least-privilege",
+        label: "least-privilege profile",
+        description: "Read-only SQL, curated audience and marketing tables, both Genie spaces, and Astrolabe query access.",
+        leastPrivilege: true,
+        grants: marketingScientistGrants
+      },
+      {
+        id: "semantic-discovery",
+        label: "Add metadata search",
+        description: "Adds read-only Vector Search access so Astrolabe can find relevant table and column metadata; it does not grant access to table rows.",
+        leastPrivilege: false,
+        grants: [...marketingScientistGrants, semanticIndex]
+      }
+    ]
+  }
+];
+
+// shared/sp-persona-templates.ts
+var SP_PERSONA_TEMPLATES_ENV = "PLAYER_INSIGHTS_PERSONA_TEMPLATES";
+var TEXT_MAX = 280;
+var LIST_MAX = 12;
+var GRANT_INTENT_MAX = 24;
+var VARIANT_MAX = 4;
+var EXAMPLE_PROFILE_ACTIONS = /* @__PURE__ */ new Set(["READ", "USE", "VIEW", "EXECUTE"]);
+var SummaryListSchema = external_exports.array(external_exports.string().trim().min(1).max(TEXT_MAX)).max(LIST_MAX);
+var SpGrantResourceTypeSchema = external_exports.enum(SP_GRANT_RESOURCE_TYPES);
+var SpGrantActionSchema = external_exports.enum(SP_GRANT_ACTIONS);
+var SpPersonaResourceSelectorSchema = external_exports.object({
+  match: external_exports.enum(["single", "all"]).default("single"),
+  sources: external_exports.array(external_exports.enum(["configured", "declared"])).min(1).max(2).optional(),
+  labels: external_exports.array(external_exports.string().trim().min(1).max(120)).min(1).max(12).optional(),
+  ids: external_exports.array(external_exports.string().trim().min(1).max(255)).min(1).max(24).optional(),
+  idSuffixes: external_exports.array(
+    external_exports.string().trim().min(1).max(255).regex(/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/)
+  ).min(1).max(24).optional(),
+  labelSegments: external_exports.array(
+    external_exports.string().trim().min(2).max(80).regex(/^[A-Za-z0-9_-]+$/)
+  ).min(1).max(12).optional(),
+  choiceLabel: external_exports.string().trim().min(1).max(120)
+}).strict().superRefine((selector, context) => {
+  if (selector.match === "all" && !selector.labels && !selector.ids && !selector.idSuffixes && !selector.labelSegments) {
+    context.addIssue({
+      code: "custom",
+      message: "An all-resources selector must use an exact or bounded resource constraint."
+    });
+  }
+});
+var SpPersonaGrantIntentSchema = external_exports.object({
+  resourceType: SpGrantResourceTypeSchema,
+  action: SpGrantActionSchema,
+  privilege: external_exports.string().trim().min(1).max(64),
+  optional: external_exports.boolean().optional(),
+  selector: SpPersonaResourceSelectorSchema
+}).strict().superRefine((intent, context) => {
+  const option = SP_GRANT_MATRIX[intent.resourceType].options.find((candidate2) => candidate2.action === intent.action);
+  if (!option) {
+    context.addIssue({
+      code: "custom",
+      path: ["action"],
+      message: `${intent.action} is not valid for ${SP_GRANT_MATRIX[intent.resourceType].label}.`
+    });
+  } else if (intent.privilege !== option.privilege) {
+    context.addIssue({
+      code: "custom",
+      path: ["privilege"],
+      message: `${intent.action} maps to ${option.privilege}.`
+    });
+  }
+});
+var SpPersonaTemplateVariantSchema = external_exports.object({
+  id: external_exports.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/),
+  label: external_exports.string().trim().min(1).max(80),
+  description: external_exports.string().trim().min(1).max(TEXT_MAX),
+  leastPrivilege: external_exports.boolean(),
+  grants: external_exports.array(SpPersonaGrantIntentSchema).min(1).max(GRANT_INTENT_MAX)
+}).strict().superRefine((variant, context) => {
+  variant.grants.forEach((grant, index) => {
+    if (!EXAMPLE_PROFILE_ACTIONS.has(grant.action)) {
+      context.addIssue({
+        code: "custom",
+        path: ["grants", index, "action"],
+        message: "Example profiles may request only read, use, view, or execute access."
+      });
+    }
+  });
+});
+var SpPersonaTemplateSchema = external_exports.object({
+  id: external_exports.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/),
+  displayName: external_exports.string().trim().min(1).max(120),
+  roleSummary: external_exports.string().trim().min(1).max(TEXT_MAX),
+  purpose: external_exports.string().trim().min(1).max(TEXT_MAX),
+  duties: SummaryListSchema.min(1),
+  dataBoundaries: SummaryListSchema.min(1),
+  exclusions: SummaryListSchema.min(1),
+  keyCapabilities: SummaryListSchema.min(1).max(6),
+  variants: external_exports.array(SpPersonaTemplateVariantSchema).min(1).max(VARIANT_MAX)
+}).strict().superRefine((template, context) => {
+  if (template.variants.filter((variant) => variant.leastPrivilege).length !== 1) {
+    context.addIssue({
+      code: "custom",
+      path: ["variants"],
+      message: "Each profile must have exactly one least-privilege variant."
+    });
+  }
+  if (new Set(template.variants.map((variant) => variant.id)).size !== template.variants.length) {
+    context.addIssue({ code: "custom", path: ["variants"], message: "Variant ids must be unique." });
+  }
+});
+var SpPersonaTemplatesSchema = external_exports.array(SpPersonaTemplateSchema).max(12).refine((templates) => new Set(templates.map((template) => template.id)).size === templates.length, {
+  message: "Profile ids must be unique."
+});
+
+// server/lib/sp-persona-templates.ts
+var DefaultTemplates = SpPersonaTemplatesSchema.parse(DEFAULT_SP_PERSONA_TEMPLATES);
+var SpPersonaTemplateOverrideSchema = external_exports.union([
+  SpPersonaTemplatesSchema,
+  external_exports.object({
+    mode: external_exports.enum(["replace", "extend"]),
+    templates: SpPersonaTemplatesSchema
+  }).strict()
+]);
+function parseSpPersonaTemplates(raw) {
+  if (!raw?.trim()) return { templates: DefaultTemplates, warning: null };
+  try {
+    const parsed = SpPersonaTemplateOverrideSchema.safeParse(JSON.parse(raw));
+    if (parsed.success) {
+      if (Array.isArray(parsed.data)) return { templates: parsed.data, warning: null };
+      if (parsed.data.mode === "replace") return { templates: parsed.data.templates, warning: null };
+      const defaultIds = new Set(DefaultTemplates.map((template) => template.id));
+      if (parsed.data.templates.some((template) => defaultIds.has(template.id)))
+        throw new Error("Template id collision.");
+      const extended = SpPersonaTemplatesSchema.safeParse([...DefaultTemplates, ...parsed.data.templates]);
+      if (extended.success) return { templates: extended.data, warning: null };
+    }
+  } catch {
+  }
+  return {
+    templates: [],
+    warning: "Example profiles are unavailable because this deployment configured an invalid template contract."
+  };
+}
+function configuredSpPersonaTemplates(env = process.env) {
+  return parseSpPersonaTemplates(env[SP_PERSONA_TEMPLATES_ENV]);
+}
+
+// server/routes/sp-identity-routes.ts
+async function adminPayload(appkit) {
+  const templateConfig = configuredSpPersonaTemplates();
+  const [personas, personaDefinitions, assignments, rosterRead, grantResourceDiscovery] = await Promise.all([
+    listSpPersonas(appkit),
+    listSpPersonaDefinitions(appkit),
+    listSpAssignments(appkit),
+    readRoster(appkit.lakebase).catch(() => ({ rows: [] })),
+    discoverSpGrantResources(appkit).then((resources) => ({ status: "ready", ...boundedSpGrantResources(resources), detail: "" })).catch((error) => ({
+      status: "error",
+      resources: [],
+      detail: `Configured resources could not be read: ${error.message}`
+    }))
+  ]);
+  const assignedByEmail = new Map(assignments.map((row) => [row.email, row.personaId]));
+  const roster = rosterRead.rows.map((row) => ({
+    email: row.email,
+    role: row.role,
+    personaId: row.role === "super_admin" ? null : assignedByEmail.get(row.email) ?? null
+  }));
+  for (const assignment of assignments) {
+    if (roster.some((row) => row.email === assignment.email)) continue;
+    roster.push({ email: assignment.email, role: "", personaId: assignment.personaId });
+  }
+  roster.sort((left, right) => left.email.localeCompare(right.email));
+  return {
+    minting: describeSpTokenMinting(),
+    personas,
+    personaDefinitions,
+    personaTemplates: templateConfig.templates,
+    personaTemplateWarning: templateConfig.warning,
+    grantResourceDiscovery,
+    accountConsoleUrl: accountConsoleUrlForWorkspace(process.env.DATABRICKS_HOST),
+    organizations: parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS),
+    assignments,
+    roster
+  };
+}
+function setupSpIdentityRoutes(appkit) {
+  appkit.server.extend((app) => {
+    app.get("/api/admin/sp-identity", async (_req, res) => {
+      try {
+        res.json(await adminPayload(appkit));
+      } catch (error) {
+        res.status(503).json({
+          error: "sp_identity_unreadable",
+          detail: `Service-principal personas could not be read: ${error.message}`
+        });
+      }
+    });
+    app.post("/api/admin/sp-identity/personas", async (req, res) => {
+      const parsed = SpPersonaWriteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_persona", detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const persona = await insertSpPersona(appkit, parsed.data, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-created",
+          subject: persona.id,
+          detail: `Created service-principal persona ${persona.displayName}.`
+        });
+        res.status(201).json(persona);
+      } catch (error) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona was not saved: ${error.message}`
+        });
+      }
+    });
+    app.post("/api/admin/sp-identity/persona-definitions", async (req, res) => {
+      const parsed = SpPersonaDefinitionWriteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_persona_definition", detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const definition = await insertSpPersonaDefinition(appkit, parsed.data, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-definition-created",
+          subject: definition.id,
+          detail: `Generated credential-free service-principal configuration ${definition.displayName}.`
+        });
+        res.status(201).json(definition);
+      } catch (error) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona configuration was not saved: ${error.message}`
+        });
+      }
+    });
+    app.patch("/api/admin/sp-identity/persona-definitions/:id", async (req, res) => {
+      const parsed = SpPersonaDefinitionPatchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_persona_definition", detail: parsed.error.message });
+        return;
+      }
+      const id = external_exports.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!id.success) {
+        res.status(400).json({ error: "invalid_sp_persona_definition", detail: "Missing persona id." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const definition = await updateSpPersonaDefinition(appkit, id.data, parsed.data, actor);
+        if (!definition) {
+          res.status(404).json({ error: "sp_persona_definition_missing", detail: "That persona is not defined." });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-definition-updated",
+          subject: definition.id,
+          detail: `Updated service-principal configuration ${definition.displayName}.`
+        });
+        res.json(definition);
+      } catch (error) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona configuration was not saved: ${error.message}`
+        });
+      }
+    });
+    app.delete("/api/admin/sp-identity/persona-definitions/:id", async (req, res) => {
+      const id = external_exports.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!id.success) {
+        res.status(400).json({ error: "invalid_sp_persona_definition", detail: "Missing persona id." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const removed = await deleteSpPersonaDefinition(appkit, id.data);
+        if (!removed) {
+          res.status(404).json({ error: "sp_persona_definition_missing", detail: "That persona is not defined." });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-definition-removed",
+          subject: id.data,
+          detail: "Removed a credential-free service-principal configuration."
+        });
+        res.status(204).end();
+      } catch (error) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona configuration was not removed: ${error.message}`
+        });
+      }
+    });
+    app.patch("/api/admin/sp-identity/personas/:id", async (req, res) => {
+      const parsed = SpPersonaPatchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_persona", detail: parsed.error.message });
+        return;
+      }
+      const id = external_exports.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!id.success) {
+        res.status(400).json({ error: "invalid_sp_persona", detail: "Missing persona id." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const persona = await updateSpPersona(appkit, id.data, parsed.data, actor);
+        if (!persona) {
+          res.status(404).json({ error: "sp_persona_missing", detail: "That persona is not defined." });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-updated",
+          subject: persona.id,
+          detail: `Updated service-principal persona ${persona.displayName}.`
+        });
+        res.json(persona);
+      } catch (error) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona was not saved: ${error.message}`
+        });
+      }
+    });
+    app.delete("/api/admin/sp-identity/personas/:id", async (req, res) => {
+      const id = external_exports.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!id.success) {
+        res.status(400).json({ error: "invalid_sp_persona", detail: "Missing persona id." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const removed = await deleteSpPersona(appkit, id.data);
+        if (!removed) {
+          res.status(404).json({ error: "sp_persona_missing", detail: "That persona is not defined." });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-removed",
+          subject: id.data,
+          detail: "Removed a service-principal persona and its assignments."
+        });
+        res.status(204).end();
+      } catch (error) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona was not removed: ${error.message}`
+        });
+      }
+    });
+    app.put("/api/admin/sp-identity/assignments", async (req, res) => {
+      const parsed = SpAssignmentWriteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_assignment", detail: parsed.error.message });
+        return;
+      }
+      const emailFault = invalidAdminEmail(parsed.data.email);
+      if (emailFault) {
+        res.status(400).json({ error: "invalid_sp_assignment", detail: emailFault });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const email = normalizeAdminEmail(parsed.data.email);
+        const roster = await readRoster(appkit.lakebase);
+        if (roster.rows.some((row) => row.email === email && row.role === "super_admin")) {
+          res.status(409).json({
+            error: "immutable_super_admin_persona",
+            detail: "A super admin always uses the Owner persona."
+          });
+          return;
+        }
+        const assignment = await writeSpAssignment(appkit, parsed.data.email, parsed.data.personaId, actor);
+        if (parsed.data.personaId && !assignment) {
+          res.status(404).json({ error: "sp_persona_missing", detail: "That persona is not defined." });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: parsed.data.personaId ? "sp-persona-assigned" : "sp-persona-unassigned",
+          subject: parsed.data.email,
+          detail: parsed.data.personaId ? "Assigned a service-principal persona to this person." : "This person again runs as themselves over OAuth."
+        });
+        res.json({ assignment, payload: await adminPayload(appkit) });
+      } catch (error) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The assignment was not saved: ${error.message}`
+        });
+      }
+    });
+  });
+}
+export {
+  setupSpIdentityRoutes
+};

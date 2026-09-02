@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import type { CostTile } from '../../shared/ops-contract';
+import { APP_ACTIVITY_TABLE } from './app-activity';
 import {
   allocateDeterministically,
   buildSpendByUser,
@@ -14,6 +15,7 @@ import {
   USER_ACTIVE_MINUTES_QUERY,
   USER_MONITORING_ACTIVITY_QUERY,
   USER_SPEND_RUNS_QUERY,
+  userMonitoringEvidenceDiagnostics,
   userSpendCacheKey,
   type UserRunSpendEvidence,
 } from './user-spend';
@@ -57,6 +59,23 @@ const runs: UserRunSpendEvidence[] = [
     tokenCoveredRuns: 1,
     totalTokens: 300,
     resources: [{ tool: 'search_semantics', resourceId: 'vector-search', calls: 3 }],
+  },
+];
+
+const activeInteractions = [
+  {
+    email: 'a@example.test',
+    questions: 1,
+    runs: 1,
+    firstActive: '2026-08-30T10:00:00Z',
+    lastActive: '2026-08-30T11:00:00Z',
+  },
+  {
+    email: 'b@example.test',
+    questions: 1,
+    runs: 1,
+    firstActive: '2026-08-31T10:00:00Z',
+    lastActive: '2026-08-31T11:00:00Z',
   },
 ];
 
@@ -136,6 +155,24 @@ describe('individual user spend attribution', () => {
         .filter((part) => part.usd.amount !== null)
         .every((part) => part.usd.quality === 'allocated')
     ).toBe(true);
+  });
+
+  it('never enters excluded workspace Genie usage into user or app totals', () => {
+    const excluded = {
+      ...tile('genie:unattributed', 10_000, 50_000),
+      label: 'Unattributed Genie',
+      resourceId: '',
+      attribution: 'unavailable' as const,
+    };
+    const payload = build({
+      tiles: [tile('genie:data', 0.33, 1.65), tile('genie:dictionary', 3.21, 16.05), excluded],
+    });
+
+    expect(payload.reconciliation.usd.appTotal).toBeCloseTo(3.54);
+    expect(payload.reconciliation.dbu.appTotal).toBeCloseTo(17.7);
+    expect(payload.users.flatMap((user) => user.components).some((component) => component.id === excluded.id)).toBe(
+      false
+    );
   });
 
   it('leaves shared app compute unattributed when active-minute coverage is incomplete', () => {
@@ -275,7 +312,9 @@ describe('individual user spend attribution', () => {
     expect(USER_MONITORING_ACTIVITY_QUERY).toContain("COUNT(DISTINCT evidence_id) FILTER (WHERE kind = 'question')");
     expect(USER_MONITORING_ACTIVITY_QUERY).toContain("COUNT(DISTINCT evidence_id) FILTER (WHERE kind = 'run')");
     expect(USER_MONITORING_ACTIVITY_QUERY).toContain('s.deployment_key = $3');
+    expect(USER_MONITORING_ACTIVITY_QUERY).toContain(APP_ACTIVITY_TABLE);
     expect(USER_MONITORING_ACTIVITY_QUERY).not.toMatch(/roster|permission|persona|admin_role/i);
+    expect(OPS_ROUTE_SOURCE).toContain('USER_MONITORING_SCHEMA_REVISION');
   });
 
   it('uses the selected activity window for population, including retained all-time evidence', () => {
@@ -318,6 +357,7 @@ describe('individual user spend attribution', () => {
       spend: build(),
       runs,
       activity: [],
+      interactions: activeInteractions,
       roles: new Map([
         ['a@example.test', 'admin'],
         ['b@example.test', 'consumer'],
@@ -330,6 +370,70 @@ describe('individual user spend attribution', () => {
     });
 
     expect(page.users.map((row) => row.email)).toEqual(['b@example.test', 'a@example.test']);
+  });
+
+  it('returns exactly the three timestamped users from a production-shaped 3 active plus 9 roster fixture', () => {
+    const rosterOnly = Array.from({ length: 9 }, (_, index) => `roster-${index + 1}@example.test`);
+    const page = buildUserMonitoringPage({
+      spend: build(),
+      runs,
+      activity: [],
+      interactions: [
+        ...activeInteractions,
+        {
+          email: 'session-only@example.test',
+          questions: 0,
+          runs: 0,
+          firstActive: '2026-08-31T12:00:00Z',
+          lastActive: '2026-08-31T12:00:00Z',
+        },
+      ],
+      roles: new Map(rosterOnly.map((email, index) => [email, index === 0 ? 'admin' : 'consumer'] as const)),
+      personas: new Map([[rosterOnly[1], { id: 'analyst', name: 'Analyst' }]]),
+      unit: 'USD',
+    });
+
+    expect(page.users.map((row) => row.email).sort()).toEqual([
+      'a@example.test',
+      'b@example.test',
+      'session-only@example.test',
+    ]);
+    expect(page.pagination.total).toBe(3);
+    expect(page.users.every((row) => Number.isFinite(Date.parse(row.lastActive)))).toBe(true);
+  });
+
+  it('rejects null timestamps and activity outside the selected range', () => {
+    const before = userMonitoringEvidenceDiagnostics().rejectedRows;
+    const parsed = readUserInteractionEvidence([
+      {
+        user_email: 'null-time@example.test',
+        questions: 0,
+        runs: 0,
+        first_active: null,
+        last_active: null,
+      },
+    ]);
+    expect(parsed).toEqual([]);
+
+    const page = buildUserMonitoringPage({
+      spend: build(),
+      runs,
+      activity: [],
+      interactions: [
+        ...activeInteractions,
+        {
+          email: 'outside@example.test',
+          questions: 2,
+          runs: 2,
+          firstActive: '2026-08-01T10:00:00Z',
+          lastActive: '2026-08-01T11:00:00Z',
+        },
+      ],
+      roles: new Map(),
+      unit: 'USD',
+    });
+    expect(page.users.map((row) => row.email).sort()).toEqual(['a@example.test', 'b@example.test']);
+    expect(userMonitoringEvidenceDiagnostics().rejectedRows - before).toBe(2);
   });
 
   it('includes session, question, run, and feedback users even when spend is unavailable', () => {
@@ -396,6 +500,7 @@ describe('individual user spend attribution', () => {
       spend,
       runs,
       activity: [],
+      interactions: activeInteractions,
       roles: new Map([
         ['a@example.test', 'admin'],
         ['b@example.test', 'consumer'],
@@ -413,6 +518,7 @@ describe('individual user spend attribution', () => {
       spend,
       runs,
       activity: [],
+      interactions: activeInteractions,
       roles: new Map([
         ['a@example.test', 'admin'],
         ['b@example.test', 'consumer'],
@@ -430,6 +536,7 @@ describe('individual user spend attribution', () => {
       spend: build(),
       runs,
       activity: [],
+      interactions: activeInteractions,
       roles: new Map([
         ['a@example.test', 'admin'],
         ['b@example.test', 'consumer'],
@@ -448,6 +555,7 @@ describe('individual user spend attribution', () => {
       spend: build(),
       runs,
       activity: [],
+      interactions: activeInteractions,
       roles: new Map([
         ['a@example.test', 'admin'],
         ['b@example.test', 'consumer'],

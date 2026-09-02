@@ -477,6 +477,20 @@ describe('missing and excluded baselines', () => {
           remedy: '',
           note: 'Allocated',
         },
+        {
+          id: 'genie:unattributed',
+          label: 'Unattributed Genie',
+          resourceId: '',
+          quality: 'real',
+          amount: 10_000,
+          dbus: 50_000,
+          basis: 'total-in-range',
+          population: 'This workspace',
+          attribution: 'deployment',
+          unavailable: '',
+          remedy: '',
+          note: '',
+        },
       ],
     });
     const result = calculateForecast(
@@ -487,6 +501,7 @@ describe('missing and excluded baselines', () => {
     expect(next7.days).toBe(7);
     expect(next7.components.find((item) => item.id === 'genie:data')?.amount).toBeCloseTo(5.5);
     expect(next7.components.find((item) => item.id === 'genie:dictionary')?.amount).toBeCloseTo(11);
+    expect(next7.components.some((item) => item.id === 'genie:unattributed')).toBe(false);
     expect(next7.total).toBeCloseTo(16.5);
   });
 });

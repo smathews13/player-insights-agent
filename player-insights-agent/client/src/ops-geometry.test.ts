@@ -7,9 +7,8 @@ import { partial } from './styles/stylesheet';
  * connections-geometry.test.ts established.
  *
  * This tab is the most numeric surface in the app and the least certain: three of
- * its six cost figures are apportionments, one is a rate, and the block carrying
- * them is badged Experimental and Under development. Both facts decide what the
- * stylesheet is allowed to do. The figures have to line up, because a grid of
+ * its cost figures mix apportionments, rates, and partial measurements. Those
+ * facts decide what the stylesheet is allowed to do. The figures have to line up, because a grid of
  * currency a reader compares down a column is the one arrangement where
  * proportional digits are visible on a single screen. And nothing here may be
  * loud, because a page whose argument is "most of these numbers will not bear
@@ -254,6 +253,32 @@ describe('the Cost budget layout', () => {
     expect(rule('.ops-block-head-text')).toMatch(/flex-wrap:\s*wrap/);
     expect(rule('.ops-cost-head-controls')).toMatch(/flex-wrap:\s*wrap/);
     expect(rule('.ops-block-head-control')).toMatch(/margin-left:\s*auto/);
+  });
+});
+
+describe('the Cost card layout', () => {
+  it('reflows the primary grid through three, two, and one columns', () => {
+    expect(rule('.ops-tiles')).toMatch(/grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+    expect(RULES).toMatch(
+      /@media \(max-width:\s*72rem\)[\s\S]*?\.ops-tiles\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+    );
+    expect(RULES).toMatch(
+      /@media \(max-width:\s*40rem\)[\s\S]*?\.ops-tiles,\s*\.ops-genie-grid\s*\{[^}]*minmax\(0,\s*1fr\)/
+    );
+  });
+
+  it('keeps the Genie cards wide and stacks them only on mobile', () => {
+    expect(rule('.ops-genie-grid')).toMatch(/grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  });
+
+  it('allows card content to grow without fixed heights or clipping', () => {
+    for (const selector of ['.ops-tile', '.ops-tile-figure', '.ops-tile-evidence']) {
+      const body = rule(selector);
+      expect(body).not.toMatch(/(?:^|;)\s*(?:height|max-height)\s*:/);
+      expect(body).not.toMatch(/overflow:\s*hidden/);
+    }
+    expect(rule('.ops-cost-resource')).toMatch(/text-overflow:\s*ellipsis/);
+    expect(rule('.ops-tile-evidence')).toMatch(/overflow-wrap:\s*anywhere/);
   });
 });
 

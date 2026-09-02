@@ -213,7 +213,7 @@ describe('billing attribution', () => {
     });
   });
 
-  it('emits an explicit free-usage reconciliation tile instead of two false-zero cards', () => {
+  it('keeps unmatched workspace Genie usage out of configured-space tiles', () => {
     const testIds: CostIdentifiers = {
       ...IDS,
       genieSpaces: [
@@ -251,20 +251,10 @@ describe('billing attribution', () => {
       testIds.genieSpaces
     );
     const tiles = buildTiles(testIds, [], undefined, [], { month: freeOnly, period: freeOnly });
-    expect(tiles.filter((tile) => tile.id.startsWith('genie:')).map((tile) => tile.id)).toEqual([
-      'genie:data',
-      'genie:dictionary',
-      'genie:unattributed',
-    ]);
-    expect(tiles.find((tile) => tile.id === 'genie:unattributed')).toMatchObject({
-      amount: 0,
-      dbus: 0,
-      genieInstanceAccounting: {
-        promotionalDbus: 12,
-        paidUsd: 0,
-        underlyingTotalDbus: 12,
-      },
-    });
+    const genieTiles = tiles.filter((tile) => tile.id.startsWith('genie:'));
+    expect(genieTiles.map((tile) => tile.id)).toEqual(['genie:data', 'genie:dictionary']);
+    expect(genieTiles.every((tile) => tile.amount === 0 && tile.dbus === 0)).toBe(true);
+    expect(genieTiles.every((tile) => tile.genieInstanceAccounting?.underlyingTotalDbus === 0)).toBe(true);
   });
 
   it('opens Vector Search as the index when a three-level name is known', () => {

@@ -4,6 +4,7 @@ import type { Application, Request, Response } from 'express';
 import {
   configuredResourceName,
   forgetWorkspaceId,
+  GENIE_APP_ACTIVITY_QUERY,
   lookupVectorConnection,
   QUESTION_COST_RUNS_QUERY,
   RESOURCE_ACTIVITY_QUERY,
@@ -11,6 +12,7 @@ import {
 } from './ops-routes';
 import type { InsightsAppKit } from './insights-routes';
 import type { OpsCostPayload } from '../../shared/ops-contract';
+import { USER_MONITORING_ACTIVITY_QUERY } from '../lib/user-spend';
 
 const saved = {
   host: process.env.DATABRICKS_HOST,
@@ -166,6 +168,10 @@ describe('the ranged cost route', () => {
     expect(RESOURCE_ACTIVITY_QUERY).toContain("space->>'id' = c.resource_id");
     expect(RESOURCE_ACTIVITY_QUERY).toContain('AND NOT EXISTS');
     expect(RESOURCE_ACTIVITY_QUERY).toContain('COALESCE(a.calls, 0) + COALESCE(l.calls, 0)');
+    expect(GENIE_APP_ACTIVITY_QUERY).toContain("(r.completed_at AT TIME ZONE 'UTC')::date");
+    expect(GENIE_APP_ACTIVITY_QUERY).toContain("resource->>'id' = configured.space_id");
+    expect(GENIE_APP_ACTIVITY_QUERY).toContain("space->>'id' = configured.space_id");
+    expect(GENIE_APP_ACTIVITY_QUERY).toContain('AND NOT EXISTS');
   });
 
   it('passes complete-day bounds to billing and the run ledger', async () => {
@@ -175,20 +181,40 @@ describe('the ranged cost route', () => {
         if (path === '/api/ops/cost') handler = registered;
       },
     } as unknown as Application;
-    const lakebase = vi.fn().mockResolvedValue({
-      rows: [
-        {
-          run_id: 'run-1',
-          correlation_id: 'req-00000000-0000-0000-0000-000000000001',
-          trace_id: 'trace-1',
-          completed_at: new Date('2026-08-16T12:00:00Z'),
-          total_tokens: '250',
-          runs_in_range: 1,
-          token_covered_runs: 1,
-          total_recorded_tokens: '250',
-        },
-      ],
-    });
+    const lakebase = vi.fn((sql: string) =>
+      Promise.resolve({
+        rows:
+          sql === USER_MONITORING_ACTIVITY_QUERY
+            ? [
+                {
+                  user_email: 'active@example.test',
+                  questions: 2,
+                  runs: 1,
+                  first_active: new Date('2026-08-16T10:00:00Z'),
+                  last_active: new Date('2026-08-16T12:00:00Z'),
+                },
+                {
+                  user_email: 'session-only@example.test',
+                  questions: 0,
+                  runs: 0,
+                  first_active: new Date('2026-08-17T10:00:00Z'),
+                  last_active: new Date('2026-08-17T10:00:00Z'),
+                },
+              ]
+            : [
+                {
+                  run_id: 'run-1',
+                  correlation_id: 'req-00000000-0000-0000-0000-000000000001',
+                  trace_id: 'trace-1',
+                  completed_at: new Date('2026-08-16T12:00:00Z'),
+                  total_tokens: '250',
+                  runs_in_range: 1,
+                  token_covered_runs: 1,
+                  total_recorded_tokens: '250',
+                },
+              ],
+      })
+    );
     const statementBodies: Array<Record<string, unknown>> = [];
     const fetchImpl = vi.fn((input: string | URL | globalThis.Request, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
@@ -271,6 +297,26 @@ describe('the ranged cost route', () => {
     expect(payload.budgetsReadable).toBe(true);
     expect(payload.honesty?.priceSource).toBe('list_prices');
     expect(payload.honesty?.contractRates).toBe('unavailable');
+
+    await handler!(
+      {
+        query: { from: '2026-08-10', to: '2026-08-17', userBrowse: '1' },
+        headers: {},
+        header: (name: string) =>
+          name === 'x-forwarded-access-token'
+            ? 'caller-token'
+            : name === 'x-forwarded-email'
+              ? 'admin@example.test'
+              : undefined,
+      } as unknown as Request,
+      { json: (body: OpsCostPayload) => (payload = body) } as unknown as Response
+    );
+    expect(payload.userMonitoring?.users.map((row) => row.email).sort()).toEqual([
+      'active@example.test',
+      'session-only@example.test',
+    ]);
+    expect(payload.userMonitoring?.pagination.total).toBe(2);
+    expect(payload.userMonitoring?.users.every((row) => Number.isFinite(Date.parse(row.lastActive)))).toBe(true);
   });
 
   it('traces configured Vector Search identity, activity, USD, and DBUs into one allocated tile', async () => {

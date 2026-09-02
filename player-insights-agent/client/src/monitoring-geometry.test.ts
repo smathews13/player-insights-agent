@@ -61,7 +61,8 @@ describe('the namespaced user profile cannot regress to overlapping layout', () 
     expect(body).toMatch(/grid-auto-flow:\s*row/);
     expect(body).toMatch(/grid-auto-rows:\s*max-content/);
     expect(rule('.user-profile-modal-kpi')).toMatch(/min-height:\s*96px/);
-    expect(rule('.user-profile-modal-spend')).toMatch(/min-height:\s*112px/);
+    expect(rule('.user-profile-modal-spend')).not.toMatch(/min-height/);
+    expect(rule('.user-profile-modal-spend-loading')).toMatch(/min-height:\s*36px/);
   });
 
   it('forbids seating, clipping, fixed content heights, and overlapping grid areas in the namespace', () => {
@@ -80,14 +81,20 @@ describe('the namespaced user profile cannot regress to overlapping layout', () 
     }
   });
 
-  it('keeps spend amount and attribution in separate columns and stacks them on narrow screens', () => {
-    expect(rule('.user-profile-modal-spend-rows > li')).toMatch(
-      /grid-template-columns:\s*minmax\(0,\s*1fr\)\s*minmax\(180px,\s*max-content\)\s*max-content/
-    );
-    const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
-    expect(narrow).toMatch(/\.user-profile-modal-spend-resource\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
-    expect(narrow).toMatch(/\.user-profile-modal-spend-amount\s*\{[^}]*grid-row:\s*2/);
-    expect(narrow).toMatch(/\.user-profile-modal-spend-attribution\s*\{[^}]*grid-row:\s*2/);
+  it('keeps profile spend to one compact total with no component matrix selectors', () => {
+    expect(rule('.user-profile-modal-spend-total')).toMatch(/grid-column:\s*1\s*\/\s*-1/);
+    for (const removed of [
+      'user-profile-modal-spend-rows',
+      'user-profile-modal-spend-columns',
+      'user-profile-modal-spend-resource',
+      'user-profile-modal-spend-amount',
+      'user-profile-modal-spend-attribution',
+      'user-profile-modal-spend-badges',
+      'user-profile-modal-spend-quality',
+    ]) {
+      expect(CSS).not.toContain(removed);
+      expect(RESPONSIVE).not.toContain(removed);
+    }
   });
 
   it('wraps long tables and grants without a clipping container', () => {

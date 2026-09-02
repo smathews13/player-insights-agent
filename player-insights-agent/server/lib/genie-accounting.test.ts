@@ -3,6 +3,7 @@ import {
   buildGenieAccountingStatement,
   classifyGenieAccounting,
   GENIE_FREE_SKU,
+  readGenieAppActivityRows,
   readGenieAccountingRows,
   type GenieAccountingRow,
 } from './genie-accounting';
@@ -51,6 +52,9 @@ describe('Genie billing classification', () => {
     expect(built?.statement).toContain("DATE_TRUNC('MONTH', :through_day)");
     expect(built?.statement).toContain("LEAST(:from_day, DATE_TRUNC('MONTH', :through_day))");
     expect(built?.statement).toContain('query_source.genie_space_id');
+    expect(built?.statement).toContain(':appGenieActivity');
+    expect(built?.statement).toContain("'app-ledger-exact'");
+    expect(built?.statement).toContain("'app-ledger-allocation'");
     expect(built?.statement).toContain('GROUP BY record_id');
     expect(built?.statement).toContain('allocation_weight');
     expect(built?.statement).toContain('LEFT JOIN system.billing.list_prices');
@@ -64,6 +68,62 @@ describe('Genie billing classification', () => {
         { name: 'genieSpace1', value: 'space-dictionary', type: 'STRING' },
       ])
     );
+  });
+
+  it('carries bounded user-day configured-space app activity into the allocation statement', () => {
+    const activity = readGenieAppActivityRows([
+      { usage_day: '2026-08-31', identity: 'Person@Example.Test', space_id: 'space-data', calls: '2' },
+      { usage_day: '', identity: 'bad', space_id: 'space-data', calls: '2' },
+    ]);
+    expect(activity).toEqual([
+      { usageDay: '2026-08-31', identity: 'person@example.test', spaceId: 'space-data', calls: 2 },
+    ]);
+    const built = buildGenieAccountingStatement(
+      'workspace-redacted',
+      { from: '2026-08-26', to: '2026-09-01' },
+      SPACES,
+      activity
+    );
+    expect(built?.parameters.find((parameter) => parameter.name === 'appGenieActivity')?.value).toContain(
+      '"space_id":"space-data"'
+    );
+  });
+
+  it('reconciles the established per-space charges and excludes a large unsupported workspace pool', () => {
+    const paid = (overrides: Partial<GenieAccountingRow>): GenieAccountingRow =>
+      row({
+        skuName: 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_REGION',
+        paidUsd: 0,
+        pricedRows: 1,
+        ...overrides,
+      });
+    const result = classifyGenieAccounting(
+      [
+        paid({
+          spaceId: 'space-data',
+          attributionMethod: 'app-ledger-exact',
+          dbus: 1.65,
+          paidUsd: 0.33,
+        }),
+        paid({
+          spaceId: 'space-dictionary',
+          attributionMethod: 'app-ledger-allocation',
+          dbus: 16.05,
+          paidUsd: 3.21,
+        }),
+        paid({ spaceId: '', attributionMethod: 'unattributed', dbus: 7_552, paidUsd: 1_510.4 }),
+      ],
+      '2026-09-01',
+      SPACES
+    );
+    expect(result.instances?.map((instance) => instance.paidUsd)).toEqual([0.33, 3.21]);
+    expect(result.instances?.reduce((total, instance) => total + (instance.paidUsd ?? 0), 0)).toBeCloseTo(3.54);
+    expect(result.reconciliation).toMatchObject({
+      directDbus: 1.65,
+      allocatedDbus: 16.05,
+      excludedDbus: 7_552,
+    });
+    expect(result.unattributed?.paidUsd).toBeCloseTo(1_510.4);
   });
 
   it('attributes exact and allocated rows once and keeps unmapped usage separate', () => {

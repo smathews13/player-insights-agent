@@ -86,6 +86,7 @@ import {
   USER_ACTIVE_MINUTES_QUERY,
   USER_MONITORING_ACTIVITY_QUERY,
   USER_SPEND_RUNS_QUERY,
+  userMonitoringEvidenceDiagnostics,
   userSpendDataRevision,
   userSpendCacheKey,
 } from '../lib/user-spend';
@@ -93,6 +94,7 @@ import { appSessionDeployment } from '../lib/app-session';
 import { seedRoles } from '../lib/admin-roles';
 import { effectiveRole, everyKnownUser, readRosterForRequest } from '../lib/user-roster';
 import { isRole, type Role } from '../../shared/user-roster-contract';
+import { USER_MONITORING_SCHEMA_REVISION } from '../../shared/user-monitoring-contract';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import { MAX_PERSONA_FILTER_LENGTH } from '../../shared/conversation-filters';
 import { attributableCostBudgets } from '../../shared/cost-budgets';
@@ -106,6 +108,7 @@ import {
 import {
   buildGenieAccountingStatement,
   classifyGenieAccounting,
+  readGenieAppActivityRows,
   readGenieAccountingRows,
 } from '../lib/genie-accounting';
 import {
@@ -1105,6 +1108,87 @@ export async function resourceActivityAttribution(
   }
 }
 
+/** User-day configured-space evidence from the app's own completed-run ledger. */
+export const GENIE_APP_ACTIVITY_QUERY = `
+  WITH completed AS (
+    SELECT (r.completed_at AT TIME ZONE 'UTC')::date AS usage_day,
+           lower(r.user_email) AS identity,
+           m.response_json->'trace' AS trace
+    FROM ${APP_SCHEMA}.runs r
+    JOIN ${APP_SCHEMA}.messages m ON m.id = r.terminal_message_id
+    WHERE r.completed_at >= $1::date
+      AND r.completed_at < ($2::date + INTERVAL '1 day')
+      AND r.state = 'SUCCEEDED'
+      AND jsonb_typeof(m.response_json->'trace') = 'object'
+  ),
+  configured(tool, space_id) AS (
+    VALUES ('data_genie', $3::text), ('dictionary_genie', $4::text)
+  ),
+  modern AS (
+    SELECT c.usage_day, c.identity, configured.space_id,
+           SUM(CASE WHEN COALESCE(resource->>'calls', '') ~ '^[0-9]+$'
+                    THEN (resource->>'calls')::bigint ELSE 0 END)::bigint AS calls
+    FROM completed c
+    CROSS JOIN LATERAL jsonb_array_elements(
+      CASE WHEN jsonb_typeof(c.trace->'resource_calls') = 'array'
+           THEN c.trace->'resource_calls' ELSE '[]'::jsonb END
+    ) resource
+    JOIN configured ON resource->>'tool' = configured.tool
+                   AND resource->>'id' = configured.space_id
+    WHERE configured.space_id <> ''
+    GROUP BY c.usage_day, c.identity, configured.space_id
+  ),
+  legacy AS (
+    SELECT c.usage_day, c.identity, configured.space_id, COUNT(*)::bigint AS calls
+    FROM completed c
+    JOIN configured ON configured.space_id <> ''
+    WHERE EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(
+        CASE WHEN jsonb_typeof(c.trace->'genie_spaces') = 'array'
+             THEN c.trace->'genie_spaces' ELSE '[]'::jsonb END
+      ) space
+      WHERE space->>'id' = configured.space_id
+    )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(
+          CASE WHEN jsonb_typeof(c.trace->'resource_calls') = 'array'
+               THEN c.trace->'resource_calls' ELSE '[]'::jsonb END
+        ) resource
+        WHERE resource->>'tool' = configured.tool
+          AND resource->>'id' = configured.space_id
+      )
+    GROUP BY c.usage_day, c.identity, configured.space_id
+  )
+  SELECT usage_day, identity, space_id, SUM(calls)::bigint AS calls
+  FROM (
+    SELECT * FROM modern
+    UNION ALL
+    SELECT * FROM legacy
+  ) evidence
+  GROUP BY usage_day, identity, space_id
+  ORDER BY usage_day, identity, space_id`;
+
+async function genieAppActivityAttribution(
+  appkit: InsightsAppKit,
+  ids: CostIdentifiers,
+  range: { from: string; to: string }
+) {
+  try {
+    const result = await appkit.lakebase.query(GENIE_APP_ACTIVITY_QUERY, [
+      range.from,
+      range.to,
+      ids.genieSpaces.find((space) => space.tileId === 'genie:data')?.id ?? '',
+      ids.genieSpaces.find((space) => space.tileId === 'genie:dictionary')?.id ?? '',
+    ]);
+    return readGenieAppActivityRows(result.rows);
+  } catch (error) {
+    console.warn(`[ops] Genie app activity could not be read: ${(error as Error).message}`);
+    return [];
+  }
+}
+
 export function questionRun(row: Record<string, unknown>): QuestionRunInput {
   const nullableNumber = (value: unknown): number | null => {
     const parsed = Number(text(value));
@@ -1340,6 +1424,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         userPersona,
         queryText(req, 'userCursor'),
         queryText(req, 'pageSize'),
+        USER_MONITORING_SCHEMA_REVISION,
         userSpendDataRevision(),
       ].join('|');
       if (userBrowse) {
@@ -1380,6 +1465,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       const [
         storedBudgets,
         resourceActivity,
+        genieAppActivity,
         userRunsRead,
         userActivityRead,
         interactionRead,
@@ -1389,6 +1475,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       ] = await Promise.all([
         readCostBudgets(appkit),
         resourceActivityAttribution(appkit, ids, range),
+        genieAppActivityAttribution(appkit, ids, range),
         appkit.lakebase
           .query(USER_SPEND_RUNS_QUERY, [activityRange.from, activityRange.to])
           .then((result) => ({ available: true as const, users: readUserRunSpendEvidence(result.rows), reason: '' }))
@@ -1419,11 +1506,15 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
                 appSessionDeployment() ?? '__unavailable__',
                 PLAN_APPROVAL_MESSAGE,
               ])
-              .then((result) => ({
-                available: true as const,
-                users: readUserInteractionEvidence(result.rows),
-                reason: '',
-              }))
+              .then((result) => {
+                const before = userMonitoringEvidenceDiagnostics().rejectedRows;
+                const users = readUserInteractionEvidence(result.rows);
+                const rejected = userMonitoringEvidenceDiagnostics().rejectedRows - before;
+                if (rejected > 0) {
+                  console.warn(`[ops] User Monitoring rejected ${rejected} activity rows without usable timestamps.`);
+                }
+                return { available: true as const, users, reason: '' };
+              })
               .catch((error: Error) => ({
                 available: false as const,
                 users: [],
@@ -1581,7 +1672,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       }
 
       try {
-        const genieStatement = buildGenieAccountingStatement(ids.workspaceId, range, ids.genieSpaces);
+        const genieStatement = buildGenieAccountingStatement(ids.workspaceId, range, ids.genieSpaces, genieAppActivity);
         const foundationStatement = interactiveComplete
           ? buildFoundationCostStatement(ids, range, questionRunsRead.runs)
           : null;
@@ -1785,17 +1876,21 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
                 const allowance = genieMonth.users.find(
                   (user) => user.identity.toLowerCase() === profile.email.toLowerCase()
                 );
+                const configured = (allowance?.instances ?? []).filter((instance) => Boolean(instance.spaceId));
+                const sum = (read: (instance: (typeof configured)[number]) => number) =>
+                  configured.reduce((total, instance) => total + read(instance), 0);
+                const usedDbus = sum((instance) => instance.allowanceUsedDbus);
                 return {
                   ...profile,
                   genieAllowance: allowance
                     ? {
                         month: genieMonth.month,
-                        usedDbus: allowance.allowanceUsedDbus,
-                        remainingDbus: allowance.allowanceRemainingDbus,
-                        promotionalDbus: allowance.promotionalDbus,
-                        unclassifiedFreeDbus: allowance.unknownDbus,
-                        chargedEffectiveDbus: allowance.chargedEffectiveDbus,
-                        chargedRawEquivalentDbus: allowance.chargedRawEquivalentDbus,
+                        usedDbus,
+                        remainingDbus: Math.max(0, genieMonth.allowanceDbusPerUser - usedDbus),
+                        promotionalDbus: sum((instance) => instance.promotionalDbus),
+                        unclassifiedFreeDbus: sum((instance) => instance.unknownDbus),
+                        chargedEffectiveDbus: sum((instance) => instance.chargedEffectiveDbus),
+                        chargedRawEquivalentDbus: sum((instance) => instance.chargedRawEquivalentDbus),
                       }
                     : null,
                 };

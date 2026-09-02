@@ -106,6 +106,11 @@ function foundation() {
       '1288343',
       '93394',
       '1381737',
+      '26',
+      '26',
+      '0',
+      '0',
+      '39',
     ],
   ]);
   return foundationCostTile(IDS, result);
@@ -148,6 +153,12 @@ describe('Aug 26–Sep 1 marginal Ask audit fixture', () => {
       label: 'Foundation model tokens',
       amount: 4.088699,
       quality: 'per-token',
+      attribution: 'deployment',
+      evidence: {
+        coverageComplete: true,
+        excludedRequests: 39,
+        ambiguousRequests: 0,
+      },
     });
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.amount).toBeCloseTo(ASK_SQL, 9);
     expect(ASK_SQL).toBeCloseTo(6.69, 2);
@@ -186,6 +197,51 @@ describe('Aug 26–Sep 1 marginal Ask audit fixture', () => {
       ['0', 'USD', '0', 'priced', '1', '0', '1', '0', '', '0', '0', '', '1', '0', '3', '0', '0', '0', '0'],
     ]);
     expect(foundationCostTile(IDS, zero)).toMatchObject({ amount: 0, dbus: 0, attribution: 'deployment' });
+  });
+
+  it('shows a measured lower bound when an eligible Ask lacks model evidence', () => {
+    const partialCoverage = readFoundationBillingRows([
+      [
+        '3.25',
+        'USD',
+        '4.5',
+        'priced',
+        '4.5',
+        '0',
+        '2',
+        '0',
+        '',
+        '0',
+        '0',
+        '2026-01-01T00:00:00Z',
+        '3',
+        '1',
+        '42',
+        '40',
+        '1000',
+        '200',
+        '1200',
+        '26',
+        '25',
+        '1',
+        '1',
+        '1',
+      ],
+    ]);
+    expect(foundationCostTile(IDS, partialCoverage)).toMatchObject({
+      amount: 3.25,
+      dbus: 4.5,
+      quality: 'estimate',
+      attribution: 'deployment',
+      unavailable: '',
+      note: 'Measured lower bound; 1 eligible Ask missing model evidence',
+      evidence: {
+        coverageComplete: false,
+        missingEligibleRequests: 1,
+        ambiguousRequests: 1,
+        excludedRequests: 1,
+      },
+    });
   });
 
   it('reconciles marginal serving, token, and Ask SQL to users exactly once', () => {
@@ -246,9 +302,17 @@ describe('foundation billing query contract', () => {
     const built = buildFoundationCostStatement(IDS, RANGE, runs());
     expect(built?.statement).toContain('system.serving.endpoint_usage');
     expect(built?.statement).toContain('system.billing.list_prices');
-    expect(built?.statement).toContain(
-      'request.request_id IN (run.run_id, run.request_id, run.correlation_id, run.trace_id)'
-    );
+    expect(built?.statement).toContain("request.request_class IN ('ask-exact', 'ask-bounded')");
+    expect(built?.statement).toContain("'known-excluded'");
+    expect(built?.statement).toContain("'ambiguous'");
+    expect(built?.statement).toContain('ask_weight / NULLIF(all_weight, 0)');
+    expect(built?.statement).not.toContain('COALESCE(all_weight, 0) = 0) > 0');
+    expect(built?.statement).toContain("LIKE '%OUTPUT%'");
+    expect(built?.statement).toContain("LIKE '%INPUT%'");
+    expect(built?.statement).toContain("record_type ILIKE '%CORRECT%'");
+    expect(built?.statement).toContain("REGEXP_REPLACE(LOWER(e.endpoint_name), '[^a-z0-9]', '')");
+    expect(built?.statement).toContain('GROUP BY record_id');
+    expect(built?.statement).toContain('MAX(usage_quantity) AS usage_quantity');
     expect(built?.statement).toContain('u.usage_metadata.endpoint_name <> :agentEndpoint');
     expect(built?.statement).not.toMatch(/input_tokens\s*\+\s*[2-9]\s*\*/);
     expect(built?.parameters.find((parameter) => parameter.name === 'interactive_runs_json')?.value).not.toContain(

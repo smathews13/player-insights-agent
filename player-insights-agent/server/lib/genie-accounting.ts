@@ -22,6 +22,13 @@ export interface ConfiguredGenieSpace {
   tileId: string;
 }
 
+export interface GenieAppActivity {
+  usageDay: string;
+  identity: string;
+  spaceId: string;
+  calls: number;
+}
+
 function uniqueConfiguredSpaces(spaces: readonly ConfiguredGenieSpace[]): ConfiguredGenieSpace[] {
   const unique = new Map<string, ConfiguredGenieSpace>();
   for (const space of spaces) {
@@ -44,7 +51,8 @@ function uniqueConfiguredSpaces(spaces: readonly ConfiguredGenieSpace[]): Config
 export function buildGenieAccountingStatement(
   workspaceId: string,
   range: CostRange,
-  configuredSpaces: readonly ConfiguredGenieSpace[] = []
+  configuredSpaces: readonly ConfiguredGenieSpace[] = [],
+  appActivity: readonly GenieAppActivity[] = []
 ): GenieAccountingStatement | null {
   if (!workspaceId.trim()) return null;
   const spaces = uniqueConfiguredSpaces(configuredSpaces);
@@ -64,6 +72,18 @@ export function buildGenieAccountingStatement(
       { name: 'workspaceId', value: workspaceId.trim(), type: 'STRING' },
       { name: 'from_day', value: range.from, type: 'DATE' },
       { name: 'through_day', value: range.to, type: 'DATE' },
+      {
+        name: 'appGenieActivity',
+        value: JSON.stringify(
+          appActivity.map((row) => ({
+            usage_day: row.usageDay,
+            identity: row.identity.trim().toLowerCase(),
+            space_id: row.spaceId.trim(),
+            calls: row.calls,
+          }))
+        ),
+        type: 'STRING',
+      },
       ...spaceParameters,
     ],
     statement: `WITH configured_spaces AS (
@@ -131,16 +151,55 @@ query_space_evidence AS (
     AND q.start_time < TIMESTAMP(DATE_ADD(:through_day, 1))
   GROUP BY CAST(q.start_time AS DATE), LOWER(TRIM(q.executed_by)), q.query_source.genie_space_id
 ),
+app_space_evidence AS (
+  SELECT
+    TO_DATE(activity.usage_day) AS usage_date,
+    LOWER(TRIM(activity.identity)) AS run_as,
+    activity.space_id,
+    SUM(activity.calls) AS app_calls
+  FROM (
+    SELECT EXPLODE(
+      FROM_JSON(
+        :appGenieActivity,
+        'ARRAY<STRUCT<usage_day:STRING,identity:STRING,space_id:STRING,calls:DOUBLE>>'
+      )
+    ) AS activity
+  )
+  INNER JOIN configured_spaces configured
+    ON activity.space_id = configured.space_id
+  WHERE activity.calls > 0
+    AND NULLIF(TRIM(activity.identity), '') IS NOT NULL
+  GROUP BY TO_DATE(activity.usage_day), LOWER(TRIM(activity.identity)), activity.space_id
+),
+space_evidence AS (
+  SELECT
+    usage_date,
+    run_as,
+    space_id,
+    SUM(query_count) AS query_count,
+    SUM(execution_ms) AS execution_ms,
+    SUM(app_calls) AS app_calls
+  FROM (
+    SELECT usage_date, run_as, space_id, query_count, execution_ms, CAST(0 AS DOUBLE) AS app_calls
+    FROM query_space_evidence
+    UNION ALL
+    SELECT usage_date, run_as, space_id, CAST(0 AS BIGINT), CAST(0 AS DOUBLE), app_calls
+    FROM app_space_evidence
+  )
+  GROUP BY usage_date, run_as, space_id
+),
 query_weights AS (
   SELECT
     *,
     CASE
       WHEN SUM(execution_ms) OVER (PARTITION BY usage_date, run_as) > 0
         THEN execution_ms / SUM(execution_ms) OVER (PARTITION BY usage_date, run_as)
-      ELSE query_count / SUM(query_count) OVER (PARTITION BY usage_date, run_as)
+      WHEN SUM(query_count) OVER (PARTITION BY usage_date, run_as) > 0
+        THEN query_count / SUM(query_count) OVER (PARTITION BY usage_date, run_as)
+      ELSE app_calls / SUM(app_calls) OVER (PARTITION BY usage_date, run_as)
     END AS allocation_weight,
     COUNT(*) OVER (PARTITION BY usage_date, run_as) AS matched_spaces
-  FROM query_space_evidence
+  FROM space_evidence
 ),
 allocated AS (
   SELECT
@@ -149,8 +208,10 @@ allocated AS (
     COALESCE(weights.allocation_weight, 1.0) AS allocation_weight,
     CASE
       WHEN weights.space_id IS NULL THEN 'unattributed'
-      WHEN weights.matched_spaces = 1 THEN 'query-history-exact'
-      ELSE 'query-history-allocation'
+      WHEN weights.matched_spaces = 1 AND weights.query_count > 0 THEN 'query-history-exact'
+      WHEN weights.matched_spaces = 1 THEN 'app-ledger-exact'
+      WHEN weights.query_count > 0 THEN 'query-history-allocation'
+      ELSE 'app-ledger-allocation'
     END AS attribution_method
   FROM deduped billing
   LEFT JOIN query_weights weights
@@ -258,7 +319,12 @@ export function readGenieAccountingRows(rows: unknown): GenieAccountingRow[] {
       offeringType: text(row.offering_type).toUpperCase(),
       skuName: text(row.sku_name),
       spaceId: text(row.space_id),
-      attributionMethod: ['query-history-exact', 'query-history-allocation'].includes(text(row.attribution_method))
+      attributionMethod: [
+        'query-history-exact',
+        'query-history-allocation',
+        'app-ledger-exact',
+        'app-ledger-allocation',
+      ].includes(text(row.attribution_method))
         ? (text(row.attribution_method) as GenieInstanceAccounting['attribution'])
         : 'unattributed',
       dbus,
@@ -271,6 +337,20 @@ export function readGenieAccountingRows(rows: unknown): GenieAccountingRow[] {
     });
   }
   return parsed;
+}
+
+export function readGenieAppActivityRows(rows: unknown): GenieAppActivity[] {
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((raw) => {
+    const row = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+    const usageDay = text(row.usage_day);
+    const identity = text(row.identity).toLowerCase();
+    const spaceId = text(row.space_id);
+    const calls = number(row.calls);
+    return usageDay && identity && spaceId && calls !== null && calls > 0
+      ? [{ usageDay, identity, spaceId, calls }]
+      : [];
+  });
 }
 
 interface MutableSlice {
@@ -313,7 +393,7 @@ function emptySlice(attribution: GenieInstanceAccounting['attribution']): Mutabl
 function sliceFor(map: Map<string, MutableSlice>, key: string, attribution: GenieInstanceAccounting['attribution']) {
   const existing = map.get(key);
   if (existing) {
-    if (attribution === 'query-history-allocation') existing.attribution = attribution;
+    if (attribution.endsWith('-allocation')) existing.attribution = attribution;
     return existing;
   }
   const created = emptySlice(attribution);
@@ -585,6 +665,12 @@ export function classifyGenieAccounting(
     : null;
   const attributedDbus = rows.filter((row) => configured.has(row.spaceId)).reduce((total, row) => total + row.dbus, 0);
   const unattributedDbus = sourceDbus - attributedDbus;
+  const directDbus = rows
+    .filter((row) => configured.has(row.spaceId) && row.attributionMethod.endsWith('-exact'))
+    .reduce((total, row) => total + row.dbus, 0);
+  const allocatedDbus = rows
+    .filter((row) => configured.has(row.spaceId) && row.attributionMethod.endsWith('-allocation'))
+    .reduce((total, row) => total + row.dbus, 0);
   const classifiedDbus = Math.max(0, allowanceUsed + overall.promotional + overall.chargedEffective + overall.unknown);
   const classificationDifference = sourceDbus - classifiedDbus;
   return {
@@ -612,6 +698,9 @@ export function classifyGenieAccounting(
       attributedDbus,
       unattributedDbus,
       attributedShare: sourceDbus > 0 ? attributedDbus / sourceDbus : 1,
+      directDbus,
+      allocatedDbus,
+      excludedDbus: unattributedDbus,
     },
     diagnostics: [...diagnostics],
     users: perUser,

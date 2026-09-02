@@ -72,32 +72,6 @@
   .monitoring-users-body {
     padding: 14px 16px 24px;
   }
-  .user-profile-modal-spend-heading {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .user-profile-modal-spend-badges {
-    justify-content: flex-start;
-  }
-  .user-profile-modal-spend-rows > li {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .user-profile-modal-spend-rows .user-profile-modal-spend-columns {
-    display: none;
-  }
-  .user-profile-modal-spend-resource {
-    grid-column: 1 / -1;
-    grid-row: 1;
-  }
-  .user-profile-modal-spend-amount {
-    grid-column: 1;
-    grid-row: 2;
-    text-align: left;
-  }
-  .user-profile-modal-spend-attribution {
-    grid-column: 2;
-    grid-row: 2;
-  }
   .user-profile-modal-question-table,
   .user-profile-modal-question-table tbody,
   .user-profile-modal-question-table tr,

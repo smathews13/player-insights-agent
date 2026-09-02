@@ -382,7 +382,7 @@ describe('an empty cost block', () => {
     expect(tiles.every((tile) => tile.unavailable === 'No billing rows')).toBe(true);
   });
 
-  it('shows only the reconciliation card when all measured Genie usage is unattributed', () => {
+  it('never exposes unmatched workspace Genie usage as a Cost card', () => {
     const accounting = {
       spaceId: '',
       label: 'Unattributed Genie',
@@ -412,7 +412,8 @@ describe('an empty cost block', () => {
       }),
       tile({ id: 'genie:unattributed', genieInstanceAccounting: accounting }),
     ]);
-    expect(displayed.map((item) => item.id)).toEqual(['genie:unattributed']);
+    expect(displayed.map((item) => item.id)).toEqual(['genie:data', 'genie:dictionary']);
+    expect(displayed.some((item) => item.id === 'genie:unattributed')).toBe(false);
   });
 });
 
@@ -674,9 +675,7 @@ describe('the mark on a cost tile', () => {
 
 describe('approx average cost per question', () => {
   it('divides attributed serving and SQL spend by completed questions', () => {
-    expect(QUESTION_COST_FORMULA).toBe(
-      'Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks'
-    );
+    expect(QUESTION_COST_FORMULA).toBe('Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks');
     expect(
       questionServingAverage(
         costPayload({

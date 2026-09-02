@@ -42,7 +42,6 @@ import { ChevronLeft, ChevronRight, ExternalLink, Search, Users, X } from 'lucid
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
-import { ExperimentalBadge } from './ExperimentalBadge';
 import { Disclosure, PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
 import { ageAgo, checkedAgoLine } from './refresh-state';
@@ -57,6 +56,7 @@ import {
   costAbsenceReplacesGrid,
   costTilesForDisplay,
   costTileWorkspaceObject,
+  genieCostCardViews,
   tileAttribution,
   count,
   errorFraming,
@@ -67,15 +67,14 @@ import {
   latencyRouteView,
   latencySharedFacts,
   p50BarWidths,
+  primaryCostCardViews,
   productForCostTile,
   productForProbe,
   QUESTION_COST_FORMULA,
-  questionServingAverage,
   splitMethod,
   telemetryNotice,
   WITHHELD,
   withheldReason,
-  tileView,
   trafficCaption,
   type Absence as AbsenceCopy,
   type HealthRow,
@@ -626,43 +625,41 @@ export function CostBody({
               <CostResourceBudgets tiles={budgetTiles} />
             </div>
             <div className="ops-cost-resources">
-              <div className="ops-tiles">
-                {displayed.map((tile) => {
-                  const view = tileView(tile, payload.currency, unit);
-                  const identifiers = [tile.resourceId, tile.secondaryResourceId].filter((value): value is string =>
-                    Boolean(value?.trim())
-                  );
-                  const title = identifiers.length > 0 ? `${view.label} · ${identifiers.join(' · ')}` : view.label;
-                  const product = productForCostTile(tile.id);
-                  const object = costTileWorkspaceObject(tile);
+              <div className="ops-tiles" data-testid="cost-primary-grid">
+                {primaryCostCardViews(payload, unit).map((card) => {
+                  const tile = displayed.find((item) => item.id === card.id);
+                  const product = productForCostTile(card.id);
+                  const object = tile ? costTileWorkspaceObject(tile) : null;
                   const href = object ? databricksLink(host, object) : null;
                   return (
-                    <div key={tile.id} className="ops-tile">
+                    <article key={card.id} className="ops-tile ops-primary-cost-card">
                       <div className="ops-tile-head">
-                        <ExperimentalBadge />
-                        <p className="ops-tile-label">
+                        <h4 className="ops-tile-label">
                           {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
-                          <CostTileTitle label={title} href={href} />
-                        </p>
+                          <span className="ops-tile-label-text">{card.title}</span>
+                        </h4>
+                        {card.status ? (
+                          <span
+                            className={astPill(
+                              card.status === 'Partial' ? 'warn' : 'neutral-outline',
+                              'ops-pill ops-cost-status'
+                            )}
+                          >
+                            {card.status}
+                          </span>
+                        ) : null}
                       </div>
-                      {view.figure ? (
-                        <p className="ops-tile-figure">
-                          <span className="ast-num">{view.figure}</span>
-                          {view.estimate || view.basisLabel ? (
-                            <span className="ops-tile-basis">
-                              {[view.estimate ? 'estimated' : '', view.basisLabel].filter(Boolean).join(' · ')}
-                            </span>
-                          ) : null}
-                        </p>
-                      ) : (
-                        <p className="ops-tile-absent">{view.absence}</p>
-                      )}
-                      <CostTileEvidence tile={tile} />
-                    </div>
+                      <p className="ops-tile-figure" title={card.detail || undefined}>
+                        <span className="ast-num">{card.amount}</span>
+                      </p>
+                      <p className="ops-tile-basis">{card.basis}</p>
+                      <p className="ops-tile-evidence">{card.evidence || '\u00a0'}</p>
+                      {card.resource ? <CostResourceLine label={card.resource} href={href} /> : null}
+                    </article>
                   );
                 })}
-                <QuestionCostAverage payload={payload} unit={unit} />
               </div>
+              <GenieCostSection payload={payload} host={host} />
             </div>
             {!replaceGrid && absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
             <CostMethodology payload={payload} />
@@ -673,137 +670,88 @@ export function CostBody({
   );
 }
 
-function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
-  if (tile.genieInstanceAccounting) {
-    const genie = tile.genieInstanceAccounting;
-    return (
-      <dl className="ops-genie-accounting" aria-label={`${tile.label} selected-period accounting`}>
-        <div>
-          <dt>Charged · selected period</dt>
-          <dd className="ast-num">{tile.dbus == null ? 'Unavailable' : `${tile.dbus.toFixed(2)} effective DBU`}</dd>
-        </div>
-        <div>
-          <dt>Allowance used</dt>
-          <dd className="ast-num">{genie.allowanceUsedDbus.toFixed(2)} DBU</dd>
-        </div>
-        <div>
-          <dt>Promotional</dt>
-          <dd className="ast-num">{genie.promotionalDbus.toFixed(2)} DBU</dd>
-        </div>
-        <div>
-          <dt>Underlying total</dt>
-          <dd className="ast-num">{genie.underlyingTotalDbus.toFixed(2)} DBU</dd>
-        </div>
-        {genie.unknownDbus > 0 ? (
-          <div>
-            <dt>Unclassified</dt>
-            <dd className="ast-num">{genie.unknownDbus.toFixed(2)} DBU</dd>
-          </div>
-        ) : null}
-      </dl>
-    );
-  }
-  const evidence = tile.evidence;
-  if (tile.id === 'foundation-model' && evidence?.tokens) {
-    const tokens = evidence.tokens;
-    return (
-      <p className="ops-tile-evidence">
-        {`${count(tokens.coveredRequests)} interactive ${tokens.coveredRequests === 1 ? 'request' : 'requests'} · ${count(
-          tokens.input
-        )} input · ${count(tokens.output)} output · ${count(tokens.total)} total tokens`}
-        {tokens.cachedRead !== undefined ? ` · ${count(tokens.cachedRead)} cached read` : ''}
-        {tokens.cacheWrite !== undefined ? ` · ${count(tokens.cacheWrite)} cache write` : ''}
-      </p>
-    );
-  }
-  if (tile.id === 'serving-endpoint') {
-    const requests = evidence?.interactiveRequests;
-    const covered = evidence?.coveredRequests;
-    const fact =
-      requests !== null && requests !== undefined
-        ? `${count(covered ?? 0)} of ${count(requests)} interactive requests have timing coverage`
-        : '';
-    return <p className="ops-tile-evidence">{fact || '\u00a0'}</p>;
-  }
-  if (tile.id === 'sql-warehouse') {
-    const queries = evidence?.astrolabeQueries;
-    const fact =
-      queries !== null && queries !== undefined
-        ? `${count(queries)} Ask-tagged ${queries === 1 ? 'query' : 'queries'} · ${
-            evidence?.queryHistoryComplete ? 'complete Query History' : 'partial Query History'
-          }`
-        : '';
-    return <p className="ops-tile-evidence">{fact || '\u00a0'}</p>;
-  }
-  const billingRows = evidence?.billingRows ?? 0;
-  const fact =
-    billingRows > 0
-      ? `${count(billingRows)} billing ${billingRows === 1 ? 'row' : 'rows'}`
-      : tile.note === 'No billable usage in this period'
-        ? tile.note
-        : '';
+function GenieCostSection({ payload, host }: { payload: OpsCostPayload; host: string }) {
+  const cards = genieCostCardViews(payload);
+  if (cards.length === 0) return null;
   return (
-    <p className="ops-tile-evidence" title={fact || undefined} aria-hidden={fact ? undefined : true}>
-      {fact || '\u00a0'}
-    </p>
+    <section className="ops-genie-section" aria-labelledby="ops-genie-cost-heading">
+      <h4 id="ops-genie-cost-heading">Genie</h4>
+      <div className="ops-genie-grid">
+        {cards.map((card) => {
+          const object = costTileWorkspaceObject(card.tile);
+          const href = object ? databricksLink(host, object) : null;
+          return (
+            <article key={card.id} className="ops-tile ops-genie-card">
+              <div className="ops-tile-head">
+                <h5 className="ops-tile-label">
+                  <BrandIcon product="genie" size={14} className="ops-tile-mark" />
+                  <span className="ops-tile-label-text">{card.title}</span>
+                </h5>
+                <span className={astPill('neutral-outline', 'ops-pill ops-cost-status')}>{card.attribution}</span>
+              </div>
+              <dl className="ops-genie-accounting" aria-label={`${card.title} selected-period accounting`}>
+                <div>
+                  <dt>Charged</dt>
+                  <dd className="ast-num" title={card.detail || undefined}>
+                    {card.charged}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Free usage</dt>
+                  <dd className="ast-num">{card.freeUsage}</dd>
+                </div>
+                <div className="ops-genie-free-split">
+                  <dt>Allowance used / Promotional</dt>
+                  <dd className="ast-num">
+                    {card.allowance} / {card.promotional}
+                  </dd>
+                </div>
+              </dl>
+              {card.resource ? <CostResourceLine label={card.resource} href={href} /> : null}
+            </article>
+          );
+        })}
+      </div>
+      <Disclosure summary="Genie accounting details" className="ops-genie-method">
+        <p>
+          Charged usage is matched to configured spaces by user-day evidence. Ambiguous app activity is allocated by
+          execution-time or call share; unsupported workspace usage is excluded.
+        </p>
+      </Disclosure>
+    </section>
   );
 }
 
 /**
- * Tile title: a Databricks link when one exists, plain text when it does not.
+ * A configured resource is separate from the concise card heading.
  *
  * Split so a test can render a real href. CostBody itself cannot: the workspace
  * host is read in an effect, and static markup never runs one.
  */
-export function CostTileTitle({ label, href }: { label: string; href: string | null }) {
+export function CostResourceLine({ label, href }: { label: string; href: string | null }) {
   if (!href) {
     return (
-      <span className="ops-tile-label-text" title={label}>
+      <span className="ops-cost-resource" title={label}>
         {label}
       </span>
     );
   }
   return (
     <a
-      className="ops-tile-label-link"
+      className="ops-cost-resource ops-tile-label-link"
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       title={`Open ${label} in Databricks`}
     >
-      <span className="ops-tile-label-text">{label}</span>
+      <span>{label}</span>
       <ExternalLink className="ops-tile-label-open" aria-hidden="true" />
     </a>
   );
 }
 
-function QuestionCostAverage({ payload, unit }: { payload: OpsCostPayload; unit: CostBudgetUnit }) {
-  const amount = questionServingAverage(payload, unit);
-  const reason = payload.perQuestion.reason || 'Attributed serving and SQL spend unavailable';
-
-  return (
-    <div className="ops-tile">
-      <div className="ops-tile-head">
-        <ExperimentalBadge />
-        <p className="ops-tile-label">
-          <span className="ops-tile-label-text" title="AVG. COST / QUESTION">
-            AVG. COST / QUESTION
-          </span>
-        </p>
-      </div>
-      {amount !== null ? (
-        <p className="ops-tile-figure">
-          <span className="ast-num">
-            {amount.toFixed(2)} {unit === 'DBU' ? 'DBU' : payload.currency}
-          </span>
-        </p>
-      ) : (
-        <p className="ops-tile-absent">{reason}</p>
-      )}
-      <p className="ops-tile-formula">{QUESTION_COST_FORMULA}</p>
-    </div>
-  );
-}
+/** Compatibility export for focused render tests; resource links no longer serve as card titles. */
+export const CostTileTitle = CostResourceLine;
 
 function CostMethodology({ payload }: { payload: OpsCostPayload }) {
   const calculated = payload.tiles.filter(
@@ -839,6 +787,7 @@ function CostMethodology({ payload }: { payload: OpsCostPayload }) {
           label: 'Total app spend',
           detail: 'Direct attributable components only; per-day rates are expanded over the selected Cost period.',
         },
+        { label: 'Average cost / question', detail: QUESTION_COST_FORMULA },
         ...calculated.map((tile) => ({ label: tile.label, detail: detailFor(tile) })),
       ],
     },

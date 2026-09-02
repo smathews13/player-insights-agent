@@ -1260,11 +1260,7 @@ function genieAccountingTiles(
   reason: string
 ): CostTile[] {
   if (!accounting) {
-    const spaces =
-      ids.genieSpaces.length > 0
-        ? ids.genieSpaces
-        : [{ id: '', label: 'Unattributed Genie', tileId: 'genie:unattributed' as const }];
-    return spaces.map((space) => ({
+    return ids.genieSpaces.map((space) => ({
       id: space.tileId,
       label: space.label,
       resourceId: space.id,
@@ -1283,7 +1279,7 @@ function genieAccountingTiles(
       genieInstanceAccounting: null,
     }));
   }
-  const { month, period } = accounting;
+  const { period } = accounting;
   if (!period.instances) {
     return genieAccountingTiles(ids, null, 'Legacy Genie billing has no per-space attribution evidence.');
   }
@@ -1302,11 +1298,7 @@ function genieAccountingTiles(
       resourceId: instance.spaceId,
       resourceKind: 'genie-space',
       quality:
-        instance.paidUsd === null
-          ? 'unknown'
-          : instance.attribution === 'query-history-allocation'
-            ? 'estimate'
-            : 'real',
+        instance.paidUsd === null ? 'unknown' : instance.attribution.endsWith('-allocation') ? 'estimate' : 'real',
       amount: instance.paidUsd,
       dbus: instance.chargedEffectiveDbus,
       basis: 'total-in-range',
@@ -1318,43 +1310,15 @@ function genieAccountingTiles(
           ? 'Charged Genie DBUs are measured, but USD is unavailable because pricing is incomplete.'
           : '',
       remedy: '',
-      note:
-        instance.attribution === 'query-history-allocation'
-          ? `Allocated by user-day Query History execution share · billing through ${period.throughDay || 'unavailable'}.`
-          : `Matched by user-day Query History to this configured space · billing through ${
-              period.throughDay || 'unavailable'
-            }.`,
+      note: instance.attribution.endsWith('-allocation')
+        ? `Allocated by user-day execution or app-call share · billing through ${period.throughDay || 'unavailable'}.`
+        : `Matched by user-day Query History or app-run evidence to this configured space · billing through ${
+            period.throughDay || 'unavailable'
+          }.`,
       evidence: { billingRows: null, astrolabeQueries: null },
       genieInstanceAccounting: instance,
     };
   });
-  if (period.unattributed && period.unattributed.underlyingTotalDbus > 0) {
-    const unattributed = period.unattributed;
-    tiles.push({
-      id: unattributed.tileId,
-      label: unattributed.label,
-      resourceId: '',
-      resourceKind: '',
-      quality: 'unknown',
-      amount: unattributed.paidUsd,
-      dbus: unattributed.chargedEffectiveDbus,
-      basis: 'total-in-range',
-      population: 'Unmapped workspace Genie usage',
-      attribution: 'unavailable',
-      pricing: {
-        ...EMPTY_PRICING,
-        match: unattributed.pricingState,
-        currency: unattributed.paidUsd === null ? '' : 'USD',
-      },
-      unavailable: 'No configured Genie space could be established for these billing rows.',
-      remedy: '',
-      note: `${((period.reconciliation?.attributedShare ?? 0) * 100).toFixed(
-        1
-      )}% of Genie DBUs mapped to configured spaces · billing through ${month.throughDay || 'unavailable'}.`,
-      evidence: { billingRows: null, astrolabeQueries: null },
-      genieInstanceAccounting: period.unattributed,
-    });
-  }
   return tiles;
 }
 

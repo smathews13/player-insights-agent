@@ -432,7 +432,7 @@ export function deriveForecastBaseline(
 
   const known = new Set(['serving-endpoint', 'foundation-model', 'sql-warehouse', 'app-compute', 'vector-search']);
   for (const tile of cost.tiles) {
-    if (known.has(tile.id)) continue;
+    if (known.has(tile.id) || tile.id === 'genie:unattributed') continue;
     const amount = dailyInWindow(tile, days, unit);
     if (amount !== null) {
       baseline.fixedDailyCosts.push({ id: tile.id, label: tile.label, amount });
@@ -534,11 +534,7 @@ export function calculateForecast(baseline: ForecastBaseline, assumptions: Forec
   );
   const projectedAmount = (component: ForecastComponent, days: number): number | null => {
     if (component.dailyAmount === null) return null;
-    if (
-      !component.id.startsWith('genie:') ||
-      component.id === 'genie:unattributed' ||
-      baseline.window.to > GENIE_PROMOTION_END
-    ) {
+    if (!component.id.startsWith('genie:') || baseline.window.to > GENIE_PROMOTION_END) {
       return component.dailyAmount * days;
     }
     const firstForecastDay = new Date(`${baseline.window.to}T00:00:00Z`);

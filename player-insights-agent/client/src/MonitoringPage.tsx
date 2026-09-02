@@ -127,9 +127,13 @@ import type {
   PersonPanelPayload,
 } from '../../shared/monitoring-contract';
 import type { OpsCostPayload } from '../../shared/ops-contract';
-import type { UserSpendProfile, UserSpendQuality } from '../../shared/user-spend-contract';
-import type { UserMonitoringPayload, UserMonitoringRow } from '../../shared/user-monitoring-contract';
+import {
+  USER_MONITORING_SCHEMA_REVISION,
+  type UserMonitoringPayload,
+  type UserMonitoringRow,
+} from '../../shared/user-monitoring-contract';
 import { ROLE_WORD, isRole } from '../../shared/user-roster-contract';
+import { decodeUserMonitoringCostPayload } from './user-monitoring-payload';
 import { UsedThisRun } from './UsedThisRun';
 import { Dialog } from './Dialog';
 
@@ -1140,210 +1144,48 @@ export function TablesReadMost({ rows }: { rows: PersonPanelPayload['tablesReadM
   );
 }
 
-const SPEND_QUALITY: Record<UserSpendQuality, { label: string; tone: AstPillFamily; description: string }> = {
-  direct: { label: 'Direct', tone: 'pos', description: 'A platform usage row explicitly named this OAuth user.' },
-  joined: {
-    label: 'Joined',
-    tone: 'info',
-    description: 'Measured spend joined to a durable request or run owned by this user.',
-  },
-  allocated: {
-    label: 'Allocated',
-    tone: 'warn',
-    description: 'Shared measured spend apportioned by recorded usage. This is not an individual invoice.',
-  },
-  unattributed: {
-    label: 'Unattributed',
-    tone: 'neutral-outline',
-    description: 'Measured app spend that cannot safely be assigned to a person.',
-  },
-  unavailable: {
-    label: 'Unavailable',
-    tone: 'neutral-outline',
-    description: 'The source, identity, or price coverage needed for this figure is unavailable.',
-  },
-  partial: {
-    label: 'Partial',
-    tone: 'warn',
-    description: 'Some attributable spend is shown, but at least one measured component is incomplete.',
-  },
-};
-
-function spendFigure(amount: number | null, unit: 'USD' | 'DBU', currency = 'USD'): string {
-  if (amount === null || !Number.isFinite(amount)) return 'Unavailable';
+function spendFigure(amount: number, unit: 'USD' | 'DBU', currency = 'USD'): string {
   return unit === 'DBU'
     ? `${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DBU`
     : `${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || 'USD'}`;
 }
 
-function SpendQualityBadge({ quality }: { quality: UserSpendQuality }) {
-  const reading = SPEND_QUALITY[quality];
-  return (
-    <span className={astPill(reading.tone, 'user-profile-modal-spend-quality')} title={reading.description}>
-      {reading.label}
-    </span>
-  );
-}
-
 export function PersonSpend({
   email,
   state,
+  unit,
   refreshing = false,
 }: {
   email: string;
   state: PanelLoadState<OpsCostPayload>;
+  unit: 'USD' | 'DBU';
   refreshing?: boolean;
 }) {
   if (state.status === 'loading' || state.status === 'idle') {
     return (
-      <section className="user-profile-modal-spend" aria-labelledby="user-profile-spend-title" aria-busy="true">
-        <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
-          Spend
-        </h4>
-        <div role="status" className="user-profile-modal-spend-loading">
-          <ConceptFlicker seat="inline" />
-          <span>Loading attributable spend</span>
-        </div>
-      </section>
+      <div role="status" className="user-profile-modal-spend-loading" aria-busy="true">
+        Loading user spend
+      </div>
     );
   }
-  if (state.status === 'error') {
-    return (
-      <section className="user-profile-modal-spend" aria-labelledby="user-profile-spend-title">
-        <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
-          Spend
-        </h4>
-        <p className="user-profile-modal-state">Unavailable. {state.error}</p>
-      </section>
-    );
-  }
+  if (state.status === 'error') return null;
   const spend = state.data.spendByUser;
   const profile = spend?.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase()) ?? null;
-  if (!spend || !profile) {
-    return (
-      <section className="user-profile-modal-spend" aria-labelledby="user-profile-spend-title">
-        <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
-          Spend
-        </h4>
-        <p className="user-profile-modal-state">
-          {spend?.state === 'unavailable' ? 'Unavailable.' : 'Not attributable in this period.'}
-          {spend?.reason ? ` ${spend.reason}` : ''}
-        </p>
-      </section>
-    );
-  }
-  return <SpendProfile profile={profile} payload={state.data} refreshing={refreshing} />;
-}
-
-function profileCoverage(profile: UserSpendProfile): UserSpendQuality {
-  const readings = [profile.total.usd, profile.total.dbu];
-  const measured = readings.filter((reading) => reading.amount !== null);
-  if (measured.length === 0) return 'unavailable';
-  if (measured.length !== readings.length || measured.some((reading) => reading.quality === 'partial'))
-    return 'partial';
-  if (measured.some((reading) => reading.quality === 'allocated')) return 'allocated';
-  if (measured.some((reading) => reading.quality === 'joined')) return 'joined';
-  return 'direct';
-}
-
-function SpendProfile({
-  profile,
-  payload,
-  refreshing,
-}: {
-  profile: UserSpendProfile;
-  payload: OpsCostPayload;
-  refreshing: boolean;
-}) {
-  const spend = payload.spendByUser!;
-  const visible = profile.components.filter(
-    (component) => component.usd.amount !== null || component.dbu.amount !== null || component.reason
-  );
-  const allUnavailable =
-    visible.length > 0 && visible.every((component) => component.usd.amount === null && component.dbu.amount === null);
-  if (allUnavailable) {
-    return (
-      <section className="user-profile-modal-spend" aria-labelledby="user-profile-spend-title">
-        <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
-          Spend
-        </h4>
-        <p className="user-profile-modal-state">
-          Unavailable for {spend.range.from} to {spend.range.to}. {spend.reason}
-        </p>
-      </section>
-    );
-  }
+  const reading = unit === 'USD' ? profile?.total.usd : profile?.total.dbu;
+  if (reading?.amount === null || reading?.amount === undefined || !Number.isFinite(reading.amount)) return null;
+  const estimated = reading.quality === 'allocated' || reading.quality === 'partial';
   return (
     <section
       className="user-profile-modal-spend"
       aria-labelledby="user-profile-spend-title"
       aria-busy={refreshing || undefined}
     >
-      <div className="user-profile-modal-spend-heading">
-        <div>
-          <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
-            Spend
-          </h4>
-          <p className="user-profile-modal-spend-total ast-num">
-            {spendFigure(profile.total.usd.amount, 'USD', payload.currency)}
-            <span>{spendFigure(profile.total.dbu.amount, 'DBU')}</span>
-          </p>
-        </div>
-        <div className="user-profile-modal-spend-badges" aria-label="Attribution coverage">
-          <SpendQualityBadge quality={profileCoverage(profile)} />
-          {refreshing ? <span className="user-profile-modal-refreshing">Refreshing…</span> : null}
-        </div>
-      </div>
-      <p className="user-profile-modal-note">
-        Attributable for {spend.range.from} to {spend.range.to}. Allocated figures apportion shared measured cost and
-        are not an individual invoice.
-      </p>
-      {profile.genieAllowance ? (
-        <p className="user-profile-modal-note">
-          Genie {profile.genieAllowance.month}: {profile.genieAllowance.usedDbus.toFixed(2)} DBU allowance used ·{' '}
-          {profile.genieAllowance.remainingDbus.toFixed(2)} remaining ·{' '}
-          {profile.genieAllowance.promotionalDbus.toFixed(2)} promotional ·{' '}
-          {profile.genieAllowance.unclassifiedFreeDbus > 0
-            ? `${profile.genieAllowance.unclassifiedFreeDbus.toFixed(2)} unclassified free · `
-            : ''}
-          {profile.genieAllowance.chargedEffectiveDbus.toFixed(2)} charged
-        </p>
-      ) : null}
-      <ul className="user-profile-modal-spend-rows">
-        <li className="user-profile-modal-spend-columns" aria-hidden="true">
-          <span>Resource</span>
-          <span>Amount</span>
-          <span>Attribution</span>
-        </li>
-        {visible.map((component) => {
-          const quality =
-            component.usd.amount !== null
-              ? component.usd.quality
-              : component.dbu.amount !== null
-                ? component.dbu.quality
-                : 'unavailable';
-          return (
-            <li key={component.id}>
-              <span className="user-profile-modal-spend-resource">
-                {component.label}
-                {component.reason ? <small title={component.reason}>{component.reason}</small> : null}
-              </span>
-              <span className="user-profile-modal-spend-amount ast-num">
-                {component.usd.amount === null && component.dbu.amount === null
-                  ? 'Unavailable'
-                  : `${spendFigure(component.usd.amount, 'USD', payload.currency)} · ${spendFigure(component.dbu.amount, 'DBU')}`}
-              </span>
-              <span className="user-profile-modal-spend-attribution">
-                {quality === 'unavailable' ? (
-                  <span aria-hidden="true">·</span>
-                ) : (
-                  <SpendQualityBadge quality={quality} />
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
+        User spend
+      </h4>
+      <p className="user-profile-modal-spend-total ast-num">{spendFigure(reading.amount, unit, state.data.currency)}</p>
+      {estimated ? <span className="user-profile-modal-spend-estimated">Estimated</span> : null}
+      {refreshing ? <span className="user-profile-modal-refreshing">Refreshing…</span> : null}
     </section>
   );
 }
@@ -1402,6 +1244,7 @@ function ProfileQuestionHistory({
 export function PersonPanel({
   panel,
   spendState = idlePanel<OpsCostPayload>(),
+  spendUnit = 'USD',
   spendRefreshing = false,
   now,
   rangeLabel,
@@ -1414,6 +1257,7 @@ export function PersonPanel({
 }: {
   panel: PersonPanelPayload;
   spendState?: PanelLoadState<OpsCostPayload>;
+  spendUnit?: 'USD' | 'DBU';
   spendRefreshing?: boolean;
   now: number;
   /**
@@ -1472,7 +1316,7 @@ export function PersonPanel({
         </Button>
       </header>
       <div className="user-profile-modal-body">
-        <PersonSpend email={panel.email} state={spendState} refreshing={spendRefreshing} />
+        <PersonSpend email={panel.email} state={spendState} unit={spendUnit} refreshing={spendRefreshing} />
         <section className="user-profile-modal-asked" aria-labelledby="user-profile-asked-title">
           <h4 id="user-profile-asked-title" className="user-profile-modal-section-title">
             What they asked <span className="user-profile-modal-range">{rangeLabel}</span>
@@ -1584,6 +1428,7 @@ export function PersonPanel({
 export function PersonPanelShell({
   state,
   spendState = idlePanel<OpsCostPayload>(),
+  spendUnit = 'USD',
   spendRefreshing = false,
   email,
   now,
@@ -1598,6 +1443,7 @@ export function PersonPanelShell({
 }: {
   state: PanelLoadState<PersonPanelPayload>;
   spendState?: PanelLoadState<OpsCostPayload>;
+  spendUnit?: 'USD' | 'DBU';
   spendRefreshing?: boolean;
   email: string;
   now: number;
@@ -1615,6 +1461,7 @@ export function PersonPanelShell({
       <PersonPanel
         panel={state.data}
         spendState={spendState}
+        spendUnit={spendUnit}
         spendRefreshing={spendRefreshing}
         now={now}
         rangeLabel={rangeLabel}
@@ -1677,7 +1524,7 @@ export function PersonPanelShell({
 
 function userSpendFigure(row: UserMonitoringRow, unit: 'USD' | 'DBU'): string {
   const reading = unit === 'USD' ? row.spend.usd : row.spend.dbu;
-  if (reading.amount === null) return 'Unavailable';
+  if (reading.amount === null) return '–';
   return unit === 'USD'
     ? `$${reading.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : `${reading.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DBU`;
@@ -1864,7 +1711,7 @@ export function UserMonitoringPanel({
                   </span>
                   <span>
                     <span className="monitoring-users-mobile-label">Activity</span>
-                    {row.lastActive ? whenLabel(row.lastActive, now) : 'Not recorded'}
+                    {whenLabel(row.lastActive, now)}
                   </span>
                   <span className="ast-num">
                     <span className="monitoring-users-mobile-label">Questions / runs</span>
@@ -2121,7 +1968,17 @@ function cachePanel(key: string, data: unknown): void {
   }
 }
 
-function usePanelRequest<T>(key: string, url: string, errorMessage: string, cacheScope = 'session') {
+function decodePanelData<T>(value: unknown): T {
+  return value as T;
+}
+
+function usePanelRequest<T>(
+  key: string,
+  url: string,
+  errorMessage: string,
+  cacheScope = 'session',
+  decode: (value: unknown) => T = decodePanelData
+) {
   const [state, setState] = useState<PanelLoadState<T>>(() => idlePanel<T>());
   const [attempt, setAttempt] = useState(0);
   const [refreshingKey, setRefreshingKey] = useState('');
@@ -2135,7 +1992,14 @@ function usePanelRequest<T>(key: string, url: string, errorMessage: string, cach
     const controller = new AbortController();
     const requestId = ++panelRequestSequence;
     const cached = panelCache.get(scopedKey);
-    const retained = cached && cached.expiresAt > Date.now() ? (cached.data as T) : null;
+    let retained: T | null = null;
+    if (cached && cached.expiresAt > Date.now()) {
+      try {
+        retained = decode(cached.data);
+      } catch {
+        panelCache.delete(scopedKey);
+      }
+    }
     if (cached && !retained) panelCache.delete(scopedKey);
     setState(
       retained ? { status: 'ready', key, requestId, data: retained, error: null } : beginPanelLoad<T>(key, requestId)
@@ -2149,7 +2013,7 @@ function usePanelRequest<T>(key: string, url: string, errorMessage: string, cach
     void fetch(url, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(response.status === 403 ? 'forbidden' : `http_${response.status}`);
-        return (await response.json()) as T;
+        return decode(await response.json());
       })
       .then((data) => {
         cachePanel(scopedKey, data);
@@ -2166,7 +2030,7 @@ function usePanelRequest<T>(key: string, url: string, errorMessage: string, cach
       .finally(() => setRefreshingKey((current) => (current === key ? '' : current)));
 
     return () => controller.abort();
-  }, [attempt, errorMessage, key, scopedKey, url]);
+  }, [attempt, decode, errorMessage, key, scopedKey, url]);
 
   // Effects start after render. Mask a completed prior key synchronously so a
   // URL/range change cannot paint old-range data under the new range label for
@@ -2305,13 +2169,14 @@ export function MonitoringPage() {
   if (userBrowser.cursor) userBrowserParams.set('userCursor', userBrowser.cursor);
   const userBrowserKey =
     userBrowser.open && !drawer.person
-      ? `users|${window_.from}|${window_.to}|${userBrowser.unit}|${userBrowser.search}|${userBrowser.role}|${userBrowser.persona}|${userBrowser.cursor}|25`
+      ? `users|v${USER_MONITORING_SCHEMA_REVISION}|${window_.from}|${window_.to}|${userBrowser.unit}|${userBrowser.search}|${userBrowser.role}|${userBrowser.persona}|${userBrowser.cursor}|25`
       : '';
   const userBrowserRequest = usePanelRequest<OpsCostPayload>(
     userBrowserKey,
     userBrowserKey ? `/api/ops/cost?${userBrowserParams.toString()}` : '',
     'User Monitoring could not be loaded.',
-    cacheScope
+    cacheScope,
+    decodeUserMonitoringCostPayload
   );
 
   /**
@@ -2451,6 +2316,7 @@ export function MonitoringPage() {
         <PersonPanelShell
           state={personRequest.state}
           spendState={personSpendRequest.state}
+          spendUnit={userBrowser.unit}
           spendRefreshing={personSpendRequest.refreshing}
           email={drawer.person}
           now={now}

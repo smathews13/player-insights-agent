@@ -3,6 +3,8 @@ import type { OpsDayRange } from './ops-contract';
 import type { Role } from './user-roster-contract';
 import type { UserSpendAmount, UserSpendQuality, UserSpendReconciliation } from './user-spend-contract';
 
+export const USER_MONITORING_SCHEMA_REVISION = 2;
+
 export interface UserMonitoringRow {
   email: string;
   role: Role;
@@ -19,6 +21,7 @@ export interface UserMonitoringRow {
 }
 
 export interface UserMonitoringPayload {
+  schemaRevision: typeof USER_MONITORING_SCHEMA_REVISION;
   readAt: string;
   range: OpsDayRange;
   unit: CostBudgetUnit;
@@ -28,6 +31,7 @@ export interface UserMonitoringPayload {
   personas: Array<{ id: string; name: string; count: number }>;
   dataRevision: number;
   pagination: {
+    total: number;
     pageSize: number;
     hasMore: boolean;
     nextCursor: string | null;

@@ -27,6 +27,7 @@ export function appCostSummary(
   const days = completeDays(payload);
   const included = payload.tiles.filter(
     (tile) =>
+      tile.id !== 'genie:unattributed' &&
       deploymentAttribution(tile) &&
       (unit === 'DBU'
         ? typeof tile.dbus === 'number' && Number.isFinite(tile.dbus)
@@ -42,6 +43,7 @@ export function appCostSummary(
   );
   const activeMissing = payload.tiles.some(
     (tile) =>
+      tile.id !== 'genie:unattributed' &&
       Boolean(tile.resourceId.trim()) &&
       (tile.attribution !== 'deployment' ||
         (unit === 'DBU'

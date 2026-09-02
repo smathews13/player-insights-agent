@@ -1225,6 +1225,7 @@ describe('the User Monitoring browser', () => {
   const noop = () => {};
   const payload = {
     userMonitoring: {
+      schemaRevision: 2,
       readAt: '2026-08-15T12:00:00Z',
       range: { from: '2026-08-09', to: '2026-08-15' },
       unit: 'USD',
@@ -1260,7 +1261,7 @@ describe('the User Monitoring browser', () => {
           coverage: 'unavailable',
         },
       ],
-      pagination: { pageSize: 25, hasMore: false, nextCursor: null },
+      pagination: { total: 2, pageSize: 25, hasMore: false, nextCursor: null },
       reconciliation: {
         usd: { unit: 'USD', appTotal: 8.5, users: 8.5, unattributed: 0, difference: 0 },
         dbu: { unit: 'DBU', appTotal: 3.25, users: 3.25, unattributed: 0, difference: 0 },
@@ -1294,7 +1295,8 @@ describe('the User Monitoring browser', () => {
     expect(visible).toContain('$8.50');
     expect(visible).toContain('Admin');
     expect(visible).toContain('Analyst');
-    expect(visible.match(/Unavailable/g)?.length).toBe(1);
+    expect(visible).toContain('–');
+    expect(visible).not.toContain('Unavailable');
     expect(markup).not.toMatch(/>\s*Coverage\s*</);
     expect(markup).not.toContain('Attribution coverage');
     expect(visible).not.toContain('Allocated');
@@ -1417,8 +1419,8 @@ describe('the per-user panel', () => {
     expect(markup).not.toContain('class="monitoring-drawer"');
   });
 
-  it('shows compact USD and DBU spend with attribution quality', () => {
-    const cost = {
+  it('shows only the selected attributable total and no component accounting detail', () => {
+    const cost: OpsCostPayload = {
       state: 'ready',
       grant: null,
       reason: '',
@@ -1504,7 +1506,7 @@ describe('the per-user panel', () => {
           dbu: { unit: 'DBU', appTotal: 6.25, users: 6.25, unattributed: 0, difference: 0 },
         },
       },
-    } satisfies OpsCostPayload;
+    };
     const markup = render(
       <PersonPanel
         panel={panel()}
@@ -1517,16 +1519,70 @@ describe('the per-user panel', () => {
     );
     const rendered = text(markup);
 
-    expect(rendered).toContain('Spend 12.50 USD 6.25 DBU');
-    expect(rendered).toContain('Serving endpoint 12.50 USD · 6.25 DBU Allocated');
-    expect(rendered).toContain('App compute Active-minute coverage is incomplete. Unavailable');
-    expect(rendered).toContain('Data Genie · sales-space');
-    expect(rendered).toContain('Dictionary Genie · dictionary-space');
-    expect(rendered).toContain('not an individual invoice');
+    expect(rendered).toContain('User spend 12.50 USD Estimated');
+    expect(rendered).not.toContain('6.25 DBU');
+    for (const banned of [
+      'Resource',
+      'Amount',
+      'Attribution',
+      'Serving endpoint',
+      'App compute',
+      'Data Genie',
+      'Dictionary Genie',
+      'Unavailable',
+      'not an individual invoice',
+    ]) {
+      expect(rendered).not.toContain(banned);
+    }
     expect(markup.indexOf('user-profile-modal-spend')).toBeLessThan(markup.indexOf('What they asked'));
     expect(markup.indexOf('What they asked')).toBeLessThan(markup.indexOf('user-profile-modal-kpi-grid'));
-    expect(markup.match(/user-profile-modal-spend-resource/g)).toHaveLength(6);
+    expect(markup).not.toContain('user-profile-modal-spend-resource');
     expect(new Set(markup.match(/id="[^"]+"/g)).size).toBe(markup.match(/id="[^"]+"/g)?.length);
+
+    const dbu = text(
+      render(
+        <PersonPanel
+          panel={panel()}
+          spendState={{ status: 'ready', key: 'spend', requestId: 1, data: cost, error: null }}
+          spendUnit="DBU"
+          now={NOW}
+          rangeLabel="last 7 days"
+          onClose={() => {}}
+          onOpenQuestion={() => {}}
+        />
+      )
+    );
+    expect(dbu).toContain('User spend 6.25 DBU Estimated');
+    expect(dbu).not.toContain('12.50 USD');
+
+    const noSpend: OpsCostPayload = structuredClone(cost);
+    const noSpendProfile = noSpend.spendByUser!.users[0];
+    noSpendProfile.total.usd = { amount: null, quality: 'unavailable' };
+    const hidden = render(
+      <PersonPanel
+        panel={panel()}
+        spendState={{ status: 'ready', key: 'spend', requestId: 1, data: noSpend, error: null }}
+        now={NOW}
+        rangeLabel="last 7 days"
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+      />
+    );
+    expect(hidden).not.toContain('user-profile-modal-spend"');
+    expect(hidden.indexOf('What they asked')).toBeLessThan(hidden.indexOf('user-profile-modal-kpi-grid'));
+
+    const loading = render(
+      <PersonPanel
+        panel={panel()}
+        spendState={beginPanelLoad<OpsCostPayload>('spend', 1)}
+        now={NOW}
+        rangeLabel="last 7 days"
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+      />
+    );
+    expect(text(loading)).toContain('Loading user spend');
+    expect(loading).not.toContain('skeleton');
   });
 
   it('mounts person status and retry states before data arrives', () => {

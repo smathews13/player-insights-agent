@@ -179,8 +179,8 @@ function cost(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
     readAt: '2026-08-15T12:00:00Z',
     tiles: [
       {
-        id: 'endpoint',
-        label: 'Agent endpoint',
+        id: 'serving-endpoint',
+        label: 'Agent serving',
         resourceId: '',
         quality: 'per-token',
         amount: 1.5,
@@ -191,8 +191,8 @@ function cost(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
         note: '',
       },
       {
-        id: 'index-endpoint',
-        label: 'Vector search endpoint',
+        id: 'vector-search',
+        label: 'Vector Search',
         resourceId: '',
         quality: 'rate',
         amount: 4,
@@ -808,7 +808,7 @@ describe('the cost block', () => {
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect(markup).toContain('>estimated<');
+    expect(markup).toContain('>Estimate<');
     expect(markup).not.toContain('Per token');
   });
 
@@ -1005,8 +1005,8 @@ describe('the cost block', () => {
         },
       ],
     });
-    const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('Resource identifier unavailable');
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    expect(markup).toContain('title="Resource identifier unavailable"');
     expect(markup).not.toContain('Not attributable');
     expect(markup).not.toContain('Set DATABRICKS_SERVING_ENDPOINT_NAME.');
     expect(markup).not.toMatch(/cannot be told apart/);
@@ -1015,7 +1015,7 @@ describe('the cost block', () => {
 
   it('shows only the high-level attributed-cost formula', () => {
     const markup = render(<CostBody block={block(cost())} />);
-    expect(markup).toContain('AVG. COST / QUESTION');
+    expect(markup).toContain('Average cost / question');
     expect(markup).toContain('Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks');
     expect(markup).not.toContain('Average model serving per question');
     expect(markup).not.toContain('token-apportions model-serving spend only');
@@ -1150,12 +1150,13 @@ describe('the cost block', () => {
     expect(markup).toContain('Genie');
     expect(markup).toContain('Vector search');
     expect(markup).toContain('App compute');
-    expect(markup).toContain('AVG. COST / QUESTION');
+    expect(markup).toContain('Average cost / question');
     expect(markup).not.toContain('Index rebuild job');
     expect(markup).toContain('No billing rows');
     expect(markup).toContain('No billing rows matched an exact tracked resource');
     expect(markup).not.toContain('system_billing');
-    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(8);
+    expect((markup.match(/ops-primary-cost-card/g) ?? []).length).toBe(6);
+    expect((markup.match(/ops-genie-card/g) ?? []).length).toBe(2);
   });
 
   it('draws one box per connected Genie space and Vector Search when billing is empty', () => {
@@ -1222,7 +1223,8 @@ describe('the cost block', () => {
     expect(markup).not.toContain('identifier unavailable');
     expect(markup).toContain('No billing rows');
     expect(markup).not.toContain('Index rebuild');
-    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(7);
+    expect((markup.match(/ops-primary-cost-card/g) ?? []).length).toBe(6);
+    expect((markup.match(/ops-genie-card/g) ?? []).length).toBe(2);
   });
 
   it('removes the narrative qualifiers from the cost band', () => {
@@ -1232,13 +1234,13 @@ describe('the cost block', () => {
     expect(markup).not.toContain('At list price');
   });
 
-  it('marks every cost tile and the average as experimental', () => {
+  it('does not repeat the section experimental status on any Cost card', () => {
     const payload = cost();
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect([...markup.matchAll(/experimental-pane-badge/g)]).toHaveLength(payload.tiles.length + 1);
+    expect([...markup.matchAll(/experimental-pane-badge/g)]).toHaveLength(0);
     const heads = markup.match(/<div class="ops-tile-head">[\s\S]*?<\/div>/g) ?? [];
-    expect(heads).toHaveLength(payload.tiles.length + 1);
-    expect(heads.every((head) => head.indexOf('experimental-pane-badge') < head.indexOf('ops-tile-label'))).toBe(true);
+    expect(heads).toHaveLength(6);
+    expect(heads.every((head) => !head.includes('experimental-pane-badge'))).toBe(true);
   });
 
   /**
@@ -1255,7 +1257,7 @@ describe('the cost block', () => {
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect([...markup.matchAll(/ops-tile-mark/g)]).toHaveLength(2);
+    expect([...markup.matchAll(/ops-tile-mark/g)]).toHaveLength(5);
     expect(markup).toContain('--brand-icon-size:14px');
   });
 
@@ -1319,15 +1321,18 @@ describe('the cost block', () => {
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
     const visible = text(markup);
-    expect(visible).toContain('Serving endpoint · astrolabe-agent');
-    expect(visible).toContain('Data Genie · space-data');
-    expect(visible).toContain('Dictionary Genie · space-dictionary');
-    expect(visible).toContain('Vector search · catalog.schema.index · vs-endpoint');
-    expect(visible).toContain('Genie LLM dollars unavailable');
-    expect(visible).toContain('Vector Search dollars unavailable');
+    expect(visible).toContain('Agent serving 1.50 USD');
+    expect(visible).toContain('Data Genie Unavailable');
+    expect(visible).toContain('space-data');
+    expect(visible).toContain('Dictionary Genie Unavailable');
+    expect(visible).toContain('space-dictionary');
+    expect(visible).toContain('Vector Search Unavailable');
+    expect(visible).toContain('catalog.schema.index · vs-endpoint');
+    expect(markup).toContain('title="Genie LLM dollars unavailable"');
+    expect(markup).toContain('title="Vector Search dollars unavailable"');
     expect(visible).not.toMatch(/Astrolabe (?:requests|queries)/);
     expect(visible).not.toContain('carry resource identity');
-    expect(visible).not.toContain('Foundation model');
+    expect(visible).toContain('Foundation model tokens');
     expect(visible).not.toContain('withheld');
   });
 
@@ -1347,9 +1352,10 @@ describe('the cost block', () => {
         activity: { calls: 1, observedCalls: 1, unit: 'queries' as const },
       },
     };
-    const visible = text(markupOf(<CostBody block={block(cost({ tiles: [tile] }))} />));
+    const markup = markupOf(<CostBody block={block(cost({ tiles: [tile] }))} />);
+    const visible = text(markup);
 
-    expect(visible).toContain('Vector Search dollars unavailable');
+    expect(markup).toContain('title="Vector Search dollars unavailable"');
     expect(visible).not.toContain('Astrolabe query');
   });
 
@@ -1376,8 +1382,9 @@ describe('the cost block', () => {
       ],
     });
     const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('2.50 USD estimated');
-    expect(markup).toContain('2 Ask-tagged queries');
+    expect(markup).toContain('2.50 USD');
+    expect(markup).toContain('Estimate');
+    expect(markup).toContain('2 Ask queries · complete history');
     expect(markup).not.toMatch(/Astrolabe quer|warehouse quer/);
     expect(markup).not.toMatch(/ops-tile-evidence[^>]*>warehouse-1/);
     expect(markup).not.toContain('This must not render');
@@ -1405,8 +1412,8 @@ describe('the cost block', () => {
   it('sits the average in the same tile grid as the resource cards', () => {
     const markup = markupOf(<CostBody block={block(cost())} />);
     expect(markup).not.toContain('ops-question-average');
-    const tiles = markup.match(/class="ops-tile"/g) ?? [];
-    expect(tiles.length).toBe(cost().tiles.length + 1);
+    const tiles = markup.match(/ops-primary-cost-card/g) ?? [];
+    expect(tiles.length).toBe(6);
     expect(markup).not.toContain('Total app cost');
   });
 
@@ -1420,8 +1427,8 @@ describe('the cost block', () => {
         },
       ],
     });
-    const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('Nothing in billing named this endpoint.');
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    expect(markup).toContain('title="Nothing in billing named this endpoint."');
     expect(markup).not.toContain('0.00');
   });
 
@@ -1673,8 +1680,8 @@ describe('the cost block', () => {
         },
       ],
     });
-    const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('Partial list-price coverage; spend withheld');
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    expect(markup).toContain('title="Partial list-price coverage; spend withheld. Unpriced SKUs: NEW_SKU"');
     expect(markup).toContain('Budget');
     expect(markup).toContain('No monthly run-rate baseline');
     expect(markup).not.toContain('Over budget');
@@ -1704,7 +1711,7 @@ describe('the cost block', () => {
     expect(markup).not.toContain('Over budget');
   });
 
-  it('renders charged, allowance, promotion, and identifiers on each Genie card', () => {
+  it('renders charged, free usage, attribution, and identifiers on each Genie card', () => {
     const genieAccounting = (spaceId: string, label: string, tileId: string) => ({
       spaceId,
       label,
@@ -1764,10 +1771,175 @@ describe('the cost block', () => {
     expect(markup).toContain('Dictionary Genie');
     expect(markup).toContain('space-data');
     expect(markup).toContain('space-dictionary');
-    expect(markup).toContain('Charged · selected period 5.00 effective DBU');
-    expect(markup).toContain('Allowance used 12.00 DBU');
-    expect(markup).toContain('Promotional 3.00 DBU');
-    expect(markup).toContain('Underlying total 18.75 DBU');
+    expect(markup).toContain('Charged 2.00 USD · 5.00 effective DBU');
+    expect(markup).toContain('Free usage 15.00 DBU');
+    expect(markup).toContain('Allowance used / Promotional 12.00 DBU / 3.00 DBU');
+    expect(markup).not.toContain('Underlying total');
+  });
+
+  it('renders the production Cost hierarchy without exposing unmatched workspace Genie spend', () => {
+    const pricing = {
+      source: 'list_prices' as const,
+      match: 'priced' as const,
+      currency: 'USD',
+      pricedQuantity: 1,
+      unpricedQuantity: 0,
+      pricedRows: 1,
+      unpricedRows: 0,
+      unpricedSkus: [],
+      duplicateMatches: 0,
+      correctionRows: 0,
+      priceEffectiveAt: '2026-08-01',
+    };
+    const primary = [
+      {
+        ...cost().tiles[0],
+        id: 'serving-endpoint',
+        label: 'Agent serving · agent-serving-production-identifier',
+        resourceId: 'agent-serving-production-identifier',
+        quality: 'estimate' as const,
+        amount: 0.13,
+        dbus: 0.65,
+        attribution: 'deployment' as const,
+        pricing,
+        evidence: { billingRows: null, astrolabeQueries: null, interactiveRequests: 216, coveredRequests: 216 },
+      },
+      {
+        ...cost().tiles[0],
+        id: 'foundation-model',
+        label: 'Foundation model tokens · foundation-endpoint-id',
+        resourceId: 'foundation-endpoint-id',
+        quality: 'estimate' as const,
+        amount: 0.42,
+        dbus: 2.1,
+        attribution: 'deployment' as const,
+        pricing,
+        evidence: {
+          billingRows: null,
+          astrolabeQueries: null,
+          coverageComplete: false,
+          missingEligibleRequests: 39,
+          tokens: { input: 1_246_768, output: 18_232, total: 1_265_000, requests: 177, coveredRequests: 177 },
+        },
+      },
+      {
+        ...cost().tiles[0],
+        id: 'sql-warehouse',
+        label: 'Ask SQL · warehouse-id',
+        resourceId: 'warehouse-id',
+        quality: 'estimate' as const,
+        amount: 6.04,
+        dbus: 30.2,
+        attribution: 'deployment' as const,
+        pricing,
+        evidence: { billingRows: null, astrolabeQueries: 88, queryHistoryComplete: true },
+      },
+      {
+        ...cost().tiles[0],
+        id: 'vector-search',
+        label: 'Vector Search · catalog.schema.index',
+        resourceId: 'catalog.schema.index',
+        quality: 'rate' as const,
+        amount: 6.68,
+        dbus: 33.4,
+        basis: 'per-day' as const,
+        attribution: 'deployment' as const,
+        pricing,
+      },
+      {
+        ...cost().tiles[0],
+        id: 'app-compute',
+        label: 'App compute · player-insights-production-app',
+        resourceId: 'player-insights-production-app',
+        quality: 'rate' as const,
+        amount: 11.12,
+        dbus: 55.6,
+        basis: 'per-day' as const,
+        attribution: 'deployment' as const,
+        pricing,
+      },
+    ];
+    const genie = (
+      id: 'genie:data' | 'genie:dictionary',
+      title: string,
+      spaceId: string,
+      amount: number,
+      dbus: number,
+      attribution: 'app-ledger-exact' | 'app-ledger-allocation'
+    ) => ({
+      ...cost().tiles[0],
+      id,
+      label: `${title} · ${spaceId}`,
+      resourceId: spaceId,
+      resourceKind: 'genie-space' as const,
+      quality: attribution.endsWith('allocation') ? ('estimate' as const) : ('real' as const),
+      amount,
+      dbus,
+      attribution: 'deployment' as const,
+      pricing,
+      genieInstanceAccounting: {
+        spaceId,
+        label: title,
+        tileId: id,
+        attribution,
+        sourceDbus: dbus + 30,
+        allowanceUsedDbus: 12,
+        promotionalDbus: 18,
+        chargedEffectiveDbus: dbus,
+        chargedRawEquivalentDbus: dbus * 0.75,
+        unknownDbus: 0,
+        paidUsd: amount,
+        underlyingTotalDbus: 30 + dbus * 0.75,
+        pricingState: 'priced' as const,
+        surfaces: [],
+      },
+    });
+    const unmatched = {
+      ...genie('genie:data', 'Unattributed Genie', '', 1_510.4, 7_552, 'app-ledger-allocation'),
+      id: 'genie:unattributed',
+      resourceId: '',
+      attribution: 'unavailable' as const,
+    };
+    const payload = cost({
+      tiles: [
+        ...primary,
+        genie('genie:data', 'Data Genie', 'space-data-production-id', 0.33, 1.65, 'app-ledger-exact'),
+        genie(
+          'genie:dictionary',
+          'Dictionary Genie',
+          'space-dictionary-production-id',
+          3.21,
+          16.05,
+          'app-ledger-allocation'
+        ),
+        unmatched,
+      ],
+      perQuestion: {
+        runs: [],
+        runsInRange: 216,
+        tokenCoveredRuns: 177,
+        totalRecordedTokens: 1_265_000,
+        complete: true,
+        limited: false,
+        reason: '',
+      },
+    });
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    const primaryGrid = markup.slice(markup.indexOf('cost-primary-grid'), markup.indexOf('ops-genie-section'));
+    expect((primaryGrid.match(/ops-primary-cost-card/g) ?? []).length).toBe(6);
+    expect((markup.match(/ops-genie-card/g) ?? []).length).toBe(2);
+    expect(markup).toContain('Data Genie');
+    expect(markup).toContain('0.33 USD · 1.65 effective DBU');
+    expect(markup).toContain('Dictionary Genie');
+    expect(markup).toContain('3.21 USD · 16.05 effective DBU');
+    expect(markup).toContain('177 of 216 Ask model calls');
+    expect(markup).toContain('Average cost / question');
+    expect(markup).toContain('Partial');
+    expect(markup).not.toContain('Unattributed Genie');
+    expect(markup).not.toContain('7,552');
+    expect(primaryGrid).not.toContain('production-identifier</span></h4>');
+    expect(primaryGrid).not.toContain('Experimental');
+    expect(markup).not.toContain('Foundation-model request or price coverage is partial; spend is withheld.');
   });
 
   it('removes mapped coverage explanations from the simplified product tile', () => {

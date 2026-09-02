@@ -11,7 +11,11 @@ import type {
   UserSpendQuality,
 } from '../../shared/user-spend-contract';
 import type { Role } from '../../shared/user-roster-contract';
-import type { UserMonitoringPayload, UserMonitoringRow } from '../../shared/user-monitoring-contract';
+import {
+  USER_MONITORING_SCHEMA_REVISION,
+  type UserMonitoringPayload,
+  type UserMonitoringRow,
+} from '../../shared/user-monitoring-contract';
 
 const DAY_MS = 86_400_000;
 const MAX_USER_SPEND_DAYS = 90;
@@ -19,6 +23,7 @@ const ALLOCATION_SCALE = 1_000_000;
 const USER_SPEND_CACHE_MS = 30_000;
 
 let spendDataRevision = 0;
+let rejectedUserMonitoringEvidence = 0;
 const spendCache = new Map<string, { expiresAt: number; payload: SpendByUserPayload }>();
 
 export function invalidateUserSpendCache(): void {
@@ -28,6 +33,10 @@ export function invalidateUserSpendCache(): void {
 
 export function userSpendDataRevision(): number {
   return spendDataRevision;
+}
+
+export function userMonitoringEvidenceDiagnostics(): { rejectedRows: number } {
+  return { rejectedRows: rejectedUserMonitoringEvidence };
 }
 
 export function userSpendCacheKey(principal: string, range: OpsDayRange): string {
@@ -230,6 +239,11 @@ export const USER_MONITORING_ACTIVITY_QUERY = `
     WHERE s.deployment_key = $3
       AND s.created_at >= $1::date
       AND s.created_at < ($2::date + INTERVAL '1 day')
+    UNION ALL
+    SELECT lower(a.user_email), a.user_email || ':' || a.active_minute::text, 'activity', a.active_minute
+    FROM ${APP_ACTIVITY_TABLE} a
+    WHERE a.active_minute >= ($1::date::timestamp AT TIME ZONE 'UTC')
+      AND a.active_minute < (($2::date + 1)::timestamp AT TIME ZONE 'UTC')
   )
   SELECT user_email,
          COUNT(DISTINCT evidence_id) FILTER (WHERE kind = 'question')::int AS questions,
@@ -297,9 +311,17 @@ export function readUserInteractionEvidence(rows: readonly Record<string, unknow
   const users = new Map<string, UserInteractionEvidence>();
   for (const row of rows) {
     const email = text(row.user_email).toLowerCase();
-    if (!email) continue;
     const firstActive = row.first_active instanceof Date ? row.first_active.toISOString() : text(row.first_active);
     const lastActive = row.last_active instanceof Date ? row.last_active.toISOString() : text(row.last_active);
+    if (
+      !email ||
+      !email.includes('@') ||
+      !Number.isFinite(Date.parse(firstActive)) ||
+      !Number.isFinite(Date.parse(lastActive))
+    ) {
+      rejectedUserMonitoringEvidence += 1;
+      continue;
+    }
     const existing = users.get(email);
     const lastTimes = [existing?.lastActive ?? '', lastActive].filter(Boolean).sort();
     users.set(email, {
@@ -698,24 +720,31 @@ export function buildUserMonitoringPage(input: {
   pageSize?: number;
 }): UserMonitoringPayload {
   const profiles = new Map(input.spend.users.map((profile) => [profile.email.toLowerCase(), profile]));
-  const runs = new Map(input.runs.map((row) => [row.email.toLowerCase(), row]));
-  const activity = new Map(input.activity.map((row) => [row.email.toLowerCase(), row]));
   const interactions = new Map((input.interactions ?? []).map((row) => [row.email.toLowerCase(), row]));
-  const emails = new Set<string>([...profiles.keys(), ...runs.keys(), ...activity.keys(), ...interactions.keys()]);
+  const rangeStart = Date.parse(`${input.spend.range.from}T00:00:00Z`);
+  const rangeEnd = Date.parse(`${input.spend.range.to}T23:59:59.999Z`);
+  const emails = [...interactions]
+    .filter(([, interaction]) => {
+      const lastActive = Date.parse(interaction.lastActive);
+      const qualifies =
+        Number.isFinite(lastActive) &&
+        Number.isFinite(rangeStart) &&
+        Number.isFinite(rangeEnd) &&
+        lastActive >= rangeStart &&
+        lastActive <= rangeEnd;
+      if (!qualifies) rejectedUserMonitoringEvidence += 1;
+      return qualifies;
+    })
+    .map(([email]) => email);
   const search = (input.search ?? '').trim().toLowerCase().slice(0, 120);
 
   const unavailable: UserSpendAmount = { amount: null, quality: 'unavailable' };
-  const authorizedRows: UserMonitoringRow[] = [...emails]
+  const authorizedRows: UserMonitoringRow[] = emails
     .filter((email) => email.includes('@'))
     .map((email) => {
       const profile = profiles.get(email);
-      const run = runs.get(email);
-      const active = activity.get(email);
       const interaction = interactions.get(email);
-      const activeTimes = [interaction?.lastActive ?? '', run?.lastActive ?? '', active?.lastActive ?? '']
-        .filter(Boolean)
-        .sort();
-      const lastActive = activeTimes[activeTimes.length - 1] ?? '';
+      const lastActive = interaction?.lastActive ?? '';
       const usd = profile?.total.usd ?? unavailable;
       const dbu = profile?.total.dbu ?? unavailable;
       return {
@@ -723,8 +752,8 @@ export function buildUserMonitoringPage(input: {
         role: input.roles.get(email) ?? 'consumer',
         persona: input.personas?.get(email) ?? null,
         lastActive,
-        questions: interaction?.questions ?? run?.totalRuns ?? 0,
-        runs: interaction?.runs ?? run?.totalRuns ?? 0,
+        questions: interaction?.questions ?? 0,
+        runs: interaction?.runs ?? 0,
         spend: { usd, dbu },
         coverage: (input.unit === 'USD' ? usd : dbu).quality,
       };
@@ -754,6 +783,7 @@ export function buildUserMonitoringPage(input: {
   const lastReading = last ? (input.unit === 'USD' ? last.spend.usd : last.spend.dbu) : null;
 
   return {
+    schemaRevision: USER_MONITORING_SCHEMA_REVISION,
     readAt: input.spend.readAt,
     range: input.spend.range,
     unit: input.unit,
@@ -765,6 +795,7 @@ export function buildUserMonitoringPage(input: {
       .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)),
     dataRevision: userSpendDataRevision(),
     pagination: {
+      total: rows.length,
       pageSize,
       hasMore: eligible.length > users.length,
       nextCursor:
