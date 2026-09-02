@@ -183,7 +183,7 @@ describe('SQL presentation on stored trace surfaces', () => {
     } as unknown as MonitoringDetail;
     const markup = renderToStaticMarkup(
       <MemoryRouter>
-        <QuestionDrawer detail={detail} onClose={() => {}} onOpenPerson={() => {}} />
+        <QuestionDrawer detail={detail} onClose={() => {}} canOpenUser />
       </MemoryRouter>
     );
     expect(markup).toContain('class="answer-card');

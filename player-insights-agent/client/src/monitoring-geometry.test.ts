@@ -81,8 +81,16 @@ describe('the namespaced user profile cannot regress to overlapping layout', () 
     }
   });
 
-  it('keeps profile spend to one compact total with no component matrix selectors', () => {
-    expect(rule('.user-profile-modal-spend-total')).toMatch(/grid-column:\s*1\s*\/\s*-1/);
+  it('keeps profile spend to aggregate KPIs with no component matrix selectors', () => {
+    expect(rule('.user-profile-modal-spend-kpis')).toMatch(
+      /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/
+    );
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*?\.user-profile-modal-spend-kpis\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+    );
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 480px\)[\s\S]*?\.user-profile-modal-spend-kpis\s*\{[^}]*minmax\(0,\s*1fr\)/
+    );
     for (const removed of [
       'user-profile-modal-spend-rows',
       'user-profile-modal-spend-columns',
@@ -115,7 +123,11 @@ describe('the namespaced user profile cannot regress to overlapping layout', () 
 describe('Monitoring details open as centered modals, not side drawers', () => {
   it('keeps the unique profile and browser overlays centered with viewport margins', () => {
     expect(CSS).toMatch(/\.user-profile-modal-overlay,[\s\S]*?position:\s*fixed/);
+    expect(CSS).toMatch(/\.user-profile-modal-overlay,[\s\S]*?inset:\s*0/);
+    expect(CSS).toMatch(/\.user-profile-modal-overlay,[\s\S]*?z-index:\s*1000/);
     expect(CSS).toMatch(/\.user-profile-modal-overlay,[\s\S]*?place-items:\s*center/);
+    expect(CSS).toMatch(/max-height:\s*min\(calc\(100dvh - 40px\),\s*920px\)/);
+    expect(CSS).not.toMatch(/\.user-profile-modal-overlay,[\s\S]*?top:\s*var\(--app-header-h\)/);
     const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
     expect(narrow).toMatch(/\.user-profile-modal-overlay,[\s\S]*?padding:\s*12px/);
     expect(narrow).toMatch(/\.user-profile-modal,[\s\S]*?width:\s*calc\(100vw - 24px\)/);

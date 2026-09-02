@@ -222,7 +222,7 @@
 }
 .trace-gantt table {
   width: 100%;
-  min-width: 560px;
+  min-width: 650px;
   border-collapse: collapse;
   font-size: var(--text-sm);
 }
@@ -288,6 +288,16 @@
 /* The column the whole panel is about, so it is mono and tabular: read down, the
    digits line up and a run of durations can be compared without reading them. */
 .trace-gantt tbody .trace-duration {
+  font-family: var(--font-mono);
+  color: var(--db-ink);
+}
+.trace-gantt .trace-tokens {
+  width: 88px;
+  min-width: 78px;
+  padding-left: 10px;
+  white-space: nowrap;
+}
+.trace-gantt tbody .trace-tokens {
   font-family: var(--font-mono);
   color: var(--db-ink);
 }
@@ -588,6 +598,15 @@
   font-size: var(--text-sm);
   font-weight: 700;
 }
+.trace-kind-kpis .trace-token-kpi {
+  gap: 6px;
+  border-color: var(--ast-blue);
+}
+.trace-token-kpi > span,
+.trace-token-kpi > small {
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
 /*
  * A step that did not finish cleanly must not read as one that did. Hatched
  * rather than merely recoloured, so it is distinguishable without relying on
@@ -628,6 +647,11 @@
 }
 .trace-detail-content {
   min-width: 0;
+}
+.trace-event-tokens {
+  padding-bottom: 8px;
+  margin-bottom: 8px !important;
+  border-bottom: 1px solid var(--ast-hairline);
 }
 .trace-detail dl {
   display: grid;

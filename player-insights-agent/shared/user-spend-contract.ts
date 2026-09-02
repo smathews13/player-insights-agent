@@ -16,12 +16,31 @@ export interface UserSpendComponent {
   reason: string;
 }
 
+export interface UserSpendKpi {
+  value: number | null;
+  state: 'value' | 'new' | 'unavailable';
+  subtitle: string;
+}
+
+export interface UserSpendMetrics {
+  unit: CostBudgetUnit;
+  questions: number;
+  coveredDays: number;
+  costPerQuestion: UserSpendKpi;
+  averageDaily: UserSpendKpi;
+  appShare: UserSpendKpi;
+  weekOverWeek: UserSpendKpi;
+  monthOverMonth: UserSpendKpi;
+  comparisonFreshness: string;
+}
+
 export interface UserSpendProfile {
   email: string;
   total: {
     usd: UserSpendAmount;
     dbu: UserSpendAmount;
   };
+  metrics?: UserSpendMetrics;
   components: UserSpendComponent[];
   /** Human-only calendar-month Genie allowance and promotion figures. */
   genieAllowance?: {
@@ -44,6 +63,7 @@ export interface UserSpendReconciliation {
 }
 
 export interface SpendByUserPayload {
+  dataRevision: number;
   readAt: string;
   requestedRange: OpsDayRange;
   range: OpsDayRange;

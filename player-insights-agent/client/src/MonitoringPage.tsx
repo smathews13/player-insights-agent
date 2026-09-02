@@ -31,13 +31,13 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useOutletContext, useSearchParams } from 'react-router';
-import { ArrowLeft, ChevronRight, Search, ThumbsDown, ThumbsUp, Users, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Search, ThumbsDown, ThumbsUp, Users, WalletCards, X } from 'lucide-react';
 import { astPill, type AstPillFamily } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
 import { Button, Input, Skeleton } from './ui';
 import { AppSelect } from './AppSelect';
 import { ConceptFlicker } from './ConceptFlicker';
-import type { AppOutletContext } from './role';
+import { showsAdminSurfaces, type AppOutletContext } from './role';
 import { PageHeading } from './page-chrome';
 import { RefreshControl } from './RefreshControl';
 import { UnavailablePanel } from './UnavailablePanel';
@@ -48,7 +48,8 @@ import { SourceEntityName, VisitInDatabricks } from './DataEntityLinks';
 import { UserIdentityChip } from './UserIdentityChip';
 import { UserDrilldownLink } from './UserDrilldownLink';
 import { UnitSegmentedControl } from './UnitSegmentedControl';
-import { identityName, possessiveName } from './user-identity';
+import { RoleBadgePill } from './RoleBadge';
+import { identityName } from './user-identity';
 import type { Answer, FeedbackEntry } from './app-types';
 import {
   answerTimeTile,
@@ -127,13 +128,22 @@ import type {
   PersonPanelPayload,
 } from '../../shared/monitoring-contract';
 import type { OpsCostPayload } from '../../shared/ops-contract';
+import type { UserSpendKpi } from '../../shared/user-spend-contract';
 import {
   USER_MONITORING_SCHEMA_REVISION,
   type UserMonitoringPayload,
   type UserMonitoringRow,
 } from '../../shared/user-monitoring-contract';
-import { ROLE_WORD, isRole } from '../../shared/user-roster-contract';
+import { ROLE_WORD, isRole, type Role } from '../../shared/user-roster-contract';
 import { decodeUserMonitoringCostPayload } from './user-monitoring-payload';
+import {
+  cacheUserSpendTotal,
+  cachedUserSpendTotal,
+  requestUserSpendTotal,
+  userSpendTotalBaseKey,
+  type CachedUserSpendTotal,
+  type UserSpendTotalCoordinates,
+} from './user-spend-total-cache';
 import { UsedThisRun } from './UsedThisRun';
 import { Dialog } from './Dialog';
 
@@ -913,11 +923,11 @@ function tokensNote(tokens: MonitoringDetail['tokens']) {
 export function QuestionDrawer({
   detail,
   onClose,
-  onOpenPerson,
+  canOpenUser,
 }: {
   detail: MonitoringDetail;
   onClose: () => void;
-  onOpenPerson: (email: string) => void;
+  canOpenUser: boolean;
 }) {
   const answer = detail.conditioning ? null : answerFrom(detail.answer);
 
@@ -950,9 +960,11 @@ export function QuestionDrawer({
       {/* Asked-by is a compact corner chip on the answer card, the same
             register as "Live agent response". It stays here only when there is
             no card: a conditioned or failed run still has to name who asked.
+            It is identity context rather than a second link to the same profile;
+            the one user-overview control sits in the onward-actions row below.
             The timestamp and grants stay a caption, not a second washed bar. */}
       <div className="monitoring-drawer-meta-row">
-        {!answer ? <UserDrilldownLink identity={detail.askedBy} label="Asked by" compact canOpen /> : null}
+        {!answer ? <UserIdentityChip identity={detail.askedBy} label="Asked by" compact /> : null}
         <p className="monitoring-drawer-meta">
           {[askedAtLabel(detail.askedAt), askerGrantsLine(detail.execution, identityName(detail.askedBy))]
             .filter((segment): segment is string => Boolean(segment))
@@ -973,16 +985,13 @@ export function QuestionDrawer({
           </a>
         ) : null}
         {detail.runId ? <Link to={`/runs?run=${encodeURIComponent(detail.runId)}`}>Open in Run Explorer</Link> : null}
-        {/* Named, not "this person". The row already says who asked, and a
-              reader following the link is going to that person's panel -- so the
-              link says whose. The fallback is the old wording, for the run that
-              recorded no identity: `identityName` would hand us "Unknown" and
-              "see Unknown's activity" names nobody. */}
-        <button type="button" className="monitoring-linklike" onClick={() => onOpenPerson(detail.askedBy)}>
-          {detail.askedBy?.trim()
-            ? `see ${possessiveName(identityName(detail.askedBy))} activity`
-            : "see this person's activity"}
-        </button>
+        {/* The shared identity chip is the whole control: one accessible name,
+              no nested button, and no possessive activity sentence. It writes the
+              canonical `who` URL as a normal router entry, so Back restores this
+              question and its filters. Unknown/system actors stay plain content,
+              and the explicit gate keeps the same chip non-interactive when the
+              reader cannot open User Monitoring. */}
+        <UserDrilldownLink identity={detail.askedBy} compact canOpen={canOpenUser} />
       </div>
 
       {detail.conditioning ? (
@@ -1001,7 +1010,7 @@ export function QuestionDrawer({
           saveFeedback={async () => {}}
           showFeedback={false}
           afterEvidence={tokensNote(detail.tokens)}
-          headerExtra={<UserDrilldownLink identity={detail.askedBy} label="Asked by" compact canOpen />}
+          headerExtra={<UserIdentityChip identity={detail.askedBy} label="Asked by" compact />}
         />
       ) : (
         /* A refusal or a failure: the taxonomy's own sentence, with the code in
@@ -1037,17 +1046,17 @@ export function QuestionPanel({
   state,
   title,
   onClose,
-  onOpenPerson,
+  canOpenUser,
   onRetry,
 }: {
   state: PanelLoadState<MonitoringDetail>;
   title: string;
   onClose: () => void;
-  onOpenPerson: (email: string) => void;
+  canOpenUser: boolean;
   onRetry: () => void;
 }) {
   if (state.status === 'ready') {
-    return <QuestionDrawer detail={state.data} onClose={onClose} onOpenPerson={onOpenPerson} />;
+    return <QuestionDrawer detail={state.data} onClose={onClose} canOpenUser={canOpenUser} />;
   }
   return (
     <Dialog
@@ -1150,6 +1159,58 @@ function spendFigure(amount: number, unit: 'USD' | 'DBU', currency = 'USD'): str
     : `${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || 'USD'}`;
 }
 
+function spendMetricFigure(
+  metric: UserSpendKpi,
+  kind: 'spend' | 'percent' | 'growth',
+  unit: 'USD' | 'DBU',
+  currency: string
+): string {
+  if (metric.state === 'new') return 'New';
+  if (metric.value === null) return '–';
+  if (kind === 'growth') {
+    const sign = metric.value > 0 ? '+' : '';
+    return `${sign}${metric.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+  }
+  if (kind === 'percent') return `${metric.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+  return spendFigure(metric.value, unit, currency);
+}
+
+function SpendMetric({
+  label,
+  metric,
+  kind,
+  unit,
+  currency,
+}: {
+  label: string;
+  metric: UserSpendKpi;
+  kind: 'spend' | 'percent' | 'growth';
+  unit: 'USD' | 'DBU';
+  currency: string;
+}) {
+  const direction =
+    kind === 'growth' && metric.state === 'value' && metric.value !== null
+      ? metric.value > 0
+        ? 'positive'
+        : metric.value < 0
+          ? 'negative'
+          : 'flat'
+      : '';
+  const figure = spendMetricFigure(metric, kind, unit, currency);
+  return (
+    <div className="user-profile-modal-spend-kpi">
+      <span className="user-profile-modal-spend-kpi-label">{label}</span>
+      <strong
+        className={`user-profile-modal-spend-kpi-value ast-num${direction ? ` is-${direction}` : ''}`}
+        aria-label={`${label}: ${figure}`}
+      >
+        {figure}
+      </strong>
+      <span className="user-profile-modal-spend-kpi-subtitle">{metric.subtitle}</span>
+    </div>
+  );
+}
+
 export function PersonSpend({
   email,
   state,
@@ -1163,8 +1224,9 @@ export function PersonSpend({
 }) {
   if (state.status === 'loading' || state.status === 'idle') {
     return (
-      <div role="status" className="user-profile-modal-spend-loading" aria-busy="true">
-        Loading user spend
+      <div role="status" aria-live="polite" className="user-profile-modal-spend-loading" aria-busy="true">
+        <WalletCards className="user-profile-modal-spend-loading-icon ast-anim-center-pulse" aria-hidden="true" />
+        <span>Loading user spend</span>
       </div>
     );
   }
@@ -1172,7 +1234,8 @@ export function PersonSpend({
   const spend = state.data.spendByUser;
   const profile = spend?.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase()) ?? null;
   const reading = unit === 'USD' ? profile?.total.usd : profile?.total.dbu;
-  if (reading?.amount === null || reading?.amount === undefined || !Number.isFinite(reading.amount)) return null;
+  if (!profile || reading?.amount === null || reading?.amount === undefined || !Number.isFinite(reading.amount))
+    return null;
   const estimated = reading.quality === 'allocated' || reading.quality === 'partial';
   return (
     <section
@@ -1183,8 +1246,54 @@ export function PersonSpend({
       <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
         User spend
       </h4>
-      <p className="user-profile-modal-spend-total ast-num">{spendFigure(reading.amount, unit, state.data.currency)}</p>
-      {estimated ? <span className="user-profile-modal-spend-estimated">Estimated</span> : null}
+      <div className="user-profile-modal-spend-kpis">
+        <div className="user-profile-modal-spend-kpi">
+          <span className="user-profile-modal-spend-kpi-label">Total user spend</span>
+          <strong className="user-profile-modal-spend-kpi-value ast-num">
+            {spendFigure(reading.amount, unit, state.data.currency)}
+          </strong>
+          <span className="user-profile-modal-spend-kpi-subtitle">{estimated ? 'Estimated' : 'Attributable'}</span>
+        </div>
+        {profile.metrics?.unit === unit ? (
+          <>
+            <SpendMetric
+              label="Cost / question"
+              metric={profile.metrics.costPerQuestion}
+              kind="spend"
+              unit={unit}
+              currency={state.data.currency}
+            />
+            <SpendMetric
+              label="Average daily spend"
+              metric={profile.metrics.averageDaily}
+              kind="spend"
+              unit={unit}
+              currency={state.data.currency}
+            />
+            <SpendMetric
+              label="Share of app spend"
+              metric={profile.metrics.appShare}
+              kind="percent"
+              unit={unit}
+              currency={state.data.currency}
+            />
+            <SpendMetric
+              label="Week over week"
+              metric={profile.metrics.weekOverWeek}
+              kind="growth"
+              unit={unit}
+              currency={state.data.currency}
+            />
+            <SpendMetric
+              label="Month over month"
+              metric={profile.metrics.monthOverMonth}
+              kind="growth"
+              unit={unit}
+              currency={state.data.currency}
+            />
+          </>
+        ) : null}
+      </div>
       {refreshing ? <span className="user-profile-modal-refreshing">Refreshing…</span> : null}
     </section>
   );
@@ -1237,6 +1346,29 @@ function ProfileQuestionHistory({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function profilePersonaName(persona: { name: string } | null | undefined): string {
+  const name = persona?.name.trim() ?? '';
+  return /^(no persona|none|unassigned|n\/a|null|unknown)$/i.test(name) ? '' : name;
+}
+
+function ProfileIdentityBadges({ role, persona }: { role: Role; persona: { name: string } | null | undefined }) {
+  const personaName = profilePersonaName(persona);
+  return (
+    <div className="user-profile-modal-identity-badges">
+      <RoleBadgePill state={role} />
+      {personaName ? (
+        <span
+          className={astPill('neutral', 'user-profile-modal-persona')}
+          title={personaName}
+          aria-label={`Persona: ${personaName}`}
+        >
+          {personaName}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -1300,9 +1432,12 @@ export function PersonPanel({
             </Button>
           ) : null}
           <div className="user-profile-modal-user">
-            <h3 id="user-profile-modal-title">
-              <UserIdentityChip identity={panel.email} />
-            </h3>
+            <div className="user-profile-modal-identity-row">
+              <h3 id="user-profile-modal-title">
+                <UserIdentityChip identity={panel.email} />
+              </h3>
+              <ProfileIdentityBadges role={panel.role} persona={panel.persona} />
+            </div>
             <p id="user-profile-modal-description" className="user-profile-modal-description">
               {panel.firstSeen ? `First seen ${whenLabel(panel.firstSeen, now)}` : 'First seen not recorded'}
               {' · '}
@@ -1440,6 +1575,7 @@ export function PersonPanelShell({
   onNextPage,
   onRetry,
   onBack,
+  identitySeed,
 }: {
   state: PanelLoadState<PersonPanelPayload>;
   spendState?: PanelLoadState<OpsCostPayload>;
@@ -1455,6 +1591,7 @@ export function PersonPanelShell({
   onNextPage: () => void;
   onRetry: () => void;
   onBack?: () => void;
+  identitySeed?: Pick<UserMonitoringRow, 'role' | 'persona'> | null;
 }) {
   if (state.status === 'ready') {
     return (
@@ -1491,9 +1628,12 @@ export function PersonPanelShell({
               Back to all users
             </Button>
           ) : null}
-          <h3 id="user-profile-modal-title" className="user-profile-modal-loading-title">
-            {localPart(email) || 'User activity'}
-          </h3>
+          <div className="user-profile-modal-identity-row">
+            <h3 id="user-profile-modal-title" className="user-profile-modal-loading-title">
+              {localPart(email) || 'User activity'}
+            </h3>
+            {identitySeed ? <ProfileIdentityBadges role={identitySeed.role} persona={identitySeed.persona} /> : null}
+          </div>
           <p id="user-profile-modal-description" className="sr-only">
             User activity and attributable spend
           </p>
@@ -1562,7 +1702,7 @@ export function UserMonitoringPanel({
   rangeLabel: string;
   now: number;
   onClose: () => void;
-  onOpenUser: (email: string) => void;
+  onOpenUser: (user: UserMonitoringRow) => void;
   onSearch: (search: string) => void;
   onRole: (role: string) => void;
   onPersona?: (persona: string) => void;
@@ -1695,7 +1835,7 @@ export function UserMonitoringPanel({
                   className="monitoring-user-row"
                   role="listitem"
                   key={row.email}
-                  onClick={() => onOpenUser(row.email)}
+                  onClick={() => onOpenUser(row)}
                   aria-label={`Open ${localPart(row.email)} User Overview`}
                 >
                   <span className="monitoring-user-identity">
@@ -2043,7 +2183,125 @@ function usePanelRequest<T>(
   };
 }
 
+function spendPayloadFromCache(coordinates: UserSpendTotalCoordinates, cached: CachedUserSpendTotal): OpsCostPayload {
+  const unavailable = { amount: null, quality: 'unavailable' as const };
+  const selected = { amount: cached.amount, quality: cached.quality };
+  const profile = cached.profile ?? {
+    email: coordinates.email,
+    total: {
+      usd: coordinates.unit === 'USD' ? selected : unavailable,
+      dbu: coordinates.unit === 'DBU' ? selected : unavailable,
+    },
+    components: [],
+  };
+  return {
+    currency: cached.currency,
+    spendByUser: {
+      dataRevision: cached.dataRevision,
+      readAt: cached.snapshot.split('|')[0] ?? '',
+      requestedRange: { from: coordinates.from, to: coordinates.to },
+      range: { from: coordinates.from, to: coordinates.to },
+      state: 'ready',
+      reason: '',
+      users: [profile],
+      unattributed: [],
+      reconciliation: {
+        usd: { unit: 'USD', appTotal: null, users: null, unattributed: null, difference: null },
+        dbu: { unit: 'DBU', appTotal: null, users: null, unattributed: null, difference: null },
+      },
+    },
+  } as unknown as OpsCostPayload;
+}
+
+function useUserSpendRequest(coordinates: UserSpendTotalCoordinates | null, url: string) {
+  const scope = coordinates?.scope ?? '';
+  const email = coordinates?.email ?? '';
+  const from = coordinates?.from ?? '';
+  const to = coordinates?.to ?? '';
+  const unit = coordinates?.unit ?? 'USD';
+  const hasCoordinates = coordinates !== null;
+  const cacheKey = hasCoordinates ? userSpendTotalBaseKey({ scope, email, from, to, unit }) : '';
+  const [state, setState] = useState<PanelLoadState<OpsCostPayload>>(() => idlePanel<OpsCostPayload>());
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    if (!hasCoordinates || !url) {
+      setState(idlePanel<OpsCostPayload>());
+      setRefreshing(false);
+      return;
+    }
+    const stableCoordinates = { scope, email, from, to, unit };
+    let active = true;
+    const retained = cachedUserSpendTotal(stableCoordinates);
+    const requestId = ++panelRequestSequence;
+    if (retained) {
+      setState({
+        status: 'ready',
+        key: cacheKey,
+        requestId,
+        data: spendPayloadFromCache(stableCoordinates, retained),
+        error: null,
+      });
+    } else {
+      setState(beginPanelLoad<OpsCostPayload>(cacheKey, requestId));
+    }
+    const needsRefresh = !retained || retained.seeded || retained.expiresAt === 0;
+    if (!needsRefresh) {
+      setRefreshing(false);
+      return;
+    }
+    setRefreshing(Boolean(retained));
+    void requestUserSpendTotal(stableCoordinates, async () => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(response.status === 403 ? 'forbidden' : `http_${response.status}`);
+      const payload = (await response.json()) as OpsCostPayload;
+      const spend = payload.spendByUser;
+      const profile =
+        spend?.users.find((candidate) => candidate.email.toLowerCase() === stableCoordinates.email.toLowerCase()) ??
+        null;
+      const reading = stableCoordinates.unit === 'USD' ? profile?.total.usd : profile?.total.dbu;
+      return {
+        amount: reading?.amount ?? null,
+        quality: reading?.quality ?? 'unavailable',
+        currency: payload.currency,
+        profile,
+        dataRevision: spend?.dataRevision ?? 0,
+        snapshot: `${spend?.readAt ?? new Date().toISOString()}|${profile?.metrics?.comparisonFreshness ?? ''}`,
+        seeded: false,
+      };
+    })
+      .then((value) => {
+        if (!active) return;
+        setState({
+          status: 'ready',
+          key: cacheKey,
+          requestId,
+          data: spendPayloadFromCache(stableCoordinates, value),
+          error: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (!active || retained) return;
+        const message =
+          error instanceof Error && error.message === 'forbidden'
+            ? 'You do not have access to these Monitoring details.'
+            : 'Attributable spend could not be loaded.';
+        setState((current) => rejectPanelLoad(current, cacheKey, requestId, message));
+      })
+      .finally(() => {
+        if (active) setRefreshing(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [cacheKey, email, from, hasCoordinates, scope, to, unit, url]);
+  return { state: panelStateForKey(state, cacheKey, 0), refreshing };
+}
+
 let panelRequestSequence = 0;
+
+function interactionTimestamp(): number {
+  return Date.now();
+}
 
 interface CursorPages {
   owner: string;
@@ -2090,6 +2348,9 @@ export function MonitoringPage() {
   const navigate = useNavigate();
   const outlet = useOutletContext<AppOutletContext | null>();
   const cacheScope = `${outlet?.subject?.trim().toLowerCase() || 'unknown'}|${outlet?.role.state ?? 'unknown'}`;
+  const [profileIdentitySeed, setProfileIdentitySeed] = useState<
+    (Pick<UserMonitoringRow, 'email' | 'role' | 'persona'> & { scope: string }) | null
+  >(null);
   // The clock is read once per render pass rather than per row, so every
   // relative stamp on one paint is relative to the same instant.
   const [now, setNow] = useState(() => Date.now());
@@ -2145,16 +2406,20 @@ export function MonitoringPage() {
     'User activity could not be loaded.',
     cacheScope
   );
-  const spendParams = new URLSearchParams({ from: window_.from, to: window_.to });
+  const spendParams = new URLSearchParams({ from: window_.from, to: window_.to, unit: userBrowser.unit });
   if (drawer.person) spendParams.set('spendUser', drawer.person);
-  const personSpendKey = drawer.person
-    ? monitoringDetailKey('person', `spend:${drawer.person}`, window_.from, window_.to)
-    : '';
-  const personSpendRequest = usePanelRequest<OpsCostPayload>(
-    personSpendKey,
-    drawer.person ? `/api/ops/cost?${spendParams.toString()}` : '',
-    'Attributable spend could not be loaded.',
-    cacheScope
+  const personSpendCoordinates = drawer.person
+    ? {
+        scope: cacheScope,
+        email: drawer.person,
+        from: window_.from,
+        to: window_.to,
+        unit: userBrowser.unit,
+      }
+    : null;
+  const personSpendRequest = useUserSpendRequest(
+    personSpendCoordinates,
+    drawer.person ? `/api/ops/cost?${spendParams.toString()}` : ''
   );
   const userBrowserParams = new URLSearchParams({
     from: window_.from,
@@ -2254,8 +2519,8 @@ export function MonitoringPage() {
     filtersActive: filtersActive(filters),
     searchActive: filters.search !== '',
   });
-  const refreshView = useCallback(() => {
-    const refreshedAt = Date.now();
+  const refreshView = () => {
+    const refreshedAt = interactionTimestamp();
     const refreshedWindow = rangeWindow(searchParams, refreshedAt);
     setNow(refreshedAt);
     refresh({
@@ -2265,8 +2530,7 @@ export function MonitoringPage() {
       filters,
       cursor: listCursor,
     });
-  }, [filters, listCursor, rangeId, refresh, searchParams]);
-
+  };
   return (
     <div className="page-shell monitoring-page">
       <MonitoringHeading loading={loading} checkedAt={payload?.readAt ?? ''} now={now} onRefresh={refreshView} />
@@ -2308,7 +2572,7 @@ export function MonitoringPage() {
           state={questionRequest.state}
           title={payload?.questions.find((question) => question.id === drawer.question)?.question ?? 'Question details'}
           onClose={close}
-          onOpenPerson={openPersonPanel}
+          canOpenUser={showsAdminSurfaces(outlet?.role.state ?? 'failed')}
           onRetry={questionRequest.retry}
         />
       ) : null}
@@ -2326,6 +2590,12 @@ export function MonitoringPage() {
           onBack={userBrowser.open ? () => void navigate({ search: backToUserBrowser(location.search) }) : undefined}
           onOpenQuestion={open}
           onRetry={personRequest.retry}
+          identitySeed={
+            profileIdentitySeed?.scope === cacheScope &&
+            profileIdentitySeed.email.toLowerCase() === drawer.person?.toLowerCase()
+              ? profileIdentitySeed
+              : null
+          }
           onPreviousPage={() =>
             setPersonPages((current) => ({
               owner: personOwner,
@@ -2350,7 +2620,36 @@ export function MonitoringPage() {
           rangeLabel={window_.label}
           now={now}
           onClose={closeUserMonitoring}
-          onOpenUser={(email) => void navigate({ search: openUserFromBrowser(location.search, email) })}
+          onOpenUser={(user) => {
+            setProfileIdentitySeed({
+              scope: cacheScope,
+              email: user.email,
+              role: user.role,
+              persona: user.persona,
+            });
+            const monitoring =
+              userBrowserRequest.state.status === 'ready' ? userBrowserRequest.state.data.userMonitoring : null;
+            const reading = userBrowser.unit === 'USD' ? user.spend.usd : user.spend.dbu;
+            cacheUserSpendTotal(
+              {
+                scope: cacheScope,
+                email: user.email,
+                from: window_.from,
+                to: window_.to,
+                unit: userBrowser.unit,
+              },
+              {
+                amount: reading.amount,
+                quality: reading.quality,
+                currency: userBrowserRequest.state.status === 'ready' ? userBrowserRequest.state.data.currency : '',
+                profile: null,
+                dataRevision: monitoring?.dataRevision ?? 0,
+                snapshot: `${monitoring?.readAt ?? new Date().toISOString()}|list`,
+                seeded: true,
+              }
+            );
+            void navigate({ search: openUserFromBrowser(location.search, user.email) });
+          }}
           onSearch={(search) => updateUserBrowser('userSearch', search)}
           onRole={(role) => updateUserBrowser('userRole', role)}
           onPersona={(persona) => updateUserBrowser('userPersona', persona)}

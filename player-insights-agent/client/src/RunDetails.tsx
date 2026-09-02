@@ -14,6 +14,7 @@ import { EntityText } from './DataEntityLinks';
 import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
 import { SqlCodeBlocks } from './SqlPresentation';
 import { sanitizeSqlForDisplay } from './sql-presentation';
+import { runTokenUsageView, TOKEN_UNAVAILABLE } from './token-usage-view';
 
 /**
  * Puts a value the page has truncated onto the clipboard whole.
@@ -228,8 +229,104 @@ function sanitizedTrace(trace: NonNullable<RunTrace['trace']>): Record<string, u
   for (const key of ['prompt_tokens', 'completion_tokens', 'total_tokens'] as const) {
     if (typeof record[key] === 'number' && Number.isFinite(record[key])) safe[key] = record[key];
   }
+  if (record.token_invocations) safe.token_invocations = record.token_invocations;
   if (record.token_reconciliation) safe.token_reconciliation = record.token_reconciliation;
   return safe;
+}
+
+function TokenConsumption({ trace }: { trace: NonNullable<RunTrace['trace']> }) {
+  const view = runTokenUsageView(trace);
+  if (!view.available) {
+    return (
+      <section className="token-consumption" aria-labelledby="token-consumption-title">
+        <div className="token-consumption-head">
+          <b id="token-consumption-title">Token consumption</b>
+        </div>
+        <p className="token-consumption-unavailable">Token evidence is not available for this run.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="token-consumption" aria-labelledby="token-consumption-title">
+      <div className="token-consumption-head">
+        <b id="token-consumption-title">Token consumption</b>
+        <span className="ast-num">
+          {view.totalTokens === undefined ? TOKEN_UNAVAILABLE : `${view.totalTokens.toLocaleString()} total`}
+        </span>
+      </div>
+      <dl className="token-consumption-summary">
+        <dt>Run input</dt>
+        <dd className="ast-num">{view.inputTokens?.toLocaleString() ?? TOKEN_UNAVAILABLE}</dd>
+        <dt>Run output</dt>
+        <dd className="ast-num">{view.outputTokens?.toLocaleString() ?? TOKEN_UNAVAILABLE}</dd>
+        <dt>Run total</dt>
+        <dd className="ast-num">{view.totalTokens?.toLocaleString() ?? TOKEN_UNAVAILABLE}</dd>
+        {view.cacheReported ? (
+          <>
+            <dt>Cached read</dt>
+            <dd className="ast-num">{view.cachedReadTokens?.toLocaleString() ?? TOKEN_UNAVAILABLE}</dd>
+            <dt>Cache write</dt>
+            <dd className="ast-num">{view.cacheWriteTokens?.toLocaleString() ?? TOKEN_UNAVAILABLE}</dd>
+            <dt>Cache hit</dt>
+            <dd className="ast-num">
+              {view.cacheHitPercent === undefined ? TOKEN_UNAVAILABLE : `${view.cacheHitPercent.toFixed(1)}%`}
+            </dd>
+          </>
+        ) : (
+          <>
+            <dt>Cache</dt>
+            <dd>{TOKEN_UNAVAILABLE}</dd>
+          </>
+        )}
+        <dt>Attributed coverage</dt>
+        <dd>
+          {view.attributedTokens === undefined ? (
+            TOKEN_UNAVAILABLE
+          ) : (
+            <>
+              <span className="ast-num">{view.attributedTokens.toLocaleString()}</span> tokens
+              {view.coveragePercent !== undefined ? ` · ${view.coveragePercent.toFixed(1)}% of run total` : ''}
+            </>
+          )}
+        </dd>
+        <dt>Unattributed difference</dt>
+        <dd className="ast-num">{view.unattributedTokens?.toLocaleString() ?? TOKEN_UNAVAILABLE}</dd>
+      </dl>
+      {view.invocations.length > 0 ? (
+        <div className="token-invocations">
+          <table>
+            <caption>Component and invocation token usage</caption>
+            <thead>
+              <tr>
+                <th scope="col">Component / turn</th>
+                <th scope="col">Attempt</th>
+                <th scope="col">Input</th>
+                <th scope="col">Output</th>
+                <th scope="col">Cached</th>
+                <th scope="col">Total</th>
+                <th scope="col">Cache status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {view.invocations.map((invocation) => (
+                <tr key={invocation.id}>
+                  <th scope="row">{invocation.component}</th>
+                  <td className="ast-num">{invocation.attempt}</td>
+                  <td className="ast-num">{invocation.input}</td>
+                  <td className="ast-num">{invocation.output}</td>
+                  <td className="ast-num">{invocation.cached}</td>
+                  <td className="ast-num">{invocation.total}</td>
+                  <td>{invocation.cacheStatus}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="token-consumption-unavailable">Per-invocation evidence is not available for this run.</p>
+      )}
+    </section>
+  );
 }
 
 /**
@@ -372,6 +469,7 @@ export function RunDetails({
                 </AlertDescription>
               </Alert>
             )}
+            <TokenConsumption trace={trace.trace} />
             <StageRawIo stages={trace.trace.stages} />
             <TraceSummary trace={trace.trace} />
           </>
@@ -391,8 +489,8 @@ export function RunDetails({
                 direction to a control on a different part of the screen, given
                 on the one tab where following it would have worked. */}
             <EmptyDescription>
-              Turn on Advanced, at the top of this tab, to inspect sanitized inputs, outputs, generated SQL, retries,
-              and errors.
+              Turn on Advanced, at the top of this tab, to inspect token consumption, sanitized inputs, outputs,
+              generated SQL, retries, and errors.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

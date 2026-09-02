@@ -9,6 +9,7 @@
  * and the envelope are all on the same axis and can be compared directly.
  */
 import type { TraceStage, TraceSummary } from './answer-shape';
+import type { StepTokenUsage } from '../../shared/llm-token-usage';
 import { withDisplayedStageStatus } from '../../shared/run-verdict';
 import type { RunVerdict } from '../../shared/run-verdict';
 
@@ -77,6 +78,8 @@ export interface TimelineRow {
   widthPct: number | null;
   /** True for the run envelope, whose time is the sum of everything below it. */
   container: boolean;
+  /** Direct LLM usage only; absent on tool rows and legacy traces. */
+  tokenUsage?: StepTokenUsage;
 }
 
 export interface RollUpRow {
@@ -434,6 +437,7 @@ export function buildTimeline(
       leftPct: startMs !== null && wallClockMs !== null ? (startMs / wallClockMs) * 100 : null,
       widthPct: startMs !== null && wallClockMs !== null ? (stage.duration / wallClockMs) * 100 : null,
       container: false,
+      tokenUsage: stage.token_usage,
     });
   }
 

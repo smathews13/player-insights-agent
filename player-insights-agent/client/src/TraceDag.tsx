@@ -118,6 +118,7 @@ import {
 } from './agent-map';
 import { revealStepDetail, returnToSelectedStep, type StepActivation } from './agent-map-scroll';
 import type { StepTokenUsage } from '../../shared/llm-token-usage';
+import { stepTokenUsageView } from './token-usage-view';
 
 /**
  * How many lines of a statement show before the block is clamped.
@@ -141,25 +142,25 @@ function TokenBadge({ usage }: { usage: StepTokenUsage }) {
 }
 
 function TokenDetails({ usage }: { usage: StepTokenUsage }) {
-  const cache = usage.cacheStatus === 'used' ? 'Used' : usage.cacheStatus === 'not-used' ? 'Not used' : 'Not reported';
+  const view = stepTokenUsageView(usage);
   return (
     <dl className="dag-token-details" aria-label="LLM token usage">
       <dt>Input tokens</dt>
-      <dd className="ast-num">{usage.inputTokens?.toLocaleString() ?? 'Not reported'}</dd>
+      <dd className="ast-num">{view.input}</dd>
       <dt>Output tokens</dt>
-      <dd className="ast-num">{usage.outputTokens?.toLocaleString() ?? 'Not reported'}</dd>
+      <dd className="ast-num">{view.output}</dd>
       <dt>Total tokens</dt>
-      <dd className="ast-num">{usage.totalTokens?.toLocaleString() ?? 'Not reported'}</dd>
+      <dd className="ast-num">{view.total}</dd>
       <dt>Cached input</dt>
-      <dd className="ast-num">{usage.cachedReadTokens?.toLocaleString() ?? 'Not reported'}</dd>
+      <dd className="ast-num">{view.cachedRead}</dd>
       {usage.cacheWriteTokens !== undefined ? (
         <>
           <dt>Cache creation</dt>
-          <dd className="ast-num">{usage.cacheWriteTokens.toLocaleString()}</dd>
+          <dd className="ast-num">{view.cacheWrite}</dd>
         </>
       ) : null}
       <dt>Cache</dt>
-      <dd>{cache}</dd>
+      <dd>{view.cacheStatus}</dd>
       {usage.attempts > 1 ? (
         <>
           <dt>Attempts</dt>

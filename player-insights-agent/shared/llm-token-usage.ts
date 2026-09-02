@@ -40,9 +40,17 @@ export interface TokenEvidenceSpan {
   attributes?: unknown;
 }
 
+/** One redacted direct invocation, retained for Timeline and Details audit rows. */
+export interface TokenInvocationUsage extends StepTokenUsage {
+  invocationId: string;
+  stageId: string;
+  attempt: number;
+}
+
 export interface TokenAttribution {
   stages: Record<string, StepTokenUsage>;
   reconciliation: TokenReconciliation;
+  invocations: TokenInvocationUsage[];
 }
 
 interface InvocationUsage {
@@ -227,6 +235,8 @@ export function attributeTokenUsage(
   let cachedReadTokens = 0;
   let cacheCoveredInputTokens = 0;
   let cacheReported = false;
+  const invocations: TokenInvocationUsage[] = [];
+  const attemptsByStage = new Map<string, number>();
 
   for (const span of spans) {
     if (!directLlm(span) || !span.usage) continue;
@@ -240,6 +250,8 @@ export function attributeTokenUsage(
       usage.total !== usage.input + usage.output;
     if (mismatch) mismatchCount += 1;
     if (!owner) continue;
+    const attempt = (attemptsByStage.get(owner) ?? 0) + 1;
+    attemptsByStage.set(owner, attempt);
     const current = stages[owner] ?? {
       cacheStatus: 'unavailable' as const,
       attempts: 0,
@@ -259,6 +271,19 @@ export function attributeTokenUsage(
       if (usage.input !== undefined) cacheCoveredInputTokens += usage.input;
     }
     stages[owner] = current;
+    invocations.push({
+      invocationId: span.id,
+      stageId: owner,
+      attempt,
+      inputTokens: usage.input,
+      outputTokens: usage.output,
+      totalTokens: total,
+      cachedReadTokens: usage.cachedRead,
+      cacheWriteTokens: usage.cacheWrite,
+      cacheStatus: usage.cachedRead === undefined ? 'unavailable' : usage.cachedRead > 0 ? 'used' : 'not-used',
+      attempts: 1,
+      totalMismatch: mismatch,
+    });
     attributedCalls += 1;
     attributedTokens += total ?? 0;
   }
@@ -290,5 +315,5 @@ export function attributeTokenUsage(
       reconciliation.cacheHitPercent = Math.min(100, (cachedReadTokens / cacheCoveredInputTokens) * 100);
     }
   }
-  return { stages, reconciliation };
+  return { stages, reconciliation, invocations };
 }

@@ -443,6 +443,19 @@ const ResourceCallSchema = z.looseObject({
   tool: z.enum(['data_genie', 'dictionary_genie', 'search_semantics']),
   calls: z.number().int().nonnegative(),
 });
+const TokenInvocationSchema = z.object({
+  invocationId: z.string().min(1),
+  stageId: z.string().min(1),
+  attempt: z.number().int().positive(),
+  inputTokens: z.number().int().nonnegative().optional(),
+  outputTokens: z.number().int().nonnegative().optional(),
+  totalTokens: z.number().int().nonnegative().optional(),
+  cachedReadTokens: z.number().int().nonnegative().optional(),
+  cacheWriteTokens: z.number().int().nonnegative().optional(),
+  cacheStatus: z.enum(['used', 'not-used', 'unavailable']),
+  attempts: z.number().int().positive(),
+  totalMismatch: z.boolean(),
+});
 export const TraceSchema = z.looseObject({
   id: z.string(),
   totalMs: z.number(),
@@ -479,6 +492,7 @@ export const TraceSchema = z.looseObject({
   prompt_tokens: z.number().optional(),
   completion_tokens: z.number().optional(),
   total_tokens: z.number().optional(),
+  token_invocations: z.array(TokenInvocationSchema).optional(),
   token_reconciliation: z
     .object({
       attributedTokens: z.number().int().nonnegative(),
@@ -1014,6 +1028,7 @@ export function withTokenAttribution(run: RunTrace, attribution: TokenAttributio
         return usage ? { ...stage, token_usage: usage } : stage;
       }),
       token_reconciliation: attribution.reconciliation,
+      token_invocations: attribution.invocations,
     },
   };
 }

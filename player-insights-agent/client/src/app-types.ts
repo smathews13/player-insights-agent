@@ -11,7 +11,7 @@
 import type { Chart } from './AnswerCharts';
 import type { ExperimentalFeatures } from './experimental-features';
 import type { Derivation, NormalizedAnswer, StageStatus, TraceStage, TraceSummary } from './answer-shape';
-import type { TokenReconciliation } from '../../shared/llm-token-usage';
+import type { TokenInvocationUsage, TokenReconciliation } from '../../shared/llm-token-usage';
 import type { SessionReport } from '../../shared/session-contract';
 import type { RunRuntimeUsed } from '../../shared/run-runtime-used';
 import type { SpIdentitySummary } from '../../shared/sp-identity';
@@ -198,6 +198,7 @@ export interface RunTrace {
     prompt_tokens?: number;
     completion_tokens?: number;
     total_tokens?: number;
+    token_invocations?: TokenInvocationUsage[];
     token_reconciliation?: TokenReconciliation;
   } | null;
   /**

@@ -113,6 +113,24 @@ describe('step attribution and reconciliation', () => {
       cachedReadTokens: 25,
       cacheCoveredInputTokens: 220,
     });
+    expect(result.invocations).toEqual([
+      expect.objectContaining({
+        invocationId: 'call-1',
+        stageId: 'step-1',
+        attempt: 1,
+        totalTokens: 110,
+        cachedReadTokens: 25,
+        cacheStatus: 'used',
+      }),
+      expect.objectContaining({
+        invocationId: 'call-2',
+        stageId: 'step-1',
+        attempt: 2,
+        totalTokens: 132,
+        cachedReadTokens: 0,
+        cacheStatus: 'not-used',
+      }),
+    ]);
   });
 
   it('does not count a parent aggregate again and reports partial overview coverage', () => {

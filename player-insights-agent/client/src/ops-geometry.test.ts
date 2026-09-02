@@ -257,18 +257,22 @@ describe('the Cost budget layout', () => {
 });
 
 describe('the Cost card layout', () => {
-  it('reflows the primary grid through three, two, and one columns', () => {
-    expect(rule('.ops-tiles')).toMatch(/grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+  it('reflows all eight component cards through four, three, two, and one columns', () => {
+    expect(rule('.ops-tiles')).toMatch(/grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
     expect(RULES).toMatch(
-      /@media \(max-width:\s*72rem\)[\s\S]*?\.ops-tiles\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+      /@media \(max-width:\s*72rem\)[\s\S]*?\.ops-tiles\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/
     );
     expect(RULES).toMatch(
-      /@media \(max-width:\s*40rem\)[\s\S]*?\.ops-tiles,\s*\.ops-genie-grid\s*\{[^}]*minmax\(0,\s*1fr\)/
+      /@media \(max-width:\s*54rem\)[\s\S]*?\.ops-tiles\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+    );
+    expect(RULES).toMatch(
+      /@media \(max-width:\s*40rem\)[\s\S]*?\.ops-tiles\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
     );
   });
 
-  it('keeps the Genie cards wide and stacks them only on mobile', () => {
-    expect(rule('.ops-genie-grid')).toMatch(/grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  it('does not create a separate Genie layout', () => {
+    expect(CSS).not.toContain('.ops-genie-section');
+    expect(CSS).not.toContain('.ops-genie-grid');
   });
 
   it('allows card content to grow without fixed heights or clipping', () => {

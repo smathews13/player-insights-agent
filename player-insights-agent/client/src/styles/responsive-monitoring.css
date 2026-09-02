@@ -55,6 +55,9 @@
   .user-profile-modal-kpi-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .user-profile-modal-spend-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .user-profile-modal-overlay,
   .monitoring-users-overlay {
     padding: 12px;
@@ -62,7 +65,7 @@
   .user-profile-modal,
   .monitoring-users-modal {
     width: calc(100vw - 24px);
-    max-height: calc(100vh - var(--app-header-h) - 24px);
+    max-height: calc(100dvh - 24px);
   }
   .user-profile-modal-header,
   .monitoring-users-header {
@@ -146,6 +149,9 @@
 }
 
 @media (max-width: 480px) {
+  .user-profile-modal-spend-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .monitoring-heading-actions {
     align-items: flex-start;
     flex-direction: column;

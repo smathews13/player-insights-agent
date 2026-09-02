@@ -8,22 +8,36 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { DIALOG_FOCUSABLE, dialogKeyIntent, dialogTabTarget } from './dialog-state';
 
 export type DialogDismissReason = 'escape' | 'backdrop';
 
 let scrollLocks = 0;
 let savedBodyOverflow = '';
+let savedBodyPaddingRight = '';
+let savedScrollX = 0;
+let savedScrollY = 0;
 
 function lockDocumentScroll(): () => void {
   if (scrollLocks === 0) {
     savedBodyOverflow = document.body.style.overflow;
+    savedBodyPaddingRight = document.body.style.paddingRight;
+    savedScrollX = window.scrollX;
+    savedScrollY = window.scrollY;
+    const scrollbar = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+    const currentPadding = Number.parseFloat(window.getComputedStyle(document.body).paddingRight) || 0;
+    if (scrollbar > 0) document.body.style.paddingRight = `${currentPadding + scrollbar}px`;
     document.body.style.overflow = 'hidden';
   }
   scrollLocks += 1;
   return () => {
     scrollLocks -= 1;
-    if (scrollLocks === 0) document.body.style.overflow = savedBodyOverflow;
+    if (scrollLocks === 0) {
+      document.body.style.overflow = savedBodyOverflow;
+      document.body.style.paddingRight = savedBodyPaddingRight;
+      window.scrollTo(savedScrollX, savedScrollY);
+    }
   };
 }
 
@@ -158,7 +172,7 @@ export function Dialog({
     [dismissOnEscape, onDismiss, onEscape]
   );
 
-  return (
+  const overlay = (
     <div
       ref={overlayRef}
       className={overlayClassName}
@@ -186,4 +200,5 @@ export function Dialog({
       )}
     </div>
   );
+  return typeof document === 'undefined' ? overlay : createPortal(overlay, document.body);
 }

@@ -647,6 +647,7 @@ export function buildSpendByUser(input: {
 
   const partial = Boolean(input.partialReason);
   return {
+    dataRevision: userSpendDataRevision(),
     readAt: input.readAt,
     requestedRange: input.requestedRange,
     range: input.range,

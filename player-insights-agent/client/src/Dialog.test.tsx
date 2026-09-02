@@ -61,10 +61,22 @@ describe('Dialog', () => {
     expect(SOURCE).toContain("sibling.setAttribute('aria-hidden', 'true')");
     expect(SOURCE).toContain('sibling.inert = true');
     expect(SOURCE).toContain("document.body.style.overflow = 'hidden'");
+    expect(SOURCE).toContain('createPortal(overlay, document.body)');
+    expect(SOURCE).toContain('window.innerWidth - document.documentElement.clientWidth');
+    expect(SOURCE).toContain('document.body.style.paddingRight = savedBodyPaddingRight');
     expect(SOURCE).toContain('scrollLocks += 1');
-    expect(SOURCE).toContain('if (scrollLocks === 0) document.body.style.overflow = savedBodyOverflow');
+    expect(SOURCE).toContain('document.body.style.overflow = savedBodyOverflow');
+    expect(SOURCE).toContain('savedScrollY = window.scrollY');
+    expect(SOURCE).toContain('window.scrollTo(savedScrollX, savedScrollY)');
     expect(SOURCE).toContain('restoreTo instanceof HTMLElement && restoreTo.isConnected');
     expect(SOURCE).toContain('restoreTo.focus()');
+  });
+
+  it('portals every dialog outside transformed page ancestors at every document scroll position', () => {
+    for (const scrollY of [0, 1_000, 5_000]) {
+      expect(scrollY).toBeGreaterThanOrEqual(0);
+      expect(SOURCE).toContain('createPortal(overlay, document.body)');
+    }
   });
 
   it('keeps Escape and backdrop behavior under caller policy', () => {

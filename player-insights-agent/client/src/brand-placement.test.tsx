@@ -180,7 +180,7 @@ describe('every outbound MLflow action carries the MLflow mark inside its anchor
     renderToStaticMarkup(<RunDetails trace={trace} advanced={false} onAdvancedChange={() => {}} unavailable={null} />),
     renderToStaticMarkup(
       <MemoryRouter>
-        <QuestionDrawer detail={detail} onClose={() => {}} onOpenPerson={() => {}} />
+        <QuestionDrawer detail={detail} onClose={() => {}} canOpenUser />
       </MemoryRouter>
     ),
     renderToStaticMarkup(

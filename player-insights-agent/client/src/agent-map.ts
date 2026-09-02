@@ -15,6 +15,7 @@ import { formatMs, toolNameFromId } from './trace-timeline';
 import type { TraceStage, TraceSummary } from './answer-shape';
 import type { RunVerdict } from '../../shared/run-verdict';
 import type { StepTokenUsage, TokenReconciliation } from '../../shared/llm-token-usage';
+import { stepTokenUsageView } from './token-usage-view';
 
 /**
  * The step's place in the run, two digits.
@@ -49,43 +50,12 @@ export function cardCalls(stage: Pick<TraceStage, 'calls'>, toolCalls = false): 
   return `${stage.calls} ${unit}${stage.calls === 1 ? '' : 's'}`;
 }
 
-function compactCount(value: number): string {
-  if (value < 1_000) return value.toLocaleString();
-  const digits = value >= 10_000 ? 0 : 1;
-  return `${(value / 1_000).toFixed(digits).replace(/\.0$/, '')}K`;
-}
-
 export function tokenSummary(usage: StepTokenUsage): string {
-  const total =
-    usage.totalTokens ??
-    (usage.inputTokens !== undefined && usage.outputTokens !== undefined
-      ? usage.inputTokens + usage.outputTokens
-      : undefined);
-  const parts = [total === undefined ? 'Token total unavailable' : `${compactCount(total)} tokens`];
-  if (usage.cachedReadTokens && usage.cachedReadTokens > 0)
-    parts.push(`${compactCount(usage.cachedReadTokens)} cached`);
-  return parts.join(' · ');
+  return stepTokenUsageView(usage).summary;
 }
 
 export function tokenUsageLabel(usage: StepTokenUsage): string {
-  const parts = [
-    usage.inputTokens === undefined
-      ? 'Input tokens not reported'
-      : `${usage.inputTokens.toLocaleString()} input tokens`,
-    usage.outputTokens === undefined
-      ? 'Output tokens not reported'
-      : `${usage.outputTokens.toLocaleString()} output tokens`,
-    usage.totalTokens === undefined
-      ? 'Total tokens not reported'
-      : `${usage.totalTokens.toLocaleString()} total tokens`,
-  ];
-  if (usage.cachedReadTokens !== undefined)
-    parts.push(`${usage.cachedReadTokens.toLocaleString()} cached input tokens`);
-  if (usage.cacheWriteTokens !== undefined)
-    parts.push(`${usage.cacheWriteTokens.toLocaleString()} cache creation tokens`);
-  if (usage.attempts > 1) parts.push(`${usage.attempts} attempts`);
-  if (usage.totalMismatch) parts.push('Provider total differs from input plus output');
-  return parts.join(', ');
+  return stepTokenUsageView(usage).accessibleLabel;
 }
 
 /** The model turn that hands work to tools is an Orchestrator step. */

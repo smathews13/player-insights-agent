@@ -69,4 +69,35 @@ describe('token usage read boundaries', () => {
     expect(normalized.trace?.stages[0].token_usage?.totalTokens).toBe(120);
     expect(normalized.trace?.token_reconciliation?.unattributedTokens).toBe(120);
   });
+
+  it('normalizes redacted invocation rows and rejects malformed identities', () => {
+    const trace = normalizeTrace({
+      stages: [],
+      token_invocations: [
+        {
+          invocationId: 'span-1',
+          stageId: 'synthesis',
+          attempt: 1,
+          inputTokens: 100,
+          outputTokens: 20,
+          totalTokens: 120,
+          cacheStatus: 'unavailable',
+          attempts: 1,
+          totalMismatch: false,
+        },
+        {
+          invocationId: '',
+          stageId: 'synthesis',
+          attempt: 0,
+          totalTokens: 10,
+          cacheStatus: 'used',
+          attempts: 1,
+          totalMismatch: false,
+        },
+      ],
+    });
+    expect(trace.token_invocations).toEqual([
+      expect.objectContaining({ invocationId: 'span-1', stageId: 'synthesis', attempt: 1, totalTokens: 120 }),
+    ]);
+  });
 });

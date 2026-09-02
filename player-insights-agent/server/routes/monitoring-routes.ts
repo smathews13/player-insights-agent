@@ -63,6 +63,9 @@ import { resolveExperimentId } from '../lib/app-settings';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { APP_ACTIVITY_TABLE } from '../lib/app-activity';
 import { APP_SESSION_TABLE, appSessionDeployment } from '../lib/app-session';
+import { effectiveRole, readRosterForRequest } from '../lib/user-roster';
+import { invalidAdminEmail, seedRoles } from '../lib/admin-roles';
+import { listSpAssignments, listSpPersonas } from '../lib/sp-identity-store';
 
 /**
  * Default and hard maximum for one API page. The query asks for one look-ahead
@@ -1190,6 +1193,10 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
     app.get('/api/monitoring/people/:email', async (req: Request, res: Response) => {
       const admin = userEmail(req);
       const person = decodeURIComponent(String(req.params.email));
+      if (invalidAdminEmail(person)) {
+        res.status(400).json({ error: 'invalid_monitoring_user' });
+        return;
+      }
       const range = rangeFrom(req, clock());
       const page = pageFrom(req);
       const filters = filtersFrom(req, person);
@@ -1328,9 +1335,28 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       } catch (error) {
         console.warn(`[monitoring] First and last seen could not be read for ${person}: ${(error as Error).message}`);
       }
+      const [roster, personaCatalog, personaAssignments] = await Promise.all([
+        readRosterForRequest(appkit.lakebase, req).catch(() => ({ rows: [] })),
+        listSpPersonas(appkit).catch(() => []),
+        listSpAssignments(appkit).catch(() => []),
+      ]);
+      const role = effectiveRole({ seed: seedRoles(), stored: roster.rows, email: person });
+      const assignment = personaAssignments.find((entry) => entry.email.toLowerCase() === person.toLowerCase());
+      const assignedPersona = assignment
+        ? personaCatalog.find((entry) => entry.id === assignment.personaId)
+        : undefined;
+      const assignedPersonaName = assignedPersona?.displayName.trim() ?? '';
+      const persona =
+        assignedPersona &&
+        assignedPersonaName &&
+        !/^(no persona|none|unassigned|n\/a|null|unknown)$/i.test(assignedPersonaName)
+          ? { id: assignedPersona.id, name: assignedPersonaName }
+          : null;
 
       const payload: PersonPanelPayload = {
         email: person,
+        role,
+        persona,
         firstSeen,
         lastSeen,
         summary: summarize(questions, totals.threads),

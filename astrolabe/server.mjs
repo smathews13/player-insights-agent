@@ -126445,6 +126445,8 @@ function attributeTokenUsage(rawSpans, stageIds, overviewTokens) {
   let cachedReadTokens = 0;
   let cacheCoveredInputTokens = 0;
   let cacheReported = false;
+  const invocations = [];
+  const attemptsByStage = /* @__PURE__ */ new Map();
   for (const span of spans) {
     if (!directLlm(span) || !span.usage) continue;
     const owner = ownerStageId(span.name, stageIds);
@@ -126453,6 +126455,8 @@ function attributeTokenUsage(rawSpans, stageIds, overviewTokens) {
     const mismatch = usage.total !== void 0 && usage.input !== void 0 && usage.output !== void 0 && usage.total !== usage.input + usage.output;
     if (mismatch) mismatchCount += 1;
     if (!owner) continue;
+    const attempt = (attemptsByStage.get(owner) ?? 0) + 1;
+    attemptsByStage.set(owner, attempt);
     const current = stages[owner] ?? {
       cacheStatus: "unavailable",
       attempts: 0,
@@ -126472,6 +126476,19 @@ function attributeTokenUsage(rawSpans, stageIds, overviewTokens) {
       if (usage.input !== void 0) cacheCoveredInputTokens += usage.input;
     }
     stages[owner] = current;
+    invocations.push({
+      invocationId: span.id,
+      stageId: owner,
+      attempt,
+      inputTokens: usage.input,
+      outputTokens: usage.output,
+      totalTokens: total,
+      cachedReadTokens: usage.cachedRead,
+      cacheWriteTokens: usage.cacheWrite,
+      cacheStatus: usage.cachedRead === void 0 ? "unavailable" : usage.cachedRead > 0 ? "used" : "not-used",
+      attempts: 1,
+      totalMismatch: mismatch
+    });
     attributedCalls += 1;
     attributedTokens += total ?? 0;
   }
@@ -126500,7 +126517,7 @@ function attributeTokenUsage(rawSpans, stageIds, overviewTokens) {
       reconciliation.cacheHitPercent = Math.min(100, cachedReadTokens / cacheCoveredInputTokens * 100);
     }
   }
-  return { stages, reconciliation };
+  return { stages, reconciliation, invocations };
 }
 
 // server/lib/mlflow-token-evidence.ts
@@ -126621,28 +126638,28 @@ createApp({
       { bootstrapSeedRoles, isAdminRoute },
       { respondToHandlerFailures }
     ] = await Promise.all([
-      import("./insights-routes-JATGL5MD.mjs"),
-      import("./settings-routes-ZYGM5GBE.mjs"),
-      import("./ai-gateway-routes-TJHP5XDY.mjs"),
+      import("./insights-routes-ZRISQZIC.mjs"),
+      import("./settings-routes-5HSJL66J.mjs"),
+      import("./ai-gateway-routes-P5U7LJRO.mjs"),
       import("./browse-routes-NEOQWUA7.mjs"),
       import("./architecture-routes-U5HXX44Q.mjs"),
-      import("./admin-routes-J254ZGZX.mjs"),
+      import("./admin-routes-EPKS7TW7.mjs"),
       import("./access-guide-routes-HTOGXPRN.mjs"),
-      import("./user-routes-G35I2D4N.mjs"),
-      import("./monitoring-routes-ALU5IG7T.mjs"),
-      import("./ops-routes-EY7X3R6V.mjs"),
-      import("./egress-routes-NRCD3QPD.mjs"),
-      import("./runtime-settings-routes-7H5QGZZV.mjs"),
-      import("./experimental-settings-routes-77OABYQQ.mjs"),
-      import("./cost-budgets-routes-TADFFMDH.mjs"),
-      import("./app-budget-routes-M7LYTB2S.mjs"),
-      import("./benchmark-settings-routes-57UEK5UY.mjs"),
-      import("./eval-dataset-routes-AYKBEXBB.mjs"),
-      import("./benchmark-lab-routes-2UN55YIS.mjs"),
+      import("./user-routes-N4GA35UY.mjs"),
+      import("./monitoring-routes-WN6DPFUP.mjs"),
+      import("./ops-routes-4GQM7MMU.mjs"),
+      import("./egress-routes-VVAGVIYW.mjs"),
+      import("./runtime-settings-routes-IPP2WX7E.mjs"),
+      import("./experimental-settings-routes-VFXTNWE6.mjs"),
+      import("./cost-budgets-routes-BIA3VULT.mjs"),
+      import("./app-budget-routes-CYRBG5VZ.mjs"),
+      import("./benchmark-settings-routes-CGMQMQGM.mjs"),
+      import("./eval-dataset-routes-7Y57WERL.mjs"),
+      import("./benchmark-lab-routes-PIM4T223.mjs"),
       import("./environment-routes-UP3A5D4E.mjs"),
       import("./account-routes-5JVCA4F2.mjs"),
-      import("./run-label-routes-RMATZ25B.mjs"),
-      import("./sp-identity-routes-VXZVEV4L.mjs"),
+      import("./run-label-routes-PFOTXL6N.mjs"),
+      import("./sp-identity-routes-VOF2PYAX.mjs"),
       import("./admin-roles-F45IZCEN.mjs"),
       import("./handler-failures-DDSUARHU.mjs")
     ]);

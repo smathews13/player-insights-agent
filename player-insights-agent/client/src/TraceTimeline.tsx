@@ -40,6 +40,7 @@ import { EntityText, TableEntityList } from './DataEntityLinks';
 import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
 import { InlineSqlCode, SqlCodeBlocks } from './SqlPresentation';
 import { isSqlText, sqlFromStageInput } from './sql-presentation';
+import { runTokenUsageView, stepTokenUsageView, type RunTokenView } from './token-usage-view';
 
 /** Which surface is drawing the panel. See file header. */
 export type TraceTimelineVariant = 'default' | 'explorer';
@@ -141,7 +142,7 @@ function RollUp({ rows }: { rows: RollUpRow[] }) {
  * Same `model.rollUp` rows and denominators as Ask's tiles. The run envelope is
  * already omitted from that list, so wall clock is not counted twice.
  */
-function KindKpis({ rows }: { rows: RollUpRow[] }) {
+function KindKpis({ rows, tokens }: { rows: RollUpRow[]; tokens: RunTokenView }) {
   if (rows.length === 0) return null;
   return (
     <div className="trace-kind-kpis" aria-label="Time by kind">
@@ -159,7 +160,51 @@ function KindKpis({ rows }: { rows: RollUpRow[] }) {
           <strong className="ast-num">{formatMs(row.totalMs)}</strong>
         </div>
       ))}
+      {tokens.totalTokens !== undefined ? (
+        <div className="trace-kpi trace-token-kpi" aria-label={`${tokens.totalTokens.toLocaleString()} total tokens`}>
+          <span>Tokens</span>
+          <strong className="ast-num">{tokens.totalTokens.toLocaleString()}</strong>
+          {tokens.cachedReadTokens !== undefined ? (
+            <small className="ast-num">{tokens.cachedReadTokens.toLocaleString()} cached</small>
+          ) : null}
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+export function TimelineTokenDetails({ row, run }: { row: TimelineRow; run: RunTokenView }) {
+  if (!row.tokenUsage) return null;
+  const view = stepTokenUsageView(row.tokenUsage);
+  return (
+    <dl className="trace-event-tokens" aria-label="LLM token usage">
+      <dt>Input tokens</dt>
+      <dd className="ast-num">{view.input}</dd>
+      <dt>Output tokens</dt>
+      <dd className="ast-num">{view.output}</dd>
+      <dt>Total tokens</dt>
+      <dd className="ast-num">{view.total}</dd>
+      <dt>Cache read</dt>
+      <dd className="ast-num">{view.cachedRead}</dd>
+      <dt>Cache write</dt>
+      <dd className="ast-num">{view.cacheWrite}</dd>
+      <dt>Cache</dt>
+      <dd>{view.cacheStatus}</dd>
+      <dt>Attempts</dt>
+      <dd className="ast-num">{view.attempts.toLocaleString()}</dd>
+      <dt>Attributed coverage</dt>
+      <dd>
+        {run.coveragePercent !== undefined
+          ? `${run.coveragePercent.toFixed(1)}% of the run token total`
+          : 'Not reported'}
+      </dd>
+      {view.totalMismatch ? (
+        <>
+          <dt>Diagnostic</dt>
+          <dd>Provider total differs from input plus output</dd>
+        </>
+      ) : null}
+    </dl>
   );
 }
 
@@ -314,6 +359,7 @@ function GanttRow({
   onToggle,
   hasGeometry,
   eventCount,
+  runTokens,
 }: {
   row: TimelineRow;
   eventLabel: string;
@@ -323,6 +369,7 @@ function GanttRow({
   hasGeometry: boolean;
   /** Steps the envelope spans, shown on the container row. Null when unknown. */
   eventCount: number | null;
+  runTokens: RunTokenView;
 }) {
   const positioned = row.leftPct !== null && row.widthPct !== null;
   const tables = stageTableEntities(row);
@@ -368,12 +415,21 @@ function GanttRow({
             )}
           </td>
         )}
+        {variant === 'explorer' ? (
+          <td className="trace-num trace-tokens ast-num">
+            {row.type === 'llm' && row.tokenUsage ? (
+              stepTokenUsageView(row.tokenUsage).total
+            ) : (
+              <span aria-label="Token usage not reported">—</span>
+            )}
+          </td>
+        ) : null}
         <td className="trace-num trace-duration ast-num">{formatMs(row.durationMs)}</td>
       </tr>
       {expanded && (
         <tr className="trace-detail">
           <td />
-          <td colSpan={hasGeometry ? 4 : 3}>
+          <td colSpan={(hasGeometry ? 4 : 3) + (variant === 'explorer' ? 1 : 0)}>
             {row.container ? (
               <dl>
                 <dt>Task</dt>
@@ -393,6 +449,7 @@ function GanttRow({
               </dl>
             ) : (
               <div className="trace-detail-content">
+                {row.type === 'llm' ? <TimelineTokenDetails row={row} run={runTokens} /> : null}
                 <dl>
                   <dt>Started</dt>
                   <dd className="trace-measured">
@@ -429,18 +486,20 @@ function Gantt({
   eventLabels,
   expanded,
   onToggle,
+  runTokens,
 }: {
   model: ReturnType<typeof buildTimeline>;
   variant: TraceTimelineVariant;
   eventLabels: ReadonlyMap<string, string>;
   expanded: string | null;
   onToggle: (id: string) => void;
+  runTokens: RunTokenView;
 }) {
   if (model.rows.length === 0) return null;
   const explorer = variant === 'explorer';
   return (
     <div className="trace-gantt">
-      {explorer ? <KindKpis rows={model.rollUp} /> : <RollUp rows={model.rollUp} />}
+      {explorer ? <KindKpis rows={model.rollUp} tokens={runTokens} /> : <RollUp rows={model.rollUp} />}
       {!explorer && (
         <div className="trace-panel-heading">
           <h4>Step timeline</h4>
@@ -468,6 +527,11 @@ function Gantt({
                   </span>
                 </th>
               )}
+              {explorer ? (
+                <th scope="col" className="trace-num trace-tokens">
+                  Tokens
+                </th>
+              ) : null}
               <th scope="col" className="trace-num">
                 Duration
               </th>
@@ -484,6 +548,7 @@ function Gantt({
                 expanded={expanded === row.id}
                 onToggle={() => onToggle(row.id)}
                 eventCount={model.rows.filter((other) => !other.container).length}
+                runTokens={runTokens}
               />
             ))}
           </tbody>
@@ -520,6 +585,7 @@ export function TraceTimeline({
 }) {
   const summary = (trace ?? null) as TraceSummary | null;
   const model = useMemo(() => buildTimeline(summary, question, verdict), [summary, question, verdict]);
+  const runTokens = useMemo(() => runTokenUsageView(summary), [summary]);
   const eventLabels = useMemo(() => {
     if (variant !== 'explorer') {
       return new Map(model.rows.map((row) => [row.id, row.name]));
@@ -548,6 +614,7 @@ export function TraceTimeline({
         eventLabels={eventLabels}
         expanded={expanded}
         onToggle={(id) => setExpanded((current) => (current === id ? null : id))}
+        runTokens={runTokens}
       />
     </div>
   );

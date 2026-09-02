@@ -33,6 +33,7 @@ import { beginPanelLoad, idlePanel, rejectPanelLoad } from './monitoring-detail-
 import type { OpsCostPayload } from '../../shared/ops-contract';
 
 const MONITORING_SOURCE = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
+const MONITORING_CSS = readFileSync(new URL('./styles/monitoring.css', import.meta.url), 'utf8');
 
 /**
  * What a reader actually sees on Monitoring, asserted against rendered output.
@@ -981,7 +982,7 @@ describe('the detail modal', () => {
     expect(MONITORING_SOURCE.match(/<Dialog/g)).toHaveLength(5);
     expect(MONITORING_SOURCE).not.toContain("window.addEventListener('keydown'");
 
-    const readyQuestion = render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />);
+    const readyQuestion = render(<QuestionDrawer detail={detail()} onClose={() => {}} canOpenUser />);
     const readyPerson = render(
       <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
     );
@@ -998,7 +999,7 @@ describe('the detail modal', () => {
         state={idlePanel<MonitoringDetail>()}
         title="Question details"
         onClose={() => {}}
-        onOpenPerson={() => {}}
+        canOpenUser
         onRetry={() => {}}
       />
     );
@@ -1007,7 +1008,7 @@ describe('the detail modal', () => {
         state={beginPanelLoad<MonitoringDetail>('question|q1|from|to|', 1)}
         title="Question details"
         onClose={() => {}}
-        onOpenPerson={() => {}}
+        canOpenUser
         onRetry={() => {}}
       />
     );
@@ -1021,7 +1022,7 @@ describe('the detail modal', () => {
         )}
         title="Question details"
         onClose={() => {}}
-        onOpenPerson={() => {}}
+        canOpenUser
         onRetry={() => {}}
       />
     );
@@ -1037,7 +1038,7 @@ describe('the detail modal', () => {
   });
 
   it('names who asked and whose grants the data was read under', () => {
-    const rendered = text(render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />));
+    const rendered = text(render(<QuestionDrawer detail={detail()} onClose={() => {}} canOpenUser />));
 
     expect(rendered).toContain('Asked by first.person');
     expect(rendered).toContain("Data read under first.person's own Unity Catalog grants.");
@@ -1045,7 +1046,7 @@ describe('the detail modal', () => {
 
   it('says nothing about identity when the run recorded none, and leaves no dangling separator', () => {
     const rendered = text(
-      render(<QuestionDrawer detail={detail({ execution: null })} onClose={() => {}} onOpenPerson={() => {}} />)
+      render(<QuestionDrawer detail={detail({ execution: null })} onClose={() => {}} canOpenUser />)
     );
 
     expect(rendered).not.toMatch(/unconfirmed/i);
@@ -1069,11 +1070,11 @@ describe('the detail modal', () => {
    * bottom.
    */
   it('puts the three onward links at the top, above the answer and the trace', () => {
-    const rendered = text(render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />));
+    const markup = render(<QuestionDrawer detail={detail()} onClose={() => {}} canOpenUser />);
 
-    const mlflow = rendered.indexOf('Open the MLflow trace');
-    const runs = rendered.indexOf('Open in Run Explorer');
-    const person = rendered.indexOf("see first.person's activity");
+    const mlflow = markup.indexOf('Open the MLflow trace');
+    const runs = markup.indexOf('Open in Run Explorer');
+    const person = markup.indexOf('aria-label="Open user overview for first.person"');
     expect(mlflow).toBeGreaterThan(-1);
 
     // Still the same three, still in the same order across the row.
@@ -1081,17 +1082,17 @@ describe('the detail modal', () => {
     expect(runs).toBeLessThan(person);
 
     // And all three above everything a reader would have had to scroll past.
-    expect(person).toBeLessThan(rendered.indexOf('The leading title is ahead on daily active players.'));
-    expect(person).toBeLessThan(rendered.indexOf('Run process'));
-    expect(person).toBeLessThan(rendered.indexOf('1,200 tokens recorded on this run.'));
-    expect(person).toBeLessThan(rendered.indexOf('Rated helpful'));
+    expect(person).toBeLessThan(markup.indexOf('The leading title is ahead on daily active players.'));
+    expect(person).toBeLessThan(markup.indexOf('Run process'));
+    expect(person).toBeLessThan(markup.indexOf('1,200 tokens recorded on this run.'));
+    expect(person).toBeLessThan(markup.indexOf('Rated helpful'));
   });
 
   it('keeps the links above the answer on a run that recorded no trace id', () => {
     // The MLflow link is absent rather than dead, and its absence must not drop
     // the other two back under the answer.
     const rendered = text(
-      render(<QuestionDrawer detail={detail({ mlflowUrl: null })} onClose={() => {}} onOpenPerson={() => {}} />)
+      render(<QuestionDrawer detail={detail({ mlflowUrl: null })} onClose={() => {}} canOpenUser />)
     );
 
     expect(rendered).not.toContain('Open the MLflow trace');
@@ -1101,7 +1102,7 @@ describe('the detail modal', () => {
   });
 
   it('renders the answer with Ask PIA\u2019s own card when nothing is conditioned', () => {
-    const markup = render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />);
+    const markup = render(<QuestionDrawer detail={detail()} onClose={() => {}} canOpenUser />);
     const rendered = text(markup);
 
     expect(markup).toContain('class="answer-card');
@@ -1115,7 +1116,7 @@ describe('the detail modal', () => {
       answer: null,
       conditioning: { table: 'a_catalog.a_schema.a_table', permission: 'SELECT' },
     });
-    const markup = render(<QuestionDrawer detail={conditioned} onClose={() => {}} onOpenPerson={() => {}} />);
+    const markup = render(<QuestionDrawer detail={conditioned} onClose={() => {}} canOpenUser />);
     const rendered = text(markup);
 
     expect(rendered).toContain('a_catalog.a_schema.a_table: you do not have SELECT on this table.');
@@ -1153,45 +1154,74 @@ describe('the detail modal', () => {
 
   it('omits the MLflow link rather than offering a dead one', () => {
     const rendered = text(
-      render(<QuestionDrawer detail={detail({ mlflowUrl: null })} onClose={() => {}} onOpenPerson={() => {}} />)
+      render(<QuestionDrawer detail={detail({ mlflowUrl: null })} onClose={() => {}} canOpenUser />)
     );
 
     expect(rendered).not.toContain('Open the MLflow trace');
     // The other two links are unaffected.
     expect(rendered).toContain('Open in Run Explorer');
-    expect(rendered).toContain("see first.person's activity");
+    expect(rendered).toContain('first.person');
   });
 
-  /**
-   * The link names the asker, in a possessive an English reader would write.
-   * `<your-username>'` and not `<your-username>'s`, because the name already ends in s;
-   * `first.person's` above, because it does not.
-   */
-  it('names the asker in the activity link, apostrophe alone on a name ending in s', () => {
-    const rendered = text(
-      render(
-        <QuestionDrawer
-          detail={detail({ askedBy: '<your-username>@example.test' })}
-          onClose={() => {}}
-          onOpenPerson={() => {}}
-        />
-      )
+  it('uses one shared user badge as the canonical profile link without duplicate controls or possessive copy', () => {
+    const markup = renderAt(
+      <QuestionDrawer detail={detail({ askedBy: '<your-username>@example.test' })} onClose={() => {}} canOpenUser />,
+      '/monitoring?question=q1&range=7d&userSearch=sam'
     );
+    const rendered = text(markup);
 
-    expect(rendered).toContain("see <your-username>' activity");
-    expect(rendered).not.toContain("<your-username>'s activity");
-    expect(rendered).not.toContain("this person's activity");
+    expect(markup).toContain('class="user-drilldown-link user-drilldown-link--chip"');
+    expect(markup).toContain('class="identity-chip identity-chip--compact"');
+    expect(markup).toContain('lucide-user-round');
+    expect(markup).toContain('aria-label="Open user overview for <your-username>"');
+    expect(markup).toContain('href="/monitoring?range=7d&amp;userSearch=sam&amp;who=<your-username>%40example.test"');
+    expect(occurrences(markup, 'aria-label="Open user overview for <your-username>"')).toBe(1);
+    const overviewLink = markup.match(/<a[^>]*aria-label="Open user overview[^"]*"[^>]*>[\s\S]*?<\/a>/)?.[0] ?? '';
+    expect(overviewLink).not.toContain('<button');
+    expect(overviewLink.match(/<a /g)).toHaveLength(1);
+    expect(rendered).toContain('<your-username>');
+    expect(rendered).not.toMatch(/see sam\.mathews|sam\.mathews['’]s? activity|this person['’]s activity/i);
   });
 
-  /** And falls back to the old wording where no identity was recorded. */
-  it('says "this person" rather than naming nobody when the run recorded no asker', () => {
-    const rendered = text(
-      render(<QuestionDrawer detail={detail({ askedBy: '' })} onClose={() => {}} onOpenPerson={() => {}} />)
+  it('aligns and wraps the user badge beside Run Explorer without widening the modal', () => {
+    expect(MONITORING_CSS).toMatch(
+      /\.monitoring-drawer-links\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*flex-wrap:\s*wrap[^}]*min-width:\s*0/s
+    );
+    expect(MONITORING_CSS).toContain('.monitoring-drawer-links > a:not(.user-drilldown-link)');
+  });
+
+  it('keeps the user badge non-interactive when User Monitoring is unavailable', () => {
+    const markup = render(
+      <QuestionDrawer detail={detail({ askedBy: '<your-username>@example.test' })} onClose={() => {}} canOpenUser={false} />
     );
 
-    expect(rendered).toContain("see this person's activity");
-    // Not "see Unknown's activity", which is what naming the asker would give.
-    expect(rendered).not.toMatch(/see Unknown/);
+    expect(markup).toContain('class="identity-chip identity-chip--compact"');
+    expect(markup).not.toContain('aria-label="Open user overview for <your-username>"');
+    expect(markup).not.toContain('who=<your-username>%40example.test');
+  });
+
+  it('never links unknown, system, or service-principal actors', () => {
+    for (const askedBy of ['', 'system', 'service-principal-id']) {
+      const markup = render(<QuestionDrawer detail={detail({ askedBy })} onClose={() => {}} canOpenUser />);
+      expect(markup).not.toContain('aria-label="Open user overview');
+      expect(markup).not.toContain('/monitoring?who=');
+    }
+  });
+
+  it('keeps the same badge footer for live, stored, and replayed answer shapes', () => {
+    const live = detail();
+    const stored = detail({
+      answer: { ...(detail().answer as Record<string, unknown>), mode: 'representative', provenance: 'stored' },
+    });
+    const replayed = detail({
+      answer: { ...(detail().answer as Record<string, unknown>), provenance: 'mixed' },
+    });
+
+    for (const state of [live, stored, replayed]) {
+      const markup = render(<QuestionDrawer detail={state} onClose={() => {}} canOpenUser />);
+      expect(markup).toContain('aria-label="Open user overview for first.person"');
+      expect(occurrences(markup, 'aria-label="Open user overview for first.person"')).toBe(1);
+    }
   });
 
   it('shows the taxonomy sentence and the code for a refusal', () => {
@@ -1204,16 +1234,14 @@ describe('the detail modal', () => {
       usefulness: null,
       comment: null,
     });
-    const rendered = text(render(<QuestionDrawer detail={refused} onClose={() => {}} onOpenPerson={() => {}} />));
+    const rendered = text(render(<QuestionDrawer detail={refused} onClose={() => {}} canOpenUser />));
 
     expect(rendered).toContain('You do not have access to one or more data products required by this question.');
     expect(rendered).toContain('USER_NOT_AUTHORIZED');
   });
 
   it('says a run was not metred rather than reporting zero tokens', () => {
-    const rendered = text(
-      render(<QuestionDrawer detail={detail({ tokens: null })} onClose={() => {}} onOpenPerson={() => {}} />)
-    );
+    const rendered = text(render(<QuestionDrawer detail={detail({ tokens: null })} onClose={() => {}} canOpenUser />));
 
     expect(rendered).toContain('This run was not metred, so no token count was recorded.');
     expect(rendered).not.toContain('0 tokens');
@@ -1341,6 +1369,8 @@ describe('the User Monitoring browser', () => {
 function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload {
   return {
     email: 'first.person@example.test',
+    role: 'consumer',
+    persona: null,
     firstSeen: '2026-03-04T09:00:00Z',
     lastSeen: '2026-08-15T10:00:00Z',
     summary: {
@@ -1441,6 +1471,7 @@ describe('the per-user panel', () => {
       budgets: { total: { USD: null, DBU: null }, resources: {} },
       budgetsReadable: true,
       spendByUser: {
+        dataRevision: 7,
         readAt: '2026-08-31T12:00:00Z',
         requestedRange: { from: '2026-08-25', to: '2026-08-31' },
         range: { from: '2026-08-25', to: '2026-08-31' },
@@ -1452,6 +1483,17 @@ describe('the per-user panel', () => {
             total: {
               usd: { amount: 12.5, quality: 'allocated' },
               dbu: { amount: 6.25, quality: 'allocated' },
+            },
+            metrics: {
+              unit: 'USD',
+              questions: 5,
+              coveredDays: 4,
+              costPerQuestion: { value: 2.5, state: 'value', subtitle: '5 submitted questions' },
+              averageDaily: { value: 3.125, state: 'value', subtitle: '4 covered days' },
+              appShare: { value: 25, state: 'value', subtitle: 'of comparable app spend' },
+              weekOverWeek: { value: 10, state: 'value', subtitle: 'vs prior 7 days' },
+              monthOverMonth: { value: null, state: 'new', subtitle: 'vs prior matched month days' },
+              comparisonFreshness: '2026-08-31',
             },
             components: [
               {
@@ -1519,7 +1561,12 @@ describe('the per-user panel', () => {
     );
     const rendered = text(markup);
 
-    expect(rendered).toContain('User spend 12.50 USD Estimated');
+    expect(rendered).toContain('Total user spend 12.50 USD Estimated');
+    expect(rendered).toContain('Cost / question 2.50 USD 5 submitted questions');
+    expect(rendered).toContain('Average daily spend 3.13 USD 4 covered days');
+    expect(rendered).toContain('Share of app spend 25% of comparable app spend');
+    expect(rendered).toContain('Week over week +10% vs prior 7 days');
+    expect(rendered).toContain('Month over month New vs prior matched month days');
     expect(rendered).not.toContain('6.25 DBU');
     for (const banned of [
       'Resource',
@@ -1552,7 +1599,8 @@ describe('the per-user panel', () => {
         />
       )
     );
-    expect(dbu).toContain('User spend 6.25 DBU Estimated');
+    expect(dbu).toContain('Total user spend 6.25 DBU Estimated');
+    expect(dbu).not.toContain('Cost / question');
     expect(dbu).not.toContain('12.50 USD');
 
     const noSpend: OpsCostPayload = structuredClone(cost);
@@ -1585,6 +1633,40 @@ describe('the per-user panel', () => {
     expect(loading).not.toContain('skeleton');
   });
 
+  it('shows the authorized current role and only a real assigned persona', () => {
+    for (const [role, label] of [
+      ['super_admin', 'Super admin'],
+      ['admin', 'Admin'],
+      ['consumer', 'Consumer'],
+    ] as const) {
+      const markup = render(
+        <PersonPanel
+          panel={panel({ role, persona: { id: 'analyst', name: 'Business Analyst' } })}
+          now={NOW}
+          rangeLabel="last 7 days"
+          onClose={() => {}}
+          onOpenQuestion={() => {}}
+        />
+      );
+      expect(markup).toContain(`aria-label="Role: ${label}"`);
+      expect(markup).toContain('aria-label="Persona: Business Analyst"');
+      expect(markup).toContain('title="Business Analyst"');
+    }
+    for (const persona of [null, { id: 'none', name: 'No persona' }, { id: 'blank', name: '  ' }]) {
+      const markup = render(
+        <PersonPanel
+          panel={panel({ persona })}
+          now={NOW}
+          rangeLabel="last 7 days"
+          onClose={() => {}}
+          onOpenQuestion={() => {}}
+        />
+      );
+      expect(markup).not.toContain('user-profile-modal-persona');
+      expect(markup).not.toContain('No persona');
+    }
+  });
+
   it('mounts person status and retry states before data arrives', () => {
     const loading = render(
       <PersonPanelShell
@@ -1598,6 +1680,7 @@ describe('the per-user panel', () => {
         onPreviousPage={() => {}}
         onNextPage={() => {}}
         onRetry={() => {}}
+        identitySeed={{ role: 'admin', persona: { id: 'analyst', name: 'Business Analyst' } }}
       />
     );
     const failedState = rejectPanelLoad(
@@ -1621,6 +1704,8 @@ describe('the per-user panel', () => {
       />
     );
     expect(loading).toContain('role="status"');
+    expect(loading).toContain('aria-label="Role: Admin"');
+    expect(loading).toContain('aria-label="Persona: Business Analyst"');
     expect(failed).toContain('role="alert"');
     expect(text(failed)).toContain('Person activity could not be loaded. Retry');
   });

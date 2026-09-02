@@ -16,10 +16,14 @@ describe('shared user drilldown links', () => {
     expect(normalizedHumanEmail('')).toBeNull();
   });
 
-  it('preserves Monitoring browser state and lets router navigation create the Back entry', () => {
-    expect(userOverviewHref('alice@example.test', '?range=7d&userSearch=ali')).toBe(
+  it('preserves Monitoring browser state, swaps the open question for the user, and leaves a Back entry', () => {
+    expect(userOverviewHref('alice@example.test', '?question=q1&range=7d&userSearch=ali')).toBe(
       '/monitoring?range=7d&userSearch=ali&who=alice%40example.test'
     );
+    const component = source('UserDrilldownLink.tsx');
+    expect(component).toContain('<Link');
+    expect(component).toContain('to={href}');
+    expect(component).not.toMatch(/<Link[\s\S]{0,160}\breplace(?:=|\s)/);
   });
 
   it('renders an admin identity as one real link and a non-admin identity as plain chip content', () => {
@@ -91,5 +95,20 @@ describe('shared user drilldown links', () => {
     expect(css).not.toMatch(/\.user-drilldown-link[^{]*\{[^}]*opacity\s*:/s);
     expect(component).toContain("event.key !== ' '");
     expect(component).toContain('event.currentTarget.click()');
+  });
+
+  it('inherits the shared compact chip geometry, full-address title, and ellipsis treatment', () => {
+    const css = source('styles/shell.css');
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <UserDrilldownLink identity="avery.long.canonical.display.name@example.test" compact canOpen />
+      </MemoryRouter>
+    );
+
+    expect(markup).toContain('title="avery.long.canonical.display.name@example.test"');
+    expect(markup).toContain('identity-chip identity-chip--compact');
+    expect(css).toMatch(/\.identity-chip\s*\{[^}]*max-width:\s*180px[^}]*min-width:\s*0/s);
+    expect(css).toMatch(/\.identity-chip-text\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis/s);
+    expect(css).toMatch(/\.identity-chip--compact\s*\{[^}]*max-width:\s*150px/s);
   });
 });

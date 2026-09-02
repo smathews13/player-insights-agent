@@ -625,41 +625,7 @@ export function CostBody({
               <CostResourceBudgets tiles={budgetTiles} />
             </div>
             <div className="ops-cost-resources">
-              <div className="ops-tiles" data-testid="cost-primary-grid">
-                {primaryCostCardViews(payload, unit).map((card) => {
-                  const tile = displayed.find((item) => item.id === card.id);
-                  const product = productForCostTile(card.id);
-                  const object = tile ? costTileWorkspaceObject(tile) : null;
-                  const href = object ? databricksLink(host, object) : null;
-                  return (
-                    <article key={card.id} className="ops-tile ops-primary-cost-card">
-                      <div className="ops-tile-head">
-                        <h4 className="ops-tile-label">
-                          {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
-                          <span className="ops-tile-label-text">{card.title}</span>
-                        </h4>
-                        {card.status ? (
-                          <span
-                            className={astPill(
-                              card.status === 'Partial' ? 'warn' : 'neutral-outline',
-                              'ops-pill ops-cost-status'
-                            )}
-                          >
-                            {card.status}
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="ops-tile-figure" title={card.detail || undefined}>
-                        <span className="ast-num">{card.amount}</span>
-                      </p>
-                      <p className="ops-tile-basis">{card.basis}</p>
-                      <p className="ops-tile-evidence">{card.evidence || '\u00a0'}</p>
-                      {card.resource ? <CostResourceLine label={card.resource} href={href} /> : null}
-                    </article>
-                  );
-                })}
-              </div>
-              <GenieCostSection payload={payload} host={host} />
+              <CostCardGrid payload={payload} displayed={displayed} host={host} unit={unit} />
             </div>
             {!replaceGrid && absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
             <CostMethodology payload={payload} />
@@ -670,55 +636,87 @@ export function CostBody({
   );
 }
 
-function GenieCostSection({ payload, host }: { payload: OpsCostPayload; host: string }) {
-  const cards = genieCostCardViews(payload);
-  if (cards.length === 0) return null;
+function CostCardGrid({
+  payload,
+  displayed,
+  host,
+  unit,
+}: {
+  payload: OpsCostPayload;
+  displayed: OpsCostPayload['tiles'];
+  host: string;
+  unit: CostBudgetUnit;
+}) {
+  const primary = primaryCostCardViews(payload, unit);
+  const average = primary.at(-1);
+  const componentCards = primary.slice(0, -1);
+  const genie = genieCostCardViews(payload);
   return (
-    <section className="ops-genie-section" aria-labelledby="ops-genie-cost-heading">
-      <h4 id="ops-genie-cost-heading">Genie</h4>
-      <div className="ops-genie-grid">
-        {cards.map((card) => {
-          const object = costTileWorkspaceObject(card.tile);
-          const href = object ? databricksLink(host, object) : null;
-          return (
-            <article key={card.id} className="ops-tile ops-genie-card">
-              <div className="ops-tile-head">
-                <h5 className="ops-tile-label">
-                  <BrandIcon product="genie" size={14} className="ops-tile-mark" />
-                  <span className="ops-tile-label-text">{card.title}</span>
-                </h5>
-                <span className={astPill('neutral-outline', 'ops-pill ops-cost-status')}>{card.attribution}</span>
-              </div>
-              <dl className="ops-genie-accounting" aria-label={`${card.title} selected-period accounting`}>
-                <div>
-                  <dt>Charged</dt>
-                  <dd className="ast-num" title={card.detail || undefined}>
-                    {card.charged}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Free usage</dt>
-                  <dd className="ast-num">{card.freeUsage}</dd>
-                </div>
-                <div className="ops-genie-free-split">
-                  <dt>Allowance used / Promotional</dt>
-                  <dd className="ast-num">
-                    {card.allowance} / {card.promotional}
-                  </dd>
-                </div>
-              </dl>
-              {card.resource ? <CostResourceLine label={card.resource} href={href} /> : null}
-            </article>
-          );
-        })}
+    <div className="ops-tiles" data-testid="cost-primary-grid">
+      {componentCards.map((card) => (
+        <PrimaryCostCard key={card.id} card={card} tile={displayed.find((item) => item.id === card.id)} host={host} />
+      ))}
+      {genie.map((card) => {
+        const object = costTileWorkspaceObject(card.tile);
+        const href = object ? databricksLink(host, object) : null;
+        return (
+          <article key={card.id} className="ops-tile ops-primary-cost-card ops-genie-card">
+            <div className="ops-tile-head">
+              <h4 className="ops-tile-label">
+                <BrandIcon product="genie" size={14} className="ops-tile-mark" />
+                <span className="ops-tile-label-text">{card.title}</span>
+              </h4>
+              <span className={astPill('neutral-outline', 'ops-pill ops-cost-status')}>{card.attribution}</span>
+            </div>
+            <p className="ops-tile-figure" title={card.detail || undefined}>
+              <span className="ast-num">{card.charged}</span>
+            </p>
+            <p className="ops-tile-basis">Configured-space charged usage</p>
+            <p className="ops-tile-evidence">Free usage {card.freeUsage}</p>
+            <p className="ops-tile-evidence ops-genie-split">
+              Allowance {card.allowance} · Promotional {card.promotional}
+            </p>
+            {card.resource ? <CostResourceLine label={card.resource} href={href} /> : null}
+          </article>
+        );
+      })}
+      {average ? <PrimaryCostCard card={average} host={host} /> : null}
+    </div>
+  );
+}
+
+function PrimaryCostCard({
+  card,
+  tile,
+  host,
+}: {
+  card: ReturnType<typeof primaryCostCardViews>[number];
+  tile?: OpsCostPayload['tiles'][number];
+  host: string;
+}) {
+  const product = productForCostTile(card.id);
+  const object = tile ? costTileWorkspaceObject(tile) : null;
+  const href = object ? databricksLink(host, object) : null;
+  return (
+    <article className="ops-tile ops-primary-cost-card">
+      <div className="ops-tile-head">
+        <h4 className="ops-tile-label">
+          {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
+          <span className="ops-tile-label-text">{card.title}</span>
+        </h4>
+        {card.status ? (
+          <span className={astPill(card.status === 'Partial' ? 'warn' : 'neutral-outline', 'ops-pill ops-cost-status')}>
+            {card.status}
+          </span>
+        ) : null}
       </div>
-      <Disclosure summary="Genie accounting details" className="ops-genie-method">
-        <p>
-          Charged usage is matched to configured spaces by user-day evidence. Ambiguous app activity is allocated by
-          execution-time or call share; unsupported workspace usage is excluded.
-        </p>
-      </Disclosure>
-    </section>
+      <p className="ops-tile-figure" title={card.detail || undefined}>
+        <span className="ast-num">{card.amount}</span>
+      </p>
+      <p className="ops-tile-basis">{card.basis}</p>
+      <p className="ops-tile-evidence">{card.evidence || '\u00a0'}</p>
+      {card.resource ? <CostResourceLine label={card.resource} href={href} /> : null}
+    </article>
   );
 }
 
@@ -771,7 +769,7 @@ function CostMethodology({ payload }: { payload: OpsCostPayload }) {
       return 'Priced warehouse spend × completed-run Ask-tagged Query History execution time ÷ all warehouse execution time; preflight, Ops, telemetry, benchmarks, Genie SQL, and unrelated queries are excluded.';
     }
     if (tile.id.startsWith('genie:')) {
-      return 'Charged Genie billing only. Human monthly allowance and promotional usage are shown separately and never added to paid spend.';
+      return 'Charged billing matched to this configured space by direct user-day evidence or bounded activity-share allocation. Unsupported workspace usage is excluded; allowance and promotional usage never enter paid spend.';
     }
     if (tile.id === 'vector-search') {
       return 'Exact hosting-endpoint billing. Included only when the active index reports this endpoint and the endpoint hosts one index; index-sync pipeline compute is separate.';

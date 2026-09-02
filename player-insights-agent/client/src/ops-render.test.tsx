@@ -1155,7 +1155,7 @@ describe('the cost block', () => {
     expect(markup).toContain('No billing rows');
     expect(markup).toContain('No billing rows matched an exact tracked resource');
     expect(markup).not.toContain('system_billing');
-    expect((markup.match(/ops-primary-cost-card/g) ?? []).length).toBe(6);
+    expect((markup.match(/ops-primary-cost-card/g) ?? []).length).toBe(8);
     expect((markup.match(/ops-genie-card/g) ?? []).length).toBe(2);
   });
 
@@ -1223,7 +1223,7 @@ describe('the cost block', () => {
     expect(markup).not.toContain('identifier unavailable');
     expect(markup).toContain('No billing rows');
     expect(markup).not.toContain('Index rebuild');
-    expect((markup.match(/ops-primary-cost-card/g) ?? []).length).toBe(6);
+    expect((markup.match(/ops-primary-cost-card/g) ?? []).length).toBe(8);
     expect((markup.match(/ops-genie-card/g) ?? []).length).toBe(2);
   });
 
@@ -1771,9 +1771,9 @@ describe('the cost block', () => {
     expect(markup).toContain('Dictionary Genie');
     expect(markup).toContain('space-data');
     expect(markup).toContain('space-dictionary');
-    expect(markup).toContain('Charged 2.00 USD · 5.00 effective DBU');
+    expect(markup).toContain('2.00 USD · 5.00 effective DBU');
     expect(markup).toContain('Free usage 15.00 DBU');
-    expect(markup).toContain('Allowance used / Promotional 12.00 DBU / 3.00 DBU');
+    expect(markup).toContain('Allowance 12.00 DBU · Promotional 3.00 DBU');
     expect(markup).not.toContain('Underlying total');
   });
 
@@ -1925,18 +1925,25 @@ describe('the cost block', () => {
       },
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    const primaryGrid = markup.slice(markup.indexOf('cost-primary-grid'), markup.indexOf('ops-genie-section'));
-    expect((primaryGrid.match(/ops-primary-cost-card/g) ?? []).length).toBe(6);
-    expect((markup.match(/ops-genie-card/g) ?? []).length).toBe(2);
-    expect(markup).toContain('Data Genie');
-    expect(markup).toContain('0.33 USD · 1.65 effective DBU');
-    expect(markup).toContain('Dictionary Genie');
-    expect(markup).toContain('3.21 USD · 16.05 effective DBU');
-    expect(markup).toContain('177 of 216 Ask model calls');
-    expect(markup).toContain('Average cost / question');
-    expect(markup).toContain('Partial');
-    expect(markup).not.toContain('Unattributed Genie');
-    expect(markup).not.toContain('7,552');
+    const primaryGrid = markup.slice(markup.indexOf('cost-primary-grid'), markup.indexOf('ops-cost-method'));
+    expect((primaryGrid.match(/ops-primary-cost-card/g) ?? []).length).toBe(8);
+    expect((primaryGrid.match(/ops-tile ops-primary-cost-card ops-genie-card/g) ?? []).length).toBe(2);
+    expect(primaryGrid).not.toContain('ops-genie-section');
+    expect(primaryGrid).not.toMatch(/<h4[^>]*>Genie<\/h4>/);
+    expect(primaryGrid).toContain('Data Genie');
+    expect(primaryGrid).toContain('0.33 USD · 1.65 effective DBU');
+    expect(primaryGrid).toContain('Dictionary Genie');
+    expect(primaryGrid).toContain('3.21 USD · 16.05 effective DBU');
+    expect(primaryGrid).toContain('Free usage 30.00 DBU');
+    expect(primaryGrid).toContain('Allowance 12.00 DBU · Promotional 18.00 DBU');
+    expect(primaryGrid.indexOf('Data Genie')).toBeLessThan(primaryGrid.indexOf('Dictionary Genie'));
+    expect(primaryGrid.indexOf('Dictionary Genie')).toBeLessThan(primaryGrid.indexOf('Average cost / question'));
+    expect(primaryGrid).toContain('space-data-production-id');
+    expect(primaryGrid).toContain('space-dictionary-production-id');
+    expect(primaryGrid).toContain('177 of 216 Ask model calls');
+    expect(primaryGrid).toContain('Partial');
+    expect(primaryGrid).not.toContain('Unattributed Genie');
+    expect(primaryGrid).not.toContain('7,552');
     expect(primaryGrid).not.toContain('production-identifier</span></h4>');
     expect(primaryGrid).not.toContain('Experimental');
     expect(markup).not.toContain('Foundation-model request or price coverage is partial; spend is withheld.');

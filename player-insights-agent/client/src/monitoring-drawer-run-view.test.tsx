@@ -109,7 +109,7 @@ function detail(overrides: Partial<MonitoringDetail> = {}): MonitoringDetail {
 function drawer(overrides: Partial<MonitoringDetail> = {}): string {
   return renderToStaticMarkup(
     <MemoryRouter>
-      <QuestionDrawer detail={detail(overrides)} onClose={() => {}} onOpenPerson={() => {}} />
+      <QuestionDrawer detail={detail(overrides)} onClose={() => {}} canOpenUser />
     </MemoryRouter>
   );
 }
@@ -147,7 +147,7 @@ describe('a Monitoring question opens as a centered modal over the list', () => 
     const markup = drawer();
     const rendered = text(markup);
     const cardAt = markup.indexOf('class="answer-card');
-    const chipAt = markup.indexOf('identity-chip--compact');
+    const chipAt = markup.indexOf('identity-chip-label');
     expect(cardAt).toBeGreaterThan(-1);
     expect(chipAt).toBeGreaterThan(cardAt);
     expect(rendered).toContain('Asked by first.person');
@@ -191,7 +191,7 @@ describe("the modal draws one run view, the card's own", () => {
     expect(rendered).toContain('1,200 tokens recorded on this run.');
     expect(rendered).toContain('Open the MLflow trace');
     expect(rendered).toContain('Open in Run Explorer');
-    expect(rendered).toContain("see first.person's activity");
+    expect(markup).toContain('aria-label="Open user overview for first.person"');
     expect(rendered.indexOf('Open the MLflow trace')).toBeLessThan(rendered.indexOf('Run process'));
     expect(rendered.indexOf('A narrative sentence.')).toBeLessThan(rendered.indexOf('Run process'));
     expect(markup).toMatch(

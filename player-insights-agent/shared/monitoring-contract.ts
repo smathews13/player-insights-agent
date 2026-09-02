@@ -18,6 +18,7 @@
  */
 
 import { FAILURE_TAXONOMY, isFailureCode, type FailureCode, type FailureLayer } from './failure-taxonomy';
+import type { Role } from './user-roster-contract';
 import type { RunRuntimeUsed } from './run-runtime-used';
 
 /**
@@ -369,6 +370,8 @@ export interface EffectiveGrant {
 
 export interface PersonPanelPayload {
   email: string;
+  role: Role;
+  persona: { id: string; name: string } | null;
   firstSeen: string | null;
   lastSeen: string | null;
   summary: MonitoringSummary;

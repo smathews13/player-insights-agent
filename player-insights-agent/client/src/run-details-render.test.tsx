@@ -28,6 +28,7 @@ import type { RunTrace } from './app-types';
 const CONTROL = 'role="switch"';
 /** A sentence that appears on the Details tab and nowhere else on the page. */
 const DETAILS = 'sanitized before display';
+const RUNS_CSS = readFileSync(new URL('./styles/runs.css', import.meta.url), 'utf8');
 
 /** The page as the router mounts it, on the tab it opens on. */
 function pageMarkup(): string {
@@ -250,6 +251,92 @@ describe('what flipping it on does', () => {
     for (const advanced of [false, true]) {
       expect(detailsMarkup(advanced)).toContain('tr-feedface');
     }
+  });
+});
+
+describe('advanced token consumption', () => {
+  const tokenTrace = {
+    ...TRACE,
+    trace: {
+      ...TRACE.trace,
+      prompt_tokens: 80_000,
+      completion_tokens: 4_576,
+      total_tokens: 84_576,
+      stages: [
+        {
+          ...TRACE.trace!.stages[0],
+          id: 'step-1',
+          name: 'Chose the next step',
+          token_usage: {
+            inputTokens: 80_000,
+            outputTokens: 4_576,
+            totalTokens: 84_576,
+            cacheStatus: 'unavailable',
+            attempts: 2,
+            totalMismatch: false,
+          },
+        },
+      ],
+      token_reconciliation: {
+        attributedTokens: 84_576,
+        attributedCalls: 2,
+        overviewTokens: 84_576,
+        coveragePercent: 100,
+        nestedAggregateTokens: 0,
+        mismatchCount: 0,
+      },
+      token_invocations: [
+        {
+          invocationId: 'span-1',
+          stageId: 'step-1',
+          attempt: 1,
+          inputTokens: 40_000,
+          outputTokens: 2_000,
+          totalTokens: 42_000,
+          cacheStatus: 'unavailable',
+          attempts: 1,
+          totalMismatch: false,
+        },
+        {
+          invocationId: 'span-2',
+          stageId: 'step-1',
+          attempt: 2,
+          inputTokens: 40_000,
+          outputTokens: 2_576,
+          totalTokens: 42_576,
+          cacheStatus: 'unavailable',
+          attempts: 1,
+          totalMismatch: false,
+        },
+      ],
+    },
+  } as unknown as RunTrace;
+
+  it('shows the reconciled the demo workspace total, one cache-unavailable state, and invocation attempts', () => {
+    const markup = readable(detailsMarkup(true, tokenTrace));
+    expect(markup).toContain('Token consumption 84,576 total');
+    expect(markup).toContain('Run input 80,000');
+    expect(markup).toContain('Run output 4,576');
+    expect(markup).toContain('Run total 84,576');
+    expect(markup).toContain('Cache Not reported');
+    expect(markup).toContain('Attributed coverage 84,576 tokens · 100.0% of run total');
+    expect(markup).toContain('Unattributed difference 0');
+    expect(markup).toContain('Component and invocation token usage');
+    expect(markup).toContain('Orchestrator turn 1 1 40,000 2,000 Not reported 42,000 Not reported');
+    expect(markup).toContain('Orchestrator turn 1 2 40,000 2,576 Not reported 42,576 Not reported');
+  });
+
+  it('renders one unavailable state and no invocation table for a legacy trace', () => {
+    const legacy = { ...TRACE, trace: { ...TRACE.trace, stages: [] } } as unknown as RunTrace;
+    const markup = detailsMarkup(true, legacy);
+    expect(markup).toContain('Token evidence is not available for this run.');
+    expect(markup).not.toContain('Component and invocation token usage');
+    expect(markup).not.toContain('Unattributed difference');
+  });
+
+  it('keeps the invocation table inside its own responsive scroller', () => {
+    expect(RUNS_CSS).toMatch(/\.token-invocations\s*\{[^}]*max-width:\s*100%[^}]*overflow-x:\s*auto/s);
+    expect(RUNS_CSS).toMatch(/\.token-invocations table\s*\{[^}]*min-width:\s*700px/s);
   });
 });
 

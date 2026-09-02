@@ -82,7 +82,7 @@ describe('Settings applied in this run', () => {
     const withSnapshot = text(
       renderToStaticMarkup(
         <MemoryRouter>
-          <QuestionDrawer detail={drawerDetail({ runtimeUsed: SNAPSHOT })} onClose={() => {}} onOpenPerson={() => {}} />
+          <QuestionDrawer detail={drawerDetail({ runtimeUsed: SNAPSHOT })} onClose={() => {}} canOpenUser />
         </MemoryRouter>
       )
     );
@@ -90,7 +90,7 @@ describe('Settings applied in this run', () => {
     const without = text(
       renderToStaticMarkup(
         <MemoryRouter>
-          <QuestionDrawer detail={drawerDetail({ runtimeUsed: null })} onClose={() => {}} onOpenPerson={() => {}} />
+          <QuestionDrawer detail={drawerDetail({ runtimeUsed: null })} onClose={() => {}} canOpenUser />
         </MemoryRouter>
       )
     );

@@ -5,7 +5,7 @@
 import { isAnswerProvenance, type AnswerProvenance } from '../../shared/answer-provenance';
 import { normalizeReaderStageStatus, projectReaderStage, type ReaderStageStatus } from '../../shared/stage-lexicon';
 import type { AnalyticalExecution } from './analytical-execution';
-import type { StepTokenUsage, TokenReconciliation } from '../../shared/llm-token-usage';
+import type { StepTokenUsage, TokenInvocationUsage, TokenReconciliation } from '../../shared/llm-token-usage';
 
 export type StageStatus = ReaderStageStatus;
 
@@ -45,6 +45,7 @@ export interface TraceSummary {
   prompt_tokens?: number;
   completion_tokens?: number;
   total_tokens?: number;
+  token_invocations?: TokenInvocationUsage[];
   token_reconciliation?: TokenReconciliation;
 }
 
@@ -180,6 +181,30 @@ function normalizedStepTokenUsage(value: unknown): StepTokenUsage | undefined {
   return normalized;
 }
 
+function normalizedTokenInvocation(value: unknown): TokenInvocationUsage | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const record = value as Record<string, unknown>;
+  const usage = normalizedStepTokenUsage(record);
+  if (
+    !usage ||
+    typeof record.invocationId !== 'string' ||
+    !record.invocationId ||
+    typeof record.stageId !== 'string' ||
+    !record.stageId ||
+    typeof record.attempt !== 'number' ||
+    !Number.isInteger(record.attempt) ||
+    record.attempt < 1
+  ) {
+    return undefined;
+  }
+  return {
+    ...usage,
+    invocationId: record.invocationId,
+    stageId: record.stageId,
+    attempt: record.attempt,
+  };
+}
+
 /**
  * Stage ids are React keys and the parent lookup for nesting, so a stage without
  * one gets a positional id rather than `undefined`, duplicate keys silently drop
@@ -242,6 +267,10 @@ export function normalizeTrace(raw: unknown): TraceSummary {
   if (typeof trace.total_tokens === 'number' && Number.isFinite(trace.total_tokens)) {
     normalized.total_tokens = trace.total_tokens;
   }
+  const invocations = asArray(trace.token_invocations)
+    .map(normalizedTokenInvocation)
+    .filter((item): item is TokenInvocationUsage => item !== undefined);
+  if (invocations.length > 0) normalized.token_invocations = invocations;
   if (trace.token_reconciliation && typeof trace.token_reconciliation === 'object') {
     normalized.token_reconciliation = trace.token_reconciliation as TokenReconciliation;
   }
