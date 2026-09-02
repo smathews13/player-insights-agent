@@ -32,6 +32,7 @@ export interface ForecastBaseline {
   evidence: Record<keyof ForecastAssumptions, ForecastSuggestionEvidence>;
   observed: {
     servingCostPerQuestion: number | null;
+    foundationCostPerQuestion: number | null;
     averageModelTokensPerQuestion: number | null;
     sqlCostPerQuestion: number | null;
     appCostPerActiveMinute: number | null;
@@ -50,6 +51,8 @@ export interface ForecastBaseline {
   exclusions: ForecastExclusion[];
   caveats: string[];
   noActivityHistory: boolean;
+  /** New payloads use completed interactive Ask evidence; absent legacy payloads retain their old projection semantics. */
+  marginalInteractive: boolean;
 }
 
 export interface ForecastSuggestionEvidence {
@@ -202,6 +205,7 @@ export function deriveForecastBaseline(
     },
     observed: {
       servingCostPerQuestion: null,
+      foundationCostPerQuestion: null,
       averageModelTokensPerQuestion: null,
       sqlCostPerQuestion: null,
       appCostPerActiveMinute: null,
@@ -215,17 +219,20 @@ export function deriveForecastBaseline(
         ? ['Forecasts use Databricks list prices, not contracted rates, invoices, budgets, or commitments.']
         : ['Forecasts use measured Databricks units and do not apply a USD conversion rate.'],
     noActivityHistory: false,
+    marginalInteractive: false,
   };
 
   if (!cost) return empty;
 
   const days = rangeDays(cost.range.from, cost.range.to);
+  const marginalInteractive = cost.perQuestion.complete === true;
   const baseline: ForecastBaseline = {
     ...empty,
     currency: unit === 'DBU' ? 'DBU' : cost.currency || 'USD',
     window: { ...cost.range, days },
     unavailableReason: '',
     caveats: [...empty.caveats],
+    marginalInteractive,
   };
   if (cost.state === 'no-grant' || cost.state === 'unreadable' || cost.state === 'no-warehouse') {
     baseline.unavailableReason = cost.reason || 'Cost could not establish a priced baseline.';
@@ -341,27 +348,42 @@ export function deriveForecastBaseline(
       range: rangeOf(tokenObservations, 'observed tokens/question'),
     };
   }
-  if (servingTotal !== null && questionCount > 0 && averageTokens !== null) {
+  const servingQuestions = marginalInteractive ? completedRuns : questionCount;
+  if (servingTotal !== null && servingQuestions > 0 && (marginalInteractive || averageTokens !== null)) {
     // Traffic defines a question as one stored user message. Amortizing the
     // measured endpoint total over that same population keeps the rate and the
     // editable "questions per user" assumption on one denominator, including
     // questions whose runs later failed or were refused.
-    baseline.observed.servingCostPerQuestion = servingTotal / questionCount;
-    if (tokenRuns < completedRuns) {
-      pushUnique(
-        baseline.caveats,
-        `Serving token coverage is partial (${tokenRuns} of ${completedRuns} completed questions); the observed rate uses covered questions only.`
-      );
-    }
+    baseline.observed.servingCostPerQuestion = servingTotal / servingQuestions;
   } else {
     baseline.exclusions.push({
       component: serving?.label || 'Serving endpoint',
       reason:
         servingTotal === null
           ? tileReason(serving, 'No priced serving spend was measured.', unit)
-          : questionCount === 0
-            ? 'No stored user questions overlap the Cost window.'
-            : 'Recorded model tokens do not cover any completed question.',
+          : 'No completed interactive Ask overlaps the Cost window.',
+    });
+  }
+
+  const foundation = cost.tiles.find((tile) => tile.id === 'foundation-model');
+  const foundationTotal = totalInWindow(foundation, days, unit);
+  if (foundation && foundationTotal !== null && completedRuns > 0 && averageTokens !== null) {
+    baseline.observed.foundationCostPerQuestion = foundationTotal / completedRuns;
+    if (tokenRuns < completedRuns) {
+      pushUnique(
+        baseline.caveats,
+        `Foundation-model token coverage is partial (${tokenRuns} of ${completedRuns} completed questions).`
+      );
+    }
+  } else if (foundation) {
+    baseline.exclusions.push({
+      component: foundation?.label || 'Foundation model tokens',
+      reason:
+        foundationTotal === null
+          ? tileReason(foundation, 'No priced foundation-model token spend was measured.', unit)
+          : averageTokens === null
+            ? 'Recorded model tokens do not cover any completed question.'
+            : 'No completed interactive Ask overlaps the Cost window.',
     });
   }
 
@@ -408,7 +430,7 @@ export function deriveForecastBaseline(
     });
   }
 
-  const known = new Set(['serving-endpoint', 'sql-warehouse', 'app-compute', 'vector-search']);
+  const known = new Set(['serving-endpoint', 'foundation-model', 'sql-warehouse', 'app-compute', 'vector-search']);
   for (const tile of cost.tiles) {
     if (known.has(tile.id)) continue;
     const amount = dailyInWindow(tile, days, unit);
@@ -429,6 +451,7 @@ export function deriveForecastBaseline(
 
   const hasMeasuredRate =
     baseline.observed.servingCostPerQuestion !== null ||
+    baseline.observed.foundationCostPerQuestion !== null ||
     baseline.observed.sqlCostPerQuestion !== null ||
     baseline.appComputeDaily !== null ||
     baseline.fixedDailyCosts.length > 0;
@@ -449,24 +472,41 @@ export function calculateForecast(baseline: ForecastBaseline, assumptions: Forec
   const dailyActiveMinutes = safe.averageDailyUsers * safe.activeAppMinutesPerUserPerDay;
   const components: ForecastComponent[] = [];
 
+  if (baseline.observed.servingCostPerQuestion !== null) {
+    const tokenRatio =
+      !baseline.marginalInteractive &&
+      baseline.observed.averageModelTokensPerQuestion !== null &&
+      baseline.observed.averageModelTokensPerQuestion > 0
+        ? safe.averageModelTokensPerQuestion / baseline.observed.averageModelTokensPerQuestion
+        : 1;
+    components.push({
+      id: 'serving-endpoint',
+      label: baseline.marginalInteractive ? 'Agent serving' : 'Serving endpoint',
+      dailyAmount: dailyQuestions * baseline.observed.servingCostPerQuestion * tokenRatio,
+      formula: baseline.marginalInteractive
+        ? 'daily interactive Asks × observed marginal serving cost/Ask'
+        : 'daily stored questions × observed serving cost/stored question × assumed-to-observed token ratio',
+      unavailable: '',
+    });
+  }
   if (
-    baseline.observed.servingCostPerQuestion !== null &&
+    baseline.observed.foundationCostPerQuestion !== null &&
     baseline.observed.averageModelTokensPerQuestion !== null &&
     baseline.observed.averageModelTokensPerQuestion > 0
   ) {
     const tokenRatio = safe.averageModelTokensPerQuestion / baseline.observed.averageModelTokensPerQuestion;
     components.push({
-      id: 'serving-endpoint',
-      label: 'Serving endpoint',
-      dailyAmount: dailyQuestions * baseline.observed.servingCostPerQuestion * tokenRatio,
-      formula: 'daily stored questions × observed serving cost/stored question × assumed-to-observed token ratio',
+      id: 'foundation-model',
+      label: 'Foundation model tokens',
+      dailyAmount: dailyQuestions * baseline.observed.foundationCostPerQuestion * tokenRatio,
+      formula: 'daily interactive Asks × observed token cost/Ask × assumed-to-observed token ratio',
       unavailable: '',
     });
   }
   if (baseline.observed.sqlCostPerQuestion !== null) {
     components.push({
       id: 'sql-warehouse',
-      label: 'Astrolabe SQL',
+      label: baseline.marginalInteractive ? 'Ask SQL' : 'Astrolabe SQL',
       dailyAmount: dailyQuestions * baseline.observed.sqlCostPerQuestion,
       formula: 'daily stored questions × observed attributed SQL cost/stored question',
       unavailable: '',

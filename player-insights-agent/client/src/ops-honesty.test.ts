@@ -372,6 +372,7 @@ describe('an empty cost block', () => {
     const tiles = costTilesForDisplay([]);
     expect(tiles.map((tile) => tile.id)).toEqual([
       'serving-endpoint',
+      'foundation-model',
       'sql-warehouse',
       'genie:data',
       'genie:dictionary',
@@ -379,6 +380,39 @@ describe('an empty cost block', () => {
       'app-compute',
     ]);
     expect(tiles.every((tile) => tile.unavailable === 'No billing rows')).toBe(true);
+  });
+
+  it('shows only the reconciliation card when all measured Genie usage is unattributed', () => {
+    const accounting = {
+      spaceId: '',
+      label: 'Unattributed Genie',
+      tileId: 'genie:unattributed',
+      attribution: 'unattributed' as const,
+      sourceDbus: 15,
+      allowanceUsedDbus: 10,
+      promotionalDbus: 5,
+      chargedEffectiveDbus: 0,
+      chargedRawEquivalentDbus: 0,
+      unknownDbus: 0,
+      paidUsd: 0,
+      underlyingTotalDbus: 15,
+      pricingState: 'priced' as const,
+      surfaces: [],
+    };
+    const displayed = costTilesForDisplay([
+      tile({
+        id: 'genie:data',
+        resourceId: 'space-data',
+        genieInstanceAccounting: { ...accounting, spaceId: 'space-data', underlyingTotalDbus: 0 },
+      }),
+      tile({
+        id: 'genie:dictionary',
+        resourceId: 'space-dictionary',
+        genieInstanceAccounting: { ...accounting, spaceId: 'space-dictionary', underlyingTotalDbus: 0 },
+      }),
+      tile({ id: 'genie:unattributed', genieInstanceAccounting: accounting }),
+    ]);
+    expect(displayed.map((item) => item.id)).toEqual(['genie:unattributed']);
   });
 });
 
@@ -640,7 +674,9 @@ describe('the mark on a cost tile', () => {
 
 describe('approx average cost per question', () => {
   it('divides attributed serving and SQL spend by completed questions', () => {
-    expect(QUESTION_COST_FORMULA).toBe('Attributed serving + SQL ÷ completed questions');
+    expect(QUESTION_COST_FORMULA).toBe(
+      'Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks'
+    );
     expect(
       questionServingAverage(
         costPayload({

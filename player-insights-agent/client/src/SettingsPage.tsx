@@ -10,13 +10,12 @@ import {
   showsBenchmarkLab,
   showsEgressControls,
   showsForecasting,
+  showsNotebookAgentSync,
   withExperimentalFeature,
   type ExperimentalFeatures,
 } from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
-import { loadSpIdentityAdmin, persistSpIdentityMode } from './identity-settings-api';
-import { spIdentityEnabledFromPayload } from './sp-identity-mode';
 import { showsUserRoster, type RoleResolution } from './role';
 import {
   SAVE_PRESS_MS,
@@ -124,7 +123,6 @@ export function SettingsPage({
   initialSection = 'runtime',
   features: featuresProp,
   role: roleProp,
-  spIdentityEnabled: spIdentityEnabledProp,
   experimentalRevision: experimentalRevisionProp = 0,
   experimentalLoaded = true,
   experimentalFailure = '',
@@ -139,12 +137,6 @@ export function SettingsPage({
   experimentalLoaded?: boolean;
   experimentalFailure?: string;
   onExperimentalSaved?: (document: ExperimentalSettingsDocument) => void;
-  /**
-   * The deployment-wide pivot (`sp-identity-enabled`). Live Settings loads this
-   * from the admin API. Passing it seeds the first paint — tests, and never a
-   * browser preference.
-   */
-  spIdentityEnabled?: boolean;
 }) {
   const features = featuresProp ?? NO_EXPERIMENTS;
   const [active, setActive] = useState<SettingsSection>(() => normalizeSettingsSection(initialSection, features));
@@ -158,11 +150,6 @@ export function SettingsPage({
   // goes. See SAVE_PRESS_MS.
   const [pressed, setPressed] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const seededSpMode = spIdentityEnabledProp !== undefined;
-  const [spIdentityEnabled, setSpIdentityEnabled] = useState(spIdentityEnabledProp ?? false);
-  const [savedSpIdentityEnabled, setSavedSpIdentityEnabled] = useState(spIdentityEnabledProp ?? false);
-  const [spModeError, setSpModeError] = useState<string | null>(null);
-  const [spModeBusy, setSpModeBusy] = useState(!seededSpMode);
   const close = onClose ?? noopClose;
   // `?? ` rather than a default parameter, because a default parameter only
   // covers `undefined`. A caller handing down a value it fetched can hand down
@@ -174,34 +161,6 @@ export function SettingsPage({
   const [experimentalRevision, setExperimentalRevision] = useState(experimentalRevisionProp);
   const role = roleProp ?? DEFAULT_ROLE;
   const sections = availableSettingsSections(savedFeatures);
-
-  /**
-   * The Experimental switch and the Identity pane both follow the server flag.
-   *
-   * A seed skips the read so a test can paint On without waiting for fetch.
-   * Failure stays off: OAuth remains the default until the server says otherwise.
-   */
-  useEffect(() => {
-    if (seededSpMode) return;
-    let live = true;
-    void loadSpIdentityAdmin()
-      .then((payload) => {
-        if (live) {
-          const enabled = spIdentityEnabledFromPayload(payload);
-          setSpIdentityEnabled(enabled);
-          setSavedSpIdentityEnabled(enabled);
-        }
-      })
-      .catch(() => {
-        /* Keep OAuth. A failed read must not flip the pivot on. */
-      })
-      .finally(() => {
-        if (live) setSpModeBusy(false);
-      });
-    return () => {
-      live = false;
-    };
-  }, [seededSpMode]);
 
   /** Let go of the press paint whether or not the save ever comes back. */
   useEffect(() => {
@@ -221,7 +180,7 @@ export function SettingsPage({
     () => changedSettingKeys(savedFeatures, draftFeatures),
     [draftFeatures, savedFeatures]
   );
-  const experimentalShellDirtyCount = featureChanges.length + (spIdentityEnabled === savedSpIdentityEnabled ? 0 : 1);
+  const experimentalShellDirtyCount = featureChanges.length;
   const dirtyCount = paneDirtyCount + (active === 'experimental' ? experimentalShellDirtyCount : 0);
 
   const commitExperimental = useCallback(async () => {
@@ -241,35 +200,7 @@ export function SettingsPage({
       setExperimentalRevision(document.revision);
       onExperimentalSaved(document);
     }
-    let committedSpMode = spIdentityEnabled;
-    if (spIdentityEnabled !== savedSpIdentityEnabled) {
-      setSpModeBusy(true);
-      try {
-        const payload = await persistSpIdentityMode(spIdentityEnabled);
-        committedSpMode = spIdentityEnabledFromPayload(payload);
-        if (committedSpMode !== spIdentityEnabled) {
-          throw new Error('The service-principal identity setting was not saved as requested.');
-        }
-        setSpModeError(null);
-      } catch (error) {
-        setSpModeError((error as Error).message);
-        setSpIdentityEnabled(savedSpIdentityEnabled);
-        throw error;
-      } finally {
-        setSpModeBusy(false);
-      }
-    }
-    setSavedSpIdentityEnabled(committedSpMode);
-    setSpIdentityEnabled(committedSpMode);
-  }, [
-    draftFeatures,
-    experimentalRevision,
-    featureChanges,
-    onExperimentalSaved,
-    savedFeatures,
-    savedSpIdentityEnabled,
-    spIdentityEnabled,
-  ]);
+  }, [draftFeatures, experimentalRevision, featureChanges, onExperimentalSaved, savedFeatures]);
 
   const form =
     active === 'runtime' || active === 'appearance'
@@ -363,10 +294,7 @@ export function SettingsPage({
                 <div className="settings-pane-heading">
                   <h3>Identity</h3>
                 </div>
-                <UserRoleEditor
-                  spIdentityEnabled={spIdentityEnabled}
-                  canManageHumanRoles={showsUserRoster(role.state)}
-                />
+                <UserRoleEditor canManageHumanRoles={showsUserRoster(role.state)} />
               </div>
             ) : null}
             {active === 'runtime' || active === 'appearance' ? (
@@ -423,42 +351,26 @@ export function SettingsPage({
                     </tr>
                     <tr>
                       <td>
-                        <ExperimentalFeatureName>SP identities</ExperimentalFeatureName>
-                        {spModeError ? (
-                          <p className="settings-status settings-error" role="alert">
-                            {spModeError}
-                          </p>
-                        ) : null}
+                        <ExperimentalFeatureName>Notebook agent sync</ExperimentalFeatureName>
+                        <p className="settings-row-note">
+                          Controls notebook selection plus the staged agent-version apply workflow.
+                        </p>
                       </td>
                       <td className="exp-feature-status">
-                        <ExperimentalStatus on={spIdentityEnabled} />
+                        <ExperimentalStatus on={showsNotebookAgentSync(draftFeatures)} />
                       </td>
                       <td className="exp-feature-control">
                         <div className="exp-feature-control-inner">
-                          {spIdentityEnabled ? (
-                            <button
-                              type="button"
-                              className="settings-identity-link"
-                              data-testid="sp-identity-settings-link"
-                              disabled={dirtyCount > 0}
-                              title={dirtyCount > 0 ? 'Save or Cancel the current changes first' : undefined}
-                              onClick={() => {
-                                setActive('identity');
-                                setSaveState(SETTINGS_SAVE_IDLE);
-                              }}
-                            >
-                              Identity
-                            </button>
-                          ) : null}
                           <Switch
-                            checked={spIdentityEnabled}
-                            disabled={spModeBusy}
+                            checked={showsNotebookAgentSync(draftFeatures)}
+                            disabled={!experimentalLoaded}
                             onCheckedChange={(enabled) => {
-                              setSpModeError(null);
-                              setSpIdentityEnabled(enabled);
+                              setDraftFeatures((current) =>
+                                withExperimentalFeature(current, 'notebookAgentSync', enabled)
+                              );
                               setSaveState(SETTINGS_SAVE_IDLE);
                             }}
-                            aria-label="Run assigned people as their service principal"
+                            aria-label="Enable Notebook agent sync"
                           />
                         </div>
                       </td>

@@ -134,7 +134,7 @@ const TRANSCRIPT_SOURCE = readFileSync(new URL('./HomePage.tsx', import.meta.url
  */
 describe('where the mark is used', () => {
   it('signs the user’s own messages with the shared identity chip', () => {
-    expect(TRANSCRIPT_SOURCE).toContain('<UserIdentityChip identity={asker}');
+    expect(TRANSCRIPT_SOURCE).toContain('<UserDrilldownLink');
     expect(TRANSCRIPT_SOURCE).not.toContain('{asker.initials}');
   });
 

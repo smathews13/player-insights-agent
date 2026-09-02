@@ -9,14 +9,21 @@ export interface ExperimentalFeatures {
   benchmarkLab: boolean;
   egressControls: boolean;
   forecasting: boolean;
+  notebookAgentSync: boolean;
 }
 
-export const EXPERIMENTAL_FEATURE_KEYS = ['benchmarkLab', 'egressControls', 'forecasting'] as const;
+export const EXPERIMENTAL_FEATURE_KEYS = [
+  'benchmarkLab',
+  'egressControls',
+  'forecasting',
+  'notebookAgentSync',
+] as const;
 
 export const NO_EXPERIMENTS: Readonly<ExperimentalFeatures> = {
   benchmarkLab: false,
   egressControls: false,
   forecasting: false,
+  notebookAgentSync: false,
 };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -51,6 +58,7 @@ export function decodeExperimentalSettingsDocument(
       benchmarkLab: settings.benchmarkLab === true,
       egressControls: settings.egressControls === true,
       forecasting: settings.forecasting === true,
+      notebookAgentSync: settings.notebookAgentSync === true,
     },
     revision: Number(revision),
   };

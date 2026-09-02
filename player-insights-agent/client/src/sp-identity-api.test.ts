@@ -5,10 +5,8 @@ import {
   deleteSpPersonaDefinition,
   EMPTY_SP_IDENTITY,
   loadSpIdentityAdmin,
-  persistSpIdentityMode,
   updateSpPersonaDefinition,
 } from './identity-settings-api';
-import { spIdentityEnabledFromPayload } from './sp-identity-mode';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -21,42 +19,20 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('reading and writing the deployment-wide SP-identity pivot', () => {
-  it('loads enabled from GET /api/admin/sp-identity, fail-closed', async () => {
-    const fetch = vi.fn().mockResolvedValue(json({ ...EMPTY_SP_IDENTITY, enabled: true }));
+describe('always-on SP persona administration', () => {
+  it('loads mappings from the admin API without a feature flag', async () => {
+    const fetch = vi.fn().mockResolvedValue(json(EMPTY_SP_IDENTITY));
     vi.stubGlobal('fetch', fetch);
     const payload = await loadSpIdentityAdmin();
     expect(fetch).toHaveBeenCalledWith('/api/admin/sp-identity');
-    expect(spIdentityEnabledFromPayload(payload)).toBe(true);
+    expect(payload).not.toHaveProperty('enabled');
   });
 
-  it('does not treat a successful read of enabled:false as on', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ ...EMPTY_SP_IDENTITY, enabled: false })));
-    expect(spIdentityEnabledFromPayload(await loadSpIdentityAdmin())).toBe(false);
-  });
-
-  it('writes the same flag through PUT /api/admin/sp-identity/mode', async () => {
-    const fetch = vi.fn().mockResolvedValue(json({ ...EMPTY_SP_IDENTITY, enabled: true }));
-    vi.stubGlobal('fetch', fetch);
-    const payload = await persistSpIdentityMode(true);
-    expect(fetch).toHaveBeenCalledWith('/api/admin/sp-identity/mode', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ enabled: true }),
-    });
-    expect(spIdentityEnabledFromPayload(payload)).toBe(true);
-    expect(JSON.stringify(payload)).not.toMatch(/secret value|client_secret|s3cret/i);
-  });
-
-  it('Settings reads and writes that payload, not a browser preference', () => {
+  it('Settings has no SP experiment, mode API, or browser preference', () => {
     const source = readFileSync(new URL('SettingsPage.tsx', import.meta.url), 'utf8');
-    expect(source).toContain('loadSpIdentityAdmin');
-    expect(source).toContain('persistSpIdentityMode');
-    expect(source).toContain('spIdentityEnabledFromPayload');
-    expect(source).toContain('checked={spIdentityEnabled}');
-    expect(source).toContain('spIdentityEnabled={spIdentityEnabled}');
-    expect(source).not.toContain('showsSpIdentities');
-    expect(source).not.toContain("setFeature('spIdentities'");
+    const api = readFileSync(new URL('identity-settings-api.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/SP identities|spIdentityEnabled|persistSpIdentityMode/);
+    expect(api).not.toMatch(/sp-identity\/mode|persistSpIdentityMode/);
   });
 });
 

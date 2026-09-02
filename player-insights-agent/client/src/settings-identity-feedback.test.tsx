@@ -7,7 +7,7 @@ import { SettingsPage } from './SettingsPage';
 import { SpIdentityEditor } from './SpIdentityPanel';
 import { RosterRows } from './UserRoleEditor';
 
-const FEATURES = { benchmarkLab: true, egressControls: true, forecasting: false };
+const FEATURES = { benchmarkLab: true, egressControls: true, forecasting: false, notebookAgentSync: false };
 const SECTIONS = ['runtime', 'appearance', 'experimental', 'identity', 'environment', 'egress'] as const;
 const CSS = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 const RESPONSIVE = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');
@@ -23,7 +23,6 @@ describe('the demo workspace Settings shell feedback', () => {
           initialSection={active}
           features={FEATURES}
           role={{ state: 'super_admin', addedAdminsReadable: true }}
-          spIdentityEnabled={true}
         />
       );
       for (const label of ['Identity', 'Runtime', 'Environment', 'Appearance', 'Egress controls', 'Experimental']) {
@@ -56,9 +55,7 @@ describe('the demo workspace Settings shell feedback', () => {
   });
 
   it('labels dark mode as On or Off', () => {
-    const markup = renderToStaticMarkup(
-      <SettingsPage initialSection="appearance" features={FEATURES} spIdentityEnabled={true} />
-    );
+    const markup = renderToStaticMarkup(<SettingsPage initialSection="appearance" features={FEATURES} />);
     expect(markup).toContain('>On</span>');
     expect(markup).not.toContain('>Dark</span>');
     expect(markup).not.toContain('>Light</span>');
@@ -88,7 +85,6 @@ describe('the demo workspace Identity feedback', () => {
     recoveryStatement: '',
   };
   const spRoles: SpIdentityAdminPayload = {
-    enabled: true,
     minting: { available: true, detail: '' },
     personas: [
       {
@@ -120,7 +116,7 @@ describe('the demo workspace Identity feedback', () => {
           showPersona={true}
           onPersonaChange={() => {}}
         />
-        <SpIdentityEditor enabled={true} payload={spRoles} busy={false} readError={null} onRename={() => {}} />
+        <SpIdentityEditor payload={spRoles} busy={false} readError={null} onRename={() => {}} />
       </div>
     );
     expect(markup.match(/<table/g) ?? []).toHaveLength(2);
@@ -135,7 +131,7 @@ describe('the demo workspace Identity feedback', () => {
 
   it('shows role names and assignments without credential fields or values', () => {
     const markup = renderToStaticMarkup(
-      <SpIdentityEditor enabled={true} payload={spRoles} busy={false} readError={null} onRename={() => {}} />
+      <SpIdentityEditor payload={spRoles} busy={false} readError={null} onRename={() => {}} />
     );
     expect(markup).toContain('Persona name for Finance reader');
     expect(markup).toContain('>Rename</button>');
@@ -234,7 +230,8 @@ describe('the demo workspace Identity feedback', () => {
     );
     expect(markup).toContain('aria-label="Organization: Example Studio"');
     expect(markup).toContain('roster-organization-mark');
-    expect(markup).toContain(`title="${email}">${email}</span>`);
+    expect(markup).toContain(`<td class="roster-email" title="${email}">`);
+    expect(markup).toContain(`>${email}</span>`);
     expect(markup).toContain(`aria-label="Copy email ${email}"`);
     expect(markup.indexOf('roster-organization-mark')).toBeLessThan(markup.indexOf('admin-row-address'));
   });

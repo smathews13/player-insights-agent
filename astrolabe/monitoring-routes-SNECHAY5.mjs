@@ -1,0 +1,1103 @@
+
+import {
+  ANSWER_LANDED_SQL,
+  APP_ACTIVITY_TABLE,
+  APP_SESSION_TABLE,
+  PLAN_APPROVAL_MESSAGE,
+  PROSE_ONLY_DEGRADED_SQL,
+  VERDICT_STAGE_EXEMPTION_SQL,
+  appSessionDeployment,
+  bindSynthesisIncompleteSql,
+  chooseRows,
+  markResponse,
+  mlflowReference,
+  overlayJoinSql,
+  readStored,
+  runRuntimeUsedFromStored,
+  userEmail,
+  workspaceLinksAllowed
+} from "./chunk-66YAPV3G.mjs";
+import {
+  FAILURE_TAXONOMY,
+  accessDependenciesFrom,
+  executionToken,
+  isFailureCode,
+  statementRunnerFor,
+  verifyTableAccess
+} from "./chunk-TPU7NP2N.mjs";
+import {
+  resolveExperimentId
+} from "./chunk-Y3XGZW4B.mjs";
+import {
+  ExpiringLruCache
+} from "./chunk-ENWPWZ4F.mjs";
+import {
+  normalizeWorkspaceHost
+} from "./chunk-VHHJDNLO.mjs";
+import "./chunk-TIMY5ERW.mjs";
+import "./chunk-FHPVN4JA.mjs";
+import "./chunk-BMC3MARR.mjs";
+import "./chunk-P6LGY7M5.mjs";
+import "./chunk-5DRRUJAY.mjs";
+import {
+  APP_SCHEMA
+} from "./chunk-7DTM6FIL.mjs";
+import "./chunk-LLUDDZ3A.mjs";
+
+// shared/monitoring-contract.ts
+var OUTCOME_BY_STATE = {
+  REFUSED: "refused",
+  FAILED: "failed",
+  DEADLINE_EXCEEDED: "failed",
+  PERSISTENCE_FAILED: "failed",
+  CLARIFICATION_REQUIRED: "partial",
+  CANCELLED: "partial"
+};
+function classifyOutcome(input) {
+  const state = (input.runState ?? "").trim().toUpperCase();
+  const writerMissed = state === "DEADLINE_EXCEEDED" || input.synthesisIncomplete === true;
+  if (input.answerLanded && writerMissed && state !== "REFUSED") {
+    return "partial";
+  }
+  if (state && OUTCOME_BY_STATE[state]) return OUTCOME_BY_STATE[state];
+  if (input.proseOnlyDegraded) return "partial";
+  if (state && state !== "SUCCEEDED") return "partial";
+  if (input.answerLanded && (state === "SUCCEEDED" || input.hasStoredAnswer)) {
+    return "completed";
+  }
+  if (input.traceHasFailedStage) return "failed";
+  if (input.traceHasPartialStage) return "partial";
+  if (state === "SUCCEEDED" || input.hasStoredAnswer) return "completed";
+  return "partial";
+}
+function applyAdminOutcome(classified, overlayStatus) {
+  const word = (overlayStatus ?? "").trim().toLowerCase();
+  if (word === "complete" || word === "completed") return "completed";
+  if (word === "partial") return "partial";
+  if (word === "failed") return "failed";
+  if (word === "refused") return "refused";
+  return classified;
+}
+function applyAdminRating(classified, overlayRating) {
+  const word = (overlayRating ?? "").trim().toLowerCase();
+  if (word === "unrated") return null;
+  if (word === "up" || word === "down") return word;
+  return classified;
+}
+var CAUSE_BY_LAYER = {
+  authorization: "missing-grant",
+  governance: "agent-rules",
+  evidence: "agent-rules"
+};
+function classifyRefusal(code) {
+  const value = (code ?? "").trim();
+  if (!isFailureCode(value)) return "other";
+  return CAUSE_BY_LAYER[FAILURE_TAXONOMY[value].layer] ?? "other";
+}
+function refusalSentence(code) {
+  const value = (code ?? "").trim();
+  return isFailureCode(value) ? FAILURE_TAXONOMY[value].uiMessage : null;
+}
+
+// server/lib/monitoring-grants.ts
+var GRANT_CACHE_TTL_MS = 3e4;
+var GRANT_CACHE_MAX_ENTRIES = 256;
+function unresolvedGrants(now) {
+  return { resolved: false, verdicts: /* @__PURE__ */ new Map(), resolvedAt: now };
+}
+function conditioningFor(tables, grants) {
+  if (!grants.resolved) return null;
+  for (const table of tables) {
+    const verdict = grants.verdicts.get(table);
+    if (!verdict || verdict.status !== "denied") continue;
+    return {
+      table: verdict.missing?.object ?? table,
+      // The privilege the refusal actually named, which is not always SELECT: a
+      // refusal naming the catalog is a missing USE CATALOG, and granting SELECT
+      // on a table inside a catalog the reader cannot enter does not clear it.
+      permission: verdict.missing?.permission ?? "SELECT"
+    };
+  }
+  return null;
+}
+function cacheKey(key) {
+  return `${key.admin.trim().toLowerCase()}\0${key.window}`;
+}
+var cache = new ExpiringLruCache(GRANT_CACHE_MAX_ENTRIES, GRANT_CACHE_TTL_MS);
+async function resolveGrants(options) {
+  const now = options.now ?? Date.now();
+  const ttl = options.ttlMs ?? GRANT_CACHE_TTL_MS;
+  const id = cacheKey(options.key);
+  const cached = cache.get(id, now);
+  if (cached) return cached;
+  if (options.tables.length === 0) {
+    const empty = { resolved: true, verdicts: /* @__PURE__ */ new Map(), resolvedAt: now };
+    cache.set(id, empty, now, ttl);
+    return empty;
+  }
+  if (!options.probe) {
+    const failed = unresolvedGrants(now);
+    cache.set(id, failed, now, ttl);
+    return failed;
+  }
+  let outcome;
+  try {
+    outcome = await (options.verify ?? verifyTableAccess)(options.tables, options.probe, options.key.admin);
+  } catch (error) {
+    console.warn(
+      `[monitoring] Table permissions could not be resolved for ${options.key.admin}: ${error.message}. Everything is shown, and the page says the check could not run.`
+    );
+    const failed = unresolvedGrants(now);
+    cache.set(id, failed, now, ttl);
+    return failed;
+  }
+  if (outcome.blocked) {
+    console.warn(
+      `[monitoring] Table permissions not established for ${options.key.admin}: ${outcome.blocked.kind}. Everything is shown.`
+    );
+    const failed = unresolvedGrants(now);
+    cache.set(id, failed, now, ttl);
+    return failed;
+  }
+  const verdicts = /* @__PURE__ */ new Map();
+  for (const verdict of outcome.verdicts) verdicts.set(verdict.table, verdict);
+  const resolution = { resolved: true, verdicts, resolvedAt: now };
+  cache.set(id, resolution, now, ttl);
+  return resolution;
+}
+var EFFECTIVE_PERMISSIONS_PATH = "/api/2.1/unity-catalog/effective-permissions/table";
+var TABLE_PATH = "/api/2.1/unity-catalog/tables";
+var READ_PRIVILEGE = "SELECT";
+var TABLE_POLICY_TTL_MS = 10 * 6e4;
+var TABLE_POLICY_CACHE_MAX_ENTRIES = 512;
+var PERSON_PRIVILEGE_TTL_MS = 3e4;
+var PERSON_PRIVILEGE_CACHE_MAX_ENTRIES = 2048;
+var tablePolicies = new ExpiringLruCache(
+  TABLE_POLICY_CACHE_MAX_ENTRIES,
+  TABLE_POLICY_TTL_MS
+);
+var personPrivileges = new ExpiringLruCache(
+  PERSON_PRIVILEGE_CACHE_MAX_ENTRIES,
+  PERSON_PRIVILEGE_TTL_MS
+);
+var inFlight = /* @__PURE__ */ new Map();
+function once(key, work) {
+  const running = inFlight.get(key);
+  if (running) return running;
+  const started = work().finally(() => inFlight.delete(key));
+  inFlight.set(key, started);
+  return started;
+}
+async function readTableGrant(read, table, principal, now = Date.now()) {
+  const reading = {
+    table,
+    canRead: null,
+    missing: null,
+    rowFilter: null,
+    maskedColumns: null
+  };
+  const personKey = `${table}\0${principal.trim().toLowerCase()}`;
+  const heldPrivileges = personPrivileges.get(personKey, now);
+  if (heldPrivileges) {
+    reading.canRead = heldPrivileges.canRead;
+    reading.missing = heldPrivileges.missing;
+  } else {
+    try {
+      const body = await once(
+        `p:${personKey}`,
+        () => read(`${EFFECTIVE_PERMISSIONS_PATH}/${encodeURIComponent(table)}`, { principal })
+      );
+      const privileges = privilegesFrom(body, principal);
+      if (privileges !== null) {
+        reading.canRead = privileges.includes(READ_PRIVILEGE);
+        reading.missing = reading.canRead ? null : `${READ_PRIVILEGE} missing`;
+        personPrivileges.set(personKey, { canRead: reading.canRead, missing: reading.missing }, now);
+      }
+    } catch (error) {
+      console.warn(`[monitoring] Effective permissions on ${table} could not be read: ${error.message}`);
+    }
+  }
+  const heldPolicies = tablePolicies.get(table, now);
+  if (heldPolicies) {
+    reading.rowFilter = heldPolicies.rowFilter;
+    reading.maskedColumns = heldPolicies.maskedColumns;
+  } else {
+    try {
+      const body = await once(`t:${table}`, () => read(`${TABLE_PATH}/${encodeURIComponent(table)}`));
+      const policies = policiesFrom(body);
+      reading.rowFilter = policies.rowFilter;
+      reading.maskedColumns = policies.maskedColumns;
+      tablePolicies.set(table, policies, now);
+    } catch (error) {
+      console.warn(`[monitoring] Row filter and masks on ${table} could not be read: ${error.message}`);
+    }
+  }
+  return reading;
+}
+function privilegesFrom(body, principal) {
+  if (!body || typeof body !== "object") return null;
+  const assignments = body.privilege_assignments;
+  if (!Array.isArray(assignments)) return null;
+  const wanted = principal.trim().toLowerCase();
+  const entries = assignments;
+  const match = entries.find((entry) => {
+    const owner = entry.principal;
+    return typeof owner === "string" && owner.trim().toLowerCase() === wanted;
+  });
+  if (!match) return null;
+  const privileges = match.privileges;
+  if (!Array.isArray(privileges)) return null;
+  return privileges.map((entry) => {
+    if (typeof entry === "string") return entry;
+    const named = entry.privilege;
+    return typeof named === "string" ? named : "";
+  }).filter((value) => value !== "").map((value) => value.toUpperCase());
+}
+function policiesFrom(body) {
+  if (!body || typeof body !== "object") return { rowFilter: null, maskedColumns: null };
+  const table = body;
+  const rowFilter = table.row_filter !== void 0 && table.row_filter !== null ? true : false;
+  if (!Array.isArray(table.columns)) return { rowFilter, maskedColumns: null };
+  const masked = table.columns.filter((column) => {
+    const mask = column.mask;
+    return mask !== void 0 && mask !== null;
+  }).map((column) => {
+    const name = column.name;
+    return typeof name === "string" ? name : "";
+  }).filter((name) => name !== "");
+  return { rowFilter, maskedColumns: masked };
+}
+
+// server/routes/monitoring-routes.ts
+var QUESTION_PAGE_SIZE = 50;
+var QUESTION_READ_LIMIT = 100;
+var MONITORING_TOP_TABLE_LIMIT = 5;
+var OFFSET_REFUSAL = "Use the opaque cursor from pagination.nextCursor instead of an offset.";
+function encodeCursor(cursor) {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+function decodeCursor(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
+    const askedAt = typeof parsed.askedAt === "string" ? new Date(parsed.askedAt).toISOString() : "";
+    const id = typeof parsed.id === "string" ? parsed.id.trim() : "";
+    return askedAt && id ? { askedAt, id } : null;
+  } catch {
+    return null;
+  }
+}
+function monitoringCursor(askedAt, id) {
+  return encodeCursor({ askedAt: new Date(askedAt).toISOString(), id });
+}
+function pageFrom(req) {
+  const limit = Number.parseInt(queryString(req.query.limit), 10);
+  const offset = Number.parseInt(queryString(req.query.offset), 10);
+  const rawCursor = queryString(req.query.cursor).trim();
+  const cursor = decodeCursor(rawCursor);
+  return {
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, QUESTION_READ_LIMIT) : QUESTION_PAGE_SIZE,
+    cursor,
+    refusal: Number.isFinite(offset) && offset > 0 ? OFFSET_REFUSAL : rawCursor && !cursor ? "The Monitoring page cursor is invalid. Start again without a cursor." : ""
+  };
+}
+var MONITORING_QUESTIONS_QUERY = `
+  WITH page AS (
+    SELECT u.id AS question_id, u.conversation_id, u.content AS question,
+           u.created_at AS asked_at, c.user_email
+    FROM ${APP_SCHEMA}.messages u
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
+    WHERE u.role = 'user' AND u.content <> $1
+      AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
+      AND ($5 = '' OR lower(c.user_email) = lower($5))
+      AND ($6 = '' OR (u.created_at, u.id) < ($6::timestamptz, $7))
+      AND (
+        $8 = ''
+        OR lower(u.content) LIKE ('%' || lower($8) || '%')
+        OR lower(c.user_email) LIKE ('%' || lower($8) || '%')
+      )
+    ORDER BY u.created_at DESC, u.id DESC
+    LIMIT $4
+  ),
+  range_totals AS (
+    SELECT COUNT(*)::int AS asked_total,
+           COUNT(DISTINCT u.conversation_id)::int AS thread_total,
+           COALESCE(array_agg(DISTINCT c.user_email), ARRAY[]::text[]) AS people_list
+    FROM ${APP_SCHEMA}.messages u
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
+    WHERE u.role = 'user' AND u.content <> $1
+      AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
+      AND ($5 = '' OR lower(c.user_email) = lower($5))
+      AND (
+        $8 = ''
+        OR lower(u.content) LIKE ('%' || lower($8) || '%')
+        OR lower(c.user_email) LIKE ('%' || lower($8) || '%')
+      )
+  )
+  SELECT t.asked_total, t.thread_total, t.people_list,
+         q.question_id, q.conversation_id, q.question, q.asked_at, q.user_email,
+         a.id AS answer_id, a.trace_id,
+         a.execution_mode, a.execution_identity_verified, a.access_mode,
+         a.response_json->'trace'->>'totalMs' AS total_ms,
+         a.response_json->'trace'->>'toolCalls' AS tool_calls,
+         a.response_json->'trace'->>'total_tokens' AS total_tokens,
+         jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') AS trace_failed,
+         jsonb_path_exists(
+           a.response_json->'trace',
+           '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
+         ) AS trace_partial,
+         ${ANSWER_LANDED_SQL.split("payload").join("a.response_json")} AS answer_landed,
+         ${bindSynthesisIncompleteSql("a.response_json->'trace'", "a.response_json->'caveats'")} AS synthesis_incomplete,
+         ${PROSE_ONLY_DEGRADED_SQL.split("payload").join("a.response_json").split("caveats").join("a.response_json->'caveats'")} AS prose_only_degraded,
+         label_overlay.status AS overlay_status,
+         label_overlay.rating AS overlay_rating,
+         (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
+            FROM jsonb_array_elements(
+                   CASE WHEN jsonb_typeof(a.response_json->'sources') = 'array'
+                        THEN a.response_json->'sources' ELSE '[]'::jsonb END) s
+           WHERE s->>'name' IS NOT NULL) AS sources,
+         f.sentiment, f.usefulness, f.comment
+  FROM range_totals t
+  LEFT JOIN page q ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT m.id, m.response_json, m.trace_id, m.execution_mode,
+           m.execution_identity_verified, m.access_mode
+    FROM ${APP_SCHEMA}.messages m
+    WHERE m.conversation_id = q.conversation_id
+      AND m.role = 'assistant'
+      AND jsonb_typeof(m.response_json->'trace') = 'object'
+      AND m.created_at >= q.asked_at
+      AND m.created_at < COALESCE(
+            (SELECT MIN(u.created_at) FROM ${APP_SCHEMA}.messages u
+              WHERE u.conversation_id = q.conversation_id AND u.role = 'user'
+                AND u.content <> $1 AND u.created_at > q.asked_at),
+            'infinity'::timestamptz)
+    -- The turn's FINAL assistant message, not its first. A turn that went
+    -- through plan approval has the proposed plan in this window as well as the
+    -- answer, and the plan's trace carries neither \`totalMs\` nor \`toolCalls\`.
+    -- Taking the first left Monitoring's Time and Tools blank for exactly those
+    -- turns while Run Explorer, which reads the answer, showed both. The
+    -- \`totalMs\` test leads so the row carrying the figures wins outright rather
+    -- than by being latest; \`created_at DESC\` settles the rest.
+    ORDER BY (m.response_json->'trace'->>'totalMs') IS NOT NULL DESC,
+             m.created_at DESC
+    LIMIT 1
+  ) a ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT fb.sentiment, fb.usefulness, fb.comment
+    FROM ${APP_SCHEMA}.feedback fb
+    WHERE fb.message_id = a.id AND fb.user_email = q.user_email
+    ORDER BY fb.created_at DESC LIMIT 1
+  ) f ON TRUE
+  ${overlayJoinSql("a.id")}
+  ORDER BY q.asked_at DESC, q.question_id DESC
+`;
+var MONITORING_LEDGER_QUERY = `
+  SELECT terminal_message_id AS answer_id, state, terminal_code
+  FROM ${APP_SCHEMA}.runs
+  WHERE terminal_message_id = ANY($1::text[])
+`;
+var MONITORING_DETAIL_QUERY = `
+  SELECT q.id AS question_id, q.conversation_id, q.content AS question,
+         q.created_at AS asked_at, c.user_email,
+         a.id AS answer_id, a.trace_id, a.response_json,
+         jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') AS trace_failed,
+         jsonb_path_exists(
+           a.response_json->'trace',
+           '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
+         ) AS trace_partial,
+         ${ANSWER_LANDED_SQL.split("payload").join("a.response_json")} AS answer_landed,
+         ${bindSynthesisIncompleteSql("a.response_json->'trace'", "a.response_json->'caveats'")} AS synthesis_incomplete,
+         ${PROSE_ONLY_DEGRADED_SQL.split("payload").join("a.response_json").split("caveats").join("a.response_json->'caveats'")} AS prose_only_degraded,
+         label_overlay.status AS overlay_status,
+         label_overlay.rating AS overlay_rating,
+         a.execution_mode, a.execution_identity_verified,
+         (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
+            FROM jsonb_array_elements(
+                   CASE WHEN jsonb_typeof(a.response_json->'sources') = 'array'
+                        THEN a.response_json->'sources' ELSE '[]'::jsonb END) s
+           WHERE s->>'name' IS NOT NULL) AS sources,
+         f.sentiment, f.usefulness, f.comment
+  FROM ${APP_SCHEMA}.messages q
+  JOIN ${APP_SCHEMA}.conversations c ON c.id = q.conversation_id
+  LEFT JOIN LATERAL (
+    SELECT m.id, m.response_json, m.trace_id, m.execution_mode, m.execution_identity_verified
+    FROM ${APP_SCHEMA}.messages m
+    WHERE m.conversation_id = q.conversation_id AND m.role = 'assistant'
+      AND jsonb_typeof(m.response_json->'trace') = 'object'
+      AND m.created_at >= q.created_at
+      AND (SELECT u.id FROM ${APP_SCHEMA}.messages u
+            WHERE u.conversation_id = m.conversation_id AND u.role = 'user'
+              AND u.content <> $2 AND u.created_at <= m.created_at
+            ORDER BY u.created_at DESC LIMIT 1) = q.id
+    -- Same "the answer, not the plan" rule as MONITORING_QUESTIONS_QUERY, and
+    -- for the same reason: the drawer opened on an approved-plan row was reading
+    -- the plan's trace, so it disagreed with the row it was opened from.
+    ORDER BY (m.response_json->'trace'->>'totalMs') IS NOT NULL DESC,
+             m.created_at DESC
+    LIMIT 1
+  ) a ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT fb.sentiment, fb.usefulness, fb.comment
+    FROM ${APP_SCHEMA}.feedback fb
+    WHERE fb.message_id = a.id AND fb.user_email = c.user_email
+    ORDER BY fb.created_at DESC LIMIT 1
+  ) f ON TRUE
+  ${overlayJoinSql("a.id")}
+  WHERE q.id = $1 AND q.role = 'user'
+    AND q.created_at >= $3::timestamptz AND q.created_at < $4::timestamptz
+`;
+var MONITORING_PERSON_SEEN_QUERY = `
+  WITH evidence AS (
+    SELECT u.created_at AS occurred_at
+    FROM ${APP_SCHEMA}.messages u
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
+    WHERE u.role = 'user' AND u.content <> $1 AND c.user_email = $2
+    UNION ALL
+    SELECT r.created_at
+    FROM ${APP_SCHEMA}.runs r
+    WHERE lower(r.user_email) = lower($2)
+    UNION ALL
+    SELECT f.created_at
+    FROM ${APP_SCHEMA}.feedback f
+    WHERE lower(f.user_email) = lower($2)
+    UNION ALL
+    SELECT a.active_minute
+    FROM ${APP_ACTIVITY_TABLE} a
+    WHERE lower(a.user_email) = lower($2)
+    UNION ALL
+    SELECT s.created_at
+    FROM ${APP_SESSION_TABLE} s
+    WHERE s.deployment_key = $3 AND lower(s.subject) = lower($2)
+  )
+  SELECT MIN(occurred_at) AS first_seen, MAX(occurred_at) AS last_seen
+  FROM evidence
+`;
+var MONITORING_PERSON_TABLES_QUERY = `
+  WITH asked AS (
+    SELECT u.id AS question_id, u.conversation_id, u.created_at AS asked_at
+    FROM ${APP_SCHEMA}.messages u
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
+    WHERE u.role = 'user' AND u.content <> $1
+      AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
+      AND lower(c.user_email) = lower($4)
+  ),
+  answered AS (
+    SELECT q.question_id, a.id AS answer_id, a.response_json
+    FROM asked q
+    JOIN LATERAL (
+      SELECT m.id, m.response_json
+      FROM ${APP_SCHEMA}.messages m
+      WHERE m.conversation_id = q.conversation_id
+        AND m.role = 'assistant'
+        AND jsonb_typeof(m.response_json->'trace') = 'object'
+        AND m.created_at >= q.asked_at
+        AND m.created_at < COALESCE(
+              (SELECT MIN(u.created_at) FROM ${APP_SCHEMA}.messages u
+                WHERE u.conversation_id = q.conversation_id AND u.role = 'user'
+                  AND u.content <> $1 AND u.created_at > q.asked_at),
+              'infinity'::timestamptz)
+      ORDER BY (m.response_json->'trace'->>'totalMs') IS NOT NULL DESC,
+               m.created_at DESC
+      LIMIT 1
+    ) a ON TRUE
+  ),
+  source_runs AS (
+    SELECT lower(source->>'name') AS table_key,
+           MIN(source->>'name') AS table_name,
+           COUNT(DISTINCT a.answer_id)::int AS runs
+    FROM answered a
+    CROSS JOIN LATERAL jsonb_array_elements(
+      CASE WHEN jsonb_typeof(a.response_json->'sources') = 'array'
+           THEN a.response_json->'sources' ELSE '[]'::jsonb END
+    ) source
+    WHERE source->>'name' ~ '^[^.]+[.][^.]+[.][^.]+$'
+    GROUP BY lower(source->>'name')
+  )
+  SELECT table_name, runs
+  FROM source_runs
+  ORDER BY runs DESC, table_name ASC
+  LIMIT $5
+`;
+function manifestTables() {
+  return accessDependenciesFrom({ env: process.env }).tables;
+}
+var PLAN_APPROVAL_SENTINEL = PLAN_APPROVAL_MESSAGE;
+function queryString(value) {
+  return typeof value === "string" ? value : "";
+}
+function text(value) {
+  return typeof value === "string" ? value : "";
+}
+function integer(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? Math.round(value) : null;
+  if (typeof value !== "string") return null;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? Math.round(parsed) : null;
+}
+function stamp(value) {
+  if (value instanceof Date) return value.toISOString();
+  const raw = text(value);
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : "";
+}
+function tableList(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = /* @__PURE__ */ new Map();
+  for (const entry of value) {
+    const name = text(entry).trim();
+    if (name.split(".").filter((part) => part.length > 0).length === 3) {
+      const normalized = name.toLowerCase();
+      if (!seen.has(normalized)) seen.set(normalized, name);
+    }
+  }
+  return [...seen.values()];
+}
+function sentiment(value, usefulness) {
+  const word = text(value).trim().toLowerCase();
+  if (word === "up" || word === "down") return word;
+  if (usefulness === null) return null;
+  if (usefulness >= 4) return "up";
+  return usefulness <= 2 ? "down" : null;
+}
+function traceOf(response) {
+  if (!response || typeof response !== "object") return null;
+  const trace = response.trace;
+  return trace && typeof trace === "object" ? trace : null;
+}
+function tokensOf(response) {
+  const trace = traceOf(response);
+  if (!trace) return null;
+  const prompt = integer(trace.prompt_tokens);
+  const completion = integer(trace.completion_tokens);
+  const total = integer(trace.total_tokens);
+  if (prompt === null && completion === null && total === null) return null;
+  return { prompt, completion, total };
+}
+function questionRows(rows) {
+  return rows.filter((row) => text(row.question_id) !== "");
+}
+function rangeTotalsFrom(row, page) {
+  const asked = integer(row?.asked_total);
+  const threads = integer(row?.thread_total);
+  const listed = Array.isArray(row?.people_list) ? row.people_list.map((entry) => text(entry)).filter((email) => email !== "") : null;
+  const fromPage = [...new Set(page.map((question) => question.askedBy).filter((email) => email !== ""))].sort();
+  const threadsFromPage = new Set(page.map((question) => question.conversationId).filter(Boolean)).size;
+  return {
+    asked: asked !== null && asked >= page.length ? asked : page.length,
+    threads: threads !== null && threads >= 0 ? threads : threadsFromPage,
+    peopleList: listed === null ? fromPage : [...listed].sort()
+  };
+}
+function questionFromRow(row, ledger) {
+  const answerId = text(row.answer_id);
+  const verdict = answerId ? ledger.get(answerId) : void 0;
+  const outcome = applyAdminOutcome(
+    classifyOutcome({
+      runState: verdict?.state ?? null,
+      hasStoredAnswer: answerId !== "",
+      traceHasFailedStage: row.trace_failed === true,
+      traceHasPartialStage: row.trace_partial === true,
+      answerLanded: row.answer_landed === true,
+      synthesisIncomplete: row.synthesis_incomplete === true,
+      proseOnlyDegraded: row.prose_only_degraded === true
+    }),
+    text(row.overlay_status)
+  );
+  return {
+    id: text(row.question_id),
+    conversationId: text(row.conversation_id),
+    question: text(row.question),
+    askedBy: text(row.user_email),
+    askedAt: stamp(row.asked_at),
+    outcome,
+    // The taxonomy's own sentence, and only where a code was recorded. A run
+    // that failed without a code gets no `title`, which is honest: this build
+    // has no sentence for a failure nobody named.
+    outcomeDetail: refusalSentence(verdict?.code),
+    durationMs: integer(row.total_ms),
+    toolCalls: integer(row.tool_calls),
+    rating: applyAdminRating(sentiment(row.sentiment, integer(row.usefulness)), text(row.overlay_rating)),
+    tables: tableList(row.sources)
+  };
+}
+function summarize(questions, userThreads) {
+  const buckets = { completed: 0, partial: 0, refused: 0, failed: 0 };
+  let ratedUp = 0;
+  let ratedTotal = 0;
+  const durations = [];
+  for (const question of questions) {
+    buckets[question.outcome] += 1;
+    if (question.rating === "up") {
+      ratedUp += 1;
+      ratedTotal += 1;
+    } else if (question.rating === "down") {
+      ratedTotal += 1;
+    }
+    if (question.durationMs !== null) durations.push(question.durationMs);
+  }
+  durations.sort((a, b) => a - b);
+  return {
+    questionsAsked: questions.length,
+    userThreads,
+    completed: buckets.completed,
+    partial: buckets.partial,
+    refused: buckets.refused,
+    failed: buckets.failed,
+    ratedUp,
+    ratedTotal,
+    medianMs: durations.length > 0 ? durations[Math.floor((durations.length - 1) / 2)] : null,
+    timedCount: durations.length
+  };
+}
+function rankTablesRead(questions, limit = MONITORING_TOP_TABLE_LIMIT) {
+  const counted = /* @__PURE__ */ new Set();
+  const totals = /* @__PURE__ */ new Map();
+  for (const question of questions) {
+    for (const table of question.tables) {
+      const normalized = table.trim().toLowerCase();
+      if (!normalized) continue;
+      const pair = `${question.id}\0${normalized}`;
+      if (counted.has(pair)) continue;
+      counted.add(pair);
+      const current = totals.get(normalized);
+      if (current) current.runs += 1;
+      else totals.set(normalized, { table: table.trim(), runs: 1 });
+    }
+  }
+  return [...totals.values()].sort((left, right) => right.runs - left.runs || left.table.localeCompare(right.table)).slice(0, Math.max(0, limit));
+}
+function rangeFrom(req, now = Date.now()) {
+  const from = Date.parse(queryString(req.query.from));
+  const to = Date.parse(queryString(req.query.to));
+  if (Number.isFinite(from) && Number.isFinite(to) && to > from) {
+    return { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
+  }
+  return { from: new Date(now - 7 * 864e5).toISOString(), to: new Date(now).toISOString() };
+}
+function filtersFrom(req, person = queryString(req.query.person).trim()) {
+  const outcome = queryString(req.query.outcome).trim();
+  const rating = queryString(req.query.rating).trim();
+  return {
+    person,
+    outcome: ["completed", "partial", "refused", "failed"].includes(outcome) ? outcome : "",
+    rating: ["up", "down", "unrated"].includes(rating) ? rating : "",
+    table: queryString(req.query.table).trim(),
+    search: queryString(req.query.q).trim()
+  };
+}
+function matchingQuestions(questions, filters) {
+  const person = filters.person.toLowerCase();
+  const search = filters.search.toLowerCase();
+  const table = filters.table.toLowerCase();
+  return questions.filter((question) => {
+    if (person && question.askedBy.toLowerCase() !== person) return false;
+    if (filters.outcome && question.outcome !== filters.outcome) return false;
+    if (filters.rating === "unrated" && question.rating !== null) return false;
+    if ((filters.rating === "up" || filters.rating === "down") && question.rating !== filters.rating) return false;
+    if (table && !question.tables.some((name) => name.toLowerCase() === table)) return false;
+    if (search && !`${question.question} ${question.askedBy} ${question.askedBy.split("@")[0]}`.toLowerCase().includes(search)) {
+      return false;
+    }
+    return true;
+  });
+}
+function paginationFor(input) {
+  const hasMore = input.rawPage.length > input.page.limit;
+  const last = hasMore ? input.rawPage[input.page.limit - 1] : null;
+  return {
+    pageSize: input.page.limit,
+    total: input.total,
+    hasMore,
+    nextCursor: last ? encodeCursor({ askedAt: last.askedAt, id: last.id }) : null
+  };
+}
+async function readLedger(appkit, answerIds) {
+  const verdicts = /* @__PURE__ */ new Map();
+  if (answerIds.length === 0) return verdicts;
+  try {
+    const result = await appkit.lakebase.query(MONITORING_LEDGER_QUERY, [answerIds]);
+    for (const row of result.rows) {
+      const id = text(row.answer_id);
+      if (!id) continue;
+      verdicts.set(id, { state: text(row.state), code: text(row.terminal_code) || null });
+    }
+  } catch (error) {
+    console.warn(
+      `[monitoring] The run ledger could not be read (${error.message}). Outcomes fall back to each answer’s stored trace, which cannot tell a refusal from a failure by code.`
+    );
+  }
+  return verdicts;
+}
+function probeForAdmin(req) {
+  const host = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
+  const warehouseId = (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? "").trim();
+  const token = executionToken(req);
+  if (!host || !warehouseId || !token) return null;
+  return statementRunnerFor({ host, token, warehouseId });
+}
+function workspaceReader() {
+  return async (path, query) => {
+    const { WorkspaceClient } = await import("./vendor-databricks-sdk-experimental.mjs");
+    const client = new WorkspaceClient({});
+    return client.apiClient.request({
+      path,
+      method: "GET",
+      ...query ? { query } : {},
+      headers: new Headers({ Accept: "application/json" }),
+      raw: false
+    });
+  };
+}
+var MONITORING_ROUTES = [
+  "/api/monitoring/questions",
+  "/api/monitoring/questions/:id",
+  "/api/monitoring/people/:email"
+];
+function setupMonitoringRoutes(appkit, deps) {
+  if (typeof deps?.isAdminRoute !== "function") {
+    console.error(
+      "[monitoring] NOT REGISTERED: no admin-route predicate was supplied, so there is no way to confirm these paths are guarded. They serve every person’s questions and answers. Pass isAdminRoute."
+    );
+    return;
+  }
+  const uncovered = MONITORING_ROUTES.filter((path) => !deps.isAdminRoute(path));
+  if (uncovered.length > 0) {
+    console.error(
+      `[monitoring] NOT REGISTERED: the admin guard does not cover ${uncovered.join(", ")}. Add the prefix to ADMIN_ROUTE_PREFIXES in lib/admin-roles.ts. Registering these unguarded would serve every person’s questions and answers to any signed-in reader.`
+    );
+    return;
+  }
+  const probeFor = deps.probeFor ?? probeForAdmin;
+  const read = deps.workspaceRead ?? workspaceReader();
+  const clock = deps.now ?? Date.now;
+  appkit.server.extend((app) => {
+    app.get("/api/monitoring/questions", async (req, res) => {
+      const admin = userEmail(req);
+      const range = rangeFrom(req, clock());
+      const page = pageFrom(req);
+      const filters = filtersFrom(req);
+      if (page.refusal) {
+        res.status(400).json({ error: page.refusal });
+        return;
+      }
+      const stored = await readStored(appkit, "GET /api/monitoring/questions", MONITORING_QUESTIONS_QUERY, [
+        PLAN_APPROVAL_SENTINEL,
+        range.from,
+        range.to,
+        page.limit + 1,
+        filters.person,
+        page.cursor?.askedAt ?? "",
+        page.cursor?.id ?? "",
+        filters.search
+      ]);
+      const { rows, substitution } = chooseRows(
+        "GET /api/monitoring/questions",
+        stored.available ? { available: true, rows: questionRows(stored.rows) } : stored
+      );
+      markResponse(res, substitution);
+      const readAt = new Date(clock()).toISOString();
+      if (!stored.available) {
+        res.status(503).json({
+          readState: "unavailable",
+          readAt,
+          summary: summarize([], 0),
+          questions: [],
+          people: [],
+          tables: [],
+          grantsResolution: "ok",
+          pagination: { pageSize: page.limit, total: null, hasMore: false, nextCursor: null }
+        });
+        return;
+      }
+      const answerIds = rows.map((row) => text(row.answer_id)).filter((id) => id !== "");
+      const ledger = await readLedger(appkit, answerIds);
+      const rawPage = rows.map((row) => questionFromRow(row, ledger));
+      const pageRows = rawPage.slice(0, page.limit);
+      const all = matchingQuestions(pageRows, filters);
+      const totals = rangeTotalsFrom(stored.rows[0], all);
+      const found = totals.asked;
+      const threads = totals.threads;
+      const peopleList = totals.peopleList;
+      const distinctTables = [...new Set(all.flatMap((question) => question.tables))].sort();
+      const tableOptions = [.../* @__PURE__ */ new Set([...distinctTables, ...filters.table ? [filters.table] : []])].sort();
+      const peopleOptions = [.../* @__PURE__ */ new Set([...peopleList, ...filters.person ? [filters.person] : []])].sort();
+      const grants = await resolveGrants({
+        key: { admin, window: `${range.from}|${range.to}` },
+        tables: distinctTables,
+        probe: probeFor(req),
+        now: clock()
+      });
+      const exactTotal = filters.outcome || filters.rating || filters.table ? null : found;
+      const pagination = paginationFor({ page, rawPage, total: exactTotal });
+      const partial = pagination.hasMore || page.cursor !== null;
+      res.json({
+        readState: partial ? "partial" : "ok",
+        readAt,
+        // Over the rows that were read, always, and the two counts below say so
+        // when those are fewer than the range holds.
+        summary: summarize(all, threads),
+        ...partial ? {
+          countedQuestions: all.length,
+          ...exactTotal !== null ? { foundQuestions: exactTotal } : {}
+        } : {},
+        // One bounded, filtered keyset page. The active filters travel with every
+        // cursor request, so page two cannot silently widen back to all rows.
+        questions: all,
+        people: peopleOptions,
+        tables: tableOptions,
+        grantsResolution: grants.resolved ? "ok" : "failed",
+        pagination
+      });
+    });
+    app.get("/api/monitoring/questions/:id", async (req, res) => {
+      const admin = userEmail(req);
+      const range = rangeFrom(req, clock());
+      const stored = await readStored(appkit, "GET /api/monitoring/questions/:id", MONITORING_DETAIL_QUERY, [
+        req.params.id,
+        PLAN_APPROVAL_SENTINEL,
+        range.from,
+        range.to
+      ]);
+      if (!stored.available) {
+        res.status(503).json({ error: "storage_unavailable" });
+        return;
+      }
+      const row = stored.rows[0];
+      if (!row) {
+        res.status(404).json({ error: "question_not_found" });
+        return;
+      }
+      const answerId = text(row.answer_id);
+      const ledger = await readLedger(appkit, answerId ? [answerId] : []);
+      const verdict = answerId ? ledger.get(answerId) : void 0;
+      const tables = tableList(row.sources);
+      const grants = await resolveGrants({
+        key: { admin, window: `${range.from}|${range.to}` },
+        // The tables THIS run read. The cache is keyed on the admin and the
+        // range, so a drawer opened from a list has already paid for this.
+        tables,
+        probe: probeFor(req),
+        now: clock()
+      });
+      const conditioning = conditioningFor(tables, grants);
+      const traceId = text(row.trace_id);
+      const mlflow = traceId ? mlflowReference(traceId, await resolveExperimentId(appkit)) : null;
+      const executionMode = text(row.execution_mode);
+      const detail = {
+        id: text(row.question_id),
+        conversationId: text(row.conversation_id),
+        question: text(row.question),
+        askedBy: text(row.user_email),
+        askedAt: stamp(row.asked_at),
+        outcome: applyAdminOutcome(
+          classifyOutcome({
+            runState: verdict?.state ?? null,
+            hasStoredAnswer: answerId !== "",
+            traceHasFailedStage: row.trace_failed === true,
+            traceHasPartialStage: row.trace_partial === true,
+            answerLanded: row.answer_landed === true,
+            synthesisIncomplete: row.synthesis_incomplete === true,
+            proseOnlyDegraded: row.prose_only_degraded === true
+          }),
+          text(row.overlay_status)
+        ),
+        outcomeDetail: refusalSentence(verdict?.code),
+        outcomeCode: verdict?.code ?? null,
+        // Withheld, not blanked: the field is null and `conditioning` says why.
+        answer: conditioning ? null : row.response_json ?? null,
+        conditioning,
+        // Always sent. See the field's note in the contract: the timeline and the
+        // token counts are records about the agent rather than about anybody's
+        // data, and the conditioned drawer in the design renders both.
+        trace: traceOf(row.response_json),
+        tokens: tokensOf(row.response_json),
+        // Both halves or neither. A row carrying a mode and no verified flag is
+        // a half-written claim, and the footer's absent sentence is the truthful
+        // reading of one. See normalizeExecutionIdentity in answer-shape.ts.
+        execution: executionMode && typeof row.execution_identity_verified === "boolean" ? { mode: executionMode, verified: row.execution_identity_verified } : null,
+        rating: applyAdminRating(sentiment(row.sentiment, integer(row.usefulness)), text(row.overlay_rating)),
+        usefulness: integer(row.usefulness),
+        comment: text(row.comment) || null,
+        // Absent rather than dead. `mlflowReference` answers null for a trace id
+        // that is not MLflow's and for a deployment with no host or experiment,
+        // and now also for a deployment whose administrator has turned the
+        // workspace links off. Withheld HERE rather than in the drawer: a URL
+        // suppressed in the browser is a URL that was already delivered.
+        mlflowUrl: await workspaceLinksAllowed(appkit) ? mlflow?.url ?? null : null,
+        runId: answerId || null,
+        // Always sent, even when the answer body is withheld: the budget is a
+        // record of the agent, not of anybody's data.
+        runtimeUsed: runRuntimeUsedFromStored(row.response_json)
+      };
+      res.json(detail);
+    });
+    app.get("/api/monitoring/people/:email", async (req, res) => {
+      const admin = userEmail(req);
+      const person = decodeURIComponent(String(req.params.email));
+      const range = rangeFrom(req, clock());
+      const page = pageFrom(req);
+      const filters = filtersFrom(req, person);
+      if (page.refusal) {
+        res.status(400).json({ error: page.refusal });
+        return;
+      }
+      const readAt = new Date(clock()).toISOString();
+      const stored = await readStored(appkit, "GET /api/monitoring/people/:email", MONITORING_QUESTIONS_QUERY, [
+        PLAN_APPROVAL_SENTINEL,
+        range.from,
+        range.to,
+        page.limit + 1,
+        person,
+        page.cursor?.askedAt ?? "",
+        page.cursor?.id ?? "",
+        filters.search
+      ]);
+      if (!stored.available) {
+        res.status(503).json({ error: "storage_unavailable" });
+        return;
+      }
+      const mine = questionRows(stored.rows).filter(
+        (row) => text(row.user_email).toLowerCase() === person.toLowerCase()
+      );
+      const answerIds = mine.map((row) => text(row.answer_id)).filter((id) => id !== "");
+      const ledger = await readLedger(appkit, answerIds);
+      const rawPage = mine.map((row) => questionFromRow(row, ledger));
+      const questions = matchingQuestions(rawPage.slice(0, page.limit), filters);
+      const selectedQuestionIds = new Set(questions.map((question) => question.id));
+      const selectedRows = mine.filter((row) => selectedQuestionIds.has(text(row.question_id)));
+      const selectedAnswerIds = selectedRows.map((row) => text(row.answer_id)).filter((id) => id !== "");
+      const totals = rangeTotalsFrom(stored.rows[0], questions);
+      const exactTotal = filters.outcome || filters.rating || filters.table ? null : totals.asked;
+      const pagination = paginationFor({ page, rawPage, total: exactTotal });
+      let tokenTotal = 0;
+      let metredRuns = 0;
+      for (const row of selectedRows) {
+        const tokens = integer(row.total_tokens);
+        if (tokens !== null && tokens > 0) {
+          tokenTotal += tokens;
+          metredRuns += 1;
+        }
+      }
+      const executionSplit = { asThemselves: 0, asApplication: 0, unrecorded: 0 };
+      const subjectSplit = { verified: 0, confirmedByEndpoint: 0, unrecorded: 0 };
+      for (const row of selectedRows) {
+        const mode = text(row.execution_mode);
+        if (mode === "signed_in_user") executionSplit.asThemselves += 1;
+        else if (mode === "app_service_principal") executionSplit.asApplication += 1;
+        else executionSplit.unrecorded += 1;
+        if (typeof row.execution_identity_verified === "boolean") {
+          if (row.execution_identity_verified) subjectSplit.verified += 1;
+          else subjectSplit.confirmedByEndpoint += 1;
+        } else subjectSplit.unrecorded += 1;
+      }
+      let refusedMissingGrant = 0;
+      let refusedAgentRules = 0;
+      for (const id of selectedAnswerIds) {
+        const verdict = ledger.get(id);
+        if (!verdict || verdict.state !== "REFUSED") continue;
+        const cause = classifyRefusal(verdict.code);
+        if (cause === "missing-grant") refusedMissingGrant += 1;
+        else if (cause === "agent-rules") refusedAgentRules += 1;
+      }
+      const tableResult = await appkit.lakebase.query(MONITORING_PERSON_TABLES_QUERY, [
+        PLAN_APPROVAL_SENTINEL,
+        range.from,
+        range.to,
+        person,
+        MONITORING_TOP_TABLE_LIMIT
+      ]);
+      const tablesReadMost = tableResult.rows.map((row) => {
+        const table = tableList([row.table_name])[0] ?? "";
+        const runs = integer(row.runs);
+        return table && runs !== null && runs > 0 ? { table, runs } : null;
+      }).filter((entry) => entry !== null).sort((left, right) => right.runs - left.runs || left.table.localeCompare(right.table)).slice(0, MONITORING_TOP_TABLE_LIMIT);
+      const wanted = manifestTables();
+      let grants = null;
+      if (wanted.length > 0) {
+        const readings = await Promise.all(wanted.map((table) => readTableGrant(read, table, person)));
+        const answered = readings.filter((reading) => reading.canRead !== null || reading.rowFilter !== null);
+        grants = answered.length === 0 ? null : readings.map((reading) => ({
+          table: reading.table,
+          // A reading that did not answer is not a denial. `canRead` false
+          // here would report a permissions problem nobody established.
+          canRead: reading.canRead === true,
+          missing: reading.canRead === null ? "Not checked" : reading.missing,
+          rowFilter: reading.rowFilter,
+          maskedColumns: reading.maskedColumns
+        }));
+      }
+      let firstSeen = null;
+      let lastSeen = null;
+      try {
+        const seen = await appkit.lakebase.query(MONITORING_PERSON_SEEN_QUERY, [
+          PLAN_APPROVAL_SENTINEL,
+          person,
+          appSessionDeployment() ?? "__unavailable__"
+        ]);
+        firstSeen = stamp(seen.rows[0]?.first_seen) || null;
+        lastSeen = stamp(seen.rows[0]?.last_seen) || null;
+      } catch (error) {
+        console.warn(`[monitoring] First and last seen could not be read for ${person}: ${error.message}`);
+      }
+      const payload = {
+        email: person,
+        firstSeen,
+        lastSeen,
+        summary: summarize(questions, totals.threads),
+        durationsMs: questions.map((question) => question.durationMs).filter((ms) => ms !== null),
+        tokens: { total: tokenTotal, metredRuns, totalRuns: questions.length },
+        // Null until both usage and the deployment's explicit token rate are
+        // known. Ops billing is deliberately not reused here: it is a separate,
+        // privileged list-price read and its component spend is not this total.
+        tokenCostUsd: tokenCost(tokenTotal, metredRuns),
+        ratedUp: questions.filter((question) => question.rating === "up").length,
+        ratedDown: questions.filter((question) => question.rating === "down").length,
+        tablesReadMost,
+        executionSplit,
+        subjectSplit,
+        grants,
+        refusedMissingGrant,
+        refusedAgentRules,
+        questions,
+        readState: pagination.hasMore || page.cursor !== null ? "partial" : "ok",
+        readAt,
+        pagination
+      };
+      void admin;
+      res.json(payload);
+    });
+  });
+  console.log("[monitoring] Registered the Monitoring read routes. The admin guard's prefix list covers all of them.");
+}
+function tokenCost(totalTokens, metredRuns) {
+  if (metredRuns <= 0) return null;
+  const raw = (process.env.PLAYER_INSIGHTS_TOKEN_PRICE_PER_MILLION_USD ?? "").trim();
+  if (!raw) return null;
+  const price = Number.parseFloat(raw);
+  if (!Number.isFinite(price) || price < 0) return null;
+  return totalTokens / 1e6 * price;
+}
+export {
+  MONITORING_DETAIL_QUERY,
+  MONITORING_LEDGER_QUERY,
+  MONITORING_PERSON_SEEN_QUERY,
+  MONITORING_PERSON_TABLES_QUERY,
+  MONITORING_QUESTIONS_QUERY,
+  MONITORING_ROUTES,
+  MONITORING_TOP_TABLE_LIMIT,
+  OFFSET_REFUSAL,
+  QUESTION_PAGE_SIZE,
+  QUESTION_READ_LIMIT,
+  matchingQuestions,
+  monitoringCursor,
+  pageFrom,
+  questionFromRow,
+  questionRows,
+  rangeFrom,
+  rangeTotalsFrom,
+  rankTablesRead,
+  setupMonitoringRoutes,
+  summarize,
+  tokenCost
+};

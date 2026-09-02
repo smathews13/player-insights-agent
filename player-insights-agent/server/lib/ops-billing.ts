@@ -83,6 +83,8 @@ export interface CostIdentifiers {
   appName: string;
   /** `DATABRICKS_SERVING_ENDPOINT_NAME`. */
   endpointName: string;
+  /** Configured nested Foundation Model API endpoint/model. */
+  foundationModel: string;
   /** `DATABRICKS_SQL_WAREHOUSE_ID`. */
   warehouseId: string;
   /** Resolved from the index when this deployment searches one. */
@@ -447,6 +449,7 @@ tagged AS (
     u.sku_name,
     u.cloud,
     u.usage_unit,
+    u.usage_start_time,
     u.usage_end_time,
     u.workspace_id,
     u.billing_origin_product,
@@ -491,6 +494,8 @@ deduped AS (
     usage_date,
     usage_quantity,
     usage_unit,
+    usage_start_time,
+    usage_end_time,
     sku_name,
     billing_origin_product,
     component,
@@ -501,7 +506,7 @@ deduped AS (
     MAX(currency_code) AS currency_code,
     MAX(CAST(price_start_time AS STRING)) AS price_start_time
   FROM price_hits
-  GROUP BY record_id, usage_date, usage_quantity, usage_unit, sku_name, billing_origin_product, component, record_type, tag_matches
+  GROUP BY record_id, usage_date, usage_quantity, usage_unit, usage_start_time, usage_end_time, sku_name, billing_origin_product, component, record_type, tag_matches
 ),
 priced AS (
   SELECT
@@ -550,7 +555,12 @@ SELECT
   COUNT(priced.record_id) FILTER (WHERE NOT priced.tag_matches) AS untagged_rows,
   COUNT(DISTINCT priced.usage_unit) AS usage_unit_count,
   COALESCE(SUM(CASE WHEN UPPER(TRIM(priced.usage_unit)) = 'DBU' THEN priced.usage_quantity ELSE 0 END), 0) AS dbu_quantity,
-  COUNT(priced.record_id) FILTER (WHERE UPPER(TRIM(priced.usage_unit)) = 'DBU') AS dbu_rows
+  COUNT(priced.record_id) FILTER (WHERE UPPER(TRIM(priced.usage_unit)) = 'DBU') AS dbu_rows,
+  COALESCE(SUM(
+    CASE WHEN priced.row_match = 'priced'
+      THEN GREATEST(0, UNIX_MILLIS(priced.usage_end_time) - UNIX_MILLIS(priced.usage_start_time)) / 1000.0
+      ELSE 0 END
+  ), 0) AS billed_seconds
 FROM requested_components requested
 LEFT JOIN priced ON priced.component = requested.component
 GROUP BY requested.component
@@ -584,7 +594,12 @@ SELECT
   COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
   COUNT(DISTINCT usage_unit) AS usage_unit_count,
   SUM(CASE WHEN UPPER(TRIM(usage_unit)) = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity,
-  COUNT(*) FILTER (WHERE UPPER(TRIM(usage_unit)) = 'DBU') AS dbu_rows
+  COUNT(*) FILTER (WHERE UPPER(TRIM(usage_unit)) = 'DBU') AS dbu_rows,
+  COALESCE(SUM(
+    CASE WHEN row_match = 'priced'
+      THEN GREATEST(0, UNIX_MILLIS(usage_end_time) - UNIX_MILLIS(usage_start_time)) / 1000.0
+      ELSE 0 END
+  ), 0) AS billed_seconds
 FROM priced
 GROUP BY billing_origin_product
 UNION ALL
@@ -611,7 +626,12 @@ SELECT
   COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows,
   COUNT(DISTINCT usage_unit) AS usage_unit_count,
   SUM(CASE WHEN UPPER(TRIM(usage_unit)) = 'DBU' THEN usage_quantity ELSE 0 END) AS dbu_quantity,
-  COUNT(*) FILTER (WHERE UPPER(TRIM(usage_unit)) = 'DBU') AS dbu_rows
+  COUNT(*) FILTER (WHERE UPPER(TRIM(usage_unit)) = 'DBU') AS dbu_rows,
+  COALESCE(SUM(
+    CASE WHEN row_match = 'priced'
+      THEN GREATEST(0, UNIX_MILLIS(usage_end_time) - UNIX_MILLIS(usage_start_time)) / 1000.0
+      ELSE 0 END
+  ), 0) AS billed_seconds
 FROM priced
 UNION ALL
 SELECT
@@ -639,7 +659,8 @@ SELECT
   ) AS untagged_rows,
   CAST(0 AS BIGINT) AS usage_unit_count,
   CAST(0 AS DOUBLE) AS dbu_quantity,
-  CAST(0 AS BIGINT) AS dbu_rows
+  CAST(0 AS BIGINT) AS dbu_rows,
+  CAST(0 AS DOUBLE) AS billed_seconds
 FROM system.billing.usage u
 WHERE u.usage_date >= :from_day
   AND u.usage_date <= :to_day
@@ -678,6 +699,8 @@ export interface ComponentRow {
   dbuQuantity?: number;
   /** Distinguishes a proven zero-DBU row from no DBU evidence. */
   dbuRows?: number;
+  /** Sum of this component's priced billing intervals, used only as a duration denominator. */
+  billedSeconds?: number;
 }
 
 function emptyRow(kind: ComponentRow['kind'], component: string): ComponentRow {
@@ -704,6 +727,7 @@ function emptyRow(kind: ComponentRow['kind'], component: string): ComponentRow {
     usageUnitCount: 0,
     dbuQuantity: 0,
     dbuRows: 0,
+    billedSeconds: 0,
   };
 }
 
@@ -779,6 +803,7 @@ export function readComponentRows(dataArray: unknown): ComponentRow[] {
         usageUnitCount,
         dbuQuantity,
         dbuRows,
+        billedSeconds,
       ] = cells;
       if (typeof component !== 'string' || typeof kind !== 'string') continue;
       rows.push({
@@ -804,6 +829,7 @@ export function readComponentRows(dataArray: unknown): ComponentRow[] {
         usageUnitCount: asCount(usageUnitCount),
         dbuQuantity: asCount(dbuQuantity),
         ...(dbuRows === undefined ? {} : { dbuRows: asCount(dbuRows) }),
+        ...(billedSeconds === undefined ? {} : { billedSeconds: asCount(billedSeconds) }),
       });
       continue;
     }
@@ -1019,7 +1045,7 @@ export function buildCoverage(input: {
     });
   return {
     inventoryCount: input.inventoryCount,
-    costModelCount: COST_COMPONENTS.length,
+    costModelCount: COST_COMPONENTS.length + 1,
     products,
     propagation,
   };
@@ -1070,9 +1096,9 @@ const DESCRIPTIONS: Record<
     variable: 'DATABRICKS_SERVING_ENDPOINT_NAME',
   },
   'sql-warehouse': {
-    label: 'SQL warehouse',
+    label: 'Ask SQL',
     quality: 'estimate',
-    population: 'Astrolabe query share',
+    population: 'Interactive Ask queries',
     basis: 'total-in-range',
     variable: 'DATABRICKS_SQL_WAREHOUSE_ID',
   },
@@ -1121,7 +1147,11 @@ export function buildTiles(
   warehouseAttribution: WarehouseQueryAttribution = EMPTY_WAREHOUSE_QUERY_ATTRIBUTION,
   resourceActivity: readonly ResourceActivity[] = [],
   genie?: { month: GenieAccounting; period: GenieAccounting } | null,
-  genieReason = ''
+  genieReason = '',
+  marginal?: {
+    interactive: { runs: readonly QuestionRunInput[]; complete: boolean };
+    foundation?: CostTile | null;
+  }
 ): CostTile[] {
   const byComponent = new Map(
     rows.filter((row) => (row.kind ?? 'component') === 'component').map((row) => [row.component, row])
@@ -1133,9 +1163,95 @@ export function buildTiles(
       tiles.push(...genieAccountingTiles(ids, genie, genieReason));
       continue;
     }
-    tiles.push(componentTile(component, ids, byComponent, warehouseAttribution, resourceActivity));
+    const tile = componentTile(component, ids, byComponent, warehouseAttribution, resourceActivity);
+    tiles.push(
+      component === 'serving-endpoint' && marginal
+        ? marginalServingTile(tile, byComponent.get(component), marginal.interactive)
+        : tile
+    );
+    if (component === 'serving-endpoint') {
+      tiles.push(
+        marginal?.foundation ?? {
+          id: 'foundation-model',
+          label: 'Foundation model tokens',
+          resourceId: ids.foundationModel,
+          resourceKind: ids.foundationModel ? 'serving-endpoint' : '',
+          quality: 'unknown',
+          amount: null,
+          dbus: null,
+          basis: 'total-in-range',
+          population: 'Interactive Ask tokens',
+          attribution: 'unavailable',
+          pricing: EMPTY_PRICING,
+          unavailable: ids.foundationModel
+            ? 'Foundation-model billing was not read.'
+            : 'Configured foundation model unavailable.',
+          remedy: '',
+          note: '',
+          evidence: {
+            billingRows: null,
+            astrolabeQueries: null,
+            interactiveRequests: null,
+            coveredRequests: null,
+            tokens: null,
+          },
+        }
+      );
+    }
   }
   return tiles;
+}
+
+function validRunDurationMs(run: QuestionRunInput): number | null {
+  const started = Date.parse(run.startedAt ?? '');
+  const completed = Date.parse(run.completedAt);
+  return Number.isFinite(started) && Number.isFinite(completed) && completed >= started ? completed - started : null;
+}
+
+/**
+ * Convert the dedicated endpoint uptime meter into the selected marginal model.
+ *
+ * Billing exposes endpoint intervals but no parent request id. The run ledger is
+ * therefore a closed interactive population and billed interval duration is the
+ * denominator. This is explicitly an estimate; an incomplete run/timing read is
+ * withheld rather than widened back to the full endpoint meter.
+ */
+function marginalServingTile(
+  full: CostTile,
+  row: ComponentRow | undefined,
+  interactive: { runs: readonly QuestionRunInput[]; complete: boolean }
+): CostTile {
+  const durations = interactive.runs.map(validRunDurationMs);
+  const covered = durations.filter((value): value is number => value !== null);
+  const complete = interactive.complete && covered.length === interactive.runs.length;
+  const billedMs = (row?.billedSeconds ?? 0) * 1_000;
+  const requestMs = covered.reduce((sum, value) => sum + value, 0);
+  const factor = complete && billedMs > 0 ? Math.min(1, requestMs / billedMs) : null;
+  const scale = (value: number | null | undefined) =>
+    factor !== null && typeof value === 'number' && Number.isFinite(value) ? value * factor : null;
+  if (!row) return full;
+  return {
+    ...full,
+    label: 'Agent serving',
+    quality: factor === null ? 'unknown' : 'estimate',
+    population: 'Interactive Ask',
+    amount: scale(full.amount),
+    dbus: scale(full.dbus),
+    attribution: factor === null ? 'unavailable' : 'deployment',
+    unavailable:
+      factor === null
+        ? complete
+          ? 'Marginal serving cost needs priced endpoint billing intervals.'
+          : 'Interactive Ask timing coverage is incomplete; full endpoint uptime is excluded.'
+        : '',
+    note: factor === null ? '' : 'Estimated marginal Ask',
+    evidence: {
+      billingRows: null,
+      astrolabeQueries: null,
+      interactiveRequests: interactive.runs.length,
+      coveredRequests: covered.length,
+    },
+  };
 }
 
 function genieAccountingTiles(
@@ -1171,9 +1287,7 @@ function genieAccountingTiles(
   if (!period.instances) {
     return genieAccountingTiles(ids, null, 'Legacy Genie billing has no per-space attribution evidence.');
   }
-  const monthById = new Map((month.instances ?? []).map((instance) => [instance.spaceId, instance]));
   const tiles = period.instances.map((instance): CostTile => {
-    const monthInstance = monthById.get(instance.spaceId) ?? instance;
     const pricing: CostTilePricing = {
       ...EMPTY_PRICING,
       source: 'list_prices',
@@ -1206,10 +1320,12 @@ function genieAccountingTiles(
       remedy: '',
       note:
         instance.attribution === 'query-history-allocation'
-          ? 'Allocated by user-day Query History execution share.'
-          : 'Matched by user-day Query History to this configured space.',
+          ? `Allocated by user-day Query History execution share · billing through ${period.throughDay || 'unavailable'}.`
+          : `Matched by user-day Query History to this configured space · billing through ${
+              period.throughDay || 'unavailable'
+            }.`,
       evidence: { billingRows: null, astrolabeQueries: null },
-      genieInstanceAccounting: monthInstance,
+      genieInstanceAccounting: instance,
     };
   });
   if (period.unattributed && period.unattributed.underlyingTotalDbus > 0) {
@@ -1232,9 +1348,11 @@ function genieAccountingTiles(
       },
       unavailable: 'No configured Genie space could be established for these billing rows.',
       remedy: '',
-      note: `${((period.reconciliation?.attributedShare ?? 0) * 100).toFixed(1)}% of Genie DBUs mapped to configured spaces.`,
+      note: `${((period.reconciliation?.attributedShare ?? 0) * 100).toFixed(
+        1
+      )}% of Genie DBUs mapped to configured spaces · billing through ${month.throughDay || 'unavailable'}.`,
       evidence: { billingRows: null, astrolabeQueries: null },
-      genieInstanceAccounting: month.unattributed,
+      genieInstanceAccounting: period.unattributed,
     });
   }
   return tiles;
@@ -1479,13 +1597,21 @@ function componentTile(
 /** A completed run as read from Lakebase, before billing is apportioned to it. */
 export interface QuestionRunInput {
   runId: string;
+  requestId?: string;
   correlationId: string;
   traceId: string;
+  user?: string;
+  startedAt?: string;
   completedAt: string;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
   totalTokens: number | null;
+  cachedReadTokens?: number;
+  cacheWriteTokens?: number;
   runsInRange: number;
   tokenCoveredRuns: number;
   totalRecordedTokens: number;
+  evidenceComplete?: boolean;
 }
 
 const UNKNOWN_QUESTION_PARTS: readonly Omit<Extract<QuestionCostPart, { quality: 'unknown' }>, 'amount' | 'quality'>[] =
@@ -1529,7 +1655,8 @@ function unknownPart(id: string, label: string, unavailable: string): QuestionCo
 export function buildQuestionAttribution(
   runs: QuestionRunInput[],
   tiles: CostTile[],
-  limit: number
+  limit: number,
+  warehouseAttribution: WarehouseQueryAttribution = EMPTY_WAREHOUSE_QUERY_ATTRIBUTION
 ): QuestionCostAttribution {
   const newest = runs.slice(0, limit);
   const first = runs[0];
@@ -1538,16 +1665,26 @@ export function buildQuestionAttribution(
   const totalRecordedTokens = first?.totalRecordedTokens ?? 0;
   const servingTile = tiles.find((tile) => tile.id === 'serving-endpoint');
   const servingSpend = servingTile?.amount;
+  const foundationTile = tiles.find((tile) => tile.id === 'foundation-model');
+  const foundationSpend = foundationTile?.amount;
   const sqlSpend = tiles.find((tile) => tile.id === 'sql-warehouse')?.amount;
+  const durationByRun = new Map(
+    runs
+      .map((run) => [run.runId, validRunDurationMs(run)])
+      .filter((entry): entry is [string, number] => entry[1] !== null)
+  );
+  const totalDurationMs = [...durationByRun.values()].reduce((sum, duration) => sum + duration, 0);
+  const timingReported = runs.every((run) => Boolean(run.startedAt));
+  const sqlByRun = new Map((warehouseAttribution.askRuns ?? []).map((run) => [run.runId, run.executionMs]));
+  const totalAskSqlMs = [...sqlByRun.values()].reduce((sum, duration) => sum + duration, 0);
 
   const attributed: QuestionCostRun[] = newest.map((run) => {
     const parts: QuestionCostPart[] = [];
     if (
-      run.totalTokens !== null &&
-      run.totalTokens >= 0 &&
+      (durationByRun.has(run.runId) || (!timingReported && run.totalTokens !== null)) &&
       typeof servingSpend === 'number' &&
       Number.isFinite(servingSpend) &&
-      totalRecordedTokens > 0
+      (totalDurationMs > 0 || (!timingReported && totalRecordedTokens > 0))
     ) {
       parts.push({
         id: 'serving-endpoint',
@@ -1558,8 +1695,10 @@ export function buildQuestionAttribution(
          * the second per-token was the same quality lie the tile itself already
          * refuses when the endpoint name is missing.
          */
-        quality: servingTile?.quality === 'real' ? 'per-token' : 'estimate',
-        amount: (servingSpend * run.totalTokens) / totalRecordedTokens,
+        quality: timingReported ? 'estimate' : 'per-token',
+        amount: timingReported
+          ? (servingSpend * (durationByRun.get(run.runId) ?? 0)) / totalDurationMs
+          : (servingSpend * (run.totalTokens ?? 0)) / totalRecordedTokens,
         unavailable: '',
       });
     } else {
@@ -1567,21 +1706,53 @@ export function buildQuestionAttribution(
         unknownPart(
           'serving-endpoint',
           'Model serving',
-          run.totalTokens === null ? 'This run recorded no token count.' : 'No endpoint spend was measured.'
+          !durationByRun.has(run.runId)
+            ? 'This run has no complete request interval.'
+            : 'No marginal serving spend was measured.'
         )
       );
     }
 
-    if (typeof sqlSpend === 'number' && Number.isFinite(sqlSpend) && runsInRange > 0) {
+    if (
+      run.totalTokens !== null &&
+      run.totalTokens >= 0 &&
+      typeof foundationSpend === 'number' &&
+      Number.isFinite(foundationSpend) &&
+      totalRecordedTokens > 0
+    ) {
       parts.push({
-        id: 'sql-warehouse',
-        label: 'SQL warehouse',
-        quality: 'estimate',
-        amount: sqlSpend / runsInRange,
+        id: 'foundation-model',
+        label: 'Foundation model tokens',
+        quality: 'per-token',
+        amount: (foundationSpend * run.totalTokens) / totalRecordedTokens,
         unavailable: '',
       });
     } else {
-      parts.push(unknownPart('sql-warehouse', 'SQL warehouse', 'No warehouse spend was available.'));
+      parts.push(
+        unknownPart(
+          'foundation-model',
+          'Foundation model tokens',
+          run.totalTokens === null ? 'This run recorded no token count.' : 'No foundation-model spend was measured.'
+        )
+      );
+    }
+
+    const runSqlMs = sqlByRun.get(run.runId) ?? 0;
+    const legacySql = warehouseAttribution.askRuns === undefined || warehouseAttribution.askRuns.length === 0;
+    if (
+      typeof sqlSpend === 'number' &&
+      Number.isFinite(sqlSpend) &&
+      ((runSqlMs > 0 && totalAskSqlMs > 0) || (legacySql && runsInRange > 0))
+    ) {
+      parts.push({
+        id: 'sql-warehouse',
+        label: 'Ask SQL',
+        quality: 'estimate',
+        amount: legacySql ? sqlSpend / runsInRange : (sqlSpend * runSqlMs) / totalAskSqlMs,
+        unavailable: '',
+      });
+    } else {
+      parts.push(unknownPart('sql-warehouse', 'Ask SQL', 'No Ask-tagged SQL spend was available for this run.'));
     }
 
     parts.push(
@@ -1589,10 +1760,18 @@ export function buildQuestionAttribution(
     );
     return {
       runId: run.runId,
+      requestId: run.requestId ?? '',
       correlationId: run.correlationId,
       traceId: run.traceId,
+      user: run.user ?? '',
+      startedAt: run.startedAt ?? '',
       completedAt: run.completedAt,
+      durationMs: validRunDurationMs(run),
+      inputTokens: run.inputTokens,
+      outputTokens: run.outputTokens,
       totalTokens: run.totalTokens,
+      ...(run.cachedReadTokens === undefined ? {} : { cachedReadTokens: run.cachedReadTokens }),
+      ...(run.cacheWriteTokens === undefined ? {} : { cacheWriteTokens: run.cacheWriteTokens }),
       parts,
     };
   });
@@ -1602,6 +1781,10 @@ export function buildQuestionAttribution(
     runsInRange,
     tokenCoveredRuns,
     totalRecordedTokens,
+    requestCoveredRuns: runs.filter((run) => Boolean(run.requestId && run.correlationId)).length,
+    traceCoveredRuns: runs.filter((run) => Boolean(run.traceId)).length,
+    timingCoveredRuns: durationByRun.size,
+    complete: Boolean(first?.evidenceComplete ?? runsInRange === runs.length),
     limited: runsInRange > attributed.length,
     reason: runsInRange === 0 ? 'No completed runs were recorded.' : '',
   };

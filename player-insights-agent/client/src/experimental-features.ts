@@ -61,3 +61,8 @@ export function showsEgressControls(features: ExperimentalFeatures): boolean {
 export function showsForecasting(features: ExperimentalFeatures): boolean {
   return features.forecasting;
 }
+
+/** Whether Connections offers notebook selection and staged model-version apply. */
+export function showsNotebookAgentSync(features: ExperimentalFeatures): boolean {
+  return features.notebookAgentSync;
+}

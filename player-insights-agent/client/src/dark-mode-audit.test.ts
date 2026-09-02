@@ -73,7 +73,7 @@ describe('dark mode covers the shipped surfaces', () => {
       '.monitoring-filters .monitoring-search input',
       '.monitoring-list-pane',
       '.ops-block',
-      '.monitoring-person-modal',
+      '.user-profile-modal',
       '.monitoring-question-modal',
       '.arch-flow',
       '.arch-tiles:not(.arch-tiles-loop) li',
@@ -94,7 +94,7 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(source('ArchitecturePage.tsx')).toMatch(
       /className=\{selected \? 'arch-node arch-node-selected' : 'arch-node'\}/
     );
-    expect(source('MonitoringPage.tsx')).toContain('contentClassName="monitoring-person-modal"');
+    expect(source('MonitoringPage.tsx')).toContain('contentClassName="user-profile-modal"');
     expect(source('AccountMenu.tsx')).toContain('className="account-menu"');
     expect(source('App.tsx')).toContain('useRuntimeEntityStyles();');
     expect(source('AppSky.tsx')).toContain('<StarField');
@@ -417,7 +417,7 @@ describe('dark mode covers the shipped surfaces', () => {
       "[data-slot='dropdown-menu-content']",
       "[data-slot='popover-content']",
       '.monitoring-chip-menu',
-      '.monitoring-person-modal',
+      '.user-profile-modal',
       '.monitoring-question-modal',
       "[data-slot='sheet-content']",
     ]) {

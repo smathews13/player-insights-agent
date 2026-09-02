@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import type { CostTile } from '../../shared/ops-contract';
 import {
   allocateDeterministically,
@@ -8,12 +9,16 @@ import {
   cacheUserSpend,
   capUserSpendRange,
   invalidateUserSpendCache,
+  readUserInteractionEvidence,
   readUserRunSpendEvidence,
   USER_ACTIVE_MINUTES_QUERY,
+  USER_MONITORING_ACTIVITY_QUERY,
   USER_SPEND_RUNS_QUERY,
   userSpendCacheKey,
   type UserRunSpendEvidence,
 } from './user-spend';
+
+const OPS_ROUTE_SOURCE = readFileSync(new URL('../routes/ops-routes.ts', import.meta.url), 'utf8');
 
 function tile(
   id: string,
@@ -187,6 +192,20 @@ describe('individual user spend attribution', () => {
     expect(payload.reconciliation.usd.difference).toBe(0);
   });
 
+  it('sums the same user direct Genie evidence across calendar-month slices', () => {
+    const payload = build({
+      direct: [
+        { email: 'a@example.test', componentId: 'genie:data', quality: 'direct', usd: 0.5, dbu: 0.4 },
+        { email: 'a@example.test', componentId: 'genie:data', quality: 'direct', usd: 1.5, dbu: 0.6 },
+      ],
+    });
+    const data = payload.users[0].components.find((part) => part.id === 'genie:data');
+    expect(data?.usd).toEqual({ amount: 2, quality: 'direct' });
+    expect(data?.dbu).toEqual({ amount: 1, quality: 'direct' });
+    expect(payload.reconciliation.usd.difference).toBe(0);
+    expect(payload.reconciliation.dbu.difference).toBe(0);
+  });
+
   it('does not turn missing USD price coverage into zero when DBUs are measurable', () => {
     const payload = build({
       tiles: [tile('serving-endpoint', null, 4)],
@@ -253,6 +272,114 @@ describe('individual user spend attribution', () => {
     expect(USER_ACTIVE_MINUTES_QUERY).toContain('GROUP BY selected.user_email');
     expect(USER_SPEND_RUNS_QUERY).not.toMatch(/WHERE\s+lower\(r\.user_email\)\s*=\s*\$/i);
     expect(USER_ACTIVE_MINUTES_QUERY).not.toMatch(/WHERE\s+lower\(user_email\)\s*=\s*\$/i);
+    expect(USER_MONITORING_ACTIVITY_QUERY).toContain("COUNT(DISTINCT evidence_id) FILTER (WHERE kind = 'question')");
+    expect(USER_MONITORING_ACTIVITY_QUERY).toContain("COUNT(DISTINCT evidence_id) FILTER (WHERE kind = 'run')");
+    expect(USER_MONITORING_ACTIVITY_QUERY).toContain('s.deployment_key = $3');
+    expect(USER_MONITORING_ACTIVITY_QUERY).not.toMatch(/roster|permission|persona|admin_role/i);
+  });
+
+  it('uses the selected activity window for population, including retained all-time evidence', () => {
+    expect(OPS_ROUTE_SOURCE).toContain('const activityRange = userBrowse ? range : spendWindow.range');
+    expect(OPS_ROUTE_SOURCE).toMatch(
+      /\.query\(\s*USER_MONITORING_ACTIVITY_QUERY,\s*\[\s*activityRange\.from,\s*activityRange\.to,/
+    );
+  });
+
+  it('deduplicates durable question, run, feedback, and session evidence by user', () => {
+    const evidence = readUserInteractionEvidence([
+      {
+        user_email: 'ACTIVE@EXAMPLE.TEST',
+        questions: 2,
+        runs: 1,
+        first_active: '2026-08-30T10:00:00Z',
+        last_active: '2026-08-30T11:00:00Z',
+      },
+      {
+        user_email: 'active@example.test',
+        questions: 2,
+        runs: 1,
+        first_active: '2026-08-30T10:00:00Z',
+        last_active: '2026-08-30T11:00:00Z',
+      },
+    ]);
+    expect(evidence).toEqual([
+      {
+        email: 'active@example.test',
+        questions: 2,
+        runs: 1,
+        firstActive: '2026-08-30T10:00:00Z',
+        lastActive: '2026-08-30T11:00:00Z',
+      },
+    ]);
+  });
+
+  it('excludes roster, persona, and admin-only users from the active population', () => {
+    const page = buildUserMonitoringPage({
+      spend: build(),
+      runs,
+      activity: [],
+      roles: new Map([
+        ['a@example.test', 'admin'],
+        ['b@example.test', 'consumer'],
+        ['roster-only@example.test', 'consumer'],
+        ['admin-only@example.test', 'admin'],
+        ['persona-only@example.test', 'consumer'],
+      ]),
+      personas: new Map([['persona-only@example.test', { id: 'analyst', name: 'Analyst' }]]),
+      unit: 'USD',
+    });
+
+    expect(page.users.map((row) => row.email)).toEqual(['b@example.test', 'a@example.test']);
+  });
+
+  it('includes session, question, run, and feedback users even when spend is unavailable', () => {
+    const emptySpend = build();
+    emptySpend.users = [];
+    const page = buildUserMonitoringPage({
+      spend: emptySpend,
+      runs: [],
+      activity: [],
+      interactions: [
+        {
+          email: 'session-only@example.test',
+          questions: 0,
+          runs: 0,
+          firstActive: '2026-08-31T09:00:00Z',
+          lastActive: '2026-08-31T09:00:00Z',
+        },
+        {
+          email: 'question@example.test',
+          questions: 1,
+          runs: 0,
+          firstActive: '2026-08-31T10:00:00Z',
+          lastActive: '2026-08-31T10:00:00Z',
+        },
+        {
+          email: 'run@example.test',
+          questions: 1,
+          runs: 1,
+          firstActive: '2026-08-31T11:00:00Z',
+          lastActive: '2026-08-31T11:00:00Z',
+        },
+        {
+          email: 'feedback@example.test',
+          questions: 0,
+          runs: 0,
+          firstActive: '2026-08-31T12:00:00Z',
+          lastActive: '2026-08-31T12:00:00Z',
+        },
+      ],
+      roles: new Map(),
+      unit: 'USD',
+    });
+
+    expect(page.users.map((row) => row.email).sort()).toEqual([
+      'feedback@example.test',
+      'question@example.test',
+      'run@example.test',
+      'session-only@example.test',
+    ]);
+    expect(page.users.every((row) => row.lastActive && row.spend.usd.quality === 'unavailable')).toBe(true);
   });
 
   it('keyset-pages measured spend before zero and unavailable users with a stable email tie-break', () => {

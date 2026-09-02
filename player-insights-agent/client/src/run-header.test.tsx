@@ -29,19 +29,12 @@ import type { Run } from './app-types';
 const SOURCE = readFileSync(new URL('./RunHeader.tsx', import.meta.url), 'utf8');
 const COPY_CONTROL = readFileSync(new URL('./copy-id.ts', import.meta.url), 'utf8');
 const RUNS_CSS = partial('runs.css');
-const OPS_CSS = partial('ops.css');
 
 /** The declarations of one rule, so a claim can be made about one block. */
 function rule(selector: string): string {
   const start = RUNS_CSS.indexOf(`\n${selector} {`);
   expect(start, `${selector} exists`).toBeGreaterThan(-1);
   return RUNS_CSS.slice(start, RUNS_CSS.indexOf('}', start));
-}
-
-function opsRule(selector: string): string {
-  const start = OPS_CSS.indexOf(`\n${selector} {`);
-  expect(start, `${selector} exists`).toBeGreaterThan(-1);
-  return OPS_CSS.slice(start, OPS_CSS.indexOf('}', start));
 }
 
 const FULL_ID = 'cafebabecafebabecafebabecafebabe';
@@ -107,11 +100,11 @@ describe('the run header names the run without spelling it out', () => {
   });
 
   it('links the whole identity chip to that person’s Monitoring activity', () => {
-    const markup = header({ run: run({ stakeholder: 'alex rivera+qa@example.com' }) });
+    const markup = header({ run: run({ stakeholder: 'alex.rivera+qa@example.com' }), canOpenUser: true });
 
-    expect(markup).toContain('class="run-detail-user-link"');
-    expect(markup).toContain('href="/monitoring?who=alex%20rivera%2Bqa%40example.com"');
-    expect(markup).toMatch(/<a class="run-detail-user-link"[^>]*><span class="identity-chip/);
+    expect(markup).toContain('class="user-drilldown-link user-drilldown-link--chip"');
+    expect(markup).toContain('href="/monitoring?who=alex.rivera%2Bqa%40example.com"');
+    expect(markup).toMatch(/<a[^>]*class="user-drilldown-link[^"]*"[^>]*><span class="identity-chip/);
   });
 
   it('keeps an unrecorded identity plain instead of linking to an empty filter', () => {
@@ -234,10 +227,9 @@ describe('the run header is four objects, not one sentence', () => {
     expect(rule('.run-detail-ident')).toContain('flex-wrap: wrap');
   });
 
-  it('shows hover and keyboard focus without overriding the identity ink', () => {
-    expect(opsRule('.run-detail-user-link')).toContain('color: inherit');
-    expect(opsRule('.run-detail-user-link:focus-visible')).toContain('outline: 2px solid var(--ast-blue)');
-    expect(opsRule('.run-detail-user-link')).not.toMatch(/color:\s*var\(--ast-blue\)/);
+  it('uses the shared hover and keyboard-focus contract', () => {
+    expect(SOURCE).toContain('UserDrilldownLink');
+    expect(partial('shell.css')).toContain('.user-drilldown-link:focus-visible');
   });
 
   it('says nothing about a run when no run is selected', () => {

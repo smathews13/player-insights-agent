@@ -129,6 +129,20 @@ export interface StructuredTableResult {
   tableCount: number;
 }
 
+const DECLARED_TABLE_CAPTION =
+  'This is the declared set in one listing. A missing franchise tag means untagged, not that the table cannot answer.';
+const DECLARED_TABLE_HELP = 'Call describe_table for columns, types, and comments.';
+
+/** Remove retired table-list boilerplate from every display projection, including Raw. */
+export function withoutDeclaredTableCaption(text: string): string {
+  return text
+    .replace(DECLARED_TABLE_CAPTION, '')
+    .replace('This is the declared set in one listing. A missing franchise tag means untagged.', '')
+    .replace(DECLARED_TABLE_HELP, '')
+    .replace(/\n[ \t]*\n[ \t]*\n+/g, '\n\n')
+    .trim();
+}
+
 /** A run of a sentence, and whether it names a table or a column. */
 export interface ChipRun {
   text: string;

@@ -2,8 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { StageDetail } from './TraceDag';
-import { PayloadView, RawPayload } from './TraceTimeline';
-import { describePayload } from './trace-payload';
+import { PayloadView } from './TraceTimeline';
 import { partial } from './styles/stylesheet';
 import type { TraceStage } from './answer-shape';
 
@@ -142,7 +141,7 @@ const DECLARED_TABLE_LIST = [
   `${DECLARED_TABLES[0]} [franchise: untagged]`,
   `${DECLARED_TABLES[1]} [franchise: Northwind]`,
   `${DECLARED_TABLES[2]} [franchise: Contoso]`,
-  'This is the declared set in one listing. A missing franchise tag means untagged.',
+  'This is the declared set in one listing. A missing franchise tag means untagged, not that the table cannot answer.',
   'Call describe_table for columns, types, and comments.',
 ].join('\n');
 
@@ -352,8 +351,10 @@ describe('rendered markdown results', () => {
     expect(markup).toContain('entity-table-list-meta">franchise: untagged</span>');
     expect(markup).toContain('entity-table-list-meta">franchise: Northwind</span>');
     expect(markup).toContain('entity-table-list-meta">franchise: Contoso</span>');
-    expect(markup).toContain('This is the declared set in one listing.');
-    expect(markup).toContain('data-technical-entity="tool">describe_table</code>');
+    expect(markup).not.toContain('This is the declared set in one listing.');
+    expect(markup).not.toContain('A missing franchise tag means');
+    expect(markup).not.toContain('Call describe_table');
+    expect(markup).not.toContain('dag-structured-table-prose');
   });
 
   it('uses the same table-list renderer for live payloads and stored stage details', () => {
@@ -363,11 +364,18 @@ describe('rendered markdown results', () => {
     expect(stored.match(/entity-table-mark/g)).toHaveLength(DECLARED_TABLES.length);
     expect(live).toContain('dag-structured-table-result');
     expect(stored).toContain('dag-structured-table-result');
+    for (const markup of [live, stored]) {
+      expect(markup).not.toContain('This is the declared set');
+      expect(markup).not.toContain('Call describe_table');
+    }
   });
 
-  it('keeps the complete sanitized table payload in Raw', () => {
-    const raw = renderToStaticMarkup(<RawPayload payload={describePayload(DECLARED_TABLE_LIST)} />);
-    for (const line of DECLARED_TABLE_LIST.split('\n').filter(Boolean)) expect(raw).toContain(line);
+  it('removes the retired caption from Raw while preserving the table rows', () => {
+    const raw = renderToStaticMarkup(<PayloadView text={DECLARED_TABLE_LIST} initialRaw />);
+    for (const table of DECLARED_TABLES) expect(raw).toContain(table);
+    expect(raw).not.toContain('This is the declared set');
+    expect(raw).not.toContain('A missing franchise tag means');
+    expect(raw).not.toContain('Call describe_table');
   });
 
   it('does not promote ordinary dotted prose without a structural list heading', () => {

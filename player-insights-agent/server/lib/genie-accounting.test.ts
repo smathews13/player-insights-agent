@@ -23,6 +23,7 @@ function row(overrides: Partial<GenieAccountingRow> = {}): GenieAccountingRow {
     pricedRows: 0,
     unpricedRows: 0,
     correctionRows: 0,
+    sourceRows: 1,
     throughDay: '2026-09-01',
     ...overrides,
   };
@@ -48,11 +49,17 @@ describe('Genie billing classification', () => {
     expect(built?.statement).toContain('product_features.genie.offering_type');
     expect(built?.statement).toContain('identity_metadata.run_as');
     expect(built?.statement).toContain("DATE_TRUNC('MONTH', :through_day)");
+    expect(built?.statement).toContain("LEAST(:from_day, DATE_TRUNC('MONTH', :through_day))");
     expect(built?.statement).toContain('query_source.genie_space_id');
     expect(built?.statement).toContain('GROUP BY record_id');
     expect(built?.statement).toContain('allocation_weight');
+    expect(built?.statement).toContain('LEFT JOIN system.billing.list_prices');
+    expect(built?.statement).toContain(`ON usage.sku_name <> '${GENIE_FREE_SKU}'`);
+    expect(built?.statement).toContain(`WHEN sku_name = '${GENIE_FREE_SKU}' THEN CAST(0 AS DOUBLE)`);
+    expect(built?.statement).toContain('SUM(allocation_weight) AS source_rows');
     expect(built?.parameters).toEqual(
       expect.arrayContaining([
+        { name: 'from_day', value: '2026-08-26', type: 'DATE' },
         { name: 'genieSpace0', value: 'space-data', type: 'STRING' },
         { name: 'genieSpace1', value: 'space-dictionary', type: 'STRING' },
       ])
@@ -106,6 +113,11 @@ describe('Genie billing classification', () => {
       unattributedDbus: 5,
     });
     expect(result.reconciliation?.attributedShare).toBeCloseTo(60 / 65);
+    expect(result.reconciliation?.classificationDifferenceDbus).toBeCloseTo(0);
+    expect(
+      (result.instances ?? []).reduce((total, instance) => total + instance.sourceDbus, 0) +
+        (result.unattributed?.sourceDbus ?? 0)
+    ).toBe(result.reconciliation?.sourceDbus);
   });
 
   it('caps each human once across spaces and distributes contributions proportionally', () => {
@@ -126,7 +138,33 @@ describe('Genie billing classification', () => {
     expect(result.allowanceUsedDbus).toBe(190);
     expect(result.allowanceRemainingDbus).toBe(110);
     expect(result.instances?.map((instance) => instance.allowanceUsedDbus)).toEqual([75, 115]);
+    expect(result.instances?.map((instance) => instance.unknownDbus)).toEqual([25, 25]);
     expect(result.users[0].allowanceRemainingDbus + result.users[1].allowanceRemainingDbus).toBe(110);
+    expect(result.reconciliation?.classificationDifferenceDbus).toBe(0);
+  });
+
+  it('applies the human allowance independently in each calendar month of a selected period', () => {
+    const result = classifyGenieAccounting(
+      [
+        row({ usageDay: '2026-08-31', throughDay: '2026-08-31', dbus: 100 }),
+        row({ usageDay: '2026-09-01', throughDay: '2026-09-01', dbus: 100 }),
+      ],
+      '2026-09-01'
+    );
+    expect(result.allowanceUsedDbus).toBe(200);
+    expect(result.allowanceRemainingDbus).toBe(100);
+    expect(result.users).toHaveLength(2);
+    expect(result.reconciliation?.classificationDifferenceDbus).toBe(0);
+  });
+
+  it('keeps prior measured rows when the selected current day has not arrived in billing', () => {
+    const result = classifyGenieAccounting(
+      [row({ usageDay: '2026-08-31', throughDay: '2026-08-31', dbus: 9 })],
+      '2026-09-01'
+    );
+    expect(result.throughDay).toBe('2026-08-31');
+    expect(result.allowanceUsedDbus).toBe(9);
+    expect(result.underlyingTotalDbus).toBe(9);
   });
 
   it('supports one configured space and keeps no-space rows unattributed', () => {
@@ -143,6 +181,18 @@ describe('Genie billing classification', () => {
     expect(none.instances).toEqual([]);
     expect(none.unattributed?.allowanceUsedDbus).toBe(10);
     expect(none.reconciliation?.attributedShare).toBe(0);
+  });
+
+  it('returns genuine classified zero only after a successful empty read', () => {
+    const result = classifyGenieAccounting([], '2026-09-01', SPACES);
+    expect(result.reconciliation).toMatchObject({
+      sourceRows: 0,
+      sourceDbus: 0,
+      classifiedDbus: 0,
+      classificationDifferenceDbus: 0,
+    });
+    expect(result.instances?.every((instance) => instance.underlyingTotalDbus === 0)).toBe(true);
+    expect(result.unattributed).toBeNull();
   });
 
   it('does not duplicate usage when two configured roles point to one physical space', () => {
@@ -195,10 +245,28 @@ describe('Genie billing classification', () => {
     expect(result.humanUsers).toBe(0);
     expect(result.allowanceUsedDbus).toBe(0);
     expect(result.promotionalDbus).toBe(0);
-    expect(result.chargedEffectiveDbus).toBe(100);
-    expect(result.chargedRawEquivalentDbus).toBe(75);
-    expect(result.paidUsd).toBeNull();
-    expect(result.pricingState).toBe('unpriced');
+    expect(result.chargedEffectiveDbus).toBe(0);
+    expect(result.chargedRawEquivalentDbus).toBe(0);
+    expect(result.unknownDbus).toBe(75);
+    expect(result.paidUsd).toBe(0);
+    expect(result.pricingState).toBe('priced');
+    expect(result.reconciliation?.classificationDifferenceDbus).toBe(0);
+  });
+
+  it('keeps free rows with unknown surface or identity in exact reconciliation', () => {
+    const result = classifyGenieAccounting(
+      [row({ surface: '', dbus: 12 }), row({ identity: '', identityKind: 'unknown', surface: 'GENIE_CODE', dbus: 8 })],
+      '2026-09-01'
+    );
+    expect(result.unknownDbus).toBe(20);
+    expect(result.underlyingTotalDbus).toBe(20);
+    expect(result.paidUsd).toBe(0);
+    expect(result.reconciliation).toMatchObject({
+      sourceRows: 2,
+      sourceDbus: 20,
+      classifiedDbus: 20,
+      classificationDifferenceDbus: 0,
+    });
   });
 
   it('applies the allowance to all eligible surfaces and removes reconstruction after the promotion', () => {
@@ -223,6 +291,26 @@ describe('Genie billing classification', () => {
     expect(result.underlyingTotalDbus).toBe(70);
   });
 
+  it('keeps paid DBUs measured but USD unavailable when no list price matches', () => {
+    const result = classifyGenieAccounting(
+      [
+        row({
+          skuName: 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_REGION',
+          dbus: 10,
+          paidUsd: null,
+          pricedRows: 0,
+          unpricedRows: 1,
+        }),
+      ],
+      '2026-09-01'
+    );
+    expect(result.chargedEffectiveDbus).toBe(10);
+    expect(result.chargedRawEquivalentDbus).toBe(7.5);
+    expect(result.paidUsd).toBeNull();
+    expect(result.pricingState).toBe('unpriced');
+    expect(result.reconciliation?.classificationDifferenceDbus).toBe(0);
+  });
+
   it('withholds malformed rows instead of converting them to zero', () => {
     const parsed = readGenieAccountingRows([
       { identity_kind: 'human', dbus: 'bad' },
@@ -244,5 +332,37 @@ describe('Genie billing classification', () => {
     ]);
     expect(parsed).toHaveLength(1);
     expect(parsed[0].paidUsd).toBeNull();
+  });
+
+  it('parses the Statement API JSON_ARRAY production shape for free rows without a price', () => {
+    const parsed = readGenieAccountingRows([
+      [
+        '2026-08-31',
+        'person@example.test',
+        'human',
+        'GENIE_ONE',
+        'UI',
+        'PAYGO',
+        GENIE_FREE_SKU,
+        'space-data',
+        'query-history-exact',
+        '17.25',
+        '0',
+        '0',
+        '0',
+        '0',
+        '1',
+        '2026-08-31',
+      ],
+    ]);
+    expect(parsed).toHaveLength(1);
+    const result = classifyGenieAccounting(parsed, '2026-09-01', SPACES);
+    expect(result.promotionalDbus).toBe(17.25);
+    expect(result.instances?.[0]).toMatchObject({
+      promotionalDbus: 17.25,
+      paidUsd: 0,
+      underlyingTotalDbus: 17.25,
+    });
+    expect(result.reconciliation?.classificationDifferenceDbus).toBe(0);
   });
 });

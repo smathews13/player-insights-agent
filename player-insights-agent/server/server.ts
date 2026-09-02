@@ -3,6 +3,7 @@ import { lakebasePoolSettings } from './lib/lakebase-pool';
 import { preserveOwnedAppSchema } from './lib/app-schema-bootstrap';
 import { requestLatencyShutdown } from './lib/request-latency-shutdown';
 import { registerStaticDelivery } from './lib/static-delivery';
+import { readMlflowTokenEvidence } from './lib/mlflow-token-evidence';
 
 // Static ESM imports have completed before this guard runs, so the production
 // artifact has already evaluated AppKit, Lakebase, and pg. Stop here during the
@@ -93,6 +94,7 @@ createApp({
       rolesReady: () =>
         readiness.roles ?? Promise.reject(new Error('Role bootstrap was requested before it was scheduled.')),
       onRequestLatencyRecorder: (recorder) => appkit.requestLatencyShutdown.setRecorder(recorder),
+      traceTokenEvidenceReader: readMlflowTokenEvidence,
     });
     readiness.roles = storeReady
       .then(() => bootstrapSeedRoles(appkit.lakebase))

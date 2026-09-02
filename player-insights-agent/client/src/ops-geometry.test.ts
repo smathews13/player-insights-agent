@@ -241,6 +241,14 @@ describe('the Cost budget layout', () => {
     );
   });
 
+  it('keeps save confirmation widths stable and stacks the saved budget on mobile', () => {
+    expect(rule('.ops-budget-apply')).toMatch(/min-width:\s*84px/);
+    expect(rule('.ops-budget-apply--resources')).toMatch(/min-width:\s*154px/);
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 480px\)[\s\S]*\.ops-cost-summary-budget\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
+    );
+  });
+
   it('keeps the Cost title/period rail wrapping independently from right-side controls', () => {
     expect(rule('.ops-block-head')).toMatch(/flex-wrap:\s*wrap/);
     expect(rule('.ops-block-head-text')).toMatch(/flex-wrap:\s*wrap/);

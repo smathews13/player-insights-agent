@@ -83,6 +83,7 @@ export const HEALTH_FAMILY: Record<Exclude<HealthState, 'unknown'>, AstPillFamil
 export interface BuildArtifact {
   key: string;
   label: string;
+  description: string;
   short: string;
   full: string;
   tone: StatusTone;
@@ -223,17 +224,24 @@ export function buildFacts(input: {
   const app = input.appBuildSha.trim();
   const model = input.modelBuildSha.trim();
 
-  const artifact = (key: string, label: string, sha: string, health: ArtifactHealth): BuildArtifact => {
+  const artifact = (
+    key: string,
+    label: string,
+    description: string,
+    sha: string,
+    health: ArtifactHealth
+  ): BuildArtifact => {
     const commit = commitOf(sha);
     // A stamp nothing reported is never tinted, whatever the health reading says:
     // the badge would then be a green or red `not set`, which reads as a verdict
     // about the absence rather than about the half of the deployment it names.
     // The health pill beside it still draws, because whether the app is up is a
     // separate fact from whether it stamped its build.
-    if (!commit) return { key, label, short: '', full: '', tone: 'plain', health };
+    if (!commit) return { key, label, description, short: '', full: '', tone: 'plain', health };
     return {
       key,
       label,
+      description,
       short: commit.slice(0, SHORT_SHA_LENGTH),
       full: commit,
       tone: HEALTH_TONE[health.state],
@@ -243,10 +251,17 @@ export function buildFacts(input: {
 
   return {
     artifacts: [
-      artifact('app', 'App source', app, appHealth({ serving: input.appServing, answered: input.appAnswered })),
+      artifact(
+        'app',
+        'App source',
+        'Commit used to build this app deployment.',
+        app,
+        appHealth({ serving: input.appServing, answered: input.appAnswered })
+      ),
       artifact(
         'orchestrator',
         'Agent source',
+        'Commit used to log the served agent model.',
         model,
         orchestratorHealth({ status: input.orchestratorStatus, reported: input.orchestratorReported })
       ),

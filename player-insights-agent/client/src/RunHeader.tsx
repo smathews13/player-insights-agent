@@ -29,7 +29,7 @@ import { astPill, shortRunId, statusFamily } from './run-header';
 import { runLabel } from './run-label';
 import { reportEgress } from './egress-policy';
 import type { Run } from './app-types';
-import { UserIdentityChip } from './UserIdentityChip';
+import { UserDrilldownLink } from './UserDrilldownLink';
 import { abbreviatedConversationId } from './display-id';
 import { CopyIdChip } from './CopyIdChip';
 import { RunHeaderLabelEditor } from './RunHeaderLabelEditor';
@@ -52,6 +52,7 @@ export function RunHeader({
   reference,
   groundedness,
   canEdit = false,
+  canOpenUser = false,
   editing: editingProp,
   labelError: labelErrorProp,
   onLabelsSaved,
@@ -65,6 +66,8 @@ export function RunHeader({
   groundedness: number | null;
   /** Administrators only. Consumers never see the pencil. */
   canEdit?: boolean;
+  /** Administrators only. The Monitoring route remains server-guarded. */
+  canOpenUser?: boolean;
   /** Tests open the editor without a click. Live use is the pencil. */
   editing?: boolean;
   /** Tests pin a failed save. Live use is the persist catch. */
@@ -130,20 +133,7 @@ export function RunHeader({
             >
               <span className="run-id-short">{shortRunId(run.id)}</span>
             </CopyIdChip>
-            {run.stakeholder?.trim() ? (
-              <a
-                className="run-detail-user-link"
-                href={`/monitoring?who=${encodeURIComponent(run.stakeholder)}`}
-                aria-label={`Open ${run.stakeholder}'s activity overview`}
-              >
-                <UserIdentityChip identity={run.stakeholder} compact className="run-detail-user" />
-              </a>
-            ) : (
-              /* An unrecorded identity is still a fact about the run, but it has
-                  no Monitoring population to open. Plain text avoids a focusable
-                  control whose destination cannot contain what it names. */
-              <UserIdentityChip identity={run.stakeholder} compact className="run-detail-user" />
-            )}
+            <UserDrilldownLink identity={run.stakeholder} compact className="run-detail-user" canOpen={canOpenUser} />
             {typeof toolCalls === 'number' && Number.isFinite(toolCalls) && (
               <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
                 Tools · <span className="ast-num">{toolCalls.toLocaleString()}</span>

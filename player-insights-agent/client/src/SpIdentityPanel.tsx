@@ -67,7 +67,6 @@ export type SpIdentityMutationError = {
 };
 
 export function SpIdentityEditor({
-  enabled,
   payload,
   busy,
   loading = false,
@@ -81,7 +80,6 @@ export function SpIdentityEditor({
   onUpdateDefinition,
   onDeleteDefinition,
 }: {
-  enabled: boolean;
   payload: SpIdentityAdminPayload;
   busy: boolean;
   loading?: boolean;
@@ -96,9 +94,8 @@ export function SpIdentityEditor({
   onDeleteDefinition?: (id: string) => void;
 }) {
   return (
-    <fieldset className="sp-identity-cluster" disabled={!enabled} data-testid="sp-identity-pane">
+    <fieldset className="sp-identity-cluster" data-testid="sp-identity-pane">
       <legend className="settings-section-title">SP Personas</legend>
-      {!enabled ? <p className="settings-row-note">Turn SP identities on under Experimental</p> : null}
       <MintingNotice minting={payload.minting} />
       {readError && hasLastGoodPayload ? (
         <div className="settings-status settings-error" role="alert">
@@ -128,7 +125,7 @@ export function SpIdentityEditor({
       ) : (
         <>
           <SpPersonaDefinitionBuilder
-            busy={busy || !enabled || !hasLastGoodPayload}
+            busy={busy || !hasLastGoodPayload}
             definitions={payload.personaDefinitions ?? []}
             templates={payload.personaTemplates ?? []}
             templateWarning={payload.personaTemplateWarning ?? null}
@@ -144,7 +141,7 @@ export function SpIdentityEditor({
           />
           <SpPersonaTable
             personas={payload.personas}
-            busy={busy || !enabled}
+            busy={busy}
             error={mutationError?.operation === 'rename' ? mutationError.message : null}
             onRename={onRename}
           />
@@ -1114,7 +1111,7 @@ function MintingNotice({ minting }: { minting: SpMintingStatus }) {
   );
 }
 
-export function SpIdentityPanel({ enabled }: { enabled: boolean }) {
+export function SpIdentityPanel() {
   const [readState, setReadState] = useState(INITIAL_SP_IDENTITY_READ_STATE);
   const [busy, setBusy] = useState(false);
   const [mutationError, setMutationError] = useState<SpIdentityMutationError | null>(null);
@@ -1159,7 +1156,6 @@ export function SpIdentityPanel({ enabled }: { enabled: boolean }) {
 
   return (
     <SpIdentityEditor
-      enabled={enabled}
       payload={readState.payload}
       busy={busy}
       loading={readState.loading}

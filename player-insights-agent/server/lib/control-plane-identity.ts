@@ -2,8 +2,9 @@
  * Identity metadata read from the Databricks control plane as this app.
  *
  * The app calls SCIM Users for the signed-in user's optional workspace
- * metadata and Apps for deployment context. No forwarded user token is used
- * and no credential or raw control-plane error is returned.
+ * metadata and Apps for deployment plus its dedicated service-principal
+ * identity. No forwarded user token is used and no credential or raw
+ * control-plane error is returned.
  */
 import type { ControlPlaneIdentityMetadata } from '../../shared/identity-metadata';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
@@ -20,7 +21,10 @@ export const SCIM_USERS_PATH = '/api/2.0/preview/scim/v2/Users';
 export type ControlPlaneReader = (path: string, query?: Record<string, string>) => Promise<unknown>;
 
 type UserRead = ControlPlaneIdentityMetadata['user'];
-type AppRead = Pick<ControlPlaneIdentityMetadata['app'], 'workspaceId'>;
+type AppRead = {
+  workspaceId: string;
+  servicePrincipal: ControlPlaneIdentityMetadata['servicePrincipal'];
+};
 
 const userCache = new ExpiringLruCache<UserRead>(USER_METADATA_CACHE_MAX_ENTRIES, USER_METADATA_TTL_MS);
 const appCache = new ExpiringLruCache<AppRead>(APP_CONTEXT_CACHE_MAX_ENTRIES, APP_CONTEXT_TTL_MS);
@@ -37,6 +41,11 @@ function recordOf(value: unknown): Record<string, unknown> {
 
 function textOf(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function identifierOf(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  return typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : '';
 }
 
 function readAt(now: number): string {
@@ -89,11 +98,35 @@ async function readAppContext(
   const key = `${keyPart(host)}\u0000${keyPart(appName)}`;
   const cached = appCache.get(key, now);
   if (cached) return cached;
-  let result: AppRead = { workspaceId: '' };
+  let result: AppRead = {
+    workspaceId: '',
+    servicePrincipal: {
+      displayName: '',
+      applicationId: '',
+      objectId: '',
+      authenticationType: '',
+      attachedResourceCount: null,
+      state: 'not_reported',
+    },
+  };
   if (appName && host) {
     try {
       const app = recordOf(await reader(`${APPS_PATH}/${encodeURIComponent(appName)}`));
-      result = { workspaceId: workspaceIdFromAppUrl(textOf(app.url)) };
+      const applicationId = textOf(app.service_principal_client_id);
+      const displayName = textOf(app.service_principal_name);
+      const objectId = identifierOf(app.service_principal_id);
+      const resources = Array.isArray(app.resources) ? app.resources.length : null;
+      result = {
+        workspaceId: workspaceIdFromAppUrl(textOf(app.url)),
+        servicePrincipal: {
+          displayName,
+          applicationId,
+          objectId,
+          authenticationType: applicationId ? 'OAuth machine-to-machine' : '',
+          attachedResourceCount: resources,
+          state: displayName || applicationId || objectId ? 'verified' : 'not_reported',
+        },
+      };
     } catch {
       // The workspace id is omitted unless the platform reports it.
     }
@@ -143,5 +176,6 @@ export async function readControlPlaneIdentityMetadata(
       workspaceHost,
       workspaceId: app.workspaceId,
     },
+    servicePrincipal: app.servicePrincipal,
   };
 }

@@ -5,7 +5,7 @@
  * independent dirty/save groups. Each save reloads the current server document,
  * merges only its group, then atomically upserts the complete JSON document.
  */
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import {
   COST_BUDGET_MAX,
@@ -40,10 +40,28 @@ import { useIdentity } from './app-state';
 import type { AppBudgetStatus } from '../../shared/app-budget-guard';
 
 export type BudgetSaveGroup = 'total' | 'resources';
+export const COST_BUDGET_SAVED_MS = 2_000;
+type BudgetSaveTimer = ReturnType<typeof setTimeout>;
+
+// eslint-disable-next-line react-refresh/only-export-components -- timer replacement is covered without mounting the Cost page
+export function scheduleCostBudgetSaveReset(
+  timers: Partial<Record<BudgetSaveGroup, BudgetSaveTimer>>,
+  group: BudgetSaveGroup,
+  reset: () => void,
+  delay = COST_BUDGET_SAVED_MS
+): void {
+  const prior = timers[group];
+  if (prior !== undefined) clearTimeout(prior);
+  const timer = setTimeout(() => {
+    if (timers[group] !== timer) return;
+    delete timers[group];
+    reset();
+  }, delay);
+  timers[group] = timer;
+}
 
 // eslint-disable-next-line react-refresh/only-export-components -- pure view-state helper is covered directly
 export function costBudgetNotice(state: SettingsSaveState): { tone: 'ok' | 'error'; text: string } | null {
-  if (state.kind === 'saved') return { tone: 'ok', text: 'Applied.' };
   if (state.kind === 'failed') return { tone: 'error', text: state.message };
   return null;
 }
@@ -118,26 +136,43 @@ export function CostBudgetProvider({
   const [validity, setValidityState] = useState<Record<string, boolean>>({});
   const inFlight = useRef<BudgetSaveGroup | null>(null);
   const revisions = useRef<Record<BudgetSaveGroup, number>>({ total: 0, resources: 0 });
+  const saveResetTimers = useRef<Partial<Record<BudgetSaveGroup, BudgetSaveTimer>>>({});
   const stored = loaded ?? payload.budgets ?? EMPTY_COST_BUDGETS;
   const budgets = draft ?? stored;
   const readable = loaded !== null || payload.budgetsReadable;
   const applying = inFlight.current !== null || Object.values(saveStates).some((state) => state.kind === 'saving');
 
+  const clearSaveReset = useCallback((group: BudgetSaveGroup) => {
+    const timer = saveResetTimers.current[group];
+    if (timer === undefined) return;
+    clearTimeout(timer);
+    delete saveResetTimers.current[group];
+  }, []);
+  useEffect(
+    () => () => {
+      for (const timer of Object.values(saveResetTimers.current)) clearTimeout(timer);
+      saveResetTimers.current = {};
+    },
+    []
+  );
+
   const setTotal = useCallback(
     (budget: CostBudget) => {
+      clearSaveReset('total');
       revisions.current.total += 1;
       setDraft((current) => withTotalBudget(current ?? stored, budget));
       setSaveStates((current) => ({ ...current, total: SETTINGS_SAVE_IDLE }));
     },
-    [stored]
+    [clearSaveReset, stored]
   );
   const setResource = useCallback(
     (tileId: string, budget: CostBudget) => {
+      clearSaveReset('resources');
       revisions.current.resources += 1;
       setDraft((current) => withResourceBudget(current ?? stored, tileId, budget));
       setSaveStates((current) => ({ ...current, resources: SETTINGS_SAVE_IDLE }));
     },
-    [stored]
+    [clearSaveReset, stored]
   );
   const setValidity = useCallback((field: string, valid: boolean) => {
     setValidityState((current) => (current[field] === valid ? current : { ...current, [field]: valid }));
@@ -196,6 +231,13 @@ export function CostBudgetProvider({
             ...states,
             [group]: revisions.current[group] === submittedRevision ? { kind: 'saved' } : SETTINGS_SAVE_IDLE,
           }));
+          if (revisions.current[group] === submittedRevision) {
+            scheduleCostBudgetSaveReset(saveResetTimers.current, group, () => {
+              setSaveStates((states) =>
+                states[group].kind === 'saved' ? { ...states, [group]: SETTINGS_SAVE_IDLE } : states
+              );
+            });
+          }
         } catch (error) {
           setSaveStates((states) => ({
             ...states,
@@ -249,7 +291,7 @@ export function CostTotalBudget() {
         budget={api.budgets.total}
         unit={api.unit}
         observed={{ USD: null, DBU: null }}
-        helper="Applies to paid, attributable month-to-date spend."
+        helper=""
         onCommit={api.setTotal}
         onValidityChange={(valid) => api.setValidity('total', valid)}
         controlAfter={
@@ -350,7 +392,10 @@ export function BudgetGuardStatus({ status, admin }: { status: AppBudgetStatus; 
 }
 
 export function CostSpendSummary({ payload, unit }: { payload: OpsCostPayload; unit: CostBudgetUnit }) {
+  const api = useCostBudgets();
+  const budgetStatus = useAppBudgetStatus();
   const summary = costSpendSummary(payload, unit);
+  const savedBudget = costBudgetValue(api.saved.total, unit);
   return (
     <div className="ops-cost-summary-box" aria-label="Total app spend">
       <div className="ops-cost-summary-head">
@@ -362,6 +407,34 @@ export function CostSpendSummary({ payload, unit }: { payload: OpsCostPayload; u
           <span>{summary.partial ? 'estimated subtotal' : summary.estimated ? 'estimated total' : 'total'}</span>
         ) : null}
       </p>
+      <SavedAppBudgetSummary savedBudget={savedBudget} unit={unit} status={budgetStatus} />
+    </div>
+  );
+}
+
+export function SavedAppBudgetSummary({
+  savedBudget,
+  unit,
+  status,
+}: {
+  savedBudget: number | null;
+  unit: CostBudgetUnit;
+  status: AppBudgetStatus | null;
+}) {
+  if (savedBudget === null) return null;
+  const completeMtd =
+    hasCompleteBudgetMeasurement(status) && status.unit === unit && status.budget === savedBudget ? status : null;
+  return (
+    <div className="ops-cost-summary-budget">
+      <span>Monthly app budget</span>
+      <strong className="ast-num">
+        {savedBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}
+      </strong>
+      {completeMtd ? (
+        <span className="ops-cost-summary-budget-mtd">
+          Month to date {completeMtd.measured.toFixed(2)} {unit} · {completeMtd.percent.toFixed(2)}%
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -531,7 +604,6 @@ export function BudgetSaveNotice({
   if (!readable && state.kind !== 'failed') {
     return <span className="ops-budget-save-error">{COST_BUDGETS_UNREADABLE}</span>;
   }
-  if (notice?.tone === 'ok') return <span className="ops-budget-save-ok">{notice.text}</span>;
   return null;
 }
 
@@ -547,15 +619,18 @@ export function CostBudgetApplyButton({
   onClick?: () => void;
 }) {
   const saving = state.kind === 'saving';
-  const text = saving ? 'Applying' : state.kind === 'saved' ? 'Applied' : state.kind === 'failed' ? 'Retry' : label;
+  const text = saving ? 'Applying…' : state.kind === 'saved' ? 'Applied' : state.kind === 'failed' ? 'Retry' : label;
+  const resourceButton = label === 'Apply resource budgets';
   return (
     <Button
       type="button"
       variant="default"
       size="sm"
-      className="ops-budget-apply"
+      className={`ops-budget-apply${resourceButton ? ' ops-budget-apply--resources' : ''}`}
       disabled={disabled || saving}
       aria-busy={saving || undefined}
+      aria-live="polite"
+      aria-atomic="true"
       onClick={onClick}
     >
       {saving ? <ConceptFlicker seat="button" /> : null}

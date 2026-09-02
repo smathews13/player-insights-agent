@@ -78,7 +78,8 @@ import {
   readModelRelease,
 } from '../lib/model-release-store';
 import type { ModelReleaseDeclaration, ReleasePreflight } from '../../shared/model-release';
-import { applyAstrolabeTags } from '../lib/resource-tagging';
+import { setupResourceTagRoutes } from './resource-tag-routes';
+import { readExperimentalSettings } from '../lib/experimental-settings-store';
 
 const WriteBody = z.object({
   value: z.string().trim().max(500),
@@ -89,6 +90,14 @@ const WriteBody = z.object({
 const NotebookPathBody = z.strictObject({
   path: z.string().trim().min(1).max(1024),
 });
+
+async function notebookAgentSyncEnabled(appkit: InsightsAppKit): Promise<boolean> {
+  try {
+    return (await readExperimentalSettings(appkit)).settings.notebookAgentSync;
+  } catch {
+    return false;
+  }
+}
 
 export async function validateAndStoreNotebookPath(input: {
   appkit: InsightsAppKit;
@@ -211,6 +220,10 @@ export async function readOrchestratorReport(): Promise<OrchestratorRead> {
 }
 
 export function setupSettingsRoutes(appkit: InsightsAppKit) {
+  setupResourceTagRoutes(appkit, {
+    readReport: async () => (await readOrchestratorReport()).report,
+    resolveExperimentId: () => resolveExperimentId(appkit),
+  });
   appkit.server.extend((app) => {
     /**
      * The deployment facts needed by the global header.
@@ -245,38 +258,6 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
     });
 
     /**
-     * Backfill the Astrolabe billing tag on platform resources this deployment
-     * manages. WorkspaceClient uses the app service principal injected by
-     * Databricks Apps; the viewer's forwarded token is deliberately not read.
-     */
-    app.post('/api/settings/resource-tags', async (req, res) => {
-      try {
-        const { report } = await readOrchestratorReport();
-        const experimentId = await resolveExperimentId(appkit);
-        const summary = await applyAstrolabeTags({
-          report,
-          environment: {
-            ...process.env,
-            PLAYER_INSIGHTS_EXPERIMENT_ID: experimentId,
-          },
-        });
-        await recordAdminAction(appkit.lakebase, {
-          actor: userEmail(req),
-          action: 'resource-tags-applied',
-          subject: 'system_billing=astrolabe',
-          detail: summary.headline,
-        });
-        res.json(summary);
-      } catch (error) {
-        console.error('[settings] Resource tags could not be applied:', (error as Error).message);
-        res.status(503).json({
-          error: 'resource_tagging_unavailable',
-          detail: 'Databricks did not start the resource tag update. No viewer credential was used.',
-        });
-      }
-    });
-
-    /**
      * Every connection, with what it was configured as, what the running system
      * used, and what somebody intends it to be.
      *
@@ -288,6 +269,7 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
     app.get('/api/settings', async (req, res) => {
       const { report, answered } = await readOrchestratorReport();
       const stored = await readStoredSettings(appkit);
+      const notebookSync = await notebookAgentSyncEnabled(appkit);
       const environment = appEnvironment();
       const payload = settingsPayload({
         report,
@@ -316,12 +298,16 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
         // function's own comment gives: it is pure, and both of these need a round
         // trip. The notebook read also needs the request, because it is made as the
         // signed-in user.
-        notebook: await readNotebook(req, appkit, report, stored),
+        ...(notebookSync ? { notebook: await readNotebook(req, appkit, report, stored) } : {}),
         connections: await readConnections(appkit, states),
       });
     });
 
     app.put('/api/settings/notebook-path', requireAdmin(appkit.lakebase, userEmail), async (req, res) => {
+      if (!(await notebookAgentSyncEnabled(appkit))) {
+        res.status(404).json({ error: 'notebook_agent_sync_disabled' });
+        return;
+      }
       const parsed = NotebookPathBody.safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({ error: 'invalid_notebook_path', detail: parsed.error.message });
@@ -596,6 +582,10 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
 
     /** Preview the declaration the canonical admin release endpoint snapshots. */
     app.get('/api/settings/apply', async (req, res) => {
+      if (!(await notebookAgentSyncEnabled(appkit))) {
+        res.status(404).json({ error: 'notebook_agent_sync_disabled' });
+        return;
+      }
       res.json(await buildApplyResponse(req, appkit));
     });
 
@@ -607,6 +597,10 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
      * forwarded identity. A caller cannot swap either after review.
      */
     app.post('/api/admin/model-releases', async (req, res) => {
+      if (!(await notebookAgentSyncEnabled(appkit))) {
+        res.status(404).json({ error: 'notebook_agent_sync_disabled' });
+        return;
+      }
       try {
         const current = await buildApplyResponse(req, appkit);
         if (!current.plan.hasOverrides) {
@@ -646,6 +640,10 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
     });
 
     app.get('/api/admin/model-releases', async (req, res) => {
+      if (!(await notebookAgentSyncEnabled(appkit))) {
+        res.status(404).json({ error: 'notebook_agent_sync_disabled' });
+        return;
+      }
       const requested = Number(req.query.limit ?? 20);
       const releases = await listModelReleases(appkit, Number.isFinite(requested) ? requested : 20);
       res.json({ releases });

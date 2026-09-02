@@ -5,6 +5,7 @@
 import { isAnswerProvenance, type AnswerProvenance } from '../../shared/answer-provenance';
 import { normalizeReaderStageStatus, projectReaderStage, type ReaderStageStatus } from '../../shared/stage-lexicon';
 import type { AnalyticalExecution } from './analytical-execution';
+import type { StepTokenUsage, TokenReconciliation } from '../../shared/llm-token-usage';
 
 export type StageStatus = ReaderStageStatus;
 
@@ -31,6 +32,8 @@ export interface TraceStage {
    * calls them exact, so it needs to know the difference.
    */
   startMeasured?: boolean;
+  /** Direct LLM invocation usage attributed from MLflow spans. */
+  token_usage?: StepTokenUsage;
 }
 
 export interface TraceSummary {
@@ -42,6 +45,7 @@ export interface TraceSummary {
   prompt_tokens?: number;
   completion_tokens?: number;
   total_tokens?: number;
+  token_reconciliation?: TokenReconciliation;
 }
 
 export interface Figure {
@@ -151,6 +155,31 @@ function asStageStatus(value: unknown): StageStatus {
   return normalizeReaderStageStatus(value);
 }
 
+function normalizedStepTokenUsage(value: unknown): StepTokenUsage | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const usage = value as Record<string, unknown>;
+  const cacheStatus = usage.cacheStatus;
+  const attempts = usage.attempts;
+  if (
+    !['used', 'not-used', 'unavailable'].includes(String(cacheStatus)) ||
+    typeof attempts !== 'number' ||
+    !Number.isInteger(attempts) ||
+    attempts < 1
+  ) {
+    return undefined;
+  }
+  const normalized: StepTokenUsage = {
+    cacheStatus: cacheStatus as StepTokenUsage['cacheStatus'],
+    attempts,
+    totalMismatch: usage.totalMismatch === true,
+  };
+  for (const key of ['inputTokens', 'outputTokens', 'totalTokens', 'cachedReadTokens', 'cacheWriteTokens'] as const) {
+    const count = usage[key];
+    if (typeof count === 'number' && Number.isInteger(count) && count >= 0) normalized[key] = count;
+  }
+  return normalized;
+}
+
 /**
  * Stage ids are React keys and the parent lookup for nesting, so a stage without
  * one gets a positional id rather than `undefined`, duplicate keys silently drop
@@ -179,6 +208,8 @@ export function normalizeStage(raw: unknown, index: number): TraceStage {
       .map((name) => name.trim())
       .filter((name, index, names) => name.length > 0 && names.indexOf(name) === index);
   }
+  const tokenUsage = normalizedStepTokenUsage(stage.token_usage);
+  if (tokenUsage) normalized.token_usage = tokenUsage;
   // Whether `start` was a real number on the wire, recorded because the line
   // above cannot say so afterwards: a missing start and a start of zero both
   // arrive here as 0, and the first stage of every run legitimately starts at 0.
@@ -210,6 +241,9 @@ export function normalizeTrace(raw: unknown): TraceSummary {
   }
   if (typeof trace.total_tokens === 'number' && Number.isFinite(trace.total_tokens)) {
     normalized.total_tokens = trace.total_tokens;
+  }
+  if (trace.token_reconciliation && typeof trace.token_reconciliation === 'object') {
+    normalized.token_reconciliation = trace.token_reconciliation as TokenReconciliation;
   }
   return normalized;
 }

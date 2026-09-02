@@ -404,6 +404,36 @@
 .identity-chip--compact .identity-chip-text {
   min-width: 0;
 }
+.user-drilldown-link {
+  display: inline-flex;
+  max-width: 100%;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.user-drilldown-link:hover .identity-chip,
+.user-drilldown-link:focus-visible .identity-chip {
+  background: var(--db-hover-tint);
+  border-color: var(--ast-border-input);
+  color: var(--foreground);
+}
+.user-drilldown-link--text {
+  color: var(--ast-info-text);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+}
+.user-drilldown-link--text:hover,
+.user-drilldown-link--text:focus-visible {
+  color: var(--foreground);
+  text-decoration-color: currentColor;
+  background: var(--db-hover-tint);
+}
+.user-drilldown-link:focus-visible {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
+}
 .identity-chip-suffix {
   flex: none;
   color: var(--muted-foreground);

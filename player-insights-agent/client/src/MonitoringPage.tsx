@@ -46,6 +46,8 @@ import { AnswerCard } from './AnswerCard';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
 import { SourceEntityName, VisitInDatabricks } from './DataEntityLinks';
 import { UserIdentityChip } from './UserIdentityChip';
+import { UserDrilldownLink } from './UserDrilldownLink';
+import { UnitSegmentedControl } from './UnitSegmentedControl';
 import { identityName, possessiveName } from './user-identity';
 import type { Answer, FeedbackEntry } from './app-types';
 import {
@@ -117,7 +119,6 @@ import {
   type PanelLoadState,
 } from './monitoring-detail-state';
 import { rangeLabel, rangeWindow } from './time-range';
-import { codesForCause } from '../../shared/monitoring-contract';
 import type {
   MonitoringDetail,
   MonitoringPagination,
@@ -581,21 +582,8 @@ function OutcomePill({ question }: { question: MonitoringQuestion }) {
 }
 
 function AskerMark({ email, onOpen }: { email: string; onOpen?: (email: string) => void }) {
-  const mark = <UserIdentityChip identity={email} compact className="monitoring-asker-who" />;
-  if (!onOpen) return mark;
-  return (
-    <button
-      type="button"
-      className="monitoring-asker-button"
-      aria-label={`Open ${identityName(email)}'s profile`}
-      onClick={(event) => {
-        event.stopPropagation();
-        onOpen(email);
-      }}
-    >
-      {mark}
-    </button>
-  );
+  if (!onOpen) return <UserIdentityChip identity={email} compact className="monitoring-asker-who" />;
+  return <UserDrilldownLink identity={email} compact className="monitoring-asker-who" canOpen />;
 }
 
 function RatingMark({ rating }: { rating: 'up' | 'down' | null }) {
@@ -621,16 +609,8 @@ function QuestionRow({
 }) {
   return (
     <tr
-      role="button"
-      tabIndex={0}
       aria-current={selected ? 'true' : undefined}
       className={selected ? 'monitoring-row monitoring-row-selected' : 'monitoring-row'}
-      onClick={() => onOpen(question)}
-      onKeyDown={(event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        onOpen(question);
-      }}
     >
       {/* The largest thing in the row, and truncated to two lines rather
           than one: a question is the reader's index into this table, and
@@ -641,7 +621,9 @@ function QuestionRow({
           being a table cell, which takes it out of the column sizing the
           header row above just settled. It was on the cell. */}
       <td className="monitoring-question">
-        <span className="monitoring-question-text">{question.question}</span>
+        <button type="button" className="monitoring-question-button" onClick={() => onOpen(question)}>
+          <span className="monitoring-question-text">{question.question}</span>
+        </button>
       </td>
       {/* The local part, with the full address on hover. A column of
           identical domains is a column of noise. */}
@@ -713,50 +695,40 @@ function QuestionCard({
   onOpenPerson?: (email: string) => void;
 }) {
   return (
-    <li>
-      <div
-        role="button"
-        tabIndex={0}
-        className={selected ? 'monitoring-question-card monitoring-row-selected' : 'monitoring-question-card'}
-        aria-current={selected ? 'true' : undefined}
-        onClick={() => onOpen(question)}
-        onKeyDown={(event) => {
-          if (event.key !== 'Enter' && event.key !== ' ') return;
-          event.preventDefault();
-          onOpen(question);
-        }}
-      >
+    <li
+      className={selected ? 'monitoring-question-card monitoring-row-selected' : 'monitoring-question-card'}
+      aria-current={selected ? 'true' : undefined}
+    >
+      <button type="button" className="monitoring-question-card-button" onClick={() => onOpen(question)}>
         <span className="monitoring-question-card-text">{question.question}</span>
-        <span className="monitoring-question-card-meta">
-          <AskerMark email={question.askedBy} onOpen={onOpenPerson} />
-          <span>{whenLabel(question.askedAt, now)}</span>
-          <OutcomePill question={question} />
-        </span>
-        <span className="monitoring-question-card-facts">
-          {formatDuration(question.durationMs) ? (
-            <span>
-              Time <span className="ast-num">{formatDuration(question.durationMs)}</span>
-            </span>
-          ) : null}
-          {question.toolCalls !== null ? (
-            <span>
-              Tools <span className="ast-num">{question.toolCalls}</span>
-            </span>
-          ) : null}
-          <RatingMark rating={question.rating} />
-        </span>
-      </div>
+      </button>
+      <span className="monitoring-question-card-meta">
+        <AskerMark email={question.askedBy} onOpen={onOpenPerson} />
+        <span>{whenLabel(question.askedAt, now)}</span>
+        <OutcomePill question={question} />
+      </span>
+      <span className="monitoring-question-card-facts">
+        {formatDuration(question.durationMs) ? (
+          <span>
+            Time <span className="ast-num">{formatDuration(question.durationMs)}</span>
+          </span>
+        ) : null}
+        {question.toolCalls !== null ? (
+          <span>
+            Tools <span className="ast-num">{question.toolCalls}</span>
+          </span>
+        ) : null}
+        <RatingMark rating={question.rating} />
+      </span>
     </li>
   );
 }
 
 /**
- * One row per question, and the whole row is one control.
+ * One row per question, with a real button for the question and a separate
+ * user link when the reader may open profiles.
  *
- * Not seven links. A reader clicking a question wants the question, and a row of
- * separately-clickable cells makes them aim. `role="button"` with a key handler
- * rather than a nested `<button>`, because a button spanning a table row cannot
- * be laid out as one and a row of buttons is seven tab stops.
+ * This avoids nesting the Asked-by link inside a synthetic row button.
  */
 export function QuestionList({
   questions,
@@ -976,7 +948,7 @@ export function QuestionDrawer({
             no card: a conditioned or failed run still has to name who asked.
             The timestamp and grants stay a caption, not a second washed bar. */}
       <div className="monitoring-drawer-meta-row">
-        {!answer ? <UserIdentityChip identity={detail.askedBy} label="Asked by" compact /> : null}
+        {!answer ? <UserDrilldownLink identity={detail.askedBy} label="Asked by" compact canOpen /> : null}
         <p className="monitoring-drawer-meta">
           {[askedAtLabel(detail.askedAt), askerGrantsLine(detail.execution, identityName(detail.askedBy))]
             .filter((segment): segment is string => Boolean(segment))
@@ -1025,7 +997,7 @@ export function QuestionDrawer({
           saveFeedback={async () => {}}
           showFeedback={false}
           afterEvidence={tokensNote(detail.tokens)}
-          headerExtra={<UserIdentityChip identity={detail.askedBy} label="Asked by" compact />}
+          headerExtra={<UserDrilldownLink identity={detail.askedBy} label="Asked by" compact canOpen />}
         />
       ) : (
         /* A refusal or a failure: the taxonomy's own sentence, with the code in
@@ -1076,7 +1048,7 @@ export function QuestionPanel({
   return (
     <Dialog
       overlayClassName="monitoring-question-overlay"
-      contentClassName="monitoring-question-modal monitoring-panel-status"
+      contentClassName="monitoring-question-modal monitoring-question-status"
       overlayTestId="monitoring-question-overlay"
       labelledBy="monitoring-question-title"
       ariaBusy={state.status === 'loading' || state.status === 'idle'}
@@ -1092,14 +1064,14 @@ export function QuestionPanel({
         </Button>
       </div>
       {state.status === 'error' ? (
-        <div role="alert" className="monitoring-panel-message">
+        <div role="alert" className="monitoring-question-message">
           <p>{state.error}</p>
           <Button variant="outline" size="sm" onClick={onRetry}>
             Retry
           </Button>
         </div>
       ) : (
-        <div role="status" className="monitoring-panel-message">
+        <div role="status" className="monitoring-question-message">
           <Skeleton className="h-5 w-2/3" />
           <Skeleton className="h-24 w-full" />
           <span className="sr-only">Loading question details</span>
@@ -1121,14 +1093,14 @@ export function QuestionPanel({
  */
 function PanelTile({ label, tile }: { label: string; tile: TileValue }) {
   return (
-    <div className="monitoring-panel-tile">
-      <p className="monitoring-panel-tile-label">{label}</p>
+    <div className="user-profile-modal-kpi">
+      <p className="user-profile-modal-kpi-label">{label}</p>
       {tile.value !== null ? (
-        <p className="monitoring-panel-tile-value ast-num">{tile.value}</p>
+        <p className="user-profile-modal-kpi-value ast-num">{tile.value}</p>
       ) : (
-        <p className="monitoring-tile-absent">{tile.absence}</p>
+        <p className="user-profile-modal-kpi-absent">{tile.absence}</p>
       )}
-      {tile.caption ? <p className="monitoring-tile-caption">{tile.caption}</p> : null}
+      {tile.caption ? <p className="user-profile-modal-kpi-caption">{tile.caption}</p> : null}
     </div>
   );
 }
@@ -1140,25 +1112,30 @@ function PanelTile({ label, tile }: { label: string; tile: TileValue }) {
  * them.
  */
 export function TablesReadMost({ rows }: { rows: PersonPanelPayload['tablesReadMost'] }) {
-  if (rows.length === 0) return null;
   return (
-    <section className="monitoring-panel-tile monitoring-panel-tile-wide monitoring-tables-read">
-      <p className="monitoring-panel-tile-label">Tables read most</p>
-      <ol className="monitoring-table-ranking">
-        {rows.map((row) => (
-          <li key={row.table}>
-            <span className="monitoring-ranked-table" title={row.table} aria-label={row.table}>
-              <VisitInDatabricks name={row.table} />
-              <span className="source-name-pill" data-tone="queried">
-                <SourceEntityName name={row.table} />
+    <section className="user-profile-modal-tables" aria-labelledby="user-profile-tables-title">
+      <h4 id="user-profile-tables-title" className="user-profile-modal-section-title">
+        Tables read most
+      </h4>
+      {rows.length === 0 ? (
+        <p className="user-profile-modal-state">No table reads were recorded in this range.</p>
+      ) : (
+        <ol className="user-profile-modal-table-list">
+          {rows.map((row) => (
+            <li key={row.table}>
+              <span className="user-profile-modal-table-name" title={row.table} aria-label={row.table}>
+                <VisitInDatabricks name={row.table} />
+                <span className="source-name-pill" data-tone="queried">
+                  <SourceEntityName name={row.table} />
+                </span>
               </span>
-            </span>
-            <span className="monitoring-table-runs ast-num">
-              {row.runs.toLocaleString()} {row.runs === 1 ? 'run' : 'runs'}
-            </span>
-          </li>
-        ))}
-      </ol>
+              <span className="user-profile-modal-table-runs ast-num">
+                {row.runs.toLocaleString()} {row.runs === 1 ? 'run' : 'runs'}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
     </section>
   );
 }
@@ -1202,7 +1179,7 @@ function spendFigure(amount: number | null, unit: 'USD' | 'DBU', currency = 'USD
 function SpendQualityBadge({ quality }: { quality: UserSpendQuality }) {
   const reading = SPEND_QUALITY[quality];
   return (
-    <span className={astPill(reading.tone, 'monitoring-spend-quality')} title={reading.description}>
+    <span className={astPill(reading.tone, 'user-profile-modal-spend-quality')} title={reading.description}>
       {reading.label}
     </span>
   );
@@ -1219,31 +1196,24 @@ export function PersonSpend({
 }) {
   if (state.status === 'loading' || state.status === 'idle') {
     return (
-      <section className="monitoring-spend" aria-labelledby="monitoring-spend-title" aria-busy="true">
-        <h4 id="monitoring-spend-title" className="monitoring-eyebrow">
+      <section className="user-profile-modal-spend" aria-labelledby="user-profile-spend-title" aria-busy="true">
+        <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
           Spend
         </h4>
-        <div role="status" className="monitoring-spend-loading">
-          <Skeleton className="monitoring-spend-skeleton-total" />
-          {[0, 1, 2].map((row) => (
-            <div className="monitoring-spend-skeleton-row" key={row}>
-              <Skeleton />
-              <Skeleton />
-              <Skeleton />
-            </div>
-          ))}
-          <span className="sr-only">Loading attributable spend</span>
+        <div role="status" className="user-profile-modal-spend-loading">
+          <ConceptFlicker seat="inline" />
+          <span>Loading attributable spend</span>
         </div>
       </section>
     );
   }
   if (state.status === 'error') {
     return (
-      <section className="monitoring-spend" aria-labelledby="monitoring-spend-title">
-        <h4 id="monitoring-spend-title" className="monitoring-eyebrow">
+      <section className="user-profile-modal-spend" aria-labelledby="user-profile-spend-title">
+        <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
           Spend
         </h4>
-        <p className="monitoring-spend-absent">Unavailable. {state.error}</p>
+        <p className="user-profile-modal-state">Unavailable. {state.error}</p>
       </section>
     );
   }
@@ -1251,11 +1221,11 @@ export function PersonSpend({
   const profile = spend?.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase()) ?? null;
   if (!spend || !profile) {
     return (
-      <section className="monitoring-spend" aria-labelledby="monitoring-spend-title">
-        <h4 id="monitoring-spend-title" className="monitoring-eyebrow">
+      <section className="user-profile-modal-spend" aria-labelledby="user-profile-spend-title">
+        <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
           Spend
         </h4>
-        <p className="monitoring-spend-absent">
+        <p className="user-profile-modal-state">
           {spend?.state === 'unavailable' ? 'Unavailable.' : 'Not attributable in this period.'}
           {spend?.reason ? ` ${spend.reason}` : ''}
         </p>
@@ -1293,47 +1263,54 @@ function SpendProfile({
     visible.length > 0 && visible.every((component) => component.usd.amount === null && component.dbu.amount === null);
   if (allUnavailable) {
     return (
-      <section className="monitoring-spend" aria-labelledby="monitoring-spend-title">
-        <h4 id="monitoring-spend-title" className="monitoring-eyebrow">
+      <section className="user-profile-modal-spend" aria-labelledby="user-profile-spend-title">
+        <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
           Spend
         </h4>
-        <p className="monitoring-spend-absent">
+        <p className="user-profile-modal-state">
           Unavailable for {spend.range.from} to {spend.range.to}. {spend.reason}
         </p>
       </section>
     );
   }
   return (
-    <section className="monitoring-spend" aria-labelledby="monitoring-spend-title" aria-busy={refreshing || undefined}>
-      <div className="monitoring-spend-heading">
+    <section
+      className="user-profile-modal-spend"
+      aria-labelledby="user-profile-spend-title"
+      aria-busy={refreshing || undefined}
+    >
+      <div className="user-profile-modal-spend-heading">
         <div>
-          <h4 id="monitoring-spend-title" className="monitoring-eyebrow">
+          <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
             Spend
           </h4>
-          <p className="monitoring-spend-total ast-num">
+          <p className="user-profile-modal-spend-total ast-num">
             {spendFigure(profile.total.usd.amount, 'USD', payload.currency)}
             <span>{spendFigure(profile.total.dbu.amount, 'DBU')}</span>
           </p>
         </div>
-        <div className="monitoring-spend-badges" aria-label="Attribution coverage">
+        <div className="user-profile-modal-spend-badges" aria-label="Attribution coverage">
           <SpendQualityBadge quality={profileCoverage(profile)} />
-          {refreshing ? <span className="monitoring-spend-refreshing">Refreshing…</span> : null}
+          {refreshing ? <span className="user-profile-modal-refreshing">Refreshing…</span> : null}
         </div>
       </div>
-      <p className="monitoring-spend-note">
+      <p className="user-profile-modal-note">
         Attributable for {spend.range.from} to {spend.range.to}. Allocated figures apportion shared measured cost and
         are not an individual invoice.
       </p>
       {profile.genieAllowance ? (
-        <p className="monitoring-spend-note">
+        <p className="user-profile-modal-note">
           Genie {profile.genieAllowance.month}: {profile.genieAllowance.usedDbus.toFixed(2)} DBU allowance used ·{' '}
           {profile.genieAllowance.remainingDbus.toFixed(2)} remaining ·{' '}
           {profile.genieAllowance.promotionalDbus.toFixed(2)} promotional ·{' '}
+          {profile.genieAllowance.unclassifiedFreeDbus > 0
+            ? `${profile.genieAllowance.unclassifiedFreeDbus.toFixed(2)} unclassified free · `
+            : ''}
           {profile.genieAllowance.chargedEffectiveDbus.toFixed(2)} charged
         </p>
       ) : null}
-      <ul className="monitoring-spend-components">
-        <li className="monitoring-spend-columns" aria-hidden="true">
+      <ul className="user-profile-modal-spend-rows">
+        <li className="user-profile-modal-spend-columns" aria-hidden="true">
           <span>Resource</span>
           <span>Amount</span>
           <span>Attribution</span>
@@ -1347,18 +1324,18 @@ function SpendProfile({
                 : 'unavailable';
           return (
             <li key={component.id}>
-              <span className="monitoring-spend-component-name">
+              <span className="user-profile-modal-spend-resource">
                 {component.label}
                 {component.reason ? <small title={component.reason}>{component.reason}</small> : null}
               </span>
-              <span className="monitoring-spend-component-amount ast-num">
+              <span className="user-profile-modal-spend-amount ast-num">
                 {component.usd.amount === null && component.dbu.amount === null
                   ? 'Unavailable'
                   : `${spendFigure(component.usd.amount, 'USD', payload.currency)} · ${spendFigure(component.dbu.amount, 'DBU')}`}
               </span>
-              <span className="monitoring-spend-component-attribution">
+              <span className="user-profile-modal-spend-attribution">
                 {quality === 'unavailable' ? (
-                  <span aria-hidden="true">—</span>
+                  <span aria-hidden="true">·</span>
                 ) : (
                   <SpendQualityBadge quality={quality} />
                 )}
@@ -1368,6 +1345,57 @@ function SpendProfile({
         })}
       </ul>
     </section>
+  );
+}
+
+function ProfileQuestionHistory({
+  questions,
+  now,
+  onOpen,
+}: {
+  questions: MonitoringQuestion[];
+  now: number;
+  onOpen: (question: MonitoringQuestion) => void;
+}) {
+  return (
+    <div className="user-profile-modal-question-frame">
+      <table className="user-profile-modal-question-table">
+        <thead>
+          <tr>
+            <th scope="col">Question</th>
+            <th scope="col">When</th>
+            <th scope="col">Outcome</th>
+            <th scope="col">Time</th>
+            <th scope="col">Tools</th>
+            <th scope="col">Rating</th>
+          </tr>
+        </thead>
+        <tbody>
+          {questions.map((question) => (
+            <tr key={question.id}>
+              <td data-label="Question">
+                <button type="button" className="user-profile-modal-question-open" onClick={() => onOpen(question)}>
+                  {question.question}
+                </button>
+              </td>
+              <td data-label="When">{whenLabel(question.askedAt, now)}</td>
+              <td data-label="Outcome">
+                <OutcomePill question={question} />
+              </td>
+              <td data-label="Time" className="ast-num">
+                {formatDuration(question.durationMs) ?? 'Not recorded'}
+              </td>
+              <td data-label="Tools" className="ast-num">
+                {question.toolCalls ?? 'Not recorded'}
+              </td>
+              <td data-label="Rating">
+                <RatingMark rating={question.rating} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -1382,7 +1410,6 @@ export function PersonPanel({
   page = 0,
   onPreviousPage = () => {},
   onNextPage = () => {},
-  compactQuestions,
   onBack,
 }: {
   panel: PersonPanelPayload;
@@ -1414,178 +1441,141 @@ export function PersonPanel({
   const cost = tokenCostTile(panel.tokenCostUsd);
   return (
     <Dialog
-      overlayClassName="monitoring-person-overlay"
-      contentClassName="monitoring-person-modal"
-      labelledBy="monitoring-person-title"
-      describedBy="monitoring-person-description"
+      overlayClassName="user-profile-modal-overlay"
+      contentClassName="user-profile-modal"
+      labelledBy="user-profile-modal-title"
+      describedBy="user-profile-modal-description"
       onDismiss={onClose}
     >
-      <div className="monitoring-person-modal-head">
-        <div className="monitoring-panel-who">
+      <header className="user-profile-modal-header">
+        <div className="user-profile-modal-header-content">
           {onBack ? (
-            <Button variant="ghost" size="sm" className="monitoring-users-back" onClick={onBack}>
+            <Button variant="ghost" size="sm" className="user-profile-modal-back" onClick={onBack}>
               <ArrowLeft aria-hidden="true" />
               Back to all users
             </Button>
           ) : null}
-          <div className="min-w-0">
-            <h3 id="monitoring-person-title" className="monitoring-panel-name">
+          <div className="user-profile-modal-user">
+            <h3 id="user-profile-modal-title">
               <UserIdentityChip identity={panel.email} />
             </h3>
-            <p id="monitoring-person-description" className="monitoring-drawer-meta">
+            <p id="user-profile-modal-description" className="user-profile-modal-description">
               {panel.firstSeen ? `First seen ${whenLabel(panel.firstSeen, now)}` : 'First seen not recorded'}
               {' · '}
               {panel.lastSeen ? `Last seen ${whenLabel(panel.lastSeen, now)}` : 'Last seen not recorded'}
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="monitoring-drawer-close" onClick={onClose}>
+        <Button variant="outline" size="sm" className="user-profile-modal-close" onClick={onClose}>
           <X className="size-3" aria-hidden="true" />
           <span className="sr-only">Close</span>
         </Button>
-      </div>
-      <div className="monitoring-person-modal-body">
+      </header>
+      <div className="user-profile-modal-body">
         <PersonSpend email={panel.email} state={spendState} refreshing={spendRefreshing} />
-        <h4 className="monitoring-eyebrow">
-          What they asked <span className="monitoring-eyebrow-range">{rangeLabel}</span>
-        </h4>
-        <div className={`monitoring-panel-grid${cost ? '' : ' monitoring-panel-grid-without-cost'}`}>
-          <div className="monitoring-panel-tile">
-            <p className="monitoring-panel-tile-label">Questions</p>
-            <p className="monitoring-panel-tile-value ast-num">{panel.summary.questionsAsked.toLocaleString()}</p>
-            <p className="monitoring-tile-caption">
-              {`${outcomes.completed} completed`}
-              <span className="monitoring-partial">{` · ${outcomes.partial} partial`}</span>
-              <span className="monitoring-refused">{` · ${outcomes.refused} refused`}</span>
-              <span className="monitoring-failed">{` · ${outcomes.failed} failed`}</span>
-            </p>
+        <section className="user-profile-modal-asked" aria-labelledby="user-profile-asked-title">
+          <h4 id="user-profile-asked-title" className="user-profile-modal-section-title">
+            What they asked <span className="user-profile-modal-range">{rangeLabel}</span>
+          </h4>
+          <div className="user-profile-modal-kpi-grid">
+            <div className="user-profile-modal-kpi">
+              <p className="user-profile-modal-kpi-label">Questions</p>
+              <p className="user-profile-modal-kpi-value ast-num">{panel.summary.questionsAsked.toLocaleString()}</p>
+              <p className="user-profile-modal-kpi-caption">
+                {`${outcomes.completed} completed`}
+                <span className="monitoring-partial">{` · ${outcomes.partial} partial`}</span>
+                <span className="monitoring-refused">{` · ${outcomes.refused} refused`}</span>
+                <span className="monitoring-failed">{` · ${outcomes.failed} failed`}</span>
+              </p>
+            </div>
+            <PanelTile label="Tokens" tile={tokensTile(panel.tokens)} />
+            {cost ? <PanelTile label="Token cost" tile={cost} /> : null}
+            <div className="user-profile-modal-kpi">
+              <p className="user-profile-modal-kpi-label">Answer time</p>
+              {times.value !== null ? (
+                <p className="user-profile-modal-kpi-value ast-num">
+                  {times.value} <span className="user-profile-modal-kpi-unit">median</span>
+                </p>
+              ) : (
+                <p className="user-profile-modal-kpi-absent">{times.absence}</p>
+              )}
+              <p className="user-profile-modal-kpi-caption">{times.tail}</p>
+            </div>
+            <PanelTile label="Rated" tile={ratedTile(panel.ratedUp, panel.ratedDown)} />
           </div>
-          <PanelTile label="Tokens" tile={tokensTile(panel.tokens)} />
-          {cost ? <PanelTile label="Token cost" tile={cost} /> : null}
-          <div className="monitoring-panel-tile">
-            <p className="monitoring-panel-tile-label">Answer time</p>
-            {times.value !== null ? (
-              <p className="monitoring-panel-tile-value ast-num">
-                {times.value} <span className="monitoring-panel-tile-unit">median</span>
+        </section>
+
+        <TablesReadMost rows={panel.tablesReadMost} />
+
+        <section className="user-profile-modal-permissions" aria-labelledby="user-profile-permissions-title">
+          <h4 id="user-profile-permissions-title" className="user-profile-modal-section-title">
+            What they can read
+          </h4>
+          <p className="user-profile-modal-note">Permissions, not data.</p>
+          {scopes.length > 0 ? (
+            <div className="user-profile-modal-scopes">
+              {scopes.map((scope) => (
+                <span
+                  className={astPill(PILL_FAMILY[scope.tone], 'monitoring-pill user-profile-modal-scope')}
+                  key={scope.label}
+                >
+                  {scope.label}
+                  <span className="user-profile-modal-scope-runs ast-num">{scope.runs}</span>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div className="user-profile-modal-grants">
+            <p className="user-profile-modal-grants-heading">
+              Effective grants on the tables PIA reads · read now, as the application
+            </p>
+            {panel.grants === null ? (
+              <p className="user-profile-modal-state">
+                The grants for this person could not be read just now, so none are shown. This says nothing about what
+                they can reach.
               </p>
             ) : (
-              <p className="monitoring-tile-absent">{times.absence}</p>
-            )}
-            {/* The 95th percentile, or the slowest run labelled as the slowest run.
-              Under twenty runs a percentile is the second-slowest of a handful,
-              and naming it one invites comparison with a real one. */}
-            <p className="monitoring-tile-caption">{times.tail}</p>
-          </div>
-          <PanelTile label="Rated" tile={ratedTile(panel.ratedUp, panel.ratedDown)} />
-          <TablesReadMost rows={panel.tablesReadMost} />
-        </div>
-
-        <h4 className="monitoring-eyebrow">What they can read · permissions, not data</h4>
-        {/* Badges, where this was three paragraphs of prose. Each one is a
-          permission some of their runs carried and the number that carried it.
-          This section says what a person is entitled to reach and shows none of
-          their rows and none of their answers. It is not the conditioning in the
-          drawer and must not be read as it.
-
-          Nothing renders where no run recorded an identity, and there is no
-          access-gate row: see `readScopes` for both. */}
-        {scopes.length > 0 ? (
-          <div className="monitoring-scopes">
-            {scopes.map((scope) => (
-              <span className={astPill(PILL_FAMILY[scope.tone], 'monitoring-pill monitoring-scope')} key={scope.label}>
-                {scope.label}
-                <span className="monitoring-scope-runs ast-num">{scope.runs}</span>
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="monitoring-grants">
-          <p className="monitoring-grants-head">
-            Effective grants on the tables PIA reads · read now, as the application
-          </p>
-          {panel.grants === null ? (
-            /* Not an empty table. An empty table reads as "no grants", which is a
-             finding about the person that nobody established. */
-            <p className="monitoring-grants-absent">
-              The grants for this person could not be read just now, so none are shown. This says nothing about what
-              they can reach.
-            </p>
-          ) : (
-            panel.grants.map((grant) => {
-              const badge = grantBadge(grant);
-              return (
-                <div className="monitoring-grant-row" key={grant.table}>
-                  <p className="monitoring-grant-line">
-                    {/* Unity Catalog's mark before each table name, at the handoff's
-                    14px. Every row here is a UC table and the heading says so,
-                    so this is decorative: the name is the next element. */}
-                    <BrandIcon product="unity-catalog" size={14} />
-                    {/* `title` carries the whole name, because the span truncates
-                    with an ellipsis rather than letting the row's own clipping
-                    slice a three-part name mid-word. */}
-                    <span className="monitoring-mono monitoring-grant-table" title={grant.table}>
-                      {grant.table}
-                    </span>
-                    <span className={astPill(PILL_FAMILY[badge.tone], 'monitoring-pill')}>{badge.label}</span>
-                    {/* The privilege that was found missing. Not printed where the
-                    badge is already the words "Not checked". */}
-                    {grant.missing && grant.missing !== badge.label ? (
-                      <span className="monitoring-grant-missing">{grant.missing}</span>
+              panel.grants.map((grant) => {
+                const badge = grantBadge(grant);
+                return (
+                  <div className="user-profile-modal-grant-row" key={grant.table}>
+                    <p className="user-profile-modal-grant-line">
+                      <BrandIcon product="unity-catalog" size={14} />
+                      <span className="user-profile-modal-grant-table" title={grant.table}>
+                        {grant.table}
+                      </span>
+                      <span className={astPill(PILL_FAMILY[badge.tone], 'monitoring-pill')}>{badge.label}</span>
+                      {grant.missing && grant.missing !== badge.label ? (
+                        <span className="user-profile-modal-grant-detail">{grant.missing}</span>
+                      ) : null}
+                    </p>
+                    {grant.rowFilter ? <p className="user-profile-modal-grant-detail">Row filter applied.</p> : null}
+                    {grant.maskedColumns && grant.maskedColumns.length > 0 ? (
+                      <p className="user-profile-modal-grant-detail">{`Column mask on ${grant.maskedColumns.join(', ')}.`}</p>
                     ) : null}
-                  </p>
-                  {/* What a filter or a mask IS, never what it did to a run. A
-                  filtered query succeeds and returns fewer rows, and nothing in
-                  the result says a filter ran. */}
-                  {grant.rowFilter ? <p className="monitoring-grant-note">Row filter applied.</p> : null}
-                  {grant.maskedColumns && grant.maskedColumns.length > 0 ? (
-                    <p className="monitoring-grant-note">{`Column mask on ${grant.maskedColumns.join(', ')}.`}</p>
-                  ) : null}
-                </div>
-              );
-            })
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <section className="user-profile-modal-questions" aria-labelledby="user-profile-questions-title">
+          <h4 id="user-profile-questions-title" className="user-profile-modal-section-title">
+            Their questions <span className="user-profile-modal-range">{rangeLabel}</span>
+          </h4>
+          {panel.questions.length === 0 ? (
+            <p className="user-profile-modal-state">No questions from this person in this range.</p>
+          ) : (
+            <ProfileQuestionHistory questions={panel.questions} now={now} onOpen={onOpenQuestion} />
           )}
-        </div>
-
-        {/* TWO TILES, NEVER SUMMED. The first is a grant somebody can make. The
-          second is a change to the release, or to the question. Added together
-          they make a number that goes up for two unrelated reasons and can be
-          brought down by fixing either. */}
-        <div className="monitoring-refusal-tiles">
-          <div className="monitoring-panel-tile">
-            <p className="monitoring-panel-tile-label" title={codesForCause('missing-grant').join(', ')}>
-              Refused for a missing grant
-            </p>
-            <p className="monitoring-panel-tile-value ast-num">{panel.refusedMissingGrant.toLocaleString()}</p>
-          </div>
-          <div className="monitoring-panel-tile">
-            <p className="monitoring-panel-tile-label" title={codesForCause('agent-rules').join(', ')}>
-              Refused by the agent&apos;s own rules
-            </p>
-            <p className="monitoring-panel-tile-value ast-num">{panel.refusedAgentRules.toLocaleString()}</p>
-          </div>
-        </div>
-
-        <h4 className="monitoring-eyebrow">
-          Their questions <span className="monitoring-eyebrow-range">{rangeLabel}</span>
-        </h4>
-        {panel.questions.length === 0 ? (
-          <p className="monitoring-empty-line">No questions from this person in this range.</p>
-        ) : (
-          <QuestionList
-            questions={panel.questions}
-            selectedId=""
-            now={now}
-            onOpen={onOpenQuestion}
-            compact={compactQuestions}
+          <MonitoringPaginationControls
+            pagination={panel.pagination}
+            page={page}
+            onPrevious={onPreviousPage}
+            onNext={onNextPage}
           />
-        )}
-        <MonitoringPaginationControls
-          pagination={panel.pagination}
-          page={page}
-          onPrevious={onPreviousPage}
-          onNext={onNextPage}
-        />
+        </section>
       </div>
     </Dialog>
   );
@@ -1639,47 +1629,45 @@ export function PersonPanelShell({
   }
   return (
     <Dialog
-      overlayClassName="monitoring-person-overlay"
-      contentClassName="monitoring-person-modal monitoring-panel-status"
-      labelledBy="monitoring-person-title"
-      describedBy="monitoring-person-description"
+      overlayClassName="user-profile-modal-overlay"
+      contentClassName="user-profile-modal user-profile-modal-status"
+      labelledBy="user-profile-modal-title"
+      describedBy="user-profile-modal-description"
       ariaBusy={state.status === 'loading' || state.status === 'idle'}
       onDismiss={onClose}
     >
-      <div className="monitoring-person-modal-head">
-        <div>
+      <header className="user-profile-modal-header">
+        <div className="user-profile-modal-header-content">
           {onBack ? (
-            <Button variant="ghost" size="sm" className="monitoring-users-back" onClick={onBack}>
+            <Button variant="ghost" size="sm" className="user-profile-modal-back" onClick={onBack}>
               <ArrowLeft aria-hidden="true" />
               Back to all users
             </Button>
           ) : null}
-          <h3 id="monitoring-person-title" className="monitoring-panel-name">
+          <h3 id="user-profile-modal-title" className="user-profile-modal-loading-title">
             {localPart(email) || 'User activity'}
           </h3>
-          <p id="monitoring-person-description" className="sr-only">
+          <p id="user-profile-modal-description" className="sr-only">
             User activity and attributable spend
           </p>
         </div>
-        <Button variant="outline" size="sm" className="monitoring-drawer-close" onClick={onClose}>
+        <Button variant="outline" size="sm" className="user-profile-modal-close" onClick={onClose}>
           <X className="size-3" aria-hidden="true" />
           <span className="sr-only">Close</span>
         </Button>
-      </div>
-      <div className="monitoring-person-modal-body">
+      </header>
+      <div className="user-profile-modal-body">
         {state.status === 'error' ? (
-          <div role="alert" className="monitoring-panel-message">
+          <div role="alert" className="user-profile-modal-state user-profile-modal-state-action">
             <p>{state.error}</p>
             <Button variant="outline" size="sm" onClick={onRetry}>
               Retry
             </Button>
           </div>
         ) : (
-          <div role="status" className="monitoring-panel-message">
-            <Skeleton className="h-5 w-1/2" />
-            <Skeleton className="h-28 w-full" />
-            <Skeleton className="h-28 w-full" />
-            <span className="sr-only">Loading person activity</span>
+          <div role="status" className="user-profile-modal-profile-loading">
+            <ConceptFlicker seat="inline" />
+            <span>Loading user activity</span>
           </div>
         )}
       </div>
@@ -1747,14 +1735,14 @@ export function UserMonitoringPanel({
   }, [cacheKey]);
   return (
     <Dialog
-      overlayClassName="monitoring-person-overlay"
-      contentClassName="monitoring-person-modal monitoring-users-modal"
+      overlayClassName="monitoring-users-overlay"
+      contentClassName="monitoring-users-modal"
       labelledBy="monitoring-users-title"
       describedBy="monitoring-users-description"
       ariaBusy={state.status === 'loading' || state.status === 'idle'}
       onDismiss={onClose}
     >
-      <div className="monitoring-person-modal-head">
+      <div className="monitoring-users-header">
         <div>
           <h3 id="monitoring-users-title" className="monitoring-users-title">
             User Monitoring
@@ -1769,7 +1757,7 @@ export function UserMonitoringPanel({
         </Button>
       </div>
       <div
-        className="monitoring-person-modal-body monitoring-users-body"
+        className="monitoring-users-body"
         ref={body}
         onScroll={(event) => {
           if (cacheKey) rememberUserBrowserScroll(cacheKey, event.currentTarget.scrollTop);
@@ -1809,20 +1797,13 @@ export function UserMonitoringPanel({
             onValueChange={(persona) => onPersona(persona === NO_FILTER ? '' : persona)}
           />
           <TimeRangeControl page="User Monitoring" />
-          <div className="monitoring-users-unit" role="radiogroup" aria-label="Per-user spend unit">
-            {(['USD', 'DBU'] as const).map((unit) => (
-              <Button
-                key={unit}
-                variant={browser.unit === unit ? 'default' : 'outline'}
-                size="sm"
-                role="radio"
-                aria-checked={browser.unit === unit}
-                onClick={() => onUnit(unit)}
-              >
-                {unit === 'USD' ? '$' : unit}
-              </Button>
-            ))}
-          </div>
+          <UnitSegmentedControl
+            unit={browser.unit}
+            onChange={onUnit}
+            label="Spend unit"
+            ariaLabel="Per-user spend unit"
+            showLabel={false}
+          />
           {changed ? (
             <Button variant="ghost" size="sm" onClick={onClear}>
               Clear filters
@@ -1832,23 +1813,16 @@ export function UserMonitoringPanel({
         </div>
 
         {state.status === 'error' ? (
-          <p className="monitoring-spend-absent" role="alert">
+          <p className="monitoring-users-state" role="alert">
             {state.error}
           </p>
         ) : state.status === 'loading' || state.status === 'idle' ? (
           <div className="monitoring-users-loading" role="status">
-            <div className="monitoring-users-loading-mark">
-              <ConceptFlicker seat="inline" />
-              <span>Loading users</span>
-            </div>
-            <div className="monitoring-users-loading-list" aria-hidden="true">
-              {[0, 1, 2, 3, 4].map((row) => (
-                <span key={row} />
-              ))}
-            </div>
+            <Users className="monitoring-users-loading-icon ast-anim-center-pulse" aria-hidden="true" />
+            <span>Loading users</span>
           </div>
         ) : !payload ? (
-          <p className="monitoring-spend-absent" role="status">
+          <p className="monitoring-users-state" role="status">
             User activity is available only when the server-authorized spend snapshot can be read.
           </p>
         ) : (
@@ -1886,7 +1860,7 @@ export function UserMonitoringPanel({
                   </span>
                   <span>
                     <span className="monitoring-users-mobile-label">Persona</span>
-                    <span title={row.persona?.name}>{row.persona?.name ?? '—'}</span>
+                    <span title={row.persona?.name}>{row.persona?.name ?? 'None'}</span>
                   </span>
                   <span>
                     <span className="monitoring-users-mobile-label">Activity</span>

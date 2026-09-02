@@ -755,26 +755,27 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   min-height: min-content;
   position: static;
 }
-.monitoring-panel-status {
+.monitoring-question-status {
   min-height: 220px;
 }
-.monitoring-panel-message {
+.monitoring-question-message {
   display: grid;
   gap: 12px;
   align-content: start;
 }
-.monitoring-panel-message p {
+.monitoring-question-message p {
   margin: 0;
   color: var(--ast-text-long);
   font-size: var(--text-base);
 }
-.monitoring-panel-message button {
+.monitoring-question-message button {
   justify-self: start;
 }
 
-/* ── The centered person modal ─────────────────────────────────────────── */
+/* ── Centered user surfaces ───────────────────────────────────────────── */
 
-.monitoring-person-overlay {
+.user-profile-modal-overlay,
+.monitoring-users-overlay {
   position: fixed;
   top: var(--app-header-h);
   right: 0;
@@ -787,7 +788,8 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   background: color-mix(in oklab, var(--db-ink-deep) 50%, transparent);
 }
 
-.monitoring-person-modal {
+.user-profile-modal,
+.monitoring-users-modal {
   width: min(760px, calc(100vw - 48px));
   max-height: min(calc(100vh - var(--app-header-h) - 40px), 920px);
   background: var(--card);
@@ -798,7 +800,8 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   flex-direction: column;
   box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
 }
-.monitoring-person-modal-head {
+.user-profile-modal-header,
+.monitoring-users-header {
   flex: none;
   padding: 18px 24px 14px;
   border-bottom: 1px solid var(--ast-hairline);
@@ -808,14 +811,23 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   justify-content: space-between;
   gap: 12px;
 }
-.monitoring-person-modal-body {
+.user-profile-modal-header > *,
+.monitoring-users-header > * {
+  min-width: 0;
+}
+.user-profile-modal-body,
+.monitoring-users-body {
   min-width: 0;
   min-height: 0;
   padding: 16px 24px 32px;
-  overflow-x: auto;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+}
+.user-profile-modal-body {
+  overflow-y: auto;
+  overflow-x: visible;
+  display: grid;
+  grid-auto-flow: row;
+  grid-auto-rows: max-content;
   gap: 14px;
 }
 .monitoring-drawer-head {
@@ -832,9 +844,6 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .monitoring-drawer-head > div {
   min-width: 0;
 }
-.monitoring-person-modal-head > div {
-  min-width: 0;
-}
 .monitoring-drawer-question {
   margin: 0;
   font-size: var(--text-h-section);
@@ -844,20 +853,6 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 }
 /* The mark and the name, side by side, with the name free to wrap under nothing.
    The `min-w-0` wrapper beside the chip is what lets the break below happen. */
-.monitoring-panel-who {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-.monitoring-panel-name {
-  margin: 0;
-  min-width: 0;
-  font-size: inherit;
-  font-weight: inherit;
-}
-.monitoring-panel-name .identity-chip {
-  max-width: 100%;
-}
 .monitoring-drawer-close {
   flex: none;
 }
@@ -999,142 +994,374 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   font-weight: 500;
 }
 
-/* ── The per-user panel ────────────────────────────────────────────────── */
-
-.monitoring-spend {
-  position: static;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  max-height: none;
-  overflow: visible;
-  transform: none;
-  border: 1px solid var(--ast-hairline);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
+/* ── User profile modal: one ordinary vertical flow ────────────────────── */
+.user-profile-modal-header-content {
   display: grid;
+  gap: 8px;
+}
+.user-profile-modal-user {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.user-profile-modal-user h3,
+.user-profile-modal-loading-title {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-h-section);
+  font-weight: 700;
+}
+.user-profile-modal-user .identity-chip {
+  max-width: 100%;
+}
+.user-profile-modal-description,
+.user-profile-modal-state,
+.user-profile-modal-note,
+.user-profile-modal-grant-detail {
+  margin: 0;
+  color: var(--ast-text-long);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.user-profile-modal-close,
+.user-profile-modal-back {
+  flex: none;
+}
+.user-profile-modal-status {
+  min-height: 220px;
+}
+.user-profile-modal-state-action,
+.user-profile-modal-profile-loading {
+  min-height: 120px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.user-profile-modal-state-action button {
+  justify-self: center;
+}
+.user-profile-modal-spend,
+.user-profile-modal-asked,
+.user-profile-modal-tables,
+.user-profile-modal-permissions,
+.user-profile-modal-questions {
+  min-width: 0;
+  display: grid;
+  grid-auto-flow: row;
+  grid-auto-rows: max-content;
   gap: 10px;
 }
-.monitoring-spend-heading {
+.user-profile-modal-spend,
+.user-profile-modal-tables,
+.user-profile-modal-grants {
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+}
+.user-profile-modal-spend {
+  min-height: 112px;
+  padding: 12px 14px;
+}
+.user-profile-modal-section-title {
+  margin: 0;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.user-profile-modal-range {
+  color: var(--muted-foreground);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.user-profile-modal-spend-loading {
+  min-height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--ast-text-long);
+  font-size: var(--text-sm);
+}
+.user-profile-modal-spend-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
-.monitoring-spend-total {
+.user-profile-modal-spend-total {
   margin: 4px 0 0;
   font-size: var(--ast-fs-18);
   font-weight: 700;
 }
-.monitoring-spend-total > span {
+.user-profile-modal-spend-total > span {
   margin-left: 10px;
+  color: var(--ast-text-secondary);
   font-size: var(--text-sm);
   font-weight: 500;
-  color: var(--ast-text-secondary);
 }
-.monitoring-spend-badges {
+.user-profile-modal-spend-badges {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
 }
-.monitoring-spend-quality {
+.user-profile-modal-spend-quality {
   white-space: nowrap;
 }
-.monitoring-spend-note,
-.monitoring-spend-absent {
-  margin: 0;
-  color: var(--ast-text-long);
-  font-size: var(--text-sm);
-  line-height: 1.45;
+.user-profile-modal-refreshing {
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
 }
-.monitoring-spend-loading {
-  display: grid;
-  gap: 0;
-}
-.monitoring-spend-skeleton-total {
-  width: min(260px, 70%);
-  height: 32px;
-  margin-bottom: 12px;
-}
-.monitoring-spend-skeleton-row {
-  display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(150px, 1.2fr) 92px;
-  gap: 12px;
-  padding: 9px 0;
-  border-top: 1px solid var(--ast-hairline);
-}
-.monitoring-spend-skeleton-row > :first-child {
-  width: 72%;
-}
-.monitoring-spend-skeleton-row > :last-child {
-  width: 72px;
-  justify-self: end;
-}
-.monitoring-spend-components {
+.user-profile-modal-spend-rows,
+.user-profile-modal-table-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  max-height: none;
-  overflow: visible;
 }
-.monitoring-spend-components li {
-  position: static;
+.user-profile-modal-spend-rows > li {
   min-width: 0;
-  min-height: 0;
-  max-height: none;
-  overflow: visible;
-  transform: none;
-  padding: 7px 0;
+  padding: 8px 0;
   display: grid;
-  grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1.6fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, max-content) max-content;
   align-items: start;
-  gap: 8px;
+  gap: 10px;
 }
-.monitoring-spend-components .monitoring-spend-columns {
-  padding-top: 2px;
+.user-profile-modal-spend-rows > li + li,
+.user-profile-modal-table-list > li + li,
+.user-profile-modal-grant-row + .user-profile-modal-grant-row {
+  border-top: 1px solid var(--ast-hairline);
+}
+.user-profile-modal-spend-columns {
   color: var(--ast-text-secondary);
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
-.monitoring-spend-columns > :nth-child(2) {
+.user-profile-modal-spend-columns > :nth-child(2) {
   text-align: right;
 }
-.monitoring-spend-components li + li {
-  border-top: 1px solid var(--ast-hairline);
-}
-.monitoring-spend-component-name {
+.user-profile-modal-spend-resource {
   min-width: 0;
   font-size: var(--text-sm);
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
-.monitoring-spend-component-name small {
+.user-profile-modal-spend-resource small {
   display: block;
   margin-top: 2px;
   color: var(--ast-text-secondary);
   font-size: var(--text-xs);
   font-weight: 400;
-  line-height: 1.35;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
-.monitoring-spend-component-amount {
+.user-profile-modal-spend-amount {
   min-width: 0;
   color: var(--ast-text-long);
   font-size: var(--text-sm);
-  white-space: nowrap;
   text-align: right;
+  overflow-wrap: anywhere;
 }
-.monitoring-spend-component-attribution {
+.user-profile-modal-spend-attribution {
   min-width: 92px;
   display: flex;
   justify-content: flex-end;
 }
-.monitoring-spend-refreshing {
+.user-profile-modal-kpi-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.user-profile-modal-kpi {
+  min-width: 0;
+  min-height: 96px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  align-content: start;
+  gap: 4px;
+}
+.user-profile-modal-kpi p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.user-profile-modal-kpi-label,
+.user-profile-modal-kpi-value,
+.user-profile-modal-kpi-absent,
+.user-profile-modal-kpi-caption {
+  margin: 0;
+}
+.user-profile-modal-kpi-label {
   color: var(--ast-text-secondary);
   font-size: var(--text-xs);
+}
+.user-profile-modal-kpi-value {
+  font-size: var(--ast-fs-18);
+  font-weight: 700;
+}
+.user-profile-modal-kpi-unit,
+.user-profile-modal-kpi-caption {
+  color: var(--ast-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.user-profile-modal-kpi-absent {
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+.user-profile-modal-tables {
+  padding: 12px 14px;
+}
+.user-profile-modal-table-list > li {
+  min-width: 0;
+  padding: 8px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: start;
+  gap: 10px;
+}
+.user-profile-modal-table-name {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.user-profile-modal-table-name > .source-name-pill,
+.user-profile-modal-table-name > .source-name-pill > a,
+.user-profile-modal-table-name .entity-token {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.user-profile-modal-table-runs {
+  color: var(--ast-text-secondary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.user-profile-modal-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.user-profile-modal-scope {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 10px;
+  line-height: 1.4;
+}
+.user-profile-modal-scope-runs {
+  color: var(--ast-text-secondary);
+}
+.user-profile-modal-grants {
+  font-size: var(--text-sm);
+}
+.user-profile-modal-grants-heading {
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--ast-fill-band);
+  font-weight: 700;
+}
+.user-profile-modal-grants > .user-profile-modal-state,
+.user-profile-modal-grant-row {
+  padding: 9px 14px;
+}
+.user-profile-modal-grant-row {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.user-profile-modal-grant-line {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.user-profile-modal-grant-table {
+  min-width: 0;
+  flex: 1 1 260px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.user-profile-modal-question-frame {
+  min-width: 0;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+}
+.user-profile-modal-question-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.user-profile-modal-question-table th,
+.user-profile-modal-question-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--ast-hairline);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.user-profile-modal-question-table th:first-child {
+  width: 42%;
+}
+.user-profile-modal-question-table th:nth-child(2) {
+  width: 14%;
+}
+.user-profile-modal-question-table th:nth-child(3) {
+  width: 16%;
+}
+.user-profile-modal-question-table th:nth-child(n + 4) {
+  width: 9.33%;
+}
+.user-profile-modal-question-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.user-profile-modal-question-open,
+.monitoring-question-button,
+.monitoring-question-card-button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.user-profile-modal-question-open {
+  width: 100%;
+  color: var(--ast-info-text);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.user-profile-modal-question-open:hover,
+.user-profile-modal-question-open:focus-visible,
+.monitoring-question-button:hover,
+.monitoring-question-button:focus-visible,
+.monitoring-question-card-button:hover,
+.monitoring-question-card-button:focus-visible {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ── The all-user browser, sharing the person modal foundation ─────────── */
@@ -1147,6 +1374,9 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   font-weight: 700;
 }
 .monitoring-users-body {
+  overflow-x: auto;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 .monitoring-users-toolbar {
@@ -1170,19 +1400,11 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .monitoring-users-toolbar [data-slot='select-trigger'] {
   min-width: 132px;
 }
-.monitoring-users-unit {
-  display: inline-flex;
-}
-.monitoring-users-unit [data-slot='button'] {
-  min-width: 38px;
-  border-radius: 0;
-}
-.monitoring-users-unit [data-slot='button']:first-child {
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-}
-.monitoring-users-unit [data-slot='button']:last-child {
-  margin-left: -1px;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+.monitoring-users-state {
+  margin: 0;
+  color: var(--ast-text-long);
+  font-size: var(--text-sm);
+  line-height: 1.5;
 }
 .monitoring-users-note {
   margin: 0;
@@ -1270,11 +1492,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   gap: 8px;
 }
 .monitoring-users-loading {
-  display: grid;
-  gap: 12px;
-}
-.monitoring-users-loading-mark {
-  min-height: 48px;
+  min-height: 180px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1282,16 +1500,10 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   color: var(--ast-text-long);
   font-size: var(--text-sm);
 }
-.monitoring-users-loading-list {
-  border: 1px solid var(--ast-hairline);
-  border-radius: var(--radius-md);
-}
-.monitoring-users-loading-list > span {
-  display: block;
-  min-height: 48px;
-}
-.monitoring-users-loading-list > span + span {
-  border-top: 1px solid var(--ast-hairline);
+.monitoring-users-loading-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
 .monitoring-users-refreshing {
   color: var(--ast-text-secondary);
@@ -1299,239 +1511,4 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 }
 .monitoring-users-back {
   flex: none;
-}
-
-.monitoring-panel-grid {
-  position: static;
-  min-width: 0;
-  min-height: 0;
-  max-height: none;
-  overflow: visible;
-  transform: none;
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-}
-.monitoring-panel-grid > .monitoring-panel-tile {
-  grid-column: span 2;
-}
-.monitoring-panel-grid-without-cost > .monitoring-panel-tile:not(.monitoring-panel-tile-wide) {
-  grid-column: span 3;
-}
-.monitoring-panel-tile {
-  position: static;
-  min-width: 0;
-  max-height: none;
-  overflow: visible;
-  transform: none;
-  border: 1px solid var(--ast-hairline);
-  border-radius: var(--radius-md);
-  padding: 10px 12px;
-  display: grid;
-  gap: 2px;
-  align-content: start;
-  min-width: 0;
-}
-.monitoring-panel-tile p {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-.monitoring-person-modal-body > .monitoring-eyebrow,
-.monitoring-person-modal-body > .monitoring-scopes,
-.monitoring-person-modal-body > .monitoring-grants,
-.monitoring-person-modal-body > .monitoring-refusal-tiles,
-.monitoring-person-modal-body > .monitoring-question-list,
-.monitoring-person-modal-body > .monitoring-pagination {
-  position: static;
-  min-width: 0;
-  max-height: none;
-  transform: none;
-}
-.monitoring-panel-tile-label {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--ast-text-secondary);
-}
-.monitoring-panel-tile-value {
-  margin: 0;
-  font-size: var(--ast-fs-18);
-  font-weight: 700;
-}
-.monitoring-panel-tile-unit {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--ast-text-secondary);
-}
-/*
- * THE TILE THAT CARRIES A TABLE NAME TAKES THE WHOLE ROW.
- *
- * A fully-qualified Unity Catalog name is the longest string on this panel and it
- * is the entire content of one tile, which had a third of a 620px drawer to say
- * it in. It did not fit, and `overflow-wrap: anywhere` -- which is what used to be
- * on the line below -- made it fit by breaking inside a word:
- * `..._catalog.player_i` / `nary`. That is the one truncation a reader cannot
- * tell from the end of the name, and it is worse than either of the alternatives.
- * At full row width the name has about 570px. The row stays one line: each
- * semantic segment may surrender width and show an ellipsis, while the full
- * identifier remains in the title and accessible label.
- */
-.monitoring-panel-grid > .monitoring-panel-tile-wide {
-  grid-column: 1 / -1;
-}
-.monitoring-tables-read {
-  gap: 8px;
-}
-.monitoring-table-ranking {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-}
-.monitoring-table-ranking li {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  white-space: nowrap;
-}
-.monitoring-table-ranking li + li {
-  border-top: 1px solid var(--ast-hairline);
-}
-.monitoring-ranked-table {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow: hidden;
-  white-space: nowrap;
-  line-height: 1.55;
-}
-.monitoring-ranked-table > .visit-in-databricks {
-  flex: none;
-}
-.monitoring-ranked-table > .source-name-pill {
-  min-width: 0;
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.monitoring-ranked-table > .source-name-pill > a {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-}
-.monitoring-ranked-table .entity-token {
-  min-width: 0;
-  flex: 0 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.monitoring-table-runs {
-  justify-self: end;
-  white-space: nowrap;
-  font-size: var(--text-sm);
-  color: var(--ast-text-secondary);
-}
-/*
- * The permissions section, which is badges and no prose.
- *
- * WRAPS AT A WORD, unlike every other pill in this file. A scope badge carries
- * four or five words and a run count where the outcome pills carry one word, so
- * `white-space: nowrap` from `.monitoring-pill` would make its minimum width the
- * whole label, and the row would push past the drawer at the width the drawer
- * goes to 100vw. A badge that wraps cannot be clipped, and these are read as a
- * list of facts rather than as a row of aligned chips.
- */
-.monitoring-scopes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.monitoring-scope {
-  min-width: 0;
-  max-width: 100%;
-  white-space: normal;
-  align-items: baseline;
-  gap: 6px;
-  padding: 3px 10px;
-  line-height: 1.4;
-}
-/* The count, quieter than the scope it is a count of. The scope is the fact. */
-/* A run count, repeated down the list of scopes, so it is columnar and takes
-   `.ast-num` in the markup. */
-.monitoring-scope-runs {
-  color: var(--ast-text-secondary);
-}
-
-.monitoring-grants {
-  border: 1px solid var(--ast-hairline);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  font-size: var(--text-sm);
-}
-.monitoring-grants-head {
-  margin: 0;
-  padding: 8px 14px;
-  background: var(--ast-fill-band);
-  font-weight: 700;
-}
-.monitoring-grants-absent {
-  margin: 0;
-  padding: 10px 14px;
-  color: var(--ast-text-long);
-  line-height: 1.5;
-}
-.monitoring-grant-row {
-  padding: 8px 14px;
-  display: grid;
-  gap: 2px;
-}
-.monitoring-grant-row + .monitoring-grant-row {
-  border-top: 1px solid var(--ast-hairline);
-}
-.monitoring-grant-line {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-/*
- * The table name in a grant row, allowed to shrink so its ellipsis can fire.
- *
- * THE SAME FAULT connections.css fixed on `.status-badge`, in the same shape. A
- * three-part name is one unbreakable word; as a flex item its automatic minimum
- * size is that whole word, so the row could not shrink it, the row overflowed,
- * and `.monitoring-grants` above has `overflow: hidden` and cut it with no
- * ellipsis to say it had been cut. The badge beside it went over the edge with
- * it, so a row could lose the answer as well as the question. The whole name is
- * on `title`.
- */
-.monitoring-grant-table {
-  min-width: 0;
-  flex: 0 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.monitoring-grant-missing,
-.monitoring-grant-note {
-  color: var(--ast-text-secondary);
-}
-.monitoring-grant-note {
-  margin: 0;
-  line-height: 1.45;
-}
-
-/* Two tiles, side by side, and never a third holding their total. */
-.monitoring-refusal-tiles {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
 }

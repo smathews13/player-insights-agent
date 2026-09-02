@@ -85,3 +85,32 @@
   outline: 2px solid var(--db-blue-600);
   outline-offset: -2px;
 }
+
+/* The same neutral two-option filter is used by Cost and User Monitoring. */
+.unit-segmented-control {
+  gap: 6px;
+}
+
+.unit-segmented-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.unit-segmented-label svg {
+  width: 14px;
+  height: 14px;
+}
+
+.unit-segmented-options {
+  font-size: var(--text-xs);
+}
+
+.unit-segmented-option {
+  min-width: 34px;
+  opacity: 1;
+}

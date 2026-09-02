@@ -61,7 +61,10 @@ describe('nominal cost budgets', () => {
       })
     ).toEqual({
       total: { USD: 100, DBU: null },
-      resources: { 'app-compute': { USD: 25, DBU: null } },
+      resources: {
+        'foundation-model': { USD: 50, DBU: null },
+        'app-compute': { USD: 25, DBU: null },
+      },
     });
   });
 

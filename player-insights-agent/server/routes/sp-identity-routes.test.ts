@@ -12,7 +12,7 @@ describe('service-principal identity admin routes', () => {
     expect(isAdminRoute('/api/admin/sp-identity/personas')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/assignments')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/persona-definitions')).toBe(true);
-    expect(isAdminRoute('/api/admin/sp-identity/mode')).toBe(true);
+    expect(isAdminRoute('/api/admin/sp-identity')).toBe(true);
   });
 
   it('has no permission-suggestion route, model call, timeout, or cancellation surface', () => {
@@ -29,7 +29,7 @@ describe('service-principal identity admin routes', () => {
 
   it('never serialises a secret value', () => {
     expect(source).toContain("app.get('/api/admin/sp-identity'");
-    expect(source).toContain("app.put('/api/admin/sp-identity/mode'");
+    expect(source).not.toContain("app.put('/api/admin/sp-identity/mode'");
     expect(source).toContain("app.post('/api/admin/sp-identity/personas'");
     expect(source).toContain("app.put('/api/admin/sp-identity/assignments'");
     expect(source).toContain("row.role === 'super_admin'");

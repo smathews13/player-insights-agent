@@ -3,32 +3,20 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PreflightReport } from '../routes/insights-routes';
 import {
   applyAstrolabeTags,
+  createWorkspaceTagPlatform,
   readAppBillingTag,
   resourceTagInventory,
   type ResourceTagPlatform,
 } from './resource-tagging';
 
 function report(configuration: Array<{ key: string; value: string }>): PreflightReport {
-  return { configuration } as unknown as PreflightReport;
+  return { configuration } as PreflightReport;
 }
 
 function platform(overrides: Partial<ResourceTagPlatform> = {}): ResourceTagPlatform {
   return {
-    getAppTag: vi.fn(() => Promise.resolve(null)),
-    createAppTag: vi.fn(() => Promise.resolve()),
-    updateAppTag: vi.fn(() => Promise.resolve()),
     getServingTags: vi.fn(() => Promise.resolve([])),
-    addServingTag: vi.fn(() => Promise.resolve()),
-    deleteServingTag: vi.fn(() => Promise.resolve()),
-    getModelTags: vi.fn(() => Promise.resolve([])),
-    setModelTag: vi.fn(() => Promise.resolve()),
-    deleteModelTag: vi.fn(() => Promise.resolve()),
-    getModelVersionTags: vi.fn(() => Promise.resolve([])),
-    setModelVersionTag: vi.fn(() => Promise.resolve()),
-    deleteModelVersionTag: vi.fn(() => Promise.resolve()),
-    getExperimentTags: vi.fn(() => Promise.resolve([])),
-    setExperimentTag: vi.fn(() => Promise.resolve()),
-    deleteExperimentTag: vi.fn(() => Promise.resolve()),
+    patchServingTags: vi.fn(() => Promise.resolve()),
     getWarehouseTags: vi.fn(() => Promise.resolve([])),
     setWarehouseTags: vi.fn(() => Promise.resolve()),
     getLakebaseTags: vi.fn(() => Promise.resolve([])),
@@ -40,462 +28,461 @@ function platform(overrides: Partial<ResourceTagPlatform> = {}): ResourceTagPlat
   };
 }
 
-describe('Astrolabe resource tag inventory', () => {
-  it('uses connected identifiers without discovering or tagging customer data', () => {
+const TOKEN = 'opaque-token';
+
+function scopedToken(scopes: string[]): string {
+  return `header.${Buffer.from(JSON.stringify({ scope: scopes.join(' ') })).toString('base64url')}.signature`;
+}
+
+function urlText(value: string | URL | Request): string {
+  if (typeof value === 'string') return value;
+  return value instanceof URL ? value.toString() : value.url;
+}
+
+describe('Resource Tags support matrix', () => {
+  it('inventories every connected class and marks only billing-capable APIs supported', () => {
     const targets = resourceTagInventory({
       environment: {
         DATABRICKS_APP_NAME: 'astrolabe',
-        DATABRICKS_SERVING_ENDPOINT_NAME: 'astrolabe-agent',
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'agent-endpoint',
         DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse-1',
         PLAYER_INSIGHTS_EXPERIMENT_ID: 'experiment-1',
-        LAKEBASE_ENDPOINT: 'projects/customer-project/branches/production',
-        PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID: '123',
+        LAKEBASE_ENDPOINT: 'projects/app-db/branches/production/endpoints/primary',
       },
       report: report([
-        { key: 'semantic_index', value: 'app_catalog.app_schema.semantic_layer_index' },
-        { key: 'llm_endpoint', value: 'databricks-claude-sonnet-4-6' },
-        { key: 'data_genie_space_id', value: 'space-data' },
-        { key: 'dictionary_genie_space_id', value: 'space-dictionary' },
-        { key: 'model_name', value: 'app_catalog.app_schema.astrolabe_agent' },
+        { key: 'model_name', value: 'catalog.schema.agent' },
         { key: 'model_version', value: '7' },
-        { key: 'catalog', value: 'customer_catalog' },
-        { key: 'declared_manifest', value: 'customer_catalog.analytics.orders' },
+        { key: 'llm_endpoint', value: 'databricks-claude-sonnet-4-6' },
+        { key: 'data_genie_space_id', value: 'data-space' },
+        { key: 'dictionary_genie_space_id', value: 'dictionary-space' },
+        { key: 'semantic_index', value: 'catalog.schema.semantic_index' },
       ]),
     });
+    const support = Object.fromEntries(targets.map((item) => [item.kind, item.support]));
 
-    expect(targets.map((target) => target.kind)).toEqual([
-      'app',
-      'registered-model',
-      'model-version',
+    expect(support).toMatchObject({
+      app: 'not-applicable',
+      'registered-model': 'not-applicable',
+      'model-version': 'not-applicable',
+      'serving-endpoint': 'supported',
+      'foundation-model-endpoint': 'not-applicable',
+      'genie-space': 'not-applicable',
+      'mlflow-experiment': 'not-applicable',
+      'vector-index': 'unsupported',
+      'sql-warehouse': 'supported',
+      'lakebase-project': 'supported',
+      'lakebase-branch': 'not-applicable',
+      'lakebase-endpoint': 'not-applicable',
+    });
+    expect(targets.filter((item) => item.billingAttribution).map((item) => item.kind)).toEqual([
       'serving-endpoint',
-      'serving-endpoint',
-      'genie-space',
-      'genie-space',
-      'mlflow-experiment',
-      'vector-index',
       'sql-warehouse',
-      'lakebase',
+      'lakebase-project',
     ]);
-    expect(targets.flatMap((target) => [target.name, target.reason ?? '']).join(' ')).not.toContain('customer_catalog');
-    expect(targets.some((target) => target.name === '123')).toBe(false);
-    expect(targets.find((target) => target.kind === 'sql-warehouse')).toMatchObject({ action: 'tag' });
-    expect(targets.find((target) => target.kind === 'lakebase')).toMatchObject({
-      action: 'tag',
-      name: 'projects/customer-project',
-    });
-    expect(targets.find((target) => target.label.startsWith('Foundation model'))).toMatchObject({
-      action: 'tag',
-      name: 'databricks-claude-sonnet-4-6',
-    });
-    expect(targets.filter((target) => target.kind === 'genie-space')).toHaveLength(2);
   });
 
-  it('counts report-driven foundation, Genie, and index resources once', () => {
+  it('treats a customer-owned foundation endpoint as a normal serving target', () => {
     const targets = resourceTagInventory({
-      environment: {
-        DATABRICKS_SERVING_ENDPOINT_NAME: 'shared-endpoint',
-      },
-      report: report([
-        { key: 'llm_endpoint', value: 'shared-endpoint' },
-        { key: 'data_genie_space_id', value: 'same-space' },
-        { key: 'dictionary_genie_space_id', value: 'same-space' },
-        { key: 'semantic_index', value: 'cat.schema.index' },
-      ]),
+      environment: {},
+      report: report([{ key: 'llm_endpoint', value: 'customer-foundation-route' }]),
     });
+    expect(targets).toEqual([
+      expect.objectContaining({
+        kind: 'serving-endpoint',
+        name: 'customer-foundation-route',
+        support: 'supported',
+      }),
+    ]);
+  });
 
-    expect(targets.filter((target) => target.kind === 'serving-endpoint')).toHaveLength(1);
-    expect(targets.filter((target) => target.kind === 'genie-space')).toHaveLength(1);
-    expect(targets.filter((target) => target.kind === 'vector-index')).toHaveLength(1);
+  it('does not duplicate one serving endpoint named by two configuration paths', () => {
+    const targets = resourceTagInventory({
+      environment: { DATABRICKS_SERVING_ENDPOINT_NAME: 'shared' },
+      report: report([{ key: 'llm_endpoint', value: 'shared' }]),
+    });
+    expect(targets.filter((item) => item.kind === 'serving-endpoint')).toHaveLength(1);
   });
 });
 
-describe('reading the app billing tag', () => {
-  it('treats the live assignment as matched when the value is astrolabe', async () => {
-    expect(
-      await readAppBillingTag('player-insights', { getAppTag: vi.fn(() => Promise.resolve('astrolabe')) })
-    ).toBe('matched');
-  });
-
-  it('treats a missing or other value as missing, and a failure as unverified', async () => {
-    expect(await readAppBillingTag('player-insights', { getAppTag: vi.fn(() => Promise.resolve(null)) })).toBe(
-      'missing'
-    );
-    expect(await readAppBillingTag('', { getAppTag: vi.fn(() => Promise.resolve('astrolabe')) })).toBe(
-      'unverified'
-    );
-    expect(
-      await readAppBillingTag('player-insights', {
-        getAppTag: vi.fn(() => Promise.reject(new Error('no credentials'))),
-      })
-    ).toBe('unverified');
-  });
-});
-
-describe('applying Astrolabe resource tags', () => {
-  it('counts an existing tag as success without writing it again', async () => {
-    const createAppTag = vi.fn(() => Promise.resolve());
-    const updateAppTag = vi.fn(() => Promise.resolve());
-    const fake = platform({
-      getAppTag: vi.fn(() => Promise.resolve('astrolabe')),
-      createAppTag,
-      updateAppTag,
-    });
-    const summary = await applyAstrolabeTags({
-      environment: { DATABRICKS_APP_NAME: 'astrolabe' },
-      report: null,
-      platform: fake,
-    });
-
-    expect(summary).toMatchObject({
-      total: 1,
-      correct: 1,
-      tagged: 0,
-      alreadyCorrect: 1,
-      notSupported: 0,
-      permissionRequired: 0,
-      failed: 0,
-    });
-    expect(summary.results[0].status).toBe('already-correct');
-    expect(createAppTag).not.toHaveBeenCalled();
-    expect(updateAppTag).not.toHaveBeenCalled();
-  });
-
-  it('keeps newly tagged and already-tagged resources in separate counts', async () => {
+describe('coverage semantics', () => {
+  it('excludes organizational metadata and unsupported resources from the primary denominator', async () => {
     const summary = await applyAstrolabeTags({
       environment: {
         DATABRICKS_APP_NAME: 'astrolabe',
-        DATABRICKS_SERVING_ENDPOINT_NAME: 'astrolabe-agent',
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'agent',
+        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse',
+        PLAYER_INSIGHTS_EXPERIMENT_ID: 'experiment',
       },
-      report: null,
-      platform: platform({
-        getAppTag: vi.fn(() => Promise.resolve('astrolabe')),
-      }),
-    });
-
-    expect(summary).toMatchObject({ total: 2, correct: 2, tagged: 1, alreadyCorrect: 1, failed: 0 });
-  });
-
-  it('skips a Vector Search index explicitly and tags only its endpoint', async () => {
-    const setTags = vi.fn(() => Promise.resolve());
-    const fake = platform({
-      getVectorIndexEndpoint: vi.fn(() => Promise.resolve('semantic-endpoint')),
-      getVectorEndpointTags: vi.fn(() => Promise.resolve([{ key: 'owner', value: 'platform' }])),
-      setVectorEndpointTags: setTags,
-    });
-    const summary = await applyAstrolabeTags({
-      environment: {},
-      report: report([{ key: 'semantic_index', value: 'app.schema.semantic_index' }]),
-      platform: fake,
-    });
-
-    expect(summary).toMatchObject({ total: 2, correct: 1, tagged: 1, notSupported: 1, failed: 0 });
-    const index = summary.results.find((result) => result.kind === 'vector-index');
-    expect(index?.status).toBe('not-supported');
-    expect(index?.detail).toContain('does not expose custom tags');
-    expect(index?.detail).toContain('Nothing needs to be fixed');
-    expect(summary.results.find((result) => result.kind === 'vector-endpoint')).toMatchObject({
-      name: 'semantic-endpoint',
-      status: 'tagged',
-    });
-    expect(setTags).toHaveBeenCalledWith('semantic-endpoint', [
-      { key: 'owner', value: 'platform' },
-      { key: 'system_billing', value: 'astrolabe' },
-    ]);
-  });
-
-  it('tags the connected registered agent model and served model version', async () => {
-    const setModelTag = vi.fn(() => Promise.resolve());
-    const setModelVersionTag = vi.fn(() => Promise.resolve());
-    const summary = await applyAstrolabeTags({
-      environment: {},
       report: report([
-        { key: 'model_name', value: 'app.schema.astrolabe_agent' },
-        { key: 'model_version', value: '12' },
+        { key: 'data_genie_space_id', value: 'genie' },
+        { key: 'semantic_index', value: 'catalog.schema.index' },
       ]),
-      platform: platform({ setModelTag, setModelVersionTag }),
-    });
-
-    expect(summary).toMatchObject({ total: 2, correct: 2, tagged: 2, notSupported: 0, failed: 0 });
-    expect(setModelTag).toHaveBeenCalledWith('app.schema.astrolabe_agent');
-    expect(setModelVersionTag).toHaveBeenCalledWith('app.schema.astrolabe_agent', '12');
-  });
-
-  it('tags the foundation model endpoint and states why Genie billing follows the warehouse', async () => {
-    const addServingTag = vi.fn(() => Promise.resolve());
-    const summary = await applyAstrolabeTags({
-      environment: {},
-      report: report([
-        { key: 'llm_endpoint', value: 'databricks-claude-sonnet-4-6' },
-        { key: 'data_genie_space_id', value: 'space-data' },
-      ]),
-      platform: platform({ addServingTag }),
-    });
-
-    expect(addServingTag).toHaveBeenCalledWith('databricks-claude-sonnet-4-6');
-    expect(summary.results.find((result) => result.label.startsWith('Foundation model'))).toMatchObject({
-      status: 'tagged',
-    });
-    const genie = summary.results.find((result) => result.kind === 'genie-space');
-    expect(genie).toMatchObject({
-      status: 'not-supported',
-    });
-    expect(genie?.detail).toContain('billed through its associated SQL warehouse');
-  });
-
-  it('classifies the seven reported targets into correct, unsupported, grants, and recovered retry', async () => {
-    const appDenial = new Error(
-      'Response from server (Forbidden)\n' +
-        '{"error_code":"PERMISSION_DENIED","message":"Failed to authorize app player-insights-agent. ' +
-        'User does not have permission to apply tag assignment changes."}'
-    );
-    const vectorDenial = new Error(
-      'Response from server (Forbidden)\n' +
-        '{"error_code":"PERMISSION_DENIED","message":"The user is not authorized to make the request, ' +
-        "please contact the workspace admin to assign the user 071769f1-5623-45b6-a172-c8b8060adff1 'Can Use' " +
-        "or 'Can Manage' permission.\"}"
-    );
-    const warehouseDenial = new Error(
-      'Response from server (Forbidden)\n' +
-        '{"error_code":"PERMISSION_DENIED","message":"071769f1-5623-45b6-a172-c8b8060adff1 is not ' +
-        'authorized to manage this SQL Endpoint. Please contact your administrator."}'
-    );
-    const lakebaseUpdate = vi
-      .fn<() => Promise<void>>()
-      .mockRejectedValueOnce(
-        new Error(
-          'Response from server (Gateway Timeout) ' +
-            '{"error_code":"DEADLINE_EXCEEDED","details":[{"@type":"type.googleapis.com/google.rpc.RequestInfo"}]}'
-        )
-      )
-      .mockResolvedValueOnce();
-    const sleep = vi.fn(() => Promise.resolve());
-    const summary = await applyAstrolabeTags({
-      environment: {
-        DATABRICKS_APP_NAME: 'player-insights-agent',
-        DATABRICKS_CLIENT_ID: '071769f1-5623-45b6-a172-c8b8060adff1',
-        DATABRICKS_SERVING_ENDPOINT_NAME: 'player-insights-agent',
-        PLAYER_INSIGHTS_EXPERIMENT_ID: '<mlflow-experiment-id>',
-        DATABRICKS_SQL_WAREHOUSE_ID: '<sql-warehouse-id>',
-        LAKEBASE_ENDPOINT: 'projects/player-insights-agent-db/branches/production',
-      },
-      report: report([{ key: 'semantic_index', value: '<your_catalog>.<your_schema>.semantic_layer_index' }]),
-      platform: platform({
-        createAppTag: vi.fn(() => Promise.reject(appDenial)),
-        getServingTags: vi.fn(() => Promise.resolve([{ key: 'system_billing', value: 'astrolabe' }])),
-        getExperimentTags: vi.fn(() => Promise.resolve([{ key: 'system_billing', value: 'astrolabe' }])),
-        getVectorIndexEndpoint: vi.fn(() => Promise.resolve('player-insights-vector-endpoint')),
-        setVectorEndpointTags: vi.fn(() => Promise.reject(vectorDenial)),
-        setWarehouseTags: vi.fn(() => Promise.reject(warehouseDenial)),
-        setLakebaseTags: lakebaseUpdate,
-      }),
-      retry: { sleep, now: () => 0 },
+      platform: platform(),
+      token: TOKEN,
     });
 
     expect(summary).toMatchObject({
-      total: 7,
-      correct: 3,
-      tagged: 1,
-      alreadyCorrect: 2,
-      notSupported: 1,
-      permissionRequired: 3,
-      failed: 0,
+      headline: '3 of 3 supported resources tagged',
+      supportedTotal: 3,
+      supportedCovered: 3,
+      tagged: 3,
+      unsupported: 1,
+      notApplicable: 3,
+      supportedFailed: 0,
     });
-    expect(summary.headline).toBe(
-      '3 of 7 resources correctly tagged · 1 not supported by Databricks · ' +
-        '3 need workspace grants · 0 failed after retries.'
-    );
-    expect(lakebaseUpdate).toHaveBeenCalledTimes(2);
-    expect(sleep).toHaveBeenCalledTimes(1);
-
-    const app = summary.results.find((result) => result.kind === 'app');
-    expect(app).toMatchObject({ status: 'permission-required' });
-    expect(app?.detail).toContain(
-      'service principal 071769f1-5623-45b6-a172-c8b8060adff1 CAN_MANAGE on app “player-insights-agent”'
-    );
-    expect(app?.technicalDetail).toContain('apply tag assignment changes');
-
-    const vectorIndex = summary.results.find((result) => result.kind === 'vector-index');
-    expect(vectorIndex).toMatchObject({ status: 'not-supported' });
-    expect(vectorIndex?.detail).toContain('does not expose custom tags');
-    expect(vectorIndex?.detail).toContain('Nothing needs to be fixed');
-
-    const vectorEndpoint = summary.results.find((result) => result.kind === 'vector-endpoint');
-    expect(vectorEndpoint).toMatchObject({
-      status: 'permission-required',
-      name: 'player-insights-vector-endpoint',
-    });
-    expect(vectorEndpoint?.detail).toContain(
-      'service principal 071769f1-5623-45b6-a172-c8b8060adff1 CAN_USE or CAN_MANAGE'
-    );
-
-    const warehouse = summary.results.find((result) => result.kind === 'sql-warehouse');
-    expect(warehouse).toMatchObject({ status: 'permission-required' });
-    expect(warehouse?.detail).toContain(
-      'service principal 071769f1-5623-45b6-a172-c8b8060adff1 CAN_MANAGE (or ownership)'
-    );
-
-    expect(summary.results.find((result) => result.kind === 'serving-endpoint')).toMatchObject({
-      status: 'already-correct',
-    });
-    expect(summary.results.find((result) => result.kind === 'mlflow-experiment')).toMatchObject({
-      status: 'already-correct',
-    });
-    expect(summary.results.find((result) => result.kind === 'lakebase')).toMatchObject({ status: 'tagged' });
+    expect(summary.results.filter((item) => item.status === 'unsupported')).toHaveLength(1);
+    expect(summary.results.filter((item) => item.status === 'not-applicable')).toHaveLength(3);
   });
 
-  it('reports DEADLINE_EXCEEDED only after all bounded retry attempts are spent', async () => {
-    const deadline = new Error(
-      'Response from server (Gateway Timeout) {"error_code":"DEADLINE_EXCEEDED","message":"deadline exceeded"}'
-    );
-    const setLakebaseTags = vi.fn(() => Promise.reject(deadline));
-    const summary = await applyAstrolabeTags({
-      environment: { LAKEBASE_ENDPOINT: 'projects/player-insights-agent-db/branches/production' },
-      report: null,
-      platform: platform({ setLakebaseTags }),
-      retry: { maxAttempts: 3, sleep: () => Promise.resolve(), now: () => 0 },
-    });
-
-    expect(setLakebaseTags).toHaveBeenCalledTimes(3);
-    expect(summary).toMatchObject({
-      total: 1,
-      correct: 0,
-      notSupported: 0,
-      permissionRequired: 0,
-      failed: 1,
-    });
-    expect(summary.headline).toBe(
-      '0 of 1 resources correctly tagged · 0 not supported by Databricks · ' +
-        '0 need workspace grants · 1 failed after retries.'
-    );
-    expect(summary.results[0]).toMatchObject({
-      status: 'failed',
-      detail: 'Databricks did not complete the tag update after Astrolabe retried transient failures.',
-    });
-    expect(summary.results[0].technicalDetail).toContain('DEADLINE_EXCEEDED');
-  });
-
-  it('returns a failed result when one SDK operation never settles', async () => {
-    vi.useFakeTimers();
-    try {
-      const pending = applyAstrolabeTags({
-        environment: { DATABRICKS_APP_NAME: 'astrolabe' },
-        report: null,
-        platform: platform({
-          getAppTag: vi.fn(() => new Promise<string | null>(() => {})),
-        }),
-        retry: { maxAttempts: 1, timeBudgetMs: 1_000 },
-      });
-
-      await vi.advanceTimersByTimeAsync(1_000);
-      const summary = await pending;
-      expect(summary).toMatchObject({
-        total: 1,
-        correct: 0,
-        failed: 1,
-      });
-      expect(summary.results[0]).toMatchObject({ status: 'failed' });
-      expect(summary.results[0].technicalDetail).toContain('stopped waiting');
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('names the warehouse grant needed when the app service principal cannot tag it', async () => {
-    const summary = await applyAstrolabeTags({
-      environment: {
-        DATABRICKS_CLIENT_ID: '071769f1-5623-45b6-a172-c8b8060adff1',
-        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse-1',
-      },
-      report: null,
-      platform: platform({
-        setWarehouseTags: vi.fn(() =>
-          Promise.reject(
-            new Error(
-              'Response from server (Forbidden)\n' +
-                '{"error_code":"PERMISSION_DENIED","message":"071769f1-5623-45b6-a172-c8b8060adff1 ' +
-                'is not authorized to manage this SQL Endpoint."}'
-            )
-          )
-        ),
-      }),
-    });
-
-    expect(summary).toMatchObject({ tagged: 0, permissionRequired: 1, failed: 0 });
-    expect(summary.results[0].label).toContain('warehouse-1');
-    expect(summary.results[0].detail).toContain('CAN_MANAGE');
-  });
-
-  it('names CAN_MANAGE when the app service principal cannot tag Lakebase', async () => {
-    const summary = await applyAstrolabeTags({
-      environment: {
-        DATABRICKS_CLIENT_ID: '071769f1-5623-45b6-a172-c8b8060adff1',
-        LAKEBASE_ENDPOINT: 'projects/player-insights-agent-db/branches/production',
-      },
-      report: null,
-      platform: platform({
-        setLakebaseTags: vi.fn(() =>
-          Promise.reject(new Error('Response from server (Forbidden) {"error_code":"PERMISSION_DENIED"}'))
-        ),
-      }),
-    });
-
-    expect(summary.results[0]).toMatchObject({ kind: 'lakebase', status: 'permission-required' });
-    expect(summary.results[0].detail).toContain('CAN_MANAGE (or ownership)');
-  });
-
-  it('strips the retired astrolabe key from serving, models, experiments, and replaceable tag maps', async () => {
-    const deleteServingTag = vi.fn(() => Promise.resolve());
-    const deleteModelTag = vi.fn(() => Promise.resolve());
-    const deleteModelVersionTag = vi.fn(() => Promise.resolve());
-    const deleteExperimentTag = vi.fn(() => Promise.resolve());
+  it('counts already-correct and newly-applied resources as covered without duplicate writes', async () => {
+    const patchServingTags = vi.fn(() => Promise.resolve());
     const setWarehouseTags = vi.fn(() => Promise.resolve());
-    const retired = [
-      { key: 'system_billing', value: 'astrolabe' },
-      { key: 'astrolabe', value: 'true' },
-    ];
     const summary = await applyAstrolabeTags({
       environment: {
-        DATABRICKS_SERVING_ENDPOINT_NAME: 'agent-endpoint',
-        PLAYER_INSIGHTS_EXPERIMENT_ID: 'exp-1',
-        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse-1',
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'agent',
+        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse',
       },
-      report: report([
-        { key: 'model_name', value: 'app.schema.agent' },
-        { key: 'model_version', value: '3' },
-      ]),
+      report: null,
+      token: TOKEN,
       platform: platform({
-        getServingTags: vi.fn(() => Promise.resolve(retired)),
-        deleteServingTag,
-        getModelTags: vi.fn(() => Promise.resolve(retired)),
-        deleteModelTag,
-        getModelVersionTags: vi.fn(() => Promise.resolve(retired)),
-        deleteModelVersionTag,
-        getExperimentTags: vi.fn(() => Promise.resolve(retired)),
-        deleteExperimentTag,
-        getWarehouseTags: vi.fn(() => Promise.resolve(retired)),
+        getServingTags: vi.fn(() => Promise.resolve([{ key: 'system_billing', value: 'astrolabe' }])),
+        patchServingTags,
         setWarehouseTags,
       }),
     });
+    expect(summary).toMatchObject({
+      supportedTotal: 2,
+      supportedCovered: 2,
+      tagged: 1,
+      alreadyCorrect: 1,
+    });
+    expect(patchServingTags).not.toHaveBeenCalled();
+    expect(setWarehouseTags).toHaveBeenCalledTimes(1);
+  });
+});
 
-    expect(deleteServingTag).toHaveBeenCalledWith('agent-endpoint', 'astrolabe');
-    expect(deleteModelTag).toHaveBeenCalledWith('app.schema.agent', 'astrolabe');
-    expect(deleteModelVersionTag).toHaveBeenCalledWith('app.schema.agent', '3', 'astrolabe');
-    expect(deleteExperimentTag).toHaveBeenCalledWith('exp-1', 'astrolabe');
-    expect(setWarehouseTags).toHaveBeenCalledWith('warehouse-1', [{ key: 'system_billing', value: 'astrolabe' }]);
-    expect(summary.results.every((result) => result.status === 'tagged')).toBe(true);
-    expect(summary.results.every((result) => result.detail.includes('Removed retired key'))).toBe(true);
+describe('identity, permissions, and API paths', () => {
+  it('uses only the server-provided OBO token for billing-tag APIs', async () => {
+    const calls: Array<{ url: string; authorization: string | null }> = [];
+    const fakeFetch = vi.fn((url: string | URL | Request, init?: RequestInit) => {
+      calls.push({
+        url: urlText(url),
+        authorization: new Headers(init?.headers).get('authorization'),
+      });
+      return Promise.resolve(
+        new Response(JSON.stringify({ tags: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      );
+    });
+    const live = createWorkspaceTagPlatform({
+      host: 'https://workspace.example',
+      token: 'obo-token',
+      fetchImpl: fakeFetch as typeof fetch,
+    });
+    await live.getServingTags('agent');
+    expect(calls).toEqual([
+      {
+        url: 'https://workspace.example/api/2.0/serving-endpoints/agent',
+        authorization: 'Bearer obo-token',
+      },
+    ]);
+    const source = readFileSync(new URL('resource-tagging.ts', import.meta.url), 'utf8');
+    const oboAdapter = source.slice(
+      source.indexOf('export function createWorkspaceTagPlatform'),
+      source.indexOf('export async function createAppVectorTagPlatform')
+    );
+    expect(oboAdapter).toContain('authorization: `Bearer ${input.token}`');
+    expect(oboAdapter).not.toContain('new WorkspaceClient');
+    expect(source).not.toContain('DATABRICKS_CLIENT_ID');
   });
 
-  it('uses Apps-injected service-principal credentials, never the viewer token', () => {
-    const source = readFileSync(new URL('resource-tagging.ts', import.meta.url), 'utf8');
-    const route = readFileSync(new URL('../routes/settings-routes.ts', import.meta.url), 'utf8');
-    const handler = route.slice(
-      route.indexOf("app.post('/api/settings/resource-tags'"),
-      route.indexOf("app.get('/api/settings'", route.indexOf("app.post('/api/settings/resource-tags'"))
-    );
+  it('selects OBO for user-authorized APIs and the app identity only for AI Search tags', async () => {
+    const getServingTags = vi.fn(() => Promise.resolve([]));
+    const unusedOboVectorDiscovery = vi.fn(() => Promise.resolve('wrong-endpoint'));
+    const obo = platform({ getServingTags, getVectorIndexEndpoint: unusedOboVectorDiscovery });
+    const vector = {
+      getVectorIndexEndpoint: vi.fn(() => Promise.resolve('vector-endpoint')),
+      getVectorEndpointTags: vi.fn(() => Promise.resolve([])),
+      setVectorEndpointTags: vi.fn(() => Promise.resolve()),
+    };
+    const result = await applyAstrolabeTags({
+      environment: { DATABRICKS_SERVING_ENDPOINT_NAME: 'agent' },
+      report: report([{ key: 'semantic_index', value: 'catalog.schema.index' }]),
+      token: TOKEN,
+      platform: obo,
+      vectorPlatform: vector,
+    });
+    expect(getServingTags).toHaveBeenCalledWith('agent', undefined);
+    expect(unusedOboVectorDiscovery).not.toHaveBeenCalled();
+    expect(vector.getVectorIndexEndpoint).toHaveBeenCalledWith('catalog.schema.index', undefined);
+    expect(vector.setVectorEndpointTags).toHaveBeenCalled();
+    expect(result.results.find((item) => item.kind === 'vector-endpoint')?.identity).toBe('app-service-principal');
+  });
 
-    expect(source).toContain('new WorkspaceClient({ httpTimeoutSeconds: 5, retryTimeoutSeconds: 0 })');
-    expect(source).not.toContain('forwardedUserToken');
-    expect(handler).not.toContain('forwardedUserToken');
+  it('uses the documented endpoint, warehouse, Lakebase update-mask, and AI Search tag paths', async () => {
+    const calls: Array<{ url: string; method: string; body: string }> = [];
+    const fakeFetch = vi.fn((url: string | URL | Request, init?: RequestInit) => {
+      calls.push({
+        url: urlText(url),
+        method: init?.method ?? 'GET',
+        body: typeof init?.body === 'string' ? init.body : '',
+      });
+      const path = urlText(url);
+      const body = path.includes('/postgres/')
+        ? { status: { custom_tags: [] } }
+        : path.includes('/sql/warehouses/')
+          ? { tags: { custom_tags: [] } }
+          : path.includes('/vector-search/indexes/')
+            ? { endpoint_name: 'vs-endpoint' }
+            : { custom_tags: [], tags: [] };
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+    });
+    const live = createWorkspaceTagPlatform({
+      host: 'https://workspace.example/',
+      token: 'obo-token',
+      fetchImpl: fakeFetch as typeof fetch,
+    });
+    await live.patchServingTags('agent', [{ key: 'k', value: 'v' }], [], undefined);
+    await live.setWarehouseTags('warehouse', [{ key: 'k', value: 'v' }]);
+    await live.setLakebaseTags('projects/project', [{ key: 'k', value: 'v' }]);
+    await live.setVectorEndpointTags('vector', [{ key: 'k', value: 'v' }]);
+
+    expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
+      'PATCH https://workspace.example/api/2.0/serving-endpoints/agent/tags',
+      'POST https://workspace.example/api/2.0/sql/warehouses/warehouse/edit',
+      'PATCH https://workspace.example/api/2.0/postgres/projects/project?update_mask=spec.custom_tags',
+      'PATCH https://workspace.example/api/2.0/vector-search/endpoints/vector/tags',
+    ]);
+    expect(JSON.parse(calls[2].body)).toMatchObject({ name: 'projects/project' });
+  });
+
+  it('classifies a missing OBO token as permission required and performs no write', async () => {
+    const setWarehouseTags = vi.fn(() => Promise.resolve());
+    const summary = await applyAstrolabeTags({
+      environment: { DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse' },
+      report: null,
+      token: null,
+      platform: platform({ setWarehouseTags }),
+    });
+    expect(summary).toMatchObject({ supportedTotal: 1, permissionRequired: 1, supportedFailed: 0 });
+    expect(summary.results[0].detail).toContain('signed-in administrator');
+    expect(setWarehouseTags).not.toHaveBeenCalled();
+  });
+
+  it('detects a missing declared scope before calling Databricks', async () => {
+    const getWarehouseTags = vi.fn(() => Promise.resolve([]));
+    const summary = await applyAstrolabeTags({
+      environment: { DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse' },
+      report: null,
+      token: scopedToken(['model-serving']),
+      platform: platform({ getWarehouseTags }),
+    });
+    expect(summary).toMatchObject({ permissionRequired: 1, supportedFailed: 0 });
+    expect(summary.results[0].nextAction).toContain('`sql`');
+    expect(summary.results[0].nextAction).toContain('restart');
+    expect(getWarehouseTags).not.toHaveBeenCalled();
+  });
+
+  it('does not retry a 403 and redacts tokens and principal ids from diagnostics', async () => {
+    const denial = Object.assign(
+      new Error('403 PERMISSION_DENIED authorization=secret 071769f1-5623-45b6-a172-c8b8060adff1 Bearer raw-token'),
+      { status: 403 }
+    );
+    const getServingTags = vi.fn(() => Promise.reject(denial));
+    const sleep = vi.fn(() => Promise.resolve());
+    const summary = await applyAstrolabeTags({
+      environment: { DATABRICKS_SERVING_ENDPOINT_NAME: 'agent' },
+      report: null,
+      token: TOKEN,
+      platform: platform({ getServingTags }),
+      retry: { sleep },
+    });
+    expect(getServingTags).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ permissionRequired: 1, supportedFailed: 0 });
+    expect(summary.results[0].technicalDetail).not.toMatch(/raw-token|071769f1/);
+  });
+
+  it('names the exact app-service-principal grant for an AI Search 403', async () => {
+    const denial = Object.assign(new Error('PERMISSION_DENIED'), { status: 403 });
+    const setVectorEndpointTags = vi.fn(() => Promise.reject(denial));
+    const summary = await applyAstrolabeTags({
+      environment: {},
+      report: report([{ key: 'semantic_index', value: 'catalog.schema.index' }]),
+      token: TOKEN,
+      platform: platform(),
+      vectorPlatform: {
+        getVectorIndexEndpoint: vi.fn(() => Promise.resolve('vector-endpoint')),
+        getVectorEndpointTags: vi.fn(() => Promise.resolve([])),
+        setVectorEndpointTags,
+      },
+    });
+    const vector = summary.results.find((item) => item.kind === 'vector-endpoint');
+    expect(vector).toMatchObject({ status: 'permission-required', identity: 'app-service-principal' });
+    expect(vector?.nextAction).toContain('app service principal CAN_MANAGE');
+    expect(setVectorEndpointTags).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('bounded retries, isolation, and cancellation', () => {
+  it('honors 429 Retry-After and succeeds after one retry', async () => {
+    const throttled = Object.assign(new Error('rate limited'), { status: 429, retryAfterMs: 900 });
+    const getWarehouseTags = vi
+      .fn<() => Promise<Array<{ key: string; value: string }>>>()
+      .mockRejectedValueOnce(throttled)
+      .mockResolvedValueOnce([]);
+    const sleep = vi.fn(() => Promise.resolve());
+    const summary = await applyAstrolabeTags({
+      environment: { DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse' },
+      report: null,
+      token: TOKEN,
+      platform: platform({ getWarehouseTags }),
+      retry: { sleep, now: () => 0, random: () => 0 },
+    });
+    expect(getWarehouseTags).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledWith(900);
+    expect(summary).toMatchObject({ supportedCovered: 1, supportedFailed: 0 });
+  });
+
+  it('isolates one exhausted 503 while another resource succeeds', async () => {
+    const unavailable = Object.assign(new Error('temporary upstream outage'), { status: 503 });
+    const summary = await applyAstrolabeTags({
+      environment: {
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'agent',
+        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse',
+      },
+      report: null,
+      token: TOKEN,
+      platform: platform({ getServingTags: vi.fn(() => Promise.reject(unavailable)) }),
+      retry: { maxAttempts: 2, sleep: () => Promise.resolve(), now: () => 0 },
+    });
+    expect(summary).toMatchObject({ supportedTotal: 2, supportedCovered: 1, supportedFailed: 1 });
+    expect(summary.results.find((item) => item.name === 'warehouse')?.status).toBe('tagged');
+  });
+
+  it('uses bounded concurrency', async () => {
+    let active = 0;
+    let maximum = 0;
+    const hold = async () => {
+      active += 1;
+      maximum = Math.max(maximum, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      return [];
+    };
+    await applyAstrolabeTags({
+      environment: {
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'agent',
+        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse',
+        LAKEBASE_ENDPOINT: 'projects/project/branches/production',
+      },
+      report: null,
+      token: TOKEN,
+      platform: platform({
+        getServingTags: hold,
+        getWarehouseTags: hold,
+        getLakebaseTags: hold,
+      }),
+      retry: { concurrency: 2 },
+    });
+    expect(maximum).toBe(2);
+  });
+
+  it('stops the batch when the request is cancelled', async () => {
+    const controller = new AbortController();
+    const pending = applyAstrolabeTags({
+      environment: {
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'agent',
+        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse',
+      },
+      report: null,
+      token: TOKEN,
+      signal: controller.signal,
+      platform: platform({
+        getServingTags: vi.fn<(name: string, signal?: AbortSignal) => Promise<Array<{ key: string; value: string }>>>(
+          (_name, signal) =>
+            new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new Error('aborted'))))
+        ),
+      }),
+    });
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('a second Apply retries only unresolved resources; full mode rechecks all', async () => {
+    const temporary = Object.assign(new Error('unavailable'), { status: 503 });
+    const firstPlatform = platform({ getServingTags: vi.fn(() => Promise.reject(temporary)) });
+    const first = await applyAstrolabeTags({
+      environment: {
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'agent',
+        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse',
+      },
+      report: null,
+      token: TOKEN,
+      platform: firstPlatform,
+      retry: { maxAttempts: 1 },
+    });
+    expect(first).toMatchObject({ supportedCovered: 1, supportedFailed: 1 });
+
+    const getServingTags = vi.fn(() => Promise.resolve([]));
+    const getWarehouseTags = vi.fn(() => Promise.resolve([]));
+    const secondPlatform = platform({ getServingTags, getWarehouseTags });
+    const second = await applyAstrolabeTags({
+      environment: {
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'agent',
+        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse',
+      },
+      report: null,
+      token: TOKEN,
+      platform: secondPlatform,
+      previous: first,
+    });
+    expect(second).toMatchObject({ supportedCovered: 2, supportedFailed: 0 });
+    expect(getServingTags).toHaveBeenCalledTimes(1);
+    expect(getWarehouseTags).not.toHaveBeenCalled();
+
+    await applyAstrolabeTags({
+      environment: {
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'agent',
+        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse',
+      },
+      report: null,
+      token: TOKEN,
+      platform: secondPlatform,
+      previous: second,
+      mode: 'full',
+    });
+    expect(getWarehouseTags).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries failed AI Search discovery instead of treating the index name as an endpoint', async () => {
+    const unavailable = Object.assign(new Error('temporary discovery failure'), { status: 503 });
+    const first = await applyAstrolabeTags({
+      environment: {},
+      report: report([{ key: 'semantic_index', value: 'catalog.schema.index' }]),
+      token: TOKEN,
+      platform: platform({ getVectorIndexEndpoint: vi.fn(() => Promise.reject(unavailable)) }),
+      retry: { maxAttempts: 1 },
+    });
+    const getVectorIndexEndpoint = vi.fn(() => Promise.resolve('real-endpoint'));
+    const second = await applyAstrolabeTags({
+      environment: {},
+      report: report([{ key: 'semantic_index', value: 'catalog.schema.index' }]),
+      token: TOKEN,
+      platform: platform({ getVectorIndexEndpoint }),
+      previous: first,
+    });
+    expect(getVectorIndexEndpoint).toHaveBeenCalledTimes(1);
+    expect(second.results.find((item) => item.kind === 'vector-endpoint')?.name).toBe('real-endpoint');
+  });
+});
+
+describe('organizational app tag diagnostics', () => {
+  it('requires an explicit metadata reader and never treats absence as billing evidence', async () => {
+    expect(await readAppBillingTag('app')).toBe('unverified');
+    expect(await readAppBillingTag('app', { getAppTag: vi.fn(() => Promise.resolve('astrolabe')) })).toBe('matched');
+    expect(await readAppBillingTag('app', { getAppTag: vi.fn(() => Promise.resolve(null)) })).toBe('missing');
   });
 });

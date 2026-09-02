@@ -36,7 +36,7 @@ import {
 import type { ConnectionEntry } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import { StatusBadge } from './StatusBadge';
-import { UserIdentityChip } from './UserIdentityChip';
+import { UserDrilldownLink } from './UserDrilldownLink';
 import {
   connectionValueError,
   createConnectionDeleteGate,
@@ -61,7 +61,7 @@ function ConnectionProvenance({ connection }: { connection: ConnectionEntry['con
     <span className="connection-provenance">
       {connection.createdBy ? (
         <span className="connection-provenance-badge">
-          Added by <UserIdentityChip identity={connection.createdBy} compact />
+          Added by <UserDrilldownLink identity={connection.createdBy} compact />
         </span>
       ) : null}
       {validCreated ? (

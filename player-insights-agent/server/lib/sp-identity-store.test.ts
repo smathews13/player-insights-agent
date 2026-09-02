@@ -3,26 +3,18 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { APP_SCHEMA } from '../../shared/app-schema';
-import {
-  SP_IDENTITY_ENABLED_SETTING,
-  SpPersonaDefinitionWriteSchema,
-  SpPersonaWriteSchema,
-} from '../../shared/sp-identity';
-import { forgetStoredSettings } from './app-settings';
+import { SpPersonaDefinitionWriteSchema, SpPersonaWriteSchema } from '../../shared/sp-identity';
 import {
   SP_ASSIGNMENTS_TABLE,
   SP_PERSONA_DEFINITIONS_TABLE,
   SP_PERSONAS_TABLE,
   deleteSpPersonaDefinition,
-  forgetSpIdentityEnabled,
   insertSpPersonaDefinition,
   insertSpPersona,
-  isSpIdentityEnabled,
   listSpAssignments,
   listSpPersonaDefinitions,
   listSpPersonas,
   writeSpAssignment,
-  writeSpIdentityEnabled,
 } from './sp-identity-store';
 
 function missingTable(): Error & { code: string } {
@@ -33,7 +25,6 @@ function missingTable(): Error & { code: string } {
 
 function client(
   options: {
-    settings?: Record<string, unknown>[];
     personas?: Record<string, unknown>[];
     definitions?: Record<string, unknown>[];
     assignments?: Record<string, unknown>[];
@@ -47,9 +38,6 @@ function client(
       query: (sql: string, values?: unknown[]) => {
         calls.push({ sql, values });
         if (options.fail) return Promise.reject(options.fail);
-        if (sql.includes('deployment_settings') && sql.includes('SELECT')) {
-          return Promise.resolve({ rows: options.settings ?? [] });
-        }
         if (sql.includes(SP_PERSONAS_TABLE) && sql.includes('INSERT')) {
           const [id, displayName, clientId, secretScope, secretKey, updatedBy] = values ?? [];
           return Promise.resolve({
@@ -131,30 +119,7 @@ describe('service-principal persona persistence', () => {
     expect(SP_ASSIGNMENTS_TABLE).toBe(`${APP_SCHEMA}.sp_assignments`);
   });
 
-  it('treats anything other than the exact string true as the pivot off', async () => {
-    forgetSpIdentityEnabled();
-    forgetStoredSettings();
-    expect(await isSpIdentityEnabled(client() as never, { maxAgeMs: 0 })).toBe(false);
-
-    forgetSpIdentityEnabled();
-    forgetStoredSettings();
-    const yes = client({
-      settings: [{ resource_id: SP_IDENTITY_ENABLED_SETTING, value: 'true', intent: 'active' }],
-    });
-    expect(await isSpIdentityEnabled(yes as never, { maxAgeMs: 0 })).toBe(true);
-
-    for (const value of ['TRUE', '1', 'yes', 'on', '']) {
-      forgetSpIdentityEnabled();
-      forgetStoredSettings();
-      const store = client({
-        settings: [{ resource_id: SP_IDENTITY_ENABLED_SETTING, value, intent: 'active' }],
-      });
-      expect(await isSpIdentityEnabled(store as never, { maxAgeMs: 0 }), value).toBe(false);
-    }
-  });
-
   it('returns nobody and no personas when the tables do not exist yet', async () => {
-    forgetSpIdentityEnabled();
     expect(await listSpPersonas(client({ fail: missingTable() }) as never)).toEqual([]);
     expect(await listSpAssignments(client({ fail: missingTable() }) as never)).toEqual([]);
   });
@@ -271,33 +236,6 @@ describe('service-principal persona persistence', () => {
     expect(store.calls.some((call) => call.sql.includes('DELETE') && call.sql.includes(SP_ASSIGNMENTS_TABLE))).toBe(
       true
     );
-  });
-
-  it('writes the pivot as the exact string true and busts the cache', async () => {
-    forgetSpIdentityEnabled();
-    forgetStoredSettings();
-    const store = client();
-    store.lakebase.query = (sql: string, values?: unknown[]) => {
-      store.calls.push({ sql, values });
-      if (sql.includes('INSERT') && sql.includes('deployment_settings')) {
-        return Promise.resolve({
-          rows: [
-            {
-              resource_id: values?.[0],
-              value: values?.[1],
-              intent: values?.[2],
-              note: values?.[3],
-              updated_at: '2026-08-26T00:00:00.000Z',
-              updated_by: values?.[4],
-            },
-          ],
-        });
-      }
-      return Promise.resolve({ rows: [] });
-    };
-    await writeSpIdentityEnabled(store as never, true, 'admin@example.com');
-    expect(store.calls[0]?.values?.[0]).toBe(SP_IDENTITY_ENABLED_SETTING);
-    expect(store.calls[0]?.values?.[1]).toBe('true');
   });
 
   it('does not add a secret-value column in the migration', () => {

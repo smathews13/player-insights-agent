@@ -35,7 +35,7 @@ import { productForTool } from './brand-icons';
 import { stepNumber } from './agent-map';
 import { Badge } from './ui';
 import { MarkdownText, StructuredTableResultView } from './StepResult';
-import { structuredTableResult } from './step-results';
+import { structuredTableResult, withoutDeclaredTableCaption } from './step-results';
 import { EntityText, TableEntityList } from './DataEntityLinks';
 import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
 import { InlineSqlCode, SqlCodeBlocks } from './SqlPresentation';
@@ -188,7 +188,7 @@ export function PayloadView({
   initialRaw?: boolean;
 }) {
   const [raw, setRaw] = useState(initialRaw);
-  const payload = describePayload(text);
+  const payload = describePayload(withoutDeclaredTableCaption(text));
   const tableResult = structuredTableResult(payload.body);
   const renderedBody =
     rendered ??

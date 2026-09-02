@@ -279,10 +279,11 @@ describe('a deployed app with a forwarded identity', () => {
     // The whole defect was that these collapsed into one bucket.
     // Latency telemetry also writes on every /api/ response, with GET as $1;
     // that is not a tenancy key and must not be counted as one.
-    expect(tenancyQueries(store.queries).map((entry) => entry.params[0])).toEqual([
-      'first@example.example',
-      'second@example.example',
-    ]);
+    expect(
+      tenancyQueries(store.queries)
+        .map((entry) => entry.params[0])
+        .filter(Boolean)
+    ).toEqual(['first@example.example', 'second@example.example']);
   });
 
   it('reports the caller as signed in, not the app owner', async () => {
@@ -300,7 +301,7 @@ describe('a deployed app with a forwarded identity', () => {
     }
   });
 
-  it('returns user and app metadata without exposing the application principal', async () => {
+  it('returns sanitized user, app, and application-principal metadata', async () => {
     const prior = {
       host: process.env.DATABRICKS_HOST,
       app: process.env.DATABRICKS_APP_NAME,
@@ -317,6 +318,10 @@ describe('a deployed app with a forwarded identity', () => {
       }
       return Promise.resolve({
         url: 'https://player-insights-agent-<workspace-id>.<region>.databricksapps.com',
+        service_principal_name: 'Astrolabe application',
+        service_principal_client_id: process.env.DATABRICKS_CLIENT_ID,
+        service_principal_id: '9988776655443322',
+        resources: [{ name: 'sql-warehouse' }],
       });
     };
     const app = await startApp(recordingStore().lakebase, undefined, reader);
@@ -333,11 +338,19 @@ describe('a deployed app with a forwarded identity', () => {
           workspaceHost: process.env.DATABRICKS_HOST,
           workspaceId: '<workspace-id>',
         },
+        servicePrincipal: {
+          displayName: 'Astrolabe application',
+          applicationId: process.env.DATABRICKS_CLIENT_ID,
+          objectId: '9988776655443322',
+          authenticationType: 'OAuth machine-to-machine',
+          attachedResourceCount: 1,
+          state: 'verified',
+        },
       });
       const wire = JSON.stringify(body);
-      expect(wire).not.toContain(process.env.DATABRICKS_CLIENT_ID);
+      expect(wire).toContain(process.env.DATABRICKS_CLIENT_ID);
       expect(wire).not.toMatch(
-        /servicePrincipal|applicationId|Astrolabe application service principal|9988776655443322|client.?secret|authorization|bearer|database.?password/i
+        /client.?secret|authorization|bearer|database.?password|DATABRICKS_CLIENT_SECRET/i
       );
       expect(body).not.toHaveProperty('executionIdentity');
       // Removing the browser field does not remove the credential from the

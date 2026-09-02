@@ -43,6 +43,8 @@ export interface VersionedSettingsStore<T> {
   table: string;
   key: string;
   defaults: T;
+  /** Remove retired fields before parsing and on the next durable write. */
+  prepare?(value: unknown): unknown;
   parse(value: unknown): T;
 }
 
@@ -68,7 +70,7 @@ export async function readVersionedSettings<T>(
 ): Promise<VersionedSettings<T>> {
   const row = await storedRow(client, store);
   if (!row) return { settings: store.parse(store.defaults), revision: 0 };
-  return { settings: store.parse(row.raw), revision: row.revision };
+  return { settings: store.parse(store.prepare?.(row.raw) ?? row.raw), revision: row.revision };
 }
 
 /**
@@ -89,7 +91,8 @@ export async function writeVersionedSettingsPatch<T>(
   const current = await storedRow(client, store);
   if (!current) {
     if (expectedRevision !== 0) throw new SettingsRevisionConflict();
-    const raw = mergeSettingsPatch(store.defaults, patch);
+    const merged = mergeSettingsPatch(store.defaults, patch);
+    const raw = store.prepare?.(merged) ?? merged;
     const settings = store.parse(raw);
     const inserted = await client.lakebase.query(
       `INSERT INTO ${store.table} (id, settings, revision, updated_by, updated_at)
@@ -104,7 +107,8 @@ export async function writeVersionedSettingsPatch<T>(
   }
 
   if (current.revision !== expectedRevision) throw new SettingsRevisionConflict();
-  const raw = mergeSettingsPatch(current.raw, patch);
+  const merged = mergeSettingsPatch(current.raw, patch);
+  const raw = store.prepare?.(merged) ?? merged;
   const settings = store.parse(raw);
   const updated = await client.lakebase.query(
     `UPDATE ${store.table}

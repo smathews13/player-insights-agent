@@ -341,8 +341,8 @@ describe('a long value truncates rather than being cut off', () => {
     expect(rule('.deployment-card-identity .identity-fact-label')).toMatch(/flex-basis:\s*96px/);
   });
 
-  it('keeps the two retained identity groups balanced across the desktop width', () => {
-    expect(rule('.identity-overview')).toMatch(/grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  it('keeps all three identity groups balanced across the desktop width', () => {
+    expect(rule('.identity-overview')).toMatch(/grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
     expect(rule('.identity-overview')).toMatch(/gap:\s*8px/);
     expect(rule('.deployment-card-identity-body')).toMatch(/padding:\s*8px/);
     expect(rule('.identity-section')).toMatch(/padding:\s*8px 10px/);

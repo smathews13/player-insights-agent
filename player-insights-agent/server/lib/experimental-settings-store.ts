@@ -16,10 +16,18 @@ const KEY = 'app-global';
 
 export const EXPERIMENTAL_SETTINGS_TABLE = appTable('experimental_settings');
 
+/** Retired browser pivot; mappings are always available in Identity now. */
+export function withoutLegacySpIdentities(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const { spIdentities: _retired, ...settings } = value as Record<string, unknown>;
+  return settings;
+}
+
 const STORE: VersionedSettingsStore<ExperimentalFeatures> = {
   table: EXPERIMENTAL_SETTINGS_TABLE,
   key: KEY,
   defaults: { ...NO_EXPERIMENTS },
+  prepare: withoutLegacySpIdentities,
   parse: (value) => ExperimentalSettingsSchema.parse(value),
 };
 

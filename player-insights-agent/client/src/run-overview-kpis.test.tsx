@@ -91,6 +91,25 @@ describe('Run Explorer Overview KPIs', () => {
     expect(markup).toContain('run-kpi-subtitle tile-mono ast-num');
   });
 
+  it('adds a cache summary only when direct calls reported cache evidence', () => {
+    const markup = render(5, {
+      tokenReconciliation: {
+        attributedTokens: 5_000,
+        attributedCalls: 2,
+        overviewTokens: 10_273,
+        coveragePercent: 48.7,
+        unattributedTokens: 5_273,
+        nestedAggregateTokens: 5_000,
+        mismatchCount: 0,
+        cachedReadTokens: 3_100,
+        cacheCoveredInputTokens: 6_200,
+        cacheHitPercent: 50,
+      },
+    });
+    expect(markup).toContain('3,100 cached (50.0% of covered input)');
+    expect(render(5)).not.toContain('cached');
+  });
+
   it('labels missing measurements as absent and still describes every card', () => {
     const markup = render(null, {
       durationMs: null,

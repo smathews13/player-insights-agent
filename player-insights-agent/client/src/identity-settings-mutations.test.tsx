@@ -27,7 +27,6 @@ const ROSTER: RosterPayload = {
 };
 const SP_PAYLOAD: SpIdentityAdminPayload = {
   ...EMPTY_SP_IDENTITY,
-  enabled: true,
   personas: [
     {
       id: 'finance',

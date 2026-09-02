@@ -849,13 +849,12 @@ describe('every state in the list', () => {
 });
 
 describe('the question list', () => {
-  it('makes the whole row one control rather than seven links', () => {
+  it('uses one native question button without turning the table row into a control', () => {
     const markup = body('ready');
 
-    expect(markup).toContain('role="button"');
-    expect(markup).toContain('tabindex="0"');
-    // Not a cell full of anchors.
-    expect(markup).not.toMatch(/<td[^>]*><a /);
+    expect(markup).toContain('class="monitoring-question-button"');
+    expect(markup).not.toContain('<tr role="button"');
+    expect(markup).not.toContain('<tr tabindex=');
   });
 
   it('puts the full address on the asker cell and shows the local part', () => {
@@ -870,9 +869,10 @@ describe('the question list', () => {
       <QuestionList questions={[question()]} selectedId="" now={NOW} onOpen={() => {}} onOpenPerson={() => {}} />
     );
 
-    expect(markup).toContain('class="monitoring-asker-button"');
-    expect(markup).toContain('aria-label="Open first.person&#x27;s profile"');
-    expect(markup).toContain('<tr role="button"');
+    expect(markup).toContain('class="user-drilldown-link user-drilldown-link--chip"');
+    expect(markup).toContain('aria-label="Open user overview for first.person"');
+    expect(markup).toContain('class="monitoring-question-button"');
+    expect(markup).not.toMatch(/<button[^>]*>\s*<a /);
   });
 
   it('renders one accessible card tree below 800px instead of the clipped table', () => {
@@ -881,8 +881,7 @@ describe('the question list', () => {
 
     expect(markup).toContain('class="monitoring-card-list"');
     expect(markup).toContain('aria-label="Questions"');
-    expect(markup).toContain('role="button"');
-    expect(markup).toContain('tabindex="0"');
+    expect(markup).toContain('class="monitoring-question-card-button"');
     expect(markup).not.toContain('<table');
     expect(markup).not.toContain('<tr');
     expect(text(markup)).toContain('Time 76.2s');
@@ -1299,13 +1298,16 @@ describe('the User Monitoring browser', () => {
     expect(markup).not.toMatch(/>\s*Coverage\s*</);
     expect(markup).not.toContain('Attribution coverage');
     expect(visible).not.toContain('Allocated');
+    expect(markup).toContain('data-unit-segmented-control="true"');
+    expect(markup.match(/class="time-range-segment unit-segmented-option"/g)).toHaveLength(2);
+    expect(markup).not.toContain('monitoring-users-unit');
     expect(markup.indexOf('>Persona<')).toBeLessThan(markup.indexOf('>Activity<'));
     expect(markup.indexOf('>Activity<')).toBeLessThan(markup.indexOf('>Questions / runs<'));
     expect(markup.indexOf('>Questions / runs<')).toBeLessThan(markup.indexOf('>Spend<'));
     expect(markup).toContain('aria-label="Open ada.reader User Overview"');
   });
 
-  it('uses a stable row-shaped skeleton before results arrive', () => {
+  it('uses one centered users icon without fake rows before results arrive', () => {
     const markup = render(
       <UserMonitoringPanel
         state={beginPanelLoad<OpsCostPayload>('users', 1)}
@@ -1323,9 +1325,12 @@ describe('the User Monitoring browser', () => {
       />
     );
     expect(markup).toContain('monitoring-users-loading');
-    expect(markup).toContain('ast-flick-slot');
-    expect(markup.match(/monitoring-users-loading-mark/g)?.length).toBe(1);
-    expect(markup.match(/monitoring-users-loading-list/g)?.length).toBe(1);
+    expect(text(markup)).toContain('Loading users');
+    expect(markup.match(/monitoring-users-loading-icon/g)).toHaveLength(1);
+    expect(markup).toContain('lucide-users');
+    expect(markup).not.toContain('monitoring-users-loading-list');
+    expect(markup).not.toContain('monitoring-users-table-frame');
+    expect(markup).not.toContain('data-slot="skeleton"');
   });
 });
 
@@ -1383,7 +1388,7 @@ function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload 
 }
 
 describe('the per-user panel', () => {
-  it('uses the same one-tree card representation in the centered person modal', () => {
+  it('uses one dedicated question table that CSS turns into mobile cards', () => {
     const markup = render(
       <PersonPanel
         panel={panel()}
@@ -1395,8 +1400,8 @@ describe('the per-user panel', () => {
       />
     );
     const questions = markup.slice(markup.indexOf('Their questions'));
-    expect(questions).toContain('monitoring-card-list');
-    expect(questions).not.toContain('<table');
+    expect(questions).toContain('user-profile-modal-question-table');
+    expect(questions).toContain('<table');
   });
 
   it('is a labelled centered modal with no side-panel semantics', () => {
@@ -1404,10 +1409,10 @@ describe('the per-user panel', () => {
       <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
     );
 
-    expect(markup).toContain('class="monitoring-person-modal"');
+    expect(markup).toContain('class="user-profile-modal"');
     expect(markup).toContain('role="dialog"');
     expect(markup).toContain('aria-modal="true"');
-    expect(markup).toContain('aria-describedby="monitoring-person-description"');
+    expect(markup).toContain('aria-describedby="user-profile-modal-description"');
     expect(markup).not.toContain('<aside');
     expect(markup).not.toContain('class="monitoring-drawer"');
   });
@@ -1518,9 +1523,9 @@ describe('the per-user panel', () => {
     expect(rendered).toContain('Data Genie · sales-space');
     expect(rendered).toContain('Dictionary Genie · dictionary-space');
     expect(rendered).toContain('not an individual invoice');
-    expect(markup.indexOf('monitoring-spend')).toBeLessThan(markup.indexOf('What they asked'));
-    expect(markup.indexOf('What they asked')).toBeLessThan(markup.indexOf('monitoring-panel-grid'));
-    expect(markup.match(/monitoring-spend-component-name/g)).toHaveLength(6);
+    expect(markup.indexOf('user-profile-modal-spend')).toBeLessThan(markup.indexOf('What they asked'));
+    expect(markup.indexOf('What they asked')).toBeLessThan(markup.indexOf('user-profile-modal-kpi-grid'));
+    expect(markup.match(/user-profile-modal-spend-resource/g)).toHaveLength(6);
     expect(new Set(markup.match(/id="[^"]+"/g)).size).toBe(markup.match(/id="[^"]+"/g)?.length);
   });
 
@@ -1592,11 +1597,13 @@ describe('the per-user panel', () => {
     expect(row).toContain('data-entity-part="schema"');
     expect(row).toContain('data-entity-part="table"');
     expect(row).toContain('12,345 runs');
-    expect(row.indexOf('monitoring-ranked-table')).toBeLessThan(row.indexOf('monitoring-table-runs'));
+    expect(row.indexOf('user-profile-modal-table-name')).toBeLessThan(row.indexOf('user-profile-modal-table-runs'));
   });
 
-  it('omits the ranked-table module when no run recorded a source', () => {
-    expect(render(<TablesReadMost rows={[]} />)).toBe('');
+  it('keeps the ranked-table section in flow when no run recorded a source', () => {
+    expect(text(render(<TablesReadMost rows={[]} />))).toContain(
+      'Tables read most No table reads were recorded in this range.'
+    );
   });
 
   it('renders token cost only when the backend supplied a measured figure', () => {
@@ -1614,10 +1621,10 @@ describe('the per-user panel', () => {
     );
 
     expect(text(measured)).toContain('Token cost $3.84 at configured rate · USD');
-    expect(measured).not.toContain('monitoring-panel-grid-without-cost');
+    expect(measured).toContain('user-profile-modal-kpi-grid');
     expect(text(unavailable)).not.toContain('Token cost');
     expect(text(unavailable)).not.toContain('no price configured');
-    expect(unavailable).toContain('monitoring-panel-grid monitoring-panel-grid-without-cost');
+    expect(unavailable).toContain('user-profile-modal-kpi-grid');
   });
 
   /**
@@ -1648,12 +1655,9 @@ describe('the per-user panel', () => {
     const markup = render(
       <PersonPanel panel={panel()} now={NOW} rangeLabel="last 30 days" onClose={() => {}} onOpenQuestion={() => {}} />
     );
-    const headings = [...markup.matchAll(/<h4 class="monitoring-eyebrow">([\s\S]*?)<\/h4>/g)].map((match) => match[1]);
-    for (const heading of headings.filter((heading) => /What they asked|Their questions/.test(heading))) {
-      expect(heading, 'the heading carries the range').toContain('last 30 days');
-    }
+    expect(occurrences(text(markup), 'last 30 days')).toBeGreaterThanOrEqual(2);
     // As a qualification beside the heading rather than as part of its name.
-    expect(markup).toContain('monitoring-eyebrow-range');
+    expect(markup).toContain('user-profile-modal-range');
   });
 
   it('uses the shared identity chip for the person panel too', () => {
@@ -1666,28 +1670,25 @@ describe('the per-user panel', () => {
     expect(markup).not.toContain('>FP<');
   });
 
-  it('shows the two refusal causes as separate counts and never their total', () => {
+  it('keeps refusal detail out of the KPI grid and reports the aggregate once', () => {
     const rendered = text(
       render(
         <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
       )
     );
 
-    expect(rendered).toContain('Refused for a missing grant');
-    expect(rendered).not.toContain('a grant somebody can make');
-    expect(rendered).toContain("Refused by the agent's own rules");
-    expect(rendered).not.toContain('a release or question change');
-    // 2 + 1. Nothing on the panel is the two added together.
-    expect(rendered).not.toMatch(/Refused[^.]{0,60}\b3\b/);
+    expect(rendered).toContain('3 refused');
+    expect(rendered).not.toContain('Refused for a missing grant');
+    expect(rendered).not.toContain("Refused by the agent's own rules");
   });
 
-  it('names the codes behind each refusal count', () => {
+  it('does not expose internal refusal codes in the summary layout', () => {
     const markup = render(
       <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
     );
 
-    expect(markup).toContain('USER_NOT_AUTHORIZED');
-    expect(markup).toContain('ASSET_NOT_IN_MANIFEST');
+    expect(markup).not.toContain('USER_NOT_AUTHORIZED');
+    expect(markup).not.toContain('ASSET_NOT_IN_MANIFEST');
   });
 
   it('says what a row filter is, not what it did to a run', () => {
@@ -1855,8 +1856,8 @@ describe('the per-user panel', () => {
       <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
     );
 
-    expect(markup).toContain('class="monitoring-mono monitoring-grant-table" title="a_catalog.a_schema.a_table"');
-    expect(markup).toContain('monitoring-panel-tile-wide');
+    expect(markup).toContain('class="user-profile-modal-grant-table" title="a_catalog.a_schema.a_table"');
+    expect(markup).toContain('user-profile-modal-tables');
   });
 
   it('says the grants could not be read rather than rendering an empty table', () => {

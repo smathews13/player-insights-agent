@@ -20,7 +20,6 @@ function settings(features: typeof NO_EXPERIMENTS, initialSection: SettingsSecti
       features={features}
       initialSection={initialSection}
       role={ADMIN}
-      spIdentityEnabled={false}
       setFeature={() => {}}
     />
   );

@@ -148,7 +148,8 @@ export type QueryHistoryCoverageReason =
   | 'transport-error'
   | 'invalid-row'
   | 'unexpected-warehouse'
-  | 'missing-execution-time';
+  | 'missing-execution-time'
+  | 'interactive-run-coverage';
 
 /**
  * What the Query History read actually established.
@@ -232,6 +233,10 @@ export interface CostTile {
   evidence?: {
     billingRows: number | null;
     astrolabeQueries: number | null;
+    /** Completed interactive Ask requests used as the allocation population. */
+    interactiveRequests?: number | null;
+    /** Requests with the identifier and timing evidence required by this allocation. */
+    coveredRequests?: number | null;
     warehouseQueries?: number | null;
     queryHistoryComplete?: boolean;
     /** Exact read bounds and any reason the SQL denominator was withheld. */
@@ -246,6 +251,19 @@ export interface CostTile {
       observedCalls: number;
       unit: 'requests' | 'queries';
     } | null;
+    /**
+     * Provider-reported usage for the configured nested foundation model.
+     * Token counts are evidence only: they are never converted to DBUs.
+     */
+    tokens?: {
+      input: number | null;
+      output: number | null;
+      total: number | null;
+      cachedRead?: number;
+      cacheWrite?: number;
+      requests: number;
+      coveredRequests: number;
+    } | null;
   } | null;
   /** This configured Genie's contribution to the shared monthly accounting. */
   genieInstanceAccounting?: GenieInstanceAccounting | null;
@@ -257,6 +275,7 @@ export interface GenieSurfaceAccounting {
   promotionalDbus: number;
   chargedEffectiveDbus: number;
   chargedRawEquivalentDbus: number;
+  unknownDbus: number;
   paidUsd: number | null;
 }
 
@@ -265,10 +284,14 @@ export interface GenieInstanceAccounting {
   label: string;
   tileId: string;
   attribution: 'query-history-exact' | 'query-history-allocation' | 'unattributed';
+  /** Allocated source usage_quantity before allowance/promotion classification. */
+  sourceDbus: number;
   allowanceUsedDbus: number;
   promotionalDbus: number;
   chargedEffectiveDbus: number;
   chargedRawEquivalentDbus: number;
+  /** Free or otherwise measured DBUs whose allowance/promotion class could not be established. */
+  unknownDbus: number;
   paidUsd: number | null;
   underlyingTotalDbus: number;
   pricingState: 'priced' | 'partial' | 'unpriced' | 'none';
@@ -282,6 +305,7 @@ export interface GenieUserAccounting {
   promotionalDbus: number;
   chargedEffectiveDbus: number;
   chargedRawEquivalentDbus: number;
+  unknownDbus: number;
   paidUsd: number | null;
   /** Per-space contributions; allowance remaining deliberately stays overall. */
   instances?: Array<Omit<GenieInstanceAccounting, 'surfaces' | 'pricingState'>>;
@@ -305,13 +329,17 @@ export interface GenieAccounting {
   promotionalDbus: number;
   chargedEffectiveDbus: number;
   chargedRawEquivalentDbus: number;
+  unknownDbus: number;
   paidUsd: number | null;
   underlyingTotalDbus: number;
   pricingState: 'priced' | 'partial' | 'unpriced' | 'none';
   instances?: GenieInstanceAccounting[];
   unattributed?: GenieInstanceAccounting | null;
   reconciliation?: {
+    sourceRows: number;
     sourceDbus: number;
+    classifiedDbus: number;
+    classificationDifferenceDbus: number;
     attributedDbus: number;
     unattributedDbus: number;
     attributedShare: number;
@@ -364,10 +392,18 @@ export type QuestionCostPart =
 /** One completed run, named without exposing the question text. */
 export interface QuestionCostRun {
   runId: string;
+  requestId?: string;
   correlationId: string;
   traceId: string;
+  user?: string;
+  startedAt?: string;
   completedAt: string;
+  durationMs?: number | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
   totalTokens: number | null;
+  cachedReadTokens?: number;
+  cacheWriteTokens?: number;
   parts: QuestionCostPart[];
 }
 
@@ -389,6 +425,14 @@ export interface QuestionCostAttribution {
   tokenCoveredRuns: number;
   /** Tokens across every covered run, used as the serving allocation denominator. */
   totalRecordedTokens: number;
+  /** Runs carrying safe request/correlation identifiers. */
+  requestCoveredRuns?: number;
+  /** Runs carrying an MLflow trace identifier. */
+  traceCoveredRuns?: number;
+  /** Runs carrying a valid start/end interval. */
+  timingCoveredRuns?: number;
+  /** True only when the complete succeeded-run population was returned. */
+  complete?: boolean;
   /** True when only the newest runs are returned but the denominators still cover all. */
   limited: boolean;
   /** Why attribution is absent or partial. Empty only when the read itself answered. */

@@ -221,12 +221,14 @@ function sanitizedTrace(trace: NonNullable<RunTrace['trace']>): Record<string, u
       if (hasOptionalPayload(retries)) item.retries = retries;
       const error = stageField(stage, ['error', 'errors', 'error_message', 'errorMessage']);
       if (hasOptionalPayload(error)) item.error = error;
+      if (stage.token_usage) item.token_usage = stage.token_usage;
       return item;
     }),
   };
   for (const key of ['prompt_tokens', 'completion_tokens', 'total_tokens'] as const) {
     if (typeof record[key] === 'number' && Number.isFinite(record[key])) safe[key] = record[key];
   }
+  if (record.token_reconciliation) safe.token_reconciliation = record.token_reconciliation;
   return safe;
 }
 

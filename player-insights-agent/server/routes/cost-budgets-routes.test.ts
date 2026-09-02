@@ -15,7 +15,7 @@ describe('cost budget route permissions', () => {
     expect(source).toContain("app.put('/api/admin/cost-budgets'");
   });
 
-  it('accepts older documents but withholds retired and unproven resource budgets', async () => {
+  it('accepts older documents, keeps foundation budgets, and withholds retired resources', async () => {
     let put: ((req: Request, res: Response) => Promise<void>) | undefined;
     const writes: Array<{ sql: string; params: unknown[] }> = [];
     setupCostBudgetsRoutes({
@@ -59,14 +59,20 @@ describe('cost budget route permissions', () => {
     expect(body).toMatchObject({
       budgets: {
         total: { USD: 100, DBU: null },
-        resources: { 'app-compute': { USD: 25, DBU: null } },
+        resources: {
+          'app-compute': { USD: 25, DBU: null },
+          'foundation-model': { USD: 50, DBU: null },
+        },
       },
       readable: true,
     });
     expect(writes[0].params[1]).toBe(
       JSON.stringify({
         total: { USD: 100, DBU: null },
-        resources: { 'app-compute': { USD: 25, DBU: null } },
+        resources: {
+          'app-compute': { USD: 25, DBU: null },
+          'foundation-model': { USD: 50, DBU: null },
+        },
       })
     );
   });

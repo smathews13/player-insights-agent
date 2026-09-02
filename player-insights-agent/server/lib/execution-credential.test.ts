@@ -15,7 +15,6 @@ vi.mock('../routes/access-verification', () => ({
 }));
 
 vi.mock('./sp-identity-store', () => ({
-  isSpIdentityEnabled: vi.fn(),
   assignmentForEmail: vi.fn(),
   readSpPersona: vi.fn(),
   listSpPersonas: vi.fn(() => Promise.resolve([])),
@@ -31,7 +30,7 @@ vi.mock('./admin-roles', () => ({
 }));
 
 import { forwardedUserToken } from '../routes/access-verification';
-import { assignmentForEmail, isSpIdentityEnabled, readSpPersona } from './sp-identity-store';
+import { assignmentForEmail, readSpPersona } from './sp-identity-store';
 import { mintPersonaToken } from './sp-token';
 import { resolveRole } from './admin-roles';
 
@@ -56,22 +55,20 @@ const store = { lakebase: { query: () => Promise.resolve({ rows: [] }) } };
 describe('executionToken', () => {
   beforeEach(() => {
     vi.mocked(forwardedUserToken).mockReturnValue('user-oauth-token');
-    vi.mocked(isSpIdentityEnabled).mockReset();
     vi.mocked(assignmentForEmail).mockReset();
     vi.mocked(readSpPersona).mockReset();
     vi.mocked(mintPersonaToken).mockReset();
     vi.mocked(resolveRole).mockResolvedValue({ role: 'consumer', addedAdminsReadable: true, seedAdminCount: 0 });
   });
-  it('is the forwarded OAuth token while the pivot is off', async () => {
-    vi.mocked(isSpIdentityEnabled).mockResolvedValue(false);
+  it('is the forwarded OAuth token when this person has no persona', async () => {
+    vi.mocked(assignmentForEmail).mockResolvedValue(null);
     const request = req();
     await attachExecutionCredential(request, store as never);
     expect(executionToken(request)).toBe('user-oauth-token');
     expect(mintPersonaToken).not.toHaveBeenCalled();
   });
 
-  it('stays on OAuth when the pivot is on but this person has no persona', async () => {
-    vi.mocked(isSpIdentityEnabled).mockResolvedValue(true);
+  it('stays on OAuth when this person has no persona', async () => {
     vi.mocked(assignmentForEmail).mockResolvedValue(null);
     const request = req();
     const credential = await resolveExecutionCredential(request, store as never);
@@ -80,7 +77,6 @@ describe('executionToken', () => {
   });
 
   it('keeps a super admin on the immutable Owner OAuth identity', async () => {
-    vi.mocked(isSpIdentityEnabled).mockResolvedValue(true);
     vi.mocked(resolveRole).mockResolvedValue({ role: 'super_admin', addedAdminsReadable: true, seedAdminCount: 1 });
     const credential = await resolveExecutionCredential(req(), store as never);
     expect(credential).toEqual({ kind: 'oauth', token: 'user-oauth-token' });
@@ -88,8 +84,7 @@ describe('executionToken', () => {
     expect(mintPersonaToken).not.toHaveBeenCalled();
   });
 
-  it('uses the minted persona token when the pivot is on and minting works', async () => {
-    vi.mocked(isSpIdentityEnabled).mockResolvedValue(true);
+  it('uses the minted persona token when an assignment exists and minting works', async () => {
     vi.mocked(assignmentForEmail).mockResolvedValue({
       email: 'ada@example.com',
       personaId: 'persona-1',
@@ -105,7 +100,6 @@ describe('executionToken', () => {
   });
 
   it('keeps persona credential ids server-side while exposing only its display name', async () => {
-    vi.mocked(isSpIdentityEnabled).mockResolvedValue(true);
     vi.mocked(assignmentForEmail).mockResolvedValue({
       email: 'ada@example.com',
       personaId: 'persona-1',
@@ -125,7 +119,6 @@ describe('executionToken', () => {
   });
 
   it('stays on OAuth with a reason when minting fails', async () => {
-    vi.mocked(isSpIdentityEnabled).mockResolvedValue(true);
     vi.mocked(assignmentForEmail).mockResolvedValue({
       email: 'ada@example.com',
       personaId: 'persona-1',
@@ -143,7 +136,6 @@ describe('executionToken', () => {
   });
 
   it('does not overlay a persona onto a refused identity, and overlays only a minted one', async () => {
-    vi.mocked(isSpIdentityEnabled).mockResolvedValue(true);
     vi.mocked(assignmentForEmail).mockResolvedValue({
       email: 'ada@example.com',
       personaId: 'persona-1',

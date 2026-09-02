@@ -34,190 +34,124 @@ function rule(selector: string): string {
   return body;
 }
 
-describe('a fully-qualified table name remains readable beside its count', () => {
-  it('gives the tile carrying a table name the whole grid row', () => {
-    expect(rule('.monitoring-panel-grid > .monitoring-panel-tile-wide')).toMatch(/grid-column:\s*1\s*\/\s*-1/);
+describe('the namespaced user profile cannot regress to overlapping layout', () => {
+  const profileRules = [...CSS.replace(/\/\*[\s\S]*?\*\//g, ' ').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .map((match) => ({ selector: match[1].trim(), body: match[2] }))
+    .filter((entry) => entry.selector.includes('.user-profile-modal'));
+
+  it('removes every legacy profile selector from all Monitoring stylesheets', () => {
+    const all = `${CSS}\n${RESPONSIVE}\n${partial('dark-monitoring.css')}`;
+    for (const legacy of [
+      'monitoring-person-',
+      'monitoring-panel-grid',
+      'monitoring-panel-tile',
+      'monitoring-spend',
+      'monitoring-grants',
+      'monitoring-scopes',
+      'monitoring-refusal-tiles',
+    ]) {
+      expect(all).not.toContain(legacy);
+    }
   });
 
-  it('keeps the icon, segmented name, and count on one horizontal row', () => {
-    const name = rule('.monitoring-ranked-table');
-    const row = rule('.monitoring-table-ranking li');
-
-    expect(row).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/);
-    expect(row).toMatch(/align-items:\s*center/);
-    expect(row).toMatch(/white-space:\s*nowrap/);
-    expect(name).toMatch(/display:\s*flex/);
-    expect(name).toMatch(/white-space:\s*nowrap/);
-    expect(name).toMatch(/overflow:\s*hidden/);
-    expect(rule('.monitoring-ranked-table > .visit-in-databricks')).toMatch(/flex:\s*none/);
+  it('uses one scrolling body with max-content rows and non-shrinking KPI cards', () => {
+    const body = rule('.user-profile-modal-body');
+    expect(body).toMatch(/overflow-y:\s*auto/);
+    expect(body).toMatch(/overflow-x:\s*visible/);
+    expect(body).toMatch(/grid-auto-flow:\s*row/);
+    expect(body).toMatch(/grid-auto-rows:\s*max-content/);
+    expect(rule('.user-profile-modal-kpi')).toMatch(/min-height:\s*96px/);
+    expect(rule('.user-profile-modal-spend')).toMatch(/min-height:\s*112px/);
   });
 
-  it('shrinks semantic name segments with ellipses before moving the count', () => {
-    const source = rule('.monitoring-ranked-table > .source-name-pill');
-    const segment = rule('.monitoring-ranked-table .entity-token');
-
-    expect(rule('.monitoring-ranked-table')).toMatch(/min-width:\s*0/);
-    expect(source).toMatch(/min-width:\s*0/);
-    expect(source).toMatch(/overflow:\s*hidden/);
-    expect(segment).toMatch(/min-width:\s*0/);
-    expect(segment).toMatch(/overflow:\s*hidden/);
-    expect(segment).toMatch(/text-overflow:\s*ellipsis/);
-    expect(segment).toMatch(/white-space:\s*nowrap/);
-    expect(rule('.monitoring-panel-tile')).toMatch(/min-width:\s*0/);
+  it('forbids seating, clipping, fixed content heights, and overlapping grid areas in the namespace', () => {
+    const shell = (selector: string) =>
+      /(?:^|,)\s*\.user-profile-modal(?:-overlay|-header|-body)?(?:\s|,|$)/.test(selector);
+    for (const { selector, body } of profileRules) {
+      expect(body, selector).not.toMatch(/position:\s*absolute/);
+      expect(body, selector).not.toMatch(/grid-area\s*:/);
+      expect(body, selector).not.toMatch(/margin(?:-(?:top|right|bottom|left))?\s*:\s*-\d/);
+      if (!shell(selector)) {
+        expect(body, selector).not.toMatch(/(?:^|;)\s*transform\s*:/);
+        expect(body, selector).not.toMatch(/overflow:\s*hidden/);
+        expect(body, selector).not.toMatch(/(?:^|;)\s*(?:height|max-height)\s*:\s*\d/);
+        expect(body, selector).not.toMatch(/(?:^|;)\s*top\s*:/);
+      }
+    }
   });
 
-  it('reflows four summary tiles into two aligned columns', () => {
-    expect(rule('.monitoring-panel-grid')).toMatch(/grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
-    expect(rule('.monitoring-panel-grid > .monitoring-panel-tile')).toMatch(/grid-column:\s*span\s*2/);
-    expect(
-      rule('.monitoring-panel-grid-without-cost > .monitoring-panel-tile:not(.monitoring-panel-tile-wide)')
-    ).toMatch(/grid-column:\s*span\s*3/);
-  });
-
-  it('uses a compact two-column fallback without allowing ranked rows to wrap', () => {
-    const narrowLayout = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
-
-    expect(narrowLayout).toMatch(/\.monitoring-panel-grid[\s\S]*grid-template-columns:\s*repeat\(2,\s*1fr\)/);
-    expect(narrowLayout).toMatch(/\.monitoring-panel-grid > \.monitoring-panel-tile\s*\{[^}]*grid-column:\s*span\s*1/);
-    expect(narrowLayout).toMatch(
-      /\.monitoring-panel-grid > \.monitoring-panel-tile-wide\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/
+  it('keeps spend amount and attribution in separate columns and stacks them on narrow screens', () => {
+    expect(rule('.user-profile-modal-spend-rows > li')).toMatch(
+      /grid-template-columns:\s*minmax\(0,\s*1fr\)\s*minmax\(180px,\s*max-content\)\s*max-content/
     );
-    expect(narrowLayout).toMatch(/\.monitoring-table-ranking li\s*\{[^}]*gap:\s*6px/);
-    expect(rule('.monitoring-ranked-table')).toMatch(/white-space:\s*nowrap/);
+    const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
+    expect(narrow).toMatch(/\.user-profile-modal-spend-resource\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
+    expect(narrow).toMatch(/\.user-profile-modal-spend-amount\s*\{[^}]*grid-row:\s*2/);
+    expect(narrow).toMatch(/\.user-profile-modal-spend-attribution\s*\{[^}]*grid-row:\s*2/);
   });
 
-  /**
-   * The grant rows carry the same names in a flex row inside a box that clips.
-   *
-   * `.monitoring-grants` has `overflow: hidden`, so a row that could not shrink
-   * lost the name AND the badge beside it off the right edge, with no mark to say
-   * either had been cut.
-   */
-  it('lets a grant row shrink its table name instead of overrunning the box', () => {
-    const table = rule('.monitoring-grant-table');
-
-    expect(table).toMatch(/min-width:\s*0/);
-    expect(table).toMatch(/text-overflow:\s*ellipsis/);
-    expect(table).toMatch(/overflow:\s*hidden/);
-    expect(table).toMatch(/white-space:\s*nowrap/);
-    // Confirming the clipping this is protecting against is still there, so the
-    // assertion above cannot quietly become about nothing.
-    expect(rule('.monitoring-grants')).toMatch(/overflow:\s*hidden/);
+  it('wraps long tables and grants without a clipping container', () => {
+    expect(rule('.user-profile-modal-table-name')).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(rule('.user-profile-modal-grant-table')).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(rule('.user-profile-modal-table-runs')).toMatch(/white-space:\s*nowrap/);
+    expect(rule('.user-profile-modal-grants')).not.toMatch(/overflow:\s*hidden/);
   });
 
-  it('keeps each run count intact while ordinary captions remain free to wrap', () => {
-    const runs = rule('.monitoring-table-runs');
-
-    expect(runs).toMatch(/justify-self:\s*end/);
-    expect(runs).toMatch(/white-space:\s*nowrap/);
-    expect(rule('.monitoring-tile-caption')).not.toMatch(/white-space:\s*nowrap/);
+  it('turns the dedicated question table into structured cards on narrow screens', () => {
+    const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
+    expect(narrow).toMatch(/\.user-profile-modal-question-table thead\s*\{[^}]*display:\s*none/);
+    expect(narrow).toMatch(/\.user-profile-modal-question-table td:not\(:first-child\)\s*\{[^}]*display:\s*grid/);
+    expect(narrow).toMatch(/content:\s*attr\(data-label\)/);
   });
 });
 
 describe('Monitoring details open as centered modals, not side drawers', () => {
-  it('places both dialogs in the middle of full-page overlays', () => {
-    expect(rule('.monitoring-question-overlay')).toMatch(/position:\s*fixed/);
-    expect(rule('.monitoring-question-overlay')).toMatch(/place-items:\s*center/);
-    expect(rule('.monitoring-question-overlay')).toMatch(/top:\s*var\(--app-header-h\)/);
-    expect(rule('.monitoring-question-overlay')).not.toMatch(/inset:\s*0/);
-    expect(rule('.monitoring-question-modal')).not.toMatch(/position:\s*fixed/);
-    expect(rule('.monitoring-question-modal')).not.toMatch(/right:\s*0/);
-    expect(rule('.monitoring-person-overlay')).toMatch(/place-items:\s*center/);
-    expect(rule('.monitoring-person-modal')).not.toMatch(/position:\s*fixed/);
-    expect(rule('.monitoring-person-modal')).not.toMatch(/right:\s*0/);
+  it('keeps the unique profile and browser overlays centered with viewport margins', () => {
+    expect(CSS).toMatch(/\.user-profile-modal-overlay,[\s\S]*?position:\s*fixed/);
+    expect(CSS).toMatch(/\.user-profile-modal-overlay,[\s\S]*?place-items:\s*center/);
+    const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
+    expect(narrow).toMatch(/\.user-profile-modal-overlay,[\s\S]*?padding:\s*12px/);
+    expect(narrow).toMatch(/\.user-profile-modal,[\s\S]*?width:\s*calc\(100vw - 24px\)/);
     expect(CSS).not.toContain('.monitoring-drawer {');
   });
 
-  it('lets the dialog scroll and forbids its children from shrinking over each other', () => {
-    const dialog = rule('.monitoring-question-modal');
-    expect(dialog).toMatch(/overflow-y:\s*auto/);
-    expect(dialog).toMatch(/max-height:\s*min\(calc\(100vh - var\(--app-header-h\) - 40px\),\s*920px\)/);
-    expect(dialog).toMatch(/flex-direction:\s*column/);
-    expect(dialog).not.toMatch(/position:\s*absolute/);
-    const child = rule('.monitoring-question-modal > *');
-    expect(child).toMatch(/flex-shrink:\s*0/);
-    expect(child).toMatch(/min-height:\s*min-content/);
-    expect(child).toMatch(/position:\s*static/);
-  });
-
-  it('keeps the person title fixed while only its body scrolls', () => {
-    expect(rule('.monitoring-person-modal')).toMatch(/overflow:\s*hidden/);
-    expect(rule('.monitoring-person-modal-head')).toMatch(/flex:\s*none/);
-    expect(rule('.monitoring-person-modal-body')).toMatch(/overflow-y:\s*auto/);
-    expect(rule('.monitoring-person-modal-body')).toMatch(/overflow-x:\s*auto/);
-  });
-
-  it('uses viewport margins instead of a clipped full-width mobile panel', () => {
-    const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
-    expect(narrow).toMatch(/\.monitoring-person-overlay\s*\{[^}]*padding:\s*12px/);
-    expect(narrow).toMatch(/\.monitoring-person-modal\s*\{[^}]*width:\s*calc\(100vw - 24px\)/);
-    expect(narrow).toMatch(
-      /\.monitoring-person-modal\s*\{[^}]*max-height:\s*calc\(100vh - var\(--app-header-h\) - 24px\)/
-    );
-    expect(narrow).not.toMatch(/\.monitoring-person-modal\s*\{[^}]*width:\s*100vw/);
-  });
-
-  it('keeps Spend in normal flow before the KPI grid and gives the browser a wider shared modal', () => {
-    const spend = rule('.monitoring-spend');
-    expect(spend).not.toMatch(/position:\s*(absolute|fixed)/);
-    expect(spend).not.toMatch(/(^|;)\s*height:/);
-    expect(rule('.monitoring-person-modal-body')).toMatch(/display:\s*flex/);
-    expect(rule('.monitoring-person-modal-body')).toMatch(/flex-direction:\s*column/);
-    expect(rule('.monitoring-users-modal')).toMatch(/width:\s*min\(1080px/);
+  it('gives the user browser a wider shell and readable mobile rows', () => {
+    expect(CSS).toMatch(/\.monitoring-users-modal\s*\{\s*width:\s*min\(1080px/);
     expect(rule('.monitoring-user-row')).toMatch(/grid-template-columns/);
-    for (const selector of ['.monitoring-spend', '.monitoring-spend-components li', '.monitoring-panel-grid']) {
-      const css = rule(selector);
-      expect(css).not.toMatch(/position:\s*(absolute|fixed)/);
-      expect(css).not.toMatch(/(^|;)\s*height:\s*\d/);
-      expect(css).not.toMatch(/overflow:\s*hidden/);
-      expect(css).not.toMatch(/margin-(top|bottom):\s*-\d/);
-    }
-  });
-
-  it('turns browser rows into readable cards on narrow screens', () => {
     const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
     expect(narrow).toMatch(/\.monitoring-users-columns\s*\{[^}]*display:\s*none/);
-    expect(narrow).toMatch(/\.monitoring-spend-component-name\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
-    expect(narrow).toMatch(/\.monitoring-spend-component-amount\s*\{[^}]*grid-row:\s*2/);
-    expect(narrow).toMatch(/\.monitoring-spend-component-attribution\s*\{[^}]*grid-row:\s*2/);
-    expect(CSS).not.toContain('.monitoring-user-coverage');
     expect(narrow).toMatch(/\.monitoring-user-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/);
-    expect(narrow).toMatch(/\.monitoring-users-mobile-label\s*\{[^}]*display:\s*inline/);
+    expect(CSS).not.toContain('.monitoring-user-coverage');
+  });
+
+  it('uses one stable user-icon loader with static reduced-motion fallbacks', () => {
+    expect(rule('.monitoring-users-loading')).toMatch(/min-height:\s*180px/);
+    expect(rule('.monitoring-users-loading-icon')).toMatch(/width:\s*18px/);
+    expect(CSS).not.toContain('.monitoring-users-loading-list');
+    const reduced = partial('astrolabe-animation.css').slice(
+      partial('astrolabe-animation.css').indexOf('@media (prefers-reduced-motion: reduce)')
+    );
+    expect(reduced).toMatch(/\[class\*='ast-anim-'\]\s*\{[^}]*animation:\s*none/);
+    expect(reduced).toMatch(/\.ast-anim-center-pulse\s*\{[^}]*transform:\s*none/);
+    expect(partial('appearance-preferences.css')).toMatch(
+      /data-animations='off'[\s\S]*\.ast-anim-center-pulse[\s\S]*transform:\s*none/
+    );
   });
 });
 
-describe('the panel head and the scope badges cannot be clipped either', () => {
-  /**
-   * The close button is `flex: none`, so a long local part with no space in it
-   * would take its own minimum width out of the row first and push the only way
-   * out of the panel off the edge.
-   */
+describe('the panel head and identity controls cannot be clipped', () => {
   it('lets the name block shrink so the close button stays on screen', () => {
-    expect(rule('.monitoring-person-modal-head > div')).toMatch(/min-width:\s*0/);
-    expect(rule('.monitoring-drawer-close')).toMatch(/flex:\s*none/);
-    // An address has no space to wrap at, and this is the one place a break
-    expect(rule('.monitoring-panel-name')).toMatch(/min-width:\s*0/);
-    expect(rule('.monitoring-panel-name .identity-chip')).toMatch(/max-width:\s*100%/);
+    expect(rule('.user-profile-modal-user')).toMatch(/min-width:\s*0/);
+    expect(rule('.user-profile-modal-close,\n.user-profile-modal-back')).toMatch(/flex:\s*none/);
+    expect(rule('.user-profile-modal-user .identity-chip')).toMatch(/max-width:\s*100%/);
   });
 
-  /**
-   * A scope badge wraps, unlike every other pill in this file.
-   *
-   * The outcome pills carry one word. A scope badge carries four or five plus a
-   * run count, so `white-space: nowrap` inherited from `.monitoring-pill` would
-   * make its minimum width the whole label and push the row past the drawer at
-   * the width the drawer goes to 100vw. A badge that wraps cannot be clipped.
-   */
   it('lets a scope badge wrap rather than overrun the row', () => {
-    const scope = rule('.monitoring-scope');
-
+    const scope = rule('.user-profile-modal-scope');
     expect(scope).toMatch(/white-space:\s*normal/);
     expect(scope).toMatch(/max-width:\s*100%/);
     expect(scope).toMatch(/min-width:\s*0/);
-    // The pill it overrides is the nowrap one, so this is not a rule about nothing.
-    expect(rule('.monitoring-pill')).toMatch(/white-space:\s*nowrap/);
-    // And the row wraps, so several badges stack rather than scrolling sideways.
-    expect(rule('.monitoring-scopes')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.user-profile-modal-scopes')).toMatch(/flex-wrap:\s*wrap/);
   });
 
   /**
@@ -256,10 +190,10 @@ describe('the panel head and the scope badges cannot be clipped either', () => {
   it('sets the range beside a heading rather than in the heading’s own voice', () => {
     // It qualifies the section, it is not part of its name. In the eyebrow's own
     // caps and weight it reads as a second heading.
-    const range = rule('.monitoring-eyebrow-range');
+    const range = rule('.user-profile-modal-range');
     expect(range).toMatch(/text-transform:\s*none/);
     expect(range).toMatch(/color:\s*var\(--muted-foreground\)/);
-    expect(rule('.monitoring-eyebrow')).toMatch(/text-transform:\s*uppercase/);
+    expect(rule('.user-profile-modal-section-title')).toMatch(/text-transform:\s*uppercase/);
   });
 
   /** The badges are the section now, so nothing may re-add the prose block. */

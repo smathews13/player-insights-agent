@@ -87,7 +87,7 @@ export const EMPTY_COST_BUDGETS: CostBudgets = { total: EMPTY_COST_BUDGET, resou
  * resource. The retired rebuild-job tile stays here so an older saved document
  * cannot put that budget back onto a newer Cost payload.
  */
-export const COST_BUDGET_WITHHELD_TILE_IDS = new Set(['foundation-model', 'index-rebuild-job']);
+export const COST_BUDGET_WITHHELD_TILE_IDS = new Set(['index-rebuild-job']);
 
 export function costBudgetEligibleTile(tileId: string): boolean {
   return !COST_BUDGET_WITHHELD_TILE_IDS.has(tileId);

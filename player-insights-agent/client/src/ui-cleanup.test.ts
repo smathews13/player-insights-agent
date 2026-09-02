@@ -59,7 +59,9 @@ describe('app-wide dropdown recipe', () => {
 describe('Connections and Settings cleanup', () => {
   it('places Notebook and Apply together and stacks the pair on narrow screens', () => {
     const page = source('ConnectionsPage.tsx');
-    expect(page).toMatch(/configuration-plane-row[\s\S]*<NotebookCard[\s\S]*<ApplyDeclarationCard/);
+    const pane = source('NotebookAgentSyncPane.tsx');
+    expect(page).toContain("import('./NotebookAgentSyncPane')");
+    expect(pane).toMatch(/configuration-plane-row[\s\S]*<NotebookCard[\s\S]*<ApplyDeclarationCard/);
     expect(style('connections.css')).toMatch(
       /\.configuration-plane-row \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/
     );

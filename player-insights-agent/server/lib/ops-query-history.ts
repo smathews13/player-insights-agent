@@ -15,6 +15,8 @@ export interface WarehouseQueryAttribution {
   totalQueries: number;
   astrolabeExecutionMs: number;
   totalExecutionMs: number;
+  /** Ask-tagged execution attributed to one authoritative completed run. */
+  askRuns?: Array<{ runId: string; executionMs: number }>;
   /** Generated SQL measured for each exact Query History Genie space id. */
   genieSpaces: Array<{ spaceId: string; queries: number; executionMs: number }>;
   /**
@@ -39,6 +41,7 @@ export const EMPTY_WAREHOUSE_QUERY_ATTRIBUTION: WarehouseQueryAttribution = {
   totalQueries: 0,
   astrolabeExecutionMs: 0,
   totalExecutionMs: 0,
+  askRuns: [],
   genieSpaces: [],
   users: [],
   coverage: {
@@ -80,8 +83,15 @@ function rowId(row: QueryHistoryRow): string {
   return typeof row.query_id === 'string' ? row.query_id.trim() : '';
 }
 
-function isAstrolabe(row: QueryHistoryRow): boolean {
-  return parseQueryTags(row.query_tags).get('application') === 'Astrolabe';
+function interactiveRunId(row: QueryHistoryRow, runIds: ReadonlyMap<string, string>): string {
+  const tags = parseQueryTags(row.query_tags);
+  if (tags.get('application') !== 'Astrolabe' || tags.get('surface') !== 'ask') return '';
+  for (const key of ['run_id', 'correlation_id']) {
+    const candidate = tags.get(key) ?? '';
+    const runId = runIds.get(candidate);
+    if (runId) return runId;
+  }
+  return '';
 }
 
 function genieSpaceId(row: QueryHistoryRow): string {
@@ -156,6 +166,16 @@ export async function readWarehouseQueryAttribution(input: {
   maxPages?: number;
   deadlineMs?: number;
   now?: () => number;
+  /**
+   * The completed interactive Ask population from the run ledger.
+   * Query tags outside this closed identifier set are never widened into Ask.
+   */
+  interactiveRuns?: readonly {
+    runId: string;
+    requestId?: string;
+    correlationId: string;
+    evidenceComplete?: boolean;
+  }[];
 }): Promise<WarehouseQueryAttribution & { coverage: QueryHistoryCoverage }> {
   const warehouseId = input.warehouseId.trim();
   const requestedFrom = isoTimestamp(input.startTimeMs);
@@ -202,7 +222,17 @@ export async function readWarehouseQueryAttribution(input: {
   let astrolabeExecutionMs = 0;
   let totalExecutionMs = 0;
   const genieSpaces = new Map<string, { queries: number; executionMs: number }>();
+  const askRuns = new Map<string, number>();
   const users = new Map<string, { astrolabeExecutionMs: number; genieSpaces: Map<string, number> }>();
+  const runIds = new Map<string, string>();
+  if (input.interactiveRuns?.some((run) => run.evidenceComplete === false)) {
+    addReason(coverage, 'interactive-run-coverage');
+  }
+  for (const run of input.interactiveRuns ?? []) {
+    for (const id of [run.runId, run.requestId ?? '', run.correlationId]) {
+      if (id) runIds.set(id, run.runId);
+    }
+  }
   let totalQueries = 0;
   const aggregate = (row: QueryHistoryRow): void => {
     if (row.warehouse_id !== undefined && row.warehouse_id !== warehouseId) {
@@ -220,7 +250,8 @@ export async function readWarehouseQueryAttribution(input: {
     const spaceId = genieSpaceId(row);
     // A generated statement belongs to its exact Genie space. Excluding it from
     // the Astrolabe bucket makes the two allocations mutually exclusive.
-    const astrolabe = isAstrolabe(row) && !spaceId;
+    const interactiveRun = !spaceId ? interactiveRunId(row, runIds) : '';
+    const astrolabe = Boolean(interactiveRun);
     if (astrolabe) astrolabeQueries += 1;
     if (spaceId) {
       const current = genieSpaces.get(spaceId) ?? { queries: 0, executionMs: 0 };
@@ -234,6 +265,7 @@ export async function readWarehouseQueryAttribution(input: {
     }
     totalExecutionMs += duration;
     if (astrolabe) astrolabeExecutionMs += duration;
+    if (interactiveRun) askRuns.set(interactiveRun, (askRuns.get(interactiveRun) ?? 0) + duration);
     if (spaceId) genieSpaces.get(spaceId)!.executionMs += duration;
     const user = attributableUser(row);
     if (user) {
@@ -341,6 +373,9 @@ export async function readWarehouseQueryAttribution(input: {
     totalQueries,
     astrolabeExecutionMs,
     totalExecutionMs,
+    askRuns: [...askRuns]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([runId, executionMs]) => ({ runId, executionMs })),
     genieSpaces: [...genieSpaces].map(([spaceId, values]) => ({ spaceId, ...values })),
     users: [...users]
       .sort(([left], [right]) => left.localeCompare(right))

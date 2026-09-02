@@ -71,7 +71,7 @@ import { readOrchestratorReport } from './settings-routes';
 import { readCostBudgets } from '../lib/cost-budgets-store';
 import { sqlQueryTags } from '../lib/sql-query-tags';
 import { isDataContractFallback, listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
-import { userEmail, type InsightsAppKit, type PreflightReport } from './insights-routes';
+import { PLAN_APPROVAL_MESSAGE, userEmail, type InsightsAppKit, type PreflightReport } from './insights-routes';
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
 import { ACTIVE_MINUTES_PER_DAY_QUERY, validIanaTimeZone } from '../lib/app-activity';
 import {
@@ -81,12 +81,15 @@ import {
   cacheUserSpend,
   capUserSpendRange,
   readUserActivitySpendEvidence,
+  readUserInteractionEvidence,
   readUserRunSpendEvidence,
   USER_ACTIVE_MINUTES_QUERY,
+  USER_MONITORING_ACTIVITY_QUERY,
   USER_SPEND_RUNS_QUERY,
   userSpendDataRevision,
   userSpendCacheKey,
 } from '../lib/user-spend';
+import { appSessionDeployment } from '../lib/app-session';
 import { seedRoles } from '../lib/admin-roles';
 import { effectiveRole, everyKnownUser, readRosterForRequest } from '../lib/user-roster';
 import { isRole, type Role } from '../../shared/user-roster-contract';
@@ -105,6 +108,11 @@ import {
   classifyGenieAccounting,
   readGenieAccountingRows,
 } from '../lib/genie-accounting';
+import {
+  buildFoundationCostStatement,
+  foundationCostTile,
+  readFoundationBillingRows,
+} from '../lib/ops-foundation-billing';
 import { readRuntimeSettings } from '../lib/runtime-settings-store';
 import { listSpAssignments, listSpPersonas } from '../lib/sp-identity-store';
 import {
@@ -443,6 +451,10 @@ export async function costIdentifiersFor(
     ids: {
       appName,
       endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim(),
+      foundationModel:
+        text(configured['llm-endpoint']) ||
+        text(report?.configuration.find((entry) => entry.key === 'llm_endpoint')?.value) ||
+        (process.env.PLAYER_INSIGHTS_LLM_ENDPOINT ?? '').trim(),
       warehouseId: extras.warehouse,
       vectorEndpoint: vectorConnection.endpoint,
       vectorIndex,
@@ -941,8 +953,19 @@ async function trafficBreakdownsFor(
  */
 export const QUESTION_COST_RUNS_QUERY = `
   WITH completed AS (
-    SELECT r.run_id, COALESCE(r.correlation_id, '') AS correlation_id,
-           COALESCE(r.trace_id, '') AS trace_id, r.completed_at,
+    SELECT r.run_id,
+           COALESCE(m.response_json->'trace'->>'request_id', r.correlation_id, r.run_id, '') AS request_id,
+           COALESCE(r.correlation_id, '') AS correlation_id,
+           COALESCE(r.trace_id, m.response_json->'trace'->>'id', '') AS trace_id,
+           lower(r.user_email) AS user_email, r.created_at, r.completed_at,
+           CASE WHEN COALESCE(m.response_json->'trace'->>'prompt_tokens', '') ~ '^[0-9]+$'
+                THEN (m.response_json->'trace'->>'prompt_tokens')::bigint ELSE NULL END AS input_tokens,
+           CASE WHEN COALESCE(m.response_json->'trace'->>'completion_tokens', '') ~ '^[0-9]+$'
+                THEN (m.response_json->'trace'->>'completion_tokens')::bigint ELSE NULL END AS output_tokens,
+           CASE WHEN COALESCE(m.response_json->'trace'->>'cached_read_tokens', '') ~ '^[0-9]+$'
+                THEN (m.response_json->'trace'->>'cached_read_tokens')::bigint ELSE NULL END AS cached_read_tokens,
+           CASE WHEN COALESCE(m.response_json->'trace'->>'cache_write_tokens', '') ~ '^[0-9]+$'
+                THEN (m.response_json->'trace'->>'cache_write_tokens')::bigint ELSE NULL END AS cache_write_tokens,
            CASE
              WHEN COALESCE(m.response_json->'trace'->>'total_tokens', '') ~ '^[0-9]+$'
                THEN (m.response_json->'trace'->>'total_tokens')::bigint
@@ -954,7 +977,8 @@ export const QUESTION_COST_RUNS_QUERY = `
            END AS total_tokens
     FROM ${APP_SCHEMA}.runs r
     LEFT JOIN ${APP_SCHEMA}.messages m ON m.id = r.terminal_message_id
-    WHERE r.completed_at >= $1::date
+    WHERE r.state = 'SUCCEEDED'
+      AND r.completed_at >= $1::date
       AND r.completed_at < ($2::date + INTERVAL '1 day')
   ),
   counted AS (
@@ -964,11 +988,13 @@ export const QUESTION_COST_RUNS_QUERY = `
            COALESCE(SUM(total_tokens) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0) OVER (), 0)::bigint AS total_recorded_tokens
     FROM completed
   )
-  SELECT run_id, correlation_id, trace_id, completed_at, total_tokens,
-         runs_in_range, token_covered_runs, total_recorded_tokens
+  SELECT run_id, request_id, correlation_id, trace_id, user_email, created_at, completed_at,
+         input_tokens, output_tokens, total_tokens, cached_read_tokens, cache_write_tokens,
+         runs_in_range, token_covered_runs, total_recorded_tokens,
+         (runs_in_range <= 1000) AS evidence_complete
   FROM counted
   ORDER BY completed_at DESC
-  LIMIT 100`;
+  LIMIT 1000`;
 
 const QUESTION_COST_LIMIT = 100;
 
@@ -1079,20 +1105,32 @@ export async function resourceActivityAttribution(
   }
 }
 
-function questionRun(row: Record<string, unknown>): QuestionRunInput {
+export function questionRun(row: Record<string, unknown>): QuestionRunInput {
   const nullableNumber = (value: unknown): number | null => {
     const parsed = Number(text(value));
     return text(value) !== '' && Number.isFinite(parsed) ? parsed : null;
   };
   return {
     runId: text(row.run_id),
+    requestId: text(row.request_id),
     correlationId: text(row.correlation_id),
     traceId: text(row.trace_id),
+    user: text(row.user_email).toLowerCase(),
+    startedAt: text(row.created_at),
     completedAt: text(row.completed_at),
+    inputTokens: nullableNumber(row.input_tokens),
+    outputTokens: nullableNumber(row.output_tokens),
     totalTokens: nullableNumber(row.total_tokens),
+    ...(nullableNumber(row.cached_read_tokens) === null
+      ? {}
+      : { cachedReadTokens: nullableNumber(row.cached_read_tokens) ?? 0 }),
+    ...(nullableNumber(row.cache_write_tokens) === null
+      ? {}
+      : { cacheWriteTokens: nullableNumber(row.cache_write_tokens) ?? 0 }),
     runsInRange: count(row.runs_in_range),
     tokenCoveredRuns: count(row.token_covered_runs),
     totalRecordedTokens: count(row.total_recorded_tokens),
+    evidenceComplete: text(row.evidence_complete).toLowerCase() === 'true',
   };
 }
 
@@ -1110,6 +1148,7 @@ export async function warehouseQueryAttribution(input: {
   range: { from: string; to: string };
   transport?: WarehouseQueryHistoryTransport;
   signal?: AbortSignal;
+  interactiveRuns?: readonly QuestionRunInput[];
 }): Promise<WarehouseQueryAttribution> {
   const startTimeMs = Date.parse(`${input.range.from}T00:00:00Z`);
   const endTimeMs = Date.parse(`${input.range.to}T00:00:00Z`) + 86_400_000 - 1;
@@ -1135,6 +1174,7 @@ export async function warehouseQueryAttribution(input: {
       endTimeMs,
       transport,
       signal: input.signal,
+      interactiveRuns: input.interactiveRuns,
     });
   } catch (error) {
     console.warn(`[ops] Query History attribution was withheld: ${(error as Error).message}`);
@@ -1336,52 +1376,95 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         readReport: deps.readOrchestratorReport,
       });
       const ids = resolved.ids;
-      const [storedBudgets, resourceActivity, userRunsRead, userActivityRead, rosterRead, personaRead] =
-        await Promise.all([
-          readCostBudgets(appkit),
-          resourceActivityAttribution(appkit, ids, range),
-          appkit.lakebase
-            .query(USER_SPEND_RUNS_QUERY, [spendWindow.range.from, spendWindow.range.to])
-            .then((result) => ({ available: true as const, users: readUserRunSpendEvidence(result.rows), reason: '' }))
-            .catch((error: Error) => ({
-              available: false as const,
-              users: [],
-              reason: `Run identity evidence could not be read: ${error.message}`,
-            })),
-          appkit.lakebase
-            .query(USER_ACTIVE_MINUTES_QUERY, [spendWindow.range.from, spendWindow.range.to])
-            .then((result) => ({
-              available: true as const,
-              ...readUserActivitySpendEvidence(result.rows),
-              reason: '',
-            }))
-            .catch((error: Error) => ({
-              available: false as const,
-              users: [],
-              recordedFrom: '',
-              recordedThrough: '',
-              reason: `Per-user active-minute evidence could not be read: ${error.message}`,
-            })),
-          userBrowse
-            ? readRosterForRequest(appkit.lakebase, req)
-                .then((roster) => ({ available: true as const, rows: roster.rows, reason: '' }))
-                .catch((error: Error) => ({
-                  available: false as const,
-                  rows: [],
-                  reason: `Current app roles could not be read: ${error.message}`,
-                }))
-            : Promise.resolve({ available: true as const, rows: [], reason: '' }),
-          userBrowse
-            ? Promise.all([listSpPersonas(appkit), listSpAssignments(appkit)])
-                .then(([personas, assignments]) => ({ available: true as const, personas, assignments, reason: '' }))
-                .catch((error: Error) => ({
-                  available: false as const,
-                  personas: [],
-                  assignments: [],
-                  reason: `Current persona assignments could not be read: ${error.message}`,
-                }))
-            : Promise.resolve({ available: true as const, personas: [], assignments: [], reason: '' }),
-        ]);
+      const activityRange = userBrowse ? range : spendWindow.range;
+      const [
+        storedBudgets,
+        resourceActivity,
+        userRunsRead,
+        userActivityRead,
+        interactionRead,
+        rosterRead,
+        personaRead,
+        questionRunsRead,
+      ] = await Promise.all([
+        readCostBudgets(appkit),
+        resourceActivityAttribution(appkit, ids, range),
+        appkit.lakebase
+          .query(USER_SPEND_RUNS_QUERY, [activityRange.from, activityRange.to])
+          .then((result) => ({ available: true as const, users: readUserRunSpendEvidence(result.rows), reason: '' }))
+          .catch((error: Error) => ({
+            available: false as const,
+            users: [],
+            reason: `Run identity evidence could not be read: ${error.message}`,
+          })),
+        appkit.lakebase
+          .query(USER_ACTIVE_MINUTES_QUERY, [activityRange.from, activityRange.to])
+          .then((result) => ({
+            available: true as const,
+            ...readUserActivitySpendEvidence(result.rows),
+            reason: '',
+          }))
+          .catch((error: Error) => ({
+            available: false as const,
+            users: [],
+            recordedFrom: '',
+            recordedThrough: '',
+            reason: `Per-user active-minute evidence could not be read: ${error.message}`,
+          })),
+        userBrowse
+          ? appkit.lakebase
+              .query(USER_MONITORING_ACTIVITY_QUERY, [
+                activityRange.from,
+                activityRange.to,
+                appSessionDeployment() ?? '__unavailable__',
+                PLAN_APPROVAL_MESSAGE,
+              ])
+              .then((result) => ({
+                available: true as const,
+                users: readUserInteractionEvidence(result.rows),
+                reason: '',
+              }))
+              .catch((error: Error) => ({
+                available: false as const,
+                users: [],
+                reason: `User interaction evidence could not be read: ${error.message}`,
+              }))
+          : Promise.resolve({ available: true as const, users: [], reason: '' }),
+        userBrowse
+          ? readRosterForRequest(appkit.lakebase, req)
+              .then((roster) => ({ available: true as const, rows: roster.rows, reason: '' }))
+              .catch((error: Error) => ({
+                available: false as const,
+                rows: [],
+                reason: `Current app roles could not be read: ${error.message}`,
+              }))
+          : Promise.resolve({ available: true as const, rows: [], reason: '' }),
+        userBrowse
+          ? Promise.all([listSpPersonas(appkit), listSpAssignments(appkit)])
+              .then(([personas, assignments]) => ({ available: true as const, personas, assignments, reason: '' }))
+              .catch((error: Error) => ({
+                available: false as const,
+                personas: [],
+                assignments: [],
+                reason: `Current persona assignments could not be read: ${error.message}`,
+              }))
+          : Promise.resolve({ available: true as const, personas: [], assignments: [], reason: '' }),
+        appkit.lakebase
+          .query(QUESTION_COST_RUNS_QUERY, [range.from, range.to])
+          .then((result) => ({
+            available: true as const,
+            runs: result.rows.map((row) => questionRun(row)),
+            reason: '',
+          }))
+          .catch((error: Error) => ({
+            available: false as const,
+            runs: [] as QuestionRunInput[],
+            reason: `Interactive Ask evidence could not be read: ${error.message}`,
+          })),
+      ]);
+      const interactiveComplete =
+        questionRunsRead.available &&
+        (questionRunsRead.runs[0]?.evidenceComplete ?? questionRunsRead.runs.length === 0);
       const costBudgets = attributableCostBudgets(storedBudgets.budgets);
       const empty = {
         grant: null,
@@ -1398,6 +1481,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           runsInRange: 0,
           tokenCoveredRuns: 0,
           totalRecordedTokens: 0,
+          requestCoveredRuns: 0,
+          traceCoveredRuns: 0,
+          timingCoveredRuns: 0,
+          complete: false,
           limited: false,
           reason: '',
         },
@@ -1421,18 +1508,23 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             return name ? [[assignment.email.toLowerCase(), { id: assignment.personaId, name }] as const] : [];
           })
         );
-        const personaReason = personaRead.available ? '' : personaRead.reason;
+        const enrichmentReason = [
+          rosterRead.available ? '' : rosterRead.reason,
+          personaRead.available ? '' : personaRead.reason,
+          interactionRead.available ? '' : interactionRead.reason,
+        ].filter(Boolean);
         return buildUserMonitoringPage({
           spend:
-            rosterRead.available && personaRead.available
+            enrichmentReason.length === 0
               ? spend
               : {
                   ...spend,
                   state: 'partial',
-                  reason: [spend.reason, rosterRead.reason, personaReason].filter(Boolean).join(' '),
+                  reason: [spend.reason, ...enrichmentReason].filter(Boolean).join(' '),
                 },
           runs: userRunsRead.users,
           activity: userActivityRead.users,
+          interactions: interactionRead.users,
           roles,
           personas,
           personaOptions,
@@ -1490,7 +1582,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
       try {
         const genieStatement = buildGenieAccountingStatement(ids.workspaceId, range, ids.genieSpaces);
-        const [outcome, queryAttribution, genieOutcome] = await Promise.all([
+        const foundationStatement = interactiveComplete
+          ? buildFoundationCostStatement(ids, range, questionRunsRead.runs)
+          : null;
+        const [outcome, queryAttribution, genieOutcome, foundationOutcome] = await Promise.all([
           runStatement({
             host: workspace,
             token,
@@ -1506,6 +1601,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             range,
             transport: deps.queryHistoryTransport,
             signal: requestAbort.signal,
+            interactiveRuns: questionRunsRead.runs,
           }),
           genieStatement
             ? runStatement({
@@ -1517,11 +1613,36 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
                 fetchImpl: deps.fetchImpl,
               })
             : Promise.resolve({ ok: false as const, message: 'No workspace id is configured for Genie billing.' }),
+          foundationStatement
+            ? runStatement({
+                host: workspace,
+                token,
+                warehouseId: warehouse,
+                statement: foundationStatement.statement,
+                parameters: foundationStatement.parameters,
+                fetchImpl: deps.fetchImpl,
+              })
+            : Promise.resolve({
+                ok: false as const,
+                message:
+                  questionRunsRead.reason ||
+                  (!ids.foundationModel
+                    ? 'No configured foundation model is available.'
+                    : 'Interactive Ask evidence is unavailable.'),
+              }),
         ]);
-        const genieRows = genieOutcome.ok
-          ? readGenieAccountingRows(genieOutcome.rows as readonly Record<string, unknown>[])
-          : [];
-        const genieMonth = genieOutcome.ok ? classifyGenieAccounting(genieRows, range.to, ids.genieSpaces) : null;
+        const foundation = foundationOutcome.ok
+          ? foundationCostTile(ids, readFoundationBillingRows(foundationOutcome.rows))
+          : foundationCostTile(ids, null, foundationOutcome.message);
+        const genieRows = genieOutcome.ok ? readGenieAccountingRows(genieOutcome.rows) : [];
+        const genieMonthStart = `${range.to.slice(0, 7)}-01`;
+        const genieMonth = genieOutcome.ok
+          ? classifyGenieAccounting(
+              genieRows.filter((row) => row.usageDay >= genieMonthStart && row.usageDay <= range.to),
+              range.to,
+              ids.genieSpaces
+            )
+          : null;
         const geniePeriod = genieOutcome.ok
           ? classifyGenieAccounting(
               genieRows.filter((row) => row.usageDay >= range.from && row.usageDay <= range.to),
@@ -1531,7 +1652,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           : null;
         const genieAccounting = genieMonth && geniePeriod ? { month: genieMonth, period: geniePeriod } : null;
         const genieReason = genieOutcome.ok ? '' : `Genie billing could not be read: ${genieOutcome.message}`;
-        const inventoryCount = resourceTagInventory({ environment: process.env, report: resolved.report }).length;
+        const inventoryCount = resourceTagInventory({
+          environment: process.env,
+          report: resolved.report,
+        }).filter((resource) => resource.support === 'supported').length;
 
         if (!outcome.ok) {
           const denial = classifyDenial(outcome.message, 'system.billing.usage');
@@ -1606,7 +1730,14 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           queryAttribution,
           resourceActivity,
           genieAccounting,
-          genieReason
+          genieReason,
+          {
+            interactive: {
+              runs: questionRunsRead.runs,
+              complete: interactiveComplete,
+            },
+            foundation,
+          }
         );
         const spendCacheKey = userSpendCacheKey(userEmail(req), spendWindow.range);
         const spendByUser =
@@ -1662,6 +1793,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
                         usedDbus: allowance.allowanceUsedDbus,
                         remainingDbus: allowance.allowanceRemainingDbus,
                         promotionalDbus: allowance.promotionalDbus,
+                        unclassifiedFreeDbus: allowance.unknownDbus,
                         chargedEffectiveDbus: allowance.chargedEffectiveDbus,
                         chargedRawEquivalentDbus: allowance.chargedRawEquivalentDbus,
                       }
@@ -1680,20 +1812,12 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           : userBrowse
             ? { ...spendWithGenie, users: [] }
             : spendWithGenie;
-        let perQuestion: OpsCostPayload['perQuestion'] = {
-          ...empty.perQuestion,
-          reason: 'Per-question attribution could not be read from the run ledger.',
-        };
-        try {
-          const result = await appkit.lakebase.query(QUESTION_COST_RUNS_QUERY, [range.from, range.to]);
-          perQuestion = buildQuestionAttribution(
-            result.rows.map((row) => questionRun(row)),
-            tiles,
-            QUESTION_COST_LIMIT
-          );
-        } catch (error) {
-          perQuestion.reason = `Per-question attribution could not be read from the run ledger: ${(error as Error).message}`;
-        }
+        const perQuestion = questionRunsRead.available
+          ? buildQuestionAttribution(questionRunsRead.runs, tiles, QUESTION_COST_LIMIT, queryAttribution)
+          : {
+              ...empty.perQuestion,
+              reason: questionRunsRead.reason || 'Per-question attribution could not be read from the run ledger.',
+            };
 
         sendCost({
           ...empty,

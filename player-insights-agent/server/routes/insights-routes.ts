@@ -85,6 +85,8 @@ import { isUsableIdempotencyKey } from '../lib/run-request-hash';
 import { terminalStateFor } from '../lib/run-state';
 import { answerRatherThanExit } from '../lib/handler-failures';
 import { requestLatencyRecorder } from '../lib/request-latency';
+import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
+import type { TokenAttribution } from '../../shared/llm-token-usage';
 import {
   createWarehouseWarmup,
   describeWarmup,
@@ -414,6 +416,18 @@ const StageSchema = z.looseObject({
   // neither key, and requiring them would fail the parse.
   depth: z.number().default(0),
   parent_id: z.string().default(''),
+  token_usage: z
+    .object({
+      inputTokens: z.number().int().nonnegative().optional(),
+      outputTokens: z.number().int().nonnegative().optional(),
+      totalTokens: z.number().int().nonnegative().optional(),
+      cachedReadTokens: z.number().int().nonnegative().optional(),
+      cacheWriteTokens: z.number().int().nonnegative().optional(),
+      cacheStatus: z.enum(['used', 'not-used', 'unavailable']),
+      attempts: z.number().int().positive(),
+      totalMismatch: z.boolean(),
+    })
+    .optional(),
 });
 /**
  * A Genie space a run put its question to.
@@ -465,6 +479,20 @@ export const TraceSchema = z.looseObject({
   prompt_tokens: z.number().optional(),
   completion_tokens: z.number().optional(),
   total_tokens: z.number().optional(),
+  token_reconciliation: z
+    .object({
+      attributedTokens: z.number().int().nonnegative(),
+      attributedCalls: z.number().int().nonnegative(),
+      overviewTokens: z.number().int().nonnegative().optional(),
+      coveragePercent: z.number().nonnegative().optional(),
+      unattributedTokens: z.number().int().nonnegative().optional(),
+      nestedAggregateTokens: z.number().int().nonnegative(),
+      mismatchCount: z.number().int().nonnegative(),
+      cachedReadTokens: z.number().int().nonnegative().optional(),
+      cacheCoveredInputTokens: z.number().int().nonnegative().optional(),
+      cacheHitPercent: z.number().nonnegative().optional(),
+    })
+    .optional(),
 });
 /**
  * What one statement of a run measured, over what window, from which table.
@@ -973,6 +1001,22 @@ export const RunTraceSchema = z.looseObject({
     .default(null),
 });
 export type RunTrace = z.infer<typeof RunTraceSchema>;
+
+/** Attach the redacted MLflow projection without changing the stored answer. */
+export function withTokenAttribution(run: RunTrace, attribution: TokenAttribution | null): RunTrace {
+  if (!run.trace || !attribution) return run;
+  return {
+    ...run,
+    trace: {
+      ...run.trace,
+      stages: run.trace.stages.map((stage) => {
+        const usage = attribution.stages[stage.id];
+        return usage ? { ...stage, token_usage: usage } : stage;
+      }),
+      token_reconciliation: attribution.reconciliation,
+    },
+  };
+}
 
 /** `response_json` arrives parsed from JSONB, but as text through some drivers and fakes. */
 function parseStoredJson(value: unknown): unknown {
@@ -3362,6 +3406,8 @@ export function setupInsightsRoutes(
     identityControlPlaneReader?: ControlPlaneReader;
     /** Test seam for authoritative app-budget admission. */
     readBudgetStatus?: typeof readAppBudgetStatus;
+    /** Production reads only token-bearing MLflow span metadata; tests inject fixtures. */
+    traceTokenEvidenceReader?: TraceTokenEvidenceReader;
   } = {}
 ): Promise<{ storeReady: Promise<void> }> {
   // BEFORE `prepareStore`, not after, and that ordering is load-bearing rather
@@ -5549,6 +5595,16 @@ export function setupInsightsRoutes(
           message: 'No run with this id is stored. It may have been created by a different workspace.',
         });
         return;
+      }
+
+      const trace = resolved.trace;
+      if (trace && options.traceTokenEvidenceReader && isMlflowTraceId(trace.id)) {
+        const evidence = await options.traceTokenEvidenceReader(
+          trace.id,
+          trace.stages.map((stage) => stage.id),
+          trace.total_tokens
+        );
+        resolved = withTokenAttribution(resolved, evidence);
       }
 
       // Same posture as the answer contract: report a shape that has drifted,

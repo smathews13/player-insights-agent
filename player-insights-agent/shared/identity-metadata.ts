@@ -1,5 +1,5 @@
 /**
- * Authoritative user and app metadata shown in Connections → Identity.
+ * Authoritative user, app, and app service-principal metadata shown in Connections → Identity.
  *
  * Every value is safe deployment context or an identifier. Credentials,
  * request headers, tokens, and control-plane error bodies are deliberately not
@@ -27,12 +27,31 @@ export interface AppIdentityMetadata {
   workspaceId: string;
 }
 
+/** Sanitized fields returned by the Databricks Apps record for this app. */
+export interface AppServicePrincipalMetadata {
+  displayName: string;
+  applicationId: string;
+  objectId: string;
+  authenticationType: string;
+  attachedResourceCount: number | null;
+  state: IdentityMetadataReadState;
+}
+
 export interface ControlPlaneIdentityMetadata {
   user: WorkspaceUserMetadata;
   app: AppIdentityMetadata;
+  servicePrincipal: AppServicePrincipalMetadata;
 }
 
 export const NO_CONTROL_PLANE_IDENTITY_METADATA: ControlPlaneIdentityMetadata = {
   user: { displayName: '', objectId: '', state: 'not_reported', readAt: '' },
   app: { displayName: 'Astrolabe', resourceName: '', workspaceHost: '', workspaceId: '' },
+  servicePrincipal: {
+    displayName: '',
+    applicationId: '',
+    objectId: '',
+    authenticationType: '',
+    attachedResourceCount: null,
+    state: 'not_reported',
+  },
 };

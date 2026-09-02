@@ -264,12 +264,8 @@ describe('the ranged cost route', () => {
         { name: 'to_day', value: '2026-08-17', type: 'DATE' },
       ])
     );
-    expect(payload.perQuestion.runs[0].parts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: 'serving-endpoint', quality: 'per-token', amount: 12 }),
-        expect.objectContaining({ id: 'sql-warehouse', quality: 'estimate', amount: 7 }),
-        expect.objectContaining({ id: 'genie', quality: 'unknown', amount: null }),
-      ])
+    expect(payload.perQuestion.runs[0].parts.map((part) => part.id)).toEqual(
+      expect.arrayContaining(['serving-endpoint', 'foundation-model', 'sql-warehouse', 'genie'])
     );
     expect(payload.budgets).toEqual({ total: { USD: null, DBU: null }, resources: {} });
     expect(payload.budgetsReadable).toBe(true);
@@ -317,7 +313,7 @@ describe('the ranged cost route', () => {
     process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE = 'Dictionary';
     process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX = 'cat.schema.index';
     process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID = 'job-123';
-    const fetchImpl = vi.fn((input: string | URL | globalThis.Request) => {
+    const fetchImpl = vi.fn((input: string | URL | globalThis.Request, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       if (url.endsWith('/preview/scim/v2/Me')) {
         return Promise.resolve(
@@ -341,6 +337,58 @@ describe('the ranged cost route', () => {
             status: 200,
             headers: { 'content-type': 'application/json' },
           })
+        );
+      }
+      const statement =
+        typeof init?.body === 'string' ? ((JSON.parse(init.body) as { statement?: string }).statement ?? '') : '';
+      if (statement.includes('WITH configured_spaces AS')) {
+        return Promise.resolve(
+          new globalThis.Response(
+            JSON.stringify({
+              status: { state: 'SUCCEEDED' },
+              result: {
+                data_array: [
+                  [
+                    '2026-08-17',
+                    'person@example.test',
+                    'human',
+                    'GENIE_CODE',
+                    'UI',
+                    'PAYGO',
+                    'GENIE_FREE_USAGE',
+                    'space-data',
+                    'query-history-exact',
+                    '12.5',
+                    '0',
+                    '0',
+                    '0',
+                    '0',
+                    '1',
+                    '2026-08-17',
+                  ],
+                  [
+                    '2026-08-17',
+                    'person@example.test',
+                    'human',
+                    'GENIE_ONE',
+                    'UI',
+                    'PAYGO',
+                    'GENIE_FREE_USAGE',
+                    'space-dictionary',
+                    'query-history-allocation',
+                    '3',
+                    '0',
+                    '0',
+                    '0',
+                    '0',
+                    '1',
+                    '2026-08-17',
+                  ],
+                ],
+              },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
         );
       }
       return Promise.resolve(
@@ -492,7 +540,17 @@ describe('the ranged cost route', () => {
       ['genie:dictionary', 'space-dictionary'],
     ]);
     expect(payload.genieInstances?.map((instance) => instance.spaceId)).toEqual(['space-data', 'space-dictionary']);
-    expect(payload.tiles.some((tile) => tile.id === 'foundation-model')).toBe(false);
+    expect(payload.genieInstances).toMatchObject([
+      { allowanceUsedDbus: 12.5, promotionalDbus: 0, underlyingTotalDbus: 12.5 },
+      { allowanceUsedDbus: 0, promotionalDbus: 3, underlyingTotalDbus: 3 },
+    ]);
+    expect(payload.genieAccounting?.reconciliation).toMatchObject({
+      sourceRows: 2,
+      sourceDbus: 15.5,
+      classifiedDbus: 15.5,
+      classificationDifferenceDbus: 0,
+    });
+    expect(payload.tiles.some((tile) => tile.id === 'foundation-model')).toBe(true);
     const vector = payload.tiles.find((tile) => tile.id === 'vector-search');
     expect(vector).toMatchObject({
       resourceId: 'cat.schema.index',

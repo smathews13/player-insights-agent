@@ -36,9 +36,9 @@
  * `ops-session.ts` rather than in this page's `useState`: leaving the tab and
  * coming back is not a reason to scan billing again. Refresh still is.
  */
-import { useState, type KeyboardEvent } from 'react';
+import { useState } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router';
-import { ChevronLeft, ChevronRight, ExternalLink, Search, SlidersHorizontal, Users, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Search, Users, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
@@ -88,13 +88,12 @@ import { rangeLabel, rangeWindow } from './time-range';
 import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
 import { ForecastingBody } from './ForecastingPanel';
 import { MethodologySections, type MethodologyGroup } from './MethodologySection';
-import { APP_BUDGET_GUARDRAILS } from '../../shared/app-budget-contract';
-import { GATEWAY_USAGE_ATTRIBUTION_HOOKS } from '../../shared/ai-gateway-contract';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
 import { EntityText } from './DataEntityLinks';
-import { adjacentCostDisplayUnit, persistCostDisplayUnit, readCostDisplayUnit } from './cost-unit-preference';
+import { persistCostDisplayUnit, readCostDisplayUnit } from './cost-unit-preference';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import { perUserSpendHref } from './cost-user-monitoring-link';
+import { UnitSegmentedControl } from './UnitSegmentedControl';
 import type {
   DependencyResult,
   GrantRemedy,
@@ -550,46 +549,7 @@ export function CostUnitControl({
   unit: CostBudgetUnit;
   onChange: (unit: CostBudgetUnit) => void;
 }) {
-  const segments: Array<{ unit: CostBudgetUnit; label: string; accessible: string }> = [
-    { unit: 'USD', label: '$', accessible: 'US dollars' },
-    { unit: 'DBU', label: 'DBU', accessible: 'Databricks units' },
-  ];
-  const move = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    const next = adjacentCostDisplayUnit(
-      unit,
-      event.key as 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown' | 'Home' | 'End'
-    );
-    onChange(next);
-    event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`[data-cost-unit="${next}"]`)?.focus();
-  };
-  return (
-    <div className="time-range cost-unit-control">
-      <span className="cost-unit-filter-label">
-        <SlidersHorizontal aria-hidden="true" />
-        <span>Budget unit</span>
-      </span>
-      <div className="time-range-segments cost-unit-segments" role="radiogroup" aria-label="Budget unit filter">
-        {segments.map((segment) => (
-          <button
-            key={segment.unit}
-            type="button"
-            role="radio"
-            aria-checked={unit === segment.unit}
-            aria-label={segment.accessible}
-            tabIndex={unit === segment.unit ? 0 : -1}
-            data-cost-unit={segment.unit}
-            className="time-range-segment cost-unit-segment"
-            onClick={() => onChange(segment.unit)}
-            onKeyDown={move}
-          >
-            {segment.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  return <UnitSegmentedControl unit={unit} onChange={onChange} label="Budget unit" ariaLabel="Budget unit filter" />;
 }
 
 export function CostBody({
@@ -624,6 +584,9 @@ export function CostBody({
   const absent = payload ? costAbsence(payload) : null;
   const replaceGrid = payload ? costAbsenceReplacesGrid(payload) : false;
   const displayed = payload ? costTilesForDisplay(payload.tiles) : [];
+  const budgetTiles = displayed.filter(
+    (tile) => tile.id !== 'foundation-model' || tileAttribution(tile) === 'deployment'
+  );
 
   return (
     <section className="ops-block" aria-labelledby="ops-cost-heading">
@@ -651,7 +614,7 @@ export function CostBody({
         {block.busy && !payload ? (
           <Skeleton className="ops-skeleton" />
         ) : payload ? (
-          <CostBudgetProvider payload={payload} tileIds={displayed.map((tile) => tile.id)} unit={unit}>
+          <CostBudgetProvider payload={payload} tileIds={budgetTiles.map((tile) => tile.id)} unit={unit}>
             {replaceGrid && absent ? (
               <Absence notice={absent}>{payload.grant ? <Grant grant={payload.grant} /> : null}</Absence>
             ) : null}
@@ -660,7 +623,7 @@ export function CostBody({
               <div className="ops-cost-summary-box">
                 <CostTotalBudget />
               </div>
-              <CostResourceBudgets tiles={displayed} />
+              <CostResourceBudgets tiles={budgetTiles} />
             </div>
             <div className="ops-cost-resources">
               <div className="ops-tiles">
@@ -714,7 +677,7 @@ function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
   if (tile.genieInstanceAccounting) {
     const genie = tile.genieInstanceAccounting;
     return (
-      <dl className="ops-genie-accounting" aria-label={`${tile.label} month-to-date accounting`}>
+      <dl className="ops-genie-accounting" aria-label={`${tile.label} selected-period accounting`}>
         <div>
           <dt>Charged · selected period</dt>
           <dd className="ast-num">{tile.dbus == null ? 'Unavailable' : `${tile.dbus.toFixed(2)} effective DBU`}</dd>
@@ -731,10 +694,47 @@ function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
           <dt>Underlying total</dt>
           <dd className="ast-num">{genie.underlyingTotalDbus.toFixed(2)} DBU</dd>
         </div>
+        {genie.unknownDbus > 0 ? (
+          <div>
+            <dt>Unclassified</dt>
+            <dd className="ast-num">{genie.unknownDbus.toFixed(2)} DBU</dd>
+          </div>
+        ) : null}
       </dl>
     );
   }
   const evidence = tile.evidence;
+  if (tile.id === 'foundation-model' && evidence?.tokens) {
+    const tokens = evidence.tokens;
+    return (
+      <p className="ops-tile-evidence">
+        {`${count(tokens.coveredRequests)} interactive ${tokens.coveredRequests === 1 ? 'request' : 'requests'} · ${count(
+          tokens.input
+        )} input · ${count(tokens.output)} output · ${count(tokens.total)} total tokens`}
+        {tokens.cachedRead !== undefined ? ` · ${count(tokens.cachedRead)} cached read` : ''}
+        {tokens.cacheWrite !== undefined ? ` · ${count(tokens.cacheWrite)} cache write` : ''}
+      </p>
+    );
+  }
+  if (tile.id === 'serving-endpoint') {
+    const requests = evidence?.interactiveRequests;
+    const covered = evidence?.coveredRequests;
+    const fact =
+      requests !== null && requests !== undefined
+        ? `${count(covered ?? 0)} of ${count(requests)} interactive requests have timing coverage`
+        : '';
+    return <p className="ops-tile-evidence">{fact || '\u00a0'}</p>;
+  }
+  if (tile.id === 'sql-warehouse') {
+    const queries = evidence?.astrolabeQueries;
+    const fact =
+      queries !== null && queries !== undefined
+        ? `${count(queries)} Ask-tagged ${queries === 1 ? 'query' : 'queries'} · ${
+            evidence?.queryHistoryComplete ? 'complete Query History' : 'partial Query History'
+          }`
+        : '';
+    return <p className="ops-tile-evidence">{fact || '\u00a0'}</p>;
+  }
   const billingRows = evidence?.billingRows ?? 0;
   const fact =
     billingRows > 0
@@ -806,12 +806,6 @@ function QuestionCostAverage({ payload, unit }: { payload: OpsCostPayload; unit:
 }
 
 function CostMethodology({ payload }: { payload: OpsCostPayload }) {
-  const budgetGuardrails = [
-    ...APP_BUDGET_GUARDRAILS,
-    ...(GATEWAY_USAGE_ATTRIBUTION_HOOKS.every((hook) => !hook.enabled)
-      ? [{ label: 'AI Gateway controls', value: 'Separate and currently inactive' }]
-      : []),
-  ];
   const calculated = payload.tiles.filter(
     (tile) =>
       tileAttribution(tile) === 'deployment' &&
@@ -819,9 +813,14 @@ function CostMethodology({ payload }: { payload: OpsCostPayload }) {
         (typeof tile.dbus === 'number' && Number.isFinite(tile.dbus)))
   );
   const detailFor = (tile: OpsCostPayload['tiles'][number]): string => {
-    if (tile.id === 'serving-endpoint') return 'Exact endpoint billing rows at Databricks list prices.';
+    if (tile.id === 'serving-endpoint') {
+      return 'Priced agent-endpoint quantity × completed interactive Ask duration ÷ billed endpoint duration; idle/base and non-Ask activity are excluded.';
+    }
+    if (tile.id === 'foundation-model') {
+      return 'Actual priced Foundation Model API billing × matched interactive Ask token share in the same model/time buckets; token counts are never treated as DBUs.';
+    }
     if (tile.id === 'sql-warehouse') {
-      return 'Matched warehouse spend × Astrolabe’s measured Query History execution-time share.';
+      return 'Priced warehouse spend × completed-run Ask-tagged Query History execution time ÷ all warehouse execution time; preflight, Ops, telemetry, benchmarks, Genie SQL, and unrelated queries are excluded.';
     }
     if (tile.id.startsWith('genie:')) {
       return 'Charged Genie billing only. Human monthly allowance and promotional usage are shown separately and never added to paid spend.';
@@ -842,19 +841,6 @@ function CostMethodology({ payload }: { payload: OpsCostPayload }) {
         },
         ...calculated.map((tile) => ({ label: tile.label, detail: detailFor(tile) })),
       ],
-    },
-    {
-      title: 'Budget controls',
-      rows: [
-        {
-          label: 'Monthly app budget',
-          detail: 'A guardrail, not a hard billing ceiling; enforcement follows the structured rules below.',
-        },
-      ],
-    },
-    {
-      title: 'Budget guardrails',
-      rows: budgetGuardrails.map((row) => ({ label: row.label, detail: row.value })),
     },
   ];
   return (

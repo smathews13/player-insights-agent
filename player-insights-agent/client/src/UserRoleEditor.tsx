@@ -42,6 +42,7 @@ import { AppSelect } from './AppSelect';
 import { roleOptions } from './user-role-options';
 import { RoleBadge } from './RoleBadge';
 import { OrganizationAvatar } from './OrganizationAvatar';
+import { UserDrilldownLink } from './UserDrilldownLink';
 import { organizationForEmail } from '../../shared/organization-mapping';
 import {
   assignSpPersona,
@@ -324,9 +325,15 @@ export function RosterRows({
                     <span className="admin-row-email">
                       <OrganizationAvatar organization={organization} />
                       <span className="roster-email-details">
-                        <span className="admin-row-address" title={entry.email}>
+                        <UserDrilldownLink
+                          identity={entry.email}
+                          variant="text"
+                          className="admin-row-address"
+                          title={entry.email}
+                          canOpen
+                        >
                           {entry.email}
-                        </span>
+                        </UserDrilldownLink>
                         <span className="roster-organization-name">{organization.name}</span>
                       </span>
                       {entry.isYou ? <span className="admin-row-you">you</span> : null}
@@ -402,13 +409,7 @@ export function RosterRows({
   );
 }
 
-export function UserRoleEditor({
-  spIdentityEnabled = false,
-  canManageHumanRoles = true,
-}: {
-  spIdentityEnabled?: boolean;
-  canManageHumanRoles?: boolean;
-}) {
+export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanRoles?: boolean }) {
   const [payload, setPayload] = useState<RosterPayload | null>(null);
   const [spPayload, setSpPayload] = useState<SpIdentityAdminPayload>(EMPTY_SP_IDENTITY);
   const [spLoaded, setSpLoaded] = useState(false);
@@ -548,7 +549,7 @@ export function UserRoleEditor({
             busy={busy}
             personas={spPayload.personas}
             personaByEmail={personaByEmail}
-            personaDisabled={!spIdentityEnabled || (Boolean(spError) && !spLoaded)}
+            personaDisabled={Boolean(spError) && !spLoaded}
             showPersona={true}
             manageHumanRoles={canManageHumanRoles}
             onPersonaChange={(email, personaId) =>
@@ -598,7 +599,6 @@ export function UserRoleEditor({
 
       <section className="settings-identity-section" aria-label="Service principal personas">
         <SpIdentityEditor
-          enabled={spIdentityEnabled}
           payload={spPayload}
           busy={busy}
           loading={loading}

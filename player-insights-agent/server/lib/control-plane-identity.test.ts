@@ -38,6 +38,12 @@ function completeReader(calls: string[] = []): ControlPlaneReader {
       return Promise.resolve({
         name: INPUT.appName,
         url: 'https://player-insights-agent-<workspace-id>.<region>.databricksapps.com',
+        service_principal_name: 'Astrolabe application',
+        service_principal_client_id: 'abcdefab-0000-4000-8000-000000000000',
+        service_principal_id: '9988776655443322',
+        resources: [{ name: 'warehouse' }, { name: 'serving' }],
+        client_secret: 'never-cross-the-wire',
+        authorization: 'Bearer never-cross-the-wire',
       });
     }
     return Promise.reject(new Error('unexpected path'));
@@ -61,6 +67,14 @@ describe('Databricks control-plane identity metadata', () => {
         workspaceHost: INPUT.workspaceHost,
         workspaceId: '<workspace-id>',
       },
+      servicePrincipal: {
+        displayName: 'Astrolabe application',
+        applicationId: 'abcdefab-0000-4000-8000-000000000000',
+        objectId: '9988776655443322',
+        authenticationType: 'OAuth machine-to-machine',
+        attachedResourceCount: 2,
+        state: 'verified',
+      },
     });
   });
 
@@ -77,6 +91,7 @@ describe('Databricks control-plane identity metadata', () => {
 
     expect(metadata.user.state).toBe('not_reported');
     expect(metadata.app.workspaceId).toBe('');
+    expect(metadata.servicePrincipal.state).toBe('not_reported');
     expect(wire).not.toMatch(/Bearer|token-value|CLIENT_SECRET|password|PERMISSION_DENIED/i);
   });
 
@@ -121,12 +136,13 @@ describe('Databricks control-plane identity metadata', () => {
     expect(calls.filter((call) => call === `${SCIM_USERS_PATH}:userName eq ${INPUT.email}`)).toHaveLength(2);
   });
 
-  it('never requests or returns the application principal metadata removed from the client contract', async () => {
+  it('returns only the sanitized application principal fields from the Apps record', async () => {
     const calls: string[] = [];
     const metadata = await readControlPlaneIdentityMetadata(INPUT, { read: completeReader(calls), now: 4_000 });
     const wire = JSON.stringify(metadata);
 
     expect(calls).not.toContain('/api/2.0/preview/scim/v2/Me:');
-    expect(wire).not.toMatch(/servicePrincipal|applicationId|9988776655443322/i);
+    expect(metadata.servicePrincipal.applicationId).toBe('abcdefab-0000-4000-8000-000000000000');
+    expect(wire).not.toMatch(/clientSecret|client_secret|authorization|bearer|databasePassword|never-cross-the-wire/i);
   });
 });

@@ -22,9 +22,10 @@
  * the old one. Which affordance a row gets is decided in
  * `shared/deployment-config.ts` rather than here.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { useLocation, useOutletContext } from 'react-router';
 import './styles/routes/connections.css';
-import { showsAdminSurfaces, useRole } from './role';
+import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
 import {
   Alert,
   AlertDescription,
@@ -81,7 +82,7 @@ import { buildFacts, type BuildArtifact } from './connection-build';
 // Build card draws are decided there, so a row with nothing to say is dropped
 // before the markup sees it.
 import { deploymentRows, telemetryRows, type BuildRow } from './build-card';
-import { UserIdentityChip } from './UserIdentityChip';
+import { UserDrilldownLink } from './UserDrilldownLink';
 import { NO_APP_FACTS } from '../../shared/app-facts';
 import { EntityHighlight, EntityParts, VisitInDatabricks } from './DataEntityLinks';
 import { entityRowProps, isRequestedEntity, useRequestedEntity } from './data-entity-state';
@@ -92,9 +93,7 @@ import { checkBadgeVariant, checkVerdictLabel, verdictBadgeVariant, type Preflig
 // the rows cannot disagree. See shared/check-verdict.ts.
 import { CHECK_VERDICT_LABEL } from '../../shared/check-verdict';
 // One mechanism runs the checks for the whole session, and both tabs read it.
-import { NotebookCard } from './NotebookCard';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
-import { ApplyDeclarationCard } from './ApplyDeclarationCard';
 import {
   DECLARED_TABLES_SECTION_ID,
   RESOURCE_PRODUCT,
@@ -154,6 +153,12 @@ import {
 } from './connection-model';
 import { connectionResourceView } from './connection-resource-view';
 import { AiGatewayConnection } from './AiGatewayConnection';
+import { NO_EXPERIMENTS, showsNotebookAgentSync } from './experimental-features';
+import { notebookAgentSyncTarget } from './notebook-agent-sync-deep-link';
+
+const NotebookAgentSyncPane = lazy(() =>
+  import('./NotebookAgentSyncPane').then((loaded) => ({ default: loaded.NotebookAgentSyncPane }))
+);
 
 /**
  * The tone a section's rows carry, decided by the section they are in.
@@ -244,7 +249,7 @@ export function BuildFactRow({ row }: { row: BuildRow }) {
           <p className="deployment-fact-text" title={row.title}>
             <span className="deployment-fact-lead">{row.value}</span>
             {row.aside ? <span className="deployment-fact-aside">{row.aside}</span> : null}
-            {row.identity ? <UserIdentityChip identity={row.identity} label="by" compact /> : null}
+            {row.identity ? <UserDrilldownLink identity={row.identity} label="by" compact /> : null}
           </p>
         ) : null}
         {/* A PLACE, NOT A VALUE. These two rows are the only ones on the card
@@ -292,7 +297,7 @@ export function BuildFactRow({ row }: { row: BuildRow }) {
 /** One build stamp, kept separate from the dependency status rows below. */
 export function BuildStampRow({ artifact }: { artifact: BuildArtifact }) {
   return (
-    <div className="identity-fact">
+    <div className="identity-fact deployment-source-fact">
       <p className="identity-fact-label">{artifact.label}</p>
       <div className="identity-fact-value">
         {/* Eight characters, which is what a reader recognises a commit by, and
@@ -306,6 +311,7 @@ export function BuildStampRow({ artifact }: { artifact: BuildArtifact }) {
         />
         {artifact.full ? <CopyButton value={artifact.full} label={`Copy the ${artifact.label} commit`} /> : null}
       </div>
+      <p className="deployment-source-description">{artifact.description}</p>
     </div>
   );
 }
@@ -1244,6 +1250,11 @@ export function ConnectionRow({
 export function ConnectionsPage() {
   const role = useRole();
   const allowMutations = showsAdminSurfaces(role.state);
+  const features = useOutletContext<AppOutletContext | null>()?.features ?? NO_EXPERIMENTS;
+  const notebookAgentSyncEnabled = showsNotebookAgentSync(features);
+  const location = useLocation();
+  const blockedNotebookAgentSyncLink =
+    !notebookAgentSyncEnabled && notebookAgentSyncTarget({ search: location.search, hash: location.hash }) !== null;
   const [saving, setSaving] = useState('');
   const [writeError, setWriteError] = useState('');
 
@@ -1271,7 +1282,8 @@ export function ConnectionsPage() {
    */
   const firstRun = refreshing && !session;
 
-  const requestedEntity = useRequestedEntity();
+  const linkedEntity = useRequestedEntity();
+  const requestedEntity = blockedNotebookAgentSyncLink ? '' : linkedEntity;
   // A resource id rather than a table name means the link came from a
   // connection, so the table matrix is not where it is going.
   const requestedResource = CONNECTED_RESOURCES.some((resource) => resource.id === requestedEntity.toLowerCase())
@@ -1559,6 +1571,13 @@ export function ConnectionsPage() {
         </Alert>
       ) : null}
 
+      {blockedNotebookAgentSyncLink ? (
+        <Alert data-testid="notebook-agent-sync-disabled">
+          <CircleAlert />
+          <AlertDescription>Enable Notebook agent sync in Experimental settings</AlertDescription>
+        </Alert>
+      ) : null}
+
       {/* Only ever visible to someone who followed an entity link here and whose
           entry has since stopped being tracked. Silence in that case would be
           the page answering a question it had not been asked. */}
@@ -1670,11 +1689,6 @@ export function ConnectionsPage() {
               {build.artifacts.map((artifact) => (
                 <BuildStampRow key={artifact.key} artifact={artifact} />
               ))}
-              {build.artifacts.length === 2 &&
-              build.artifacts[0].full &&
-              build.artifacts[0].full === build.artifacts[1].full ? (
-                <p className="deployment-release-match">Same release</p>
-              ) : null}
               {telemetryFacts.map((row) => (
                 <BuildFactRow key={row.key} row={row} />
               ))}
@@ -1696,16 +1710,16 @@ export function ConnectionsPage() {
         <IdentityCard read={identityRead} remedyStatedElsewhere={findings.required.length > 0} />
       </div>
 
-      {/* The notebook, and where what it published differs from what the model is
-          running. Drawn from the payload rather than fetched here, so this page
-          keeps its one read per session. */}
-      <div className="configuration-plane-row">
-        <NotebookCard panel={payload?.notebook} allowMutations={allowMutations} onSaved={rereadSettings} />
-
-        {/* The same panel the Notebook card reads, so the two cannot disagree
-            about whether a notebook is connected. */}
-        <ApplyDeclarationCard notebook={payload?.notebook} onRefresh={() => void refresh()} />
-      </div>
+      {notebookAgentSyncEnabled ? (
+        <Suspense fallback={null}>
+          <NotebookAgentSyncPane
+            notebook={payload?.notebook}
+            allowMutations={allowMutations}
+            onSaved={rereadSettings}
+            onRefresh={() => void refresh()}
+          />
+        </Suspense>
+      ) : null}
 
       {/* ONE SECTION PER VERDICT, and the verdict said once in its header. The
           list was grouped by what a dependency IS -- "Agents and models", "Genie

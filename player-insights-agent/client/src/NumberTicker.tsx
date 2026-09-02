@@ -126,7 +126,7 @@ export function TickerAssumptionField({
         {children}
         {unit ? <small>{unit}</small> : null}
       </span>
-      <small className="ops-ticker-assumption-helper">{helper}</small>
+      {helper ? <small className="ops-ticker-assumption-helper">{helper}</small> : null}
       {error ? (
         <small className="ops-ticker-assumption-error" role="alert">
           {error}

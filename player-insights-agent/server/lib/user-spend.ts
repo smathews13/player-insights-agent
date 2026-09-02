@@ -1,4 +1,5 @@
 import { APP_ACTIVITY_TABLE } from './app-activity';
+import { APP_SESSION_TABLE } from './app-session';
 import { APP_SCHEMA } from '../../shared/app-schema';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import type { CostTile, OpsDayRange } from '../../shared/ops-contract';
@@ -51,6 +52,7 @@ export interface UserRunSpendEvidence {
   totalRuns: number;
   tokenCoveredRuns: number;
   totalTokens: number;
+  totalDurationMs?: number;
   lastActive?: string;
   resources: Array<{ tool: string; resourceId: string; calls: number }>;
 }
@@ -67,6 +69,14 @@ export interface UserActivitySpendEvidence {
   lastActive?: string;
 }
 
+export interface UserInteractionEvidence {
+  email: string;
+  questions: number;
+  runs: number;
+  firstActive: string;
+  lastActive: string;
+}
+
 export interface DirectUserSpendEvidence {
   email: string;
   componentId: string;
@@ -80,6 +90,7 @@ export const USER_SPEND_RUNS_QUERY = `
     SELECT lower(r.user_email) AS user_email,
            r.run_id,
            r.completed_at,
+           r.created_at,
            m.response_json->'trace' AS trace,
            CASE
              WHEN COALESCE(m.response_json->'trace'->>'total_tokens', '') ~ '^[0-9]+$'
@@ -94,6 +105,7 @@ export const USER_SPEND_RUNS_QUERY = `
     LEFT JOIN ${APP_SCHEMA}.messages m ON m.id = r.terminal_message_id
     WHERE r.completed_at >= $1::date
       AND r.completed_at < ($2::date + INTERVAL '1 day')
+      AND r.state = 'SUCCEEDED'
   ),
   run_totals AS (
     SELECT user_email,
@@ -101,6 +113,7 @@ export const USER_SPEND_RUNS_QUERY = `
            COUNT(*) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0)::int AS token_covered_runs,
            COALESCE(SUM(total_tokens) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0), 0)::bigint
              AS total_tokens,
+           COALESCE(SUM(EXTRACT(EPOCH FROM (completed_at - created_at)) * 1000), 0)::bigint AS total_duration_ms,
            MAX(completed_at) AS last_active
     FROM completed
     GROUP BY user_email
@@ -148,12 +161,14 @@ export const USER_SPEND_RUNS_QUERY = `
   )
   SELECT 'run' AS row_kind, totals.user_email,
          totals.total_runs, totals.token_covered_runs, totals.total_tokens,
+         totals.total_duration_ms,
          totals.last_active,
          ''::text AS tool, ''::text AS resource_id, 0::bigint AS calls
   FROM run_totals totals
   UNION ALL
   SELECT 'resource' AS row_kind, resources.user_email,
          0::int, 0::int, 0::bigint,
+         0::bigint,
          NULL::timestamptz,
          resources.tool, resources.resource_id, SUM(resources.calls)::bigint
   FROM resources
@@ -180,6 +195,51 @@ export const USER_ACTIVE_MINUTES_QUERY = `
   LEFT JOIN selected ON TRUE
   GROUP BY selected.user_email, bounds.recorded_from, bounds.recorded_through
   ORDER BY selected.user_email`;
+
+/**
+ * Durable evidence that a person actually used this Astrolabe deployment.
+ * Roster, ACL, role, and persona tables are deliberately absent.
+ *
+ * A successfully persisted authenticated app session qualifies even when the
+ * person asked no question. Session-only history is shown only while that
+ * retained session record exists; the browser does not invent page visits after
+ * retention removes it.
+ */
+export const USER_MONITORING_ACTIVITY_QUERY = `
+  WITH evidence AS (
+    SELECT lower(c.user_email) AS user_email, m.id AS evidence_id, 'question'::text AS kind, m.created_at AS occurred_at
+    FROM ${APP_SCHEMA}.messages m
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
+    WHERE m.role = 'user'
+      AND m.content <> $4
+      AND m.created_at >= $1::date
+      AND m.created_at < ($2::date + INTERVAL '1 day')
+    UNION ALL
+    SELECT lower(r.user_email), r.run_id, 'run', r.created_at
+    FROM ${APP_SCHEMA}.runs r
+    WHERE r.created_at >= $1::date
+      AND r.created_at < ($2::date + INTERVAL '1 day')
+    UNION ALL
+    SELECT lower(f.user_email), f.id, 'feedback', f.created_at
+    FROM ${APP_SCHEMA}.feedback f
+    WHERE f.created_at >= $1::date
+      AND f.created_at < ($2::date + INTERVAL '1 day')
+    UNION ALL
+    SELECT lower(s.subject), s.session_hash, 'session', s.created_at
+    FROM ${APP_SESSION_TABLE} s
+    WHERE s.deployment_key = $3
+      AND s.created_at >= $1::date
+      AND s.created_at < ($2::date + INTERVAL '1 day')
+  )
+  SELECT user_email,
+         COUNT(DISTINCT evidence_id) FILTER (WHERE kind = 'question')::int AS questions,
+         COUNT(DISTINCT evidence_id) FILTER (WHERE kind = 'run')::int AS runs,
+         MIN(occurred_at) AS first_active,
+         MAX(occurred_at) AS last_active
+  FROM evidence
+  WHERE user_email <> ''
+  GROUP BY user_email
+  ORDER BY user_email`;
 
 function number(value: unknown): number {
   const parsed = typeof value === 'number' ? value : Number(value);
@@ -218,6 +278,9 @@ export function readUserRunSpendEvidence(rows: readonly Record<string, unknown>[
       current.totalRuns = number(row.total_runs);
       current.tokenCoveredRuns = number(row.token_covered_runs);
       current.totalTokens = number(row.total_tokens);
+      if (row.total_duration_ms !== undefined && row.total_duration_ms !== null) {
+        current.totalDurationMs = number(row.total_duration_ms);
+      }
       const lastActive = row.last_active instanceof Date ? row.last_active.toISOString() : text(row.last_active);
       if (lastActive) current.lastActive = lastActive;
     } else if (text(row.row_kind) === 'resource') {
@@ -226,6 +289,26 @@ export function readUserRunSpendEvidence(rows: readonly Record<string, unknown>[
       if (tool && calls > 0) current.resources.push({ tool, resourceId: text(row.resource_id), calls });
     }
     users.set(email, current);
+  }
+  return [...users.values()].sort((left, right) => left.email.localeCompare(right.email));
+}
+
+export function readUserInteractionEvidence(rows: readonly Record<string, unknown>[]): UserInteractionEvidence[] {
+  const users = new Map<string, UserInteractionEvidence>();
+  for (const row of rows) {
+    const email = text(row.user_email).toLowerCase();
+    if (!email) continue;
+    const firstActive = row.first_active instanceof Date ? row.first_active.toISOString() : text(row.first_active);
+    const lastActive = row.last_active instanceof Date ? row.last_active.toISOString() : text(row.last_active);
+    const existing = users.get(email);
+    const lastTimes = [existing?.lastActive ?? '', lastActive].filter(Boolean).sort();
+    users.set(email, {
+      email,
+      questions: Math.max(existing?.questions ?? 0, number(row.questions)),
+      runs: Math.max(existing?.runs ?? 0, number(row.runs)),
+      firstActive: [existing?.firstActive ?? '', firstActive].filter(Boolean).sort()[0] ?? '',
+      lastActive: lastTimes[lastTimes.length - 1] ?? '',
+    });
   }
   return [...users.values()].sort((left, right) => left.email.localeCompare(right.email));
 }
@@ -343,7 +426,14 @@ export function buildSpendByUser(input: {
   const genieComponentIds = input.tiles
     .filter((tile) => tile.id.startsWith('genie:') && Boolean(tile.resourceId))
     .map((tile) => tile.id);
-  const componentIds = ['serving-endpoint', 'sql-warehouse', ...genieComponentIds, 'vector-search', 'app-compute'];
+  const componentIds = [
+    'serving-endpoint',
+    'foundation-model',
+    'sql-warehouse',
+    ...genieComponentIds,
+    'vector-search',
+    'app-compute',
+  ];
   const labels = new Map(input.tiles.map((tile) => [tile.id, tile.label]));
   const perUser = new Map<string, UserSpendComponent[]>();
   for (const email of users) perUser.set(email, []);
@@ -360,11 +450,20 @@ export function buildSpendByUser(input: {
     const direct = (input.direct ?? []).filter(
       (row) => row.componentId === id && typeof (unit === 'USD' ? row.usd : row.dbu) === 'number'
     );
+    const directByEmail = new Map<string, { value: number; quality: 'direct' | 'joined' }>();
+    for (const row of direct) {
+      const email = row.email.toLowerCase();
+      const current = directByEmail.get(email);
+      directByEmail.set(email, {
+        value: (current?.value ?? 0) + ((unit === 'USD' ? row.usd : row.dbu) as number),
+        quality: current?.quality === 'direct' || row.quality === 'direct' ? 'direct' : 'joined',
+      });
+    }
     const allocated =
       total === null
         ? new Map<string, number>()
         : direct.length > 0
-          ? new Map(direct.map((row) => [row.email.toLowerCase(), (unit === 'USD' ? row.usd : row.dbu) as number]))
+          ? new Map([...directByEmail].map(([email, entry]) => [email, entry.value]))
           : usable
             ? allocateDeterministically(total, weights)
             : new Map<string, number>();
@@ -372,7 +471,7 @@ export function buildSpendByUser(input: {
     const residual =
       total === null ? null : Math.round((total - attributedTotal) * ALLOCATION_SCALE) / ALLOCATION_SCALE;
     for (const email of users) {
-      const found = direct.find((row) => row.email.toLowerCase() === email);
+      const found = directByEmail.get(email);
       const value = allocated.get(email) ?? null;
       const quality: UserSpendQuality = found?.quality ?? (value === null ? 'unavailable' : 'allocated');
       let component = perUser.get(email)?.find((entry) => entry.id === id);
@@ -423,9 +522,19 @@ export function buildSpendByUser(input: {
       let usable = false;
       let reason = tile?.unavailable || 'No attributable component amount was measured.';
       if (id === 'serving-endpoint') {
+        const timingReported = input.runs.every((row) => row.totalDurationMs !== undefined);
+        weights = new Map(
+          input.runs.map((row) => [row.email, timingReported ? (row.totalDurationMs ?? 0) : row.totalTokens])
+        );
+        usable =
+          input.runs.length > 0 &&
+          (timingReported || servingCoverage) &&
+          [...weights.values()].some((value) => value > 0);
+        reason = usable ? '' : 'Serving spend lacks complete interactive request timing.';
+      } else if (id === 'foundation-model') {
         weights = new Map(input.runs.map((row) => [row.email, row.totalTokens]));
         usable = servingCoverage && [...weights.values()].some((value) => value > 0);
-        reason = usable ? '' : 'Serving spend lacks complete per-run token coverage.';
+        reason = usable ? '' : 'Foundation-model spend lacks complete per-run token coverage.';
       } else if (id === 'sql-warehouse') {
         weights = new Map(input.queryUsers.map((row) => [row.email, row.astrolabeExecutionMs]));
         usable = input.queryComplete && [...weights.values()].some((value) => value > 0);
@@ -577,6 +686,7 @@ export function buildUserMonitoringPage(input: {
   spend: SpendByUserPayload;
   runs: UserRunSpendEvidence[];
   activity: UserActivitySpendEvidence[];
+  interactions?: UserInteractionEvidence[];
   roles: ReadonlyMap<string, Role>;
   personas?: ReadonlyMap<string, { id: string; name: string }>;
   personaOptions?: Array<{ id: string; name: string }>;
@@ -590,7 +700,8 @@ export function buildUserMonitoringPage(input: {
   const profiles = new Map(input.spend.users.map((profile) => [profile.email.toLowerCase(), profile]));
   const runs = new Map(input.runs.map((row) => [row.email.toLowerCase(), row]));
   const activity = new Map(input.activity.map((row) => [row.email.toLowerCase(), row]));
-  const emails = new Set<string>([...profiles.keys(), ...runs.keys(), ...activity.keys(), ...input.roles.keys()]);
+  const interactions = new Map((input.interactions ?? []).map((row) => [row.email.toLowerCase(), row]));
+  const emails = new Set<string>([...profiles.keys(), ...runs.keys(), ...activity.keys(), ...interactions.keys()]);
   const search = (input.search ?? '').trim().toLowerCase().slice(0, 120);
 
   const unavailable: UserSpendAmount = { amount: null, quality: 'unavailable' };
@@ -600,7 +711,10 @@ export function buildUserMonitoringPage(input: {
       const profile = profiles.get(email);
       const run = runs.get(email);
       const active = activity.get(email);
-      const activeTimes = [run?.lastActive ?? '', active?.lastActive ?? ''].filter(Boolean).sort();
+      const interaction = interactions.get(email);
+      const activeTimes = [interaction?.lastActive ?? '', run?.lastActive ?? '', active?.lastActive ?? '']
+        .filter(Boolean)
+        .sort();
       const lastActive = activeTimes[activeTimes.length - 1] ?? '';
       const usd = profile?.total.usd ?? unavailable;
       const dbu = profile?.total.dbu ?? unavailable;
@@ -609,8 +723,8 @@ export function buildUserMonitoringPage(input: {
         role: input.roles.get(email) ?? 'consumer',
         persona: input.personas?.get(email) ?? null,
         lastActive,
-        questions: run?.totalRuns ?? 0,
-        runs: run?.totalRuns ?? 0,
+        questions: interaction?.questions ?? run?.totalRuns ?? 0,
+        runs: interaction?.runs ?? run?.totalRuns ?? 0,
         spend: { usd, dbu },
         coverage: (input.unit === 'USD' ? usd : dbu).quality,
       };

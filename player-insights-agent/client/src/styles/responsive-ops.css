@@ -41,4 +41,13 @@
   .ops-ticker-assumption {
     width: 100%;
   }
+  .ops-cost-summary-budget {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ops-cost-summary-budget .ast-num {
+    text-align: left;
+  }
+  .ops-cost-summary-budget-mtd {
+    grid-column: auto;
+  }
 }

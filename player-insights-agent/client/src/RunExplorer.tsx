@@ -59,7 +59,7 @@ import { runLabel } from './run-label';
 import { TraceDag } from './TraceDag';
 import { TraceTimeline } from './TraceTimeline';
 import type { Conversation, Run } from './app-types';
-import { UserIdentityChip } from './UserIdentityChip';
+import { UserDrilldownLink } from './UserDrilldownLink';
 import { RunRatingBadge } from './RunRatingBadge';
 import { RunOverviewKpis } from './RunOverviewKpis';
 import {
@@ -525,6 +525,7 @@ export function RunExplorer() {
                 reference={isReference}
                 groundedness={groundedness}
                 canEdit={canEdit}
+                canOpenUser={canEdit}
                 onLabelsSaved={(overlay) => {
                   const id = selected?.id;
                   if (id) setLabelOverlay({ runId: id, value: overlay });
@@ -730,7 +731,7 @@ export function RunListItem({ run, active, onSelect }: { run: Run; active: boole
       <span className="run-item-prompt">{runLabel(run)}</span>
       <span className="run-item-meta">
         <span>
-          <UserIdentityChip identity={run.stakeholder} compact />
+          <UserDrilldownLink identity={run.stakeholder} compact />
           {typeof run.duration_ms === 'number' && Number.isFinite(run.duration_ms) ? (
             <>
               {' · '}

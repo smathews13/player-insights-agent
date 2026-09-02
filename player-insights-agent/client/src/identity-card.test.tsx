@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { IdentityCard } from './IdentityPanel';
@@ -43,7 +44,6 @@ const IDENTITY: PanelIdentity = {
   },
   analyticalExecution: { mode: 'signed_in_user', verified: true },
   spIdentity: {
-    enabled: false,
     minting: { available: true, detail: '' },
     assigned: null,
     executingAs: 'oauth',
@@ -62,10 +62,20 @@ const IDENTITY: PanelIdentity = {
       workspaceHost: 'https://dbc-example.cloud.databricks.com',
       workspaceId: '<workspace-id>',
     },
+    servicePrincipal: {
+      displayName: 'Astrolabe application',
+      applicationId: 'abcdefab-0000-4000-8000-000000000000',
+      objectId: '9988776655443322',
+      authenticationType: 'OAuth machine-to-machine',
+      attachedResourceCount: 2,
+      state: 'verified',
+    },
   },
 };
 
 const SIGNED_IN: DeploymentIdentity = { identity: IDENTITY, failed: false };
+const CONNECTIONS_CSS = readFileSync(new URL('./styles/connections.css', import.meta.url), 'utf8');
+const RESPONSIVE_CSS = readFileSync(new URL('./styles/responsive-connections.css', import.meta.url), 'utf8');
 
 /** The markup with its tags removed, which is roughly what a reader is handed. */
 function textOf(read: DeploymentIdentity): string {
@@ -81,14 +91,14 @@ describe('IdentityCard', () => {
     expect(textOf(SIGNED_IN)).toContain('someone');
   });
 
-  it('renders the two retained identity groups in one overview', () => {
+  it('renders the three live identity groups in one overview', () => {
     const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
     const text = textOf(SIGNED_IN);
 
-    for (const section of ['Signed-in user', 'App']) {
+    for (const section of ['Signed-in user', 'App', 'Service principal']) {
       expect(text).toContain(section);
     }
-    expect(markup.match(/class="identity-section"/g)).toHaveLength(2);
+    expect(markup.match(/class="identity-section"/g)).toHaveLength(3);
     expect(markup).toContain('class="identity-overview"');
     for (const value of [
       'Someone Example',
@@ -102,12 +112,33 @@ describe('IdentityCard', () => {
       '<workspace-id>',
       'Execution',
       'Signed-in user',
+      'Astrolabe application',
+      'abcdefab-0000-4000-8000-000000000000',
+      '9988776655443322',
+      'OAuth machine-to-machine',
+      'Attached resources',
     ]) {
       expect(text).toContain(value);
     }
-    expect(text).not.toMatch(/service principal|application id|object id|metadata read|responsibility/i);
-    expect(markup).not.toMatch(/identity-sp-heading|Copy application ID|Copy service principal object ID/i);
+    expect(text).not.toMatch(/metadata read|responsibility|not reported/i);
+    expect(markup).toContain('id="identity-sp-heading"');
+    expect(markup).toContain('aria-label="Copy application ID"');
+    expect(markup).toContain('aria-label="Copy service principal ID"');
     expect(markup).toContain(DATABRICKS_SYMBOL);
+  });
+
+  it('uses a responsive three, two, and one-column layout without fixed heights', () => {
+    expect(CONNECTIONS_CSS).toMatch(
+      /\.identity-overview \{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/s
+    );
+    expect(RESPONSIVE_CSS).toMatch(
+      /@media \(max-width:\s*1180px\)[\s\S]*?\.identity-overview \{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s
+    );
+    expect(RESPONSIVE_CSS).toMatch(
+      /@media \(max-width:\s*800px\)[\s\S]*?\.identity-overview \{[^}]*minmax\(0,\s*1fr\)/s
+    );
+    expect(CONNECTIONS_CSS).not.toMatch(/\.identity-section \{[^}]*(?:height|max-height):/s);
+    expect(CONNECTIONS_CSS).toMatch(/\.identity-section \{[^}]*background:\s*var\(--background\)/s);
   });
 
   it('keeps full long values in titles and explicit copy controls', () => {
@@ -120,6 +151,10 @@ describe('IdentityCard', () => {
           ...IDENTITY.identityMetadata!.app,
           workspaceHost: 'https://an-extraordinarily-long-workspace-host.cloud.databricks.com',
         },
+        servicePrincipal: {
+          ...IDENTITY.identityMetadata!.servicePrincipal,
+          applicationId: 'abcdefab-0000-4000-8000-000000000000-extra-long-application-id',
+        },
       },
     };
     const markup = renderToStaticMarkup(<IdentityCard read={{ identity: longIdentity, failed: false }} />);
@@ -131,6 +166,8 @@ describe('IdentityCard', () => {
       ['workspace user ID', '1122334455667788'],
       ['Databricks app resource name', 'player-insights-agent'],
       ['workspace ID', '<workspace-id>'],
+      ['application ID', 'abcdefab-0000-4000-8000-000000000000-extra-long-application-id'],
+      ['service principal ID', '9988776655443322'],
     ]) {
       expect(markup).toContain(`title="${value}"`);
       expect(markup).toContain(`aria-label="Copy ${label}"`);
@@ -144,6 +181,14 @@ describe('IdentityCard', () => {
         identityMetadata: {
           user: { displayName: '', objectId: '', state: 'not_reported', readAt: '' },
           app: { displayName: 'Astrolabe', resourceName: '', workspaceHost: '', workspaceId: '' },
+          servicePrincipal: {
+            displayName: 'Partial principal',
+            applicationId: 'abcdefab-0000-4000-8000-000000000000',
+            objectId: '',
+            authenticationType: 'OAuth machine-to-machine',
+            attachedResourceCount: null,
+            state: 'verified',
+          },
         },
       },
       failed: false,
@@ -154,6 +199,26 @@ describe('IdentityCard', () => {
     expect(markup).not.toContain('Resource name');
     expect(markup).not.toContain('Workspace host');
     expect(markup).not.toContain('Workspace ID');
+    expect(markup).toContain('Partial principal');
+    expect(markup).not.toContain('Service principal ID');
+    expect(markup).not.toContain('Attached resources');
+  });
+
+  it('shows one concise value when the live service principal is unavailable', () => {
+    const metadata = {
+      ...IDENTITY.identityMetadata!,
+      servicePrincipal: {
+        displayName: '',
+        applicationId: '',
+        objectId: '',
+        authenticationType: '',
+        attachedResourceCount: null,
+        state: 'not_reported' as const,
+      },
+    };
+    const text = textOf({ identity: { ...IDENTITY, identityMetadata: metadata }, failed: false });
+    expect(text).toContain('Service principal Status Unavailable');
+    expect(text).not.toMatch(/not reported|metadata|responsibility/i);
   });
 
   it('names an effective assigned persona without adding execution prose', () => {
@@ -163,7 +228,6 @@ describe('IdentityCard', () => {
         role: 'super_admin',
         analyticalExecution: { mode: 'assigned_service_principal', verified: true },
         spIdentity: {
-          enabled: true,
           minting: { available: true, detail: '' },
           assigned: { displayName: 'Finance analyst' },
           executingAs: 'service_principal',
@@ -188,19 +252,20 @@ describe('IdentityCard', () => {
       identityMetadata: {
         ...IDENTITY.identityMetadata!,
         servicePrincipal: {
-          displayName: 'Legacy app principal',
+          displayName: '<img src=x onerror=alert(1)>',
           applicationId: 'abcdefab-0000-4000-8000-000000000000',
           objectId: '9988776655443322',
-          state: 'verified',
-          readAt: '2026-08-31T17:00:00.000Z',
+          authenticationType: 'OAuth machine-to-machine',
+          attachedResourceCount: 2,
+          state: 'verified' as const,
         },
         rawError: '403 with token-must-not-render',
       },
     };
     const markup = renderToStaticMarkup(<IdentityCard read={{ identity, failed: false }} />);
-    expect(markup).not.toMatch(
-      /client-secret-must-not-render|bearer-must-not-render|database-password-must-not-render|token-must-not-render|Legacy app principal|abcdefab|9988776655443322/
-    );
+    expect(markup).not.toMatch(/client-secret-must-not-render|bearer-must-not-render|database-password-must-not-render|token-must-not-render/);
+    expect(markup).not.toContain('<img src=x');
+    expect(markup).toContain('&lt;img src=x onerror=alert(1)&gt;');
   });
 
   it('prints none of the sentences the card was rebuilt to stop printing', () => {
@@ -216,7 +281,6 @@ describe('IdentityCard', () => {
       identity: {
         ...IDENTITY,
         spIdentity: {
-          enabled: true,
           minting: { available: false, detail: 'minting unavailable' },
           assigned: { displayName: 'Finance analyst' },
           executingAs: 'oauth',
@@ -276,13 +340,14 @@ describe('IdentityCard', () => {
 });
 
 describe('execution responsibility', () => {
-  it('names app execution without exposing an application identity', () => {
+  it('names app execution while keeping the live application identity separate', () => {
     const text = textOf({
       identity: { ...IDENTITY, analyticalExecution: { mode: 'app_service_principal', verified: true } },
       failed: false,
     });
     expect(text).toContain('Execution Astrolabe app');
-    expect(text).not.toMatch(/service principal|abcdefab/i);
+    expect(text).toContain('Service principal');
+    expect(text).not.toMatch(/client secret|bearer|token/i);
   });
 
   it('names an assigned persona without returning its internal ids', () => {
@@ -291,7 +356,6 @@ describe('execution responsibility', () => {
         ...IDENTITY,
         analyticalExecution: { mode: 'assigned_service_principal', verified: true },
         spIdentity: {
-          enabled: true,
           minting: { available: true, detail: 'ok' },
           assigned: { displayName: 'Finance analyst' },
           executingAs: 'service_principal',
@@ -301,6 +365,6 @@ describe('execution responsibility', () => {
       failed: false,
     });
     expect(text).toContain('Execution Assigned persona · Finance analyst');
-    expect(text).not.toMatch(/client id|application id|object id/i);
+    expect(text).not.toMatch(/persona-1|client secret|secret scope|secret key/i);
   });
 });

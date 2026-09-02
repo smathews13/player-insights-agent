@@ -85,7 +85,12 @@ function exampleRangeText(
 
 function formulaText(component: { id: string; formula: string }): string {
   if (component.id === 'serving-endpoint') {
-    return 'Daily questions × observed serving cost per question × assumed-to-observed token ratio';
+    return component.formula.includes('marginal')
+      ? 'Daily questions × observed marginal serving cost per question'
+      : 'Daily questions × observed serving cost per question × assumed-to-observed token ratio';
+  }
+  if (component.id === 'foundation-model') {
+    return 'Daily questions × observed token cost per question × assumed-to-observed token ratio';
   }
   if (component.id === 'sql-warehouse') return 'Daily questions × observed attributed SQL cost per question';
   if (component.id === 'app-compute') return 'Measured app-compute daily billing rate, held fixed';

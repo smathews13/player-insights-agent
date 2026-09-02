@@ -62,6 +62,7 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
   const authMode =
     identity?.identitySource === 'databricks-apps' ? 'Databricks Apps OAuth' : 'Local development fallback';
   const assignedPersona = identity?.spIdentity?.assigned?.displayName ?? '';
+  const servicePrincipal = metadata?.servicePrincipal;
   const execution =
     identity?.analyticalExecution?.mode === 'app_service_principal'
       ? 'Astrolabe app'
@@ -150,6 +151,47 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
                 <Fact label="Execution">
                   <span>{execution}</span>
                 </Fact>
+              </div>
+            </section>
+
+            <section className="identity-section" aria-labelledby="identity-sp-heading">
+              <h4 id="identity-sp-heading">Service principal</h4>
+              <div className="identity-section-grid">
+                {servicePrincipal?.state === 'verified' ? (
+                  <>
+                    {servicePrincipal.displayName ? (
+                      <Fact label="Display name">
+                        <span className="identity-full-value" title={servicePrincipal.displayName}>
+                          {servicePrincipal.displayName}
+                        </span>
+                      </Fact>
+                    ) : null}
+                    {servicePrincipal.applicationId ? (
+                      <Fact label="Application ID">
+                        <Identifier label="application ID" value={servicePrincipal.applicationId} />
+                      </Fact>
+                    ) : null}
+                    {servicePrincipal.objectId ? (
+                      <Fact label="Service principal ID">
+                        <Identifier label="service principal ID" value={servicePrincipal.objectId} />
+                      </Fact>
+                    ) : null}
+                    {servicePrincipal.authenticationType ? (
+                      <Fact label="Authentication">
+                        <span>{servicePrincipal.authenticationType}</span>
+                      </Fact>
+                    ) : null}
+                    {servicePrincipal.attachedResourceCount !== null ? (
+                      <Fact label="Attached resources">
+                        <span className="ast-num">{servicePrincipal.attachedResourceCount}</span>
+                      </Fact>
+                    ) : null}
+                  </>
+                ) : (
+                  <Fact label="Status">
+                    <StatusBadge value="Unavailable" tone="plain" />
+                  </Fact>
+                )}
               </div>
             </section>
           </div>

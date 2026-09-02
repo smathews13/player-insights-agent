@@ -34,7 +34,6 @@ import {
   pickerForAddKind,
 } from './declared-connection-view';
 import { NotebookCard } from './NotebookCard';
-import { EXPERIMENTAL_PANE_HINT } from './ExperimentalBadge';
 import { notebookPathView, persistNotebookPath } from './notebook-card-state';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import {
@@ -171,8 +170,7 @@ describe('the notebook row', () => {
 
   it('shows the notebook, the revision and the published value', () => {
     const markup = renderToStaticMarkup(<NotebookCard panel={panel()} />);
-    expect(markup).toContain('Experimental');
-    expect(markup).toContain(`title="${EXPERIMENTAL_PANE_HINT}"`);
+    expect(markup).not.toContain('experimental-pane-badge');
     expect(markup).toContain('rev-41');
     expect(markup).toMatch(/Published to[\s\S]*\/Workspace\/Users\/analyst@example.invalid\/insights-agent/);
     expect(markup).toMatch(/Path source[\s\S]*Latest published run/);

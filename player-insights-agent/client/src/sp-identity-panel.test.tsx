@@ -64,17 +64,21 @@ const DEFINITION = {
 };
 
 function render(enabled: boolean, payload: SpIdentityAdminPayload = PAYLOAD): string {
+  void enabled;
   return renderToStaticMarkup(
-    <SpIdentityEditor enabled={enabled} payload={payload} busy={false} readError={null} onRename={() => {}} />
+    <SpIdentityEditor payload={payload} busy={false} readError={null} onRename={() => {}} />
   );
 }
 
 describe('Settings → Identity', () => {
-  it('grays the pane until the experimental switch is on', () => {
-    const off = render(false);
-    expect(off).toContain('data-testid="sp-identity-pane"');
-    expect(off).toContain('disabled=""');
-    expect(off).toContain('Turn SP identities on under Experimental');
+  it('keeps mappings available for both legacy true and false states', () => {
+    for (const legacy of [false, true]) {
+      const markup = render(legacy);
+      expect(markup).toContain('data-testid="sp-identity-pane"');
+      expect(markup).toContain('SP Personas');
+      expect(markup).not.toContain('Turn SP identities on under Experimental');
+      expect(markup).not.toMatch(/<fieldset[^>]*disabled/);
+    }
   });
 
   it('lets an administrator name an existing SP role without exposing credentials', () => {
@@ -144,7 +148,6 @@ describe('Settings → Identity', () => {
   it('renders a clean permissions builder and a truthful external SP link', () => {
     const markup = renderToStaticMarkup(
       <SpIdentityEditor
-        enabled={true}
         payload={{ ...PAYLOAD, personaDefinitions: [] }}
         busy={false}
         readError={null}
@@ -361,7 +364,6 @@ describe('Settings → Identity', () => {
   it('reports a completed definition write without implying that an account SP was provisioned', () => {
     const markup = renderToStaticMarkup(
       <SpIdentityEditor
-        enabled={true}
         payload={{ ...PAYLOAD, personaDefinitions: [] }}
         busy={false}
         readError={null}
@@ -425,7 +427,6 @@ describe('Settings → Identity', () => {
   it('lists generated configurations as operator-required and editable', () => {
     const markup = renderToStaticMarkup(
       <SpIdentityEditor
-        enabled={true}
         payload={{
           ...PAYLOAD,
           personaDefinitions: [DEFINITION],
@@ -451,7 +452,6 @@ describe('Settings → Identity', () => {
   it('labels old strings as legacy and keeps them editable for conversion', () => {
     const markup = renderToStaticMarkup(
       <SpIdentityEditor
-        enabled={true}
         payload={{
           ...PAYLOAD,
           personaDefinitions: [
@@ -508,7 +508,6 @@ describe('Settings → Identity', () => {
     const failed = failSpIdentityRead(loaded, 'The refresh answered 503.');
     const markup = renderToStaticMarkup(
       <SpIdentityEditor
-        enabled={true}
         payload={failed.payload}
         busy={false}
         readError={failed.error}
@@ -532,7 +531,6 @@ describe('Settings → Identity', () => {
   it('scopes mutation failures beside their action without hiding persisted plans', () => {
     const markup = renderToStaticMarkup(
       <SpIdentityEditor
-        enabled={true}
         payload={{ ...PAYLOAD, personaDefinitions: [DEFINITION] }}
         busy={false}
         mutationError={{ operation: 'definition-delete', message: 'Delete was refused.' }}
@@ -552,7 +550,6 @@ describe('Settings → Identity', () => {
     const failed = failSpIdentityRead(INITIAL_SP_IDENTITY_READ_STATE, 'SP personas could not be read.');
     const markup = renderToStaticMarkup(
       <SpIdentityEditor
-        enabled={true}
         payload={failed.payload}
         busy={false}
         readError={failed.error}

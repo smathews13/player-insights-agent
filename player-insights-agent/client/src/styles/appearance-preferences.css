@@ -122,7 +122,7 @@ html[data-density='compact'] .connection-block-summary {
 
 html[data-density='compact'] .summary-grid,
 html[data-density='compact'] .deployment-cards,
-html[data-density='compact'] .monitoring-panel-grid {
+html[data-density='compact'] .user-profile-modal-kpi-grid {
   gap: var(--density-card-gap);
 }
 

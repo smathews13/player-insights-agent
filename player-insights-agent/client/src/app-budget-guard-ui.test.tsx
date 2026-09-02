@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { appBudgetPeriod, emptyAppBudgetStatus, type AppBudgetStatus } from '../../shared/app-budget-guard';
 import { APP_BUDGET_GUARDRAILS } from '../../shared/app-budget-contract';
 import { ComposerBudgetStatus } from './ComposerBudgetStatus';
-import { AppBudgetMeasurement, BudgetGuardStatus } from './CostBudgets';
+import { AppBudgetMeasurement, BudgetGuardStatus, SavedAppBudgetSummary } from './CostBudgets';
 
 const period = appBudgetPeriod(Date.parse('2026-09-15T12:00:00Z'));
 
@@ -117,6 +117,25 @@ describe('app budget guard UI', () => {
     expect(renderToStaticMarkup(<BudgetGuardStatus status={complete} admin={false} />)).toContain('Approval required');
   });
 
+  it('shows the saved budget in the spend pane but adds progress only for complete actual MTD', () => {
+    const partial = renderToStaticMarkup(
+      <SavedAppBudgetSummary savedBudget={800} unit="USD" status={status('unavailable/partial')} />
+    );
+    expect(partial).toContain('Monthly app budget');
+    expect(partial).toContain('800.00 USD');
+    expect(partial).not.toMatch(/Month to date|Over budget|Budget status|aria-live/i);
+
+    const complete = renderToStaticMarkup(
+      <SavedAppBudgetSummary
+        savedBudget={800}
+        unit="USD"
+        status={status('approval-required', { measured: 923.27, budget: 800, percent: 115.40875 })}
+      />
+    );
+    expect(complete).toContain('Month to date 923.27 USD');
+    expect(complete).toContain('115.41%');
+  });
+
   it('preserves the composer draft and optimistic conversation on a raced server rejection', () => {
     const source = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
     expect(source).toContain("askError.result.code === 'BUDGET_APPROVAL_REQUIRED'");
@@ -130,9 +149,9 @@ describe('app budget guard UI', () => {
     );
   });
 
-  it('states the guardrail methodology without calling it a hard ceiling', () => {
+  it('keeps enforcement constants while removing budget explanations from Cost methodology', () => {
     const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
-    expect(source).toContain('A guardrail, not a hard billing ceiling');
+    expect(source).not.toMatch(/Budget controls|Budget guardrails|hard billing ceiling|APP_BUDGET_GUARDRAILS/);
     expect(APP_BUDGET_GUARDRAILS).toContainEqual({ label: 'Warning', value: '80% — questions continue' });
     expect(APP_BUDGET_GUARDRAILS).toContainEqual({
       label: 'Approval required',

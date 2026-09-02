@@ -1,5 +1,5 @@
 /**
- * Admin CRUD for service-principal personas and the experimental pivot.
+ * Admin CRUD for service-principal personas.
  *
  * Under `/api/admin/sp-identity`, so the existing admin prefix refuses a
  * consumer without a second guard. Reads and writes go through the store;
@@ -8,7 +8,6 @@
 import { z } from 'zod';
 import {
   SpAssignmentWriteSchema,
-  SpIdentityModeSchema,
   SpPersonaDefinitionPatchSchema,
   SpPersonaDefinitionWriteSchema,
   SpPersonaPatchSchema,
@@ -33,16 +32,13 @@ import {
   updateSpPersonaDefinition,
   updateSpPersona,
   writeSpAssignment,
-  writeSpIdentityEnabled,
-  isSpIdentityEnabled,
 } from '../lib/sp-identity-store';
 import { readRoster } from '../lib/user-roster';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 
 async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayload> {
   const templateConfig = configuredSpPersonaTemplates();
-  const [enabled, personas, personaDefinitions, assignments, rosterRead, grantResourceDiscovery] = await Promise.all([
-    isSpIdentityEnabled(appkit, { maxAgeMs: 0 }),
+  const [personas, personaDefinitions, assignments, rosterRead, grantResourceDiscovery] = await Promise.all([
     listSpPersonas(appkit),
     listSpPersonaDefinitions(appkit),
     listSpAssignments(appkit),
@@ -67,7 +63,6 @@ async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayl
   }
   roster.sort((left, right) => left.email.localeCompare(right.email));
   return {
-    enabled,
     minting: describeSpTokenMinting(),
     personas,
     personaDefinitions,
@@ -90,39 +85,6 @@ export function setupSpIdentityRoutes(appkit: InsightsAppKit): void {
         res.status(503).json({
           error: 'sp_identity_unreadable',
           detail: `Service-principal personas could not be read: ${(error as Error).message}`,
-        });
-      }
-    });
-
-    app.put('/api/admin/sp-identity/mode', async (req, res) => {
-      const parsed = SpIdentityModeSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: 'invalid_sp_identity_mode', detail: parsed.error.message });
-        return;
-      }
-      const actor = userEmail(req);
-      try {
-        // Read the surrounding roster before mutating the pivot. If this fails,
-        // no write has happened and the client can safely retain its prior state.
-        const before = await adminPayload(appkit);
-        await writeSpIdentityEnabled(appkit, parsed.data.enabled, actor);
-        try {
-          await recordAdminAction(appkit.lakebase, {
-            actor,
-            action: parsed.data.enabled ? 'sp-identity-enabled' : 'sp-identity-disabled',
-            subject: 'sp-identity',
-            detail: parsed.data.enabled
-              ? 'Assigned users now run warehouse, Genie, and agent calls as their service-principal persona.'
-              : 'Questions again run as the signed-in OAuth user.',
-          });
-        } catch (error) {
-          console.warn('[sp-identity] Saved the pivot, but could not write the admin audit row:', error);
-        }
-        res.json({ ...before, enabled: parsed.data.enabled });
-      } catch (error) {
-        res.status(503).json({
-          error: 'sp_identity_store_unavailable',
-          detail: `The pivot was not saved: ${(error as Error).message}`,
         });
       }
     });

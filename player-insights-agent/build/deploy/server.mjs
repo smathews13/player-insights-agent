@@ -18,6 +18,7 @@ import {
   shouldIgnoreRequest
 } from "./chunk-GUY4BX7Z.mjs";
 import {
+  isMlflowTraceId,
   lakebasePoolSettings,
   require_accepts,
   require_array_flatten,
@@ -51,7 +52,7 @@ import {
   require_type_is,
   require_utils_merge,
   require_vary
-} from "./chunk-JLYA46HN.mjs";
+} from "./chunk-P6LGY7M5.mjs";
 import {
   external_exports,
   toJSONSchema
@@ -2071,7 +2072,7 @@ var require_postgres_array = __commonJS({
           }
         }
       }
-      parse(nested) {
+      parse(nested2) {
         var character, parser, quote;
         this.consumeDimensions();
         while (!this.isEof()) {
@@ -2087,7 +2088,7 @@ var require_postgres_array = __commonJS({
             this.dimension--;
             if (!this.dimension) {
               this.newEntry();
-              if (nested) return this.entries;
+              if (nested2) return this.entries;
             }
           } else if (character.value === '"' && !character.escaped) {
             if (quote) this.newEntry(true);
@@ -2794,11 +2795,11 @@ var require_binaryParsers = __commonJS({
         var array = [];
         var i2;
         if (dimension.length > 1) {
-          var count = dimension.shift();
-          for (i2 = 0; i2 < count; i2++) {
+          var count2 = dimension.shift();
+          for (i2 = 0; i2 < count2; i2++) {
             array[i2] = parse3(dimension, elementType2);
           }
-          dimension.unshift(count);
+          dimension.unshift(count2);
         } else {
           for (i2 = 0; i2 < dimension[0]; i2++) {
             array[i2] = parseElement(elementType2);
@@ -3186,12 +3187,12 @@ var require_utils_legacy = __commonJS({
       const outer = md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    function sha256(text) {
-      return nodeCrypto.createHash("sha256").update(text).digest();
+    function sha256(text3) {
+      return nodeCrypto.createHash("sha256").update(text3).digest();
     }
-    function hashByName(hashName, text) {
+    function hashByName(hashName, text3) {
       hashName = hashName.replace(/(\D)-/, "$1");
-      return nodeCrypto.createHash(hashName).update(text).digest();
+      return nodeCrypto.createHash(hashName).update(text3).digest();
     }
     function hmacSha256(key, msg) {
       return nodeCrypto.createHmac("sha256", key).update(msg).digest();
@@ -3244,11 +3245,11 @@ var require_utils_webcrypto = __commonJS({
       const outer = await md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    async function sha256(text) {
-      return await subtleCrypto.digest("SHA-256", text);
+    async function sha256(text3) {
+      return await subtleCrypto.digest("SHA-256", text3);
     }
-    async function hashByName(hashName, text) {
-      return await subtleCrypto.digest(hashName, text);
+    async function hashByName(hashName, text3) {
+      return await subtleCrypto.digest(hashName, text3);
     }
     async function hmacSha256(keyBuffer, msg) {
       const key = await subtleCrypto.importKey("raw", keyBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -3469,21 +3470,21 @@ var require_sasl = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
-    function isPrintableChars(text) {
-      if (typeof text !== "string") {
+    function isPrintableChars(text3) {
+      if (typeof text3 !== "string") {
         throw new TypeError("SASL: text must be a string");
       }
-      return text.split("").map((_, i) => text.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
+      return text3.split("").map((_, i) => text3.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
     }
-    function isBase64(text) {
-      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text);
+    function isBase64(text3) {
+      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text3);
     }
-    function parseAttributePairs(text) {
-      if (typeof text !== "string") {
+    function parseAttributePairs(text3) {
+      if (typeof text3 !== "string") {
         throw new TypeError("SASL: attribute pairs text must be a string");
       }
       return new Map(
-        text.split(",").map((attrValue) => {
+        text3.split(",").map((attrValue) => {
           if (!/^.=/.test(attrValue)) {
             throw new Error("SASL: Invalid attribute pair entry");
           }
@@ -3811,7 +3812,7 @@ var require_connection_parameters = __commonJS({
     var quoteParamValue = function(value) {
       return "'" + ("" + value).replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "'";
     };
-    var add = function(params, config, paramName) {
+    var add2 = function(params, config, paramName) {
       const value = config[paramName];
       if (value !== void 0 && value !== null) {
         params.push(paramName + "=" + quoteParamValue(value));
@@ -3877,19 +3878,19 @@ var require_connection_parameters = __commonJS({
       }
       getLibpqConnectionString(cb) {
         const params = [];
-        add(params, this, "user");
-        add(params, this, "password");
-        add(params, this, "port");
-        add(params, this, "application_name");
-        add(params, this, "fallback_application_name");
-        add(params, this, "connect_timeout");
-        add(params, this, "options");
+        add2(params, this, "user");
+        add2(params, this, "password");
+        add2(params, this, "port");
+        add2(params, this, "application_name");
+        add2(params, this, "fallback_application_name");
+        add2(params, this, "connect_timeout");
+        add2(params, this, "options");
         const ssl = typeof this.ssl === "object" ? this.ssl : this.ssl ? { sslmode: this.ssl } : {};
-        add(params, ssl, "sslmode");
-        add(params, ssl, "sslca");
-        add(params, ssl, "sslkey");
-        add(params, ssl, "sslcert");
-        add(params, ssl, "sslrootcert");
+        add2(params, ssl, "sslmode");
+        add2(params, ssl, "sslca");
+        add2(params, ssl, "sslkey");
+        add2(params, ssl, "sslcert");
+        add2(params, ssl, "sslrootcert");
         if (this.database) {
           params.push("dbname=" + quoteParamValue(this.database));
         }
@@ -4342,9 +4343,9 @@ var require_messages = __commonJS({
     };
     exports.ReadyForQueryMessage = ReadyForQueryMessage;
     var CommandCompleteMessage = class {
-      constructor(length, text) {
+      constructor(length, text3) {
         this.length = length;
-        this.text = text;
+        this.text = text3;
         this.name = "commandComplete";
       }
     };
@@ -4493,8 +4494,8 @@ var require_serializer = __commonJS({
         /* code.startup */
       );
     };
-    var query = (text) => {
-      return writer.addCString(text).flush(
+    var query = (text3) => {
+      return writer.addCString(text3).flush(
         81
         /* code.query */
       );
@@ -4614,8 +4615,8 @@ var require_serializer = __commonJS({
       return msg.name ? cstringMessage(68, `${msg.type}${msg.name || ""}`) : msg.type === "P" ? emptyDescribePortal : emptyDescribeStatement;
     };
     var close = (msg) => {
-      const text = `${msg.type}${msg.name || ""}`;
-      return cstringMessage(67, text);
+      const text3 = `${msg.type}${msg.name || ""}`;
+      return cstringMessage(67, text3);
     };
     var copyData = (chunk) => {
       return writer.add(chunk).flush(
@@ -4887,8 +4888,8 @@ var require_parser = __commonJS({
       return new messages_1.ReadyForQueryMessage(LATEINIT_LENGTH, status);
     };
     var parseCommandCompleteMessage = (reader) => {
-      const text = reader.cstring();
-      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text);
+      const text3 = reader.cstring();
+      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text3);
     };
     var parseCopyData = (reader, length) => {
       const chunk = reader.bytes(length - 4);
@@ -5255,8 +5256,8 @@ var require_connection = __commonJS({
         }
         return this.stream.write(buffer);
       }
-      query(text) {
-        this._send(serialize.query(text));
+      query(text3) {
+        this._send(serialize.query(text3));
       }
       // send parse message
       parse(query) {
@@ -6534,9 +6535,9 @@ var require_pg_pool = __commonJS({
         this._idle.push(new IdleItem(client, idleListener, tid));
         this._pulseQueue();
       }
-      query(text, values, cb) {
-        if (typeof text === "function") {
-          const response2 = promisify(this.Promise, text);
+      query(text3, values, cb) {
+        if (typeof text3 === "function") {
+          const response2 = promisify(this.Promise, text3);
           setImmediate(function() {
             return response2.callback(new Error("Passing a function as the first parameter to pool.query is not supported"));
           });
@@ -6564,7 +6565,7 @@ var require_pg_pool = __commonJS({
           client.once("error", onError);
           this.log("dispatching query");
           try {
-            client.query(text, values, (err2, res) => {
+            client.query(text3, values, (err2, res) => {
               this.log("query dispatched");
               client.removeListener("error", onError);
               if (clientReleased) {
@@ -15073,12 +15074,12 @@ var require_utils7 = __commonJS({
     var internal_types_1 = require_internal_types2();
     var internal_types_2 = require_internal_types2();
     var forwardedParse = require_forwarded_parse();
-    var getAbsoluteUrl = (requestUrl, headers, fallbackProtocol = "http:", redactedQueryParams = Array.from(internal_types_2.DEFAULT_QUERY_STRINGS_TO_REDACT)) => {
+    var getAbsoluteUrl = (requestUrl, headers2, fallbackProtocol = "http:", redactedQueryParams = Array.from(internal_types_2.DEFAULT_QUERY_STRINGS_TO_REDACT)) => {
       const reqUrlObject = requestUrl || {};
       const protocol = reqUrlObject.protocol || fallbackProtocol;
       const port = (reqUrlObject.port || "").toString();
       let path18 = reqUrlObject.path || "/";
-      let host = reqUrlObject.host || reqUrlObject.hostname || headers.host || "localhost";
+      let host = reqUrlObject.host || reqUrlObject.hostname || headers2.host || "localhost";
       if (host.indexOf(":") === -1 && port && port !== "80" && port !== "443") {
         host += `:${port}`;
       }
@@ -15155,8 +15156,8 @@ var require_utils7 = __commonJS({
       }
     };
     exports.setResponseContentLengthAttribute = setResponseContentLengthAttribute;
-    function getContentLength(headers) {
-      const contentLengthHeader = headers["content-length"];
+    function getContentLength(headers2) {
+      const contentLengthHeader = headers2["content-length"];
       if (contentLengthHeader === void 0)
         return null;
       const contentLength = parseInt(contentLengthHeader, 10);
@@ -15164,8 +15165,8 @@ var require_utils7 = __commonJS({
         return null;
       return contentLength;
     }
-    var isCompressed = (headers) => {
-      const encoding = headers["content-encoding"];
+    var isCompressed = (headers2) => {
+      const encoding = headers2["content-encoding"];
       return !!encoding && encoding !== "identity";
     };
     exports.isCompressed = isCompressed;
@@ -15277,15 +15278,15 @@ var require_utils7 = __commonJS({
       const port = options.port;
       const method = requestOptions.method ?? "GET";
       const normalizedMethod = normalizeMethod(method);
-      const headers = requestOptions.headers || {};
-      const userAgent = headers["user-agent"];
-      const urlFull = (0, exports.getAbsoluteUrl)(requestOptions, headers, `${options.component}:`, options.redactedQueryParams);
+      const headers2 = requestOptions.headers || {};
+      const userAgent = headers2["user-agent"];
+      const urlFull = (0, exports.getAbsoluteUrl)(requestOptions, headers2, `${options.component}:`, options.redactedQueryParams);
       const oldAttributes = {
         [semconv_1.ATTR_HTTP_URL]: urlFull,
         [semconv_1.ATTR_HTTP_METHOD]: method,
         [semconv_1.ATTR_HTTP_TARGET]: requestOptions.path || "/",
         [semconv_1.ATTR_NET_PEER_NAME]: hostname,
-        [semconv_1.ATTR_HTTP_HOST]: headers.host ?? `${hostname}:${port}`
+        [semconv_1.ATTR_HTTP_HOST]: headers2.host ?? `${hostname}:${port}`
       };
       const newAttributes = {
         // Required attributes
@@ -15529,11 +15530,11 @@ var require_utils7 = __commonJS({
       }
     }
     var getIncomingRequestAttributes = (request, options, logger43) => {
-      const headers = request.headers;
-      const userAgent = headers["user-agent"];
-      const ips = headers["x-forwarded-for"];
+      const headers2 = request.headers;
+      const userAgent = headers2["user-agent"];
+      const ips = headers2["x-forwarded-for"];
       const httpVersion = request.httpVersion;
-      const host = headers.host;
+      const host = headers2.host;
       const hostname = host?.replace(/^(.*)(:[0-9]{1,5})/, "$1") || "localhost";
       const method = request.method;
       const normalizedMethod = normalizeMethod(method);
@@ -15658,10 +15659,10 @@ var require_utils7 = __commonJS({
       return metricAttributes;
     };
     exports.getIncomingStableRequestMetricAttributesOnResponse = getIncomingStableRequestMetricAttributesOnResponse;
-    function headerCapture(type, headers) {
+    function headerCapture(type, headers2) {
       const normalizedHeaders = /* @__PURE__ */ new Map();
-      for (let i = 0, len = headers.length; i < len; i++) {
-        const capturedHeader = headers[i].toLowerCase();
+      for (let i = 0, len = headers2.length; i < len; i++) {
+        const capturedHeader = headers2[i].toLowerCase();
         normalizedHeaders.set(capturedHeader, capturedHeader.replace(/-/g, "_"));
       }
       return (span, getHeader) => {
@@ -16027,7 +16028,7 @@ var require_http = __commonJS({
               return original.apply(this, [event, ...args]);
             });
           }
-          const headers = request.headers;
+          const headers2 = request.headers;
           const spanAttributes = (0, utils_1.getIncomingRequestAttributes)(request, {
             component,
             serverName: instrumentation.getConfig().serverName,
@@ -16048,7 +16049,7 @@ var require_http = __commonJS({
           if (spanAttributes[semantic_conventions_1.ATTR_NETWORK_PROTOCOL_VERSION]) {
             stableMetricAttributes[semantic_conventions_1.ATTR_NETWORK_PROTOCOL_VERSION] = spanAttributes[semantic_conventions_1.ATTR_NETWORK_PROTOCOL_VERSION];
           }
-          const ctx = api_1.propagation.extract(api_1.ROOT_CONTEXT, headers);
+          const ctx = api_1.propagation.extract(api_1.ROOT_CONTEXT, headers2);
           const span = instrumentation._startHttpSpan(method, spanOptions, ctx);
           const rpcMetadata = {
             type: core_1.RPCType.HTTP,
@@ -21061,8 +21062,8 @@ var require_BatchSpanProcessorBase = __commonJS({
       _flushAll() {
         return new Promise((resolve2, reject) => {
           const promises = [];
-          const count = Math.ceil(this._finishedSpans.length / this._maxExportBatchSize);
-          for (let i = 0, j = count; i < j; i++) {
+          const count2 = Math.ceil(this._finishedSpans.length / this._maxExportBatchSize);
+          for (let i = 0, j = count2; i < j; i++) {
             promises.push(this._flushOneBatch());
           }
           Promise.all(promises).then(() => {
@@ -22212,8 +22213,8 @@ var require_amqplib = __commonJS({
             if (!msg) {
               return onMessage.call(this, msg);
             }
-            const headers = msg.properties.headers ?? {};
-            let parentContext = api_1.propagation.extract(api_1.ROOT_CONTEXT, headers);
+            const headers2 = msg.properties.headers ?? {};
+            let parentContext = api_1.propagation.extract(api_1.ROOT_CONTEXT, headers2);
             const exchange = msg.fields?.exchange;
             let links;
             if (self2._config.useLinksForConsume) {
@@ -24802,11 +24803,11 @@ var require_instrumentation5 = __commonJS({
             if (!(0, api_1.isSpanContextValid)(spanContext)) {
               return original.apply(this, args);
             }
-            const record = args[0];
-            record["trace_id"] = spanContext.traceId;
-            record["span_id"] = spanContext.spanId;
-            record["trace_flags"] = `0${spanContext.traceFlags.toString(16)}`;
-            instrumentation._callHook(span, record);
+            const record2 = args[0];
+            record2["trace_id"] = spanContext.traceId;
+            record2["span_id"] = spanContext.spanId;
+            record2["trace_flags"] = `0${spanContext.traceFlags.toString(16)}`;
+            instrumentation._callHook(span, record2);
             return original.apply(this, args);
           };
         };
@@ -24838,12 +24839,12 @@ var require_instrumentation5 = __commonJS({
           level: streamLevel
         });
       }
-      _callHook(span, record) {
+      _callHook(span, record2) {
         const { logHook } = this.getConfig();
         if (typeof logHook !== "function") {
           return;
         }
-        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record), (err) => {
+        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record2), (err) => {
           if (err) {
             this._diag.error("error calling logHook", err);
           }
@@ -27381,11 +27382,11 @@ var require_utils17 = __commonJS({
       return repeatChar(" ", i);
     }
     function repeatChar(char, to) {
-      let text = "";
+      let text3 = "";
       for (let i = 0; i < to; i++) {
-        text += char;
+        text3 += char;
       }
-      return text;
+      return text3;
     }
     var KindsToBeRemoved = [
       enum_1.TokenKind.FLOAT,
@@ -29616,14 +29617,14 @@ var require_instrumentation18 = __commonJS({
         const instrumentation = this;
         return (original) => {
           return function send(...args) {
-            const record = args[0];
-            const spans = record.messages.map((message) => {
-              return instrumentation._startProducerSpan(record.topic, message);
+            const record2 = args[0];
+            const spans = record2.messages.map((message) => {
+              return instrumentation._startProducerSpan(record2.topic, message);
             });
-            const pendingMetrics = record.messages.map((m) => prepareCounter(instrumentation._sentMessages, 1, {
+            const pendingMetrics = record2.messages.map((m) => prepareCounter(instrumentation._sentMessages, 1, {
               [semconv_1.ATTR_MESSAGING_SYSTEM]: semconv_1.MESSAGING_SYSTEM_VALUE_KAFKA,
               [semconv_1.ATTR_MESSAGING_OPERATION_NAME]: "send",
-              [semconv_1.ATTR_MESSAGING_DESTINATION_NAME]: record.topic,
+              [semconv_1.ATTR_MESSAGING_DESTINATION_NAME]: record2.topic,
               ...m.partition !== void 0 ? {
                 [semconv_1.ATTR_MESSAGING_DESTINATION_PARTITION_ID]: String(m.partition)
               } : {}
@@ -31645,14 +31646,14 @@ var require_src35 = __commonJS({
         return query;
       }
       const propagator = new core_1.W3CTraceContextPropagator();
-      const headers = {};
-      propagator.inject(api_1.trace.setSpan(api_1.ROOT_CONTEXT, span), headers, api_1.defaultTextMapSetter);
-      const sortedKeys = Object.keys(headers).sort();
+      const headers2 = {};
+      propagator.inject(api_1.trace.setSpan(api_1.ROOT_CONTEXT, span), headers2, api_1.defaultTextMapSetter);
+      const sortedKeys = Object.keys(headers2).sort();
       if (sortedKeys.length === 0) {
         return query;
       }
       const commentString = sortedKeys.map((key) => {
-        const encodedValue = fixedEncodeURIComponent(headers[key]);
+        const encodedValue = fixedEncodeURIComponent(headers2[key]);
         return `${key}='${encodedValue}'`;
       }).join(",");
       return `${query} /*${commentString}*/`;
@@ -32183,7 +32184,7 @@ var require_instrumentation25 = __commonJS({
       _patchAdd(cluster) {
         return (originalAdd) => {
           const thisPlugin = this;
-          return function add(id, config) {
+          return function add2(id, config) {
             if (!thisPlugin["_enabled"]) {
               thisPlugin._unwrap(cluster, "add");
               return originalAdd.apply(cluster, arguments);
@@ -34984,12 +34985,12 @@ var require_instrumentation31 = __commonJS({
           })
         ];
       }
-      _callHook(span, record, level) {
+      _callHook(span, record2, level) {
         const { logHook } = this.getConfig();
         if (!logHook) {
           return;
         }
-        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record, level), (err) => {
+        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record2, level), (err) => {
           if (err) {
             api_1.diag.error("pino instrumentation: error calling logHook", err);
           }
@@ -35010,13 +35011,13 @@ var require_instrumentation31 = __commonJS({
             return {};
           }
           const logKeys = instrumentation.getConfig().logKeys ?? DEFAULT_LOG_KEYS;
-          const record = {
+          const record2 = {
             [logKeys.traceId]: spanContext.traceId,
             [logKeys.spanId]: spanContext.spanId,
             [logKeys.traceFlags]: `0${spanContext.traceFlags.toString(16)}`
           };
-          instrumentation._callHook(span, record, level);
-          return record;
+          instrumentation._callHook(span, record2, level);
+          return record2;
         };
       }
     };
@@ -37357,8 +37358,8 @@ var require_undici = __commonJS({
             }
           }
         } else if (typeof request.headers === "string") {
-          const headers = request.headers.split("\r\n");
-          for (const line of headers) {
+          const headers2 = request.headers.split("\r\n");
+          for (const line of headers2) {
             if (!line) {
               continue;
             }
@@ -37460,12 +37461,12 @@ var require_undici = __commonJS({
       // the remote is established and about to send the first byte. Here we do have info about the
       // remote address and port so we can populate some `network.*` attributes into the span
       onRequestHeaders({ request, socket }) {
-        const record = this._recordFromReq.get(request);
-        if (!record) {
+        const record2 = this._recordFromReq.get(request);
+        if (!record2) {
           return;
         }
         const config = this.getConfig();
-        const { span } = record;
+        const { span } = record2;
         const { remoteAddress, remotePort } = socket;
         const spanAttributes = {
           [semantic_conventions_1.ATTR_NETWORK_PEER_ADDRESS]: remoteAddress,
@@ -37487,11 +37488,11 @@ var require_undici = __commonJS({
       // headers are received, body may not be accessible yet.
       // From the response headers we can set the status and content length
       onResponseHeaders({ request, response }) {
-        const record = this._recordFromReq.get(request);
-        if (!record) {
+        const record2 = this._recordFromReq.get(request);
+        if (!record2) {
           return;
         }
-        const { span, attributes } = record;
+        const { span, attributes } = record2;
         const spanAttributes = {
           [semantic_conventions_1.ATTR_HTTP_RESPONSE_STATUS_CODE]: response.statusCode
         };
@@ -37518,15 +37519,15 @@ var require_undici = __commonJS({
         span.setStatus({
           code: response.statusCode >= 400 ? api_1.SpanStatusCode.ERROR : api_1.SpanStatusCode.UNSET
         });
-        record.attributes = Object.assign(attributes, spanAttributes);
+        record2.attributes = Object.assign(attributes, spanAttributes);
       }
       // This is the last event we receive if the request went without any errors
       onDone({ request }) {
-        const record = this._recordFromReq.get(request);
-        if (!record) {
+        const record2 = this._recordFromReq.get(request);
+        if (!record2) {
           return;
         }
-        const { span, attributes, startTime } = record;
+        const { span, attributes, startTime } = record2;
         span.end();
         this._recordFromReq.delete(request);
         this.recordRequestDuration(attributes, startTime);
@@ -37538,11 +37539,11 @@ var require_undici = __commonJS({
       // NOTE: server errors are considered valid responses and it's the lib consumer
       // who should deal with that.
       onError({ request, error }) {
-        const record = this._recordFromReq.get(request);
-        if (!record) {
+        const record2 = this._recordFromReq.get(request);
+        if (!record2) {
           return;
         }
-        const { span, attributes, startTime } = record;
+        const { span, attributes, startTime } = record2;
         span.recordException(error);
         span.setStatus({
           code: api_1.SpanStatusCode.ERROR,
@@ -37673,12 +37674,12 @@ var require_instrumentation38 = __commonJS({
           winstons2instrumentationNodeModuleDefinition
         ];
       }
-      _callHook(span, record) {
+      _callHook(span, record2) {
         const { logHook } = this.getConfig();
         if (!logHook) {
           return;
         }
-        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record), (err) => {
+        (0, instrumentation_1.safeExecuteInTheMiddle)(() => logHook(span, record2), (err) => {
           if (err) {
             this._diag.error("error calling logHook", err);
           }
@@ -37688,8 +37689,8 @@ var require_instrumentation38 = __commonJS({
         return (original) => {
           const instrumentation = this;
           return function patchedWrite(...args) {
-            const record = args[0];
-            instrumentation._handleLogCorrelation(record);
+            const record2 = args[0];
+            instrumentation._handleLogCorrelation(record2);
             return original.apply(this, args);
           };
         };
@@ -37698,19 +37699,19 @@ var require_instrumentation38 = __commonJS({
         return (original) => {
           const instrumentation = this;
           return function patchedLog(...args) {
-            const record = {};
-            instrumentation._handleLogCorrelation(record);
+            const record2 = {};
+            instrumentation._handleLogCorrelation(record2);
             let isDataInjected = false;
             for (let i = args.length - 1; i >= 0; i--) {
               if (typeof args[i] === "object") {
-                args[i] = Object.assign(args[i], record);
+                args[i] = Object.assign(args[i], record2);
                 isDataInjected = true;
                 break;
               }
             }
             if (!isDataInjected) {
               const insertAt = typeof args[args.length - 1] === "function" ? args.length - 1 : args.length;
-              args.splice(insertAt, 0, record);
+              args.splice(insertAt, 0, record2);
             }
             return original.apply(this, args);
           };
@@ -37747,7 +37748,7 @@ var require_instrumentation38 = __commonJS({
           };
         };
       }
-      _handleLogCorrelation(record) {
+      _handleLogCorrelation(record2) {
         if (!this.getConfig().disableLogCorrelation) {
           const span = api_1.trace.getSpan(api_1.context.active());
           if (span) {
@@ -37758,13 +37759,13 @@ var require_instrumentation38 = __commonJS({
                 span_id: spanContext.spanId,
                 trace_flags: `0${spanContext.traceFlags.toString(16)}`
               };
-              const enhancedRecord = Object.assign(record, fields);
+              const enhancedRecord = Object.assign(record2, fields);
               this._callHook(span, enhancedRecord);
               return enhancedRecord;
             }
           }
         }
-        return record;
+        return record2;
       }
       _winstonLevelFromSeverity(severity, winstonLevels) {
         if (winstonLevels) {
@@ -41869,9 +41870,9 @@ var require_url_state_machine = __commonJS({
         return failure;
       }
       let output = "";
-      const decoded = punycode.ucs2.decode(input);
-      for (let i = 0; i < decoded.length; ++i) {
-        output += percentEncodeChar(decoded[i], isC0ControlPercentEncode);
+      const decoded2 = punycode.ucs2.decode(input);
+      for (let i = 0; i < decoded2.length; ++i) {
+        output += percentEncodeChar(decoded2[i], isC0ControlPercentEncode);
       }
       return output;
     }
@@ -42576,16 +42577,16 @@ var require_url_state_machine = __commonJS({
     };
     module.exports.setTheUsername = function(url, username) {
       url.username = "";
-      const decoded = punycode.ucs2.decode(username);
-      for (let i = 0; i < decoded.length; ++i) {
-        url.username += percentEncodeChar(decoded[i], isUserinfoPercentEncode);
+      const decoded2 = punycode.ucs2.decode(username);
+      for (let i = 0; i < decoded2.length; ++i) {
+        url.username += percentEncodeChar(decoded2[i], isUserinfoPercentEncode);
       }
     };
     module.exports.setThePassword = function(url, password) {
       url.password = "";
-      const decoded = punycode.ucs2.decode(password);
-      for (let i = 0; i < decoded.length; ++i) {
-        url.password += percentEncodeChar(decoded[i], isUserinfoPercentEncode);
+      const decoded2 = punycode.ucs2.decode(password);
+      for (let i = 0; i < decoded2.length; ++i) {
+        url.password += percentEncodeChar(decoded2[i], isUserinfoPercentEncode);
       }
     };
     module.exports.serializeHost = serializeHost;
@@ -43288,11 +43289,11 @@ var require_lib4 = __commonJS({
         });
       });
     }
-    function convertBody(buffer, headers) {
+    function convertBody(buffer, headers2) {
       if (typeof convert !== "function") {
         throw new Error("The package `encoding` must be installed to use the textConverted() function");
       }
-      const ct = headers.get("content-type");
+      const ct = headers2.get("content-type");
       let charset = "utf-8";
       let res, str;
       if (ct) {
@@ -43625,15 +43626,15 @@ var require_lib4 = __commonJS({
       values: { enumerable: true },
       entries: { enumerable: true }
     });
-    function getHeaders(headers) {
+    function getHeaders(headers2) {
       let kind = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : "key+value";
-      const keys = Object.keys(headers[MAP]).sort();
+      const keys = Object.keys(headers2[MAP]).sort();
       return keys.map(kind === "key" ? function(k) {
         return k.toLowerCase();
       } : kind === "value" ? function(k) {
-        return headers[MAP][k].join(", ");
+        return headers2[MAP][k].join(", ");
       } : function(k) {
-        return [k.toLowerCase(), headers[MAP][k].join(", ")];
+        return [k.toLowerCase(), headers2[MAP][k].join(", ")];
       });
     }
     var INTERNAL = Symbol("internal");
@@ -43674,16 +43675,16 @@ var require_lib4 = __commonJS({
       enumerable: false,
       configurable: true
     });
-    function exportNodeCompatibleHeaders(headers) {
-      const obj = Object.assign({ __proto__: null }, headers[MAP]);
-      const hostHeaderKey = find(headers[MAP], "Host");
+    function exportNodeCompatibleHeaders(headers2) {
+      const obj = Object.assign({ __proto__: null }, headers2[MAP]);
+      const hostHeaderKey = find(headers2[MAP], "Host");
       if (hostHeaderKey !== void 0) {
         obj[hostHeaderKey] = obj[hostHeaderKey][0];
       }
       return obj;
     }
     function createHeadersLenient(obj) {
-      const headers = new Headers2();
+      const headers2 = new Headers2();
       for (const name2 of Object.keys(obj)) {
         if (invalidTokenRegex.test(name2)) {
           continue;
@@ -43693,17 +43694,17 @@ var require_lib4 = __commonJS({
             if (invalidHeaderCharRegex.test(val)) {
               continue;
             }
-            if (headers[MAP][name2] === void 0) {
-              headers[MAP][name2] = [val];
+            if (headers2[MAP][name2] === void 0) {
+              headers2[MAP][name2] = [val];
             } else {
-              headers[MAP][name2].push(val);
+              headers2[MAP][name2].push(val);
             }
           }
         } else if (!invalidHeaderCharRegex.test(obj[name2])) {
-          headers[MAP][name2] = [obj[name2]];
+          headers2[MAP][name2] = [obj[name2]];
         }
       }
-      return headers;
+      return headers2;
     }
     var INTERNALS$1 = Symbol("Response internals");
     var STATUS_CODES3 = http.STATUS_CODES;
@@ -43713,18 +43714,18 @@ var require_lib4 = __commonJS({
         let opts = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
         Body.call(this, body, opts);
         const status = opts.status || 200;
-        const headers = new Headers2(opts.headers);
-        if (body != null && !headers.has("Content-Type")) {
+        const headers2 = new Headers2(opts.headers);
+        if (body != null && !headers2.has("Content-Type")) {
           const contentType = extractContentType(body);
           if (contentType) {
-            headers.append("Content-Type", contentType);
+            headers2.append("Content-Type", contentType);
           }
         }
         this[INTERNALS$1] = {
           url: opts.url,
           status,
           statusText: opts.statusText || STATUS_CODES3[status],
-          headers,
+          headers: headers2,
           counter: opts.counter
         };
       }
@@ -43823,11 +43824,11 @@ var require_lib4 = __commonJS({
           timeout: init.timeout || input.timeout || 0,
           size: init.size || input.size || 0
         });
-        const headers = new Headers2(init.headers || input.headers || {});
-        if (inputBody != null && !headers.has("Content-Type")) {
+        const headers2 = new Headers2(init.headers || input.headers || {});
+        if (inputBody != null && !headers2.has("Content-Type")) {
           const contentType = extractContentType(inputBody);
           if (contentType) {
-            headers.append("Content-Type", contentType);
+            headers2.append("Content-Type", contentType);
           }
         }
         let signal = isRequest(input) ? input.signal : null;
@@ -43838,7 +43839,7 @@ var require_lib4 = __commonJS({
         this[INTERNALS$2] = {
           method,
           redirect: init.redirect || input.redirect || "follow",
-          headers,
+          headers: headers2,
           parsedURL,
           signal
         };
@@ -43888,9 +43889,9 @@ var require_lib4 = __commonJS({
     });
     function getNodeRequestOptions(request) {
       const parsedURL = request[INTERNALS$2].parsedURL;
-      const headers = new Headers2(request[INTERNALS$2].headers);
-      if (!headers.has("Accept")) {
-        headers.set("Accept", "*/*");
+      const headers2 = new Headers2(request[INTERNALS$2].headers);
+      if (!headers2.has("Accept")) {
+        headers2.set("Accept", "*/*");
       }
       if (!parsedURL.protocol || !parsedURL.hostname) {
         throw new TypeError("Only absolute URLs are supported");
@@ -43912,13 +43913,13 @@ var require_lib4 = __commonJS({
         }
       }
       if (contentLengthValue) {
-        headers.set("Content-Length", contentLengthValue);
+        headers2.set("Content-Length", contentLengthValue);
       }
-      if (!headers.has("User-Agent")) {
-        headers.set("User-Agent", "node-fetch/1.0 (+https://github.com/bitinn/node-fetch)");
+      if (!headers2.has("User-Agent")) {
+        headers2.set("User-Agent", "node-fetch/1.0 (+https://github.com/bitinn/node-fetch)");
       }
-      if (request.compress && !headers.has("Accept-Encoding")) {
-        headers.set("Accept-Encoding", "gzip,deflate");
+      if (request.compress && !headers2.has("Accept-Encoding")) {
+        headers2.set("Accept-Encoding", "gzip,deflate");
       }
       let agent = request.agent;
       if (typeof agent === "function") {
@@ -43926,7 +43927,7 @@ var require_lib4 = __commonJS({
       }
       return Object.assign({}, parsedURL, {
         method: request.method,
-        headers: exportNodeCompatibleHeaders(headers),
+        headers: exportNodeCompatibleHeaders(headers2),
         agent
       });
     }
@@ -44026,9 +44027,9 @@ var require_lib4 = __commonJS({
         }
         req.on("response", function(res) {
           clearTimeout(reqTimeout);
-          const headers = createHeadersLenient(res.headers);
+          const headers2 = createHeadersLenient(res.headers);
           if (fetch2.isRedirect(res.statusCode)) {
-            const location = headers.get("Location");
+            const location = headers2.get("Location");
             let locationURL = null;
             try {
               locationURL = location === null ? null : new URL$1(location, request.url).toString();
@@ -44047,7 +44048,7 @@ var require_lib4 = __commonJS({
               case "manual":
                 if (locationURL !== null) {
                   try {
-                    headers.set("Location", locationURL);
+                    headers2.set("Location", locationURL);
                   } catch (err) {
                     reject(err);
                   }
@@ -44102,12 +44103,12 @@ var require_lib4 = __commonJS({
             url: request.url,
             status: res.statusCode,
             statusText: res.statusMessage,
-            headers,
+            headers: headers2,
             size: request.size,
             timeout: request.timeout,
             counter: request.counter
           };
-          const codings = headers.get("Content-Encoding");
+          const codings = headers2.get("Content-Encoding");
           if (!request.compress || request.method === "HEAD" || codings === null || res.statusCode === 204 || res.statusCode === 304) {
             response = new Response2(body, response_options);
             resolve2(response);
@@ -44160,8 +44161,8 @@ var require_lib4 = __commonJS({
         socket = s;
       });
       request.on("response", function(response) {
-        const headers = response.headers;
-        if (headers["transfer-encoding"] === "chunked" && !headers["content-length"]) {
+        const headers2 = response.headers;
+        if (headers2["transfer-encoding"] === "chunked" && !headers2["content-length"]) {
           response.once("close", function(hadError) {
             const hasDataListener = socket && socket.listenerCount("data") > 0;
             if (hasDataListener && !hadError) {
@@ -44395,25 +44396,25 @@ var require_common2 = __commonJS({
     }
     function defaultErrorRedactor(data) {
       const REDACT = "<<REDACTED> - See `errorRedactor` option in `gaxios` for configuration>.";
-      function redactHeaders(headers) {
-        if (!headers)
+      function redactHeaders(headers2) {
+        if (!headers2)
           return;
-        for (const key of Object.keys(headers)) {
+        for (const key of Object.keys(headers2)) {
           if (/^authentication$/i.test(key)) {
-            headers[key] = REDACT;
+            headers2[key] = REDACT;
           }
           if (/^authorization$/i.test(key)) {
-            headers[key] = REDACT;
+            headers2[key] = REDACT;
           }
           if (/secret/i.test(key)) {
-            headers[key] = REDACT;
+            headers2[key] = REDACT;
           }
         }
       }
       function redactString(obj, key) {
         if (typeof obj === "object" && obj !== null && typeof obj[key] === "string") {
-          const text = obj[key];
-          if (/grant_type=/i.test(text) || /assertion=/i.test(text) || /secret/i.test(text)) {
+          const text3 = obj[key];
+          if (/grant_type=/i.test(text3) || /assertion=/i.test(text3) || /secret/i.test(text3)) {
             obj[key] = REDACT;
           }
         }
@@ -45213,7 +45214,7 @@ var require_parse_proxy_response = __commonJS({
           const firstLineParts = firstLine.split(" ");
           const statusCode = +firstLineParts[1];
           const statusText = firstLineParts.slice(2).join(" ");
-          const headers = {};
+          const headers2 = {};
           for (const header of headerParts) {
             if (!header)
               continue;
@@ -45224,22 +45225,22 @@ var require_parse_proxy_response = __commonJS({
             }
             const key = header.slice(0, firstColon).toLowerCase();
             const value = header.slice(firstColon + 1).trimStart();
-            const current = headers[key];
+            const current = headers2[key];
             if (typeof current === "string") {
-              headers[key] = [current, value];
+              headers2[key] = [current, value];
             } else if (Array.isArray(current)) {
               current.push(value);
             } else {
-              headers[key] = value;
+              headers2[key] = value;
             }
           }
-          debug("got proxy server response: %o %o", firstLine, headers);
+          debug("got proxy server response: %o %o", firstLine, headers2);
           cleanup();
           resolve2({
             connect: {
               statusCode,
               statusText,
-              headers
+              headers: headers2
             },
             buffered
           });
@@ -45340,20 +45341,20 @@ var require_dist3 = __commonJS({
           debug("Creating `net.Socket`: %o", this.connectOpts);
           socket = net2.connect(this.connectOpts);
         }
-        const headers = typeof this.proxyHeaders === "function" ? this.proxyHeaders() : { ...this.proxyHeaders };
+        const headers2 = typeof this.proxyHeaders === "function" ? this.proxyHeaders() : { ...this.proxyHeaders };
         const host = net2.isIPv6(opts.host) ? `[${opts.host}]` : opts.host;
         let payload = `CONNECT ${host}:${opts.port} HTTP/1.1\r
 `;
         if (proxy.username || proxy.password) {
           const auth = `${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`;
-          headers["Proxy-Authorization"] = `Basic ${Buffer.from(auth).toString("base64")}`;
+          headers2["Proxy-Authorization"] = `Basic ${Buffer.from(auth).toString("base64")}`;
         }
-        headers.Host = `${host}:${opts.port}`;
-        if (!headers["Proxy-Connection"]) {
-          headers["Proxy-Connection"] = this.keepAlive ? "Keep-Alive" : "close";
+        headers2.Host = `${host}:${opts.port}`;
+        if (!headers2["Proxy-Connection"]) {
+          headers2["Proxy-Connection"] = this.keepAlive ? "Keep-Alive" : "close";
         }
-        for (const name2 of Object.keys(headers)) {
-          payload += `${name2}: ${headers[name2]}\r
+        for (const name2 of Object.keys(headers2)) {
+          payload += `${name2}: ${headers2[name2]}\r
 `;
         }
         const proxyResponsePromise = (0, parse_proxy_response_1.parseProxyResponse)(socket);
@@ -45595,14 +45596,14 @@ var require_gaxios = __commonJS({
         return querystring_1.default.stringify(params);
       }
       translateResponse(opts, res, data) {
-        const headers = {};
+        const headers2 = {};
         res.headers.forEach((value, key) => {
-          headers[key] = value;
+          headers2[key] = value;
         });
         return {
           config: opts,
           data,
-          headers,
+          headers: headers2,
           status: res.status,
           statusText: res.statusText,
           // XMLHttpRequestLike
@@ -47387,18 +47388,18 @@ var require_parse2 = __commonJS({
         n: "\n",
         r: "\r",
         t: "	"
-      }, text, error = function(m) {
+      }, text3, error = function(m) {
         throw {
           name: "SyntaxError",
           message: m,
           at,
-          text
+          text: text3
         };
       }, next = function(c) {
         if (c && c !== ch) {
           error("Expected '" + c + "' instead of '" + ch + "'");
         }
-        ch = text.charAt(at);
+        ch = text3.charAt(at);
         at += 1;
         return ch;
       }, number = function() {
@@ -47445,12 +47446,12 @@ var require_parse2 = __commonJS({
           var startAt = at;
           while (next()) {
             if (ch === '"') {
-              if (at - 1 > startAt) string2 += text.substring(startAt, at - 1);
+              if (at - 1 > startAt) string2 += text3.substring(startAt, at - 1);
               next();
               return string2;
             }
             if (ch === "\\") {
-              if (at - 1 > startAt) string2 += text.substring(startAt, at - 1);
+              if (at - 1 > startAt) string2 += text3.substring(startAt, at - 1);
               next();
               if (ch === "u") {
                 uffff = 0;
@@ -47583,7 +47584,7 @@ var require_parse2 = __commonJS({
       };
       return function(source, reviver) {
         var result;
-        text = source + "";
+        text3 = source + "";
         at = 0;
         ch = " ";
         result = value();
@@ -48106,12 +48107,12 @@ var require_src59 = __commonJS({
     async function metadataAccessor(type, options = {}, noResponseRetries = 3, fastFail = false) {
       let metadataKey = "";
       let params = {};
-      let headers = {};
+      let headers2 = {};
       if (typeof type === "object") {
         const metadataAccessor2 = type;
         metadataKey = metadataAccessor2.metadataKey;
         params = metadataAccessor2.params || params;
-        headers = metadataAccessor2.headers || headers;
+        headers2 = metadataAccessor2.headers || headers2;
         noResponseRetries = metadataAccessor2.noResponseRetries || noResponseRetries;
         fastFail = metadataAccessor2.fastFail || fastFail;
       } else {
@@ -48124,13 +48125,13 @@ var require_src59 = __commonJS({
         if (options.property) {
           metadataKey += `/${options.property}`;
         }
-        headers = options.headers || headers;
+        headers2 = options.headers || headers2;
         params = options.params || params;
       }
       const requestMethod = fastFail ? fastFailMetadataRequest : gaxios_1.request;
       const req = {
         url: `${getBaseUrl()}/${metadataKey}`,
-        headers: { ...exports.HEADERS, ...headers },
+        headers: { ...exports.HEADERS, ...headers2 },
         retryConfig: { noResponseRetries },
         params,
         responseType: "text",
@@ -48476,13 +48477,13 @@ var require_gke = __commonJS({
     }
     exports.availabilityZoneOrRegion = availabilityZoneOrRegion;
     function countChar(s, char) {
-      let count = 0;
+      let count2 = 0;
       for (let i = 0; i < s.length; i++) {
         if (s[i] === char) {
-          count += 1;
+          count2 += 1;
         }
       }
-      return count;
+      return count2;
     }
   }
 });
@@ -49306,11 +49307,11 @@ function validateTimeoutMillis(timeoutMillis) {
   }
   throw new Error(`Configuration: timeoutMillis is invalid, expected number greater than 0 (actual: '${timeoutMillis}')`);
 }
-function wrapStaticHeadersInFunction(headers) {
-  if (headers == null) {
+function wrapStaticHeadersInFunction(headers2) {
+  if (headers2 == null) {
     return void 0;
   }
-  return async () => headers;
+  return async () => headers2;
 }
 function mergeOtlpSharedConfigurationWithDefaults(userProvidedConfiguration, fallbackConfiguration, defaultConfiguration) {
   return {
@@ -52158,7 +52159,7 @@ var require_umd = __commonJS({
           return this.not().add(ONE);
         };
         LongPrototype.neg = LongPrototype.negate;
-        LongPrototype.add = function add(addend) {
+        LongPrototype.add = function add2(addend) {
           if (!isLong(addend)) addend = fromValue(addend);
           var a48 = this.high >>> 16;
           var a32 = this.high & 65535;
@@ -63033,8 +63034,8 @@ var require_internal2 = __commonJS({
     exports.createExportLogsServiceRequest = createExportLogsServiceRequest;
     function createResourceMap(logRecords) {
       const resourceMap = /* @__PURE__ */ new Map();
-      for (const record of logRecords) {
-        const { resource, instrumentationScope: { name: name2, version: version3 = "", schemaUrl = "" } } = record;
+      for (const record2 of logRecords) {
+        const { resource, instrumentationScope: { name: name2, version: version3 = "", schemaUrl = "" } } = record2;
         let ismMap = resourceMap.get(resource);
         if (!ismMap) {
           ismMap = /* @__PURE__ */ new Map();
@@ -63046,7 +63047,7 @@ var require_internal2 = __commonJS({
           records = [];
           ismMap.set(ismKey, records);
         }
-        records.push(record);
+        records.push(record2);
       }
       return resourceMap;
     }
@@ -67077,13 +67078,13 @@ var require_TemporalMetricProcessor = __commonJS({
         const iterator = current.entries();
         let next = iterator.next();
         while (next.done !== true) {
-          const [key, record, hash] = next.value;
+          const [key, record2, hash] = next.value;
           if (last.has(key, hash)) {
             const lastAccumulation = last.get(key, hash);
-            const accumulation = aggregator.merge(lastAccumulation, record);
+            const accumulation = aggregator.merge(lastAccumulation, record2);
             result.set(key, accumulation, hash);
           } else {
-            result.set(key, record, hash);
+            result.set(key, record2, hash);
           }
           next = iterator.next();
         }
@@ -67506,13 +67507,13 @@ var require_ObservableRegistry = __commonJS({
         });
       }
       _findCallback(callback, instrument) {
-        return this._callbacks.findIndex((record) => {
-          return record.callback === callback && record.instrument === instrument;
+        return this._callbacks.findIndex((record2) => {
+          return record2.callback === callback && record2.instrument === instrument;
         });
       }
       _findBatchCallback(callback, instruments) {
-        return this._batchCallbacks.findIndex((record) => {
-          return record.callback === callback && (0, utils_1.setEquals)(record.instruments, instruments);
+        return this._batchCallbacks.findIndex((record2) => {
+          return record2.callback === callback && (0, utils_1.setEquals)(record2.instruments, instruments);
         });
       }
     };
@@ -68463,19 +68464,19 @@ var require_internal4 = __commonJS({
     exports.createExportTraceServiceRequest = createExportTraceServiceRequest;
     function createResourceMap(readableSpans) {
       const resourceMap = /* @__PURE__ */ new Map();
-      for (const record of readableSpans) {
-        let ilsMap = resourceMap.get(record.resource);
+      for (const record2 of readableSpans) {
+        let ilsMap = resourceMap.get(record2.resource);
         if (!ilsMap) {
           ilsMap = /* @__PURE__ */ new Map();
-          resourceMap.set(record.resource, ilsMap);
+          resourceMap.set(record2.resource, ilsMap);
         }
-        const instrumentationScopeKey = `${record.instrumentationScope.name}@${record.instrumentationScope.version || ""}:${record.instrumentationScope.schemaUrl || ""}`;
+        const instrumentationScopeKey = `${record2.instrumentationScope.name}@${record2.instrumentationScope.version || ""}:${record2.instrumentationScope.schemaUrl || ""}`;
         let records = ilsMap.get(instrumentationScopeKey);
         if (!records) {
           records = [];
           ilsMap.set(instrumentationScopeKey, records);
         }
-        records.push(record);
+        records.push(record2);
       }
       return resourceMap;
     }
@@ -68704,15 +68705,15 @@ var require_src67 = __commonJS({
 
 // node_modules/@opentelemetry/otlp-exporter-base/build/esm/util.js
 function validateAndNormalizeHeaders(partialHeaders) {
-  const headers = {};
+  const headers2 = {};
   Object.entries(partialHeaders ?? {}).forEach(([key, value]) => {
     if (typeof value !== "undefined") {
-      headers[key] = String(value);
+      headers2[key] = String(value);
     } else {
       diag.warn(`Header "${key}" has invalid value (${value}) and will be ignored`);
     }
   });
-  return headers;
+  return headers2;
 }
 var init_util = __esm({
   "node_modules/@opentelemetry/otlp-exporter-base/build/esm/util.js"() {
@@ -68726,14 +68727,14 @@ function mergeHeaders(userProvidedHeaders, fallbackHeaders, defaultHeaders) {
     const requiredHeaders = {
       ...await defaultHeaders()
     };
-    const headers = {};
+    const headers2 = {};
     if (fallbackHeaders != null) {
-      Object.assign(headers, await fallbackHeaders());
+      Object.assign(headers2, await fallbackHeaders());
     }
     if (userProvidedHeaders != null) {
-      Object.assign(headers, validateAndNormalizeHeaders(await userProvidedHeaders()));
+      Object.assign(headers2, validateAndNormalizeHeaders(await userProvidedHeaders()));
     }
-    return Object.assign(headers, requiredHeaders);
+    return Object.assign(headers2, requiredHeaders);
   };
 }
 function validateUserProvidedUrl(url) {
@@ -68835,19 +68836,19 @@ var init_version2 = __esm({
 // node_modules/@opentelemetry/otlp-exporter-base/build/esm/transport/http-transport-utils.js
 import * as zlib from "zlib";
 import { Readable } from "stream";
-function sendWithHttp(request, url, headers, compression, userAgent, agent, data, onDone, timeoutMillis) {
+function sendWithHttp(request, url, headers2, compression, userAgent, agent, data, onDone, timeoutMillis) {
   const parsedUrl = new URL(url);
   if (userAgent) {
-    headers["User-Agent"] = `${userAgent} ${DEFAULT_USER_AGENT}`;
+    headers2["User-Agent"] = `${userAgent} ${DEFAULT_USER_AGENT}`;
   } else {
-    headers["User-Agent"] = DEFAULT_USER_AGENT;
+    headers2["User-Agent"] = DEFAULT_USER_AGENT;
   }
   const options = {
     hostname: parsedUrl.hostname,
     port: parsedUrl.port,
     path: parsedUrl.pathname,
     method: "POST",
-    headers,
+    headers: headers2,
     agent
   };
   const req = request(options, (res) => {
@@ -68938,9 +68939,9 @@ var init_http_exporter_transport = __esm({
       }
       async send(data, timeoutMillis) {
         const { agent, request } = await this._loadUtils();
-        const headers = await this._parameters.headers();
+        const headers2 = await this._parameters.headers();
         return new Promise((resolve2) => {
-          sendWithHttp(request, this._parameters.url, headers, this._parameters.compression, this._parameters.userAgent, agent, data, (result) => {
+          sendWithHttp(request, this._parameters.url, headers2, this._parameters.compression, this._parameters.userAgent, agent, data, (result) => {
             resolve2(result);
           }, timeoutMillis);
         });
@@ -76991,8 +76992,8 @@ var require_BatchSpanProcessorBase2 = __commonJS({
       _flushAll() {
         return new Promise((resolve2, reject) => {
           const promises = [];
-          const count = Math.ceil(this._finishedSpans.length / this._maxExportBatchSize);
-          for (let i = 0, j = count; i < j; i++) {
+          const count2 = Math.ceil(this._finishedSpans.length / this._maxExportBatchSize);
+          for (let i = 0, j = count2; i < j; i++) {
             promises.push(this._flushOneBatch());
           }
           Promise.all(promises).then(() => {
@@ -79514,9 +79515,9 @@ var require_logging = __commonJS({
       }
     }
     var allEnabled = enabledTracers.has("all");
-    function trace2(severity, tracer, text) {
+    function trace2(severity, tracer, text3) {
       if (isTracerEnabled(tracer)) {
-        (0, exports.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text);
+        (0, exports.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text3);
       }
     }
     function isTracerEnabled(tracer) {
@@ -79747,13 +79748,13 @@ var require_metadata = __commonJS({
        * object.
        * @param headers An IncomingHttpHeaders object.
        */
-      static fromHttp2Headers(headers) {
+      static fromHttp2Headers(headers2) {
         const result = new _Metadata();
-        for (const key of Object.keys(headers)) {
+        for (const key of Object.keys(headers2)) {
           if (key.charAt(0) === ":") {
             continue;
           }
-          const values = headers[key];
+          const values = headers2[key];
           try {
             if (isBinaryKey(key)) {
               if (Array.isArray(values)) {
@@ -79826,23 +79827,23 @@ var require_call_credentials = __commonJS({
             getHeaders = googleCredentials.getRequestHeaders(options.service_url);
           } else {
             getHeaders = new Promise((resolve2, reject) => {
-              googleCredentials.getRequestMetadata(options.service_url, (err, headers) => {
+              googleCredentials.getRequestMetadata(options.service_url, (err, headers2) => {
                 if (err) {
                   reject(err);
                   return;
                 }
-                if (!headers) {
+                if (!headers2) {
                   reject(new Error("Headers not set by metadata plugin"));
                   return;
                 }
-                resolve2(headers);
+                resolve2(headers2);
               });
             });
           }
-          getHeaders.then((headers) => {
+          getHeaders.then((headers2) => {
             const metadata = new metadata_1.Metadata();
-            for (const key of Object.keys(headers)) {
-              metadata.add(key, headers[key]);
+            for (const key of Object.keys(headers2)) {
+              metadata.add(key, headers2[key]);
             }
             callback(null, metadata);
           }, (err) => {
@@ -80913,9 +80914,9 @@ var require_service_config = __commonJS({
       throw new Error("No matching service config found");
     }
     function extractAndSelectServiceConfig(txtRecord, percentage) {
-      for (const record of txtRecord) {
-        if (record.length > 0 && record[0].startsWith("grpc_config=")) {
-          const recordString = record.join("").substring("grpc_config=".length);
+      for (const record2 of txtRecord) {
+        if (record2.length > 0 && record2[0].startsWith("grpc_config=")) {
+          const recordString = record2.join("").substring("grpc_config=".length);
           const recordJson = JSON.parse(recordString);
           return validateAndSelectCanaryConfig(recordJson, percentage);
         }
@@ -81054,8 +81055,8 @@ var require_backoff_timeout = __commonJS({
       static getNextId() {
         return this.nextId++;
       }
-      trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text);
+      trace(text3) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text3);
       }
       runTimer(delay) {
         var _a, _b;
@@ -81298,8 +81299,8 @@ var require_resolving_load_balancer = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var load_balancer_child_handler_1 = require_load_balancer_child_handler();
     var TRACER_NAME = "resolving_load_balancer";
-    function trace2(text) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text);
+    function trace2(text3) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text3);
     }
     var NAME_MATCH_LEVEL_ORDER = [
       "SERVICE_AND_METHOD",
@@ -84302,11 +84303,11 @@ var require_namespace = __commonJS({
       depth = util.checkDepth(depth);
       var ns = this;
       if (nestedJson) {
-        for (var names = Object.keys(nestedJson), i = 0, nested; i < names.length; ++i) {
-          nested = nestedJson[names[i]];
+        for (var names = Object.keys(nestedJson), i = 0, nested2; i < names.length; ++i) {
+          nested2 = nestedJson[names[i]];
           ns.add(
             // most to least likely
-            (nested.fields !== void 0 ? Type.fromJSON : nested.values !== void 0 ? Enum.fromJSON : nested.methods !== void 0 ? Service.fromJSON : nested.id !== void 0 ? Field.fromJSON : Namespace.fromJSON)(names[i], nested, depth + 1)
+            (nested2.fields !== void 0 ? Type.fromJSON : nested2.values !== void 0 ? Enum.fromJSON : nested2.methods !== void 0 ? Service.fromJSON : nested2.id !== void 0 ? Field.fromJSON : Namespace.fromJSON)(names[i], nested2, depth + 1)
           );
         }
       }
@@ -84320,7 +84321,7 @@ var require_namespace = __commonJS({
         return this.nested[name2].values;
       throw Error("no such enum: " + name2);
     };
-    Namespace.prototype.add = function add(object) {
+    Namespace.prototype.add = function add2(object) {
       if (!(object instanceof Field && object.extend !== void 0 || object instanceof Type || object instanceof OneOf || object instanceof Enum || object instanceof Service || object instanceof Namespace))
         throw TypeError("object must be a valid nested object");
       if (object.name === "__proto__")
@@ -84331,9 +84332,9 @@ var require_namespace = __commonJS({
         var prev = this.get(object.name);
         if (prev) {
           if (prev instanceof Namespace && object instanceof Namespace && !(prev instanceof Type || prev instanceof Service)) {
-            var nested = prev.nestedArray;
-            for (var i = 0; i < nested.length; ++i)
-              object.add(nested[i]);
+            var nested2 = prev.nestedArray;
+            for (var i = 0; i < nested2.length; ++i)
+              object.add(nested2[i]);
             this.remove(prev);
             if (!this.nested)
               this.nested = {};
@@ -84395,13 +84396,13 @@ var require_namespace = __commonJS({
     Namespace.prototype.resolveAll = function resolveAll() {
       if (!this._needsRecursiveResolve) return this;
       this._resolveFeaturesRecursive(this._edition);
-      var nested = this.nestedArray, i = 0;
+      var nested2 = this.nestedArray, i = 0;
       this.resolve();
-      while (i < nested.length)
-        if (nested[i] instanceof Namespace)
-          nested[i++].resolveAll();
+      while (i < nested2.length)
+        if (nested2[i] instanceof Namespace)
+          nested2[i++].resolveAll();
         else
-          nested[i++].resolve();
+          nested2[i++].resolve();
       this._needsRecursiveResolve = false;
       return this;
     };
@@ -84410,8 +84411,8 @@ var require_namespace = __commonJS({
       this._needsRecursiveFeatureResolution = false;
       edition = this._edition || edition;
       ReflectionObject.prototype._resolveFeaturesRecursive.call(this, edition);
-      this.nestedArray.forEach((nested) => {
-        nested._resolveFeaturesRecursive(edition);
+      this.nestedArray.forEach((nested2) => {
+        nested2._resolveFeaturesRecursive(edition);
       });
       return this;
     };
@@ -84704,7 +84705,7 @@ var require_service2 = __commonJS({
       });
       return this;
     };
-    Service.prototype.add = function add(object) {
+    Service.prototype.add = function add2(object) {
       if (this.get(object.name))
         throw Error("duplicate name '" + object.name + "' in " + this);
       if (object instanceof Method) {
@@ -85353,10 +85354,10 @@ var require_type = __commonJS({
           type.add(OneOf.fromJSON(names[i], json.oneofs[names[i]]));
       if (json.nested)
         for (names = Object.keys(json.nested), i = 0; i < names.length; ++i) {
-          var nested = json.nested[names[i]];
+          var nested2 = json.nested[names[i]];
           type.add(
             // most to least likely
-            (nested.id !== void 0 ? Field.fromJSON : nested.fields !== void 0 ? Type.fromJSON : nested.values !== void 0 ? Enum.fromJSON : nested.methods !== void 0 ? Service.fromJSON : Namespace.fromJSON)(names[i], nested, depth + 1)
+            (nested2.id !== void 0 ? Field.fromJSON : nested2.fields !== void 0 ? Type.fromJSON : nested2.values !== void 0 ? Enum.fromJSON : nested2.methods !== void 0 ? Service.fromJSON : Namespace.fromJSON)(names[i], nested2, depth + 1)
           );
         }
       if (json.extensions && json.extensions.length)
@@ -85431,7 +85432,7 @@ var require_type = __commonJS({
         return this.nested[name2];
       return null;
     };
-    Type.prototype.add = function add(object) {
+    Type.prototype.add = function add2(object) {
       if (this.get(object.name))
         throw Error("duplicate name '" + object.name + "' in " + this);
       if (object instanceof Field && object.extend === void 0) {
@@ -86358,7 +86359,7 @@ var require_oneof = __commonJS({
             oneof.parent.add(oneof.fieldsArray[i]);
       }
     }
-    OneOf.prototype.add = function add(field) {
+    OneOf.prototype.add = function add2(field) {
       if (!(field instanceof Field))
         throw TypeError("field must be a Field");
       if (field.parent && field.parent !== this.parent)
@@ -86690,7 +86691,7 @@ var require_enum2 = __commonJS({
         keepComments ? this.comments : void 0
       ]);
     };
-    Enum.prototype.add = function add(name2, id, comment, options) {
+    Enum.prototype.add = function add2(name2, id, comment, options) {
       if (!util.isString(name2))
         throw TypeError("name must be a string");
       if (!util.isInteger(id))
@@ -89626,24 +89627,24 @@ var require_descriptor2 = __commonJS({
       editionToDescriptor(edition, file);
       if (!(ns instanceof Root))
         file["package"] = ns.fullName.substring(1);
-      for (var i = 0, nested; i < ns.nestedArray.length; ++i)
-        if ((nested = ns._nestedArray[i]) instanceof Type)
-          file.messageType.push(nested.toDescriptor(edition));
-        else if (nested instanceof Enum)
-          file.enumType.push(nested.toDescriptor());
-        else if (nested instanceof Field)
-          file.extension.push(nested.toDescriptor(edition));
-        else if (nested instanceof Service)
-          file.service.push(nested.toDescriptor());
-        else if (nested instanceof /* plain */
+      for (var i = 0, nested2; i < ns.nestedArray.length; ++i)
+        if ((nested2 = ns._nestedArray[i]) instanceof Type)
+          file.messageType.push(nested2.toDescriptor(edition));
+        else if (nested2 instanceof Enum)
+          file.enumType.push(nested2.toDescriptor());
+        else if (nested2 instanceof Field)
+          file.extension.push(nested2.toDescriptor(edition));
+        else if (nested2 instanceof Service)
+          file.service.push(nested2.toDescriptor());
+        else if (nested2 instanceof /* plain */
         Namespace)
-          Root_toDescriptorRecursive(nested, files, edition);
+          Root_toDescriptorRecursive(nested2, files, edition);
       file.options = toDescriptorOptions(ns.options, exports.FileOptions);
       if (file.messageType.length + file.enumType.length + file.extension.length + file.service.length)
         files.push(file);
     }
     var unnamedMessageIndex = 0;
-    Type.fromDescriptor = function fromDescriptor(descriptor, edition, nested, depth) {
+    Type.fromDescriptor = function fromDescriptor(descriptor, edition, nested2, depth) {
       if (depth === void 0)
         depth = 0;
       if (depth > $protobuf.util.nestingLimit)
@@ -89651,7 +89652,7 @@ var require_descriptor2 = __commonJS({
       if (typeof descriptor.length === "number")
         descriptor = exports.DescriptorProto.decode(descriptor);
       var type = new Type(descriptor.name.length ? descriptor.name : "Type" + unnamedMessageIndex++, fromDescriptorOptions(descriptor.options, exports.MessageOptions)), i;
-      if (!nested)
+      if (!nested2)
         type._edition = edition;
       if (descriptor.oneofDecl)
         for (i = 0; i < descriptor.oneofDecl.length; ++i)
@@ -89733,7 +89734,7 @@ var require_descriptor2 = __commonJS({
       descriptor.options = toDescriptorOptions(this.options, exports.MessageOptions);
       return descriptor;
     };
-    Field.fromDescriptor = function fromDescriptor(descriptor, edition, nested) {
+    Field.fromDescriptor = function fromDescriptor(descriptor, edition, nested2) {
       if (typeof descriptor.length === "number")
         descriptor = exports.DescriptorProto.decode(descriptor);
       if (typeof descriptor.number !== "number")
@@ -89773,7 +89774,7 @@ var require_descriptor2 = __commonJS({
         fieldRule,
         extendee
       );
-      if (!nested)
+      if (!nested2)
         field._edition = edition;
       field.options = fromDescriptorOptions(descriptor.options, exports.FieldOptions);
       if (descriptor.proto3_optional)
@@ -89850,7 +89851,7 @@ var require_descriptor2 = __commonJS({
       return descriptor;
     };
     var unnamedEnumIndex = 0;
-    Enum.fromDescriptor = function fromDescriptor(descriptor, edition, nested) {
+    Enum.fromDescriptor = function fromDescriptor(descriptor, edition, nested2) {
       if (typeof descriptor.length === "number")
         descriptor = exports.EnumDescriptorProto.decode(descriptor);
       var values = {};
@@ -89864,7 +89865,7 @@ var require_descriptor2 = __commonJS({
         values,
         fromDescriptorOptions(descriptor.options, exports.EnumOptions)
       );
-      if (!nested)
+      if (!nested2)
         enm._edition = edition;
       return enm;
     };
@@ -89895,11 +89896,11 @@ var require_descriptor2 = __commonJS({
       });
     };
     var unnamedServiceIndex = 0;
-    Service.fromDescriptor = function fromDescriptor(descriptor, edition, nested) {
+    Service.fromDescriptor = function fromDescriptor(descriptor, edition, nested2) {
       if (typeof descriptor.length === "number")
         descriptor = exports.ServiceDescriptorProto.decode(descriptor);
       var service = new Service(descriptor.name && descriptor.name.length ? descriptor.name : "Service" + unnamedServiceIndex++, fromDescriptorOptions(descriptor.options, exports.ServiceOptions));
-      if (!nested)
+      if (!nested2)
         service._edition = edition;
       if (descriptor.method)
         for (var i = 0; i < descriptor.method.length; ++i)
@@ -91611,15 +91612,15 @@ var require_compression_filter = __commonJS({
         }
       }
       async sendMetadata(metadata) {
-        const headers = await metadata;
-        headers.set("grpc-accept-encoding", "identity,deflate,gzip");
-        headers.set("accept-encoding", "identity");
+        const headers2 = await metadata;
+        headers2.set("grpc-accept-encoding", "identity,deflate,gzip");
+        headers2.set("accept-encoding", "identity");
         if (this.currentCompressionAlgorithm === "identity") {
-          headers.remove("grpc-encoding");
+          headers2.remove("grpc-encoding");
         } else {
-          headers.set("grpc-encoding", this.currentCompressionAlgorithm);
+          headers2.set("grpc-encoding", this.currentCompressionAlgorithm);
         }
-        return headers;
+        return headers2;
       }
       receiveMetadata(metadata) {
         const receiveEncoding = metadata.get("grpc-encoding");
@@ -92149,11 +92150,11 @@ var require_subchannel = __commonJS({
           target: this.subchannelAddressString
         };
       }
-      trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+      trace(text3) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text3);
       }
-      refTrace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+      refTrace(text3) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text3);
       }
       handleBackoffTimer() {
         if (this.continueConnecting) {
@@ -92431,8 +92432,8 @@ var require_resolver_dns = __commonJS({
     var backoff_timeout_1 = require_backoff_timeout();
     var environment_1 = require_environment13();
     var TRACER_NAME = "dns_resolver";
-    function trace2(text) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text);
+    function trace2(text3) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text3);
     }
     exports.DEFAULT_PORT = 443;
     var DEFAULT_MIN_TIME_BETWEEN_RESOLUTIONS_MS = 3e4;
@@ -92717,8 +92718,8 @@ var require_http_proxy = __commonJS({
     var url_1 = __require("url");
     var resolver_dns_1 = require_resolver_dns();
     var TRACER_NAME = "proxy";
-    function trace2(text) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text);
+    function trace2(text3) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text3);
     }
     function getProxyInfo() {
       let proxyEnv = "";
@@ -92875,7 +92876,7 @@ var require_http_proxy = __commonJS({
         method: "CONNECT",
         path: hostPort
       };
-      const headers = {
+      const headers2 = {
         Host: hostPort
       };
       if ((0, subchannel_address_1.isTcpSubchannelAddress)(address)) {
@@ -92885,9 +92886,9 @@ var require_http_proxy = __commonJS({
         options.socketPath = address.path;
       }
       if ("grpc.http_connect_creds" in channelOptions) {
-        headers["Proxy-Authorization"] = "Basic " + Buffer.from(channelOptions["grpc.http_connect_creds"]).toString("base64");
+        headers2["Proxy-Authorization"] = "Basic " + Buffer.from(channelOptions["grpc.http_connect_creds"]).toString("base64");
       }
-      options.headers = headers;
+      options.headers = headers2;
       const proxyAddressString = (0, subchannel_address_1.subchannelAddressToString)(address);
       trace2("Using proxy " + proxyAddressString + " to connect to " + options.path);
       return new Promise((resolve2, reject) => {
@@ -93077,19 +93078,19 @@ var require_subchannel_call = __commonJS({
         this.connectionDropped = false;
         const maxReceiveMessageLength = (_a = transport.getOptions()["grpc.max_receive_message_length"]) !== null && _a !== void 0 ? _a : constants_1.DEFAULT_MAX_RECEIVE_MESSAGE_LENGTH;
         this.decoder = new stream_decoder_1.StreamDecoder(maxReceiveMessageLength);
-        http2Stream.on("response", (headers, flags) => {
+        http2Stream.on("response", (headers2, flags) => {
           let headersString = "";
-          for (const header of Object.keys(headers)) {
-            headersString += "		" + header + ": " + headers[header] + "\n";
+          for (const header of Object.keys(headers2)) {
+            headersString += "		" + header + ": " + headers2[header] + "\n";
           }
           this.trace("Received server headers:\n" + headersString);
-          this.httpStatusCode = headers[":status"];
+          this.httpStatusCode = headers2[":status"];
           if (flags & http2.constants.NGHTTP2_FLAG_END_STREAM) {
-            this.handleTrailers(headers);
+            this.handleTrailers(headers2);
           } else {
             let metadata;
             try {
-              metadata = metadata_1.Metadata.fromHttp2Headers(headers);
+              metadata = metadata_1.Metadata.fromHttp2Headers(headers2);
             } catch (error) {
               this.endCall({
                 code: constants_1.Status.UNKNOWN,
@@ -93101,8 +93102,8 @@ var require_subchannel_call = __commonJS({
             this.listener.onReceiveMetadata(metadata);
           }
         });
-        http2Stream.on("trailers", (headers) => {
-          this.handleTrailers(headers);
+        http2Stream.on("trailers", (headers2) => {
+          this.handleTrailers(headers2);
         });
         http2Stream.on("data", (data) => {
           if (this.statusOutput) {
@@ -93233,8 +93234,8 @@ var require_subchannel_call = __commonJS({
           this.http2Stream.resume();
         }
       }
-      trace(text) {
-        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text);
+      trace(text3) {
+        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text3);
       }
       /**
        * On first call, emits a 'status' event with the given StatusObject.
@@ -93277,17 +93278,17 @@ var require_subchannel_call = __commonJS({
           this.unpushedReadMessages.push(messageBytes);
         }
       }
-      handleTrailers(headers) {
+      handleTrailers(headers2) {
         this.serverEndedCall = true;
         this.callEventTracker.onStreamEnd(true);
         let headersString = "";
-        for (const header of Object.keys(headers)) {
-          headersString += "		" + header + ": " + headers[header] + "\n";
+        for (const header of Object.keys(headers2)) {
+          headersString += "		" + header + ": " + headers2[header] + "\n";
         }
         this.trace("Received server trailers:\n" + headersString);
         let metadata;
         try {
-          metadata = metadata_1.Metadata.fromHttp2Headers(headers);
+          metadata = metadata_1.Metadata.fromHttp2Headers(headers2);
         } catch (e) {
           metadata = new metadata_1.Metadata();
         }
@@ -93557,17 +93558,17 @@ var require_transport = __commonJS({
         };
         return socketInfo;
       }
-      trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+      trace(text3) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text3);
       }
-      keepaliveTrace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+      keepaliveTrace(text3) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text3);
       }
-      flowControlTrace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+      flowControlTrace(text3) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text3);
       }
-      internalsTrace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text);
+      internalsTrace(text3) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text3);
       }
       /**
        * Indicate to the owner of this object that this transport should no longer
@@ -93695,16 +93696,16 @@ var require_transport = __commonJS({
         }
       }
       createCall(metadata, host, method, listener, subchannelCallStatsTracker) {
-        const headers = metadata.toHttp2Headers();
-        headers[HTTP2_HEADER_AUTHORITY] = host;
-        headers[HTTP2_HEADER_USER_AGENT] = this.userAgent;
-        headers[HTTP2_HEADER_CONTENT_TYPE] = "application/grpc";
-        headers[HTTP2_HEADER_METHOD] = "POST";
-        headers[HTTP2_HEADER_PATH] = method;
-        headers[HTTP2_HEADER_TE] = "trailers";
+        const headers2 = metadata.toHttp2Headers();
+        headers2[HTTP2_HEADER_AUTHORITY] = host;
+        headers2[HTTP2_HEADER_USER_AGENT] = this.userAgent;
+        headers2[HTTP2_HEADER_CONTENT_TYPE] = "application/grpc";
+        headers2[HTTP2_HEADER_METHOD] = "POST";
+        headers2[HTTP2_HEADER_PATH] = method;
+        headers2[HTTP2_HEADER_TE] = "trailers";
         let http2Stream;
         try {
-          http2Stream = this.session.request(headers);
+          http2Stream = this.session.request(headers2);
         } catch (e) {
           this.handleDisconnect();
           throw e;
@@ -93791,8 +93792,8 @@ var require_transport = __commonJS({
         this.session = null;
         this.isShutdown = false;
       }
-      trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text);
+      trace(text3) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text3);
       }
       createSession(secureConnectResult, address, options) {
         if (this.isShutdown) {
@@ -94098,8 +94099,8 @@ var require_load_balancing_call = __commonJS({
         }
         return deadlineInfo;
       }
-      trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text);
+      trace(text3) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text3);
       }
       outputStatus(status, progress) {
         var _a, _b;
@@ -94330,8 +94331,8 @@ var require_resolving_call = __commonJS({
         this.trace("Created");
         this.runDeadlineTimer();
       }
-      trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text);
+      trace(text3) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text3);
       }
       runDeadlineTimer() {
         clearTimeout(this.deadlineTimer);
@@ -94696,8 +94697,8 @@ var require_retrying_call = __commonJS({
       getCallNumber() {
         return this.callNumber;
       }
-      trace(text) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text);
+      trace(text3) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text3);
       }
       reportStatus(statusObject) {
         this.trace("ended with status: code=" + statusObject.code + ' details="' + statusObject.details + '" start time=' + this.startTime.toISOString());
@@ -94853,13 +94854,13 @@ var require_retrying_call = __commonJS({
         }, retryDelayMs);
       }
       countActiveCalls() {
-        let count = 0;
+        let count2 = 0;
         for (const call of this.underlyingCalls) {
           if ((call === null || call === void 0 ? void 0 : call.state) === "ACTIVE") {
-            count += 1;
+            count2 += 1;
           }
         }
-        return count;
+        return count2;
       }
       handleProcessedStatus(status, callIndex, pushback) {
         var _a, _b, _c;
@@ -95533,8 +95534,8 @@ var require_internal_channel = __commonJS({
         }
         this.lastActivityTimestamp = /* @__PURE__ */ new Date();
       }
-      trace(text, verbosityOverride) {
-        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text);
+      trace(text3, verbosityOverride) {
+        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text3);
       }
       callRefTimerRef() {
         var _a, _b, _c, _d;
@@ -96731,8 +96732,8 @@ var require_server_interceptors = __commonJS({
     var tls_1 = __require("tls");
     var orca_1 = require_orca();
     var TRACER_NAME = "server_call";
-    function trace2(text) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text);
+    function trace2(text3) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text3);
     }
     var ServerListenerBuilder = class {
       constructor() {
@@ -97037,7 +97038,7 @@ var require_server_interceptors = __commonJS({
       waitForTrailers: true
     };
     var BaseServerInterceptingCall = class {
-      constructor(stream2, headers, callEventTracker, handler, options) {
+      constructor(stream2, headers2, callEventTracker, handler, options) {
         var _a, _b;
         this.stream = stream2;
         this.callEventTracker = callEventTracker;
@@ -97084,9 +97085,9 @@ var require_server_interceptors = __commonJS({
         if ("grpc.max_receive_message_length" in options) {
           this.maxReceiveMessageSize = options["grpc.max_receive_message_length"];
         }
-        this.host = (_a = headers[":authority"]) !== null && _a !== void 0 ? _a : headers.host;
+        this.host = (_a = headers2[":authority"]) !== null && _a !== void 0 ? _a : headers2.host;
         this.decoder = new stream_decoder_1.StreamDecoder(this.maxReceiveMessageSize);
-        const metadata = metadata_1.Metadata.fromHttp2Headers(headers);
+        const metadata = metadata_1.Metadata.fromHttp2Headers(headers2);
         if (logging.isTracerEnabled(TRACER_NAME)) {
           trace2("Request to " + this.handler.path + " received headers " + JSON.stringify(metadata.toJSON()));
         }
@@ -97316,8 +97317,8 @@ var require_server_interceptors = __commonJS({
         }
         this.metadataSent = true;
         const custom = metadata ? metadata.toHttp2Headers() : null;
-        const headers = Object.assign(Object.assign(Object.assign({}, defaultResponseHeaders), defaultCompressionHeaders), custom);
-        this.stream.respond(headers, defaultResponseOptions);
+        const headers2 = Object.assign(Object.assign(Object.assign({}, defaultResponseHeaders), defaultCompressionHeaders), custom);
+        this.stream.respond(headers2, defaultResponseOptions);
       }
       sendMessage(message, callback) {
         if (this.checkCancelled()) {
@@ -97449,7 +97450,7 @@ var require_server_interceptors = __commonJS({
       }
     };
     exports.BaseServerInterceptingCall = BaseServerInterceptingCall;
-    function getServerInterceptingCall(interceptors, stream2, headers, callEventTracker, handler, options) {
+    function getServerInterceptingCall(interceptors, stream2, headers2, callEventTracker, handler, options) {
       const methodDefinition = {
         path: handler.path,
         requestStream: handler.type === "clientStream" || handler.type === "bidi",
@@ -97457,7 +97458,7 @@ var require_server_interceptors = __commonJS({
         requestDeserialize: handler.deserialize,
         responseSerialize: handler.serialize
       };
-      const baseCall = new BaseServerInterceptingCall(stream2, headers, callEventTracker, handler, options);
+      const baseCall = new BaseServerInterceptingCall(stream2, headers2, callEventTracker, handler, options);
       return interceptors.reduce((call, interceptor) => {
         return interceptor(methodDefinition, call);
       }, baseCall);
@@ -97528,8 +97529,8 @@ var require_server = __commonJS({
     var { HTTP2_HEADER_PATH } = http2.constants;
     var TRACER_NAME = "server";
     var kMaxAge = Buffer.from("max_age");
-    function serverCallTrace(text) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text);
+    function serverCallTrace(text3) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text3);
     }
     function noop() {
     }
@@ -97668,11 +97669,11 @@ var require_server = __commonJS({
           };
           return socketInfo;
         }
-        trace(text) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text);
+        trace(text3) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text3);
         }
-        keepaliveTrace(text) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text);
+        keepaliveTrace(text3) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text3);
         }
         addProtoService() {
           throw new Error("Not implemented. Use addService() instead");
@@ -98279,8 +98280,8 @@ var require_server = __commonJS({
         getChannelzRef() {
           return this.channelzRef;
         }
-        _verifyContentType(stream2, headers) {
-          const contentType = headers[http2.constants.HTTP2_HEADER_CONTENT_TYPE];
+        _verifyContentType(stream2, headers2) {
+          const contentType = headers2[http2.constants.HTTP2_HEADER_CONTENT_TYPE];
           if (typeof contentType !== "string" || !contentType.startsWith("application/grpc")) {
             stream2.respond({
               [http2.constants.HTTP2_HEADER_STATUS]: http2.constants.HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE
@@ -98305,19 +98306,19 @@ var require_server = __commonJS({
           this.callTracker.addCallFailed();
           channelzSessionInfo === null || channelzSessionInfo === void 0 ? void 0 : channelzSessionInfo.streamTracker.addCallFailed();
         }
-        _channelzHandler(extraInterceptors, stream2, headers) {
+        _channelzHandler(extraInterceptors, stream2, headers2) {
           stream2.once("error", (err) => {
           });
           this.onStreamOpened(stream2);
           const channelzSessionInfo = this.sessions.get(stream2.session);
           this.callTracker.addCallStarted();
           channelzSessionInfo === null || channelzSessionInfo === void 0 ? void 0 : channelzSessionInfo.streamTracker.addCallStarted();
-          if (!this._verifyContentType(stream2, headers)) {
+          if (!this._verifyContentType(stream2, headers2)) {
             this.callTracker.addCallFailed();
             channelzSessionInfo === null || channelzSessionInfo === void 0 ? void 0 : channelzSessionInfo.streamTracker.addCallFailed();
             return;
           }
-          const path18 = headers[HTTP2_HEADER_PATH];
+          const path18 = headers2[HTTP2_HEADER_PATH];
           const handler = this._retrieveHandler(path18);
           if (!handler) {
             this._respondWithError(getUnimplementedStatusResponse(path18), stream2, channelzSessionInfo);
@@ -98353,7 +98354,7 @@ var require_server = __commonJS({
               }
             }
           };
-          const call = (0, server_interceptors_1.getServerInterceptingCall)([...extraInterceptors, ...this.interceptors], stream2, headers, callEventTracker, handler, this.options);
+          const call = (0, server_interceptors_1.getServerInterceptingCall)([...extraInterceptors, ...this.interceptors], stream2, headers2, callEventTracker, handler, this.options);
           if (!this._runHandlerForCall(call, handler)) {
             this.callTracker.addCallFailed();
             channelzSessionInfo === null || channelzSessionInfo === void 0 ? void 0 : channelzSessionInfo.streamTracker.addCallFailed();
@@ -98363,20 +98364,20 @@ var require_server = __commonJS({
             });
           }
         }
-        _streamHandler(extraInterceptors, stream2, headers) {
+        _streamHandler(extraInterceptors, stream2, headers2) {
           stream2.once("error", (err) => {
           });
           this.onStreamOpened(stream2);
-          if (this._verifyContentType(stream2, headers) !== true) {
+          if (this._verifyContentType(stream2, headers2) !== true) {
             return;
           }
-          const path18 = headers[HTTP2_HEADER_PATH];
+          const path18 = headers2[HTTP2_HEADER_PATH];
           const handler = this._retrieveHandler(path18);
           if (!handler) {
             this._respondWithError(getUnimplementedStatusResponse(path18), stream2, null);
             return;
           }
-          const call = (0, server_interceptors_1.getServerInterceptingCall)([...extraInterceptors, ...this.interceptors], stream2, headers, null, handler, this.options);
+          const call = (0, server_interceptors_1.getServerInterceptingCall)([...extraInterceptors, ...this.interceptors], stream2, headers2, null, handler, this.options);
           if (!this._runHandlerForCall(call, handler)) {
             call.sendStatus({
               code: constants_1.Status.INTERNAL,
@@ -98987,8 +98988,8 @@ var require_load_balancer_pick_first = __commonJS({
     var net_1 = __require("net");
     var call_interface_1 = require_call_interface();
     var TRACER_NAME = "pick_first";
-    function trace2(text) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text);
+    function trace2(text3) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text3);
     }
     var TYPE_NAME = "pick_first";
     var CONNECTION_DELAY_INTERVAL_MS = 250;
@@ -99399,8 +99400,8 @@ var require_certificate_provider = __commonJS({
     var constants_1 = require_constants20();
     var util_1 = __require("util");
     var TRACER_NAME = "certificate_provider";
-    function trace2(text) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text);
+    function trace2(text3) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text3);
     }
     var readFilePromise = (0, util_1.promisify)(fs14.readFile);
     var FileWatcherCertificateProvider = class {
@@ -99699,8 +99700,8 @@ var require_resolver_ip = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var logging = require_logging();
     var TRACER_NAME = "ip_resolver";
-    function trace2(text) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text);
+    function trace2(text3) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text3);
     }
     var IPV4_SCHEME = "ipv4";
     var IPV6_SCHEME = "ipv6";
@@ -99790,8 +99791,8 @@ var require_load_balancer_round_robin = __commonJS({
     var subchannel_address_1 = require_subchannel_address();
     var load_balancer_pick_first_1 = require_load_balancer_pick_first();
     var TRACER_NAME = "round_robin";
-    function trace2(text) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text);
+    function trace2(text3) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text3);
     }
     var TYPE_NAME = "round_robin";
     var RoundRobinLoadBalancingConfig = class _RoundRobinLoadBalancingConfig {
@@ -99969,8 +99970,8 @@ var require_load_balancer_outlier_detection = __commonJS({
     var subchannel_interface_1 = require_subchannel_interface();
     var logging = require_logging();
     var TRACER_NAME = "outlier_detection";
-    function trace2(text) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text);
+    function trace2(text3) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text3);
     }
     var TYPE_NAME = "outlier_detection";
     var OUTLIER_DETECTION_ENABLED = ((_a = process.env.GRPC_EXPERIMENTAL_ENABLE_OUTLIER_DETECTION) !== null && _a !== void 0 ? _a : "true") === "true";
@@ -100569,8 +100570,8 @@ var require_load_balancer_weighted_round_robin = __commonJS({
     var priority_queue_1 = require_priority_queue();
     var subchannel_address_1 = require_subchannel_address();
     var TRACER_NAME = "weighted_round_robin";
-    function trace2(text) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text);
+    function trace2(text3) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text3);
     }
     var TYPE_NAME = "weighted_round_robin";
     var DEFAULT_OOB_REPORTING_PERIOD_MS = 1e4;
@@ -100705,13 +100706,13 @@ var require_load_balancer_weighted_round_robin = __commonJS({
         this.weightUpdateTimer = null;
       }
       countChildrenWithState(state) {
-        let count = 0;
+        let count2 = 0;
         for (const entry of this.children.values()) {
           if (entry.child.getConnectivityState() === state) {
-            count += 1;
+            count2 += 1;
           }
         }
-        return count;
+        return count2;
       }
       updateWeight(entry, loadReport) {
         var _a, _b;
@@ -106315,13 +106316,13 @@ var require_util5 = __commonJS({
     var core_1 = require_src93();
     var http = __require("http");
     var https = __require("https");
-    function prepareSend(urlStr, headers) {
+    function prepareSend(urlStr, headers2) {
       const url = new URL(urlStr);
       const reqOpts = Object.assign({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...headers
+          ...headers2
         }
       });
       return function send(zipkinSpans, done) {
@@ -109817,11 +109818,11 @@ var require_JaegerPropagator = __commonJS({
     exports.JaegerPropagator = JaegerPropagator;
     var VALID_HEX_RE = /^[0-9a-f]{1,2}$/i;
     function deserializeSpanContext(serializedString) {
-      const headers = decodeURIComponent(serializedString).split(":");
-      if (headers.length !== 4) {
+      const headers2 = decodeURIComponent(serializedString).split(":");
+      if (headers2.length !== 4) {
         return null;
       }
-      const [_traceId, _spanId, , flags] = headers;
+      const [_traceId, _spanId, , flags] = headers2;
       const traceId = _traceId.padStart(32, "0");
       const spanId = _spanId.padStart(16, "0");
       const traceFlags = VALID_HEX_RE.test(flags) ? parseInt(flags, 16) & 1 : 1;
@@ -113589,7 +113590,7 @@ var require_response = __commonJS({
         name2 = null;
         opts = filename;
       }
-      var headers = {
+      var headers2 = {
         "Content-Disposition": contentDisposition(name2 || path19)
       };
       if (opts && opts.headers) {
@@ -113597,12 +113598,12 @@ var require_response = __commonJS({
         for (var i = 0; i < keys.length; i++) {
           var key = keys[i];
           if (key.toLowerCase() !== "content-disposition") {
-            headers[key] = opts.headers[key];
+            headers2[key] = opts.headers[key];
           }
         }
       }
       opts = Object.create(opts);
-      opts.headers = headers;
+      opts.headers = headers2;
       var fullPath = !opts.root ? resolve2(path19) : path19;
       return this.sendFile(fullPath, opts, done);
     };
@@ -113829,7 +113830,7 @@ var require_response = __commonJS({
       file.on("stream", onstream);
       onFinished(res2, onfinish);
       if (options.headers) {
-        file.on("headers", function headers(res3) {
+        file.on("headers", function headers2(res3) {
           var obj = options.headers;
           var keys = Object.keys(obj);
           for (var i = 0; i < keys.length; i++) {
@@ -114714,8 +114715,8 @@ var RoutingPool = class {
     const userCtx = getUserContext();
     return userCtx ? this.resolveUserPool(userCtx) : this.spPool;
   }
-  query(text, values) {
-    return this.activePool().query(text, values);
+  query(text3, values) {
+    return this.activePool().query(text3, values);
   }
   connect() {
     return this.activePool().connect();
@@ -116847,10 +116848,10 @@ var logger7 = createLogger("interceptors:retry");
 function isRetryableError(error) {
   if (error instanceof AppKitError) return error.isRetryable;
   if (error instanceof Error && "statusCode" in error) {
-    const record = error;
-    if (typeof record.statusCode !== "number") return true;
-    if (typeof record.isRetryable === "function") return record.isRetryable();
-    return record.statusCode >= 500 || record.statusCode === 429;
+    const record2 = error;
+    if (typeof record2.statusCode !== "number") return true;
+    if (typeof record2.isRetryable === "function") return record2.isRetryable();
+    return record2.statusCode >= 500 || record2.statusCode === 429;
   }
   return true;
 }
@@ -118963,21 +118964,21 @@ var FilesConnector = class {
       const host = hostValue.startsWith("http") ? hostValue : `https://${hostValue}`;
       const url = new URL(`/api/2.0/fs/files${resolvedPath}`, host);
       url.searchParams.set("overwrite", String(overwrite));
-      const headers = new Headers({ "Content-Type": "application/octet-stream" });
+      const headers2 = new Headers({ "Content-Type": "application/octet-stream" });
       const fetchOptions = {
         method: "PUT",
-        headers,
+        headers: headers2,
         body
       };
       if (body instanceof ReadableStream) fetchOptions.duplex = "half";
-      else if (body instanceof Buffer) headers.set("Content-Length", String(body.length));
-      else if (typeof body === "string") headers.set("Content-Length", String(Buffer.byteLength(body)));
-      await client.config.authenticate(headers);
+      else if (body instanceof Buffer) headers2.set("Content-Length", String(body.length));
+      else if (typeof body === "string") headers2.set("Content-Length", String(Buffer.byteLength(body)));
+      await client.config.authenticate(headers2);
       const res = await fetch(url.toString(), fetchOptions);
       if (!res.ok) {
-        const text = await res.text();
-        logger16.error(`Upload failed (${res.status}): ${text}`);
-        throw new ApiError2(`Upload failed: ${text.length > 200 ? `${text.slice(0, 200)}…` : text}`, "UPLOAD_FAILED", res.status, void 0, []);
+        const text3 = await res.text();
+        logger16.error(`Upload failed (${res.status}): ${text3}`);
+        throw new ApiError2(`Upload failed: ${text3.length > 200 ? `${text3.slice(0, 200)}…` : text3}`, "UPLOAD_FAILED", res.status, void 0, []);
       }
     });
   }
@@ -122443,8 +122444,8 @@ var LakebasePlugin = class extends Plugin {
   * );
   * ```
   */
-  async query(text, values) {
-    return this.pool.query(text, values);
+  async query(text3, values) {
+    return this.pool.query(text3, values);
   }
   /**
   * Execute a single statement inside a `BEGIN READ ONLY … ROLLBACK`
@@ -122460,11 +122461,11 @@ var LakebasePlugin = class extends Plugin {
   * statement may attempt (writes, writable-function side effects) are
   * rejected by PostgreSQL under the read-only transaction posture.
   */
-  async runReadOnlyStatement(text, values) {
+  async runReadOnlyStatement(text3, values) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN READ ONLY");
-      return (await client.query(text, values)).rows;
+      return (await client.query(text3, values)).rows;
     } finally {
       try {
         await client.query("ROLLBACK");
@@ -122723,8 +122724,8 @@ async function isAutoMigrateDisabled(projectRoot) {
     return false;
   }
 }
-function stripJsonComments(text) {
-  return text.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
+function stripJsonComments(text3) {
+  return text3.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
 }
 async function migrateTsconfigClient(projectRoot) {
   const results = [];
@@ -122858,8 +122859,8 @@ var Spinner = class {
   current = 0;
   interval = null;
   text = "";
-  start(text) {
-    this.text = text;
+  start(text3) {
+    this.text = text3;
     this.current = 0;
     process.stdout.write(`  ${this.text}${this.frames[0]}`);
     this.interval = setInterval(() => {
@@ -122867,8 +122868,8 @@ var Spinner = class {
       process.stdout.write(`\r  ${this.text}${this.frames[this.current]}`);
     }, 300);
   }
-  update(text) {
-    this.text = text;
+  update(text3) {
+    this.text = text3;
   }
   stop(finalText) {
     if (this.interval) {
@@ -122878,8 +122879,8 @@ var Spinner = class {
     process.stdout.write(`\x1B[Contoso\r  ${finalText || this.text}
 `);
   }
-  printDetail(text) {
-    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text}\x1B[0m
+  printDetail(text3) {
+    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text3}\x1B[0m
 `);
     if (this.interval) process.stdout.write(`  ${this.text}${this.frames[this.current]}`);
   }
@@ -123405,8 +123406,8 @@ async function fetchOpenApiSchema(client, endpointName, servedModel) {
       logger31.warn("Empty OpenAPI response for '%s', skipping type generation", endpointName);
       return null;
     }
-    const text = await new Response(response.contents).text();
-    const rawSpec = JSON.parse(text);
+    const text3 = await new Response(response.contents).text();
+    const rawSpec = JSON.parse(text3);
     if (typeof rawSpec !== "object" || rawSpec === null || !("paths" in rawSpec) || typeof rawSpec.paths !== "object") {
       logger31.warn("Invalid OpenAPI schema structure for '%s', skipping", endpointName);
       return null;
@@ -124198,14 +124199,14 @@ var StringWriter = class {
     return pos > 0 ? out + td.decode(buffer.subarray(0, pos)) : out;
   }
 };
-function encode(decoded) {
+function encode(decoded2) {
   const writer = new StringWriter();
   let sourcesIndex = 0;
   let sourceLine = 0;
   let sourceColumn = 0;
   let namesIndex = 0;
-  for (let i = 0; i < decoded.length; i++) {
-    const line = decoded[i];
+  for (let i = 0; i < decoded2.length; i++) {
+    const line = decoded2[i];
     if (i > 0) writer.write(semicolon);
     if (line.length === 0) continue;
     let genColumn = 0;
@@ -126310,6 +126311,281 @@ function registerStaticDelivery(app, options = {}) {
   });
 }
 
+// shared/llm-token-usage.ts
+function record(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value;
+}
+function decoded(value) {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+function count(value) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) return void 0;
+  return value;
+}
+function nested(source, path18) {
+  let current = source;
+  for (const part of path18) {
+    const currentRecord = record(decoded(current));
+    if (!currentRecord) return void 0;
+    current = currentRecord[part];
+  }
+  return current;
+}
+function firstCount(sources, paths) {
+  for (const source of sources) {
+    for (const path18 of paths) {
+      const value = count(nested(source, path18));
+      if (value !== void 0) return value;
+    }
+  }
+  return void 0;
+}
+function invocationUsage(attributes) {
+  const attrs = record(attributes);
+  if (!attrs) return null;
+  const candidates = [
+    attrs,
+    record(decoded(attrs["mlflow.chat.tokenUsage"])),
+    record(decoded(attrs["gen_ai.usage"])),
+    record(decoded(attrs.usage)),
+    record(decoded(attrs.token_usage)),
+    record(decoded(attrs["response.usage"]))
+  ].filter((candidate) => candidate !== null);
+  const input = firstCount(candidates, [["input_tokens"], ["prompt_tokens"], ["gen_ai.usage.input_tokens"]]);
+  const output = firstCount(candidates, [["output_tokens"], ["completion_tokens"], ["gen_ai.usage.output_tokens"]]);
+  const total = firstCount(candidates, [["total_tokens"], ["gen_ai.usage.total_tokens"]]);
+  const cachedRead = firstCount(candidates, [
+    ["cached_input_tokens"],
+    ["cache_read_input_tokens"],
+    ["cache_read_tokens"],
+    ["gen_ai.usage.cached_input_tokens"],
+    ["gen_ai.usage.cache_read_input_tokens"],
+    ["input_tokens_details", "cached_tokens"],
+    ["prompt_tokens_details", "cached_tokens"]
+  ]);
+  const cacheWrite = firstCount(candidates, [
+    ["cache_creation_input_tokens"],
+    ["cache_write_input_tokens"],
+    ["cache_creation_tokens"],
+    ["gen_ai.usage.cache_creation_input_tokens"],
+    ["gen_ai.usage.cache_write_input_tokens"]
+  ]);
+  if ([input, output, total, cachedRead, cacheWrite].every((value) => value === void 0)) return null;
+  return { input, output, total, cachedRead, cacheWrite };
+}
+function text(value) {
+  const valueDecoded = decoded(value);
+  return typeof valueDecoded === "string" ? valueDecoded.trim() : "";
+}
+function parseSpan(span, index) {
+  const attrs = record(span.attributes) ?? {};
+  return {
+    id: text(span.span_id) || `position-${index}`,
+    parentId: text(span.parent_span_id),
+    name: text(span.name),
+    type: (text(span.span_type) || text(attrs["mlflow.spanType"]) || text(attrs["gen_ai.operation.name"])).toUpperCase(),
+    usage: invocationUsage(attrs)
+  };
+}
+function directLlm(span) {
+  return span.type === "LLM" || span.type === "CHAT_MODEL" || span.type === "CHAT";
+}
+function authoritativeTotal(usage) {
+  if (usage.total !== void 0) return usage.total;
+  if (usage.input !== void 0 && usage.output !== void 0) return usage.input + usage.output;
+  return void 0;
+}
+function ownerStageId(spanName, stageIds) {
+  const finder = /(?:^|\.)llm\.(step-\d+)(?:$|\.)/i.exec(spanName)?.[1];
+  if (finder && stageIds.includes(finder)) return finder;
+  const lower = spanName.toLowerCase();
+  return [...stageIds].sort((left, right) => right.length - left.length).find((id) => {
+    const candidate = id.toLowerCase();
+    return lower === candidate || lower.endsWith(`.${candidate}`) || lower.endsWith(`/${candidate}`);
+  }) ?? null;
+}
+function descendantDirectTotal(parent, spans) {
+  const children = /* @__PURE__ */ new Map();
+  for (const span of spans) {
+    const siblings = children.get(span.parentId) ?? [];
+    siblings.push(span);
+    children.set(span.parentId, siblings);
+  }
+  let total = 0;
+  const visit = (id) => {
+    for (const child of children.get(id) ?? []) {
+      if (directLlm(child) && child.usage) total += authoritativeTotal(child.usage) ?? 0;
+      else visit(child.id);
+    }
+  };
+  visit(parent.id);
+  return total;
+}
+function add(left, right) {
+  if (left === void 0 && right === void 0) return void 0;
+  return (left ?? 0) + (right ?? 0);
+}
+function attributeTokenUsage(rawSpans, stageIds, overviewTokens) {
+  const seen = /* @__PURE__ */ new Set();
+  const spans = rawSpans.map(parseSpan).filter((span) => {
+    if (seen.has(span.id)) return false;
+    seen.add(span.id);
+    return true;
+  });
+  const stages = {};
+  let attributedTokens = 0;
+  let attributedCalls = 0;
+  let mismatchCount = 0;
+  let cachedReadTokens = 0;
+  let cacheCoveredInputTokens = 0;
+  let cacheReported = false;
+  for (const span of spans) {
+    if (!directLlm(span) || !span.usage) continue;
+    const owner = ownerStageId(span.name, stageIds);
+    const usage = span.usage;
+    const total = authoritativeTotal(usage);
+    const mismatch = usage.total !== void 0 && usage.input !== void 0 && usage.output !== void 0 && usage.total !== usage.input + usage.output;
+    if (mismatch) mismatchCount += 1;
+    if (!owner) continue;
+    const current = stages[owner] ?? {
+      cacheStatus: "unavailable",
+      attempts: 0,
+      totalMismatch: false
+    };
+    current.inputTokens = add(current.inputTokens, usage.input);
+    current.outputTokens = add(current.outputTokens, usage.output);
+    current.totalTokens = add(current.totalTokens, total);
+    current.cachedReadTokens = add(current.cachedReadTokens, usage.cachedRead);
+    current.cacheWriteTokens = add(current.cacheWriteTokens, usage.cacheWrite);
+    current.attempts += 1;
+    current.totalMismatch ||= mismatch;
+    if (usage.cachedRead !== void 0) {
+      current.cacheStatus = usage.cachedRead > 0 ? "used" : current.cacheStatus === "used" ? "used" : "not-used";
+      cacheReported = true;
+      cachedReadTokens += usage.cachedRead;
+      if (usage.input !== void 0) cacheCoveredInputTokens += usage.input;
+    }
+    stages[owner] = current;
+    attributedCalls += 1;
+    attributedTokens += total ?? 0;
+  }
+  let nestedAggregateTokens = 0;
+  for (const span of spans) {
+    if (directLlm(span) || !span.usage) continue;
+    const total = authoritativeTotal(span.usage);
+    if (total === void 0) continue;
+    if (descendantDirectTotal(span, spans) === total) nestedAggregateTokens += total;
+  }
+  const reconciliation = {
+    attributedTokens,
+    attributedCalls,
+    nestedAggregateTokens,
+    mismatchCount
+  };
+  if (typeof overviewTokens === "number" && Number.isFinite(overviewTokens) && overviewTokens >= 0) {
+    reconciliation.overviewTokens = overviewTokens;
+    reconciliation.coveragePercent = overviewTokens === 0 ? 100 : Math.min(100, attributedTokens / overviewTokens * 100);
+    if (overviewTokens > attributedTokens) reconciliation.unattributedTokens = overviewTokens - attributedTokens;
+  }
+  if (cacheReported) {
+    reconciliation.cachedReadTokens = cachedReadTokens;
+    reconciliation.cacheCoveredInputTokens = cacheCoveredInputTokens;
+    if (cacheCoveredInputTokens > 0) {
+      reconciliation.cacheHitPercent = Math.min(100, cachedReadTokens / cacheCoveredInputTokens * 100);
+    }
+  }
+  return { stages, reconciliation };
+}
+
+// server/lib/mlflow-token-evidence.ts
+var TRACE_DATA_LIMIT_BYTES = 5 * 1024 * 1024;
+var TRACE_READ_TIMEOUT_MS = 8e3;
+var TOKEN_EVIDENCE_CACHE_MS = 5 * 6e4;
+var evidenceCache = /* @__PURE__ */ new Map();
+function text2(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function headers(value) {
+  const result = new Headers();
+  if (!Array.isArray(value)) return result;
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const record2 = entry;
+    const name2 = text2(record2.name);
+    const valueText = text2(record2.value);
+    if (name2 && valueText) result.set(name2, valueText);
+  }
+  return result;
+}
+function tokenEvidenceSpans(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((span) => {
+    if (!span || typeof span !== "object") return {};
+    const record2 = span;
+    const rawAttributes = record2.attributes && typeof record2.attributes === "object" && !Array.isArray(record2.attributes) ? record2.attributes : {};
+    const attributes = Object.fromEntries(
+      Object.entries(rawAttributes).filter(([key]) => key === "mlflow.spanType" || /(?:token|usage|cache)/i.test(key))
+    );
+    return {
+      span_id: record2.span_id,
+      parent_span_id: record2.parent_span_id,
+      name: record2.name,
+      attributes
+    };
+  });
+}
+async function downloadTraceTokenSpans(traceId) {
+  const held = evidenceCache.get(traceId);
+  if (held && held.expiresAt > Date.now()) return held.value;
+  const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+  const client = new WorkspaceClient6({});
+  const credential = await client.apiClient.request({
+    method: "GET",
+    path: `/api/2.0/mlflow/traces/${encodeURIComponent(traceId)}/credentials-for-data-download`,
+    headers: new Headers({ Accept: "application/json" }),
+    raw: false
+  });
+  const signedUri = text2(credential.credential_info?.signed_uri);
+  if (!signedUri) return [];
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TRACE_READ_TIMEOUT_MS);
+  try {
+    const response = await fetch(signedUri, {
+      headers: headers(credential.credential_info?.headers),
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`trace artifact returned ${response.status}`);
+    const declaredLength = Number(response.headers.get("content-length") ?? 0);
+    if (declaredLength > TRACE_DATA_LIMIT_BYTES)
+      throw new Error("trace artifact exceeds the token-evidence read limit");
+    const body = await response.text();
+    if (body.length > TRACE_DATA_LIMIT_BYTES) throw new Error("trace artifact exceeds the token-evidence read limit");
+    const parsed = JSON.parse(body);
+    const spans = tokenEvidenceSpans(parsed.spans);
+    evidenceCache.set(traceId, { expiresAt: Date.now() + TOKEN_EVIDENCE_CACHE_MS, value: spans });
+    return spans;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+var readMlflowTokenEvidence = async (traceId, stageIds, overviewTokens) => {
+  if (!isMlflowTraceId(traceId)) return null;
+  try {
+    const spans = await downloadTraceTokenSpans(traceId);
+    if (spans.length === 0) return null;
+    return attributeTokenUsage(spans, stageIds, overviewTokens);
+  } catch (error) {
+    console.warn(`[mlflow] Token evidence for ${traceId} could not be read: ${error.message}`);
+    return null;
+  }
+};
+
 // server/server.ts
 if (process.argv.includes("--module-smoke")) {
   console.log("module-smoke ok");
@@ -126345,35 +126621,36 @@ createApp({
       { bootstrapSeedRoles, isAdminRoute },
       { respondToHandlerFailures }
     ] = await Promise.all([
-      import("./insights-routes-QKOXN6GF.mjs"),
-      import("./settings-routes-K3YDTE2W.mjs"),
-      import("./ai-gateway-routes-SDWZQ3KX.mjs"),
-      import("./browse-routes-KPQXJQ2P.mjs"),
-      import("./architecture-routes-T2SZ5PXF.mjs"),
-      import("./admin-routes-GHZ3UY22.mjs"),
+      import("./insights-routes-IQMMWUS3.mjs"),
+      import("./settings-routes-KM2D4AKQ.mjs"),
+      import("./ai-gateway-routes-MYUPFLF3.mjs"),
+      import("./browse-routes-NEOQWUA7.mjs"),
+      import("./architecture-routes-U5HXX44Q.mjs"),
+      import("./admin-routes-ODTRJKQX.mjs"),
       import("./access-guide-routes-HTOGXPRN.mjs"),
-      import("./user-routes-5K26QEOJ.mjs"),
-      import("./monitoring-routes-D2CA4ZBB.mjs"),
-      import("./ops-routes-X7F7NSIM.mjs"),
-      import("./egress-routes-E4OQ7XYL.mjs"),
-      import("./runtime-settings-routes-ZPIMBZX3.mjs"),
-      import("./experimental-settings-routes-A6D6SKQJ.mjs"),
-      import("./cost-budgets-routes-I327SLWY.mjs"),
-      import("./app-budget-routes-WH5MF5LC.mjs"),
-      import("./benchmark-settings-routes-OGB2V6YV.mjs"),
-      import("./eval-dataset-routes-TKFCS6H7.mjs"),
-      import("./benchmark-lab-routes-GNQB3J5Y.mjs"),
+      import("./user-routes-NBI5JRPH.mjs"),
+      import("./monitoring-routes-SNECHAY5.mjs"),
+      import("./ops-routes-CE62SHUH.mjs"),
+      import("./egress-routes-AGVMHIMG.mjs"),
+      import("./runtime-settings-routes-EK3AJ3QY.mjs"),
+      import("./experimental-settings-routes-3HLCRFMZ.mjs"),
+      import("./cost-budgets-routes-WVU6WTZW.mjs"),
+      import("./app-budget-routes-OGCTV3YW.mjs"),
+      import("./benchmark-settings-routes-O2OY3X3M.mjs"),
+      import("./eval-dataset-routes-IXSWEOJH.mjs"),
+      import("./benchmark-lab-routes-YJUMRMGQ.mjs"),
       import("./environment-routes-UP3A5D4E.mjs"),
       import("./account-routes-5JVCA4F2.mjs"),
-      import("./run-label-routes-YUDQCRUD.mjs"),
-      import("./sp-identity-routes-UIMYJX3K.mjs"),
-      import("./admin-roles-2MPFP73A.mjs"),
+      import("./run-label-routes-JIM353BV.mjs"),
+      import("./sp-identity-routes-ZPZJGQUN.mjs"),
+      import("./admin-roles-F45IZCEN.mjs"),
       import("./handler-failures-DDSUARHU.mjs")
     ]);
     const readiness = {};
     const { storeReady } = await setupInsightsRoutes(appkit, {
       rolesReady: () => readiness.roles ?? Promise.reject(new Error("Role bootstrap was requested before it was scheduled.")),
-      onRequestLatencyRecorder: (recorder) => appkit.requestLatencyShutdown.setRecorder(recorder)
+      onRequestLatencyRecorder: (recorder) => appkit.requestLatencyShutdown.setRecorder(recorder),
+      traceTokenEvidenceReader: readMlflowTokenEvidence
     });
     readiness.roles = storeReady.then(() => bootstrapSeedRoles(appkit.lakebase)).then(() => void 0).catch((error) => {
       console.error(`[admin] Background role bootstrap failed: ${error.message}`);

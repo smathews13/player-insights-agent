@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
@@ -8,89 +9,121 @@ import {
   type TagSummary,
 } from './ResourceTagsPanel';
 
-describe('Astrolabe resource tag results', () => {
-  it('bounds the interactive request instead of leaving the button Applying forever', () => {
+const summary: TagSummary = {
+  headline: '2 of 4 supported resources tagged',
+  supportedTotal: 4,
+  supportedCovered: 2,
+  tagged: 1,
+  alreadyCorrect: 1,
+  supportedFailed: 1,
+  permissionRequired: 1,
+  unsupported: 1,
+  notApplicable: 3,
+  updatedAt: '2026-09-02T00:00:00.000Z',
+  results: [
+    {
+      kind: 'serving-endpoint',
+      name: 'player-insights-agent-with-an-intentionally-long-identifier',
+      label: 'Orchestrator serving endpoint · player-insights-agent-with-an-intentionally-long-identifier',
+      support: 'supported',
+      billingAttribution: true,
+      status: 'permission-required',
+      detail: 'The signed-in administrator needs CAN_MANAGE.',
+      nextAction: 'Grant CAN_MANAGE.',
+      technicalDetail: 'PERMISSION_DENIED',
+    },
+    {
+      kind: 'vector-index',
+      name: 'catalog.schema.index',
+      label: 'AI Search index · catalog.schema.index',
+      support: 'unsupported',
+      billingAttribution: false,
+      status: 'unsupported',
+      detail: 'Databricks exposes billing tags on the endpoint, not the index.',
+      nextAction: 'Tag the endpoint.',
+    },
+    {
+      kind: 'genie-space',
+      name: 'space',
+      label: 'Data Genie space · space',
+      support: 'not-applicable',
+      billingAttribution: false,
+      status: 'not-applicable',
+      detail: 'Organizational metadata does not propagate to billing.',
+      nextAction: 'Use Genie billing metadata.',
+    },
+  ],
+};
+
+describe('compact Resource Tags results', () => {
+  it('bounds the request instead of leaving Apply running forever', () => {
     expect(RESOURCE_TAG_REQUEST_TIMEOUT_MS).toBe(20_000);
   });
 
-  it('leads with actionable counts and keeps raw Databricks JSON behind disclosure', () => {
-    const summary: TagSummary = {
-      headline:
-        '3 of 7 resources correctly tagged · 1 not supported by Databricks · ' +
-        '3 need workspace grants · 0 failed after retries.',
-      total: 7,
-      correct: 3,
-      tagged: 1,
-      alreadyCorrect: 2,
-      notSupported: 1,
-      permissionRequired: 3,
-      failed: 0,
-      results: [
-        {
-          label: 'App · player-insights-agent',
-          status: 'permission-required',
-          detail:
-            'Workspace admin action: grant service principal 071769f1-5623-45b6-a172-c8b8060adff1 ' +
-            'CAN_MANAGE on app “player-insights-agent” so it can change the app tag assignments.',
-          technicalDetail:
-            'Response from server (Forbidden)\n' +
-            '{"error_code":"PERMISSION_DENIED","message":"User does not have permission to apply tag assignment changes."}',
-        },
-        {
-          label: 'Vector Search index · catalog.schema.index',
-          status: 'not-supported',
-          detail:
-            'Databricks does not expose custom tags for Vector Search indexes. Nothing needs to be fixed on this index; ' +
-            'Astrolabe tags its endpoint instead.',
-        },
-      ],
-    };
-
+  it('renders the supported denominator and compact resource/support/result/action table', () => {
     const markup = renderToStaticMarkup(<ResourceTagResults summary={summary} />);
-
-    expect(markup).toContain('3 of 7 resources correctly tagged');
-    expect(markup).toContain('3 need workspace grants');
-    expect(markup).toContain('Nothing needs to be fixed');
-    expect(markup).toContain('CAN_MANAGE on app');
+    expect(markup).toContain('2 of 4 supported resources tagged');
+    expect(markup).toContain('<th>Resource</th>');
+    expect(markup).toContain('<th>Support</th>');
+    expect(markup).toContain('<th>Result</th>');
+    expect(markup).toContain('<th>Next action</th>');
+    expect(markup).toContain('Permission required');
+    expect(markup).toContain('Unsupported by platform');
+    expect(markup).toContain('Excluded from billing coverage');
     expect(markup).toContain('<details>');
-    expect(markup).toContain('<summary>Technical details</summary>');
-    expect(markup.indexOf('CAN_MANAGE on app')).toBeLessThan(markup.indexOf('PERMISSION_DENIED'));
+    expect(markup.indexOf('The signed-in administrator needs CAN_MANAGE')).toBeLessThan(
+      markup.indexOf('PERMISSION_DENIED')
+    );
+    expect(markup).toContain('title="player-insights-agent-with-an-intentionally-long-identifier"');
   });
 
-  it('puts the in-button Astrolabe flicker left of Apply while the repair is running', () => {
+  it('hides rows while retaining the coverage summary and reopen control', () => {
+    const markup = renderToStaticMarkup(<ResourceTagResults summary={summary} hidden />);
+    expect(markup).toContain('2 of 4 supported resources tagged');
+    expect(markup).toContain('Show details');
+    expect(markup).not.toContain('<table');
+  });
+
+  it('explains that clearing UI history leaves applied Databricks tags intact', () => {
+    const markup = renderToStaticMarkup(<ResourceTagResults summary={summary} />);
+    expect(markup).toContain('Clear results');
+    expect(markup).toContain('not tags already applied to Databricks resources');
+  });
+
+  it('keeps a failed clear visible without discarding the result table', () => {
+    const markup = renderToStaticMarkup(
+      <ResourceTagResults summary={summary} clearError="Results were not cleared. The saved result is unchanged." />
+    );
+    expect(markup).toContain('saved result is unchanged');
+    expect(markup).toContain('<table');
+  });
+
+  it('ships responsive overflow and dark/light tokenized styling for long identifiers', () => {
+    const css = readFileSync(new URL('styles/settings.css', import.meta.url), 'utf8');
+    expect(css).toMatch(/\.resource-tag-table-frame\s*\{[\s\S]*margin-top/);
+    expect(css).toMatch(/\.resource-tag-table\s*\{[\s\S]*min-width:\s*760px/);
+    expect(css).toMatch(/\.resource-tag-table td > code\s*\{[\s\S]*text-overflow:\s*ellipsis/);
+    expect(css).toMatch(/@media \(max-width:\s*720px\)[\s\S]*\.resource-tag-summary/);
+    expect(css).not.toMatch(/\.resource-tag-(?:summary|table)[^{]*\{[^}]*#[0-9a-f]{3,8}/i);
+  });
+});
+
+describe('Resource Tags controls', () => {
+  it('puts the in-button flicker left of Apply while running', () => {
     const idle = renderToStaticMarkup(<ResourceTagsApplyButton running={false} />);
     const busy = renderToStaticMarkup(<ResourceTagsApplyButton running={true} />);
     expect(idle).toContain('Apply tags');
-    expect(idle).not.toContain('data-variant="outline"');
-    expect(idle).not.toContain('ast-flick-slot--button');
     expect(busy).toContain('ast-flick-slot--button');
-    expect(busy).toContain('Apply tags');
     expect(busy.indexOf('ast-flick-slot--button')).toBeLessThan(busy.indexOf('Apply tags'));
   });
 
-  it('reports partial failures and permission requirements instead of claiming Applied', () => {
-    const summary = (overrides: Partial<TagSummary>): TagSummary => ({
-      headline: '',
-      total: 1,
-      correct: 0,
-      tagged: 0,
-      alreadyCorrect: 0,
-      notSupported: 0,
-      permissionRequired: 0,
-      failed: 0,
-      results: [],
-      ...overrides,
-    });
-
-    expect(resourceTagStatus(false, summary({ failed: 1 }), '')).toEqual({
-      tone: 'ast-pill--neg',
-      label: 'Failed',
-    });
-    expect(resourceTagStatus(false, summary({ permissionRequired: 1 }), '')).toEqual({
+  it('reports supported failures and permissions without claiming success', () => {
+    expect(resourceTagStatus(false, summary, '')).toEqual({ tone: 'ast-pill--neg', label: 'Failed' });
+    expect(resourceTagStatus(false, { ...summary, supportedFailed: 0 }, '')).toEqual({
       tone: 'ast-pill--warn',
       label: 'Needs access',
     });
-    expect(resourceTagStatus(false, summary({ correct: 1 }), '')).toEqual({
+    expect(resourceTagStatus(false, { ...summary, supportedFailed: 0, permissionRequired: 0 }, '')).toEqual({
       tone: 'ast-pill--pos',
       label: 'Applied',
     });

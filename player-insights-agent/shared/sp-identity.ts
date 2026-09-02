@@ -1,6 +1,5 @@
 /**
- * Service-principal personas: who the app may run as when the experimental
- * SP-identity pivot is on.
+ * Service-principal personas: who the app may run as when assigned.
  *
  * Personas are admin-defined identities (a display name and a Databricks
  * service principal application/client id). Secrets are NEVER stored here.
@@ -8,11 +7,8 @@
  * OAuth client secret. The running app reads that secret at request time with
  * its own identity; the value is not written to Lakebase, logs, or git.
  *
- * THE PIVOT IS OFF BY DEFAULT. Until an administrator turns it on under
- * Experimental, every warehouse, Genie, Unity Catalog, serving, Cost, and
- * Connections call keeps using the signed-in user's OAuth token. Turning it
- * on does not switch unassigned people: they stay on OAuth so the app does
- * not break. Assigned people run as the persona an admin named for them.
+ * Unassigned people stay on OAuth. Assigned people run as the persona an
+ * administrator named for them when its token can be minted.
  *
  * Databricks Apps has no user-OAuth scope that mints tokens for other service
  * principals. If this app cannot read the named secret or the token endpoint
@@ -23,9 +19,6 @@
 import { z } from 'zod';
 import type { OrganizationMapping } from './organization-mapping';
 import type { SpPersonaTemplate } from './sp-persona-templates';
-
-/** Lakebase / identity-payload flag: the whole app uses assigned SP tokens. */
-export const SP_IDENTITY_ENABLED_SETTING = 'sp-identity-enabled';
 
 /** What a request actually used, for the identity card and the record. */
 export const SP_EXECUTION_OAUTH = 'oauth' as const;
@@ -319,7 +312,6 @@ export interface SpIdentityAssigned {
 
 /** What `/api/identity` adds so every page can say who the next call would run as. */
 export interface SpIdentitySummary {
-  enabled: boolean;
   minting: SpMintingStatus;
   assigned: SpIdentityAssigned | null;
   executingAs: SpExecutionKind;
@@ -333,7 +325,6 @@ export interface SpIdentityRosterRow {
 }
 
 export interface SpIdentityAdminPayload {
-  enabled: boolean;
   minting: SpMintingStatus;
   personas: SpPersona[];
   /** Optional while an older deployed server is rolling forward. */
@@ -487,10 +478,6 @@ export const SpPersonaDefinitionPatchSchema = z
     path: ['grants'],
     message: 'Each permission must be unique.',
   });
-
-export const SpIdentityModeSchema = z.object({
-  enabled: z.boolean(),
-});
 
 export const SpAssignmentWriteSchema = z.object({
   email: z.string().trim().min(3).max(320),

@@ -9,7 +9,6 @@ import {
 } from './apply-declaration-state';
 import type { ModelReleaseRequest } from '../../shared/model-release';
 import type { NotebookPanel } from './connection-model';
-import { EXPERIMENTAL_PANE_HINT } from './ExperimentalBadge';
 
 function notebookPanel(overrides: Partial<NotebookPanel> = {}): NotebookPanel {
   return {
@@ -87,11 +86,10 @@ describe('Connections Apply release request', () => {
     expect(source).not.toContain('does not change the live agent silently');
   });
 
-  it('marks the model re-log pane as experimental and explains the warning', () => {
+  it('does not repeat the shared Experimental badge inside the gated pane', () => {
     const source = readFileSync(new URL('./ApplyDeclarationCard.tsx', import.meta.url), 'utf8');
-    expect(source).toContain('<ExperimentalBadge />');
-    expect(source.indexOf('<ExperimentalBadge />')).toBeLessThan(source.indexOf('Apply → new model version'));
-    expect(EXPERIMENTAL_PANE_HINT).toMatch(/may be unstable or may not work as expected/i);
+    expect(source).not.toContain('ExperimentalBadge');
+    expect(source).toContain('Apply → new model version');
   });
 
   it('uses the shared primary-blue Refresh control', () => {
@@ -174,7 +172,8 @@ describe('the notebook a model version is logged from', () => {
   });
 
   it('reads the same notebook panel the Notebook card renders', () => {
-    const page = readFileSync(new URL('./ConnectionsPage.tsx', import.meta.url), 'utf8');
-    expect(page).toContain('<ApplyDeclarationCard notebook={payload?.notebook}');
+    const pane = readFileSync(new URL('./NotebookAgentSyncPane.tsx', import.meta.url), 'utf8');
+    expect(pane).toContain('<ApplyDeclarationCard notebook={notebook}');
+    expect(pane).toContain('<NotebookCard panel={notebook}');
   });
 });

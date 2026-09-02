@@ -1,9 +1,7 @@
 /**
- * Personas and per-user assignments, plus the deployment-wide pivot flag.
+ * Personas and per-user assignments.
  *
- * The flag lives in `deployment_settings` like other Connections-editable
- * values, so it is one row, last-write-wins, and never a secret. Personas and
- * assignments are their own tables because there are many of them.
+ * Personas and assignments are their own tables because there are many of them.
  *
  * NOTHING HERE IS A CREDENTIAL. A persona row names a Databricks secret
  * scope/key. The OAuth client secret stays in Databricks Secrets. A bug that
@@ -11,14 +9,13 @@
  * the public mirror's schema dump, which is why those columns are not on the
  * table.
  *
- * Until migration 17 has run, every read returns the empty/off state rather
- * than throwing, so an unmigrated deployment stays on OAuth.
+ * Until migration 17 has run, every read returns an empty state rather than
+ * throwing.
  */
 
 import { randomUUID } from 'node:crypto';
 import { appTable } from '../../shared/app-schema';
 import {
-  SP_IDENTITY_ENABLED_SETTING,
   SpGrantSchema,
   spGrantSummary,
   type SpAssignment,
@@ -29,7 +26,6 @@ import {
   type SpPersonaWrite,
 } from '../../shared/sp-identity';
 import { normalizeAdminEmail } from './admin-identity';
-import { readStoredSettings, writeStoredSetting } from './app-settings';
 import type { LakebaseReader } from './lakebase-store';
 
 export const SP_PERSONAS_TABLE = appTable('sp_personas');
@@ -123,53 +119,6 @@ function definitionFromRow(row: Record<string, unknown>): SpPersonaDefinition {
     updatedAt: iso(row.updated_at),
     updatedBy: text(row.updated_by),
   };
-}
-
-let enabledCache = new WeakMap<object, { at: number; enabled: boolean }>();
-export const SP_IDENTITY_ENABLED_TTL_MS = 15_000;
-
-export function forgetSpIdentityEnabled(): void {
-  enabledCache = new WeakMap();
-}
-
-/**
- * Whether the experimental pivot is on for this deployment.
- *
- * Absent, unreadable, or any value other than the exact string `true` is off,
- * matching the fail-closed rule experimental-features.ts uses for the browser
- * flag. A Lakebase outage therefore leaves OAuth in force rather than pivoting
- * everybody onto personas that cannot be minted.
- */
-export async function isSpIdentityEnabled(
-  client: LakebaseReader,
-  options: { maxAgeMs?: number; now?: number } = {}
-): Promise<boolean> {
-  const maxAge = options.maxAgeMs ?? SP_IDENTITY_ENABLED_TTL_MS;
-  const now = options.now ?? Date.now();
-  const cached = enabledCache.get(client);
-  if (cached && now - cached.at < maxAge) return cached.enabled;
-  const settings = await readStoredSettings(client, { maxAgeMs: maxAge, now });
-  const enabled = settings.get(SP_IDENTITY_ENABLED_SETTING)?.value === 'true';
-  enabledCache.set(client, { at: now, enabled });
-  return enabled;
-}
-
-export async function writeSpIdentityEnabled(
-  client: LakebaseReader,
-  enabled: boolean,
-  updatedBy: string
-): Promise<boolean> {
-  await writeStoredSetting(client, {
-    resourceId: SP_IDENTITY_ENABLED_SETTING,
-    value: enabled ? 'true' : 'false',
-    intent: 'active',
-    note: enabled
-      ? 'Assigned users run warehouse, Genie, and agent calls as their service-principal persona.'
-      : 'Questions run as the signed-in OAuth user.',
-    updatedBy,
-  });
-  forgetSpIdentityEnabled();
-  return enabled;
 }
 
 export async function listSpPersonas(client: LakebaseReader): Promise<SpPersona[]> {

@@ -20,6 +20,8 @@ import {
   sqlTokens,
   stepNumber,
   tickingTiming,
+  tokenSummary,
+  tokenUsageLabel,
   RAIL_CONNECTOR_HEIGHT,
   RAIL_INDENT,
   RAIL_LANE,
@@ -27,6 +29,7 @@ import {
 } from './agent-map';
 import { partial } from './styles/stylesheet';
 import type { TraceStage } from './answer-shape';
+import { RefreshButton } from './RefreshControl';
 
 /**
  * The two arrangements of the agent's stages, and the line between them.
@@ -320,6 +323,40 @@ describe('the agent map fits the page it is drawn on', () => {
     expect(markup).not.toContain('(none recorded)');
   });
 
+  it('reconciles direct LLM calls without assigning nested parent totals to a step', () => {
+    const summary = runContainerSummary({
+      stages: run,
+      trace: {
+        id: 'trace-summary-1',
+        totalMs: 12_340,
+        toolCalls: 3,
+        token_reconciliation: {
+          attributedTokens: 84_576,
+          attributedCalls: 9,
+          overviewTokens: 161_318,
+          coveragePercent: 52.428,
+          unattributedTokens: 76_742,
+          nestedAggregateTokens: 76_742,
+          mismatchCount: 0,
+        },
+      },
+      activeIndex: -1,
+    });
+    const markup = renderToStaticMarkup(
+      <StageDetail
+        stage={stage({ id: '__run__', name: 'Orchestrator run' })}
+        step={1}
+        origin={0}
+        id="run-summary"
+        runSummary={summary}
+      />
+    );
+    expect(markup).toContain('84,576</span> across');
+    expect(markup).toContain('52.4% of the overview total');
+    expect(markup).toContain('76,742</span> tokens');
+    expect(markup).toContain('also appeared on nested parent spans');
+  });
+
   it.each([
     ['running', 'running', 'Pending'],
     ['awaiting_approval', 'awaiting approval', 'Awaiting approval'],
@@ -344,6 +381,64 @@ describe('the agent map fits the page it is drawn on', () => {
  * a right-pinned duration on one line, and a clamped name under them.
  */
 describe('a card says what kind of step, which step, and how long', () => {
+  it('shows compact direct-LLM usage, cached evidence, and no token zero on tool-only steps', () => {
+    const llm = stage({
+      id: 'synthesis',
+      name: 'Wrote the answer',
+      token_usage: {
+        inputTokens: 12_000,
+        outputTokens: 400,
+        totalTokens: 12_400,
+        cachedReadTokens: 3_100,
+        cacheStatus: 'used',
+        attempts: 1,
+        totalMismatch: false,
+      },
+    });
+    const tool = stage({ id: 'step-1-1-run_sql', name: 'Ran SQL', kind: 'tool' });
+    const markup = renderToStaticMarkup(<TraceDag stages={[llm, tool]} activeIndex={-1} />);
+
+    expect(tokenSummary(llm.token_usage!)).toBe('12K tokens · 3.1K cached');
+    expect(tokenUsageLabel(llm.token_usage!)).toContain('12,000 input tokens');
+    expect(markup).toContain('12K tokens · 3.1K cached');
+    expect(markup).toContain('>Cached</');
+    expect(markup.match(/dag-token-badge/g)).toHaveLength(1);
+    expect(markup).not.toContain('0 tokens');
+  });
+
+  it('prints exact selected-step usage and distinguishes an unavailable cache report', () => {
+    const markup = renderToStaticMarkup(
+      <StageDetail
+        stage={stage({
+          id: 'synthesis',
+          token_usage: {
+            inputTokens: 12_000,
+            outputTokens: 400,
+            totalTokens: 12_450,
+            cacheStatus: 'unavailable',
+            attempts: 2,
+            totalMismatch: true,
+          },
+        })}
+        step={4}
+        origin={0}
+        id="detail"
+      />
+    );
+    expect(markup).toContain('aria-label="LLM token usage"');
+    expect(markup).toContain('<dt>Input tokens</dt><dd class="ast-num">12,000</dd>');
+    expect(markup).toContain('<dt>Cache</dt><dd>Not reported</dd>');
+    expect(markup).toContain('<dt>Attempts</dt><dd class="ast-num">2</dd>');
+    expect(markup).toContain('Provider total differs from input plus output');
+    expect(markup).not.toContain('>Cached</');
+  });
+
+  it('keeps compact token badges bounded so long values cannot widen a node', () => {
+    expect(rule('.trace-dag.map .dag-token-badge')).toMatch(/max-width: 100%/);
+    expect(rule('.trace-dag.map .dag-token-badge')).toMatch(/overflow: hidden/);
+    expect(rule('.trace-dag.map .dag-token-badge')).toMatch(/text-overflow: ellipsis/);
+  });
+
   it('draws the kind chip at the handoff’s size and corner', () => {
     const chip = rule('.dag-chip');
     expect(px(chip, 'width')).toBe(22);
@@ -571,6 +666,23 @@ describe('a card says what kind of step, which step, and how long', () => {
     const name = rule('.trace-dag.map .dag-name');
     expect(name).toMatch(/font-size: var\(--text-base\)/);
     expect(name).toMatch(/font-weight: 500/);
+  });
+});
+
+describe('Back to agent map uses the shared Refresh treatment', () => {
+  it('uses the same Button variant, size, shared class, icon spacing, and enabled opacity', () => {
+    const detail = renderToStaticMarkup(
+      <StageDetail stage={stage({ id: 'step-1' })} step={1} origin={0} id="detail" onBackToMap={() => undefined} />
+    );
+    const refresh = renderToStaticMarkup(<RefreshButton onRefresh={() => undefined} />);
+    expect(detail).toContain('refresh-button dag-back-to-map');
+    expect(refresh).toContain('refresh-button');
+    expect(detail).toContain('class="lucide lucide-arrow-left size-3.5"');
+    expect(SOURCE).toContain('variant="default"');
+    expect(SOURCE).toContain('size="sm"');
+    const back = rule('.trace-dag.map .dag-back-to-map');
+    expect(back).not.toMatch(/background|color|border:|opacity|min-height|padding|border-radius|outline/);
+    expect(back).toMatch(/white-space: nowrap/);
   });
 });
 

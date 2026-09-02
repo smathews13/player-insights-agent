@@ -2213,23 +2213,166 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 }
 
 .resource-tag-result {
-  margin-top: 8px;
+  min-width: 0;
   color: var(--ast-text-long);
   font-size: 12px;
 }
 
-.resource-tag-result p {
+.resource-tag-details-row > td {
+  padding: 10px 0 14px;
+}
+
+.resource-tag-summary {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.resource-tag-summary > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.resource-tag-summary strong,
+.resource-tag-summary span {
+  display: block;
+}
+
+.resource-tag-summary-actions {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.resource-tag-summary-actions [data-slot='button'] {
+  min-height: 28px;
+  padding-inline: 8px;
+}
+
+.resource-tag-clear-note {
+  margin: 4px 0 8px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.resource-tag-table-frame {
+  margin-top: 8px;
+}
+
+.resource-tag-table {
+  min-width: 760px;
+}
+
+.resource-tag-table th:nth-child(1) {
+  width: 25%;
+}
+
+.resource-tag-table th:nth-child(2) {
+  width: 15%;
+}
+
+.resource-tag-table th:nth-child(3) {
+  width: 34%;
+}
+
+.resource-tag-table th:nth-child(4) {
+  width: 26%;
+}
+
+.resource-tag-table td {
+  height: auto;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.resource-tag-table td > strong,
+.resource-tag-table td > span,
+.resource-tag-table td > code {
+  display: block;
+}
+
+.resource-tag-table td > code {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-tag-table td > span,
+.resource-tag-table td:last-child {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.resource-tag-support {
+  width: fit-content;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.resource-tag-support--supported {
+  border-color: var(--ast-pos-border);
+  background: var(--ast-pos-fill);
+  color: var(--ast-pos-text);
+}
+
+.resource-tag-support--unsupported,
+.resource-tag-support--not-applicable {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.resource-tag-table details {
+  margin-top: 4px;
+}
+
+.resource-tag-table summary {
+  width: fit-content;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.resource-tag-table pre {
+  max-width: 100%;
+  margin: 4px 0 0;
+  padding: 6px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  color: var(--foreground);
+  font: 10px/1.4 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.resource-tag-result > .settings-error {
+  margin: 4px 0;
+}
+
+@media (max-width: 720px) {
+  .resource-tag-summary {
+    display: grid;
+  }
+
+  .resource-tag-summary-actions {
+    justify-content: flex-start;
+  }
+}
+
+.resource-tag-result p:first-child {
   margin: 0;
   font-weight: 500;
-}
-
-.resource-tag-result ul {
-  margin: 4px 0 0;
-  padding-left: 18px;
-}
-
-.resource-tag-result li + li {
-  margin-top: 3px;
 }
 
 .app-nav > button.app-nav-tab {
@@ -2274,9 +2417,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   font-size: var(--text-sm);
 }
 
-/* Settings → Identity: role names and user assignments. Grayed while the
-   Experimental SP-identities switch is off; the fieldset disables the
-   controls the same way Benchmarking's cluster does. */
+/* Settings → Identity: role names and user assignments. */
 .sp-identity-cluster {
   margin: 0;
   padding: 0;
@@ -2286,10 +2427,6 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   gap: 14px;
 }
 
-.sp-identity-cluster:disabled {
-  opacity: 0.55;
-  pointer-events: none;
-}
 
 .sp-personas-table {
   min-width: 420px;

@@ -17,7 +17,7 @@ import { UnavailablePanel } from './UnavailablePanel';
 import { unavailableNotice, unavailableNoticeFor, type UnavailableNotice } from './unavailable-copy';
 import { submitsOnEnter } from './submit-on-enter';
 import { PASSWORD_MANAGER_OPT_OUT } from './password-manager-optout';
-import { UserIdentityChip } from './UserIdentityChip';
+import { UserDrilldownLink } from './UserDrilldownLink';
 import { ConversationOwnerSelect } from './ConversationOwnerSelect';
 import { ConversationPersonaSelect } from './ConversationPersonaSelect';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
@@ -2312,9 +2312,6 @@ export function HomePage() {
                       {conversation.title}
                     </span>
                     <span className="conversation-meta">
-                      {adminSharedRail && owner && (
-                        <UserIdentityChip identity={owner} label="Asked by" compact className="conversation-owner" />
-                      )}
                       {/* Wall time of that latest turn, when the trace recorded one.
                           Absent rather than zero for a turn stored before it did. */}
                       {duration && <span className="conversation-duration ast-num">{duration}</span>}
@@ -2328,6 +2325,15 @@ export function HomePage() {
                       )}
                     </span>
                   </button>
+                  {adminSharedRail && owner ? (
+                    <UserDrilldownLink
+                      identity={owner}
+                      label="Asked by"
+                      compact
+                      className="conversation-owner"
+                      canOpen
+                    />
+                  ) : null}
                   {you ? (
                     <button
                       type="button"
@@ -2505,6 +2511,7 @@ export function HomePage() {
                   message={message}
                   response={response}
                   asker={asker}
+                  canOpenUser={adminSharedRail}
                   loading={loading}
                   // A plan is answered by the user's approval, before the agent has
                   // produced its next assistant message. Comparing only with the
@@ -2978,6 +2985,7 @@ const MessageItem = memo(function MessageItem({
   message,
   response,
   asker,
+  canOpenUser,
   loading,
   resolved,
   approved,
@@ -2993,6 +3001,7 @@ const MessageItem = memo(function MessageItem({
   /** Undefined where the stored envelope could not be parsed. */
   response: AgentResponse | undefined;
   asker: string;
+  canOpenUser: boolean;
   loading: boolean;
   /** Whether a later turn has superseded this one's question or plan. */
   resolved: boolean;
@@ -3011,7 +3020,7 @@ const MessageItem = memo(function MessageItem({
     return (
       <div className="user-message">
         <div className="user-bubble">{message.content}</div>
-        <UserIdentityChip identity={asker} label="Asked by" compact className="user-avatar" />
+        <UserDrilldownLink identity={asker} label="Asked by" compact className="user-avatar" canOpen={canOpenUser} />
       </div>
     );
   }

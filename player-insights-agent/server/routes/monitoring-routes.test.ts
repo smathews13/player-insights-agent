@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   MONITORING_DETAIL_QUERY,
+  MONITORING_PERSON_SEEN_QUERY,
   MONITORING_PERSON_TABLES_QUERY,
   MONITORING_QUESTIONS_QUERY,
   MONITORING_ROUTES,
@@ -23,6 +24,7 @@ import { isAdminRoute } from '../lib/admin-roles';
 import { RUNS_QUERY, PLAN_APPROVAL_MESSAGE } from './insights-routes';
 import type { InsightsAppKit } from './insights-routes';
 import type { Request } from 'express';
+import { APP_SCHEMA } from '../../shared/app-schema';
 
 /**
  * What the read routes make of the rows the stores hand them.
@@ -551,6 +553,15 @@ describe('the per-person table ranking', () => {
     expect(MONITORING_PERSON_TABLES_QUERY).toContain("GROUP BY lower(source->>'name')");
     expect(MONITORING_PERSON_TABLES_QUERY).toContain('ORDER BY runs DESC, table_name ASC');
     expect(MONITORING_PERSON_TABLES_QUERY).toContain('LIMIT $5');
+  });
+
+  it('derives first and last seen only from retained app activity evidence', () => {
+    expect(MONITORING_PERSON_SEEN_QUERY).toContain(`${APP_SCHEMA}.messages`);
+    expect(MONITORING_PERSON_SEEN_QUERY).toContain(`${APP_SCHEMA}.runs`);
+    expect(MONITORING_PERSON_SEEN_QUERY).toContain(`${APP_SCHEMA}.feedback`);
+    expect(MONITORING_PERSON_SEEN_QUERY).toContain('app_activity_minutes');
+    expect(MONITORING_PERSON_SEEN_QUERY).toContain('app_sessions');
+    expect(MONITORING_PERSON_SEEN_QUERY).not.toMatch(/roster|permission|persona|admin_role/i);
   });
 });
 

@@ -8,7 +8,7 @@ import { SettingsPage, SettingsPaneBoundary } from './SettingsPage';
 import { roleFrom, type RoleResolution } from './role';
 
 const NORMAL_IDENTITY = { signedInAs: '<your-username>', role: 'admin' };
-const FEATURES = { benchmarkLab: false, egressControls: true, forecasting: false };
+const FEATURES = { benchmarkLab: false, egressControls: true, forecasting: false, notebookAgentSync: false };
 const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 
 function render(
@@ -128,7 +128,13 @@ describe('Settings modal', () => {
     const badges = markup.split('experimental-pane-badge').length - 1;
     expect(badges).toBe(5);
     const rows = markup.match(/<tr(?: [^>]*)?>[\s\S]*?<\/tr>/g) ?? [];
-    for (const feature of ['Egress controls panel', 'SP identities', 'Resource tags', 'Forecasting', 'Benchmarking']) {
+    for (const feature of [
+      'Egress controls panel',
+      'Notebook agent sync',
+      'Resource tags',
+      'Forecasting',
+      'Benchmarking',
+    ]) {
       const row = rows.find((candidate) => candidate.includes(`>${feature}</span>`));
       expect(row, feature).toBeDefined();
       expect(row?.match(/class="exp-feature-name"/g) ?? [], feature).toHaveLength(1);
@@ -140,122 +146,34 @@ describe('Settings modal', () => {
     expect(markup).not.toContain('Resource tags · Experimental');
   });
 
-  it('puts personas on Identity, grayed until the deployment-wide SP identities pivot is on', () => {
-    const off = render('identity');
-    expect(off).toContain('data-testid="sp-identity-pane"');
-    expect(off).toContain('Turn SP identities on under Experimental');
-    expect(off).toContain('disabled=""');
-    expect(off).not.toContain('type="password"');
-    expect(off).not.toMatch(/secret value/i);
-    expect(off).toContain('>Save</button>');
-
-    const on = renderToStaticMarkup(
-      <SettingsPage
-        initialSection="identity"
-        features={FEATURES}
-        setFeature={() => {}}
-        role={roleFrom(NORMAL_IDENTITY)}
-        spIdentityEnabled={true}
-      />
-    );
-    expect(on).not.toContain('Each named identity is a Databricks service principal');
-    expect(on).not.toContain('People using the app do not pick a persona on Ask');
-    expect(on).not.toContain('No personas yet.');
-    expect(on).not.toContain('Who runs as which persona');
-    expect(on).not.toContain('Administrators assign this');
-    expect(on).not.toContain('never the secret itself');
-    expect(on).not.toContain('Databricks Apps cannot mint a token for another service principal');
-  });
-
-  /**
-   * THE MISMATCH Bugbot filed. The Experimental switch used to follow this
-   * browser's localStorage while warehouse/Genie/agent calls followed
-   * `sp-identity-enabled`. Clearing storage, or another admin turning it on,
-   * left the switch Off and the Identity pane grayed while assigned people
-   * already ran as service principals.
-   */
-  it('shows Off and a grayed Identity pane when this browser would have opted in but the server flag is off', () => {
-    const experimental = renderToStaticMarkup(
-      <SettingsPage
-        initialSection="experimental"
-        features={FEATURES}
-        setFeature={() => {}}
-        role={roleFrom(NORMAL_IDENTITY)}
-        spIdentityEnabled={false}
-      />
-    );
-    expect(experimental).toContain('SP identities');
-    expect(experimental).toContain('Off');
-    expect(experimental).not.toContain('data-testid="sp-identity-settings-link"');
-    expect(experimental).not.toContain('the whole deployment');
-    expect(experimental).not.toContain('go to Identity to assign');
-
-    const identity = renderToStaticMarkup(
-      <SettingsPage
-        initialSection="identity"
-        features={FEATURES}
-        setFeature={() => {}}
-        role={roleFrom(NORMAL_IDENTITY)}
-        spIdentityEnabled={false}
-      />
-    );
-    expect(identity).toContain('Turn SP identities on under Experimental');
-    expect(identity).toContain('disabled=""');
-  });
-
-  it('shows On and a live Identity pane from the server flag, even when this browser never opted in', () => {
-    const experimental = renderToStaticMarkup(
-      <SettingsPage
-        initialSection="experimental"
-        features={FEATURES}
-        setFeature={() => {}}
-        role={roleFrom(NORMAL_IDENTITY)}
-        spIdentityEnabled={true}
-      />
-    );
-    expect(experimental).toContain('SP identities');
-    expect(experimental).toContain('On');
-    expect(experimental).toContain('data-testid="sp-identity-settings-link"');
-    expect(experimental).not.toContain('once enabled');
-    expect(experimental).not.toContain('go to Identity to assign');
-
-    const identity = renderToStaticMarkup(
-      <SettingsPage
-        initialSection="identity"
-        features={FEATURES}
-        setFeature={() => {}}
-        role={roleFrom(NORMAL_IDENTITY)}
-        spIdentityEnabled={true}
-      />
-    );
+  it('keeps SP Persona mappings on Identity and removes their Experimental pivot', () => {
+    const identity = render('identity');
+    const experimental = render('experimental');
+    expect(identity).toContain('data-testid="sp-identity-pane"');
+    expect(identity).toContain('SP Personas');
     expect(identity).not.toContain('Turn SP identities on under Experimental');
-    expect(identity).not.toContain('Each named identity is a Databricks service principal');
+    expect(identity).not.toContain('type="password"');
+    expect(experimental).not.toMatch(/SP identities|sp-identity-settings-link/);
   });
 
-  it('puts the SP-identities switch on Experimental next to the others', () => {
+  it('adds Notebook agent sync with concise non-automatic copy', () => {
     const markup = render('experimental');
-    expect(markup).toContain('aria-label="Run assigned people as their service principal"');
-    expect(markup).not.toContain('People without an assignment still use OAuth');
+    expect(markup).toContain('Notebook agent sync');
+    expect(markup).toContain('Controls notebook selection plus the staged agent-version apply workflow.');
+    expect(markup).toContain('aria-label="Enable Notebook agent sync"');
+    expect(markup).not.toMatch(/automatically|changes models merely/i);
   });
 
-  it('opens the existing Identity pane from the Experimental SP row, only when On', () => {
-    const source = readFileSync(new URL('SettingsPage.tsx', import.meta.url), 'utf8');
-    expect(source).toContain('data-testid="sp-identity-settings-link"');
-    expect(source).toContain("setActive('identity')");
-    expect(source).not.toContain('once enabled');
-    expect(source).not.toContain('go to Identity to assign');
-  });
-
-  it('puts egress controls, SP identities, and resource tags above the benchmarking controls', () => {
+  it('puts egress controls, Notebook agent sync, and resource tags above benchmarking', () => {
     const markup = render('experimental');
     const pii = markup.indexOf('Egress controls panel');
-    const identities = markup.indexOf('SP identities');
+    const notebook = markup.indexOf('Notebook agent sync');
     const tags = markup.indexOf('Resource tags');
     const benchmarking = markup.indexOf('>Benchmarking<');
     const addJudge = markup.indexOf('Add this custom judge');
     expect(pii).toBeGreaterThan(-1);
-    expect(identities).toBeGreaterThan(pii);
-    expect(tags).toBeGreaterThan(identities);
+    expect(notebook).toBeGreaterThan(pii);
+    expect(tags).toBeGreaterThan(notebook);
     expect(benchmarking).toBeGreaterThan(tags);
     expect(addJudge).toBeGreaterThan(benchmarking);
   });
@@ -273,7 +191,7 @@ describe('Settings modal', () => {
     const on = renderToStaticMarkup(
       <SettingsPage
         initialSection="experimental"
-        features={{ benchmarkLab: true, egressControls: true, forecasting: false }}
+        features={{ benchmarkLab: true, egressControls: true, forecasting: false, notebookAgentSync: false }}
         setFeature={() => {}}
         role={roleFrom(NORMAL_IDENTITY)}
       />

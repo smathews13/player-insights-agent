@@ -29,6 +29,7 @@ export interface UserSpendProfile {
     usedDbus: number;
     remainingDbus: number;
     promotionalDbus: number;
+    unclassifiedFreeDbus: number;
     chargedEffectiveDbus: number;
     chargedRawEquivalentDbus: number;
   } | null;

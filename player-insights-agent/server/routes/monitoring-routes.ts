@@ -61,6 +61,8 @@ import { executionToken } from '../lib/execution-credential';
 import { mlflowReference, userEmail, PLAN_APPROVAL_MESSAGE, type InsightsAppKit } from './insights-routes';
 import { resolveExperimentId } from '../lib/app-settings';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
+import { APP_ACTIVITY_TABLE } from '../lib/app-activity';
+import { APP_SESSION_TABLE, appSessionDeployment } from '../lib/app-session';
 
 /**
  * Default and hard maximum for one API page. The query asks for one look-ahead
@@ -414,12 +416,32 @@ export const MONITORING_DETAIL_QUERY = `
     AND q.created_at >= $3::timestamptz AND q.created_at < $4::timestamptz
 `;
 
-/** When they were first and last seen, over all time rather than the range. */
+/** First and last retained durable app activity, never roster or ACL membership. */
 export const MONITORING_PERSON_SEEN_QUERY = `
-  SELECT MIN(u.created_at) AS first_seen, MAX(u.created_at) AS last_seen
-  FROM ${APP_SCHEMA}.messages u
-  JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
-  WHERE u.role = 'user' AND u.content <> $1 AND c.user_email = $2
+  WITH evidence AS (
+    SELECT u.created_at AS occurred_at
+    FROM ${APP_SCHEMA}.messages u
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
+    WHERE u.role = 'user' AND u.content <> $1 AND c.user_email = $2
+    UNION ALL
+    SELECT r.created_at
+    FROM ${APP_SCHEMA}.runs r
+    WHERE lower(r.user_email) = lower($2)
+    UNION ALL
+    SELECT f.created_at
+    FROM ${APP_SCHEMA}.feedback f
+    WHERE lower(f.user_email) = lower($2)
+    UNION ALL
+    SELECT a.active_minute
+    FROM ${APP_ACTIVITY_TABLE} a
+    WHERE lower(a.user_email) = lower($2)
+    UNION ALL
+    SELECT s.created_at
+    FROM ${APP_SESSION_TABLE} s
+    WHERE s.deployment_key = $3 AND lower(s.subject) = lower($2)
+  )
+  SELECT MIN(occurred_at) AS first_seen, MAX(occurred_at) AS last_seen
+  FROM evidence
 `;
 
 /**
@@ -1296,7 +1318,11 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       let firstSeen: string | null = null;
       let lastSeen: string | null = null;
       try {
-        const seen = await appkit.lakebase.query(MONITORING_PERSON_SEEN_QUERY, [PLAN_APPROVAL_SENTINEL, person]);
+        const seen = await appkit.lakebase.query(MONITORING_PERSON_SEEN_QUERY, [
+          PLAN_APPROVAL_SENTINEL,
+          person,
+          appSessionDeployment() ?? '__unavailable__',
+        ]);
         firstSeen = stamp(seen.rows[0]?.first_seen) || null;
         lastSeen = stamp(seen.rows[0]?.last_seen) || null;
       } catch (error) {

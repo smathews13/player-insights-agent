@@ -2,7 +2,6 @@ import type { SpIdentityAdminPayload, SpPersonaDefinition, SpPersonaDefinitionWr
 import type { Role, RosterPayload } from '../../shared/user-roster-contract';
 
 export const EMPTY_SP_IDENTITY: SpIdentityAdminPayload = {
-  enabled: false,
   minting: { available: false, detail: '' },
   personas: [],
   personaDefinitions: [],
@@ -32,15 +31,6 @@ async function readSpPayload(response: Response, operation: string): Promise<SpI
   }
   if (!response.ok) throw new Error(serverDetail(body, `SP personas answered ${response.status}.`));
   return body as SpIdentityAdminPayload;
-}
-
-export async function persistSpIdentityMode(enabled: boolean): Promise<SpIdentityAdminPayload> {
-  const response = await fetch('/api/admin/sp-identity/mode', {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ enabled }),
-  });
-  return readSpPayload(response, 'saved the experimental pivot');
 }
 
 export async function loadSpIdentityAdmin(): Promise<SpIdentityAdminPayload> {

@@ -25,6 +25,7 @@ import {
 const IDS: CostIdentifiers = {
   appName: 'player-insights',
   endpointName: 'player-insights-agent',
+  foundationModel: 'databricks-claude-sonnet-4-6',
   warehouseId: 'warehouse-1',
   vectorEndpoint: 'vs-endpoint',
   vectorIndex: 'cat.schema.index',
@@ -234,7 +235,7 @@ describe('price join golden outputs', () => {
     const measured = tiles.filter((tile) => tile.amount !== null);
     expect(new Set(measured.map((tile) => tile.id)).size).toBe(measured.length);
     expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(10);
-    expect(tiles.some((tile) => tile.id === 'foundation-model')).toBe(false);
+    expect(tiles.some((tile) => tile.id === 'foundation-model')).toBe(true);
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.amount).toBeNull();
     expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
@@ -345,7 +346,7 @@ describe('coverage, shared meters, and Genie', () => {
       ],
       appBillingTag: 'matched',
     });
-    expect(coverage.costModelCount).toBe(5);
+    expect(coverage.costModelCount).toBe(6);
     expect(coverage.inventoryCount).toBe(11);
     expect(coverage.products.find((product) => product.product === 'JOBS')).toBeUndefined();
     expect(coverage.propagation.find((item) => item.product === 'APPS')?.status).toBe('unsupported');
@@ -356,7 +357,7 @@ describe('coverage, shared meters, and Genie', () => {
     const tile = buildTiles(IDS, [row({ component: 'sql-warehouse', spend: 50 })]).find(
       (item) => item.id === 'sql-warehouse'
     );
-    expect(tile?.population).toBe('Astrolabe query share');
+    expect(tile?.population).toBe('Interactive Ask queries');
     expect(tile?.attribution).toBe('unavailable');
   });
 

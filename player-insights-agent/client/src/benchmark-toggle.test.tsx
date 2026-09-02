@@ -180,12 +180,16 @@ describe('flipping it is wired to something', () => {
     expect(source).toContain("withExperimentalFeature(current, 'benchmarkLab', enabled)");
     expect(source).toContain("withExperimentalFeature(current, 'forecasting', enabled)");
     expect(source).toContain("withExperimentalFeature(current, 'egressControls', enabled)");
+    expect(source).toContain("withExperimentalFeature(current, 'notebookAgentSync', enabled)");
     expect(source).toContain('saveExperimentalSettings(experimentalRevision, patch)');
-    expect(source).not.toMatch(/setFeature\('spIdentities'/);
-    expect(source).toMatch(/persistSpIdentityMode/);
-    expect(source).toMatch(/loadSpIdentityAdmin/);
-    expect(source).toMatch(/spIdentityEnabledFromPayload/);
-    const rows = ['Egress controls panel', 'SP identities', '<ResourceTagsPanel />', '>Forecasting<', 'Benchmarking'];
+    expect(source).not.toMatch(/SP identities|spIdentityEnabled|persistSpIdentityMode/);
+    const rows = [
+      'Egress controls panel',
+      'Notebook agent sync',
+      '<ResourceTagsPanel />',
+      '>Forecasting<',
+      'Benchmarking',
+    ];
     const positions = rows.map((row) => source.indexOf(row));
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((left, right) => left - right));

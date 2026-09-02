@@ -62,6 +62,7 @@ export function buildGenieAccountingStatement(
   return {
     parameters: [
       { name: 'workspaceId', value: workspaceId.trim(), type: 'STRING' },
+      { name: 'from_day', value: range.from, type: 'DATE' },
       { name: 'through_day', value: range.to, type: 'DATE' },
       ...spaceParameters,
     ],
@@ -87,7 +88,7 @@ genie_usage AS (
   FROM system.billing.usage u
   WHERE u.billing_origin_product = 'GENIE'
     AND u.workspace_id = :workspaceId
-    AND u.usage_date >= DATE_TRUNC('MONTH', :through_day)
+    AND u.usage_date >= LEAST(:from_day, DATE_TRUNC('MONTH', :through_day))
     AND u.usage_date <= :through_day
     AND UPPER(TRIM(u.usage_unit)) = 'DBU'
 ),
@@ -126,7 +127,7 @@ query_space_evidence AS (
   INNER JOIN configured_spaces configured
     ON q.query_source.genie_space_id = configured.space_id
   WHERE q.workspace_id = :workspaceId
-    AND q.start_time >= TIMESTAMP(DATE_TRUNC('MONTH', :through_day))
+    AND q.start_time >= TIMESTAMP(LEAST(:from_day, DATE_TRUNC('MONTH', :through_day)))
     AND q.start_time < TIMESTAMP(DATE_ADD(:through_day, 1))
   GROUP BY CAST(q.start_time AS DATE), LOWER(TRIM(q.executed_by)), q.query_source.genie_space_id
 ),
@@ -179,6 +180,7 @@ SELECT
   COUNT(*) FILTER (WHERE sku_name <> '${GENIE_FREE_SKU}' AND (price_match_count <> 1 OR unit_price IS NULL))
     AS unpriced_rows,
   COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
+  SUM(allocation_weight) AS source_rows,
   MAX(usage_date) AS through_day
 FROM allocated
 GROUP BY usage_date, run_as, identity_kind, surface, channel, offering_type, sku_name, space_id, attribution_method
@@ -201,6 +203,7 @@ export interface GenieAccountingRow {
   pricedRows: number;
   unpricedRows: number;
   correctionRows: number;
+  sourceRows: number;
   throughDay: string;
 }
 
@@ -214,10 +217,35 @@ function number(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** Parse SQL rows without turning malformed quantities into measured zeroes. */
-export function readGenieAccountingRows(rows: readonly Record<string, unknown>[]): GenieAccountingRow[] {
+const GENIE_ACCOUNTING_COLUMNS = [
+  'usage_day',
+  'identity',
+  'identity_kind',
+  'surface',
+  'channel',
+  'offering_type',
+  'sku_name',
+  'space_id',
+  'attribution_method',
+  'dbus',
+  'paid_usd',
+  'priced_rows',
+  'unpriced_rows',
+  'correction_rows',
+  'source_rows',
+  'through_day',
+] as const;
+
+/** Parse both Statement API JSON_ARRAY rows and named test/adapter rows without converting malformed data to zero. */
+export function readGenieAccountingRows(rows: unknown): GenieAccountingRow[] {
   const parsed: GenieAccountingRow[] = [];
-  for (const row of rows) {
+  if (!Array.isArray(rows)) return parsed;
+  for (const raw of rows) {
+    const row = Array.isArray(raw)
+      ? Object.fromEntries(GENIE_ACCOUNTING_COLUMNS.map((column, index) => [column, raw[index]]))
+      : raw && typeof raw === 'object'
+        ? (raw as Record<string, unknown>)
+        : {};
     const dbus = number(row.dbus);
     const kind = text(row.identity_kind);
     if (dbus === null || !['human', 'service_principal', 'unknown'].includes(kind)) continue;
@@ -238,6 +266,7 @@ export function readGenieAccountingRows(rows: readonly Record<string, unknown>[]
       pricedRows: Math.max(0, number(row.priced_rows) ?? 0),
       unpricedRows: Math.max(0, number(row.unpriced_rows) ?? 0),
       correctionRows: Math.max(0, number(row.correction_rows) ?? 0),
+      sourceRows: Math.max(0, number(row.source_rows) ?? 1),
       throughDay: text(row.through_day),
     });
   }
@@ -245,10 +274,12 @@ export function readGenieAccountingRows(rows: readonly Record<string, unknown>[]
 }
 
 interface MutableSlice {
+  source: number;
   allowance: number;
   promotional: number;
   chargedEffective: number;
   chargedRaw: number;
+  unknown: number;
   paidUsd: number;
   paidUsdComplete: boolean;
   hasRows: boolean;
@@ -258,15 +289,18 @@ interface MutableSlice {
 }
 
 interface MutableUser extends MutableSlice {
+  identity: string;
   instances: Map<string, MutableSlice>;
 }
 
 function emptySlice(attribution: GenieInstanceAccounting['attribution']): MutableSlice {
   return {
+    source: 0,
     allowance: 0,
     promotional: 0,
     chargedEffective: 0,
     chargedRaw: 0,
+    unknown: 0,
     paidUsd: 0,
     paidUsdComplete: true,
     hasRows: false,
@@ -294,7 +328,7 @@ function surfaceKey(surface: string): GenieSurfaceAccounting['surface'] {
 function addCategory(
   target: MutableSlice,
   surface: GenieSurfaceAccounting['surface'],
-  category: 'allowance' | 'promotional' | 'charged',
+  category: 'allowance' | 'promotional' | 'charged' | 'unknown',
   quantity: number,
   raw: number,
   paidUsd: number | null,
@@ -310,7 +344,7 @@ function addCategory(
   } else if (category === 'promotional') {
     target.promotional += quantity;
     surfaceTarget.promotional += quantity;
-  } else {
+  } else if (category === 'charged') {
     target.hasCharged = true;
     surfaceTarget.hasCharged = true;
     target.chargedEffective += quantity;
@@ -324,6 +358,9 @@ function addCategory(
       target.paidUsd += paidUsd;
       surfaceTarget.paidUsd += paidUsd;
     }
+  } else {
+    target.unknown += quantity;
+    surfaceTarget.unknown += quantity;
   }
 }
 
@@ -341,6 +378,7 @@ function surfaceResults(value: MutableSlice): GenieSurfaceAccounting[] {
       promotionalDbus: Math.max(0, item.promotional),
       chargedEffectiveDbus: Math.max(0, item.chargedEffective),
       chargedRawEquivalentDbus: Math.max(0, item.chargedRaw),
+      unknownDbus: Math.max(0, item.unknown),
       paidUsd: item.paidUsdComplete ? Math.max(0, item.paidUsd) : null,
     }))
     .sort((left, right) => left.surface.localeCompare(right.surface));
@@ -352,12 +390,14 @@ function instanceResult(space: ConfiguredGenieSpace, value: MutableSlice): Genie
     label: space.label,
     tileId: space.tileId,
     attribution: value.attribution,
+    sourceDbus: value.source,
     allowanceUsedDbus: Math.max(0, value.allowance),
     promotionalDbus: Math.max(0, value.promotional),
     chargedEffectiveDbus: Math.max(0, value.chargedEffective),
     chargedRawEquivalentDbus: Math.max(0, value.chargedRaw),
+    unknownDbus: Math.max(0, value.unknown),
     paidUsd: value.paidUsdComplete ? Math.max(0, value.paidUsd) : null,
-    underlyingTotalDbus: Math.max(0, value.allowance + value.promotional + value.chargedRaw),
+    underlyingTotalDbus: Math.max(0, value.allowance + value.promotional + value.chargedRaw + value.unknown),
     pricingState: pricingState(value),
     surfaces: surfaceResults(value),
   };
@@ -376,6 +416,7 @@ function userResult(
     promotionalDbus: Math.max(0, value.promotional),
     chargedEffectiveDbus: Math.max(0, value.chargedEffective),
     chargedRawEquivalentDbus: Math.max(0, value.chargedRaw),
+    unknownDbus: Math.max(0, value.unknown),
     paidUsd: value.paidUsdComplete ? Math.max(0, value.paidUsd) : null,
     instances: [...value.instances]
       .map(([spaceId, instance]) => {
@@ -410,29 +451,36 @@ export function classifyGenieAccounting(
   const diagnostics = new Set<string>();
   const overall = emptySlice('query-history-exact');
   let sourceDbus = 0;
+  let sourceRows = 0;
   let newest = '';
 
-  const human = (identity: string): MutableUser => {
-    const existing = users.get(identity);
+  const human = (identity: string, usageDay: string): MutableUser => {
+    const key = `${usageDay.slice(0, 7)}\u0000${identity}`;
+    const existing = users.get(key);
     if (existing) return existing;
-    const created: MutableUser = { ...emptySlice('query-history-exact'), instances: new Map() };
-    users.set(identity, created);
+    const created: MutableUser = { ...emptySlice('query-history-exact'), identity, instances: new Map() };
+    users.set(key, created);
     return created;
   };
 
   for (const row of rows) {
     newest = row.throughDay > newest ? row.throughDay : newest;
     const quantity = row.dbus;
-    sourceDbus += Math.max(0, quantity);
+    sourceDbus += quantity;
+    sourceRows += row.sourceRows;
     overall.hasRows = true;
     const isFree = row.skuName === GENIE_FREE_SKU;
     const knownSurface = ELIGIBLE_SURFACES.has(row.surface);
-    const person = row.identityKind === 'human' ? human(row.identity || 'Unknown human') : null;
+    const person = row.identityKind === 'human' ? human(row.identity || 'Unknown human', row.usageDay) : null;
     const key = configured.has(row.spaceId) ? row.spaceId : '';
     const attribution = key ? row.attributionMethod : 'unattributed';
     const instance = sliceFor(instances, key, attribution);
     const userInstance = person ? sliceFor(person.instances, key, attribution) : null;
     const surface = surfaceKey(row.surface);
+    overall.source += quantity;
+    instance.source += quantity;
+    if (person) person.source += quantity;
+    if (userInstance) userInstance.source += quantity;
 
     if (isFree && row.identityKind === 'human' && knownSurface) {
       if (promo && row.surface !== 'GENIE_CODE') {
@@ -447,8 +495,16 @@ export function classifyGenieAccounting(
       continue;
     }
 
-    if (isFree && row.identityKind === 'human' && !knownSurface) {
-      diagnostics.add('Free-SKU rows with an unknown Genie surface were withheld from allowance and promotion.');
+    if (isFree) {
+      addCategory(overall, surface, 'unknown', quantity, quantity, 0, true);
+      addCategory(instance, surface, 'unknown', quantity, quantity, 0, true);
+      if (person) addCategory(person, surface, 'unknown', quantity, quantity, 0, true);
+      if (userInstance) addCategory(userInstance, surface, 'unknown', quantity, quantity, 0, true);
+      if (row.identityKind === 'human' && !knownSurface) {
+        diagnostics.add('Free-SKU rows with an unknown Genie surface remain measured as unclassified free DBUs.');
+      } else if (row.identityKind !== 'human') {
+        diagnostics.add('Free-SKU rows without an identified human remain measured as unclassified free DBUs.');
+      }
       continue;
     }
 
@@ -460,9 +516,6 @@ export function classifyGenieAccounting(
     addCategory(instance, surface, 'charged', effective, rawEquivalent, row.paidUsd, priced);
     if (person) addCategory(person, surface, 'charged', effective, rawEquivalent, row.paidUsd, priced);
     if (userInstance) addCategory(userInstance, surface, 'charged', effective, rawEquivalent, row.paidUsd, priced);
-    if (isFree && row.identityKind !== 'human') {
-      diagnostics.add('Ineligible non-human free-SKU rows are charged DBUs, but their USD price is unavailable.');
-    }
     if (row.identityKind === 'unknown') {
       diagnostics.add('Rows with missing identity were treated as charged, not as human allowance.');
     }
@@ -473,27 +526,50 @@ export function classifyGenieAccounting(
   // per-space contribution once, then add those capped contributions to the
   // overall and instance summaries. No instance receives its own 150 DBU cap.
   for (const user of users.values()) {
-    const capped = Math.min(GENIE_ALLOWANCE_DBUS_PER_USER, Math.max(0, user.allowance));
-    const scale = user.allowance > 0 ? capped / user.allowance : 0;
+    const rawAllowance = Math.max(0, user.allowance);
+    const capped = Math.min(GENIE_ALLOWANCE_DBUS_PER_USER, rawAllowance);
+    const scale = rawAllowance > 0 ? capped / rawAllowance : 0;
+    const excess = rawAllowance - capped;
     user.allowance = capped;
+    user.unknown += excess;
     for (const [spaceId, userInstance] of user.instances) {
-      userInstance.allowance *= scale;
-      for (const surface of userInstance.surfaces.values()) surface.allowance *= scale;
+      const rawInstanceAllowance = userInstance.allowance;
+      const instanceExcess = rawInstanceAllowance * (1 - scale);
+      userInstance.allowance = rawInstanceAllowance * scale;
+      userInstance.unknown += instanceExcess;
       const target = sliceFor(instances, spaceId, userInstance.attribution);
       target.allowance += userInstance.allowance;
+      target.unknown += instanceExcess;
       target.hasRows ||= userInstance.hasRows;
       for (const [surface, userSurface] of userInstance.surfaces) {
+        const rawSurfaceAllowance = userSurface.allowance;
+        const surfaceExcess = rawSurfaceAllowance * (1 - scale);
+        userSurface.allowance = rawSurfaceAllowance * scale;
+        userSurface.unknown += surfaceExcess;
         const targetSurface = target.surfaces.get(surface) ?? emptySlice(target.attribution);
         target.surfaces.set(surface, targetSurface);
         targetSurface.allowance += userSurface.allowance;
+        targetSurface.unknown += surfaceExcess;
         targetSurface.hasRows ||= userSurface.hasRows;
       }
     }
     overall.allowance += capped;
+    overall.unknown += excess;
   }
 
-  const perUser = [...users]
-    .map(([identity, value]) => userResult(identity, value, configured))
+  const preReconciliation = overall.allowance + overall.promotional + overall.chargedEffective + overall.unknown;
+  const unclassifiedGap = sourceDbus - preReconciliation;
+  if (unclassifiedGap > 1e-9) {
+    const unattributedFallback = sliceFor(instances, '', 'unattributed');
+    addCategory(overall, 'UNKNOWN', 'unknown', unclassifiedGap, unclassifiedGap, 0, true);
+    addCategory(unattributedFallback, 'UNKNOWN', 'unknown', unclassifiedGap, unclassifiedGap, 0, true);
+    diagnostics.add('Measured Genie DBUs without a known accounting class were preserved as unattributed.');
+  } else if (unclassifiedGap < -1e-9) {
+    diagnostics.add('Genie accounting classes exceed source DBUs; reconciliation requires investigation.');
+  }
+
+  const perUser = [...users.values()]
+    .map((value) => userResult(value.identity, value, configured))
     .sort(
       (left, right) => right.allowanceUsedDbus - left.allowanceUsedDbus || left.identity.localeCompare(right.identity)
     );
@@ -507,10 +583,10 @@ export function classifyGenieAccounting(
   const unattributed = unattributedValue
     ? instanceResult({ id: '', label: 'Unattributed Genie', tileId: 'genie:unattributed' }, unattributedValue)
     : null;
-  const attributedDbus = rows
-    .filter((row) => configured.has(row.spaceId))
-    .reduce((total, row) => total + Math.max(0, row.dbus), 0);
-  const unattributedDbus = Math.max(0, sourceDbus - attributedDbus);
+  const attributedDbus = rows.filter((row) => configured.has(row.spaceId)).reduce((total, row) => total + row.dbus, 0);
+  const unattributedDbus = sourceDbus - attributedDbus;
+  const classifiedDbus = Math.max(0, allowanceUsed + overall.promotional + overall.chargedEffective + overall.unknown);
+  const classificationDifference = sourceDbus - classifiedDbus;
   return {
     month: throughDay.slice(0, 7),
     throughDay: newest || throughDay,
@@ -522,13 +598,17 @@ export function classifyGenieAccounting(
     promotionalDbus: Math.max(0, overall.promotional),
     chargedEffectiveDbus: Math.max(0, overall.chargedEffective),
     chargedRawEquivalentDbus: Math.max(0, overall.chargedRaw),
+    unknownDbus: Math.max(0, overall.unknown),
     paidUsd: overall.paidUsdComplete ? Math.max(0, overall.paidUsd) : overall.hasCharged ? null : 0,
-    underlyingTotalDbus: Math.max(0, allowanceUsed + overall.promotional + overall.chargedRaw),
+    underlyingTotalDbus: Math.max(0, allowanceUsed + overall.promotional + overall.chargedRaw + overall.unknown),
     pricingState: pricingState(overall),
     instances: instanceResults,
     unattributed,
     reconciliation: {
+      sourceRows,
       sourceDbus,
+      classifiedDbus,
+      classificationDifferenceDbus: Math.abs(classificationDifference) < 1e-9 ? 0 : classificationDifference,
       attributedDbus,
       unattributedDbus,
       attributedShare: sourceDbus > 0 ? attributedDbus / sourceDbus : 1,

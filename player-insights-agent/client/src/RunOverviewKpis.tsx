@@ -7,6 +7,7 @@ import { RunRatingBadge } from './RunRatingBadge';
 import { runRatingDirection } from './run-rating';
 import { formatMs } from './trace-timeline';
 import { Card, CardContent } from './ui';
+import type { TokenReconciliation } from '../../shared/llm-token-usage';
 
 const ABSENT = 'Not recorded';
 
@@ -52,6 +53,7 @@ export function RunOverviewKpis({
   completionTokens,
   rating,
   ratePath,
+  tokenReconciliation,
 }: {
   durationMs: number | null | undefined;
   toolStageMs: number | null;
@@ -62,12 +64,37 @@ export function RunOverviewKpis({
   completionTokens: number | null;
   rating: number | null | undefined;
   ratePath: string | null;
+  tokenReconciliation?: TokenReconciliation;
 }) {
   const hasDuration = measured(durationMs);
   const hasToolStageTime = measured(toolStageMs);
   const hasToolCalls = measured(agentToolCalls);
   const hasTokens = measured(totalTokens);
   const hasTokenSplit = measured(promptTokens) && measured(completionTokens);
+  const stageCache = stages.reduce(
+    (summary, stage) => {
+      const usage = stage.token_usage;
+      if (!usage || usage.cachedReadTokens === undefined) return summary;
+      summary.cachedReadTokens += usage.cachedReadTokens;
+      if (usage.inputTokens !== undefined) summary.coveredInputTokens += usage.inputTokens;
+      summary.reported = true;
+      return summary;
+    },
+    { cachedReadTokens: 0, coveredInputTokens: 0, reported: false }
+  );
+  const cachedReadTokens =
+    tokenReconciliation?.cachedReadTokens ?? (stageCache.reported ? stageCache.cachedReadTokens : undefined);
+  const cacheHitPercent =
+    tokenReconciliation?.cacheHitPercent ??
+    (stageCache.reported && stageCache.coveredInputTokens > 0
+      ? (stageCache.cachedReadTokens / stageCache.coveredInputTokens) * 100
+      : undefined);
+  const cacheSummary =
+    cachedReadTokens !== undefined
+      ? `${cachedReadTokens.toLocaleString()} cached${
+          cacheHitPercent !== undefined ? ` (${cacheHitPercent.toFixed(1)}% of covered input)` : ''
+        }`
+      : '';
   const feedbackDirection = runRatingDirection(rating);
   const hasFeedback = feedbackDirection !== 'none';
 
@@ -96,8 +123,12 @@ export function RunOverviewKpis({
         value={hasTokens ? totalTokens.toLocaleString() : ABSENT}
         subtitle={
           hasTokens && hasTokenSplit
-            ? `${promptTokens.toLocaleString()} in / ${completionTokens.toLocaleString()} out`
-            : 'Token usage not recorded'
+            ? `${promptTokens.toLocaleString()} in / ${completionTokens.toLocaleString()} out${
+                cacheSummary ? ` · ${cacheSummary}` : ''
+              }`
+            : hasTokens && cacheSummary
+              ? cacheSummary
+              : 'Token usage not recorded'
         }
         subtitleClassName={hasTokens && hasTokenSplit ? 'tile-mono ast-num' : ''}
         absent={!hasTokens}

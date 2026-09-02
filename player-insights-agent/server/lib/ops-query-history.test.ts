@@ -2,15 +2,22 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createDatabricksQueryHistoryTransport,
-  readWarehouseQueryAttribution,
+  readWarehouseQueryAttribution as readWarehouseQueryAttributionWithEvidence,
   type WarehouseQueryHistoryTransport,
 } from './ops-query-history';
+
+const INTERACTIVE_RUNS = [{ runId: 'run-1', requestId: 'req-1', correlationId: 'corr-1' }];
+function readWarehouseQueryAttribution(
+  input: Omit<Parameters<typeof readWarehouseQueryAttributionWithEvidence>[0], 'interactiveRuns'>
+) {
+  return readWarehouseQueryAttributionWithEvidence({ ...input, interactiveRuns: INTERACTIVE_RUNS });
+}
 
 function row(id: string, executionMs: number | null, application = '') {
   return {
     query_id: id,
     warehouse_id: 'warehouse-1',
-    query_tags: application ? { application, surface: 'benchmark', tool: 'genie_result' } : {},
+    query_tags: application ? { application, surface: 'ask', tool: 'run_sql', run_id: 'run-1' } : {},
     ...(executionMs === null ? {} : { metrics: { execution_time_ms: executionMs } }),
     // These provider fields must never appear in the aggregate returned to Ops.
     query_text: 'SELECT secret FROM private_table',
@@ -19,6 +26,41 @@ function row(id: string, executionMs: number | null, application = '') {
 }
 
 describe('Ops Query History attribution', () => {
+  it('counts only completed-run Ask tags and excludes preflight, Ops, telemetry, benchmark, Genie, and unrelated SQL', async () => {
+    const tagged = (id: string, surface: string, executionMs: number, extra: Record<string, unknown> = {}) => ({
+      ...row(id, executionMs),
+      query_tags: { application: 'Astrolabe', surface, run_id: 'run-1' },
+      ...extra,
+    });
+    const result = await readWarehouseQueryAttribution({
+      warehouseId: 'warehouse-1',
+      startTimeMs: 1_000,
+      endTimeMs: 2_000,
+      transport: {
+        listQueries: vi.fn().mockResolvedValue({
+          res: [
+            tagged('ask', 'ask', 30),
+            tagged('preflight', 'preflight', 24),
+            tagged('ops', 'ops', 236),
+            tagged('telemetry', 'telemetry', 116),
+            tagged('benchmark', 'benchmark', 80),
+            tagged('genie', 'ask', 50, { query_source: { genie_space_id: 'space-data' } }),
+            { ...row('unrelated', 200), query_tags: { application: 'Other' } },
+          ],
+          has_next_page: false,
+        }),
+      },
+    });
+    expect(result).toMatchObject({
+      complete: true,
+      astrolabeQueries: 1,
+      astrolabeExecutionMs: 30,
+      totalQueries: 7,
+      totalExecutionMs: 736,
+      askRuns: [{ runId: 'run-1', executionMs: 30 }],
+    });
+  });
+
   it('paginates the complete range and allocates only exact Astrolabe tags', async () => {
     const listQueries = vi
       .fn()

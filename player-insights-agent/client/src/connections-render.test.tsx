@@ -93,13 +93,24 @@ describe('the build stamps stay identifiers rather than duplicate statuses', () 
     expect(text(markup)).toContain('05d742b2');
   });
 
-  it('labels independently sourced revisions and only calls exact matches the same release', () => {
-    const equal = stamp({ appBuildSha: 'abc123456789', modelBuildSha: 'abc123456789' }).artifacts;
-    const different = stamp({ appBuildSha: 'abc123456789', modelBuildSha: 'def987654321' }).artifacts;
-    expect(equal.map((artifact) => artifact.label)).toEqual(['App source', 'Agent source']);
-    expect(equal[0].full).toBe(equal[1].full);
-    expect(different[0].full).not.toBe(different[1].full);
-    expect(PAGE_SOURCE).toMatch(/build\.artifacts\[0\]\.full === build\.artifacts\[1\]\.full[\s\S]*Same release/);
+  it.each([
+    ['equal', 'abc123456789', 'abc123456789'],
+    ['different', 'abc123456789', 'def987654321'],
+    ['unknown', '', ''],
+  ])('describes both sources independently for %s SHAs without comparing them', (_case, appBuildSha, modelBuildSha) => {
+    const artifacts = stamp({ appBuildSha, modelBuildSha }).artifacts;
+    const markup = render(
+      <>
+        {artifacts.map((artifact) => (
+          <BuildStampRow key={artifact.key} artifact={artifact} />
+        ))}
+      </>
+    );
+    expect(artifacts.map((artifact) => artifact.label)).toEqual(['App source', 'Agent source']);
+    expect(text(markup)).toContain('Commit used to build this app deployment.');
+    expect(text(markup)).toContain('Commit used to log the served agent model.');
+    expect(text(markup)).not.toMatch(/same release|shared release|mismatch|different release/i);
+    expect(PAGE_SOURCE).not.toMatch(/Same release|deployment-release-match|artifacts\[0\]\.full ===/);
   });
 });
 

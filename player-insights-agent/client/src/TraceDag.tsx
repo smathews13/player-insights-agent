@@ -59,8 +59,8 @@
  * asserted against a rendered tree and never against itself.
  */
 import { useEffect, useId, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react';
-import { Badge } from './ui';
-import { ChevronRight, Copy, Database, Search, Wrench } from 'lucide-react';
+import { Badge, Button } from './ui';
+import { ArrowLeft, ChevronRight, Copy, Database, Search, Wrench } from 'lucide-react';
 import { AstrolabeMark } from './AstrolabeMark';
 import { AgentPathConstellation } from './AgentConstellation';
 import { AnswerCharts, type Chart } from './AnswerCharts';
@@ -88,6 +88,7 @@ import {
   semanticResult,
   sqlStatements,
   structuredTableResult,
+  withoutDeclaredTableCaption,
   type ResultShape,
 } from './step-results';
 import { astPill } from './run-header';
@@ -109,11 +110,14 @@ import {
   runContainerSummary,
   sqlLines,
   stepNumber,
+  tokenSummary,
+  tokenUsageLabel,
   RAIL_CONNECTOR_HEIGHT,
   type RailGlyph,
   type RunContainerSummary,
 } from './agent-map';
 import { revealStepDetail, returnToSelectedStep, type StepActivation } from './agent-map-scroll';
+import type { StepTokenUsage } from '../../shared/llm-token-usage';
 
 /**
  * How many lines of a statement show before the block is clamped.
@@ -126,6 +130,51 @@ import { revealStepDetail, returnToSelectedStep, type StepActivation } from './a
  * not covered by a fade with nothing behind it.
  */
 const CLAMP_LINES = 9;
+
+function TokenBadge({ usage }: { usage: StepTokenUsage }) {
+  const label = tokenUsageLabel(usage);
+  return (
+    <Badge variant="outline" className="dag-metric-badge dag-token-badge ast-num" title={label} aria-label={label}>
+      {tokenSummary(usage)}
+    </Badge>
+  );
+}
+
+function TokenDetails({ usage }: { usage: StepTokenUsage }) {
+  const cache = usage.cacheStatus === 'used' ? 'Used' : usage.cacheStatus === 'not-used' ? 'Not used' : 'Not reported';
+  return (
+    <dl className="dag-token-details" aria-label="LLM token usage">
+      <dt>Input tokens</dt>
+      <dd className="ast-num">{usage.inputTokens?.toLocaleString() ?? 'Not reported'}</dd>
+      <dt>Output tokens</dt>
+      <dd className="ast-num">{usage.outputTokens?.toLocaleString() ?? 'Not reported'}</dd>
+      <dt>Total tokens</dt>
+      <dd className="ast-num">{usage.totalTokens?.toLocaleString() ?? 'Not reported'}</dd>
+      <dt>Cached input</dt>
+      <dd className="ast-num">{usage.cachedReadTokens?.toLocaleString() ?? 'Not reported'}</dd>
+      {usage.cacheWriteTokens !== undefined ? (
+        <>
+          <dt>Cache creation</dt>
+          <dd className="ast-num">{usage.cacheWriteTokens.toLocaleString()}</dd>
+        </>
+      ) : null}
+      <dt>Cache</dt>
+      <dd>{cache}</dd>
+      {usage.attempts > 1 ? (
+        <>
+          <dt>Attempts</dt>
+          <dd className="ast-num">{usage.attempts}</dd>
+        </>
+      ) : null}
+      {usage.totalMismatch ? (
+        <>
+          <dt>Diagnostic</dt>
+          <dd>Provider total differs from input plus output</dd>
+        </>
+      ) : null}
+    </dl>
+  );
+}
 
 /**
  * What kind of step this was, as a 22px chip.
@@ -532,9 +581,18 @@ function RunSummaryDetail({
           {summary.status}
         </Badge>
         {onBackToMap && (
-          <button ref={backButtonRef} type="button" className="dag-back-to-map" onClick={onBackToMap} hidden>
+          <Button
+            ref={backButtonRef}
+            type="button"
+            variant="default"
+            size="sm"
+            className="refresh-button dag-back-to-map"
+            onClick={onBackToMap}
+            hidden
+          >
+            <ArrowLeft className="size-3.5" aria-hidden="true" />
             Back to agent map
-          </button>
+          </Button>
         )}
       </div>
       <dl aria-label="Run summary evidence">
@@ -573,6 +631,31 @@ function RunSummaryDetail({
         </dd>
         <dt>Final answer</dt>
         <dd>{summary.answerAvailability}</dd>
+        {summary.tokenReconciliation ? (
+          <>
+            <dt>Token attribution</dt>
+            <dd>
+              <span className="ast-num">{summary.tokenReconciliation.attributedTokens.toLocaleString()}</span> across{' '}
+              <span className="ast-num">{summary.tokenReconciliation.attributedCalls.toLocaleString()}</span> direct LLM
+              call{summary.tokenReconciliation.attributedCalls === 1 ? '' : 's'}
+              {summary.tokenReconciliation.coveragePercent !== undefined
+                ? ` · ${summary.tokenReconciliation.coveragePercent.toFixed(1)}% of the overview total`
+                : ''}
+            </dd>
+            {summary.tokenReconciliation.unattributedTokens !== undefined ? (
+              <>
+                <dt>Unattributed</dt>
+                <dd>
+                  <span className="ast-num">{summary.tokenReconciliation.unattributedTokens.toLocaleString()}</span>{' '}
+                  tokens
+                  {summary.tokenReconciliation.nestedAggregateTokens > 0
+                    ? ` · ${summary.tokenReconciliation.nestedAggregateTokens.toLocaleString()} also appeared on nested parent spans`
+                    : ''}
+                </dd>
+              </>
+            ) : null}
+          </>
+        ) : null}
         {summary.traceId ? (
           <>
             <dt>Trace</dt>
@@ -599,9 +682,9 @@ function RunSummaryDetail({
  * and an origin of zero arrive as the same number, and the first stage of every
  * run legitimately starts at zero.
  *
- * There is no token count here, and that is not an omission -- the agent meters
- * tokens per RUN and not per stage, so a figure on this panel would be the run's
- * total attributed to whichever step the reader happened to open.
+ * Token counts appear only when MLflow recorded a direct LLM invocation that can
+ * be correlated to this stage. Tool-only stages remain unmetered rather than
+ * gaining a zero or a share of the run total.
  *
  * A STAGE THAT FAILED OPENS ON RAW. The design asks for the server quoted
  * verbatim, and `Rendered` is a reading of the text: paragraphs, or a table if
@@ -656,7 +739,7 @@ export function StageDetail({
   // the model's own vocabulary is recoverable for every stage rather than some.
   const tool = toolNameFromId(stage.id);
   const args = describePayload(stage.input);
-  const result = describePayload(takeawayWhenTablesLanded(stage.output, stage.input));
+  const result = describePayload(withoutDeclaredTableCaption(takeawayWhenTablesLanded(stage.output, stage.input)));
   // The one argument that becomes the Generated SQL block. Named rather than
   // sniffed for SQL keywords: `data_genie` and `run_sql` both record the
   // statement under a key, and a heuristic would eventually promote a question
@@ -676,12 +759,28 @@ export function StageDetail({
           Step {step} · <StageName stage={stage} mono clamp={false} />
         </strong>
         <span className="dag-detail-measures ast-num">{detailTiming(stage, origin)}</span>
+        {stage.token_usage ? <TokenBadge usage={stage.token_usage} /> : null}
+        {stage.token_usage?.cacheStatus === 'used' ? (
+          <Badge variant="outline" className="ast-pill ast-pill--pos dag-cached-badge">
+            Cached
+          </Badge>
+        ) : null}
         {onBackToMap && (
-          <button ref={backButtonRef} type="button" className="dag-back-to-map" onClick={onBackToMap} hidden>
+          <Button
+            ref={backButtonRef}
+            type="button"
+            variant="default"
+            size="sm"
+            className="refresh-button dag-back-to-map"
+            onClick={onBackToMap}
+            hidden
+          >
+            <ArrowLeft className="size-3.5" aria-hidden="true" />
             Back to agent map
-          </button>
+          </Button>
         )}
       </div>
+      {stage.token_usage ? <TokenDetails usage={stage.token_usage} /> : null}
       {tool || stage.status !== 'complete' ? (
         <dl>
           {tool && (
@@ -1019,6 +1118,12 @@ export function TraceDag({
                     <Badge variant="outline" className="dag-metric-badge dag-call-badge ast-num">
                       {cardCalls(item, runEnvelope)}
                     </Badge>
+                    {item.token_usage ? <TokenBadge usage={item.token_usage} /> : null}
+                    {item.token_usage?.cacheStatus === 'used' ? (
+                      <Badge variant="outline" className="ast-pill ast-pill--pos dag-cached-badge">
+                        Cached
+                      </Badge>
+                    ) : null}
                     {itemStatus !== 'complete' && (
                       <Badge variant="outline" className={`dag-status-badge ${astPill(itemStatus)}`}>
                         {itemStatus}

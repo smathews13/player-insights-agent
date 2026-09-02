@@ -68,6 +68,7 @@ const QUERY_HISTORY_REASON: Record<QueryHistoryCoverage['reasons'][number], stri
   'invalid-row': 'one or more rows had no query identifier',
   'unexpected-warehouse': 'one or more rows belonged to another warehouse',
   'missing-execution-time': 'one or more rows had no execution-time metric',
+  'interactive-run-coverage': 'the completed interactive Ask ledger population was partial',
 };
 
 export function queryHistoryCoverageDetail(coverage: QueryHistoryCoverage): string {
@@ -493,7 +494,20 @@ export function costAbsenceReplacesGrid(payload: OpsCostPayload): boolean {
  * resource so the grid does not collapse into a single empty-state card.
  */
 export function costTilesForDisplay(tiles: readonly CostTile[]): CostTile[] {
-  return tiles.length > 0 ? [...tiles] : EMPTY_COST_TILES.map((tile) => ({ ...tile }));
+  if (tiles.length === 0) return EMPTY_COST_TILES.map((tile) => ({ ...tile }));
+  const unattributed = tiles.find((tile) => tile.id === 'genie:unattributed');
+  const configuredGenie = tiles.filter(
+    (tile) => tile.id.startsWith('genie:') && tile.id !== 'genie:unattributed' && Boolean(tile.resourceId)
+  );
+  if (
+    (unattributed?.genieInstanceAccounting?.underlyingTotalDbus ?? 0) > 0 &&
+    configuredGenie.every((tile) => (tile.genieInstanceAccounting?.underlyingTotalDbus ?? 0) === 0)
+  ) {
+    return tiles.filter(
+      (tile) => !(tile.id.startsWith('genie:') && tile.id !== 'genie:unattributed' && Boolean(tile.resourceId))
+    );
+  }
+  return [...tiles];
 }
 
 const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {
@@ -510,8 +524,9 @@ const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {
 };
 
 const EMPTY_COST_TILES: readonly CostTile[] = [
-  { ...EMPTY_COST_TILE, id: 'serving-endpoint', label: 'Serving endpoint', resourceKind: 'serving-endpoint' },
-  { ...EMPTY_COST_TILE, id: 'sql-warehouse', label: 'SQL warehouse', resourceKind: 'sql-warehouse' },
+  { ...EMPTY_COST_TILE, id: 'serving-endpoint', label: 'Agent serving', resourceKind: 'serving-endpoint' },
+  { ...EMPTY_COST_TILE, id: 'foundation-model', label: 'Foundation model tokens', resourceKind: 'serving-endpoint' },
+  { ...EMPTY_COST_TILE, id: 'sql-warehouse', label: 'Ask SQL', resourceKind: 'sql-warehouse' },
   { ...EMPTY_COST_TILE, id: 'genie:data', label: 'Data Genie', resourceKind: '' },
   { ...EMPTY_COST_TILE, id: 'genie:dictionary', label: 'Dictionary Genie', resourceKind: '' },
   { ...EMPTY_COST_TILE, id: 'vector-search', label: 'Vector search', resourceKind: 'vector-index' },
@@ -801,6 +816,7 @@ export function productForCostTile(id: string): BrandProduct | null {
 
 const COST_TILE_PRODUCTS: Record<string, BrandProduct> = {
   'serving-endpoint': 'mosaic-ai',
+  'foundation-model': 'mosaic-ai',
   'vector-search': 'mosaic-ai',
   'sql-warehouse': 'databricks-sql',
   'app-compute': 'apps',
@@ -846,36 +862,48 @@ export function costCoverageLinesForTile(tileId: string, coverage: CostCoverage 
 }
 
 /**
- * The two question-serving components with defensible period attribution,
+ * The three marginal question-serving components with defensible period attribution,
  * divided by every completed question in that same complete-day period.
  */
-export const QUESTION_COST_FORMULA = 'Attributed serving + SQL ÷ completed questions';
+export const QUESTION_COST_FORMULA = 'Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks';
 
 export function questionServingAverage(payload: OpsCostPayload, unit: CostBudgetUnit = 'USD'): number | null {
   const serving = payload.tiles.find((tile) => tile.id === 'serving-endpoint');
+  const foundation = payload.tiles.find((tile) => tile.id === 'foundation-model');
   const sql = payload.tiles.find((tile) => tile.id === 'sql-warehouse');
   const completed = payload.perQuestion.runsInRange;
-  const dedicated = serving?.population === 'This endpoint' && tileAttribution(serving) === 'deployment';
+  const legacy = payload.perQuestion.complete === undefined;
   const priced = (tile: CostTile | undefined) =>
     !tile?.pricing || tile.pricing.match === 'priced' || tile.pricing.match === 'none';
   const servingAmount = unit === 'DBU' ? serving?.dbus : serving?.amount;
+  const foundationAmount = unit === 'DBU' ? foundation?.dbus : foundation?.amount;
   const sqlAmount = unit === 'DBU' ? sql?.dbus : sql?.amount;
   const usdUnavailable =
-    unit === 'USD' && (serving?.quality !== 'real' || sql?.quality === 'unknown' || !priced(serving) || !priced(sql));
+    unit === 'USD' &&
+    (serving?.quality === 'unknown' ||
+      (!legacy && foundation?.quality === 'unknown') ||
+      sql?.quality === 'unknown' ||
+      !priced(serving) ||
+      (!legacy && !priced(foundation)) ||
+      !priced(sql));
   if (
+    !serving ||
     !sql ||
-    !dedicated ||
+    (!legacy && !foundation) ||
+    tileAttribution(serving) !== 'deployment' ||
+    (!legacy && foundation && tileAttribution(foundation) !== 'deployment') ||
     tileAttribution(sql) !== 'deployment' ||
     usdUnavailable ||
     typeof servingAmount !== 'number' ||
     !Number.isFinite(servingAmount) ||
     typeof sqlAmount !== 'number' ||
     !Number.isFinite(sqlAmount) ||
+    (!legacy && (typeof foundationAmount !== 'number' || !Number.isFinite(foundationAmount))) ||
     completed <= 0
   ) {
     return null;
   }
-  return (servingAmount + sqlAmount) / completed;
+  return (servingAmount + (legacy ? 0 : (foundationAmount ?? 0)) + sqlAmount) / completed;
 }
 
 export function costHonestyLine(honesty: CostHonesty | null | undefined): string {

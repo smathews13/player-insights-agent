@@ -12,7 +12,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ApplyPlan } from '../../shared/apply-declaration';
 import type { ModelReleaseRequest } from '../../shared/model-release';
 import type { NotebookPanel } from './connection-model';
-import { ExperimentalBadge } from './ExperimentalBadge';
 import { RefreshButton } from './RefreshControl';
 import { showsAdminSurfaces, useRole } from './role';
 import { Button } from './ui';
@@ -143,12 +142,14 @@ export function ApplyDeclarationCard({ notebook, onRefresh }: { notebook?: Noteb
   });
 
   return (
-    <section className="plane-card" aria-label="Apply model settings" data-testid="apply-declaration">
+    <section
+      id="notebook-agent-sync-apply"
+      className="plane-card"
+      aria-label="Apply model settings"
+      data-testid="apply-declaration"
+    >
       <div className="plane-card-head">
-        <span className="plane-card-title">
-          <ExperimentalBadge />
-          Apply → new model version
-        </span>
+        <span className="plane-card-title">Apply → new model version</span>
         <span className="plane-card-head-aside">
           <RefreshButton busy={busy} onRefresh={() => void load()} />
         </span>

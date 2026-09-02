@@ -17,13 +17,15 @@ html[data-theme='dark'] .monitoring-chip-menu [data-slot='select-item'][data-hig
   color: var(--foreground);
 }
 
-html[data-theme='dark'] .monitoring-person-modal {
+html[data-theme='dark'] .user-profile-modal,
+html[data-theme='dark'] .monitoring-users-modal {
   background: var(--ast-surface-solid);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
-html[data-theme='dark'] .monitoring-person-modal-head {
+html[data-theme='dark'] .user-profile-modal-header,
+html[data-theme='dark'] .monitoring-users-header {
   background: var(--ast-surface-solid);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
@@ -34,9 +36,9 @@ html[data-theme='dark'] .monitoring-question-modal {
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
-html[data-theme='dark'] .monitoring-person-modal [data-slot='card'],
-html[data-theme='dark'] .monitoring-person-modal .answer-card,
-html[data-theme='dark'] .monitoring-person-modal [data-slot='alert'],
+html[data-theme='dark'] .user-profile-modal [data-slot='card'],
+html[data-theme='dark'] .user-profile-modal .answer-card,
+html[data-theme='dark'] .user-profile-modal [data-slot='alert'],
 html[data-theme='dark'] .monitoring-question-modal [data-slot='card'],
 html[data-theme='dark'] .monitoring-question-modal .answer-card,
 html[data-theme='dark'] .monitoring-question-modal [data-slot='alert'] {
@@ -63,7 +65,8 @@ html[data-theme='dark'] .monitoring-search-clear:hover {
   html[data-theme='dark'] .monitoring-filters .monitoring-search input,
   html[data-theme='dark'] .monitoring-list-pane,
   html[data-theme='dark'] .monitoring-chip-menu,
-  html[data-theme='dark'] .monitoring-person-modal,
+  html[data-theme='dark'] .user-profile-modal,
+  html[data-theme='dark'] .monitoring-users-modal,
   html[data-theme='dark'] .monitoring-question-modal {
     backdrop-filter: none;
     background: var(--ast-surface-solid);
@@ -71,7 +74,8 @@ html[data-theme='dark'] .monitoring-search-clear:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-theme='dark'] .monitoring-person-modal,
+  html[data-theme='dark'] .user-profile-modal,
+  html[data-theme='dark'] .monitoring-users-modal,
   html[data-theme='dark'] .monitoring-question-modal {
     transition: none;
   }

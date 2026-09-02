@@ -13,6 +13,7 @@ import { classifyGenieAccounting, GENIE_FREE_SKU, type GenieAccountingRow } from
 const IDS: CostIdentifiers = {
   appName: 'player-insights',
   endpointName: 'player-insights-agent',
+  foundationModel: 'databricks-claude-sonnet-4-6',
   warehouseId: 'warehouse-1',
   vectorEndpoint: '',
   vectorIndex: '',
@@ -173,6 +174,7 @@ describe('billing attribution', () => {
       pricedRows: 0,
       unpricedRows: 0,
       correctionRows: 0,
+      sourceRows: 1,
       throughDay: '2026-09-01',
     };
     const accounting = classifyGenieAccounting(
@@ -208,6 +210,60 @@ describe('billing attribution', () => {
     expect(tiles.find((tile) => tile.id === 'genie:data')?.genieInstanceAccounting).toMatchObject({
       allowanceUsedDbus: 5,
       promotionalDbus: 15,
+    });
+  });
+
+  it('emits an explicit free-usage reconciliation tile instead of two false-zero cards', () => {
+    const testIds: CostIdentifiers = {
+      ...IDS,
+      genieSpaces: [
+        { id: 'space-data', label: 'Data Genie', tool: 'data_genie', tileId: 'genie:data' },
+        {
+          id: 'space-dictionary',
+          label: 'Dictionary Genie',
+          tool: 'dictionary_genie',
+          tileId: 'genie:dictionary',
+        },
+      ],
+    };
+    const freeOnly = classifyGenieAccounting(
+      [
+        {
+          usageDay: '2026-09-01',
+          identity: 'person@example.test',
+          identityKind: 'human',
+          surface: 'GENIE_ONE',
+          channel: 'UI',
+          offeringType: 'PAYGO',
+          skuName: GENIE_FREE_SKU,
+          spaceId: '',
+          attributionMethod: 'unattributed',
+          dbus: 12,
+          paidUsd: 0,
+          pricedRows: 0,
+          unpricedRows: 0,
+          correctionRows: 0,
+          sourceRows: 1,
+          throughDay: '2026-09-01',
+        },
+      ],
+      '2026-09-01',
+      testIds.genieSpaces
+    );
+    const tiles = buildTiles(testIds, [], undefined, [], { month: freeOnly, period: freeOnly });
+    expect(tiles.filter((tile) => tile.id.startsWith('genie:')).map((tile) => tile.id)).toEqual([
+      'genie:data',
+      'genie:dictionary',
+      'genie:unattributed',
+    ]);
+    expect(tiles.find((tile) => tile.id === 'genie:unattributed')).toMatchObject({
+      amount: 0,
+      dbus: 0,
+      genieInstanceAccounting: {
+        promotionalDbus: 12,
+        paidUsd: 0,
+        underlyingTotalDbus: 12,
+      },
     });
   });
 
@@ -381,7 +437,7 @@ describe('billing attribution', () => {
     expect(sql).toMatchObject({
       amount: 25,
       quality: 'estimate',
-      population: 'Astrolabe query share',
+      population: 'Interactive Ask queries',
       attribution: 'deployment',
       evidence: {
         billingRows: 4,

@@ -4,7 +4,13 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { COST_BUDGETS_UNREADABLE, loadCostBudgets, saveCostBudgets } from './cost-budgets-api';
-import { BudgetSaveNotice, CostBudgetApplyButton, costBudgetNotice } from './CostBudgets';
+import {
+  BudgetSaveNotice,
+  COST_BUDGET_SAVED_MS,
+  CostBudgetApplyButton,
+  costBudgetNotice,
+  scheduleCostBudgetSaveReset,
+} from './CostBudgets';
 import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad } from './settings-save-state';
 
 function json(body: unknown, status = 200): Response {
@@ -76,9 +82,9 @@ describe('cost budget API responses', () => {
 });
 
 describe('Cost budget Apply copy', () => {
-  it('confirms a save without claiming the next ask uses it', () => {
+  it('keeps save-success copy in the button only', () => {
     expect(costBudgetNotice(SETTINGS_SAVE_IDLE)).toBeNull();
-    expect(costBudgetNotice({ kind: 'saved' })).toEqual({ tone: 'ok', text: 'Applied.' });
+    expect(costBudgetNotice({ kind: 'saved' })).toBeNull();
     expect(costBudgetNotice({ kind: 'failed', message: 'The endpoint answered 503.' })).toEqual({
       tone: 'error',
       text: 'The endpoint answered 503.',
@@ -92,12 +98,15 @@ describe('Cost budget Apply copy', () => {
     expect(markup({ kind: 'saving' })).toContain('Applying');
     expect(markup({ kind: 'saving' })).toContain('ast-flick-slot--button');
     expect(markup({ kind: 'saving' })).toContain('disabled');
-    expect(markup({ kind: 'saved' })).toContain('Applied');
+    const saved = markup({ kind: 'saved' });
+    expect(saved.match(/Applied/g)).toHaveLength(1);
+    expect(saved).toContain('aria-live="polite"');
+    expect(saved).toContain('aria-atomic="true"');
     expect(markup({ kind: 'failed', message: 'no' })).toContain('Retry');
     expect(markup({ kind: 'failed', message: 'no' })).not.toContain('ast-flick-slot--button');
   });
 
-  it('renders saved and error status copy independently from the control helper', () => {
+  it('renders failures without a duplicate saved status', () => {
     const status = (state: Parameters<typeof BudgetSaveNotice>[0]['state']) =>
       renderToStaticMarkup(
         createElement(BudgetSaveNotice, {
@@ -106,11 +115,23 @@ describe('Cost budget Apply copy', () => {
           readable: true,
         })
       );
-    expect(status({ kind: 'saved' })).toContain('ops-budget-save-ok');
-    expect(status({ kind: 'saved' })).toContain('Applied.');
+    expect(status({ kind: 'saved' })).toBe('');
     expect(status({ kind: 'failed', message: 'Atomic save failed.' })).toContain('ops-budget-save-error');
     expect(status({ kind: 'failed', message: 'Atomic save failed.' })).toContain('Atomic save failed.');
     expect(status({ kind: 'failed', message: 'Atomic save failed.' })).not.toContain('Observed:');
+  });
+
+  it('resets the latest successful save once after the visible confirmation delay', () => {
+    vi.useFakeTimers();
+    const timers = {};
+    const first = vi.fn();
+    const latest = vi.fn();
+    scheduleCostBudgetSaveReset(timers, 'resources', first);
+    scheduleCostBudgetSaveReset(timers, 'resources', latest);
+    vi.advanceTimersByTime(COST_BUDGET_SAVED_MS);
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledOnce();
+    vi.useRealTimers();
   });
 });
 

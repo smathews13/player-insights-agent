@@ -54,7 +54,7 @@ import {
 import { useRunTrace } from './app-state';
 import { conversationAge } from './conversation-age';
 import { runLabel } from './run-label';
-import { UserIdentityChip } from './UserIdentityChip';
+import { UserDrilldownLink } from './UserDrilldownLink';
 import type { Run } from './app-types';
 import { evalScorecard } from './eval-scorecard';
 import { SCORER_CATALOG } from '../../shared/scorer-catalog';
@@ -167,7 +167,7 @@ export function BenchmarkLedger({ qualifications }: { qualifications: BenchmarkQ
                 {row.identity ? (
                   <>
                     {' '}
-                    <UserIdentityChip identity={row.identity} compact />
+                    <UserDrilldownLink identity={row.identity} compact />
                   </>
                 ) : null}
                 .

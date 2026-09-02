@@ -160,7 +160,8 @@ describe('the admin owner dropdown', () => {
     expect(HOME).toContain("if (identity.role === 'consumer')");
     expect(HOME).toContain('clearOwnerSelectionPreference()');
     expect(HOME).toMatch(/adminSharedRail && rail\.owners\.length > 0/);
-    expect(HOME).toContain('{adminSharedRail && owner && (');
+    expect(HOME).toContain('{adminSharedRail && owner ? (');
+    expect(HOME).toContain('<UserDrilldownLink');
   });
 
   it('cannot widen or push the narrow rail', () => {

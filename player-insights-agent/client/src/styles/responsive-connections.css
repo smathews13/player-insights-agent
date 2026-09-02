@@ -1,3 +1,9 @@
+@media (max-width: 1180px) {
+  .identity-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 800px) {
   .connection-row-summary {
     flex-wrap: wrap;

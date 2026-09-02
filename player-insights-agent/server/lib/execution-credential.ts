@@ -3,10 +3,8 @@
  *
  * Call sites that talk to warehouse, Genie, Unity Catalog, serving, Cost, or
  * Connections as "the signed-in user" read {@link executionToken} instead of
- * the forwarded OAuth header. Until the experimental SP-identity pivot is on,
- * this returns exactly that header, so the demo workspace-style OAuth behaviour is unchanged.
+ * the forwarded OAuth header.
  *
- * When the pivot is on:
  *   - a user an admin assigned a persona to runs as that service principal,
  *     if a token can be minted;
  *   - an unassigned user stays on OAuth;
@@ -36,7 +34,7 @@ import {
 } from './identity-binding';
 import { forwardedUserToken } from '../routes/access-verification';
 import type { LakebaseReader } from './lakebase-store';
-import { assignmentForEmail, isSpIdentityEnabled, listSpPersonas, readSpPersona } from './sp-identity-store';
+import { assignmentForEmail, listSpPersonas, readSpPersona } from './sp-identity-store';
 import { describeSpTokenMinting, mintPersonaToken, type SpTokenDeps } from './sp-token';
 
 interface AssignedExecutionPersona {
@@ -93,9 +91,6 @@ export async function resolveExecutionCredential(
   deps: SpTokenDeps = {}
 ): Promise<ExecutionCredential> {
   const userToken = forwardedUserToken(req);
-  const enabled = await isSpIdentityEnabled(store);
-  if (!enabled) return { kind: 'oauth', token: userToken };
-
   const email = signedInEmail(req);
   if (!email) return { kind: 'oauth', token: userToken };
   if ((await resolveRole(store.lakebase, email)).role === 'super_admin') {
@@ -141,7 +136,7 @@ export async function attachExecutionCredential(
   return credential;
 }
 
-/** Express middleware. Cheap no-op while the pivot is off (cached settings read). */
+/** Express middleware that attaches an assigned persona when one exists. */
 export function executionCredentialMiddleware(store: LakebaseReader, deps: SpTokenDeps = {}) {
   return function attach(req: Request, _res: Response, next: NextFunction) {
     if (!req.path.startsWith('/api/')) {
@@ -196,7 +191,6 @@ export async function describeSpIdentity(
 ): Promise<SpIdentitySummary> {
   const env = deps.env ?? (process.env as Record<string, string | undefined>);
   const minting = describeSpTokenMinting(env);
-  const enabled = await isSpIdentityEnabled(store);
   const email = signedInEmail(req);
   let assigned: SpIdentitySummary['assigned'] = null;
   if (email && (await resolveRole(store.lakebase, email)).role !== 'super_admin') {
@@ -209,7 +203,6 @@ export async function describeSpIdentity(
   const credential = attached.get(req);
   if (credential?.kind === 'assigned_service_principal') {
     return {
-      enabled,
       minting,
       assigned: { displayName: credential.persona.displayName },
       executingAs: SP_EXECUTION_SERVICE_PRINCIPAL,
@@ -218,7 +211,6 @@ export async function describeSpIdentity(
   }
   if (credential?.kind === 'oauth-fallback') {
     return {
-      enabled,
       minting,
       assigned: credential.persona ? { displayName: credential.persona.displayName } : assigned,
       executingAs: SP_EXECUTION_OAUTH,
@@ -226,11 +218,10 @@ export async function describeSpIdentity(
     };
   }
   return {
-    enabled,
-    minting: enabled ? minting : { available: minting.available, detail: minting.detail },
+    minting,
     assigned,
     executingAs: SP_EXECUTION_OAUTH,
-    fallbackReason: enabled && assigned && !minting.available ? minting.detail : null,
+    fallbackReason: assigned && !minting.available ? minting.detail : null,
   };
 }
 

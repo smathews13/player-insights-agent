@@ -40,7 +40,7 @@ import { REFRESH_LABEL } from './refresh-state';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
 const OPS_STYLES = readFileSync(new URL('./styles/ops.css', import.meta.url), 'utf8');
-const OPS_SOURCE = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
+const UNIT_CONTROL_SOURCE = readFileSync(new URL('./UnitSegmentedControl.tsx', import.meta.url), 'utf8');
 
 function text(markup: string): string {
   return markup
@@ -964,22 +964,23 @@ describe('the cost block', () => {
         },
       ],
     });
-    const visible = text(markupOf(<CostBody block={block(payload)} />));
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    const visible = text(markup);
+    const methodology = text(markup.slice(markup.indexOf('ops-methodology')));
     expect(visible).toContain('Cost methodology');
     expect(visible).toContain('How totals are calculated');
     expect(visible).toContain('Vector Search endpoint');
-    expect(visible).toContain('Budget guardrails');
-    expect(visible).toContain('Scope Monthly app budget only');
-    expect(visible).toContain('Measurement window Paid, attributable month-to-date spend');
-    expect(visible).toContain('Warning 80% — questions continue');
-    expect(visible).toContain('Approval required 100% — new questions pause until an administrator approves');
-    expect(visible).toContain(
-      'Approval duration Through month end, for the exact current budget value, unit and revision'
-    );
-    expect(visible).toContain('In-flight work Continues');
-    expect(visible).toContain('Resource budgets Advisory only');
-    expect(visible).toContain('AI Gateway controls Separate and currently inactive');
-    expect(visible).toContain('not a hard billing ceiling');
+    expect(methodology).not.toContain('Budget controls');
+    expect(methodology).not.toContain('Monthly app budget');
+    expect(methodology).not.toContain('Budget guardrails');
+    expect(methodology).not.toContain('Measurement window');
+    expect(methodology).not.toContain('Approval required');
+    expect(methodology).not.toContain('Approval duration');
+    expect(methodology).not.toContain('In-flight work');
+    expect(methodology).not.toContain('Resource budgets');
+    expect(methodology).not.toContain('Billing freshness');
+    expect(methodology).not.toContain('AI Gateway controls');
+    expect(methodology).not.toContain('not a hard billing ceiling');
     expect(visible).not.toContain('NOT INCLUDED');
     expect(visible).not.toContain('LIMITS');
     expect(visible).not.toContain('Billing usage');
@@ -1015,7 +1016,7 @@ describe('the cost block', () => {
   it('shows only the high-level attributed-cost formula', () => {
     const markup = render(<CostBody block={block(cost())} />);
     expect(markup).toContain('AVG. COST / QUESTION');
-    expect(markup).toContain('Attributed serving + SQL ÷ completed questions');
+    expect(markup).toContain('Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks');
     expect(markup).not.toContain('Average model serving per question');
     expect(markup).not.toContain('token-apportions model-serving spend only');
     expect(markup).not.toContain('Per-question attribution');
@@ -1094,7 +1095,7 @@ describe('the cost block', () => {
     });
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('7.00 USD');
-    expect(markup).toContain('Attributed serving + SQL ÷ completed questions');
+    expect(markup).toContain('Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks');
     expect(markup).not.toContain('token-apportioned');
     expect(markup).not.toContain('<table');
     expect(markup).not.toContain('Not knowable per question today');
@@ -1143,8 +1144,9 @@ describe('the cost block', () => {
     );
     expect(markup).toContain('class="ops-tiles"');
     expect(markup).not.toContain('class="ops-absence"');
-    expect(markup).toContain('Serving endpoint');
-    expect(markup).toContain('SQL warehouse');
+    expect(markup).toContain('Agent serving');
+    expect(markup).toContain('Foundation model tokens');
+    expect(markup).toContain('Ask SQL');
     expect(markup).toContain('Genie');
     expect(markup).toContain('Vector search');
     expect(markup).toContain('App compute');
@@ -1153,7 +1155,7 @@ describe('the cost block', () => {
     expect(markup).toContain('No billing rows');
     expect(markup).toContain('No billing rows matched an exact tracked resource');
     expect(markup).not.toContain('system_billing');
-    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(7);
+    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(8);
   });
 
   it('draws one box per connected Genie space and Vector Search when billing is empty', () => {
@@ -1375,7 +1377,7 @@ describe('the cost block', () => {
     });
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('2.50 USD estimated');
-    expect(markup).toContain('4 billing rows');
+    expect(markup).toContain('2 Ask-tagged queries');
     expect(markup).not.toMatch(/Astrolabe quer|warehouse quer/);
     expect(markup).not.toMatch(/ops-tile-evidence[^>]*>warehouse-1/);
     expect(markup).not.toContain('This must not render');
@@ -1441,10 +1443,7 @@ describe('the cost block', () => {
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
     const appEditor = markup.slice(markup.indexOf('ops-cost-total'), markup.indexOf('ops-cost-resource-budgets'));
-    const appControlRow = appEditor.slice(
-      appEditor.indexOf('ops-ticker-input-row'),
-      appEditor.indexOf('ops-ticker-assumption-helper')
-    );
+    const appControlRow = appEditor.slice(appEditor.indexOf('ops-ticker-input-row'));
     const editor = markup.slice(
       markup.indexOf('ops-ticker-assumptions'),
       markup.indexOf('ops-resource-budget-actions')
@@ -1455,7 +1454,7 @@ describe('the cost block', () => {
     expect(appControlRow).toContain('ops-number-ticker-wide');
     expect(appControlRow).toContain('ops-budget-apply');
     expect(appControlRow).not.toContain('ops-app-budget-status');
-    expect(appEditor.indexOf('ops-ticker-input-row')).toBeLessThan(appEditor.indexOf('ops-ticker-assumption-helper'));
+    expect(appEditor).not.toContain('ops-ticker-assumption-helper');
     expect(markup).toContain('aria-label="Serving endpoint monthly budget in USD"');
     expect(markup).toContain('aria-label="Vector Search monthly budget in USD"');
     expect(editor).toContain('data-columns="6"');
@@ -1472,7 +1471,9 @@ describe('the cost block', () => {
     }
     expect(markup).not.toContain('Actual cost breakdown');
     expect(markup).not.toContain('ops-cost-actual-breakdown');
-    expect(text(markup)).toContain('Applies to paid, attributable month-to-date spend.');
+    expect(text(markup)).not.toContain('Applies to paid, attributable month-to-date spend.');
+    expect(markup).toContain('ops-cost-summary-budget');
+    expect(text(markup)).toContain('Monthly app budget 400.00 USD');
     expect(markup).toMatch(/aria-label="Monthly app budget in USD"[^>]*placeholder=""[^>]*value="400"/);
     expect(markup).toMatch(
       /aria-label="Serving endpoint monthly budget in USD"[^>]*placeholder="6\.43"[^>]*value="40"/
@@ -1483,12 +1484,12 @@ describe('the cost block', () => {
     expect(markup).not.toContain('<select');
     expect(markup.match(/aria-label="Budget unit filter"/g)).toHaveLength(1);
     expect(markup).toContain('lucide-sliders-horizontal');
-    expect(markup.match(/class="time-range-segment cost-unit-segment"/g)).toHaveLength(2);
+    expect(markup.match(/class="time-range-segment unit-segmented-option"/g)).toHaveLength(2);
     expect(markup).toContain('aria-label="US dollars"');
     expect(markup).toContain('aria-label="Databricks units"');
-    expect(OPS_SOURCE).toContain('onKeyDown={move}');
-    expect(OPS_SOURCE).toContain('adjacentCostDisplayUnit');
-    expect(OPS_STYLES).toMatch(/\.cost-unit-segment\s*\{[^}]*opacity:\s*1/);
+    expect(UNIT_CONTROL_SOURCE).toContain('onKeyDown={move}');
+    expect(UNIT_CONTROL_SOURCE).toContain('adjacentUnit');
+    expect(markup).toContain('unit-segmented-options');
     expect(markup.match(/data-prefix="true"/g)).toHaveLength(payload.tiles.length + 1);
     expect(markup.match(/class="ops-number-ticker-prefix" aria-hidden="true">\$<\/span>/g)).toHaveLength(
       payload.tiles.length + 1
@@ -1534,10 +1535,7 @@ describe('the cost block', () => {
     });
     const markup = markupOf(<CostBody block={block(payload)} unit="DBU" />);
     const appEditor = markup.slice(markup.indexOf('ops-cost-total'), markup.indexOf('ops-cost-resource-budgets'));
-    const appControlRow = appEditor.slice(
-      appEditor.indexOf('ops-ticker-input-row'),
-      appEditor.indexOf('ops-ticker-assumption-helper')
-    );
+    const appControlRow = appEditor.slice(appEditor.indexOf('ops-ticker-input-row'));
     expect(markup).toMatch(/aria-label="Monthly app budget in DBU"[^>]*placeholder=""/);
     expect(markup).toMatch(/aria-label="Serving endpoint monthly budget in DBU"[^>]*placeholder="11\.79"/);
     expect(markup).toMatch(/aria-label="App compute monthly budget in DBU"[^>]*placeholder=""/);
@@ -1712,10 +1710,12 @@ describe('the cost block', () => {
       label,
       tileId,
       attribution: 'query-history-exact' as const,
+      sourceDbus: 20,
       allowanceUsedDbus: 12,
       promotionalDbus: 3,
       chargedEffectiveDbus: 5,
       chargedRawEquivalentDbus: 3.75,
+      unknownDbus: 0,
       paidUsd: 2,
       underlyingTotalDbus: 18.75,
       pricingState: 'priced' as const,
@@ -1831,7 +1831,8 @@ describe('the cost block', () => {
     );
     expect(denied).toContain('Monthly app budget');
     expect(denied).toContain('GRANT SELECT ON SCHEMA system.billing');
-    expect(denied).toContain('Serving endpoint');
+    expect(denied).toContain('Agent serving');
+    expect(denied).toContain('Foundation model tokens');
   });
 });
 
@@ -2194,7 +2195,12 @@ describe('Ops cost uses complete billing days', () => {
             element={
               <Outlet
                 context={{
-                  features: { benchmarkLab: false, egressControls: false, forecasting: false },
+                  features: {
+                    benchmarkLab: false,
+                    egressControls: false,
+                    forecasting: false,
+                    notebookAgentSync: false,
+                  },
                   setFeature: () => {},
                   role: { state: 'admin', addedAdminsReadable: true },
                 }}

@@ -262,7 +262,8 @@ function sameStages(current: TraceStage[], next: TraceStage[]): boolean {
       stage.name === other.name &&
       stage.start === other.start &&
       stage.duration === other.duration &&
-      stage.calls === other.calls
+      stage.calls === other.calls &&
+      JSON.stringify(stage.token_usage) === JSON.stringify(other.token_usage)
     );
   });
 }
