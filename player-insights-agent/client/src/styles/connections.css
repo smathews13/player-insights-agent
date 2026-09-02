@@ -827,22 +827,42 @@ html:has(.connections-page) body[data-scroll-locked] {
 }
 .connections-table-toolbar {
   display: flex;
-  flex-wrap: nowrap;
+  flex-direction: column;
   gap: 8px;
-  align-items: center;
-  /* Catalog / Schema menus overlay this row. Wrapping and a growing search
-     were how opening a filter shoved the rest of the page sideways. */
+  align-items: stretch;
+  min-width: 0;
   overflow: visible;
 }
+.connections-table-query-controls,
+.connections-uc-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.connections-table-query-controls {
+  flex-wrap: wrap;
+}
+.connections-uc-actions {
+  justify-content: flex-end;
+}
 .connections-table-search {
-  /* Compact field, same 32px height as the Catalog / Schema pills, sitting
-     immediately to their left rather than eating the row. `.run-search` still
-     paints the magnifying glass. */
-  flex: none;
-  width: 12rem;
+  position: relative;
+  flex: 1 1 14rem;
   min-width: 12rem;
-  max-width: 12rem;
+  max-width: 20rem;
   height: 32px;
+}
+.connections-table-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  transform: translateY(-50%);
+  color: var(--muted-foreground);
+  pointer-events: none;
 }
 .connections-table-search [data-slot='input'] {
   height: 32px;
@@ -851,6 +871,7 @@ html:has(.connections-page) body[data-scroll-locked] {
   width: 100%;
   padding-top: 0;
   padding-bottom: 0;
+  padding-left: 32px;
   box-sizing: border-box;
 }
 .connections-table-filter {
@@ -865,6 +886,79 @@ html:has(.connections-page) body[data-scroll-locked] {
   min-width: var(--radix-select-trigger-width);
   width: max-content;
   max-width: min(20rem, 80vw);
+}
+.connections-add-uc {
+  flex: none;
+  white-space: nowrap;
+  color: var(--ast-blue);
+  border-color: var(--ast-blue);
+}
+.connections-add-uc-primary {
+  flex: none;
+  white-space: nowrap;
+}
+.connections-table-add-form {
+  margin: 0 16px 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+.connections-uc-managed {
+  display: grid;
+  gap: 6px;
+  margin: 0 16px 12px;
+}
+.connections-uc-managed-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.connections-uc-managed-row {
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--ast-pane);
+}
+.connections-uc-managed-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 8px;
+  min-width: 0;
+}
+.connections-uc-managed-summary > button {
+  margin-left: auto;
+}
+
+@media (max-width: 800px) {
+  .connections-table-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .connections-table-filter {
+    flex: 1 1 9rem;
+  }
+  .connections-uc-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+.connections-table-actions-head,
+.connections-table-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+.connections-table-actions [data-slot='button'] {
+  white-space: nowrap;
+}
+.connections-table-confirm-row:hover {
+  background: transparent;
+}
+.connections-table-confirm-row > td {
+  padding: 0 16px 12px;
+}
+.connections-table-detail .plane-row-new {
+  margin-left: 8px;
 }
 .connections-table-empty {
   margin: 0;
@@ -1926,7 +2020,7 @@ html[data-animations='off'] .asset-picker-spinner {
   padding: 10px 12px;
   border: 1px solid var(--ast-hairline, var(--border));
   border-radius: var(--radius-md);
-  background: var(--card);
+  background: var(--ast-surface-elevated);
 }
 .asset-picker-head {
   display: flex;

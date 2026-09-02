@@ -45,6 +45,13 @@ export const APP_BUDGET_COVERAGES = ['complete', 'partial', 'unavailable'] as co
 export type AppBudgetCoverage = (typeof APP_BUDGET_COVERAGES)[number];
 export type AppBudgetUnit = 'USD' | 'DBU';
 
+export interface AppBudgetDisplaySpend {
+  amount: number | null;
+  budget: number;
+  coverage: AppBudgetCoverage;
+  sourceThrough: string;
+}
+
 export interface AppBudgetApproval {
   approved: boolean;
   approvedAt: string;
@@ -69,6 +76,11 @@ export interface AppBudgetStatus {
   budgetFingerprint: string;
   code: string;
   detail: string;
+  /**
+   * Display-only canonical MTD estimates by unit. Enforcement continues to use
+   * the top-level measured/coverage decision and fails open unless complete.
+   */
+  displayMtdSpend?: Partial<Record<AppBudgetUnit, AppBudgetDisplaySpend>>;
 }
 
 export interface AppBudgetPeriod {

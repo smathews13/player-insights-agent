@@ -215,10 +215,7 @@ export function RunExplorer() {
   // resets on reload, which is the right scope for a preference nothing stores.
   const [advanced, setAdvanced] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
-  const overviewScrollRef = useRef<HTMLDivElement>(null);
-  const mapScrollRef = useRef<HTMLDivElement>(null);
-  const timelineScrollRef = useRef<HTMLDivElement>(null);
-  const detailsScrollRef = useRef<HTMLDivElement>(null);
+  const workspaceScrollRef = useRef<HTMLDivElement>(null);
   const [searchText, setSearchText] = useState('');
   // Always "All conversations" on arrival. This used to be seeded from
   // `?conversation=`, so clicking through from Ask PIA hid every other run in
@@ -364,23 +361,17 @@ export function RunExplorer() {
     ? applyRunLabelOverride(selected, canEdit && labelOverlay?.runId === selected.id ? labelOverlay.value : null)
     : null;
 
-  // Every tab owns a bounded scroller below the fixed run header and tab row.
-  // A new run or a newly opened tab starts at its own beginning; no selection
-  // path writes document/window scroll, so the Run Explorer chrome stays put.
+  // The complete right workspace is one bounded scroll owner: header, tabs,
+  // active view, map and selected-step detail move together. This is deliberately
+  // not a ref per tab; nested tab scrollers made the map look clipped and let
+  // selection move a child without moving the workspace the reader was in.
+  // The Recent runs rail is a sibling owner and is never written here.
   useEffect(() => {
-    for (const scroll of [overviewScrollRef, mapScrollRef, timelineScrollRef, detailsScrollRef]) {
-      scroll.current?.scrollTo({ top: 0, behavior: 'auto' });
-    }
+    workspaceScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   }, [selected?.id]);
 
   useEffect(() => {
-    const active = {
-      overview: overviewScrollRef,
-      map: mapScrollRef,
-      timeline: timelineScrollRef,
-      details: detailsScrollRef,
-    }[activeTab];
-    active?.current?.scrollTo({ top: 0, behavior: 'auto' });
+    workspaceScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   }, [activeTab]);
 
   useEffect(() => {
@@ -406,7 +397,7 @@ export function RunExplorer() {
           panels it governs. */}
       <PageHeading title="Run Explorer" />
       <div className="explorer-layout">
-        <Card className="run-list">
+        <Card className="run-list ast-surface-primary">
           <CardHeader>
             <CardTitle>Recent runs</CardTitle>
             <RunExplorerFilters
@@ -478,7 +469,11 @@ export function RunExplorer() {
             )}
           </CardContent>
         </Card>
-        <div className="run-detail" aria-busy={detailMode === 'loading' || undefined}>
+        <div
+          className="run-detail ast-surface-primary"
+          ref={workspaceScrollRef}
+          aria-busy={detailMode === 'loading' || undefined}
+        >
           {detailMode === 'loading' ? (
             <RunDetailSkeleton />
           ) : detailMode === 'error' && runsAvailability?.origin === 'unavailable' ? (
@@ -549,7 +544,7 @@ export function RunExplorer() {
                   <TabsTrigger value="details">Details</TabsTrigger>
                 </TabsList>
                 <TabsContent value="overview" className="run-detail-tab-panel">
-                  <div className="run-detail-scroll space-y-4 pt-4" ref={overviewScrollRef}>
+                  <div className="run-detail-content space-y-4 pt-4">
                     {selected && traceState.status === 'ready' ? (
                       <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
                     ) : null}
@@ -561,7 +556,8 @@ export function RunExplorer() {
                       totalTokens={totalTokens}
                       promptTokens={promptTokens}
                       completionTokens={completionTokens}
-                      rating={displayed?.rating}
+                      feedback={displayed?.feedback}
+                      legacyUsefulness={displayed?.rating}
                       ratePath={ratePath}
                     />
                     {runTrace.takeaway ? (
@@ -583,7 +579,7 @@ export function RunExplorer() {
                   </div>
                 </TabsContent>
                 <TabsContent value="map" className="run-detail-tab-panel">
-                  <div className="run-detail-scroll space-y-4 pt-5" ref={mapScrollRef}>
+                  <div className="run-detail-content space-y-4 pt-5">
                     {selected && traceState.status === 'ready' ? (
                       <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
                     ) : null}
@@ -597,7 +593,7 @@ export function RunExplorer() {
                           question={runTrace?.prompt ?? ''}
                           verdict={answerVerdict}
                           runStatus={displayed?.status}
-                          scrollContainerRef={mapScrollRef}
+                          scrollContainerRef={workspaceScrollRef}
                         />
                         <AIAnalysisCaveat className="ai-note" />
                       </>
@@ -607,7 +603,7 @@ export function RunExplorer() {
                   </div>
                 </TabsContent>
                 <TabsContent value="timeline" className="run-detail-tab-panel">
-                  <div className="run-detail-scroll space-y-4 pt-5" ref={timelineScrollRef}>
+                  <div className="run-detail-content space-y-4 pt-5">
                     {/* The prompt, for the envelope row, which is the run's own
                     question here just as it is on the card. */}
                     {stages.length > 0 && runTrace?.trace ? (
@@ -617,6 +613,7 @@ export function RunExplorer() {
                           trace={runTrace.trace}
                           question={runTrace.prompt ?? ''}
                           verdict={answerVerdict}
+                          scrollContainerRef={workspaceScrollRef}
                         />
                         <AIAnalysisCaveat className="ai-note" />
                       </>
@@ -626,7 +623,7 @@ export function RunExplorer() {
                   </div>
                 </TabsContent>
                 <TabsContent value="details" className="run-detail-tab-panel">
-                  <div className="run-detail-scroll space-y-4 pt-5" ref={detailsScrollRef}>
+                  <div className="run-detail-content space-y-4 pt-5">
                     {/* The switch that governs these panels is drawn by this component
                     too, which is the point of it being one. See RunDetails.tsx. */}
                     <RunDetails
@@ -721,7 +718,7 @@ export function RunListItem({ run, active, onSelect }: { run: Run; active: boole
               Tools · <span className="ast-num">{run.tool_calls.toLocaleString()}</span>
             </Badge>
           )}
-          <RunRatingBadge rating={run.rating} />
+          <RunRatingBadge feedback={run.feedback} legacyUsefulness={run.rating} />
         </span>
         {/* The one figure in the row that stacks into a real column: the head is
             a space-between row, so every date in the list sits on the same right

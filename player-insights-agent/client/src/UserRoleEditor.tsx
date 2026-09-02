@@ -44,6 +44,7 @@ import { RoleBadge } from './RoleBadge';
 import { OrganizationAvatar } from './OrganizationAvatar';
 import { UserDrilldownLink } from './UserDrilldownLink';
 import { organizationForEmail } from '../../shared/organization-mapping';
+import { notifyIdentitySettingsChanged } from './identity-settings-events';
 import {
   assignSpPersona,
   changeHumanRole,
@@ -497,6 +498,7 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
       } else {
         await load(false);
       }
+      notifyIdentitySettingsChanged();
       setNotice(said);
       return true;
     } catch (cause) {

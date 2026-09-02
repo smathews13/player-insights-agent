@@ -1,15 +1,8 @@
-import { ratedThumb } from './stored-feedback';
+import { feedbackDirection } from '../../shared/feedback-direction';
 
-export type RunRatingDirection = 'up' | 'down' | 'unknown' | 'none';
+export type RunFeedbackDirection = 'up' | 'down' | 'none';
 
-/**
- * A stored five-point value as the feedback control that produced it.
- *
- * Five and two are the values written by the answer card's two thumbs. Three is
- * valid legacy data, but it was not produced by either control, so it stays
- * unknown rather than being rounded into praise or criticism.
- */
-export function runRatingDirection(rating: number | null | undefined): RunRatingDirection {
-  if (typeof rating !== 'number' || !Number.isFinite(rating) || rating < 1 || rating > 5) return 'none';
-  return ratedThumb(rating) ?? 'unknown';
+/** Canonical direction used by every Run Explorer feedback surface. */
+export function runFeedbackDirection(sentiment: unknown, legacyUsefulness?: unknown): RunFeedbackDirection {
+  return feedbackDirection(sentiment, legacyUsefulness) ?? 'none';
 }

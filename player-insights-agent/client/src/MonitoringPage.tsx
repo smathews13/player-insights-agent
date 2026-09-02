@@ -72,8 +72,8 @@ import {
   outcomeTile,
   partialSentence,
   questionsAskedTile,
-  ratedHelpfulTile,
-  ratedTile,
+  feedbackTile,
+  personFeedbackTile,
   readScopes,
   tokenCostTile,
   tokensTile,
@@ -102,6 +102,7 @@ import {
   withFilters,
   type MonitoringFilters,
 } from './monitoring-filters';
+import { monitoringQuestionRowHandlers } from './monitoring-row-activation';
 // Shared with Ops, so the two tabs cannot be over different windows.
 import { TimeRangeControl, TimeRangeSegments } from './TimeRangeControl';
 import './styles/routes/monitoring.css';
@@ -132,7 +133,7 @@ import type {
 } from '../../shared/monitoring-contract';
 import type { OpsCostPayload } from '../../shared/ops-contract';
 import type { UserSpendKpi } from '../../shared/user-spend-contract';
-import { deriveCoreUserSpendMetrics } from '../../shared/user-spend-metrics';
+import { deriveCoreUserSpendMetrics, deriveUserTokenAverages } from '../../shared/user-spend-metrics';
 import {
   USER_MONITORING_SCHEMA_REVISION,
   type UserMonitoringPayload,
@@ -143,11 +144,13 @@ import { decodeUserMonitoringCostPayload, decodeUserSpendPayload } from './user-
 import {
   cacheUserSpendTotal,
   cachedUserSpendTotal,
+  clearUserSpendTotalCache,
   requestUserSpendTotal,
   userSpendTotalBaseKey,
   type CachedUserSpendTotal,
   type UserSpendTotalCoordinates,
 } from './user-spend-total-cache';
+import { listenForIdentitySettingsChanges } from './identity-settings-events';
 import { UsedThisRun } from './UsedThisRun';
 import { Dialog } from './Dialog';
 
@@ -176,7 +179,7 @@ export function SummaryTile({
 }) {
   return (
     <div
-      className={['monitoring-tile', className].filter(Boolean).join(' ')}
+      className={['monitoring-tile', 'ast-surface-primary', className].filter(Boolean).join(' ')}
       role="group"
       aria-label={`${label}, ${periodLabel}`}
     >
@@ -228,7 +231,7 @@ export function SummaryStrip({ payload, periodLabel }: { payload: MonitoringQues
         className="monitoring-summary-threads"
       />
       <div
-        className="monitoring-tile monitoring-outcomes-tile"
+        className="monitoring-tile monitoring-outcomes-tile ast-surface-primary"
         role="group"
         aria-label={`Final run outcomes, ${periodLabel}`}
       >
@@ -263,8 +266,8 @@ export function SummaryStrip({ payload, periodLabel }: { payload: MonitoringQues
         <p className="monitoring-tile-caption">{outcomes.caption}</p>
       </div>
       <SummaryTile
-        label="Rated helpful"
-        tile={ratedHelpfulTile(payload.summary)}
+        label="Feedback"
+        tile={feedbackTile(payload.summary)}
         periodLabel={periodLabel}
         className="monitoring-summary-rated"
       />
@@ -283,7 +286,7 @@ function SkeletonStrip({ periodLabel }: { periodLabel: string }) {
   return (
     <div className="monitoring-strip" aria-hidden="true">
       {[0, 1, 2, 3, 4].map((index) => (
-        <div className="monitoring-tile" key={index}>
+        <div className="monitoring-tile ast-surface-primary" key={index}>
           <div className="monitoring-tile-head">
             <Skeleton className="h-3 w-24" />
             <PeriodBadge label={periodLabel} />
@@ -482,7 +485,7 @@ export function FilterRow({
   onOpenUsers?: () => void;
 }) {
   return (
-    <div className="monitoring-filters">
+    <div className="monitoring-filters ast-surface-primary">
       <FilterChip
         label="User"
         value={filters.person}
@@ -502,14 +505,14 @@ export function FilterRow({
         ]}
       />
       <FilterChip
-        label="Rating"
-        value={filters.rating}
-        onChange={(rating) => onChange({ ...filters, rating: rating as MonitoringFilters['rating'] })}
+        label="Feedback"
+        value={filters.feedback ?? ''}
+        onChange={(feedback) => onChange({ ...filters, feedback: feedback as MonitoringFilters['feedback'] })}
         options={[
           { value: '', label: 'All' },
           { value: 'up', label: 'Helpful' },
           { value: 'down', label: 'Not helpful' },
-          { value: 'unrated', label: 'Not rated' },
+          { value: 'none', label: 'No feedback' },
         ]}
       />
       {/* The PIA-specific one, and the one worth more than the others: every
@@ -601,15 +604,15 @@ function OutcomePill({ question }: { question: MonitoringQuestion }) {
 
 function AskerMark({ email, onOpen }: { email: string; onOpen?: (email: string) => void }) {
   if (!onOpen) return <UserIdentityChip identity={email} compact className="monitoring-asker-who" />;
-  return <UserDrilldownLink identity={email} compact className="monitoring-asker-who" canOpen />;
+  return <UserDrilldownLink identity={email} compact className="monitoring-asker-who" canOpen showArrow />;
 }
 
-function RatingMark({ rating }: { rating: 'up' | 'down' | null }) {
-  if (rating === 'up') return <ThumbsUp className="size-3.5 monitoring-thumb-up" aria-label="Rated helpful" />;
-  if (rating === 'down') {
-    return <ThumbsDown className="size-3.5 monitoring-thumb-down" aria-label="Rated not helpful" />;
+function FeedbackMark({ feedback }: { feedback: 'up' | 'down' | null | undefined }) {
+  if (feedback === 'up') return <ThumbsUp className="size-3.5 monitoring-thumb-up" aria-label="Helpful" />;
+  if (feedback === 'down') {
+    return <ThumbsDown className="size-3.5 monitoring-thumb-down" aria-label="Not helpful" />;
   }
-  return <span className="sr-only">Not rated</span>;
+  return <span className="sr-only">No feedback</span>;
 }
 
 function TotalTokens({ value }: { value: number | null }) {
@@ -634,10 +637,15 @@ function QuestionRow({
   onOpen: (question: MonitoringQuestion) => void;
   onOpenPerson?: (email: string) => void;
 }) {
+  const activation = monitoringQuestionRowHandlers(question, onOpen);
   return (
     <tr
       aria-current={selected ? 'true' : undefined}
+      aria-haspopup="dialog"
+      aria-label={`Open question details: ${question.question}`}
       className={selected ? 'monitoring-row monitoring-row-selected' : 'monitoring-row'}
+      tabIndex={0}
+      {...activation}
     >
       {/* The largest thing in the row, and truncated to two lines rather
           than one: a question is the reader's index into this table, and
@@ -648,9 +656,7 @@ function QuestionRow({
           being a table cell, which takes it out of the column sizing the
           header row above just settled. It was on the cell. */}
       <td className="monitoring-question">
-        <button type="button" className="monitoring-question-button" onClick={() => onOpen(question)}>
-          <span className="monitoring-question-text">{question.question}</span>
-        </button>
+        <span className="monitoring-question-text">{question.question}</span>
       </td>
       {/* The local part, with the full address on hover. A column of
           identical domains is a column of noise. */}
@@ -689,7 +695,7 @@ function QuestionRow({
       </td>
       <td className="monitoring-numeric ast-num">{question.toolCalls === null ? '' : question.toolCalls}</td>
       <td>
-        <RatingMark rating={question.rating} />
+        <FeedbackMark feedback={question.feedback ?? question.rating} />
       </td>
     </tr>
   );
@@ -724,14 +730,17 @@ function QuestionCard({
   onOpen: (question: MonitoringQuestion) => void;
   onOpenPerson?: (email: string) => void;
 }) {
+  const activation = monitoringQuestionRowHandlers(question, onOpen);
   return (
     <li
       className={selected ? 'monitoring-question-card monitoring-row-selected' : 'monitoring-question-card'}
       aria-current={selected ? 'true' : undefined}
+      aria-haspopup="dialog"
+      aria-label={`Open question details: ${question.question}`}
+      tabIndex={0}
+      {...activation}
     >
-      <button type="button" className="monitoring-question-card-button" onClick={() => onOpen(question)}>
-        <span className="monitoring-question-card-text">{question.question}</span>
-      </button>
+      <span className="monitoring-question-card-text">{question.question}</span>
       <span className="monitoring-question-card-meta">
         <AskerMark email={question.askedBy} onOpen={onOpenPerson} />
         <span>{whenLabel(question.askedAt, now)}</span>
@@ -751,17 +760,16 @@ function QuestionCard({
             Tools <span className="ast-num">{question.toolCalls}</span>
           </span>
         ) : null}
-        <RatingMark rating={question.rating} />
+        <FeedbackMark feedback={question.feedback ?? question.rating} />
       </span>
     </li>
   );
 }
 
 /**
- * One row per question, with a real button for the question and a separate
- * user link when the reader may open profiles.
- *
- * This avoids nesting the Asked-by link inside a synthetic row button.
+ * One focusable row per question, with a separate user link when the reader may
+ * open profiles. The row keeps its native table/list semantics while its click
+ * and keyboard handlers ignore that nested link and any future real controls.
  */
 export function QuestionList({
   questions,
@@ -827,7 +835,7 @@ export function QuestionList({
             Tools
           </th>
           <th scope="col" className="monitoring-col-rating">
-            Rating
+            Feedback
           </th>
         </tr>
       </thead>
@@ -927,7 +935,7 @@ const READ_ONLY_FEEDBACK: FeedbackEntry = {
   saved: false,
   saving: false,
   error: null,
-  usefulness: null,
+  sentiment: null,
 };
 
 function tokensNote(tokens: MonitoringDetail['tokens']) {
@@ -1061,16 +1069,21 @@ export function QuestionDrawer({
             last table row. They stay a dialog child only when there is no card. */}
       {!answer ? tokensNote(detail.tokens) : null}
 
-      {detail.rating || detail.usefulness !== null || detail.comment ? (
+      {(detail.feedback ?? detail.rating) || detail.comment ? (
         <section className="monitoring-drawer-section">
-          <h4 className="monitoring-eyebrow">Rating and feedback</h4>
+          <h4 className="monitoring-eyebrow">Feedback</h4>
           <p className="monitoring-drawer-rating">
-            <RatingMark rating={detail.rating} />
-            {detail.rating === 'up' ? 'Rated helpful' : detail.rating === 'down' ? 'Rated not helpful' : 'Not rated'}
-            {detail.usefulness !== null ? ` · usefulness ${detail.usefulness} of 5` : ''}
+            <FeedbackMark feedback={detail.feedback ?? detail.rating} />
+            {(detail.feedback ?? detail.rating) === 'up'
+              ? 'Helpful'
+              : (detail.feedback ?? detail.rating) === 'down'
+                ? 'Not helpful'
+                : 'No feedback'}
           </p>
           {/* Verbatim. A comment paraphrased is a comment nobody wrote. */}
-          {detail.comment ? <p className="monitoring-drawer-comment">{detail.comment}</p> : null}
+          {(detail.feedback ?? detail.rating) === 'down' && detail.comment ? (
+            <p className="monitoring-drawer-comment">{detail.comment}</p>
+          ) : null}
         </section>
       ) : null}
     </Dialog>
@@ -1260,6 +1273,44 @@ function LoadingSpendMetric({ label, animated = false }: { label: string; animat
   );
 }
 
+function compactTokens(value: number): string {
+  return value.toLocaleString(undefined, { notation: 'compact', maximumFractionDigits: 1 });
+}
+
+function AverageTokensMetric({ metrics }: { metrics: ReturnType<typeof deriveUserTokenAverages> }) {
+  const exact = metrics.totalTokens?.toLocaleString() ?? '';
+  const perRun = metrics.perRun;
+  const perQuestion = metrics.perQuestion;
+  return (
+    <div className="user-profile-modal-spend-kpi">
+      <span className="user-profile-modal-spend-kpi-label">Average tokens</span>
+      <strong
+        className="user-profile-modal-spend-kpi-value ast-num"
+        title={
+          perRun !== null
+            ? `${exact} tokens across ${metrics.coveredRuns?.toLocaleString()} token-covered runs`
+            : undefined
+        }
+        aria-label={
+          perRun !== null
+            ? `Average tokens per run: ${Math.round(perRun).toLocaleString()}`
+            : 'Average tokens: token evidence unavailable'
+        }
+      >
+        {perRun === null ? 'Token evidence unavailable' : `${compactTokens(perRun)} / run`}
+      </strong>
+      {perQuestion !== null ? (
+        <span
+          className="user-profile-modal-spend-kpi-subtitle ast-num"
+          title={`${exact} tokens across ${metrics.coveredQuestions?.toLocaleString()} token-covered questions`}
+        >
+          {compactTokens(perQuestion)} / question
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 export function PersonSpend({
   email,
   state,
@@ -1280,6 +1331,7 @@ export function PersonSpend({
         <div className="user-profile-modal-spend-kpis">
           <LoadingSpendMetric label="Loading user spend" animated />
           <LoadingSpendMetric label="Calculating cost per question" />
+          <LoadingSpendMetric label="Calculating average tokens" />
           <LoadingSpendMetric label="Calculating daily spend" />
           <LoadingSpendMetric label="Calculating share of app spend" />
           <LoadingSpendMetric label="Calculating week over week" />
@@ -1288,23 +1340,27 @@ export function PersonSpend({
       </section>
     );
   }
-  if (state.status === 'error') return null;
-  const spend = state.data.spendByUser;
+  const spend = state.status === 'ready' ? state.data.spendByUser : null;
   const profile = spend?.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase()) ?? null;
   const reading = unit === 'USD' ? profile?.total.usd : profile?.total.dbu;
-  if (!profile || reading?.amount === null || reading?.amount === undefined || !Number.isFinite(reading.amount))
-    return null;
-  const authoritative = profile.metrics?.unit === unit ? profile.metrics : null;
+  const authoritative = profile?.metrics?.unit === unit ? profile.metrics : null;
+  const amount =
+    reading?.amount !== null && reading?.amount !== undefined && Number.isFinite(reading.amount)
+      ? reading.amount
+      : null;
   const core = deriveCoreUserSpendMetrics({
-    amount: reading.amount,
+    amount,
     questions: authoritative?.questions ?? null,
     coveredDays: authoritative?.coveredDays ?? null,
     unit,
   });
+  const averageTokens =
+    authoritative?.averageTokens ??
+    deriveUserTokenAverages({ totalTokens: null, coveredRuns: null, coveredQuestions: null });
   const costPerQuestion =
     authoritative?.costPerQuestion.state === 'value' ? authoritative.costPerQuestion : core.costPerQuestion;
   const averageDaily = authoritative?.averageDaily.state === 'value' ? authoritative.averageDaily : core.averageDaily;
-  const estimated = reading.quality === 'allocated' || reading.quality === 'partial';
+  const estimated = reading?.quality === 'allocated' || reading?.quality === 'partial';
   return (
     <section
       className="user-profile-modal-spend"
@@ -1318,9 +1374,13 @@ export function PersonSpend({
         <div className="user-profile-modal-spend-kpi">
           <span className="user-profile-modal-spend-kpi-label">Total user spend</span>
           <strong className="user-profile-modal-spend-kpi-value ast-num">
-            {spendFigure(reading.amount, unit, state.data.currency)}
+            {amount === null
+              ? 'Spend unavailable'
+              : spendFigure(amount, unit, state.status === 'ready' ? state.data.currency : '')}
           </strong>
-          <span className="user-profile-modal-spend-kpi-subtitle">{estimated ? 'Estimated' : 'Attributable'}</span>
+          {amount === null ? null : (
+            <span className="user-profile-modal-spend-kpi-subtitle">{estimated ? 'Estimated' : 'Attributable'}</span>
+          )}
         </div>
         {refreshing && costPerQuestion.state === 'unavailable' ? (
           <LoadingSpendMetric label="Calculating cost per question" />
@@ -1330,8 +1390,13 @@ export function PersonSpend({
             metric={costPerQuestion}
             kind="spend"
             unit={unit}
-            currency={state.data.currency}
+            currency={state.status === 'ready' ? state.data.currency : ''}
           />
+        )}
+        {refreshing && averageTokens.totalTokens === null ? (
+          <LoadingSpendMetric label="Calculating average tokens" />
+        ) : (
+          <AverageTokensMetric metrics={averageTokens} />
         )}
         {refreshing && averageDaily.state === 'unavailable' ? (
           <LoadingSpendMetric label="Calculating daily spend" />
@@ -1341,7 +1406,7 @@ export function PersonSpend({
             metric={averageDaily}
             kind="spend"
             unit={unit}
-            currency={state.data.currency}
+            currency={state.status === 'ready' ? state.data.currency : ''}
           />
         )}
         {refreshing && (!authoritative || authoritative.appShare.state === 'unavailable') ? (
@@ -1352,7 +1417,7 @@ export function PersonSpend({
             metric={authoritative.appShare}
             kind="percent"
             unit={unit}
-            currency={state.data.currency}
+            currency={state.status === 'ready' ? state.data.currency : ''}
           />
         ) : null}
         {refreshing && (!authoritative || authoritative.weekOverWeek.state === 'unavailable') ? (
@@ -1363,7 +1428,7 @@ export function PersonSpend({
             metric={authoritative.weekOverWeek}
             kind="growth"
             unit={unit}
-            currency={state.data.currency}
+            currency={state.status === 'ready' ? state.data.currency : ''}
           />
         ) : null}
         {refreshing && (!authoritative || authoritative.monthOverMonth.state === 'unavailable') ? (
@@ -1374,7 +1439,7 @@ export function PersonSpend({
             metric={authoritative.monthOverMonth}
             kind="growth"
             unit={unit}
-            currency={state.data.currency}
+            currency={state.status === 'ready' ? state.data.currency : ''}
           />
         ) : null}
       </div>
@@ -1406,7 +1471,7 @@ function ProfileQuestionHistory({
             <th scope="col">Outcome</th>
             <th scope="col">Time</th>
             <th scope="col">Tools</th>
-            <th scope="col">Rating</th>
+            <th scope="col">Feedback</th>
           </tr>
         </thead>
         <tbody>
@@ -1427,8 +1492,8 @@ function ProfileQuestionHistory({
               <td data-label="Tools" className="ast-num">
                 {question.toolCalls ?? 'Not recorded'}
               </td>
-              <td data-label="Rating">
-                <RatingMark rating={question.rating} />
+              <td data-label="Feedback">
+                <FeedbackMark feedback={question.feedback ?? question.rating} />
               </td>
             </tr>
           ))}
@@ -1568,7 +1633,10 @@ export function PersonPanel({
               )}
               <p className="user-profile-modal-kpi-caption">{times.tail}</p>
             </div>
-            <PanelTile label="Rated" tile={ratedTile(panel.ratedUp, panel.ratedDown)} />
+            <PanelTile
+              label="Feedback"
+              tile={personFeedbackTile(panel.helpful ?? panel.ratedUp ?? 0, panel.notHelpful ?? panel.ratedDown ?? 0)}
+            />
           </div>
         </section>
 
@@ -1943,7 +2011,7 @@ export function UserMonitoringPanel({
                   </span>
                   <span>
                     <span className="monitoring-users-mobile-label">Activity</span>
-                    {whenLabel(row.lastActive, now)}
+                    {row.lastActive ? whenLabel(row.lastActive, now) : 'Not recorded'}
                   </span>
                   <span className="ast-num">
                     <span className="monitoring-users-mobile-label">Questions / runs</span>
@@ -2092,7 +2160,7 @@ export function MonitoringBody({
           the pane deliberately -- skeletons, an emptiness and the rows themselves
           are the same block of the page, and a surface that appears only once
           there is data makes the read look like a layout change. */}
-      <div className="monitoring-list-pane">
+      <div className="monitoring-list-pane ast-surface-primary">
         {state === 'loading' ? (
           <SkeletonRows />
         ) : state === 'empty-range' || state === 'empty-filters' || state === 'empty-search' ? (
@@ -2290,6 +2358,7 @@ function spendPayloadFromCache(coordinates: UserSpendTotalCoordinates, cached: C
     coveredDays: cached.coveredDays,
     unit: coordinates.unit,
   });
+  const averageTokens = deriveUserTokenAverages(cached.tokenUsage);
   const cachedProfile = cached.profile;
   const cachedReading = coordinates.unit === 'USD' ? cachedProfile?.total.usd : cachedProfile?.total.dbu;
   const profile = cachedProfile
@@ -2314,6 +2383,10 @@ function spendPayloadFromCache(coordinates: UserSpendTotalCoordinates, cached: C
                   (cachedProfile.metrics.coveredDays === null || cachedProfile.metrics.coveredDays === 0)
                     ? cached.coveredDays
                     : cachedProfile.metrics.coveredDays,
+                averageTokens:
+                  !cached.complete && !cachedProfile.metrics.averageTokens
+                    ? averageTokens
+                    : cachedProfile.metrics.averageTokens,
               }
             : cachedProfile.metrics,
       }
@@ -2329,6 +2402,7 @@ function spendPayloadFromCache(coordinates: UserSpendTotalCoordinates, cached: C
           coveredDays: cached.coveredDays,
           costPerQuestion: core.costPerQuestion,
           averageDaily: core.averageDaily,
+          averageTokens,
           appShare: { ...unavailableMetric, subtitle: 'No comparable app total' },
           weekOverWeek: unavailableMetric,
           monthOverMonth: unavailableMetric,
@@ -2345,6 +2419,7 @@ function spendPayloadFromCache(coordinates: UserSpendTotalCoordinates, cached: C
       range: { from: coordinates.from, to: coordinates.to },
       state: 'ready',
       reason: '',
+      identityRevision: cached.identityRevision,
       users: [profile],
       unattributed: [],
       reconciliation: {
@@ -2406,16 +2481,22 @@ function useUserSpendRequest(coordinates: UserSpendTotalCoordinates | null, url:
         quality: reading?.quality ?? 'unavailable',
         questions: profile?.metrics?.questions ?? 0,
         coveredDays: profile?.metrics?.coveredDays ?? 0,
+        tokenUsage: {
+          totalTokens: profile?.metrics?.averageTokens?.totalTokens ?? null,
+          coveredRuns: profile?.metrics?.averageTokens?.coveredRuns ?? null,
+          coveredQuestions: profile?.metrics?.averageTokens?.coveredQuestions ?? null,
+        },
         currency: payload.currency,
         profile,
         dataRevision: spend?.dataRevision ?? 0,
-        snapshot: `${spend?.readAt ?? new Date().toISOString()}|${profile?.metrics?.comparisonFreshness ?? ''}`,
+        snapshot: `${spend?.readAt ?? new Date().toISOString()}|${profile?.metrics?.comparisonFreshness ?? ''}|${spend?.identityRevision ?? ''}`,
         seeded: false,
         complete:
           spend?.state === 'ready' &&
           profile?.metrics?.unit === stableCoordinates.unit &&
           profile.metrics.questions !== null &&
           profile.metrics.coveredDays !== null,
+        identityRevision: spend?.identityRevision ?? '',
       };
     })
       .then((value) => {
@@ -2503,7 +2584,18 @@ export function MonitoringPage() {
   // The clock is read once per render pass rather than per row, so every
   // relative stamp on one paint is relative to the same instant.
   const [now, setNow] = useState(() => Date.now());
+  const [identityEpoch, setIdentityEpoch] = useState(0);
   const scroll = useRef(scrollMemory());
+  useEffect(
+    () =>
+      listenForIdentitySettingsChanges(() => {
+        panelCache.clear();
+        clearUserSpendTotalCache();
+        setProfileIdentitySeed(null);
+        setIdentityEpoch((value) => value + 1);
+      }),
+    []
+  );
 
   const filters = filtersFromParams(searchParams);
   const drawer = drawerFromParams(searchParams);
@@ -2573,6 +2665,7 @@ export function MonitoringPage() {
   );
   const spendParams = new URLSearchParams({ from: profileWindow.from, to: profileWindow.to, unit: userBrowser.unit });
   if (userBrowser.range === '24h') spendParams.set('window', '24h');
+  spendParams.set('identityEpoch', String(identityEpoch));
   const personSpendCoordinates = drawer.person
     ? {
         scope: cacheScope,
@@ -2597,9 +2690,10 @@ export function MonitoringPage() {
   if (userBrowser.role) userBrowserParams.set('role', userBrowser.role);
   if (userBrowser.persona) userBrowserParams.set('persona', userBrowser.persona);
   if (userBrowser.cursor) userBrowserParams.set('cursor', userBrowser.cursor);
+  userBrowserParams.set('identityEpoch', String(identityEpoch));
   const userBrowserKey =
     userBrowser.open && !drawer.person
-      ? `users|v${USER_MONITORING_SCHEMA_REVISION}|${userWindow.from}|${userWindow.to}|${userBrowser.unit}|${userBrowser.search}|${userBrowser.role}|${userBrowser.persona}|${userBrowser.cursor}|25`
+      ? `users|v${USER_MONITORING_SCHEMA_REVISION}|${identityEpoch}|${userWindow.from}|${userWindow.to}|${userBrowser.unit}|${userBrowser.search}|${userBrowser.role}|${userBrowser.persona}|${userBrowser.cursor}|25`
       : '';
   const userBrowserRequest = usePanelRequest<OpsCostPayload>(
     userBrowserKey,
@@ -2814,12 +2908,14 @@ export function MonitoringPage() {
                 quality: reading.quality,
                 questions: user.questions,
                 coveredDays: user.coveredDays,
+                tokenUsage: user.tokenUsage,
                 currency: userBrowserRequest.state.status === 'ready' ? userBrowserRequest.state.data.currency : '',
                 profile: null,
                 dataRevision: monitoring?.dataRevision ?? 0,
-                snapshot: `${monitoring?.readAt ?? new Date().toISOString()}|list`,
+                snapshot: `${monitoring?.readAt ?? new Date().toISOString()}|list|${monitoring?.identityRevision ?? ''}`,
                 seeded: true,
                 complete: false,
+                identityRevision: monitoring?.identityRevision ?? '',
               }
             );
             void navigate({ search: openUserFromBrowser(location.search, user.email) });

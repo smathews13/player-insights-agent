@@ -1,7 +1,7 @@
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import type { OpsDayRange } from '../../shared/ops-contract';
 import type { UserSpendKpi, UserSpendMetrics } from '../../shared/user-spend-contract';
-import { deriveCoreUserSpendMetrics } from '../../shared/user-spend-metrics';
+import { deriveCoreUserSpendMetrics, deriveUserTokenAverages } from '../../shared/user-spend-metrics';
 
 const DAY_MS = 86_400_000;
 
@@ -17,6 +17,9 @@ export interface UserSpendMetricInput {
     coveredDays: number | null;
     appTotal: number | null;
     appComparable: boolean;
+    totalTokens?: number | null;
+    tokenCoveredRuns?: number | null;
+    tokenCoveredQuestions?: number | null;
   };
   week: { current: MetricSnapshot; prior: MetricSnapshot };
   month: { current: MetricSnapshot; prior: MetricSnapshot };
@@ -51,6 +54,11 @@ export function buildUserSpendMetrics(input: UserSpendMetricInput): UserSpendMet
     coveredDays: current.coveredDays,
     costPerQuestion: core.costPerQuestion,
     averageDaily: core.averageDaily,
+    averageTokens: deriveUserTokenAverages({
+      totalTokens: current.totalTokens ?? null,
+      coveredRuns: current.tokenCoveredRuns ?? null,
+      coveredQuestions: current.tokenCoveredQuestions ?? null,
+    }),
     appShare:
       current.appComparable && current.amount !== null && current.appTotal !== null && current.appTotal > 0
         ? { value: (current.amount / current.appTotal) * 100, state: 'value', subtitle: 'of attributable app spend' }

@@ -219,7 +219,7 @@ describe('admin persona control', () => {
     expect(COMPONENT).toContain('onOpenChange=');
     expect(COMPONENT).toContain('avoidCollisions');
     expect(COMPONENT).toContain('collisionPadding={8}');
-    expect(CSS).toMatch(/\.conversation-owner-menu \{[^}]*z-index:\s*90/s);
+    expect(CSS).toMatch(/\.conversation-owner-menu \{[^}]*z-index:\s*var\(--ast-layer-menu\)/s);
     expect(CSS).toMatch(/\.conversation-owner-menu \{[^}]*background-color:\s*var\(--popover\)/s);
   });
 

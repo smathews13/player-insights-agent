@@ -80,7 +80,6 @@ import {
   Paperclip,
   Plus,
   ShieldCheck,
-  Star,
   Trash2,
   Workflow,
   X,
@@ -88,8 +87,9 @@ import {
 import { EntityText } from './InlineEntityText';
 import { attachControlState } from './attach-control';
 import { ANSWER_PARAM, CONVERSATION_PARAM, answerRowId } from './conversation-links';
-import { formatDuration, ratingOutOf } from './benchmark-format';
+import { formatDuration } from './benchmark-format';
 import { conversationRunSummary, railDuration, type RailRunSummary } from './rail-run-summary';
+import { RunRatingBadge } from './RunRatingBadge';
 import {
   applyRunLabelOverrideToConversations,
   applyRunLabelOverrideToSummaries,
@@ -194,6 +194,8 @@ import type {
   FeedbackEntry,
   PlanResponse,
 } from './app-types';
+import type { FeedbackDirection } from '../../shared/feedback-direction';
+import { FeedbackWriteQueue } from './feedback-write-queue';
 
 /** Formats the customer confirmed: PDF, Markdown, JSON, TXT, CSV. */
 const ATTACHMENT_ACCEPT = '.pdf,.md,.json,.txt,.csv';
@@ -461,6 +463,13 @@ export function HomePage() {
    * Feedback state per answer, keyed by the message id it belongs to.
    */
   const [feedback, setFeedback] = useState<Record<string, FeedbackEntry>>({});
+  const feedbackRef = useRef<Record<string, FeedbackEntry>>({});
+  const feedbackWriteQueueRef = useRef(new FeedbackWriteQueue());
+  const feedbackWriteVersionsRef = useRef(new Map<string, number>());
+  const confirmedFeedbackRef = useRef(new Map<string, FeedbackEntry>());
+  useEffect(() => {
+    feedbackRef.current = feedback;
+  }, [feedback]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   /**
    * What each conversation's latest answered turn recorded: its status, its wall
@@ -1005,8 +1014,8 @@ export function HomePage() {
     void latest.current.ask(question, approval);
   }, []);
   const rateRow = useCallback(
-    (answerId: string, rating: number, options?: { keepCommentOpen?: boolean }) =>
-      latest.current.saveFeedback(answerId, rating, options),
+    (answerId: string, sentiment: FeedbackDirection, options?: { keepCommentOpen?: boolean }) =>
+      latest.current.saveFeedback(answerId, sentiment, options),
     []
   );
   const changeFeedback = useCallback((answerId: string, changes: Partial<FeedbackEntry>) => {
@@ -1743,57 +1752,85 @@ export function HomePage() {
   );
 
   /**
-   * Records one rating against one message.
+   * Records canonical feedback against one message.
    *
-   * The comment is read from this message's own entry, not from a shared box, so
-   * the text posted is the text typed about this answer. Failure is reported
-   * rather than swallowed: this used to `.catch(() => undefined)` and then say
-   * "Feedback saved" regardless, so a rating that never reached the table looked
-   * recorded, and the usefulness figure is computed from that table.
-   *
-   * A COMMENT IS NEVER A CONDITION OF A RATING. Both thumbs reach here on the
-   * click of the icon itself, and `keepCommentOpen` is the only difference
-   * between them: the negative one leaves the box open afterwards so a reader
-   * who wants to say why still can, against a rating that is already recorded.
+   * Writes for the same answer are serialized so a rapid down-to-up switch
+   * cannot land out of order in the append-only audit table. The UI only accepts
+   * completion from the newest requested change. A failed replacement restores
+   * the last confirmed direction; failed written feedback stays in the focused
+   * field so the reader can retry without retyping it.
    */
-  async function saveFeedback(messageId: string, usefulness: number, options: { keepCommentOpen?: boolean } = {}) {
-    const entry = feedback[messageId] ?? emptyFeedback;
-    const patch = (changes: Partial<FeedbackEntry>) =>
+  async function saveFeedback(
+    messageId: string,
+    sentiment: FeedbackDirection,
+    options: { keepCommentOpen?: boolean } = {}
+  ) {
+    const entry = feedbackRef.current[messageId] ?? emptyFeedback;
+    if (!confirmedFeedbackRef.current.has(messageId) && entry.saved) {
+      confirmedFeedbackRef.current.set(messageId, { ...entry });
+    }
+    const comment = sentiment === 'down' ? entry.comment.trim() : '';
+    const version = (feedbackWriteVersionsRef.current.get(messageId) ?? 0) + 1;
+    feedbackWriteVersionsRef.current.set(messageId, version);
+    const patch = (changes: Partial<FeedbackEntry>) => {
+      const next = { ...(feedbackRef.current[messageId] ?? emptyFeedback), ...changes };
+      feedbackRef.current = { ...feedbackRef.current, [messageId]: next };
       setFeedback((current) => ({ ...current, [messageId]: { ...(current[messageId] ?? emptyFeedback), ...changes } }));
-    // `saved: false` while the write is in flight, so the confirmation on screen
-    // always belongs to the rating on screen. It used to be left standing, which
-    // is what put "Feedback saved" beside an unlit thumbs-down: the sentence was
-    // the previous rating's and read as though this click had been recorded.
-    patch({ saving: true, saved: false, error: null });
-    try {
+    };
+    patch({
+      saving: true,
+      saved: false,
+      error: null,
+      sentiment,
+      open: sentiment === 'down' && (options.keepCommentOpen === true || entry.open),
+      ...(sentiment === 'up' ? { comment: '' } : {}),
+    });
+
+    const write = feedbackWriteQueueRef.current.enqueue(messageId, async () => {
       const response = await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // Omitted rather than sent empty when nobody typed anything: a bare
-        // thumb is a rating with no comment, and `''` would store a blank
-        // comment that Monitoring then renders as one.
-        body: JSON.stringify({ messageId, usefulness, comment: entry.comment.trim() || undefined }),
+        body: JSON.stringify({ messageId, sentiment, comment: comment || undefined }),
       });
-      if (!response.ok) throw new Error(`The rating was not recorded (HTTP ${response.status}).`);
-      // The rating is held as well as the fact of it, so the thumb that was
-      // pressed stays pressed -- and so this session shows what a reload of it
-      // will now show, rather than only a confirmation that vanishes.
+      if (!response.ok) throw new Error(`Feedback was not recorded (HTTP ${response.status}).`);
+    });
+
+    try {
+      await write;
+      const confirmed: FeedbackEntry = {
+        ...emptyFeedback,
+        saved: true,
+        sentiment,
+        comment,
+        open: sentiment === 'down' && options.keepCommentOpen === true,
+      };
+      confirmedFeedbackRef.current.set(messageId, confirmed);
+      if (feedbackWriteVersionsRef.current.get(messageId) !== version) return;
       patch({
         saving: false,
         saved: true,
-        open: options.keepCommentOpen === true,
+        open: confirmed.open,
         error: null,
-        usefulness,
+        sentiment,
+        ...(sentiment === 'up' ? { comment: '' } : {}),
+      });
+      setRunSummaries((current) => {
+        const next = new Map(current);
+        for (const [conversationId, summary] of next) {
+          if (summary.runId === messageId) next.set(conversationId, { ...summary, feedback: sentiment });
+        }
+        return next;
       });
     } catch (error) {
-      // `usefulness` is cleared, not left standing. A pressed thumb over an error
-      // message would say the rating was taken and the message would say it was
-      // not, and the message is the true one.
+      if (feedbackWriteVersionsRef.current.get(messageId) !== version) return;
+      const confirmed = confirmedFeedbackRef.current.get(messageId) ?? emptyFeedback;
       patch({
         saving: false,
         saved: false,
-        usefulness: null,
-        error: (error as Error).message || 'The rating was not recorded.',
+        sentiment: confirmed.sentiment,
+        comment: sentiment === 'down' ? entry.comment : confirmed.comment,
+        open: sentiment === 'down' || confirmed.sentiment === 'down',
+        error: (error as Error).message || 'Feedback was not recorded.',
       });
     }
   }
@@ -2230,7 +2267,7 @@ export function HomePage() {
               conversation.id === pendingDelete ? (
                 <div
                   key={conversation.id}
-                  className="conversation-row confirming"
+                  className="conversation-row confirming ast-surface-primary"
                   role="group"
                   aria-label={`Delete ${conversation.title}?`}
                 >
@@ -2260,7 +2297,7 @@ export function HomePage() {
               ) : (
                 <div
                   key={conversation.id}
-                  className={`conversation-row ${conversation.id === conversationId ? 'active' : ''}`}
+                  className={`conversation-row ast-surface-primary ${conversation.id === conversationId ? 'active' : ''}`}
                 >
                   <button
                     type="button"
@@ -2315,14 +2352,7 @@ export function HomePage() {
                       {/* Wall time of that latest turn, when the trace recorded one.
                           Absent rather than zero for a turn stored before it did. */}
                       {duration && <span className="conversation-duration ast-num">{duration}</span>}
-                      {/* And the reader's own rating, with its scale, because a star
-                          beside a bare number does not say what it is out of. Only
-                          when somebody rated it: an empty star is a claim of zero. */}
-                      {summary?.rating !== null && summary?.rating !== undefined && (
-                        <span className="conversation-rating ast-num" title={`Rated ${ratingOutOf(summary.rating)}`}>
-                          <Star aria-hidden="true" /> {ratingOutOf(summary.rating)}
-                        </span>
-                      )}
+                      {summary?.feedback ? <RunRatingBadge feedback={summary.feedback} /> : null}
                     </span>
                   </button>
                   {adminSharedRail && owner ? (
@@ -2406,7 +2436,7 @@ export function HomePage() {
 
   return (
     <div className="ask-layout" data-inspector={inspectorIdle ? 'idle' : 'run'}>
-      <aside className="conversation-rail">{renderRail('rail')}</aside>
+      <aside className="conversation-rail ast-surface-primary">{renderRail('rail')}</aside>
 
       {/* The sheet's trigger, drawn only below 800px, where the aside is not.
           responsive.css decides both, so the page cannot end up with two rails or
@@ -2430,7 +2460,7 @@ export function HomePage() {
           <SheetHeader>
             <SheetTitle>Conversations</SheetTitle>
           </SheetHeader>
-          <div className="conversation-rail is-sheet">{renderRail('rail-sheet')}</div>
+          <div className="conversation-rail is-sheet ast-surface-primary">{renderRail('rail-sheet')}</div>
         </SheetContent>
       </Sheet>
 
@@ -3013,7 +3043,11 @@ const MessageItem = memo(function MessageItem({
   showFeedback: boolean;
   onAsk: (question: string, approval?: { planId: string; label: string }) => void;
   onFeedbackChange: (answerId: string, changes: Partial<FeedbackEntry>) => void;
-  onSaveFeedback: (answerId: string, rating: number, options?: { keepCommentOpen?: boolean }) => Promise<void>;
+  onSaveFeedback: (
+    answerId: string,
+    sentiment: FeedbackDirection,
+    options?: { keepCommentOpen?: boolean }
+  ) => Promise<void>;
   processStages?: TraceStage[];
 }) {
   if (message.role === 'user') {
@@ -3081,7 +3115,7 @@ const MessageItem = memo(function MessageItem({
       question={question}
       feedback={feedback}
       onFeedbackChange={(changes) => onFeedbackChange(response.id, changes)}
-      saveFeedback={(rating, options) => onSaveFeedback(response.id, rating, options)}
+      saveFeedback={(sentiment, options) => onSaveFeedback(response.id, sentiment, options)}
       showFeedback={showFeedback}
       processStages={processStages}
     />

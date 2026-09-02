@@ -25,7 +25,7 @@ function question(totalTokens: number | null): MonitoringQuestion {
     durationMs: 76_200,
     totalTokens,
     toolCalls: 5,
-    rating: 'up',
+    feedback: 'up',
     tables: [],
   };
 }
@@ -84,8 +84,7 @@ function detail(askedBy = 'first.person@example.test'): MonitoringDetail {
     trace,
     tokens: { prompt: 80_000, completion: 4_576, total: 84_576 },
     execution: null,
-    rating: null,
-    usefulness: null,
+    feedback: null,
     comment: null,
     mlflowUrl: 'https://example.test/ml/experiments/1/traces',
     runId: 'a1',
@@ -93,11 +92,11 @@ function detail(askedBy = 'first.person@example.test'): MonitoringDetail {
 }
 
 describe('Monitoring question token totals', () => {
-  it('orders Time, Total tokens, Tools, Rating and preserves exact evidence', () => {
+  it('orders Time, Total tokens, Tools, Feedback and preserves exact evidence', () => {
     const markup = render(<QuestionList questions={[question(84_576)]} selectedId="" now={0} onOpen={() => {}} />);
     expect(markup.indexOf('>Time<')).toBeLessThan(markup.indexOf('>Total tokens<'));
     expect(markup.indexOf('>Total tokens<')).toBeLessThan(markup.indexOf('>Tools<'));
-    expect(markup.indexOf('>Tools<')).toBeLessThan(markup.indexOf('>Rating<'));
+    expect(markup.indexOf('>Tools<')).toBeLessThan(markup.indexOf('>Feedback<'));
     expect(markup).toContain('>84.6K</span>');
     expect(markup).toContain('title="84,576 total tokens"');
     expect(markup).toContain('aria-label="84,576 total tokens"');

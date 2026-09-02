@@ -1,8 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AnswerCharts, type Chart } from './AnswerCharts';
-import { partial, partialNames } from './styles/stylesheet';
+import { partial } from './styles/stylesheet';
 
 /**
  * The charted variant's panels, as markup and as the rules that paint them.
@@ -67,10 +68,7 @@ describe('a chart panel heads itself with an eyebrow and nothing else', () => {
 
   it('puts figure sources on the chart group so a plotted answer is not origin-less', () => {
     const markup = renderToStaticMarkup(
-      <AnswerCharts
-        charts={[chart()]}
-        sources={[{ name: 'main.game.daily', freshness: '', role: 'reading' }]}
-      />
+      <AnswerCharts charts={[chart()]} sources={[{ name: 'main.game.daily', freshness: '', role: 'reading' }]} />
     );
     expect(markup).toContain('answer-charts-origin');
     expect(markup).toContain('aria-label="Source table"');
@@ -139,14 +137,11 @@ describe('the panel is a tinted surface, not the card recipe', () => {
   });
 
   it('is imported, so these rules reach the sheet the app ships', () => {
-    // partial() reads a file directly; the import list is the cascade. A partial
-    // on disk and absent from that list is a file the app does not have, and
-    // every assertion above passes for the wrong reason.
-    expect(partialNames()).toContain('answer-charts.css');
-    // After the answer body, so a later change to the card's shared panel rules
-    // still reaches these.
-    const order = partialNames();
-    expect(order.indexOf('answer-charts.css')).toBeGreaterThan(order.indexOf('answer-body.css'));
+    const owner = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
+    const body = owner.indexOf("import './styles/answer-body.css'");
+    const charts = owner.indexOf("import './styles/answer-charts.css'");
+    expect(body).toBeGreaterThan(-1);
+    expect(charts).toBeGreaterThan(body);
   });
 });
 

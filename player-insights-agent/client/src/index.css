@@ -66,14 +66,6 @@
 @import './styles/ask.css';
 @import './styles/answer.css';
 @import './styles/composer.css';
-@import './styles/answer-body.css';
-/* Directly after answer-body.css, which is where the answer card's own panels live.
-   The charted variant's panels are a sibling recipe rather than a variant of
-   `.chart-card`, and they sit here so that a later change to the card's shared panel
-   rules still reaches them -- and so that a chart panel drawn inside the Run
-   Explorer's stage detail, which is not an answer card at all, can be reshaped by the
-   trace partials below rather than reshaping them. */
-@import './styles/answer-charts.css';
 /* Before trace.css, which is the partial that seats both constellation bands: the
    trace surfaces are entitled to reshape a band where their own layout needs to --
    the map's sits above a grid and the live path's sits in a 264px rail -- and they
@@ -109,6 +101,9 @@
 @import './styles/astrolabe-loaders.css';
 @import './styles/dark-mode.css';
 @import './styles/star-motion.css';
+/* High-alpha semantic surfaces and dialog occlusion sit after theme paint so
+   ambient sky stays bright in gutters but becomes a faint trace under UI. */
+@import './styles/surface-contract.css';
 /* User Appearance choices must outrank every surface's default recipe. */
 @import './styles/appearance-preferences.css';
 

@@ -174,18 +174,18 @@ describe('the admin owner dropdown', () => {
     expect(CSS).not.toMatch(/\.conversation-owner-menu \{[^}]*position:\s*absolute/s);
   });
 
-  it('resolves the menu surface to an opaque computed color in both themes', () => {
-    const lightPopover = TOKENS.match(/--popover:\s*(#[0-9a-f]{6});/i)?.[1];
-    const darkPopover = TOKENS.match(/html\[data-theme='dark'\]\s*\{[\s\S]*?--popover:\s*var\(--ast-surface-solid\);/);
-    const solidSurface = ASTROLABE_TOKENS.match(/--ast-surface-solid:\s*(#[0-9a-f]{6});/i)?.[1];
+  it('resolves the menu surface to the strongest translucent menu role in both themes', () => {
+    const lightPopover = TOKENS.match(/--popover:\s*var\(--ast-surface-menu\);/);
+    const darkPopover = TOKENS.match(/html\[data-theme='dark'\]\s*\{[\s\S]*?--popover:\s*var\(--ast-surface-menu\);/);
+    const menuMixes = [
+      ...ASTROLABE_TOKENS.matchAll(/--ast-surface-menu:\s*color-mix\([^;]*\s([\d.]+)%,\s*transparent\);/g),
+    ].map((match) => Number(match[1]));
 
-    expect(lightPopover).toBe('#ffffff');
+    expect(lightPopover).not.toBeNull();
     expect(darkPopover).not.toBeNull();
-    expect(solidSurface).toBe('#181e23');
-    expect(lightPopover).not.toMatch(/rgba|hsla|color-mix|transparent/i);
-    expect(solidSurface).not.toMatch(/rgba|hsla|color-mix|transparent/i);
+    expect(menuMixes).toEqual([98.5, 98.5]);
     expect(CSS).toMatch(
-      /\.conversation-owner-menu \{[^}]*z-index:\s*90[^}]*isolation:\s*isolate[^}]*border:\s*1px solid var\(--db-line-strong\)/s
+      /\.conversation-owner-menu \{[^}]*z-index:\s*var\(--ast-layer-menu\)[^}]*isolation:\s*isolate[^}]*border:\s*1px solid var\(--db-line-strong\)/s
     );
     expect(CSS).toMatch(
       /\.conversation-owner-menu \{[^}]*background-color:\s*var\(--popover\)[^}]*background-image:\s*none[^}]*opacity:\s*1[^}]*backdrop-filter:\s*none/s
@@ -198,9 +198,9 @@ describe('the admin owner dropdown', () => {
     expect(CSS).toMatch(/\.conversation-rail\.is-sheet \{[^}]*overflow-y:\s*auto/s);
     expect(COMPONENT).toContain('<PopoverContent');
     expect(HOME).toContain('<SheetContent side="left" className="rail-sheet">');
-    expect(HOME).toContain('<div className="conversation-rail is-sheet">');
+    expect(HOME).toContain('<div className="conversation-rail is-sheet ast-surface-primary">');
     expect(RESPONSIVE).toMatch(/\.conversation-rail\s*\{\s*display:\s*none/);
-    expect(CSS).toMatch(/\.conversation-owner-menu \{[^}]*z-index:\s*90/s);
+    expect(CSS).toMatch(/\.conversation-owner-menu \{[^}]*z-index:\s*var\(--ast-layer-menu\)/s);
   });
 
   it('uses portal collision geometry and a bounded internal scroller at the rail bottom', () => {

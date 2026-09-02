@@ -191,12 +191,12 @@ describe('copy and glass rules that hold across the six surfaces', () => {
     expect(STAGE_04_CAPTIONS.rag_config).toBe('Not configured for this target.');
   });
 
-  it('frosts Lab surfaces at 4% white and solids them under reduced transparency', () => {
+  it('uses primary glass and solids it under reduced transparency', () => {
     const reducedAt = DARK.indexOf('@media (prefers-reduced-transparency: reduce)');
     const normal = DARK.slice(0, reducedAt);
     const reduced = DARK.slice(reducedAt);
     expect(normal).toMatch(
-      /html\[data-theme='dark'\] \.bench-surface\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*0\.04\)[^}]*backdrop-filter:\s*blur\(2px\)/
+      /html\[data-theme='dark'\] \.bench-surface\s*\{[^}]*var\(--ast-surface-primary\)[^}]*backdrop-filter:\s*none/
     );
     expect(reduced).toContain("html[data-theme='dark'] .bench-surface");
   });

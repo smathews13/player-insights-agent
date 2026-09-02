@@ -1,7 +1,7 @@
 /**
  * The dropdowns an administrator gets after clicking the rail pencil.
  *
- * Only Outcome and Rating. Those are the two closed sets this screen can
+ * Only Outcome and Feedback. Those are the two closed sets this screen can
  * honestly change. Conversation, run, message, user and tool-count stay as
  * chips on the rail above; they are not reassigned from here.
  *
@@ -10,18 +10,18 @@
  * as overlays the same way Monitoring and Settings do.
  */
 import { AppSelect } from './AppSelect';
-import { RAIL_OUTCOME_OPTIONS, RAIL_RATING_OPTIONS, type RailOutcome, type RailRating } from './run-header-labels';
+import { RAIL_FEEDBACK_OPTIONS, RAIL_OUTCOME_OPTIONS, type RailFeedback, type RailOutcome } from './run-header-labels';
 
 export function RunHeaderLabelEditor({
   outcome,
-  rating,
+  feedback,
   onOutcome,
-  onRating,
+  onFeedback,
 }: {
   outcome: RailOutcome;
-  rating: RailRating;
+  feedback: RailFeedback;
   onOutcome: (value: RailOutcome) => void;
-  onRating: (value: RailRating) => void;
+  onFeedback: (value: RailFeedback) => void;
 }) {
   return (
     <div className="run-header-label-editor" data-testid="run-header-label-editor">
@@ -33,11 +33,11 @@ export function RunHeaderLabelEditor({
         onValueChange={onOutcome}
       />
       <AppSelect
-        label="Rating"
-        ariaLabel="Rating"
-        value={rating}
-        options={RAIL_RATING_OPTIONS}
-        onValueChange={onRating}
+        label="Feedback"
+        ariaLabel="Feedback"
+        value={feedback}
+        options={RAIL_FEEDBACK_OPTIONS}
+        onValueChange={onFeedback}
       />
     </div>
   );

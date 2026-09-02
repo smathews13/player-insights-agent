@@ -53,7 +53,7 @@ describe('Run Explorer filter geometry', () => {
 
   it('portals popper menus above panels and caps them to the viewport', () => {
     expect(UI).toContain("createElement(AppKitSelectContent, { position: 'popper', ...props })");
-    expect(rule(BASE, '[data-radix-popper-content-wrapper]')).toContain('z-index: 90');
+    expect(rule(BASE, '[data-radix-popper-content-wrapper]')).toContain('z-index: var(--ast-layer-menu)');
     expect(rule(BASE, '[data-radix-popper-content-wrapper]')).toContain('max-width: calc(100vw - 24px)');
     const menu = rule(RUNS, '.run-filter-menu');
     expect(menu).toContain('max-width: min(30rem, calc(100vw - 24px))');

@@ -302,9 +302,8 @@ function TokenConsumption({ trace }: { trace: NonNullable<RunTrace['trace']> }) 
                 <th scope="col">Attempt</th>
                 <th scope="col">Input</th>
                 <th scope="col">Output</th>
-                <th scope="col">Cached</th>
-                <th scope="col">Total</th>
-                <th scope="col">Cache status</th>
+                <th scope="col">Total tokens</th>
+                <th scope="col">Cached tokens</th>
               </tr>
             </thead>
             <tbody>
@@ -314,9 +313,8 @@ function TokenConsumption({ trace }: { trace: NonNullable<RunTrace['trace']> }) 
                   <td className="ast-num">{invocation.attempt}</td>
                   <td className="ast-num">{invocation.input}</td>
                   <td className="ast-num">{invocation.output}</td>
-                  <td className="ast-num">{invocation.cached}</td>
                   <td className="ast-num">{invocation.total}</td>
-                  <td>{invocation.cacheStatus}</td>
+                  <td className="ast-num">{invocation.cached}</td>
                 </tr>
               ))}
             </tbody>

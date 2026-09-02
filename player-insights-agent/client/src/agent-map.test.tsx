@@ -1254,27 +1254,23 @@ describe('the generated SQL block', () => {
     expect(rule('.trace-dag.map .dag-sql-body pre b')).toMatch(/color: var\(--ast-info-text\)/);
   });
 
-  it('clamps a long statement and offers the way past the clamp, rather than scrolling', () => {
-    // A scroller here is the same defect this map was rebuilt out of, one axis
-    // over: content parked outside a box nothing announces as scrollable.
+  it('expands a long statement inside the right workspace without a nested viewport', () => {
     const body = rule('.trace-dag.map .dag-sql-body');
-    expect(px(body, 'max-height')).toBe(196);
-    expect(body).toMatch(/overflow: hidden/);
-    expect(rule('.trace-dag.map .dag-sql.open .dag-sql-body')).toMatch(/max-height: none/);
+    expect(body).not.toMatch(/max-height/);
+    expect(body).toMatch(/overflow: visible/);
     const long = stage({
       ...query,
       input: JSON.stringify({ sql: `SELECT\n${'  col,\n'.repeat(11)}FROM sales` }),
     });
     const markup = renderToStaticMarkup(<StageDetail stage={long} step={5} origin={0} id="detail" />);
-    expect(markup).toContain('Show all 13 lines');
+    expect(markup).not.toContain('Show all');
+    expect(markup).toContain('13 lines');
   });
 
-  it('offers no way past a clamp that is not clamping anything', () => {
-    // A fade and a "show all" over a statement that already fits is a control that
-    // does nothing, drawn on top of the last line it is pretending to hide.
+  it('does not draw a redundant expansion control for a short statement', () => {
     const markup = renderToStaticMarkup(<StageDetail stage={query} step={5} origin={0} id="detail" />);
     expect(markup).not.toContain('Show all');
-    expect(markup).toContain('class="dag-sql open"');
+    expect(markup).toContain('class="dag-sql"');
   });
 
   it('does not also print the statement among the arguments', () => {
@@ -1318,12 +1314,11 @@ describe('the run’s raw payloads, behind one row', () => {
     expect(io.lines).toBe(io.text.split('\n').length);
   });
 
-  it('caps the one block that cannot be sized to its content', () => {
-    // Everything else in the panel is short enough to print whole, which the
-    // handoff asks for. This is the exception and it is capped where it is used
-    // rather than on the shared block rule.
+  it('expands the whole run payload without a nested scrollbar', () => {
     expect(rule('.trace-dag.map .dag-block')).not.toMatch(/max-height/);
-    expect(px(rule('.trace-dag.map .dag-raw .dag-block'), 'max-height')).toBe(320);
+    const raw = rule('.trace-dag.map .dag-raw .dag-block');
+    expect(raw).not.toMatch(/max-height/);
+    expect(raw).toMatch(/overflow: visible/);
   });
 
   it('spans the grid rather than sitting in a column of it', () => {

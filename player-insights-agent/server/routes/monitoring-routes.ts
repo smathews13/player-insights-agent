@@ -34,7 +34,7 @@ import { overlayJoinSql } from '../lib/run-label-overrides';
 import type { Application, Request, Response } from 'express';
 import {
   applyAdminOutcome,
-  applyAdminRating,
+  applyAdminFeedback,
   classifyOutcome,
   classifyRefusal,
   refusalSentence,
@@ -46,6 +46,7 @@ import {
   type PersonPanelPayload,
   type QuestionOutcome,
 } from '../../shared/monitoring-contract';
+import { feedbackDirection } from '../../shared/feedback-direction';
 import { runRuntimeUsedFromStored } from '../../shared/run-runtime-used';
 import { chooseRows, markResponse, readStored } from '../lib/lakebase-store';
 import { workspaceLinksAllowed } from '../lib/egress-store';
@@ -63,7 +64,7 @@ import { resolveExperimentId } from '../lib/app-settings';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { APP_ACTIVITY_TABLE } from '../lib/app-activity';
 import { APP_SESSION_TABLE, appSessionDeployment } from '../lib/app-session';
-import { effectiveRole, readRosterForRequest } from '../lib/user-roster';
+import { effectiveRole, everyKnownUser, readRosterForRequest } from '../lib/user-roster';
 import { invalidAdminEmail, seedRoles } from '../lib/admin-roles';
 import { listSpAssignments, listSpPersonas } from '../lib/sp-identity-store';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
@@ -593,31 +594,6 @@ function tableList(value: unknown): string[] {
   return [...seen.values()];
 }
 
-/**
- * Which way a reader rated an answer: 'up', 'down', or null for unrated.
- *
- * This used to read `feedback.sentiment` only, and said so: "never inferred from
- * a usefulness score". The column is in the schema and no code path writes it.
- * The thumbs in AnswerCard.tsx call `saveFeedback(5)` and `saveFeedback(2)`, and
- * the ask route stores that number as `usefulness` with `sentiment` null. So the
- * rating column read a column that is empty in every row, and the tile said "no
- * answers were rated in this range" over a range holding ratings. Reading a
- * five-pointed score as a thumb is not an inference here: five and two ARE the
- * thumbs, and 5 is the only value the up control can produce.
- *
- * `sentiment` still wins when present, so a row written by any future path that
- * does set it is read as written. A 3 is a score with no direction and stays
- * null, which keeps it out of both halves of the rated-helpful tile rather than
- * counting against the answer.
- */
-function sentiment(value: unknown, usefulness: number | null): 'up' | 'down' | null {
-  const word = text(value).trim().toLowerCase();
-  if (word === 'up' || word === 'down') return word;
-  if (usefulness === null) return null;
-  if (usefulness >= 4) return 'up';
-  return usefulness <= 2 ? 'down' : null;
-}
-
 /** The stored trace, or null. Not conditioned, so it is read on every path. */
 function traceOf(response: unknown): unknown {
   if (!response || typeof response !== 'object') return null;
@@ -743,7 +719,7 @@ export function questionFromRow(row: Record<string, unknown>, ledger: Map<string
     durationMs: integer(row.total_ms),
     toolCalls: integer(row.tool_calls),
     totalTokens: tokenCount(row.total_tokens),
-    rating: applyAdminRating(sentiment(row.sentiment, integer(row.usefulness)), text(row.overlay_rating)),
+    feedback: applyAdminFeedback(feedbackDirection(row.sentiment, row.usefulness), text(row.overlay_rating)),
     tables: tableList(row.sources),
   };
 }
@@ -757,16 +733,16 @@ export function questionFromRow(row: Record<string, unknown>, ledger: Map<string
  */
 export function summarize(questions: MonitoringQuestion[], userThreads: number): MonitoringSummary {
   const buckets: Record<QuestionOutcome, number> = { completed: 0, partial: 0, refused: 0, failed: 0 };
-  let ratedUp = 0;
-  let ratedTotal = 0;
+  let helpful = 0;
+  let feedbackTotal = 0;
   const durations: number[] = [];
   for (const question of questions) {
     buckets[question.outcome] += 1;
-    if (question.rating === 'up') {
-      ratedUp += 1;
-      ratedTotal += 1;
-    } else if (question.rating === 'down') {
-      ratedTotal += 1;
+    if (question.feedback === 'up') {
+      helpful += 1;
+      feedbackTotal += 1;
+    } else if (question.feedback === 'down') {
+      feedbackTotal += 1;
     }
     if (question.durationMs !== null) durations.push(question.durationMs);
   }
@@ -778,8 +754,8 @@ export function summarize(questions: MonitoringQuestion[], userThreads: number):
     partial: buckets.partial,
     refused: buckets.refused,
     failed: buckets.failed,
-    ratedUp,
-    ratedTotal,
+    helpful,
+    feedbackTotal,
     medianMs: durations.length > 0 ? durations[Math.floor((durations.length - 1) / 2)] : null,
     timedCount: durations.length,
   };
@@ -842,18 +818,22 @@ export function rangeFrom(req: Request, now = Date.now()): RangeQuery {
 export interface MonitoringFilterQuery {
   person: string;
   outcome: string;
-  rating: string;
+  feedback?: string;
+  /** @deprecated Temporary mixed-version compatibility. */
+  rating?: string;
   table: string;
   search: string;
 }
 
 function filtersFrom(req: Request, person = queryString(req.query.person).trim()): MonitoringFilterQuery {
   const outcome = queryString(req.query.outcome).trim();
-  const rating = queryString(req.query.rating).trim();
+  // `rating` is accepted temporarily for a mixed-version browser, but all new
+  // links and response contracts use `feedback`.
+  const feedback = (queryString(req.query.feedback) || queryString(req.query.rating)).trim();
   return {
     person,
     outcome: ['completed', 'partial', 'refused', 'failed'].includes(outcome) ? outcome : '',
-    rating: ['up', 'down', 'unrated'].includes(rating) ? rating : '',
+    feedback: ['up', 'down', 'none', 'unrated'].includes(feedback) ? (feedback === 'unrated' ? 'none' : feedback) : '',
     table: queryString(req.query.table).trim(),
     search: queryString(req.query.q).trim(),
   };
@@ -866,11 +846,14 @@ export function matchingQuestions(
   const person = filters.person.toLowerCase();
   const search = filters.search.toLowerCase();
   const table = filters.table.toLowerCase();
+  const feedback = filters.feedback ?? (filters.rating === 'unrated' ? 'none' : (filters.rating ?? ''));
   return questions.filter((question) => {
     if (person && question.askedBy.toLowerCase() !== person) return false;
     if (filters.outcome && question.outcome !== filters.outcome) return false;
-    if (filters.rating === 'unrated' && question.rating !== null) return false;
-    if ((filters.rating === 'up' || filters.rating === 'down') && question.rating !== filters.rating) return false;
+    if (feedback === 'none' && question.feedback !== null) return false;
+    if ((feedback === 'up' || feedback === 'down') && question.feedback !== feedback) {
+      return false;
+    }
     if (table && !question.tables.some((name) => name.toLowerCase() === table)) return false;
     if (
       search &&
@@ -1103,7 +1086,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         now: clock(),
       });
 
-      const exactTotal = filters.outcome || filters.rating || filters.table ? null : found;
+      const exactTotal = filters.outcome || filters.feedback || filters.table ? null : found;
       const pagination = paginationFor({ page, rawPage, total: exactTotal });
       const partial = pagination.hasMore || page.cursor !== null;
       res.json({
@@ -1216,9 +1199,11 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
           executionMode && typeof row.execution_identity_verified === 'boolean'
             ? { mode: executionMode, verified: row.execution_identity_verified }
             : null,
-        rating: applyAdminRating(sentiment(row.sentiment, integer(row.usefulness)), text(row.overlay_rating)),
-        usefulness: integer(row.usefulness),
-        comment: text(row.comment) || null,
+        feedback: applyAdminFeedback(feedbackDirection(row.sentiment, row.usefulness), text(row.overlay_rating)),
+        comment:
+          applyAdminFeedback(feedbackDirection(row.sentiment, row.usefulness), text(row.overlay_rating)) === 'down'
+            ? text(row.comment) || null
+            : null,
         // Absent rather than dead. `mlflowReference` answers null for a trace id
         // that is not MLflow's and for a deployment with no host or experiment,
         // and now also for a deployment whose administrator has turned the
@@ -1241,6 +1226,18 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       const person = decodeURIComponent(String(req.params.email));
       if (invalidAdminEmail(person)) {
         res.status(400).json({ error: 'invalid_monitoring_user' });
+        return;
+      }
+      let roster: Awaited<ReturnType<typeof readRosterForRequest>>;
+      try {
+        roster = await readRosterForRequest(appkit.lakebase, req);
+      } catch {
+        res.status(503).json({ error: 'identity_roster_unavailable' });
+        return;
+      }
+      const identityRoster = everyKnownUser({ seed: seedRoles(), stored: roster.rows });
+      if (!identityRoster.some((entry) => entry.email === person.trim().toLowerCase())) {
+        res.status(404).json({ error: 'monitoring_user_not_rostered' });
         return;
       }
       const range = rangeFrom(req, clock());
@@ -1276,7 +1273,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       const selectedRows = mine.filter((row) => selectedQuestionIds.has(text(row.question_id)));
       const selectedAnswerIds = selectedRows.map((row) => text(row.answer_id)).filter((id) => id !== '');
       const totals = rangeTotalsFrom(stored.rows[0], questions);
-      const exactTotal = filters.outcome || filters.rating || filters.table ? null : totals.asked;
+      const exactTotal = filters.outcome || filters.feedback || filters.table ? null : totals.asked;
       const pagination = paginationFor({ page, rawPage, total: exactTotal });
 
       // Tokens, and the runs the total covers. A run the model reported no usage
@@ -1381,8 +1378,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       } catch (error) {
         console.warn(`[monitoring] First and last seen could not be read for ${person}: ${(error as Error).message}`);
       }
-      const [roster, personaCatalog, personaAssignments] = await Promise.all([
-        readRosterForRequest(appkit.lakebase, req).catch(() => ({ rows: [] })),
+      const [personaCatalog, personaAssignments] = await Promise.all([
         listSpPersonas(appkit).catch(() => []),
         listSpAssignments(appkit).catch(() => []),
       ]);
@@ -1412,8 +1408,8 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         // known. Ops billing is deliberately not reused here: it is a separate,
         // privileged list-price read and its component spend is not this total.
         tokenCostUsd: tokenCost(tokenTotal, metredRuns),
-        ratedUp: questions.filter((question) => question.rating === 'up').length,
-        ratedDown: questions.filter((question) => question.rating === 'down').length,
+        helpful: questions.filter((question) => question.feedback === 'up').length,
+        notHelpful: questions.filter((question) => question.feedback === 'down').length,
         tablesReadMost,
         executionSplit,
         subjectSplit,

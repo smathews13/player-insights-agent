@@ -118,13 +118,13 @@ export function applyAdminOutcome(classified: QuestionOutcome, overlayStatus?: s
   return classified;
 }
 
-/** An administrator's stored rating, when one exists. */
-export function applyAdminRating(
+/** An administrator's stored feedback override, when one exists. */
+export function applyAdminFeedback(
   classified: 'up' | 'down' | null,
-  overlayRating?: string | null
+  overlayFeedback?: string | null
 ): 'up' | 'down' | null {
-  const word = (overlayRating ?? '').trim().toLowerCase();
-  if (word === 'unrated') return null;
+  const word = (overlayFeedback ?? '').trim().toLowerCase();
+  if (word === 'unrated' || word === 'none') return null;
   if (word === 'up' || word === 'down') return word;
   return classified;
 }
@@ -198,8 +198,10 @@ export interface MonitoringQuestion {
   toolCalls: number | null;
   /** Canonical total LLM tokens on the same final answer as time and tools. */
   totalTokens: number | null;
-  /** 'up', 'down', or null for the overwhelming majority that are never rated. */
-  rating: 'up' | 'down' | null;
+  /** 'up', 'down', or null when no human feedback was submitted. */
+  feedback?: 'up' | 'down' | null;
+  /** @deprecated Mixed-version client compatibility. */
+  rating?: 'up' | 'down' | null;
   /** Fully-qualified tables this run read, as the answer recorded them. */
   tables: string[];
 }
@@ -226,8 +228,12 @@ export interface MonitoringSummary {
   refused: number;
   failed: number;
   /** Thumbs up, and the population it is a share of. Never one without the other. */
-  ratedUp: number;
-  ratedTotal: number;
+  helpful?: number;
+  feedbackTotal?: number;
+  /** @deprecated Mixed-version client compatibility. */
+  ratedUp?: number;
+  /** @deprecated Mixed-version client compatibility. */
+  ratedTotal?: number;
   /** Median recorded run time in milliseconds, or null when nothing was recorded. */
   medianMs: number | null;
   /** How many of `questionsAsked` carried a recorded run time. */
@@ -343,9 +349,12 @@ export interface MonitoringDetail {
   tokens: { prompt: number | null; completion: number | null; total: number | null } | null;
   /** The run's recorded execution identity, for the existing footer wording. */
   execution: { mode: string; verified: boolean } | null;
-  rating: 'up' | 'down' | null;
-  usefulness: number | null;
+  feedback?: 'up' | 'down' | null;
   comment: string | null;
+  /** @deprecated Mixed-version client compatibility. */
+  rating?: 'up' | 'down' | null;
+  /** @deprecated Legacy audit value; never rendered. */
+  usefulness?: number | null;
   /** Absent, not dead, when the run recorded no trace id. */
   mlflowUrl: string | null;
   /** The run id Run Explorer opens, which is the answer message's id. */
@@ -387,8 +396,12 @@ export interface PersonPanelPayload {
    * giving an unmeasured configuration detail the same weight as a KPI.
    */
   tokenCostUsd: number | null;
-  ratedUp: number;
-  ratedDown: number;
+  helpful?: number;
+  notHelpful?: number;
+  /** @deprecated Mixed-version client compatibility. */
+  ratedUp?: number;
+  /** @deprecated Mixed-version client compatibility. */
+  ratedDown?: number;
   /**
    * The top recorded source tables in this person's runs for the selected
    * period. Ranked by run count descending, then table name, and capped by the

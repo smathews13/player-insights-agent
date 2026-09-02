@@ -217,12 +217,12 @@
  */
 .trace-gantt-scroll {
   width: 100%;
-  overflow-x: auto;
+  overflow: visible;
   margin-top: 10px;
 }
 .trace-gantt table {
   width: 100%;
-  min-width: 650px;
+  min-width: 0;
   border-collapse: collapse;
   font-size: var(--text-sm);
 }
@@ -268,8 +268,9 @@
  * fractional, so it stays exact at any width.
  */
 .trace-gantt .trace-event {
-  min-width: 168px;
+  min-width: 0;
   max-width: 240px;
+  overflow-wrap: anywhere;
 }
 /*
  * The duration needs a floor as well as a width.
@@ -281,7 +282,7 @@
  */
 .trace-gantt .trace-duration {
   width: 74px;
-  min-width: 66px;
+  min-width: 0;
   padding-left: 10px;
   white-space: nowrap;
 }
@@ -293,7 +294,7 @@
 }
 .trace-gantt .trace-tokens {
   width: 88px;
-  min-width: 78px;
+  min-width: 0;
   padding-left: 10px;
   white-space: nowrap;
 }
@@ -306,7 +307,7 @@
    matching magic numbers. */
 .trace-axis-head {
   width: 45%;
-  min-width: 150px;
+  min-width: 80px;
 }
 /* The column still needs a name. The ticks alone left this header empty, which is
    a table column a screen reader announces by position and nothing else. */
@@ -600,7 +601,9 @@
 }
 .trace-kind-kpis .trace-token-kpi {
   gap: 6px;
-  border-color: var(--ast-blue);
+  /* Informational total, not a selected or actionable tile. */
+  border-color: var(--ast-border-input);
+  background: var(--card);
 }
 .trace-token-kpi > span,
 .trace-token-kpi > small {
@@ -640,8 +643,8 @@
   font-size: var(--text-xs);
   color: var(--muted-foreground);
 }
-/* The expanded row. Arguments and results are whole now that the contract no
-   longer truncates them, so this scrolls rather than stretching the page. */
+/* The expanded row. Arguments and results grow inside the shared right workspace;
+   they do not create a second scroll owner. */
 .trace-detail td {
   padding: 4px 10px 12px !important;
 }
@@ -686,8 +689,7 @@
  */
 .trace-detail pre {
   margin: 0;
-  max-height: 260px;
-  overflow: auto;
+  overflow: visible;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-family: var(--font-mono);
@@ -710,7 +712,7 @@
   overflow: hidden;
   border: 1px solid var(--ast-hairline);
   border-radius: var(--ast-radius-card);
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-muted);
 }
 .trace-payload-head {
   display: flex;
@@ -854,8 +856,9 @@
 .trace-payload .dag-md-code {
   margin: 0 0 6px;
   padding: 8px 10px;
-  overflow-x: auto;
-  white-space: pre;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: 1.5;

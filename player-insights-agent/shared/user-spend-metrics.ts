@@ -1,11 +1,38 @@
 import type { CostBudgetUnit } from './cost-budgets';
-import type { UserSpendKpi } from './user-spend-contract';
+import type { UserSpendKpi, UserTokenAverages } from './user-spend-contract';
 
 export interface CoreUserSpendMetricInput {
   amount: number | null;
   questions: number | null;
   coveredDays: number | null;
   unit: CostBudgetUnit;
+}
+
+export function deriveUserTokenAverages(input: {
+  totalTokens: number | null;
+  coveredRuns: number | null;
+  coveredQuestions: number | null;
+}): UserTokenAverages {
+  const totalTokens =
+    input.totalTokens !== null && Number.isFinite(input.totalTokens)
+      ? Math.max(0, Math.trunc(input.totalTokens))
+      : null;
+  const coveredRuns =
+    input.coveredRuns !== null && Number.isFinite(input.coveredRuns)
+      ? Math.max(0, Math.trunc(input.coveredRuns))
+      : null;
+  const coveredQuestions =
+    input.coveredQuestions !== null && Number.isFinite(input.coveredQuestions)
+      ? Math.max(0, Math.trunc(input.coveredQuestions))
+      : null;
+  return {
+    totalTokens,
+    coveredRuns,
+    coveredQuestions,
+    perRun: totalTokens !== null && coveredRuns !== null && coveredRuns > 0 ? totalTokens / coveredRuns : null,
+    perQuestion:
+      totalTokens !== null && coveredQuestions !== null && coveredQuestions > 0 ? totalTokens / coveredQuestions : null,
+  };
 }
 
 function unavailable(subtitle: string): UserSpendKpi {

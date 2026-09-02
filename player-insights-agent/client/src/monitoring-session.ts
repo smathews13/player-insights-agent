@@ -37,7 +37,7 @@ import type { MonitoringQuestionsPayload } from '../../shared/monitoring-contrac
 import {
   OUTCOME_PARAM,
   PERSON_PARAM,
-  RATING_PARAM,
+  FEEDBACK_PARAM,
   SEARCH_PARAM,
   TABLE_PARAM,
   type MonitoringFilters,
@@ -156,7 +156,7 @@ export function monitoringRequestId(request: MonitoringListRequest): string {
     range: request.rangeId,
     person: request.filters.person.trim().toLowerCase(),
     outcome: request.filters.outcome,
-    rating: request.filters.rating,
+    feedback: request.filters.feedback,
     table: request.filters.table.trim().toLowerCase(),
     search: request.filters.search.trim().toLowerCase(),
     cursor: request.cursor,
@@ -173,7 +173,7 @@ const RESTORED_SEARCH_PARAMS = [
   RANGE_PARAM,
   PERSON_PARAM,
   OUTCOME_PARAM,
-  RATING_PARAM,
+  FEEDBACK_PARAM,
   TABLE_PARAM,
   SEARCH_PARAM,
 ] as const;
@@ -202,7 +202,7 @@ export function monitoringQuestionsUrl(request: MonitoringListRequest): string {
   if (request.cursor) params.set('cursor', request.cursor);
   if (request.filters.person) params.set('person', request.filters.person);
   if (request.filters.outcome) params.set('outcome', request.filters.outcome);
-  if (request.filters.rating) params.set('rating', request.filters.rating);
+  if (request.filters.feedback) params.set('feedback', request.filters.feedback);
   if (request.filters.table) params.set('table', request.filters.table);
   if (request.filters.search) params.set('q', request.filters.search);
   return `/api/monitoring/questions?${params.toString()}`;

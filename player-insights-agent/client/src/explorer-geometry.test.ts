@@ -135,7 +135,7 @@ describe('the Run Explorer’s two columns', () => {
     // Overview wall time uses the same printer as the Timeline envelope, so a
     // 24.009s run cannot read as 24.0s on one tab and 24.01s on the other.
     expect(KPIS).toContain('value={hasDuration ? formatMs(durationMs) : ABSENT}');
-    expect(EXPLORER).toContain('<RunRatingBadge rating={run.rating} />');
+    expect(EXPLORER).toContain('<RunRatingBadge feedback={run.feedback} legacyUsefulness={run.rating} />');
     expect(EXPLORER).not.toContain('<Star');
   });
 
@@ -219,7 +219,7 @@ describe('the Run Explorer’s two columns', () => {
     );
   });
 
-  it('gives directional feedback the visual weight of a KPI without colouring no-rating as positive', () => {
+  it('gives directional feedback the visual weight of a KPI without colouring absence as positive', () => {
     const feedback = rule(RUNS, '.run-explorer .summary-grid .run-rating-badge--kpi');
     expect(feedback).toContain('font-size: var(--text-kpi)');
     expect(feedback).toContain('min-height: 34px');
@@ -301,15 +301,12 @@ describe('the two surfaces that read a recorded run', () => {
   });
 });
 
-describe('a run nobody has rated', () => {
+describe('a run with no feedback', () => {
   it('says so in words, and offers the way to supply one', () => {
-    // An empty star reads as a rating of zero, which is a claim nobody made. The
-    // link is blue because supplying a rating is an action.
-    expect(RATING_BADGE).toContain('Not rated');
-    expect(KPIS).toContain('Rate this run');
+    expect(RATING_BADGE).toContain('No feedback');
+    expect(KPIS).toContain('Give feedback');
     expect(rule(BENCHMARK, '.summary-grid .tile-link')).toContain('color: var(--primary)');
-    // And in the Lab's table, the same fact in the same register.
-    expect(LAB).toContain('Not rated yet');
+    expect(LAB).toContain('showNoFeedback');
   });
 
   it('never stands a zero in for a figure the run did not record', () => {
@@ -323,8 +320,8 @@ describe('a run nobody has rated', () => {
 
   it('says a missing figure in words on the Explorer', () => {
     // A dash has to be READ
-    // as absence, which is a convention the reader has to already hold; the rating
-    // tile beside it has said "Not rated" in words since it landed.
+    // as absence, which is a convention the reader has to already hold; the feedback
+    // tile beside it says "No feedback" in words.
     expect(KPIS).not.toMatch(/—/);
     // In mono, and in the secondary ink that stops absence reading as a result.
     expect(KPIS).toContain("return absent ? 'run-kpi-value ast-num tile-absent' : 'run-kpi-value ast-num'");

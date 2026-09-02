@@ -29,7 +29,7 @@ const RUN: Run = {
   status: 'complete',
   duration_ms: 43_740,
   tool_calls: 7,
-  rating: null,
+  feedback: null,
   created_at: '2026-08-14T09:12:00.000Z',
 };
 
@@ -71,7 +71,7 @@ describe('the status on a truncated run', () => {
     const markup = rowMarkup(RUN);
     expect(markup).toMatch(/run-item-pills[\s\S]*Tools · <span class="ast-num">7<\/span>/);
     expect(markup).not.toContain('run-rating-badge');
-    expect(rowMarkup({ ...RUN, rating: 4 })).toMatch(/run-item-pills[\s\S]*aria-label="Rated helpful"/);
+    expect(rowMarkup({ ...RUN, feedback: 'up' })).toMatch(/run-item-pills[\s\S]*aria-label="Helpful"/);
   });
 });
 
@@ -106,7 +106,7 @@ describe('the same status on the run the reader opened', () => {
   it('keeps the tool-call count and rating state beside the id, user, and status', () => {
     const markup = headerMarkup(RUN);
     expect(markup).toMatch(/run-detail-ident[\s\S]*Tools · <span class="ast-num">7<\/span>/);
-    expect(markup).toMatch(/run-detail-ident[\s\S]*Not rated/);
-    expect(headerMarkup({ ...RUN, rating: 4 })).toMatch(/run-detail-ident[\s\S]*Rated/);
+    expect(markup).toMatch(/run-detail-ident[\s\S]*No feedback/);
+    expect(headerMarkup({ ...RUN, feedback: 'up' })).toMatch(/run-detail-ident[\s\S]*Helpful/);
   });
 });

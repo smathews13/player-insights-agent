@@ -1,6 +1,13 @@
 @media (max-width: 800px) {
+  .run-explorer {
+    height: auto;
+    min-height: calc(100dvh - var(--app-header-h));
+    padding-bottom: 70px;
+    overflow: visible;
+  }
   .explorer-layout {
     grid-template-columns: 1fr;
+    overflow: visible;
   }
   .run-list-filters {
     grid-template-columns: minmax(0, 1fr);
@@ -13,12 +20,17 @@
   }
   .run-list {
     position: static;
-    max-height: 300px;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    scrollbar-gutter: auto;
   }
   .run-detail {
     position: relative;
     top: auto;
-    height: min(760px, calc(100dvh - var(--app-header-h) - 24px));
+    height: auto;
     min-height: min(520px, calc(100dvh - var(--app-header-h) - 24px));
+    overflow: visible;
+    scrollbar-gutter: auto;
   }
 }

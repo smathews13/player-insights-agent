@@ -1083,7 +1083,7 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
 .settings-overlay {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: var(--ast-layer-dialog);
   display: grid;
   place-items: center;
   padding: 16px;
@@ -1141,30 +1141,11 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
   gap: 8px;
 }
 
-/*
- * THE NIGHT-SKY PANE, LESS SEE-THROUGH THAN THE RAIL FROST.
- *
- * Reported as "settings styling is really good now but too transparent". The
- * dark treatment gave this modal the same 3% white and 2px blur the panes
- * BESIDE the transcript wear, and those two are not the same job: a rail sits on
- * the sky, while this covers a page of readable prose. At 3% the route behind it
- * -- headings, cards, constellation marks -- stayed legible through the fields.
- *
- * The account dropdown is the surface being mimicked, so the fill is its own
- * `--ast-surface-solid` rather than a hand-mixed navy. It is mixed back toward
- * transparent and paired with the composer's heavier blur so the pane still
- * reads as glass over the sky rather than as a solid slab: a reader can tell
- * there is a page underneath without being able to read it.
- *
- * SPECIFICITY, DELIBERATELY. dark-mode.css is imported after this partial and
- * declares the rail frost at `html[data-theme='dark'] .settings-page.settings-modal`,
- * so an equal-weight rule here would lose on position. The overlay is the
- * modal's own wrapper (SettingsPage.tsx), which buys the one class this needs to
- * win without an `!important`.
- */
+/* Settings is foreground content on the 95% reading surface. Its shadow and
+   border preserve elevation while the high-alpha fill subdues route and sky. */
 html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
-  background: color-mix(in srgb, var(--ast-surface-solid) 92%, transparent);
-  backdrop-filter: blur(18px);
+  background: var(--ast-surface-elevated);
+  backdrop-filter: none;
 }
 /*
  * A reader who has asked for less transparency gets none of it, as before.

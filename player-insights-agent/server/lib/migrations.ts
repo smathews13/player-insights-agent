@@ -880,6 +880,46 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
       `DROP TABLE IF EXISTS ${USER_SPEND_HOURLY_TABLE}`,
     ],
   },
+  {
+    version: 33,
+    name: 'canonical feedback sentiment',
+    /**
+     * Preserve every historical usefulness value for audit compatibility while
+     * filling only the direction it unambiguously represented. Neutral 3 and
+     * unknown values remain null. The predicate makes a partial retry harmless
+     * and never overwrites an explicit sentiment.
+     */
+    statements: [
+      `UPDATE ${APP_SCHEMA}.feedback
+          SET sentiment = CASE
+            WHEN usefulness BETWEEN 4 AND 5 THEN 'up'
+            WHEN usefulness BETWEEN 1 AND 2 THEN 'down'
+            ELSE NULL
+          END
+        WHERE sentiment IS NULL
+          AND (usefulness BETWEEN 4 AND 5 OR usefulness BETWEEN 1 AND 2)`,
+    ],
+    // The original usefulness values remain intact. Clearing derived sentiment
+    // later could also clear an explicit value written by a mixed-version app,
+    // so this safe backfill is intentionally not reversible.
+    down: null,
+  },
+  {
+    version: 34,
+    name: 'user spend token coverage',
+    statements: [
+      `ALTER TABLE ${USER_SPEND_DAILY_TABLE} ADD COLUMN IF NOT EXISTS token_covered_runs INTEGER`,
+      `ALTER TABLE ${USER_SPEND_DAILY_TABLE} ADD COLUMN IF NOT EXISTS token_covered_questions INTEGER`,
+      `ALTER TABLE ${USER_SPEND_HOURLY_TABLE} ADD COLUMN IF NOT EXISTS token_covered_runs INTEGER`,
+      `ALTER TABLE ${USER_SPEND_HOURLY_TABLE} ADD COLUMN IF NOT EXISTS token_covered_questions INTEGER`,
+    ],
+    down: [
+      `ALTER TABLE ${USER_SPEND_HOURLY_TABLE} DROP COLUMN IF EXISTS token_covered_questions`,
+      `ALTER TABLE ${USER_SPEND_HOURLY_TABLE} DROP COLUMN IF EXISTS token_covered_runs`,
+      `ALTER TABLE ${USER_SPEND_DAILY_TABLE} DROP COLUMN IF EXISTS token_covered_questions`,
+      `ALTER TABLE ${USER_SPEND_DAILY_TABLE} DROP COLUMN IF EXISTS token_covered_runs`,
+    ],
+  },
 ];
 
 /**

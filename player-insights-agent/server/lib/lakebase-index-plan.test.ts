@@ -93,9 +93,9 @@ describe('query predicates stay aligned with index columns', () => {
     expect(ROUTE_SOURCE).toMatch(/WHERE id = \$1 AND conversation_id = \$2 AND user_email = \$3/);
   });
 
-  it('finds latest feedback by message and owner without excluding nullable ratings in the index', () => {
+  it('finds latest feedback by message and owner without excluding sentiment-only rows', () => {
     const feedbackReads = ROUTE_SOURCE.match(
-      /WHERE f\.message_id = m\.id AND f\.user_email = \$2 AND f\.usefulness IS NOT NULL\s+ORDER BY f\.created_at DESC LIMIT 1/g
+      /WHERE f\.message_id = m\.id AND f\.user_email = \$2\s+ORDER BY f\.created_at DESC LIMIT 1/g
     );
     expect(feedbackReads?.length).toBeGreaterThanOrEqual(2);
     expect(MONITORING_QUESTIONS_QUERY).toContain('WHERE fb.message_id = a.id AND fb.user_email = q.user_email');

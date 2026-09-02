@@ -16,6 +16,7 @@ import type { SessionReport } from '../../shared/session-contract';
 import type { RunRuntimeUsed } from '../../shared/run-runtime-used';
 import type { SpIdentitySummary } from '../../shared/sp-identity';
 import type { ControlPlaneIdentityMetadata } from '../../shared/identity-metadata';
+import type { FeedbackDirection } from '../../shared/feedback-direction';
 
 /**
  * What the components are allowed to render: every field present, because it came
@@ -151,7 +152,10 @@ export interface Run {
   duration_ms: number | null;
   /** The agent's own external-call counter, when this run records one. */
   tool_calls?: number | null;
-  rating: number | null;
+  /** Canonical human answer feedback. Legacy usefulness never reaches new clients. */
+  feedback?: FeedbackDirection | null;
+  /** @deprecated Mixed-version response compatibility. Never rendered or written. */
+  rating?: number | null;
   created_at: string;
 }
 /**
@@ -302,18 +306,11 @@ export interface ConversationMessage {
   execution_mode?: unknown;
   /** Whether the forwarded token was proven to be the reader's. See `execution_mode`. */
   execution_identity_verified?: unknown;
-  /**
-   * The caller's own rating of this answer, 1 to 5, as the store holds it.
-   *
-   * Beside `response_json` for the same reason the identity columns are: the
-   * rating is the reader's record about the answer, not part of the answer, and
-   * it is written to a table of its own after the turn is stored. It was not read
-   * back at all, which is why a rating a reader had been told was saved was gone
-   * when they reopened the conversation. `unknown` like its neighbours: it is
-   * whatever the row held.
-   */
+  /** The caller's own canonical feedback direction for this answer. */
+  feedback_sentiment?: unknown;
+  /** @deprecated Mixed-version response compatibility. */
   usefulness?: unknown;
-  /** The comment given with that rating, so the box reopens holding what was said. */
+  /** The comment given with Not helpful feedback, so reopening preserves it. */
   feedback_comment?: unknown;
 }
 export interface Attachment {
@@ -334,15 +331,10 @@ export interface FeedbackEntry {
   saved: boolean;
   saving: boolean;
   error: string | null;
-  /**
-   * The rating this answer carries, 1 to 5, or null for unrated.
-   *
-   * Held so the thumb a reader pressed is still pressed when they come back. The
-   * state used to record only that something had been saved this session, so a
-   * reopened conversation could not have shown the rating even once the route
-   * started returning it.
-   */
-  usefulness: number | null;
+  /** The direction this answer carries, or null when no feedback was saved. */
+  sentiment?: FeedbackDirection | null;
+  /** @deprecated Temporary in-memory compatibility for stale test fixtures. */
+  usefulness?: number | null;
 }
 
 /**

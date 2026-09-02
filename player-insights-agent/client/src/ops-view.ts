@@ -526,7 +526,14 @@ export function genieCostCardViews(payload: OpsCostPayload, unit: CostBudgetUnit
             : chargedDbus === null || chargedDbus === undefined
               ? 'Unavailable'
               : `${chargedDbus.toFixed(2)} DBU`,
-        free: unit === 'USD' ? '$0.00' : `${freeDbus.toFixed(2)} DBU`,
+        free:
+          unit === 'USD'
+            ? freeDbus === 0
+              ? '$0.00'
+              : accounting?.freeEquivalentUsd === null || accounting?.freeEquivalentUsd === undefined
+                ? 'Unavailable'
+                : `$${accounting.freeEquivalentUsd.toFixed(2)}`
+            : `${freeDbus.toFixed(2)} DBU`,
       };
     });
 }

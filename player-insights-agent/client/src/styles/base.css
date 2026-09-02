@@ -257,7 +257,7 @@ html:not([data-theme='dark']) .app-sky {
  * settings.css by the overlay's own z-index says so.
  */
 [data-radix-popper-content-wrapper] {
-  z-index: 90;
+  z-index: var(--ast-layer-menu);
   /*
    * Overlay, not layout. Radix sizes this wrapper to the longest option via
    * an inline `min-width: max-content`. A long conversation title then
@@ -274,7 +274,7 @@ html:not([data-theme='dark']) .app-sky {
   max-width: min(32rem, calc(100vw - 24px));
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
-  background: var(--card);
+  background: var(--ast-surface-menu);
   color: var(--ast-text-long);
   font-size: var(--text-sm);
 }

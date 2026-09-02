@@ -27,6 +27,8 @@ function sourceRow(overrides: Record<string, unknown> = {}) {
     run_count: '1',
     active_minutes: '3',
     total_tokens: '120',
+    token_covered_runs: '1',
+    token_covered_questions: '1',
     source_through: '2026-09-02T10:42:00Z',
     billing_basis_day: '2026-09-01',
     basis_questions: '8',
@@ -122,6 +124,8 @@ describe('hourly materialization', () => {
       runs: 1,
       activeMinutes: 3,
       totalTokens: 120,
+      tokenCoveredRuns: 1,
+      tokenCoveredQuestions: 1,
       spendUsd: 6,
       spendDbu: 3,
       usdQuality: 'partial',
@@ -225,7 +229,8 @@ describe('fast hourly reads', () => {
       expect.arrayContaining([false, 'person@example.test'])
     );
     expect(page.rows[0]).toMatchObject({ spendUsd: 6, questions: 2, coveredDays: 1, billingComplete: false });
-    expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('($5::boolean OR user_key = lower($6))');
+    expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('FROM player_insights.admin_emails');
+    expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('LEFT JOIN aggregated');
     expect(READ_USER_SPEND_HOURLY_SOURCE_QUERY).not.toMatch(/system\.billing|sql\/history|\/api\/2\.0/i);
   });
 });

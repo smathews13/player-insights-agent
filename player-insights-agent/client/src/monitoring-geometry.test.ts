@@ -214,6 +214,40 @@ describe('the panel head and identity controls cannot be clipped', () => {
     expect(rule('.monitoring-question-text')).toMatch(/-webkit-line-clamp:\s*2/);
   });
 
+  it('uses opaque token-mixed row states without changing row geometry', () => {
+    const hover = rule('.monitoring-row:hover,\n.monitoring-row:focus-visible');
+    const selected = rule('.monitoring-row-selected');
+
+    expect(hover).toMatch(
+      /background:\s*color-mix\(in srgb,\s*var\(--ast-surface-primary\)\s*96%,\s*var\(--ast-blue\)\)/
+    );
+    expect(hover).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--ast-hairline\)/);
+    expect(selected).toMatch(
+      /background:\s*color-mix\(in srgb,\s*var\(--ast-surface-primary\)\s*91%,\s*var\(--ast-blue\)\)/
+    );
+    expect(selected).toMatch(/inset 3px 0 0 var\(--ast-blue\)/);
+    for (const state of [hover, selected]) {
+      expect(state).not.toMatch(/padding|margin|border-width|transform/);
+    }
+  });
+
+  it('gives the nested user link a stronger blue state than the row', () => {
+    const link = rule('.monitoring-row .user-drilldown-link,\n.monitoring-question-card .user-drilldown-link');
+    const active = rule(
+      '.monitoring-row .user-drilldown-link:hover .identity-chip,\n.monitoring-row .user-drilldown-link:focus-visible .identity-chip,\n.monitoring-question-card .user-drilldown-link:hover .identity-chip,\n.monitoring-question-card .user-drilldown-link:focus-visible .identity-chip'
+    );
+
+    expect(link).toMatch(/cursor:\s*pointer/);
+    expect(link).toMatch(/opacity:\s*1/);
+    expect(active).toMatch(/border-color:\s*var\(--ast-blue\)/);
+    expect(active).toMatch(/color:\s*var\(--ast-info-text\)/);
+    expect(active).toMatch(
+      /background:\s*color-mix\(in srgb,\s*var\(--ast-surface-primary\)\s*78%,\s*var\(--ast-blue\)\)/
+    );
+    expect(CSS).not.toContain('.monitoring-question-button');
+    expect(CSS).not.toContain('.monitoring-question-card-button');
+  });
+
   it('sets the range beside a heading rather than in the heading’s own voice', () => {
     // It qualifies the section, it is not part of its name. In the eyebrow's own
     // caps and weight it reads as a second heading.
@@ -243,10 +277,10 @@ describe('the filter-row search is a field, not a hole in the sky', () => {
    * The fill is the whole of this rule: size and placement stay on
    * `.monitoring-search`, which is what the wrap arithmetic reads.
    */
-  it('paints the field with an opaque surface and does not resize it', () => {
+  it('paints the field with elevated glass and does not resize it', () => {
     const input = rule('.monitoring-filters .monitoring-search input');
 
-    expect(input).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+    expect(input).toMatch(/background:\s*var\(--ast-surface-elevated\)/);
     expect(input).toMatch(/backdrop-filter:\s*none/);
     expect(input).toMatch(/filter:\s*none/);
     expect(rule('.monitoring-filters .monitoring-search input')).not.toMatch(/height:|min-width:|flex:|margin-left:/);
@@ -267,7 +301,7 @@ describe('the filter-row search is a field, not a hole in the sky', () => {
     const clear = rule('.monitoring-search-clear');
 
     expect(wrapper).toMatch(/isolation:\s*isolate/);
-    expect(wrapper).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+    expect(wrapper).toMatch(/background:\s*var\(--ast-surface-elevated\)/);
     expect(icon).toMatch(/width:\s*16px/);
     expect(icon).toMatch(/height:\s*16px/);
     expect(icon).toMatch(/top:\s*50%/);
@@ -291,10 +325,10 @@ describe('the filter-row search is a field, not a hole in the sky', () => {
     expect(disabled).toMatch(/opacity:\s*1/);
   });
 
-  it('uses the same solid, blur-free field layer in dark mode', () => {
+  it('uses the same elevated, blur-free field layer in dark mode', () => {
     const dark = rule("html[data-theme='dark'] .monitoring-page .monitoring-search input");
 
-    expect(dark).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+    expect(dark).toMatch(/background:\s*var\(--ast-surface-elevated\)/);
     expect(dark).toMatch(/filter:\s*none/);
     expect(dark).toMatch(/backdrop-filter:\s*none/);
   });

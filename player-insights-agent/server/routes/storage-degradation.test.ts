@@ -272,11 +272,11 @@ describe('a write is not confirmed unless something stored it', () => {
   it('refuses feedback rather than answering 201 for a row that was never written', async () => {
     const app = await startApp(store('down'));
     try {
-      const response = await app.post('/api/feedback', { messageId: 'msg-1', usefulness: 5 });
+      const response = await app.post('/api/feedback', { messageId: 'msg-1', sentiment: 'up' });
       const body = (await response.json()) as { error: string; message: string };
 
       // A thumbs-up confirmed during a demo and lost is worse than one that
-      // failed visibly: the usefulness figure is computed from this table.
+      // failed visibly: the feedback counts are computed from this table.
       expect(response.status).toBe(503);
       expect(body.error).toBe('feedback_not_recorded');
       expect(response.headers.get('x-pia-storage')).toBe('unavailable');
@@ -297,13 +297,14 @@ describe('a write is not confirmed unless something stored it', () => {
       },
     });
     try {
-      const response = await app.post('/api/feedback', { messageId: 'msg-1', usefulness: 5 });
-      const body = (await response.json()) as { messageId: string; usefulness: number };
+      const response = await app.post('/api/feedback', { messageId: 'msg-1', sentiment: 'up' });
+      const body = (await response.json()) as { messageId: string; sentiment: string; comment: null };
 
       // The ownership-checked INSERT returns the row it accepted. No returned
       // row is intentionally the indistinguishable missing/other-owner case.
       expect(response.status).toBe(201);
-      expect(body).toMatchObject({ messageId: 'msg-1', usefulness: 5 });
+      expect(body).toEqual(expect.objectContaining({ messageId: 'msg-1', sentiment: 'up', comment: null }));
+      expect(body).not.toHaveProperty('usefulness');
       expect(response.headers.get('x-pia-data-origin')).toBe('lakebase');
     } finally {
       await app.close();

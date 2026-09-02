@@ -213,21 +213,28 @@ describe('the parts a reader has to be able to use', () => {
     // anchor and is the only segment that should carry the full weight.
     expect(rule('.connections-table-name')).toMatch(/font-weight:\s*400/);
     expect(rule(".connections-entity-name [data-entity-part='table']")).toMatch(/font-weight:\s*700/);
-    // The search sits in a compact toolbar above the matrix, sized here; the
-    // magnifying glass and field padding are `.run-search` so this cannot drift
-    // from Monitoring and Run Explorer.
+    // The UC toolbar owns its search geometry so unrelated run-search rules
+    // cannot lift the icon out of the field.
     expect(rule('.connections-table-toolbar')).toMatch(/display:\s*flex/);
-    expect(rule('.connections-table-toolbar')).toMatch(/flex-wrap:\s*nowrap/);
+    expect(rule('.connections-table-toolbar')).toMatch(/flex-direction:\s*column/);
     expect(rule('.connections-table-toolbar')).toMatch(/overflow:\s*visible/);
     expect(rule('.connections-table-filter-menu')).toMatch(/width:\s*max-content/);
     expect(rule('.connections-table-filter-menu')).toMatch(/position:\s*absolute/);
-    expect(rule('.connections-table-search')).toMatch(/flex:\s*none/);
-    expect(rule('.connections-table-search')).toMatch(/width:\s*12rem/);
+    expect(rule('.connections-table-search')).toMatch(/position:\s*relative/);
+    expect(rule('.connections-table-search')).toMatch(/min-width:\s*12rem/);
     expect(rule('.connections-table-search')).toMatch(/height:\s*32px/);
+    expect(rule('.connections-table-search-icon')).toMatch(/position:\s*absolute/);
+    expect(rule('.connections-table-search-icon')).toMatch(/top:\s*50%/);
+    expect(rule('.connections-table-search-icon')).toMatch(/transform:\s*translateY\(-50%\)/);
+    expect(rule('.connections-table-search-icon')).toMatch(/pointer-events:\s*none/);
     expect(rule(".connections-table-search [data-slot='input']")).toMatch(/height:\s*32px/);
+    expect(rule(".connections-table-search [data-slot='input']")).toMatch(/padding-left:\s*32px/);
     expect(rule('.connections-table-filter')).toMatch(/flex:\s*none/);
     expect(rule('.connections-table-filter')).toMatch(/position:\s*relative/);
     expect(rule('.connections-table-filter')).toMatch(/overflow:\s*visible/);
+    expect(rule('.connections-add-uc')).toMatch(/flex:\s*none/);
+    expect(rule('.connections-add-uc')).toMatch(/white-space:\s*nowrap/);
+    expect(rule('.connections-add-uc')).toMatch(/border-color:\s*var\(--ast-blue\)/);
     expect(rule('.connection-block')).toMatch(/overflow:\s*visible/);
     expect(rule('html:has(.connections-page) body[data-scroll-locked]')).toMatch(/padding-right:\s*0\s*!important/);
     expect(rule('.connections-table-detail')).toMatch(/white-space:\s*normal/);
@@ -240,7 +247,9 @@ describe('the parts a reader has to be able to use', () => {
     expect(rule('.connection-block-controls')).toMatch(/flex:\s*0 0 auto/);
     expect(RESPONSIVE).toMatch(/@media \(max-width: 800px\)[\s\S]*?\.connection-block-head\s*\{[^}]*flex-wrap:\s*wrap/);
     expect(RESPONSIVE).toMatch(/\.connection-block-controls\s*\{[^}]*width:\s*100%/);
-    expect(RESPONSIVE).toMatch(/\.connection-block-controls \.connections-table-toolbar\s*\{[^}]*flex-wrap:\s*wrap/);
+    expect(RESPONSIVE).toMatch(
+      /\.connection-block-controls \.connections-table-query-controls,[\s\S]*?\.connections-uc-actions\s*\{[^}]*flex-wrap:\s*wrap/
+    );
   });
 
   it('keeps Connections status badges compact and on one line', () => {
@@ -282,11 +291,11 @@ describe('the parts a reader has to be able to use', () => {
 });
 
 describe('the add-resource surface over the constellation', () => {
-  it('uses theme-aware opaque surfaces for standard rows, the form and picker', () => {
+  it('uses stronger semantic surfaces for standard rows, the form and picker', () => {
     expect(rule('.connection-rows')).toMatch(/background:\s*var\(--popover\)/);
     expect(rule('.plane-add-row')).toMatch(/background:\s*var\(--popover\)/);
     expect(rule('.plane-form')).toMatch(/background:\s*var\(--popover\)/);
-    expect(rule('.asset-picker')).toMatch(/background:\s*var\(--card\)/);
+    expect(rule('.asset-picker')).toMatch(/background:\s*var\(--ast-surface-elevated\)/);
     for (const selector of ['.connection-rows', '.plane-add-row', '.plane-form', '.asset-picker']) {
       expect(rule(selector), selector).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
     }

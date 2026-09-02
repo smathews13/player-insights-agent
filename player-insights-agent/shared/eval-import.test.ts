@@ -9,7 +9,7 @@ describe('evaluation set import filters', () => {
         question: 'How many?',
         durationMs: 51_000,
         outcome: 'failed',
-        rating: 'down',
+        feedback: 'down',
         judges: [{ value: 'no' }],
       })
     ).toEqual(['low_judge_score', 'tool_failure', 'latency', 'customer_feedback']);

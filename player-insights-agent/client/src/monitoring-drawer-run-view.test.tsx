@@ -97,8 +97,7 @@ function detail(overrides: Partial<MonitoringDetail> = {}): MonitoringDetail {
     trace,
     tokens: { prompt: 900, completion: 300, total: 1200 },
     execution: { mode: 'signed_in_user', verified: true },
-    rating: 'up',
-    usefulness: 4,
+    feedback: 'down',
     comment: 'Exactly what I needed.',
     mlflowUrl: 'https://example.test/ml/experiments/1/traces',
     runId: 'a1',
@@ -121,7 +120,7 @@ describe('a Monitoring question opens as a centered modal over the list', () => 
     expect(markup).toContain('data-testid="monitoring-question-overlay"');
     expect(markup).toContain('role="dialog"');
     expect(markup).toContain('aria-modal="true"');
-    expect(markup).toContain('class="monitoring-question-modal"');
+    expect(markup).toContain('class="monitoring-question-modal ast-dialog-panel"');
     expect(markup).not.toMatch(/class="[^"]*monitoring-drawer"/);
   });
 
@@ -276,7 +275,7 @@ describe('the answer card still draws the run view where it is the only one', ()
     saved: false,
     saving: false,
     error: null,
-    usefulness: null,
+    sentiment: null,
   };
 
   /**

@@ -433,6 +433,7 @@ export interface MonthlyBudgetProgress {
   balance: string;
   pace: string;
   tone: 'normal' | 'warning' | 'danger';
+  estimated: boolean;
 }
 
 function dayNumber(day: string): number | null {
@@ -441,10 +442,9 @@ function dayNumber(day: string): number | null {
 }
 
 /**
- * Project month-end exhaustion from authoritative complete MTD spend only.
- * Pace is measured spend divided by inclusive complete billing days; the
- * displayed days-to-exhaust is the remaining amount divided by that pace,
- * rounded up. A date at month end is not described as exhausting beforehand.
+ * Project month-end budget crossing from the canonical MTD display snapshot.
+ * Partial snapshots remain useful display estimates but never change fail-open
+ * enforcement. Pace is measured spend divided by inclusive observed days.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- pure month pacing is covered without mounting React
 export function monthlyBudgetProgress(
@@ -452,37 +452,44 @@ export function monthlyBudgetProgress(
   savedBudget: number | null,
   unit: CostBudgetUnit
 ): MonthlyBudgetProgress | null {
-  if (
-    savedBudget === null ||
-    !hasCompleteBudgetMeasurement(status) ||
-    status.unit !== unit ||
-    status.budget !== savedBudget
-  ) {
-    return null;
-  }
-  const difference = savedBudget - status.measured;
-  const ratio = savedBudget === 0 ? Number.POSITIVE_INFINITY : status.measured / savedBudget;
+  if (savedBudget === null || !status) return null;
+  const display = status.displayMtdSpend?.[unit];
+  const legacy =
+    !display && status.unit === unit && status.measured !== null
+      ? {
+          amount: status.measured,
+          budget: status.budget,
+          coverage: status.coverage,
+          sourceThrough: status.measuredThrough,
+        }
+      : null;
+  const snapshot = display ?? legacy;
+  if (snapshot?.amount === null || snapshot?.amount === undefined) return null;
+  const difference = savedBudget - snapshot.amount;
+  const ratio = savedBudget === 0 ? Number.POSITIVE_INFINITY : snapshot.amount / savedBudget;
   const tone = ratio >= 1 ? 'danger' : ratio >= 0.8 ? 'warning' : 'normal';
   const balance = `${Math.abs(difference).toFixed(2)} ${unit} ${difference < 0 ? 'over budget' : 'remaining'}`;
-  if (status.measured >= savedBudget) return { balance, pace: 'Budget exhausted', tone };
+  const estimated = snapshot.coverage !== 'complete';
+  if (snapshot.amount >= savedBudget) return { balance, pace: 'Budget exceeded', tone, estimated };
 
   const start = dayNumber(status.monthStart);
-  const through = dayNumber(status.measuredThrough);
+  const through = dayNumber(snapshot.sourceThrough);
   const end = dayNumber(status.monthEnd);
   if (start === null || through === null || end === null || through < start || end < through) {
-    return { balance, pace: 'Not projected to exhaust this month', tone };
+    return { balance, pace: 'Not projected to exceed this month', tone, estimated };
   }
   const observedDays = through - start + 1;
-  const dailyPace = observedDays > 0 ? status.measured / observedDays : 0;
-  if (!(dailyPace > 0)) return { balance, pace: 'Not projected to exhaust this month', tone };
-  const daysToExhaust = Math.ceil(difference / dailyPace);
+  const dailyPace = observedDays > 0 ? snapshot.amount / observedDays : 0;
+  if (!(dailyPace > 0)) return { balance, pace: 'Not projected to exceed this month', tone, estimated };
+  const daysToExceed = Math.ceil(difference / dailyPace);
   return {
     balance,
     pace:
-      daysToExhaust < end - through
-        ? `Budget exhausted in ${daysToExhaust} ${daysToExhaust === 1 ? 'day' : 'days'} at current pace`
-        : 'Not projected to exhaust this month',
+      daysToExceed <= end - through
+        ? `${daysToExceed} ${daysToExceed === 1 ? 'day' : 'days'} until budget exceeded`
+        : 'Not projected to exceed this month',
     tone,
+    estimated,
   };
 }
 
@@ -498,23 +505,36 @@ export function SavedAppBudgetSummary({
   if (savedBudget === null) return null;
   const progress = monthlyBudgetProgress(status, savedBudget, unit);
   return (
-    <div className="ops-cost-summary-budget">
-      <span>Monthly app budget</span>
-      <span className="ops-cost-summary-budget-values">
-        {progress ? (
-          <strong className="ast-num ops-cost-budget-balance" data-budget-tone={progress.tone}>
-            {progress.balance}
-          </strong>
-        ) : null}
+    <div className="ops-cost-summary-budget" role="status" aria-live="polite" aria-label="Monthly app budget status">
+      <span className="ops-cost-summary-budget-item">
+        <span>Monthly app budget</span>
         <strong className="ast-num">
           {savedBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}
         </strong>
       </span>
       {progress ? (
-        <span className="ops-cost-summary-budget-mtd" data-budget-tone={progress.tone}>
-          {progress.pace}
+        <>
+          <span
+            className="ops-cost-summary-budget-item ops-cost-budget-balance"
+            data-budget-tone={progress.tone}
+            aria-label={`Budget balance: ${progress.balance}`}
+          >
+            <strong className="ast-num">{progress.balance}</strong>
+            {progress.estimated ? <span className={astPill('neutral-outline', 'ops-pill')}>Estimated</span> : null}
+          </span>
+          <span
+            className="ops-cost-summary-budget-item ops-cost-summary-budget-mtd"
+            data-budget-tone={progress.tone}
+            aria-label={`Budget pacing: ${progress.pace}`}
+          >
+            {progress.pace}
+          </span>
+        </>
+      ) : (
+        <span className="ops-cost-summary-budget-item ops-cost-summary-budget-unavailable">
+          Spend estimate unavailable
         </span>
-      ) : null}
+      )}
     </div>
   );
 }

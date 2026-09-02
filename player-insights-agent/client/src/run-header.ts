@@ -17,7 +17,7 @@
  * only exists inside markup can be asserted against a rendered tree and never
  * against itself.
  */
-import { ratingOutOf } from './benchmark-format';
+import { feedbackLabel, type FeedbackDirection } from '../../shared/feedback-direction';
 
 /**
  * How much of an id is enough to recognise it by.
@@ -102,24 +102,17 @@ export interface RunHeadline {
   durationMs?: number | null;
   /** The agent's own external-call counter for this run. */
   toolCalls?: number | null;
-  rating?: number | null;
+  feedback?: FeedbackDirection | null;
 }
 
 /**
- * The run in one line: wall time, external calls, and the reader's rating.
+ * The run in one line: wall time, external calls, and human feedback.
  *
- * Seconds to one decimal, as the run list and the Overview tile print them, so
- * one run reads the same wherever it is on screen. The scale comes from
- * `ratingOutOf` rather than from a second `/5` written here, for the reason
- * RATING_SCALE is named at all: the top of the scale is the feedback column's
- * constraint, and a surface that asserts it on its own is a surface that will
- * still say 5 after the column changes.
- *
- * The rating half is always said, because "not rated" is a fact about the run and
- * an absent rating reads as an oversight in the header rather than as the normal
- * state it is.
+ * Seconds to one decimal, as the run list and Overview tile print them, so one
+ * run reads the same everywhere. Feedback is always named by direction, with an
+ * explicit No feedback state where the header needs one.
  */
-export function runHeadline({ durationMs, toolCalls, rating }: RunHeadline): string {
+export function runHeadline({ durationMs, toolCalls, feedback }: RunHeadline): string {
   const parts: string[] = [];
   if (typeof durationMs === 'number' && Number.isFinite(durationMs)) {
     parts.push(`${(durationMs / 1000).toFixed(1)}s`);
@@ -127,6 +120,6 @@ export function runHeadline({ durationMs, toolCalls, rating }: RunHeadline): str
   if (typeof toolCalls === 'number' && Number.isFinite(toolCalls)) {
     parts.push(`${toolCalls} tool call${toolCalls === 1 ? '' : 's'}`);
   }
-  parts.push(typeof rating === 'number' && Number.isFinite(rating) ? `rated ${ratingOutOf(rating)}` : 'Not rated yet');
+  parts.push(feedbackLabel(feedback ?? null));
   return parts.join(' · ');
 }

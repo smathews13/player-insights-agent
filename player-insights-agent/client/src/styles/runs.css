@@ -30,12 +30,18 @@
      still contracts fluidly below this cap and the narrow breakpoint stacks the
      run list above the detail. */
   max-width: 1760px;
+  width: 100%;
+  height: calc(100dvh - var(--app-header-h));
+  box-sizing: border-box;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
   /*
    * Restate the shell's top air so this page cannot lose it to a later
    * shorthand. The title sat flush under the nav; 56px is the room that
    * actually shows above "Run Explorer".
    */
   padding-top: 56px;
+  padding-bottom: 24px;
 }
 /* There was an eyebrow above the h2 here, reading PROGRESSIVE TRACE DISCLOSURE,
    with a grid wrapper to close the page gap under it. It named the mechanism the
@@ -229,9 +235,8 @@
 }
 .stage-raw-io-stage .trace-payload pre {
   margin: 0;
-  max-height: 260px;
   padding: 8px 10px;
-  overflow: auto;
+  overflow: visible;
   background: var(--db-wash);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -288,12 +293,13 @@
 }
 .token-invocations {
   max-width: 100%;
-  overflow-x: auto;
+  overflow: visible;
   border-top: 1px solid var(--db-line);
 }
 .token-invocations table {
   width: 100%;
-  min-width: 700px;
+  min-width: 0;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--text-xs);
 }
@@ -308,11 +314,17 @@
   padding: 7px 10px;
   border-top: 1px solid var(--ast-hairline);
   text-align: right;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .token-invocations th:first-child {
-  min-width: 160px;
+  width: 30%;
   text-align: left;
+}
+.token-invocations th:nth-child(2) {
+  width: 10%;
+}
+.token-invocations th:nth-child(n + 3) {
+  width: 15%;
 }
 .token-invocations thead th {
   color: var(--db-slate);
@@ -371,13 +383,14 @@
 .trace-summary > pre {
   margin: 0;
   padding: 10px 12px;
-  max-height: 420px;
   border-top: 1px solid var(--db-line);
   background: var(--db-wash);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: 1.6;
-  overflow: auto;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 /* Static panels carry a hairline and nothing else, and there are exactly two
    radii. AppKit's Card ships `shadow-sm` and `rounded-xl`; both are utilities,
@@ -405,18 +418,20 @@ html body[data-scroll-locked] {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
   min-width: 0;
+  min-height: 0;
   /* Clip rather than scroll: a menu that failed to portal must not grow the
      grid or summon a page-level horizontal bar. Portaled menus still overlay
      from `document.body`. */
   overflow-x: clip;
 }
 .run-list {
-  position: sticky;
-  top: calc(var(--app-header-h) + 24px);
-  max-height: calc(100vh - var(--app-header-h) - 46px);
+  position: static;
+  height: 100%;
+  max-height: none;
   min-width: 0;
+  min-height: 0;
   overflow-x: clip;
   overflow-y: auto;
   scrollbar-gutter: stable;
@@ -662,9 +677,8 @@ html body[data-scroll-locked] {
  * on this sheet.
  */
 .run-detail {
-  position: sticky;
-  top: calc(var(--app-header-h) + 24px);
-  height: calc(100dvh - var(--app-header-h) - 46px);
+  position: static;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -676,40 +690,35 @@ html body[data-scroll-locked] {
   border: 1px solid var(--ast-hairline);
   border-radius: var(--ast-radius-card);
   background: var(--ast-pane);
-  overflow: hidden;
-}
-/*
- * The run header and tabs stay in the anchored detail column. Each tab's body
- * owns the only vertical scroller below them, so expanding a timeline row or an
- * Agent map detail cannot move the document and cannot shift page chrome.
- */
-.run-detail-tabs {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-.run-detail-tab-panel {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  margin: 0;
-  overflow: hidden;
-}
-.run-detail-scroll {
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  padding-right: 4px;
-  overflow-x: hidden;
+  overflow-x: clip;
   overflow-y: auto;
   overscroll-behavior: contain;
   overflow-anchor: none;
   scrollbar-gutter: stable;
+}
+/*
+ * The run header, tabs and active body expand as one document inside
+ * `.run-detail`, the desktop right-side scroll owner. No tab or result panel
+ * gets a second vertical viewport.
+ */
+.run-detail-tabs {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  min-width: 0;
+  overflow: visible;
+}
+.run-detail-tab-panel {
+  flex: none;
+  min-width: 0;
+  margin: 0;
+  overflow: visible;
+}
+.run-detail-content {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
 }
 .run-detail-state {
   min-height: 430px;
@@ -1202,6 +1211,31 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   background: var(--ast-pane);
   border: 1px solid var(--ast-hairline);
   padding: 0;
+}
+/*
+ * Run Explorer has one right-side scroll owner. Recorded prose, code and tables
+ * therefore grow inside that workspace instead of introducing horizontal or
+ * vertical sub-scrollers.
+ */
+.run-explorer .answer-code-block,
+.run-explorer .code-panel pre {
+  max-height: none;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.run-explorer .answer-table-wrap {
+  overflow: visible;
+}
+.run-explorer .answer-table {
+  table-layout: fixed;
+}
+.run-explorer .answer-table thead th,
+.run-explorer .answer-table [data-wrap='atomic'],
+.run-explorer .answer-table [data-wrap='prose'] {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .final-answer [data-slot='card-content'],
 .run-explorer .final-answer > [data-slot='card-content'] {

@@ -32,6 +32,22 @@ describe('app budget status client decoder', () => {
     expect(decodeAppBudgetStatus({ ...completeStatus, approval: { approved: true } })).toBeNull();
   });
 
+  it('decodes display MTD independently while accepting legacy responses without it', () => {
+    expect(decodeAppBudgetStatus(completeStatus)?.displayMtdSpend).toBeUndefined();
+    const current = {
+      ...completeStatus,
+      displayMtdSpend: {
+        USD: {
+          amount: 75,
+          budget: 100,
+          coverage: 'partial',
+          sourceThrough: '2026-09-14',
+        },
+      },
+    };
+    expect(decodeAppBudgetStatus(current)?.displayMtdSpend?.USD).toEqual(current.displayMtdSpend.USD);
+  });
+
   it('keeps the eager Ask status module free of Zod and schema-bearing budget modules', () => {
     const source = readFileSync(new URL('./app-budget-status.ts', import.meta.url), 'utf8');
     expect(source).not.toMatch(/from ['"]zod['"]/);

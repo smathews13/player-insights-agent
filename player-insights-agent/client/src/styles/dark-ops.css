@@ -3,7 +3,7 @@ html[data-theme='dark'] .ops-stop-all,
 html[data-theme='dark'] .ops-block-failed,
 html[data-theme='dark'] .ops-absence {
   background: var(--card);
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 

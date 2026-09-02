@@ -101,9 +101,7 @@ describe('dark transcript surfaces do not stack frosted panes', () => {
         /background:\s*transparent[\s\S]*backdrop-filter:\s*none/
       );
     }
-    expect(groupedBody("html[data-theme='dark'] .trace-kpi", dark)).toMatch(
-      /background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/
-    );
+    expect(groupedBody("html[data-theme='dark'] .trace-kpi", dark)).toMatch(/background:\s*var\(--ast-surface-muted\)/);
     // The wrapper Ask draws it in, and the absence of a wrapper-scoped twin that
     // would quietly stop covering the second surface.
     expect(readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8')).toContain('className="run-process"');
@@ -152,11 +150,12 @@ describe('the app shell measures what every sticky offset thinks it measures', (
     // the brand column is the rail's width less this inset, so the two are one
     // number.
     const tokens = partial('tokens.css');
-    expect(tokens).toMatch(/--app-header-h:\s*52px/);
+    expect(tokens).toMatch(/--app-header-content-h:\s*52px/);
+    expect(tokens).toMatch(/--app-header-h:\s*calc\(var\(--app-header-content-h\) \+ var\(--app-header-safe-top\)\)/);
     expect(tokens).toMatch(/--app-header-pad-x:\s*20px/);
     const header = body('.app-header');
     expect(header).toMatch(/height:\s*var\(--app-header-h\)/);
-    expect(header).toMatch(/padding:\s*0 var\(--app-header-pad-x\)/);
+    expect(header).toMatch(/padding:\s*var\(--app-header-safe-top\) var\(--app-header-pad-x\) 0/);
     // The blue rule across the top went with the arithmetic it was three pixels
     // of. The design reference's chrome has one border and it is the hairline
     // under the bar.
@@ -282,7 +281,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(atWidth(800)).toMatch(/bottom:\s*calc\(12px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
   });
 
-  it('keeps the chrome translucent, and blurs it enough that prose cannot read through', () => {
+  it('uses high-alpha semantic chrome without backdrop blur', () => {
     /*
      * Two faults, and the fix for the first caused the second.
      *
@@ -309,31 +308,18 @@ describe('the ask home is the geometry the mockup gives it', () => {
      * behind it, which is exactly what "still solid blue" describes.
      */
     const dark = partial('dark-mode.css');
-    for (const selector of ["html[data-theme='dark'] .app-header", "html[data-theme='dark'] .composer"]) {
+    for (const [selector, token] of [
+      ["html[data-theme='dark'] .app-header", '--ast-surface-chrome'],
+      ["html[data-theme='dark'] .composer", '--ast-surface-primary'],
+    ] as const) {
       const rule = body(selector, dark);
-      expect(rule, `${selector} shares the rail’s fill`).toMatch(/background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/);
-      expect(rule, `${selector} is not the overlay slab`).not.toMatch(/var\(--ast-surface-solid\)/);
-      // The number is the claim: 2px was the smear, and anything in this range
-      // is past the point 13px type survives it.
-      const blur = Number(rule.match(/backdrop-filter:\s*blur\((\d+)px\)/)?.[1] ?? 0);
-      expect(blur, `${selector} blurs hard enough to occlude`).toBeGreaterThanOrEqual(12);
-      // Blur softens what is behind the chrome. Any other filter function
-      // RECOLOURS it, and the chrome's whole job is to be the same surface as
-      // the page it sits on.
-      expect(rule, `${selector} does not recolour the sky it sits on`).not.toMatch(
-        /saturate|contrast|brightness|hue-rotate/
-      );
+      expect(rule, `${selector} uses its semantic layer`).toContain(`background: var(${token})`);
+      expect(rule, `${selector} avoids backdrop work`).toMatch(/backdrop-filter:\s*none/);
+      expect(rule).not.toMatch(/blur\(|saturate|contrast|brightness|hue-rotate/);
     }
-    // The panes beside the transcript are deliberately untouched. Asserted so
-    // that "make the chrome opaque" is not later applied to the whole group,
-    // which would flatten the night sky the design is built on.
-    // Read off the grouped rule the three of them share, which `body()` cannot
-    // address: it matches a selector standing alone before its brace.
-    const group = withoutComments(dark).match(/([^{}]*\.conversation-rail[^{]*)\{([^{}]*)\}/);
-    const [selectors, declarations] = [group?.[1] ?? '', group?.[2] ?? ''];
-    expect(selectors, 'the inspector shares the rail’s rule').toContain('.trace-inspector');
-    expect(selectors, 'and the composer no longer does').not.toContain('.composer');
-    expect(declarations, 'the side panes stay frosted').toMatch(/backdrop-filter:\s*blur\(2px\)/);
+    expect(body("html[data-theme='dark'] .conversation-rail", dark)).toMatch(
+      /background:\s*var\(--ast-surface-primary\)[\s\S]*backdrop-filter:\s*none/
+    );
   });
 
   it('spends less of the middle column on empty side gutters', () => {

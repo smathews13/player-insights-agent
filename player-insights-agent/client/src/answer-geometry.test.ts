@@ -561,11 +561,11 @@ describe('the advanced panel is a row and a code block, on the shared recipes', 
     expect(CARD).toContain('className="ast-pill ast-pill--neutral-outline"');
   });
 
-  it('says a failed rating in the negative family, not in AppKit’s destructive', () => {
+  it('says a failed feedback save in the negative family, not AppKit destructive', () => {
     // The one sentence in the feedback row that reports a failure. It was
     // `text-destructive text-xs` on the markup, which is a second red beside the
     // three the rest of the card draws.
-    expect(CARD).toContain('<span className="feedback-error">{feedback.error}</span>');
+    expect(CARD).toContain('className="feedback-error" role="alert"');
     const rule = ruleFor(BODY_CSS, '.feedback-error {');
     expect(rule).toContain('color: var(--ast-neg-text)');
     expect(CARD).not.toContain('text-destructive');
@@ -810,11 +810,9 @@ describe('the two cards do not reach past the token block', () => {
     }
   });
 
-  it('is still part of the stylesheet the other tests read', () => {
-    // partial() reads a file directly; stylesheet() parses index.css for the
-    // import order. A partial dropped from that list would leave every claim
-    // above passing and none of the rules loaded.
+  it('loads the body rules with the lazy answer card', () => {
     expect(STYLESHEET).toContain('.provenance-chip {');
-    expect(STYLESHEET).toContain('.answer-stat-rail {');
+    expect(BODY_CSS).toContain('.answer-stat-rail {');
+    expect(CARD).toContain("import './styles/answer-body.css'");
   });
 });

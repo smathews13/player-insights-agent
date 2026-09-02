@@ -18,7 +18,7 @@ function summary(
   durationMs: number | null,
   truncated = false
 ): RailRunSummary {
-  return { runId, status, tone, durationMs, rating: null, truncated };
+  return { runId, status, tone, durationMs, feedback: null, truncated };
 }
 
 /**

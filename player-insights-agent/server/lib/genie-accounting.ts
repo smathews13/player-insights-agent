@@ -116,12 +116,17 @@ price_hits AS (
   SELECT
     usage.*,
     p.pricing.default AS unit_price,
-    p.currency_code,
-    COUNT(p.sku_name) OVER (PARTITION BY usage.record_id) AS price_match_count
+    p.currency_code
   FROM genie_usage usage
   LEFT JOIN system.billing.list_prices p
-    ON usage.sku_name <> '${GENIE_FREE_SKU}'
-   AND usage.sku_name = p.sku_name
+    ON (
+      (usage.sku_name <> '${GENIE_FREE_SKU}' AND usage.sku_name = p.sku_name)
+      OR (
+        usage.sku_name = '${GENIE_FREE_SKU}'
+        AND UPPER(p.sku_name) LIKE '%SERVERLESS_REAL_TIME_INFERENCE%'
+        AND UPPER(p.currency_code) = 'USD'
+      )
+   )
    AND usage.cloud = p.cloud
    AND usage.usage_unit = p.usage_unit
    AND usage.usage_end_time >= p.price_start_time
@@ -130,7 +135,7 @@ price_hits AS (
 deduped AS (
   SELECT
     record_id, usage_date, sku_name, usage_quantity, record_type, run_as, surface, channel, offering_type,
-    MAX(price_match_count) AS price_match_count,
+    COUNT(DISTINCT CONCAT_WS('|', CAST(unit_price AS STRING), COALESCE(currency_code, ''))) AS price_match_count,
     MAX(unit_price) AS unit_price,
     MAX(currency_code) AS currency_code
   FROM price_hits
@@ -242,7 +247,13 @@ SELECT
     AS unpriced_rows,
   COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
   SUM(allocation_weight) AS source_rows,
-  MAX(usage_date) AS through_day
+  MAX(usage_date) AS through_day,
+  CASE
+    WHEN sku_name <> '${GENIE_FREE_SKU}' THEN CAST(NULL AS DOUBLE)
+    WHEN COUNT(*) FILTER (WHERE price_match_count <> 1 OR unit_price IS NULL) > 0 THEN CAST(NULL AS DOUBLE)
+    ELSE SUM(usage_quantity * unit_price * allocation_weight)
+  END AS free_equivalent_usd,
+  MAX(currency_code) FILTER (WHERE sku_name = '${GENIE_FREE_SKU}' AND price_match_count = 1) AS price_currency
 FROM allocated
 GROUP BY usage_date, run_as, identity_kind, surface, channel, offering_type, sku_name, space_id, attribution_method
 ORDER BY usage_date, identity_kind, identity, space_id, surface, sku_name`,
@@ -266,6 +277,8 @@ export interface GenieAccountingRow {
   correctionRows: number;
   sourceRows: number;
   throughDay: string;
+  freeEquivalentUsd?: number | null;
+  priceCurrency?: string;
 }
 
 function text(value: unknown): string {
@@ -295,6 +308,8 @@ const GENIE_ACCOUNTING_COLUMNS = [
   'correction_rows',
   'source_rows',
   'through_day',
+  'free_equivalent_usd',
+  'price_currency',
 ] as const;
 
 /** Parse both Statement API JSON_ARRAY rows and named test/adapter rows without converting malformed data to zero. */
@@ -334,6 +349,8 @@ export function readGenieAccountingRows(rows: unknown): GenieAccountingRow[] {
       correctionRows: Math.max(0, number(row.correction_rows) ?? 0),
       sourceRows: Math.max(0, number(row.source_rows) ?? 1),
       throughDay: text(row.through_day),
+      freeEquivalentUsd: number(row.free_equivalent_usd),
+      priceCurrency: text(row.price_currency),
     });
   }
   return parsed;
@@ -362,6 +379,10 @@ interface MutableSlice {
   unknown: number;
   paidUsd: number;
   paidUsdComplete: boolean;
+  allowanceEquivalentUsd: number;
+  allowanceEquivalentComplete: boolean;
+  promotionalEquivalentUsd: number;
+  promotionalEquivalentComplete: boolean;
   hasRows: boolean;
   hasCharged: boolean;
   attribution: GenieInstanceAccounting['attribution'];
@@ -383,6 +404,10 @@ function emptySlice(attribution: GenieInstanceAccounting['attribution']): Mutabl
     unknown: 0,
     paidUsd: 0,
     paidUsdComplete: true,
+    allowanceEquivalentUsd: 0,
+    allowanceEquivalentComplete: true,
+    promotionalEquivalentUsd: 0,
+    promotionalEquivalentComplete: true,
     hasRows: false,
     hasCharged: false,
     attribution,
@@ -412,7 +437,8 @@ function addCategory(
   quantity: number,
   raw: number,
   paidUsd: number | null,
-  priced: boolean
+  priced: boolean,
+  freeEquivalentUsd: number | null = 0
 ): void {
   target.hasRows = true;
   const surfaceTarget = target.surfaces.get(surface) ?? emptySlice(target.attribution);
@@ -421,9 +447,23 @@ function addCategory(
   if (category === 'allowance') {
     target.allowance += quantity;
     surfaceTarget.allowance += quantity;
+    if (freeEquivalentUsd === null) {
+      target.allowanceEquivalentComplete = false;
+      surfaceTarget.allowanceEquivalentComplete = false;
+    } else {
+      target.allowanceEquivalentUsd += freeEquivalentUsd;
+      surfaceTarget.allowanceEquivalentUsd += freeEquivalentUsd;
+    }
   } else if (category === 'promotional') {
     target.promotional += quantity;
     surfaceTarget.promotional += quantity;
+    if (freeEquivalentUsd === null) {
+      target.promotionalEquivalentComplete = false;
+      surfaceTarget.promotionalEquivalentComplete = false;
+    } else {
+      target.promotionalEquivalentUsd += freeEquivalentUsd;
+      surfaceTarget.promotionalEquivalentUsd += freeEquivalentUsd;
+    }
   } else if (category === 'charged') {
     target.hasCharged = true;
     surfaceTarget.hasCharged = true;
@@ -450,6 +490,25 @@ function pricingState(value: MutableSlice): GenieInstanceAccounting['pricingStat
   return value.paidUsd > 0 ? 'partial' : 'unpriced';
 }
 
+function freeEquivalent(value: MutableSlice): {
+  amount: number | null;
+  state: 'priced' | 'partial' | 'unpriced';
+} {
+  const hasAllowance = value.allowance > 0;
+  const hasPromotional = value.promotional > 0;
+  if (!hasAllowance && !hasPromotional) return { amount: 0, state: 'priced' };
+  const complete =
+    (!hasAllowance || value.allowanceEquivalentComplete) && (!hasPromotional || value.promotionalEquivalentComplete);
+  if (complete) {
+    return {
+      amount: Math.max(0, value.allowanceEquivalentUsd + value.promotionalEquivalentUsd),
+      state: 'priced',
+    };
+  }
+  const known = value.allowanceEquivalentUsd + value.promotionalEquivalentUsd;
+  return { amount: null, state: known > 0 ? 'partial' : 'unpriced' };
+}
+
 function surfaceResults(value: MutableSlice): GenieSurfaceAccounting[] {
   return [...value.surfaces]
     .map(([surface, item]) => ({
@@ -464,7 +523,8 @@ function surfaceResults(value: MutableSlice): GenieSurfaceAccounting[] {
     .sort((left, right) => left.surface.localeCompare(right.surface));
 }
 
-function instanceResult(space: ConfiguredGenieSpace, value: MutableSlice): GenieInstanceAccounting {
+function instanceResult(space: ConfiguredGenieSpace, value: MutableSlice, pricedThrough = ''): GenieInstanceAccounting {
+  const equivalent = freeEquivalent(value);
   return {
     spaceId: space.id,
     label: space.label,
@@ -477,6 +537,10 @@ function instanceResult(space: ConfiguredGenieSpace, value: MutableSlice): Genie
     chargedRawEquivalentDbus: Math.max(0, value.chargedRaw),
     unknownDbus: Math.max(0, value.unknown),
     paidUsd: value.paidUsdComplete ? Math.max(0, value.paidUsd) : null,
+    freeEquivalentUsd: equivalent.amount,
+    freeEquivalentPricingState: equivalent.state,
+    freeEquivalentPriceSource: 'system.billing.list_prices',
+    freeEquivalentPricedThrough: pricedThrough,
     underlyingTotalDbus: Math.max(0, value.allowance + value.promotional + value.chargedRaw + value.unknown),
     pricingState: pricingState(value),
     surfaces: surfaceResults(value),
@@ -489,6 +553,7 @@ function userResult(
   configured: ReadonlyMap<string, ConfiguredGenieSpace>
 ): GenieUserAccounting {
   const allowanceUsed = Math.min(GENIE_ALLOWANCE_DBUS_PER_USER, Math.max(0, value.allowance));
+  const equivalent = freeEquivalent(value);
   return {
     identity,
     allowanceUsedDbus: allowanceUsed,
@@ -498,6 +563,9 @@ function userResult(
     chargedRawEquivalentDbus: Math.max(0, value.chargedRaw),
     unknownDbus: Math.max(0, value.unknown),
     paidUsd: value.paidUsdComplete ? Math.max(0, value.paidUsd) : null,
+    freeEquivalentUsd: equivalent.amount,
+    freeEquivalentPricingState: equivalent.state,
+    freeEquivalentPriceSource: 'system.billing.list_prices',
     instances: [...value.instances]
       .map(([spaceId, instance]) => {
         const space =
@@ -564,13 +632,17 @@ export function classifyGenieAccounting(
 
     if (isFree && row.identityKind === 'human' && knownSurface) {
       if (promo && row.surface !== 'GENIE_CODE') {
-        addCategory(overall, surface, 'promotional', quantity, quantity, 0, true);
-        addCategory(instance, surface, 'promotional', quantity, quantity, 0, true);
-        if (person) addCategory(person, surface, 'promotional', quantity, quantity, 0, true);
-        if (userInstance) addCategory(userInstance, surface, 'promotional', quantity, quantity, 0, true);
+        addCategory(overall, surface, 'promotional', quantity, quantity, 0, true, row.freeEquivalentUsd ?? null);
+        addCategory(instance, surface, 'promotional', quantity, quantity, 0, true, row.freeEquivalentUsd ?? null);
+        if (person)
+          addCategory(person, surface, 'promotional', quantity, quantity, 0, true, row.freeEquivalentUsd ?? null);
+        if (userInstance)
+          addCategory(userInstance, surface, 'promotional', quantity, quantity, 0, true, row.freeEquivalentUsd ?? null);
       } else {
-        if (person) addCategory(person, surface, 'allowance', quantity, quantity, 0, true);
-        if (userInstance) addCategory(userInstance, surface, 'allowance', quantity, quantity, 0, true);
+        if (person)
+          addCategory(person, surface, 'allowance', quantity, quantity, 0, true, row.freeEquivalentUsd ?? null);
+        if (userInstance)
+          addCategory(userInstance, surface, 'allowance', quantity, quantity, 0, true, row.freeEquivalentUsd ?? null);
       }
       continue;
     }
@@ -611,29 +683,38 @@ export function classifyGenieAccounting(
     const scale = rawAllowance > 0 ? capped / rawAllowance : 0;
     const excess = rawAllowance - capped;
     user.allowance = capped;
+    user.allowanceEquivalentUsd *= scale;
     user.unknown += excess;
     for (const [spaceId, userInstance] of user.instances) {
       const rawInstanceAllowance = userInstance.allowance;
       const instanceExcess = rawInstanceAllowance * (1 - scale);
       userInstance.allowance = rawInstanceAllowance * scale;
+      userInstance.allowanceEquivalentUsd *= scale;
       userInstance.unknown += instanceExcess;
       const target = sliceFor(instances, spaceId, userInstance.attribution);
       target.allowance += userInstance.allowance;
+      target.allowanceEquivalentUsd += userInstance.allowanceEquivalentUsd;
+      target.allowanceEquivalentComplete &&= userInstance.allowanceEquivalentComplete;
       target.unknown += instanceExcess;
       target.hasRows ||= userInstance.hasRows;
       for (const [surface, userSurface] of userInstance.surfaces) {
         const rawSurfaceAllowance = userSurface.allowance;
         const surfaceExcess = rawSurfaceAllowance * (1 - scale);
         userSurface.allowance = rawSurfaceAllowance * scale;
+        userSurface.allowanceEquivalentUsd *= scale;
         userSurface.unknown += surfaceExcess;
         const targetSurface = target.surfaces.get(surface) ?? emptySlice(target.attribution);
         target.surfaces.set(surface, targetSurface);
         targetSurface.allowance += userSurface.allowance;
+        targetSurface.allowanceEquivalentUsd += userSurface.allowanceEquivalentUsd;
+        targetSurface.allowanceEquivalentComplete &&= userSurface.allowanceEquivalentComplete;
         targetSurface.unknown += surfaceExcess;
         targetSurface.hasRows ||= userSurface.hasRows;
       }
     }
     overall.allowance += capped;
+    overall.allowanceEquivalentUsd += user.allowanceEquivalentUsd;
+    overall.allowanceEquivalentComplete &&= user.allowanceEquivalentComplete;
     overall.unknown += excess;
   }
 
@@ -657,11 +738,15 @@ export function classifyGenieAccounting(
   const allowanceRemaining = perUser.reduce((total, user) => total + user.allowanceRemainingDbus, 0);
   const allowanceCapacity = perUser.length * GENIE_ALLOWANCE_DBUS_PER_USER;
   const instanceResults = spaces.map((space) =>
-    instanceResult(space, instances.get(space.id) ?? emptySlice('query-history-exact'))
+    instanceResult(space, instances.get(space.id) ?? emptySlice('query-history-exact'), newest || throughDay)
   );
   const unattributedValue = instances.get('');
   const unattributed = unattributedValue
-    ? instanceResult({ id: '', label: 'Unattributed Genie', tileId: 'genie:unattributed' }, unattributedValue)
+    ? instanceResult(
+        { id: '', label: 'Unattributed Genie', tileId: 'genie:unattributed' },
+        unattributedValue,
+        newest || throughDay
+      )
     : null;
   const attributedDbus = rows.filter((row) => configured.has(row.spaceId)).reduce((total, row) => total + row.dbus, 0);
   const unattributedDbus = sourceDbus - attributedDbus;
@@ -673,6 +758,7 @@ export function classifyGenieAccounting(
     .reduce((total, row) => total + row.dbus, 0);
   const classifiedDbus = Math.max(0, allowanceUsed + overall.promotional + overall.chargedEffective + overall.unknown);
   const classificationDifference = sourceDbus - classifiedDbus;
+  const overallEquivalent = freeEquivalent(overall);
   return {
     month: throughDay.slice(0, 7),
     throughDay: newest || throughDay,
@@ -686,6 +772,10 @@ export function classifyGenieAccounting(
     chargedRawEquivalentDbus: Math.max(0, overall.chargedRaw),
     unknownDbus: Math.max(0, overall.unknown),
     paidUsd: overall.paidUsdComplete ? Math.max(0, overall.paidUsd) : overall.hasCharged ? null : 0,
+    freeEquivalentUsd: overallEquivalent.amount,
+    freeEquivalentPricingState: overallEquivalent.state,
+    freeEquivalentPriceSource: 'system.billing.list_prices',
+    freeEquivalentPricedThrough: newest || throughDay,
     underlyingTotalDbus: Math.max(0, allowanceUsed + overall.promotional + overall.chargedRaw + overall.unknown),
     pricingState: pricingState(overall),
     instances: instanceResults,

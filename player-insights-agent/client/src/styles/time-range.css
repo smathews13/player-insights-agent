@@ -35,7 +35,7 @@
   align-items: center;
   border: 1px solid var(--db-line-strong);
   border-radius: var(--radius-sm);
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-elevated);
   overflow: hidden;
   font-size: var(--text-sm);
 }
@@ -49,7 +49,7 @@
 .time-range-segment {
   padding: 5px 10px;
   border: 0;
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-elevated);
   color: var(--db-slate);
   font: inherit;
   line-height: 1.4;

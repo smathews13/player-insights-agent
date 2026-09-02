@@ -3,7 +3,7 @@ html[data-theme='dark'] .arch-tiles:not(.arch-tiles-loop) li,
 html[data-theme='dark'] .arch-node,
 html[data-theme='dark'] .arch-rail {
   background: var(--card);
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 

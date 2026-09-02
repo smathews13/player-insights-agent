@@ -17,12 +17,18 @@ export interface CachedUserSpendTotal {
   quality: UserSpendQuality;
   questions: number;
   coveredDays: number;
+  tokenUsage: {
+    totalTokens: number | null;
+    coveredRuns: number | null;
+    coveredQuestions: number | null;
+  };
   currency: string;
   profile: UserSpendProfile | null;
   dataRevision: number;
   snapshot: string;
   seeded: boolean;
   complete: boolean;
+  identityRevision: string;
   expiresAt: number;
 }
 
@@ -30,6 +36,9 @@ interface InflightSpendTotal {
   token: symbol;
   promise: Promise<CachedUserSpendTotal>;
 }
+
+type CachedUserSpendTotalInput = Omit<CachedUserSpendTotal, 'expiresAt' | 'tokenUsage' | 'identityRevision'> &
+  Partial<Pick<CachedUserSpendTotal, 'tokenUsage' | 'identityRevision'>>;
 
 const totals = new Map<string, CachedUserSpendTotal>();
 const latest = new Map<string, string>();
@@ -70,25 +79,36 @@ function isNewer(candidate: CachedUserSpendTotal, current: CachedUserSpendTotal 
 
 export function cacheUserSpendTotal(
   coordinates: UserSpendTotalCoordinates,
-  value: Omit<CachedUserSpendTotal, 'expiresAt'>,
+  value: CachedUserSpendTotalInput,
   now = Date.now()
 ): CachedUserSpendTotal {
   const base = userSpendTotalBaseKey(coordinates);
   const currentKey = latest.get(base);
   const current = currentKey ? totals.get(currentKey) : undefined;
+  const normalizedValue = {
+    ...value,
+    tokenUsage: value.tokenUsage ?? { totalTokens: null, coveredRuns: null, coveredQuestions: null },
+    identityRevision: value.identityRevision ?? '',
+  };
   const protectedValue =
     current && !value.complete
       ? {
-          ...value,
-          amount: value.amount ?? current.amount,
-          quality: value.amount === null ? current.quality : value.quality,
-          questions: value.questions > 0 ? value.questions : current.questions,
-          coveredDays: value.coveredDays > 0 ? value.coveredDays : current.coveredDays,
+          ...normalizedValue,
+          amount: normalizedValue.amount ?? current.amount,
+          quality: normalizedValue.amount === null ? current.quality : normalizedValue.quality,
+          questions: normalizedValue.questions > 0 ? normalizedValue.questions : current.questions,
+          coveredDays: normalizedValue.coveredDays > 0 ? normalizedValue.coveredDays : current.coveredDays,
+          tokenUsage: {
+            totalTokens: normalizedValue.tokenUsage.totalTokens ?? current.tokenUsage.totalTokens,
+            coveredRuns: normalizedValue.tokenUsage.coveredRuns ?? current.tokenUsage.coveredRuns,
+            coveredQuestions: normalizedValue.tokenUsage.coveredQuestions ?? current.tokenUsage.coveredQuestions,
+          },
+          identityRevision: normalizedValue.identityRevision || current.identityRevision,
         }
-      : value;
+      : normalizedValue;
   const candidate = { ...protectedValue, expiresAt: now + USER_SPEND_TOTAL_CACHE_TTL_MS };
   if (current && current.expiresAt > now && !isNewer(candidate, current)) return current;
-  const key = userSpendTotalKey(coordinates, value.dataRevision, value.snapshot);
+  const key = userSpendTotalKey(coordinates, normalizedValue.dataRevision, normalizedValue.snapshot);
   if (currentKey) totals.delete(currentKey);
   totals.delete(key);
   totals.set(key, candidate);
@@ -120,7 +140,7 @@ export function cachedUserSpendTotal(
 
 export function requestUserSpendTotal(
   coordinates: UserSpendTotalCoordinates,
-  load: () => Promise<Omit<CachedUserSpendTotal, 'expiresAt'>>,
+  load: () => Promise<CachedUserSpendTotalInput>,
   now = Date.now()
 ): Promise<CachedUserSpendTotal> {
   const base = userSpendTotalBaseKey(coordinates);

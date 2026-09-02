@@ -22,7 +22,8 @@ describe('dependency-free deploy startup', () => {
 
   it('keeps Lakebase pg bundled behind a working split CommonJS bridge', async () => {
     const server = readFileSync(path.join(deploy, 'server.mjs'), 'utf8');
-    expect(server).toContain('@databricks/lakebase/dist/pool.js');
+    expect(server).toContain('lakebasePoolSettings');
+    expect(server).not.toContain('@databricks/lakebase/dist/');
     const pgClients = new Set(server.match(/node_modules\/(?:@[^/]+\/[^/]+\/node_modules\/)?pg\/lib\/client\.js/g));
     expect(pgClients).toEqual(new Set(['node_modules/pg/lib/client.js']));
     expect(modules.filter((file) => path.basename(file).startsWith('chunk-')).length).toBeGreaterThan(0);

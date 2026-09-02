@@ -90,6 +90,17 @@ export function opensUserRoster(role: Role): boolean {
 }
 
 /**
+ * Whether a deployment role may mutate declared Connections.
+ *
+ * `owner` is accepted as the deployment-owner capability name used by hosts
+ * that distinguish it from the persisted app roster. It has the same
+ * Connections authority as Admin and Super Admin; consumers never do.
+ */
+export function canMutateConnections(role: string): boolean {
+  return role === 'admin' || role === 'owner' || role === 'super_admin';
+}
+
+/**
  * One person on the roster.
  *
  * `role` is what they hold, which is the higher of `seedFloor` and whatever the

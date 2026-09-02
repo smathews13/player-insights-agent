@@ -103,9 +103,9 @@ describe('Run Explorer Timeline token evidence', () => {
     }
   });
 
-  it('keeps Tokens bounded while the whole table remains horizontally scrollable', () => {
-    expect(TIMELINE_CSS).toMatch(/\.trace-gantt-scroll\s*\{[^}]*overflow-x:\s*auto/s);
-    expect(TIMELINE_CSS).toMatch(/\.trace-gantt \.trace-tokens\s*\{[^}]*width:\s*88px[^}]*min-width:\s*78px/s);
+  it('keeps Tokens bounded while the table wraps inside the workspace', () => {
+    expect(TIMELINE_CSS).toMatch(/\.trace-gantt-scroll\s*\{[^}]*overflow:\s*visible/s);
+    expect(TIMELINE_CSS).toMatch(/\.trace-gantt \.trace-tokens\s*\{[^}]*width:\s*88px[^}]*min-width:\s*0/s);
     expect(TIMELINE_CSS).toMatch(/\.trace-gantt \.trace-duration\s*\{[^}]*white-space:\s*nowrap/s);
   });
 });

@@ -154,9 +154,7 @@ describe('the header leads with the lockup, which is the app’s own mark and na
     // than by `text-transform`, so a reader copying it out of the page gets what
     // the app is called instead of what CSS made of it.
     expect(wordmark).not.toMatch(/text-transform/);
-    expect(readFileSync(new URL('astrolabe-mark.ts', import.meta.url), 'utf8')).toMatch(
-      /WORDMARK = 'astrolabe'/
-    );
+    expect(readFileSync(new URL('astrolabe-mark.ts', import.meta.url), 'utf8')).toMatch(/WORDMARK = 'astrolabe'/);
   });
 
   it('keeps the mark out of the accessibility tree, because the wordmark names the app', () => {
@@ -269,7 +267,7 @@ describe('the brand column is the conversation rail, so Ask sits on its corner',
   it('writes neither offset as a literal in the rules that use them', () => {
     const shell = withoutComments(SHELL);
     expect(shell).not.toMatch(/\b264px\b/);
-    expect(body('.app-header', SHELL)).toMatch(/padding:\s*0 var\(--app-header-pad-x\)/);
+    expect(body('.app-header', SHELL)).toMatch(/padding:\s*var\(--app-header-safe-top\) var\(--app-header-pad-x\) 0/);
     expect(withoutComments(RESPONSIVE)).not.toMatch(/\.app-header\s*\{\s*padding:/);
   });
 
@@ -315,9 +313,10 @@ describe('the header measures what --app-header-h says it measures', () => {
     // caught lying once already, reading 52px while the header stood at 58 with
     // six pixels of the transcript underneath it. A stated height cannot drift
     // from itself.
-    expect(px(TOKENS, '--app-header-h')).toEqual(52);
+    expect(px(TOKENS, '--app-header-content-h')).toEqual(52);
+    expect(TOKENS).toMatch(/--app-header-h:\s*calc\(var\(--app-header-content-h\) \+ var\(--app-header-safe-top\)\)/);
     expect(body('.app-header', SHELL)).toMatch(/height:\s*var\(--app-header-h\)/);
-    expect(LAYOUT).toMatch(/<header className="app-header border-b/);
+    expect(LAYOUT).toMatch(/<header className="app-header ast-top-chrome border-b/);
   });
 
   it('leaves the mark size out of the arithmetic entirely, because nothing derives from it', () => {
@@ -342,6 +341,6 @@ describe('the header measures what --app-header-h says it measures', () => {
     expect(mark).toEqual(22);
     expect(wordmark).toEqual(15);
     const hairline = 1;
-    expect(Math.max(mark, wordmark) + hairline).toBeLessThan(px(TOKENS, '--app-header-h'));
+    expect(Math.max(mark, wordmark) + hairline).toBeLessThan(px(TOKENS, '--app-header-content-h'));
   });
 });

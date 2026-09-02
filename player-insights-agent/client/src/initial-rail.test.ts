@@ -30,7 +30,7 @@ const RUNS = [
     status: 'complete',
     created_at: '2026-08-17T10:00:00Z',
     duration_ms: 4200,
-    rating: 4,
+    feedback: 'up',
   },
   {
     id: 'run-1',
@@ -102,8 +102,8 @@ describe('what the page is handed', () => {
   it('collapses the runs to the newest turn of each conversation', async () => {
     vi.stubGlobal('fetch', (url: string) => Promise.resolve(ok(url === '/api/runs' ? RUNS : CONVERSATIONS)));
     const rail = await loadInitialRail();
-    // The 10:00 turn, not the 09:00 one, and its rating with it.
-    expect(rail.runSummaries.get('conv-a')).toMatchObject({ status: 'complete', rating: 4 });
+    // The 10:00 turn, not the 09:00 one, and its feedback with it.
+    expect(rail.runSummaries.get('conv-a')).toMatchObject({ status: 'complete', feedback: 'up' });
     expect(rail.availability).toEqual({ origin: 'stored', reason: null });
   });
 

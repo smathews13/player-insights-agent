@@ -95,7 +95,7 @@ function question(overrides: Partial<MonitoringQuestion> = {}): MonitoringQuesti
     durationMs: 76_200,
     toolCalls: 5,
     totalTokens: 84_576,
-    rating: 'up',
+    feedback: 'up',
     tables: ['a_catalog.a_schema.a_table'],
     ...overrides,
   };
@@ -112,8 +112,8 @@ function payload(overrides: Partial<MonitoringQuestionsPayload> = {}): Monitorin
       partial: 6,
       refused: 11,
       failed: 7,
-      ratedUp: 36,
-      ratedTotal: 46,
+      helpful: 36,
+      feedbackTotal: 46,
       medianMs: 41_000,
       timedCount: 214,
     },
@@ -229,8 +229,10 @@ describe('the summary strip', () => {
     expect(text(markup)).toContain('Failed');
   });
 
-  it('names the denominator beside the rated share', () => {
-    expect(text(render(<SummaryStrip payload={payload()} periodLabel="7 days" />))).toContain('36 of 46 rated answers');
+  it('shows both feedback direction counts', () => {
+    expect(text(render(<SummaryStrip payload={payload()} periodLabel="7 days" />))).toContain(
+      '36 Helpful · 10 Not helpful'
+    );
   });
 
   it('gives every KPI a concise information line', () => {
@@ -239,18 +241,18 @@ describe('the summary strip', () => {
     expect(rendered).toContain('Submitted in this period');
     expect(rendered).toContain('Distinct conversation threads');
     expect(rendered).toContain('214 finished questions');
-    expect(rendered).toContain('36 of 46 rated answers');
+    expect(rendered).toContain('36 Helpful · 10 Not helpful');
     expect(rendered).toContain('Over 214 of 214 runs');
   });
 
-  it('shows no percentage when nothing was rated', () => {
-    const unrated = payload({
-      summary: { ...payload().summary, ratedUp: 0, ratedTotal: 0 },
+  it('shows no percentage when there is no feedback', () => {
+    const withoutFeedback = payload({
+      summary: { ...payload().summary, helpful: 0, feedbackTotal: 0 },
     });
-    const rendered = text(render(<SummaryStrip payload={unrated} periodLabel="7 days" />));
+    const rendered = text(render(<SummaryStrip payload={withoutFeedback} periodLabel="7 days" />));
 
-    expect(rendered).toContain('Not rated yet');
-    expect(rendered).toContain('No rated answers in this period');
+    expect(rendered).toContain('No feedback');
+    expect(rendered).toContain('No feedback in this period');
     expect(rendered).not.toContain('0%');
   });
 
@@ -318,20 +320,20 @@ describe('the summary strip', () => {
     expect(markup).toContain('aria-label="Failed: 3,000"');
   });
 
-  it('keeps missing rating and median coverage explicit', () => {
+  it('keeps missing feedback and median coverage explicit', () => {
     const missing = payload({
       summary: {
         ...payload().summary,
         questionsAsked: 12,
-        ratedUp: 0,
-        ratedTotal: 0,
+        helpful: 0,
+        feedbackTotal: 0,
         medianMs: null,
         timedCount: 0,
       },
     });
     const rendered = text(render(<SummaryStrip payload={missing} periodLabel="7 days" />));
 
-    expect(rendered).toContain('Not rated yet No rated answers in this period');
+    expect(rendered).toContain('No feedback No feedback in this period');
     expect(rendered).toContain('No run times recorded Over 0 of 12 runs');
   });
 });
@@ -395,7 +397,7 @@ describe('the filter row is built from the app, not from the platform', () => {
 
     expect(rendered).toContain('User · All');
     expect(rendered).toContain('Outcome · All');
-    expect(rendered).toContain('Rating · All');
+    expect(rendered).toContain('Feedback · All');
   });
 
   it('offers the primary User Monitoring action without changing the secondary filters', () => {
@@ -486,7 +488,7 @@ describe('removing a filter', () => {
         filters={{
           person: 'ada.reader@example.test',
           outcome: 'refused',
-          rating: 'down',
+          feedback: 'down',
           table: 'a_catalog.a_schema.gold_title_daily_summary',
           search: 'refund',
           ...over,
@@ -504,7 +506,7 @@ describe('removing a filter', () => {
 
     expect(markup).toContain('aria-label="Clear the user filter"');
     expect(markup).toContain('aria-label="Clear the outcome filter"');
-    expect(markup).toContain('aria-label="Clear the rating filter"');
+    expect(markup).toContain('aria-label="Clear the feedback filter"');
     expect(markup).toContain('aria-label="Clear the table filter"');
     expect(markup).toContain('aria-label="Clear the search"');
   });
@@ -524,21 +526,21 @@ describe('removing a filter', () => {
 
     expect(rendered).toContain('User · All');
     expect(rendered).toContain('Outcome · All');
-    expect(rendered).toContain('Rating · All');
+    expect(rendered).toContain('Feedback · All');
     expect(rendered).toContain('Table · Any');
   });
 
   /**
-   * "Not rated" is a filter VALUE, not the absence of one, and the two must not
-   * collapse into each other. "Show me what nobody rated" is a different question
+   * "No feedback" is a filter VALUE, not the absence of one, and the two must not
+   * collapse into each other. "Show me answers with no feedback" is a different question
    * from "show me everything", and while an empty string meant both they were
    * indistinguishable. A reader who picks it must be able to tell they did.
    */
-  it('tells an unrated filter apart from an unset one', () => {
-    expect(text(withEverythingSet({ rating: 'unrated' }))).toContain('Rating · Not rated');
-    expect(text(unfiltered())).toContain('Rating · All');
+  it('tells a No feedback filter apart from an unset one', () => {
+    expect(text(withEverythingSet({ feedback: 'none' }))).toContain('Feedback · No feedback');
+    expect(text(unfiltered())).toContain('Feedback · All');
     // And it is a set filter, so it clears like one.
-    expect(withEverythingSet({ rating: 'unrated' })).toContain('aria-label="Clear the rating filter"');
+    expect(withEverythingSet({ feedback: 'none' })).toContain('aria-label="Clear the feedback filter"');
   });
 
   /**
@@ -570,7 +572,7 @@ describe('removing a filter', () => {
 
   /** Including when the only thing set is the search text. */
   it('offers it for a typed search alone', () => {
-    const markup = withEverythingSet({ person: '', outcome: '', rating: '', table: '' });
+    const markup = withEverythingSet({ person: '', outcome: '', feedback: '', table: '' });
 
     expect(text(markup)).toContain('Clear filters');
   });
@@ -683,7 +685,7 @@ describe('every state in the list', () => {
 
     expect(rendered).toContain('User');
     expect(rendered).toContain('Outcome');
-    expect(rendered).toContain('Rating');
+    expect(rendered).toContain('Feedback');
     expect(rendered).toContain('Table');
     // The attribute, not the word. The app's own Select carries Tailwind classes
     // named `disabled:opacity-50`, so a substring match on "disabled" passed
@@ -852,12 +854,18 @@ describe('every state in the list', () => {
 });
 
 describe('the question list', () => {
-  it('uses one native question button without turning the table row into a control', () => {
+  it('makes the native table row the single question activation target', () => {
     const markup = body('ready');
+    const row = markup.match(/<tr[^>]*class="monitoring-row[^"]*"[^>]*>/)?.[0] ?? '';
 
-    expect(markup).toContain('class="monitoring-question-button"');
+    expect(row).toContain('tabindex="0"');
+    expect(row).toContain('aria-haspopup="dialog"');
+    expect(row).toContain('aria-label="Open question details: Compare active players by title over the last 30 days"');
     expect(markup).not.toContain('<tr role="button"');
-    expect(markup).not.toContain('<tr tabindex=');
+    expect(markup).not.toContain('monitoring-question-button');
+    expect(markup).toMatch(
+      /<td class="monitoring-question"><span class="monitoring-question-text">Compare active players/
+    );
   });
 
   it('puts the full address on the asker cell and shows the local part', () => {
@@ -874,21 +882,40 @@ describe('the question list', () => {
 
     expect(markup).toContain('class="user-drilldown-link user-drilldown-link--chip"');
     expect(markup).toContain('aria-label="Open user overview for first.person"');
-    expect(markup).toContain('class="monitoring-question-button"');
-    expect(markup).not.toMatch(/<button[^>]*>\s*<a /);
+    expect(markup).toContain('identity-chip-link-arrow');
+    expect(markup).not.toContain('monitoring-question-button');
+    expect(markup).not.toContain('<button');
   });
 
-  it('renders one accessible card tree below 800px instead of the clipped table', () => {
+  it('renders one focusable card row below 800px instead of the clipped table', () => {
     expect(MONITORING_COMPACT_QUERY).toBe('(max-width: 799px)');
     const markup = render(<QuestionList questions={[question()]} selectedId="" now={NOW} onOpen={() => {}} compact />);
+    const card = markup.match(/<li[^>]*class="monitoring-question-card[^"]*"[^>]*>/)?.[0] ?? '';
 
     expect(markup).toContain('class="monitoring-card-list"');
     expect(markup).toContain('aria-label="Questions"');
-    expect(markup).toContain('class="monitoring-question-card-button"');
+    expect(card).toContain('tabindex="0"');
+    expect(card).toContain('aria-haspopup="dialog"');
+    expect(card).toContain('aria-label="Open question details: Compare active players by title over the last 30 days"');
+    expect(markup).not.toContain('monitoring-question-card-button');
     expect(markup).not.toContain('<table');
     expect(markup).not.toContain('<tr');
     expect(text(markup)).toContain('Time 76.2s');
     expect(text(markup)).toContain('Tools 5');
+  });
+
+  it('keeps the selected row identifiable while its dialog is open', () => {
+    const desktop = render(
+      <QuestionList questions={[question()]} selectedId="q1" now={NOW} onOpen={() => {}} onOpenPerson={() => {}} />
+    );
+    const compact = render(
+      <QuestionList questions={[question()]} selectedId="q1" now={NOW} onOpen={() => {}} compact />
+    );
+
+    for (const markup of [desktop, compact]) {
+      expect(markup).toContain('monitoring-row-selected');
+      expect(markup).toContain('aria-current="true"');
+    }
   });
 
   it('carries the refusal sentence on the row rather than only a colour', () => {
@@ -897,7 +924,7 @@ describe('the question list', () => {
         question({
           outcome: 'refused',
           outcomeDetail: 'You do not have access to one or more data products required by this question.',
-          rating: null,
+          feedback: null,
         }),
       ],
     });
@@ -969,8 +996,7 @@ function detail(overrides: Partial<MonitoringDetail> = {}): MonitoringDetail {
     trace: { id: 'tr-1', totalMs: 8100, toolCalls: 2, stages: [] },
     tokens: { prompt: 900, completion: 300, total: 1200 },
     execution: { mode: 'signed_in_user', verified: true },
-    rating: 'up',
-    usefulness: 4,
+    feedback: 'down',
     comment: 'Exactly what I needed.',
     mlflowUrl: 'https://example.test/ml/experiments/1/traces',
     runId: 'a1',
@@ -1087,7 +1113,7 @@ describe('the detail modal', () => {
     expect(person).toBeLessThan(markup.indexOf('The leading title is ahead on daily active players.'));
     expect(person).toBeLessThan(markup.indexOf('Run process'));
     expect(person).toBeLessThan(markup.indexOf('1,200 tokens recorded on this run.'));
-    expect(person).toBeLessThan(markup.indexOf('Rated helpful'));
+    expect(person).toBeLessThan(markup.indexOf('Not helpful'));
   });
 
   it('keeps the links above the answer on a run that recorded no trace id', () => {
@@ -1128,7 +1154,7 @@ describe('the detail modal', () => {
     expect(rendered).toContain('Asked by first.person');
     expect(rendered).toContain("Data read under first.person's own Unity Catalog grants.");
     expect(rendered).toContain('1,200 tokens recorded on this run.');
-    expect(rendered).toContain('Rated helpful');
+    expect(rendered).toContain('Not helpful');
     expect(rendered).toContain('Exactly what I needed.');
     expect(rendered).toContain('Open the MLflow trace');
     // No tone on the note: it is body text in the same type as the prose.
@@ -1231,8 +1257,7 @@ describe('the detail modal', () => {
       outcome: 'refused',
       outcomeDetail: 'You do not have access to one or more data products required by this question.',
       outcomeCode: 'USER_NOT_AUTHORIZED',
-      rating: null,
-      usefulness: null,
+      feedback: null,
       comment: null,
     });
     const rendered = text(render(<QuestionDrawer detail={refused} onClose={() => {}} canOpenUser />));
@@ -1391,16 +1416,16 @@ function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload 
       partial: 2,
       refused: 3,
       failed: 2,
-      ratedUp: 7,
-      ratedTotal: 9,
+      helpful: 7,
+      feedbackTotal: 9,
       medianMs: 39_000,
       timedCount: 41,
     },
     durationsMs: Array.from({ length: 41 }, (_v, index) => (index + 1) * 2_000),
     tokens: { total: 412_000, metredRuns: 38, totalRuns: 41 },
     tokenCostUsd: 3.84,
-    ratedUp: 7,
-    ratedDown: 2,
+    helpful: 7,
+    notHelpful: 2,
     tablesReadMost: [{ table: 'a_catalog.a_schema.a_table', runs: 28 }],
     executionSplit: { asThemselves: 41, asApplication: 0, unrecorded: 0 },
     subjectSplit: { verified: 39, confirmedByEndpoint: 2, unrecorded: 0 },
@@ -1452,7 +1477,7 @@ describe('the per-user panel', () => {
       <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
     );
 
-    expect(markup).toContain('class="user-profile-modal"');
+    expect(markup).toContain('class="user-profile-modal ast-dialog-panel"');
     expect(markup).toContain('role="dialog"');
     expect(markup).toContain('aria-modal="true"');
     expect(markup).toContain('aria-describedby="user-profile-modal-description"');
@@ -1646,8 +1671,8 @@ describe('the per-user panel', () => {
         onOpenQuestion={() => {}}
       />
     );
-    expect(hidden).not.toContain('user-profile-modal-spend"');
-    expect(hidden.indexOf('What they asked')).toBeLessThan(hidden.indexOf('user-profile-modal-kpi-grid'));
+    expect(text(hidden)).toContain('Total user spend Spend unavailable');
+    expect(hidden.indexOf('user-profile-modal-spend"')).toBeLessThan(hidden.indexOf('What they asked'));
 
     const loading = render(
       <PersonPanel
@@ -1686,6 +1711,13 @@ describe('the per-user panel', () => {
               coveredDays: 7,
               costPerQuestion: unavailable('25 submitted questions'),
               averageDaily: unavailable('7 covered days'),
+              averageTokens: {
+                totalTokens: 253_800,
+                coveredRuns: 3,
+                coveredQuestions: 2,
+                perRun: 84_600,
+                perQuestion: 126_900,
+              },
               appShare: unavailable('No comparable app total'),
               weekOverWeek: unavailable('No comparable period'),
               monthOverMonth: unavailable('No comparable period'),
@@ -1707,13 +1739,15 @@ describe('the per-user panel', () => {
     expect(rendered).toContain('Total user spend 9.55 USD');
     expect(rendered).toContain('Cost / question 0.382 USD 25 submitted questions');
     expect(rendered).toContain('Average daily spend 1.364 USD 7 covered days');
+    expect(rendered).toContain('Average tokens 84.6K / run 126.9K / question');
+    expect(markup).toContain('253,800 tokens across 3 token-covered runs');
     expect(rendered).toContain('Share of app spend No comparable app total');
     expect(rendered).toContain('Week over week No comparable period');
     expect(rendered).toContain('Month over month No comparable period');
     expect(rendered).not.toContain('–');
   });
 
-  it('keeps the final six-card footprint while a seeded total is being enriched', () => {
+  it('keeps the final seven-card footprint while a seeded total is being enriched', () => {
     const data = {
       currency: 'USD',
       spendByUser: {
@@ -1740,6 +1774,7 @@ describe('the per-user panel', () => {
     expect(text(markup)).toContain('Total user spend 62.61 USD');
     for (const label of [
       'Calculating cost per question',
+      'Calculating average tokens',
       'Calculating daily spend',
       'Calculating share of app spend',
       'Calculating week over week',
@@ -1747,7 +1782,7 @@ describe('the per-user panel', () => {
     ]) {
       expect(text(markup)).toContain(label);
     }
-    expect(markup.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(6);
+    expect(markup.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(7);
     expect(markup.match(/ast-flick-slot--inline/g)).toHaveLength(1);
     expect(text(markup)).not.toContain('Refreshing');
   });

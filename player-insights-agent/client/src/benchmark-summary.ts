@@ -4,7 +4,7 @@
 import { FAILURE_TAXONOMY } from '../../shared/failure-taxonomy';
 import { formatDuration } from './benchmark-format';
 
-export { formatDuration, RATING_SCALE, ratingOutOf } from './benchmark-format';
+export { formatDuration } from './benchmark-format';
 
 /**
  * The truncation codes that are about the run's own credential.
@@ -803,15 +803,4 @@ export function benchmarkStatusLabel(status: BenchmarkStatus) {
     default:
       return 'Unknown';
   }
-}
-
-/**
- * A run's own rating, which is legitimately absent.
- *
- * The runner never invents one (a person rates a run afterwards through the
- * feedback path), so "nobody has rated this" is a normal state and must not render
- * as an empty star, which reads as a rating of zero.
- */
-export function ratingLabel(rating: number | null | undefined) {
-  return isFiniteNumber(rating) ? { rated: true as const, value: rating } : { rated: false as const };
 }

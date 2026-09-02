@@ -37,10 +37,10 @@ import { RunRatingBadge } from './RunRatingBadge';
 import {
   persistRunLabels,
   railOutcomeValue,
-  railRatingValue,
+  railFeedbackValue,
   RUN_LABELS_NOT_SAVED,
   type RailOutcome,
-  type RailRating,
+  type RailFeedback,
   type RunLabelOverride,
 } from './run-header-labels';
 
@@ -156,16 +156,26 @@ export function RunHeader({
                 {editing ? (
                   <RunHeaderLabelEditor
                     outcome={railOutcomeValue(displayedStatus)}
-                    rating={railRatingValue(run.rating)}
+                    feedback={railFeedbackValue(run.feedback, run.rating)}
                     onOutcome={(value: RailOutcome) => saveOverlay({ status: value })}
-                    onRating={(value: RailRating) => saveOverlay({ rating: value })}
+                    onFeedback={(value: RailFeedback) => saveOverlay({ feedback: value })}
                   />
                 ) : (
-                  <OutcomeRatingChips displayedStatus={displayedStatus} family={family} rating={run.rating} />
+                  <OutcomeFeedbackChips
+                    displayedStatus={displayedStatus}
+                    family={family}
+                    feedback={run.feedback}
+                    legacyUsefulness={run.rating}
+                  />
                 )}
               </>
             ) : (
-              <OutcomeRatingChips displayedStatus={displayedStatus} family={family} rating={run.rating} />
+              <OutcomeFeedbackChips
+                displayedStatus={displayedStatus}
+                family={family}
+                feedback={run.feedback}
+                legacyUsefulness={run.rating}
+              />
             )}
           </div>
         )}
@@ -206,14 +216,16 @@ export function RunHeader({
   );
 }
 
-function OutcomeRatingChips({
+function OutcomeFeedbackChips({
   displayedStatus,
   family,
-  rating,
+  feedback,
+  legacyUsefulness,
 }: {
   displayedStatus: string | null | undefined;
   family: ReturnType<typeof statusFamily>;
-  rating: number | null | undefined;
+  feedback: 'up' | 'down' | null | undefined;
+  legacyUsefulness?: number | null;
 }) {
   return (
     <>
@@ -224,7 +236,7 @@ function OutcomeRatingChips({
         {family === 'pos' && <Check aria-hidden="true" />}
         {displayedStatus ?? 'unknown'}
       </Badge>
-      <RunRatingBadge rating={rating} showUnrated />
+      <RunRatingBadge feedback={feedback} legacyUsefulness={legacyUsefulness} showNoFeedback />
     </>
   );
 }

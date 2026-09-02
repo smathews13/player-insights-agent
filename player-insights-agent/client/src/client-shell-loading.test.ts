@@ -37,12 +37,13 @@ describe('the client shell import graph', () => {
     expect(refresh).not.toContain("from './architecture'");
     expect(refresh).toContain('export function checkedAgo');
     expect(source('lazy-routes.ts')).toContain("loadArchitecturePage = () => import('./ArchitecturePage')");
-    for (const eager of ['HomePage.tsx', 'AgentConstellation.tsx', 'run-header.ts']) {
+    for (const eager of ['HomePage.tsx', 'AgentConstellation.tsx']) {
       expect(source(eager), `${eager} imports only the tiny benchmark formatters`).not.toContain(
         "from './benchmark-summary'"
       );
       expect(source(eager)).toContain("from './benchmark-format'");
     }
+    expect(source('run-header.ts')).not.toContain("from './benchmark-summary'");
 
     expect(layout).toContain('startRouteEnter(page.current, browserMotionRuns())');
     expect(layout).toContain('className="route-transition-page"');
@@ -67,6 +68,12 @@ describe('the client shell import graph', () => {
     }
     for (const shared of ['timeline.css', 'trace.css', 'page-shell.css', 'summary-grid.css']) {
       expect(entry, `${shared} remains globally available`).toContain(`@import './styles/${shared}'`);
+    }
+    for (const answerOnly of ['answer-body.css', 'answer-charts.css']) {
+      expect(entry, `${answerOnly} stays behind the lazy answer boundary`).not.toContain(
+        `@import './styles/${answerOnly}'`
+      );
+      expect(source('AnswerCard.tsx')).toContain(`import './styles/${answerOnly}'`);
     }
 
     const owners = {

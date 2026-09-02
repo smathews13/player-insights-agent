@@ -280,7 +280,7 @@ describe('the figure tiles, rendered', () => {
   });
 });
 
-/** Three stored runs, one of each status, with only the newest one rated. */
+/** Three stored runs, one of each status, with feedback only on the newest. */
 const RUNS: Run[] = [
   {
     id: 'run-mixed',
@@ -289,7 +289,7 @@ const RUNS: Run[] = [
     stakeholder: 'reader@example.com',
     status: 'partial',
     duration_ms: 282_000,
-    rating: 4,
+    feedback: 'up',
     created_at: '2026-08-14T09:12:00.000Z',
   },
   {
@@ -299,7 +299,7 @@ const RUNS: Run[] = [
     stakeholder: 'reader@example.com',
     status: 'complete',
     duration_ms: 303_000,
-    rating: null,
+    feedback: null,
     created_at: '2026-08-11T16:40:00.000Z',
   },
   {
@@ -309,7 +309,7 @@ const RUNS: Run[] = [
     stakeholder: 'reader@example.com',
     status: 'failed',
     duration_ms: null,
-    rating: null,
+    feedback: null,
     created_at: '2026-08-08T11:05:00.000Z',
   },
 ];
@@ -345,12 +345,10 @@ describe('the recorded runs table, rendered', () => {
     expect(markup).toContain('aria-pressed="false"');
   });
 
-  it('says an unrated run is unrated, in words', () => {
-    // An empty star reads as a rating of zero, which is a claim nobody made: the
-    // runner never rates a run, a person does afterwards.
+  it('shows canonical feedback and explicit absence', () => {
     const prose = readable(markup);
-    expect(prose).toContain('Not rated yet');
-    expect(prose).toContain('4');
+    expect(prose).toContain('No feedback');
+    expect(prose).toContain('Helpful');
   });
 
   it('prints a dash for a duration the run never recorded', () => {

@@ -501,7 +501,7 @@ describe('what the flag deliberately does not widen', () => {
       const response = await app.fetch('/api/feedback', {
         method: 'POST',
         headers: { ...asAlice, 'content-type': 'application/json' },
-        body: JSON.stringify({ messageId: 'msg-bob', usefulness: 5 }),
+        body: JSON.stringify({ messageId: 'msg-bob', sentiment: 'up' }),
       });
       expect(response.status).toBe(404);
     } finally {
@@ -509,9 +509,9 @@ describe('what the flag deliberately does not widen', () => {
     }
     const write = store.queries.find((entry) => /INSERT INTO player_insights\.feedback/i.test(entry.sql));
     expect(write?.sql).toContain('JOIN player_insights.conversations c');
-    expect(write?.sql).toContain('($7 OR c.user_email = $3)');
+    expect(write?.sql).toContain('($6 OR c.user_email = $3)');
     expect(write?.params[2]).toBe('alice@example.example');
-    expect(write?.params[6]).toBe(false);
+    expect(write?.params[5]).toBe(false);
   });
 });
 

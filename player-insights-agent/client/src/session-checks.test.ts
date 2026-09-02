@@ -30,6 +30,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { autoCheckClaimed, claimAutoCheck, forgetChecks, recallChecks, rememberChecks } from './check-session';
 import {
   beginConnectionMutation,
+  commitConnectionAddition,
   commitConnectionDeletion,
   reloadSessionSettings,
   resetSessionChecks,
@@ -334,6 +335,20 @@ describe('a confirmed connection delete fences stale settings', () => {
   function withConnection() {
     return { ...settingsBody(), connections: [connection] };
   }
+
+  it('adds a confirmed table to the session cache before a tab can remount', () => {
+    rememberChecks({
+      settings: { ...settingsBody(), connections: [] } as never,
+      report: reportBody() as never,
+      error: '',
+    });
+    beginConnectionMutation();
+    commitConnectionAddition({
+      ...connection,
+      connection: { ...connection.connection, id: 'new-table', resourceType: 'table' },
+    } as never);
+    expect(recallChecks()?.settings?.connections?.map((entry) => entry.connection.id)).toEqual(['new-table']);
+  });
 
   it('removes the row from the session cache before a tab can remount', () => {
     rememberChecks({ settings: withConnection() as never, report: reportBody() as never, error: '' });

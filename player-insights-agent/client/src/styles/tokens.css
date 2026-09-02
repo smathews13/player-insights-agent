@@ -260,7 +260,9 @@
    * component's (see LOCKUP_SIZES in AstrolabeMark.tsx) because a 22px mark
    * beside a 17px wordmark is neither of the two lockups the design has.
    */
-  --app-header-h: 52px;
+  --app-header-content-h: 52px;
+  --app-header-safe-top: env(safe-area-inset-top, 0px);
+  --app-header-h: calc(var(--app-header-content-h) + var(--app-header-safe-top));
 
   /* The header's horizontal inset, as a token because the brand column's
      width is arithmetic on it: the rail is measured from the window's edge and
@@ -346,12 +348,11 @@
   /* ---- appkit-ui / shadcn semantic mapping ---- */
   --background: #ffffff;
   --foreground: var(--db-ink);
-  /* Solid. This was rgba(255, 255, 255, 0.9) over a gradient page, which is the
-     frosted-chrome treatment DuBois does not have. Cards are white on white and
-     separate by their hairline. */
-  --card: #ffffff;
+  /* Reading surfaces retain five percent glass so exposed background remains
+     branded while geometry behind a card is reduced to a faint trace. */
+  --card: var(--ast-surface-primary);
   --card-foreground: var(--db-ink);
-  --popover: #ffffff;
+  --popover: var(--ast-surface-menu);
   --popover-foreground: var(--db-ink);
   /*
    * --primary is the app's action colour and it is now blue rather than the same
@@ -477,18 +478,19 @@ html[data-theme='dark'] {
   --db-amber-line: rgba(255, 171, 0, 0.35);
   --background: var(--ast-navy);
   --foreground: var(--ast-ink-on-dark);
-  /* 6.5% white: about 30% more than the original 5% glass. Still a veil,
-     still some sky, enough that white type is not sitting on a star. */
-  --card: rgba(255, 255, 255, 0.065);
+  /* Primary reading surfaces attenuate the ambient sky by 95%. Nested badges
+     and state tints may retain more alpha because they composite onto this
+     high-alpha parent. */
+  --card: var(--ast-surface-primary);
   --card-foreground: var(--ast-ink-on-dark);
   /*
    * Floating menus sit ON the page, not beside it. Seven percent white left the
    * run list readable through the conversation filter; the account menu already
    * uses the opaque stand-in. AppKit paints Select / dropdown / popover from
-   * this token, so one assignment covers every floating menu without listing
-   * each class. Settings is a page pane and does not read --popover.
+   * this token, so one 98.5% assignment covers every floating menu without
+   * listing each class. Settings is a page pane and does not read --popover.
    */
-  --popover: var(--ast-surface-solid);
+  --popover: var(--ast-surface-menu);
   --popover-foreground: var(--ast-ink-on-dark);
   --primary: var(--ast-ice-accent);
   --primary-foreground: var(--ast-navy);

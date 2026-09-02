@@ -8,7 +8,6 @@ import {
   benchmarkSummary,
   formatDuration,
   isTerminal,
-  ratingLabel,
   type BenchmarkMetrics,
 } from './benchmark-summary';
 
@@ -66,7 +65,7 @@ describe('benchmarkSummary', () => {
     // A suite where three of ten cases error must read "5 / 10", so it can never
     // be reported as a score out of the seven that produced an answer. The slash
     // is the form the design fixes for every count-out-of-count on the page, and
-    // it is the same one the Run Explorer's rating tile uses.
+    // it is a benchmark count, not human answer feedback.
     expect(benchmarkSummary('partial', { passed: 5, total: 10 }).passedLabel).toBe('5 / 10');
   });
 
@@ -437,20 +436,6 @@ describe('benchmarkStatus', () => {
     expect(isTerminal(benchmarkStatus('something-new'))).toBe(false);
     expect(isTerminal(benchmarkStatus('complete'))).toBe(true);
     expect(isTerminal(benchmarkStatus('partial'))).toBe(true);
-  });
-});
-
-describe('ratingLabel', () => {
-  it('treats an absent rating as absent, not as zero', () => {
-    // The runner never invents a rating; a person supplies one afterwards. An
-    // empty star would read as a rating of zero, which is a claim nobody made.
-    expect(ratingLabel(null)).toEqual({ rated: false });
-    expect(ratingLabel(undefined)).toEqual({ rated: false });
-  });
-
-  it('keeps a real rating, including a genuine zero', () => {
-    expect(ratingLabel(4)).toEqual({ rated: true, value: 4 });
-    expect(ratingLabel(0)).toEqual({ rated: true, value: 0 });
   });
 });
 

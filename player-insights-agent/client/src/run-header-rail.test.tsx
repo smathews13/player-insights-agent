@@ -10,15 +10,14 @@ import {
   applyRunLabelOverrideToSummaries,
   forgetRunLabelOverrides,
   persistRunLabels,
+  railFeedbackValue,
   railOutcomeValue,
-  railRatingValue,
   rememberRunLabelOverride,
   RUN_LABELS_NOT_SAVED,
 } from './run-header-labels';
 import { readRunSummaries } from './initial-rail';
 import { RunListItem } from './RunExplorer';
 import { railRunSummaries } from './rail-run-summary';
-import { UP_RATING, DOWN_RATING } from './stored-feedback';
 import { partial } from './styles/stylesheet';
 import type { Conversation, Run } from './app-types';
 
@@ -42,7 +41,7 @@ function run(overrides: Partial<Run> = {}): Run {
     stakeholder: '<your-username>@example.com',
     status: 'partial',
     duration_ms: 12000,
-    rating: null,
+    feedback: null,
     created_at: '2026-08-25T10:00:00Z',
     conversation_id: 'conv-9abcdef',
     ...overrides,
@@ -64,13 +63,13 @@ function header(props: Partial<Parameters<typeof RunHeader>[0]> = {}): string {
 }
 
 describe('the run header rail chips are one height', () => {
-  it('grows outcome, tools and rating to the identity chips rather than shrinking them', () => {
+  it('grows outcome, tools and feedback to the identity chips rather than shrinking them', () => {
     const shared = rule(
       '.run-detail-ident .run-context-badge,\n.run-detail-ident .run-id-chip,\n.run-detail-ident .identity-chip,\n.run-detail-ident .ast-pill'
     );
     expect(shared).toContain('min-height: 24px');
     expect(shared).toContain('font-size: var(--text-sm)');
-    expect(RUNS_CSS).toMatch(/\.run-detail-ident \.ast-pill \{\n  padding: 3px 8px;\n\}/);
+    expect(RUNS_CSS).toMatch(/\.run-detail-ident \.ast-pill \{\n {2}padding: 3px 8px;\n\}/);
     expect(rule('.run-context-badge')).toContain('padding: 3px 8px');
     expect(rule('.run-context-badge')).toContain('font-size: var(--text-sm)');
   });
@@ -93,14 +92,14 @@ describe('only an administrator can edit the rail labels', () => {
     expect(SOURCE).toContain('<Pencil');
   });
 
-  it('opens dropdowns only for outcome and rating', () => {
+  it('opens dropdowns only for outcome and feedback', () => {
     const markup = header({
       canEdit: true,
       editing: true,
     });
     expect(markup).toContain('data-testid="run-header-label-editor"');
     expect(markup).toContain('aria-label="Outcome: Partial"');
-    expect(markup).toContain('aria-label="Rating: Not rated"');
+    expect(markup).toContain('aria-label="Feedback: No feedback"');
     expect(markup).toContain('app-select-trigger');
     expect(markup).toContain('role="combobox"');
     expect(markup).not.toContain('run-header-label-select');
@@ -112,10 +111,10 @@ describe('only an administrator can edit the rail labels', () => {
     const editor = readFileSync(new URL('./RunHeaderLabelEditor.tsx', import.meta.url), 'utf8');
     expect(editor).toContain('<AppSelect');
     expect(editor).toContain('RAIL_OUTCOME_OPTIONS');
-    expect(editor).toContain('RAIL_RATING_OPTIONS');
+    expect(editor).toContain('RAIL_FEEDBACK_OPTIONS');
   });
 
-  it('puts Outcome and Rating on the chip row, after the pencil', () => {
+  it('puts Outcome and Feedback on the chip row, after the pencil', () => {
     const markup = header({ canEdit: true, editing: true });
     const pencil = markup.indexOf('aria-label="Edit run labels"');
     const editor = markup.indexOf('data-testid="run-header-label-editor"');
@@ -133,34 +132,37 @@ describe('an administrator’s rail choice is what a later open draws', () => {
     vi.unstubAllGlobals();
   });
 
-  it('applies a stored outcome and rating without changing the classified row when nothing was saved', () => {
-    const stored = run({ status: 'partial', rating: null });
+  it('applies a stored outcome and feedback without changing the classified row when nothing was saved', () => {
+    const stored = run({ status: 'partial', feedback: null });
     expect(applyRunLabelOverride(stored, null).status).toBe('partial');
-    const overlaid = applyRunLabelOverride(stored, { status: 'complete', rating: 'up' });
+    const overlaid = applyRunLabelOverride(stored, { status: 'complete', feedback: 'up' });
     expect(overlaid.status).toBe('complete');
-    expect(overlaid.rating).toBe(UP_RATING);
-    expect(applyRunLabelOverride(stored, { rating: 'down' }).rating).toBe(DOWN_RATING);
+    expect(overlaid.feedback).toBe('up');
+    expect(applyRunLabelOverride(stored, { feedback: 'down' }).feedback).toBe('down');
     expect(railOutcomeValue('partial')).toBe('partial');
-    expect(railRatingValue(null)).toBe('unrated');
+    expect(railFeedbackValue(null)).toBe('none');
   });
 
-  it('persists outcome and rating on the admin overlay route', async () => {
-    const send = vi.fn(async (_url: string, init?: RequestInit) => {
+  it('persists outcome and feedback on the admin overlay route', async () => {
+    const send = vi.fn((_url: string, init?: RequestInit) => {
       expect(_url).toBe(`/api/admin/run-labels/${FULL_ID}`);
       expect(init?.method).toBe('PUT');
-      const body = JSON.parse(String(init?.body)) as { status: string; rating: string };
-      expect(body).toEqual({ status: 'complete', rating: 'up' });
-      return { ok: true, json: async () => body } as Response;
+      const body = JSON.parse(typeof init?.body === 'string' ? init.body : '') as {
+        status: string;
+        feedback: string;
+      };
+      expect(body).toEqual({ status: 'complete', feedback: 'up' });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as Response);
     });
-    await persistRunLabels(FULL_ID, { status: 'complete', rating: 'up' }, send as unknown as typeof fetch);
+    await persistRunLabels(FULL_ID, { status: 'complete', feedback: 'up' }, send as unknown as typeof fetch);
     expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('puts Complete on the recent-runs row, Ask rail, and a later reload of the same list', () => {
-    const stored = run({ status: 'partial', rating: null });
-    const listed = applyRunLabelOverrideToList([stored], FULL_ID, { status: 'complete', rating: 'up' });
+    const stored = run({ status: 'partial', feedback: null });
+    const listed = applyRunLabelOverrideToList([stored], FULL_ID, { status: 'complete', feedback: 'up' });
     expect(listed[0].status).toBe('complete');
-    expect(listed[0].rating).toBe(UP_RATING);
+    expect(listed[0].feedback).toBe('up');
     const markup = renderToStaticMarkup(<RunListItem run={listed[0]} active={true} onSelect={() => undefined} />);
     expect(markup).toMatch(/>complete</i);
     expect(markup).not.toMatch(/>partial</i);
@@ -168,13 +170,13 @@ describe('an administrator’s rail choice is what a later open draws', () => {
   });
 
   it('refreshes the Ask rail cache when the pencil writes Complete', async () => {
-    const summaries = railRunSummaries([run({ status: 'partial', rating: null })]);
+    const summaries = railRunSummaries([run({ status: 'partial', feedback: null })]);
     expect(summaries.get('conv-9abcdef')?.status).toBe('partial');
     const next = applyRunLabelOverrideToSummaries(summaries, 'conv-9abcdef', {
       status: 'complete',
-      rating: 'up',
+      feedback: 'up',
     });
-    expect(next.get('conv-9abcdef')).toMatchObject({ status: 'complete', rating: UP_RATING });
+    expect(next.get('conv-9abcdef')).toMatchObject({ status: 'complete', feedback: 'up' });
     expect(next.get('conv-9abcdef')?.tone).toBe('ast-pill--pos');
     const conversations: Conversation[] = [
       { id: 'conv-9abcdef', title: 'tables', updated_at: '2026-08-25T10:00:00Z', status: 'partial' },
@@ -183,18 +185,16 @@ describe('an administrator’s rail choice is what a later open draws', () => {
       'complete'
     );
 
-    rememberRunLabelOverride('conv-9abcdef', { status: 'complete', rating: 'up' });
-    vi.stubGlobal(
-      'fetch',
-      async () =>
-        ({
-          ok: true,
-          json: async () => [run({ status: 'partial', rating: null })],
-        }) as Response
+    rememberRunLabelOverride('conv-9abcdef', { status: 'complete', feedback: 'up' });
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([run({ status: 'partial', feedback: null })]),
+      } as Response)
     );
     const reread = await readRunSummaries();
     expect(reread.get('conv-9abcdef')?.status).toBe('complete');
-    expect(reread.get('conv-9abcdef')?.rating).toBe(UP_RATING);
+    expect(reread.get('conv-9abcdef')?.feedback).toBe('up');
     expect(HOME).toContain('subscribeRunLabelOverrides');
     expect(HOME).toContain('applyRunLabelOverrideToSummaries');
     expect(EXPLORER).toContain('rememberRunLabelOverride');
@@ -208,7 +208,7 @@ describe('a failed label save is visible', () => {
   });
 
   it('refuses to swallow a persist failure, and names it on the rail', async () => {
-    const send = vi.fn(async () => ({ ok: false, status: 503 }) as Response);
+    const send = vi.fn(() => Promise.resolve({ ok: false, status: 503 } as Response));
     await expect(persistRunLabels(FULL_ID, { status: 'complete' }, send as unknown as typeof fetch)).rejects.toThrow(
       RUN_LABELS_NOT_SAVED
     );

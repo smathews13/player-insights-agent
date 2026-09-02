@@ -94,6 +94,10 @@ function freshness(page: UserSpendReadModelPage) {
   };
 }
 
+function identityRevision(page: UserSpendReadModelPage): string {
+  return page.identityRevision;
+}
+
 function listPayload(
   page: UserSpendReadModelPage,
   range: ReturnType<typeof opsDayRange>,
@@ -116,10 +120,15 @@ function listPayload(
       email: row.email,
       role: row.role,
       persona: row.persona,
-      lastActive: row.sourceThrough ?? page.freshness.sourceThrough ?? '',
+      lastActive: row.sourceThrough ?? null,
       questions: row.questions,
       runs: row.runs,
       coveredDays: row.coveredDays,
+      tokenUsage: {
+        totalTokens: row.totalTokens,
+        coveredRuns: row.tokenCoveredRuns,
+        coveredQuestions: row.tokenCoveredQuestions,
+      },
       spend: {
         usd: amount(row.spendUsd, row.spendUsdQuality),
         dbu: amount(row.spendDbu, row.spendDbuQuality),
@@ -133,6 +142,7 @@ function listPayload(
       }))
       .sort((left, right) => left.name.localeCompare(right.name)),
     dataRevision: USER_SPEND_CALCULATION_VERSION,
+    identityRevision: identityRevision(page),
     pagination: {
       total: page.total,
       pageSize: limit,
@@ -191,7 +201,8 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
     principal: string,
     allowBrowse: boolean,
     limit = pageSize(req),
-    offset = pageOffset(req)
+    offset = pageOffset(req),
+    rosterOnly = allowBrowse
   ) =>
     readUserSpendReadModelPage(appkit.lakebase, {
       range,
@@ -204,6 +215,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       limit,
       offset,
       now: clock(),
+      rosterOnly,
     });
   const readHourly = (
     req: Request,
@@ -211,7 +223,8 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
     principal: string,
     allowBrowse: boolean,
     limit = pageSize(req),
-    offset = pageOffset(req)
+    offset = pageOffset(req),
+    rosterOnly = allowBrowse
   ) =>
     readUserSpendHourlyPage(appkit.lakebase, {
       window,
@@ -224,6 +237,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       limit,
       offset,
       now: clock(),
+      rosterOnly,
     });
 
   appkit.server.extend((app: Application) => {
@@ -239,7 +253,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         ? dayRangeForHours(window)
         : opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
       const [current, components] = await Promise.all([
-        hourly ? readHourly(req, window, email, false, 1, 0) : readDaily(req, range, email, false, 1, 0),
+        hourly ? readHourly(req, window, email, false, 1, 0, false) : readDaily(req, range, email, false, 1, 0, false),
         hourly
           ? readUserSpendHourlyComponents(appkit.lakebase, { email, window })
           : readUserSpendReadModelComponents(appkit.lakebase, { email, range }),
@@ -263,6 +277,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         range,
         state: current.available ? (selected?.billingComplete ? 'ready' : 'partial') : 'unavailable',
         reason: current.available ? '' : 'The user spend read model has not completed its first refresh.',
+        identityRevision: '',
         users: selected
           ? [
               {
@@ -295,21 +310,32 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         ? dayRangeForHours(window)
         : opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
       const source = sourceFor(req);
-      let page = hourly
-        ? await readHourly(req, window, principal, true, limit, offset)
-        : await readDaily(req, range, principal, true, limit, offset);
+      const readRosterPage = () =>
+        hourly
+          ? readHourly(req, window, principal, true, limit, offset, true)
+          : readDaily(req, range, principal, true, limit, offset, true);
+      let page: UserSpendReadModelPage;
+      try {
+        page = await readRosterPage();
+      } catch {
+        res.status(503).json({
+          error: 'identity_roster_unavailable',
+          detail: 'User Monitoring could not read the authoritative Identity settings roster.',
+        });
+        return;
+      }
       if (!page.available) {
         if (hourly) {
           await runUserSpendHourlyRefresh(appkit.lakebase, { from: window.from, to: window.to, now: clock() }).catch(
             () => undefined
           );
-          page = await readHourly(req, window, principal, true, limit, offset);
+          page = await readRosterPage();
         } else if (source) {
           await runUserSpendReadModelRefresh(appkit.lakebase, source, {
             fromDay: range.from,
             throughDay: range.to,
           }).catch(() => undefined);
-          page = await readDaily(req, range, principal, true, limit, offset);
+          page = await readRosterPage();
         }
       }
       if (hourly) {
@@ -338,12 +364,23 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         ? dayRangeForHours(window)
         : opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
       const unit = queryText(req, 'unit') === 'DBU' ? 'DBU' : 'USD';
-      const [current, components] = await Promise.all([
-        hourly ? readHourly(req, window, email, false, 1, 0) : readDaily(req, range, email, false, 1, 0),
+      let current: UserSpendReadModelPage;
+      try {
+        current = hourly
+          ? await readHourly(req, window, email, false, 1, 0, true)
+          : await readDaily(req, range, email, false, 1, 0, true);
+      } catch {
+        res.status(503).json({
+          error: 'identity_roster_unavailable',
+          detail: 'This profile could not be checked against the authoritative Identity settings roster.',
+        });
+        return;
+      }
+      const components = await (
         hourly
           ? readUserSpendHourlyComponents(appkit.lakebase, { email, window })
-          : readUserSpendReadModelComponents(appkit.lakebase, { email, range }),
-      ]);
+          : readUserSpendReadModelComponents(appkit.lakebase, { email, range })
+      ).catch(() => []);
       if (hourly) {
         if (current.freshness.isStale) {
           void runUserSpendHourlyRefresh(appkit.lakebase, { now: clock() }).catch((error: Error) => {
@@ -356,14 +393,18 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         enqueueIfStale(current, sourceFor(req));
       }
       const selected = selectedAmount(current, email, unit);
+      if (!selected.row) {
+        res.status(404).json({ error: 'monitoring_user_not_rostered' });
+        return;
+      }
       const latestCompleteDay = current.freshness.billingCompleteThrough;
       const windows = latestCompleteDay ? userSpendComparisonWindows(latestCompleteDay) : null;
       const comparisons = windows
         ? await Promise.all([
-            readDaily(req, windows.week.current, email, false, 1, 0),
-            readDaily(req, windows.week.prior, email, false, 1, 0),
-            readDaily(req, windows.month.current, email, false, 1, 0),
-            readDaily(req, windows.month.prior, email, false, 1, 0),
+            readDaily(req, windows.week.current, email, false, 1, 0, true),
+            readDaily(req, windows.week.prior, email, false, 1, 0, true),
+            readDaily(req, windows.month.current, email, false, 1, 0, true),
+            readDaily(req, windows.month.prior, email, false, 1, 0, true),
           ])
         : [];
       const metric = (page: UserSpendReadModelPage) => selectedAmount(page, email, unit);
@@ -384,6 +425,9 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
                 coveredDays: selected.row.coveredDays,
                 appTotal: appTotal ?? null,
                 appComparable: appTotal !== null && appTotal !== undefined,
+                totalTokens: selected.row.totalTokens,
+                tokenCoveredRuns: selected.row.tokenCoveredRuns,
+                tokenCoveredQuestions: selected.row.tokenCoveredQuestions,
               },
               week: {
                 current: comparisons[0] ? metric(comparisons[0]) : { amount: null, comparable: false },
@@ -405,6 +449,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         range,
         state: current.available ? (selected.row?.billingComplete ? 'ready' : 'partial') : 'unavailable',
         reason: current.available ? '' : 'The user spend read model has not completed its first refresh.',
+        identityRevision: identityRevision(current),
         users: profile ? [profile] : [],
         unattributed: [],
         reconciliation: {

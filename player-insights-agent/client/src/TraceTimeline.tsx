@@ -14,7 +14,7 @@
  *   labels (`run - [orchestrator]`, `model call … turn N`, tool + payload),
  *   and bars coloured by kind. Ask must not inherit that look.
  */
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 import type { TraceStage, TraceSummary } from './answer-shape';
@@ -41,6 +41,7 @@ import { isTableListingStage, stageTableEntities, stageToolNames } from './live-
 import { InlineSqlCode, SqlCodeBlocks } from './SqlPresentation';
 import { isSqlText, sqlFromStageInput } from './sql-presentation';
 import { runTokenUsageView, stepTokenUsageView, type RunTokenView } from './token-usage-view';
+import { revealStepDetail, type StepActivation } from './agent-map-scroll';
 
 /** Which surface is drawing the panel. See file header. */
 export type TraceTimelineVariant = 'default' | 'explorer' | 'monitoring';
@@ -379,6 +380,7 @@ function GanttRow({
   hasGeometry,
   eventCount,
   runTokens,
+  detailRef,
 }: {
   row: TimelineRow;
   eventLabel: string;
@@ -389,6 +391,7 @@ function GanttRow({
   /** Steps the envelope spans, shown on the container row. Null when unknown. */
   eventCount: number | null;
   runTokens: RunTokenView;
+  detailRef: (node: HTMLTableRowElement | null) => void;
 }) {
   const positioned = row.leftPct !== null && row.widthPct !== null;
   const tables = stageTableEntities(row);
@@ -446,7 +449,7 @@ function GanttRow({
         <td className="trace-num trace-duration ast-num">{formatMs(row.durationMs)}</td>
       </tr>
       {expanded && (
-        <tr className="trace-detail">
+        <tr className="trace-detail" ref={detailRef}>
           <td />
           <td colSpan={(hasGeometry ? 4 : 3) + (variant !== 'default' ? 1 : 0)}>
             {row.container ? (
@@ -508,6 +511,7 @@ function Gantt({
   expanded,
   onToggle,
   runTokens,
+  detailRef,
 }: {
   model: ReturnType<typeof buildTimeline>;
   variant: TraceTimelineVariant;
@@ -515,6 +519,7 @@ function Gantt({
   expanded: string | null;
   onToggle: (id: string) => void;
   runTokens: RunTokenView;
+  detailRef: (id: string, node: HTMLTableRowElement | null) => void;
 }) {
   if (model.rows.length === 0) return null;
   const explorer = variant === 'explorer';
@@ -575,6 +580,7 @@ function Gantt({
                 onToggle={() => onToggle(row.id)}
                 eventCount={model.rows.filter((other) => !other.container).length}
                 runTokens={runTokens}
+                detailRef={(node) => detailRef(row.id, node)}
               />
             ))}
           </tbody>
@@ -596,6 +602,7 @@ export function TraceTimeline({
   verdict,
   variant = 'default',
   className = '',
+  scrollContainerRef,
 }: {
   trace: TraceSummary | { stages: TraceStage[]; totalMs?: number; toolCalls?: number } | null | undefined;
   /** The run's own prompt, shown on the envelope row. Display text, not a measurement. */
@@ -608,6 +615,8 @@ export function TraceTimeline({
   /** Run Explorer and Monitoring select their shared tokenized presentations. */
   variant?: TraceTimelineVariant;
   className?: string;
+  /** Run Explorer's complete right workspace; omitted on embedded timelines. */
+  scrollContainerRef?: RefObject<HTMLElement | null>;
 }) {
   const summary = (trace ?? null) as TraceSummary | null;
   const model = useMemo(() => buildTimeline(summary, question, verdict), [summary, question, verdict]);
@@ -623,6 +632,22 @@ export function TraceTimeline({
   // results now that the contract no longer truncates them, and several open at
   // once buries the chart they are meant to explain.
   const [expanded, setExpanded] = useState<string | null>(null);
+  const detailRefs = useRef(new Map<string, HTMLTableRowElement>());
+  const activationRef = useRef<StepActivation | null>(null);
+  const activationSequence = useRef(0);
+  useEffect(() => {
+    const activation = activationRef.current;
+    const container = scrollContainerRef?.current;
+    const detail = expanded ? detailRefs.current.get(expanded) : null;
+    if (!activation || !container || !detail || !expanded) return;
+    revealStepDetail({
+      activation,
+      selectedStepId: expanded,
+      container,
+      heading: detail,
+      reducedMotion: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true,
+    });
+  }, [expanded, scrollContainerRef]);
 
   if (model.rows.length === 0) {
     return null;
@@ -644,8 +669,20 @@ export function TraceTimeline({
         variant={variant}
         eventLabels={eventLabels}
         expanded={expanded}
-        onToggle={(id) => setExpanded((current) => (current === id ? null : id))}
+        onToggle={(id) =>
+          setExpanded((current) => {
+            const next = current === id ? null : id;
+            activationRef.current = next
+              ? { stepId: next, kind: 'pointer', sequence: ++activationSequence.current }
+              : null;
+            return next;
+          })
+        }
         runTokens={runTokens}
+        detailRef={(id, node) => {
+          if (node) detailRefs.current.set(id, node);
+          else detailRefs.current.delete(id);
+        }}
       />
     </div>
   );

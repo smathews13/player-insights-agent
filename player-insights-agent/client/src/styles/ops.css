@@ -126,6 +126,14 @@
   margin: 0;
 }
 
+.ops-block-title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
 /* The one line that governs everything under the band. Never a sentence: it is
    a run of facts separated by the app's own separator. */
 .ops-block-meta {
@@ -136,11 +144,6 @@
 .ops-block-head-control {
   flex: 0 0 auto;
   margin-left: auto;
-}
-
-.ops-block-head-trailing {
-  flex: none;
-  margin-left: 0;
 }
 
 .ops-cost-head-controls {
@@ -162,9 +165,6 @@
   .ops-block-head-control,
   .ops-cost-head-controls {
     width: 100%;
-  }
-  .ops-block-head-trailing {
-    margin-left: auto;
   }
   .ops-cost-head-controls {
     justify-content: flex-start;
@@ -617,7 +617,7 @@ a.ops-dependency-name:hover {
   padding: 10px 12px;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--ast-radius-card);
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-muted);
 }
 
 .ops-cost-resource-budgets {
@@ -651,10 +651,10 @@ a.ops-dependency-name:hover {
 }
 
 .ops-cost-summary-budget {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 3px 12px;
-  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
   min-width: 0;
   margin-top: 10px;
   padding-top: 9px;
@@ -667,31 +667,46 @@ a.ops-dependency-name:hover {
   max-width: 100%;
   color: var(--foreground);
   overflow-wrap: anywhere;
-  text-align: right;
 }
 
-.ops-cost-summary-budget-values {
-  display: flex;
+.ops-cost-summary-budget-item {
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;
-  justify-content: flex-end;
-  gap: 4px 12px;
+  gap: 4px 7px;
   min-width: 0;
 }
 
+.ops-cost-summary-budget-item:first-child {
+  flex: 1 1 240px;
+  justify-content: space-between;
+}
+
+.ops-cost-summary-budget .ops-cost-budget-balance[data-budget-tone='normal'],
+.ops-cost-summary-budget .ops-cost-budget-balance[data-budget-tone='normal'] .ast-num,
+.ops-cost-summary-budget-mtd[data-budget-tone='normal'] {
+  color: var(--ast-pos-text);
+}
+
 .ops-cost-summary-budget .ops-cost-budget-balance[data-budget-tone='warning'],
+.ops-cost-summary-budget .ops-cost-budget-balance[data-budget-tone='warning'] .ast-num,
 .ops-cost-summary-budget-mtd[data-budget-tone='warning'] {
   color: var(--ast-warn-text);
 }
 
 .ops-cost-summary-budget .ops-cost-budget-balance[data-budget-tone='danger'],
+.ops-cost-summary-budget .ops-cost-budget-balance[data-budget-tone='danger'] .ast-num,
 .ops-cost-summary-budget-mtd[data-budget-tone='danger'] {
   color: var(--ast-neg-text);
 }
 
 .ops-cost-summary-budget-mtd {
-  grid-column: 1 / -1;
+  flex: 1 1 220px;
   overflow-wrap: anywhere;
+}
+
+.ops-cost-summary-budget-unavailable {
+  flex: 1 1 280px;
 }
 
 .ops-budget-audit {
@@ -1205,7 +1220,7 @@ a.ops-cost-resource {
   overflow: hidden;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--ast-radius-control);
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-elevated);
 }
 
 .ops-number-ticker-wide {
@@ -1413,15 +1428,41 @@ a.ops-cost-resource {
   min-width: 0;
 }
 
-.ops-forecast-breakdown > h4 {
-  margin: 0 0 6px;
-  color: var(--ast-text-long);
-  font-size: var(--text-sm);
+.ops-forecast-breakdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--ast-radius-card);
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
   font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ops-forecast-breakdown-trigger:focus-visible {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
+}
+
+.ops-forecast-breakdown-trigger .ops-pill {
+  flex: none;
+}
+
+.ops-forecast-breakdown-trigger[aria-expanded='true'] {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .ops-forecast-breakdown-scroll {
   max-width: 100%;
+  border: 1px solid var(--border);
+  border-top: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
 }

@@ -14,7 +14,7 @@ export interface ImportTraceSignals {
   sourceTraceId?: string;
   durationMs?: number | null;
   outcome?: string | null;
-  rating?: 'up' | 'down' | number | null;
+  feedback?: 'up' | 'down' | null;
   judges?: readonly { value: 'yes' | 'no' | null }[];
   toolCalls?: number | null;
 }
@@ -24,10 +24,14 @@ export function importReasonsFromTrace(input: ImportTraceSignals): ImportFilter[
   if ((input.judges ?? []).some((entry) => entry.value === 'no')) reasons.push('low_judge_score');
   const outcome = (input.outcome ?? '').toLowerCase();
   if (outcome === 'failed' || outcome === 'error') reasons.push('tool_failure');
-  if (typeof input.durationMs === 'number' && Number.isFinite(input.durationMs) && input.durationMs >= WAREHOUSE_BUDGET_MS) {
+  if (
+    typeof input.durationMs === 'number' &&
+    Number.isFinite(input.durationMs) &&
+    input.durationMs >= WAREHOUSE_BUDGET_MS
+  ) {
     reasons.push('latency');
   }
-  if (input.rating === 'down' || input.rating === 1) reasons.push('customer_feedback');
+  if (input.feedback === 'down') reasons.push('customer_feedback');
   return reasons;
 }
 

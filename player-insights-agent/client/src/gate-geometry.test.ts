@@ -38,7 +38,9 @@ const CSS = partial('gate.css');
  */
 function rule(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const bodies = [...CSS.matchAll(new RegExp(`(^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, 'gm'))].map(([, , body]) => body);
+  const bodies = [...CSS.matchAll(new RegExp(`(^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, 'gm'))].map(
+    ([, , body]) => body
+  );
   if (bodies.length === 0) throw new Error(`gate.css has no rule for ${selector}`);
   return bodies.join('\n');
 }
@@ -53,11 +55,10 @@ describe('the panel', () => {
     expect(panel).toMatch(/border-radius:\s*var\(--radius-md\)/);
   });
 
-  it('wears the app’s blue top rule at 4px, not as a hairline', () => {
-    // The same signature as the header and the answer card, so the gate reads as
-    // this app rather than as a browser dialog. 4px because blue is identity here
-    // and a 1px blue edge on a white panel is not identity, it is a scratch.
-    expect(rule('.access-gate-panel')).toMatch(/border-top:\s*4px solid var\(--db-blue-600\)/);
+  it('uses neutral dialog chrome rather than a decorative blue stripe', () => {
+    const panel = rule('.access-gate-panel');
+    expect(panel).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+    expect(panel).not.toMatch(/border-top|--(?:db-blue|ast-blue|primary)/);
   });
 
   it('keeps exactly two exceptions to the flat, opaque rule: the scrim and the panel’s shadow', () => {
@@ -65,7 +66,7 @@ describe('the panel', () => {
     // `rgba(17, 23, 28, ...)` that no longer knows it is a palette colour.
     expect(rule('.access-gate')).toMatch(/background:\s*color-mix\(in oklab, var\(--db-ink-deep\) 50%, transparent\)/);
     expect(rule('.access-gate-panel')).toMatch(
-      /box-shadow:\s*0 18px 48px color-mix\(in oklab, var\(--db-ink-deep\) 22%, transparent\)/,
+      /box-shadow:\s*0 18px 48px color-mix\(in oklab, var\(--db-ink-deep\) 22%, transparent\)/
     );
     // And nowhere else. A mix against `transparent` or the shared hover tint are
     // the tells now that neither is spelled out; the third permitted use is that
@@ -85,7 +86,7 @@ describe('the panel', () => {
     // filled blue -- a hover WASH on a fill is close to invisible, so it takes
     // its own darker rung in page-shell.css and has to be excluded from these.
     expect(rule('.access-gate-actions button:not(.refresh-button):hover:not(:disabled)')).toMatch(
-      /background:\s*var\(--db-hover-tint\)/,
+      /background:\s*var\(--db-hover-tint\)/
     );
     expect(CSS).not.toMatch(/rgba\(34,\s*114,\s*180/);
   });
@@ -110,11 +111,11 @@ describe('which of the three states is allowed colour', () => {
     expect(neutral).not.toMatch(/red/);
   });
 
-  it('leaves the gate itself uncoloured', () => {
+  it('leaves the gate itself on neutral elevated glass', () => {
     // Every session that has the grant sees this panel and nothing else. If the
     // panel were tinted, having access would look like a problem.
     const panel = rule('.access-gate-panel');
-    expect(panel).toMatch(/background:\s*var\(--background\)/);
+    expect(panel).toMatch(/background:\s*var\(--ast-surface-elevated\)/);
     expect(panel).not.toMatch(/red|amber|orange/);
   });
 });
@@ -147,7 +148,7 @@ describe('the three doors', () => {
     // are taken under; none of them is a judge score.
     expect(rule('.access-gate-actions button:not(.refresh-button)')).not.toMatch(/amber|warning/);
     expect(rule('.access-gate-actions button:not(.refresh-button):hover:not(:disabled)')).toMatch(
-      /border-color:\s*var\(--db-blue-600\)/,
+      /border-color:\s*var\(--db-blue-600\)/
     );
   });
 });

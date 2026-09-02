@@ -1,7 +1,7 @@
 /**
  * What the conversation rail can say about a conversation beyond its title: the
  * status of its most recent answered turn, how long that turn took, and the
- * rating the reader gave it.
+ * feedback the reader gave it.
  *
  * The rail row and the Run Explorer's recorded-runs card now draw the same four
  * things, because they are two views of one list. The Explorer reads
@@ -18,6 +18,7 @@
  * make.
  */
 import type { Run } from './app-types';
+import { feedbackDirection } from '../../shared/feedback-direction';
 
 /**
  * The tones the status pill has, named as the classes the CSS defines rather
@@ -42,8 +43,10 @@ export interface RailRunSummary {
   tone: RailStatusTone;
   /** Wall time of the turn, in milliseconds, or null when it was not recorded. */
   durationMs: number | null;
-  /** The reader's own rating, 1-5, or null when nobody rated it. */
-  rating: number | null;
+  /** The reader's own feedback direction, or null when none was submitted. */
+  feedback?: 'up' | 'down' | null;
+  /** @deprecated Mixed-version in-memory compatibility. */
+  rating?: number | null;
   /**
    * Whether that turn stopped before it had finished.
    *
@@ -109,7 +112,7 @@ export function railRunSummaries(runs: readonly Run[]): Map<string, RailRunSumma
       status: run.status?.trim() || 'unknown',
       tone: railStatusTone(run.status),
       durationMs: typeof run.duration_ms === 'number' && Number.isFinite(run.duration_ms) ? run.duration_ms : null,
-      rating: typeof run.rating === 'number' && Number.isFinite(run.rating) ? run.rating : null,
+      feedback: feedbackDirection(run.feedback, run.rating),
       truncated: run.truncated === true,
     });
   }
@@ -131,7 +134,7 @@ export function railRunSummaries(runs: readonly Run[]): Map<string, RailRunSumma
  * row it returns, and this turns that into the same summary shape so the row
  * has one thing to read regardless of which read supplied it.
  *
- * NO RATING, and the null is not an oversight. A rating is one reader's
+ * NO FEEDBACK, and the null is not an oversight. Feedback is one reader's
  * opinion of an answer; the scoped runs route knows whose it is and this one
  * does not. A row that falls back to this draws its badge and its duration and
  * no star, which is correct -- not "nobody rated it", but "this read cannot say".
@@ -157,7 +160,7 @@ export function conversationRunSummary(conversation: {
       typeof conversation.duration_ms === 'number' && Number.isFinite(conversation.duration_ms)
         ? conversation.duration_ms
         : null,
-    rating: null,
+    feedback: null,
     truncated: conversation.truncated === true,
   };
 }

@@ -117,13 +117,15 @@ describe('app budget guard UI', () => {
     expect(renderToStaticMarkup(<BudgetGuardStatus status={complete} admin={false} />)).toContain('Approval required');
   });
 
-  it('shows remaining or overage from complete actual MTD, never the selected-period total', () => {
+  it('shows estimated remaining from useful partial MTD and never the selected-period total', () => {
     const partial = renderToStaticMarkup(
-      <SavedAppBudgetSummary savedBudget={800} unit="USD" status={status('unavailable/partial')} />
+      <SavedAppBudgetSummary savedBudget={800} unit="USD" status={status('unavailable/partial', { budget: 800 })} />
     );
     expect(partial).toContain('Monthly app budget');
     expect(partial).toContain('800.00 USD');
-    expect(partial).not.toMatch(/remaining|over budget|projected|Budget exhausted|aria-live/i);
+    expect(partial).toContain('700.00 USD remaining');
+    expect(partial).toContain('Estimated');
+    expect(partial).toContain('aria-live="polite"');
 
     const complete = renderToStaticMarkup(
       <SavedAppBudgetSummary
@@ -133,7 +135,7 @@ describe('app budget guard UI', () => {
       />
     );
     expect(complete).toContain('123.27 USD over budget');
-    expect(complete).toContain('Budget exhausted');
+    expect(complete).toContain('Budget exceeded');
     expect(complete).toContain('data-budget-tone="danger"');
   });
 
@@ -146,7 +148,7 @@ describe('app budget guard UI', () => {
     expect(monthlyBudgetProgress(status('below', { measured, budget: 100 }), 100, 'USD')?.tone).toBe(tone);
   });
 
-  it('projects exhaustion from complete MTD pace and fails open for incomplete coverage', () => {
+  it('projects exhaustion from useful MTD pace without changing fail-open enforcement', () => {
     const crossing = monthlyBudgetProgress(
       status('below', {
         measured: 600,
@@ -158,7 +160,7 @@ describe('app budget guard UI', () => {
       900,
       'USD'
     );
-    expect(crossing?.pace).toBe('Budget exhausted in 8 days at current pace');
+    expect(crossing?.pace).toBe('8 days until budget exceeded');
     expect(
       monthlyBudgetProgress(
         status('below', {
@@ -171,8 +173,11 @@ describe('app budget guard UI', () => {
         900,
         'USD'
       )?.pace
-    ).toBe('Not projected to exhaust this month');
-    expect(monthlyBudgetProgress(status('unavailable/partial'), 100, 'USD')).toBeNull();
+    ).toBe('Not projected to exceed this month');
+    expect(monthlyBudgetProgress(status('unavailable/partial'), 100, 'USD')?.estimated).toBe(true);
+    expect(
+      monthlyBudgetProgress(status('unavailable/partial', { measured: null, coverage: 'unavailable' }), 100, 'USD')
+    ).toBeNull();
   });
 
   it('keeps selected-period spend and the active unit out of authoritative MTD pacing', () => {
@@ -186,6 +191,31 @@ describe('app budget guard UI', () => {
     expect(monthlyBudgetProgress(status('below', { measured: 180, budget: 900 }), 90, 'DBU')).toBeNull();
   });
 
+  it('renders the production-shaped 7-day screenshot from a separate MTD display snapshot', () => {
+    const production = status('unavailable/partial', {
+      measured: 135.49,
+      budget: 900,
+      coverage: 'partial',
+      displayMtdSpend: {
+        USD: {
+          amount: 180,
+          budget: 900,
+          coverage: 'partial',
+          sourceThrough: '2026-09-15',
+        },
+      },
+    });
+    const markup = renderToStaticMarkup(<SavedAppBudgetSummary savedBudget={900} unit="USD" status={production} />);
+    expect(markup).toContain('Monthly app budget');
+    expect(markup).toContain('900.00 USD');
+    expect(markup).toContain('720.00 USD remaining');
+    expect(markup).toContain('Estimated');
+    expect(markup).not.toContain('764.51 USD remaining');
+    expect(markup.indexOf('900.00 USD')).toBeLessThan(markup.indexOf('720.00 USD remaining'));
+    expect(markup.indexOf('720.00 USD remaining')).toBeLessThan(markup.indexOf('Not projected to exceed this month'));
+    expect(monthlyBudgetProgress(production, 1_000, 'USD')?.balance).toBe('820.00 USD remaining');
+  });
+
   it.each([
     ['2026-02-01', '2026-02-28', '2026-02-14'],
     ['2028-02-01', '2028-02-29', '2028-02-14'],
@@ -196,7 +226,7 @@ describe('app budget guard UI', () => {
       500,
       'USD'
     );
-    expect(view?.pace).toBe('Not projected to exhaust this month');
+    expect(view?.pace).toBe('Not projected to exceed this month');
   });
 
   it('preserves the composer draft and optimistic conversation on a raced server rejection', () => {
@@ -224,6 +254,18 @@ describe('app budget guard UI', () => {
       'billing can lag by hours'
     );
     expect(APP_BUDGET_GUARDRAILS).toContainEqual({ label: 'Resource budgets', value: 'Advisory only' });
+  });
+
+  it('renders balance and pacing in the Total app spend source pane', () => {
+    const source = readFileSync(new URL('./CostBudgets.tsx', import.meta.url), 'utf8');
+    const summary = source.slice(
+      source.indexOf('export function CostSpendSummary'),
+      source.indexOf('function budgetActorDisplay')
+    );
+    expect(summary).toContain('<SavedAppBudgetSummary');
+    expect(summary).toContain('progress.balance');
+    expect(summary).toContain('progress.pace');
+    expect(summary).toContain('Spend estimate unavailable');
   });
 
   it('keeps the app guard separate from AI Gateway enforcement metadata', () => {

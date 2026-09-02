@@ -2,10 +2,8 @@
    The access gate: the one genuinely modal surface in the app, and the first
    thing a new reader ever sees.
 
-   Restyled to the handoff's geometry -- 640px panel, 8px radius, a 4px blue top
-   rule, 28/32px padding, three stacked two-line buttons -- with the one
-   translucency the revamp keeps. A modal scrim is translucent by definition: it
-   is showing you the page you are being held back from.
+   The panel uses the same neutral 97% elevated paper and full border as other
+   dialogs. Blue is reserved for primary action and focus, never outer chrome.
    --------------------------------------------------------------------------- */
 
 .access-gate {
@@ -39,11 +37,8 @@
   max-height: calc(100dvh - 48px);
   margin: auto;
   overflow-y: auto;
-  background: var(--background);
-  border: 1px solid var(--db-line);
-  /* The same signature the header and the answer card wear, so the gate is
-     recognisably this app rather than a browser dialog. */
-  border-top: 4px solid var(--db-blue-600);
+  background: var(--ast-surface-elevated);
+  border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-md);
   padding: 28px 32px;
   display: flex;

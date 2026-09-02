@@ -28,6 +28,35 @@ function finiteNonNegativeOrNull(value: unknown): number | null | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
+function displayMtdSpendFrom(value: unknown): AppBudgetStatus['displayMtdSpend'] {
+  const source = record(value);
+  if (!source) return undefined;
+  const parsed: NonNullable<AppBudgetStatus['displayMtdSpend']> = {};
+  for (const unit of ['USD', 'DBU'] as const) {
+    const candidate = record(source[unit]);
+    const amount = finiteNonNegativeOrNull(candidate?.amount);
+    const budget = finiteNonNegativeOrNull(candidate?.budget);
+    const coverage = candidate?.coverage;
+    if (
+      candidate &&
+      amount !== undefined &&
+      budget !== undefined &&
+      budget !== null &&
+      typeof coverage === 'string' &&
+      APP_BUDGET_COVERAGES.includes(coverage as AppBudgetCoverage) &&
+      typeof candidate.sourceThrough === 'string'
+    ) {
+      parsed[unit] = {
+        amount,
+        budget,
+        coverage: coverage as AppBudgetCoverage,
+        sourceThrough: candidate.sourceThrough,
+      };
+    }
+  }
+  return Object.keys(parsed).length > 0 ? parsed : undefined;
+}
+
 function approvalFrom(value: unknown): AppBudgetApproval | null | undefined {
   if (value === null) return null;
   const candidate = record(value);
@@ -102,6 +131,9 @@ export function decodeAppBudgetStatus(value: unknown): AppBudgetStatus | null {
     budgetFingerprint: candidate.budgetFingerprint,
     code: candidate.code,
     detail: candidate.detail,
+    ...(displayMtdSpendFrom(candidate.displayMtdSpend)
+      ? { displayMtdSpend: displayMtdSpendFrom(candidate.displayMtdSpend) }
+      : {}),
   };
 }
 
@@ -159,7 +191,6 @@ export async function loadAppBudgetStatus(force = false): Promise<AppBudgetStatu
 
 export function refreshAppBudgetStatus(): void {
   invalidateAppBudgetStatus();
-  publish(unavailableStatus('the changed monthly app budget is being re-read.'));
   void loadAppBudgetStatus(true);
 }
 

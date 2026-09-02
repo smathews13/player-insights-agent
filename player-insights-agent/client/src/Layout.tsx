@@ -511,7 +511,7 @@ export function Layout() {
           52px, every sticky offset in the app subtracts that token, and a header
           measured by its tallest child is a header that changes height the next
           time somebody adjusts a font size. */}
-        <header className="app-header border-b bg-background flex items-center sticky top-0 z-30">
+        <header className="app-header ast-top-chrome border-b flex items-center">
           {/* The lockup, the release date, and then the divider §1 puts between
             the column and the tabs. The column is the conversation rail, so Ask
             sits on the hairline above that divider -- not over the sidebar, not

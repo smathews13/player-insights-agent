@@ -13,12 +13,12 @@ describe('run label overlay persistence', () => {
     expect(isAdminRoute('/api/admin/run-labels/msg-1')).toBe(true);
   });
 
-  it('writes outcome and rating and applies them on a later read of the run row', async () => {
+  it('writes outcome and feedback and applies them on a later read of the run row', async () => {
     const rows = new Map<string, { run_id: string; status: string | null; rating: string | null }>();
-    const query = async (sql: string, params: unknown[] = []) => {
+    const query = (sql: string, params: unknown[] = []) => {
       if (sql.includes('SELECT')) {
         const row = rows.get(String(params[0]));
-        return { rows: row ? [{ status: row.status, rating: row.rating }] : [] };
+        return Promise.resolve({ rows: row ? [{ status: row.status, rating: row.rating }] : [] });
       }
       if (sql.includes('INSERT')) {
         rows.set(String(params[0]), {
@@ -26,29 +26,26 @@ describe('run label overlay persistence', () => {
           status: (params[1] as string | null) ?? null,
           rating: (params[2] as string | null) ?? null,
         });
-        return { rows: [] };
+        return Promise.resolve({ rows: [] });
       }
-      return { rows: [] };
+      return Promise.resolve({ rows: [] });
     };
 
     const saved = await writeRunLabelOverride(query, {
       runId: 'msg-1',
       actor: 'admin@example.com',
       status: 'complete',
-      rating: 'up',
+      feedback: 'up',
     });
-    expect(saved).toEqual({ status: 'complete', rating: 'up' });
+    expect(saved).toEqual({ status: 'complete', feedback: 'up' });
     expect(overlayFromRow({ status: 'complete', rating: 'up' })).toEqual({
       status: 'complete',
-      rating: 'up',
+      feedback: 'up',
     });
 
-    const listed = applyOverlayToRunRow(
-      { id: 'msg-1', status: 'partial', rating: null },
-      saved
-    );
+    const listed = applyOverlayToRunRow({ id: 'msg-1', status: 'partial', feedback: null }, saved);
     expect(listed.status).toBe('complete');
-    expect(listed.rating).toBe(5);
+    expect(listed.feedback).toBe('up');
   });
 
   it('wraps the classified status so every list read can COALESCE the overlay', () => {

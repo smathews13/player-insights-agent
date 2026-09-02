@@ -11,7 +11,9 @@
  * governs how every number under it reads, the caveats sit under the figures
  * they qualify, and the run process sits under the answer it produced.
  */
-import { useState, type ReactNode } from 'react';
+import './styles/answer-body.css';
+import './styles/answer-charts.css';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { dataAccessDisclosure } from './analytical-execution';
 import type { TraceStage } from './answer-shape';
 import { answerBadge, answerFallbackNotice, splitCaveats } from './degraded-answer';
@@ -43,9 +45,9 @@ import { AnswerProse, EntityText } from './DataEntityLinks';
 import { mentionedIdentifiers } from './data-entities';
 import { SourcesModule } from './SourcesModule';
 import { TraceTimeline, type TraceTimelineVariant } from './TraceTimeline';
-import { DOWN_RATING, UP_RATING, ratedThumb } from './stored-feedback';
 import { evidenceLinkedSourceNames } from './answer-table-origins';
 import type { Answer, FeedbackEntry } from './app-types';
+import type { FeedbackDirection } from '../../shared/feedback-direction';
 import { StateSwitch } from './StateSwitch';
 import { SqlCodeBlocks } from './SqlPresentation';
 import { AIAnalysisCaveat } from './AIAnalysisCaveat';
@@ -96,7 +98,7 @@ export function AnswerCard({
   question?: string;
   feedback: FeedbackEntry;
   onFeedbackChange: (changes: Partial<FeedbackEntry>) => void;
-  saveFeedback: (rating: number, options?: { keepCommentOpen?: boolean }) => Promise<void>;
+  saveFeedback: (sentiment: FeedbackDirection, options?: { keepCommentOpen?: boolean }) => Promise<void>;
   showFeedback: boolean;
   /**
    * Whether this card draws the run process panel.
@@ -154,8 +156,10 @@ export function AnswerCard({
   const readerAnswer = normalizeReaderAnswer(answer);
   const hasGeneratedSql = answerHasGeneratedSql(readerAnswer.sql);
   const [advanced, setAdvanced] = useState(false);
-  /** Which thumb this answer's rating lights, or neither. See stored-feedback.ts. */
-  const rated = ratedThumb(feedback.usefulness);
+  const feedbackInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (feedback.open) feedbackInputRef.current?.focus();
+  }, [feedback.open]);
   const [showProcess, setShowProcess] = useState(
     () => readRunProcessPreference(runProcessPreferenceKey) ?? defaultRunProcessOpen
   );
@@ -472,69 +476,58 @@ export function AnswerCard({
         {showFeedback && (
           <div className="feedback">
             <span>Was this answer useful?</span>
-            {/* `aria-pressed` and the class both come from the rating the answer
-                carries, which is now read back out of the store rather than
-                remembered for one session. A reader who rated an answer, was
-                told it was saved and came back found both controls blank, and
-                the only honest reading of two blank thumbs is that nothing was
-                recorded. */}
             <Button
               variant="outline"
               size="icon"
-              aria-label="Thumbs up"
-              aria-pressed={rated === 'up'}
-              className={`feedback-rating feedback-rating--up${rated === 'up' ? ' feedback-chosen' : ''}`}
+              aria-label="Mark answer helpful"
+              aria-pressed={feedback.sentiment === 'up'}
+              className={`feedback-rating feedback-rating--up${feedback.sentiment === 'up' ? ' feedback-chosen' : ''}`}
               disabled={feedback.saving}
-              onClick={() => void saveFeedback(UP_RATING)}
+              onClick={() => {
+                onFeedbackChange({ open: false, comment: '' });
+                void saveFeedback('up');
+              }}
             >
-              <ThumbsUp />
+              <ThumbsUp aria-hidden="true" />
             </Button>
             <Button
               variant="outline"
               size="icon"
-              aria-label="Thumbs down"
-              aria-pressed={rated === 'down'}
-              className={`feedback-rating feedback-rating--down${rated === 'down' ? ' feedback-chosen' : ''}`}
+              aria-label="Mark answer not helpful"
+              aria-pressed={feedback.sentiment === 'down'}
+              className={`feedback-rating feedback-rating--down${feedback.sentiment === 'down' ? ' feedback-chosen' : ''}`}
               disabled={feedback.saving}
-              // THE THUMB IS THE RATING, on this side as much as on the other.
-              // This used to do nothing but open the text field, so a reader who
-              // pressed it and typed nothing had rated nothing -- and the field
-              // it opened sat under a "Feedback saved" left over from an earlier
-              // press, which said the opposite. The rating is written on the
-              // click, and the field stays open behind it as the optional
-              // follow-up it always was.
               onClick={() => {
                 onFeedbackChange({ open: true });
-                void saveFeedback(DOWN_RATING, { keepCommentOpen: true });
+                void saveFeedback('down', { keepCommentOpen: true });
               }}
             >
-              <ThumbsDown />
+              <ThumbsDown aria-hidden="true" />
             </Button>
             {feedback.open && (
               <div className="feedback-comment">
                 <Input
+                  ref={feedbackInputRef}
                   value={feedback.comment}
                   onChange={(event) => onFeedbackChange({ comment: event.target.value })}
                   placeholder="What could be better?"
-                  aria-label="What could be better?"
+                  aria-label="Tell us what could be better"
                 />
-                {/* Re-posts the same negative rating with the words attached.
-                    The box is only ever opened by the down thumb, so there is no
-                    rating for this button to invent: it repeats the one already
-                    recorded rather than being the moment it is taken. */}
-                <Button size="sm" disabled={feedback.saving} onClick={() => void saveFeedback(DOWN_RATING)}>
-                  {feedback.saving ? 'Saving…' : 'Save'}
+                <Button size="sm" disabled={feedback.saving} onClick={() => void saveFeedback('down')}>
+                  {feedback.saving ? 'Saving…' : 'Save feedback'}
                 </Button>
               </div>
             )}
             {feedback.saved && (
-              <span className="saved">
+              <span className="saved" role="status" aria-live="polite">
                 <Check /> Feedback saved
               </span>
             )}
-            {/* A rating that did not reach the table must not look recorded, since
-                the usefulness figure is computed from that table. */}
-            {feedback.error && <span className="feedback-error">{feedback.error}</span>}
+            {feedback.error && (
+              <span className="feedback-error" role="alert" aria-live="assertive">
+                {feedback.error}
+              </span>
+            )}
           </div>
         )}
         {/* The identity sentence is the run's, not a constant. It read "Data

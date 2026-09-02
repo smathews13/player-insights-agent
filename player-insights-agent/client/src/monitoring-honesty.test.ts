@@ -12,9 +12,9 @@ import {
   outcomeTile,
   partialSentence,
   PERCENTILE_FLOOR,
+  feedbackTile,
   grantBadge,
-  ratedHelpfulTile,
-  ratedTile,
+  personFeedbackTile,
   readScopes,
   tokenCostTile,
   tokensTile,
@@ -40,42 +40,35 @@ function summary(overrides: Partial<MonitoringSummary> = {}): MonitoringSummary 
     partial: 0,
     refused: 0,
     failed: 0,
-    ratedUp: 0,
-    ratedTotal: 0,
+    helpful: 0,
+    feedbackTotal: 0,
     medianMs: null,
     timedCount: 0,
     ...overrides,
   };
 }
 
-describe('a rate never renders without its population', () => {
-  it('shows no percentage at all when nothing was rated', () => {
-    const tile = ratedHelpfulTile(summary({ questionsAsked: 214 }));
+describe('feedback counts never become a score', () => {
+  it('shows no number when there is no feedback', () => {
+    const tile = feedbackTile(summary({ questionsAsked: 214 }));
 
     expect(tile.value).toBeNull();
-    expect(tile.absence).toBe('Not rated yet');
-    // And it does not print a zero, which would read as a quality score.
-    expect(tile.absence).not.toMatch(/0\s*%/);
-    expect(tile.caption).toBe('No rated answers in this period');
+    expect(tile.absence).toBe('No feedback');
+    expect(tile.caption).toBe('No feedback in this period');
   });
 
-  it('names the denominator beside every share it does print', () => {
-    const tile = ratedHelpfulTile(summary({ questionsAsked: 214, ratedUp: 36, ratedTotal: 46 }));
+  it('prints both direction counts without a percentage', () => {
+    const tile = feedbackTile(summary({ questionsAsked: 214, helpful: 36, feedbackTotal: 46 }));
 
-    expect(tile.value).toBe('78%');
-    expect(tile.caption).toBe('36 of 46 rated answers');
+    expect(tile.value).toBe('46');
+    expect(tile.caption).toBe('36 Helpful · 10 Not helpful');
+    expect(`${tile.value}${tile.caption}`).not.toContain('%');
   });
 
-  /**
-   * The specific shape that makes a bare percentage dangerous: a handful of
-   * ratings over hundreds of questions. The share is still printed, because it is
-   * a real share, and it is printed with the four it is a share of.
-   */
-  it('prints a share over four ratings with the four on screen', () => {
-    const tile = ratedHelpfulTile(summary({ questionsAsked: 400, ratedUp: 3, ratedTotal: 4 }));
-
-    expect(tile.value).toBe('75%');
-    expect(tile.caption).toContain('of 4 rated answers');
+  it('keeps small feedback populations as counts', () => {
+    const tile = feedbackTile(summary({ questionsAsked: 400, helpful: 3, feedbackTotal: 4 }));
+    expect(tile.value).toBe('4');
+    expect(tile.caption).toBe('3 Helpful · 1 Not helpful');
   });
 
   it('says a median is over fewer runs than were asked', () => {
@@ -123,10 +116,9 @@ describe('a rate never renders without its population', () => {
     expect(tokenCostTile(3.84)?.caption).toBe('at configured rate · USD');
   });
 
-  it('says nothing was rated rather than rating zero', () => {
-    expect(ratedTile(0, 0).value).toBeNull();
-    // Up and down, never netted into one number.
-    expect(ratedTile(7, 2).caption).toBe('7 up · 2 down');
+  it('says no feedback rather than showing zero', () => {
+    expect(personFeedbackTile(0, 0).value).toBeNull();
+    expect(personFeedbackTile(7, 2).caption).toBe('7 Helpful · 2 Not helpful');
   });
 });
 

@@ -329,6 +329,9 @@ export function SettingsPage({
                     <tr>
                       <td>
                         <ExperimentalFeatureName>Egress controls panel</ExperimentalFeatureName>
+                        <p className="settings-row-note">
+                          Configures approved outbound network destinations for app requests.
+                        </p>
                       </td>
                       <td className="exp-feature-status">
                         <ExperimentalStatus on={showsEgressControls(draftFeatures)} />
@@ -353,7 +356,7 @@ export function SettingsPage({
                       <td>
                         <ExperimentalFeatureName>Notebook agent sync</ExperimentalFeatureName>
                         <p className="settings-row-note">
-                          Controls notebook selection plus the staged agent-version apply workflow.
+                          Selects the agent notebook and applies staged agent versions.
                         </p>
                       </td>
                       <td className="exp-feature-status">
@@ -379,6 +382,9 @@ export function SettingsPage({
                     <tr>
                       <td>
                         <ExperimentalFeatureName>Forecasting</ExperimentalFeatureName>
+                        <p className="settings-row-note">
+                          Projects 7- and 30-day costs from configurable usage assumptions.
+                        </p>
                       </td>
                       <td className="exp-feature-status">
                         <ExperimentalStatus on={showsForecasting(draftFeatures)} />
@@ -400,6 +406,9 @@ export function SettingsPage({
                     <tr>
                       <td>
                         <ExperimentalFeatureName>Benchmarking</ExperimentalFeatureName>
+                        <p className="settings-row-note">
+                          Runs repeatable evaluation suites against saved test questions.
+                        </p>
                       </td>
                       <td className="exp-feature-status">
                         <ExperimentalStatus on={showsBenchmarkLab(draftFeatures)} />

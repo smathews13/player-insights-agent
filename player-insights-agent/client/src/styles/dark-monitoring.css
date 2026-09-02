@@ -1,13 +1,18 @@
 html[data-theme='dark'] .monitoring-tile,
-html[data-theme='dark'] .monitoring-filters .monitoring-search input,
 html[data-theme='dark'] .monitoring-list-pane {
   background: var(--card);
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
+  border-color: var(--ast-border-input);
+}
+
+html[data-theme='dark'] .monitoring-filters .monitoring-search input {
+  background: var(--ast-surface-elevated);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 
 html[data-theme='dark'] .monitoring-chip-menu {
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-menu);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   color: var(--foreground);
@@ -19,19 +24,19 @@ html[data-theme='dark'] .monitoring-chip-menu [data-slot='select-item'][data-hig
 
 html[data-theme='dark'] .user-profile-modal,
 html[data-theme='dark'] .monitoring-users-modal {
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-elevated);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 html[data-theme='dark'] .user-profile-modal-header,
 html[data-theme='dark'] .monitoring-users-header {
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-elevated);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 html[data-theme='dark'] .monitoring-question-modal {
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-elevated);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
@@ -50,7 +55,7 @@ html[data-theme='dark']
   .monitoring-question-modal
   [data-slot='card'],
 html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) .monitoring-question-modal .answer-card {
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-primary);
   backdrop-filter: none;
 }
 html[data-theme='dark'] .monitoring-tile-caption {

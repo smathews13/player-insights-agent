@@ -41,7 +41,7 @@ function question(overrides: Partial<MonitoringQuestion> = {}): MonitoringQuesti
     durationMs: 1000,
     toolCalls: 1,
     totalTokens: 120,
-    rating: null,
+    feedback: null,
     tables: ['a_catalog.a_schema.a_table'],
     ...overrides,
   };
@@ -50,13 +50,13 @@ function question(overrides: Partial<MonitoringQuestion> = {}): MonitoringQuesti
 describe('the filters live in the URL', () => {
   it('reads every filter back out of a search string', () => {
     const filters = filtersFromParams(
-      params('person=first.person@example.test&outcome=refused&rating=down&table=a.b.c&q=spending')
+      params('person=first.person@example.test&outcome=refused&feedback=down&table=a.b.c&q=spending')
     );
 
     expect(filters).toEqual({
       person: 'first.person@example.test',
       outcome: 'refused',
-      rating: 'down',
+      feedback: 'down',
       table: 'a.b.c',
       search: 'spending',
     });
@@ -74,10 +74,10 @@ describe('the filters live in the URL', () => {
    * no explanation.
    */
   it('drops a value it does not recognise rather than passing it through', () => {
-    const filters = filtersFromParams(params('outcome=banana&rating=sideways'));
+    const filters = filtersFromParams(params('outcome=banana&feedback=sideways'));
 
     expect(filters.outcome).toBe('');
-    expect(filters.rating).toBe('');
+    expect(filters.feedback).toBe('');
   });
 
   /**
@@ -89,7 +89,7 @@ describe('the filters live in the URL', () => {
     const filters = {
       person: 'a@b.test',
       outcome: 'failed',
-      rating: 'up',
+      feedback: 'up',
       table: 'a.b.c',
       search: 'net bookings',
     } as const;
@@ -172,7 +172,7 @@ describe('the User Monitoring modal lives in the URL', () => {
  */
 describe('clearing a filter round-trips through the URL', () => {
   const everything =
-    'range=30d&person=a@b.test&outcome=failed&rating=down&table=cat.sch.tbl&q=refund&question=q9&other=keep';
+    'range=30d&person=a@b.test&outcome=failed&feedback=down&table=cat.sch.tbl&q=refund&question=q9&other=keep';
 
   /** Each one on its own, which is what a chip's ✕ and its All option both do. */
   it('removes each filter individually and leaves the others alone', () => {
@@ -181,7 +181,7 @@ describe('clearing a filter round-trips through the URL', () => {
     for (const [key, blank] of [
       ['person', ''],
       ['outcome', ''],
-      ['rating', ''],
+      ['feedback', ''],
       ['table', ''],
       ['search', ''],
     ] as const) {
@@ -203,7 +203,7 @@ describe('clearing a filter round-trips through the URL', () => {
     const after = params(clearedFilters(everything));
 
     expect(filtersFromParams(after)).toEqual(NO_FILTERS);
-    for (const name of ['person', 'outcome', 'rating', 'table', 'q']) {
+    for (const name of ['person', 'outcome', 'feedback', 'table', 'q']) {
       expect(after.get(name)).toBeNull();
     }
     expect(after.get('range')).toBe('30d');
@@ -242,9 +242,9 @@ describe('clearing a filter round-trips through the URL', () => {
 
 describe('the filters combine with AND', () => {
   const rows = [
-    question({ id: 'a', outcome: 'completed', rating: 'up', askedBy: 'one@example.test' }),
-    question({ id: 'b', outcome: 'refused', rating: null, askedBy: 'one@example.test' }),
-    question({ id: 'c', outcome: 'failed', rating: 'down', askedBy: 'two@example.test', tables: ['x.y.z'] }),
+    question({ id: 'a', outcome: 'completed', feedback: 'up', askedBy: 'one@example.test' }),
+    question({ id: 'b', outcome: 'refused', feedback: null, askedBy: 'one@example.test' }),
+    question({ id: 'c', outcome: 'failed', feedback: 'down', askedBy: 'two@example.test', tables: ['x.y.z'] }),
   ];
 
   it('narrows on each filter and on all of them together', () => {
@@ -256,9 +256,9 @@ describe('the filters combine with AND', () => {
     ).toEqual(['a']);
   });
 
-  /** "Show me what nobody rated" is a different question from "show me all". */
-  it('treats unrated as a filter rather than as the absence of one', () => {
-    expect(applyFilters(rows, { ...NO_FILTERS, rating: 'unrated' }).map((row) => row.id)).toEqual(['b']);
+  /** "Show me what has no feedback" is different from "show me all". */
+  it('treats No feedback as a filter rather than as the absence of one', () => {
+    expect(applyFilters(rows, { ...NO_FILTERS, feedback: 'none' }).map((row) => row.id)).toEqual(['b']);
     expect(applyFilters(rows, NO_FILTERS)).toHaveLength(3);
   });
 });

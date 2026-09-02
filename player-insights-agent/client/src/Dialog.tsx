@@ -190,7 +190,8 @@ export function Dialog({
   const overlay = (
     <div
       ref={overlayRef}
-      className={overlayClassName}
+      className={`${overlayClassName} ast-dialog-overlay`}
+      data-ast-dialog-overlay=""
       data-testid={overlayTestId}
       onMouseDown={(event) => {
         if (event.target !== event.currentTarget) return;
@@ -201,7 +202,8 @@ export function Dialog({
         contentAs,
         {
           ref: contentRef,
-          className: contentClassName,
+          className: `${contentClassName} ast-dialog-panel`,
+          'data-ast-dialog-panel': '',
           style: contentStyle,
           role: 'dialog',
           'aria-modal': 'true',

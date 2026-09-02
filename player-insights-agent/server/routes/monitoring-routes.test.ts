@@ -179,7 +179,7 @@ describe('the query reads questions rather than answers', () => {
    * A conversation that went through plan approval stores the proposed plan as an
    * assistant message with no trace, then the answer. Walking forward to the
    * first assistant message landed on the plan, so a run with a recorded
-   * duration, seven tool calls and a five-star rating reported none of the three.
+   * duration, seven tool calls and feedback reported none of the three.
    * Asserted against `RUNS_QUERY` rather than against a restatement of it,
    * because a copy of the rule can pass here while the two surfaces disagree.
    */
@@ -393,14 +393,14 @@ describe('one row, from what the stores recorded', () => {
    * alone meant every rating read as absent, and the tile said "no answers were
    * rated in this range" over a range holding ratings.
    */
-  it('reads the thumb from the score the app actually writes', () => {
-    expect(questionFromRow(row({ sentiment: null, usefulness: 5 }), ledger()).rating).toBe('up');
-    expect(questionFromRow(row({ sentiment: null, usefulness: 2 }), ledger()).rating).toBe('down');
+  it('reads legacy feedback direction without exposing the score', () => {
+    expect(questionFromRow(row({ sentiment: null, usefulness: 5 }), ledger()).feedback).toBe('up');
+    expect(questionFromRow(row({ sentiment: null, usefulness: 2 }), ledger()).feedback).toBe('down');
   });
 
   it('prefers a recorded sentiment over the score', () => {
-    expect(questionFromRow(row({ sentiment: 'down', usefulness: 5 }), ledger()).rating).toBe('down');
-    expect(questionFromRow(row({ sentiment: 'maybe', usefulness: 2 }), ledger()).rating).toBe('down');
+    expect(questionFromRow(row({ sentiment: 'down', usefulness: 5 }), ledger()).feedback).toBe('down');
+    expect(questionFromRow(row({ sentiment: 'maybe', usefulness: 2 }), ledger()).feedback).toBe('down');
   });
 
   /**
@@ -408,8 +408,8 @@ describe('one row, from what the stores recorded', () => {
    * rated-helpful tile rather than counting against the answer.
    */
   it('reports no thumb for an unrated answer or a score with no direction', () => {
-    expect(questionFromRow(row({ sentiment: null, usefulness: null }), ledger()).rating).toBeNull();
-    expect(questionFromRow(row({ sentiment: null, usefulness: 3 }), ledger()).rating).toBeNull();
+    expect(questionFromRow(row({ sentiment: null, usefulness: null }), ledger()).feedback).toBeNull();
+    expect(questionFromRow(row({ sentiment: null, usefulness: 3 }), ledger()).feedback).toBeNull();
   });
 });
 
@@ -507,8 +507,8 @@ describe('the summary counts what it read', () => {
       1
     );
 
-    expect(summary.ratedUp).toBe(1);
-    expect(summary.ratedTotal).toBe(2);
+    expect(summary.helpful).toBe(1);
+    expect(summary.feedbackTotal).toBe(2);
   });
 
   it('reports a median only over the runs that recorded a time', () => {
@@ -553,7 +553,7 @@ describe('server-side list filters', () => {
       matchingQuestions(questions, {
         person: 'second.person@example.test',
         outcome: 'completed',
-        rating: 'down',
+        feedback: 'down',
         table: 'MAIN.FINANCE.REVENUE',
         search: 'revenue',
       }).map((question) => question.id)
@@ -565,7 +565,7 @@ describe('server-side list filters', () => {
       matchingQuestions(questions, {
         person: '',
         outcome: '',
-        rating: 'unrated',
+        feedback: 'none',
         table: '',
         search: '',
       })

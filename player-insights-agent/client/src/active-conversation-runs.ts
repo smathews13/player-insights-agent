@@ -26,7 +26,7 @@ function directLedgerSummary(status: ConversationRunStatus): RailRunSummary | nu
       status: 'Approval needed',
       tone: 'ast-pill--neutral-outline',
       durationMs: null,
-      rating: null,
+      feedback: null,
       truncated: false,
     };
   }
@@ -36,7 +36,7 @@ function directLedgerSummary(status: ConversationRunStatus): RailRunSummary | nu
       status: 'Stopped',
       tone: 'ast-pill--neg',
       durationMs: null,
-      rating: null,
+      feedback: null,
       truncated: true,
     };
   }
@@ -46,7 +46,7 @@ function directLedgerSummary(status: ConversationRunStatus): RailRunSummary | nu
       status: 'Failed',
       tone: 'ast-pill--neg',
       durationMs: null,
-      rating: null,
+      feedback: null,
       truncated: status.state === 'DEADLINE_EXCEEDED',
     };
   }
@@ -81,7 +81,7 @@ export function terminalConversationRunSummary(
     status: status.state === 'SUCCEEDED' ? 'Complete' : 'Partial',
     tone: status.state === 'SUCCEEDED' ? 'ast-pill--pos' : 'ast-pill--warn',
     durationMs: null,
-    rating: null,
+    feedback: null,
     truncated: status.state === 'CLARIFICATION_REQUIRED',
   };
 }
@@ -115,7 +115,7 @@ function sameSummary(a: RailRunSummary, b: RailRunSummary): boolean {
     a.status === b.status &&
     a.tone === b.tone &&
     a.durationMs === b.durationMs &&
-    a.rating === b.rating &&
+    a.feedback === b.feedback &&
     a.truncated === b.truncated
   );
 }

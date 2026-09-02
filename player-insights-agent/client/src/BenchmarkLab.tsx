@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from './ui';
-import { Check, FileSearch, FlaskConical, Info, Loader2, Star, TriangleAlert, User } from 'lucide-react';
+import { Check, FileSearch, FlaskConical, Info, Loader2, TriangleAlert, User } from 'lucide-react';
 import {
   benchmarkCaseRows,
   benchmarkQualifications,
@@ -44,8 +44,6 @@ import {
   benchmarkSummary,
   formatDuration,
   isTerminal,
-  ratingLabel,
-  ratingOutOf,
   type BenchmarkCaseRow,
   type BenchmarkQualification,
   type BenchmarkStatus,
@@ -54,6 +52,7 @@ import {
 import { useRunTrace } from './app-state';
 import { conversationAge } from './conversation-age';
 import { runLabel } from './run-label';
+import { RunRatingBadge } from './RunRatingBadge';
 import { UserDrilldownLink } from './UserDrilldownLink';
 import type { Run } from './app-types';
 import { evalScorecard } from './eval-scorecard';
@@ -848,13 +847,12 @@ export function RecordedRuns({
                   <TableHead>Started</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="bench-num">Duration</TableHead>
-                  <TableHead>Rating</TableHead>
+                  <TableHead>Feedback</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {runs.map((run) => {
                   const status = benchmarkStatus(run.status);
-                  const rating = ratingLabel(run.rating);
                   const isSelected = selectedId === run.id;
                   return (
                     <TableRow
@@ -892,21 +890,7 @@ export function RecordedRuns({
                         {isTerminal(status) ? metricOrDash(run.duration_ms, formatDuration) : 'In progress'}
                       </TableCell>
                       <TableCell>
-                        {/* A run nobody has rated is a normal state: the runner never
-                            invents a rating, a person supplies one afterwards through
-                            the feedback path. Said in words, because an empty star
-                            reads as a rating of zero. */}
-                        {rating.rated ? (
-                          <span className="stars">
-                            {/* With its scale: a star beside a bare 5 does not say
-                                whether that is five stars or five out of ten.
-                                Mono on the figure alone, because it repeats down
-                                the column and the glyph beside it is not type. */}
-                            <Star /> <span className="ast-num">{ratingOutOf(rating.value)}</span>
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">Not rated yet</span>
-                        )}
+                        <RunRatingBadge feedback={run.feedback} legacyUsefulness={run.rating} showNoFeedback />
                       </TableCell>
                     </TableRow>
                   );

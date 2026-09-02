@@ -75,7 +75,7 @@ export function personDetailUrl(
   params.set('limit', '50');
   if (cursor) params.set('cursor', cursor);
   if (filters.outcome) params.set('outcome', filters.outcome);
-  if (filters.rating) params.set('rating', filters.rating);
+  if (filters.feedback) params.set('feedback', filters.feedback);
   if (filters.table) params.set('table', filters.table);
   if (filters.search) params.set('q', filters.search);
   return `/api/monitoring/people/${encodeURIComponent(email)}?${params.toString()}`;

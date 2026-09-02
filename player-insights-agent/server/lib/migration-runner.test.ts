@@ -771,9 +771,25 @@ describe('the versions this build ships', () => {
   it('is idempotent statement by statement, because a replay has to be harmless', () => {
     for (const migration of MIGRATIONS) {
       for (const statement of migration.statements) {
-        expect(statement.replace(/\s+/g, ' ').trim()).toMatch(/IF NOT EXISTS|ON CONFLICT|IF EXISTS|CREATE OR REPLACE/i);
+        const normalized = statement.replace(/\s+/g, ' ').trim();
+        expect(
+          /IF NOT EXISTS|ON CONFLICT|IF EXISTS|CREATE OR REPLACE/i.test(normalized) ||
+            /^UPDATE .* WHERE sentiment IS NULL AND /i.test(normalized)
+        ).toBe(true);
       }
     }
+  });
+
+  it('backfills only unambiguous feedback and preserves usefulness', () => {
+    const migration = MIGRATIONS.find((entry) => entry.version === 33);
+    const sql = migration?.statements.join('\n') ?? '';
+    expect(migration?.name).toBe('canonical feedback sentiment');
+    expect(sql).toContain('WHERE sentiment IS NULL');
+    expect(sql).toContain('usefulness BETWEEN 4 AND 5');
+    expect(sql).toContain('usefulness BETWEEN 1 AND 2');
+    expect(sql).not.toMatch(/SET\s+usefulness/i);
+    expect(sql).not.toMatch(/usefulness\s*=\s*3/i);
+    expect(migration?.down).toBeNull();
   });
 
   it('composes the baseline from whatever statement list it is given', () => {

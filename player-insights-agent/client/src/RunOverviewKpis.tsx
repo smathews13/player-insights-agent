@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import type { TraceStage, TraceSummary } from './answer-shape';
 import { agentToolCallSubtitle } from './run-overview-kpis';
 import { RunRatingBadge } from './RunRatingBadge';
-import { runRatingDirection } from './run-rating';
+import { runFeedbackDirection } from './run-rating';
 import { formatMs } from './trace-timeline';
 import { Card, CardContent } from './ui';
 import type { TokenReconciliation } from '../../shared/llm-token-usage';
@@ -52,7 +52,8 @@ export function RunOverviewKpis({
   totalTokens,
   promptTokens,
   completionTokens,
-  rating,
+  feedback,
+  legacyUsefulness,
   ratePath,
   tokenReconciliation,
 }: {
@@ -63,7 +64,8 @@ export function RunOverviewKpis({
   totalTokens: number | null;
   promptTokens: number | null;
   completionTokens: number | null;
-  rating: number | null | undefined;
+  feedback: 'up' | 'down' | null | undefined;
+  legacyUsefulness?: number | null;
   ratePath: string | null;
   tokenReconciliation?: TokenReconciliation;
 }) {
@@ -88,8 +90,8 @@ export function RunOverviewKpis({
           tokenView.cacheHitPercent !== undefined ? ` (${tokenView.cacheHitPercent.toFixed(1)}% of covered input)` : ''
         }`
       : '';
-  const feedbackDirection = runRatingDirection(rating);
-  const hasFeedback = feedbackDirection !== 'none';
+  const direction = runFeedbackDirection(feedback, legacyUsefulness);
+  const hasFeedback = direction !== 'none';
 
   return (
     <div className="summary-grid run-kpi-grid">
@@ -130,15 +132,15 @@ export function RunOverviewKpis({
         <CardContent>
           <span className="run-kpi-label">User feedback</span>
           <div className="run-kpi-feedback">
-            <RunRatingBadge rating={rating} showUnrated display="kpi" />
+            <RunRatingBadge feedback={feedback} legacyUsefulness={legacyUsefulness} showNoFeedback display="kpi" />
           </div>
           <small className="run-kpi-subtitle">
-            {hasFeedback ? 'Submitted by the asker' : 'No rating submitted'}
+            {hasFeedback ? 'Submitted by the asker' : 'No feedback'}
             {ratePath && !hasFeedback ? (
               <>
                 {' · '}
                 <Link className="tile-link" to={ratePath}>
-                  Rate this run
+                  Give feedback
                 </Link>
               </>
             ) : null}

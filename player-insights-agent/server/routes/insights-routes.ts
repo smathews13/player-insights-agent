@@ -37,7 +37,7 @@ import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/
 import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
 import { attachRecordedStages, proseOnlyAnswer } from '../../shared/prose-only-answer';
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
-import { overlayJoinSql, overlayRatingSql, overlayStatusSql } from '../lib/run-label-overrides';
+import { overlayFeedbackSql, overlayJoinSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
 import { credentialLifetime } from '../lib/benchmark-identity';
 import { BENCHMARK_CASE_CATALOG, CANONICAL_SUITE, canonicalSuite, resolveSuiteCases } from '../lib/benchmark-suite';
@@ -354,10 +354,19 @@ const AskBody = z.object({
 
 const FeedbackBody = z.object({
   messageId: z.string().min(1),
-  sentiment: z.enum(['up', 'down']).optional(),
-  usefulness: z.number().int().min(1).max(5).optional(),
+  sentiment: z.enum(['up', 'down']),
   comment: z.string().max(2000).optional(),
 });
+
+/** Explicit sentiment first; historical usefulness is read-only compatibility. */
+export function feedbackDirectionSql(alias: string): string {
+  return `CASE
+    WHEN lower(${alias}.sentiment) IN ('up', 'down') THEN lower(${alias}.sentiment)
+    WHEN ${alias}.usefulness BETWEEN 4 AND 5 THEN 'up'
+    WHEN ${alias}.usefulness BETWEEN 1 AND 2 THEN 'down'
+    ELSE NULL
+  END`;
+}
 const BenchmarkRunBody = z.object({
   suiteId: z.string().min(1).optional(),
   agentEndpoint: z.string().min(1).optional(),
@@ -775,12 +784,11 @@ export const RUNS_QUERY = `
          a.trace->'genie_spaces' AS genie_spaces,
          ROUND((a.trace->>'totalMs')::numeric)::int AS duration_ms,
          (a.trace->>'toolCalls')::int AS tool_calls,
-         -- The caller's own rating. The feedback route accepts any message id,
-         -- so without the user_email predicate this would show whatever score
-         -- anyone else submitted against the same answer.
-         ${overlayRatingSql(`(SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
-          WHERE f.message_id = a.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
-          ORDER BY f.created_at DESC LIMIT 1)`)} AS rating,
+         -- The caller's own feedback. Explicit sentiment wins; legacy
+         -- usefulness is only a fallback inside the latest row.
+         ${overlayFeedbackSql(`(SELECT ${feedbackDirectionSql('f')} FROM ${APP_SCHEMA}.feedback f
+          WHERE f.message_id = a.id AND f.user_email = $2
+          ORDER BY f.created_at DESC LIMIT 1)`)} AS feedback,
          a.created_at
   FROM answers a
   ${overlayJoinSql('a.id')}
@@ -798,9 +806,9 @@ export const RUNS_QUERY = `
          GREATEST(0, ROUND(EXTRACT(EPOCH FROM (COALESCE(r.completed_at, r.updated_at) - r.created_at)) * 1000))::int
            AS duration_ms,
          NULL::int AS tool_calls,
-         ${overlayRatingSql(`(SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
-          WHERE f.message_id = r.run_id AND f.user_email = $2 AND f.usefulness IS NOT NULL
-          ORDER BY f.created_at DESC LIMIT 1)`)} AS rating,
+         ${overlayFeedbackSql(`(SELECT ${feedbackDirectionSql('f')} FROM ${APP_SCHEMA}.feedback f
+          WHERE f.message_id = r.run_id AND f.user_email = $2
+          ORDER BY f.created_at DESC LIMIT 1)`)} AS feedback,
          r.created_at
   FROM ${APP_SCHEMA}.runs r
   LEFT JOIN ${APP_SCHEMA}.messages q ON q.id = r.turn_id
@@ -822,12 +830,12 @@ export const RUNS_QUERY = `
          -- count. NULL keeps that absence honest instead of adding unlike runs
          -- into a number the suite never recorded.
          NULL::int AS tool_calls,
-         -- The caller's own rating, from the same table the conversation half
+         -- The caller's own feedback, from the same table the conversation half
          -- reads. feedback.message_id carries no foreign key and the feedback
          -- route accepts any id, so a run id works here unchanged.
-         ${overlayRatingSql(`(SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
-          WHERE f.message_id = b.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
-          ORDER BY f.created_at DESC LIMIT 1)`)} AS rating,
+         ${overlayFeedbackSql(`(SELECT ${feedbackDirectionSql('f')} FROM ${APP_SCHEMA}.feedback f
+          WHERE f.message_id = b.id AND f.user_email = $2
+          ORDER BY f.created_at DESC LIMIT 1)`)} AS feedback,
          b.created_at
   FROM ${APP_SCHEMA}.benchmark_runs b
   ${overlayJoinSql('b.id')}
@@ -2234,25 +2242,25 @@ export function conversationMessagesQuery(
   // claim at all downstream, which is the honest reading of a record that could
   // not state one, and that only works if both make the trip.
   //
-  // THE RATING IS THE SAME SHAPE OF OMISSION, found the same way: a reader rated
-  // an answer, was told the rating was saved, came back, and the thumbs were
-  // blank again. The write lands -- Run Explorer reads these rows and shows the
-  // score -- and this projection was where it stopped. `feedback` is keyed on the
+  // FEEDBACK IS THE SAME SHAPE OF OMISSION, found the same way: a reader marked
+  // an answer, was told it was saved, came back, and the thumbs were blank.
+  // `feedback` is keyed on the
   // message id and carries no conversation id, so it is a scalar subquery rather
   // than a join, and it is scoped to the caller: the feedback route accepts any
   // message id, so without the address predicate a reopened answer would show
-  // whatever score somebody else gave it. The comment comes with the score
-  // because they were entered together and the box is prefilled from it.
+  // whatever direction somebody else gave it. A comment is exposed only for
+  // Not helpful, so an obsolete negative reason cannot reappear after Helpful.
   const select = `SELECT m.id, m.role, m.content, m.response_json, m.trace_id, m.created_at,
                 m.app_principal, m.serving_principal, m.serving_principal_observed_at,
                 m.access_mode, m.execution_mode, m.execution_identity_verified,
                 c.user_email AS asked_by,
-                (SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
-                 WHERE f.message_id = m.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
-                 ORDER BY f.created_at DESC LIMIT 1) AS usefulness,
-                (SELECT f.comment FROM ${APP_SCHEMA}.feedback f
-                 WHERE f.message_id = m.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
-                 ORDER BY f.created_at DESC LIMIT 1) AS feedback_comment
+                (SELECT ${feedbackDirectionSql('f')} FROM ${APP_SCHEMA}.feedback f
+                 WHERE f.message_id = m.id AND f.user_email = $2
+                 ORDER BY f.created_at DESC LIMIT 1) AS feedback_sentiment,
+                (SELECT CASE WHEN ${feedbackDirectionSql('f')} = 'down' THEN f.comment ELSE NULL END
+                   FROM ${APP_SCHEMA}.feedback f
+                  WHERE f.message_id = m.id AND f.user_email = $2
+                  ORDER BY f.created_at DESC LIMIT 1) AS feedback_comment
          FROM ${APP_SCHEMA}.messages m
          JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id`;
   const ownership = readsShared ? '' : ' AND c.user_email = $2';
@@ -5651,9 +5659,7 @@ export function setupInsightsRoutes(
       res.json(payload);
     });
 
-    /**
-     * Record one rating, and only claim to have recorded it if something did.
-     */
+    /** Record canonical feedback, preserving usefulness only on historical rows. */
     app.post('/api/feedback', async (req, res) => {
       const parsed = FeedbackBody.safeParse(req.body);
       if (!parsed.success) {
@@ -5662,42 +5668,38 @@ export function setupInsightsRoutes(
       }
       const email = userEmail(req);
       const readsShared = await callerReadsSharedConversations(appkit.lakebase, email, options.rolesReady);
-      const feedback = { id: crypto.randomUUID(), ...parsed.data, userEmail: email };
+      const feedback = {
+        id: crypto.randomUUID(),
+        messageId: parsed.data.messageId,
+        sentiment: parsed.data.sentiment,
+        comment: parsed.data.sentiment === 'down' ? parsed.data.comment?.trim() || null : null,
+      };
       const written = await readStored(
         appkit,
         'POST /api/feedback',
         `INSERT INTO ${APP_SCHEMA}.feedback
          (id, message_id, user_email, sentiment, usefulness, comment)
-         SELECT $1,$2,$3,$4,$5,$6
+         SELECT $1,$2,$3,$4,NULL,$5
           WHERE EXISTS (
             SELECT 1
               FROM ${APP_SCHEMA}.messages m
               JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
-             WHERE m.id = $2 AND ($7 OR c.user_email = $3)
+             WHERE m.id = $2 AND ($6 OR c.user_email = $3)
           )
              OR EXISTS (
             SELECT 1
               FROM ${APP_SCHEMA}.benchmark_runs b
-             WHERE b.id = $2 AND ($7 OR b.user_email = $3)
+             WHERE b.id = $2 AND ($6 OR b.user_email = $3)
           )
          RETURNING id`,
-        [
-          feedback.id,
-          feedback.messageId,
-          feedback.userEmail,
-          feedback.sentiment ?? null,
-          feedback.usefulness ?? null,
-          feedback.comment ?? null,
-          readsShared,
-        ]
+        [feedback.id, feedback.messageId, email, feedback.sentiment, feedback.comment, readsShared]
       );
       if (!written.available) {
         markResponse(res, noSubstitution('storage_unavailable'));
         res.status(503).json({
           error: 'feedback_not_recorded',
           message:
-            'This rating was not recorded, because the store did not accept it. Nothing was saved, so ' +
-            'it is worth giving again shortly rather than assuming it landed.',
+            'This feedback was not recorded because the store did not accept it. Nothing was saved; try again shortly.',
         });
         return;
       }

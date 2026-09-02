@@ -184,6 +184,39 @@ export const ADDABLE_KINDS: ReadonlyArray<{
   { id: 'volume', kind: 'volume', label: 'Volume', browse: 'volume' },
 ];
 
+/** Resource kinds owned by the generic add flow; Unity Catalog has its own section. */
+export const GENERIC_ADDABLE_KINDS = ADDABLE_KINDS.filter(
+  (entry) => entry.id !== 'catalog' && entry.id !== 'schema' && entry.id !== 'table'
+);
+
+export function isDeclaredUnityCatalogConnection(connection: {
+  resourceType?: DeclaredResourceType;
+  kind: string;
+}): boolean {
+  return (
+    connection.resourceType === 'catalog' ||
+    connection.resourceType === 'schema' ||
+    connection.resourceType === 'table' ||
+    (!connection.resourceType && connection.kind === 'unity-catalog')
+  );
+}
+
+/** Includes legacy rows written before `resourceType` was persisted. */
+export function isDeclaredTableConnection(connection: {
+  resourceType?: DeclaredResourceType;
+  kind: string;
+  value: string;
+}): boolean {
+  if (connection.resourceType) return connection.resourceType === 'table';
+  return (
+    connection.kind === 'unity-catalog' &&
+    connection.value
+      .split('.')
+      .map((part) => part.trim())
+      .filter(Boolean).length === 3
+  );
+}
+
 /**
  * The browser each addable kind opens, keyed by the kind's own browse name.
  *

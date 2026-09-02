@@ -209,7 +209,7 @@ export function useEvaluationLab(): EvaluationLabModel {
                 sourceTraceId: row.id,
                 durationMs: row.durationMs,
                 outcome: row.outcome,
-                rating: row.rating,
+                feedback: row.feedback,
                 toolCalls: row.toolCalls,
               })
             );

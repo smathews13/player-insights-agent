@@ -6,6 +6,8 @@ import { isVisibleInContainer, revealStepDetail, returnToSelectedStep, type Step
 const TRACE = readFileSync(new URL('./TraceDag.tsx', import.meta.url), 'utf8');
 const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
 const RUNS_CSS = readFileSync(new URL('./styles/runs.css', import.meta.url), 'utf8');
+const TRACE_CSS = readFileSync(new URL('./styles/trace.css', import.meta.url), 'utf8');
+const TIMELINE_CSS = readFileSync(new URL('./styles/timeline.css', import.meta.url), 'utf8');
 const RESPONSIVE_CSS = readFileSync(new URL('./styles/responsive-runs.css', import.meta.url), 'utf8');
 
 type MockElement = HTMLElement & {
@@ -63,8 +65,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('selected Agent map details stay inside their scroll owner', () => {
-  it('scrolls the internal container for a detail below the fold and never the page', () => {
+describe('selected Agent map details stay inside their workspace scroll owner', () => {
+  it('scrolls the right workspace for a detail below the fold and never the page', () => {
     const windowScroll = vi.fn();
     const documentScroll = vi.fn();
     vi.stubGlobal('window', { scroll: windowScroll, scrollTo: windowScroll });
@@ -147,6 +149,22 @@ describe('selected Agent map details stay inside their scroll owner', () => {
     expect(container.scrollTo).toHaveBeenCalledWith({ top: 620, behavior: 'auto' });
   });
 
+  it('aligns an expanded timeline detail taller than the workspace at its top', () => {
+    const container = element({ top: 100, bottom: 500, scrollTop: 240, scrollHeight: 2400, clientHeight: 400 });
+    const detail = element({ top: 620, bottom: 1320 });
+
+    const result = revealStepDetail({
+      activation: activation('step-7'),
+      selectedStepId: 'step-7',
+      container,
+      heading: detail,
+      reducedMotion: false,
+    });
+
+    expect(result.top).toBe(760);
+    expect(container.scrollTo).toHaveBeenCalledWith({ top: 760, behavior: 'smooth' });
+  });
+
   it('moves focus only for keyboard activation and always prevents native scrolling', () => {
     const container = element({ top: 0, bottom: 400, scrollHeight: 1200, clientHeight: 400 });
     const keyboardHeading = element({ top: 500, bottom: 540 });
@@ -188,7 +206,7 @@ describe('selected Agent map details stay inside their scroll owner', () => {
     expect(heading.focus).not.toHaveBeenCalled();
   });
 
-  it('returns to top and bottom map nodes through the same narrow container', () => {
+  it('returns to the map top while restoring focus to the selected node', () => {
     const container = element({
       top: 80,
       bottom: 380,
@@ -198,15 +216,16 @@ describe('selected Agent map details stay inside their scroll owner', () => {
     });
     const topNode = element({ top: -420, bottom: -360 });
     const bottomNode = element({ top: 620, bottom: 680 });
+    const map = element({ top: -820, bottom: 700 });
 
-    const top = returnToSelectedStep({ container, node: topNode, reducedMotion: false });
-    expect(top.top).toBe(400);
+    const top = returnToSelectedStep({ container, node: topNode, map, reducedMotion: false });
+    expect(top.top).toBe(0);
     expect(topNode.focus).toHaveBeenCalledWith({ preventScroll: true });
     expect(topNode.scrollIntoView).not.toHaveBeenCalled();
 
     const bottom = returnToSelectedStep({ container, node: bottomNode, reducedMotion: true });
-    expect(bottom.top).toBe(700);
-    expect(container.scrollTo).toHaveBeenLastCalledWith({ top: 700, behavior: 'auto' });
+    expect(bottom.top).toBe(300);
+    expect(container.scrollTo).toHaveBeenLastCalledWith({ top: 300, behavior: 'auto' });
   });
 
   it('keeps long SQL and table details bounded at the internal maximum', () => {
@@ -232,7 +251,7 @@ describe('selected Agent map details stay inside their scroll owner', () => {
   });
 });
 
-describe('Run Explorer owns one anchored viewport', () => {
+describe('Run Explorer has two desktop scroll owners', () => {
   it('links every toggle to one stable panel with pressed and expanded state', () => {
     expect(TRACE).toContain('aria-controls={panelId}');
     expect(TRACE).toContain('aria-pressed={isOpen}');
@@ -243,35 +262,43 @@ describe('Run Explorer owns one anchored viewport', () => {
 
   it('never delegates selected-step movement to scrollIntoView or page scrolling', () => {
     expect(TRACE).not.toMatch(/scrollIntoView|window\.scroll|document\.scroll/);
-    expect(TRACE).toContain('returnToSelectedStep({ container, node');
+    expect(TRACE).toContain('returnToSelectedStep({ container, node, map');
     expect(TRACE).toContain('revealStepDetail({');
   });
 
-  it('gives map, timeline, overview, and details separate bounded tab bodies', () => {
-    expect(EXPLORER.match(/className="run-detail-scroll/g)).toHaveLength(4);
-    expect(EXPLORER).toContain('scrollContainerRef={mapScrollRef}');
+  it('uses one right workspace for every tab and selected map detail', () => {
+    expect(EXPLORER.match(/className="run-detail-content/g)).toHaveLength(4);
+    expect(EXPLORER).not.toContain('run-detail-scroll');
+    expect(EXPLORER).toContain('ref={workspaceScrollRef}');
+    expect(EXPLORER).toContain('scrollContainerRef={workspaceScrollRef}');
+    expect(EXPLORER).toMatch(/<TraceTimeline[\s\S]*scrollContainerRef=\{workspaceScrollRef\}/);
     expect(EXPLORER).toContain('<Tabs value={activeTab} onValueChange={setActiveTab}');
-    expect(EXPLORER).toContain("scroll.current?.scrollTo({ top: 0, behavior: 'auto' })");
+    expect(EXPLORER).toContain("workspaceScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' })");
     expect(EXPLORER).not.toMatch(/scrollIntoView|window\.scroll|document\.scroll/);
   });
 
-  it('anchors the detail column and reserves its scrollbar without changing width', () => {
-    expect(RUNS_CSS).toMatch(/\.run-detail \{[^}]*position: sticky[^}]*height: calc\(100dvh/);
-    expect(RUNS_CSS).toMatch(/\.run-detail \{[^}]*overflow: hidden/);
-    expect(RUNS_CSS).toMatch(/\.run-detail-scroll \{[^}]*overflow-y: auto/);
-    expect(RUNS_CSS).toMatch(/\.run-detail-scroll \{[^}]*scrollbar-gutter: stable/);
-    expect(RUNS_CSS).toMatch(/\.run-detail-scroll \{[^}]*overflow-anchor: none/);
+  it('makes only the recent-runs rail and complete right workspace vertically scrollable', () => {
+    expect(RUNS_CSS).toMatch(/\.run-explorer \{[^}]*height: calc\(100dvh[^}]*overflow: hidden/s);
+    expect(RUNS_CSS).toMatch(/\.run-list \{[^}]*overflow-y: auto[^}]*scrollbar-gutter: stable/s);
+    expect(RUNS_CSS).toMatch(/\.run-detail \{[^}]*overflow-y: auto[^}]*scrollbar-gutter: stable/s);
+    for (const selector of ['run-detail-tabs', 'run-detail-tab-panel', 'run-detail-content']) {
+      const body = RUNS_CSS.match(new RegExp(`\\.${selector} \\{([^}]*)\\}`))?.[1] ?? '';
+      expect(body, selector).not.toMatch(/overflow-y:\s*(auto|scroll)/);
+      expect(body, selector).not.toMatch(/max-height|height:\s*100%/);
+    }
   });
 
-  it('keeps the same internal owner in the narrow layout', () => {
-    expect(RESPONSIVE_CSS).toMatch(/\.run-detail \{[^}]*position: relative[^}]*height: min\(/);
-    expect(RESPONSIVE_CSS).not.toMatch(/overflow:\s*(visible|auto)/);
+  it('returns to normal document flow when the rail and workspace stack', () => {
+    expect(RESPONSIVE_CSS).toMatch(/\.run-explorer \{[^}]*height: auto[^}]*overflow: visible/s);
+    expect(RESPONSIVE_CSS).toMatch(/\.run-list \{[^}]*height: auto[^}]*overflow: visible/s);
+    expect(RESPONSIVE_CSS).toMatch(/\.run-detail \{[^}]*height: auto[^}]*overflow: visible/s);
   });
 
   it('keeps the page top unchanged while steps 10 through 19 are selected', () => {
     const pageScroll = vi.fn();
     vi.stubGlobal('window', { scroll: pageScroll, scrollTo: pageScroll });
     const container = element({ top: 100, bottom: 500, scrollHeight: 5000, clientHeight: 400 });
+    const leftRail = element({ top: 100, bottom: 500, scrollTop: 333, scrollHeight: 1800, clientHeight: 400 });
 
     for (let step = 10; step <= 19; step += 1) {
       const heading = element({ top: 520 + step * 12, bottom: 560 + step * 12 });
@@ -285,7 +312,36 @@ describe('Run Explorer owns one anchored viewport', () => {
     }
 
     expect(container.scrollTo).toHaveBeenCalledTimes(10);
+    expect(leftRail.scrollTop).toBe(333);
+    expect(leftRail.scrollTo).not.toHaveBeenCalled();
     expect(pageScroll).not.toHaveBeenCalled();
     expect(container.getBoundingClientRect().top).toBe(100);
+  });
+
+  it('lets a large map grow to its complete grid bounds without an internal viewport', () => {
+    expect(TRACE).toContain('displayedStages.map((item, index)');
+    expect(TRACE).not.toMatch(/displayedStages\.(?:slice|splice)/);
+    const map = TRACE_CSS.match(/\.trace-dag\.map \{([^}]*)\}/)?.[1] ?? '';
+    expect(map).toMatch(/grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+    expect(map).toMatch(/overflow-y: visible/);
+    expect(map).not.toMatch(/height|max-height|overflow-y:\s*(auto|scroll)/);
+  });
+
+  it('expands timeline, result, token and raw payload regions instead of nesting scrollbars', () => {
+    for (const [css, selector] of [
+      [TIMELINE_CSS, 'trace-gantt-scroll'],
+      [TIMELINE_CSS, 'trace-detail pre'],
+      [RUNS_CSS, 'stage-raw-io-stage .trace-payload pre'],
+      [RUNS_CSS, 'token-invocations'],
+      [RUNS_CSS, 'trace-summary > pre'],
+      [TRACE_CSS, 'trace-dag.map .dag-raw .dag-block'],
+      [TRACE_CSS, 'trace-dag.map .dag-result-table'],
+    ] as const) {
+      const escaped = selector.replaceAll('.', '\\.').replaceAll('>', '\\>');
+      const body = css.match(new RegExp(`\\.${escaped} \\{([^}]*)\\}`))?.[1] ?? '';
+      expect(body, selector).not.toMatch(/max-height|overflow(?:-x|-y)?:\s*(auto|scroll)/);
+    }
+    expect(RUNS_CSS).toMatch(/\.run-explorer \.answer-code-block,[\s\S]*?max-height: none;[\s\S]*?overflow: visible;/);
+    expect(RUNS_CSS).toMatch(/\.run-explorer \.answer-table-wrap \{[^}]*overflow: visible/s);
   });
 });

@@ -950,7 +950,7 @@
    * the foreground exactly as wide as its rail trigger and cap it to the
    * collision space left on whichever side won.
    */
-  z-index: 90;
+  z-index: var(--ast-layer-menu);
   isolation: isolate;
   width: max(var(--radix-popover-trigger-width), min(240px, var(--radix-popover-content-available-width)));
   min-width: var(--radix-popover-trigger-width);

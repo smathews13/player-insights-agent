@@ -23,6 +23,8 @@ import {
   DeclaredTableList,
   DeclaredTablesSection,
   DeclaredTablesTable,
+  TableConnectionAddForm,
+  UnityCatalogConnectionAddForm,
   canonicalDeclaredTableNames,
   declaredTableNames,
   OptionalScopeLine,
@@ -34,6 +36,7 @@ import { BRAND_THEME_MARKS } from './brand-icons';
 import { sourceRows } from './build-card';
 import { GithubMark } from './GithubMark';
 import { NO_APP_FACTS, PUBLIC_SOURCE_REPO_URL } from '../../shared/app-facts';
+import { canMutateConnections } from '../../shared/user-roster-contract';
 import { buildFacts } from './connection-build';
 import { groupByCause, groupByRemedy } from './connection-causes';
 import { splitOptionalScopeFindings } from './optional-scope-findings';
@@ -43,12 +46,15 @@ import {
   readConnections,
   readingsById,
   type SettingsPayload,
+  type ConnectionEntry,
 } from './connection-model';
 import type { StatusTone } from './StatusBadge';
 import { ENTITY_PARAM, entityHref } from './data-entities';
 import type { PreflightCheck } from './preflight';
 import { connectedResource } from '../../shared/deployment-config';
 import { pickerForField } from './asset-picker';
+import { ADD_CONNECTION_PICKERS } from './declared-connection-view';
+import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 
 describe('the build stamps stay identifiers rather than duplicate statuses', () => {
   function stamp(over: Partial<Parameters<typeof buildFacts>[0]>) {
@@ -1376,6 +1382,58 @@ describe('the Unity Catalog tables section', () => {
       detail: 'The workspace answered: 20 columns.',
     }),
   ];
+  const userTable: ConnectionEntry = {
+    connection: {
+      id: 'table-a-catalog-a-schema-added',
+      label: 'Added table',
+      kind: 'unity-catalog',
+      resourceType: 'table',
+      value: 'a_catalog.a_schema.added_table',
+      note: '',
+      state: 'declared',
+      origin: 'app',
+    },
+    impact: {
+      headline: 'Remove Added table.',
+      consequences: ['The agent stops being offered this asset.'],
+      recoverable: false,
+    },
+  };
+  const userCatalog: ConnectionEntry = {
+    ...userTable,
+    connection: {
+      ...userTable.connection,
+      id: 'catalog-a-catalog',
+      label: 'Added catalog',
+      resourceType: 'catalog',
+      value: 'a_catalog',
+    },
+  };
+  const userSchema: ConnectionEntry = {
+    ...userTable,
+    connection: {
+      ...userTable.connection,
+      id: 'schema-a-catalog-a-schema',
+      label: 'Added schema',
+      resourceType: 'schema',
+      value: 'a_catalog.a_schema',
+    },
+  };
+
+  it.each([
+    ['admin', true],
+    ['owner', true],
+    ['super_admin', true],
+    ['consumer', false],
+  ] as const)('aligns %s with the shared connection-mutation capability', (role, allowed) => {
+    expect(canMutateConnections(role)).toBe(allowed);
+    const markup = text(
+      render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations={allowed} />)
+    );
+    expect(markup.includes('Add table')).toBe(allowed);
+    expect(markup.includes('Add schema')).toBe(allowed);
+    expect(markup.includes('Add catalog')).toBe(allowed);
+  });
 
   it('starts expanded on the rows it exists for', () => {
     const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />);
@@ -1385,16 +1443,130 @@ describe('the Unity Catalog tables section', () => {
     expect(text(markup)).not.toContain('Listing an asset lets the agent consider it');
   });
 
-  /**
-   * WHERE THE ADD CONTROL USED TO BE. "Add a new connection" adds a table, a
-   * Genie space or a catalog, and it sat at the foot of the one list that shows
-   * only tables -- so it read as the way to add a table, two sections below the
-   * list it actually extends. It is the last row of Connected resources now.
-   */
-  it('no longer ends in the add-connection control', () => {
-    const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />);
+  it('uses UC-specific admin actions and never the generic add control', () => {
+    const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations />);
     expect(markup).not.toContain('data-testid="add-connection-row"');
     expect(text(markup)).not.toContain('+ Add a new connection');
+    expect(text(markup)).toContain('Add table');
+    expect(text(markup)).toContain('Add schema');
+    expect(text(markup)).toContain('Add catalog');
+    expect(markup).toContain('aria-controls=');
+  });
+
+  it('shows all three UC actions to an authorized admin with twelve tables', () => {
+    const twelve = Array.from({ length: 12 }, (_, index) =>
+      check(`table-${index}`, 'ok', {
+        kind: 'table',
+        name: `a_catalog.a_schema.table_${index}`,
+      })
+    );
+    const rendered = text(render(<DeclaredTablesSection tableChecks={twelve} requestedEntity="" allowMutations />));
+    expect(rendered).toContain('12 tables declared');
+    expect(rendered).toContain('Add table');
+    expect(rendered).toContain('Add schema');
+    expect(rendered).toContain('Add catalog');
+  });
+
+  it('hides all add actions from read-only and unavailable-store views', () => {
+    expect(text(render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />))).not.toContain('Add table');
+    expect(
+      text(
+        render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations storeAvailable={false} />)
+      )
+    ).not.toContain('Add table');
+    expect(
+      text(
+        render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations storeAvailable={false} />)
+      )
+    ).toContain('connection store is not answering');
+  });
+
+  it('renders a table-only three-level picker without a resource type select', () => {
+    expect(ADD_CONNECTION_PICKERS.table.levels).toEqual(['catalogs', 'schemas', 'tables']);
+    const markup = render(
+      <TableConnectionAddForm
+        formId="table-add"
+        value=""
+        busy={false}
+        error=""
+        onPick={() => {}}
+        onAdd={() => {}}
+        onCancel={() => {}}
+      />
+    );
+    expect(markup).toContain('data-testid="add-table-form"');
+    expect(text(markup)).toContain('Add table');
+    expect(text(markup)).toContain('Cancel');
+    expect(markup).not.toContain('Resource type');
+    expect(markup).toContain('aria-label="Add Unity Catalog table"');
+  });
+
+  it('defines catalog and schema pickers at their exact UC levels', () => {
+    expect(ADD_CONNECTION_PICKERS.catalog.levels).toEqual(['catalogs']);
+    expect(ADD_CONNECTION_PICKERS.schema.levels).toEqual(['catalogs', 'schemas']);
+    for (const resourceType of ['catalog', 'schema'] as const) {
+      const markup = render(
+        <UnityCatalogConnectionAddForm
+          resourceType={resourceType}
+          formId={`${resourceType}-add`}
+          value=""
+          busy={false}
+          error=""
+          onPick={() => {}}
+          onAdd={() => {}}
+          onCancel={() => {}}
+        />
+      );
+      expect(markup).toContain(`data-testid="add-${resourceType}-form"`);
+      expect(markup).not.toContain('Resource type');
+      expect(markup).toContain(`aria-label="Add Unity Catalog ${resourceType}"`);
+    }
+  });
+
+  it('lists an added table once with pending reachability and deletion in this section', () => {
+    const tableMarkup = render(
+      <DeclaredTablesSection tableChecks={tables} tableConnections={[userTable]} requestedEntity="" allowMutations />
+    );
+    const genericMarkup = render(<DeclaredConnectionsCard entries={[userTable]} allowMutations onChanged={() => {}} />);
+    expect(tableMarkup.match(/id="declared-table-row-table-a-catalog-a-schema-added"/g)).toHaveLength(1);
+    expect(text(tableMarkup)).toContain('Checking');
+    expect(text(tableMarkup)).toContain('Reachability pending');
+    expect(tableMarkup).toContain('Delete connection: a_catalog.a_schema.added_table');
+    expect(genericMarkup).not.toContain('declared-connection-table-a-catalog-a-schema-added');
+  });
+
+  it('keeps bundle-managed table rows read-only', () => {
+    const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations />);
+    expect(markup).not.toContain('Delete connection: a_catalog.a_schema.gold_title_daily_summary');
+  });
+
+  it('keeps added catalogs and schemas only in the UC managed list', () => {
+    const ucMarkup = render(
+      <DeclaredTablesSection
+        tableChecks={tables}
+        tableConnections={[userCatalog, userSchema]}
+        requestedEntity=""
+        allowMutations
+      />
+    );
+    const genericMarkup = render(
+      <DeclaredConnectionsCard entries={[userCatalog, userSchema]} allowMutations onChanged={() => {}} />
+    );
+    expect(text(ucMarkup)).toContain('Added catalogs and schemas');
+    expect(ucMarkup).toContain('data-testid="managed-uc-catalog-a-catalog"');
+    expect(ucMarkup).toContain('data-testid="managed-uc-schema-a-catalog-a-schema"');
+    expect(genericMarkup).not.toContain('managed-uc-');
+    expect(text(genericMarkup)).not.toContain('Added catalog');
+    expect(text(genericMarkup)).not.toContain('Added schema');
+  });
+
+  it('renders the UC section and all admin actions with no table checks', () => {
+    const markup = render(<DeclaredTablesSection tableChecks={[]} requestedEntity="" allowMutations />);
+    expect(text(markup)).toContain('Unity Catalog');
+    expect(text(markup)).toContain('No Unity Catalog tables are declared yet.');
+    expect(text(markup)).toContain('Add table');
+    expect(text(markup)).toContain('Add schema');
+    expect(text(markup)).toContain('Add catalog');
   });
 
   it('draws a row per declared table with concise reachability and freshness', () => {
@@ -1422,7 +1594,7 @@ describe('the Unity Catalog tables section', () => {
    */
   it('puts a table search and catalog/schema filters above the rows', () => {
     const markup = render(<DeclaredTablesTable tableChecks={tables} requestedEntity="" />);
-    expect(markup).toContain('run-search');
+    expect(markup).not.toContain('run-search');
     expect(markup).toContain('connections-table-toolbar');
     expect(markup).toContain('connections-table-search');
     expect(markup).toContain('connections-table-filter');
@@ -1441,10 +1613,10 @@ describe('the Unity Catalog tables section', () => {
     expect(markup.indexOf('Filter tables by catalog')).toBeLessThan(markup.indexOf('Filter tables by schema'));
   });
 
-  it('puts search, Catalog, and Schema on the declared-count header line', () => {
+  it('puts search, Catalog, Schema, and UC actions with the declared count', () => {
     const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />);
     expect(markup).toMatch(
-      /class="connection-block-head"[\s\S]*?Unity Catalog tables[\s\S]*?declared[\s\S]*?class="connection-block-controls"[\s\S]*?Search tables[\s\S]*?Catalog[\s\S]*?Schema/
+      /class="connection-block-head"[\s\S]*?Unity Catalog[\s\S]*?declared[\s\S]*?class="connection-block-controls"[\s\S]*?Search tables[\s\S]*?Catalog[\s\S]*?Schema/
     );
     expect(markup.indexOf('connection-block-controls')).toBeLessThan(markup.indexOf('connection-block-body'));
     expect(markup).not.toMatch(/connection-block-body[\s\S]*?connections-table-toolbar/);

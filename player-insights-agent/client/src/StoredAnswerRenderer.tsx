@@ -5,6 +5,7 @@ import { Card, CardContent } from './ui';
 import type { Answer, FeedbackEntry } from './app-types';
 import type { TraceStage } from './answer-shape';
 import { normalizeReaderText } from '../../shared/answer-content-policy';
+import type { FeedbackDirection } from '../../shared/feedback-direction';
 
 export interface StoredAnswerRendererProps {
   answer?: Answer;
@@ -14,7 +15,7 @@ export interface StoredAnswerRendererProps {
   question?: string;
   feedback: FeedbackEntry;
   onFeedbackChange: (changes: Partial<FeedbackEntry>) => void;
-  saveFeedback: (rating: number, options?: { keepCommentOpen?: boolean }) => Promise<void>;
+  saveFeedback: (sentiment: FeedbackDirection, options?: { keepCommentOpen?: boolean }) => Promise<void>;
   showFeedback: boolean;
   processStages?: TraceStage[];
 }

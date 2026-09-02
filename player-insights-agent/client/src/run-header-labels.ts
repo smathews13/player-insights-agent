@@ -2,13 +2,13 @@
  * Admin edits of the Run Explorer header rail: which chips can change, and how
  * an override is stored and applied.
  *
- * Outcome and rating are the two closed sets an administrator can correct after
+ * Outcome and feedback are the two closed sets an administrator can correct after
  * a run. Conversation, message, user and tool-count stay as chips; they are not
  * reassigned from this rail.
  */
 import type { Conversation, Run } from './app-types';
 import { railStatusTone, type RailRunSummary } from './rail-run-summary';
-import { DOWN_RATING, UP_RATING } from './stored-feedback';
+import { feedbackDirection } from '../../shared/feedback-direction';
 
 export const RAIL_OUTCOME_OPTIONS = [
   { value: 'complete', label: 'Complete' },
@@ -18,17 +18,17 @@ export const RAIL_OUTCOME_OPTIONS = [
 
 export type RailOutcome = (typeof RAIL_OUTCOME_OPTIONS)[number]['value'];
 
-export const RAIL_RATING_OPTIONS = [
-  { value: 'unrated', label: 'Not rated' },
+export const RAIL_FEEDBACK_OPTIONS = [
+  { value: 'none', label: 'No feedback' },
   { value: 'up', label: 'Helpful' },
   { value: 'down', label: 'Not helpful' },
 ] as const;
 
-export type RailRating = (typeof RAIL_RATING_OPTIONS)[number]['value'];
+export type RailFeedback = (typeof RAIL_FEEDBACK_OPTIONS)[number]['value'];
 
 export interface RunLabelOverride {
   status?: RailOutcome | null;
-  rating?: RailRating | null;
+  feedback?: RailFeedback | null;
 }
 
 export function railOutcomeValue(status: string | null | undefined): RailOutcome {
@@ -38,17 +38,8 @@ export function railOutcomeValue(status: string | null | undefined): RailOutcome
   return 'complete';
 }
 
-export function railRatingValue(rating: number | null | undefined): RailRating {
-  if (typeof rating !== 'number' || !Number.isFinite(rating)) return 'unrated';
-  if (rating >= 4) return 'up';
-  if (rating <= 2) return 'down';
-  return 'unrated';
-}
-
-export function ratingFromRail(choice: RailRating): number | null {
-  if (choice === 'up') return UP_RATING;
-  if (choice === 'down') return DOWN_RATING;
-  return null;
+export function railFeedbackValue(feedback: Run['feedback'], legacyUsefulness?: number | null): RailFeedback {
+  return feedbackDirection(feedback, legacyUsefulness) ?? 'none';
 }
 
 /**
@@ -60,9 +51,13 @@ export function ratingFromRail(choice: RailRating): number | null {
 export function applyRunLabelOverride(run: Run, overlay: RunLabelOverride | null | undefined): Run {
   if (!overlay) return run;
   const status = overlay.status ?? run.status;
-  const rating =
-    overlay.rating === undefined || overlay.rating === null ? run.rating : ratingFromRail(overlay.rating);
-  return { ...run, status, rating };
+  const feedback =
+    overlay.feedback === undefined || overlay.feedback === null
+      ? run.feedback
+      : overlay.feedback === 'none'
+        ? null
+        : overlay.feedback;
+  return { ...run, status, feedback };
 }
 
 /**
@@ -97,14 +92,18 @@ export function applyRunLabelOverrideToSummaries(
   const held = summaries.get(id);
   if (!held) return summaries;
   const status = overlay.status ?? held.status;
-  const rating =
-    overlay.rating === undefined || overlay.rating === null ? held.rating : ratingFromRail(overlay.rating);
+  const feedback =
+    overlay.feedback === undefined || overlay.feedback === null
+      ? held.feedback
+      : overlay.feedback === 'none'
+        ? null
+        : overlay.feedback;
   const next = new Map(summaries);
   next.set(id, {
     ...held,
     status,
     tone: railStatusTone(status),
-    rating,
+    feedback,
   });
   return next;
 }
@@ -112,7 +111,7 @@ export function applyRunLabelOverrideToSummaries(
 /**
  * The conversation-list fallback, when `/api/runs` never described the row.
  *
- * Rating stays off this list: it is one reader's opinion and that route does
+ * Feedback stays off this list: it is one reader's opinion and that route does
  * not know whose it is.
  */
 export function applyRunLabelOverrideToConversations(
@@ -133,12 +132,9 @@ const overlayListeners = new Set<(conversationId: string, overlay: RunLabelOverr
  *
  * HomePage unmounts when Run Explorer opens, so a `useState` map there cannot
  * hear the save. This is the cache that can: keyed by conversation, merged so
- * a later rating edit does not forget the outcome just written.
+ * a later feedback edit does not forget the outcome just written.
  */
-export function rememberRunLabelOverride(
-  conversationId: string,
-  overlay: RunLabelOverride
-): RunLabelOverride {
+export function rememberRunLabelOverride(conversationId: string, overlay: RunLabelOverride): RunLabelOverride {
   const id = conversationId.trim();
   const next = { ...(rememberedOverlays.get(id) ?? {}), ...overlay };
   if (!id) return next;
@@ -155,9 +151,7 @@ export function subscribeRunLabelOverrides(
   return () => overlayListeners.delete(listener);
 }
 
-export function applyRememberedRunLabelOverrides(
-  summaries: Map<string, RailRunSummary>
-): Map<string, RailRunSummary> {
+export function applyRememberedRunLabelOverrides(summaries: Map<string, RailRunSummary>): Map<string, RailRunSummary> {
   let next = summaries;
   for (const [id, overlay] of rememberedOverlays) {
     next = applyRunLabelOverrideToSummaries(next, id, overlay);

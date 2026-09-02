@@ -1,5 +1,5 @@
 /**
- * Admin overlay of Run Explorer rail labels: outcome and rating after a run.
+ * Admin overlay of Run Explorer rail labels: outcome and feedback after a run.
  *
  * `/api/admin/run-labels` sits under the existing `/api/admin` prefix, so the
  * identity and admin guards already refuse a consumer. Nothing here checks a
@@ -12,7 +12,7 @@ import { userEmail, type InsightsAppKit } from './insights-routes';
 
 const OverlayBody = z.object({
   status: z.enum(['complete', 'partial', 'failed']).optional(),
-  rating: z.enum(['unrated', 'up', 'down']).optional(),
+  feedback: z.enum(['none', 'up', 'down']).optional(),
 });
 
 export function setupRunLabelRoutes(appkit: InsightsAppKit): void {
@@ -41,7 +41,7 @@ export function setupRunLabelRoutes(appkit: InsightsAppKit): void {
     app.put('/api/admin/run-labels/:runId', async (req, res) => {
       const runId = req.params.runId?.trim() ?? '';
       const parsed = OverlayBody.safeParse(req.body);
-      if (!runId || !parsed.success || (parsed.data.status === undefined && parsed.data.rating === undefined)) {
+      if (!runId || !parsed.success || (parsed.data.status === undefined && parsed.data.feedback === undefined)) {
         res.status(400).json({ error: 'invalid_run_labels' });
         return;
       }
@@ -57,7 +57,7 @@ export function setupRunLabelRoutes(appkit: InsightsAppKit): void {
           action: 'run-labels-updated',
           subject: runId,
           detail: `Updated run rail labels${parsed.data.status ? ` outcome=${parsed.data.status}` : ''}${
-            parsed.data.rating ? ` rating=${parsed.data.rating}` : ''
+            parsed.data.feedback ? ` feedback=${parsed.data.feedback}` : ''
           }.`,
         });
         res.json(overlay);

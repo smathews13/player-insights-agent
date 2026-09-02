@@ -66,13 +66,28 @@
    * measured from the window's edge and the header's contents from inside its
    * padding.
    */
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--ast-layer-chrome);
+  isolation: isolate;
+  width: 100%;
   height: var(--app-header-h);
-  padding: 0 var(--app-header-pad-x);
+  padding: var(--app-header-safe-top) var(--app-header-pad-x) 0;
   border-bottom-color: var(--ast-hairline);
-  /* Solid, and no blur behind it. The header used to be 88% white over a gradient
-     page with an 18px backdrop blur and a soft drop shadow, which is the frosted
-     chrome DuBois does not have. It separates from the page on its hairline now. */
-  background: var(--background);
+  /* Full-bound occlusion, including the safe-area strip and every gap between
+     controls. Content scrolls underneath this plane but cannot show through it. */
+  background-color: var(--ast-surface-chrome);
+  background-image: none;
+  backdrop-filter: none;
+  box-shadow: 0 1px 0 var(--ast-hairline);
+}
+.app-header::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ast-surface-chrome);
+  pointer-events: none;
+  content: '';
 }
 /*
  * The primary navigation, as tabs on the header's own baseline.

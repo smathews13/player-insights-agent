@@ -130,7 +130,6 @@ import { stepTokenUsageView } from './token-usage-view';
  * that already fits is not offered a link to reveal what is on screen, and it is
  * not covered by a fade with nothing behind it.
  */
-const CLAMP_LINES = 9;
 
 function TokenBadge({ usage }: { usage: StepTokenUsage }) {
   const label = tokenUsageLabel(usage);
@@ -502,24 +501,18 @@ function RenderedResult({
 /**
  * The statement the step generated, with the keywords the design picks out.
  *
- * Clamped rather than scrolled, and the clamp opens: a scrollbar inside a panel
- * inside a grid is the arrangement that parked half of this map off-screen the
- * last time, and a reader who wants the whole statement can say so once. The way
- * past the clamp appears only when there is something behind it -- a fade and a
- * "show all" over a statement that already fits is a control that does nothing,
- * drawn on top of the last line it is pretending to hide.
+ * Expanded to its natural height: the right Run Explorer workspace is the one
+ * scroll owner, so a statement never creates a viewport or a clipped subview.
  *
  * Copy puts the statement on the clipboard exactly as recorded -- not the
  * tokenised version above, which is the same characters in spans, and not the
  * clamped fragment on screen.
  */
 function SqlBlock({ sql, tables = [] }: { sql: string; tables?: readonly string[] }) {
-  const [expanded, setExpanded] = useState(false);
   const safeSql = sanitizeSqlForDisplay(sql);
   const lines = sqlStatements(safeSql).flatMap(sqlLines);
-  const clamps = lines.length > CLAMP_LINES;
   return (
-    <div className={`dag-sql ${expanded || !clamps ? 'open' : ''}`}>
+    <div className="dag-sql">
       <div className="dag-sql-head">
         <strong>Generated SQL</strong>
         <span className="dag-sql-lines ast-num">
@@ -544,11 +537,6 @@ function SqlBlock({ sql, tables = [] }: { sql: string; tables?: readonly string[
       </div>
       <div className="dag-sql-body">
         <SqlCodeBlocks sql={safeSql} formatClauses={false} tables={tables} />
-        {clamps && !expanded && (
-          <button type="button" className="dag-sql-more" onClick={() => setExpanded(true)}>
-            Show all {lines.length} lines
-          </button>
-        )}
       </div>
     </div>
   );
@@ -953,6 +941,7 @@ export function TraceDag({
   const panelId = `${useId()}detail`;
   const detailHeadingRef = useRef<HTMLElement>(null);
   const backButtonRef = useRef<HTMLButtonElement>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef(new Map<string, HTMLButtonElement>());
   const activationRef = useRef<StepActivation | null>(null);
   const activationSequence = useRef(0);
@@ -996,8 +985,9 @@ export function TraceDag({
   const backToMap = () => {
     const container = scrollContainerRef?.current;
     const node = openId ? nodeRefs.current.get(openId) : null;
-    if (!container || !node) return;
-    returnToSelectedStep({ container, node, reducedMotion: reducedMotion() });
+    const map = mapRef.current;
+    if (!container || !node || !map) return;
+    returnToSelectedStep({ container, node, map, reducedMotion: reducedMotion() });
     if (backButtonRef.current) backButtonRef.current.hidden = true;
   };
   // Every stage, in both arrangements, in the order the run recorded them and
@@ -1008,7 +998,7 @@ export function TraceDag({
   // question the moment they were numbered, which is the usual way round -- the
   // numbering did not break the pane, it published what the pane had been doing.
   const steps = (
-    <div className={`trace-dag ${compact ? 'compact' : `map${envelopeStage ? ' has-run-envelope' : ''}`}`}>
+    <div ref={mapRef} className={`trace-dag ${compact ? 'compact' : `map${envelopeStage ? ' has-run-envelope' : ''}`}`}>
       {displayedStages.map((item, index) => {
         // Capped, because the indent is a reading aid and a deep run should not
         // push its last stages off the side of the rail. Handed to the stylesheet

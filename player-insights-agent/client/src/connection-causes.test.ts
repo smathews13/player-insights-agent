@@ -175,10 +175,7 @@ describe('collecting the blocked checks by cause', () => {
       check('second', { detail: 'B.' }),
       check('third', { detail: 'A.' }),
     ]);
-    expect(groups.map((group) => group.checks.map((member) => member.id))).toEqual([
-      ['first', 'third'],
-      ['second'],
-    ]);
+    expect(groups.map((group) => group.checks.map((member) => member.id))).toEqual([['first', 'third'], ['second']]);
   });
 });
 
@@ -220,7 +217,8 @@ describe('what one row of the declared-tables matrix says', () => {
   it('cuts a row down to what the workspace said about that one table', () => {
     const row = check('t', {
       error: '',
-      detail: 'The workspace refused this identity: HTTP 403 PERMISSION_DENIED. Everything after this is the shared diagnosis.',
+      detail:
+        'The workspace refused this identity: HTTP 403 PERMISSION_DENIED. Everything after this is the shared diagnosis.',
     });
     expect(rowStatusLine(row)).toBe('The workspace refused this identity: HTTP 403 PERMISSION_DENIED.');
   });
@@ -231,9 +229,11 @@ describe('what one row of the declared-tables matrix says', () => {
    * mid-identifier for the next.
    */
   it('does not mistake a scope name or a three-part table name for a sentence ending', () => {
-    expect(rowStatusLine(check('t', { detail: 'Your sign-in does not carry `catalog.tables:read`, which the app asks for. And more.' }))).toBe(
-      'Your sign-in does not carry `catalog.tables:read`, which the app asks for.'
-    );
+    expect(
+      rowStatusLine(
+        check('t', { detail: 'Your sign-in does not carry `catalog.tables:read`, which the app asks for. And more.' })
+      )
+    ).toBe('Your sign-in does not carry `catalog.tables:read`, which the app asks for.');
     expect(rowStatusLine(check('t', { detail: 'a_catalog.a_schema.gold_x could not be read. And more.' }))).toBe(
       'a_catalog.a_schema.gold_x could not be read.'
     );
@@ -260,13 +260,13 @@ describe('the declared-tables aside', () => {
       check('c', { status: 'unverified' }),
       check('d', { status: 'unverified' }),
     ]);
-    expect(aside).toContain('4 declared');
+    expect(aside).toContain('4 tables declared');
     expect(aside).toContain('1 blocked');
     expect(aside).toContain('2 not checked');
   });
 
   /** A zero never renders, here or on the summary line above it. */
   it('says only how many tables were declared when every one of them answered', () => {
-    expect(declaredTablesAside([check('a', { status: 'ok' }), check('b', { status: 'ok' })])).toBe('2 declared');
+    expect(declaredTablesAside([check('a', { status: 'ok' }), check('b', { status: 'ok' })])).toBe('2 tables declared');
   });
 });

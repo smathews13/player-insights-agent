@@ -45,7 +45,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { claimAutoCheck, recallChecks, rememberChecks, type CheckSession } from './check-session';
-import type { SettingsPayload } from './connection-model';
+import type { ConnectionEntry, SettingsPayload } from './connection-model';
 import { fetchWithTimeout } from './fetch-timeout';
 import { isPreflightReport, type PreflightReport } from './preflight';
 
@@ -132,6 +132,24 @@ export function commitConnectionDeletion(ids: readonly string[]): void {
     settings: {
       ...previous.settings,
       connections: (previous.settings.connections ?? []).filter((entry) => !removed.has(entry.connection.id)),
+    },
+  });
+  announce();
+}
+
+/** Keep a confirmed creation in the session cache before any revalidation lands. */
+export function commitConnectionAddition(entry: ConnectionEntry): void {
+  settingsMutationGeneration += 1;
+  const previous = recallChecks();
+  if (!previous?.settings) return;
+  rememberChecks({
+    ...previous,
+    settings: {
+      ...previous.settings,
+      connections: [
+        ...(previous.settings.connections ?? []).filter((candidate) => candidate.connection.id !== entry.connection.id),
+        entry,
+      ],
     },
   });
   announce();

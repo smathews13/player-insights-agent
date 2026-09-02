@@ -191,6 +191,8 @@ async function startApp(store: AdminStore) {
     // so its absence is asserted rather than assumed.
     reconcile: (email: string) => fetch(`${base}/api/admins/access`, { method: 'POST', headers: headers(email) }),
     probe: (path: string, email: string) => fetch(`${base}${path}`, { headers: headers(email) }),
+    probeWithMethod: (path: string, email: string, method: 'POST' | 'DELETE') =>
+      fetch(`${base}${path}`, { method, headers: headers(email), body: method === 'POST' ? '{}' : undefined }),
   };
 }
 
@@ -253,6 +255,21 @@ describe('a consumer is refused at the route', () => {
     expect((await app.probe('/api/settings/values/sql-warehouse', CONSUMER)).status).toBe(403);
     expect((await app.probe('/api/settings/connections', CONSUMER)).status).toBe(403);
     expect((await app.probe('/api/settings/apply', CONSUMER)).status).toBe(403);
+  });
+
+  it('keeps connection create/delete authorization aligned across all role levels', async () => {
+    const admin = 'admin@example.com';
+    const owner = 'owner@example.com';
+    const superAdmin = 'super@example.com';
+    announceSeedAdmins(`${admin} super:${owner} super:${superAdmin}`);
+    const app = await startApp(fakeLakebase());
+
+    for (const email of [admin, owner, superAdmin]) {
+      expect((await app.probeWithMethod('/api/settings/connections', email, 'POST')).status).not.toBe(403);
+      expect((await app.probeWithMethod('/api/settings/connections/resource-1', email, 'DELETE')).status).not.toBe(403);
+    }
+    expect((await app.probeWithMethod('/api/settings/connections', CONSUMER, 'POST')).status).toBe(403);
+    expect((await app.probeWithMethod('/api/settings/connections/resource-1', CONSUMER, 'DELETE')).status).toBe(403);
   });
 });
 

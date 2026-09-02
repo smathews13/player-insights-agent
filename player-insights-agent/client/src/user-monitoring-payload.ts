@@ -19,11 +19,13 @@ export function decodeUserMonitoringCostPayload(value: unknown): OpsCostPayload 
   const monitoring = rawMonitoring as unknown as UserMonitoringPayload;
   const users = monitoring.users.filter(
     (row) =>
-      typeof row?.lastActive === 'string' &&
-      Number.isFinite(Date.parse(row.lastActive)) &&
+      (row?.lastActive === null ||
+        (typeof row?.lastActive === 'string' && Number.isFinite(Date.parse(row.lastActive)))) &&
       Number.isFinite(row.questions) &&
-      Number.isFinite(row.coveredDays)
+      Number.isFinite(row.coveredDays) &&
+      isRecord(row.tokenUsage)
   );
+  if (typeof monitoring.identityRevision !== 'string') throw new Error('user_monitoring_payload_stale');
   return {
     ...(direct ? ({ currency: 'USD' } as OpsCostPayload) : (value as unknown as OpsCostPayload)),
     userMonitoring: {

@@ -31,6 +31,8 @@ export const USER_SPEND_HOURLY_READ_MODEL_DDL: readonly string[] = [
      run_count INTEGER NOT NULL DEFAULT 0 CHECK (run_count >= 0),
      active_minutes INTEGER NOT NULL DEFAULT 0 CHECK (active_minutes >= 0),
      total_tokens BIGINT,
+     token_covered_runs INTEGER,
+     token_covered_questions INTEGER,
      spend_usd NUMERIC(30,12),
      spend_dbu NUMERIC(30,12),
      app_spend_usd NUMERIC(30,12),
@@ -72,7 +74,8 @@ export const USER_SPEND_HOURLY_READ_MODEL_DDL: readonly string[] = [
 export const READ_USER_SPEND_HOURLY_SOURCE_QUERY = `WITH evidence AS (
   SELECT lower(c.user_email) AS user_key, m.created_at AS occurred_at,
          1::int AS questions, 0::int AS completed, 0::int AS runs,
-         0::int AS active_minutes, NULL::bigint AS total_tokens
+         0::int AS active_minutes, NULL::bigint AS total_tokens,
+         0::int AS token_covered_runs, NULL::text AS token_question_id
   FROM ${appTable('messages')} m
   JOIN ${appTable('conversations')} c ON c.id = m.conversation_id
   WHERE m.role = 'user' AND m.created_at >= $3::timestamptz AND m.created_at < $4::timestamptz
@@ -87,13 +90,21 @@ export const READ_USER_SPEND_HOURLY_SOURCE_QUERY = `WITH evidence AS (
              THEN (m.response_json->'trace'->>'prompt_tokens')::bigint
                 + (m.response_json->'trace'->>'completion_tokens')::bigint
            ELSE NULL
-         END
+         END,
+         CASE WHEN COALESCE(m.response_json->'trace'->>'total_tokens', '') ~ '^[0-9]+$'
+                    OR (COALESCE(m.response_json->'trace'->>'prompt_tokens', '') ~ '^[0-9]+$'
+                    AND COALESCE(m.response_json->'trace'->>'completion_tokens', '') ~ '^[0-9]+$')
+              THEN 1 ELSE 0 END,
+         CASE WHEN COALESCE(m.response_json->'trace'->>'total_tokens', '') ~ '^[0-9]+$'
+                    OR (COALESCE(m.response_json->'trace'->>'prompt_tokens', '') ~ '^[0-9]+$'
+                    AND COALESCE(m.response_json->'trace'->>'completion_tokens', '') ~ '^[0-9]+$')
+              THEN r.turn_id ELSE NULL END
   FROM ${appTable('runs')} r
   LEFT JOIN ${appTable('messages')} m ON m.id = r.terminal_message_id
   WHERE COALESCE(r.completed_at, r.created_at) >= $3::timestamptz
     AND COALESCE(r.completed_at, r.created_at) < $4::timestamptz
   UNION ALL
-  SELECT lower(a.user_email), a.active_minute, 0, 0, 0, 1, NULL::bigint
+  SELECT lower(a.user_email), a.active_minute, 0, 0, 0, 1, NULL::bigint, 0::int, NULL::text
   FROM ${appTable('app_activity_minutes')} a
   WHERE a.active_minute >= $3::timestamptz AND a.active_minute < $4::timestamptz
 ),
@@ -104,6 +115,8 @@ hourly AS (
          SUM(runs)::int AS run_count,
          SUM(active_minutes)::int AS active_minutes,
          CASE WHEN COUNT(total_tokens) > 0 THEN SUM(total_tokens)::bigint ELSE NULL END AS total_tokens,
+         SUM(token_covered_runs)::int AS token_covered_runs,
+         COUNT(DISTINCT token_question_id)::int AS token_covered_questions,
          MAX(occurred_at) AS source_through
   FROM evidence
   WHERE user_key <> ''
@@ -132,13 +145,14 @@ ORDER BY hourly.activity_hour, hourly.user_key`;
 export const UPSERT_USER_SPEND_HOUR_QUERY = `INSERT INTO ${USER_SPEND_HOURLY_TABLE} (
   app_scope, user_key, display_email, activity_hour, calculation_version,
   submitted_questions, completed_questions, run_count, active_minutes, total_tokens,
+  token_covered_runs, token_covered_questions,
   spend_usd, spend_dbu, app_spend_usd, app_spend_dbu,
   spend_usd_quality, spend_dbu_quality, components, billing_basis_day,
   source_through, computed_at, updated_at
 ) VALUES (
   $1, lower($2), $3, $4::timestamptz, $5,
-  $6, $7, $8, $9, $10, $11::numeric, $12::numeric, $13::numeric, $14::numeric,
-  $15, $16, $17::jsonb, $18::date, $19::timestamptz, $20::timestamptz, NOW()
+  $6, $7, $8, $9, $10, $11, $12, $13::numeric, $14::numeric, $15::numeric, $16::numeric,
+  $17, $18, $19::jsonb, $20::date, $21::timestamptz, $22::timestamptz, NOW()
 )
 ON CONFLICT (app_scope, user_key, activity_hour, calculation_version) DO UPDATE SET
   display_email = EXCLUDED.display_email,
@@ -147,6 +161,8 @@ ON CONFLICT (app_scope, user_key, activity_hour, calculation_version) DO UPDATE 
   run_count = EXCLUDED.run_count,
   active_minutes = EXCLUDED.active_minutes,
   total_tokens = EXCLUDED.total_tokens,
+  token_covered_runs = EXCLUDED.token_covered_runs,
+  token_covered_questions = EXCLUDED.token_covered_questions,
   spend_usd = EXCLUDED.spend_usd,
   spend_dbu = EXCLUDED.spend_dbu,
   app_spend_usd = EXCLUDED.app_spend_usd,
@@ -244,6 +260,8 @@ interface MaterializedHour {
   runs: number;
   activeMinutes: number;
   totalTokens: number | null;
+  tokenCoveredRuns: number | null;
+  tokenCoveredQuestions: number | null;
   spendUsd: number | null;
   spendDbu: number | null;
   appSpendUsd: number | null;
@@ -288,6 +306,8 @@ export function materializeUserSpendHours(rows: readonly Record<string, unknown>
         runs,
         activeMinutes,
         totalTokens: nullableNumber(row.total_tokens),
+        tokenCoveredRuns: nullableNumber(row.token_covered_runs),
+        tokenCoveredQuestions: nullableNumber(row.token_covered_questions),
         spendUsd: basisUsd === null ? null : basisUsd * weight,
         spendDbu: basisDbu === null ? null : basisDbu * weight,
         appSpendUsd: null,
@@ -390,6 +410,8 @@ export function runUserSpendHourlyRefresh(
             row.runs,
             row.activeMinutes,
             row.totalTokens,
+            row.tokenCoveredRuns,
+            row.tokenCoveredQuestions,
             decimal(row.spendUsd),
             decimal(row.spendDbu),
             decimal(row.appSpendUsd),
@@ -461,9 +483,6 @@ export const READ_USER_SPEND_HOURLY_SUMMARY_QUERY = `WITH base AS (
   WHERE app_scope = $1 AND calculation_version = $2
     AND activity_hour >= $3::timestamptz AND activity_hour < $4::timestamptz
 ),
-selected AS (
-  SELECT * FROM base WHERE ($5::boolean OR user_key = lower($6))
-),
 aggregated AS (
   SELECT user_key, MIN(display_email) AS display_email,
          SUM(submitted_questions)::bigint AS submitted_questions,
@@ -471,12 +490,14 @@ aggregated AS (
          SUM(run_count)::bigint AS run_count,
          SUM(active_minutes)::bigint AS active_minutes,
          SUM(total_tokens)::numeric AS total_tokens,
+         SUM(token_covered_runs)::bigint AS token_covered_runs,
+         SUM(token_covered_questions)::bigint AS token_covered_questions,
          COUNT(DISTINCT activity_hour)::int AS covered_hours,
          MAX(source_through) AS source_through, MAX(computed_at) AS computed_at,
          SUM(spend_usd) AS spend_usd, SUM(spend_dbu) AS spend_dbu,
          CASE WHEN COUNT(spend_usd) = 0 THEN 'unavailable' ELSE 'partial' END AS spend_usd_quality,
          CASE WHEN COUNT(spend_dbu) = 0 THEN 'unavailable' ELSE 'partial' END AS spend_dbu_quality
-  FROM selected GROUP BY user_key
+  FROM base GROUP BY user_key
 ),
 hourly_app AS (
   SELECT activity_hour, MAX(app_spend_usd) AS app_spend_usd, MAX(app_spend_dbu) AS app_spend_dbu
@@ -485,17 +506,55 @@ hourly_app AS (
 app_totals AS (
   SELECT SUM(app_spend_usd) AS app_spend_usd, SUM(app_spend_dbu) AS app_spend_dbu FROM hourly_app
 ),
+identity_population AS (
+  SELECT roster.user_key, roster.display_email, roster.app_role, roster.identity_updated_at
+  FROM (
+    SELECT DISTINCT ON (lower(email))
+           lower(email) AS user_key, lower(email) AS display_email,
+           CASE WHEN role IN ('super_admin', 'admin', 'consumer') THEN role ELSE 'admin' END AS app_role,
+           added_at AS identity_updated_at
+    FROM ${appTable('admin_emails')}
+    ORDER BY lower(email), added_at DESC
+  ) roster
+  WHERE $13::boolean
+  UNION ALL
+  SELECT aggregated.user_key, aggregated.display_email, 'consumer', NULL::timestamptz
+  FROM aggregated
+  WHERE NOT $13::boolean AND aggregated.user_key = lower($6)
+),
+identity_revision AS (
+  SELECT GREATEST(
+    (SELECT MAX(added_at) FROM ${appTable('admin_emails')}),
+    (SELECT MAX(updated_at) FROM ${appTable('sp_assignments')}),
+    (SELECT MAX(updated_at) FROM ${appTable('sp_personas')}),
+    (SELECT MAX(updated_at) FROM ${appTable('sp_persona_definitions')})
+  ) AS revision
+),
 filtered AS (
-  SELECT aggregated.*, app_totals.*, COALESCE(NULLIF(admin_user.role, ''), 'consumer') AS app_role,
+  SELECT identity_population.user_key, identity_population.display_email,
+         COALESCE(aggregated.submitted_questions, 0) AS submitted_questions,
+         COALESCE(aggregated.completed_questions, 0) AS completed_questions,
+         COALESCE(aggregated.run_count, 0) AS run_count,
+         COALESCE(aggregated.active_minutes, 0) AS active_minutes,
+         aggregated.total_tokens, aggregated.token_covered_runs, aggregated.token_covered_questions,
+         COALESCE(aggregated.covered_hours, 0) AS covered_hours,
+         aggregated.source_through, aggregated.computed_at,
+         aggregated.spend_usd, aggregated.spend_dbu,
+         COALESCE(aggregated.spend_usd_quality, 'unavailable') AS spend_usd_quality,
+         COALESCE(aggregated.spend_dbu_quality, 'unavailable') AS spend_dbu_quality,
+         app_totals.*, identity_population.app_role,
          assignment.persona_id, COALESCE(definition.display_name, persona.display_name) AS persona_name,
+         identity_revision.revision AS identity_updated_at,
          COUNT(*) OVER ()::int AS total_users
-  FROM aggregated CROSS JOIN app_totals
-  LEFT JOIN ${appTable('admin_emails')} admin_user ON lower(admin_user.email) = aggregated.user_key
-  LEFT JOIN ${appTable('sp_assignments')} assignment ON lower(assignment.email) = aggregated.user_key
+  FROM identity_population
+  LEFT JOIN aggregated ON aggregated.user_key = identity_population.user_key
+  CROSS JOIN app_totals
+  CROSS JOIN identity_revision
+  LEFT JOIN ${appTable('sp_assignments')} assignment ON lower(assignment.email) = identity_population.user_key
   LEFT JOIN ${appTable('sp_personas')} persona ON persona.id = assignment.persona_id
   LEFT JOIN ${appTable('sp_persona_definitions')} definition ON definition.id = assignment.persona_id
-  WHERE ($7 = '' OR lower(display_email) LIKE ('%' || lower($7) || '%'))
-    AND ($8 = '' OR COALESCE(NULLIF(admin_user.role, ''), 'consumer') = $8)
+  WHERE ($7 = '' OR identity_population.display_email LIKE ('%' || lower($7) || '%'))
+    AND ($8 = '' OR identity_population.app_role = $8)
     AND ($9 = '' OR assignment.persona_id = $9)
 )
 SELECT filtered.*, refresh.status AS refresh_status,
@@ -543,6 +602,7 @@ export async function readUserSpendHourlyPage(
     offset?: number;
     staleMs?: number;
     now?: number;
+    rosterOnly?: boolean;
   }
 ): Promise<UserSpendReadModelPage> {
   const appScope = (input.appScope ?? process.env.DATABRICKS_APP_NAME ?? '').trim() || 'player-insights';
@@ -562,6 +622,7 @@ export async function readUserSpendHourlyPage(
     input.unit,
     limit,
     offset,
+    input.rosterOnly ?? input.allowBrowse,
   ]);
   const first = result.rows[0];
   const metadata =
@@ -569,7 +630,13 @@ export async function readUserSpendHourlyPage(
     (
       await store.query(
         `SELECT status AS refresh_status, source_through AS refresh_source_through,
-                billing_basis_through, completed_at AS refresh_completed_at
+                billing_basis_through, completed_at AS refresh_completed_at,
+                GREATEST(
+                  (SELECT MAX(added_at) FROM ${appTable('admin_emails')}),
+                  (SELECT MAX(updated_at) FROM ${appTable('sp_assignments')}),
+                  (SELECT MAX(updated_at) FROM ${appTable('sp_personas')}),
+                  (SELECT MAX(updated_at) FROM ${appTable('sp_persona_definitions')})
+                ) AS identity_updated_at
          FROM ${USER_SPEND_HOURLY_REFRESH_TABLE}
          WHERE app_scope = $1 AND calculation_version = $2`,
         [appScope, version]
@@ -586,7 +653,9 @@ export async function readUserSpendHourlyPage(
     runs: number(row.run_count),
     activeMinutes: number(row.active_minutes),
     totalTokens: nullableNumber(row.total_tokens),
-    coveredDays: Math.max(1, Math.ceil(number(row.covered_hours) / 24)),
+    tokenCoveredRuns: nullableNumber(row.token_covered_runs),
+    tokenCoveredQuestions: nullableNumber(row.token_covered_questions),
+    coveredDays: Math.ceil(number(row.covered_hours) / 24),
     spendUsd: nullableNumber(row.spend_usd),
     spendDbu: nullableNumber(row.spend_dbu),
     spendUsdQuality: quality(row.spend_usd_quality),
@@ -605,11 +674,13 @@ export async function readUserSpendHourlyPage(
         : null,
     sourceThrough: stamp(row.source_through),
     computedAt: stamp(row.computed_at),
+    identityRevision: stamp(row.identity_updated_at),
   }));
   return {
     available: Boolean(first || computedAt),
     rows,
     total: number(first?.total_users),
+    identityRevision: stamp(first?.identity_updated_at) ?? stamp(metadata?.identity_updated_at) ?? '',
     freshness: {
       computedAt,
       sourceThrough,

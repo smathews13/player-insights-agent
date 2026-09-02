@@ -164,9 +164,7 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
     for (const selector of ["html[data-theme='dark'] .trace-timeline", "html[data-theme='dark'] .trace-gantt"]) {
       expect(cssBody(DARK, selector)).toMatch(/background:\s*transparent[\s\S]*backdrop-filter:\s*none/);
     }
-    expect(cssBody(DARK, "html[data-theme='dark'] .trace-kpi")).toMatch(
-      /background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/
-    );
+    expect(cssBody(DARK, "html[data-theme='dark'] .trace-kpi")).toMatch(/background:\s*var\(--ast-surface-muted\)/);
     expect(DARK, 'a wrapper-scoped twin covers one surface only').not.toMatch(
       /\.run-process \.trace-(?:timeline|gantt|kpi)/
     );

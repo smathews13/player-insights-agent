@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { conversationRunSummary, railDuration, railRunSummaries, railStatusTone } from './rail-run-summary';
-import { RATING_SCALE, ratingOutOf } from './benchmark-summary';
 import { partial } from './styles/stylesheet';
 import type { Run } from './app-types';
 
@@ -48,7 +47,7 @@ function run(over: Partial<Run> & { id: string }): Run {
     stakeholder: 'someone@example.com',
     status: 'complete',
     duration_ms: 4200,
-    rating: null,
+    feedback: null,
     created_at: '2026-08-14T10:00:00.000Z',
     ...over,
   };
@@ -81,13 +80,13 @@ describe('a rail row reports the conversation’s latest turn, or reports nothin
     expect(railRunSummaries([run({ id: 'b', kind: 'benchmark', conversation_id: null })]).size).toBe(0);
   });
 
-  it('carries a duration and a rating only where the store recorded one', () => {
+  it('carries duration and feedback only where the store recorded them', () => {
     const summaries = railRunSummaries([
-      run({ id: 'a', conversation_id: 'conv-1', duration_ms: null, rating: null }),
-      run({ id: 'b', conversation_id: 'conv-2', duration_ms: 12_340, rating: 4 }),
+      run({ id: 'a', conversation_id: 'conv-1', duration_ms: null, feedback: null }),
+      run({ id: 'b', conversation_id: 'conv-2', duration_ms: 12_340, feedback: 'up' }),
     ]);
-    expect(summaries.get('conv-1')).toMatchObject({ durationMs: null, rating: null });
-    expect(summaries.get('conv-2')).toMatchObject({ durationMs: 12_340, rating: 4 });
+    expect(summaries.get('conv-1')).toMatchObject({ durationMs: null, feedback: null });
+    expect(summaries.get('conv-2')).toMatchObject({ durationMs: 12_340, feedback: 'up' });
     // An unrecorded wall time is absent, not zero: a turn stored before the trace
     // carried `totalMs` did not take no time.
     expect(railDuration(null)).toBeNull();
@@ -303,42 +302,12 @@ describe('the row is the run card, not a third style', () => {
   });
 });
 
-describe('a star says what it is out of', () => {
-  it('prints the scale the write path constrains a rating to', () => {
-    // "★ 5" was reported as unreadable, and it was: five stars, five out of ten
-    // and five ratings all print that way. The denominator is not a choice made
-    // here -- the feedback column is constrained to 1-5 and storedRating treats
-    // anything outside that as absent.
-    expect(RATING_SCALE).toBe(5);
-    expect(ratingOutOf(5)).toBe('5/5');
-    expect(ratingOutOf(4)).toBe('4/5');
-  });
-
-  it('is the same sentence on the remaining score surfaces', () => {
-    // The rail row and Benchmark Lab still print a five-point score. Run Explorer
-    // now reports the feedback control's direction instead, so putting its old
-    // star back would erase helpful versus not helpful again.
-    //
-    // The expression may be wrapped in one element. The Benchmark Lab's rating
-    // repeats down a table column, so the FIGURE is `.ast-num` while the star
-    // beside it is a glyph and must not be; that puts a `<span>` between the two.
-    // What is being asserted is what gets printed, not what it is wrapped in.
-    for (const file of ['HomePage.tsx', 'BenchmarkLab.tsx']) {
-      const source = readFileSync(new URL(file, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ');
-      const stars = [...source.matchAll(/<Star[^>]*\/>\s*(?:<span[^>]*>\s*)?\{([^}]+)\}/g)].map((match) =>
-        match[1].trim()
-      );
-      expect(stars.length, `${file} draws no star`).toBeGreaterThan(0);
-      for (const printed of stars) expect(printed).toMatch(/ratingOutOf\(/);
-    }
-    const explorer = readFileSync(new URL('RunExplorer.tsx', import.meta.url), 'utf8');
-    expect(explorer).toContain('RunRatingBadge');
-    expect(explorer).not.toContain('<Star');
-  });
-
-  it('draws no star at all for a turn nobody rated', () => {
-    // An empty star is a rating of zero, which is a claim nobody made.
-    expect(HOME_PAGE).toMatch(/summary\?\.rating !== null && summary\?\.rating !== undefined/);
+describe('conversation rail feedback', () => {
+  it('uses the compact thumbs badge and no numeric scale', () => {
+    expect(HOME_PAGE).toContain('<RunRatingBadge feedback={summary.feedback}');
+    expect(HOME_PAGE).not.toContain('<Star');
+    expect(HOME_PAGE).not.toMatch(/ratingOutOf|★|⭐|\/5|of 5/i);
+    expect(readFileSync(new URL('BenchmarkLab.tsx', import.meta.url), 'utf8')).not.toMatch(/<Star|ratingOutOf/);
   });
 });
 
@@ -367,10 +336,8 @@ describe('a badge on every conversation, not just the reader’s own', () => {
     expect(conversationRunSummary({ status: 'complete' })?.truncated).toBe(false);
   });
 
-  it('never claims a rating it has no way of knowing', () => {
-    // A rating is one reader's opinion. This read is unscoped, so the absence of
-    // a star here means "this read cannot say", not "nobody rated it".
-    expect(conversationRunSummary({ status: 'complete', duration_ms: 100 })?.rating).toBeNull();
+  it('never claims feedback it has no way of knowing', () => {
+    expect(conversationRunSummary({ status: 'complete', duration_ms: 100 })?.feedback).toBeNull();
   });
 
   it('says nothing at all about a conversation with no answered turn', () => {

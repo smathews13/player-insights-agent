@@ -30,7 +30,7 @@
   display: none;
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: var(--ast-layer-sky);
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -42,6 +42,7 @@ html[data-theme='dark'] .app-sky {
 
 html[data-theme='dark'] .app-frame {
   position: relative;
+  z-index: var(--ast-layer-page);
   isolation: isolate;
 }
 
@@ -65,49 +66,11 @@ html[data-theme='dark'] .ask-layout {
   background-image: none;
 }
 
-/*
- * ============================================================================
- * THE CHROME IS A PANE ON THE SKY. IT IS NOT A SLAB.
- * ============================================================================
- *
- * The header and the composer take the same translucent fill as every other
- * surface on the night sky -- the rail, the harness, the answer card -- so the
- * starfield carries under them and the app reads as one continuous surface.
- * `--ast-surface-solid` belongs to the things that sit ON TOP of the app and
- * have to occlude it: Settings, the account menu, the drawers, a select's
- * popover. Giving it to the chrome put two Settings-coloured bars across the
- * one screen the reader is always looking at.
- *
- * WHAT THE BLUR IS FOR, and why these two are the only surfaces that get more
- * than the rail's 2px. Scrolling prose passes BEHIND the chrome: `.app-header`
- * is `sticky top-0` over the transcript and `.composer` is `position: fixed` at
- * the bottom of it. At 3% white and a two-pixel Gaussian a reader could still
- * READ the answer card through the nav tabs and through the box they type in --
- * not a blur, a smear, which looks like a rendering fault. A heavier blur washes
- * that out while keeping the surface transparent, so the fill stays identical to
- * the panes beside it and only the sharpness of what is behind it differs.
- *
- * So: match the rail's fill exactly, and blur enough that type cannot survive
- * it. If prose ever reads through again, raise the blur. Do not reach for alpha,
- * and do not reach for `--ast-surface-solid` -- that is the overlay colour, and
- * the two bars it produced here are what this note exists to prevent.
- *
- * AND DO NOT SATURATE. This carried `saturate(140%)` alongside the blur, and
- * that one function is why the bar kept being reported as solid blue long after
- * the fill was correct. The sky is `--ast-sky-fill` (#16202E), which is already
- * a blue; an 18px Gaussian averages the stars out of it into one flat field,
- * and boosting THAT by 40% lands a saturated blue band across the top of a page
- * whose own blue is far quieter. The fill was translucent the whole time and it
- * did not matter -- what the reader sees through a backdrop filter is the
- * filter's output, and the output was a different colour from the page.
- *
- * Blur alone leaves the band the sky's own hue, softened. That is the "same
- * surface, less sharp" this note has always been asking for, and it is what the
- * harness column beside it has looked like all along at 2px.
- */
+/* Sticky chrome is the near-opaque plane above every route. The base rule owns
+   its safe-area geometry and layer; dark mode only chooses semantic paint. */
 html[data-theme='dark'] .app-header {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(18px);
+  background: var(--ast-surface-chrome);
+  backdrop-filter: none;
   border-bottom-color: var(--ast-border-input);
 }
 
@@ -259,12 +222,12 @@ html[data-theme='dark'] .app-nav-tab.active {
   color: var(--ast-ice-accent);
 }
 
-/* The panes BESIDE the transcript, which may stay frosted: see the header. */
-html[data-theme='dark'] .conversation-rail,
-html[data-theme='dark'] .trace-inspector {
-  background: rgba(255, 255, 255, 0.03);
+/* The conversation rail is a reading surface. The trace inspector remains the
+   deliberate decorative sky region beside it. */
+html[data-theme='dark'] .conversation-rail {
+  background: var(--ast-surface-primary);
   background-image: none;
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 
@@ -285,21 +248,11 @@ html[data-theme='dark'] .live-steps {
   border-color: var(--ast-border-input);
 }
 
-/*
- * The composer, over the transcript rather than beside it.
- *
- * Same fill as the rail above and the header, for the reason set out at the top
- * of this file: the chrome is a pane on the sky, not a slab laid over it. The
- * blur is the header's, and it is here for the same reason -- the transcript
- * scrolls behind this box, and 3% white over moving prose reads as a smudge
- * unless the blur is heavy enough that type cannot survive it.
- */
+/* The composer occludes the transcript scrolling behind its fixed shell. */
 html[data-theme='dark'] .composer {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--ast-surface-primary);
   background-image: none;
-  /* Blur only, for the reason set out at length on `.app-header`: the
-     saturation boost these two shared is what made both read as solid blue. */
-  backdrop-filter: blur(18px);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 
@@ -321,22 +274,8 @@ html[data-theme='dark'] .first-open:not(.on-sky) {
   background: var(--ast-sky-fill);
 }
 
-/*
- * THE FROSTED PANE, AND WHAT HAS TO BE ON THIS LIST.
- *
- * The constellation is behind the PAGE rather than behind each surface, so any
- * block holding figures or prose has to dull what is under it or the stars come
- * through the content. A pane painted `--card` alone is 6.5% white over the sky:
- * the fill is there and a little sky still reads through it.
- *
- * Everything below the original set was found missing by an audit of the whole
- * stylesheet rather than by looking at a screen, which is the only way this list
- * can be complete -- a surface is on it if a reader can be asked to read
- * something on it, and several of these are states nobody screenshots: a plan
- * card while the agent is still deciding, a failed Ops block, an absence, an
- * alert. `--ast-ice`, `--ast-fill-band`, `--muted` and `--db-wash` all remap to
- * 3% white, which is why a surface can look declared and be transparent.
- */
+/* Every primary card reads the shared 95% paper. Child bands can use quiet
+   tints because this parent has already attenuated the page sky. */
 html[data-theme='dark'] .answer-card,
 html[data-theme='dark'] .plan-card,
 html[data-theme='dark'] .user-bubble,
@@ -344,8 +283,14 @@ html[data-theme='dark'] .first-open-card,
 html[data-theme='dark'] .access-gate-panel,
 html[data-theme='dark'] [data-slot='card'] {
   background: var(--card);
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
+}
+
+html[data-theme='dark'] .first-open-card,
+html[data-theme='dark'] .access-gate-panel,
+html[data-theme='dark'] .app-session-card {
+  background: var(--ast-surface-elevated);
 }
 
 /*
@@ -382,15 +327,15 @@ html[data-theme='dark'] .role-lost-notice {
 }
 
 html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) [data-slot='card'] {
-  background: color-mix(in srgb, var(--ast-sky-fill) 86%, white);
-  backdrop-filter: blur(10px);
+  background: var(--ast-surface-primary);
+  backdrop-filter: none;
 }
 
 html[data-theme='dark'] [data-slot='alert'],
 html[data-theme='dark'] .role-lost-notice,
 html[data-theme='dark'] .storage-banner [data-slot='alert'] {
-  background: color-mix(in oklab, var(--ast-sky-fill) 80%, var(--ast-neg-text));
-  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--ast-surface-primary) 80%, var(--ast-neg-text));
+  backdrop-filter: none;
 }
 
 /*
@@ -437,7 +382,7 @@ html[data-theme='dark'] .trace-gantt {
 html[data-theme='dark'] .trace-kpi,
 html[data-theme='dark'] .trace-dag.map .dag-node,
 html[data-theme='dark'] .trace-dag.map .dag-detail {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--ast-surface-muted);
 }
 
 html[data-theme='dark'] .trace-dag.map .dag-detail-head {
@@ -485,8 +430,8 @@ html[data-theme='dark'] .trace-dag.map .dag-inline-code {
  * 6-7% white fills blurred the page but did not remove it: headings, connector
  * lines and constellation marks remained legible through the control's own
  * labels. Blur cannot promise that two glyphs will not coincide, so these use the
- * opaque surface token. The page panes above deliberately remain frosted because
- * they sit ON the sky rather than over another readable interface.
+ * 98.5% menu token. The page panes above use the 95% reading rung because they
+ * sit on the sky rather than over another readable interface.
  *
  * `.monitoring-chip-menu` also has to restate its INK. It sets `--background` as
  * its fill and `--ast-navy` as its text, which on white is a white menu with navy
@@ -497,21 +442,21 @@ html[data-theme='dark'] .app-select-content,
 html[data-theme='dark'] [data-slot='select-content'],
 html[data-theme='dark'] [data-slot='dropdown-menu-content'],
 html[data-theme='dark'] [data-slot='popover-content'] {
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-menu);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   color: var(--foreground);
 }
 
 html[data-theme='dark'] .account-menu {
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-menu);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
 html[data-theme='dark'] [data-slot='sheet-content'] {
-  background: var(--ast-surface-solid);
+  background: var(--ast-surface-elevated);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
@@ -735,7 +680,7 @@ html[data-theme='dark'] {
   --ast-entity-column-fg: var(--entity-column-fg, var(--ast-ghost-text));
   --ast-entity-column-bg: var(--entity-column-bg, #1e2830);
   --ast-entity-quote-fg: var(--entity-quote-fg, var(--ast-icon-tint));
-  --ast-entity-quote-bg: var(--entity-quote-bg, var(--ast-surface-solid));
+  --ast-entity-quote-bg: var(--entity-quote-bg, var(--ast-surface-muted));
   --ast-entity-tag-fg: var(--entity-tag-fg, var(--ast-ink-on-dark));
   --ast-entity-tag-bg: var(--entity-tag-bg, var(--ast-entity-tag-on-navy));
 }

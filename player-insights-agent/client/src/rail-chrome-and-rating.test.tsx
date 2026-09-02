@@ -24,7 +24,7 @@ import { DeploymentTimeChip } from './DeploymentTimeChip';
 import { RunStatusPill } from './RunStatusPill';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
 import { runStatusFor } from './run-status';
-import { DOWN_RATING, EMPTY_FEEDBACK, UP_RATING } from './stored-feedback';
+import { EMPTY_FEEDBACK } from './stored-feedback';
 import { partial, partialNames } from './styles/stylesheet';
 import type { Answer, FeedbackEntry } from './app-types';
 
@@ -40,6 +40,7 @@ const RAIL = partial('rail.css');
 const SETTINGS = strip(partial('settings.css'));
 const DARK = strip(partial('dark-mode.css'));
 const SETTINGS_DARK = strip(partial('dark-settings.css'));
+const ASTROLABE = strip(partial('astrolabe-tokens.css'));
 
 /** One rule's body, by exact selector, from a comment-stripped partial. */
 function rule(css: string, selector: string): string {
@@ -246,27 +247,25 @@ describe('the question staggered right of the answer', () => {
   });
 });
 
-describe('the settings pane, frosted like the account menu', () => {
+describe('the settings pane uses elevated semantic glass', () => {
   const FROST = "html[data-theme='dark'] .settings-overlay .settings-page.settings-modal";
 
-  it('is the account menu’s surface rather than three per cent white', () => {
+  it('is elevated below the stronger account-menu surface', () => {
     const frost = rule(SETTINGS, FROST);
 
     // The dropdown is the surface being mimicked, so this reads its token rather
     // than a hand-mixed navy that would drift from it.
-    expect(rule(DARK, "html[data-theme='dark'] .account-menu")).toContain('--ast-surface-solid');
-    expect(frost).toContain('var(--ast-surface-solid)');
-    expect(frost).toMatch(/backdrop-filter:\s*blur\(18px\)/);
+    expect(rule(DARK, "html[data-theme='dark'] .account-menu")).toContain('--ast-surface-menu');
+    expect(frost).toContain('var(--ast-surface-elevated)');
+    expect(frost).toMatch(/backdrop-filter:\s*none/);
     expect(frost).not.toMatch(/rgba\(255,\s*255,\s*255,\s*0\.03\)/);
   });
 
   it('stays glass rather than becoming a slab', () => {
-    // Asked for explicitly: less see-through, not opaque. A `color-mix` toward
-    // transparent keeps the sky readable as depth behind the pane; the token on
-    // its own would be a solid.
-    const frost = rule(SETTINGS, FROST);
-    expect(frost).toMatch(/color-mix\(in srgb, var\(--ast-surface-solid\) 92%, transparent\)/);
-    expect(frost).toMatch(/backdrop-filter/);
+    expect(ASTROLABE).toMatch(
+      /--ast-surface-elevated:\s*color-mix\(in srgb,\s*var\(--ast-white\) 97%,\s*transparent\)/
+    );
+    expect(ASTROLABE).toMatch(/--ast-surface-menu:\s*color-mix\(in srgb,\s*var\(--ast-white\) 98\.5%,\s*transparent\)/);
   });
 
   it('gives none of that glass to a reader who asked for less transparency', () => {
@@ -297,37 +296,33 @@ describe('the settings pane, frosted like the account menu', () => {
   });
 });
 
-describe('a thumb is the rating, on both sides', () => {
-  it('writes the negative rating on the click of the icon', () => {
+describe('a thumb writes canonical feedback', () => {
+  it('writes Not helpful on the click of the icon', () => {
     // The whole of the report: this used to be `onClick={() =>
     // onFeedbackChange({ open: true })}`, so the icon opened a text field and
     // recorded nothing, and a reader who typed nothing had rated nothing.
-    const down = CARD.slice(CARD.indexOf('aria-label="Thumbs down"'));
+    const down = CARD.slice(CARD.indexOf('aria-label="Mark answer not helpful"'));
     const handler = down.slice(0, down.indexOf('<ThumbsDown'));
 
-    expect(handler).toContain('void saveFeedback(DOWN_RATING, { keepCommentOpen: true })');
+    expect(handler).toContain("void saveFeedback('down', { keepCommentOpen: true })");
     expect(handler).toContain('onFeedbackChange({ open: true })');
     // The box is what stays open behind the write, not the condition of it.
     expect(handler).not.toMatch(/onClick=\{\(\) => onFeedbackChange\(\{ open: true \}\)\}/);
   });
 
   it('keeps the positive one on the same footing', () => {
-    const up = CARD.slice(CARD.indexOf('aria-label="Thumbs up"'));
-    expect(up.slice(0, up.indexOf('<ThumbsUp'))).toContain('void saveFeedback(UP_RATING)');
-    // Both values live with the function that decides which thumb they light, so
-    // a rating cannot be stored that lights neither control.
-    expect(UP_RATING).toBe(5);
-    expect(DOWN_RATING).toBe(2);
+    const up = CARD.slice(CARD.indexOf('aria-label="Mark answer helpful"'));
+    expect(up.slice(0, up.indexOf('<ThumbsUp'))).toContain("void saveFeedback('up')");
   });
 
   it('shows the reader that the negative rating landed', () => {
     // The state the page reaches after that click: rated 2, saved, box still
     // open for the optional sentence.
-    const state: FeedbackEntry = { ...EMPTY_FEEDBACK, saved: true, usefulness: DOWN_RATING, open: true };
+    const state: FeedbackEntry = { ...EMPTY_FEEDBACK, saved: true, sentiment: 'down', open: true };
     const markup = cardMarkup(state);
 
     expect(markup).toMatch(
-      /aria-label="Thumbs down"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*aria-label="Thumbs down"/
+      /aria-label="Mark answer not helpful"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*aria-label="Mark answer not helpful"/
     );
     expect(markup).toContain('feedback-chosen');
     expect(cardText(state)).toContain('Feedback saved');
@@ -340,7 +335,7 @@ describe('a thumb is the rating, on both sides', () => {
     // Exactly what the screenshot showed: "Feedback saved" beside an unlit
     // thumbs-down, left over from the press before it, saying the click had been
     // recorded when it had not.
-    expect(HOME).toContain('patch({ saving: true, saved: false, error: null })');
+    expect(HOME).toContain('saving: true');
     expect(cardText({ ...EMPTY_FEEDBACK, saving: true })).not.toContain('Feedback saved');
   });
 
@@ -350,21 +345,21 @@ describe('a thumb is the rating, on both sides', () => {
       HOME.indexOf('async function uploadAttachments')
     );
 
-    expect(save).toContain('open: options.keepCommentOpen === true');
+    expect(save).toContain("open: sentiment === 'down' && options.keepCommentOpen === true");
     // A blank box is not a comment. `''` would be stored and then rendered as an
     // empty one wherever comments are read back.
-    expect(save).toContain('comment: entry.comment.trim() || undefined');
+    expect(save).toContain('comment: comment || undefined');
   });
 
   it('is accepted by the route with no comment attached', () => {
     // The server half of "the comment is optional": the body schema asks for the
-    // rating and nothing else, and a missing comment is written as NULL rather
+    // direction and nothing else, and a missing comment is written as NULL rather
     // than refused.
     const body = ROUTES.slice(ROUTES.indexOf('const FeedbackBody'));
     const schema = body.slice(0, body.indexOf('});'));
 
-    expect(schema).toMatch(/usefulness: z\.number\(\)\.int\(\)\.min\(1\)\.max\(5\)\.optional\(\)/);
+    expect(schema).toMatch(/sentiment: z\.enum\(\['up', 'down'\]\)/);
     expect(schema).toMatch(/comment: z\.string\(\)\.max\(2000\)\.optional\(\)/);
-    expect(ROUTES).toContain('feedback.comment ?? null');
+    expect(ROUTES).toContain("parsed.data.sentiment === 'down'");
   });
 });

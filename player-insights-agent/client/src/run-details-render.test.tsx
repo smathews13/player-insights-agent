@@ -322,8 +322,10 @@ describe('advanced token consumption', () => {
     expect(markup).toContain('Attributed coverage 84,576 tokens · 100.0% of run total');
     expect(markup).toContain('Unattributed difference 0');
     expect(markup).toContain('Component and invocation token usage');
-    expect(markup).toContain('Orchestrator turn 1 1 40,000 2,000 Not reported 42,000 Not reported');
-    expect(markup).toContain('Orchestrator turn 1 2 40,000 2,576 Not reported 42,576 Not reported');
+    expect(markup).toContain('Component / turn Attempt Input Output Total tokens Cached tokens');
+    expect(markup).not.toContain('Cache status');
+    expect(markup).toContain('Orchestrator turn 1 1 40,000 2,000 42,000 Not reported');
+    expect(markup).toContain('Orchestrator turn 1 2 40,000 2,576 42,576 Not reported');
   });
 
   it('renders one unavailable state and no invocation table for a legacy trace', () => {
@@ -334,9 +336,28 @@ describe('advanced token consumption', () => {
     expect(markup).not.toContain('Unattributed difference');
   });
 
-  it('keeps the invocation table inside its own responsive scroller', () => {
-    expect(RUNS_CSS).toMatch(/\.token-invocations\s*\{[^}]*max-width:\s*100%[^}]*overflow-x:\s*auto/s);
-    expect(RUNS_CSS).toMatch(/\.token-invocations table\s*\{[^}]*min-width:\s*700px/s);
+  it('shows cached tokens after the authoritative total without adding them twice', () => {
+    const cachedTrace = {
+      ...tokenTrace,
+      trace: {
+        ...tokenTrace.trace!,
+        token_invocations: tokenTrace.trace!.token_invocations!.map((invocation, index) =>
+          index === 0 ? { ...invocation, cachedReadTokens: 12_345, cacheStatus: 'used' as const } : invocation
+        ),
+      },
+    } as RunTrace;
+    const markup = readable(detailsMarkup(true, cachedTrace));
+
+    expect(markup).toContain('Orchestrator turn 1 1 40,000 2,000 42,000 12,345');
+    expect(markup).toContain('Run total 84,576');
+    expect(markup).not.toContain('96,921');
+  });
+
+  it('wraps the invocation table without creating another scroller', () => {
+    expect(RUNS_CSS).toMatch(/\.token-invocations\s*\{[^}]*max-width:\s*100%[^}]*overflow:\s*visible/s);
+    expect(RUNS_CSS).toMatch(/\.token-invocations table\s*\{[^}]*min-width:\s*0[^}]*table-layout:\s*fixed/s);
+    expect(RUNS_CSS).toMatch(/\.token-invocations th:first-child\s*\{[^}]*width:\s*30%/s);
+    expect(RUNS_CSS).toMatch(/\.token-invocations th:nth-child\(n \+ 3\)\s*\{[^}]*width:\s*15%/s);
   });
 });
 

@@ -183,8 +183,22 @@ describe('the ranged cost route', () => {
     } as unknown as Application;
     const lakebase = vi.fn((sql: string) =>
       Promise.resolve({
-        rows:
-          sql === USER_MONITORING_ACTIVITY_QUERY
+        rows: sql.includes('SELECT email, role, added_by, added_at')
+          ? [
+              {
+                email: 'active@example.test',
+                role: 'consumer',
+                added_by: 'admin@example.test',
+                added_at: new Date('2026-08-01T00:00:00Z'),
+              },
+              {
+                email: 'session-only@example.test',
+                role: 'consumer',
+                added_by: 'admin@example.test',
+                added_at: new Date('2026-08-02T00:00:00Z'),
+              },
+            ]
+          : sql === USER_MONITORING_ACTIVITY_QUERY
             ? [
                 {
                   user_email: 'active@example.test',
@@ -316,7 +330,11 @@ describe('the ranged cost route', () => {
       'session-only@example.test',
     ]);
     expect(payload.userMonitoring?.pagination.total).toBe(2);
-    expect(payload.userMonitoring?.users.every((row) => Number.isFinite(Date.parse(row.lastActive)))).toBe(true);
+    expect(
+      payload.userMonitoring?.users.every(
+        (row) => row.lastActive === null || Number.isFinite(Date.parse(row.lastActive))
+      )
+    ).toBe(true);
   });
 
   it('traces configured Vector Search identity, activity, USD, and DBUs into one allocated tile', async () => {

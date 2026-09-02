@@ -158,7 +158,7 @@ describe('dark step details keep one night-sky surface', () => {
       "html[data-theme='dark'] .trace-dag.map .dag-detail",
     ]) {
       expect(darkRule(selector), `${selector} is not on the quiet fill`).toMatch(
-        /background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/
+        /background:\s*var\(--ast-surface-muted\)/
       );
     }
     expect(darkRule("html[data-theme='dark'] .trace-dag.map .dag-detail-head")).toMatch(/background:\s*transparent/);
@@ -476,7 +476,7 @@ describe('rendered markdown results', () => {
     expect(markup).toContain('class="dag-md-head"');
     expect(markup).toContain('<strong>Governed</strong>');
     expect(markup).not.toContain('## Evidence');
-    expect(markup).toContain('class="dag-sql open"');
+    expect(markup).toContain('class="dag-sql"');
     expect(markup).toContain('semantic-code-keyword">SELECT</span>');
     expect(markup).toContain('governed.players');
   });

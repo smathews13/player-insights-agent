@@ -12,6 +12,9 @@ describe('user spend metrics', () => {
         coveredDays: 6,
         appTotal: 600,
         appComparable: true,
+        totalTokens: 253_800,
+        tokenCoveredRuns: 3,
+        tokenCoveredQuestions: 2,
       },
       week: {
         current: { amount: 120, comparable: true },
@@ -26,6 +29,13 @@ describe('user spend metrics', () => {
     expect(metrics.costPerQuestion.value).toBe(5);
     expect(metrics.averageDaily.value).toBe(20);
     expect(metrics.appShare.value).toBe(20);
+    expect(metrics.averageTokens).toEqual({
+      totalTokens: 253_800,
+      coveredRuns: 3,
+      coveredQuestions: 2,
+      perRun: 84_600,
+      perQuestion: 126_900,
+    });
     expect(metrics.weekOverWeek.value).toBe(20);
     expect(metrics.monthOverMonth.value).toBe(-25);
     expect(metrics.comparisonFreshness).toBe('2026-09-01');
@@ -46,6 +56,9 @@ describe('user spend metrics', () => {
         coveredDays: 0,
         appTotal: null,
         appComparable: false,
+        totalTokens: 0,
+        tokenCoveredRuns: 1,
+        tokenCoveredQuestions: 1,
       },
       week: {
         current: { amount: null, comparable: false },
@@ -60,6 +73,7 @@ describe('user spend metrics', () => {
     expect(metrics.costPerQuestion.state).toBe('unavailable');
     expect(metrics.averageDaily.state).toBe('unavailable');
     expect(metrics.appShare.state).toBe('unavailable');
+    expect(metrics.averageTokens?.perRun).toBe(0);
   });
 
   it('builds complete-week and matched MTD windows across month, leap, and year boundaries', () => {

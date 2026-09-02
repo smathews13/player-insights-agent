@@ -60,6 +60,7 @@ export interface UserRunSpendEvidence {
   email: string;
   totalRuns: number;
   tokenCoveredRuns: number;
+  tokenCoveredQuestions?: number;
   totalTokens: number;
   totalDurationMs?: number;
   lastActive?: string;
@@ -98,6 +99,7 @@ export const USER_SPEND_RUNS_QUERY = `
   WITH completed AS (
     SELECT lower(r.user_email) AS user_email,
            r.run_id,
+           r.turn_id,
            r.completed_at,
            r.created_at,
            m.response_json->'trace' AS trace,
@@ -119,8 +121,9 @@ export const USER_SPEND_RUNS_QUERY = `
   run_totals AS (
     SELECT user_email,
            COUNT(*)::int AS total_runs,
-           COUNT(*) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0)::int AS token_covered_runs,
-           COALESCE(SUM(total_tokens) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0), 0)::bigint
+           COUNT(*) FILTER (WHERE total_tokens IS NOT NULL)::int AS token_covered_runs,
+           COUNT(DISTINCT turn_id) FILTER (WHERE total_tokens IS NOT NULL)::int AS token_covered_questions,
+           COALESCE(SUM(total_tokens) FILTER (WHERE total_tokens IS NOT NULL), 0)::bigint
              AS total_tokens,
            COALESCE(SUM(EXTRACT(EPOCH FROM (completed_at - created_at)) * 1000), 0)::bigint AS total_duration_ms,
            MAX(completed_at) AS last_active
@@ -169,14 +172,14 @@ export const USER_SPEND_RUNS_QUERY = `
     SELECT * FROM legacy_resources
   )
   SELECT 'run' AS row_kind, totals.user_email,
-         totals.total_runs, totals.token_covered_runs, totals.total_tokens,
+         totals.total_runs, totals.token_covered_runs, totals.token_covered_questions, totals.total_tokens,
          totals.total_duration_ms,
          totals.last_active,
          ''::text AS tool, ''::text AS resource_id, 0::bigint AS calls
   FROM run_totals totals
   UNION ALL
   SELECT 'resource' AS row_kind, resources.user_email,
-         0::int, 0::int, 0::bigint,
+         0::int, 0::int, 0::int, 0::bigint,
          0::bigint,
          NULL::timestamptz,
          resources.tool, resources.resource_id, SUM(resources.calls)::bigint
@@ -285,12 +288,14 @@ export function readUserRunSpendEvidence(rows: readonly Record<string, unknown>[
       email,
       totalRuns: 0,
       tokenCoveredRuns: 0,
+      tokenCoveredQuestions: 0,
       totalTokens: 0,
       resources: [],
     };
     if (text(row.row_kind) === 'run') {
       current.totalRuns = number(row.total_runs);
       current.tokenCoveredRuns = number(row.token_covered_runs);
+      current.tokenCoveredQuestions = number(row.token_covered_questions);
       current.totalTokens = number(row.total_tokens);
       if (row.total_duration_ms !== undefined && row.total_duration_ms !== null) {
         current.totalDurationMs = number(row.total_duration_ms);
@@ -714,6 +719,7 @@ export function buildUserMonitoringPage(input: {
   personas?: ReadonlyMap<string, { id: string; name: string }>;
   personaOptions?: Array<{ id: string; name: string }>;
   coveredDays?: number;
+  identityRevision?: string;
   unit: CostBudgetUnit;
   search?: string;
   role?: Role | '';
@@ -723,21 +729,7 @@ export function buildUserMonitoringPage(input: {
 }): UserMonitoringPayload {
   const profiles = new Map(input.spend.users.map((profile) => [profile.email.toLowerCase(), profile]));
   const interactions = new Map((input.interactions ?? []).map((row) => [row.email.toLowerCase(), row]));
-  const rangeStart = Date.parse(`${input.spend.range.from}T00:00:00Z`);
-  const rangeEnd = Date.parse(`${input.spend.range.to}T23:59:59.999Z`);
-  const emails = [...interactions]
-    .filter(([, interaction]) => {
-      const lastActive = Date.parse(interaction.lastActive);
-      const qualifies =
-        Number.isFinite(lastActive) &&
-        Number.isFinite(rangeStart) &&
-        Number.isFinite(rangeEnd) &&
-        lastActive >= rangeStart &&
-        lastActive <= rangeEnd;
-      if (!qualifies) rejectedUserMonitoringEvidence += 1;
-      return qualifies;
-    })
-    .map(([email]) => email);
+  const emails = [...input.roles.keys()];
   const search = (input.search ?? '').trim().toLowerCase().slice(0, 120);
 
   const unavailable: UserSpendAmount = { amount: null, quality: 'unavailable' };
@@ -746,7 +738,8 @@ export function buildUserMonitoringPage(input: {
     .map((email) => {
       const profile = profiles.get(email);
       const interaction = interactions.get(email);
-      const lastActive = interaction?.lastActive ?? '';
+      const lastActive = interaction?.lastActive ?? null;
+      const run = input.runs.find((candidate) => candidate.email === email);
       const usd = profile?.total.usd ?? unavailable;
       const dbu = profile?.total.dbu ?? unavailable;
       return {
@@ -757,6 +750,11 @@ export function buildUserMonitoringPage(input: {
         questions: interaction?.questions ?? 0,
         runs: interaction?.runs ?? 0,
         coveredDays: Math.max(0, Math.trunc(input.coveredDays ?? 0)),
+        tokenUsage: {
+          totalTokens: run?.totalTokens ?? null,
+          coveredRuns: run?.tokenCoveredRuns ?? null,
+          coveredQuestions: run?.tokenCoveredQuestions ?? null,
+        },
         spend: { usd, dbu },
         coverage: (input.unit === 'USD' ? usd : dbu).quality,
       };
@@ -797,6 +795,7 @@ export function buildUserMonitoringPage(input: {
       .map((persona) => ({ ...persona, count: personaCounts.get(persona.id) ?? 0 }))
       .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)),
     dataRevision: userSpendDataRevision(),
+    identityRevision: input.identityRevision ?? '',
     pagination: {
       total: rows.length,
       pageSize,

@@ -34,7 +34,7 @@ import crypto from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { ADDED_ADMINS_TABLE, ADMIN_AUDIT_TABLE } from './admin-roles-schema';
 import { columnText, normalizeAdminEmail, type AdminStore } from './admin-identity';
-import { opensAdminSurfaces, opensUserRoster, type Role } from '../../shared/user-roster-contract';
+import { canMutateConnections, opensUserRoster, type Role } from '../../shared/user-roster-contract';
 import {
   effectiveRole,
   invalidateRosterCache,
@@ -542,7 +542,7 @@ export function requireAdmin(store: AdminStore, readEmail: (req: Request) => str
     }
     resolveRoleForRequest(store, req, () => caller)
       .then((resolution) => {
-        if (opensAdminSurfaces(resolution.role)) {
+        if (canMutateConnections(resolution.role)) {
           next();
           return;
         }

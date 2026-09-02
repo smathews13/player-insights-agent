@@ -142,14 +142,18 @@ function AssumptionGrid({
   );
 }
 
-function ProjectionBreakdown({
+export function ProjectionBreakdown({
   result,
   currency,
   partial,
+  open,
+  onToggle,
 }: {
   result: ForecastResult;
   currency: string;
   partial: boolean;
+  open: boolean;
+  onToggle: () => void;
 }) {
   const complete =
     result.components.length > 0 &&
@@ -162,64 +166,73 @@ function ProjectionBreakdown({
   if (!complete) return null;
 
   return (
-    <section className="ops-forecast-breakdown" aria-labelledby="ops-forecast-breakdown-heading">
-      <div className="ops-forecast-card-head">
-        <h4 id="ops-forecast-breakdown-heading">Projected breakdown</h4>
-        <span className={astPill('neutral-outline', 'ops-pill')}>Estimated</span>
-      </div>
-      <div
-        className="ops-forecast-breakdown-scroll"
-        role="region"
-        aria-label="Projected cost breakdown by horizon"
-        tabIndex={0}
+    <section className="ops-forecast-breakdown">
+      <button
+        type="button"
+        className="ops-forecast-breakdown-trigger"
+        aria-expanded={open}
+        aria-controls="ops-forecast-breakdown-table"
+        onClick={onToggle}
       >
-        <table>
-          <caption className="sr-only">
-            Included forecast components for the next 7 days, next 30 days, and six months
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">Component</th>
-              {result.horizons.map((horizon) => (
-                <th scope="col" key={horizon.days}>
-                  {horizon.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {result.components.map((component) => (
-              <tr key={component.id}>
-                <th scope="row">{component.label}</th>
-                {result.horizons.map((horizon) => {
-                  const projected = horizon.components.find((item) => item.id === component.id)!;
-                  return (
-                    <td key={horizon.days}>
-                      {projected.amount === null ? (
-                        <span className="ops-when-absent" title={projected.unavailable}>
-                          Unavailable
-                        </span>
-                      ) : (
-                        <span className="ast-num">{money(projected.amount, currency)}</span>
-                      )}
-                    </td>
-                  );
-                })}
+        <span>Projection breakdown</span>
+        <span className={astPill('neutral-outline', 'ops-pill')}>Estimated</span>
+      </button>
+      {open ? (
+        <div
+          id="ops-forecast-breakdown-table"
+          className="ops-forecast-breakdown-scroll"
+          role="region"
+          aria-label="Projected cost breakdown by horizon"
+          tabIndex={0}
+        >
+          <table>
+            <caption className="sr-only">
+              Included forecast components for the next 7 days, next 30 days, and six months
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Component</th>
+                {result.horizons.map((horizon) => (
+                  <th scope="col" key={horizon.days}>
+                    {horizon.label}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <th scope="row">{partial ? 'Subtotal' : 'Total'}</th>
-              {result.horizons.map((horizon) => (
-                <td key={horizon.days}>
-                  <span className="ast-num">{money(horizon.total!, currency)}</span>
-                </td>
+            </thead>
+            <tbody>
+              {result.components.map((component) => (
+                <tr key={component.id}>
+                  <th scope="row">{component.label}</th>
+                  {result.horizons.map((horizon) => {
+                    const projected = horizon.components.find((item) => item.id === component.id)!;
+                    return (
+                      <td key={horizon.days}>
+                        {projected.amount === null ? (
+                          <span className="ops-when-absent" title={projected.unavailable}>
+                            Unavailable
+                          </span>
+                        ) : (
+                          <span className="ast-num">{money(projected.amount, currency)}</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
               ))}
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">{partial ? 'Subtotal' : 'Total'}</th>
+                {result.horizons.map((horizon) => (
+                  <td key={horizon.days}>
+                    <span className="ast-num">{money(horizon.total!, currency)}</span>
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -236,6 +249,7 @@ export function ForecastingBody({
   unit?: CostBudgetUnit;
 }) {
   const [saved, setSaved] = useState<ForecastAssumptions | null>(readForecastAssumptions);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const baseline = deriveForecastBaseline(cost.data, traffic.data, unit);
   const assumptions = saved ?? baseline.defaults;
   const result = calculateForecast(baseline, assumptions);
@@ -279,10 +293,10 @@ export function ForecastingBody({
     <section className="ops-block ops-forecast" aria-labelledby="ops-forecast-heading" data-testid="ops-forecasting">
       <div className="ops-block-head">
         <div className="ops-block-head-text">
-          <h3 id="ops-forecast-heading">Cost Forecasting</h3>
-        </div>
-        <div className="ops-block-head-trailing">
-          <ExperimentalBadge />
+          <span className="ops-block-title-group">
+            <h3 id="ops-forecast-heading">Cost Forecasting</h3>
+            <ExperimentalBadge />
+          </span>
         </div>
       </div>
       <div className="ops-block-body">
@@ -330,7 +344,13 @@ export function ForecastingBody({
                 </article>
               ))}
             </div>
-            <ProjectionBreakdown result={result} currency={baseline.currency} partial={partial} />
+            <ProjectionBreakdown
+              result={result}
+              currency={baseline.currency}
+              partial={partial}
+              open={breakdownOpen}
+              onToggle={() => setBreakdownOpen((current) => !current)}
+            />
 
             <Disclosure summary="Methodology, formulas, and exclusions" className="ops-forecast-method">
               <MethodologySections groups={methodologyGroups} />

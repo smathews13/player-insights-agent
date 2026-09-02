@@ -176,11 +176,20 @@ describe('billing attribution', () => {
       correctionRows: 0,
       sourceRows: 1,
       throughDay: '2026-09-01',
+      freeEquivalentUsd: 0,
+      priceCurrency: 'USD',
     };
     const accounting = classifyGenieAccounting(
       [
-        { ...base, spaceId: '', attributionMethod: 'unattributed', dbus: 5 },
-        { ...base, spaceId: '', attributionMethod: 'unattributed', surface: 'GENIE_ONE', dbus: 15 },
+        { ...base, spaceId: '', attributionMethod: 'unattributed', dbus: 5, freeEquivalentUsd: 1 },
+        {
+          ...base,
+          spaceId: '',
+          attributionMethod: 'unattributed',
+          surface: 'GENIE_ONE',
+          dbus: 15,
+          freeEquivalentUsd: 3,
+        },
         {
           ...base,
           spaceId: '',
@@ -210,7 +219,9 @@ describe('billing attribution', () => {
     expect(tiles.find((tile) => tile.id === 'genie:data')?.genieInstanceAccounting).toMatchObject({
       allowanceUsedDbus: 5,
       promotionalDbus: 15,
+      freeEquivalentUsd: 4,
     });
+    expect(tiles.find((tile) => tile.id === 'genie:data')?.amount).toBe(0);
   });
 
   it('keeps unmatched workspace Genie usage out of configured-space tiles', () => {

@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import { RunHeader } from './RunHeader';
 import { astPill, runHeadline, shortRunId, statusFamily, statusTone } from './run-header';
-import { RATING_SCALE } from './benchmark-summary';
 import { partial } from './styles/stylesheet';
 import type { Run } from './app-types';
 
@@ -46,7 +45,7 @@ function run(overrides: Partial<Run> = {}): Run {
     stakeholder: 'someone@example.com',
     status: 'complete',
     duration_ms: 73200,
-    rating: 5,
+    feedback: 'up',
     created_at: '2026-02-01T10:00:00Z',
     ...overrides,
   };
@@ -139,30 +138,26 @@ describe('the run header names the run without spelling it out', () => {
 });
 
 describe('the run header sums the run up in one line', () => {
-  it('keeps wall time at the edge and puts calls and rating in the identity badges', () => {
+  it('keeps wall time at the edge and puts calls and feedback in the identity badges', () => {
     const markup = header();
     expect(markup).toContain('run-detail-meta ast-num">73.2s');
     expect(markup).toContain('Tools · <span class="ast-num">12</span>');
-    expect(markup).toContain('aria-label="Rated helpful"');
+    expect(markup).toContain('aria-label="Helpful"');
     expect(markup).toContain('lucide-thumbs-up');
   });
 
-  it('takes the rating’s scale from the one place that knows it', () => {
-    // Not a `/5` written into this line. The top of the scale is the feedback
-    // column's constraint, and a surface asserting it on its own is a surface
-    // that still says 5 after the column changes.
-    expect(runHeadline({ rating: 4 })).toBe(`rated 4/${RATING_SCALE}`);
+  it('uses the canonical feedback label without a numeric scale', () => {
+    expect(runHeadline({ feedback: 'up' })).toBe('Helpful');
+    expect(runHeadline({ feedback: 'down' })).toBe('Not helpful');
   });
 
   it('counts one call as one call', () => {
-    expect(runHeadline({ durationMs: 1000, toolCalls: 1 })).toBe('1.0s · 1 tool call · Not rated yet');
+    expect(runHeadline({ durationMs: 1000, toolCalls: 1 })).toBe('1.0s · 1 tool call · No feedback');
   });
 
-  it('says a run is unrated rather than showing an empty scale', () => {
-    // Nobody rating a run is the normal state -- the agent never rates itself --
-    // so the header says so. An absent line reads as an oversight instead.
-    expect(header({ run: run({ rating: null }) })).toContain('Not rated');
-    expect(runHeadline({ rating: null })).toBe('Not rated yet');
+  it('says when a run has no feedback', () => {
+    expect(header({ run: run({ feedback: null }) })).toContain('No feedback');
+    expect(runHeadline({ feedback: null })).toBe('No feedback');
   });
 
   it('omits a measurement nobody took, rather than printing it as zero', () => {
@@ -170,13 +165,13 @@ describe('the run header sums the run up in one line', () => {
     // parts rather than formatted from a template: a run whose duration was never
     // recorded did not take 0.0s, and a trace with no counter did not make no
     // calls. Either zero is a fabricated figure sitting where a real one goes.
-    const markup = header({ run: run({ duration_ms: null, rating: null }), toolCalls: null });
+    const markup = header({ run: run({ duration_ms: null, feedback: null }), toolCalls: null });
     expect(markup).not.toContain('0.0s');
     expect(markup).not.toContain('0 tool calls');
-    expect(markup).toContain('Not rated');
-    expect(runHeadline({ durationMs: null, toolCalls: null, rating: null })).toBe('Not rated yet');
-    expect(runHeadline({ durationMs: 400 })).toBe('0.4s · Not rated yet');
-    expect(runHeadline({ toolCalls: 0 })).toBe('0 tool calls · Not rated yet');
+    expect(markup).toContain('No feedback');
+    expect(runHeadline({ durationMs: null, toolCalls: null, feedback: null })).toBe('No feedback');
+    expect(runHeadline({ durationMs: 400 })).toBe('0.4s · No feedback');
+    expect(runHeadline({ toolCalls: 0 })).toBe('0 tool calls · No feedback');
   });
 
   it('reads the call count from the trace rather than from the row', () => {
@@ -236,7 +231,7 @@ describe('the run header is four objects, not one sentence', () => {
     const markup = header({ run: null });
     expect(markup).toContain('Select a run');
     expect(markup).not.toContain('run-detail-ident');
-    expect(markup).not.toContain('Not rated yet');
+    expect(markup).not.toContain('No feedback');
   });
 
   it('qualifies the trace under the figures, when there is anything to qualify', () => {

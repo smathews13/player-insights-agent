@@ -266,7 +266,7 @@ describe('the night sky belongs to dark mode alone', () => {
   });
 });
 
-describe('the light answer sits on an opaque card', () => {
+describe('the light answer sits on high-alpha semantic glass', () => {
   it('remaps the pane token rather than restating a surface per partial', () => {
     /*
      * `--ast-pane` is 94% white at `:root` and the 6% is deliberate: the starfield
@@ -280,22 +280,27 @@ describe('the light answer sits on an opaque card', () => {
      * makes every one of them solid -- and a surface added to that set later is
      * solid in light mode without anybody remembering this file.
      */
-    expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-pane:\s*var\(--ast-white\)/);
+    expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-pane:\s*var\(--ast-surface-primary\)/);
     expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-sky-fill:\s*var\(--ast-ice\)/);
     expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-sky-spackle:\s*none/);
-    expect(rule(TOKENS, ':root')).toMatch(/--ast-pane:\s*rgba\(255,\s*255,\s*255,\s*0\.94\)/);
+    expect(rule(TOKENS, ':root')).toMatch(/--ast-pane:\s*var\(--ast-surface-primary\)/);
+    expect(rule(TOKENS, ':root')).toMatch(
+      /--ast-surface-primary:\s*color-mix\(in srgb,\s*var\(--ast-white\) 95%,\s*transparent\)/
+    );
     /* The card keeps reading the token -- answer.css is not ours to edit, and the
        point of doing this in a token is that it does not need to be. */
     expect(rule(ANSWER, '.answer-card')).toMatch(/background:\s*var\(--ast-pane\)/);
-    /* No alpha anywhere in the light value, or a mis-mounted sky is visible again. */
-    expect(rule(TOKENS, `html${NOT_DARK}`)).not.toMatch(/rgba|hsla|color-mix/);
+    expect(rule(TOKENS, `html${NOT_DARK}`)).not.toMatch(/rgba|hsla/);
   });
 
   it('leaves the dark answer frosted on the night sky', () => {
     /* The frost is the point in dark: the card is ON the sky and the sky is meant
        to be faintly present through it. Reduced transparency is answered in
        dark-mode.css, which is where that fallback belongs. */
-    expect(rule(TOKENS, "html[data-theme='dark']")).toMatch(/--ast-pane:\s*rgba\(255,\s*255,\s*255,\s*0\.065\)/);
+    expect(rule(TOKENS, "html[data-theme='dark']")).toMatch(/--ast-pane:\s*var\(--ast-surface-primary\)/);
+    expect(rule(TOKENS, "html[data-theme='dark']")).toMatch(
+      /--ast-surface-primary:\s*color-mix\(in srgb,\s*var\(--ast-surface-solid\) 95%,\s*transparent\)/
+    );
     expect(DARK).toMatch(/--ast-pane:\s*var\(--ast-surface-solid\)/);
   });
 });

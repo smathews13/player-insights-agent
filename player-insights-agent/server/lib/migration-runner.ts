@@ -714,23 +714,15 @@ async function applyOne(
 
   // ── WHEN THE VERIFYING READ IS WORTH MAKING ──
   //
-  // Skipped when every statement of a MULTI-statement migration failed: the store
-  // is unreachable or refusing wholesale, so the read would fail too and twenty
-  // more round trips would add nothing to a diagnosis the failures already give.
-  //
-  // The `> 1` is not a detail. The rule used to be "some statements were
-  // accepted", which was safe while the only migration had twenty-three
-  // statements and silently wrong for a one-statement one: a lone
-  // `ADD COLUMN IF NOT EXISTS` refused on ownership — the exact refusal this
-  // whole mechanism exists to survive — could never be recognised as harmless,
-  // and every deployment where the app does not own the table would have been
-  // permanently stuck one version behind.
-  //
-  // Checking is safe on a dead store anyway, because `schemaNames` answers null
-  // for a read that failed and null is never treated as satisfied.
-  const storeRefusedWholesale = total > 1 && failures.length === total;
-  if (failures.length > 0 && !storeRefusedWholesale) {
-    for (const entry of refused) {
+  // Verify every refused idempotent statement. A migration may consist entirely
+  // of ALTERs against tables owned by an earlier app role; all can be harmless
+  // no-ops even though every write is refused. `schemaNames` returns null when
+  // the store itself is unreachable, so this remains fail-closed.
+  const ownershipNoops = refused.filter(
+    ({ failure }) => failure.code === '42501' || /must be owner\b/i.test(failure.message)
+  );
+  if (ownershipNoops.length > 0) {
+    for (const entry of ownershipNoops) {
       entry.failure.satisfied = await statementAlreadySatisfied(client, entry.statement);
     }
   }

@@ -93,7 +93,7 @@ import {
 import { appSessionDeployment } from '../lib/app-session';
 import { buildUserSpendMetrics, userSpendComparisonWindows } from '../lib/user-spend-metrics';
 import { seedRoles } from '../lib/admin-roles';
-import { effectiveRole, everyKnownUser, readRosterForRequest } from '../lib/user-roster';
+import { everyKnownUser, readRosterForRequest } from '../lib/user-roster';
 import { isRole, type Role } from '../../shared/user-roster-contract';
 import { USER_MONITORING_SCHEMA_REVISION } from '../../shared/user-monitoring-contract';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
@@ -1589,9 +1589,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         const roles = new Map(
           everyKnownUser({ seed, stored: rosterRead.rows }).map((entry) => [entry.email, entry.role])
         );
-        for (const email of spend.users.map((profile) => profile.email)) {
-          if (!roles.has(email)) roles.set(email, effectiveRole({ seed, stored: rosterRead.rows, email }));
-        }
         const personaOptions = personaRead.personas.map((persona) => ({ id: persona.id, name: persona.displayName }));
         const personaNames = new Map(personaOptions.map((persona) => [persona.id, persona.name]));
         const personas = new Map(
@@ -1621,6 +1618,11 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           personas,
           personaOptions,
           coveredDays,
+          identityRevision:
+            rosterRead.rows
+              .map((row) => row.setAt)
+              .sort()
+              .slice(-1)[0] ?? '',
           unit: userUnit,
           search: queryText(req, 'userSearch'),
           role: userRole,
@@ -2081,6 +2083,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           };
         };
         const selectedInteraction = interactionRead.users.find((user) => user.email.toLowerCase() === spendUser);
+        const selectedRun = userRunsRead.users.find((user) => user.email.toLowerCase() === spendUser);
         const selectedCurrent = metricSnapshot(spendWithGenie);
         const selectedCurrentProfile = spendWithGenie.users.find(
           (profile) => profile.email.toLowerCase() === spendUser
@@ -2106,6 +2109,9 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
                     spendWithGenie.state !== 'unavailable' &&
                     selectedReconciliation.appTotal !== null &&
                     Number.isFinite(selectedReconciliation.appTotal),
+                  totalTokens: selectedRun?.totalTokens ?? null,
+                  tokenCoveredRuns: selectedRun?.tokenCoveredRuns ?? null,
+                  tokenCoveredQuestions: selectedRun?.tokenCoveredQuestions ?? null,
                 },
                 week: { current: metricSnapshot(comparisonSpends[0]), prior: metricSnapshot(comparisonSpends[1]) },
                 month: { current: metricSnapshot(comparisonSpends[2]), prior: metricSnapshot(comparisonSpends[3]) },

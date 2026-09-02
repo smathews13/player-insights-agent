@@ -312,7 +312,7 @@ describe('paged list request contracts', () => {
       filters: {
         person: 'reader@example.test',
         outcome: 'refused',
-        rating: 'down',
+        feedback: 'down',
         table: 'main.player.gold',
         search: 'refund rate',
       },
@@ -322,7 +322,7 @@ describe('paged list request contracts', () => {
       cursor: 'opaque-next',
       person: 'reader@example.test',
       outcome: 'refused',
-      rating: 'down',
+      feedback: 'down',
       table: 'main.player.gold',
       q: 'refund rate',
       limit: '50',
@@ -358,11 +358,11 @@ describe('the range identity a remount must reuse', () => {
 describe('the Monitoring tab restores its view controls', () => {
   it('keeps range and filters but does not reopen detail panels', () => {
     rememberMonitoringSearch(
-      '?range=30d&person=reader%40example.test&outcome=failed&rating=down&table=main.gold.fact&q=refund&question=q1&who=reader'
+      '?range=30d&person=reader%40example.test&outcome=failed&feedback=down&table=main.gold.fact&q=refund&question=q1&who=reader'
     );
 
     expect(monitoringTabHref()).toBe(
-      '/monitoring?range=30d&person=reader%40example.test&outcome=failed&rating=down&table=main.gold.fact&q=refund'
+      '/monitoring?range=30d&person=reader%40example.test&outcome=failed&feedback=down&table=main.gold.fact&q=refund'
     );
   });
 

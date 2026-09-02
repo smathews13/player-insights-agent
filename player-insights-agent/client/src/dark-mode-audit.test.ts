@@ -104,13 +104,16 @@ describe('dark mode covers the shipped surfaces', () => {
 
   it('keeps the spec paints centralized and exact', () => {
     expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--background:\s*var\(--ast-navy\)/);
-    expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--card:\s*rgba\(255,\s*255,\s*255,\s*0\.065\)/);
+    expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--card:\s*var\(--ast-surface-primary\)/);
+    expect(ASTROLABE).toMatch(/--ast-surface-primary:\s*color-mix\([^;]*95%,\s*transparent\)/);
+    expect(ASTROLABE).toMatch(/--ast-surface-menu:\s*color-mix\([^;]*98\.5%,\s*transparent\)/);
     expect(ASTROLABE).toMatch(
       /html\[data-theme='dark'\][\s\S]*--ast-text-secondary:\s*rgba\(232,\s*237,\s*242,\s*0\.68\)/
     );
     expect(ASTROLABE).toMatch(/html\[data-theme='dark'\][\s\S]*--ast-caption:\s*rgba\(232,\s*237,\s*242,\s*0\.8\)/);
-    expect(DARK).toContain('background: rgba(255, 255, 255, 0.03)');
     expect(DARK).toContain('background: rgba(255, 255, 255, 0.06)');
+    expect(DARK).toContain('background: var(--ast-surface-primary)');
+    expect(DARK).toContain('background: var(--ast-surface-elevated)');
     expect(DARK).toContain('background: var(--ast-surface-solid)');
   });
 
@@ -134,7 +137,7 @@ describe('dark mode covers the shipped surfaces', () => {
       "html[data-theme='dark'] .trace-dag.map .dag-node",
       "html[data-theme='dark'] .trace-dag.map .dag-detail",
     ]) {
-      expect(bodyFor(DARK, selector)).toMatch(/background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/);
+      expect(bodyFor(DARK, selector)).toMatch(/background:\s*var\(--ast-surface-muted\)/);
     }
     expect(bodyFor(DARK, "html[data-theme='dark'] .trace-dag.map .dag-detail-head")).toMatch(
       /background:\s*transparent/
@@ -150,9 +153,9 @@ describe('dark mode covers the shipped surfaces', () => {
       expect(body, `${selector} still stacks white inside the working card`).toMatch(/background:\s*transparent/);
       expect(body).toMatch(/backdrop-filter:\s*none/);
     }
-    // The panes that DO sit straight on the sky keep their frost.
+    // Panes that sit straight on the sky use the primary attenuation layer.
     expect(bodyFor(DARK, "html[data-theme='dark'] .conversation-rail")).toMatch(
-      /background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/
+      /background:\s*var\(--ast-surface-primary\)/
     );
     /*
      * Inside the map's open panel, every band resolves through
@@ -289,8 +292,10 @@ describe('dark mode covers the shipped surfaces', () => {
      * layer now; no foreground child has to surrender its own positioning.
      */
     expect(DARK).not.toMatch(/\.app-frame\s*>\s*:not\(\.app-sky\)/);
-    expect(DARK).toMatch(/\.app-sky\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*-1/);
-    expect(DARK).toMatch(/html\[data-theme='dark'\] \.app-frame\s*\{[^}]*isolation:\s*isolate/);
+    expect(DARK).toMatch(/\.app-sky\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--ast-layer-sky\)/);
+    expect(DARK).toMatch(
+      /html\[data-theme='dark'\] \.app-frame\s*\{[^}]*z-index:\s*var\(--ast-layer-page\)[^}]*isolation:\s*isolate/
+    );
   });
 
   it('keeps the working-tab sky behind KPI tiles and the red banners', () => {
@@ -305,9 +310,9 @@ describe('dark mode covers the shipped surfaces', () => {
     );
     expect(
       bodyFor(DARK, "html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) [data-slot='card']")
-    ).toMatch(/color-mix\(in srgb,\s*var\(--ast-sky-fill\)\s*86%/);
+    ).toMatch(/background:\s*var\(--ast-surface-primary\)/);
     expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='alert']")).toMatch(
-      /color-mix\(in oklab,\s*var\(--ast-sky-fill\)\s*80%/
+      /color-mix\(in srgb,\s*var\(--ast-surface-primary\)\s*80%/
     );
     expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='alert']")).not.toMatch(
       /background:\s*var\(--(?:card|ast-neg-fill|db-red-wash)\)/
@@ -340,9 +345,9 @@ describe('dark mode covers the shipped surfaces', () => {
       expect(body, `${selector} still frosts the column`).toMatch(/backdrop-filter:\s*none/);
       expect(body, `${selector} still uses the lifted gray mix`).not.toMatch(/color-mix/);
     }
-    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--ast-surface-menu\)/);
     expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='select-content']")).toMatch(
-      /background:\s*var\(--ast-surface-solid\)/
+      /background:\s*var\(--ast-surface-menu\)/
     );
   });
 
@@ -355,13 +360,13 @@ describe('dark mode covers the shipped surfaces', () => {
      * and no new gray.
      */
     expect(bodyFor(DARK, "html[data-theme='dark'] .monitoring-question-modal")).toMatch(
-      /background:\s*var\(--ast-surface-solid\)/
+      /background:\s*var\(--ast-surface-elevated\)/
     );
     const modalCard = bodyFor(
       DARK,
       "html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) .monitoring-question-modal .answer-card"
     );
-    expect(modalCard).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+    expect(modalCard).toMatch(/background:\s*var\(--ast-surface-primary\)/);
     expect(modalCard).not.toMatch(/color-mix/);
     expect(DARK).not.toMatch(
       /html\[data-theme='dark'\] \.page-shell \.monitoring-question-modal \.answer-card\s*\{\s*background:\s*var\(--ast-pane\)/
@@ -403,7 +408,7 @@ describe('dark mode covers the shipped surfaces', () => {
     );
   });
 
-  it('makes every content-covering overlay opaque', () => {
+  it('makes every content-covering overlay use a stronger semantic layer', () => {
     /*
      * Blur changes the shape of page text; it does not remove it. At six or seven
      * percent white the account badge, headings and constellation still showed
@@ -411,41 +416,38 @@ describe('dark mode covers the shipped surfaces', () => {
      * surface therefore resolves directly to the solid token, while ordinary
      * panes remain in the frosted recipe tested below.
      */
-    for (const selector of [
-      '.account-menu',
-      '.app-select-content',
-      "[data-slot='select-content']",
-      "[data-slot='dropdown-menu-content']",
-      "[data-slot='popover-content']",
-      '.monitoring-chip-menu',
-      '.user-profile-modal',
-      '.monitoring-question-modal',
-      "[data-slot='sheet-content']",
-    ]) {
+    for (const [selector, role] of [
+      ['.account-menu', '--ast-surface-menu'],
+      ['.app-select-content', '--ast-surface-menu'],
+      ["[data-slot='select-content']", '--ast-surface-menu'],
+      ["[data-slot='dropdown-menu-content']", '--ast-surface-menu'],
+      ["[data-slot='popover-content']", '--ast-surface-menu'],
+      ['.monitoring-chip-menu', '--ast-surface-menu'],
+      ['.user-profile-modal', '--ast-surface-elevated'],
+      ['.monitoring-question-modal', '--ast-surface-elevated'],
+      ["[data-slot='sheet-content']", '--ast-surface-elevated'],
+    ] as const) {
       const body = bodyFor(DARK, `html[data-theme='dark'] ${selector}`);
-      expect(body, `${selector} has no dark overlay treatment`).toMatch(/background:\s*var\(--ast-surface-solid\)/);
-      expect(body, `${selector} still relies on translucent blur`).toMatch(/backdrop-filter:\s*none/);
-      expect(body, `${selector} regressed to a low-alpha fill`).not.toMatch(
-        /background:\s*(?:rgba\([^)]*,\s*0\.\d+\)|var\(--(?:card|popover)\))/
-      );
+      expect(body, `${selector} has no dark overlay treatment`).toContain(`background: var(${role})`);
+      expect(body, `${selector} still relies on blur`).toMatch(/backdrop-filter:\s*none/);
     }
   });
 
-  it('gives AppKit floating menus the account-menu fill, not seven percent white', () => {
+  it('gives AppKit floating menus the shared 98.5 percent role', () => {
     // The conversation filter is a raw SelectContent. It never wore
     // `.app-select-content`, so it painted `--popover` -- seven percent white --
     // and the run list showed through the options. The account menu already
     // uses the solid stand-in; this token is what every AppKit dropdown reads.
     const darkTokens = TOKENS.split("html[data-theme='dark']")[1] ?? '';
-    expect(darkTokens).toMatch(/--popover:\s*var\(--ast-surface-solid\)/);
+    expect(darkTokens).toMatch(/--popover:\s*var\(--ast-surface-menu\)/);
     expect(darkTokens).not.toMatch(/--popover:\s*rgba\(255,\s*255,\s*255,\s*0\.07\)/);
-    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--ast-surface-menu\)/);
   });
 
-  it('keeps Settings on the rail frost instead of the opaque overlay paint', () => {
+  it('keeps Settings on elevated glass without backdrop blur', () => {
     const settings = bodyFor(DARK, "html[data-theme='dark'] .settings-page.settings-modal");
-    expect(settings).toMatch(/background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/);
-    expect(settings).toMatch(/backdrop-filter:\s*blur\(2px\)/);
+    expect(settings).toMatch(/background:\s*var\(--ast-surface-elevated\)/);
+    expect(settings).toMatch(/backdrop-filter:\s*none/);
     expect(settings).not.toMatch(/--ast-surface-solid/);
   });
 
@@ -481,7 +483,7 @@ describe('dark mode covers the shipped surfaces', () => {
         `--ast-entity-column-bg:\\s*var\\(--entity-column-bg,\\s*${DEFAULT_ENTITY_STYLES.column.background}\\)`
       )
     );
-    expect(DARK).toMatch(/--ast-entity-quote-bg:\s*var\(--entity-quote-bg,\s*var\(--ast-surface-solid\)\)/);
+    expect(DARK).toMatch(/--ast-entity-quote-bg:\s*var\(--entity-quote-bg,\s*var\(--ast-surface-muted\)\)/);
     expect(ASTROLABE).toMatch(new RegExp(`--ast-entity-tag-on-navy:\\s*${DEFAULT_ENTITY_STYLES.tag.background}`, 'i'));
     expect(DARK).toMatch(/--ast-entity-tag-bg:\s*var\(--entity-tag-bg,\s*var\(--ast-entity-tag-on-navy\)\)/);
     for (const paper of ['#ddeaf4', '#e8e8e8', '#f4f4f4', '#f7f7f7']) {
@@ -645,7 +647,7 @@ describe('dark mode covers the shipped surfaces', () => {
     }
   });
 
-  it('frosts the monitoring list and Ops blocks with a solid fallback', () => {
+  it('layers monitoring and Ops surfaces with a solid accessibility fallback', () => {
     /*
      * These two large blocks used to leave the constellation visible between
      * rows and figures while the cards around them were frosted. They belong to
@@ -654,11 +656,11 @@ describe('dark mode covers the shipped surfaces', () => {
      * changes when an accessibility preference is enabled.
      */
     const cases = [
-      ['monitoring', '.monitoring-list-pane'],
-      ['monitoring', '.monitoring-filters .monitoring-search input'],
-      ['ops', '.ops-block'],
+      ['monitoring', '.monitoring-list-pane', '--card'],
+      ['monitoring', '.monitoring-filters .monitoring-search input', '--ast-surface-elevated'],
+      ['ops', '.ops-block', '--card'],
     ] as const;
-    for (const [owner, selector] of cases) {
+    for (const [owner, selector, role] of cases) {
       const css = routeDark(owner);
       const reducedAt = css.indexOf('@media (prefers-reduced-transparency: reduce)');
       const normal = css.slice(0, reducedAt);
@@ -668,7 +670,7 @@ describe('dark mode covers the shipped surfaces', () => {
         `html[data-theme='dark'] ${selector}`
       );
       expect(bodyFor(normal, `html[data-theme='dark'] ${selector}`)).toMatch(
-        /background:\s*var\(--card\)[\s\S]*backdrop-filter:\s*blur\(2px\)/
+        new RegExp(`background:\\s*var\\(${role}\\)[\\s\\S]*backdrop-filter:\\s*none`)
       );
       expect(bodyFor(reduced, `html[data-theme='dark'] ${selector}`)).toMatch(
         /backdrop-filter:\s*none[\s\S]*background:\s*var\(--ast-surface-solid\)/
@@ -676,7 +678,7 @@ describe('dark mode covers the shipped surfaces', () => {
     }
   });
 
-  it('frosts the Benchmarking how-to so a star cannot sit on the steps', () => {
+  it('layers the Benchmarking how-to so a star cannot sit on the steps', () => {
     /*
      * The how-to is eight sentences on the sky and is not a card, so the
      * working-tab mix never reached it. Mixing solid with transparent still
@@ -688,7 +690,7 @@ describe('dark mode covers the shipped surfaces', () => {
     const normal = css.slice(0, reducedAt);
     const reduced = css.slice(reducedAt);
     expect(normal).toMatch(
-      /html\[data-theme='dark'\] \.eval-steps\s*\{[^}]*color-mix\(in srgb, var\(--ast-sky-fill\) 86%, white\)[^}]*backdrop-filter:\s*blur\(10px\)/
+      /html\[data-theme='dark'\] \.eval-steps\s*\{[^}]*background:\s*var\(--ast-surface-primary\)[^}]*backdrop-filter:\s*none/
     );
     expect(reduced, 'the how-to has no reduced-transparency fallback').toContain("html[data-theme='dark'] .eval-steps");
     expect(bodyFor(reduced, "html[data-theme='dark'] .eval-steps")).toMatch(
@@ -696,13 +698,13 @@ describe('dark mode covers the shipped surfaces', () => {
     );
   });
 
-  it('frosts Benchmark Lab v3 surfaces at 4% white', () => {
+  it('uses primary glass for Benchmark Lab v3 surfaces', () => {
     const css = routeDark('benchmark');
     const reducedAt = css.indexOf('@media (prefers-reduced-transparency: reduce)');
     const normal = css.slice(0, reducedAt);
     const reduced = css.slice(reducedAt);
     expect(normal).toMatch(
-      /html\[data-theme='dark'\] \.bench-surface\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*0\.04\)[^}]*backdrop-filter:\s*blur\(2px\)/
+      /html\[data-theme='dark'\] \.bench-surface\s*\{[^}]*var\(--ast-surface-primary\)[^}]*backdrop-filter:\s*none/
     );
     expect(reduced).toContain("html[data-theme='dark'] .bench-surface");
     expect(bodyFor(reduced, "html[data-theme='dark'] .bench-surface")).toMatch(
@@ -710,14 +712,14 @@ describe('dark mode covers the shipped surfaces', () => {
     );
   });
 
-  it('frosts the Architecture KPI tiles with the same pane recipe as LIVE DATA FLOW', () => {
+  it('uses primary glass for Architecture KPI tiles and LIVE DATA FLOW', () => {
     const css = routeDark('architecture');
     const reducedAt = css.indexOf('@media (prefers-reduced-transparency: reduce)');
     const normal = css.slice(0, reducedAt);
     const reduced = css.slice(reducedAt);
     for (const selector of ['.arch-flow', '.arch-tiles:not(.arch-tiles-loop) li']) {
       expect(bodyFor(normal, `html[data-theme='dark'] ${selector}`)).toMatch(
-        /background:\s*var\(--card\)[\s\S]*backdrop-filter:\s*blur\(2px\)/
+        /background:\s*var\(--card\)[\s\S]*backdrop-filter:\s*none/
       );
       expect(bodyFor(reduced, `html[data-theme='dark'] ${selector}`)).toMatch(
         /backdrop-filter:\s*none[\s\S]*background:\s*var\(--ast-surface-solid\)/

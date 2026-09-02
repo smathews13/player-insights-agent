@@ -1005,8 +1005,9 @@
 .trace-dag.map .dag-md-code {
   margin: 0 0 6px;
   padding: 8px 10px;
-  overflow-x: auto;
-  white-space: pre;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-family: var(--font-mono);
   font-size: var(--ast-fs-12);
   line-height: 1.5;
@@ -1168,18 +1169,16 @@
 /* A Genie result set. Sized to its content rather than stretched: a one-column
    count stretched to the panel's width is a table pretending to be a report.
    
-   Scrolls when its content is wider than the row it sits in, which is not a
-   hypothetical: a dictionary lookup that returned five rows keeps its four
-   columns, and a business definition is a sentence. The panel above clips
-   anything that overflows it, so without this the last column is cut off with no
-   way to reach it. */
+   The fixed table layout wraps its cells when content is wider than the row.
+   That keeps every column in the right workspace without a nested scrollbar. */
 .trace-dag.map .dag-grid {
-  overflow-x: auto;
+  overflow: visible;
 }
 .trace-dag.map .dag-grid table {
   border-collapse: collapse;
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
   font-size: var(--ast-fs-12);
   border: 1px solid var(--ast-hairline);
   border-radius: 6px;
@@ -1193,14 +1192,14 @@
   text-transform: uppercase;
   color: var(--ast-text-secondary);
   padding: 5px 10px;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .trace-dag.map .dag-grid td {
   border-top: 1px solid var(--ast-hairline);
   padding: 6px 10px;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .trace-dag.map .dag-grid-note {
   margin: 4px 0 0;
@@ -1440,11 +1439,12 @@
 .trace-dag.map .dag-result-table {
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
+  overflow: visible;
 }
 .trace-dag.map .dag-result-table table {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--ast-fs-12);
 }
@@ -1457,14 +1457,14 @@
   text-transform: uppercase;
   color: var(--ast-text-secondary);
   padding: 5px 8px;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .trace-dag.map .dag-result-table td {
   border-top: 1px solid var(--ast-hairline);
   padding: 5px 8px;
 }
 .trace-dag.map .dag-result-table td:nth-child(-n + 3) {
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 /* The last column is the measured one in every result this panel draws -- a null
    rate, a count, a share -- so it is the one set in figures. */
@@ -1548,21 +1548,9 @@
   width: 13px;
   height: 13px;
 }
-/*
- * CLAMPED, NOT SCROLLED, and the clamp opens.
- *
- * 196px is around ten lines, which is a statement a reader can take in; past
- * that they are reading rather than glancing and should be able to say so. A
- * scroller here would be the same defect this map was rebuilt out of, one axis
- * over: content parked outside a box nothing announces as scrollable.
- */
 .trace-dag.map .dag-sql-body {
   position: relative;
-  max-height: 196px;
-  overflow: hidden;
-}
-.trace-dag.map .dag-sql.open .dag-sql-body {
-  max-height: none;
+  overflow: visible;
 }
 .trace-dag.map .dag-sql-body pre {
   margin: 0;
@@ -1579,18 +1567,6 @@
 .trace-dag.map .dag-sql-body pre b {
   color: var(--ast-info-text);
   font-weight: 500;
-}
-/* The fade, and the way past it. Both are in the same box, so the link always
-   sits on the fade rather than on a line of the statement. */
-.trace-dag.map .dag-sql-more {
-  position: absolute;
-  inset: auto 0 0;
-  padding: 22px 0 6px;
-  border: 0;
-  font: inherit;
-  font-size: var(--ast-fs-12);
-  color: var(--ast-blue);
-  background: linear-gradient(to bottom, transparent, var(--ast-white) 60%);
 }
 /*
  * ── The whole run's payloads, behind one row ──────────────────────────────
@@ -1637,13 +1613,9 @@
   color: var(--ast-text-secondary);
   font-variant-numeric: tabular-nums;
 }
-/* The one payload block that cannot be sized to content. Capped and scrolled
-   here, where the length is known to be unbounded, rather than on `.dag-block`
-   where it would also cap the arguments the handoff wants sized to content. */
 .trace-dag.map .dag-raw .dag-block {
   margin-top: 8px;
-  max-height: 320px;
-  overflow: auto;
+  overflow: visible;
 }
 /*
  * THE `pulse` HALO IS GONE, and its reduced-motion guard with it.

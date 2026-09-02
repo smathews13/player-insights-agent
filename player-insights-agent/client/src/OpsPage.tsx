@@ -143,7 +143,7 @@ function BlockHead({
   badges,
   meta,
   control,
-  trailing,
+  titleBadge,
   children,
 }: {
   /** The heading's own id, so the section's `aria-labelledby` reaches it. */
@@ -175,7 +175,7 @@ function BlockHead({
    */
   meta?: React.ReactNode;
   control?: React.ReactNode;
-  trailing?: React.ReactNode;
+  titleBadge?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -186,12 +186,14 @@ function BlockHead({
             {badge.word}
           </span>
         ))}
-        <h3 id={id}>{title}</h3>
+        <span className="ops-block-title-group">
+          <h3 id={id}>{title}</h3>
+          {titleBadge}
+        </span>
         {meta ? <span className="ops-block-meta">{meta}</span> : null}
         {children}
       </div>
       {control ? <div className="ops-block-head-control">{control}</div> : null}
-      {trailing ? <div className="ops-block-head-trailing">{trailing}</div> : null}
     </div>
   );
 }
@@ -610,7 +612,7 @@ export function CostBody({
             <RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />
           </div>
         }
-        trailing={<ExperimentalBadge />}
+        titleBadge={<ExperimentalBadge />}
       />
 
       <BlockBody>
@@ -672,7 +674,7 @@ function CostCardGrid({
             </div>
             <dl className="ops-genie-values">
               <div>
-                <dt>Free</dt>
+                <dt title="Estimated value if this free usage had been charged at the applicable list price.">Free</dt>
                 <dd className="ast-num">{card.free}</dd>
               </div>
               <div>

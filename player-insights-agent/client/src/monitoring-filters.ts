@@ -25,19 +25,21 @@ export const PERSON_PANEL_PARAM = 'who';
 
 export const PERSON_PARAM = 'person';
 export const OUTCOME_PARAM = 'outcome';
-export const RATING_PARAM = 'rating';
+export const FEEDBACK_PARAM = 'feedback';
 export const TABLE_PARAM = 'table';
 export const SEARCH_PARAM = 'q';
 
 /** Every parameter this page's filter row owns. Nothing else is touched. */
-const FILTER_PARAMS = [PERSON_PARAM, OUTCOME_PARAM, RATING_PARAM, TABLE_PARAM, SEARCH_PARAM] as const;
+const FILTER_PARAMS = [PERSON_PARAM, OUTCOME_PARAM, FEEDBACK_PARAM, TABLE_PARAM, SEARCH_PARAM] as const;
 
 export interface MonitoringFilters {
   /** Full email address, or '' for everyone. */
   person: string;
   /** One of the outcome words, or '' for all. */
   outcome: '' | 'completed' | 'partial' | 'refused' | 'failed';
-  rating: '' | 'up' | 'down' | 'unrated';
+  feedback?: '' | 'up' | 'down' | 'none';
+  /** @deprecated Mixed-version URL compatibility. */
+  rating?: '' | 'up' | 'down' | 'unrated';
   /** Fully-qualified table, or '' for any. */
   table: string;
   /**
@@ -55,7 +57,7 @@ export interface MonitoringFilters {
 export const NO_FILTERS: MonitoringFilters = {
   person: '',
   outcome: '',
-  rating: '',
+  feedback: '',
   table: '',
   search: '',
 };
@@ -81,7 +83,7 @@ export function filtersFromParams(params: ReadableParams): MonitoringFilters {
   return {
     person: (params.get(PERSON_PARAM) ?? '').trim(),
     outcome: oneOf(params.get(OUTCOME_PARAM), ['completed', 'partial', 'refused', 'failed'] as const),
-    rating: oneOf(params.get(RATING_PARAM), ['up', 'down', 'unrated'] as const),
+    feedback: oneOf(params.get(FEEDBACK_PARAM) ?? params.get('rating'), ['up', 'down', 'none'] as const),
     table: (params.get(TABLE_PARAM) ?? '').trim(),
     search: (params.get(SEARCH_PARAM) ?? '').trim(),
   };
@@ -112,19 +114,21 @@ export function chipsActive(filters: MonitoringFilters): boolean {
  * this pass prevents a mixed-version response from briefly showing a row the
  * URL excludes.
  *
- * `unrated` is a filter value rather than the absence of one. "Show me what
- * nobody rated" is a different question from "show me everything", and the two
+ * `none` is a filter value rather than the absence of one. "Show me answers with
+ * no feedback" is a different question from "show me everything", and the two
  * were indistinguishable while an empty string meant both.
  */
 export function applyFilters(
   questions: readonly MonitoringQuestion[],
   filters: MonitoringFilters
 ): MonitoringQuestion[] {
+  const feedback = filters.feedback ?? (filters.rating === 'unrated' ? 'none' : (filters.rating ?? ''));
   return questions.filter((question) => {
     if (filters.person && question.askedBy.toLowerCase() !== filters.person.toLowerCase()) return false;
     if (filters.outcome && question.outcome !== filters.outcome) return false;
-    if (filters.rating === 'unrated' && question.rating !== null) return false;
-    if ((filters.rating === 'up' || filters.rating === 'down') && question.rating !== filters.rating) {
+    const direction = question.feedback ?? question.rating ?? null;
+    if (feedback === 'none' && direction !== null) return false;
+    if ((feedback === 'up' || feedback === 'down') && direction !== feedback) {
       return false;
     }
     if (filters.table && !question.tables.includes(filters.table)) return false;
@@ -159,8 +163,8 @@ function filterValue(filters: MonitoringFilters, param: (typeof FILTER_PARAMS)[n
       return filters.person;
     case OUTCOME_PARAM:
       return filters.outcome;
-    case RATING_PARAM:
-      return filters.rating;
+    case FEEDBACK_PARAM:
+      return filters.feedback ?? (filters.rating === 'unrated' ? 'none' : (filters.rating ?? ''));
     case TABLE_PARAM:
       return filters.table;
     case SEARCH_PARAM:
@@ -178,6 +182,7 @@ function filterValue(filters: MonitoringFilters, param: (typeof FILTER_PARAMS)[n
  */
 export function withFilters(search: string, filters: MonitoringFilters): string {
   const next = new URLSearchParams(search);
+  next.delete('rating');
   for (const param of FILTER_PARAMS) {
     const value = filterValue(filters, param);
     if (value) next.set(param, value);

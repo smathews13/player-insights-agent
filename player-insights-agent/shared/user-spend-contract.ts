@@ -22,12 +22,21 @@ export interface UserSpendKpi {
   subtitle: string;
 }
 
+export interface UserTokenAverages {
+  totalTokens: number | null;
+  coveredRuns: number | null;
+  coveredQuestions: number | null;
+  perRun: number | null;
+  perQuestion: number | null;
+}
+
 export interface UserSpendMetrics {
   unit: CostBudgetUnit;
   questions: number | null;
   coveredDays: number | null;
   costPerQuestion: UserSpendKpi;
   averageDaily: UserSpendKpi;
+  averageTokens?: UserTokenAverages;
   appShare: UserSpendKpi;
   weekOverWeek: UserSpendKpi;
   monthOverMonth: UserSpendKpi;
@@ -69,6 +78,8 @@ export interface SpendByUserPayload {
   range: OpsDayRange;
   state: 'ready' | 'partial' | 'unavailable';
   reason: string;
+  /** Persisted Identity-settings revision used to fence roster-derived caches. */
+  identityRevision?: string;
   users: UserSpendProfile[];
   unattributed: UserSpendComponent[];
   reconciliation: {

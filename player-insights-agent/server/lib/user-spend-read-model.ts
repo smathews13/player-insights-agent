@@ -39,6 +39,8 @@ export const USER_SPEND_READ_MODEL_DDL: readonly string[] = [
      prompt_tokens BIGINT,
      completion_tokens BIGINT,
      total_tokens BIGINT,
+     token_covered_runs INTEGER,
+     token_covered_questions INTEGER,
      spend_usd NUMERIC(30,12),
      spend_dbu NUMERIC(30,12),
      app_spend_usd NUMERIC(30,12),
@@ -94,6 +96,8 @@ export interface UserSpendDailyRow {
   promptTokens: number | null;
   completionTokens: number | null;
   totalTokens: number | null;
+  tokenCoveredRuns?: number | null;
+  tokenCoveredQuestions?: number | null;
   spendUsd: string | number | null;
   spendDbu: string | number | null;
   appSpendUsd: string | number | null;
@@ -223,14 +227,14 @@ async function transaction<T>(connection: ReadModelConnection, work: () => Promi
 export const UPSERT_USER_SPEND_DAY_QUERY = `INSERT INTO ${USER_SPEND_DAILY_TABLE} (
   app_scope, user_key, display_email, activity_date, calculation_version,
   submitted_questions, completed_questions, run_count, active_minutes,
-  prompt_tokens, completion_tokens, total_tokens, spend_usd, spend_dbu,
+  prompt_tokens, completion_tokens, total_tokens, token_covered_runs, token_covered_questions, spend_usd, spend_dbu,
   app_spend_usd, app_spend_dbu,
   spend_usd_quality, spend_dbu_quality,
   components, activity_complete, billing_complete, source_through, computed_at, updated_at
 ) VALUES (
   $1, lower($2), $3, $4::date, $5,
-  $6, $7, $8, $9, $10, $11, $12, $13::numeric, $14::numeric,
-  $15::numeric, $16::numeric, $17, $18, $19::jsonb, $20, $21, $22::timestamptz, $23::timestamptz, NOW()
+  $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::numeric, $16::numeric,
+  $17::numeric, $18::numeric, $19, $20, $21::jsonb, $22, $23, $24::timestamptz, $25::timestamptz, NOW()
 )
 ON CONFLICT (app_scope, user_key, activity_date, calculation_version) DO UPDATE SET
   display_email = EXCLUDED.display_email,
@@ -241,6 +245,8 @@ ON CONFLICT (app_scope, user_key, activity_date, calculation_version) DO UPDATE 
   prompt_tokens = EXCLUDED.prompt_tokens,
   completion_tokens = EXCLUDED.completion_tokens,
   total_tokens = EXCLUDED.total_tokens,
+  token_covered_runs = EXCLUDED.token_covered_runs,
+  token_covered_questions = EXCLUDED.token_covered_questions,
   spend_usd = EXCLUDED.spend_usd,
   spend_dbu = EXCLUDED.spend_dbu,
   app_spend_usd = EXCLUDED.app_spend_usd,
@@ -384,6 +390,8 @@ export function runUserSpendReadModelRefresh(
               row.promptTokens,
               row.completionTokens,
               row.totalTokens,
+              row.tokenCoveredRuns ?? null,
+              row.tokenCoveredQuestions ?? null,
               decimal(row.spendUsd),
               decimal(row.spendDbu),
               decimal(row.appSpendUsd),
@@ -487,10 +495,6 @@ export const READ_USER_SPEND_SUMMARY_QUERY = `WITH base AS (
     AND calculation_version = $2
     AND activity_date BETWEEN $3::date AND $4::date
 ),
-selected AS (
-  SELECT * FROM base
-  WHERE ($5::boolean OR user_key = lower($6))
-),
 aggregated AS (
   SELECT user_key, MIN(display_email) AS display_email,
          SUM(submitted_questions)::bigint AS submitted_questions,
@@ -498,6 +502,8 @@ aggregated AS (
          SUM(run_count)::bigint AS run_count,
          SUM(active_minutes)::bigint AS active_minutes,
          SUM(total_tokens)::numeric AS total_tokens,
+         SUM(token_covered_runs)::bigint AS token_covered_runs,
+         SUM(token_covered_questions)::bigint AS token_covered_questions,
          MAX(source_through) AS source_through,
          MAX(computed_at) AS computed_at,
          COUNT(*) FILTER (WHERE billing_complete)::int AS covered_days,
@@ -521,7 +527,7 @@ aggregated AS (
            WHEN BOOL_OR(spend_dbu_quality = 'joined') THEN 'joined'
            ELSE MIN(spend_dbu_quality)
          END AS spend_dbu_quality
-  FROM selected
+  FROM base
   GROUP BY user_key
 ),
 daily_app AS (
@@ -540,19 +546,60 @@ app_totals AS (
          COUNT(*) FILTER (WHERE billing_complete)::int AS app_covered_days
   FROM daily_app
 ),
+identity_population AS (
+  SELECT roster.user_key, roster.display_email, roster.app_role, roster.identity_updated_at
+  FROM (
+    SELECT DISTINCT ON (lower(email))
+           lower(email) AS user_key,
+           lower(email) AS display_email,
+           CASE WHEN role IN ('super_admin', 'admin', 'consumer') THEN role ELSE 'admin' END AS app_role,
+           added_at AS identity_updated_at
+    FROM ${ADMIN_EMAILS_TABLE}
+    ORDER BY lower(email), added_at DESC
+  ) roster
+  WHERE $13::boolean
+  UNION ALL
+  SELECT aggregated.user_key, aggregated.display_email, 'consumer', NULL::timestamptz
+  FROM aggregated
+  WHERE NOT $13::boolean AND aggregated.user_key = lower($6)
+),
+identity_revision AS (
+  SELECT GREATEST(
+    (SELECT MAX(added_at) FROM ${ADMIN_EMAILS_TABLE}),
+    (SELECT MAX(updated_at) FROM ${SP_ASSIGNMENTS_TABLE}),
+    (SELECT MAX(updated_at) FROM ${SP_PERSONAS_TABLE}),
+    (SELECT MAX(updated_at) FROM ${SP_PERSONA_DEFINITIONS_TABLE})
+  ) AS revision
+),
 filtered AS (
-  SELECT aggregated.*, app_totals.*,
-         COALESCE(NULLIF(admin_user.role, ''), 'consumer') AS app_role,
+  SELECT identity_population.user_key, identity_population.display_email,
+         COALESCE(aggregated.submitted_questions, 0) AS submitted_questions,
+         COALESCE(aggregated.completed_questions, 0) AS completed_questions,
+         COALESCE(aggregated.run_count, 0) AS run_count,
+         COALESCE(aggregated.active_minutes, 0) AS active_minutes,
+         aggregated.total_tokens, aggregated.token_covered_runs, aggregated.token_covered_questions,
+         aggregated.source_through, aggregated.computed_at,
+         COALESCE(aggregated.covered_days, 0) AS covered_days,
+         COALESCE(aggregated.activity_complete, FALSE) AS activity_complete,
+         COALESCE(aggregated.billing_complete, FALSE) AS billing_complete,
+         aggregated.spend_usd, aggregated.spend_dbu,
+         COALESCE(aggregated.spend_usd_quality, 'unavailable') AS spend_usd_quality,
+         COALESCE(aggregated.spend_dbu_quality, 'unavailable') AS spend_dbu_quality,
+         app_totals.*,
+         identity_population.app_role,
          assignment.persona_id,
          COALESCE(definition.display_name, persona.display_name) AS persona_name,
+         identity_revision.revision AS identity_updated_at,
          COUNT(*) OVER ()::int AS total_users
-  FROM aggregated CROSS JOIN app_totals
-  LEFT JOIN ${ADMIN_EMAILS_TABLE} admin_user ON lower(admin_user.email) = aggregated.user_key
-  LEFT JOIN ${SP_ASSIGNMENTS_TABLE} assignment ON lower(assignment.email) = aggregated.user_key
+  FROM identity_population
+  LEFT JOIN aggregated ON aggregated.user_key = identity_population.user_key
+  CROSS JOIN app_totals
+  CROSS JOIN identity_revision
+  LEFT JOIN ${SP_ASSIGNMENTS_TABLE} assignment ON lower(assignment.email) = identity_population.user_key
   LEFT JOIN ${SP_PERSONAS_TABLE} persona ON persona.id = assignment.persona_id
   LEFT JOIN ${SP_PERSONA_DEFINITIONS_TABLE} definition ON definition.id = assignment.persona_id
-  WHERE ($7 = '' OR lower(display_email) LIKE ('%' || lower($7) || '%'))
-    AND ($8 = '' OR COALESCE(NULLIF(admin_user.role, ''), 'consumer') = $8)
+  WHERE ($7 = '' OR identity_population.display_email LIKE ('%' || lower($7) || '%'))
+    AND ($8 = '' OR identity_population.app_role = $8)
     AND ($9 = '' OR assignment.persona_id = $9)
 )
 SELECT filtered.*, refresh.status AS refresh_status,
@@ -574,6 +621,8 @@ export interface UserSpendSummaryRow {
   runs: number;
   activeMinutes: number;
   totalTokens: number | null;
+  tokenCoveredRuns: number | null;
+  tokenCoveredQuestions: number | null;
   coveredDays: number;
   spendUsd: number | null;
   spendDbu: number | null;
@@ -587,12 +636,14 @@ export interface UserSpendSummaryRow {
   persona: { id: string; name: string } | null;
   sourceThrough: string | null;
   computedAt: string | null;
+  identityRevision: string | null;
 }
 
 export interface UserSpendReadModelPage {
   available: boolean;
   rows: UserSpendSummaryRow[];
   total: number;
+  identityRevision: string;
   freshness: {
     computedAt: string | null;
     sourceThrough: string | null;
@@ -630,7 +681,13 @@ ORDER BY component.key`;
 export const READ_USER_SPEND_REFRESH_STATE_QUERY = `SELECT status AS refresh_status,
        source_through AS refresh_source_through,
        billing_complete_through,
-       completed_at AS refresh_completed_at
+       completed_at AS refresh_completed_at,
+       GREATEST(
+         (SELECT MAX(added_at) FROM ${ADMIN_EMAILS_TABLE}),
+         (SELECT MAX(updated_at) FROM ${SP_ASSIGNMENTS_TABLE}),
+         (SELECT MAX(updated_at) FROM ${SP_PERSONAS_TABLE}),
+         (SELECT MAX(updated_at) FROM ${SP_PERSONA_DEFINITIONS_TABLE})
+       ) AS identity_updated_at
 FROM ${USER_SPEND_REFRESH_TABLE}
 WHERE app_scope = $1 AND calculation_version = $2`;
 
@@ -674,6 +731,7 @@ export async function readUserSpendReadModelPage(
     offset?: number;
     staleMs?: number;
     now?: number;
+    rosterOnly?: boolean;
   }
 ): Promise<UserSpendReadModelPage> {
   const version = input.calculationVersion ?? USER_SPEND_CALCULATION_VERSION;
@@ -693,6 +751,7 @@ export async function readUserSpendReadModelPage(
     input.unit,
     limit,
     offset,
+    input.rosterOnly ?? input.allowBrowse,
   ]);
   const first = result.rows[0];
   const metadata = first ?? (await store.query(READ_USER_SPEND_REFRESH_STATE_QUERY, [appScope, version])).rows[0];
@@ -714,6 +773,8 @@ export async function readUserSpendReadModelPage(
       runs: integer(row.run_count),
       activeMinutes: integer(row.active_minutes),
       totalTokens: nullableNumber(row.total_tokens),
+      tokenCoveredRuns: nullableNumber(row.token_covered_runs),
+      tokenCoveredQuestions: nullableNumber(row.token_covered_questions),
       coveredDays,
       spendUsd: nullableNumber(row.spend_usd),
       spendDbu: nullableNumber(row.spend_dbu),
@@ -733,8 +794,10 @@ export async function readUserSpendReadModelPage(
           : null,
       sourceThrough: stamp(row.source_through),
       computedAt: stamp(row.computed_at),
+      identityRevision: stamp(row.identity_updated_at),
     })),
     total: integer(first?.total_users),
+    identityRevision: stamp(first?.identity_updated_at) ?? stamp(metadata?.identity_updated_at) ?? '',
     freshness: {
       computedAt,
       sourceThrough,

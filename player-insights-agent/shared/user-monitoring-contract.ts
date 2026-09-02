@@ -3,17 +3,22 @@ import type { OpsDayRange } from './ops-contract';
 import type { Role } from './user-roster-contract';
 import type { UserSpendAmount, UserSpendQuality, UserSpendReconciliation } from './user-spend-contract';
 
-export const USER_MONITORING_SCHEMA_REVISION = 3;
+export const USER_MONITORING_SCHEMA_REVISION = 4;
 
 export interface UserMonitoringRow {
   email: string;
   role: Role;
   /** Current assignment only. Historical run persona remains immutable elsewhere. */
   persona: { id: string; name: string } | null;
-  lastActive: string;
+  lastActive: string | null;
   questions: number;
   runs: number;
   coveredDays: number;
+  tokenUsage: {
+    totalTokens: number | null;
+    coveredRuns: number | null;
+    coveredQuestions: number | null;
+  };
   spend: {
     usd: UserSpendAmount;
     dbu: UserSpendAmount;
@@ -31,6 +36,7 @@ export interface UserMonitoringPayload {
   users: UserMonitoringRow[];
   personas: Array<{ id: string; name: string; count: number }>;
   dataRevision: number;
+  identityRevision: string;
   pagination: {
     total: number;
     pageSize: number;

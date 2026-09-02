@@ -1,7 +1,7 @@
 html[data-theme='dark'] .run-explorer .run-detail,
 html[data-theme='dark'] .run-explorer [data-slot='card'] {
   background: var(--ast-pane);
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 

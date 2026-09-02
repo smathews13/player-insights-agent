@@ -887,7 +887,7 @@ describe('the cost block', () => {
     expect(render(<CostBody block={block(cost())} />)).not.toContain("custom_tags['astrolabe']");
   });
 
-  it('orders Cost Tracking, its period, and one trailing Experimental qualifier', () => {
+  it('orders Cost Tracking, adjacent Experimental, then its period', () => {
     const markup = markupOf(<CostBody block={block(cost())} />);
     const visible = text(markup);
     const heading = markup.slice(0, markup.indexOf('ops-block-body'));
@@ -901,7 +901,9 @@ describe('the cost block', () => {
     expect(visible).not.toContain('system.billing.list_prices');
     expect(visible).not.toContain('complete days');
     expect(markup.indexOf('>Cost Tracking</h3>')).toBeLessThan(markup.indexOf('>7 days</span>'));
-    expect(markup.indexOf('>7 days</span>')).toBeLessThan(markup.indexOf('>Experimental</span>'));
+    expect(markup.indexOf('>Cost Tracking</h3>')).toBeLessThan(markup.indexOf('>Experimental</span>'));
+    expect(markup.indexOf('>Experimental</span>')).toBeLessThan(markup.indexOf('>7 days</span>'));
+    expect(heading).toContain('ops-block-title-group');
   });
 
   it('states exact partial Query History coverage instead of implying an estimate is complete', () => {
@@ -1711,6 +1713,10 @@ describe('the cost block', () => {
       chargedRawEquivalentDbus: 3.75,
       unknownDbus: 0,
       paidUsd: 2,
+      freeEquivalentUsd: spaceId === 'space-data' ? 1.99 : 19.18,
+      freeEquivalentPricingState: 'priced' as const,
+      freeEquivalentPriceSource: 'system.billing.list_prices' as const,
+      freeEquivalentPricedThrough: '2026-08-14',
       underlyingTotalDbus: 18.75,
       pricingState: 'priced' as const,
       surfaces: [],
@@ -1757,8 +1763,12 @@ describe('the cost block', () => {
     const grid = text(markup.slice(markup.indexOf('cost-primary-grid'), markup.indexOf('ops-cost-method')));
     expect(grid).toContain('Data Genie');
     expect(grid).toContain('Dictionary Genie');
-    expect(grid).toContain('Free $0.00');
+    expect(grid).toContain('Free $1.99');
+    expect(grid).toContain('Free $19.18');
     expect(grid).toContain('Charged $2.00');
+    expect(
+      markup.match(/Estimated value if this free usage had been charged at the applicable list price\./g)
+    ).toHaveLength(2);
     expect(grid).not.toMatch(
       /space-data|space-dictionary|Configured-space|effective DBU|Free usage|Allowance 12\.00|Promotional 3\.00|Underlying total/
     );
@@ -1875,14 +1885,18 @@ describe('the cost block', () => {
         label: title,
         tileId: id,
         attribution,
-        sourceDbus: dbus + 30,
-        allowanceUsedDbus: 12,
-        promotionalDbus: 18,
+        sourceDbus: dbus + (id === 'genie:data' ? 1.99 : 19.18),
+        allowanceUsedDbus: id === 'genie:data' ? 1.99 : 19.18,
+        promotionalDbus: 0,
         chargedEffectiveDbus: dbus,
         chargedRawEquivalentDbus: dbus * 0.75,
         unknownDbus: 0,
         paidUsd: amount,
-        underlyingTotalDbus: 30 + dbus * 0.75,
+        freeEquivalentUsd: (id === 'genie:data' ? 1.99 : 19.18) * 0.2,
+        freeEquivalentPricingState: 'priced' as const,
+        freeEquivalentPriceSource: 'system.billing.list_prices' as const,
+        freeEquivalentPricedThrough: '2026-08-14',
+        underlyingTotalDbus: (id === 'genie:data' ? 1.99 : 19.18) + dbus * 0.75,
         pricingState: 'priced' as const,
         surfaces: [],
       },
@@ -1924,10 +1938,9 @@ describe('the cost block', () => {
     expect(primaryGrid).not.toContain('ops-genie-section');
     expect(primaryGrid).not.toMatch(/<h4[^>]*>Genie<\/h4>/);
     expect(primaryGrid).toContain('Data Genie');
-    expect(primaryGrid).toContain('Free</dt><dd class="ast-num">$0.00');
-    expect(primaryGrid).toContain('Charged</dt><dd class="ast-num">$0.33');
+    expect(text(primaryGrid)).toContain('Data Genie Estimated Free $0.40 Charged $0.33');
     expect(primaryGrid).toContain('Dictionary Genie');
-    expect(primaryGrid).toContain('Charged</dt><dd class="ast-num">$3.21');
+    expect(text(primaryGrid)).toContain('Dictionary Genie Estimated Free $3.84 Charged $3.21');
     expect(primaryGrid).not.toMatch(/Free usage|Allowance|Promotional|effective DBU|Configured-space/);
     expect(primaryGrid.indexOf('Data Genie')).toBeLessThan(primaryGrid.indexOf('Dictionary Genie'));
     expect(primaryGrid.indexOf('Dictionary Genie')).toBeLessThan(primaryGrid.indexOf('Average cost / question'));

@@ -23,7 +23,7 @@ function stage(id: string): TraceStage {
 
 const STAGES = [stage('step-1-1-data_genie'), stage('step-2-1-data_genie'), stage('step-3-1-run_sql'), stage('plot')];
 
-function render(rating: number | null, overrides: Partial<ComponentProps<typeof RunOverviewKpis>> = {}) {
+function render(feedback: 'up' | 'down' | null, overrides: Partial<ComponentProps<typeof RunOverviewKpis>> = {}) {
   return renderToStaticMarkup(
     <MemoryRouter>
       <RunOverviewKpis
@@ -34,7 +34,7 @@ function render(rating: number | null, overrides: Partial<ComponentProps<typeof 
         totalTokens={10_273}
         promptTokens={9633}
         completionTokens={640}
-        rating={rating}
+        feedback={feedback}
         ratePath="/ask?conversation=conv-1&amp;run=run-1"
         {...overrides}
       />
@@ -44,33 +44,32 @@ function render(rating: number | null, overrides: Partial<ComponentProps<typeof 
 
 describe('Run Explorer Overview KPIs', () => {
   it('renders positive feedback as a large directional value with accessible text', () => {
-    const markup = render(5);
+    const markup = render('up');
     expect(markup).toContain('run-rating-badge--up run-rating-badge--kpi');
     expect(markup).toContain('lucide-thumbs-up');
-    expect(markup).toContain('aria-label="User feedback: Positive"');
-    expect(markup).toContain('title="Positive user feedback"');
-    expect(markup).toContain('>Positive</span>');
+    expect(markup).toContain('aria-label="Helpful"');
+    expect(markup).toContain('title="Helpful"');
+    expect(markup).toContain('>Helpful</span>');
     expect(markup).toContain('Submitted by the asker');
   });
 
   it('renders negative feedback without losing its direction or colour family', () => {
-    const markup = render(2);
+    const markup = render('down');
     expect(markup).toContain('run-rating-badge--down run-rating-badge--kpi');
     expect(markup).toContain('lucide-thumbs-down');
-    expect(markup).toContain('aria-label="User feedback: Negative"');
-    expect(markup).toContain('title="Negative user feedback"');
-    expect(markup).toContain('>Negative</span>');
+    expect(markup).toContain('aria-label="Not helpful"');
+    expect(markup).toContain('title="Not helpful"');
+    expect(markup).toContain('>Not helpful</span>');
     expect(markup).toContain('Submitted by the asker');
   });
 
   it('keeps an unrated run neutral and offers a rating without implying one exists', () => {
     const markup = render(null);
     expect(markup).toContain('run-rating-badge--none run-rating-badge--kpi');
-    expect(markup).toContain('aria-label="User feedback: Not rated"');
-    expect(markup).toContain('title="No user feedback submitted"');
-    expect(markup).toContain('Not rated');
-    expect(markup).toContain('No rating submitted');
-    expect(markup).toContain('Rate this run');
+    expect(markup).toContain('aria-label="No feedback"');
+    expect(markup).toContain('title="No feedback"');
+    expect(markup).toContain('No feedback');
+    expect(markup).toContain('Give feedback');
     expect(markup).not.toContain('Submitted by the asker');
     expect(markup).not.toContain('lucide-thumbs-up');
   });
@@ -81,18 +80,18 @@ describe('Run Explorer Overview KPIs', () => {
     expect(agentToolCallSubtitle(7, STAGES)).toBe('Governed tool invocations');
     expect(agentToolCallSubtitle(7, [])).toBe('Governed tool invocations');
     expect(agentToolCallSubtitle(null, STAGES)).toBe('Governed tool invocations');
-    expect(render(5, { agentToolCalls: 4 })).toContain('4 calls across 3 tools');
+    expect(render('up', { agentToolCalls: 4 })).toContain('4 calls across 3 tools');
   });
 
   it('keeps the metered token split as the subtitle', () => {
-    const markup = render(5);
+    const markup = render('up');
     expect(markup).toContain('10,273');
     expect(markup).toContain('9,633 in / 640 out');
     expect(markup).toContain('run-kpi-subtitle tile-mono ast-num');
   });
 
   it('adds a cache summary only when direct calls reported cache evidence', () => {
-    const markup = render(5, {
+    const markup = render('up', {
       tokenReconciliation: {
         attributedTokens: 5_000,
         attributedCalls: 2,
@@ -107,7 +106,7 @@ describe('Run Explorer Overview KPIs', () => {
       },
     });
     expect(markup).toContain('3,100 cached (50.0% of covered input)');
-    expect(render(5)).not.toContain('cached');
+    expect(render('up')).not.toContain('cached');
   });
 
   it('labels missing measurements as absent and still describes every card', () => {
@@ -126,12 +125,12 @@ describe('Run Explorer Overview KPIs', () => {
     expect(markup).toContain('Time spent in agent and tool stages');
     expect(markup).toContain('Governed tool invocations');
     expect(markup).toContain('Token usage not recorded');
-    expect(markup).toContain('No rating submitted');
+    expect(markup).toContain('No feedback');
     expect(markup.match(/run-kpi-subtitle/g)).toHaveLength(5);
   });
 
   it('keeps recorded zeroes instead of turning them into missing evidence', () => {
-    const markup = render(5, {
+    const markup = render('up', {
       durationMs: 0,
       toolStageMs: 0,
       agentToolCalls: 0,
@@ -145,13 +144,5 @@ describe('Run Explorer Overview KPIs', () => {
     expect(markup.match(/>0</g)).toHaveLength(2);
     expect(markup).toContain('0 in / 0 out');
     expect(markup).not.toContain('Not recorded');
-  });
-
-  it('keeps a legacy midpoint explicitly neutral', () => {
-    const markup = render(3);
-    expect(markup).toContain('run-rating-badge--unknown run-rating-badge--kpi');
-    expect(markup).toContain('Direction unknown');
-    expect(markup).not.toContain('run-rating-badge--up');
-    expect(markup).not.toContain('run-rating-badge--down');
   });
 });

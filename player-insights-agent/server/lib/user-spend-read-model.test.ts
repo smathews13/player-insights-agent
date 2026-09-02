@@ -30,6 +30,8 @@ function row(overrides: Partial<UserSpendDailyRow> = {}): UserSpendDailyRow {
     promptTokens: 100,
     completionTokens: 25,
     totalTokens: 125,
+    tokenCoveredRuns: 2,
+    tokenCoveredQuestions: 2,
     spendUsd: '0.0000001234567',
     spendDbu: '0.25',
     appSpendUsd: '1.5',
@@ -107,6 +109,14 @@ describe('daily user spend schema migration', () => {
       `DROP TABLE IF EXISTS ${USER_SPEND_DAILY_TABLE}`,
     ]);
   });
+
+  it('adds token-covered run and question denominators idempotently at v34', () => {
+    const migration = LATER_MIGRATIONS.find((entry) => entry.version === 34);
+    expect(migration?.name).toBe('user spend token coverage');
+    expect(migration?.statements.join('\n')).toContain('token_covered_runs');
+    expect(migration?.statements.join('\n')).toContain('token_covered_questions');
+    expect(migration?.statements.every((statement) => /ADD COLUMN IF NOT EXISTS/i.test(statement))).toBe(true);
+  });
 });
 
 describe('bounded user spend materialization', () => {
@@ -128,8 +138,8 @@ describe('bounded user spend materialization', () => {
     expect(result).toMatchObject({ acquired: true, refreshed: true, rows: 2, users: 2 });
     const inserts = fake.statements.filter((entry) => entry.sql.includes(`INSERT INTO ${USER_SPEND_DAILY_TABLE}`));
     expect(inserts).toHaveLength(2);
-    expect(inserts[0].params[12]).toBe('0.000000123457');
-    expect(inserts[1].params[12]).toBe('1.200000000000');
+    expect(inserts[0].params[14]).toBe('0.000000123457');
+    expect(inserts[1].params[14]).toBe('1.200000000000');
     const begin = fake.statements.findIndex((entry) => entry.sql === 'BEGIN');
     const replace = fake.statements.findIndex((entry) => entry.sql.includes(`DELETE FROM ${USER_SPEND_DAILY_TABLE}`));
     const commit = fake.statements.findIndex((entry) => entry.sql === 'COMMIT');
@@ -268,7 +278,9 @@ describe('fast read semantics', () => {
       calculationVersion: 1,
       billingCompleteThrough: '2026-08-31',
     });
-    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('($5::boolean OR user_key = lower($6))');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('FROM player_insights.admin_emails');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('LEFT JOIN aggregated');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).not.toContain("COALESCE(NULLIF(admin_user.role, ''), 'consumer')");
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('BOOL_AND(billing_complete)');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('LIMIT $11 OFFSET $12');
   });

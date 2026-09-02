@@ -280,9 +280,7 @@ export function ResourceTagsPanel() {
       <tr className="settings-resource-tags">
         <td>
           <ExperimentalFeatureName>Resource tags</ExperimentalFeatureName>
-          <p className="settings-row-note">
-            Billing attribution: <code>system_billing=astrolabe</code>
-          </p>
+          <p className="settings-row-note">Applies billing attribution tags to supported Databricks resources.</p>
           {error ? (
             <p className="settings-status settings-error" role="alert">
               {error}

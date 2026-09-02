@@ -9,9 +9,7 @@
  * THE RULES THIS FILE ENFORCES, each of which has been got wrong somewhere in
  * this app before:
  *
- *  - A share never renders without the population it is a share of. 78% over
- *    four ratings is not a quality score for a deployment, and a bare percentage
- *    is read as one.
+ *  - Human feedback is counted by direction, never averaged into a score.
  *  - Refused and failed are never added. There is no function here that returns
  *    their sum, which is the only reliable way to stop one appearing.
  *  - A 95th percentile over fewer than twenty runs is not a percentile. It
@@ -126,22 +124,13 @@ export function outcomeTile(summary: MonitoringSummary): OutcomeTile {
   };
 }
 
-/**
- * The rated-helpful share, or nothing at all.
- *
- * The population is in the caption on every path, including the one where there
- * is no share to print. A tile reading "78%" with no denominator is the defect
- * this returns `absence` for.
- */
-export function ratedHelpfulTile(summary: MonitoringSummary): TileValue {
-  if (summary.ratedTotal <= 0) {
-    return absent('Not rated yet', 'No rated answers in this period');
-  }
-  const share = Math.round((summary.ratedUp / summary.ratedTotal) * 100);
-  return tile(
-    `${share}%`,
-    `${count(summary.ratedUp)} of ${count(summary.ratedTotal)} rated answer${summary.ratedTotal === 1 ? '' : 's'}`
-  );
+/** Helpful and Not helpful counts, with no score or average. */
+export function feedbackTile(summary: MonitoringSummary): TileValue {
+  const total = summary.feedbackTotal ?? summary.ratedTotal ?? 0;
+  const helpful = summary.helpful ?? summary.ratedUp ?? 0;
+  if (total <= 0) return absent('No feedback', 'No feedback in this period');
+  const notHelpful = total - helpful;
+  return tile(count(total), `${count(helpful)} Helpful · ${count(notHelpful)} Not helpful`);
 }
 
 /**
@@ -239,11 +228,11 @@ function percentile(sortedAscending: number[], p: number): number {
   return sortedAscending[index];
 }
 
-/** The rated split on the per-user panel. Up and down, never netted. */
-export function ratedTile(up: number, down: number): TileValue {
-  const total = up + down;
-  if (total === 0) return absent('Not rated', '');
-  return tile(count(total), `${count(up)} up · ${count(down)} down`);
+/** The feedback split on the per-user panel. Directions are never netted. */
+export function personFeedbackTile(helpful: number, notHelpful: number): TileValue {
+  const total = helpful + notHelpful;
+  if (total === 0) return absent('No feedback', '');
+  return tile(count(total), `${count(helpful)} Helpful · ${count(notHelpful)} Not helpful`);
 }
 
 /* ── The states, and the three empties that are not the same empty ───────── */

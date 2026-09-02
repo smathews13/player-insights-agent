@@ -84,7 +84,7 @@ describe('Settings modal', () => {
 
     const experimental = render('experimental');
     expect(experimental).toContain('Resource tags');
-    expect(experimental).toContain('system_billing=astrolabe');
+    expect(experimental).toContain('Applies billing attribution tags to supported Databricks resources.');
     expect(experimental).toContain('Apply tags');
     expect(experimental).not.toContain('Resource tags · Experimental');
     expect(experimental).not.toContain('retired');
@@ -104,6 +104,22 @@ describe('Settings modal', () => {
     expect(markup).toContain('Forecasting');
     expect(markup).not.toContain('Benchmarking ·');
     expect(markup).toContain('aria-label="Show Ops forecasting"');
+  });
+
+  it('gives every Experimental feature one concise capability sentence', () => {
+    const markup = render('experimental');
+    const tableStart = markup.indexOf('<table class="exp-feature-table"');
+    const featureTable = markup.slice(tableStart, markup.indexOf('</table>', tableStart) + '</table>'.length);
+    for (const description of [
+      'Configures approved outbound network destinations for app requests.',
+      'Selects the agent notebook and applies staged agent versions.',
+      'Applies billing attribution tags to supported Databricks resources.',
+      'Projects 7- and 30-day costs from configurable usage assumptions.',
+      'Runs repeatable evaluation suites against saved test questions.',
+    ]) {
+      expect(featureTable).toContain(description);
+    }
+    expect(featureTable.match(/class="settings-row-note"/g) ?? []).toHaveLength(5);
   });
 
   it('aligns every Experimental row through table cells and one control wrapper', () => {
@@ -159,7 +175,7 @@ describe('Settings modal', () => {
   it('adds Notebook agent sync with concise non-automatic copy', () => {
     const markup = render('experimental');
     expect(markup).toContain('Notebook agent sync');
-    expect(markup).toContain('Controls notebook selection plus the staged agent-version apply workflow.');
+    expect(markup).toContain('Selects the agent notebook and applies staged agent versions.');
     expect(markup).toContain('aria-label="Enable Notebook agent sync"');
     expect(markup).not.toMatch(/automatically|changes models merely/i);
   });

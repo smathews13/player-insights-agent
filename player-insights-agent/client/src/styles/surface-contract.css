@@ -1,0 +1,47 @@
+/*
+ * Shared occlusion contract.
+ *
+ * The constellation is ambient chrome, not texture for reading surfaces.
+ * Components opt into a semantic layer so the sky is attenuated where content
+ * exists while retaining its full intensity in open gutters.
+ */
+.ast-surface-primary {
+  background-color: var(--ast-surface-primary);
+  background-image: none;
+  backdrop-filter: none;
+}
+
+.ast-surface-elevated {
+  background-color: var(--ast-surface-elevated);
+  background-image: none;
+  backdrop-filter: none;
+}
+
+.ast-surface-menu {
+  background-color: var(--ast-surface-menu);
+  background-image: none;
+  backdrop-filter: none;
+}
+
+.ast-surface-chrome {
+  background-color: var(--ast-surface-chrome);
+  background-image: none;
+  backdrop-filter: none;
+}
+
+/*
+ * Dialog is the common body-portal foundation. Its foreground always occludes
+ * the route at the elevated 97% rung. Ordinary dialog overlays dim the page so
+ * text and stars cannot remain legible through the modal. The first-open canvas
+ * is the deliberate exception: its sky is a standalone branded opening.
+ */
+.ast-dialog-panel {
+  background-color: var(--ast-surface-elevated);
+  background-image: none;
+  backdrop-filter: none;
+}
+
+.ast-dialog-overlay:not(.first-open) {
+  background: var(--ast-overlay-occlusion);
+  backdrop-filter: none;
+}

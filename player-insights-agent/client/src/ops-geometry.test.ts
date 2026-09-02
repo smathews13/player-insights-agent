@@ -287,8 +287,9 @@ describe('the Cost card layout', () => {
     }
     expect(rule('.ops-cost-resource')).toMatch(/text-overflow:\s*ellipsis/);
     expect(rule('.ops-tile-evidence')).toMatch(/overflow-wrap:\s*anywhere/);
-    expect(rule('.ops-cost-summary-budget-values')).toMatch(/flex-wrap:\s*wrap/);
-    expect(rule('.ops-block-head-trailing')).toMatch(/flex:\s*none/);
+    expect(rule('.ops-cost-summary-budget')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.ops-cost-summary-budget-item')).toMatch(/min-width:\s*0/);
+    expect(rule('.ops-block-title-group')).toMatch(/white-space:\s*nowrap/);
   });
 });
 

@@ -306,6 +306,11 @@ export interface GenieInstanceAccounting {
   /** Free or otherwise measured DBUs whose allowance/promotion class could not be established. */
   unknownDbus: number;
   paidUsd: number | null;
+  /** Notional USD value of free DBUs at the applicable paid Genie list price. */
+  freeEquivalentUsd?: number | null;
+  freeEquivalentPricingState?: 'priced' | 'partial' | 'unpriced';
+  freeEquivalentPriceSource?: 'system.billing.list_prices';
+  freeEquivalentPricedThrough?: string;
   underlyingTotalDbus: number;
   pricingState: 'priced' | 'partial' | 'unpriced' | 'none';
   surfaces: GenieSurfaceAccounting[];
@@ -320,6 +325,10 @@ export interface GenieUserAccounting {
   chargedRawEquivalentDbus: number;
   unknownDbus: number;
   paidUsd: number | null;
+  freeEquivalentUsd?: number | null;
+  freeEquivalentPricingState?: 'priced' | 'partial' | 'unpriced';
+  freeEquivalentPriceSource?: 'system.billing.list_prices';
+  freeEquivalentPricedThrough?: string;
   /** Per-space contributions; allowance remaining deliberately stays overall. */
   instances?: Array<Omit<GenieInstanceAccounting, 'surfaces' | 'pricingState'>>;
 }
@@ -344,6 +353,10 @@ export interface GenieAccounting {
   chargedRawEquivalentDbus: number;
   unknownDbus: number;
   paidUsd: number | null;
+  freeEquivalentUsd?: number | null;
+  freeEquivalentPricingState?: 'priced' | 'partial' | 'unpriced';
+  freeEquivalentPriceSource?: 'system.billing.list_prices';
+  freeEquivalentPricedThrough?: string;
   underlyingTotalDbus: number;
   pricingState: 'priced' | 'partial' | 'unpriced' | 'none';
   instances?: GenieInstanceAccounting[];

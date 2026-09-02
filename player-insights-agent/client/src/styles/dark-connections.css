@@ -2,7 +2,7 @@ html[data-theme='dark'] .connection-rows,
 html[data-theme='dark'] .connection-block,
 html[data-theme='dark'] .plane-card {
   background: var(--card);
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 
@@ -11,7 +11,7 @@ html[data-theme='dark'] .connections-page .connection-block,
 html[data-theme='dark'] .connections-page .connection-rows,
 html[data-theme='dark'] .connections-page .plane-card {
   background: var(--ast-pane);
-  backdrop-filter: blur(2px);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 

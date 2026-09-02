@@ -14,6 +14,7 @@ import {
   ADDABLE_KINDS,
   ADD_CONNECTION_PICKERS,
   DELETE_CONNECTION_LABEL,
+  GENERIC_ADDABLE_KINDS,
   addedConnectionLabel,
   addedConnectionValue,
   CONNECTION_LIST_TITLE,
@@ -28,6 +29,7 @@ import {
   emptyScopesNote,
   forgetConnectionDetail,
   isOpaqueAssetId,
+  isDeclaredTableConnection,
   notebookIsBlocked,
   notebookSummary,
   orderConnections,
@@ -36,6 +38,7 @@ import {
 import { NotebookCard } from './NotebookCard';
 import { notebookPathView, persistNotebookPath } from './notebook-card-state';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
+import { isDuplicateConnection, normalizedConnectionValue } from './declared-connection-controller';
 import {
   connectionValueError,
   createConnectionDeleteGate,
@@ -47,6 +50,7 @@ import { DECLARABLE_KEYS, DECLARABLE_KINDS } from '../../shared/notebook-declara
 import type { ConnectionEntry, DeclarationComparisonRow, NotebookPanel } from './connection-model';
 
 const CARD_SOURCE = readFileSync(new URL('./DeclaredConnectionsCard.tsx', import.meta.url), 'utf8');
+const CONTROLLER_SOURCE = readFileSync(new URL('./declared-connection-controller.ts', import.meta.url), 'utf8');
 const PAGE_SOURCE = readFileSync(new URL('./ConnectionsPage.tsx', import.meta.url), 'utf8');
 
 function comparison(overrides: Partial<DeclarationComparisonRow> = {}): DeclarationComparisonRow {
@@ -85,8 +89,9 @@ function entry(overrides: Partial<ConnectionEntry['connection']> = {}): Connecti
   const connection = {
     id: 'roster-table',
     label: 'Title roster',
-    kind: 'unity-catalog' as const,
-    value: 'gamesight_share_prod.analytics.title_roster',
+    kind: 'model' as const,
+    resourceType: 'serving-endpoint' as const,
+    value: 'gamesight_share_prod',
     note: '',
     state: 'declared' as const,
     origin: 'app' as const,
@@ -481,9 +486,37 @@ describe('the list of assets the agent may consider', () => {
 
   it('offers precise singular resource types', () => {
     expect(ADDABLE_KINDS.slice(0, 3).map((option) => option.label)).toEqual(['Catalog', 'Schema', 'Table or view']);
+    expect(GENERIC_ADDABLE_KINDS.map((option) => option.label)).not.toContain('Catalog');
+    expect(GENERIC_ADDABLE_KINDS.map((option) => option.label)).not.toContain('Schema');
+    expect(GENERIC_ADDABLE_KINDS.map((option) => option.label)).not.toContain('Table or view');
+    expect(GENERIC_ADDABLE_KINDS.map((option) => option.label)).toContain('SQL warehouse');
+    expect(GENERIC_ADDABLE_KINDS.map((option) => option.label)).toContain('Volume');
     const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[]} allowMutations onChanged={() => {}} />);
     expect(markup).toContain('+ Add a new connection');
     expect(markup).toContain('data-testid="add-connection-row"');
+    expect(CARD_SOURCE).toContain('GENERIC_ADDABLE_KINDS');
+  });
+
+  it('recognizes current and legacy table rows for dedicated placement', () => {
+    expect(isDeclaredTableConnection(entry({ resourceType: 'table' }).connection)).toBe(true);
+    expect(
+      isDeclaredTableConnection(
+        entry({
+          kind: 'unity-catalog',
+          resourceType: undefined,
+          value: 'gamesight_share_prod.analytics.title_roster',
+        }).connection
+      )
+    ).toBe(true);
+    expect(
+      isDeclaredTableConnection(entry({ resourceType: 'catalog', value: 'gamesight_share_prod' }).connection)
+    ).toBe(false);
+  });
+
+  it('blocks duplicate tables after case and separator normalization', () => {
+    const existing = [entry({ resourceType: 'table', value: 'Main . Analytics . Players' })];
+    expect(normalizedConnectionValue(' main.analytics.PLAYERS ')).toBe('main.analytics.players');
+    expect(isDuplicateConnection(existing, 'table', 'main.analytics.players')).toBe(true);
   });
 
   it('puts the outlined add-connection row after the declared asset rows', () => {
@@ -514,8 +547,11 @@ describe('the list of assets the agent may consider', () => {
   });
 
   it('installs the server row before reload, then closes, resets and focuses it', () => {
+    expect(CONTROLLER_SOURCE).toMatch(
+      /setInstantEntries\([\s\S]*setJustAdded\([\s\S]*commitConnectionAddition\([\s\S]*await onChanged\(\)/
+    );
     expect(CARD_SOURCE).toMatch(
-      /setInstantEntries\([\s\S]*setJustAdded\([\s\S]*setLabel\(''\)[\s\S]*setValue\(''\)[\s\S]*setAdding\(false\)[\s\S]*await onChanged\(\)/
+      /if \(!result\.ok\)[\s\S]*setLabel\(''\)[\s\S]*setValue\(''\)[\s\S]*setAdding\(false\)/
     );
     expect(CARD_SOURCE).toMatch(/newRowRef\.current\.focus\(\{ preventScroll: true \}\)/);
     expect(CARD_SOURCE).toMatch(/scrollIntoView\(\{ block: 'nearest', behavior: 'auto' \}\)/);
@@ -785,6 +821,7 @@ describe('how a listed asset reads on its row', () => {
           entry({
             id: 'genie-space-01f1',
             kind: 'genie-space',
+            resourceType: 'genie-space',
             label: 'Player performance',
             value: '01f19cd4502f1f6dbfb79bf6e63a1b2c',
           }),

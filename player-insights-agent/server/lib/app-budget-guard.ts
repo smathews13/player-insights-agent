@@ -58,6 +58,7 @@ function unavailable(
     measured?: number | null;
     measuredThrough?: string;
     coverage?: 'partial' | 'unavailable';
+    displayMtdSpend?: AppBudgetStatus['displayMtdSpend'];
   }
 ): AppBudgetStatus {
   return emptyAppBudgetStatus(period, readAt, {
@@ -70,6 +71,7 @@ function unavailable(
     measuredThrough: input.measuredThrough ?? period.measurementThrough,
     code: input.code,
     detail: input.detail,
+    ...(input.displayMtdSpend ? { displayMtdSpend: input.displayMtdSpend } : {}),
   });
 }
 
@@ -259,6 +261,17 @@ export async function readAppBudgetStatus(
       currencyComplete;
     return { unit, budget, measured, complete, summary };
   });
+  const displayMtdSpend = Object.fromEntries(
+    candidates.map((entry) => [
+      entry.unit,
+      {
+        amount: entry.measured,
+        budget: entry.budget,
+        coverage: entry.complete ? 'complete' : entry.measured === null ? 'unavailable' : 'partial',
+        sourceThrough: measurement.payload.throughDay || period.measurementThrough,
+      },
+    ])
+  ) as AppBudgetStatus['displayMtdSpend'];
   const complete = candidates
     .filter(
       (entry): entry is typeof entry & { measured: number; complete: true } => entry.complete && entry.measured !== null
@@ -276,6 +289,7 @@ export async function readAppBudgetStatus(
       measured: first.measured,
       measuredThrough: measurement.payload.throughDay || period.measurementThrough,
       coverage: 'partial',
+      displayMtdSpend,
     });
   }
 
@@ -307,6 +321,7 @@ export async function readAppBudgetStatus(
         unit: selected.unit,
         budget: selected.budget,
         measured: selected.measured,
+        displayMtdSpend,
       });
     }
   }
@@ -331,6 +346,7 @@ export async function readAppBudgetStatus(
       level === 'approval-required'
         ? 'Measured month-to-date app-attributable spend reached the monthly app budget. An administrator must approve continued usage.'
         : '',
+    displayMtdSpend,
   };
 }
 

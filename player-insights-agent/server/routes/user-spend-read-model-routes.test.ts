@@ -20,6 +20,8 @@ function storedRow(overrides: Record<string, unknown> = {}) {
     run_count: '3',
     active_minutes: '9',
     total_tokens: '250',
+    token_covered_runs: '3',
+    token_covered_questions: '2',
     covered_days: '7',
     app_covered_days: '7',
     spend_usd: '12.5',
@@ -33,6 +35,7 @@ function storedRow(overrides: Record<string, unknown> = {}) {
     app_role: 'consumer',
     persona_id: 'analyst',
     persona_name: 'Analyst',
+    identity_updated_at: '2026-09-01T03:30:00Z',
     source_through: '2026-09-01T03:00:00Z',
     computed_at: '2026-09-01T04:00:00Z',
     refresh_status: 'ready',
@@ -126,10 +129,20 @@ describe('User Monitoring read-model routes', () => {
     expect(query).toHaveBeenCalledTimes(1);
     expect(calls[0]?.sql).toBe(READ_USER_SPEND_SUMMARY_QUERY);
     expect(calls[0]?.sql).not.toMatch(/system\.billing|sql\/history|\/api\/2\.0/i);
+    expect(calls[0]?.sql).toContain('FROM player_insights.admin_emails');
+    expect(calls[0]?.sql).toContain('LEFT JOIN aggregated');
+    expect(calls[0]?.sql).not.toContain("COALESCE(NULLIF(admin_user.role, ''), 'consumer')");
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         state: 'ready',
-        users: [expect.objectContaining({ email: 'person@example.test', questions: 4, coveredDays: 7 })],
+        users: [
+          expect.objectContaining({
+            email: 'person@example.test',
+            questions: 4,
+            coveredDays: 7,
+            tokenUsage: { totalTokens: 250, coveredRuns: 3, coveredQuestions: 2 },
+          }),
+        ],
         freshness: expect.objectContaining({
           computedAt: '2026-09-01T04:00:00.000Z',
           sourceThrough: '2026-09-01T03:00:00.000Z',
@@ -201,6 +214,13 @@ describe('User Monitoring read-model routes', () => {
               costPerQuestion: expect.objectContaining({ value: 3.125 }),
               averageDaily: expect.objectContaining({ value: 12.5 / 7 }),
               appShare: expect.objectContaining({ value: 25 }),
+              averageTokens: {
+                totalTokens: 250,
+                coveredRuns: 3,
+                coveredQuestions: 2,
+                perRun: 250 / 3,
+                perQuestion: 125,
+              },
             }),
             components: [
               expect.objectContaining({
@@ -229,6 +249,53 @@ describe('User Monitoring read-model routes', () => {
     );
     expect(res.status).toHaveBeenCalledWith(400);
     expect(query).not.toHaveBeenCalled();
+  });
+
+  it('rejects a removed Identity user direct link instead of serving stale aggregate data', async () => {
+    const { handlers } = routes([]);
+    const res = response();
+    await handlers.get('/api/monitoring/user-spend/:email')!(
+      {
+        params: { email: 'removed@example.test' },
+        query: { from: '2026-08-25', to: '2026-08-31', unit: 'USD' },
+        headers: { 'x-forwarded-email': 'admin@example.test' },
+        header: (name: string) => (name.toLowerCase() === 'x-forwarded-email' ? 'admin@example.test' : undefined),
+      } as unknown as Request,
+      res
+    );
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ error: 'monitoring_user_not_rostered' });
+  });
+
+  it('never falls back to account identities when the Identity roster query fails', async () => {
+    const handlers = new Map<string, (req: Request, res: Response) => Promise<void>>();
+    const query = vi.fn().mockRejectedValue(new Error('identity store unavailable'));
+    setupUserSpendReadModelRoutes(
+      {
+        lakebase: { query },
+        server: {
+          extend(register: (app: Application) => void) {
+            register({
+              get(path: string, handler: (req: Request, res: Response) => Promise<void>) {
+                handlers.set(path, handler);
+              },
+            } as unknown as Application);
+          },
+        },
+      } as unknown as InsightsAppKit,
+      { isAdminRoute, now: () => Date.parse('2026-09-01T04:30:00Z') }
+    );
+    const res = response();
+    await handlers.get('/api/monitoring/user-spend')!(
+      {
+        query: { from: '2026-08-25', to: '2026-08-31' },
+        header: (name: string) => (name.toLowerCase() === 'x-forwarded-email' ? 'admin@example.test' : undefined),
+      } as unknown as Request,
+      res
+    );
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'identity_roster_unavailable' }));
+    expect(query).toHaveBeenCalledTimes(1);
   });
 
   it('binds the consumer route to the authenticated identity and never enables browse scope', async () => {

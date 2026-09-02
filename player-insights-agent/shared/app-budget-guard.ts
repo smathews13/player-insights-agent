@@ -23,6 +23,13 @@ export const AppBudgetApprovalSchema: z.ZodType<AppBudgetApproval> = z.strictObj
   revokedAt: z.string(),
 });
 
+const AppBudgetDisplaySpendSchema = z.strictObject({
+  amount: z.number().finite().nonnegative().nullable(),
+  budget: z.number().finite().nonnegative(),
+  coverage: AppBudgetCoverageSchema,
+  sourceThrough: z.string(),
+});
+
 export const AppBudgetStatusSchema: z.ZodType<AppBudgetStatus> = z.strictObject({
   level: AppBudgetLevelSchema,
   measured: z.number().finite().nonnegative().nullable(),
@@ -39,6 +46,12 @@ export const AppBudgetStatusSchema: z.ZodType<AppBudgetStatus> = z.strictObject(
   budgetFingerprint: z.string(),
   code: z.string(),
   detail: z.string(),
+  displayMtdSpend: z
+    .strictObject({
+      USD: AppBudgetDisplaySpendSchema.optional(),
+      DBU: AppBudgetDisplaySpendSchema.optional(),
+    })
+    .optional(),
 });
 
 const DECIMAL_SCALE = 1_000_000n;

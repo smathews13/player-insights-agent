@@ -26,6 +26,8 @@ function row(overrides: Partial<GenieAccountingRow> = {}): GenieAccountingRow {
     correctionRows: 0,
     sourceRows: 1,
     throughDay: '2026-09-01',
+    freeEquivalentUsd: 8,
+    priceCurrency: 'USD',
     ...overrides,
   };
 }
@@ -58,9 +60,15 @@ describe('Genie billing classification', () => {
     expect(built?.statement).toContain('GROUP BY record_id');
     expect(built?.statement).toContain('allocation_weight');
     expect(built?.statement).toContain('LEFT JOIN system.billing.list_prices');
-    expect(built?.statement).toContain(`ON usage.sku_name <> '${GENIE_FREE_SKU}'`);
+    expect(built?.statement).toContain(`usage.sku_name <> '${GENIE_FREE_SKU}' AND usage.sku_name = p.sku_name`);
+    expect(built?.statement).toContain("LIKE '%SERVERLESS_REAL_TIME_INFERENCE%'");
+    expect(built?.statement).toContain("UPPER(p.currency_code) = 'USD'");
+    expect(built?.statement).toContain('usage.cloud = p.cloud');
+    expect(built?.statement).toContain('usage.usage_end_time >= p.price_start_time');
+    expect(built?.statement).toContain('COUNT(DISTINCT CONCAT_WS');
     expect(built?.statement).toContain(`WHEN sku_name = '${GENIE_FREE_SKU}' THEN CAST(0 AS DOUBLE)`);
     expect(built?.statement).toContain('SUM(allocation_weight) AS source_rows');
+    expect(built?.statement).toContain('AS free_equivalent_usd');
     expect(built?.parameters).toEqual(
       expect.arrayContaining([
         { name: 'from_day', value: '2026-08-26', type: 'DATE' },
@@ -87,6 +95,45 @@ describe('Genie billing classification', () => {
     expect(built?.parameters.find((parameter) => parameter.name === 'appGenieActivity')?.value).toContain(
       '"space_id":"space-data"'
     );
+  });
+
+  it('keeps per-space free-equivalent USD informational and separate from charged spend', () => {
+    const result = classifyGenieAccounting(
+      [
+        row({
+          spaceId: 'space-data',
+          attributionMethod: 'query-history-exact',
+          dbus: 1.99,
+          freeEquivalentUsd: 0.398,
+        }),
+        row({
+          identity: 'other@example.test',
+          spaceId: 'space-dictionary',
+          attributionMethod: 'query-history-exact',
+          dbus: 19.18,
+          freeEquivalentUsd: 3.836,
+        }),
+      ],
+      '2026-09-01',
+      SPACES
+    );
+    expect(result.instances?.map((instance) => instance.freeEquivalentUsd)).toEqual([0.398, 3.836]);
+    expect(result.instances?.map((instance) => instance.paidUsd)).toEqual([0, 0]);
+    expect(result.paidUsd).toBe(0);
+    expect(result.freeEquivalentUsd).toBeCloseTo(4.234);
+  });
+
+  it('preserves missing comparable price as unavailable instead of zero', () => {
+    const result = classifyGenieAccounting(
+      [row({ spaceId: 'space-data', attributionMethod: 'query-history-exact', freeEquivalentUsd: null })],
+      '2026-09-01',
+      SPACES
+    );
+    expect(result.instances?.[0]).toMatchObject({
+      allowanceUsedDbus: 40,
+      freeEquivalentUsd: null,
+      freeEquivalentPricingState: 'unpriced',
+    });
   });
 
   it('reconciles the established per-space charges and excludes a large unsupported workspace pool', () => {

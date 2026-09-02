@@ -272,6 +272,7 @@ describe('individual user spend attribution', () => {
         email: 'a@example.test',
         totalRuns: 0,
         tokenCoveredRuns: 0,
+        tokenCoveredQuestions: 0,
         totalTokens: 0,
         resources: [{ tool: 'search_semantics', resourceId: 'index', calls: 2 }],
       },
@@ -304,6 +305,9 @@ describe('individual user spend attribution', () => {
     expect(USER_SPEND_RUNS_QUERY).toContain('r.completed_at >= $1::date');
     expect(USER_SPEND_RUNS_QUERY).toContain("r.completed_at < ($2::date + INTERVAL '1 day')");
     expect(USER_SPEND_RUNS_QUERY).toContain('GROUP BY user_email');
+    expect(USER_SPEND_RUNS_QUERY).toContain(
+      'COUNT(DISTINCT turn_id) FILTER (WHERE total_tokens IS NOT NULL)::int AS token_covered_questions'
+    );
     expect(USER_ACTIVE_MINUTES_QUERY).toContain('active_minute >=');
     expect(USER_ACTIVE_MINUTES_QUERY).toContain('active_minute <');
     expect(USER_ACTIVE_MINUTES_QUERY).toContain('GROUP BY selected.user_email');
@@ -352,7 +356,7 @@ describe('individual user spend attribution', () => {
     ]);
   });
 
-  it('excludes roster, persona, and admin-only users from the active population', () => {
+  it('excludes aggregate and persona-assignment identities outside the authoritative roster', () => {
     const page = buildUserMonitoringPage({
       spend: build(),
       runs,
@@ -361,9 +365,6 @@ describe('individual user spend attribution', () => {
       roles: new Map([
         ['a@example.test', 'admin'],
         ['b@example.test', 'consumer'],
-        ['roster-only@example.test', 'consumer'],
-        ['admin-only@example.test', 'admin'],
-        ['persona-only@example.test', 'consumer'],
       ]),
       personas: new Map([['persona-only@example.test', { id: 'analyst', name: 'Analyst' }]]),
       unit: 'USD',
@@ -372,34 +373,30 @@ describe('individual user spend attribution', () => {
     expect(page.users.map((row) => row.email)).toEqual(['b@example.test', 'a@example.test']);
   });
 
-  it('returns exactly the three timestamped users from a production-shaped 3 active plus 9 roster fixture', () => {
-    const rosterOnly = Array.from({ length: 9 }, (_, index) => `roster-${index + 1}@example.test`);
+  it('returns exactly 3 Identity-settings users when 100 account users have activity', () => {
+    const accountUsers = Array.from({ length: 100 }, (_, index) => ({
+      email: `account-${index + 1}@example.test`,
+      questions: 0,
+      runs: 0,
+      firstActive: '2026-08-31T12:00:00Z',
+      lastActive: '2026-08-31T12:00:00Z',
+    }));
+    const rosterOnly = ['account-1@example.test', 'account-2@example.test', 'account-3@example.test'];
     const page = buildUserMonitoringPage({
       spend: build(),
       runs,
       activity: [],
-      interactions: [
-        ...activeInteractions,
-        {
-          email: 'session-only@example.test',
-          questions: 0,
-          runs: 0,
-          firstActive: '2026-08-31T12:00:00Z',
-          lastActive: '2026-08-31T12:00:00Z',
-        },
-      ],
+      interactions: [...accountUsers],
       roles: new Map(rosterOnly.map((email, index) => [email, index === 0 ? 'admin' : 'consumer'] as const)),
       personas: new Map([[rosterOnly[1], { id: 'analyst', name: 'Analyst' }]]),
       unit: 'USD',
     });
 
-    expect(page.users.map((row) => row.email).sort()).toEqual([
-      'a@example.test',
-      'b@example.test',
-      'session-only@example.test',
-    ]);
+    expect(page.users.map((row) => row.email).sort()).toEqual(rosterOnly);
     expect(page.pagination.total).toBe(3);
-    expect(page.users.every((row) => Number.isFinite(Date.parse(row.lastActive)))).toBe(true);
+    expect(page.users.every((row) => row.lastActive === null || Number.isFinite(Date.parse(row.lastActive)))).toBe(
+      true
+    );
   });
 
   it('rejects null timestamps and activity outside the selected range', () => {
@@ -429,14 +426,17 @@ describe('individual user spend attribution', () => {
           lastActive: '2026-08-01T11:00:00Z',
         },
       ],
-      roles: new Map(),
+      roles: new Map([
+        ['a@example.test', 'admin'],
+        ['b@example.test', 'consumer'],
+      ]),
       unit: 'USD',
     });
     expect(page.users.map((row) => row.email).sort()).toEqual(['a@example.test', 'b@example.test']);
-    expect(userMonitoringEvidenceDiagnostics().rejectedRows - before).toBe(2);
+    expect(userMonitoringEvidenceDiagnostics().rejectedRows - before).toBe(1);
   });
 
-  it('includes session, question, run, and feedback users even when spend is unavailable', () => {
+  it('left-joins session, question, run, and feedback evidence for rostered users with unavailable spend', () => {
     const emptySpend = build();
     emptySpend.users = [];
     const page = buildUserMonitoringPage({
@@ -473,7 +473,12 @@ describe('individual user spend attribution', () => {
           lastActive: '2026-08-31T12:00:00Z',
         },
       ],
-      roles: new Map(),
+      roles: new Map([
+        ['session-only@example.test', 'consumer'],
+        ['question@example.test', 'consumer'],
+        ['run@example.test', 'consumer'],
+        ['feedback@example.test', 'consumer'],
+      ]),
       unit: 'USD',
     });
 

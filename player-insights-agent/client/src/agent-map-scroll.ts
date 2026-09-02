@@ -68,8 +68,9 @@ export function revealStepDetail({
     return { focused, scrolled: false, top: container.scrollTop };
   }
 
+  const targetIsTaller = headingRect.bottom - headingRect.top > containerRect.bottom - containerRect.top;
   const delta =
-    headingRect.top < containerRect.top
+    headingRect.top < containerRect.top || targetIsTaller
       ? headingRect.top - containerRect.top
       : headingRect.bottom - containerRect.bottom;
   const top = boundedScrollTop(container, delta);
@@ -80,29 +81,35 @@ export function revealStepDetail({
 }
 
 /**
- * Return from the detail panel to its selected card.
+ * Return from the detail panel to the map top and its selected card.
  *
- * Focus is restored without native scrolling, then the same bounded container
- * is adjusted only when the card is outside it.
+ * Focus is restored without native scrolling. When the map root is supplied,
+ * its top is aligned in the same bounded workspace; compact callers may omit it
+ * and reveal only the selected card.
  */
 export function returnToSelectedStep({
   container,
   node,
+  map,
   reducedMotion,
 }: {
   container: HTMLElement;
   node: HTMLElement;
+  map?: HTMLElement;
   reducedMotion: boolean;
 }): RevealResult {
   node.focus({ preventScroll: true });
   const containerRect = container.getBoundingClientRect();
-  const nodeRect = node.getBoundingClientRect();
-  if (isVisibleInContainer(nodeRect, containerRect)) {
+  const targetRect = (map ?? node).getBoundingClientRect();
+  if (!map && isVisibleInContainer(targetRect, containerRect)) {
     return { focused: true, scrolled: false, top: container.scrollTop };
   }
 
-  const delta =
-    nodeRect.top < containerRect.top ? nodeRect.top - containerRect.top : nodeRect.bottom - containerRect.bottom;
+  const delta = map
+    ? targetRect.top - containerRect.top
+    : targetRect.top < containerRect.top
+      ? targetRect.top - containerRect.top
+      : targetRect.bottom - containerRect.bottom;
   const top = boundedScrollTop(container, delta);
   if (top === container.scrollTop) return { focused: true, scrolled: false, top };
 

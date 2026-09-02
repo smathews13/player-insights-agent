@@ -4,7 +4,8 @@ import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OpsCostPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 import { NO_EXPERIMENTS, type ExperimentalFeatures } from './experimental-features';
-import { ForecastingBody } from './ForecastingPanel';
+import { calculateForecast, deriveForecastBaseline } from './forecast';
+import { ForecastingBody, ProjectionBreakdown } from './ForecastingPanel';
 import { OpsPage, type Block } from './OpsPage';
 import { autoLoadOpsBlock, forgetOpsSession, opsAutoLoadClaimed } from './ops-session';
 
@@ -185,7 +186,7 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).toContain('aria-label="Increase average daily users"');
     expect(markup).toContain('aria-label="Decrease average daily users"');
     expect(markup.match(/ops-forecast-steppers/g)).toHaveLength(4);
-    expect(markup.match(/aria-controls="ops-forecast-/g)).toHaveLength(8);
+    expect(markup.match(/aria-controls="ops-forecast-/g)).toHaveLength(9);
     expect(markup).toMatch(/id="ops-forecast-averageDailyUsers"[^>]*inputMode="decimal"/);
     expect(markup).toMatch(/id="ops-forecast-questionsPerUserPerDay"[^>]*inputMode="decimal"/);
     expect(markup).toMatch(/id="ops-forecast-averageModelTokensPerQuestion"[^>]*inputMode="decimal"/);
@@ -219,15 +220,13 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).toContain('>Cost Forecasting</h3>');
     expect(markup.indexOf('>Cost Forecasting</h3>')).toBeLessThan(markup.indexOf('experimental-pane-badge'));
     expect(markup.match(/>Estimated</g)).toHaveLength(4);
-    expect(markup).toContain('Projected breakdown');
-    expect(markup).toContain('Projected cost breakdown by horizon');
-    expect(markup).toContain('<th scope="row">App compute</th>');
+    expect(markup).not.toContain('Projected breakdown');
+    expect(markup).toContain('Projection breakdown');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).not.toContain('Projected cost breakdown by horizon');
+    expect(markup).not.toContain('<th scope="row">App compute</th>');
     expect(markup).toContain('Measured app-compute daily billing rate, held fixed');
-    expect(markup).toMatch(/<th scope="col">Component<\/th>/);
-    expect(markup).toMatch(/<th scope="col">Next 7 days<\/th>/);
-    expect(markup).toMatch(/<th scope="col">Next 30 days<\/th>/);
-    expect(markup).toMatch(/<th scope="col">Six months<\/th>/);
-    expect(markup).toMatch(/<tfoot>[\s\S]*?<th scope="row">Total<\/th>/);
+    expect(markup).not.toMatch(/<th scope="col">Component<\/th>/);
     expect(markup).not.toContain('Not included');
     expect(markup).not.toContain('Limits');
     expect(markup).not.toContain('token coverage');
@@ -287,7 +286,21 @@ describe('Forecasting visibility and placement', () => {
         <ForecastingBody cost={block(payload)} traffic={block(trafficPayload)} />
       </MemoryRouter>
     );
-    const breakdown = markup.slice(markup.indexOf('ops-forecast-breakdown'), markup.indexOf('ops-forecast-method'));
+    const baseline = deriveForecastBaseline(payload, trafficPayload);
+    const result = calculateForecast(baseline, baseline.defaults);
+    const breakdown = renderToStaticMarkup(
+      <ProjectionBreakdown result={result} currency="USD" partial open onToggle={() => {}} />
+    );
+    const closedBreakdown = renderToStaticMarkup(
+      <ProjectionBreakdown result={result} currency="USD" partial open={false} onToggle={() => {}} />
+    );
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).not.toContain('<th scope="row">Serving endpoint</th>');
+    expect(breakdown).toContain('aria-expanded="true"');
+    expect(closedBreakdown).toContain('type="button"');
+    expect(closedBreakdown).toContain('aria-expanded="false"');
+    expect(closedBreakdown).not.toContain('<table>');
+    expect(closedBreakdown.match(/>Estimated</g)).toHaveLength(1);
 
     for (const component of ['Serving endpoint', 'Astrolabe SQL', 'App compute', 'Vector Search', 'Data Genie']) {
       expect(breakdown).toContain(`<th scope="row">${component}</th>`);
@@ -295,9 +308,9 @@ describe('Forecasting visibility and placement', () => {
     expect(breakdown).not.toContain('Dictionary Genie');
     expect(markup).not.toContain('Dictionary Genie pricing is unavailable.');
     expect(breakdown).toContain('<th scope="row">Subtotal</th>');
-    expect(markup.match(/84\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
-    expect(markup.match(/360\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
-    expect(markup.match(/2,150\.00 USD/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(markup.match(/84\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(markup.match(/360\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(markup.match(/2,150\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
     expect(breakdown.match(/<th scope="row">Astrolabe SQL<\/th>/g)).toHaveLength(1);
   });
 
@@ -364,7 +377,13 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).not.toContain('ops-period-pill');
     expect(markup).not.toContain('Serving token coverage is partial');
     expect(markup).not.toContain('Active-minute history starts after');
-    expect(markup).toContain('<th scope="row">App compute</th>');
+    const baseline = deriveForecastBaseline(payload, trafficPayload);
+    const result = calculateForecast(baseline, baseline.defaults);
+    const openBreakdown = renderToStaticMarkup(
+      <ProjectionBreakdown result={result} currency="USD" partial={false} open onToggle={() => {}} />
+    );
+    expect(markup).not.toContain('<th scope="row">App compute</th>');
+    expect(openBreakdown).toContain('<th scope="row">App compute</th>');
     expect(markup).toContain('Measured app-compute daily billing rate, held fixed');
     expect(markup).not.toContain('Not included');
     expect(markup).not.toContain('Limits');

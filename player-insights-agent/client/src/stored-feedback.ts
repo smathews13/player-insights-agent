@@ -20,6 +20,7 @@
  */
 
 import type { ConversationMessage, FeedbackEntry } from './app-types';
+import { feedbackDirection } from '../../shared/feedback-direction';
 
 /** The state of an answer nobody has rated. */
 export const EMPTY_FEEDBACK: FeedbackEntry = {
@@ -28,67 +29,27 @@ export const EMPTY_FEEDBACK: FeedbackEntry = {
   saved: false,
   saving: false,
   error: null,
-  usefulness: null,
+  sentiment: null,
 };
 
 /**
- * The rating a row carries, or null.
+ * Every stored feedback direction in a reopened conversation, keyed by message.
  *
- * Postgres hands an integer column back as a number and a `NUMERIC` as a string,
- * and this column has been both; parsed rather than cast for that reason. Out of
- * range is treated as absent, because the write path constrains it to 1-5 and a
- * value outside that is not a rating this app produced.
- */
-export function storedRating(row: Pick<ConversationMessage, 'usefulness'>): number | null {
-  const value = typeof row.usefulness === 'string' ? Number(row.usefulness) : row.usefulness;
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  return value >= 1 && value <= 5 ? value : null;
-}
-
-/**
- * What each thumb writes, named where the reading of it lives.
- *
- * The card used to spell 5 and 2 at three call sites -- both icons and the
- * comment box's Save -- against a `ratedThumb` in this file that decides what
- * those numbers light. Naming them here means the control and the reading of it
- * cannot drift apart into a rating that is stored but lights nothing.
- */
-export const UP_RATING = 5;
-export const DOWN_RATING = 2;
-
-/**
- * Which way a rating reads as a thumb.
- *
- * The two controls write `UP_RATING` and `DOWN_RATING`, which is what the thumbs
- * mean here rather than an inference about them. Anything in between is a rating
- * that says neither, and it lights neither control rather than being rounded
- * into one.
- */
-export function ratedThumb(usefulness: number | null): 'up' | 'down' | null {
-  if (usefulness === null) return null;
-  if (usefulness >= 4) return 'up';
-  return usefulness <= 2 ? 'down' : null;
-}
-
-/**
- * Every stored rating in a reopened conversation, keyed by the message it is on.
- *
- * `saved` is true for these, because they are saved: it is the same green
- * confirmation the reader was shown when they gave the rating, and it is now true
- * of the store rather than of one render. Rows with no rating are left out
- * entirely, so an unrated answer stays untouched rather than being given an
- * entry that says it was rated nothing.
+ * The server resolves legacy usefulness before this boundary and exposes only
+ * `feedback_sentiment`. A mixed-version server may still omit that field; an
+ * omitted direction remains No feedback rather than reviving a numeric scale in
+ * the browser.
  */
 export function feedbackFromStored(messages: ConversationMessage[]): Record<string, FeedbackEntry> {
   const entries: Record<string, FeedbackEntry> = {};
   for (const message of messages) {
-    const usefulness = storedRating(message);
-    if (usefulness === null) continue;
+    const sentiment = feedbackDirection(message.feedback_sentiment, message.usefulness);
+    if (sentiment === null) continue;
     entries[message.id] = {
       ...EMPTY_FEEDBACK,
       saved: true,
-      usefulness,
-      comment: typeof message.feedback_comment === 'string' ? message.feedback_comment : '',
+      sentiment,
+      comment: sentiment === 'down' && typeof message.feedback_comment === 'string' ? message.feedback_comment : '',
     };
   }
   return entries;

@@ -39,12 +39,7 @@
  * composing markup and the page cannot grow a second reading of it.
  */
 import { type PreflightCheck, type PreflightRemedy, type PreflightStatus } from './preflight';
-import {
-  CHECK_VERDICT_LABEL,
-  checkVerdict,
-  countCheckVerdicts,
-  type CheckVerdict,
-} from '../../shared/check-verdict';
+import { CHECK_VERDICT_LABEL, checkVerdict, countCheckVerdicts, type CheckVerdict } from '../../shared/check-verdict';
 
 export interface CauseGroup {
   /** Stable across renders, and the React key for the group. */
@@ -251,8 +246,7 @@ export function groupByRemedy(groups: readonly CauseGroup[]): RemedyBlock[] {
     // others. With several causes their sentences already differ where it matters
     // -- that is what `sharedSentences` computes -- and each keeps its own.
     const lead = causes.length === 1 ? leadSentence(causes[0]) : '';
-    const shared = sharedSentences(causes.map((cause) => cause.detail)).filter((sentence) => sentence !== lead
-    );
+    const shared = sharedSentences(causes.map((cause) => cause.detail)).filter((sentence) => sentence !== lead);
     const stated = new Set(shared);
     return {
       key,
@@ -359,7 +353,7 @@ export function rowStatusLine(check: PreflightCheck): string {
  */
 export function declaredTablesAside(checks: readonly PreflightCheck[]): string {
   const counts = countCheckVerdicts(checks);
-  const parts = [`${checks.length} declared`];
+  const parts = [`${checks.length} ${checks.length === 1 ? 'table' : 'tables'} declared`];
   for (const verdict of ['blocked', 'refused', 'unreachable', 'unasked'] as const) {
     if (counts[verdict] > 0) parts.push(`${counts[verdict]} ${CHECK_VERDICT_LABEL[verdict].toLowerCase()}`);
   }
