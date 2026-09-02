@@ -35,6 +35,7 @@ function source(name: string): string {
 }
 
 const PAGE = source('ConnectionsPage.tsx');
+const RESOURCE_VIEW = source('connection-resource-view.ts');
 const CSS = partial('connections.css');
 
 function check(id: string, status: PreflightCheck['status'], over: Partial<PreflightCheck> = {}): PreflightCheck {
@@ -313,25 +314,18 @@ describe('the Refresh button, which used to look wired to nothing', () => {
     // It is not printed in the old status summary. The same value reaches the
     // header control and declared-table evidence only.
     expect(PAGE).not.toMatch(/Checked \$\{formatCheckedAt\(lastCheckedAt\)\}/);
-    // Four uses: the definition, the header control, the declared-table
-    // evidence, and the identity read -- which takes it because it now shares
-    // the shell's session-long identity promise instead of fetching its own, and
-    // so needs a signal for when the reader has asked for the facts again.
-    expect([...PAGE.matchAll(/lastCheckedAt/g)]).toHaveLength(4);
+    // Five uses: the definition, header control, resource details, declared-table
+    // evidence, and identity read.
+    expect([...PAGE.matchAll(/lastCheckedAt/g)]).toHaveLength(5);
     expect(PAGE).toMatch(/<DeclaredTablesSection[^>]*checkedAt=\{lastCheckedAt\}/);
     expect(PAGE).toMatch(/useDeploymentIdentity\(true, lastCheckedAt\)/);
   });
 
-  /**
-   * A row is not fresh because the page is still on screen. While the workspace
-   * is being asked again, a badge from the previous answer is a reading of a
-   * moment that has passed, and showing it unchanged is how a working button
-   * came to look like a broken one.
-   */
-  it('says which rows are being re-decided instead of showing stale verdicts as current', () => {
+  it('keeps cached identities visible during a subtle background refresh', () => {
     expect(PAGE).toMatch(/refreshing=\{refreshing\}/);
     expect(PAGE).toMatch(/const restating = refreshing && status !== 'nothing-to-reach'/);
-    expect(PAGE).toMatch(/restating \? 'Refreshing\\u2026'/);
+    expect(PAGE).toMatch(/value=\{truncateHead\(view\.displayIdentity\)\}/);
+    expect(PAGE).not.toMatch(/restating \? 'Refreshing\\u2026'/);
     expect(PAGE).toMatch(/data-refreshing=\{restating \? 'true' : undefined\}/);
     expect(CSS).toMatch(/\.connection-row\[data-refreshing='true'\]/);
   });
@@ -370,7 +364,7 @@ describe('what the page must keep refusing to claim', () => {
   it('never shows an unmeasured value as though something had confirmed it', () => {
     expect(PAGE).not.toMatch(/Not measured/);
     expect(PAGE).not.toMatch(/Nothing to measure it against/);
-    expect(PAGE).toMatch(/\{row\.actualObserved \? \(/);
+    expect(RESOURCE_VIEW).toMatch(/row\.actualObserved &&/);
     // The one word this tile must never reach for on an absence of evidence.
     expect(PAGE).not.toMatch(/'matches'/);
   });

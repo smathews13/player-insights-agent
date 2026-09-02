@@ -62,7 +62,8 @@ describe('the namespaced user profile cannot regress to overlapping layout', () 
     expect(body).toMatch(/grid-auto-rows:\s*max-content/);
     expect(rule('.user-profile-modal-kpi')).toMatch(/min-height:\s*96px/);
     expect(rule('.user-profile-modal-spend')).not.toMatch(/min-height/);
-    expect(rule('.user-profile-modal-spend-loading')).toMatch(/min-height:\s*36px/);
+    expect(rule('.user-profile-modal-spend-kpi-loading')).toMatch(/min-height:\s*92px/);
+    expect(CSS).not.toContain('user-profile-modal-spend-loading-icon');
   });
 
   it('forbids seating, clipping, fixed content heights, and overlapping grid areas in the namespace', () => {
@@ -165,6 +166,13 @@ describe('the panel head and identity controls cannot be clipped', () => {
     expect(rule('.user-profile-modal-user .identity-chip')).toMatch(/max-width:\s*100%/);
   });
 
+  it('seats the compact blue back link at the true header origin', () => {
+    expect(rule('.user-profile-modal-header')).toMatch(/padding:\s*12px 16px/);
+    expect(CSS).toMatch(
+      /\.user-profile-modal-back\s*\{[^}]*justify-self:\s*start[^}]*padding-inline:\s*0[^}]*color:\s*var\(--ast-blue\)/
+    );
+  });
+
   it('lets a scope badge wrap rather than overrun the row', () => {
     const scope = rule('.user-profile-modal-scope');
     expect(scope).toMatch(/white-space:\s*normal/);
@@ -245,7 +253,7 @@ describe('the filter-row search is a field, not a hole in the sky', () => {
     expect(rule('.monitoring-search')).toMatch(/flex:\s*0\s+1\s+240px/);
     expect(rule('.monitoring-search')).toMatch(/min-width:\s*160px/);
     expect(rule('.monitoring-filter-actions')).toMatch(/margin-left:\s*auto/);
-    expect(rule('.monitoring-search')).toMatch(/margin-left:\s*0/);
+    expect(rule('.monitoring-search')).toMatch(/margin-left:\s*auto/);
     expect(rule('.monitoring-user-browser-trigger')).toMatch(/height:\s*36px/);
     expect(rule(".monitoring-search input[type='search']")).toMatch(/height:\s*36px/);
     expect(rule('.monitoring-filter-actions')).toMatch(/align-items:\s*center/);

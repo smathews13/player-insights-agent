@@ -11,7 +11,7 @@ function payload(revision = USER_MONITORING_SCHEMA_REVISION) {
     userMonitoring: {
       schemaRevision: revision,
       users: [
-        { email: 'active@example.test', lastActive: '2026-09-01T12:00:00Z' },
+        { email: 'active@example.test', lastActive: '2026-09-01T12:00:00Z', questions: 4, coveredDays: 7 },
         { email: 'legacy@example.test', lastActive: '' },
       ],
     },
@@ -28,6 +28,15 @@ describe('User Monitoring response decoding', () => {
   it('keeps valid timestamped rows and drops a malformed legacy row defensively', () => {
     const decoded = decodeUserMonitoringCostPayload(payload());
     expect(decoded.userMonitoring?.users.map((row) => row.email)).toEqual(['active@example.test']);
+  });
+
+  it('accepts the fast endpoint direct payload without routing through Cost', () => {
+    const direct = decodeUserMonitoringCostPayload(payload().userMonitoring);
+    expect(direct.userMonitoring?.users.map((row) => row.email)).toEqual(['active@example.test']);
+    expect(MONITORING_SOURCE).toContain('`/api/monitoring/user-spend?${userBrowserParams.toString()}`');
+    expect(MONITORING_SOURCE).toContain('`/api/monitoring/user-spend/${encodeURIComponent(drawer.person)}?');
+    expect(MONITORING_SOURCE).not.toContain('drawer.person ? `/api/ops/cost?');
+    expect(MONITORING_SOURCE).not.toContain('userBrowserKey ? `/api/ops/cost?');
   });
 
   it('validates cached responses while retaining valid profile-to-browser back navigation', () => {

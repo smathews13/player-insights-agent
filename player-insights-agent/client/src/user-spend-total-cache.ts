@@ -15,11 +15,14 @@ export interface UserSpendTotalCoordinates {
 export interface CachedUserSpendTotal {
   amount: number | null;
   quality: UserSpendQuality;
+  questions: number;
+  coveredDays: number;
   currency: string;
   profile: UserSpendProfile | null;
   dataRevision: number;
   snapshot: string;
   seeded: boolean;
+  complete: boolean;
   expiresAt: number;
 }
 
@@ -73,7 +76,17 @@ export function cacheUserSpendTotal(
   const base = userSpendTotalBaseKey(coordinates);
   const currentKey = latest.get(base);
   const current = currentKey ? totals.get(currentKey) : undefined;
-  const candidate = { ...value, expiresAt: now + USER_SPEND_TOTAL_CACHE_TTL_MS };
+  const protectedValue =
+    current && !value.complete
+      ? {
+          ...value,
+          amount: value.amount ?? current.amount,
+          quality: value.amount === null ? current.quality : value.quality,
+          questions: value.questions > 0 ? value.questions : current.questions,
+          coveredDays: value.coveredDays > 0 ? value.coveredDays : current.coveredDays,
+        }
+      : value;
+  const candidate = { ...protectedValue, expiresAt: now + USER_SPEND_TOTAL_CACHE_TTL_MS };
   if (current && current.expiresAt > now && !isNewer(candidate, current)) return current;
   const key = userSpendTotalKey(coordinates, value.dataRevision, value.snapshot);
   if (currentKey) totals.delete(currentKey);

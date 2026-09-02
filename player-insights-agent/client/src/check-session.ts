@@ -68,6 +68,11 @@ export interface CheckSession {
   settings: SettingsPayload | null;
   report: PreflightReport | null;
   error: string;
+  load?: {
+    firstLoad: boolean;
+    settings: 'pending' | 'ready' | 'error';
+    report: 'pending' | 'ready' | 'error';
+  };
 }
 
 let remembered: CheckSession | null = null;
@@ -151,4 +156,3 @@ export function checkedAtOf(session: CheckSession | null): string {
   if (!session) return '';
   return session.settings?.checkedAt || session.report?.checked_at || '';
 }
-

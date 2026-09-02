@@ -264,11 +264,14 @@ async function bundleServer() {
     banner: { js: banner },
     logLevel: 'info',
     logOverride: { 'require-resolve-not-external': 'silent' },
-    // Minifying breaks the Databricks SDK request path behind the serving
-    // transport, which silently downgrades /api/insights/ask to representative
-    // answers instead of failing loudly. Vendor splitting above, not
-    // minification, is what keeps files under the per-file size limit.
-    minify: false,
+    // Full minification breaks the Databricks SDK request path behind the
+    // serving transport: identifier or syntax rewriting can silently downgrade
+    // /api/insights/ask to representative answers. Removing whitespace alone
+    // keeps every identifier and expression intact while avoiding thousands of
+    // repeated indentation bytes across the split production graph.
+    minifyWhitespace: true,
+    minifyIdentifiers: false,
+    minifySyntax: false,
     sourcemap: false,
     metafile: true,
     define: {

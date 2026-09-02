@@ -31,8 +31,7 @@ const NARRATIVE = [
 const INCOMPLETE =
   'The sources for this answer are incomplete: part of it came from a query whose tables could not be determined.';
 const DEADLINE = 'The turn deadline was reached before the answer could be written.';
-const IDENTITY =
-  'This answer was produced as analyst@example.com and covers only the data that identity is granted.';
+const IDENTITY = 'This answer was produced as analyst@example.com and covers only the data that identity is granted.';
 const TIMEOUT =
   'The model that writes the answer was not reachable: the reasoning endpoint failed (APITimeoutError: Request timed out.).';
 
@@ -104,7 +103,7 @@ describe('the Overview Final Answer module', () => {
 
   it('puts Live agent response at the true top-left, not under a mark', () => {
     const html = markup();
-    const head = html.slice(html.indexOf('final-answer-head'), html.indexOf('final-answer-warnings'));
+    const head = html.slice(html.indexOf('final-answer-head'), html.indexOf('final-answer-takeaway'));
     expect(head).toContain('Live agent response');
     expect(head).toContain('Partial answer');
     expect(head).toContain('data-tone="live"');
@@ -116,12 +115,14 @@ describe('the Overview Final Answer module', () => {
     expect(incomplete).not.toContain('Incomplete answer');
   });
 
-  it('lifts incomplete sources and the deadline into warning chips, not quiet bullets', () => {
+  it('keeps specific caveats in Keep in mind without an inline answer banner', () => {
     const html = markup();
-    expect(html).toContain('Incomplete sources');
-    expect(html).toContain('Turn deadline reached');
-    expect(html).toContain('final-answer-warning');
-    expect(html.indexOf('final-answer-warning')).toBeLessThan(html.indexOf('final-answer-takeaway'));
+    expect(html).toContain('The sources for this answer are incomplete');
+    expect(html).toContain('The turn deadline was reached');
+    expect(html).toContain('Keep in mind');
+    expect(html).not.toContain('Partial evidence');
+    expect(html).not.toContain('final-answer-warning');
+    expect(html).not.toContain('data-variant="destructive"');
   });
 
   it('never dumps the tool call as the story', () => {
@@ -203,11 +204,9 @@ describe('the Overview column width', () => {
 });
 
 describe('the Overview warning family', () => {
-  it('uses the Failed muted dark red, not the ochre warning wash', () => {
+  it('uses caveat surfaces instead of an inline answer warning family', () => {
     const css = partial('runs.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
-    expect(css).toMatch(/\.final-answer-warning \[data-slot='alert'\] \{[^}]*--ast-neg-fill/s);
-    expect(css).toMatch(/\.final-answer-warning \[data-slot='alert'\] \{[^}]*--ast-neg-border/s);
-    expect(css).not.toMatch(/\.final-answer-warning \{[^}]*--ast-warn-/s);
+    expect(css).not.toContain('.final-answer-warning');
     expect(css).not.toMatch(/\.final-answer\[data-tone='partial'\] \{[^}]*--ast-warn-/s);
     const body = partial('answer-body.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
     expect(body).toMatch(/li\[data-surface='failure'\] \{[^}]*--ast-neg-fill/s);
@@ -223,13 +222,9 @@ describe('the Overview warning family', () => {
 
   it('sits in the section corner with no padding gap under the KPI divider', () => {
     const css = partial('runs.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
-    expect(css).toMatch(
-      /\.final-answer \[data-slot='card-content'\][^}]*padding:\s*8px 20px 16px 8px/s
-    );
+    expect(css).toMatch(/\.final-answer \[data-slot='card-content'\][^}]*padding:\s*8px 20px 16px 8px/s);
     expect(css).not.toMatch(/\.final-answer-head \{[^}]*margin-inline:\s*-/s);
     expect(css).toMatch(/\.run-explorer \.final-answer \{[^}]*padding:\s*0/s);
-    expect(css).not.toMatch(
-      /\.final-answer \[data-slot='card-content'\] \{[^}]*padding:\s*18px/s
-    );
+    expect(css).not.toMatch(/\.final-answer \[data-slot='card-content'\] \{[^}]*padding:\s*18px/s);
   });
 });

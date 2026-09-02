@@ -21,11 +21,14 @@ function value(amount: number, snapshot = '2026-09-01T12:00:00Z|2026-08-31') {
   return {
     amount,
     quality: 'allocated' as const,
+    questions: 25,
+    coveredDays: 7,
     currency: 'USD',
     profile: null,
     dataRevision: 3,
     snapshot,
     seeded: false,
+    complete: true,
   };
 }
 
@@ -46,6 +49,32 @@ describe('user spend total cache', () => {
     expect(cachedUserSpendTotal(base, 1_000 + USER_SPEND_TOTAL_CACHE_TTL_MS)?.expiresAt).toBe(0);
     cacheUserSpendTotal(base, value(7), 1_000 + USER_SPEND_TOTAL_CACHE_TTL_MS);
     expect(cachedUserSpendTotal(base, 1_000 + USER_SPEND_TOTAL_CACHE_TTL_MS)?.amount).toBe(7);
+  });
+
+  it('does not let an incomplete detail response erase seeded totals or denominators', () => {
+    cacheUserSpendTotal(base, { ...value(62.61), seeded: true, complete: false }, 1_000);
+    cacheUserSpendTotal(
+      base,
+      {
+        ...value(0, '2026-09-01T13:00:00Z|partial'),
+        amount: null,
+        questions: 0,
+        coveredDays: 0,
+        complete: false,
+      },
+      1_001
+    );
+    expect(cachedUserSpendTotal(base, 1_002)).toMatchObject({
+      amount: 62.61,
+      questions: 25,
+      coveredDays: 7,
+    });
+    cacheUserSpendTotal(
+      base,
+      { ...value(0, '2026-09-01T14:00:00Z|complete'), questions: 0, coveredDays: 0, complete: true },
+      1_003
+    );
+    expect(cachedUserSpendTotal(base, 1_004)).toMatchObject({ amount: 0, questions: 0, coveredDays: 0 });
   });
 
   it('deduplicates concurrent reads and rejects an older snapshot overwrite', async () => {

@@ -258,7 +258,7 @@ export interface TileView {
   note: string;
 }
 
-export type CostCardStatus = 'Estimate' | 'Partial' | 'Unavailable' | 'Zero' | '';
+export type CostCardStatus = 'Estimated';
 
 export interface CostCardView {
   id: string;
@@ -275,13 +275,7 @@ export interface GenieCardView {
   id: string;
   title: string;
   charged: string;
-  freeUsage: string;
-  allowance: string;
-  promotional: string;
-  attribution: 'Direct' | 'Estimated' | 'Unavailable';
-  detail: string;
-  resource: string;
-  tile: CostTile;
+  free: string;
 }
 
 /** The words for the two bases. A rate drawn as a total is the whole hazard. */
@@ -415,7 +409,7 @@ function primaryEvidence(tile: CostTile, throughDay: string): string {
     return queries === null || queries === undefined
       ? ''
       : `${count(queries)} Ask ${queries === 1 ? 'query' : 'queries'} · ${
-          tile.evidence?.queryHistoryComplete === false ? 'partial' : 'complete'
+          tile.evidence?.queryHistoryComplete === false ? 'incomplete' : 'complete'
         } history`;
   }
   return throughDay ? `Billing through ${throughDay}` : '';
@@ -441,26 +435,15 @@ export function costCardView(
   unit: CostBudgetUnit = 'USD'
 ): CostCardView {
   const view = tileView(tile, payload.currency, unit);
-  const selected = unit === 'DBU' ? (tile.dbus ?? null) : tile.amount;
   const partial = isPartialFoundation(tile);
-  const unavailable = !view.figure;
-  const status: CostCardStatus = partial
-    ? 'Partial'
-    : unavailable
-      ? 'Unavailable'
-      : selected === 0
-        ? 'Zero'
-        : view.estimate
-          ? 'Estimate'
-          : '';
   return {
     id: tile.id,
     title: PRIMARY_COST_TITLES[tile.id] ?? tile.label,
     amount: view.figure || (partial ? 'Measured amount unavailable' : 'No measured amount'),
-    status,
+    status: 'Estimated',
     basis: primaryBasis(tile),
     evidence: primaryEvidence(tile, payload.throughDay),
-    detail: view.absence,
+    detail: partial ? 'Some request or price coverage is incomplete.' : view.absence,
     resource: [tile.resourceId, tile.secondaryResourceId].filter(Boolean).join(' · '),
   };
 }
@@ -489,12 +472,11 @@ export function questionCostCardView(payload: OpsCostPayload, unit: CostBudgetUn
   const partial =
     value !== null &&
     (usable.length < ids.length || components.some((tile) => Boolean(tile && isPartialFoundation(tile))));
-  const estimated = components.some((tile) => tile?.quality === 'estimate');
   return {
     id: 'average-cost-question',
     title: 'Average cost / question',
     amount: value === null ? 'No measured average' : costAmount(value, payload.currency, unit),
-    status: value === null ? 'Unavailable' : partial ? 'Partial' : value === 0 ? 'Zero' : estimated ? 'Estimate' : '',
+    status: 'Estimated',
     basis: partial ? 'Available marginal components' : 'Marginal interactive Ask',
     evidence:
       completed > 0
@@ -504,9 +486,9 @@ export function questionCostCardView(payload: OpsCostPayload, unit: CostBudgetUn
         : 'No completed interactive Asks',
     detail:
       value === null
-        ? payload.perQuestion.reason || 'No usable numerator and denominator were measured.'
+        ? 'No usable numerator and denominator were measured.'
         : partial
-          ? 'Components without a safe measured amount are excluded from this partial average.'
+          ? 'Components without a safe measured amount are excluded from this estimate.'
           : QUESTION_COST_FORMULA,
     resource: '',
   };
@@ -522,11 +504,7 @@ export function primaryCostCardViews(payload: OpsCostPayload, unit: CostBudgetUn
   return [...cards.map((tile) => costCardView(tile, payload, unit)), questionCostCardView(payload, unit)];
 }
 
-function isAllocatedGenie(attribution: NonNullable<CostTile['genieInstanceAccounting']>['attribution']): boolean {
-  return attribution === 'query-history-allocation' || attribution === 'app-ledger-allocation';
-}
-
-export function genieCostCardViews(payload: OpsCostPayload): GenieCardView[] {
+export function genieCostCardViews(payload: OpsCostPayload, unit: CostBudgetUnit = 'USD'): GenieCardView[] {
   return costTilesForDisplay(payload.tiles)
     .filter((tile) => tile.id.startsWith('genie:') && tile.id !== 'genie:unattributed')
     .map((tile) => {
@@ -535,21 +513,20 @@ export function genieCostCardViews(payload: OpsCostPayload): GenieCardView[] {
       const chargedDbus = accounting?.chargedEffectiveDbus ?? tile.dbus;
       const allowance = accounting?.allowanceUsedDbus ?? 0;
       const promotional = accounting?.promotionalDbus ?? 0;
+      const freeDbus = allowance + promotional;
       return {
         id: tile.id,
         title:
           tile.id === 'genie:data' ? 'Data Genie' : tile.id === 'genie:dictionary' ? 'Dictionary Genie' : tile.label,
         charged:
-          paid === null || chargedDbus === null || chargedDbus === undefined
-            ? 'Measured charge unavailable'
-            : `${money(paid, payload.currency)} · ${chargedDbus.toFixed(2)} effective DBU`,
-        freeUsage: `${(allowance + promotional).toFixed(2)} DBU`,
-        allowance: `${allowance.toFixed(2)} DBU`,
-        promotional: `${promotional.toFixed(2)} DBU`,
-        attribution: !accounting ? 'Unavailable' : isAllocatedGenie(accounting.attribution) ? 'Estimated' : 'Direct',
-        detail: tile.unavailable,
-        resource: tile.resourceId,
-        tile,
+          unit === 'USD'
+            ? paid === null
+              ? 'Unavailable'
+              : `$${paid.toFixed(2)}`
+            : chargedDbus === null || chargedDbus === undefined
+              ? 'Unavailable'
+              : `${chargedDbus.toFixed(2)} DBU`,
+        free: unit === 'USD' ? '$0.00' : `${freeDbus.toFixed(2)} DBU`,
       };
     });
 }

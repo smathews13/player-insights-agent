@@ -38,8 +38,7 @@ describe('whether an answer actually landed', () => {
   it('treats a markdown catalog listing as landed without a pipe table', () => {
     expect(
       answerHasLanded({
-        narrative:
-          'All 12 declared tables in <your_catalog>.<your_schema> are listed below.',
+        narrative: 'All 12 declared tables in <your_catalog>.<your_schema> are listed below.',
       })
     ).toBe(true);
   });
@@ -116,14 +115,29 @@ describe('the verdict a caveat cannot steal', () => {
       '- **Package note:** Optional detail was clipped at the DSF handoff bound.',
     ].join('\n');
     expect(DSF_CLIP_NOTE.test('Optional detail was clipped at the DSF handoff bound.')).toBe(true);
+    expect(
+      DSF_CLIP_NOTE.test(
+        'Optional tail was clipped at the DSF handoff bound, so some metadata fields may be incomplete.'
+      )
+    ).toBe(true);
     expect(WRITER_STOPPED_CAVEAT.test('Optional detail was clipped at the DSF handoff bound.')).toBe(false);
     expect(
       answerRunVerdict({
         stages: [{ id: 'synthesis', status: 'partial' }],
-        caveats: [],
+        caveats: ['Optional tail was clipped at the DSF handoff bound, so some metadata fields may be incomplete.'],
         narrative: listing,
       })
     ).toBe('complete');
+  });
+
+  it('keeps a canonical missing-required-evidence outcome Partial after other results landed', () => {
+    expect(
+      answerRunVerdict({
+        stages: [{ id: 'synthesis', status: 'partial' }],
+        caveats: ['Required evidence is missing: the requested retention table could not be read.'],
+        narrative: TABLE,
+      })
+    ).toBe('partial');
   });
 
   it('keeps a markdown catalog listing Complete when there is no pipe table', () => {
@@ -153,9 +167,7 @@ describe('the verdict a caveat cannot steal', () => {
     expect(displayedStageStatus(synthesis, 'partial')).toBe('partial');
     expect(displayedStageStatus({ id: 'synthesis', status: 'failed' }, 'complete')).toBe('failed');
     expect(displayedStageStatus({ id: 'sql', status: 'partial' }, 'complete')).toBe('partial');
-    expect(withDisplayedStageStatus([synthesis], 'complete')).toEqual([
-      { id: 'synthesis', status: 'complete' },
-    ]);
+    expect(withDisplayedStageStatus([synthesis], 'complete')).toEqual([{ id: 'synthesis', status: 'complete' }]);
     const native = [synthesis];
     expect(withDisplayedStageStatus(native, 'partial')).toBe(native);
   });
@@ -167,18 +179,12 @@ describe('the verdict a caveat cannot steal', () => {
           { id: 'sql', status: 'complete' },
           { id: 'synthesis', status: 'failed' },
         ],
-        caveats: [
-          'The model that writes the answer was not reachable: APITimeoutError: Request timed out.',
-        ],
+        caveats: ['The model that writes the answer was not reachable: APITimeoutError: Request timed out.'],
         narrative: TABLE,
       })
     ).toBe('partial');
-    expect(
-      takeawayWhenTablesLanded('This question was not answered.', TABLE)
-    ).toBe(TIME_LIMIT_TAKEAWAY);
-    expect(TIME_LIMIT_TAKEAWAY).toBe(
-      'The run reached its time limit before the answer could be composed.'
-    );
+    expect(takeawayWhenTablesLanded('This question was not answered.', TABLE)).toBe(TIME_LIMIT_TAKEAWAY);
+    expect(TIME_LIMIT_TAKEAWAY).toBe('The run reached its time limit before the answer could be composed.');
   });
 
   it('still calls a synthesis timeout Partial when the step is marked partial', () => {
@@ -188,9 +194,7 @@ describe('the verdict a caveat cannot steal', () => {
           { id: 'sql', status: 'complete' },
           { id: 'synthesis', status: 'partial' },
         ],
-        caveats: [
-          'The model that writes the answer was not reachable: APITimeoutError: Request timed out.',
-        ],
+        caveats: ['The model that writes the answer was not reachable: APITimeoutError: Request timed out.'],
         narrative: TABLE,
       })
     ).toBe('partial');

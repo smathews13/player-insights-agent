@@ -1,4 +1,9 @@
-import { CostBudgetsSchema, type CostBudgets } from '../../shared/cost-budgets';
+import {
+  CostBudgetsSchema,
+  UNKNOWN_COST_BUDGET_AUDIT,
+  type CostBudgetAudit,
+  type CostBudgets,
+} from '../../shared/cost-budgets';
 import { saveRetryAfterLoad, type SettingsLoadResult } from './settings-save-state';
 
 export const COST_BUDGETS_UNREADABLE = 'These budgets could not be read, so there is nothing to save yet.';
@@ -16,7 +21,20 @@ function serverDetail(body: unknown): string {
   return '';
 }
 
-export type CostBudgetsLoadResult = SettingsLoadResult & { budgets: CostBudgets | null };
+export type CostBudgetsLoadResult = SettingsLoadResult & {
+  budgets: CostBudgets | null;
+  audit: CostBudgetAudit;
+};
+
+function auditFrom(body: unknown): CostBudgetAudit {
+  const audit = body && typeof body === 'object' ? (body as { audit?: unknown }).audit : null;
+  if (!audit || typeof audit !== 'object') return UNKNOWN_COST_BUDGET_AUDIT;
+  const candidate = audit as { appliedAt?: unknown; appliedBy?: unknown };
+  return {
+    appliedAt: typeof candidate.appliedAt === 'string' ? candidate.appliedAt : '',
+    appliedBy: typeof candidate.appliedBy === 'string' ? candidate.appliedBy : '',
+  };
+}
 
 /**
  * Reload stored budgets. Save uses this when the Cost payload said the store
@@ -31,6 +49,7 @@ export async function loadCostBudgets(): Promise<CostBudgetsLoadResult> {
         ok: false,
         message: serverDetail(body) || `The budgets endpoint answered ${response.status}.`,
         budgets: null,
+        audit: UNKNOWN_COST_BUDGET_AUDIT,
       };
     }
     const readable = body && typeof body === 'object' ? (body as { readable?: unknown }).readable : undefined;
@@ -38,18 +57,28 @@ export async function loadCostBudgets(): Promise<CostBudgetsLoadResult> {
       body && typeof body === 'object' ? (body as { budgets?: unknown }).budgets : undefined
     );
     if (!parsed.success) {
-      return { ok: false, message: 'The budgets endpoint returned an incomplete payload.', budgets: null };
+      return {
+        ok: false,
+        message: 'The budgets endpoint returned an incomplete payload.',
+        budgets: null,
+        audit: UNKNOWN_COST_BUDGET_AUDIT,
+      };
     }
     if (readable === false) {
-      return { ok: false, message: COST_BUDGETS_UNREADABLE, budgets: null };
+      return { ok: false, message: COST_BUDGETS_UNREADABLE, budgets: null, audit: auditFrom(body) };
     }
-    return { ok: true, budgets: parsed.data };
+    return { ok: true, budgets: parsed.data, audit: auditFrom(body) };
   } catch (error) {
-    return { ok: false, message: (error as Error).message, budgets: null };
+    return {
+      ok: false,
+      message: (error as Error).message,
+      budgets: null,
+      audit: UNKNOWN_COST_BUDGET_AUDIT,
+    };
   }
 }
 
-export async function saveCostBudgets(budgets: CostBudgets): Promise<CostBudgets> {
+export async function saveCostBudgets(budgets: CostBudgets): Promise<{ budgets: CostBudgets; audit: CostBudgetAudit }> {
   const response = await fetch('/api/admin/cost-budgets', {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
@@ -74,7 +103,7 @@ export async function saveCostBudgets(budgets: CostBudgets): Promise<CostBudgets
   if (!parsed.success) {
     throw new Error('The budgets were not saved: the server returned an incomplete payload.');
   }
-  return parsed.data;
+  return { budgets: parsed.data, audit: auditFrom(body) };
 }
 
 export { saveRetryAfterLoad };

@@ -8,7 +8,7 @@ export function setupCostBudgetsRoutes(appkit: InsightsAppKit): void {
   appkit.server.extend((app) => {
     app.get('/api/admin/cost-budgets', async (_req, res) => {
       const stored = await readCostBudgets(appkit, { maxAgeMs: 0 });
-      res.json({ budgets: stored.budgets, readable: stored.readable });
+      res.json({ budgets: stored.budgets, audit: stored.audit, readable: stored.readable });
     });
 
     app.put('/api/admin/cost-budgets', async (req, res) => {
@@ -19,7 +19,7 @@ export function setupCostBudgetsRoutes(appkit: InsightsAppKit): void {
       }
       const actor = userEmail(req);
       try {
-        const budgets = await writeCostBudgets(appkit, attributableCostBudgets(parsed.data), actor);
+        const stored = await writeCostBudgets(appkit, attributableCostBudgets(parsed.data), actor);
         forgetAppBudgetStatus();
         await recordAdminAction(appkit.lakebase, {
           actor,
@@ -27,7 +27,7 @@ export function setupCostBudgetsRoutes(appkit: InsightsAppKit): void {
           subject: 'cost-budgets',
           detail: 'Updated the monthly app budget and advisory resource budgets.',
         });
-        res.json({ budgets, readable: true });
+        res.json(stored);
       } catch (error) {
         res.status(503).json({
           error: 'cost_budgets_store_unavailable',

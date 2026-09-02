@@ -18,8 +18,10 @@ const feedback: FeedbackEntry = {
 };
 
 const processCaveats = [
-  'No governed table was read for this answer, so it is not grounded in queried data.',
-  'Review the generated SQL and source details before using this result.',
+  'Optional tail was clipped at the DSF handoff bound, so some metadata fields may be incomplete.',
+  'Validation: Review the sources before using this result.',
+  'All 12 tables are declared but read access depends on the caller’s Unity Catalog grants — a declared table is not a guarantee of row-level access.',
+  'All 12 tables are untagged by franchise in the current catalog listing; franchise-scoped filtering is not available from metadata alone.',
 ];
 
 describe('answer content cleanup at render boundaries', () => {
@@ -50,7 +52,8 @@ describe('answer content cleanup at render boundaries', () => {
       />
     );
     expect(markup).not.toContain('Keep in mind');
-    expect(markup).not.toMatch(/no governed table|not grounded|generated SQL|source details/i);
+    expect(markup).not.toMatch(/Partial evidence|optional tail|Validation:|declared table is not|untagged/i);
+    expect(markup).not.toContain('show more');
   });
 
   it('normalizes an unparsed historical answer without altering quoted content', () => {
@@ -58,7 +61,8 @@ describe('answer content cleanup at render boundaries', () => {
       <StoredAnswerRenderer
         rawContent={[
           'Twelve tables are available.',
-          'No governed table was read for this answer, so it is not grounded in queried data.',
+          'Optional tail was clipped at the DSF handoff bound, so some metadata fields may be incomplete.',
+          'Validation: Review the sources before using this result.',
           '> "No SQL was generated or executed."',
         ].join('\n')}
         feedback={feedback}
@@ -68,7 +72,8 @@ describe('answer content cleanup at render boundaries', () => {
       />
     );
     expect(markup).toContain('Twelve tables are available.');
-    expect(markup).not.toContain('No governed table was read');
+    expect(markup).not.toContain('Optional tail was clipped');
+    expect(markup).not.toContain('Validation: Review');
     expect(markup).toContain('No SQL was generated or executed.');
   });
 
@@ -84,6 +89,32 @@ describe('answer content cleanup at render boundaries', () => {
       </MemoryRouter>
     );
     expect(markup).not.toContain('Keep in mind');
-    expect(markup).not.toMatch(/no governed table|not grounded|generated SQL|source details/i);
+    expect(markup).not.toMatch(/Partial evidence|optional tail|Validation:|declared table is not|untagged/i);
+  });
+
+  it('keeps an actual permission failure in Keep in mind without an inline answer banner', () => {
+    const answer = normalizeAnswer({
+      id: 'msg-denied',
+      mode: 'live',
+      provenance: 'live',
+      takeaway: 'Eleven tables were listed.',
+      narrative: 'The requested catalog inventory completed for the readable tables.',
+      caveats: ['Permission denied while reading main.private.players; request SELECT or omit that table.'],
+      sql: '',
+      sources: [],
+    });
+    const markup = renderToStaticMarkup(
+      <AnswerCard
+        answer={answer as Answer}
+        feedback={feedback}
+        onFeedbackChange={() => {}}
+        saveFeedback={async () => {}}
+        showFeedback={false}
+      />
+    );
+    expect(markup).toContain('Keep in mind');
+    expect(markup).toContain('Permission denied');
+    expect(markup).not.toContain('Partial evidence');
+    expect(markup).not.toContain('data-variant="destructive"');
   });
 });

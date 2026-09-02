@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { TraceSummary } from './answer-shape';
-import { runTokenUsageView, stepTokenUsageView } from './token-usage-view';
+import { runTokenUsageView, stepTokenUsageView, tokenTotalUsageView } from './token-usage-view';
 
 const LIVE = {
   id: 'tr-live-example',
@@ -89,6 +89,24 @@ describe('the shared Run Explorer token view', () => {
       summary: '85K tokens',
       total: '84,576',
       cacheStatus: 'Not reported',
+    });
+  });
+
+  it('formats Monitoring totals compactly while preserving an exact accessible label', () => {
+    expect(tokenTotalUsageView(84_576)).toEqual({
+      reported: true,
+      compact: '84.6K',
+      exactLabel: '84,576 total tokens',
+    });
+    expect(tokenTotalUsageView(0)).toEqual({
+      reported: true,
+      compact: '0',
+      exactLabel: '0 total tokens',
+    });
+    expect(tokenTotalUsageView(null)).toEqual({
+      reported: false,
+      compact: '—',
+      exactLabel: 'Total tokens not reported',
     });
   });
 });

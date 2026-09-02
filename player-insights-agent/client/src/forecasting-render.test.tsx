@@ -216,7 +216,9 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).not.toContain('Daily questions =');
     expect(markup).not.toContain('Governed table count');
     expect(markup).not.toContain('Vector Search cost per table per day');
-    expect(markup.indexOf('experimental-pane-badge')).toBeLessThan(markup.indexOf('>Forecasting</h3>'));
+    expect(markup).toContain('>Cost Forecasting</h3>');
+    expect(markup.indexOf('>Cost Forecasting</h3>')).toBeLessThan(markup.indexOf('experimental-pane-badge'));
+    expect(markup.match(/>Estimated</g)).toHaveLength(4);
     expect(markup).toContain('Projected breakdown');
     expect(markup).toContain('Projected cost breakdown by horizon');
     expect(markup).toContain('<th scope="row">App compute</th>');

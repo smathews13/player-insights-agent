@@ -7,16 +7,15 @@ import {
 } from './answer-content-policy';
 
 const SCREENSHOT_CAVEATS = [
-  'No governed table was read for this answer, so it is not grounded in queried data.',
-  'Review the generated SQL and source details before using this result.',
-  'All 12 tables are untagged (no franchise label); this means franchise scope is unknown until a table is described or queried.',
+  'Optional tail was clipped at the DSF handoff bound, so some metadata fields may be incomplete.',
+  'Validation: Review the sources before using this result.',
+  'All 12 tables are declared but read access depends on the caller’s Unity Catalog grants — a declared table is not a guarantee of row-level access.',
+  'All 12 tables are untagged by franchise in the current catalog listing; franchise-scoped filtering is not available from metadata alone.',
 ];
 
 describe('reader-facing answer content policy', () => {
-  it('cleans the dataset overview without inventing SQL or source details', () => {
-    expect(normalizeReaderAnswer({ caveats: SCREENSHOT_CAVEATS, sql: '', sources: [] }).caveats).toEqual([
-      'Scope: The 12 listed tables span the configured dataset. Confirm franchise scope from table definitions before operational use.',
-    ]);
+  it('removes the screenshot banner and generic Keep in mind filler', () => {
+    expect(normalizeReaderAnswer({ caveats: SCREENSHOT_CAVEATS, sql: '', sources: [] }).caveats).toEqual([]);
   });
 
   it('handles legacy exact phrases and narrowly anchored paraphrases', () => {
@@ -52,25 +51,30 @@ describe('reader-facing answer content policy', () => {
     'This request is unsupported for streaming tables.',
     'Missing required input: choose a franchise.',
     'Data quality warning: duplicate player ids affect this total.',
+    'Franchise filtering is unreliable for this requested breakdown because 4 queried rows have no franchise tag.',
   ])('preserves a material warning: %s', (warning) => {
     expect(normalizeAnswerCaveat(warning)).toBe(warning);
   });
 
-  it('keeps generated SQL and source review conditional on evidence', () => {
-    const caveat = 'Review the generated SQL and source details before using this result.';
-    expect(normalizeAnswerCaveat(caveat, {})).toBeNull();
-    expect(normalizeAnswerCaveat(caveat, { sql: 'SELECT 1' })).toBe(
-      'Validation: Review the generated SQL before using this result.'
-    );
-    expect(normalizeAnswerCaveat(caveat, { sources: [{ name: 'main.analytics.players' }] })).toBe(
-      'Validation: Review the sources before using this result.'
-    );
+  it.each([
+    'Review the generated SQL and source details before using this result.',
+    'Validation: Review the generated SQL before using this result.',
+    'Validation: Review the sources before using this result.',
+    'Verify the sources before using the result.',
+    'Check source details.',
+  ])('removes generic validation regardless of attached evidence: %s', (caveat) => {
     expect(
       normalizeAnswerCaveat(caveat, {
         sql: 'SELECT 1',
         sources: [{ name: 'main.analytics.players' }],
       })
-    ).toBe('Validation: Review the generated SQL and sources before using this result.');
+    ).toBeNull();
+  });
+
+  it('removes a boilerplate validation prefix but preserves its concrete warning', () => {
+    expect(
+      normalizeAnswerCaveat('Validation: Query failed for main.analytics.players; retry after restoring access.')
+    ).toBe('Query failed for main.analytics.players; retry after restoring access.');
   });
 
   it('removes process-only sections while preserving quoted user content', () => {
@@ -78,6 +82,9 @@ describe('reader-facing answer content policy', () => {
       'The catalog contains 12 tables.',
       '',
       '> "No SQL was generated or executed."',
+      '> "Validation: Review the sources before using this result."',
+      '',
+      '- **Package note:** Optional detail was clipped at the DSF handoff bound.',
       '',
       '## What wasn’t done',
       'No governed table was read for this answer.',
@@ -89,6 +96,8 @@ describe('reader-facing answer content policy', () => {
     const normalized = normalizeReaderText(narrative);
     expect(normalized).toContain('The catalog contains 12 tables.');
     expect(normalized).toContain('> "No SQL was generated or executed."');
+    expect(normalized).toContain('> "Validation: Review the sources before using this result."');
+    expect(normalized).not.toContain('Package note');
     expect(normalized).not.toContain('What wasn’t done');
     expect(normalized).not.toContain('No governed table was read for this answer.');
     expect(normalized).toContain('## Next step');
@@ -98,7 +107,11 @@ describe('reader-facing answer content policy', () => {
     const raw = {
       takeaway: 'Tables available for analysis.',
       narrative: 'Use `data_dictionary` for field definitions.',
-      caveats: SCREENSHOT_CAVEATS,
+      caveats: [
+        ...SCREENSHOT_CAVEATS,
+        'Permission denied while reading main.analytics.private_players.',
+        'Permission denied while reading main.analytics.private_players!',
+      ],
       sql: '',
       sources: [],
     };
@@ -106,8 +119,9 @@ describe('reader-facing answer content policy', () => {
     const stored = normalizeReaderAnswer(JSON.parse(JSON.stringify(raw)) as typeof raw);
     expect(stored).toEqual(live);
     const exported = readerAnswerPlainText(raw);
-    expect(exported).toContain(live.caveats[0]);
-    expect(exported).not.toMatch(/no governed table|not grounded|generated SQL|source details/i);
+    expect(live.caveats).toEqual(['Permission denied while reading main.analytics.private_players.']);
+    expect(exported).toContain('Permission denied while reading main.analytics.private_players.');
+    expect(exported).not.toMatch(/partial evidence|optional tail|validation:|declared table is not|untagged/i);
   });
 
   it('turns legacy format-process narration into an actionable failure', () => {

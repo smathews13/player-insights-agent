@@ -13,6 +13,12 @@ import {
   TRAFFIC_ROLLUP_MIGRATION_DDL,
 } from './telemetry-retention';
 import { TRAFFIC_DAILY_ROLLUP_TABLE } from './ops-traffic';
+import { USER_SPEND_DAILY_TABLE, USER_SPEND_READ_MODEL_DDL, USER_SPEND_REFRESH_TABLE } from './user-spend-read-model';
+import {
+  USER_SPEND_HOURLY_READ_MODEL_DDL,
+  USER_SPEND_HOURLY_REFRESH_TABLE,
+  USER_SPEND_HOURLY_TABLE,
+} from './user-spend-hourly-read-model';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -841,6 +847,37 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     down: [
       `DROP INDEX IF EXISTS ${APP_SCHEMA}.app_budget_approvals_current_idx`,
       `DROP TABLE IF EXISTS ${APP_SCHEMA}.app_budget_approvals`,
+    ],
+  },
+  {
+    version: 31,
+    name: 'daily user spend read model',
+    /**
+     * Two new app-owned serving tables. Existing conversation, run, billing,
+     * and telemetry history stays untouched. The composite primary key makes a
+     * trailing late-data replay an idempotent correction rather than a duplicate.
+     */
+    statements: USER_SPEND_READ_MODEL_DDL,
+    down: [
+      `DROP TABLE IF EXISTS ${USER_SPEND_REFRESH_TABLE}`,
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.user_spend_daily_date_scope_idx`,
+      `DROP TABLE IF EXISTS ${USER_SPEND_DAILY_TABLE}`,
+    ],
+  },
+  {
+    version: 32,
+    name: 'hourly user spend read model',
+    /**
+     * A short-lived, content-free UTC-hour projection serves the rolling 24-hour
+     * filter without presenting one calendar day as a rolling window. It derives
+     * exact activity timing from Lakebase and allocates the finest durable daily
+     * billing basis; the quality remains partial/estimated on the wire.
+     */
+    statements: USER_SPEND_HOURLY_READ_MODEL_DDL,
+    down: [
+      `DROP TABLE IF EXISTS ${USER_SPEND_HOURLY_REFRESH_TABLE}`,
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.user_spend_hourly_hour_scope_idx`,
+      `DROP TABLE IF EXISTS ${USER_SPEND_HOURLY_TABLE}`,
     ],
   },
 ];

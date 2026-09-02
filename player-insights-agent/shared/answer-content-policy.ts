@@ -12,6 +12,8 @@
  * sections; quoted user text and fenced code are left byte-for-byte intact.
  */
 
+import { DSF_CLIP_NOTE } from './run-verdict';
+
 export interface AnswerContentEvidence {
   sql?: string | null;
   sources?: readonly unknown[] | null;
@@ -46,9 +48,17 @@ const PROCESS_ONLY_TAKEAWAY =
   /^(?:the agent did not return a structured result|no steps and no structured result were recorded|the run stopped without a structured result)[.!]?$/i;
 const INCOMPLETE_FORMAT =
   /^(?:this answer is degraded:\s*)?(?:no structured result arrived and no tool steps were recorded|the run stopped after \d+ steps? without a structured result)[.!]?$/i;
-const REVIEW_SQL_AND_SOURCES = /^review the generated sql and source details before using (?:this|the) result[.!]?$/i;
+const GENERIC_REVIEW =
+  /^(?:validation:\s*)?(?:review|verify|check)(?: the)? (?:(?:generated )?sql(?: and (?:the )?(?:source details|sources))?|source details|sources)(?: before using (?:this|the) result)?[.!]?$/i;
 const UNTAGGED_TABLE_SCOPE =
   /^(?:all|none of the) (\d+) tables? (?:are|is|have been) untagged(?: \(no franchise label\))?[;,] (?:this means )?franchise scope is unknown until (?:a|each|the) tables? (?:is|are) described or queried[.!]?$/i;
+const UNTAGGED_CATALOG_NOTE =
+  /^(?:all|none of the) \d+ tables? (?:are|is|have been) untagged(?: by franchise)? in the current catalog listing[;,—-]+ franchise-scoped filtering is not available from metadata alone[.!]?$/i;
+const DECLARED_ACCESS_NOTES = [
+  /^all \d+ tables? are declared but read access depends on the caller['’]s unity catalog grants\b.*\ba declared table is not a guarantee of row-level access[.!]?$/i,
+  /^declaring a table does not guarantee read access[;,] unity catalog grants are evaluated per query and a refusal will be named explicitly if it occurs[.!]?$/i,
+  /^these \d+ tables? are declared by the deployment[;,] unity catalog grant evaluation happens at query time, so the signed-in user may not have select access to all of them\.? any refused table will be named explicitly if a query against (?:it|them) fails[.!]?$/i,
+] as const;
 const FIGURE_LIMIT =
   /^(.+?) (?:are|is) (?:omitted from|not shown in) (?:the )?figures?(?: due to the (\d+)[- ]figure limit)?(?: but (?:are|is) included in the narrative)?[.!]?$/i;
 const FIGURE_LIMIT_RANKED =
@@ -56,13 +66,6 @@ const FIGURE_LIMIT_RANKED =
 
 const PROCESS_SECTION =
   /^(?:what (?:wasn['’]t|was not) (?:included|done)|work (?:not|wasn['’]t) (?:included|performed)|what the agent (?:didn['’]t|did not) do)$/i;
-
-function evidenceState(evidence: AnswerContentEvidence): { hasSql: boolean; hasSources: boolean } {
-  return {
-    hasSql: Boolean(evidence.sql?.trim()),
-    hasSources: (evidence.sources?.length ?? 0) > 0,
-  };
-}
 
 function generatedText(line: string): string {
   return line
@@ -81,20 +84,20 @@ function isQuotedLine(line: string): boolean {
  * One generated caveat, converted to useful scope/validation language or
  * omitted. Material failures are returned unchanged.
  */
-export function normalizeAnswerCaveat(caveat: string, evidence: AnswerContentEvidence = {}): string | null {
-  const text = caveat.trim();
+export function normalizeAnswerCaveat(caveat: string, _evidence: AnswerContentEvidence = {}): string | null {
+  let text = caveat.trim();
   if (!text) return null;
 
-  const scope = UNTAGGED_TABLE_SCOPE.exec(text);
-  if (scope) {
-    return `Scope: The ${scope[1]} listed tables span the configured dataset. Confirm franchise scope from table definitions before operational use.`;
-  }
-
-  if (REVIEW_SQL_AND_SOURCES.test(text)) {
-    const { hasSql, hasSources } = evidenceState(evidence);
-    if (hasSql && hasSources) return 'Validation: Review the generated SQL and sources before using this result.';
-    if (hasSql) return 'Validation: Review the generated SQL before using this result.';
-    if (hasSources) return 'Validation: Review the sources before using this result.';
+  // These are complete generated templates. Check them before the broader
+  // warning vocabulary: their hypothetical "access" and "may be incomplete"
+  // wording is not evidence that this answer actually failed.
+  if (
+    DSF_CLIP_NOTE.test(text) ||
+    GENERIC_REVIEW.test(text) ||
+    UNTAGGED_TABLE_SCOPE.test(text) ||
+    UNTAGGED_CATALOG_NOTE.test(text) ||
+    DECLARED_ACCESS_NOTES.some((pattern) => pattern.test(text))
+  ) {
     return null;
   }
 
@@ -113,6 +116,11 @@ export function normalizeAnswerCaveat(caveat: string, evidence: AnswerContentEvi
   if (INCOMPLETE_FORMAT.test(text)) {
     return 'This answer is degraded: the response format was incomplete. Retry the question before using this result.';
   }
+
+  // Keep concrete validation findings, but not the generated label in front of
+  // them. The issue/action is the useful part of the caveat.
+  text = text.replace(/^validation:\s*/i, '').trim();
+  if (!text) return null;
 
   // A failure or correctness warning wins over the generic "the agent could
   // not..." pattern. This preserves actual permission, query, freshness,
@@ -205,6 +213,19 @@ export function normalizeReaderText(
 /** One idempotent policy for live, stored, rendered, copied, and exported answers. */
 export function normalizeReaderAnswer<T extends ReaderAnswerContent>(answer: T): T {
   const evidence: AnswerContentEvidence = { sql: answer.sql, sources: answer.sources };
+  const normalizedCaveats = answer.caveats
+    ?.map((caveat) => normalizeAnswerCaveat(caveat, evidence))
+    .filter((caveat): caveat is string => Boolean(caveat));
+  const seen = new Set<string>();
+  const uniqueCaveats = normalizedCaveats?.filter((caveat) => {
+    const key = caveat
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   return {
     ...answer,
     ...(typeof answer.takeaway === 'string'
@@ -216,13 +237,7 @@ export function normalizeReaderAnswer<T extends ReaderAnswerContent>(answer: T):
     ...(typeof answer.content === 'string'
       ? { content: normalizeReaderText(answer.content, evidence, 'content') }
       : {}),
-    ...(answer.caveats
-      ? {
-          caveats: answer.caveats
-            .map((caveat) => normalizeAnswerCaveat(caveat, evidence))
-            .filter((caveat): caveat is string => Boolean(caveat)),
-        }
-      : {}),
+    ...(answer.caveats ? { caveats: uniqueCaveats } : {}),
   } as T;
 }
 

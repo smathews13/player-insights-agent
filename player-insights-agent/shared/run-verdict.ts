@@ -138,8 +138,7 @@ export function answerHasLanded(input: {
  * "This question was not answered." over those tables is the defect this
  * exists to stop.
  */
-export const TIME_LIMIT_TAKEAWAY =
-  'The run reached its time limit before the answer could be composed.';
+export const TIME_LIMIT_TAKEAWAY = 'The run reached its time limit before the answer could be composed.';
 
 /** The canned line that must not headline a card that already has tables. */
 export const UNANSWERED_LINE = /^this question was not answered\.?$/i;
@@ -154,14 +153,28 @@ export const WRITER_STOPPED_CAVEAT =
   /was not reachable|run limit was reached|APITimeoutError|Request timed out|time limit before the answer could be composed|time limit before any data was measured/i;
 
 /**
- * Optional DSF package clip. A finished catalog listing that still carries this
- * line has answered the question; the clip is a note, not a failed write.
+ * App-generated DSF package clipping, not a terminal outcome.
+ *
+ * These are exact template families rather than a substring search. A caveat
+ * saying that required evidence was clipped must not match merely because it
+ * also contains "DSF" or "clipped".
  */
-export const DSF_CLIP_NOTE = /optional detail was clipped at the DSF handoff bound/i;
+export const DSF_CLIP_NOTE =
+  /^(?:(?:\*\*)?package note:(?:\*\*)?\s*)?optional (?:tail|detail|metadata|bounded diagnostic) (?:was|were) clipped at the DSF handoff bound(?:, so (?:some )?metadata fields may be incomplete)?[.!]?$/i;
+
+/**
+ * A canonical statement that the answer is missing something required.
+ *
+ * Stage status remains the primary signal. This narrow caveat family covers
+ * older answers that had no terminal outcome code but explicitly recorded a
+ * required result/evidence miss. Generic review advice and optional metadata
+ * clipping intentionally do not match.
+ */
+export const REQUIRED_RESULT_MISSING_CAVEAT =
+  /^(?:(?:the )?required (?:result|evidence) (?:is|was) (?:missing|unavailable|incomplete)|missing required (?:result|evidence)|(?:the )?required (?:result|evidence) could not be (?:produced|retrieved|validated|completed))\b/i;
 
 /** Postgres form of {@link WRITER_STOPPED_CAVEAT}, bound via `__CAVEATS__`. */
-const WRITER_STOPPED_CAVEAT_SQL =
-  `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(__CAVEATS__, '[]'::jsonb)) c WHERE c ~* 'was not reachable|run limit was reached|APITimeoutError|Request timed out|time limit before the answer could be composed|time limit before any data was measured')`;
+const WRITER_STOPPED_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(__CAVEATS__, '[]'::jsonb)) c WHERE c ~* 'was not reachable|run limit was reached|APITimeoutError|Request timed out|time limit before the answer could be composed|time limit before any data was measured')`;
 
 /**
  * The takeaway a reader should see when the stored headline is unanswered
@@ -183,10 +196,8 @@ export function takeawayWhenTablesLanded(output: string, evidence: string): stri
  * finished, and that clip is a note. Only a real writer-stop caveat turns a
  * `partial` synthesis into an incomplete answer.
  */
-export function synthesisIncomplete(
-  stages: readonly VerdictStage[],
-  caveats: readonly string[] = []
-): boolean {
+export function synthesisIncomplete(stages: readonly VerdictStage[], caveats: readonly string[] = []): boolean {
+  if (caveats.some((text) => REQUIRED_RESULT_MISSING_CAVEAT.test(text.trim()))) return true;
   const synthesis = stages.find((stage) => stage.id === 'synthesis');
   if (!synthesis) return false;
   if (synthesis.status === 'failed') return true;
@@ -304,16 +315,13 @@ export function answerRunVerdict(input: {
  * is unreachable rather than tolerated; it is noted because the day a stage
  * arrives without an id, this is where the two answers part.
  */
-export const VERDICT_STAGE_EXEMPTION_SQL = VERDICT_EXEMPT_STAGE_IDS.map(
-  (id) => `&& @.id != "${id}"`
-).join(' ');
+export const VERDICT_STAGE_EXEMPTION_SQL = VERDICT_EXEMPT_STAGE_IDS.map((id) => `&& @.id != "${id}"`).join(' ');
 
 /**
  * Empty-stage predicate for the stored-run queries. A missing or empty stages
  * array is a failed turn, not a completed one.
  */
-export const EMPTY_STAGES_FAILED_SQL =
-  `(jsonb_typeof(trace->'stages') IS DISTINCT FROM 'array' OR jsonb_array_length(trace->'stages') = 0)`;
+export const EMPTY_STAGES_FAILED_SQL = `(jsonb_typeof(trace->'stages') IS DISTINCT FROM 'array' OR jsonb_array_length(trace->'stages') = 0)`;
 
 /**
  * Caveat predicate that matches {@link INCOMPLETE_ANSWER_CAVEAT} in SQL.
@@ -321,8 +329,7 @@ export const EMPTY_STAGES_FAILED_SQL =
  * Only applied when {@link ANSWER_LANDED_SQL} is false. Incomplete sources
  * and a deadline note must not flip a card that already has figures or tables.
  */
-export const INCOMPLETE_ANSWER_CAVEAT_SQL =
-  `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable|this answer is degraded|no structured result|without a structured result')`;
+export const INCOMPLETE_ANSWER_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable|this answer is degraded|no structured result|without a structured result')`;
 
 /**
  * Figures or a pipe table. Catalog inventory is markdown, not a pipe table,
@@ -394,14 +401,19 @@ export function classifiedRunStatusSql(input: { trace: string; payload: string; 
 }
 
 /**
- * "Prepared the answer" failed, or stopped short with a real writer-stop
- * caveat. Split on `__TRACE__` and `__CAVEATS__`.
+ * "Prepared the answer" failed, stopped short with a real writer-stop caveat,
+ * or the answer explicitly records missing required result/evidence. Split on
+ * `__TRACE__` and `__CAVEATS__`.
  *
  * Synthesis `partial` alone used to trip this, which painted a finished
  * 12-table catalog listing Partial whenever DSF clipped optional detail.
  */
 export const SYNTHESIS_INCOMPLETE_SQL = `(
-  jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && @.status == "failed")')
+  EXISTS (
+    SELECT 1 FROM jsonb_array_elements_text(COALESCE(__CAVEATS__, '[]'::jsonb)) c
+    WHERE c ~* '^(the )?required (result|evidence) (is|was) (missing|unavailable|incomplete)|^missing required (result|evidence)|^(the )?required (result|evidence) could not be (produced|retrieved|validated|completed)'
+  )
+  OR jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && @.status == "failed")')
   OR (
     jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && @.status == "partial")')
     AND ${WRITER_STOPPED_CAVEAT_SQL}
@@ -414,5 +426,4 @@ export function bindSynthesisIncompleteSql(trace: string, caveats: string): stri
 }
 
 /** Deadline / early-stop only, for the stored `truncated` flag. */
-export const DEADLINE_TRUNCATED_SQL =
-  `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early')`;
+export const DEADLINE_TRUNCATED_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early')`;

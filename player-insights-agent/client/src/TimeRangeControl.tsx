@@ -26,6 +26,37 @@ export interface TimeRangeControlProps {
   className?: string;
 }
 
+export function TimeRangeSegments({
+  page,
+  value,
+  onChange,
+  className,
+}: {
+  page: string;
+  value: RangeKey;
+  onChange: (value: RangeKey) => void;
+  className?: string;
+}) {
+  return (
+    <div className={className ? `time-range ${className}` : 'time-range'}>
+      <div className="time-range-segments" role="radiogroup" aria-label={`Time range for ${page}`}>
+        {RANGE_SEGMENTS.map((segment) => (
+          <button
+            key={segment.key}
+            type="button"
+            role="radio"
+            aria-checked={value === segment.key}
+            className="time-range-segment"
+            onClick={() => onChange(segment.key)}
+          >
+            {segment.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function TimeRangeControl({ page, className }: TimeRangeControlProps) {
   const [params, setParams] = useSearchParams();
   const active = rangeFromParams(params);
@@ -50,29 +81,5 @@ export function TimeRangeControl({ page, className }: TimeRangeControlProps) {
     setParams(new URLSearchParams(next), { replace: false });
   };
 
-  return (
-    <div className={className ? `time-range ${className}` : 'time-range'}>
-      {/* A radio group rather than a row of buttons: exactly one is chosen at a
-          time, and that is what `radiogroup` means to a screen reader. Buttons
-          would each announce as an independent action and leave the reader to
-          work out that pressing one un-presses another. */}
-      <div className="time-range-segments" role="radiogroup" aria-label={`Time range for ${page}`}>
-        {RANGE_SEGMENTS.map((segment) => (
-          <button
-            key={segment.key}
-            type="button"
-            role="radio"
-            aria-checked={active === segment.key}
-            className="time-range-segment"
-            // The painted state and the announced state are one attribute read
-            // twice rather than two attributes that can disagree: the active
-            // fill in the stylesheet is selected on `[aria-checked='true']`.
-            onClick={() => choose(segment.key)}
-          >
-            {segment.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  return <TimeRangeSegments page={page} value={active} onChange={choose} className={className} />;
 }

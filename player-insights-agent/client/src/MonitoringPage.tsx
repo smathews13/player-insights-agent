@@ -31,12 +31,13 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useOutletContext, useSearchParams } from 'react-router';
-import { ArrowLeft, ChevronRight, Search, ThumbsDown, ThumbsUp, Users, WalletCards, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ChevronRight, Search, ThumbsDown, ThumbsUp, Users, X } from 'lucide-react';
 import { astPill, type AstPillFamily } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
 import { Button, Input, Skeleton } from './ui';
 import { AppSelect } from './AppSelect';
 import { ConceptFlicker } from './ConceptFlicker';
+import { AstrolabeMark } from './AstrolabeMark';
 import { showsAdminSurfaces, type AppOutletContext } from './role';
 import { PageHeading } from './page-chrome';
 import { RefreshControl } from './RefreshControl';
@@ -51,6 +52,8 @@ import { UnitSegmentedControl } from './UnitSegmentedControl';
 import { RoleBadgePill } from './RoleBadge';
 import { identityName } from './user-identity';
 import type { Answer, FeedbackEntry } from './app-types';
+import { tokenTotalUsageView } from './token-usage-view';
+import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
 import {
   answerTimeTile,
   askedAtLabel,
@@ -100,7 +103,7 @@ import {
   type MonitoringFilters,
 } from './monitoring-filters';
 // Shared with Ops, so the two tabs cannot be over different windows.
-import { TimeRangeControl } from './TimeRangeControl';
+import { TimeRangeControl, TimeRangeSegments } from './TimeRangeControl';
 import './styles/routes/monitoring.css';
 import {
   monitoringPageForOwner,
@@ -119,7 +122,7 @@ import {
   resolvePanelLoad,
   type PanelLoadState,
 } from './monitoring-detail-state';
-import { rangeLabel, rangeWindow } from './time-range';
+import { rangeFromParams, rangeLabel, rangeWindow, type RangeKey } from './time-range';
 import type {
   MonitoringDetail,
   MonitoringPagination,
@@ -129,13 +132,14 @@ import type {
 } from '../../shared/monitoring-contract';
 import type { OpsCostPayload } from '../../shared/ops-contract';
 import type { UserSpendKpi } from '../../shared/user-spend-contract';
+import { deriveCoreUserSpendMetrics } from '../../shared/user-spend-metrics';
 import {
   USER_MONITORING_SCHEMA_REVISION,
   type UserMonitoringPayload,
   type UserMonitoringRow,
 } from '../../shared/user-monitoring-contract';
 import { ROLE_WORD, isRole, type Role } from '../../shared/user-roster-contract';
-import { decodeUserMonitoringCostPayload } from './user-monitoring-payload';
+import { decodeUserMonitoringCostPayload, decodeUserSpendPayload } from './user-monitoring-payload';
 import {
   cacheUserSpendTotal,
   cachedUserSpendTotal,
@@ -608,6 +612,15 @@ function RatingMark({ rating }: { rating: 'up' | 'down' | null }) {
   return <span className="sr-only">Not rated</span>;
 }
 
+function TotalTokens({ value }: { value: number | null }) {
+  const tokens = tokenTotalUsageView(value);
+  return (
+    <span className="monitoring-token-total ast-num" title={tokens.exactLabel} aria-label={tokens.exactLabel}>
+      {tokens.compact}
+    </span>
+  );
+}
+
 function QuestionRow({
   question,
   selected,
@@ -671,6 +684,9 @@ function QuestionRow({
         here that could produce one.
       */}
       <td className="monitoring-numeric ast-num">{formatDuration(question.durationMs) ?? ''}</td>
+      <td className="monitoring-numeric monitoring-token-cell">
+        <TotalTokens value={question.totalTokens} />
+      </td>
       <td className="monitoring-numeric ast-num">{question.toolCalls === null ? '' : question.toolCalls}</td>
       <td>
         <RatingMark rating={question.rating} />
@@ -727,6 +743,9 @@ function QuestionCard({
             Time <span className="ast-num">{formatDuration(question.durationMs)}</span>
           </span>
         ) : null}
+        <span>
+          Total tokens <TotalTokens value={question.totalTokens} />
+        </span>
         {question.toolCalls !== null ? (
           <span>
             Tools <span className="ast-num">{question.toolCalls}</span>
@@ -800,6 +819,9 @@ export function QuestionList({
           </th>
           <th scope="col" className="monitoring-numeric monitoring-col-time">
             Time
+          </th>
+          <th scope="col" className="monitoring-numeric monitoring-col-tokens">
+            Total tokens
           </th>
           <th scope="col" className="monitoring-numeric monitoring-col-tools">
             Tools
@@ -981,17 +1003,23 @@ export function QuestionDrawer({
           <a href={detail.mlflowUrl} target="_blank" rel="noreferrer">
             {/* Sized by height, not boxed: MLflow is published as a wordmark. */}
             <BrandIcon product="mlflow" size={12} />
-            Open the MLflow trace ↗
+            Open the MLflow trace
+            <ArrowUpRight className="monitoring-link-arrow size-3.5" aria-hidden="true" />
           </a>
         ) : null}
-        {detail.runId ? <Link to={`/runs?run=${encodeURIComponent(detail.runId)}`}>Open in Run Explorer</Link> : null}
+        {detail.runId ? (
+          <Link to={`/runs?run=${encodeURIComponent(detail.runId)}`}>
+            Open in Run Explorer
+            <ArrowUpRight className="monitoring-link-arrow size-3.5" aria-hidden="true" />
+          </Link>
+        ) : null}
         {/* The shared identity chip is the whole control: one accessible name,
               no nested button, and no possessive activity sentence. It writes the
               canonical `who` URL as a normal router entry, so Back restores this
               question and its filters. Unknown/system actors stay plain content,
               and the explicit gate keeps the same chip non-interactive when the
               reader cannot open User Monitoring. */}
-        <UserDrilldownLink identity={detail.askedBy} compact canOpen={canOpenUser} />
+        <UserDrilldownLink identity={detail.askedBy} compact canOpen={canOpenUser} showArrow />
       </div>
 
       {detail.conditioning ? (
@@ -1009,7 +1037,14 @@ export function QuestionDrawer({
           onFeedbackChange={() => {}}
           saveFeedback={async () => {}}
           showFeedback={false}
-          afterEvidence={tokensNote(detail.tokens)}
+          runProcessVariant="monitoring"
+          afterEvidence={
+            isMlflowTraceId(answer.trace.id) &&
+            answer.trace.stages.length > 0 &&
+            answer.trace.total_tokens !== undefined
+              ? undefined
+              : tokensNote(detail.tokens)
+          }
           headerExtra={<UserIdentityChip identity={detail.askedBy} label="Asked by" compact />}
         />
       ) : (
@@ -1154,9 +1189,8 @@ export function TablesReadMost({ rows }: { rows: PersonPanelPayload['tablesReadM
 }
 
 function spendFigure(amount: number, unit: 'USD' | 'DBU', currency = 'USD'): string {
-  return unit === 'DBU'
-    ? `${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DBU`
-    : `${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || 'USD'}`;
+  const formatted = amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+  return unit === 'DBU' ? `${formatted} DBU` : `${formatted} ${currency || 'USD'}`;
 }
 
 function spendMetricFigure(
@@ -1196,7 +1230,7 @@ function SpendMetric({
           ? 'negative'
           : 'flat'
       : '';
-  const figure = spendMetricFigure(metric, kind, unit, currency);
+  const figure = metric.state === 'unavailable' ? metric.subtitle : spendMetricFigure(metric, kind, unit, currency);
   return (
     <div className="user-profile-modal-spend-kpi">
       <span className="user-profile-modal-spend-kpi-label">{label}</span>
@@ -1206,7 +1240,22 @@ function SpendMetric({
       >
         {figure}
       </strong>
-      <span className="user-profile-modal-spend-kpi-subtitle">{metric.subtitle}</span>
+      {metric.state === 'unavailable' ? null : (
+        <span className="user-profile-modal-spend-kpi-subtitle">{metric.subtitle}</span>
+      )}
+    </div>
+  );
+}
+
+function LoadingSpendMetric({ label, animated = false }: { label: string; animated?: boolean }) {
+  return (
+    <div className="user-profile-modal-spend-kpi user-profile-modal-spend-kpi-loading">
+      {animated ? (
+        <ConceptFlicker seat="inline" />
+      ) : (
+        <AstrolabeMark size={16} ink="light" className="user-profile-modal-spend-static-mark" />
+      )}
+      <span>{label}</span>
     </div>
   );
 }
@@ -1224,10 +1273,19 @@ export function PersonSpend({
 }) {
   if (state.status === 'loading' || state.status === 'idle') {
     return (
-      <div role="status" aria-live="polite" className="user-profile-modal-spend-loading" aria-busy="true">
-        <WalletCards className="user-profile-modal-spend-loading-icon ast-anim-center-pulse" aria-hidden="true" />
-        <span>Loading user spend</span>
-      </div>
+      <section className="user-profile-modal-spend" aria-busy="true">
+        <span className="sr-only" role="status" aria-live="polite">
+          Calculating user spend metrics
+        </span>
+        <div className="user-profile-modal-spend-kpis">
+          <LoadingSpendMetric label="Loading user spend" animated />
+          <LoadingSpendMetric label="Calculating cost per question" />
+          <LoadingSpendMetric label="Calculating daily spend" />
+          <LoadingSpendMetric label="Calculating share of app spend" />
+          <LoadingSpendMetric label="Calculating week over week" />
+          <LoadingSpendMetric label="Calculating month over month" />
+        </div>
+      </section>
     );
   }
   if (state.status === 'error') return null;
@@ -1236,6 +1294,16 @@ export function PersonSpend({
   const reading = unit === 'USD' ? profile?.total.usd : profile?.total.dbu;
   if (!profile || reading?.amount === null || reading?.amount === undefined || !Number.isFinite(reading.amount))
     return null;
+  const authoritative = profile.metrics?.unit === unit ? profile.metrics : null;
+  const core = deriveCoreUserSpendMetrics({
+    amount: reading.amount,
+    questions: authoritative?.questions ?? null,
+    coveredDays: authoritative?.coveredDays ?? null,
+    unit,
+  });
+  const costPerQuestion =
+    authoritative?.costPerQuestion.state === 'value' ? authoritative.costPerQuestion : core.costPerQuestion;
+  const averageDaily = authoritative?.averageDaily.state === 'value' ? authoritative.averageDaily : core.averageDaily;
   const estimated = reading.quality === 'allocated' || reading.quality === 'partial';
   return (
     <section
@@ -1254,47 +1322,67 @@ export function PersonSpend({
           </strong>
           <span className="user-profile-modal-spend-kpi-subtitle">{estimated ? 'Estimated' : 'Attributable'}</span>
         </div>
-        {profile.metrics?.unit === unit ? (
-          <>
-            <SpendMetric
-              label="Cost / question"
-              metric={profile.metrics.costPerQuestion}
-              kind="spend"
-              unit={unit}
-              currency={state.data.currency}
-            />
-            <SpendMetric
-              label="Average daily spend"
-              metric={profile.metrics.averageDaily}
-              kind="spend"
-              unit={unit}
-              currency={state.data.currency}
-            />
-            <SpendMetric
-              label="Share of app spend"
-              metric={profile.metrics.appShare}
-              kind="percent"
-              unit={unit}
-              currency={state.data.currency}
-            />
-            <SpendMetric
-              label="Week over week"
-              metric={profile.metrics.weekOverWeek}
-              kind="growth"
-              unit={unit}
-              currency={state.data.currency}
-            />
-            <SpendMetric
-              label="Month over month"
-              metric={profile.metrics.monthOverMonth}
-              kind="growth"
-              unit={unit}
-              currency={state.data.currency}
-            />
-          </>
+        {refreshing && costPerQuestion.state === 'unavailable' ? (
+          <LoadingSpendMetric label="Calculating cost per question" />
+        ) : (
+          <SpendMetric
+            label="Cost / question"
+            metric={costPerQuestion}
+            kind="spend"
+            unit={unit}
+            currency={state.data.currency}
+          />
+        )}
+        {refreshing && averageDaily.state === 'unavailable' ? (
+          <LoadingSpendMetric label="Calculating daily spend" />
+        ) : (
+          <SpendMetric
+            label="Average daily spend"
+            metric={averageDaily}
+            kind="spend"
+            unit={unit}
+            currency={state.data.currency}
+          />
+        )}
+        {refreshing && (!authoritative || authoritative.appShare.state === 'unavailable') ? (
+          <LoadingSpendMetric label="Calculating share of app spend" animated />
+        ) : authoritative ? (
+          <SpendMetric
+            label="Share of app spend"
+            metric={authoritative.appShare}
+            kind="percent"
+            unit={unit}
+            currency={state.data.currency}
+          />
+        ) : null}
+        {refreshing && (!authoritative || authoritative.weekOverWeek.state === 'unavailable') ? (
+          <LoadingSpendMetric label="Calculating week over week" />
+        ) : authoritative ? (
+          <SpendMetric
+            label="Week over week"
+            metric={authoritative.weekOverWeek}
+            kind="growth"
+            unit={unit}
+            currency={state.data.currency}
+          />
+        ) : null}
+        {refreshing && (!authoritative || authoritative.monthOverMonth.state === 'unavailable') ? (
+          <LoadingSpendMetric label="Calculating month over month" />
+        ) : authoritative ? (
+          <SpendMetric
+            label="Month over month"
+            metric={authoritative.monthOverMonth}
+            kind="growth"
+            unit={unit}
+            currency={state.data.currency}
+          />
         ) : null}
       </div>
-      {refreshing ? <span className="user-profile-modal-refreshing">Refreshing…</span> : null}
+      {refreshing ? (
+        <span className="sr-only" role="status" aria-live="polite">
+          Calculating remaining user spend metrics
+        </span>
+      ) : null}
     </section>
   );
 }
@@ -1427,7 +1515,7 @@ export function PersonPanel({
         <div className="user-profile-modal-header-content">
           {onBack ? (
             <Button variant="ghost" size="sm" className="user-profile-modal-back" onClick={onBack}>
-              <ArrowLeft aria-hidden="true" />
+              <ArrowLeft className="monitoring-link-arrow size-3.5" aria-hidden="true" />
               Back to all users
             </Button>
           ) : null}
@@ -1624,7 +1712,7 @@ export function PersonPanelShell({
         <div className="user-profile-modal-header-content">
           {onBack ? (
             <Button variant="ghost" size="sm" className="user-profile-modal-back" onClick={onBack}>
-              <ArrowLeft aria-hidden="true" />
+              <ArrowLeft className="monitoring-link-arrow size-3.5" aria-hidden="true" />
               Back to all users
             </Button>
           ) : null}
@@ -1690,6 +1778,7 @@ export function UserMonitoringPanel({
   onSearch,
   onRole,
   onPersona = () => {},
+  onRange,
   onUnit,
   onClear,
   onNext,
@@ -1698,7 +1787,7 @@ export function UserMonitoringPanel({
   cacheKey = '',
 }: {
   state: PanelLoadState<OpsCostPayload>;
-  browser: ReturnType<typeof userBrowserFromParams>;
+  browser: ReturnType<typeof userBrowserFromParams> & { range: RangeKey };
   rangeLabel: string;
   now: number;
   onClose: () => void;
@@ -1706,6 +1795,7 @@ export function UserMonitoringPanel({
   onSearch: (search: string) => void;
   onRole: (role: string) => void;
   onPersona?: (persona: string) => void;
+  onRange: (range: RangeKey) => void;
   onUnit: (unit: 'USD' | 'DBU') => void;
   onClear: () => void;
   onNext: (cursor: string) => void;
@@ -1769,6 +1859,7 @@ export function UserMonitoringPanel({
               { value: 'consumer', label: 'Consumer' },
             ]}
             onValueChange={(role) => onRole(role === NO_FILTER ? '' : role)}
+            contentClassName="monitoring-users-filter-menu"
           />
           <AppSelect
             label="Persona"
@@ -1782,8 +1873,9 @@ export function UserMonitoringPanel({
               })),
             ]}
             onValueChange={(persona) => onPersona(persona === NO_FILTER ? '' : persona)}
+            contentClassName="monitoring-users-filter-menu"
           />
-          <TimeRangeControl page="User Monitoring" />
+          <TimeRangeSegments page="User Monitoring" value={browser.range} onChange={onRange} />
           <UnitSegmentedControl
             unit={browser.unit}
             onChange={onUnit}
@@ -2117,11 +2209,13 @@ function usePanelRequest<T>(
   url: string,
   errorMessage: string,
   cacheScope = 'session',
-  decode: (value: unknown) => T = decodePanelData
+  decode: (value: unknown) => T = decodePanelData,
+  retainAcrossKeys = false
 ) {
   const [state, setState] = useState<PanelLoadState<T>>(() => idlePanel<T>());
   const [attempt, setAttempt] = useState(0);
   const [refreshingKey, setRefreshingKey] = useState('');
+  const lastReady = useRef<T | null>(null);
   const scopedKey = key ? `${cacheScope}|${key}` : '';
 
   useEffect(() => {
@@ -2141,14 +2235,16 @@ function usePanelRequest<T>(
       }
     }
     if (cached && !retained) panelCache.delete(scopedKey);
+    const presented = retained ?? (retainAcrossKeys ? lastReady.current : null);
+    if (presented) lastReady.current = presented;
     setState(
-      retained ? { status: 'ready', key, requestId, data: retained, error: null } : beginPanelLoad<T>(key, requestId)
+      presented ? { status: 'ready', key, requestId, data: presented, error: null } : beginPanelLoad<T>(key, requestId)
     );
     if (retained && attempt === 0) {
       setRefreshingKey('');
       return () => controller.abort();
     }
-    setRefreshingKey(retained ? key : '');
+    setRefreshingKey(presented ? key : '');
 
     void fetch(url, { signal: controller.signal })
       .then(async (response) => {
@@ -2156,6 +2252,7 @@ function usePanelRequest<T>(
         return decode(await response.json());
       })
       .then((data) => {
+        lastReady.current = data;
         cachePanel(scopedKey, data);
         setState((current) => resolvePanelLoad(current, key, requestId, data));
       })
@@ -2170,7 +2267,7 @@ function usePanelRequest<T>(
       .finally(() => setRefreshingKey((current) => (current === key ? '' : current)));
 
     return () => controller.abort();
-  }, [attempt, decode, errorMessage, key, scopedKey, url]);
+  }, [attempt, decode, errorMessage, key, retainAcrossKeys, scopedKey, url]);
 
   // Effects start after render. Mask a completed prior key synchronously so a
   // URL/range change cannot paint old-range data under the new range label for
@@ -2185,15 +2282,60 @@ function usePanelRequest<T>(
 
 function spendPayloadFromCache(coordinates: UserSpendTotalCoordinates, cached: CachedUserSpendTotal): OpsCostPayload {
   const unavailable = { amount: null, quality: 'unavailable' as const };
+  const unavailableMetric = { value: null, state: 'unavailable' as const, subtitle: 'No comparable period' };
   const selected = { amount: cached.amount, quality: cached.quality };
-  const profile = cached.profile ?? {
-    email: coordinates.email,
-    total: {
-      usd: coordinates.unit === 'USD' ? selected : unavailable,
-      dbu: coordinates.unit === 'DBU' ? selected : unavailable,
-    },
-    components: [],
-  };
+  const core = deriveCoreUserSpendMetrics({
+    amount: cached.amount,
+    questions: cached.questions,
+    coveredDays: cached.coveredDays,
+    unit: coordinates.unit,
+  });
+  const cachedProfile = cached.profile;
+  const cachedReading = coordinates.unit === 'USD' ? cachedProfile?.total.usd : cachedProfile?.total.dbu;
+  const profile = cachedProfile
+    ? {
+        ...cachedProfile,
+        total: {
+          ...cachedProfile.total,
+          [coordinates.unit === 'USD' ? 'usd' : 'dbu']:
+            cachedReading?.amount === null && cached.amount !== null ? selected : cachedReading,
+        },
+        metrics:
+          cachedProfile.metrics?.unit === coordinates.unit
+            ? {
+                ...cachedProfile.metrics,
+                questions:
+                  !cached.complete &&
+                  (cachedProfile.metrics.questions === null || cachedProfile.metrics.questions === 0)
+                    ? cached.questions
+                    : cachedProfile.metrics.questions,
+                coveredDays:
+                  !cached.complete &&
+                  (cachedProfile.metrics.coveredDays === null || cachedProfile.metrics.coveredDays === 0)
+                    ? cached.coveredDays
+                    : cachedProfile.metrics.coveredDays,
+              }
+            : cachedProfile.metrics,
+      }
+    : {
+        email: coordinates.email,
+        total: {
+          usd: coordinates.unit === 'USD' ? selected : unavailable,
+          dbu: coordinates.unit === 'DBU' ? selected : unavailable,
+        },
+        metrics: {
+          unit: coordinates.unit,
+          questions: cached.questions,
+          coveredDays: cached.coveredDays,
+          costPerQuestion: core.costPerQuestion,
+          averageDaily: core.averageDaily,
+          appShare: { ...unavailableMetric, subtitle: 'No comparable app total' },
+          weekOverWeek: unavailableMetric,
+          monthOverMonth: unavailableMetric,
+          comparisonFreshness: '',
+        },
+        components: [],
+      };
   return {
     currency: cached.currency,
     spendByUser: {
@@ -2253,7 +2395,7 @@ function useUserSpendRequest(coordinates: UserSpendTotalCoordinates | null, url:
     void requestUserSpendTotal(stableCoordinates, async () => {
       const response = await fetch(url);
       if (!response.ok) throw new Error(response.status === 403 ? 'forbidden' : `http_${response.status}`);
-      const payload = (await response.json()) as OpsCostPayload;
+      const payload = decodeUserSpendPayload(await response.json());
       const spend = payload.spendByUser;
       const profile =
         spend?.users.find((candidate) => candidate.email.toLowerCase() === stableCoordinates.email.toLowerCase()) ??
@@ -2262,11 +2404,18 @@ function useUserSpendRequest(coordinates: UserSpendTotalCoordinates | null, url:
       return {
         amount: reading?.amount ?? null,
         quality: reading?.quality ?? 'unavailable',
+        questions: profile?.metrics?.questions ?? 0,
+        coveredDays: profile?.metrics?.coveredDays ?? 0,
         currency: payload.currency,
         profile,
         dataRevision: spend?.dataRevision ?? 0,
         snapshot: `${spend?.readAt ?? new Date().toISOString()}|${profile?.metrics?.comparisonFreshness ?? ''}`,
         seeded: false,
+        complete:
+          spend?.state === 'ready' &&
+          profile?.metrics?.unit === stableCoordinates.unit &&
+          profile.metrics.questions !== null &&
+          profile.metrics.coveredDays !== null,
       };
     })
       .then((value) => {
@@ -2358,8 +2507,24 @@ export function MonitoringPage() {
 
   const filters = filtersFromParams(searchParams);
   const drawer = drawerFromParams(searchParams);
-  const userBrowser = userBrowserFromParams(searchParams);
+  const routedUserBrowser = userBrowserFromParams(searchParams);
+  const [userControls, setUserControls] = useState(() => ({
+    search: routedUserBrowser.search,
+    role: routedUserBrowser.role,
+    persona: routedUserBrowser.persona ?? '',
+    unit: routedUserBrowser.unit,
+    range: rangeFromParams(searchParams),
+    cursors: [''],
+    cursorIndex: 0,
+  }));
+  const userBrowser = {
+    ...userControls,
+    open: routedUserBrowser.open,
+    cursor: userControls.cursors[userControls.cursorIndex] ?? '',
+  };
   const window_ = rangeWindow(searchParams, now);
+  const userWindow = rangeWindow({ get: (name) => (name === 'range' ? userBrowser.range : null) }, now);
+  const profileWindow = userBrowser.open ? userWindow : window_;
   const periodLabel = rangeLabel(searchParams);
   const rangeId = monitoringRangeId(searchParams);
   const filterKey = JSON.stringify(filters);
@@ -2381,7 +2546,7 @@ export function MonitoringPage() {
     rememberMonitoringSearch(location.search);
   }, [location.search]);
 
-  const personOwner = `${drawer.person.toLowerCase()}|${window_.from}|${window_.to}|${filterKey}`;
+  const personOwner = `${drawer.person.toLowerCase()}|${profileWindow.from}|${profileWindow.to}|${filterKey}`;
   const [personPages, setPersonPages] = useState<CursorPages>({
     owner: personOwner,
     cursors: [''],
@@ -2398,50 +2563,51 @@ export function MonitoringPage() {
     cacheScope
   );
   const personKey = drawer.person
-    ? monitoringDetailKey('person', drawer.person, window_.from, window_.to, personCursor)
+    ? monitoringDetailKey('person', drawer.person, profileWindow.from, profileWindow.to, personCursor)
     : '';
   const personRequest = usePanelRequest<PersonPanelPayload>(
     personKey,
-    drawer.person ? personDetailUrl(drawer.person, window_.from, window_.to, filters, personCursor) : '',
+    drawer.person ? personDetailUrl(drawer.person, profileWindow.from, profileWindow.to, filters, personCursor) : '',
     'User activity could not be loaded.',
     cacheScope
   );
-  const spendParams = new URLSearchParams({ from: window_.from, to: window_.to, unit: userBrowser.unit });
-  if (drawer.person) spendParams.set('spendUser', drawer.person);
+  const spendParams = new URLSearchParams({ from: profileWindow.from, to: profileWindow.to, unit: userBrowser.unit });
+  if (userBrowser.range === '24h') spendParams.set('window', '24h');
   const personSpendCoordinates = drawer.person
     ? {
         scope: cacheScope,
         email: drawer.person,
-        from: window_.from,
-        to: window_.to,
+        from: profileWindow.from,
+        to: profileWindow.to,
         unit: userBrowser.unit,
       }
     : null;
   const personSpendRequest = useUserSpendRequest(
     personSpendCoordinates,
-    drawer.person ? `/api/ops/cost?${spendParams.toString()}` : ''
+    drawer.person ? `/api/monitoring/user-spend/${encodeURIComponent(drawer.person)}?${spendParams.toString()}` : ''
   );
   const userBrowserParams = new URLSearchParams({
-    from: window_.from,
-    to: window_.to,
-    userBrowse: '1',
+    from: userWindow.from,
+    to: userWindow.to,
     unit: userBrowser.unit,
     pageSize: '25',
   });
-  if (userBrowser.search) userBrowserParams.set('userSearch', userBrowser.search);
+  if (userBrowser.range === '24h') userBrowserParams.set('window', '24h');
+  if (userBrowser.search) userBrowserParams.set('q', userBrowser.search);
   if (userBrowser.role) userBrowserParams.set('role', userBrowser.role);
   if (userBrowser.persona) userBrowserParams.set('persona', userBrowser.persona);
-  if (userBrowser.cursor) userBrowserParams.set('userCursor', userBrowser.cursor);
+  if (userBrowser.cursor) userBrowserParams.set('cursor', userBrowser.cursor);
   const userBrowserKey =
     userBrowser.open && !drawer.person
-      ? `users|v${USER_MONITORING_SCHEMA_REVISION}|${window_.from}|${window_.to}|${userBrowser.unit}|${userBrowser.search}|${userBrowser.role}|${userBrowser.persona}|${userBrowser.cursor}|25`
+      ? `users|v${USER_MONITORING_SCHEMA_REVISION}|${userWindow.from}|${userWindow.to}|${userBrowser.unit}|${userBrowser.search}|${userBrowser.role}|${userBrowser.persona}|${userBrowser.cursor}|25`
       : '';
   const userBrowserRequest = usePanelRequest<OpsCostPayload>(
     userBrowserKey,
-    userBrowserKey ? `/api/ops/cost?${userBrowserParams.toString()}` : '',
+    userBrowserKey ? `/api/monitoring/user-spend?${userBrowserParams.toString()}` : '',
     'User Monitoring could not be loaded.',
     cacheScope,
-    decodeUserMonitoringCostPayload
+    decodeUserMonitoringCostPayload,
+    true
   );
 
   /**
@@ -2485,20 +2651,25 @@ export function MonitoringPage() {
   const userBrowserUnit = userBrowser.unit;
   const openUsers = () => {
     scroll.current.capture(typeof globalThis.scrollY === 'number' ? globalThis.scrollY : 0);
+    setUserControls((current) => ({
+      ...current,
+      range: rangeFromParams(searchParams),
+      cursors: [''],
+      cursorIndex: 0,
+    }));
     void navigate({ search: openUserBrowser(location.search, userBrowserUnit) });
   };
 
-  const updateUserBrowser = useCallback(
-    (name: 'userSearch' | 'userRole' | 'userPersona' | 'userUnit' | 'userCursor', value: string) => {
-      const next = new URLSearchParams(location.search);
-      next.set('users', '1');
-      if (value) next.set(name, value);
-      else next.delete(name);
-      if (name !== 'userCursor') next.delete('userCursor');
-      void navigate({ search: next.toString() }, { replace: name === 'userSearch' });
-    },
-    [location.search, navigate]
-  );
+  const updateUserBrowser = (
+    updates: Partial<Pick<typeof userControls, 'search' | 'role' | 'persona' | 'unit' | 'range'>>
+  ) => {
+    setUserControls((current) => ({
+      ...current,
+      ...updates,
+      cursors: [''],
+      cursorIndex: 0,
+    }));
+  };
 
   // A filter change rewrites only the filter parameters. Everything else in the
   // URL, including the range and an open drawer, is copied across.
@@ -2584,7 +2755,7 @@ export function MonitoringPage() {
           spendRefreshing={personSpendRequest.refreshing}
           email={drawer.person}
           now={now}
-          rangeLabel={window_.label}
+          rangeLabel={profileWindow.label}
           page={personPage}
           onClose={userBrowser.open ? closeUserMonitoring : close}
           onBack={userBrowser.open ? () => void navigate({ search: backToUserBrowser(location.search) }) : undefined}
@@ -2617,7 +2788,7 @@ export function MonitoringPage() {
         <UserMonitoringPanel
           state={userBrowserRequest.state}
           browser={userBrowser}
-          rangeLabel={window_.label}
+          rangeLabel={userWindow.label}
           now={now}
           onClose={closeUserMonitoring}
           onOpenUser={(user) => {
@@ -2634,36 +2805,49 @@ export function MonitoringPage() {
               {
                 scope: cacheScope,
                 email: user.email,
-                from: window_.from,
-                to: window_.to,
+                from: userWindow.from,
+                to: userWindow.to,
                 unit: userBrowser.unit,
               },
               {
                 amount: reading.amount,
                 quality: reading.quality,
+                questions: user.questions,
+                coveredDays: user.coveredDays,
                 currency: userBrowserRequest.state.status === 'ready' ? userBrowserRequest.state.data.currency : '',
                 profile: null,
                 dataRevision: monitoring?.dataRevision ?? 0,
                 snapshot: `${monitoring?.readAt ?? new Date().toISOString()}|list`,
                 seeded: true,
+                complete: false,
               }
             );
             void navigate({ search: openUserFromBrowser(location.search, user.email) });
           }}
-          onSearch={(search) => updateUserBrowser('userSearch', search)}
-          onRole={(role) => updateUserBrowser('userRole', role)}
-          onPersona={(persona) => updateUserBrowser('userPersona', persona)}
-          onUnit={(unit) => updateUserBrowser('userUnit', unit)}
-          onClear={() => {
-            const next = new URLSearchParams(location.search);
-            next.delete('userSearch');
-            next.delete('userRole');
-            next.delete('userPersona');
-            next.delete('userCursor');
-            void navigate({ search: next.toString() }, { replace: true });
-          }}
-          onNext={(cursor) => updateUserBrowser('userCursor', cursor)}
-          onPrevious={() => void navigate(-1)}
+          onSearch={(search) => updateUserBrowser({ search })}
+          onRole={(role) => updateUserBrowser({ role })}
+          onPersona={(persona) => updateUserBrowser({ persona })}
+          onRange={(range) => updateUserBrowser({ range })}
+          onUnit={(unit) => updateUserBrowser({ unit })}
+          onClear={() =>
+            setUserControls((current) => ({
+              ...current,
+              search: '',
+              role: '',
+              persona: '',
+              cursors: [''],
+              cursorIndex: 0,
+            }))
+          }
+          onNext={(cursor) =>
+            setUserControls((current) => {
+              const cursors = current.cursors.slice(0, current.cursorIndex + 1);
+              return { ...current, cursors: [...cursors, cursor], cursorIndex: cursors.length };
+            })
+          }
+          onPrevious={() =>
+            setUserControls((current) => ({ ...current, cursorIndex: Math.max(0, current.cursorIndex - 1) }))
+          }
           refreshing={userBrowserRequest.refreshing}
           cacheKey={`${cacheScope}|${userBrowserKey}`}
         />

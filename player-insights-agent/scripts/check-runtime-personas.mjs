@@ -7,17 +7,25 @@ const PUBLIC_PERSONAS = [
   {
     id: 'business-analyst',
     markers: [
-      'id: "business-analyst"',
-      'displayName: "Business Analyst"',
-      'roleSummary: "Read-only analyst for governed performance and player investigation."',
+      { label: 'id: "business-analyst"', pattern: /\bid\s*:\s*["']business-analyst["']/g },
+      { label: 'displayName: "Business Analyst"', pattern: /\bdisplayName\s*:\s*["']Business Analyst["']/g },
+      {
+        label: 'roleSummary: "Read-only analyst for governed performance and player investigation."',
+        pattern: /\broleSummary\s*:\s*["']Read-only analyst for governed performance and player investigation\.["']/g,
+      },
     ],
   },
   {
     id: 'marketing-scientist',
     markers: [
-      'id: "marketing-scientist"',
-      'displayName: "Marketing Scientist"',
-      'roleSummary: "Read-only marketing scientist for governed audience, purchase, and player-profile analysis."',
+      { label: 'id: "marketing-scientist"', pattern: /\bid\s*:\s*["']marketing-scientist["']/g },
+      { label: 'displayName: "Marketing Scientist"', pattern: /\bdisplayName\s*:\s*["']Marketing Scientist["']/g },
+      {
+        label:
+          'roleSummary: "Read-only marketing scientist for governed audience, purchase, and player-profile analysis."',
+        pattern:
+          /\broleSummary\s*:\s*["']Read-only marketing scientist for governed audience, purchase, and player-profile analysis\.["']/g,
+      },
     ],
   },
 ];
@@ -54,10 +62,10 @@ export function reachableRuntimeModules(entry) {
   return [...visited].sort();
 }
 
-function occurrenceFiles(marker, modules) {
+function occurrenceFiles(pattern, modules) {
   const matches = [];
   for (const file of modules) {
-    const count = readFileSync(file, 'utf8').split(marker).length - 1;
+    const count = readFileSync(file, 'utf8').match(pattern)?.length ?? 0;
     for (let index = 0; index < count; index += 1) matches.push(file);
   }
   return matches;
@@ -70,11 +78,11 @@ export function validateRuntimePersonas(entry) {
 
   for (const persona of PUBLIC_PERSONAS) {
     for (const marker of persona.markers) {
-      const matches = occurrenceFiles(marker, modules);
+      const matches = occurrenceFiles(marker.pattern, modules);
       if (matches.length !== 1) {
         const files = [...new Set(matches.map((file) => path.relative(deployDir, file)))];
         findings.push(
-          `${persona.id} marker ${JSON.stringify(marker)}: expected once, found ${matches.length}` +
+          `${persona.id} marker ${JSON.stringify(marker.label)}: expected once, found ${matches.length}` +
             (files.length > 0 ? ` in ${files.join(', ')}` : '')
         );
       }

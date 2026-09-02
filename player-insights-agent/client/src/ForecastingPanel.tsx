@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ExperimentalBadge } from './ExperimentalBadge';
+import { astPill } from './astrolabe-pill';
 import {
   calculateForecast,
   deriveForecastBaseline,
@@ -162,7 +163,10 @@ function ProjectionBreakdown({
 
   return (
     <section className="ops-forecast-breakdown" aria-labelledby="ops-forecast-breakdown-heading">
-      <h4 id="ops-forecast-breakdown-heading">Projected breakdown</h4>
+      <div className="ops-forecast-card-head">
+        <h4 id="ops-forecast-breakdown-heading">Projected breakdown</h4>
+        <span className={astPill('neutral-outline', 'ops-pill')}>Estimated</span>
+      </div>
       <div
         className="ops-forecast-breakdown-scroll"
         role="region"
@@ -275,8 +279,10 @@ export function ForecastingBody({
     <section className="ops-block ops-forecast" aria-labelledby="ops-forecast-heading" data-testid="ops-forecasting">
       <div className="ops-block-head">
         <div className="ops-block-head-text">
+          <h3 id="ops-forecast-heading">Cost Forecasting</h3>
+        </div>
+        <div className="ops-block-head-trailing">
           <ExperimentalBadge />
-          <h3 id="ops-forecast-heading">Forecasting</h3>
         </div>
       </div>
       <div className="ops-block-body">
@@ -307,7 +313,10 @@ export function ForecastingBody({
             <div className="ops-forecast-horizons">
               {result.horizons.map((horizon) => (
                 <article key={horizon.days} className="ops-forecast-horizon">
-                  <h4>{horizon.label}</h4>
+                  <div className="ops-forecast-card-head">
+                    <h4>{horizon.label}</h4>
+                    <span className={astPill('neutral-outline', 'ops-pill')}>Estimated</span>
+                  </div>
                   {horizon.total === null ? (
                     <p className="ops-tile-absent">No priced component can be projected.</p>
                   ) : (

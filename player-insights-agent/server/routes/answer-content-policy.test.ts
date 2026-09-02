@@ -6,6 +6,8 @@ const PROCESS_CAVEATS = [
   'No governed table was read for this answer, so it is not grounded in queried data.',
   'Review the generated SQL and source details before using this result.',
   'All 12 tables are untagged (no franchise label); this means franchise scope is unknown until a table is described or queried.',
+  'Optional tail was clipped at the DSF handoff bound, so some metadata fields may be incomplete.',
+  'All 12 tables are declared but read access depends on the caller’s Unity Catalog grants — a declared table is not a guarantee of row-level access.',
 ];
 
 function endpointResponse(options: { sql?: string; sources?: unknown[] } = {}) {
@@ -22,22 +24,20 @@ describe('server answer-content normalization', () => {
   it('normalizes the canonical live answer before persistence can consume it', () => {
     const raw = endpointResponse();
     const answer = extractStructuredAnswer(raw);
-    expect(answer?.caveats).toEqual([
-      'Scope: The 12 listed tables span the configured dataset. Confirm franchise scope from table definitions before operational use.',
-    ]);
+    expect(answer?.caveats).toEqual([]);
     // The source serving payload remains available unchanged for transport/audit
     // logging; normalization returns canonical app data without mutating it.
     expect(raw.custom_outputs.answer.caveats).toEqual(PROCESS_CAVEATS);
   });
 
-  it('keeps SQL/source validation only when those details exist', () => {
+  it('removes generic SQL/source validation even when those details exist', () => {
     const answer = extractStructuredAnswer(
       endpointResponse({
         sql: 'SELECT * FROM main.analytics.players',
         sources: [{ name: 'main.analytics.players', freshness: 'Current' }],
       })
     );
-    expect(answer?.caveats).toContain('Validation: Review the generated SQL and sources before using this result.');
+    expect(answer?.caveats).toEqual([]);
   });
 
   it('normalizes historical stored answers at read time without rewriting the row', () => {
@@ -51,9 +51,7 @@ describe('server answer-content normalization', () => {
       response_json: stored,
     };
     const view = conversationRunTrace(row, 'experiment-1');
-    expect(view.caveats).toEqual([
-      'Scope: The 12 listed tables span the configured dataset. Confirm franchise scope from table definitions before operational use.',
-    ]);
+    expect(view.caveats).toEqual([]);
     expect(row.response_json.caveats).toEqual(PROCESS_CAVEATS);
   });
 });

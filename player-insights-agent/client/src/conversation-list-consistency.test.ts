@@ -107,6 +107,8 @@ describe('Ask and Run Explorer use one conversation set', () => {
 
     await expect(readConversationList()).resolves.toEqual({
       conversations: null,
+      matchingConversationIds: null,
+      personaFilterRule: null,
       availability: { origin: 'unavailable', reason: 'storage_unavailable' },
     });
   });

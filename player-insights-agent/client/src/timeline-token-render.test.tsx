@@ -109,3 +109,36 @@ describe('Run Explorer Timeline token evidence', () => {
     expect(TIMELINE_CSS).toMatch(/\.trace-gantt \.trace-duration\s*\{[^}]*white-space:\s*nowrap/s);
   });
 });
+
+describe('Monitoring and Run Explorer timeline parity', () => {
+  it('uses the same event rows, labels, token column values, and cache evidence', () => {
+    const source = trace(20_000);
+    const explorer = renderToStaticMarkup(<TraceTimeline variant="explorer" trace={source} />);
+    const monitoring = renderToStaticMarkup(<TraceTimeline variant="monitoring" trace={source} />);
+    const tokenCells = (markup: string) =>
+      [...markup.matchAll(/<td class="trace-num trace-tokens ast-num">([\s\S]*?)<\/td>/g)].map((match) => match[1]);
+    const eventCells = (markup: string) =>
+      [...markup.matchAll(/<td class="trace-event">([\s\S]*?)<\/td>/g)].map((match) => match[1]);
+
+    expect(explorer.match(/class="trace-gantt-row/g)).toHaveLength(3);
+    expect(monitoring.match(/class="trace-gantt-row/g)).toHaveLength(3);
+    expect(tokenCells(monitoring)).toEqual(tokenCells(explorer));
+    expect(eventCells(monitoring)).toEqual(eventCells(explorer));
+    expect(monitoring).toContain('model call - [orchestrator] turn');
+    expect(monitoring).toContain('84,576 total tokens');
+    expect(monitoring).toContain('20,000 cached input');
+    expect(monitoring).toContain('2 model calls');
+    expect(monitoring).toContain('Time by tool type');
+  });
+
+  it('keeps absent cache evidence out of both summaries and Ask on its original columns', () => {
+    const explorer = renderToStaticMarkup(<TraceTimeline variant="explorer" trace={trace()} />);
+    const monitoring = renderToStaticMarkup(<TraceTimeline variant="monitoring" trace={trace()} />);
+    const ask = renderToStaticMarkup(<TraceTimeline trace={trace()} />);
+
+    expect(explorer).not.toContain('cached input');
+    expect(monitoring).not.toContain('cached input');
+    expect(monitoring).not.toContain('Cache not reported');
+    expect(ask).not.toContain('>Tokens</th>');
+  });
+});

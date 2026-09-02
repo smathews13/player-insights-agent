@@ -296,7 +296,7 @@
 .monitoring-search {
   flex: 0 1 240px;
   min-width: 160px;
-  margin-left: 0;
+  margin-left: auto;
   /* Room for the clear button, which is positioned over the right end of the
      field by `.run-search`'s own relative positioning. */
   position: relative;
@@ -507,7 +507,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
  * The column widths, which are the design's and are what make the question the
  * largest thing in the row on every range rather than only on a wordy one.
  *
- * Six fixed columns and the question taking the rest. Written against the header
+ * Seven fixed columns and the question taking the rest. Written against the header
  * cells because a table settles its columns there, and as classes rather than
  * `nth-child` so that a column inserted later cannot silently shift five widths
  * one place to the right.
@@ -527,8 +527,22 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .monitoring-col-time {
   width: 70px;
 }
+.monitoring-col-tokens {
+  width: 94px;
+}
 .monitoring-col-tools {
   width: 60px;
+}
+.monitoring-token-cell,
+.monitoring-token-total {
+  white-space: nowrap;
+}
+.monitoring-token-total {
+  display: inline-block;
+  min-width: 0;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 .monitoring-col-rating {
   width: 60px;
@@ -991,11 +1005,24 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   font: inherit;
   font-weight: 500;
 }
+.monitoring-link-arrow {
+  flex: none;
+  color: currentColor;
+  opacity: 0.72;
+  transition: opacity 120ms ease;
+}
+.monitoring-drawer-links a:hover .monitoring-link-arrow,
+.monitoring-drawer-links a:focus-visible .monitoring-link-arrow {
+  opacity: 1;
+}
 
 /* ── User profile modal: one ordinary vertical flow ────────────────────── */
 .user-profile-modal-header-content {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+}
+.user-profile-modal-header {
+  padding: 12px 16px;
 }
 .user-profile-modal-user {
   min-width: 0;
@@ -1050,6 +1077,22 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .user-profile-modal-back {
   flex: none;
 }
+.user-profile-modal-back {
+  justify-self: start;
+  min-width: 0;
+  padding-inline: 0;
+  color: var(--ast-blue);
+  font-weight: 500;
+}
+.user-profile-modal-back:hover,
+.user-profile-modal-back:focus-visible {
+  color: var(--ast-info-text);
+  background: transparent;
+}
+.user-profile-modal-back:hover .monitoring-link-arrow,
+.user-profile-modal-back:focus-visible .monitoring-link-arrow {
+  opacity: 1;
+}
 .user-profile-modal-status {
   min-height: 220px;
 }
@@ -1099,19 +1142,6 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   letter-spacing: 0;
   text-transform: none;
 }
-.user-profile-modal-spend-loading {
-  min-height: 36px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--ast-text-long);
-  font-size: var(--text-sm);
-}
-.user-profile-modal-spend-loading-icon {
-  width: 18px;
-  aspect-ratio: 1;
-  flex: none;
-}
 .user-profile-modal-spend-kpis {
   min-width: 0;
   display: grid;
@@ -1126,6 +1156,17 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   display: grid;
   align-content: start;
   gap: 4px;
+}
+.user-profile-modal-spend-kpi-loading {
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-sm);
+}
+.user-profile-modal-spend-static-mark {
+  flex: none;
 }
 .user-profile-modal-spend-kpi-label,
 .user-profile-modal-spend-kpi-subtitle {
@@ -1384,6 +1425,16 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 }
 .monitoring-users-toolbar [data-slot='select-trigger'] {
   min-width: 132px;
+}
+[data-radix-popper-content-wrapper]:has(.monitoring-users-filter-menu) {
+  z-index: 1100;
+}
+.monitoring-users-filter-menu {
+  max-height: min(320px, var(--radix-select-content-available-height));
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  background: var(--popover);
+  opacity: 1;
 }
 .monitoring-users-state {
   margin: 0;

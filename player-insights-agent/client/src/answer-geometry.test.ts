@@ -319,7 +319,7 @@ describe('the run process is one panel rather than a bar and a box', () => {
     // The boundary with the trace screen: this file owns the disclosure and its
     // head bar, TraceTimeline owns the roll-up and the Gantt.
     expect(CARD).toContain('<CollapsibleContent className="run-process-body">');
-    expect(CARD).toMatch(/<TraceTimeline trace={processTrace}/);
+    expect(CARD).toMatch(/<TraceTimeline[\s\S]*trace=\{processTrace\}/);
     expect(BODY_CSS).not.toContain('.trace-kpi');
     expect(BODY_CSS).not.toContain('.gantt');
   });

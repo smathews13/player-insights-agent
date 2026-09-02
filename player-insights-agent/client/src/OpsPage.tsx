@@ -42,6 +42,7 @@ import { ChevronLeft, ChevronRight, ExternalLink, Search, Users, X } from 'lucid
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
+import { ExperimentalBadge } from './ExperimentalBadge';
 import { Disclosure, PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
 import { ageAgo, checkedAgoLine } from './refresh-state';
@@ -70,7 +71,6 @@ import {
   primaryCostCardViews,
   productForCostTile,
   productForProbe,
-  QUESTION_COST_FORMULA,
   splitMethod,
   telemetryNotice,
   WITHHELD,
@@ -143,6 +143,7 @@ function BlockHead({
   badges,
   meta,
   control,
+  trailing,
   children,
 }: {
   /** The heading's own id, so the section's `aria-labelledby` reaches it. */
@@ -174,6 +175,7 @@ function BlockHead({
    */
   meta?: React.ReactNode;
   control?: React.ReactNode;
+  trailing?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -189,6 +191,7 @@ function BlockHead({
         {children}
       </div>
       {control ? <div className="ops-block-head-control">{control}</div> : null}
+      {trailing ? <div className="ops-block-head-trailing">{trailing}</div> : null}
     </div>
   );
 }
@@ -607,6 +610,7 @@ export function CostBody({
             <RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />
           </div>
         }
+        trailing={<ExperimentalBadge />}
       />
 
       <BlockBody>
@@ -628,7 +632,7 @@ export function CostBody({
               <CostCardGrid payload={payload} displayed={displayed} host={host} unit={unit} />
             </div>
             {!replaceGrid && absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
-            <CostMethodology payload={payload} />
+            <CostMethodology />
           </CostBudgetProvider>
         ) : null}
       </BlockBody>
@@ -650,15 +654,13 @@ function CostCardGrid({
   const primary = primaryCostCardViews(payload, unit);
   const average = primary.at(-1);
   const componentCards = primary.slice(0, -1);
-  const genie = genieCostCardViews(payload);
+  const genie = genieCostCardViews(payload, unit);
   return (
     <div className="ops-tiles" data-testid="cost-primary-grid">
       {componentCards.map((card) => (
         <PrimaryCostCard key={card.id} card={card} tile={displayed.find((item) => item.id === card.id)} host={host} />
       ))}
       {genie.map((card) => {
-        const object = costTileWorkspaceObject(card.tile);
-        const href = object ? databricksLink(host, object) : null;
         return (
           <article key={card.id} className="ops-tile ops-primary-cost-card ops-genie-card">
             <div className="ops-tile-head">
@@ -666,17 +668,18 @@ function CostCardGrid({
                 <BrandIcon product="genie" size={14} className="ops-tile-mark" />
                 <span className="ops-tile-label-text">{card.title}</span>
               </h4>
-              <span className={astPill('neutral-outline', 'ops-pill ops-cost-status')}>{card.attribution}</span>
+              <span className={astPill('neutral-outline', 'ops-pill ops-cost-status')}>Estimated</span>
             </div>
-            <p className="ops-tile-figure" title={card.detail || undefined}>
-              <span className="ast-num">{card.charged}</span>
-            </p>
-            <p className="ops-tile-basis">Configured-space charged usage</p>
-            <p className="ops-tile-evidence">Free usage {card.freeUsage}</p>
-            <p className="ops-tile-evidence ops-genie-split">
-              Allowance {card.allowance} · Promotional {card.promotional}
-            </p>
-            {card.resource ? <CostResourceLine label={card.resource} href={href} /> : null}
+            <dl className="ops-genie-values">
+              <div>
+                <dt>Free</dt>
+                <dd className="ast-num">{card.free}</dd>
+              </div>
+              <div>
+                <dt>Charged</dt>
+                <dd className="ast-num">{card.charged}</dd>
+              </div>
+            </dl>
           </article>
         );
       })}
@@ -705,9 +708,7 @@ function PrimaryCostCard({
           <span className="ops-tile-label-text">{card.title}</span>
         </h4>
         {card.status ? (
-          <span className={astPill(card.status === 'Partial' ? 'warn' : 'neutral-outline', 'ops-pill ops-cost-status')}>
-            {card.status}
-          </span>
+          <span className={astPill('neutral-outline', 'ops-pill ops-cost-status')}>{card.status}</span>
         ) : null}
       </div>
       <p className="ops-tile-figure" title={card.detail || undefined}>
@@ -751,42 +752,45 @@ export function CostResourceLine({ label, href }: { label: string; href: string 
 /** Compatibility export for focused render tests; resource links no longer serve as card titles. */
 export const CostTileTitle = CostResourceLine;
 
-function CostMethodology({ payload }: { payload: OpsCostPayload }) {
-  const calculated = payload.tiles.filter(
-    (tile) =>
-      tileAttribution(tile) === 'deployment' &&
-      ((typeof tile.amount === 'number' && Number.isFinite(tile.amount)) ||
-        (typeof tile.dbus === 'number' && Number.isFinite(tile.dbus)))
-  );
-  const detailFor = (tile: OpsCostPayload['tiles'][number]): string => {
-    if (tile.id === 'serving-endpoint') {
-      return 'Priced agent-endpoint quantity × completed interactive Ask duration ÷ billed endpoint duration; idle/base and non-Ask activity are excluded.';
-    }
-    if (tile.id === 'foundation-model') {
-      return 'Actual priced Foundation Model API billing × matched interactive Ask token share in the same model/time buckets; token counts are never treated as DBUs.';
-    }
-    if (tile.id === 'sql-warehouse') {
-      return 'Priced warehouse spend × completed-run Ask-tagged Query History execution time ÷ all warehouse execution time; preflight, Ops, telemetry, benchmarks, Genie SQL, and unrelated queries are excluded.';
-    }
-    if (tile.id.startsWith('genie:')) {
-      return 'Charged billing matched to this configured space by direct user-day evidence or bounded activity-share allocation. Unsupported workspace usage is excluded; allowance and promotional usage never enter paid spend.';
-    }
-    if (tile.id === 'vector-search') {
-      return 'Exact hosting-endpoint billing. Included only when the active index reports this endpoint and the endpoint hosts one index; index-sync pipeline compute is separate.';
-    }
-    if (tile.id === 'app-compute') return 'Exact Apps billing rows matched by app name.';
-    return 'Measured attributable billing rows.';
-  };
+function CostMethodology() {
   const groups: MethodologyGroup[] = [
     {
-      title: 'How totals are calculated',
+      title: 'Genie usage',
       rows: [
         {
-          label: 'Total app spend',
-          detail: 'Direct attributable components only; per-day rates are expanded over the selected Cost period.',
+          label: 'Allowance',
+          detail: '150 DBU per identified human user each calendar month; resets on the first day of the month.',
         },
-        { label: 'Average cost / question', detail: QUESTION_COST_FORMULA },
-        ...calculated.map((tile) => ({ label: tile.label, detail: detailFor(tile) })),
+        {
+          label: 'Current promotion',
+          detail:
+            'Through Jan 31, 2027, Genie One and Genie Agents usage is promotional free and does not consume allowance.',
+        },
+        {
+          label: 'Genie Code',
+          detail: 'Free usage consumes the user’s monthly allowance.',
+        },
+        {
+          label: 'Charged usage',
+          detail: 'Usage above allowance; this is what counts toward configured Genie budgets.',
+        },
+        {
+          label: 'Service principals',
+          detail: 'No free allowance.',
+        },
+        {
+          label: 'Configured spaces',
+          detail:
+            'Data Genie and Dictionary Genie cards include only attributable configured-space usage; unrelated or unmatched workspace usage is excluded.',
+        },
+        {
+          label: 'Billing freshness',
+          detail: (
+            <>
+              <code>system.billing.usage</code> is authoritative and can arrive hours after usage occurs.
+            </>
+          ),
+        },
       ],
     },
   ];
@@ -809,7 +813,7 @@ function CostMethodology({ payload }: { payload: OpsCostPayload }) {
 function BarChart({
   title,
   caption,
-  note = '',
+  qualification = '',
   series,
   tone,
   href,
@@ -818,7 +822,7 @@ function BarChart({
   /** Shown INSTEAD of the bars when there are none, never under them. */
   caption: string;
   /** Coverage qualification shown with returned bars or an incomplete empty state. */
-  note?: string;
+  qualification?: string;
   series: ReturnType<typeof bars>;
   /** Which ink the bars take: the failure red, the refusal slate, or the blue. */
   tone: 'failure' | 'refusal' | 'tool';
@@ -828,7 +832,7 @@ function BarChart({
   return (
     <div className={`ops-chart ops-chart-${tone}`}>
       <h4>{title}</h4>
-      {note ? <p className="ops-chart-freshness">{note}</p> : null}
+      {qualification ? <p className="ops-chart-freshness">{qualification}</p> : null}
       {series.length === 0 ? (
         <p className="ops-chart-empty">{caption}</p>
       ) : (
@@ -1487,7 +1491,7 @@ export function TrafficBody({
                 // it were each repeating it back in a full sentence about nothing
                 // having happened.
                 caption={coverageCaption(payload.breakdownCoverage.toolCalls.state, 'No tool calls')}
-                note={
+                qualification={
                   payload.breakdownCoverage.toolCalls.state === 'complete'
                     ? ''
                     : payload.breakdownCoverage.toolCalls.reason ||

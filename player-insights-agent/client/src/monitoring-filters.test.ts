@@ -40,6 +40,7 @@ function question(overrides: Partial<MonitoringQuestion> = {}): MonitoringQuesti
     outcomeDetail: null,
     durationMs: 1000,
     toolCalls: 1,
+    totalTokens: 120,
     rating: null,
     tables: ['a_catalog.a_schema.a_table'],
     ...overrides,

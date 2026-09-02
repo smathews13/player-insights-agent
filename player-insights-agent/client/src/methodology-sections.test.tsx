@@ -11,13 +11,15 @@ describe('shared Cost and Forecasting methodology structure', () => {
         groups={[
           { title: 'Limits', rows: [{ detail: 'A limit' }] },
           { title: 'Not included', rows: [] },
+          { title: 'Genie usage', rows: [{ label: 'Allowance', detail: '150 DBU' }] },
           { title: 'How totals are calculated', rows: [{ label: 'Vector Search', detail: 'Measured endpoint share' }] },
         ]}
       />
     );
     expect(markup).toContain('ops-methodology-sections');
     expect(markup).toContain('ops-methodology-rows');
-    expect(markup.indexOf('How totals are calculated')).toBeLessThan(markup.indexOf('Limits'));
+    expect(markup.indexOf('How totals are calculated')).toBeLessThan(markup.indexOf('Genie usage'));
+    expect(markup.indexOf('Genie usage')).toBeLessThan(markup.indexOf('Limits'));
     expect(markup).not.toContain('Not included');
     expect(markup).toContain('Vector Search');
   });
@@ -27,7 +29,8 @@ describe('shared Cost and Forecasting methodology structure', () => {
     const forecast = readFileSync(new URL('./ForecastingPanel.tsx', import.meta.url), 'utf8');
     expect(cost).toContain('<MethodologySections groups={groups} />');
     expect(forecast).toContain('<MethodologySections groups={methodologyGroups} />');
-    expect(cost).toContain('Exact Vector Search endpoint billing');
+    expect(cost).toContain("title: 'Genie usage'");
+    expect(cost).not.toContain('Exact Vector Search endpoint billing');
     const costMethod = cost.slice(cost.indexOf('function CostMethodology'), cost.indexOf('/* ── Traffic'));
     expect(costMethod).not.toContain('<ul>');
   });

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { appBudgetPeriod, emptyAppBudgetStatus, type AppBudgetStatus } from '../../shared/app-budget-guard';
 import { APP_BUDGET_GUARDRAILS } from '../../shared/app-budget-contract';
 import { ComposerBudgetStatus } from './ComposerBudgetStatus';
-import { AppBudgetMeasurement, BudgetGuardStatus, SavedAppBudgetSummary } from './CostBudgets';
+import { AppBudgetMeasurement, BudgetGuardStatus, SavedAppBudgetSummary, monthlyBudgetProgress } from './CostBudgets';
 
 const period = appBudgetPeriod(Date.parse('2026-09-15T12:00:00Z'));
 
@@ -117,13 +117,13 @@ describe('app budget guard UI', () => {
     expect(renderToStaticMarkup(<BudgetGuardStatus status={complete} admin={false} />)).toContain('Approval required');
   });
 
-  it('shows the saved budget in the spend pane but adds progress only for complete actual MTD', () => {
+  it('shows remaining or overage from complete actual MTD, never the selected-period total', () => {
     const partial = renderToStaticMarkup(
       <SavedAppBudgetSummary savedBudget={800} unit="USD" status={status('unavailable/partial')} />
     );
     expect(partial).toContain('Monthly app budget');
     expect(partial).toContain('800.00 USD');
-    expect(partial).not.toMatch(/Month to date|Over budget|Budget status|aria-live/i);
+    expect(partial).not.toMatch(/remaining|over budget|projected|Budget exhausted|aria-live/i);
 
     const complete = renderToStaticMarkup(
       <SavedAppBudgetSummary
@@ -132,8 +132,71 @@ describe('app budget guard UI', () => {
         status={status('approval-required', { measured: 923.27, budget: 800, percent: 115.40875 })}
       />
     );
-    expect(complete).toContain('Month to date 923.27 USD');
-    expect(complete).toContain('115.41%');
+    expect(complete).toContain('123.27 USD over budget');
+    expect(complete).toContain('Budget exhausted');
+    expect(complete).toContain('data-budget-tone="danger"');
+  });
+
+  it.each([
+    [79, 'normal'],
+    [80, 'warning'],
+    [100, 'danger'],
+    [120, 'danger'],
+  ] as const)('colors complete MTD spend %s by the shared guardrails', (measured, tone) => {
+    expect(monthlyBudgetProgress(status('below', { measured, budget: 100 }), 100, 'USD')?.tone).toBe(tone);
+  });
+
+  it('projects exhaustion from complete MTD pace and fails open for incomplete coverage', () => {
+    const crossing = monthlyBudgetProgress(
+      status('below', {
+        measured: 600,
+        budget: 900,
+        monthStart: '2026-09-01',
+        measuredThrough: '2026-09-15',
+        monthEnd: '2026-09-30',
+      }),
+      900,
+      'USD'
+    );
+    expect(crossing?.pace).toBe('Budget exhausted in 8 days at current pace');
+    expect(
+      monthlyBudgetProgress(
+        status('below', {
+          measured: 100,
+          budget: 900,
+          monthStart: '2026-09-01',
+          measuredThrough: '2026-09-15',
+          monthEnd: '2026-09-30',
+        }),
+        900,
+        'USD'
+      )?.pace
+    ).toBe('Not projected to exhaust this month');
+    expect(monthlyBudgetProgress(status('unavailable/partial'), 100, 'USD')).toBeNull();
+  });
+
+  it('keeps selected-period spend and the active unit out of authoritative MTD pacing', () => {
+    const selectedPeriodSpend = 135.49;
+    const usd = monthlyBudgetProgress(status('below', { measured: 180, budget: 900 }), 900, 'USD');
+    expect(selectedPeriodSpend).not.toBe(180);
+    expect(usd?.balance).toBe('720.00 USD remaining');
+    expect(monthlyBudgetProgress(status('below', { measured: 45, budget: 90, unit: 'DBU' }), 90, 'DBU')?.balance).toBe(
+      '45.00 DBU remaining'
+    );
+    expect(monthlyBudgetProgress(status('below', { measured: 180, budget: 900 }), 90, 'DBU')).toBeNull();
+  });
+
+  it.each([
+    ['2026-02-01', '2026-02-28', '2026-02-14'],
+    ['2028-02-01', '2028-02-29', '2028-02-14'],
+    ['2026-12-01', '2026-12-31', '2026-12-14'],
+  ])('uses calendar month boundaries for %s', (monthStart, monthEnd, measuredThrough) => {
+    const view = monthlyBudgetProgress(
+      status('below', { measured: 140, budget: 500, monthStart, monthEnd, measuredThrough }),
+      500,
+      'USD'
+    );
+    expect(view?.pace).toBe('Not projected to exhaust this month');
   });
 
   it('preserves the composer draft and optimistic conversation on a raced server rejection', () => {

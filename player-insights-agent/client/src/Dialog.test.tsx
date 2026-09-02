@@ -84,5 +84,7 @@ describe('Dialog', () => {
     expect(SOURCE).toContain("onDismiss?.('backdrop')");
     expect(SOURCE).toContain('event.target !== event.currentTarget');
     expect(SOURCE).toContain('event.stopPropagation()');
+    expect(SOURCE).toContain('isDialogFloatingPortal(event.target)');
+    expect(SOURCE).toContain("[data-slot='select-content']");
   });
 });

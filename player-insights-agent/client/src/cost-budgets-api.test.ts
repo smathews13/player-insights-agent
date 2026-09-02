@@ -8,6 +8,7 @@ import {
   BudgetSaveNotice,
   COST_BUDGET_SAVED_MS,
   CostBudgetApplyButton,
+  budgetAuditView,
   costBudgetNotice,
   scheduleCostBudgetSaveReset,
 } from './CostBudgets';
@@ -23,13 +24,15 @@ function json(body: unknown, status = 200): Response {
 describe('cost budget API responses', () => {
   it('loads stored budgets when the store answered', async () => {
     const budgets = { total: 90, resources: { 'app-compute': 12 } };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ budgets, readable: true })));
+    const audit = { appliedAt: '2026-09-02T16:51:00.000Z', appliedBy: '<your-username>@example.com' };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ budgets, audit, readable: true })));
     await expect(loadCostBudgets()).resolves.toEqual({
       ok: true,
       budgets: {
         total: { USD: 90, DBU: null },
         resources: { 'app-compute': { USD: 12, DBU: null } },
       },
+      audit,
     });
     vi.unstubAllGlobals();
   });
@@ -69,9 +72,10 @@ describe('cost budget API responses', () => {
       total: { USD: 90, DBU: 42 },
       resources: { 'app-compute': { USD: 9, DBU: 6 } },
     };
-    const fetch = vi.fn().mockResolvedValue(json({ budgets, readable: true }));
+    const audit = { appliedAt: '2026-09-02T16:51:00.000Z', appliedBy: '<your-username>@example.com' };
+    const fetch = vi.fn().mockResolvedValue(json({ budgets, audit, readable: true }));
     vi.stubGlobal('fetch', fetch);
-    await expect(saveCostBudgets(budgets)).resolves.toEqual(budgets);
+    await expect(saveCostBudgets(budgets)).resolves.toEqual({ budgets, audit });
     const request = fetch.mock.calls[0] as unknown as [string, RequestInit];
     const requestBody = request[1].body;
     expect(typeof requestBody).toBe('string');
@@ -82,6 +86,22 @@ describe('cost budget API responses', () => {
 });
 
 describe('Cost budget Apply copy', () => {
+  it('renders persisted apply metadata without exposing the full actor in visible text', () => {
+    expect(
+      budgetAuditView(
+        { appliedAt: '2026-09-02T16:51:00.000Z', appliedBy: '<your-username>@example.com' },
+        () => 'Sep 2, 10:51 AM'
+      )
+    ).toEqual({
+      text: 'Last applied Sep 2, 10:51 AM by <your-username>',
+      title: '<your-username>@example.com',
+    });
+    expect(budgetAuditView({ appliedAt: '', appliedBy: '' }, () => 'never')).toEqual({
+      text: 'Last applied time and user unavailable',
+      title: '',
+    });
+  });
+
   it('keeps save-success copy in the button only', () => {
     expect(costBudgetNotice(SETTINGS_SAVE_IDLE)).toBeNull();
     expect(costBudgetNotice({ kind: 'saved' })).toBeNull();

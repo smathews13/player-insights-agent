@@ -24,8 +24,8 @@ export interface UserSpendKpi {
 
 export interface UserSpendMetrics {
   unit: CostBudgetUnit;
-  questions: number;
-  coveredDays: number;
+  questions: number | null;
+  coveredDays: number | null;
   costPerQuestion: UserSpendKpi;
   averageDaily: UserSpendKpi;
   appShare: UserSpendKpi;
@@ -74,5 +74,14 @@ export interface SpendByUserPayload {
   reconciliation: {
     usd: UserSpendReconciliation;
     dbu: UserSpendReconciliation;
+  };
+  /** Durable read-model freshness; absent only from older deployments/caches. */
+  freshness?: {
+    computedAt: string | null;
+    sourceThrough: string | null;
+    billingCompleteThrough: string | null;
+    isRefreshing: boolean;
+    isStale: boolean;
+    calculationVersion: number;
   };
 }

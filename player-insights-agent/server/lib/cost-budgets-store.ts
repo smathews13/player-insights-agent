@@ -1,7 +1,9 @@
 import { appTable } from '../../shared/app-schema';
 import {
   EMPTY_COST_BUDGETS,
+  UNKNOWN_COST_BUDGET_AUDIT,
   parseCostBudgets,
+  type CostBudgetAudit,
   type CostBudgets,
 } from '../../shared/cost-budgets';
 import type { LakebaseReader } from './lakebase-store';
@@ -17,7 +19,7 @@ export const COST_BUDGETS_DDL = `CREATE TABLE IF NOT EXISTS ${COST_BUDGETS_TABLE
   updated_by TEXT NOT NULL
 )`;
 
-let cache = new WeakMap<object, { value: CostBudgets; at: number; readable: true }>();
+let cache = new WeakMap<object, { value: CostBudgetsRead; at: number }>();
 export const COST_BUDGETS_TTL_MS = 15_000;
 
 export function forgetCostBudgets(): void {
@@ -26,7 +28,16 @@ export function forgetCostBudgets(): void {
 
 export interface CostBudgetsRead {
   budgets: CostBudgets;
+  audit: CostBudgetAudit;
   readable: boolean;
+}
+
+function auditFrom(row: Record<string, unknown> | undefined): CostBudgetAudit {
+  const updatedAt = row?.updated_at;
+  return {
+    appliedAt: updatedAt instanceof Date ? updatedAt.toISOString() : typeof updatedAt === 'string' ? updatedAt : '',
+    appliedBy: typeof row?.updated_by === 'string' ? row.updated_by : '',
+  };
 }
 
 /**
@@ -43,25 +54,31 @@ export async function readCostBudgets(
   const now = options.now ?? Date.now();
   const cached = cache.get(client);
   if (cached && now - cached.at < (options.maxAgeMs ?? COST_BUDGETS_TTL_MS)) {
-    return { budgets: cached.value, readable: true };
+    return cached.value;
   }
   try {
-    const result = await client.lakebase.query(`SELECT settings FROM ${COST_BUDGETS_TABLE} WHERE id = $1`, [KEY]);
-    const raw = result?.rows?.[0]?.settings;
+    const result = await client.lakebase.query(
+      `SELECT settings, updated_at, updated_by FROM ${COST_BUDGETS_TABLE} WHERE id = $1`,
+      [KEY]
+    );
+    const row = result?.rows?.[0];
+    const raw = row?.settings;
     if (raw === undefined) {
-      cache.set(client, { value: EMPTY_COST_BUDGETS, at: now, readable: true });
-      return { budgets: EMPTY_COST_BUDGETS, readable: true };
+      const value = { budgets: EMPTY_COST_BUDGETS, audit: UNKNOWN_COST_BUDGET_AUDIT, readable: true as const };
+      cache.set(client, { value, at: now });
+      return value;
     }
     const parsed = parseCostBudgets(raw);
     if (!parsed) {
       console.warn('[cost-budgets] Stored budgets were unreadable; leaving them unset rather than guessing.');
-      return { budgets: EMPTY_COST_BUDGETS, readable: false };
+      return { budgets: EMPTY_COST_BUDGETS, audit: auditFrom(row), readable: false };
     }
-    cache.set(client, { value: parsed, at: now, readable: true });
-    return { budgets: parsed, readable: true };
+    const value = { budgets: parsed, audit: auditFrom(row), readable: true as const };
+    cache.set(client, { value, at: now });
+    return value;
   } catch (error) {
     console.warn('[cost-budgets] Stored budgets could not be read:', (error as Error).message);
-    return { budgets: EMPTY_COST_BUDGETS, readable: false };
+    return { budgets: EMPTY_COST_BUDGETS, audit: UNKNOWN_COST_BUDGET_AUDIT, readable: false };
   }
 }
 
@@ -69,14 +86,21 @@ export async function writeCostBudgets(
   client: LakebaseReader,
   budgets: CostBudgets,
   updatedBy: string
-): Promise<CostBudgets> {
-  await client.lakebase.query(
+): Promise<CostBudgetsRead> {
+  const result = await client.lakebase.query(
     `INSERT INTO ${COST_BUDGETS_TABLE} (id, settings, updated_by, updated_at)
      VALUES ($1, $2::jsonb, $3, now())
      ON CONFLICT (id) DO UPDATE SET
-       settings = EXCLUDED.settings, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+       settings = EXCLUDED.settings,
+       updated_by = CASE
+         WHEN cost_budgets.settings -> 'total' IS DISTINCT FROM EXCLUDED.settings -> 'total'
+         THEN EXCLUDED.updated_by ELSE cost_budgets.updated_by END,
+       updated_at = CASE
+         WHEN cost_budgets.settings -> 'total' IS DISTINCT FROM EXCLUDED.settings -> 'total'
+         THEN now() ELSE cost_budgets.updated_at END
+     RETURNING updated_at, updated_by`,
     [KEY, JSON.stringify(budgets), updatedBy]
   );
   forgetCostBudgets();
-  return budgets;
+  return { budgets, audit: auditFrom(result?.rows?.[0]), readable: true };
 }

@@ -1,6 +1,7 @@
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import type { OpsDayRange } from '../../shared/ops-contract';
 import type { UserSpendKpi, UserSpendMetrics } from '../../shared/user-spend-contract';
+import { deriveCoreUserSpendMetrics } from '../../shared/user-spend-metrics';
 
 const DAY_MS = 86_400_000;
 
@@ -12,8 +13,8 @@ interface MetricSnapshot {
 export interface UserSpendMetricInput {
   unit: CostBudgetUnit;
   current: MetricSnapshot & {
-    questions: number;
-    coveredDays: number;
+    questions: number | null;
+    coveredDays: number | null;
     appTotal: number | null;
     appComparable: boolean;
   };
@@ -38,36 +39,22 @@ export function spendGrowth(current: MetricSnapshot, prior: MetricSnapshot, subt
 
 export function buildUserSpendMetrics(input: UserSpendMetricInput): UserSpendMetrics {
   const current = input.current;
+  const core = deriveCoreUserSpendMetrics({
+    amount: current.amount,
+    questions: current.questions,
+    coveredDays: current.coveredDays,
+    unit: input.unit,
+  });
   return {
     unit: input.unit,
     questions: current.questions,
     coveredDays: current.coveredDays,
-    costPerQuestion:
-      current.comparable && current.amount !== null && current.questions > 0
-        ? {
-            value: current.amount / current.questions,
-            state: 'value',
-            subtitle: `${current.questions.toLocaleString()} submitted questions`,
-          }
-        : unavailable(
-            current.questions > 0
-              ? `${current.questions.toLocaleString()} submitted questions`
-              : 'No submitted questions'
-          ),
-    averageDaily:
-      current.comparable && current.amount !== null && current.coveredDays > 0
-        ? {
-            value: current.amount / current.coveredDays,
-            state: 'value',
-            subtitle: `${current.coveredDays.toLocaleString()} covered days`,
-          }
-        : unavailable(
-            current.coveredDays > 0 ? `${current.coveredDays.toLocaleString()} covered days` : 'No covered billing days'
-          ),
+    costPerQuestion: core.costPerQuestion,
+    averageDaily: core.averageDaily,
     appShare:
       current.appComparable && current.amount !== null && current.appTotal !== null && current.appTotal > 0
-        ? { value: (current.amount / current.appTotal) * 100, state: 'value', subtitle: 'of comparable app spend' }
-        : unavailable('App total not comparable'),
+        ? { value: (current.amount / current.appTotal) * 100, state: 'value', subtitle: 'of attributable app spend' }
+        : unavailable('No comparable app total'),
     weekOverWeek: spendGrowth(input.week.current, input.week.prior, 'vs prior 7 days'),
     monthOverMonth: spendGrowth(input.month.current, input.month.prior, 'vs prior matched month days'),
     comparisonFreshness: input.comparisonFreshness,

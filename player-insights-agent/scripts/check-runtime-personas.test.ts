@@ -46,6 +46,19 @@ describe('reachable deploy runtime personas', () => {
     expect(result.files).toEqual(['chunk.mjs', 'persona-route.mjs', 'server.mjs']);
   });
 
+  it('recognizes the same runtime contract after whitespace-only production minification', () => {
+    const directory = fixture();
+    writeFileSync(
+      path.join(directory, 'server.mjs'),
+      'const templates=[{id:"business-analyst",displayName:"Business Analyst",' +
+        'roleSummary:"Read-only analyst for governed performance and player investigation."},' +
+        '{id:"marketing-scientist",displayName:"Marketing Scientist",' +
+        'roleSummary:"Read-only marketing scientist for governed audience, purchase, and player-profile analysis."}];'
+    );
+
+    expect(validateRuntimePersonas(path.join(directory, 'server.mjs')).findings).toEqual([]);
+  });
+
   it('reports duplicate public profiles and private target identifiers concisely', () => {
     const directory = fixture();
     writeFileSync(

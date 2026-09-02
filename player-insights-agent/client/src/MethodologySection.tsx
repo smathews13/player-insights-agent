@@ -6,7 +6,7 @@ export interface MethodologyRow {
 }
 
 export interface MethodologyGroup {
-  title: 'How totals are calculated' | 'Not included' | 'Limits';
+  title: 'How totals are calculated' | 'Genie usage' | 'Not included' | 'Limits';
   rows: readonly MethodologyRow[];
 }
 
@@ -15,7 +15,7 @@ export interface MethodologyGroup {
  * Empty groups are omitted, while populated groups always retain the same order.
  */
 export function MethodologySections({ groups }: { groups: readonly MethodologyGroup[] }) {
-  const order: MethodologyGroup['title'][] = ['How totals are calculated', 'Not included', 'Limits'];
+  const order: MethodologyGroup['title'][] = ['How totals are calculated', 'Genie usage', 'Not included', 'Limits'];
   const populated = order
     .map((title) => groups.find((group) => group.title === title))
     .filter((group): group is MethodologyGroup => Boolean(group && group.rows.length > 0));

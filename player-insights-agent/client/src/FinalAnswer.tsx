@@ -11,8 +11,7 @@
  * and made the card open with a star instead of with what the answer is.
  */
 import { Link } from 'react-router';
-import { Alert, AlertDescription, Badge, Card, CardContent } from './ui';
-import { CircleAlert } from 'lucide-react';
+import { Badge, Card, CardContent } from './ui';
 import { conversationHref } from './conversation-links';
 import { AnswerProse, EntityText } from './DataEntityLinks';
 import { AnswerEvidence } from './AnswerEvidence';
@@ -52,8 +51,7 @@ export function FinalAnswer({
   const honesty = answerHonesty({ truncated, caveats: displayed.caveats ?? [], narrative: displayed.narrative });
   const headline = readerFacingTakeaway(displayed.takeaway ?? '', displayed.narrative ?? '');
   const story = readerFacingNarrative(displayed.takeaway ?? '', displayed.narrative ?? '');
-  const warningTexts = new Set(honesty.warnings.map((warning) => warning.text));
-  const restCaveats = (displayed.caveats ?? []).filter((caveat) => !warningTexts.has(caveat.trim()));
+  const restCaveats = displayed.caveats ?? [];
   const columns = mentionedIdentifiers([story]);
   return (
     <Card className="final-answer" data-tone={honesty.tone}>
@@ -70,27 +68,6 @@ export function FinalAnswer({
             <p className="final-answer-eyebrow">{honesty.eyebrow}</p>
           )}
         </div>
-        {honesty.warnings.length > 0 ? (
-          <ul className="final-answer-warnings">
-            {honesty.warnings.map((warning) => (
-              <li className="final-answer-warning" key={warning.label + warning.text}>
-                <Alert variant="destructive">
-                  <CircleAlert />
-                  <AlertDescription>
-                    <p>
-                      <strong>{warning.label}.</strong>{' '}
-                      <EntityText
-                        text={warning.text}
-                        sources={sources}
-                        columns={mentionedIdentifiers([warning.text])}
-                      />
-                    </p>
-                  </AlertDescription>
-                </Alert>
-              </li>
-            ))}
-          </ul>
-        ) : null}
         {headline ? (
           <h4 className="final-answer-takeaway">
             <EntityText text={headline} sources={sources} />

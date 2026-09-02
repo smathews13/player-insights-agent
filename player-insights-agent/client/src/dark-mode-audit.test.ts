@@ -179,7 +179,8 @@ describe('dark mode covers the shipped surfaces', () => {
       /<TraceTimeline[\s\S]*?trace=\{runTrace\.trace}/
     );
     expect(source('TraceTimeline.tsx'), 'the de-stacked classes are not the ones drawn').toMatch(/trace-timeline/);
-    expect(source('TraceTimeline.tsx')).toContain("variant === 'explorer' ? 'trace-timeline--explorer'");
+    expect(source('TraceTimeline.tsx')).toContain("variant !== 'default' ? 'trace-timeline--explorer'");
+    expect(source('TraceTimeline.tsx')).toContain("variant === 'monitoring' ? 'trace-timeline--monitoring'");
   });
 
   it('leaves the de-stacked containers unfilled under reduced transparency too', () => {

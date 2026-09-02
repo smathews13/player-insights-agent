@@ -113,7 +113,7 @@ describe('account menu', () => {
   it('keeps the gear wired to the existing settings modal', () => {
     const layout = readFileSync(new URL('./Layout.tsx', import.meta.url), 'utf8');
     expect(layout).toContain('aria-label="App settings"');
-    expect(layout).toContain('onClick={() => setSettingsOpen(true)}');
+    expect(layout).toMatch(/onClick=\{\(\) => \{[\s\S]*setSettingsOpen\(true\);[\s\S]*refreshExperimental\(\)/);
     expect(layout).toContain('<SettingsPage');
     expect(layout).toContain('features={features}');
     expect(layout).toContain('role={role}');

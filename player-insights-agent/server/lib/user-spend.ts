@@ -713,6 +713,7 @@ export function buildUserMonitoringPage(input: {
   roles: ReadonlyMap<string, Role>;
   personas?: ReadonlyMap<string, { id: string; name: string }>;
   personaOptions?: Array<{ id: string; name: string }>;
+  coveredDays?: number;
   unit: CostBudgetUnit;
   search?: string;
   role?: Role | '';
@@ -755,6 +756,7 @@ export function buildUserMonitoringPage(input: {
         lastActive,
         questions: interaction?.questions ?? 0,
         runs: interaction?.runs ?? 0,
+        coveredDays: Math.max(0, Math.trunc(input.coveredDays ?? 0)),
         spend: { usd, dbu },
         coverage: (input.unit === 'USD' ? usd : dbu).quality,
       };

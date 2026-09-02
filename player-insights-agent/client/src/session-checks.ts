@@ -68,6 +68,7 @@ let running = false;
 let completed = 0;
 let settingsMutationGeneration = 0;
 let latestSettingsRequest = 0;
+let runGeneration = 0;
 
 /** Longer than a healthy preflight, but never an unbounded screen wait. */
 export const SESSION_CHECK_TIMEOUT_MS = 25_000;
@@ -90,6 +91,7 @@ export function resetSessionChecks(): void {
   completed = 0;
   settingsMutationGeneration = 0;
   latestSettingsRequest = 0;
+  runGeneration += 1;
 }
 
 interface SettingsRead {
@@ -149,6 +151,24 @@ async function readPreflight(): Promise<PreflightReport> {
   throw new Error(`the preflight route answered ${response.status} but not with a dependency report`);
 }
 
+function settleFirstLoadPart(
+  run: number,
+  part: 'settings' | 'report',
+  status: 'ready' | 'error',
+  value?: SettingsPayload | PreflightReport
+): void {
+  if (run !== runGeneration) return;
+  const current = recallChecks();
+  if (!current?.load?.firstLoad) return;
+  rememberChecks({
+    ...current,
+    settings: part === 'settings' && status === 'ready' ? (value as SettingsPayload) : current.settings,
+    report: part === 'report' && status === 'ready' ? (value as PreflightReport) : current.report,
+    load: { ...current.load, [part]: status },
+  });
+  announce();
+}
+
 /**
  * Run both reads and keep the result, whatever it is.
  *
@@ -164,12 +184,43 @@ export async function runSessionChecks(): Promise<void> {
   // A second press cannot race the first. Both land on the same store, and the
   // later answer has been able to arrive first.
   if (running) return;
+  const previous = recallChecks();
+  const firstLoad = previous === null;
+  const run = ++runGeneration;
   running = true;
+  if (firstLoad) {
+    rememberChecks({
+      settings: null,
+      report: null,
+      error: '',
+      load: { firstLoad: true, settings: 'pending', report: 'pending' },
+    });
+  }
   announce();
 
-  const previous = recallChecks();
   const problems: string[] = [];
-  const [settings, report] = await Promise.allSettled([readSettings(), readPreflight()]);
+  const settingsRequest = readSettings().then(
+    (read) => {
+      if (currentSettings(read)) settleFirstLoadPart(run, 'settings', 'ready', read.payload);
+      return read;
+    },
+    (error: unknown) => {
+      settleFirstLoadPart(run, 'settings', 'error');
+      throw error;
+    }
+  );
+  const reportRequest = readPreflight().then(
+    (value) => {
+      settleFirstLoadPart(run, 'report', 'ready', value);
+      return value;
+    },
+    (error: unknown) => {
+      settleFirstLoadPart(run, 'report', 'error');
+      throw error;
+    }
+  );
+  const [settings, report] = await Promise.allSettled([settingsRequest, reportRequest]);
+  if (run !== runGeneration) return;
 
   const next: CheckSession = {
     settings:
@@ -178,6 +229,11 @@ export async function runSessionChecks(): Promise<void> {
         : (recallChecks()?.settings ?? previous?.settings ?? null),
     report: report.status === 'fulfilled' ? report.value : (previous?.report ?? null),
     error: '',
+    load: {
+      firstLoad: false,
+      settings: settings.status === 'fulfilled' ? 'ready' : 'error',
+      report: report.status === 'fulfilled' ? 'ready' : 'error',
+    },
   };
   if (settings.status === 'rejected') {
     problems.push(`The app could not read its own configuration: ${(settings.reason as Error).message}.`);
@@ -232,6 +288,8 @@ export interface SessionChecks {
    * automatic one, because those results are this visit's.
    */
   restored: boolean;
+  /** True only until this session's first run has completed. */
+  firstLoad: boolean;
   /** Re-run both reads. The only thing that does, after the automatic run. */
   refresh: () => Promise<void>;
   /** Re-read the configuration after a write. Not a re-run of the checks. */
@@ -274,6 +332,7 @@ export function useSessionChecks(): SessionChecks {
     session: recallChecks(),
     running,
     restored: hadSessionAtMount && completed === seenAtMount,
+    firstLoad: !hadSessionAtMount && completed === seenAtMount,
     refresh,
     reloadSettings,
   };

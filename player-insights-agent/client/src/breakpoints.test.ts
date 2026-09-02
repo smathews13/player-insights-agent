@@ -22,6 +22,16 @@ import { partial, partialNames } from './styles/stylesheet';
  */
 
 const DECLARED = [1365, 1180, 800, 480];
+const ROUTE_EXCEPTIONS = new Map<string, number[]>([
+  // Dense configured/measured pairs and settings dialogs need one local
+  // single-column handoff before the app-wide 480px phone band.
+  ['connections.css', [720]],
+  ['settings.css', [720]],
+  // The cost assumptions row and the four-segment Monitoring control are
+  // component geometries, not navigation/layout breakpoints.
+  ['ops.css', [640]],
+  ['responsive-monitoring.css', [380]],
+]);
 
 /** Every width-based media query in a partial, in the order it declares them. */
 function widthQueries(css: string): number[] {
@@ -39,10 +49,15 @@ describe('the app has one set of breakpoints', () => {
     const stray = new Map<string, number[]>();
     for (const name of partialNames()) {
       const found = widthQueries(partial(name));
-      if (found.some((width) => !DECLARED.includes(width))) stray.set(name, found);
+      const permitted = [...DECLARED, ...(ROUTE_EXCEPTIONS.get(name) ?? [])];
+      const unsupported = found.filter((width) => !permitted.includes(width));
+      if (unsupported.length > 0) stray.set(name, unsupported);
       expect(found, `${name} keeps larger breakpoints before smaller ones`).toEqual([...found].sort((a, b) => b - a));
     }
     expect([...stray]).toEqual([]);
+    for (const [name, expected] of ROUTE_EXCEPTIONS) {
+      expect(widthQueries(partial(name)).filter((width) => !DECLARED.includes(width))).toEqual(expected);
+    }
   });
 
   it('folds the ones that were measured against nothing into the declared bands', () => {

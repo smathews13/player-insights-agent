@@ -3,7 +3,7 @@ import type { OpsDayRange } from './ops-contract';
 import type { Role } from './user-roster-contract';
 import type { UserSpendAmount, UserSpendQuality, UserSpendReconciliation } from './user-spend-contract';
 
-export const USER_MONITORING_SCHEMA_REVISION = 2;
+export const USER_MONITORING_SCHEMA_REVISION = 3;
 
 export interface UserMonitoringRow {
   email: string;
@@ -13,6 +13,7 @@ export interface UserMonitoringRow {
   lastActive: string;
   questions: number;
   runs: number;
+  coveredDays: number;
   spend: {
     usd: UserSpendAmount;
     dbu: UserSpendAmount;
@@ -39,5 +40,20 @@ export interface UserMonitoringPayload {
   reconciliation: {
     usd: UserSpendReconciliation;
     dbu: UserSpendReconciliation;
+  };
+  /** Serving-layer freshness; optional for rolling deploys with older servers. */
+  freshness?: {
+    computedAt: string | null;
+    sourceThrough: string | null;
+    billingCompleteThrough: string | null;
+    isRefreshing: boolean;
+    isStale: boolean;
+    calculationVersion: number;
+    completeness: {
+      activity: 'complete' | 'partial';
+      billing: 'complete' | 'partial';
+      usd: 'complete' | 'partial';
+      dbu: 'complete' | 'partial';
+    };
   };
 }

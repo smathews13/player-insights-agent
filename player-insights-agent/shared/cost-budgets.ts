@@ -77,6 +77,13 @@ export interface CostBudgets {
   resources: Record<string, CostBudget>;
 }
 
+export interface CostBudgetAudit {
+  appliedAt: string;
+  appliedBy: string;
+}
+
+export const UNKNOWN_COST_BUDGET_AUDIT: CostBudgetAudit = { appliedAt: '', appliedBy: '' };
+
 export const EMPTY_COST_BUDGET: Required<Pick<CostBudget, 'USD' | 'DBU'>> = { USD: null, DBU: null };
 export const EMPTY_COST_BUDGETS: CostBudgets = { total: EMPTY_COST_BUDGET, resources: {} };
 

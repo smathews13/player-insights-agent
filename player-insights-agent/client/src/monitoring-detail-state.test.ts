@@ -82,6 +82,6 @@ describe('detail request cancellation', () => {
   it('passes an abort signal and cancels on key change or unmount', () => {
     expect(source).toContain('fetch(url, { signal: controller.signal })');
     expect(source).toContain('return () => controller.abort()');
-    expect(source).toContain('[attempt, decode, errorMessage, key, scopedKey, url]');
+    expect(source).toContain('[attempt, decode, errorMessage, key, retainAcrossKeys, scopedKey, url]');
   });
 });

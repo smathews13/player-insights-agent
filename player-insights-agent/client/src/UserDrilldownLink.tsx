@@ -1,4 +1,5 @@
 import type { KeyboardEvent, ReactNode } from 'react';
+import { ArrowUpRight } from 'lucide-react';
 import { Link, useInRouterContext, useLocation } from 'react-router';
 import { showsAdminSurfaces, useOptionalRole, type RoleState } from './role';
 import { identityName } from './user-identity';
@@ -19,6 +20,7 @@ export function UserDrilldownLink({
   title,
   role,
   canOpen,
+  showArrow = false,
   variant = 'chip',
   children,
 }: {
@@ -29,6 +31,8 @@ export function UserDrilldownLink({
   title?: string;
   role?: RoleState;
   canOpen?: boolean;
+  /** Trailing visual cue, rendered only when this identity is actually a link. */
+  showArrow?: boolean;
   variant?: 'chip' | 'text';
   children?: ReactNode;
 }) {
@@ -37,7 +41,17 @@ export function UserDrilldownLink({
   const allowed = canOpen ?? showsAdminSurfaces(role ?? outletRole ?? 'failed');
   const content =
     variant === 'chip' ? (
-      <UserIdentityChip identity={identity} label={label} compact={compact} className={className || undefined} />
+      <UserIdentityChip
+        identity={identity}
+        label={label}
+        compact={compact}
+        className={className || undefined}
+        suffix={
+          showArrow && allowed && email ? (
+            <ArrowUpRight className="identity-chip-link-arrow size-3" aria-hidden="true" />
+          ) : null
+        }
+      />
     ) : (
       <span className={className || undefined} title={title}>
         {children ?? identityName(identity)}

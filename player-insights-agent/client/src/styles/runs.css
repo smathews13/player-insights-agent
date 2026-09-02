@@ -1237,38 +1237,6 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   line-height: 1.4;
   text-wrap: pretty;
 }
-/*
- * Status the header would otherwise bury: incomplete sources and a turn
- * deadline used to sit as 11px bullets under a "FINAL ANSWER" eyebrow. These
- * lead in the same muted dark red as the Failed badge and Ask's destructive
- * alert -- not the ochre warning family, which read as a caution rather than
- * as a failed answer.
- */
-.final-answer-warnings {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.final-answer-warning {
-  display: block;
-  padding: 0;
-  border: 0;
-  background: none;
-}
-.final-answer-warning [data-slot='alert'] {
-  border-color: var(--ast-neg-border);
-  background: var(--ast-neg-fill);
-  color: var(--ast-neg-text);
-}
-.final-answer-warning strong {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ast-neg-text);
-}
 .final-answer .answer-prose {
   font-size: var(--ast-fs-14);
   line-height: 1.55;

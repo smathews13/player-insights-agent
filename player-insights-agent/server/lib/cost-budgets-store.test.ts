@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { APP_SCHEMA } from '../../shared/app-schema';
-import { EMPTY_COST_BUDGETS } from '../../shared/cost-budgets';
+import { EMPTY_COST_BUDGETS, UNKNOWN_COST_BUDGET_AUDIT } from '../../shared/cost-budgets';
 import { COST_BUDGETS_TABLE, forgetCostBudgets, readCostBudgets, writeCostBudgets } from './cost-budgets-store';
 
 function client(rows: Record<string, unknown>[] = [], fail?: Error) {
@@ -32,6 +32,7 @@ describe('cost budget persistence', () => {
     forgetCostBudgets();
     expect(await readCostBudgets(client() as never, { maxAgeMs: 0 })).toEqual({
       budgets: EMPTY_COST_BUDGETS,
+      audit: UNKNOWN_COST_BUDGET_AUDIT,
       readable: true,
     });
   });
@@ -46,18 +47,32 @@ describe('cost budget persistence', () => {
         'serving-endpoint': { USD: 80, DBU: null },
       },
     };
-    expect((await readCostBudgets(client([{ settings: legacy }]) as never, { maxAgeMs: 0 })).budgets).toEqual(stored);
+    const audit = { appliedAt: '2026-09-02T16:51:00.000Z', appliedBy: 'admin@example.com' };
+    expect(
+      await readCostBudgets(
+        client([{ settings: legacy, updated_at: audit.appliedAt, updated_by: audit.appliedBy }]) as never,
+        { maxAgeMs: 0 }
+      )
+    ).toEqual({ budgets: stored, audit, readable: true });
 
-    const writer = client();
-    await writeCostBudgets(writer as never, stored, 'admin@example.com');
+    const writer = client([{ updated_at: audit.appliedAt, updated_by: audit.appliedBy }]);
+    await expect(writeCostBudgets(writer as never, stored, 'admin@example.com')).resolves.toEqual({
+      budgets: stored,
+      audit,
+      readable: true,
+    });
     expect(writer.calls[0]?.sql).toContain(COST_BUDGETS_TABLE);
+    expect(writer.calls[0]?.sql).toContain('RETURNING updated_at, updated_by');
+    expect(writer.calls[0]?.sql).toContain(
+      "cost_budgets.settings -> 'total' IS DISTINCT FROM EXCLUDED.settings -> 'total'"
+    );
     expect(writer.calls[0]?.values).toEqual(['effective', JSON.stringify(stored), 'admin@example.com']);
   });
 
   it('does not invent figures when the store cannot be read', async () => {
     forgetCostBudgets();
     const result = await readCostBudgets(client([], new Error('permission denied')) as never, { maxAgeMs: 0 });
-    expect(result).toEqual({ budgets: EMPTY_COST_BUDGETS, readable: false });
+    expect(result).toEqual({ budgets: EMPTY_COST_BUDGETS, audit: UNKNOWN_COST_BUDGET_AUDIT, readable: false });
     expect(result.budgets.total).toEqual({ USD: null, DBU: null });
     expect(result.budgets.resources).toEqual({});
   });
@@ -69,5 +84,14 @@ describe('cost budget persistence', () => {
     });
     expect(result.readable).toBe(false);
     expect(result.budgets).toEqual(EMPTY_COST_BUDGETS);
+  });
+
+  it('keeps legacy audit metadata unknown rather than fabricating an actor or timestamp', async () => {
+    forgetCostBudgets();
+    const result = await readCostBudgets(
+      client([{ settings: { total: 100, resources: {} }, updated_at: null, updated_by: null }]) as never,
+      { maxAgeMs: 0 }
+    );
+    expect(result.audit).toEqual(UNKNOWN_COST_BUDGET_AUDIT);
   });
 });

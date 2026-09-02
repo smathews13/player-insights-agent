@@ -73,7 +73,6 @@ describe('whether the section may call itself a final answer', () => {
     expect(answerHonesty({ truncated: false, caveats: [identity] })).toEqual({
       eyebrow: 'Final answer',
       tone: 'complete',
-      warnings: [],
     });
   });
 
@@ -85,7 +84,6 @@ describe('whether the section may call itself a final answer', () => {
     });
     expect(honesty.eyebrow).toBe('Final answer');
     expect(honesty.tone).toBe('complete');
-    expect(honesty.warnings.map((warning) => warning.label)).toEqual(['Incomplete sources']);
   });
 
   it('keeps a finished answer with tables Complete when only a deadline note remains', () => {
@@ -96,7 +94,6 @@ describe('whether the section may call itself a final answer', () => {
     });
     expect(honesty.eyebrow).toBe('Final answer');
     expect(honesty.tone).toBe('complete');
-    expect(honesty.warnings.map((warning) => warning.label)).toEqual(['Turn deadline reached', 'Incomplete sources']);
   });
 
   it('calls a writer timeout after tables landed a partial answer, not unanswered', () => {
@@ -108,7 +105,6 @@ describe('whether the section may call itself a final answer', () => {
     });
     expect(honesty.eyebrow).toBe('Partial answer');
     expect(honesty.tone).toBe('partial');
-    expect(honesty.warnings.map((warning) => warning.label)).toEqual(['Incomplete sources']);
   });
 
   it('will not title an empty deadline stop as a final answer', () => {
@@ -156,7 +152,6 @@ describe('whether the section may call itself a final answer', () => {
 
     expect(honesty.eyebrow).toBe('Final answer');
     expect(honesty.tone).toBe('complete');
-    expect(honesty.warnings).toEqual([]);
   });
 
   it('keeps a 12-table catalog listing Complete when DSF clipped optional detail', () => {
@@ -184,7 +179,7 @@ describe('whether the section may call itself a final answer', () => {
       'A governance control refused part of this request, so that part is not answered here and was not answered another way.';
     const honesty = answerHonesty({ truncated: false, caveats: [refusal] });
 
-    expect(honesty.warnings).toEqual([{ label: 'Request refused', text: refusal }]);
+    expect(honesty).toEqual({ eyebrow: 'Final answer', tone: 'complete' });
   });
 
   it('does not call a words-only degraded reply a refused final answer', () => {
@@ -197,6 +192,5 @@ describe('whether the section may call itself a final answer', () => {
 
     expect(honesty.eyebrow).toBe('Partial answer');
     expect(honesty.tone).toBe('partial');
-    expect(honesty.warnings).toEqual([{ label: 'Answer incomplete', text: degraded }]);
   });
 });

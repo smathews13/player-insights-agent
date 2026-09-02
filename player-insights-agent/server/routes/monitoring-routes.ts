@@ -66,6 +66,9 @@ import { APP_SESSION_TABLE, appSessionDeployment } from '../lib/app-session';
 import { effectiveRole, readRosterForRequest } from '../lib/user-roster';
 import { invalidAdminEmail, seedRoles } from '../lib/admin-roles';
 import { listSpAssignments, listSpPersonas } from '../lib/sp-identity-store';
+import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
+import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
+import type { TokenAttribution } from '../../shared/llm-token-usage';
 
 /**
  * Default and hard maximum for one API page. The query asks for one look-ahead
@@ -561,6 +564,11 @@ function integer(value: unknown): number | null {
   return Number.isFinite(parsed) ? Math.round(parsed) : null;
 }
 
+function tokenCount(value: unknown): number | null {
+  const parsed = integer(value);
+  return parsed !== null && parsed >= 0 ? parsed : null;
+}
+
 function stamp(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
   const raw = text(value);
@@ -615,6 +623,30 @@ function traceOf(response: unknown): unknown {
   if (!response || typeof response !== 'object') return null;
   const trace = (response as { trace?: unknown }).trace;
   return trace && typeof trace === 'object' ? trace : null;
+}
+
+/** Attach the same redacted evidence projection Run Explorer uses. */
+export function responseWithTokenAttribution(response: unknown, attribution: TokenAttribution | null): unknown {
+  if (!response || typeof response !== 'object' || !attribution) return response;
+  const answer = response as Record<string, unknown>;
+  const trace = traceOf(answer);
+  if (!trace || typeof trace !== 'object') return response;
+  const traceRecord = trace as Record<string, unknown>;
+  const stages: unknown[] = Array.isArray(traceRecord.stages) ? (traceRecord.stages as unknown[]) : [];
+  return {
+    ...answer,
+    trace: {
+      ...traceRecord,
+      stages: stages.map((stage) => {
+        if (!stage || typeof stage !== 'object') return stage;
+        const record = stage as Record<string, unknown>;
+        const usage = attribution.stages[text(record.id)];
+        return usage ? { ...record, token_usage: usage } : record;
+      }),
+      token_reconciliation: attribution.reconciliation,
+      token_invocations: attribution.invocations,
+    },
+  };
 }
 
 /**
@@ -710,6 +742,7 @@ export function questionFromRow(row: Record<string, unknown>, ledger: Map<string
     outcomeDetail: refusalSentence(verdict?.code),
     durationMs: integer(row.total_ms),
     toolCalls: integer(row.tool_calls),
+    totalTokens: tokenCount(row.total_tokens),
     rating: applyAdminRating(sentiment(row.sentiment, integer(row.usefulness)), text(row.overlay_rating)),
     tables: tableList(row.sources),
   };
@@ -953,6 +986,8 @@ export interface MonitoringDeps {
   /** Injected by tests so the per-user grants read does not need a workspace. */
   workspaceRead?: WorkspaceRead;
   now?: () => number;
+  /** One cached, redacted trace read for an opened answer; never used by the list. */
+  traceTokenEvidenceReader?: TraceTokenEvidenceReader;
 }
 
 /**
@@ -1133,6 +1168,17 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       });
       const conditioning = conditioningFor(tables, grants);
       const traceId = text(row.trace_id);
+      const storedTrace = traceOf(row.response_json) as Record<string, unknown> | null;
+      const stageIds = Array.isArray(storedTrace?.stages)
+        ? storedTrace.stages
+            .map((stage) => (stage && typeof stage === 'object' ? text((stage as Record<string, unknown>).id) : ''))
+            .filter(Boolean)
+        : [];
+      const attribution =
+        deps.traceTokenEvidenceReader && isMlflowTraceId(traceId)
+          ? await deps.traceTokenEvidenceReader(traceId, stageIds, tokenCount(storedTrace?.total_tokens) ?? undefined)
+          : null;
+      const enrichedResponse = responseWithTokenAttribution(row.response_json, attribution);
       const mlflow = traceId ? mlflowReference(traceId, await resolveExperimentId(appkit)) : null;
       const executionMode = text(row.execution_mode);
       const detail: MonitoringDetail = {
@@ -1156,13 +1202,13 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         outcomeDetail: refusalSentence(verdict?.code),
         outcomeCode: verdict?.code ?? null,
         // Withheld, not blanked: the field is null and `conditioning` says why.
-        answer: conditioning ? null : (row.response_json ?? null),
+        answer: conditioning ? null : (enrichedResponse ?? null),
         conditioning,
         // Always sent. See the field's note in the contract: the timeline and the
         // token counts are records about the agent rather than about anybody's
         // data, and the conditioned drawer in the design renders both.
-        trace: traceOf(row.response_json),
-        tokens: tokensOf(row.response_json),
+        trace: traceOf(enrichedResponse),
+        tokens: tokensOf(enrichedResponse),
         // Both halves or neither. A row carrying a mode and no verified flag is
         // a half-written claim, and the footer's absent sentence is the truthful
         // reading of one. See normalizeExecutionIdentity in answer-shape.ts.

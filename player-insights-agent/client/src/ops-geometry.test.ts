@@ -273,6 +273,10 @@ describe('the Cost card layout', () => {
   it('does not create a separate Genie layout', () => {
     expect(CSS).not.toContain('.ops-genie-section');
     expect(CSS).not.toContain('.ops-genie-grid');
+    expect(CSS).not.toContain('.ops-genie-method');
+    expect(rule('.ops-cost-method')).toMatch(/margin-top:\s*12px/);
+    expect(rule('.ops-genie-values')).toMatch(/display:\s*grid/);
+    expect(rule('.ops-genie-values dd')).toMatch(/overflow-wrap:\s*anywhere/);
   });
 
   it('allows card content to grow without fixed heights or clipping', () => {
@@ -283,6 +287,8 @@ describe('the Cost card layout', () => {
     }
     expect(rule('.ops-cost-resource')).toMatch(/text-overflow:\s*ellipsis/);
     expect(rule('.ops-tile-evidence')).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(rule('.ops-cost-summary-budget-values')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.ops-block-head-trailing')).toMatch(/flex:\s*none/);
   });
 });
 

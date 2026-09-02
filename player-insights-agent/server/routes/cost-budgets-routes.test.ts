@@ -22,7 +22,11 @@ describe('cost budget route permissions', () => {
       lakebase: {
         query: (sql: string, params: unknown[] = []) => {
           writes.push({ sql, params });
-          return Promise.resolve({ rows: [] });
+          return Promise.resolve({
+            rows: sql.includes('RETURNING')
+              ? [{ updated_at: '2026-09-02T16:51:00.000Z', updated_by: 'admin@example.test' }]
+              : [],
+          });
         },
       },
       server: {
@@ -65,6 +69,10 @@ describe('cost budget route permissions', () => {
         },
       },
       readable: true,
+      audit: {
+        appliedAt: '2026-09-02T16:51:00.000Z',
+        appliedBy: 'admin@example.test',
+      },
     });
     expect(writes[0].params[1]).toBe(
       JSON.stringify({

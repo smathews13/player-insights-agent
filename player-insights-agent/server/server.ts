@@ -44,6 +44,9 @@ createApp({
       { setupAccessGuideRoutes },
       { setupUserRoutes },
       { setupMonitoringRoutes },
+      { setupUserSpendReadModelRoutes },
+      { createUserSpendRefreshSource },
+      { startUserSpendHourlyScheduler },
       { setupOpsRoutes },
       { setupEgressRoutes },
       { setupRuntimeSettingsRoutes },
@@ -69,6 +72,9 @@ createApp({
       import('./routes/access-guide-routes'),
       import('./routes/user-routes'),
       import('./routes/monitoring-routes'),
+      import('./routes/user-spend-read-model-routes'),
+      import('./lib/user-spend-refresh-source'),
+      import('./lib/user-spend-hourly-read-model'),
       import('./routes/ops-routes'),
       import('./routes/egress-routes'),
       import('./routes/runtime-settings-routes'),
@@ -155,7 +161,18 @@ createApp({
     // checks that the guard's prefix list covers each of its paths and registers
     // nothing if it does not, but that check cannot see this ordering, so this is
     // the half of the protection that lives here.
-    setupMonitoringRoutes(appkit, { isAdminRoute });
+    setupMonitoringRoutes(appkit, { isAdminRoute, traceTokenEvidenceReader: readMlflowTokenEvidence });
+    setupUserSpendReadModelRoutes(appkit, {
+      isAdminRoute,
+      sourceForRequest: (req) => createUserSpendRefreshSource(appkit, req),
+    });
+    // The rolling 24-hour projection reads Lakebase only, so it can refresh
+    // under the app identity without retaining a reader's forwarded credential.
+    // Start after migrations settle, and never hold application readiness open.
+    void storeReady.then(
+      () => void startUserSpendHourlyScheduler(appkit.lakebase),
+      () => undefined
+    );
     // After the insights routes for the same reason again, and worth stating
     // separately rather than folding into the note above: these report what this
     // deployment costs and how much of it people use. Registered first, the bill

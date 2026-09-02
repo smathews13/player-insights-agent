@@ -138,6 +138,11 @@
   margin-left: auto;
 }
 
+.ops-block-head-trailing {
+  flex: none;
+  margin-left: 0;
+}
+
 .ops-cost-head-controls {
   display: flex;
   align-items: center;
@@ -157,6 +162,9 @@
   .ops-block-head-control,
   .ops-cost-head-controls {
     width: 100%;
+  }
+  .ops-block-head-trailing {
+    margin-left: auto;
   }
   .ops-cost-head-controls {
     justify-content: flex-start;
@@ -662,8 +670,34 @@ a.ops-dependency-name:hover {
   text-align: right;
 }
 
+.ops-cost-summary-budget-values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.ops-cost-summary-budget .ops-cost-budget-balance[data-budget-tone='warning'],
+.ops-cost-summary-budget-mtd[data-budget-tone='warning'] {
+  color: var(--ast-warn-text);
+}
+
+.ops-cost-summary-budget .ops-cost-budget-balance[data-budget-tone='danger'],
+.ops-cost-summary-budget-mtd[data-budget-tone='danger'] {
+  color: var(--ast-neg-text);
+}
+
 .ops-cost-summary-budget-mtd {
   grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+}
+
+.ops-budget-audit {
+  margin: 6px 0 0;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
 
@@ -883,6 +917,33 @@ a.ops-cost-resource {
   font-size: var(--text-xs);
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.ops-genie-values {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.ops-genie-values > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ops-genie-values dt {
+  color: var(--ast-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.ops-genie-values dd {
+  margin: 0;
+  font-size: var(--ast-fs-18);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 @media (max-width: 72rem) {
@@ -1310,12 +1371,24 @@ a.ops-cost-resource {
 }
 
 .ops-forecast-horizon h4 {
-  margin: 0 0 8px;
+  margin: 0;
   color: var(--ast-text-secondary);
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.ops-forecast-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ops-forecast-card-head .ops-pill {
+  flex: none;
 }
 
 .ops-forecast-total {

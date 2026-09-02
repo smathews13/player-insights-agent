@@ -42,7 +42,7 @@ import { AstrolabeMark } from './AstrolabeMark';
 import { AnswerProse, EntityText } from './DataEntityLinks';
 import { mentionedIdentifiers } from './data-entities';
 import { SourcesModule } from './SourcesModule';
-import { TraceTimeline } from './TraceTimeline';
+import { TraceTimeline, type TraceTimelineVariant } from './TraceTimeline';
 import { DOWN_RATING, UP_RATING, ratedThumb } from './stored-feedback';
 import { evidenceLinkedSourceNames } from './answer-table-origins';
 import type { Answer, FeedbackEntry } from './app-types';
@@ -79,6 +79,7 @@ export function AnswerCard({
   defaultRunProcessOpen = true,
   runProcessPreferenceKey,
   processStages,
+  runProcessVariant = 'default',
   afterEvidence,
   headerExtra,
 }: {
@@ -132,6 +133,8 @@ export function AnswerCard({
    * replaced.
    */
   processStages?: TraceStage[];
+  /** Shared Timeline presentation selected by the surface hosting this card. */
+  runProcessVariant?: TraceTimelineVariant;
   /**
    * A note that belongs after the figures and before Sources.
    *
@@ -209,8 +212,7 @@ export function AnswerCard({
     figures: readerAnswer.figures,
     content: readerAnswer.content,
   });
-  const warningTexts = new Set(honesty.warnings.map((warning) => warning.text));
-  const keepCaveats = ordinaryCaveats.filter((caveat) => !warningTexts.has(caveat.trim()));
+  const keepCaveats = ordinaryCaveats;
   const badge = answerBadge(readerAnswer);
   const usedAttachments = processTrace.stages.some((stage) => stage.id === 'attachment');
   const missingDocumentFootnotes = usedAttachments && readerAnswer.document_snippets.length === 0;
@@ -282,20 +284,6 @@ export function AnswerCard({
             </AlertDescription>
           </Alert>
         )}
-        {honesty.warnings.length > 0 && !fallbackNotice ? (
-          <Alert variant="destructive">
-            <CircleAlert />
-            <AlertDescription>
-              <p>
-                <strong>{honesty.warnings[0].label}.</strong>{' '}
-                <EntityText
-                  text={honesty.warnings.map((warning) => warning.text).join(' ')}
-                  sources={readerAnswer.sources}
-                />
-              </p>
-            </AlertDescription>
-          </Alert>
-        ) : null}
         <div className="answer-main-row">
           <div className="answer-narrative">
             <AnswerProse
@@ -432,7 +420,12 @@ export function AnswerCard({
                 </CollapsibleTrigger>
               </div>
               <CollapsibleContent className="run-process-body">
-                <TraceTimeline trace={processTrace} question={question} verdict={processVerdict} />
+                <TraceTimeline
+                  trace={processTrace}
+                  question={question}
+                  verdict={processVerdict}
+                  variant={runProcessVariant}
+                />
               </CollapsibleContent>
             </Collapsible>
           </div>

@@ -58,10 +58,33 @@ function format(value: number | undefined): string {
   return value === undefined ? TOKEN_UNAVAILABLE : value.toLocaleString();
 }
 
-function compact(value: number): string {
+export function compactTokenCount(value: number): string {
   if (value < 1_000) return value.toLocaleString();
-  const digits = value >= 10_000 ? 0 : 1;
-  return `${(value / 1_000).toFixed(digits).replace(/\.0$/, '')}K`;
+  if (value < 1_000_000) {
+    const digits = value >= 10_000 ? 0 : 1;
+    return `${(value / 1_000).toFixed(digits).replace(/\.0$/, '')}K`;
+  }
+  return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+}
+
+export function tokenTotalUsageView(value: number | null | undefined): {
+  reported: boolean;
+  compact: string;
+  exactLabel: string;
+} {
+  const total = count(value);
+  return total === undefined
+    ? { reported: false, compact: '—', exactLabel: 'Total tokens not reported' }
+    : {
+        reported: true,
+        compact:
+          total < 1_000
+            ? total.toLocaleString()
+            : total < 1_000_000
+              ? `${(total / 1_000).toFixed(1).replace(/\.0$/, '')}K`
+              : `${(total / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`,
+        exactLabel: `${total.toLocaleString()} total tokens`,
+      };
 }
 
 export function cacheStatusLabel(status: CacheStatus): string {
@@ -75,8 +98,8 @@ export function stepTokenUsageView(usage: StepTokenUsage): StepTokenView {
       ? usage.inputTokens + usage.outputTokens
       : undefined);
   const summary = [
-    total === undefined ? 'Token total unavailable' : `${compact(total)} tokens`,
-    usage.cachedReadTokens && usage.cachedReadTokens > 0 ? `${compact(usage.cachedReadTokens)} cached` : '',
+    total === undefined ? 'Token total unavailable' : `${compactTokenCount(total)} tokens`,
+    usage.cachedReadTokens && usage.cachedReadTokens > 0 ? `${compactTokenCount(usage.cachedReadTokens)} cached` : '',
   ]
     .filter(Boolean)
     .join(' · ');

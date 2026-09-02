@@ -175,12 +175,14 @@ describe("the modal draws one run view, the card's own", () => {
     expect(occurrences(text(drawer()), 'Step timeline')).toBe(1);
   });
 
-  it('lists each recorded step once', () => {
+  it('uses Run Explorer event labels and lists each recorded step once', () => {
     const rendered = text(drawer());
 
-    expect(occurrences(rendered, 'Checked field definitions')).toBe(1);
-    expect(occurrences(rendered, 'Queried governed data')).toBe(1);
-    expect(occurrences(rendered, 'Wrote the answer')).toBe(1);
+    expect(occurrences(rendered, 'dictionary_genie')).toBe(1);
+    expect(occurrences(rendered, 'data_genie')).toBe(1);
+    expect(occurrences(rendered, 'completion')).toBe(1);
+    expect(rendered).not.toContain('Checked field definitions');
+    expect(rendered).not.toContain('Queried governed data');
   });
 
   it('keeps the modal chrome around the shared card', () => {
@@ -246,7 +248,8 @@ describe("the modal draws one run view, the card's own", () => {
     expect(keep).toBeGreaterThan(sources);
     expect(process).toBeGreaterThan(keep);
 
-    expect(MONITORING).toContain('afterEvidence={tokensNote(detail.tokens)}');
+    expect(MONITORING).toContain('afterEvidence={');
+    expect(MONITORING).toContain('tokensNote(detail.tokens)');
     expect(MONITORING).toContain('{!answer ? tokensNote(detail.tokens) : null}');
     expect(CARD).toContain('{afterEvidence}');
   });

@@ -800,7 +800,7 @@ describe('the cost block', () => {
    * cards' own borders. The one thing a reader acts on is whether the figure is
    * an apportionment, and that is one word in the block's own pill.
    */
-  it('labels an estimated figure inline and leaves a measured one bare', () => {
+  it('labels every Cost component as Estimated', () => {
     const payload = cost({
       tiles: [
         { ...cost().tiles[0], id: 'sql-warehouse', label: 'SQL warehouse', quality: 'estimate' },
@@ -808,7 +808,8 @@ describe('the cost block', () => {
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect(markup).toContain('>Estimate<');
+    expect(markup.match(/>Estimated</g)).toHaveLength(6);
+    expect(markup).not.toContain('>Partial<');
     expect(markup).not.toContain('Per token');
   });
 
@@ -862,7 +863,7 @@ describe('the cost block', () => {
         id,
       })),
     });
-    const markup = render(<CostBody block={block(payload)} />);
+    const markup = markupOf(<CostBody block={block(payload)} />);
     for (const caption of [
       'per-token: from recorded tokens',
       'hourly spend shared across queries by duration',
@@ -886,12 +887,12 @@ describe('the cost block', () => {
     expect(render(<CostBody block={block(cost())} />)).not.toContain("custom_tags['astrolabe']");
   });
 
-  it('orders Cost Tracking before its period and removes the Experimental qualifier', () => {
+  it('orders Cost Tracking, its period, and one trailing Experimental qualifier', () => {
     const markup = markupOf(<CostBody block={block(cost())} />);
     const visible = text(markup);
     const heading = markup.slice(0, markup.indexOf('ops-block-body'));
     expect(visible).toContain('Cost Tracking');
-    expect(heading).not.toContain('Experimental');
+    expect(heading.match(/>Experimental</g)).toHaveLength(1);
     expect(visible).not.toContain('Under development');
     expect(visible).not.toContain('Not production');
     expect(visible).not.toMatch(/How to read these figures/);
@@ -900,6 +901,7 @@ describe('the cost block', () => {
     expect(visible).not.toContain('system.billing.list_prices');
     expect(visible).not.toContain('complete days');
     expect(markup.indexOf('>Cost Tracking</h3>')).toBeLessThan(markup.indexOf('>7 days</span>'));
+    expect(markup.indexOf('>7 days</span>')).toBeLessThan(markup.indexOf('>Experimental</span>'));
   });
 
   it('states exact partial Query History coverage instead of implying an estimate is complete', () => {
@@ -932,59 +934,45 @@ describe('the cost block', () => {
     );
     const heading = markup.slice(0, markup.indexOf('ops-block-body'));
     expect(markup).toContain('ast-pill ast-pill--neutral-outline ops-pill ops-period-pill');
-    expect(heading).not.toContain('ast-pill--warn');
+    expect(heading.match(/ast-pill--warn/g)).toHaveLength(1);
     expect(markup).not.toContain('ops-block-unfinished');
   });
 
-  it('keeps Cost methodology to calculated rows and includes attributed Vector Search', () => {
-    const payload = cost({
-      tiles: [
-        {
-          ...cost().tiles[0],
-          id: 'vector-search',
-          label: 'Vector Search endpoint',
-          resourceId: 'example-semantic-vs',
-          amount: 12,
-          dbus: 4,
-          quality: 'rate',
-          attribution: 'deployment',
-          pricing: {
-            source: 'list_prices',
-            match: 'priced',
-            currency: 'USD',
-            pricedQuantity: 4,
-            unpricedQuantity: 0,
-            pricedRows: 2,
-            unpricedRows: 0,
-            unpricedSkus: [],
-            duplicateMatches: 0,
-            correctionRows: 0,
-            priceEffectiveAt: '2026-01-01',
-          },
-        },
-      ],
-    });
-    const markup = markupOf(<CostBody block={block(payload)} />);
+  it('keeps Cost methodology to one compact set of current Genie usage facts', () => {
+    const markup = markupOf(<CostBody block={block(cost())} />);
     const visible = text(markup);
     const methodology = text(markup.slice(markup.indexOf('ops-methodology')));
     expect(visible).toContain('Cost methodology');
-    expect(visible).toContain('How totals are calculated');
-    expect(visible).toContain('Vector Search endpoint');
-    expect(methodology).not.toContain('Budget controls');
-    expect(methodology).not.toContain('Monthly app budget');
-    expect(methodology).not.toContain('Budget guardrails');
-    expect(methodology).not.toContain('Measurement window');
-    expect(methodology).not.toContain('Approval required');
-    expect(methodology).not.toContain('Approval duration');
-    expect(methodology).not.toContain('In-flight work');
-    expect(methodology).not.toContain('Resource budgets');
-    expect(methodology).not.toContain('Billing freshness');
-    expect(methodology).not.toContain('AI Gateway controls');
-    expect(methodology).not.toContain('not a hard billing ceiling');
-    expect(visible).not.toContain('NOT INCLUDED');
-    expect(visible).not.toContain('LIMITS');
-    expect(visible).not.toContain('Billing usage');
-    expect(visible).not.toContain('Cost methodology and limits');
+    for (const fact of [
+      'Genie usage',
+      '150 DBU per identified human user each calendar month; resets on the first day of the month.',
+      'Through Jan 31, 2027, Genie One and Genie Agents usage is promotional free and does not consume allowance.',
+      'Free usage consumes the user’s monthly allowance.',
+      'Usage above allowance; this is what counts toward configured Genie budgets.',
+      'No free allowance.',
+      'Data Genie and Dictionary Genie cards include only attributable configured-space usage; unrelated or unmatched workspace usage is excluded.',
+      'system.billing.usage is authoritative and can arrive hours after usage occurs.',
+    ]) {
+      expect(methodology).toContain(fact);
+      expect(methodology.split(fact)).toHaveLength(2);
+    }
+    for (const removed of [
+      'Genie accounting details',
+      'How totals are calculated',
+      'Total app spend',
+      'Average cost / question',
+      'Agent serving',
+      'Foundation model tokens',
+      'Ask SQL',
+      'Vector Search',
+      'App compute',
+      'Budget controls',
+      'Budget guardrails',
+      'Not included',
+      'Limits',
+    ]) {
+      expect(methodology).not.toContain(removed);
+    }
   });
 
   /**
@@ -1013,10 +1001,10 @@ describe('the cost block', () => {
     expect(markup).not.toContain('0.00');
   });
 
-  it('shows only the high-level attributed-cost formula', () => {
+  it('keeps the average card without repeating its formula in methodology', () => {
     const markup = render(<CostBody block={block(cost())} />);
     expect(markup).toContain('Average cost / question');
-    expect(markup).toContain('Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks');
+    expect(markup).not.toContain('Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks');
     expect(markup).not.toContain('Average model serving per question');
     expect(markup).not.toContain('token-apportions model-serving spend only');
     expect(markup).not.toContain('Per-question attribution');
@@ -1095,7 +1083,7 @@ describe('the cost block', () => {
     });
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('7.00 USD');
-    expect(markup).toContain('Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks');
+    expect(markup).not.toContain('Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks');
     expect(markup).not.toContain('token-apportioned');
     expect(markup).not.toContain('<table');
     expect(markup).not.toContain('Not knowable per question today');
@@ -1237,7 +1225,7 @@ describe('the cost block', () => {
   it('does not repeat the section experimental status on any Cost card', () => {
     const payload = cost();
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect([...markup.matchAll(/experimental-pane-badge/g)]).toHaveLength(0);
+    expect([...markup.matchAll(/experimental-pane-badge/g)]).toHaveLength(1);
     const heads = markup.match(/<div class="ops-tile-head">[\s\S]*?<\/div>/g) ?? [];
     expect(heads).toHaveLength(6);
     expect(heads.every((head) => !head.includes('experimental-pane-badge'))).toBe(true);
@@ -1321,14 +1309,13 @@ describe('the cost block', () => {
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
     const visible = text(markup);
-    expect(visible).toContain('Agent serving 1.50 USD');
-    expect(visible).toContain('Data Genie Unavailable');
-    expect(visible).toContain('space-data');
-    expect(visible).toContain('Dictionary Genie Unavailable');
-    expect(visible).toContain('space-dictionary');
-    expect(visible).toContain('Vector Search Unavailable');
+    expect(visible).toContain('Agent serving Estimated 1.50 USD');
+    expect(visible).toContain('Data Genie Estimated Free $0.00 Charged Unavailable');
+    expect(visible).not.toContain('space-data');
+    expect(visible).toContain('Dictionary Genie Estimated Free $0.00 Charged Unavailable');
+    expect(visible).not.toContain('space-dictionary');
+    expect(visible).toContain('Vector Search Estimated No measured amount');
     expect(visible).toContain('catalog.schema.index · vs-endpoint');
-    expect(markup).toContain('title="Genie LLM dollars unavailable"');
     expect(markup).toContain('title="Vector Search dollars unavailable"');
     expect(visible).not.toMatch(/Astrolabe (?:requests|queries)/);
     expect(visible).not.toContain('carry resource identity');
@@ -1711,7 +1698,7 @@ describe('the cost block', () => {
     expect(markup).not.toContain('Over budget');
   });
 
-  it('renders charged, free usage, attribution, and identifiers on each Genie card', () => {
+  it('renders exactly Free and Charged in the active unit on each Genie card', () => {
     const genieAccounting = (spaceId: string, label: string, tileId: string) => ({
       spaceId,
       label,
@@ -1766,15 +1753,21 @@ describe('the cost block', () => {
         },
       ],
     });
-    const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('Data Genie');
-    expect(markup).toContain('Dictionary Genie');
-    expect(markup).toContain('space-data');
-    expect(markup).toContain('space-dictionary');
-    expect(markup).toContain('2.00 USD · 5.00 effective DBU');
-    expect(markup).toContain('Free usage 15.00 DBU');
-    expect(markup).toContain('Allowance 12.00 DBU · Promotional 3.00 DBU');
-    expect(markup).not.toContain('Underlying total');
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    const grid = text(markup.slice(markup.indexOf('cost-primary-grid'), markup.indexOf('ops-cost-method')));
+    expect(grid).toContain('Data Genie');
+    expect(grid).toContain('Dictionary Genie');
+    expect(grid).toContain('Free $0.00');
+    expect(grid).toContain('Charged $2.00');
+    expect(grid).not.toMatch(
+      /space-data|space-dictionary|Configured-space|effective DBU|Free usage|Allowance 12\.00|Promotional 3\.00|Underlying total/
+    );
+
+    const dbuMarkup = markupOf(<CostBody block={block(payload)} unit="DBU" />);
+    const dbu = text(dbuMarkup.slice(dbuMarkup.indexOf('cost-primary-grid'), dbuMarkup.indexOf('ops-cost-method')));
+    expect(dbu).toContain('Data Genie Estimated Free 15.00 DBU Charged 5.00 DBU');
+    expect(dbu).toContain('Dictionary Genie Estimated Free 15.00 DBU Charged 5.00 DBU');
+    expect(dbu).not.toContain('$');
   });
 
   it('renders the production Cost hierarchy without exposing unmatched workspace Genie spend', () => {
@@ -1931,17 +1924,18 @@ describe('the cost block', () => {
     expect(primaryGrid).not.toContain('ops-genie-section');
     expect(primaryGrid).not.toMatch(/<h4[^>]*>Genie<\/h4>/);
     expect(primaryGrid).toContain('Data Genie');
-    expect(primaryGrid).toContain('0.33 USD · 1.65 effective DBU');
+    expect(primaryGrid).toContain('Free</dt><dd class="ast-num">$0.00');
+    expect(primaryGrid).toContain('Charged</dt><dd class="ast-num">$0.33');
     expect(primaryGrid).toContain('Dictionary Genie');
-    expect(primaryGrid).toContain('3.21 USD · 16.05 effective DBU');
-    expect(primaryGrid).toContain('Free usage 30.00 DBU');
-    expect(primaryGrid).toContain('Allowance 12.00 DBU · Promotional 18.00 DBU');
+    expect(primaryGrid).toContain('Charged</dt><dd class="ast-num">$3.21');
+    expect(primaryGrid).not.toMatch(/Free usage|Allowance|Promotional|effective DBU|Configured-space/);
     expect(primaryGrid.indexOf('Data Genie')).toBeLessThan(primaryGrid.indexOf('Dictionary Genie'));
     expect(primaryGrid.indexOf('Dictionary Genie')).toBeLessThan(primaryGrid.indexOf('Average cost / question'));
-    expect(primaryGrid).toContain('space-data-production-id');
-    expect(primaryGrid).toContain('space-dictionary-production-id');
+    expect(primaryGrid).not.toContain('space-data-production-id');
+    expect(primaryGrid).not.toContain('space-dictionary-production-id');
     expect(primaryGrid).toContain('177 of 216 Ask model calls');
-    expect(primaryGrid).toContain('Partial');
+    expect(primaryGrid).not.toContain('Partial');
+    expect(primaryGrid.match(/>Estimated</g)).toHaveLength(8);
     expect(primaryGrid).not.toContain('Unattributed Genie');
     expect(primaryGrid).not.toContain('7,552');
     expect(primaryGrid).not.toContain('production-identifier</span></h4>');

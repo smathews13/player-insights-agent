@@ -17,6 +17,7 @@ import {
   withResourceBudget,
   withTotalBudget,
   type CostBudget,
+  type CostBudgetAudit,
   type CostBudgetUnit,
   type CostBudgets,
 } from '../../shared/cost-budgets';
@@ -106,6 +107,7 @@ interface CostBudgetApi {
   validFor: (group: BudgetSaveGroup) => boolean;
   applying: boolean;
   readable: boolean;
+  audit: CostBudgetAudit;
 }
 
 const CostBudgetContext = createContext<CostBudgetApi | null>(null);
@@ -129,12 +131,14 @@ export function CostBudgetProvider({
 }) {
   const [draft, setDraft] = useState<CostBudgets | null>(null);
   const [loaded, setLoaded] = useState<CostBudgets | null>(null);
+  const [audit, setAudit] = useState<CostBudgetAudit>({ appliedAt: '', appliedBy: '' });
   const [saveStates, setSaveStates] = useState<Record<BudgetSaveGroup, SettingsSaveState>>({
     total: SETTINGS_SAVE_IDLE,
     resources: SETTINGS_SAVE_IDLE,
   });
   const [validity, setValidityState] = useState<Record<string, boolean>>({});
   const inFlight = useRef<BudgetSaveGroup | null>(null);
+  const loadRevision = useRef(0);
   const revisions = useRef<Record<BudgetSaveGroup, number>>({ total: 0, resources: 0 });
   const saveResetTimers = useRef<Partial<Record<BudgetSaveGroup, BudgetSaveTimer>>>({});
   const stored = loaded ?? payload.budgets ?? EMPTY_COST_BUDGETS;
@@ -155,6 +159,14 @@ export function CostBudgetProvider({
     },
     []
   );
+  useEffect(() => {
+    const revision = ++loadRevision.current;
+    void loadCostBudgets().then((current) => {
+      if (revision !== loadRevision.current || !current.ok || !current.budgets) return;
+      setLoaded(current.budgets);
+      setAudit(current.audit);
+    });
+  }, []);
 
   const setTotal = useCallback(
     (budget: CostBudget) => {
@@ -198,6 +210,7 @@ export function CostBudgetProvider({
       if (inFlight.current || !dirtyFor(group) || !validFor(group)) return;
       const submitted = budgets;
       const submittedRevision = revisions.current[group];
+      loadRevision.current += 1;
       inFlight.current = group;
       setSaveStates((current) => ({ ...current, [group]: { kind: 'saving' } }));
       void (async () => {
@@ -210,9 +223,11 @@ export function CostBudgetProvider({
             return;
           }
           const changed = mergeBudgetGroup(current.budgets, submitted, group, tileIds);
-          const saved = await saveCostBudgets(changed);
+          const savedDocument = await saveCostBudgets(changed);
+          const saved = savedDocument.budgets;
           if (group === 'total') refreshAppBudgetStatus();
           setLoaded(saved);
+          setAudit(savedDocument.audit);
           setDraft((latest) => {
             if (!latest) return null;
             if (group === 'total') {
@@ -268,6 +283,7 @@ export function CostBudgetProvider({
         validFor,
         applying,
         readable,
+        audit,
       }}
     >
       {children}
@@ -316,6 +332,7 @@ export function CostTotalBudget() {
       {budgetStatus ? (
         <BudgetGuardStatus status={budgetStatus} admin={identity.role === 'admin' || identity.role === 'super_admin'} />
       ) : null}
+      <BudgetAudit audit={api.audit} hasBudget={costBudgetValue(api.saved.total, api.unit) !== null} />
     </div>
   );
 }
@@ -412,6 +429,63 @@ export function CostSpendSummary({ payload, unit }: { payload: OpsCostPayload; u
   );
 }
 
+export interface MonthlyBudgetProgress {
+  balance: string;
+  pace: string;
+  tone: 'normal' | 'warning' | 'danger';
+}
+
+function dayNumber(day: string): number | null {
+  const parsed = Date.parse(`${day}T00:00:00Z`);
+  return Number.isFinite(parsed) ? Math.floor(parsed / 86_400_000) : null;
+}
+
+/**
+ * Project month-end exhaustion from authoritative complete MTD spend only.
+ * Pace is measured spend divided by inclusive complete billing days; the
+ * displayed days-to-exhaust is the remaining amount divided by that pace,
+ * rounded up. A date at month end is not described as exhausting beforehand.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- pure month pacing is covered without mounting React
+export function monthlyBudgetProgress(
+  status: AppBudgetStatus | null,
+  savedBudget: number | null,
+  unit: CostBudgetUnit
+): MonthlyBudgetProgress | null {
+  if (
+    savedBudget === null ||
+    !hasCompleteBudgetMeasurement(status) ||
+    status.unit !== unit ||
+    status.budget !== savedBudget
+  ) {
+    return null;
+  }
+  const difference = savedBudget - status.measured;
+  const ratio = savedBudget === 0 ? Number.POSITIVE_INFINITY : status.measured / savedBudget;
+  const tone = ratio >= 1 ? 'danger' : ratio >= 0.8 ? 'warning' : 'normal';
+  const balance = `${Math.abs(difference).toFixed(2)} ${unit} ${difference < 0 ? 'over budget' : 'remaining'}`;
+  if (status.measured >= savedBudget) return { balance, pace: 'Budget exhausted', tone };
+
+  const start = dayNumber(status.monthStart);
+  const through = dayNumber(status.measuredThrough);
+  const end = dayNumber(status.monthEnd);
+  if (start === null || through === null || end === null || through < start || end < through) {
+    return { balance, pace: 'Not projected to exhaust this month', tone };
+  }
+  const observedDays = through - start + 1;
+  const dailyPace = observedDays > 0 ? status.measured / observedDays : 0;
+  if (!(dailyPace > 0)) return { balance, pace: 'Not projected to exhaust this month', tone };
+  const daysToExhaust = Math.ceil(difference / dailyPace);
+  return {
+    balance,
+    pace:
+      daysToExhaust < end - through
+        ? `Budget exhausted in ${daysToExhaust} ${daysToExhaust === 1 ? 'day' : 'days'} at current pace`
+        : 'Not projected to exhaust this month',
+    tone,
+  };
+}
+
 export function SavedAppBudgetSummary({
   savedBudget,
   unit,
@@ -422,20 +496,58 @@ export function SavedAppBudgetSummary({
   status: AppBudgetStatus | null;
 }) {
   if (savedBudget === null) return null;
-  const completeMtd =
-    hasCompleteBudgetMeasurement(status) && status.unit === unit && status.budget === savedBudget ? status : null;
+  const progress = monthlyBudgetProgress(status, savedBudget, unit);
   return (
     <div className="ops-cost-summary-budget">
       <span>Monthly app budget</span>
-      <strong className="ast-num">
-        {savedBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}
-      </strong>
-      {completeMtd ? (
-        <span className="ops-cost-summary-budget-mtd">
-          Month to date {completeMtd.measured.toFixed(2)} {unit} · {completeMtd.percent.toFixed(2)}%
+      <span className="ops-cost-summary-budget-values">
+        {progress ? (
+          <strong className="ast-num ops-cost-budget-balance" data-budget-tone={progress.tone}>
+            {progress.balance}
+          </strong>
+        ) : null}
+        <strong className="ast-num">
+          {savedBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}
+        </strong>
+      </span>
+      {progress ? (
+        <span className="ops-cost-summary-budget-mtd" data-budget-tone={progress.tone}>
+          {progress.pace}
         </span>
       ) : null}
     </div>
+  );
+}
+
+function budgetActorDisplay(actor: string): string {
+  const trimmed = actor.trim();
+  if (!trimmed) return 'unknown';
+  return trimmed.includes('@') ? trimmed.slice(0, trimmed.indexOf('@')) : trimmed;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- pure persisted-audit formatting is tested directly
+export function budgetAuditView(
+  audit: CostBudgetAudit,
+  format: (date: Date) => string = (date) =>
+    date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+): { text: string; title: string } {
+  const instant = new Date(audit.appliedAt);
+  if (!audit.appliedAt || !Number.isFinite(instant.getTime())) {
+    return { text: 'Last applied time and user unavailable', title: '' };
+  }
+  return {
+    text: `Last applied ${format(instant)} by ${budgetActorDisplay(audit.appliedBy)}`,
+    title: audit.appliedBy,
+  };
+}
+
+function BudgetAudit({ audit, hasBudget }: { audit: CostBudgetAudit; hasBudget: boolean }) {
+  if (!hasBudget) return null;
+  const view = budgetAuditView(audit);
+  return (
+    <p className="ops-budget-audit" title={view.title || undefined}>
+      {view.text}
+    </p>
   );
 }
 

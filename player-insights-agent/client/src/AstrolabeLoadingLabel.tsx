@@ -1,0 +1,30 @@
+import { ConceptFlicker } from './ConceptFlicker';
+
+/**
+ * The canonical compact Astrolabe loader: one stable concept slot and one label.
+ *
+ * The component never keys or remounts the mark when its label changes. Motion
+ * preferences are handled by the shared Astrolabe animation rules, which freeze
+ * the slot on the recognizable rest mark.
+ */
+export function AstrolabeLoadingLabel({
+  label,
+  className,
+  announce = true,
+}: {
+  label: string;
+  className?: string;
+  announce?: boolean;
+}) {
+  return (
+    <div
+      className={`ast-flick-row ${className ?? ''}`.trim()}
+      role={announce ? 'status' : undefined}
+      aria-live={announce ? 'polite' : undefined}
+      aria-busy="true"
+    >
+      <ConceptFlicker seat="inline" />
+      <span className="ast-flick-row-say">{label}</span>
+    </div>
+  );
+}

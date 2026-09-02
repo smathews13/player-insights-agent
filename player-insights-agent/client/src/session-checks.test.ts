@@ -164,6 +164,58 @@ describe('what one run reads, and what it keeps', () => {
     expect(stored?.error).toBe('');
   });
 
+  it('publishes settings evidence while preflight is still pending', async () => {
+    let resolvePreflight!: (response: Response) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string) => {
+        if (input === '/api/settings') {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve(settingsBody()),
+          } as Response);
+        }
+        return new Promise<Response>((resolve) => {
+          resolvePreflight = resolve;
+        });
+      })
+    );
+
+    const run = runSessionChecks();
+    await vi.waitFor(() => expect(recallChecks()?.settings).not.toBeNull());
+    expect(recallChecks()?.load).toEqual({ firstLoad: true, settings: 'ready', report: 'pending' });
+
+    resolvePreflight({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(reportBody()),
+    } as Response);
+    await run;
+    expect(recallChecks()?.load).toEqual({ firstLoad: false, settings: 'ready', report: 'ready' });
+  });
+
+  it('does not let a cancelled stale run repopulate the session', async () => {
+    const resolvers: Array<(response: Response) => void> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolvers.push(resolve);
+          })
+      )
+    );
+    const run = runSessionChecks();
+    await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+    resetSessionChecks();
+    forgetChecks();
+    resolvers[0]({ ok: true, status: 200, json: () => Promise.resolve(settingsBody()) } as Response);
+    resolvers[1]({ ok: true, status: 200, json: () => Promise.resolve(reportBody()) } as Response);
+    await run;
+    expect(recallChecks()).toBeNull();
+  });
+
   it('drops a second request while the first is still in flight', async () => {
     // A second press cannot race the first: both land on the same store, and the
     // later answer has been able to arrive first.

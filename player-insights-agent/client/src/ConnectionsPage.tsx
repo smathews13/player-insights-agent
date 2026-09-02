@@ -32,11 +32,7 @@ import {
   Badge,
   Button,
   Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Input,
-  Skeleton,
   Table,
   TableBody,
   TableCell,
@@ -68,6 +64,12 @@ import { RefreshButton, RefreshControl } from './RefreshControl';
 import { CONNECTED_RESOURCES } from '../../shared/deployment-config';
 import { IdentityCard } from './IdentityPanel';
 import { useDeploymentIdentity } from './identity-panel-state';
+import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
+import {
+  connectionLoadErrorLabel,
+  connectionPlaceholderReadings,
+  connectionResourceLoadState,
+} from './connection-loading';
 // The value that is its own verdict, and the affordance that carries the whole
 // of it. Both are the design's, and both are shared with the identity card.
 import { CopyButton, NOT_SET, StatusBadge, type StatusTone } from './StatusBadge';
@@ -1036,11 +1038,9 @@ export function ConnectionRow({
    * Whether THIS row is one a refresh will re-decide.
    *
    * A row the app both resolves and applies has no remote end, so a refresh
-   * cannot change its badge and saying "Refreshing" over it would promise an
-   * answer that is never coming. Every other row's badge is about to be
-   * restated, and until it is, the one on screen is a reading of a moment that
-   * has passed: showing it unchanged during the wait is how a button that
-   * appears to do nothing came to look broken.
+   * cannot change its badge. Every remote row keeps the last completed identity
+   * visible and carries a quiet busy treatment while it is re-decided; replacing
+   * the value with loading copy would throw cached evidence away.
    */
   const restating = refreshing && status !== 'nothing-to-reach';
 
@@ -1093,17 +1093,17 @@ export function ConnectionRow({
             instead of nineteen of them being read out at once. */}
         <span className="connection-row-value" aria-live="polite" aria-busy={restating || undefined}>
           <StatusBadge
-            value={restating ? 'Refreshing\u2026' : truncateHead(view.displayIdentity)}
-            tone={restating || !view.connected ? 'plain' : tone}
+            value={truncateHead(view.displayIdentity)}
+            tone={!view.connected ? 'plain' : tone}
             title={view.displayIdentity}
           />
-          {!restating && view.secondaryIdentity ? (
+          {view.secondaryIdentity ? (
             <code className="connection-row-raw-id" title={view.secondaryIdentity}>
               {view.secondaryIdentity}
             </code>
           ) : null}
         </span>
-        {!restating && view.connected ? (
+        {view.connected ? (
           <span className="connection-row-state" data-tone={tone}>
             {view.status}
           </span>
@@ -1247,6 +1247,29 @@ export function ConnectionRow({
   );
 }
 
+export function ConnectionLoadRow({ reading, state }: { reading: ConnectionReading; state: 'loading' | 'error' }) {
+  const label = state === 'loading' ? `Loading ${reading.resource.label}` : connectionLoadErrorLabel(reading);
+  return (
+    <div
+      className="connection-row connection-row-load-state"
+      data-testid={`connection-${reading.resource.id}`}
+      data-load-state={state}
+    >
+      <div className="connection-row-summary">
+        <span className="connection-row-loader-chevron" aria-hidden="true" />
+        {state === 'loading' ? (
+          <AstrolabeLoadingLabel label={label} className="connection-row-loader" />
+        ) : (
+          <div className="connection-row-load-error" role="alert">
+            <CircleAlert className="size-4" aria-hidden="true" />
+            <span>{label}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ConnectionsPage() {
   const role = useRole();
   const allowMutations = showsAdminSurfaces(role.state);
@@ -1268,7 +1291,7 @@ export function ConnectionsPage() {
    * per session, with Refresh as the only thing that re-runs it. See
    * session-checks.ts.
    */
-  const { session, running: refreshing, refresh, reloadSettings } = useSessionChecks();
+  const { session, running: refreshing, firstLoad: firstRun, refresh, reloadSettings } = useSessionChecks();
   const payload = session?.settings ?? null;
   const report = session?.report ?? null;
   const checkError = session?.error ?? '';
@@ -1277,11 +1300,9 @@ export function ConnectionsPage() {
    *
    * Distinct from `refreshing`, which is true for a re-run as well. Only the
    * first run has nothing to draw underneath it, so only the first run gets the
-   * skeleton; a re-run leaves the previous answers on screen and marks the rows
-   * as being restated, which is what the row badges already do.
+   * primary and row-local Astrolabe loaders. A re-run leaves cached answers on
+   * screen under the quiet refresh treatment.
    */
-  const firstRun = refreshing && !session;
-
   const linkedEntity = useRequestedEntity();
   const requestedEntity = blockedNotebookAgentSyncLink ? '' : linkedEntity;
   // A resource id rather than a table name means the link came from a
@@ -1393,7 +1414,10 @@ export function ConnectionsPage() {
    * resource KINDS, and each row re-derived its own verdict from a check it
    * looked up itself. The strip is gone; the rows still speak for themselves.
    */
-  const readings = useMemo(() => readConnections(payload, reported), [payload, reported]);
+  const readings = useMemo(
+    () => (payload ? readConnections(payload, reported) : connectionPlaceholderReadings(reported)),
+    [payload, reported]
+  );
   /**
    * The sections, in the order a reader needs them: what is broken, what moved,
    * what answered, what nobody asked, and then the configuration.
@@ -1536,15 +1560,8 @@ export function ConnectionsPage() {
       </div>
 
       {firstRun ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Checking dependencies…</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-          </CardContent>
+        <Card className="connections-primary-loader" data-testid="connections-primary-loader">
+          <AstrolabeLoadingLabel label="Loading connections" className="connections-primary-loader-row" />
         </Card>
       ) : null}
 
@@ -1737,8 +1754,12 @@ export function ConnectionsPage() {
             {group.aside ? <span className="connection-group-aside">{group.aside}</span> : null}
           </h3>
           <div className="connection-rows">
-            {group.readings.map((reading) =>
-              reading.resource.id === 'llm-gateway' ? (
+            {group.readings.map((reading) => {
+              const loadState = connectionResourceLoadState(reading, session, firstRun);
+              if (loadState !== 'ready') {
+                return <ConnectionLoadRow key={reading.resource.id} reading={reading} state={loadState} />;
+              }
+              return reading.resource.id === 'llm-gateway' ? (
                 <AiGatewayConnection
                   key={reading.resource.id}
                   reading={reading}
@@ -1764,8 +1785,8 @@ export function ConnectionsPage() {
                   onSave={(value) => write(reading.row, value)}
                   onClear={() => clear(reading.row)}
                 />
-              )
-            )}
+              );
+            })}
             {/* Built-in configured resources always lead. The shared declared
                   list then adds its own deterministic user-added section, with
                   the closed Add row and form after every saved row. */}

@@ -1171,7 +1171,7 @@ export const GENIE_APP_ACTIVITY_QUERY = `
   GROUP BY usage_day, identity, space_id
   ORDER BY usage_day, identity, space_id`;
 
-async function genieAppActivityAttribution(
+export async function genieAppActivityAttribution(
   appkit: InsightsAppKit,
   ids: CostIdentifiers,
   range: { from: string; to: string }
@@ -1583,7 +1583,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         budgets: costBudgets,
         budgetsReadable: storedBudgets.readable,
       };
-      const userMonitoringFor = (spend: ReturnType<typeof buildSpendByUser>) => {
+      const userMonitoringFor = (spend: ReturnType<typeof buildSpendByUser>, coveredDays = 0) => {
         if (!userBrowse) return undefined;
         const seed = seedRoles();
         const roles = new Map(
@@ -1620,6 +1620,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           roles,
           personas,
           personaOptions,
+          coveredDays,
           unit: userUnit,
           search: queryText(req, 'userSearch'),
           role: userRole,
@@ -2055,10 +2056,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         };
         const comparisonSpends = comparisonWindows
           ? await Promise.all([
-              readComparisonSpend(comparisonWindows.week.current),
-              readComparisonSpend(comparisonWindows.week.prior),
-              readComparisonSpend(comparisonWindows.month.current),
-              readComparisonSpend(comparisonWindows.month.prior),
+              readComparisonSpend(comparisonWindows.week.current).catch(() => null),
+              readComparisonSpend(comparisonWindows.week.prior).catch(() => null),
+              readComparisonSpend(comparisonWindows.month.current).catch(() => null),
+              readComparisonSpend(comparisonWindows.month.prior).catch(() => null),
             ])
           : [null, null, null, null];
         const metricSnapshot = (spend: ReturnType<typeof buildSpendByUser> | null) => {
@@ -2098,17 +2099,20 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
                     selectedCurrentReading?.amount !== null &&
                     selectedCurrentReading?.amount !== undefined &&
                     selectedCurrentReading.quality !== 'partial',
-                  questions: selectedInteraction?.questions ?? 0,
+                  questions: interactionRead.available ? (selectedInteraction?.questions ?? 0) : null,
                   coveredDays: split.meta?.billedDays ?? 0,
                   appTotal: selectedReconciliation.appTotal,
-                  appComparable: selectedCurrent.comparable,
+                  appComparable:
+                    spendWithGenie.state !== 'unavailable' &&
+                    selectedReconciliation.appTotal !== null &&
+                    Number.isFinite(selectedReconciliation.appTotal),
                 },
                 week: { current: metricSnapshot(comparisonSpends[0]), prior: metricSnapshot(comparisonSpends[1]) },
                 month: { current: metricSnapshot(comparisonSpends[2]), prior: metricSnapshot(comparisonSpends[3]) },
                 comparisonFreshness: latestCompleteDay,
               })
             : null;
-        const userMonitoring = userMonitoringFor(spendWithGenie);
+        const userMonitoring = userMonitoringFor(spendWithGenie, split.meta?.billedDays ?? 0);
         const selectedSpendByUser = spendUser
           ? {
               ...spendWithGenie,

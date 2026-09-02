@@ -43,7 +43,7 @@ import { isSqlText, sqlFromStageInput } from './sql-presentation';
 import { runTokenUsageView, stepTokenUsageView, type RunTokenView } from './token-usage-view';
 
 /** Which surface is drawing the panel. See file header. */
-export type TraceTimelineVariant = 'default' | 'explorer';
+export type TraceTimelineVariant = 'default' | 'explorer' | 'monitoring';
 
 /** The byte-for-byte sanitized payload shown only after the reader chooses Raw. */
 export function RawPayload({ payload }: { payload: Payload }) {
@@ -85,7 +85,7 @@ function KindChip({ type }: { type: ToolType }) {
  * stay off that surface.
  */
 function KindCell({ row, variant }: { row: TimelineRow; variant: TraceTimelineVariant }) {
-  if (variant === 'explorer') return <KindChip type={row.type} />;
+  if (variant !== 'default') return <KindChip type={row.type} />;
   const product = productForTool(toolNameFromId(row.id));
   // `labelled`, unusually: everywhere else the mark sits against the product's
   // own name and a title would read it out twice. This cell has no text of its
@@ -98,7 +98,7 @@ function KindCell({ row, variant }: { row: TimelineRow; variant: TraceTimelineVa
 /**
  * The roll-up on Ask: recorded time by type, one tile per type.
  */
-function RollUp({ rows }: { rows: RollUpRow[] }) {
+function RollUp({ rows, tokens }: { rows: RollUpRow[]; tokens?: RunTokenView }) {
   if (rows.length === 0) return null;
   return (
     <div className="trace-rollup">
@@ -131,6 +131,25 @@ function RollUp({ rows }: { rows: RollUpRow[] }) {
             </span>
           </div>
         ))}
+        {tokens?.totalTokens !== undefined ? (
+          <div
+            className="trace-kpi trace-token-rollup"
+            aria-label={`${tokens.totalTokens.toLocaleString()} total tokens`}
+          >
+            <div className="trace-kpi-head">
+              <span>Tokens</span>
+              {tokens.attributedCalls !== undefined ? (
+                <Badge variant="outline" className="trace-call-badge ast-num">
+                  {tokens.attributedCalls} model call{tokens.attributedCalls === 1 ? '' : 's'}
+                </Badge>
+              ) : null}
+            </div>
+            <strong className="ast-num">{tokens.totalTokens.toLocaleString()}</strong>
+            {tokens.cachedReadTokens !== undefined ? (
+              <span className="trace-kpi-meta ast-num">{tokens.cachedReadTokens.toLocaleString()} cached input</span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -332,7 +351,7 @@ function EventSummary({
   tools: string[];
 }) {
   const tool = toolNameFromId(row.id);
-  const sql = variant === 'explorer' && tool === 'run_sql' ? sqlFromStageInput(row.input) : '';
+  const sql = variant !== 'default' && tool === 'run_sql' ? sqlFromStageInput(row.input) : '';
   if (sql) {
     return (
       <>
@@ -395,7 +414,7 @@ function GanttRow({
           <button type="button" aria-expanded={expanded}>
             <span
               className="trace-event-label"
-              title={variant === 'explorer' && toolNameFromId(row.id) === 'run_sql' ? undefined : eventLabel}
+              title={variant !== 'default' && toolNameFromId(row.id) === 'run_sql' ? undefined : eventLabel}
             >
               <EventSummary row={row} eventLabel={eventLabel} variant={variant} sources={sources} tools={tools} />
             </span>
@@ -415,7 +434,7 @@ function GanttRow({
             )}
           </td>
         )}
-        {variant === 'explorer' ? (
+        {variant !== 'default' ? (
           <td className="trace-num trace-tokens ast-num">
             {row.type === 'llm' && row.tokenUsage ? (
               stepTokenUsageView(row.tokenUsage).total
@@ -429,7 +448,7 @@ function GanttRow({
       {expanded && (
         <tr className="trace-detail">
           <td />
-          <td colSpan={(hasGeometry ? 4 : 3) + (variant === 'explorer' ? 1 : 0)}>
+          <td colSpan={(hasGeometry ? 4 : 3) + (variant !== 'default' ? 1 : 0)}>
             {row.container ? (
               <dl>
                 <dt>Task</dt>
@@ -449,7 +468,9 @@ function GanttRow({
               </dl>
             ) : (
               <div className="trace-detail-content">
-                {row.type === 'llm' ? <TimelineTokenDetails row={row} run={runTokens} /> : null}
+                {variant !== 'default' && row.type === 'llm' ? (
+                  <TimelineTokenDetails row={row} run={runTokens} />
+                ) : null}
                 <dl>
                   <dt>Started</dt>
                   <dd className="trace-measured">
@@ -497,9 +518,14 @@ function Gantt({
 }) {
   if (model.rows.length === 0) return null;
   const explorer = variant === 'explorer';
+  const tokenized = variant !== 'default';
   return (
     <div className="trace-gantt">
-      {explorer ? <KindKpis rows={model.rollUp} tokens={runTokens} /> : <RollUp rows={model.rollUp} />}
+      {explorer ? (
+        <KindKpis rows={model.rollUp} tokens={runTokens} />
+      ) : (
+        <RollUp rows={model.rollUp} tokens={variant === 'monitoring' ? runTokens : undefined} />
+      )}
       {!explorer && (
         <div className="trace-panel-heading">
           <h4>Step timeline</h4>
@@ -527,7 +553,7 @@ function Gantt({
                   </span>
                 </th>
               )}
-              {explorer ? (
+              {tokenized ? (
                 <th scope="col" className="trace-num trace-tokens">
                   Tokens
                 </th>
@@ -561,8 +587,8 @@ function Gantt({
 /**
  * The shared timeline panel.
  *
- * Pass `variant="explorer"` only from Run Explorer. Ask and Monitoring reuse
- * the default presentation so live process copy and product marks stay put.
+ * Run Explorer and Monitoring share tokenized rows and event labels. Monitoring
+ * keeps the larger time roll-up while Ask keeps the default stakeholder view.
  */
 export function TraceTimeline({
   trace,
@@ -579,7 +605,7 @@ export function TraceTimeline({
    * native PARTIAL (optional DSF clip on a finished listing) is shown Complete.
    */
   verdict?: RunVerdict;
-  /** `explorer` is Run Explorer Timeline only. Default keeps Ask unchanged. */
+  /** Run Explorer and Monitoring select their shared tokenized presentations. */
   variant?: TraceTimelineVariant;
   className?: string;
 }) {
@@ -587,7 +613,7 @@ export function TraceTimeline({
   const model = useMemo(() => buildTimeline(summary, question, verdict), [summary, question, verdict]);
   const runTokens = useMemo(() => runTokenUsageView(summary), [summary]);
   const eventLabels = useMemo(() => {
-    if (variant !== 'explorer') {
+    if (variant === 'default') {
       return new Map(model.rows.map((row) => [row.id, row.name]));
     }
     const turns = llmTurnByRowId(model.rows);
@@ -602,7 +628,12 @@ export function TraceTimeline({
     return null;
   }
 
-  const shell = ['trace-timeline', variant === 'explorer' ? 'trace-timeline--explorer' : '', className]
+  const shell = [
+    'trace-timeline',
+    variant !== 'default' ? 'trace-timeline--explorer' : '',
+    variant === 'monitoring' ? 'trace-timeline--monitoring' : '',
+    className,
+  ]
     .filter(Boolean)
     .join(' ');
 

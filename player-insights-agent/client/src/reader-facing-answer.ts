@@ -19,7 +19,6 @@ import {
   type VerdictStage,
 } from '../../shared/run-verdict';
 import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
-import { CAVEAT_RISK, caveatRisk } from './caveat-priority';
 
 /** Words arrived, but no figures or tables. Not a policy deny. */
 const NO_STRUCTURED_RESULT =
@@ -185,33 +184,10 @@ export function readerFacingNarrative(
   return cleaned;
 }
 
-export interface AnswerWarning {
-  /** Short chip label, in the words the header uses. */
-  label: string;
-  /** The agent's caveat, shown in full under the label. */
-  text: string;
-}
-
 export interface AnswerHonesty {
   /** Section title. Partial when the run did not finish cleanly. */
   eyebrow: string;
   tone: 'complete' | 'partial';
-  /** Evidence and refusal caveats, lifted out of the quiet list. */
-  warnings: AnswerWarning[];
-}
-
-function warningLabel(text: string): string {
-  if (/turn deadline|budget for this turn was spent|stopped early/i.test(text)) return 'Turn deadline reached';
-  if (/sources for this answer are incomplete/i.test(text)) return 'Incomplete sources';
-  if (/could not be determined/i.test(text)) return 'Tables unresolved';
-  // The degraded marker ranks as refused so it leads the list. The prose-only
-  // path uses that marker for "no result contract arrived", which is not a
-  // grant deny -- calling it Request refused was the leftover false alarm.
-  if (text.startsWith(DEGRADED_ANSWER_MARKER) && NO_STRUCTURED_RESULT.test(text)) {
-    return 'Answer incomplete';
-  }
-  if (caveatRisk(text) === CAVEAT_RISK.refused) return 'Request refused';
-  return 'Partial evidence';
 }
 
 function hasStructuredEvidence(input: {
@@ -233,13 +209,11 @@ function isProseOnlyDegraded(
 }
 
 /**
- * Whether this section may be labelled "Final answer", and which warnings must
- * lead if it may not.
+ * Whether this section may be labelled "Final answer".
  *
- * `truncated` is the run row's own flag. The caveats are a second, independent
- * signal: a stored row from before that column existed can still say the turn
- * deadline was reached, and that sentence has to change the header even when
- * the flag is absent.
+ * Specific caveats stay in Keep in mind. Partial is already represented by the
+ * outcome badge; duplicating caveat prose in a large red alert made harmless
+ * DSF package notes look like answer failures.
  */
 export function answerHonesty(input: {
   truncated?: boolean | null;
@@ -250,21 +224,11 @@ export function answerHonesty(input: {
   stages?: readonly VerdictStage[];
 }): AnswerHonesty {
   const caveats = input.caveats.map((caveat) => caveat.trim()).filter(Boolean);
-  // Refused and incomplete-evidence only. A grant-timing sentence that happens
-  // to say "any refused table will be named" is identity, not a denial: the
-  // catalog listing already answered, and painting it "Request refused" is the
-  // false alarm this filter exists to keep out.
-  const warnings = caveats
-    .filter((text) => {
-      const risk = caveatRisk(text);
-      return risk === CAVEAT_RISK.refused || risk === CAVEAT_RISK.evidence;
-    })
-    .map((text) => ({ label: warningLabel(text), text }));
   // A words-only degraded reply has enough narrative to trip answerHasLanded,
-  // and used to be titled Final answer with a Request refused banner. The
-  // agent wrote sentences; it did not refuse a grant.
+  // and used to be titled Final answer. The agent wrote sentences; it did not
+  // produce a complete result.
   if (isProseOnlyDegraded({ ...input, caveats })) {
-    return { eyebrow: 'Partial answer', tone: 'partial', warnings };
+    return { eyebrow: 'Partial answer', tone: 'partial' };
   }
   if (answerHasLanded(input)) {
     const stages = input.stages ?? [];
@@ -272,20 +236,19 @@ export function answerHonesty(input: {
       synthesisIncomplete(stages, caveats) ||
       (!stages.some((stage) => stage.id === 'synthesis') && caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text)));
     if (writerStopped) {
-      return { eyebrow: 'Partial answer', tone: 'partial', warnings };
+      return { eyebrow: 'Partial answer', tone: 'partial' };
     }
-    return { eyebrow: 'Final answer', tone: 'complete', warnings };
+    return { eyebrow: 'Final answer', tone: 'complete' };
   }
   const truncated =
     input.truncated === true ||
     caveats.some((text) => /turn deadline|budget for this turn was spent|stopped early/i.test(text));
   const incomplete = caveats.some((text) => /sources for this answer are incomplete/i.test(text));
-  if (!truncated && !incomplete && warnings.length === 0) {
-    return { eyebrow: 'Final answer', tone: 'complete', warnings: [] };
+  if (!truncated && !incomplete) {
+    return { eyebrow: 'Final answer', tone: 'complete' };
   }
   return {
     eyebrow: truncated ? 'Partial answer' : incomplete ? 'Incomplete answer' : 'Qualified answer',
     tone: 'partial',
-    warnings,
   };
 }

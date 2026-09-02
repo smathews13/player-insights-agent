@@ -11,6 +11,7 @@ import {
   rangeTotalsFrom,
   rangeFrom,
   rankTablesRead,
+  responseWithTokenAttribution,
   setupMonitoringRoutes,
   summarize,
   tokenCost,
@@ -47,6 +48,7 @@ function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     answer_id: 'a1',
     total_ms: '76200',
     tool_calls: '5',
+    total_tokens: '84576',
     trace_failed: false,
     sources: ['a_catalog.a_schema.a_table'],
     // What a rated answer actually looks like in the table. The thumbs in
@@ -218,6 +220,15 @@ describe('the query reads questions rather than answers', () => {
     expect(MONITORING_QUESTIONS_QUERY).toContain("'infinity'::timestamptz");
   });
 
+  it('selects total tokens from the same bounded final answer as time and tools', () => {
+    expect(MONITORING_QUESTIONS_QUERY).toContain("a.response_json->'trace'->>'total_tokens' AS total_tokens");
+    expect(MONITORING_QUESTIONS_QUERY).toContain("a.response_json->'trace'->>'totalMs' AS total_ms");
+    expect(MONITORING_QUESTIONS_QUERY).toContain("a.response_json->'trace'->>'toolCalls' AS tool_calls");
+    expect(MONITORING_QUESTIONS_QUERY).toContain("ORDER BY (m.response_json->'trace'->>'totalMs') IS NOT NULL DESC");
+    expect(MONITORING_QUESTIONS_QUERY).toContain('m.created_at DESC');
+    expect(MONITORING_QUESTIONS_QUERY).not.toMatch(/mlflow|trace-token/i);
+  });
+
   /**
    * One literal, from the module that writes it. A second copy that drifted would
    * start counting approvals as questions and pairing answers to the approval.
@@ -336,10 +347,18 @@ describe('one row, from what the stores recorded', () => {
   });
 
   it('reports an unrecorded duration as null rather than as zero', () => {
-    const question = questionFromRow(row({ total_ms: null, tool_calls: null }), ledger());
+    const question = questionFromRow(row({ total_ms: null, tool_calls: null, total_tokens: null }), ledger());
 
     expect(question.durationMs).toBeNull();
     expect(question.toolCalls).toBeNull();
+    expect(question.totalTokens).toBeNull();
+  });
+
+  it('preserves an explicitly recorded zero and a large canonical token total', () => {
+    expect(questionFromRow(row({ total_tokens: 0 }), ledger()).totalTokens).toBe(0);
+    expect(questionFromRow(row({ total_tokens: '84576' }), ledger()).totalTokens).toBe(84_576);
+    expect(questionFromRow(row({ total_tokens: -1 }), ledger()).totalTokens).toBeNull();
+    expect(questionFromRow(row({ total_tokens: 'unknown' }), ledger()).totalTokens).toBeNull();
   });
 
   /**
@@ -391,6 +410,47 @@ describe('one row, from what the stores recorded', () => {
   it('reports no thumb for an unrated answer or a score with no direction', () => {
     expect(questionFromRow(row({ sentiment: null, usefulness: null }), ledger()).rating).toBeNull();
     expect(questionFromRow(row({ sentiment: null, usefulness: 3 }), ledger()).rating).toBeNull();
+  });
+});
+
+describe('Monitoring detail token evidence', () => {
+  it('projects the shared attribution into the stored answer without exposing another payload', () => {
+    const response = {
+      trace: {
+        id: 'tr-1234567890abcdef1234567890abcdef',
+        total_tokens: 120,
+        stages: [
+          { id: 'model-step', name: 'Model step' },
+          { id: 'tool-step', name: 'Tool step' },
+        ],
+      },
+    };
+    const enriched = responseWithTokenAttribution(response, {
+      stages: {
+        'model-step': {
+          inputTokens: 100,
+          outputTokens: 20,
+          totalTokens: 120,
+          cacheStatus: 'unavailable',
+          attempts: 1,
+          totalMismatch: false,
+        },
+      },
+      reconciliation: {
+        attributedTokens: 120,
+        attributedCalls: 1,
+        overviewTokens: 120,
+        coveragePercent: 100,
+        nestedAggregateTokens: 0,
+        mismatchCount: 0,
+      },
+      invocations: [],
+    }) as { trace: { stages: Array<Record<string, unknown>>; token_reconciliation: { attributedTokens: number } } };
+
+    expect(enriched.trace.stages[0].token_usage).toMatchObject({ totalTokens: 120 });
+    expect(enriched.trace.stages[1].token_usage).toBeUndefined();
+    expect(enriched.trace.token_reconciliation.attributedTokens).toBe(120);
+    expect(response.trace.stages[0]).not.toHaveProperty('token_usage');
   });
 });
 

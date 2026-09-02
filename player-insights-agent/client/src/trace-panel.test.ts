@@ -216,7 +216,8 @@ describe('the Gantt is a table, with the semantics of one', () => {
     const gantt = functionSource(TIMELINE, 'Gantt');
     expect(gantt).toContain('<thead>');
     expect(gantt).toContain('<tbody>');
-    expect(gantt.match(/scope="col"/g)?.length).toBe(5);
+    expect(gantt.match(/scope="col"/g)?.length).toBe(6);
+    expect(gantt).toMatch(/<th scope="col" className="trace-num trace-tokens">\s*Tokens\s*<\/th>/);
   });
 
   it('names the bar column, which had only tick marks in its header', () => {

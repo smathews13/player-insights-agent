@@ -316,16 +316,13 @@ describe('the three a reader is shown first', () => {
     expect(caveatBullets(renderCard(TEN))).toHaveLength(3);
   });
 
-  /**
-   * A refusal is lifted into a warning above the figures, not left to compete
-   * for the three Keep in mind slots. It still has to be on the card, and it
-   * cannot be the thing that ends up behind show more.
-   */
+  /** A real refusal leads Keep in mind without becoming a second red banner. */
   it('shows the refusal on the card, not behind the fold', () => {
     const markup = renderCard(TEN);
     expect(markup).toContain('A governance control refused part of this request');
-    expect(markup).toContain('Request refused');
-    expect(caveatBullets(markup).join(' ')).not.toContain('A governance control refused');
+    expect(markup).not.toContain('Request refused');
+    expect(markup).not.toContain('Partial evidence');
+    expect(caveatBullets(markup)[0]).toContain('A governance control refused');
   });
 
   it('offers the rest behind show more, rather than dropping them silently', () => {

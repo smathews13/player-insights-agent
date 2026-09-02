@@ -196,6 +196,8 @@ export interface MonitoringQuestion {
   durationMs: number | null;
   /** The agent's own count of external calls, or null when not recorded. */
   toolCalls: number | null;
+  /** Canonical total LLM tokens on the same final answer as time and tools. */
+  totalTokens: number | null;
   /** 'up', 'down', or null for the overwhelming majority that are never rated. */
   rating: 'up' | 'down' | null;
   /** Fully-qualified tables this run read, as the answer recorded them. */

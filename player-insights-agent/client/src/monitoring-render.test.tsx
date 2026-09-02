@@ -12,6 +12,7 @@ import {
   MonitoringPage,
   PersonPanel,
   PersonPanelShell,
+  PersonSpend,
   QuestionList,
   QuestionDrawer,
   QuestionPanel,
@@ -93,6 +94,7 @@ function question(overrides: Partial<MonitoringQuestion> = {}): MonitoringQuesti
     outcomeDetail: null,
     durationMs: 76_200,
     toolCalls: 5,
+    totalTokens: 84_576,
     rating: 'up',
     tables: ['a_catalog.a_schema.a_table'],
     ...overrides,
@@ -1169,7 +1171,6 @@ describe('the detail modal', () => {
       '/monitoring?question=q1&range=7d&userSearch=sam'
     );
     const rendered = text(markup);
-
     expect(markup).toContain('class="user-drilldown-link user-drilldown-link--chip"');
     expect(markup).toContain('class="identity-chip identity-chip--compact"');
     expect(markup).toContain('lucide-user-round');
@@ -1249,7 +1250,15 @@ describe('the detail modal', () => {
 });
 
 describe('the User Monitoring browser', () => {
-  const browser = { open: true, search: '', role: '', persona: '', unit: 'USD' as const, cursor: '' };
+  const browser = {
+    open: true,
+    search: '',
+    role: '',
+    persona: '',
+    unit: 'USD' as const,
+    cursor: '',
+    range: '7d' as const,
+  };
   const noop = () => {};
   const payload = {
     userMonitoring: {
@@ -1309,6 +1318,7 @@ describe('the User Monitoring browser', () => {
         onSearch={noop}
         onRole={noop}
         onUnit={noop}
+        onRange={noop}
         onClear={noop}
         onNext={noop}
         onPrevious={noop}
@@ -1349,6 +1359,7 @@ describe('the User Monitoring browser', () => {
         onSearch={noop}
         onRole={noop}
         onUnit={noop}
+        onRange={noop}
         onClear={noop}
         onNext={noop}
         onPrevious={noop}
@@ -1447,6 +1458,24 @@ describe('the per-user panel', () => {
     expect(markup).toContain('aria-describedby="user-profile-modal-description"');
     expect(markup).not.toContain('<aside');
     expect(markup).not.toContain('class="monitoring-drawer"');
+  });
+
+  it('uses the compact shared navigation treatment for cached back navigation', () => {
+    const markup = render(
+      <PersonPanel
+        panel={panel()}
+        now={NOW}
+        rangeLabel="last 7 days"
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+        onBack={() => {}}
+      />
+    );
+    const back = markup.match(/<button[^>]*user-profile-modal-back[\s\S]*?<\/button>/)?.[0] ?? '';
+    expect(back).toContain('monitoring-link-arrow size-3.5');
+    expect(back).toContain('Back to all users');
+    expect(back.indexOf('lucide-arrow-left')).toBeLessThan(back.indexOf('Back to all users'));
+    expect(back).not.toContain('tabindex="-1"');
   });
 
   it('shows only the selected attributable total and no component accounting detail', () => {
@@ -1563,7 +1592,7 @@ describe('the per-user panel', () => {
 
     expect(rendered).toContain('Total user spend 12.50 USD Estimated');
     expect(rendered).toContain('Cost / question 2.50 USD 5 submitted questions');
-    expect(rendered).toContain('Average daily spend 3.13 USD 4 covered days');
+    expect(rendered).toContain('Average daily spend 3.125 USD 4 covered days');
     expect(rendered).toContain('Share of app spend 25% of comparable app spend');
     expect(rendered).toContain('Week over week +10% vs prior 7 days');
     expect(rendered).toContain('Month over month New vs prior matched month days');
@@ -1600,7 +1629,8 @@ describe('the per-user panel', () => {
       )
     );
     expect(dbu).toContain('Total user spend 6.25 DBU Estimated');
-    expect(dbu).not.toContain('Cost / question');
+    expect(dbu).toContain('Cost / question Question count unavailable');
+    expect(dbu).toContain('Average daily spend Covered days unavailable');
     expect(dbu).not.toContain('12.50 USD');
 
     const noSpend: OpsCostPayload = structuredClone(cost);
@@ -1630,7 +1660,96 @@ describe('the per-user panel', () => {
       />
     );
     expect(text(loading)).toContain('Loading user spend');
+    expect(loading.match(/ast-flick-slot--inline/g)).toHaveLength(1);
+    expect(loading.match(/ast-anim-flick/g)).toHaveLength(4);
+    expect(loading).toContain('data-ast-rest');
+    expect(loading).not.toContain('lucide-wallet');
+    expect(loading).not.toContain('user-profile-modal-spend-loading-icon');
     expect(loading).not.toContain('skeleton');
+  });
+
+  it('upgrades the production KPI shape from known totals and denominators', () => {
+    const unavailable = (subtitle: string) => ({ value: null, state: 'unavailable' as const, subtitle });
+    const data = {
+      currency: 'USD',
+      spendByUser: {
+        users: [
+          {
+            email: 'first.person@example.test',
+            total: {
+              usd: { amount: 9.55, quality: 'partial' },
+              dbu: { amount: 4.25, quality: 'partial' },
+            },
+            metrics: {
+              unit: 'USD',
+              questions: 25,
+              coveredDays: 7,
+              costPerQuestion: unavailable('25 submitted questions'),
+              averageDaily: unavailable('7 covered days'),
+              appShare: unavailable('No comparable app total'),
+              weekOverWeek: unavailable('No comparable period'),
+              monthOverMonth: unavailable('No comparable period'),
+              comparisonFreshness: '2026-09-01',
+            },
+            components: [],
+          },
+        ],
+      },
+    } as unknown as OpsCostPayload;
+    const markup = render(
+      <PersonSpend
+        email="first.person@example.test"
+        unit="USD"
+        state={{ status: 'ready', key: 'production', requestId: 1, data, error: null }}
+      />
+    );
+    const rendered = text(markup);
+    expect(rendered).toContain('Total user spend 9.55 USD');
+    expect(rendered).toContain('Cost / question 0.382 USD 25 submitted questions');
+    expect(rendered).toContain('Average daily spend 1.364 USD 7 covered days');
+    expect(rendered).toContain('Share of app spend No comparable app total');
+    expect(rendered).toContain('Week over week No comparable period');
+    expect(rendered).toContain('Month over month No comparable period');
+    expect(rendered).not.toContain('–');
+  });
+
+  it('keeps the final six-card footprint while a seeded total is being enriched', () => {
+    const data = {
+      currency: 'USD',
+      spendByUser: {
+        users: [
+          {
+            email: 'first.person@example.test',
+            total: {
+              usd: { amount: 62.61, quality: 'allocated' },
+              dbu: { amount: null, quality: 'unavailable' },
+            },
+            components: [],
+          },
+        ],
+      },
+    } as unknown as OpsCostPayload;
+    const markup = render(
+      <PersonSpend
+        email="first.person@example.test"
+        unit="USD"
+        refreshing
+        state={{ status: 'ready', key: 'seeded', requestId: 1, data, error: null }}
+      />
+    );
+    expect(text(markup)).toContain('Total user spend 62.61 USD');
+    for (const label of [
+      'Calculating cost per question',
+      'Calculating daily spend',
+      'Calculating share of app spend',
+      'Calculating week over week',
+      'Calculating month over month',
+    ]) {
+      expect(text(markup)).toContain(label);
+    }
+    expect(markup.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(6);
+    expect(markup.match(/ast-flick-slot--inline/g)).toHaveLength(1);
+    expect(text(markup)).not.toContain('Refreshing');
   });
 
   it('shows the authorized current role and only a real assigned persona', () => {

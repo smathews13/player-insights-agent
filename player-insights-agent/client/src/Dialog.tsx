@@ -97,6 +97,17 @@ interface DialogProps {
   onEscape?: () => void;
 }
 
+function isDialogFloatingPortal(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    Boolean(
+      target.closest(
+        "[data-radix-popper-content-wrapper], [data-slot='select-content'], [data-slot='dropdown-menu-content'], [data-slot='popover-content']"
+      )
+    )
+  );
+}
+
 /**
  * Internal modal foundation shared by every app-owned dialog.
  *
@@ -141,6 +152,10 @@ export function Dialog({
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLElement>) => {
+      // Radix/AppKit menus are body-level portals that remain logical children
+      // of this dialog in React. Let the menu own Escape, Tab, arrows and focus
+      // restoration; trapping those here closes or refocuses the modal instead.
+      if (isDialogFloatingPortal(event.target)) return;
       const intent = dialogKeyIntent(event);
       if (intent === 'escape') {
         event.preventDefault();
