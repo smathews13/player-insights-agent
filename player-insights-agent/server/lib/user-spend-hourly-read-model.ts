@@ -516,7 +516,7 @@ identity_population AS (
     FROM ${appTable('admin_emails')}
     ORDER BY lower(email), added_at DESC
   ) roster
-  WHERE $13::boolean
+  WHERE $5::boolean AND $13::boolean
   UNION ALL
   SELECT aggregated.user_key, aggregated.display_email, 'consumer', NULL::timestamptz
   FROM aggregated

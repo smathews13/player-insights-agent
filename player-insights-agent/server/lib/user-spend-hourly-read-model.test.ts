@@ -231,6 +231,7 @@ describe('fast hourly reads', () => {
     expect(page.rows[0]).toMatchObject({ spendUsd: 6, questions: 2, coveredDays: 1, billingComplete: false });
     expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('FROM player_insights.admin_emails');
     expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('LEFT JOIN aggregated');
+    expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('WHERE $5::boolean AND $13::boolean');
     expect(READ_USER_SPEND_HOURLY_SOURCE_QUERY).not.toMatch(/system\.billing|sql\/history|\/api\/2\.0/i);
   });
 });

@@ -557,7 +557,7 @@ identity_population AS (
     FROM ${ADMIN_EMAILS_TABLE}
     ORDER BY lower(email), added_at DESC
   ) roster
-  WHERE $13::boolean
+  WHERE $5::boolean AND $13::boolean
   UNION ALL
   SELECT aggregated.user_key, aggregated.display_email, 'consumer', NULL::timestamptz
   FROM aggregated

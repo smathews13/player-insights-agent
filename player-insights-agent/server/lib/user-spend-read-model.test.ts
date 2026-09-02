@@ -280,6 +280,7 @@ describe('fast read semantics', () => {
     });
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('FROM player_insights.admin_emails');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('LEFT JOIN aggregated');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('WHERE $5::boolean AND $13::boolean');
     expect(READ_USER_SPEND_SUMMARY_QUERY).not.toContain("COALESCE(NULLIF(admin_user.role, ''), 'consumer')");
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('BOOL_AND(billing_complete)');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('LIMIT $11 OFFSET $12');
