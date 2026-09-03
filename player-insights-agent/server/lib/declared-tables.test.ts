@@ -51,15 +51,13 @@ describe('what the Connections matrix may list', () => {
   });
 
   it('honours a denylist glob without inventing names', () => {
-    expect(
-      exclusionReason(table({ fullName: 'cat.sch.raw_events', shortName: 'raw_events' }), ['raw_*'])
-    ).toContain('raw_*');
+    expect(exclusionReason(table({ fullName: 'cat.sch.raw_events', shortName: 'raw_events' }), ['raw_*'])).toContain(
+      'raw_*'
+    );
   });
 
   it('keeps a table whose columns were not returned, rather than dropping it as unscreened', () => {
-    expect(
-      tablesFromListing([table({ fullName: 'cat.sch.kept', columns: null })])
-    ).toEqual(['cat.sch.kept']);
+    expect(tablesFromListing([table({ fullName: 'cat.sch.kept', columns: null })])).toEqual(['cat.sch.kept']);
   });
 });
 
@@ -127,6 +125,35 @@ describe('listing as the signed-in user', () => {
         fetchImpl: call,
       })
     ).toEqual([]);
+  });
+
+  it('uses one deadline across pagination and keeps the pages already returned', async () => {
+    let calls = 0;
+    const clock = [0, 1, 10];
+    const call = (() => {
+      calls += 1;
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            tables: [{ full_name: 'cat.sch.one', name: 'one', columns: [{ name: 'id' }] }],
+            next_page_token: 'another-page',
+          }),
+      } as Response);
+    }) as unknown as typeof fetch;
+
+    const listed = await listDeclarableTablesInSchema({
+      catalog: 'cat',
+      schema: 'sch',
+      host: 'https://workspace.example',
+      token: 'a-token',
+      fetchImpl: call,
+      timeoutMs: 10,
+      now: () => clock.shift() ?? 10,
+    });
+
+    expect(calls).toBe(1);
+    expect(listed).toEqual(['cat.sch.one']);
   });
 
   it('does not invent a three-level name from a bare table name', () => {

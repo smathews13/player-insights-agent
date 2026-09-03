@@ -68,7 +68,6 @@ NO_VALID_EVIDENCE = "NO_VALID_EVIDENCE"
 STREAM_INTERRUPTED = "STREAM_INTERRUPTED"
 RUN_DEADLINE_EXCEEDED = "RUN_DEADLINE_EXCEEDED"
 PERSISTENCE_UNAVAILABLE = "PERSISTENCE_UNAVAILABLE"
-RELEASE_NOT_CERTIFIED = "RELEASE_NOT_CERTIFIED"
 
 #: In the shared file's own order, so a diff between the two reads as a diff.
 TERMINAL_CODES = (
@@ -86,7 +85,6 @@ TERMINAL_CODES = (
     STREAM_INTERRUPTED,
     RUN_DEADLINE_EXCEEDED,
     PERSISTENCE_UNAVAILABLE,
-    RELEASE_NOT_CERTIFIED,
 )
 
 # ---------------------------------------------------------------------------
@@ -95,7 +93,7 @@ TERMINAL_CODES = (
 # THE LINE, so the next person adding a code knows which side of it they are on:
 # a code belongs here when the APP decides it on a request the agent is never
 # invoked for, and belongs in `TERMINAL_CODES` when a run the orchestrator serves
-# could end on it. Both of these are settled in `admitRun` against the run
+# could end on it. These are settled in `admitRun` against the run
 # ledger, before Model Serving is called at all, so no orchestrator code path
 # could produce one; they are the shared taxonomy's only `request`-layer codes,
 # which is that layer's own definition: the failure is the envelope the caller
@@ -126,9 +124,17 @@ IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT"
 #: nothing was compared, because there was no earlier request to compare with.
 IDEMPOTENCY_KEY_MALFORMED = "IDEMPOTENCY_KEY_MALFORMED"
 
+#: The app's month-to-date budget gate refuses before it calls Model Serving.
+BUDGET_APPROVAL_REQUIRED = "BUDGET_APPROVAL_REQUIRED"
+
+#: The app's release-certification gate also refuses before it calls Model Serving.
+RELEASE_NOT_CERTIFIED = "RELEASE_NOT_CERTIFIED"
+
 APP_ONLY_CODES = (
     IDEMPOTENCY_CONFLICT,
     IDEMPOTENCY_KEY_MALFORMED,
+    BUDGET_APPROVAL_REQUIRED,
+    RELEASE_NOT_CERTIFIED,
 )
 
 # ---------------------------------------------------------------------------

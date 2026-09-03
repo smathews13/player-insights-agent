@@ -12,12 +12,7 @@
 import { qualifyDataContractTables } from '../../shared/data-contract';
 
 /** Same four columns `agent/preflight.py` uses to recognise an inference log. */
-export const PAYLOAD_TABLE_SIGNATURE = new Set([
-  'databricks_request_id',
-  'request',
-  'response',
-  'served_entity_id',
-]);
+export const PAYLOAD_TABLE_SIGNATURE = new Set(['databricks_request_id', 'request', 'response', 'served_entity_id']);
 
 export const UNDECLARABLE_SCHEMAS = new Set(['information_schema']);
 
@@ -52,15 +47,14 @@ export function isInferencePayloadTable(columns: readonly string[] | null): bool
 }
 
 function globToRegExp(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*')
+    .replace(/\?/g, '.');
   return new RegExp(`^${escaped}$`, 'i');
 }
 
-export function denylistMatch(
-  fullName: string,
-  shortName: string,
-  patterns: readonly string[]
-): string | null {
+export function denylistMatch(fullName: string, shortName: string, patterns: readonly string[]): string | null {
   for (const raw of patterns) {
     const pattern = raw.trim();
     if (!pattern) continue;
@@ -73,10 +67,7 @@ export function denylistMatch(
 /**
  * Why this table must not appear on the Connections matrix, or null to keep it.
  */
-export function exclusionReason(
-  table: ListedTable,
-  denylist: readonly string[] = []
-): string | null {
+export function exclusionReason(table: ListedTable, denylist: readonly string[] = []): string | null {
   if (UNDECLARABLE_SCHEMAS.has(table.schemaName)) {
     return `schema ${table.schemaName} is not declarable`;
   }
@@ -91,8 +82,8 @@ export function exclusionReason(
 export function listedTableFromBody(row: unknown): ListedTable | null {
   if (!row || typeof row !== 'object') return null;
   const record = row as Record<string, unknown>;
-  const fullName = String(record.full_name ?? '').trim();
-  const name = String(record.name ?? '').trim();
+  const fullName = typeof record.full_name === 'string' ? record.full_name.trim() : '';
+  const name = typeof record.name === 'string' ? record.name.trim() : '';
   const resolved = fullName || (name.includes('.') ? name : '');
   if (!resolved || resolved.split('.').length !== 3) return null;
   const parts = resolved.split('.');
@@ -100,7 +91,8 @@ export function listedTableFromBody(row: unknown): ListedTable | null {
     ? record.columns
         .map((column) => {
           if (!column || typeof column !== 'object') return '';
-          return String((column as Record<string, unknown>).name ?? '').trim();
+          const value = (column as Record<string, unknown>).name;
+          return typeof value === 'string' ? value.trim() : '';
         })
         .filter(Boolean)
     : null;
@@ -112,10 +104,7 @@ export function listedTableFromBody(row: unknown): ListedTable | null {
   };
 }
 
-export function tablesFromListing(
-  rows: readonly ListedTable[],
-  denylist: readonly string[] = []
-): string[] {
+export function tablesFromListing(rows: readonly ListedTable[], denylist: readonly string[] = []): string[] {
   const names: string[] = [];
   for (const table of rows) {
     if (exclusionReason(table, denylist)) continue;
@@ -124,20 +113,26 @@ export function tablesFromListing(
   return names.sort();
 }
 
-export function isDataContractFallback(
-  tables: readonly string[],
-  catalog: string,
-  schema: string
-): boolean {
+export function isDataContractFallback(tables: readonly string[], catalog: string, schema: string): boolean {
   const contract = qualifyDataContractTables(catalog, schema);
   if (contract.length === 0) return false;
   if (tables.length !== contract.length) return false;
-  const listed = [...tables].map((table) => table.trim()).filter(Boolean).sort();
+  const listed = [...tables]
+    .map((table) => table.trim())
+    .filter(Boolean)
+    .sort();
   return listed.every((table, index) => table === contract[index]);
 }
 
 export function unionTableNames(...lists: readonly (readonly string[])[]): string[] {
-  return [...new Set(lists.flat().map((table) => table.trim()).filter(Boolean))].sort();
+  return [
+    ...new Set(
+      lists
+        .flat()
+        .map((table) => table.trim())
+        .filter(Boolean)
+    ),
+  ].sort();
 }
 
 const TABLES_PATH = '/api/2.1/unity-catalog/tables';
@@ -155,7 +150,9 @@ export async function listDeclarableTablesInSchema(input: {
   token: string;
   denylist?: readonly string[];
   fetchImpl?: typeof fetch;
+  /** Total deadline across every pagination request, not a per-page allowance. */
   timeoutMs?: number;
+  now?: () => number;
 }): Promise<string[]> {
   const catalog = input.catalog.trim();
   const schema = input.schema.trim();
@@ -164,9 +161,13 @@ export async function listDeclarableTablesInSchema(input: {
 
   const call = input.fetchImpl ?? fetch;
   const timeoutMs = input.timeoutMs ?? 15_000;
+  const now = input.now ?? Date.now;
+  const deadline = now() + timeoutMs;
   const found: ListedTable[] = [];
   let pageToken = '';
   for (let pages = 0; pages < 20; pages += 1) {
+    const remainingMs = deadline - now();
+    if (remainingMs <= 0) return tablesFromListing(found, input.denylist);
     const query = [
       `catalog_name=${encodeURIComponent(catalog)}`,
       `schema_name=${encodeURIComponent(schema)}`,
@@ -180,7 +181,7 @@ export async function listDeclarableTablesInSchema(input: {
       const response = await call(`${input.host}${TABLES_PATH}?${query}`, {
         method: 'GET',
         headers: { authorization: `Bearer ${input.token}` },
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(Math.max(1, remainingMs)),
       });
       if (!response.ok) return tablesFromListing(found, input.denylist);
       const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
@@ -189,7 +190,7 @@ export async function listDeclarableTablesInSchema(input: {
         const table = listedTableFromBody(row);
         if (table) found.push(table);
       }
-      pageToken = String(body.next_page_token ?? '').trim();
+      pageToken = typeof body.next_page_token === 'string' ? body.next_page_token.trim() : '';
       if (!pageToken) break;
     } catch {
       return tablesFromListing(found, input.denylist);

@@ -74,6 +74,16 @@ export const QUESTION_READ_LIMIT = 100;
 
 /** The compact person panel shows no more than this many recorded source tables. */
 export const MONITORING_TOP_TABLE_LIMIT = 5;
+export const MONITORING_GRANT_PROBE_CONCURRENCY = 6;
+export const MONITORING_GRANT_PROBE_BUDGET_MS = 20_000;
+export const MONITORING_GRANT_STATEMENT_TIMEOUT_MS = 7_000;
+export const MONITORING_GRANT_WAIT_TIMEOUT_SECONDS = 5;
+export const MONITORING_TABLE_DISCOVERY_TIMEOUT_MS = 5_000;
+
+const MONITORING_GRANT_VERIFY_OPTIONS = {
+  budgetMs: MONITORING_GRANT_PROBE_BUDGET_MS,
+  concurrency: MONITORING_GRANT_PROBE_CONCURRENCY,
+} as const;
 
 /**
  * What a caller is told when they ask for a page starting part way in.
@@ -562,6 +572,7 @@ async function declaredTablesForRequest(req: Request): Promise<string[]> {
       .split(',')
       .map((entry) => entry.trim())
       .filter(Boolean),
+    timeoutMs: MONITORING_TABLE_DISCOVERY_TIMEOUT_MS,
   });
   return unionTableNames(configured, discovered);
 }
@@ -1006,7 +1017,13 @@ function probeForAdmin(req: Request): TableProbe | null {
   const warehouseId = (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? '').trim();
   const token = forwardedUserToken(req);
   if (!host || !warehouseId || !token) return null;
-  return statementRunnerFor({ host, token, warehouseId });
+  return statementRunnerFor({
+    host,
+    token,
+    warehouseId,
+    timeoutMs: MONITORING_GRANT_STATEMENT_TIMEOUT_MS,
+    waitTimeoutSeconds: MONITORING_GRANT_WAIT_TIMEOUT_SECONDS,
+  });
 }
 
 /* ── Routes ──────────────────────────────────────────────────────────────── */
@@ -1157,6 +1174,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         tables: distinctTables,
         probe: probeFor(req),
         now: clock(),
+        verifyOptions: MONITORING_GRANT_VERIFY_OPTIONS,
       });
 
       const exactTotal = filters.outcome || filters.feedback || filters.table ? null : found;
@@ -1221,6 +1239,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         tables,
         probe: probeFor(req),
         now: clock(),
+        verifyOptions: MONITORING_GRANT_VERIFY_OPTIONS,
       });
       const conditioning = conditioningFor(tables, grants);
       const traceId = text(row.trace_id);
@@ -1429,6 +1448,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
             tables: wanted,
             probe: probeFor(req),
             now: clock(),
+            verifyOptions: MONITORING_GRANT_VERIFY_OPTIONS,
           });
           grants = liveSelfGrantLedger(wanted, resolution);
         } else {

@@ -112,8 +112,7 @@ const unreachableGenie = (): Promise<GenieProbeResult> =>
 
 /** A Databricks OAuth token, in the shape the scopes are actually read from. */
 function jwtWithScope(scope: string | null): string {
-  const encode = (value: unknown) =>
-    Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
   return [
     encode({ alg: 'RS256', typ: 'JWT' }),
     encode({
@@ -215,7 +214,9 @@ describe('verifying table access', () => {
    * nothing they can observe, and sends them back around the loop.
    */
   it('names the catalog and USE CATALOG when the refusal is at the catalog', async () => {
-    const outcome = await verifyTableAccess(['main.x.y'], () => Promise.resolve({ ok: false, message: REAL_INSUFFICIENT }));
+    const outcome = await verifyTableAccess(['main.x.y'], () =>
+      Promise.resolve({ ok: false, message: REAL_INSUFFICIENT })
+    );
     expect(outcome.verdicts[0].status).toBe('denied');
     expect(outcome.verdicts[0].reason).toBe('no-grant');
     expect(outcome.verdicts[0].missing).toEqual({
@@ -229,16 +230,21 @@ describe('verifying table access', () => {
   });
 
   it('keeps the API\u2019s own words beside the classification', async () => {
-    const outcome = await verifyTableAccess(['main.x.y'], () => Promise.resolve({ ok: false, message: REAL_INSUFFICIENT }));
+    const outcome = await verifyTableAccess(['main.x.y'], () =>
+      Promise.resolve({ ok: false, message: REAL_INSUFFICIENT })
+    );
     expect(outcome.verdicts[0].apiMessage).toBe(REAL_INSUFFICIENT);
   });
 
   it('names the exact object and permission when a grant is missing', async () => {
-    const outcome = await verifyTableAccess(TABLES,
+    const outcome = await verifyTableAccess(
+      TABLES,
       (table) =>
-        Promise.resolve(table === 'main.silver.matches'
-          ? { ok: false, message: 'PERMISSION_DENIED: User does not have SELECT on Table' }
-          : { ok: true }),
+        Promise.resolve(
+          table === 'main.silver.matches'
+            ? { ok: false, message: 'PERMISSION_DENIED: User does not have SELECT on Table' }
+            : { ok: true }
+        ),
       'reviewer@example.com'
     );
     const denied = outcome.verdicts.find((v) => v.status === 'denied');
@@ -251,16 +257,19 @@ describe('verifying table access', () => {
     // The point of the whole exercise: the statement that would fix it, ready
     // to paste, naming the person who is short of it.
     expect(denied?.remedy?.kind).toBe('sql');
-    expect(denied?.remedy?.statement).toContain('GRANT SELECT ON TABLE `main`.`silver`.`matches` TO `reviewer@example.com`;'
+    expect(denied?.remedy?.statement).toContain(
+      'GRANT SELECT ON TABLE `main`.`silver`.`matches` TO `reviewer@example.com`;'
     );
     expect(isVerified(outcome)).toBe(false);
   });
 
   it('treats a table Unity Catalog hides as denied, and says the two are indistinguishable', async () => {
-    const outcome = await verifyTableAccess(['main.silver.players'], () => Promise.resolve({
-      ok: false,
-      message: '[TABLE_OR_VIEW_NOT_FOUND] The table or view cannot be found',
-    }));
+    const outcome = await verifyTableAccess(['main.silver.players'], () =>
+      Promise.resolve({
+        ok: false,
+        message: '[TABLE_OR_VIEW_NOT_FOUND] The table or view cannot be found',
+      })
+    );
     expect(outcome.verdicts[0].status).toBe('denied');
     expect(outcome.verdicts[0].detail).toMatch(/hides objects it cannot traverse/);
     // And says what to conclude when the grants below it do not help.
@@ -268,10 +277,12 @@ describe('verifying table access', () => {
   });
 
   it('records an unrecognised failure as unknown rather than as denied', async () => {
-    const outcome = await verifyTableAccess(['main.silver.players'], () => Promise.resolve({
-      ok: false,
-      message: 'Warehouse is starting',
-    }));
+    const outcome = await verifyTableAccess(['main.silver.players'], () =>
+      Promise.resolve({
+        ok: false,
+        message: 'Warehouse is starting',
+      })
+    );
     expect(outcome.verdicts[0].status).toBe('error');
     expect(outcome.verdicts[0].detail).toMatch(/not a permission result/);
     expect(outcome.errored).toBe(1);
@@ -279,17 +290,17 @@ describe('verifying table access', () => {
   });
 
   it('survives a runner that throws', async () => {
-    const outcome = await verifyTableAccess(['main.silver.players'], () =>
-      Promise.reject(new Error('socket hang up'))
-    );
+    const outcome = await verifyTableAccess(['main.silver.players'], () => Promise.reject(new Error('socket hang up')));
     expect(outcome.verdicts[0].status).toBe('error');
   });
 
   it('stops and blames configuration when the token lacks the sql scope', async () => {
-    const outcome = await verifyTableAccess(TABLES, () => Promise.resolve({
-      ok: false,
-      message: 'Provided OAuth token does not have required scopes',
-    }));
+    const outcome = await verifyTableAccess(TABLES, () =>
+      Promise.resolve({
+        ok: false,
+        message: 'Provided OAuth token does not have required scopes',
+      })
+    );
     expect(outcome.blocked?.layer).toBe('app configuration');
     expect(outcome.blocked?.kind).toBe('no-sql-scope');
     expect(outcome.blocked?.summary).toMatch(/nothing about your own permissions was established/);
@@ -303,9 +314,7 @@ describe('verifying table access', () => {
 
   it('refuses to call a partial pass verified', async () => {
     const outcome = await verifyTableAccess(TABLES, (table) =>
-      Promise.resolve(
-        table === 'main.silver.matches' ? { ok: false, message: 'PERMISSION_DENIED' } : { ok: true }
-      )
+      Promise.resolve(table === 'main.silver.matches' ? { ok: false, message: 'PERMISSION_DENIED' } : { ok: true })
     );
     expect(outcome.ok).toBe(1);
     expect(isVerified(outcome)).toBe(false);
@@ -340,7 +349,8 @@ describe('the summary written into the audit record', () => {
  */
 describe('telling the failure modes apart', () => {
   it('reads INSUFFICIENT_PERMISSIONS as a grant that is missing, not an object that is absent', () => {
-    const denial = classifyDenial("[INSUFFICIENT_PERMISSIONS] Insufficient privileges:\nCatalog 'main' is not accessible in current workspace SQLSTATE: 42501",
+    const denial = classifyDenial(
+      "[INSUFFICIENT_PERMISSIONS] Insufficient privileges:\nCatalog 'main' is not accessible in current workspace SQLSTATE: 42501",
       'main.x.y'
     );
     expect(denial).toEqual({
@@ -352,7 +362,8 @@ describe('telling the failure modes apart', () => {
   });
 
   it('reads a schema refusal as USE SCHEMA on that schema', () => {
-    const denial = classifyDenial("[INSUFFICIENT_PERMISSIONS] Insufficient privileges: Schema 'main.silver' is not accessible SQLSTATE: 42501",
+    const denial = classifyDenial(
+      "[INSUFFICIENT_PERMISSIONS] Insufficient privileges: Schema 'main.silver' is not accessible SQLSTATE: 42501",
       'main.silver.players'
     );
     expect(denial).toEqual({
@@ -373,14 +384,12 @@ describe('telling the failure modes apart', () => {
   });
 
   it('will not claim a hidden object is a missing grant, or the reverse', () => {
-    expect(classifyDenial('[TABLE_OR_VIEW_NOT_FOUND] cannot be found', 'c.s.t').kind).toBe('hidden-or-absent'
-    );
+    expect(classifyDenial('[TABLE_OR_VIEW_NOT_FOUND] cannot be found', 'c.s.t').kind).toBe('hidden-or-absent');
   });
 
   it('refuses to classify a failure it does not recognise', () => {
     expect(classifyDenial('socket hang up', 'c.s.t').kind).toBe('unrecognised');
-    expect(classifyDenial('The statement ended in state CANCELED.', 'c.s.t').kind).toBe('unrecognised'
-    );
+    expect(classifyDenial('The statement ended in state CANCELED.', 'c.s.t').kind).toBe('unrecognised');
   });
 });
 
@@ -426,7 +435,8 @@ describe('the statement that would fix it', () => {
   });
 
   it('names a service principal by the field the API expects for one', () => {
-    expect(warehouseGrant('wh-1', 'ca9f730e-186a-4809-b8b7-000000000000').statement).toContain('"service_principal_name":'
+    expect(warehouseGrant('wh-1', 'ca9f730e-186a-4809-b8b7-000000000000').statement).toContain(
+      '"service_principal_name":'
     );
   });
 });
@@ -440,8 +450,7 @@ describe('the statement that would fix it', () => {
 describe('checking the warehouse before checking any table', () => {
   const denied = {
     ok: false as const,
-    message:
-      'PERMISSION_DENIED: User does not have permission to use warehouse abc123. SQLSTATE: 42501',
+    message: 'PERMISSION_DENIED: User does not have permission to use warehouse abc123. SQLSTATE: 42501',
   };
 
   it('passes silently when SELECT 1 succeeds', async () => {
@@ -463,7 +472,8 @@ describe('checking the warehouse before checking any table', () => {
 
   it('reports no table verdicts at all when the warehouse refused, rather than ten false ones', async () => {
     const table = vi.fn();
-    const outcome = await verifyAccess({ tables: [...TABLES], warehouseId: 'abc123', principal: 'reviewer@example.com' },
+    const outcome = await verifyAccess(
+      { tables: [...TABLES], warehouseId: 'abc123', principal: 'reviewer@example.com' },
       { warehouse: () => Promise.resolve(denied), table: table as unknown as StatementRunner }
     );
     expect(outcome.verdicts).toEqual([]);
@@ -473,20 +483,24 @@ describe('checking the warehouse before checking any table', () => {
   });
 
   it('separates a warehouse that is down from one that refused', async () => {
-    const blocked = await verifyWarehouseAccess('abc123', () => Promise.resolve({
-      ok: false,
-      message: 'The statement ended in state CANCELED.',
-    }));
+    const blocked = await verifyWarehouseAccess('abc123', () =>
+      Promise.resolve({
+        ok: false,
+        message: 'The statement ended in state CANCELED.',
+      })
+    );
     expect(blocked?.kind).toBe('dependency-down');
     expect(blocked?.missing).toBeUndefined();
     expect(blocked?.summary).toMatch(/did not refuse it for a permission/);
   });
 
   it('still calls a missing scope a scope problem when it surfaces at the warehouse', async () => {
-    const blocked = await verifyWarehouseAccess('abc123', () => Promise.resolve({
-      ok: false,
-      message: 'Provided OAuth token does not have required scopes',
-    }));
+    const blocked = await verifyWarehouseAccess('abc123', () =>
+      Promise.resolve({
+        ok: false,
+        message: 'Provided OAuth token does not have required scopes',
+      })
+    );
     expect(blocked?.kind).toBe('no-sql-scope');
     expect(blocked?.summary).toMatch(/not a permission you are missing/);
     expect(blocked?.remedy?.statement).toContain('databricks apps stop');
@@ -600,7 +614,8 @@ describe('the HTTP status a refusal arrived with', () => {
    * the app is short of, fixed by a stop and start rather than by an admin.
    */
   it('still calls a 403 carrying scope wording a scope problem, not a warehouse grant', async () => {
-    const blocked = await verifyWarehouseAccess('wh-1',
+    const blocked = await verifyWarehouseAccess(
+      'wh-1',
       probeAnswering(403, { message: 'Provided OAuth token does not have required scopes' }),
       'reviewer@example.com'
     );
@@ -608,7 +623,8 @@ describe('the HTTP status a refusal arrived with', () => {
   });
 
   it('keeps reading permission wording on a 200 that failed, where there is no status to read', async () => {
-    const blocked = await verifyWarehouseAccess('wh-1',
+    const blocked = await verifyWarehouseAccess(
+      'wh-1',
       () => Promise.resolve({ ok: false, message: 'PERMISSION_DENIED: SQLSTATE: 42501' }),
       'reviewer@example.com'
     );
@@ -646,11 +662,11 @@ describe('telling a missing entitlement apart from a missing CAN_USE', () => {
     };
   }
 
-  const lookupReturning = (body: unknown): EntitlementLookup =>
-    entitlementLookupVia(() => Promise.resolve(body));
+  const lookupReturning = (body: unknown): EntitlementLookup => entitlementLookupVia(() => Promise.resolve(body));
 
   it('names the entitlement, not the warehouse, when SCIM says it is absent', async () => {
-    const blocked = await verifyWarehouseAccess('wh-1',
+    const blocked = await verifyWarehouseAccess(
+      'wh-1',
       () => Promise.resolve(REFUSED),
       READER,
       lookupReturning(scimUser())
@@ -681,7 +697,8 @@ describe('telling a missing entitlement apart from a missing CAN_USE', () => {
   });
 
   it('offers the SCIM patch against the real user id, not a permissions update', async () => {
-    const blocked = await verifyWarehouseAccess('wh-1',
+    const blocked = await verifyWarehouseAccess(
+      'wh-1',
       () => Promise.resolve(REFUSED),
       READER,
       lookupReturning(scimUser([WORKSPACE_ACCESS_ENTITLEMENT]))
@@ -690,7 +707,8 @@ describe('telling a missing entitlement apart from a missing CAN_USE', () => {
     expect(blocked?.remedy?.kind).toBe('cli');
     // The id comes from the lookup that just succeeded, so the command is
     // runnable as printed rather than a template to go and fill in.
-    expect(blocked?.remedy?.statement).toContain('databricks api patch /api/2.0/preview/scim/v2/Users/1122334455667788'
+    expect(blocked?.remedy?.statement).toContain(
+      'databricks api patch /api/2.0/preview/scim/v2/Users/1122334455667788'
     );
     expect(blocked?.remedy?.statement).toContain('"op":"add","path":"entitlements"');
     expect(blocked?.remedy?.statement).toContain(`{"value":"${SQL_ACCESS_ENTITLEMENT}"}`);
@@ -705,7 +723,8 @@ describe('telling a missing entitlement apart from a missing CAN_USE', () => {
    * traded one confident wrong answer for another.
    */
   it('still names CAN_USE, with the warehouse remedy, when the entitlement is held', async () => {
-    const blocked = await verifyWarehouseAccess('wh-1',
+    const blocked = await verifyWarehouseAccess(
+      'wh-1',
       () => Promise.resolve(REFUSED),
       READER,
       lookupReturning(scimUser([WORKSPACE_ACCESS_ENTITLEMENT, SQL_ACCESS_ENTITLEMENT]))
@@ -732,8 +751,11 @@ describe('telling a missing entitlement apart from a missing CAN_USE', () => {
    * way would be the same defect aimed at a different object.
    */
   it('falls back to today\u2019s message when SCIM itself refuses the lookup', async () => {
-    const blocked = await verifyWarehouseAccess('wh-1', () => Promise.resolve(REFUSED), READER, () =>
-      Promise.reject(new Error('403 PERMISSION_DENIED: cannot read users'))
+    const blocked = await verifyWarehouseAccess(
+      'wh-1',
+      () => Promise.resolve(REFUSED),
+      READER,
+      () => Promise.reject(new Error('403 PERMISSION_DENIED: cannot read users'))
     );
 
     expect(blocked?.kind).toBe('warehouse-denied');
@@ -752,7 +774,8 @@ describe('telling a missing entitlement apart from a missing CAN_USE', () => {
   });
 
   it('treats a filter that matched nobody as unreadable, not as an account with nothing', async () => {
-    const blocked = await verifyWarehouseAccess('wh-1',
+    const blocked = await verifyWarehouseAccess(
+      'wh-1',
       () => Promise.resolve(REFUSED),
       READER,
       lookupReturning({ totalResults: 0, Resources: [] })
@@ -786,12 +809,14 @@ describe('telling a missing entitlement apart from a missing CAN_USE', () => {
     ['a missing scope', 403, { message: 'Provided OAuth token does not have required scopes' }],
   ])('does not ask SCIM about %s', async (_label, status, body) => {
     const lookup = vi.fn<EntitlementLookup>();
-    await verifyWarehouseAccess('wh-1',
-      () => Promise.resolve({
-        ok: false,
-        status,
-        message: String((body as { message?: string }).message ?? 'no body'),
-      }),
+    await verifyWarehouseAccess(
+      'wh-1',
+      () =>
+        Promise.resolve({
+          ok: false,
+          status,
+          message: String((body as { message?: string }).message ?? 'no body'),
+        }),
       READER,
       lookup
     );
@@ -804,7 +829,8 @@ describe('telling a missing entitlement apart from a missing CAN_USE', () => {
 
   it('carries through the whole check without probing a single table', async () => {
     const table = vi.fn();
-    const outcome = await verifyAccess({ tables: [...TABLES], warehouseId: 'wh-1', principal: READER },
+    const outcome = await verifyAccess(
+      { tables: [...TABLES], warehouseId: 'wh-1', principal: READER },
       {
         warehouse: () => Promise.resolve(REFUSED),
         table: table as unknown as StatementRunner,
@@ -835,7 +861,8 @@ describe('telling a missing entitlement apart from a missing CAN_USE', () => {
 
 describe('reading the entitlements off a SCIM answer', () => {
   it('reads the values out of the complex attributes SCIM returns', () => {
-    expect(readScimEntitlements({
+    expect(
+      readScimEntitlements({
         Resources: [
           {
             id: '42',
@@ -908,9 +935,7 @@ describe('the lookup that asks the workspace', () => {
   });
 
   it('reports a refusal as unreadable, with what the API said', async () => {
-    const reading = await entitlementLookupVia(() =>
-      Promise.reject(new Error('PERMISSION_DENIED'))
-    )('a@b.c');
+    const reading = await entitlementLookupVia(() => Promise.reject(new Error('PERMISSION_DENIED')))('a@b.c');
     expect(reading.kind).toBe('unavailable');
     if (reading.kind === 'unavailable') expect(reading.why).toContain('PERMISSION_DENIED');
   });
@@ -1023,12 +1048,17 @@ describe('a warehouse that accepts the connection and says nothing', () => {
       token: 't',
       warehouseId: 'wh-1',
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      waitTimeoutSeconds: 5,
     });
 
     await probe();
 
     const signal = (fetchImpl.mock.calls[0][1] as RequestInit).signal;
     expect(signal).toBeInstanceOf(AbortSignal);
+    expect(jsonBodyOn(recordedRequest(fetchImpl).init)).toMatchObject({
+      wait_timeout: '5s',
+      on_wait_timeout: 'CANCEL',
+    });
   });
 });
 
@@ -1042,11 +1072,10 @@ describe('the budget over all the table probes', () => {
       return Promise.resolve({ ok: true } as const);
     };
 
-    const outcome = await verifyTableAccess(['a.b.one', 'a.b.two', 'a.b.three', 'a.b.four'],
-      slow,
-      undefined,
-      { budgetMs: 60_000, now: () => clock }
-    );
+    const outcome = await verifyTableAccess(['a.b.one', 'a.b.two', 'a.b.three', 'a.b.four'], slow, undefined, {
+      budgetMs: 60_000,
+      now: () => clock,
+    });
 
     expect(outcome.verdicts.map((verdict) => verdict.status)).toEqual(['ok', 'ok', 'error', 'error']);
     // Named, not dropped: a check that shrinks the set of tables that had to
@@ -1068,6 +1097,33 @@ describe('the budget over all the table probes', () => {
 
     expect(isVerified(outcome)).toBe(true);
   });
+
+  it('checks all twelve tables with bounded concurrency instead of twelve serial waits', async () => {
+    const tables = Array.from({ length: 12 }, (_value, index) => `catalog.schema.table_${index + 1}`);
+    let inFlight = 0;
+    let maximumInFlight = 0;
+    let calls = 0;
+    const probe: StatementRunner = async () => {
+      calls += 1;
+      inFlight += 1;
+      maximumInFlight = Math.max(maximumInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      inFlight -= 1;
+      return { ok: true };
+    };
+    const started = performance.now();
+
+    const outcome = await verifyTableAccess(tables, probe, undefined, {
+      budgetMs: 1_000,
+      concurrency: 6,
+    });
+
+    expect(performance.now() - started).toBeLessThan(150);
+    expect(calls).toBe(12);
+    expect(maximumInFlight).toBe(6);
+    expect(outcome.verdicts).toHaveLength(12);
+    expect(outcome.ok).toBe(12);
+  });
 });
 
 describe('saying what a partial result costs', () => {
@@ -1081,9 +1137,7 @@ describe('saying what a partial result costs', () => {
    */
   it('leaves the counting to the screen and says only what a count cannot', async () => {
     const outcome = await verifyTableAccess(TABLES, (table) =>
-      Promise.resolve(
-        table === 'main.silver.matches' ? { ok: false, message: 'SQLSTATE: 42501' } : { ok: true }
-      )
+      Promise.resolve(table === 'main.silver.matches' ? { ok: false, message: 'SQLSTATE: 42501' } : { ok: true })
     );
     const impact = describeImpact(outcome);
     expect(impact).toHaveLength(1);
@@ -1097,9 +1151,7 @@ describe('saying what a partial result costs', () => {
    */
   it('names the degradation rather than leaving it to be discovered mid-demo', async () => {
     const outcome = await verifyTableAccess(TABLES, (table) =>
-      Promise.resolve(
-        table === 'main.silver.matches' ? { ok: false, message: 'SQLSTATE: 42501' } : { ok: true }
-      )
+      Promise.resolve(table === 'main.silver.matches' ? { ok: false, message: 'SQLSTATE: 42501' } : { ok: true })
     );
     const impact = describeImpact(outcome).join(' ');
     expect(impact).toMatch(/all-or-nothing per space/);
@@ -1108,10 +1160,12 @@ describe('saying what a partial result costs', () => {
   });
 
   it('does not describe a degradation for a run that established nothing', async () => {
-    const outcome = await verifyTableAccess(TABLES, () => Promise.resolve({
-      ok: false,
-      message: 'Provided OAuth token does not have required scopes',
-    }));
+    const outcome = await verifyTableAccess(TABLES, () =>
+      Promise.resolve({
+        ok: false,
+        message: 'Provided OAuth token does not have required scopes',
+      })
+    );
     expect(describeImpact(outcome)).toEqual([]);
   });
 
@@ -1123,9 +1177,7 @@ describe('saying what a partial result costs', () => {
    */
   it('keeps unknown separate from refused', async () => {
     const outcome = await verifyTableAccess(TABLES, (table) =>
-      Promise.resolve(
-        table === 'main.silver.matches' ? { ok: false, message: 'socket hang up' } : { ok: true }
-      )
+      Promise.resolve(table === 'main.silver.matches' ? { ok: false, message: 'socket hang up' } : { ok: true })
     );
     expect(outcome.errored).toBe(1);
     expect(outcome.denied).toBe(0);
@@ -1152,9 +1204,7 @@ describe('the limits of the check, stated rather than left to be assumed', () =>
   });
 
   it('passes through what the serving principal saw, labelled as that identity', () => {
-    const [genie] = limitsOfThisCheck([
-      { object: 'space-1', label: 'Data Genie space \u00b7 space-1', status: 'ok' },
-    ]);
+    const [genie] = limitsOfThisCheck([{ object: 'space-1', label: 'Data Genie space \u00b7 space-1', status: 'ok' }]);
     expect(genie.insteadAs).toMatch(/as the agent serving principal/);
     expect(genie.insteadAs).toMatch(/not a claim about who executes/);
     expect(genie.insteadAs).toContain('Data Genie space \u00b7 space-1 (ok)');
@@ -1186,21 +1236,19 @@ describe('the limits of the check, stated rather than left to be assumed', () =>
   it('warns about the failure that answers instead of erroring', () => {
     // Found rather than indexed: the list grows a "which tables" entry when the
     // run checked none, and this limit is stated whether or not it did.
-    const filters = limitsOfThisCheck([]).find((limit) =>
-      /row filter or a column mask/.test(limit.what)
-    );
+    const filters = limitsOfThisCheck([]).find((limit) => /row filter or a column mask/.test(limit.what));
     expect(filters?.why).toMatch(/Neither reports itself/);
   });
 
   it('says the tables went unchecked only when they did', () => {
-    const names = (tablesChecked: number) =>
-      limitsOfThisCheck([], undefined, tablesChecked).map((limit) => limit.what);
+    const names = (tablesChecked: number) => limitsOfThisCheck([], undefined, tablesChecked).map((limit) => limit.what);
     expect(names(0).join(' ')).toMatch(/read the tables behind an answer/);
     expect(names(2).join(' ')).not.toMatch(/read the tables behind an answer/);
   });
 
   it('is attached even to a run that was blocked before it started', async () => {
-    const outcome = await verifyAccess({ tables: [...TABLES], warehouseId: 'w', principal: 'a@b.c' },
+    const outcome = await verifyAccess(
+      { tables: [...TABLES], warehouseId: 'w', principal: 'a@b.c' },
       {
         warehouse: () => Promise.resolve({ ok: false, message: 'SQLSTATE: 42501 no permission' }),
         table: () => Promise.resolve({ ok: true }),
@@ -1264,7 +1312,8 @@ describe('asking Genie the same question as the user', () => {
   });
 
   it('reads a 403 as one grant on one space, with the command that makes it', async () => {
-    const outcome = await verifyGenieAccess([SPACES[0]],
+    const outcome = await verifyGenieAccess(
+      [SPACES[0]],
       () => Promise.resolve({ ok: false, status: 403, message: 'PERMISSION_DENIED' }),
       'reviewer@example.com'
     );
@@ -1292,7 +1341,8 @@ describe('asking Genie the same question as the user', () => {
    * rather than picking the flattering one.
    */
   it('keeps a hidden space and an absent one apart from a plain refusal', async () => {
-    const outcome = await verifyGenieAccess([SPACES[0]],
+    const outcome = await verifyGenieAccess(
+      [SPACES[0]],
       () => Promise.resolve({ ok: false, status: 404, message: 'Space with id space-data not found' }),
       'a@b.c'
     );
@@ -1312,16 +1362,14 @@ describe('asking Genie the same question as the user', () => {
    * risk worth carrying into a governance screen.
    */
   it('refuses to read an empty answer as a pass', async () => {
-    const outcome = await verifyGenieAccess([SPACES[0]],
-      () => Promise.resolve({ ok: true, space: null }),
-      'a@b.c'
-    );
+    const outcome = await verifyGenieAccess([SPACES[0]], () => Promise.resolve({ ok: true, space: null }), 'a@b.c');
     expect(outcome.verdicts[0].status).toBe('error');
     expect(outcome.verdicts[0].detail).toMatch(/An empty answer is not a yes/);
   });
 
   it('calls a refused token a token problem, not a missing grant', async () => {
-    const outcome = await verifyGenieAccess([SPACES[0]],
+    const outcome = await verifyGenieAccess(
+      [SPACES[0]],
       () => Promise.resolve({ ok: false, status: 401, message: 'Credential was not sent' }),
       'a@b.c'
     );
@@ -1331,7 +1379,8 @@ describe('asking Genie the same question as the user', () => {
   });
 
   it('reports a space that did not answer as unknown rather than refused', async () => {
-    const outcome = await verifyGenieAccess([SPACES[0]],
+    const outcome = await verifyGenieAccess(
+      [SPACES[0]],
       () => Promise.resolve({ ok: false, message: 'Genie could not be reached: socket hang up' }),
       'a@b.c'
     );
@@ -1351,7 +1400,8 @@ describe('asking Genie the same question as the user', () => {
   it('asks every space at once rather than one after another', async () => {
     let inFlight = 0;
     let overlapped = false;
-    const outcome = await verifyGenieAccess(SPACES,
+    const outcome = await verifyGenieAccess(
+      SPACES,
       async (spaceId) => {
         inFlight += 1;
         overlapped = overlapped || inFlight > 1;
@@ -1382,12 +1432,14 @@ describe('asking Genie the same question as the user', () => {
    * warehouse stage exists on the SQL side.
    */
   it('reports a scope refusal from the API once, not once per space', async () => {
-    const outcome = await verifyGenieAccess(SPACES,
-      () => Promise.resolve({
-        ok: false,
-        status: 403,
-        message: 'Provided OAuth token does not have required scopes: dashboards.genie',
-      }),
+    const outcome = await verifyGenieAccess(
+      SPACES,
+      () =>
+        Promise.resolve({
+          ok: false,
+          status: 403,
+          message: 'Provided OAuth token does not have required scopes: dashboards.genie',
+        }),
       'a@b.c',
       null
     );
@@ -1412,10 +1464,7 @@ describe('asking Genie the same question as the user', () => {
   });
 
   it('classifies without a status the same way it classifies with one', () => {
-    const verdict = classifyGenieProbe({ ok: false, message: 'something unrecognised' },
-      SPACES[0],
-      'a@b.c'
-    );
+    const verdict = classifyGenieProbe({ ok: false, message: 'something unrecognised' }, SPACES[0], 'a@b.c');
     expect(verdict.status).toBe('error');
     expect(verdict.apiMessage).toBe('something unrecognised');
   });
@@ -1425,7 +1474,8 @@ describe('what a Genie answer does and does not do to the verdict', () => {
   const allowTables = (): Promise<ProbeResult> => Promise.resolve({ ok: true });
 
   async function run(genieSpace: (spaceId: string) => Promise<GenieProbeResult>) {
-    return verifyAccess({
+    return verifyAccess(
+      {
         tables: [...TABLES],
         warehouseId: 'wh-1',
         principal: 'a@b.c',
@@ -1449,9 +1499,12 @@ describe('what a Genie answer does and does not do to the verdict', () => {
    */
   it('refuses to verify a reader a space refused, even with every table green', async () => {
     const outcome = await run((spaceId) =>
-      Promise.resolve(spaceId === 'space-dict'
-        ? { ok: false, status: 403, message: 'PERMISSION_DENIED' }
-        : { ok: true, space: spaceId }));
+      Promise.resolve(
+        spaceId === 'space-dict'
+          ? { ok: false, status: 403, message: 'PERMISSION_DENIED' }
+          : { ok: true, space: spaceId }
+      )
+    );
     expect(outcome.ok).toBe(2);
     expect(outcome.denied).toBe(0);
     expect(isVerified(outcome)).toBe(false);
@@ -1477,7 +1530,8 @@ describe('what a Genie answer does and does not do to the verdict', () => {
    * spaces they can.
    */
   it('still reports the spaces when the warehouse blocked everything else', async () => {
-    const outcome = await verifyAccess({
+    const outcome = await verifyAccess(
+      {
         tables: [...TABLES],
         warehouseId: 'wh-1',
         principal: 'a@b.c',
@@ -1503,7 +1557,8 @@ describe('what a Genie answer does and does not do to the verdict', () => {
   });
 
   it('keeps saying Genie went unchecked when it did', async () => {
-    const outcome = await verifyAccess({ tables: [...TABLES], warehouseId: 'wh-1', principal: 'a@b.c' },
+    const outcome = await verifyAccess(
+      { tables: [...TABLES], warehouseId: 'wh-1', principal: 'a@b.c' },
       { warehouse: allowTables, table: allowTables }
     );
     expect(outcome.genie).toBeUndefined();
@@ -1740,12 +1795,8 @@ describe('running the statement as the user', () => {
 
 describe('served configuration as the source of what to probe', () => {
   it('labels a space as title · id when both are known', () => {
-    expect(genieSpaceLabel({ id: 'abc', title: 'Player Insights Data' })).toBe(
-      'Player Insights Data · abc'
-    );
-    expect(genieSpaceLabel({ role: 'Data Genie space', title: 'example_poc' })).toBe(
-      'Data Genie space · example_poc'
-    );
+    expect(genieSpaceLabel({ id: 'abc', title: 'Player Insights Data' })).toBe('Player Insights Data · abc');
+    expect(genieSpaceLabel({ role: 'Data Genie space', title: 'example_poc' })).toBe('Data Genie space · example_poc');
     expect(genieSpaceLabel({ role: 'Data Genie space', id: 'abc' })).toBe('Data Genie space · abc');
   });
 

@@ -6,7 +6,11 @@ import {
   MONITORING_PERSON_TABLE_EVIDENCE_QUERY,
   MONITORING_PERSON_TABLES_QUERY,
   MONITORING_QUESTIONS_QUERY,
+  MONITORING_GRANT_PROBE_BUDGET_MS,
+  MONITORING_GRANT_PROBE_CONCURRENCY,
+  MONITORING_GRANT_STATEMENT_TIMEOUT_MS,
   MONITORING_ROUTES,
+  MONITORING_TABLE_DISCOVERY_TIMEOUT_MS,
   historicalGrantLedger,
   liveSelfGrantLedger,
   matchingQuestions,
@@ -43,6 +47,14 @@ const ledger = (entries: [string, { state: string; code: string | null }][] = []
 
 describe('per-user declared-table permission evidence', () => {
   const tables = Array.from({ length: 12 }, (_value, index) => `catalog.schema.table_${index + 1}`);
+
+  it('bounds the cold twelve-table self check below the route deadline', () => {
+    const waves = Math.ceil(tables.length / MONITORING_GRANT_PROBE_CONCURRENCY);
+    expect(MONITORING_GRANT_PROBE_CONCURRENCY).toBeGreaterThan(1);
+    expect(MONITORING_GRANT_PROBE_CONCURRENCY).toBeLessThanOrEqual(6);
+    expect(MONITORING_GRANT_STATEMENT_TIMEOUT_MS * waves + MONITORING_TABLE_DISCOVERY_TIMEOUT_MS).toBeLessThan(30_000);
+    expect(MONITORING_GRANT_PROBE_BUDGET_MS).toBeLessThan(30_000);
+  });
 
   it('keeps all twelve declared tables for a successful self OBO probe', () => {
     const grants = liveSelfGrantLedger(tables, {

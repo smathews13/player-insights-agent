@@ -16,11 +16,7 @@ import { sqlQueryTags } from '../lib/sql-query-tags';
 // diagnosis nothing audits: see `server/lib/diagnosis-audit.test.ts`, which
 // holds every branch of this against the evidence behind it, and D10 in
 // bundle/DECISIONS.md for why that is a rule rather than a preference.
-import {
-  presentedTokenAge,
-  tokenRejection,
-  type PresentedTokenAge,
-} from '../lib/token-rejection';
+import { presentedTokenAge, tokenRejection, type PresentedTokenAge } from '../lib/token-rejection';
 
 export { presentedTokenAge, type PresentedTokenAge };
 
@@ -90,7 +86,8 @@ export function diagnoseUserToken(req: Request, isDevelopmentIdentity: boolean):
  */
 export function looksLikeMissingScope(message: string): boolean {
   const text = message.toLowerCase();
-  return (text.includes('does not have required scopes') ||
+  return (
+    text.includes('does not have required scopes') ||
     text.includes('insufficient_scope') ||
     (text.includes('scope') && (text.includes('oauth') || text.includes('token')))
   );
@@ -315,13 +312,7 @@ export interface MissingGrant {
   object: string;
   /** `SELECT`, `USE CATALOG`, `USE SCHEMA`, `CAN_USE`, `databricks-sql-access`. */
   permission: string;
-  objectKind:
-    | 'table'
-    | 'catalog'
-    | 'schema'
-    | 'sql-warehouse'
-    | 'genie-space'
-    | 'workspace-entitlement';
+  objectKind: 'table' | 'catalog' | 'schema' | 'sql-warehouse' | 'genie-space' | 'workspace-entitlement';
 }
 
 export interface TableVerdict {
@@ -655,6 +646,8 @@ export const VERIFICATION_BUDGET_MS = 120_000;
 export interface VerifyTableAccessOptions {
   /** Total wall clock for all probes. Defaults to {@link VERIFICATION_BUDGET_MS}. */
   budgetMs?: number;
+  /** Maximum probes in flight. Defaults to one to preserve the access-gate load profile. */
+  concurrency?: number;
   now?: () => number;
 }
 
@@ -666,44 +659,56 @@ export interface VerifyTableAccessOptions {
  * unfinished check has to count as a no rather than shrinking the set that had
  * to pass.
  */
-export async function verifyTableAccess(tables: readonly string[],
+export async function verifyTableAccess(
+  tables: readonly string[],
   run: StatementRunner,
   principal: string = UNKNOWN_PRINCIPAL,
   options: VerifyTableAccessOptions = {}
 ): Promise<VerificationOutcome> {
   const budgetMs = options.budgetMs ?? VERIFICATION_BUDGET_MS;
+  const concurrency = Math.max(1, Math.min(8, Math.trunc(options.concurrency ?? 1)));
   const now = options.now ?? Date.now;
   const startedAt = now();
   const verdicts: TableVerdict[] = [];
-  for (const table of tables) {
+  for (let offset = 0; offset < tables.length; offset += concurrency) {
     if (now() - startedAt >= budgetMs) {
-      verdicts.push({
-        table,
-        status: 'error',
-        detail:
-          `Not checked: the access check reached its ${Math.round(budgetMs / 1000)} s budget after ` +
-          `${verdicts.length} table(s). Nothing is known about your access to ${table} either way.`,
-      });
-      continue;
+      for (const table of tables.slice(offset)) {
+        verdicts.push({
+          table,
+          status: 'error',
+          detail:
+            `Not checked: the access check reached its ${Math.round(budgetMs / 1000)} s budget after ` +
+            `${verdicts.length} table(s). Nothing is known about your access to ${table} either way.`,
+        });
+      }
+      break;
     }
-    let result: Awaited<ReturnType<StatementRunner>>;
-    try {
-      result = await run(table);
-    } catch (error) {
-      result = { ok: false, message: (error as Error).message };
+    const batch = tables.slice(offset, offset + concurrency);
+    const results = await Promise.all(
+      batch.map(async (table) => {
+        try {
+          return await run(table);
+        } catch (error) {
+          return { ok: false as const, message: (error as Error).message };
+        }
+      })
+    );
+    for (let index = 0; index < batch.length; index += 1) {
+      const table = batch[index];
+      const result = results[index];
+      if (result.ok) {
+        verdicts.push({
+          table,
+          status: 'ok',
+          detail: `SELECT on ${table} succeeded under your own token.`,
+        });
+        continue;
+      }
+      if (looksLikeMissingScope(result.message)) {
+        return { verdicts, ...tally(verdicts), blocked: missingScopeBlock(result.message) };
+      }
+      verdicts.push(classify(result.message, table, principal));
     }
-    if (result.ok) {
-      verdicts.push({
-        table,
-        status: 'ok',
-        detail: `SELECT on ${table} succeeded under your own token.`,
-      });
-      continue;
-    }
-    if (looksLikeMissingScope(result.message)) {
-      return { verdicts, ...tally(verdicts), blocked: missingScopeBlock(result.message) };
-    }
-    verdicts.push(classify(result.message, table, principal));
   }
   return { verdicts, ...tally(verdicts) };
 }
@@ -779,9 +784,7 @@ export function readScimEntitlements(body: unknown): EntitlementReading {
   const user = resources[0] as { id?: unknown; entitlements?: unknown };
   const entitlements = Array.isArray(user.entitlements)
     ? user.entitlements
-        .map((entry) =>
-          typeof entry === 'string' ? entry : ((entry as { value?: unknown } | null)?.value ?? null)
-        )
+        .map((entry) => (typeof entry === 'string' ? entry : ((entry as { value?: unknown } | null)?.value ?? null)))
         .filter((value): value is string => typeof value === 'string' && value.length > 0)
     : [];
   return {
@@ -823,7 +826,8 @@ export function entitlementLookupVia(get: WorkspaceApiGet): EntitlementLookup {
  * takes, and paying a SCIM round trip on it to pre-empt a failure that has not
  * occurred would slow every sign-in to improve one message.
  */
-async function refineWarehouseDenial(warehouseId: string,
+async function refineWarehouseDenial(
+  warehouseId: string,
   principal: string,
   apiMessage: string,
   lookup: EntitlementLookup | undefined
@@ -854,7 +858,8 @@ async function refineWarehouseDenial(warehouseId: string,
  * structural distinction rather than a guess about wording, which is why it
  * comes first.
  */
-export async function verifyWarehouseAccess(warehouseId: string,
+export async function verifyWarehouseAccess(
+  warehouseId: string,
   probe: () => Promise<ProbeResult>,
   principal: string = UNKNOWN_PRINCIPAL,
   entitlements?: EntitlementLookup,
@@ -921,7 +926,8 @@ type EntitlementNote = { kind: 'held' } | { kind: 'unknown'; why: string };
  * that fixes it, but it no longer asserts it as the only reading when nothing
  * ruled the other one out.
  */
-function warehouseDeniedBlock(warehouseId: string,
+function warehouseDeniedBlock(
+  warehouseId: string,
   principal: string,
   apiMessage: string,
   entitlement?: EntitlementNote
@@ -955,7 +961,8 @@ function warehouseDeniedBlock(warehouseId: string,
 /**
  * The same 403, established to be the entitlement rather than the ACL.
  */
-function entitlementDeniedBlock(warehouseId: string,
+function entitlementDeniedBlock(
+  warehouseId: string,
   principal: string,
   userId: string | null,
   apiMessage: string
@@ -993,7 +1000,8 @@ function entitlementDeniedBlock(warehouseId: string,
  * which 401 this is. Omitted, the answer is the one that names no cause; see
  * {@link AGE_NOT_SUPPLIED}.
  */
-export function classifyWarehouseStatus(status: number | undefined,
+export function classifyWarehouseStatus(
+  status: number | undefined,
   warehouseId: string,
   principal: string,
   apiMessage: string,
@@ -1061,7 +1069,8 @@ export function classifyWarehouseStatus(status: number | undefined,
 export function describeImpact(outcome: VerificationOutcome): string[] {
   if (outcome.blocked) return [];
   if (outcome.denied === 0) return [];
-  return ['Genie is all-or-nothing per space: a space fails as a whole if a single table it ' +
+  return [
+    'Genie is all-or-nothing per space: a space fails as a whole if a single table it ' +
       'curates is unreadable, so a question it would have answered either fails outright or ' +
       'falls back to direct SQL over the tables that do resolve, in the same voice as a ' +
       'complete one.',
@@ -1123,11 +1132,7 @@ export interface ServedConfigEntry {
  * - With role and title only: `"{role} · {title}"`
  * - With role and id: `"{role} · {id}"`
  */
-export function genieSpaceLabel(parts: {
-  id?: string;
-  title?: string;
-  role?: string;
-}): string {
+export function genieSpaceLabel(parts: { id?: string; title?: string; role?: string }): string {
   const title = (parts.title ?? '').trim();
   const id = (parts.id ?? '').trim();
   const role = (parts.role ?? '').trim();
@@ -1183,9 +1188,7 @@ function asString(value: unknown): string {
  * every field below reads as absent, which is what the callers already say.
  */
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
 /**
@@ -1224,12 +1227,8 @@ export function accessDependenciesFrom(sources: {
           );
 
   const dataId = asString(fromConfig('data_genie_space_id', 'PLAYER_INSIGHTS_DATA_GENIE_ID'));
-  const dictionaryId = asString(
-    fromConfig('dictionary_genie_space_id', 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID')
-  );
-  const dataTitle = asString(
-    fromConfig('data_genie_space_title', 'PLAYER_INSIGHTS_DATA_GENIE_TITLE')
-  );
+  const dictionaryId = asString(fromConfig('dictionary_genie_space_id', 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID'));
+  const dataTitle = asString(fromConfig('data_genie_space_title', 'PLAYER_INSIGHTS_DATA_GENIE_TITLE'));
   const dictionaryTitle = asString(
     fromConfig('dictionary_genie_space_title', 'PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE')
   );
@@ -1320,13 +1319,13 @@ export function missingGenieScopeLimit(evidence: string): NotChecked {
 /**
  * One space's answer, read from the status first and the prose second.
  */
-export function classifyGenieProbe(result: GenieProbeResult,
+export function classifyGenieProbe(
+  result: GenieProbeResult,
   space: GenieSpace,
   principal: string,
   age: PresentedTokenAge = AGE_NOT_SUPPLIED
 ): GenieVerdict {
-  const liveTitle =
-    result.ok && typeof result.title === 'string' ? result.title.trim() : '';
+  const liveTitle = result.ok && typeof result.title === 'string' ? result.title.trim() : '';
   const label = liveTitle
     ? genieSpaceLabel({
         id: space.id,
@@ -1424,7 +1423,8 @@ export interface GenieProber {
  * constant: either the token enumerated its scopes, or the API said what it
  * thought of them.
  */
-export async function verifyGenieAccess(spaces: readonly GenieSpace[],
+export async function verifyGenieAccess(
+  spaces: readonly GenieSpace[],
   probe: GenieProber,
   principal: string = UNKNOWN_PRINCIPAL,
   scopeState: boolean | null = null,
@@ -1455,7 +1455,8 @@ export async function verifyGenieAccess(spaces: readonly GenieSpace[],
   // own 45, and the browser puts no timeout on the request at all. A freshly
   // deployed workspace where Genie is slow spent that before a single table was
   // checked.
-  const results = await Promise.all(spaces.map(async (space): Promise<GenieProbeResult> => {
+  const results = await Promise.all(
+    spaces.map(async (space): Promise<GenieProbeResult> => {
       try {
         return await probe(space.id);
       } catch (error) {
@@ -1464,8 +1465,8 @@ export async function verifyGenieAccess(spaces: readonly GenieSpace[],
     })
   );
 
-  const refusedForScope = results.find((result): result is Extract<GenieProbeResult, { ok: false }> =>
-      !result.ok && looksLikeMissingScope(result.message)
+  const refusedForScope = results.find(
+    (result): result is Extract<GenieProbeResult, { ok: false }> => !result.ok && looksLikeMissingScope(result.message)
   );
   if (refusedForScope) {
     // Whole-run rather than per-space: the app cannot ask this question at
@@ -1478,8 +1479,7 @@ export async function verifyGenieAccess(spaces: readonly GenieSpace[],
     // time the first answer arrived.
     return {
       verdicts: [],
-      notChecked: missingGenieScopeLimit(`Databricks refused the call and said so: ${refusedForScope.message}`
-      ),
+      notChecked: missingGenieScopeLimit(`Databricks refused the call and said so: ${refusedForScope.message}`),
     };
   }
   return {
@@ -1494,7 +1494,8 @@ export async function verifyGenieAccess(spaces: readonly GenieSpace[],
  * fail it, which is the category a reader has no way of noticing for
  * themselves.
  */
-export function limitsOfThisCheck(servingChecked: readonly { object: string; label: string; status: string }[],
+export function limitsOfThisCheck(
+  servingChecked: readonly { object: string; label: string; status: string }[],
   genie?: GenieOutcome,
   /** How many tables this run actually ran a statement against. */
   tablesChecked = 0
@@ -1514,7 +1515,7 @@ export function limitsOfThisCheck(servingChecked: readonly { object: string; lab
           why:
             'Your own access to the spaces was checked and is reported above. That establishes ' +
             'which named spaces answered under your token; it does not prove every figure on ' +
-            'screen came from one of them. Who runs a later ask is the deployment\'s execution ' +
+            "screen came from one of them. Who runs a later ask is the deployment's execution " +
             'identity (Connections), not this check.',
           insteadAs: servingSaw,
         }
@@ -1573,7 +1574,8 @@ export interface AccessProbes {
  * Catalog ones; tables second; and the limits of the result attached either
  * way, so a pass is not read as covering more than it did.
  */
-export async function verifyAccess(input: {
+export async function verifyAccess(
+  input: {
     tables: readonly string[];
     warehouseId: string;
     principal: string;
@@ -1595,7 +1597,8 @@ export async function verifyAccess(input: {
 ): Promise<VerificationOutcome> {
   const age = input.presentedToken ?? AGE_NOT_SUPPLIED;
   const genie = probes.genieSpace
-    ? await verifyGenieAccess(input.genieSpaces ?? [],
+    ? await verifyGenieAccess(
+        input.genieSpaces ?? [],
         probes.genieSpace,
         input.principal,
         input.genieScope ?? null,
@@ -1603,7 +1606,8 @@ export async function verifyAccess(input: {
       )
     : undefined;
   const notChecked = limitsOfThisCheck(input.servingChecked ?? [], genie, input.tables.length);
-  const blocked = await verifyWarehouseAccess(input.warehouseId,
+  const blocked = await verifyWarehouseAccess(
+    input.warehouseId,
     () => probes.warehouse(),
     input.principal,
     probes.entitlements,
@@ -1663,7 +1667,8 @@ export function isVerified(outcome: VerificationOutcome): boolean {
   // token is real evidence about the caller; a run that probed nothing at all
   // is not verified, whatever its empty verdict list averages out to. What a
   // warehouse-only pass does NOT establish is carried by `notChecked`.
-  return (!outcome.blocked &&
+  return (
+    !outcome.blocked &&
     (outcome.warehouseVerified === true || outcome.verdicts.length > 0) &&
     outcome.verdicts.every((verdict) => verdict.status === 'ok') &&
     !(outcome.genie ?? []).some((verdict) => verdict.status === 'denied')
@@ -1686,7 +1691,8 @@ export function verificationSummary(outcome: VerificationOutcome): string {
       ? 'Verified you can run a statement on the SQL warehouse under your own token. No table ' +
         'was checked, so nothing about your access to the data behind an answer was established'
       : `Verified you hold CAN_USE on the SQL warehouse and SELECT on ${tables} under your own token`;
-  return (`${head}. ${genieClause(outcome.genie)} Row-level filters and column masks ` +
+  return (
+    `${head}. ${genieClause(outcome.genie)} Row-level filters and column masks ` +
     'were not checked and are not covered by this.'
   );
 }
@@ -1700,7 +1706,8 @@ function genieClause(genie: readonly GenieVerdict[] | undefined): string {
   const spaces = genie.length === 1 ? '1 Genie space' : `${genie.length} Genie spaces`;
   const head = `CAN RUN confirmed on ${passed} of ${spaces} under the same token.`;
   if (unknown.length === 0) return head;
-  return (`${head} ${unknown.length} did not answer, so ${unknown.length === 1 ? 'it is' : 'they are'} ` +
+  return (
+    `${head} ${unknown.length} did not answer, so ${unknown.length === 1 ? 'it is' : 'they are'} ` +
     `unknown rather than granted: ${unknown.map((verdict) => verdict.label).join('; ')}.`
   );
 }
@@ -1715,6 +1722,8 @@ export interface StatementOptions {
   fetchImpl?: typeof fetch;
   /** Overridden in tests so a hung socket can be simulated in milliseconds. */
   timeoutMs?: number;
+  /** Warehouse-side cancellation deadline. Defaults to 30 seconds. */
+  waitTimeoutSeconds?: number;
 }
 
 /**
@@ -1789,13 +1798,18 @@ export function genieSpaceProbeFor(options: GenieProbeOptions): GenieProber {
         message: asString(body?.message) || `Databricks answered HTTP ${response.status} with no message body.`,
       };
     }
-    return { ok: true, space: typeof body?.space_id === 'string' ? body.space_id : null, title: typeof body?.title === 'string' ? body.title : null };
+    return {
+      ok: true,
+      space: typeof body?.space_id === 'string' ? body.space_id : null,
+      title: typeof body?.title === 'string' ? body.title : null,
+    };
   };
 }
 
 function statementExecutorFor(options: StatementOptions) {
   const call = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? STATEMENT_TIMEOUT_MS;
+  const waitTimeoutSeconds = Math.max(5, Math.min(50, Math.trunc(options.waitTimeoutSeconds ?? 30)));
   return async (statement: string): Promise<ProbeResult> => {
     let response: Awaited<ReturnType<typeof fetch>>;
     try {
@@ -1816,7 +1830,7 @@ function statementExecutorFor(options: StatementOptions) {
           // Long enough for a warehouse that has to wake up, and synchronous so
           // the route does not have to poll a statement id to find out whether a
           // permission held.
-          wait_timeout: '30s',
+          wait_timeout: `${waitTimeoutSeconds}s`,
           on_wait_timeout: 'CANCEL',
         }),
         signal: AbortSignal.timeout(timeoutMs),
@@ -1851,9 +1865,7 @@ function statementExecutorFor(options: StatementOptions) {
       return {
         ok: false,
         status: response.status,
-        message:
-          asString(body.message) ||
-          `Databricks answered HTTP ${response.status} with no message body.`,
+        message: asString(body.message) || `Databricks answered HTTP ${response.status} with no message body.`,
       };
     }
     const status = asRecord(body.status);

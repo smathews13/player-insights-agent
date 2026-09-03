@@ -46,6 +46,7 @@ import {
   verifyTableAccess,
   type StatementRunner,
   type TableVerdict,
+  type VerifyTableAccessOptions,
   type VerificationOutcome,
 } from '../routes/access-verification';
 import type { AnswerConditioning } from '../../shared/monitoring-contract';
@@ -144,6 +145,8 @@ export interface ResolveGrantsOptions {
   probe: TableProbe | null;
   now?: number;
   ttlMs?: number;
+  /** Monitoring-specific wall-clock and concurrency limits for live OBO probes. */
+  verifyOptions?: VerifyTableAccessOptions;
   /** Injected so a test can assert the cache rather than the network. */
   verify?: typeof verifyTableAccess;
 }
@@ -178,7 +181,12 @@ export async function resolveGrants(options: ResolveGrantsOptions): Promise<Gran
 
   let outcome: VerificationOutcome;
   try {
-    outcome = await (options.verify ?? verifyTableAccess)(options.tables, options.probe, options.key.admin);
+    outcome = await (options.verify ?? verifyTableAccess)(
+      options.tables,
+      options.probe,
+      options.key.admin,
+      options.verifyOptions
+    );
   } catch (error) {
     console.warn(
       `[monitoring] Table permissions could not be resolved for ${options.key.admin}: ${(error as Error).message}. ` +
