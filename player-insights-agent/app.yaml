@@ -75,11 +75,11 @@ env:
   - name: PLAYER_INSIGHTS_APP_SCHEMA
     value: 'player_insights'
   # Application-controlled inactivity limit for protected API routes. The
-  # default is 45 minutes; whole numbers are clamped to 5-480. Only the literal
-  # value "disabled" turns this compensating control off. This does not alter
-  # the separate Databricks workspace or identity-provider session.
+  # default is 120 minutes (2 hours); whole numbers are clamped to 5-480. Only
+  # the literal value "disabled" turns this compensating control off. This does
+  # not alter the separate Databricks workspace or identity-provider session.
   - name: PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES
-    value: '45'
+    value: '120'
   # Catalog and schema this release's data contract lives in. Empty in source so
   # a Git deploy ships no customer Unity Catalog names. bundle/app-release.sh
   # fills them from var.app_catalog / var.app_schema. Connections qualifies the

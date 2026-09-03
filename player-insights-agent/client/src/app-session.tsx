@@ -44,6 +44,7 @@ export function appSessionStateFromStore(
 let state: AppSessionState = appSessionStateFromStore();
 let bootstrapPromise: Promise<void> | null = null;
 let fetchInstalled = false;
+let explicitActivityRegistration: { owners: number; remove: () => void } | null = null;
 const listeners = new Set<Listener>();
 
 function announce(): void {
@@ -203,6 +204,20 @@ export function startExplicitUserActivity(
   fetchImpl: AppSessionFetch = fetch,
   now: () => number = Date.now
 ): () => void {
+  if (explicitActivityRegistration) {
+    explicitActivityRegistration.owners += 1;
+    const registration = explicitActivityRegistration;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      registration.owners -= 1;
+      if (registration.owners > 0 || explicitActivityRegistration !== registration) return;
+      registration.remove();
+      explicitActivityRegistration = null;
+    };
+  }
+
   let lastSentAt = 0;
   const onActivity: EventListener = (event) => {
     if (!event.isTrusted) return;
@@ -227,10 +242,23 @@ export function startExplicitUserActivity(
   for (const event of EXPLICIT_USER_ACTIVITY_EVENTS) {
     documentRef.addEventListener(event, onActivity, { passive: true });
   }
+  const registration = {
+    owners: 1,
+    remove: () => {
+      for (const event of EXPLICIT_USER_ACTIVITY_EVENTS) {
+        documentRef.removeEventListener(event, onActivity);
+      }
+    },
+  };
+  explicitActivityRegistration = registration;
+  let released = false;
   return () => {
-    for (const event of EXPLICIT_USER_ACTIVITY_EVENTS) {
-      documentRef.removeEventListener(event, onActivity);
-    }
+    if (released) return;
+    released = true;
+    registration.owners -= 1;
+    if (registration.owners > 0 || explicitActivityRegistration !== registration) return;
+    registration.remove();
+    explicitActivityRegistration = null;
   };
 }
 
@@ -356,6 +384,8 @@ export function useAppSessionState(): AppSessionState {
 
 /** Test isolation for the module-level fetch/session latch. */
 export function resetAppSessionForTests(next: AppSessionState = 'booting'): void {
+  explicitActivityRegistration?.remove();
+  explicitActivityRegistration = null;
   state = next;
   bootstrapPromise = null;
   fetchInstalled = false;

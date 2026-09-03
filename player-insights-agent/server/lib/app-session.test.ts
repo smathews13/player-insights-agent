@@ -214,11 +214,11 @@ afterEach(async () => {
 });
 
 describe('idle timeout configuration', () => {
-  it('defaults to 45 minutes and accepts a configured override', () => {
-    expect(resolveIdleTimeout({})).toEqual({ enabled: true, minutes: 45, source: 'default' });
-    expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: '120' })).toEqual({
+  it('defaults to 120 minutes and accepts a configured override', () => {
+    expect(resolveIdleTimeout({})).toEqual({ enabled: true, minutes: 120, source: 'default' });
+    expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: '90' })).toEqual({
       enabled: true,
-      minutes: 120,
+      minutes: 90,
       source: 'configured',
     });
   });
@@ -237,7 +237,7 @@ describe('idle timeout configuration', () => {
     expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: '9999' }).minutes).toBe(480);
     expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: 'forever' })).toMatchObject({
       enabled: true,
-      minutes: 45,
+      minutes: 120,
       source: 'invalid-default',
     });
   });
@@ -366,19 +366,19 @@ describe('expiry and activity semantics', () => {
     expect(row.idleExpires).toBeGreaterThan(originalExpiry);
   });
 
-  it('refreshes near expiry but never revives an authoritatively expired session', async () => {
-    const fiveMinutes: IdleTimeoutConfig = { enabled: true, minutes: 5, source: 'configured' };
-    const running = await start(memoryStore(), fiveMinutes);
+  it('refreshes near the two-hour expiry but never revives an authoritatively expired session', async () => {
+    const twoHours: IdleTimeoutConfig = { enabled: true, minutes: 120, source: 'configured' };
+    const running = await start(memoryStore(), twoHours);
     open.push(running.close);
     const cookie = cookieFrom(await running.bootstrap());
     const row = [...running.store.rows.values()][0];
     const originalExpiry = row.idleExpires;
 
-    running.store.advance(5 * 60_000 - 1_000);
+    running.store.advance(120 * 60_000 - 1_000);
     expect((await running.activity(cookie)).status).toBe(204);
     expect(row.idleExpires).toBeGreaterThan(originalExpiry);
 
-    running.store.advance(5 * 60_000 - 1_000);
+    running.store.advance(120 * 60_000 - 1_000);
     expect((await running.call('/api/data', { headers: { cookie } })).status).toBe(200);
     running.store.advance(1_000);
     const refreshedExpiry = row.idleExpires;

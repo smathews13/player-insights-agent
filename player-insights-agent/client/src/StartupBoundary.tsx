@@ -8,6 +8,7 @@ import {
   SessionTimedOut,
   SessionUnavailable,
   bootstrapAppSession,
+  startExplicitUserActivity,
   useAppSessionState,
   type AppSessionState,
 } from './app-session';
@@ -146,6 +147,8 @@ export function StartupBoundary({ children }: { children: ReactNode }) {
   useEffect(() => {
     void bootstrapAppSession();
   }, []);
+
+  useEffect(() => (appSession === 'ready' ? startExplicitUserActivity() : undefined), [appSession]);
 
   useEffect(() => {
     if (appSession !== 'ready') return;

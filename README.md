@@ -158,7 +158,7 @@ provider session remains active, Databricks may authenticate you again without
 prompting. Workspace logout does not prove the App session ended.
 
 Astrolabe adds a server-enforced idle timeout for every protected API route. It
-defaults to 45 minutes and can be configured with
+defaults to 120 minutes (2 hours) and can be configured with
 `PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES` (`5`-`480`; only `disabled` turns it
 off). Background polling and programmatic events do not extend the timeout;
 trusted pointer, keyboard, touch, and wheel interactions do. On expiry, the app

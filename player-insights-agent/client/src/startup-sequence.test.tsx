@@ -18,6 +18,7 @@ import { forgetFirstOpen } from './first-open';
 import { FLICKER_ORDER } from './astrolabe-mark';
 
 const startupSource = readFileSync(new URL('./StartupBoundary.tsx', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
 const indexShell = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 const base: StartupSnapshot = {
@@ -222,6 +223,15 @@ describe('frame ownership', () => {
 });
 
 describe('StrictMode replay', () => {
+  it('makes the production startup coordinator own explicit-activity listener cleanup', () => {
+    expect(mainSource).toContain('<StartupBoundary>');
+    expect(mainSource).not.toContain('<AppSessionBoundary>');
+    expect(startupSource).toContain('startExplicitUserActivity');
+    expect(startupSource).toMatch(
+      /useEffect\(\(\) => \(appSession === 'ready' \? startExplicitUserActivity\(\) : undefined\), \[appSession\]\)/
+    );
+  });
+
   it('deduplicates app-session bootstrap and identity reads', async () => {
     const bootstrapFetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
     const first = bootstrapAppSession(bootstrapFetch);

@@ -152,9 +152,9 @@ describe('every authored variable reaches the deploy target', () => {
 
   it('ships the conservative app idle timeout and lets a release override it', () => {
     const authoredTimeout = /- name: PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES\n\s+value: '?([^'\n]*)'?/.exec(authored)?.[1];
-    expect(authoredTimeout).toBe('45');
+    expect(authoredTimeout).toBe('120');
     expect(bundleYaml).toMatch(
-      /app_idle_timeout_minutes:\n\s+description:[\s\S]*?Defaults to 45[\s\S]*?\n\s+default: "45"/
+      /app_idle_timeout_minutes:\n\s+description:[\s\S]*?Defaults to 120[\s\S]*?\n\s+default: "120"/
     );
     expect(appRelease).toContain('bundle_var_or_empty app_idle_timeout_minutes');
     expect(appRelease).toContain(

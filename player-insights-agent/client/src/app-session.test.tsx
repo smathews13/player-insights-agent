@@ -76,6 +76,55 @@ describe('explicit user activity', () => {
     stop();
     expect(listeners.size).toBe(0);
   });
+
+  it('keeps one global listener set across nested owners and StrictMode replay', () => {
+    const listeners = new Map<string, EventListener>();
+    const additions = new Map<string, number>();
+    const removals = new Map<string, number>();
+    const documentRef = {
+      addEventListener(type: string, listener: EventListener) {
+        listeners.set(type, listener);
+        additions.set(type, (additions.get(type) ?? 0) + 1);
+      },
+      removeEventListener(type: string) {
+        listeners.delete(type);
+        removals.set(type, (removals.get(type) ?? 0) + 1);
+      },
+    };
+    const fetchImpl: AppSessionFetch = () => Promise.resolve(new Response(null, { status: 204 }));
+    const expected = ['keydown', 'pointerdown', 'touchstart', 'wheel'];
+    resetAppSessionForTests('ready');
+
+    const startupOwner = startExplicitUserActivity(documentRef, fetchImpl);
+    const nestedLegacyOwner = startExplicitUserActivity(documentRef, fetchImpl);
+    expect([...listeners.keys()].sort()).toEqual(expected);
+    expect(Object.fromEntries(additions)).toEqual({
+      pointerdown: 1,
+      keydown: 1,
+      touchstart: 1,
+      wheel: 1,
+    });
+
+    startupOwner();
+    expect([...listeners.keys()].sort()).toEqual(expected);
+    nestedLegacyOwner();
+    expect(listeners.size).toBe(0);
+
+    const strictModeFirstPass = startExplicitUserActivity(documentRef, fetchImpl);
+    expect([...listeners.keys()].sort()).toEqual(expected);
+    strictModeFirstPass();
+    expect(listeners.size).toBe(0);
+    const strictModeReplay = startExplicitUserActivity(documentRef, fetchImpl);
+    expect([...listeners.keys()].sort()).toEqual(expected);
+    strictModeReplay();
+    expect(listeners.size).toBe(0);
+    expect(Object.fromEntries(removals)).toEqual({
+      pointerdown: 3,
+      keydown: 3,
+      touchstart: 3,
+      wheel: 3,
+    });
+  });
 });
 
 describe('timeout boundary', () => {

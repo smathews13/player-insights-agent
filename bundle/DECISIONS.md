@@ -387,7 +387,7 @@ The account menu ends the stored app session and navigates the same origin to
 provider session remains active, Databricks can authenticate the App again
 without prompting. The app cannot see or revoke those upstream sessions.
 
-The idle limit defaults to 45 minutes and is configurable with
+The idle limit defaults to 120 minutes (2 hours) and is configurable with
 `PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES`; the only off switch is the literal
 `disabled`. Expiry leaves a tombstone until explicit sign-out, so reload and the
 next API request cannot silently create a replacement. `APP_IDLE_TIMEOUT`

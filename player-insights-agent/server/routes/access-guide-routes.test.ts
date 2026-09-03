@@ -23,7 +23,7 @@ import {
 
 const ADMIN = 'admin@example.com';
 const CONSUMER = 'consumer@example.com';
-const enabled: IdleTimeoutConfig = { enabled: true, minutes: 45, source: 'configured' };
+const enabled: IdleTimeoutConfig = { enabled: true, minutes: 120, source: 'configured' };
 const env = {
   NODE_ENV: 'production',
   DATABRICKS_APP_NAME: 'astrolabe',
