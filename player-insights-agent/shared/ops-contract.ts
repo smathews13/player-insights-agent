@@ -1,6 +1,7 @@
 import type { CostBudgets } from './cost-budgets';
 import type { SpendByUserPayload } from './user-spend-contract';
 import type { UserMonitoringPayload } from './user-monitoring-contract';
+import type { CheckVerdict } from './check-verdict';
 
 /**
  * What the three Ops blocks answer with, declared once for both sides.
@@ -578,6 +579,8 @@ export interface HealthDependency {
   /** The configured identifier probed. Never invented. */
   name: string;
   result: DependencyResult;
+  /** Canonical probe verdict. Optional only for compatibility with older cached payloads. */
+  verdict?: CheckVerdict;
   /** ISO stamp of the check this row reports. Empty where nothing has been checked. */
   lastCheckedAt: string;
   /** The probe's own reason, verbatim. Empty when it answered. */

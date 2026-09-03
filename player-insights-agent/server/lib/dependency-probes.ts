@@ -1128,6 +1128,10 @@ export interface ProbeOptions {
   declaredScopes?: string[] | null;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  /** Optional deadline shared by a whole manual probe run. */
+  signal?: AbortSignal;
+  /** Maximum probes in flight. Omitted preserves the normal fully-concurrent read. */
+  concurrency?: number;
 }
 
 /**
@@ -1155,10 +1159,12 @@ export async function runProbe(subject: ProbeSubject, options: ProbeOptions): Pr
     });
 
   try {
+    const probeTimeout = AbortSignal.timeout(timeoutMs);
+    const signal = options.signal ? AbortSignal.any([options.signal, probeTimeout]) : probeTimeout;
     const response = await call(`${options.host}${subject.path}`, {
       method: 'GET',
       headers: { authorization: `Bearer ${options.token ?? ''}` },
-      signal: AbortSignal.timeout(timeoutMs),
+      signal,
     });
     const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     return finish({ kind: 'answered', status: response.status, body: body ?? {} });
@@ -1179,17 +1185,28 @@ export async function runProbe(subject: ProbeSubject, options: ProbeOptions): Pr
  * subject cannot be allowed to decide whether the other twenty are reported.
  */
 export async function runProbes(subjects: readonly ProbeSubject[], options: ProbeOptions): Promise<PreflightCheck[]> {
-  const settled = await Promise.allSettled(subjects.map((subject) => runProbe(subject, options)));
-  return settled.map((result, index) =>
-    result.status === 'fulfilled'
-      ? result.value
-      : probeVerdict({
-          subject: subjects[index],
-          outcome: { kind: 'unreachable', message: String((result.reason as Error)?.message ?? result.reason) },
-          principal: options.principal,
-          tokenScopes: options.token ? scopesFromToken(options.token) : null,
-          declaredScopes: options.declaredScopes === undefined ? declaredUserApiScopes() : options.declaredScopes,
-        })
+  if (subjects.length === 0) return [];
+  const limit = Math.max(1, Math.min(subjects.length, Math.floor(options.concurrency ?? subjects.length)));
+  const results: Array<PreflightCheck | undefined> = Array.from({ length: subjects.length });
+  let next = 0;
+  const workers = Array.from({ length: limit }, async () => {
+    while (next < subjects.length) {
+      const index = next;
+      next += 1;
+      results[index] = await runProbe(subjects[index], options);
+    }
+  });
+  await Promise.allSettled(workers);
+  return results.map(
+    (result, index) =>
+      result ??
+      probeVerdict({
+        subject: subjects[index],
+        outcome: { kind: 'unreachable', message: 'The bounded probe worker stopped before this check ran.' },
+        principal: options.principal,
+        tokenScopes: options.token ? scopesFromToken(options.token) : null,
+        declaredScopes: options.declaredScopes === undefined ? declaredUserApiScopes() : options.declaredScopes,
+      })
   );
 }
 
@@ -1239,6 +1256,8 @@ export async function probeConnections(input: {
   declaredScopes?: string[] | null;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  signal?: AbortSignal;
+  concurrency?: number;
 }): Promise<PreflightCheck[]> {
   const resolved = withDerivedSemanticIndex(input.configured);
   const configured = resolved.configured;
@@ -1280,6 +1299,8 @@ export async function probeConnections(input: {
     declaredScopes: input.declaredScopes,
     fetchImpl: input.fetchImpl,
     timeoutMs: input.timeoutMs,
+    signal: input.signal,
+    concurrency: input.concurrency,
   };
   const checks = await runProbes(subjects, options);
 
@@ -1451,7 +1472,9 @@ async function readIndexBody(subject: ProbeSubject, options: ProbeOptions): Prom
     const response = await call(`${options.host}${subject.path}`, {
       method: 'GET',
       headers: { authorization: `Bearer ${options.token ?? ''}` },
-      signal: AbortSignal.timeout(options.timeoutMs ?? PROBE_TIMEOUT_MS),
+      signal: options.signal
+        ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs ?? PROBE_TIMEOUT_MS)])
+        : AbortSignal.timeout(options.timeoutMs ?? PROBE_TIMEOUT_MS),
     });
     if (!response.ok) return null;
     return (await response.json()) as Record<string, unknown>;

@@ -101,6 +101,18 @@ export function canMutateConnections(role: string): boolean {
 }
 
 /**
+ * Whether a deployment role may force a fresh check of every Health resource.
+ *
+ * Kept as a named capability even though it currently follows Connections
+ * mutation authority. Both the Ops button and the POST route call this helper,
+ * so adding another privileged host role cannot make the browser and server
+ * disagree.
+ */
+export function canCheckHealthResources(role: string): boolean {
+  return canMutateConnections(role);
+}
+
+/**
  * One person on the roster.
  *
  * `role` is what they hold, which is the higher of `seedFloor` and whatever the

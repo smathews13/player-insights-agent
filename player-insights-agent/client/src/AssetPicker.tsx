@@ -76,6 +76,11 @@ export interface PickedRow {
   cursor: PickerCursor;
 }
 
+export interface AssetPickerRowState {
+  label: string;
+  selectable: boolean;
+}
+
 // eslint-disable-next-line react-refresh/only-export-components -- pure pagination helper shared with focused tests
 export function mergeBrowseItems(current: readonly BrowseItem[], incoming: readonly BrowseItem[]): BrowseItem[] {
   const merged = new Map(current.map((item) => [item.id.trim(), item]));
@@ -152,6 +157,7 @@ export function AssetPickerRow({
   current,
   onOpen,
   onPick,
+  rowState,
 }: {
   spec: AssetPickerSpec;
   cursor: PickerCursor;
@@ -159,11 +165,14 @@ export function AssetPickerRow({
   current: string;
   onOpen: (next: PickerCursor) => void;
   onPick: (value: string, picked?: PickedRow) => void;
+  rowState?: (value: string, picked: PickedRow) => AssetPickerRowState;
 }) {
   const kind = cursorKind(spec, cursor);
   const text = pickerRowText(kind, item);
   const actions = rowActions(spec, cursor, item);
   const unityCatalogType = kind === 'catalogs' ? 'catalog' : kind === 'schemas' ? 'schema' : 'table/view';
+  const pickAction = actions.find((action) => action.kind === 'pick');
+  const state = pickAction?.kind === 'pick' ? rowState?.(pickAction.value, { item, cursor }) : undefined;
   const warehousePick = kind === 'warehouses' ? actions.find((action) => action.kind === 'pick') : undefined;
   const selected = actions.some((action) => action.kind === 'pick' && alreadyHeld(spec, current, action.value));
   if (warehousePick?.kind === 'pick') {
@@ -204,9 +213,15 @@ export function AssetPickerRow({
       title={[text.primary, text.identifier, text.secondary].filter(Boolean).join(' · ')}
     >
       <span className="asset-picker-row-names">
+        {spec.field === UNITY_CATALOG_ASSET_PICKER.field ? (
+          <span className="connection-row-kind">
+            {unityCatalogType === 'table/view' ? 'Table/view' : unityCatalogType === 'schema' ? 'Schema' : 'Catalog'}
+          </span>
+        ) : null}
         <span className="asset-picker-row-name">{text.primary}</span>
         {text.identifier ? <code className="asset-picker-row-id">{text.identifier}</code> : null}
         {text.secondary ? <span className="asset-picker-row-aside">{text.secondary}</span> : null}
+        {state ? <span className="asset-picker-row-state">{state.label}</span> : null}
       </span>
       <span className="asset-picker-row-actions">
         {actions.map((action) =>
@@ -230,7 +245,7 @@ export function AssetPickerRow({
               <Button
                 variant="outline"
                 size="sm"
-                disabled={alreadyHeld(spec, current, action.value)}
+                disabled={alreadyHeld(spec, current, action.value) || state?.selectable === false}
                 // The row and where it was found travel with the value. The
                 // setting stores an id; what a reader recognises is the name
                 // beside it, and a caller that keeps only the id has to print
@@ -281,6 +296,7 @@ export function AssetPickerPanel({
   onRetry,
   onMore,
   loadingMore = false,
+  rowState,
 }: {
   spec: AssetPickerSpec;
   cursor: PickerCursor;
@@ -295,6 +311,7 @@ export function AssetPickerPanel({
   onRetry: () => void;
   onMore: () => void;
   loadingMore?: boolean;
+  rowState?: (value: string, picked: PickedRow) => AssetPickerRowState;
 }) {
   const kind = cursorKind(spec, cursor);
   const trail = cursorTrail(spec, cursor);
@@ -390,9 +407,16 @@ export function AssetPickerPanel({
               current={current}
               onOpen={onOpen}
               onPick={onPick}
+              rowState={rowState}
             />
           ))}
         </ul>
+      ) : null}
+
+      {!loading && response?.status === 'ok' && items.length > 0 ? (
+        <p className="asset-picker-result-count" role="status">
+          {items.length} loaded{response.next_page_token ? ' · More available' : ''}
+        </p>
       ) : null}
 
       {!loading && response?.status === 'ok' && items.length > 0 && !response.pagination.complete ? (
@@ -465,6 +489,7 @@ export function AssetPicker({
   current,
   catalog,
   onPick,
+  rowState,
 }: {
   spec: AssetPickerSpec;
   /** The draft in the editor, which is what a pick adds to or replaces. */
@@ -478,6 +503,7 @@ export function AssetPicker({
    */
   catalog?: string;
   onPick: (value: string, picked?: PickedRow) => void;
+  rowState?: (value: string, picked: PickedRow) => AssetPickerRowState;
 }) {
   const [cursor, setCursor] = useState<PickerCursor>(() => initialCursor(spec, { current, catalog }));
   /** Bumped by Try again, so a retry is a new key rather than a re-run. */
@@ -677,6 +703,7 @@ export function AssetPicker({
       onQuery={(text) => setTyped({ key, text })}
       onOpen={setCursor}
       onPick={onPick}
+      rowState={rowState}
       onRetry={() => setAttempt((was) => was + 1)}
       onMore={more}
     />

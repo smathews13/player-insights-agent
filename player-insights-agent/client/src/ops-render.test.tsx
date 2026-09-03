@@ -28,6 +28,7 @@ import {
   CostBody,
   CostTileTitle,
   HealthBody,
+  HealthCheckButton,
   LatencyBody,
   OpsPage,
   StopAllActiveRuns,
@@ -37,6 +38,7 @@ import {
 import { perUserSpendHref } from './cost-user-monitoring-link';
 import { activeMinutesDisplay, queryHistoryCoverageDetail } from './ops-view';
 import { REFRESH_LABEL } from './refresh-state';
+import { canCheckHealthResources } from '../../shared/user-roster-contract';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
 const OPS_STYLES = readFileSync(new URL('./styles/ops.css', import.meta.url), 'utf8');
@@ -327,11 +329,62 @@ describe('the Cost Tracking user-spend cross-link', () => {
 /* ── Health ──────────────────────────────────────────────────────────────── */
 
 describe('the health block', () => {
+  it.each([
+    ['admin', true],
+    ['owner', true],
+    ['super_admin', true],
+    ['consumer', false],
+  ] as const)('shows the manual check action for %s according to the shared capability', (role, allowed) => {
+    expect(canCheckHealthResources(role)).toBe(allowed);
+    const markup = render(<HealthBody block={block(health())} allowCheck={canCheckHealthResources(role)} />);
+    expect(markup.includes('Check all resources')).toBe(allowed);
+  });
+
+  it('uses the canonical loader, disables duplicate presses, and announces the busy state', () => {
+    const markup = markupOf(<HealthCheckButton check={{ busy: true, failed: '', checkAll: () => {} }} />);
+    expect(markup).toContain('Checking resources');
+    expect(markup).toContain('ast-flick-row');
+    expect(markup).toContain('disabled=""');
+    expect(markup).toContain('aria-busy="true"');
+  });
+
+  it('lets the Health header controls wrap without clipping on narrow screens', () => {
+    expect(OPS_STYLES).toMatch(/@media \(max-width: 640px\)[^]*\.ops-health-head-controls\s*\{[^}]*width:\s*100%/);
+    expect(OPS_STYLES).toMatch(/\.ops-health-head-controls\s*\{[^}]*flex-wrap:\s*wrap/);
+  });
+
+  it('keeps old rows visible and offers a retry when the manual request fails', () => {
+    const markup = render(
+      <HealthBody
+        block={block(health())}
+        allowCheck
+        check={{
+          busy: false,
+          failed: 'The health check could not finish. The previous results are unchanged; try again.',
+          checkAll: () => {},
+        }}
+      />
+    );
+    expect(markup).toContain('SQL warehouse');
+    expect(markup).toContain('previous results are unchanged');
+    expect(markup).toContain('Try again');
+  });
+
   it('gives every dependency a result in words, not only a colour', () => {
     const markup = render(<HealthBody block={block(health())} />);
     expect(markup).toContain('Reachable');
     expect(markup).toContain('Not answering');
     expect(markup).toContain('Not checked');
+  });
+
+  it('uses the canonical probe verdict when a fresh response distinguishes refusal from unavailability', () => {
+    const payload = health();
+    const dependencies = payload.dependencies.map((row, index) =>
+      index === 1 ? { ...row, verdict: 'refused' as const } : row
+    );
+    const markup = render(<HealthBody block={block(health({ dependencies }))} />);
+    expect(markup).toContain('Genie space Refused');
+    expect(markup).not.toContain('Genie space Not checked');
   });
 
   /**

@@ -50,6 +50,19 @@ const autoClaimed = new Set<string>();
 /** In-flight read per key. A second caller joins this rather than starting another. */
 const inflight = new Map<string, Promise<OpsBlockAnswer<unknown>>>();
 
+/** Forced health checks are separate from ordinary cached reads, but settle into the same block. */
+const healthChecks = new Map<string, Promise<OpsBlockAnswer<unknown>>>();
+const healthCheckFailures = new Map<string, string>();
+
+/** Latest request generation per block, so an older GET cannot overwrite a newer forced check. */
+const generations = new Map<string, number>();
+
+function nextGeneration(key: string): number {
+  const next = (generations.get(key) ?? 0) + 1;
+  generations.set(key, next);
+  return next;
+}
+
 function announce(): void {
   for (const listener of [...listeners]) listener();
 }
@@ -102,7 +115,7 @@ export function recallOpsBlock<T>(key: string): OpsBlockAnswer<T> | null {
 
 /** Whether a read of this block is in flight right now. */
 export function isOpsBlockLoading(key: string): boolean {
-  return inflight.has(key);
+  return inflight.has(key) || healthChecks.has(key);
 }
 
 /**
@@ -116,6 +129,9 @@ export function forgetOpsSession(): void {
   remembered.clear();
   autoClaimed.clear();
   inflight.clear();
+  healthChecks.clear();
+  healthCheckFailures.clear();
+  generations.clear();
   listeners.clear();
 }
 
@@ -139,17 +155,18 @@ async function readBlock<T>(url: string): Promise<T> {
 export async function loadOpsBlock<T>(key: string, url: string): Promise<OpsBlockAnswer<T>> {
   const existing = inflight.get(key);
   if (existing) return existing as Promise<OpsBlockAnswer<T>>;
+  const generation = nextGeneration(key);
 
   const work = readBlock<T>(url)
     .then((payload): OpsBlockAnswer<T> => {
       const answer = { data: payload, failed: '' };
-      remembered.set(key, answer);
+      if (generations.get(key) === generation) remembered.set(key, answer);
       return answer;
     })
     .catch((error: Error): OpsBlockAnswer<T> => {
       const last = recallOpsBlock<T>(key);
       const answer = { data: last?.data ?? null, failed: error.message };
-      remembered.set(key, answer);
+      if (generations.get(key) === generation) remembered.set(key, answer);
       return answer;
     })
     .finally(() => {
@@ -157,6 +174,51 @@ export async function loadOpsBlock<T>(key: string, url: string): Promise<OpsBloc
       announce();
     });
   inflight.set(key, work);
+  announce();
+  return work;
+}
+
+async function forceHealthCheck<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { accept: 'application/json' },
+  });
+  const body = (await response.json().catch(() => ({}))) as T & { detail?: unknown };
+  if (!response.ok) {
+    throw new Error(
+      typeof body.detail === 'string' ? body.detail : `The health check endpoint answered ${response.status}.`
+    );
+  }
+  return body;
+}
+
+/**
+ * Force fresh Health probes and atomically replace the remembered Health payload.
+ *
+ * Double-clicks join one POST. A total request failure keeps the prior payload
+ * untouched and records only a retryable action error.
+ */
+export async function checkAllHealthResources<T>(key: string, url: string): Promise<OpsBlockAnswer<T>> {
+  const existing = healthChecks.get(key);
+  if (existing) return existing as Promise<OpsBlockAnswer<T>>;
+  const generation = nextGeneration(key);
+  healthCheckFailures.delete(key);
+  const work = forceHealthCheck<T>(url)
+    .then((payload): OpsBlockAnswer<T> => {
+      const answer = { data: payload, failed: '' };
+      if (generations.get(key) === generation) remembered.set(key, answer);
+      return answer;
+    })
+    .catch((error: Error): OpsBlockAnswer<T> => {
+      if (generations.get(key) === generation) healthCheckFailures.set(key, error.message);
+      const last = recallOpsBlock<T>(key);
+      return { data: last?.data ?? null, failed: error.message };
+    })
+    .finally(() => {
+      if (healthChecks.get(key) === work) healthChecks.delete(key);
+      announce();
+    });
+  healthChecks.set(key, work);
   announce();
   return work;
 }
@@ -180,6 +242,26 @@ export interface OpsBlockSession<T> {
   failed: string;
   /** Re-read this block. The only thing that does, after the automatic run. */
   refresh: () => void;
+}
+
+export interface OpsHealthCheckSession {
+  busy: boolean;
+  failed: string;
+  checkAll: () => void;
+}
+
+/** Manual Health action state, sharing the Ops session store with the normal Health read. */
+export function useOpsHealthCheck(key: string, url: string, enabled = true): OpsHealthCheckSession {
+  const [, bump] = useState(0);
+  useEffect(() => subscribe(() => bump((count) => count + 1)), []);
+  const checkAll = useCallback(() => {
+    if (enabled) void checkAllHealthResources(key, url);
+  }, [enabled, key, url]);
+  return {
+    busy: enabled && healthChecks.has(key),
+    failed: enabled ? (healthCheckFailures.get(key) ?? '') : '',
+    checkAll,
+  };
 }
 
 /**

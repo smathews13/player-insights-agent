@@ -34,7 +34,7 @@ describe('the admin guard and the Ops routes', () => {
     const appkit = {
       server: {
         extend(register: (app: unknown) => void) {
-          register({ get: (path: string) => registered.push(path) });
+          register({ get: (path: string) => registered.push(path), post: (path: string) => registered.push(path) });
         },
       },
     } as never;
@@ -48,7 +48,7 @@ describe('the admin guard and the Ops routes', () => {
     const appkit = {
       server: {
         extend(register: (app: unknown) => void) {
-          register({ get: (path: string) => registered.push(path) });
+          register({ get: (path: string) => registered.push(path), post: (path: string) => registered.push(path) });
         },
       },
     } as never;
@@ -62,7 +62,7 @@ describe('the admin guard and the Ops routes', () => {
     const appkit = {
       server: {
         extend(register: (app: unknown) => void) {
-          register({ get: (path: string) => registered.push(path) });
+          register({ get: (path: string) => registered.push(path), post: (path: string) => registered.push(path) });
         },
       },
     } as never;
@@ -85,10 +85,7 @@ describe('the admin guard and the Ops routes', () => {
     const log = console.log;
     console.log = (line: string) => said.push(line);
     try {
-      setupOpsRoutes(
-        { server: { extend: () => {} } } as never,
-        { isAdminRoute },
-      );
+      setupOpsRoutes({ server: { extend: () => {} } } as never, { isAdminRoute });
     } finally {
       console.log = log;
     }

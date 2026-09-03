@@ -180,6 +180,7 @@ describe('the ranged cost route', () => {
       get: (path: string, registered: (req: Request, res: Response) => Promise<void>) => {
         if (path === '/api/ops/cost') handler = registered;
       },
+      post: () => {},
     } as unknown as Application;
     const lakebase = vi.fn((sql: string) =>
       Promise.resolve({
@@ -344,6 +345,7 @@ describe('the ranged cost route', () => {
       get: (path: string, registered: (req: Request, res: Response) => Promise<void>) => {
         if (path === '/api/ops/cost') handler = registered;
       },
+      post: () => {},
     } as unknown as Application;
     const lakebase = vi.fn((sql: string) => {
       if (sql === RESOURCE_ACTIVITY_QUERY) {

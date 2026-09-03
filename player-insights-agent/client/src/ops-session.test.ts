@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  checkAllHealthResources,
   claimOpsAutoLoad,
   forgetOpsSession,
   loadOpsBlock,
@@ -161,6 +162,87 @@ describe('the current-month identity a remount must reuse', () => {
   it('keeps live health unkeyed and keys retrospective reads by month', () => {
     expect(opsBlockKey('/api/ops/health')).toBe('/api/ops/health');
     expect(opsBlockKey('/api/ops/cost', 'current-month:2026-09')).toBe('/api/ops/cost:current-month:2026-09');
+  });
+});
+
+describe('the manual Health check', () => {
+  it('POSTs the force endpoint while normal Refresh remains a GET', async () => {
+    const methods: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        methods.push(init?.method ?? 'GET');
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ checkedAt: methods.length === 1 ? 'old' : 'fresh' }),
+        } as Response);
+      })
+    );
+    await loadOpsBlock('/api/ops/health', '/api/ops/health');
+    await checkAllHealthResources('/api/ops/health', '/api/ops/health/check');
+    await loadOpsBlock('/api/ops/health', '/api/ops/health');
+    expect(methods).toEqual(['GET', 'POST', 'GET']);
+    expect(recallOpsBlock<{ checkedAt: string }>('/api/ops/health')?.data?.checkedAt).toBe('fresh');
+  });
+
+  it('deduplicates a double press into one request', async () => {
+    let release!: (response: Response) => void;
+    const fetcher = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        })
+    );
+    vi.stubGlobal('fetch', fetcher);
+    const first = checkAllHealthResources('/api/ops/health', '/api/ops/health/check');
+    const second = checkAllHealthResources('/api/ops/health', '/api/ops/health/check');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    release({ ok: true, status: 200, json: () => Promise.resolve({ checkedAt: 'fresh' }) } as Response);
+    await Promise.all([first, second]);
+  });
+
+  it('keeps old rows on a total failure', async () => {
+    stubFetch({ body: { checkedAt: 'old', dependencies: [{ id: 'warehouse' }] } });
+    await loadOpsBlock('/api/ops/health', '/api/ops/health');
+    vi.unstubAllGlobals();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 503,
+          json: () => Promise.resolve({ detail: 'The previous results are unchanged; try again.' }),
+        } as Response)
+      )
+    );
+    const result = await checkAllHealthResources('/api/ops/health', '/api/ops/health/check');
+    expect(result.failed).toContain('previous results are unchanged');
+    expect(recallOpsBlock<{ checkedAt: string }>('/api/ops/health')?.data?.checkedAt).toBe('old');
+  });
+
+  it('fences an older normal response from overwriting a newer forced result', async () => {
+    let finishGet!: (response: Response) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ checkedAt: 'fresh' }),
+          } as Response);
+        }
+        return new Promise<Response>((resolve) => {
+          finishGet = resolve;
+        });
+      })
+    );
+    const oldRead = loadOpsBlock('/api/ops/health', '/api/ops/health');
+    await checkAllHealthResources('/api/ops/health', '/api/ops/health/check');
+    finishGet({ ok: true, status: 200, json: () => Promise.resolve({ checkedAt: 'old' }) } as Response);
+    await oldRead;
+    expect(recallOpsBlock<{ checkedAt: string }>('/api/ops/health')?.data?.checkedAt).toBe('fresh');
   });
 });
 

@@ -77,6 +77,7 @@ function trafficRoute(answers: Answers, rows: Record<string, Record<string, unkn
     get: (path: string, fn: (req: Request, res: Response) => Promise<void>) => {
       if (path === '/api/ops/traffic') handler = fn;
     },
+    post: () => {},
   } as unknown as Application;
 
   const answering: Record<string, boolean> = {

@@ -669,6 +669,8 @@ export type AdminAction =
   | 'run-cancelled'
   /** An administrator stopped the one-time snapshot of active Ask runs. */
   | 'runs-cancelled'
+  /** An administrator forced a fresh bounded probe of every configured Health resource. */
+  | 'health-resources-checked'
   /** An admin saved MLflow / bake-off values on Settings → Experimental. */
   | 'benchmark-settings-updated'
   /** An admin saved the evaluation dataset from Benchmarking. */

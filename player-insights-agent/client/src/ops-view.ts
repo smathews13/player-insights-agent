@@ -55,6 +55,7 @@ import {
   type TelemetryState,
   type TrafficBar,
 } from '../../shared/ops-contract';
+import { CHECK_VERDICT_LABEL, type CheckVerdict } from '../../shared/check-verdict';
 
 const QUERY_HISTORY_REASON: Record<QueryHistoryCoverage['reasons'][number], string> = {
   'invalid-range': 'the requested dates were invalid',
@@ -741,8 +742,27 @@ export const RESULT_TONE: Record<DependencyResult, string> = {
   'not-checked': astPill('neutral-outline', 'ops-pill'),
 };
 
+const VERDICT_TONE: Record<CheckVerdict, string> = {
+  reachable: astPill('pos', 'ops-pill'),
+  blocked: astPill('neg', 'ops-pill'),
+  refused: astPill('warn', 'ops-pill'),
+  unreachable: astPill('neutral-outline', 'ops-pill'),
+  unasked: astPill('neutral-outline', 'ops-pill'),
+};
+
 export function resultLabel(result: DependencyResult): string {
   return DEPENDENCY_RESULT_LABEL[result];
+}
+
+function dependencyPill(row: HealthDependency): HealthRow['pill'] {
+  if (row.verdict) {
+    return {
+      label: resourceWord(row),
+      value: CHECK_VERDICT_LABEL[row.verdict],
+      tone: VERDICT_TONE[row.verdict],
+    };
+  }
+  return { label: resourceWord(row), value: resultLabel(row.result), tone: RESULT_TONE[row.result] };
 }
 
 /**
@@ -924,7 +944,7 @@ export function healthRows(
             value: reading.read && reading.state ? reading.state : 'Not checked',
             tone: platformTone(reading),
           }
-        : { label: resourceWord(row), value: resultLabel(row.result), tone: RESULT_TONE[row.result] },
+        : dependencyPill(row),
     };
   });
 

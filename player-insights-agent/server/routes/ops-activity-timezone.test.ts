@@ -13,6 +13,7 @@ describe('Ops active-minute calendar and freshness', () => {
       get: (path: string, registered: (req: Request, res: Response) => Promise<void>) => {
         if (path === '/api/ops/traffic') handler = registered;
       },
+      post: () => {},
     } as unknown as Application;
     const query = vi.fn((sql: string) => {
       if (sql === ACTIVE_MINUTES_PER_DAY_QUERY) {

@@ -146,6 +146,42 @@
   margin-left: auto;
 }
 
+.ops-health-head-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ops-health-check-button {
+  white-space: nowrap;
+}
+
+.ops-health-check-button .ast-flick-row {
+  gap: 6px;
+}
+
+.ops-health-check-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--destructive);
+  border-radius: var(--ast-radius-control);
+  color: var(--destructive);
+  font-size: var(--text-sm);
+}
+
+.ops-health-check-error button {
+  flex: none;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .ops-cost-head-controls {
   display: flex;
   align-items: center;
@@ -162,11 +198,15 @@
   height: 14px;
 }
 @media (max-width: 640px) {
-  .ops-block-head-control,
-  .ops-cost-head-controls {
+  .ops-block-head-control {
     width: 100%;
   }
   .ops-cost-head-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .ops-health-head-controls {
+    width: 100%;
     justify-content: flex-start;
   }
 }

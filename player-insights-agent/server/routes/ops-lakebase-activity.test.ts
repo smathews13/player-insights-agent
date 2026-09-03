@@ -20,6 +20,7 @@ function routes() {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const app = {
     get: (path: string, handler: (req: Request, res: Response) => Promise<void>) => handlers.set(path, handler),
+    post: (path: string, handler: (req: Request, res: Response) => Promise<void>) => handlers.set(path, handler),
   } as unknown as Application;
   const answers: Record<string, Record<string, unknown>[]> = {
     [QUESTIONS_PER_DAY_QUERY]: [{ day: '2026-08-20', count: 3 }],

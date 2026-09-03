@@ -124,7 +124,6 @@ import { DRIFT_MARKER_LABEL, truncateHead, visibleCounts, type ConnectionCounts 
 import {
   affectedLabel,
   causeGroupHeadline,
-  declaredTablesAside,
   groupByCause,
   groupByRemedy,
   sharedLabelPrefix,
@@ -148,7 +147,7 @@ import {
 // `asset-picker.ts` rather than in either editor below: the same two editors draw
 // ten fields between them, and a mapping written at the call site would be
 // written twice.
-import { AssetPicker, AssetPickerField, type PickedRow } from './AssetPicker';
+import { AssetPicker, AssetPickerField, type AssetPickerRowState, type PickedRow } from './AssetPicker';
 import { UNITY_CATALOG_ASSET_PICKER, cursorKind, pickerForField } from './asset-picker';
 import { AppSelect } from './AppSelect';
 // The derivation itself -- which check belongs to which resource, which
@@ -467,59 +466,63 @@ function DeclaredTableControls({
   schemas,
   onChange,
   action,
+  showFilters = true,
 }: {
   filters: DeclaredTableFilters;
   catalogs: readonly string[];
   schemas: readonly string[];
   onChange: (next: DeclaredTableFilters) => void;
   action?: ReactNode;
+  showFilters?: boolean;
 }) {
   return (
     <div className="connections-table-toolbar">
-      <div className="connections-table-query-controls">
-        <div className="connections-table-search">
-          <Search className="connections-table-search-icon" aria-hidden="true" />
-          <Input
-            type="search"
-            placeholder="Search tables"
-            aria-label="Search Unity Catalog tables"
-            value={filters.query}
-            onChange={(event) => onChange({ ...filters, query: event.target.value })}
-          />
+      {showFilters ? (
+        <div className="connections-table-query-controls">
+          <div className="connections-table-search">
+            <Search className="connections-table-search-icon" aria-hidden="true" />
+            <Input
+              type="search"
+              placeholder="Search tables"
+              aria-label="Search Unity Catalog tables"
+              value={filters.query}
+              onChange={(event) => onChange({ ...filters, query: event.target.value })}
+            />
+          </div>
+          {catalogs.length > 0 ? (
+            <div className="connections-table-filter">
+              <AppSelect
+                label="Catalog"
+                ariaLabel="Filter tables by catalog"
+                value={filters.catalog || 'all'}
+                options={[
+                  { value: 'all', label: 'All catalogs' },
+                  ...catalogs.map((name) => ({ value: name, label: name })),
+                ]}
+                onValueChange={(next) => onChange({ ...filters, catalog: next === 'all' ? '' : next, schema: '' })}
+                contentClassName="connections-table-filter-menu"
+                contentProps={{ position: 'popper' }}
+              />
+            </div>
+          ) : null}
+          {schemas.length > 0 ? (
+            <div className="connections-table-filter">
+              <AppSelect
+                label="Schema"
+                ariaLabel="Filter tables by schema"
+                value={filters.schema || 'all'}
+                options={[
+                  { value: 'all', label: 'All schemas' },
+                  ...schemas.map((name) => ({ value: name, label: name })),
+                ]}
+                onValueChange={(next) => onChange({ ...filters, schema: next === 'all' ? '' : next })}
+                contentClassName="connections-table-filter-menu"
+                contentProps={{ position: 'popper' }}
+              />
+            </div>
+          ) : null}
         </div>
-        {catalogs.length > 0 ? (
-          <div className="connections-table-filter">
-            <AppSelect
-              label="Catalog"
-              ariaLabel="Filter tables by catalog"
-              value={filters.catalog || 'all'}
-              options={[
-                { value: 'all', label: 'All catalogs' },
-                ...catalogs.map((name) => ({ value: name, label: name })),
-              ]}
-              onValueChange={(next) => onChange({ ...filters, catalog: next === 'all' ? '' : next, schema: '' })}
-              contentClassName="connections-table-filter-menu"
-              contentProps={{ position: 'popper' }}
-            />
-          </div>
-        ) : null}
-        {schemas.length > 0 ? (
-          <div className="connections-table-filter">
-            <AppSelect
-              label="Schema"
-              ariaLabel="Filter tables by schema"
-              value={filters.schema || 'all'}
-              options={[
-                { value: 'all', label: 'All schemas' },
-                ...schemas.map((name) => ({ value: name, label: name })),
-              ]}
-              onValueChange={(next) => onChange({ ...filters, schema: next === 'all' ? '' : next })}
-              contentClassName="connections-table-filter-menu"
-              contentProps={{ position: 'popper' }}
-            />
-          </div>
-        ) : null}
-      </div>
+      ) : null}
       {action ? <div className="connections-uc-actions">{action}</div> : null}
     </div>
   );
@@ -564,6 +567,21 @@ function declaredTableRows(
     byName.set(key, { check, pending: true });
   }
   return rows;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- pure summary shared with focused render tests
+export function unityCatalogScopeSummary(
+  connections: readonly ConnectionEntry[],
+  tableRows: readonly DeclaredTableRow[]
+): string {
+  const active = connections.filter((entry) => entry.connection.state === 'declared');
+  const catalogs = active.filter((entry) => entry.connection.resourceType === 'catalog').length;
+  const schemas = active.filter((entry) => entry.connection.resourceType === 'schema').length;
+  const tables = tableRows.length;
+  const reachable = tableRows.filter((row) => row.check.status === 'ok' && !row.pending).length;
+  return `${catalogs} ${catalogs === 1 ? 'catalog' : 'catalogs'} · ${schemas} ${
+    schemas === 1 ? 'schema' : 'schemas'
+  } · ${tables} tables/views · Reachability: ${reachable} reachable`;
 }
 
 export function DeclaredTablesTable({
@@ -614,7 +632,7 @@ export function DeclaredTablesTable({
         <TableHeader>
           <TableRow>
             <TableHead>Table</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead>Reachability</TableHead>
             <TableHead>Detail</TableHead>
             {management ? <TableHead className="connections-table-actions-head">Actions</TableHead> : null}
           </TableRow>
@@ -643,7 +661,14 @@ export function DeclaredTablesTable({
                   and the reason this is not a disabled-looking control. */}
                   <TableCell className="connections-table-name">
                     <VisitInDatabricks name={check.name} />
-                    <ConnectionEntityName name={check.name} />
+                    <span className="connections-table-name-stack">
+                      <ConnectionEntityName name={check.name} />
+                      <span className="connections-table-scope-state">
+                        {connection?.connection.origin === 'app'
+                          ? 'In scope · added in Astrolabe'
+                          : 'In scope · managed by deployment'}
+                      </span>
+                    </span>
                   </TableCell>
                   {/* THE WORD, NOT THE STATUS. Every row here read `Not checked`
                 beside a Detail of `HTTP 403`, which contradicts itself on one
@@ -734,7 +759,9 @@ export function DeclaredTablesTable({
       </Table>
       {visible.length === 0 ? (
         <p className="connections-table-empty">
-          {checks.length === 0 ? 'No Unity Catalog tables are declared yet.' : 'No tables match these filters.'}
+          {checks.length === 0
+            ? 'No tables or views are declared in the current scope.'
+            : 'No tables match these filters.'}
         </p>
       ) : null}
     </div>
@@ -812,6 +839,10 @@ interface UnityCatalogAssetSelection {
   label: string;
 }
 
+function unityCatalogTypeLabel(resourceType: UnityCatalogResourceType): string {
+  return resourceType === 'table' ? 'Table/view' : resourceType === 'schema' ? 'Schema' : 'Catalog';
+}
+
 // eslint-disable-next-line react-refresh/only-export-components -- pure picker result shared with focused tests
 export function unityCatalogAssetSelection(value: string, pickedRow: PickedRow): UnityCatalogAssetSelection {
   const kind = cursorKind(UNITY_CATALOG_ASSET_PICKER, pickedRow.cursor);
@@ -825,12 +856,43 @@ export function unityCatalogAssetSelection(value: string, pickedRow: PickedRow):
   };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- pure exact-scope lookup shared with focused tests
+export function unityCatalogAssetScopeState(
+  connections: readonly ConnectionEntry[],
+  managedTableNames: readonly string[],
+  value: string,
+  pickedRow: PickedRow
+): AssetPickerRowState {
+  const selected = unityCatalogAssetSelection(value, pickedRow);
+  const normalized = normalizedConnectionValue(selected.value);
+  const stored = connections.find(
+    (entry) =>
+      entry.connection.state === 'declared' &&
+      entry.connection.resourceType === selected.resourceType &&
+      normalizedConnectionValue(entry.connection.value) === normalized
+  );
+  if (stored) {
+    return {
+      label: stored.connection.origin === 'app' ? 'In scope' : 'In scope · managed by deployment',
+      selectable: false,
+    };
+  }
+  if (
+    selected.resourceType === 'table' &&
+    managedTableNames.some((name) => normalizedConnectionValue(name) === normalized)
+  ) {
+    return { label: 'In scope · managed by deployment', selectable: false };
+  }
+  return { label: 'Available', selectable: true };
+}
+
 export function UnityCatalogAssetAddForm({
   formId,
   formRef,
   selection,
   busy,
   error,
+  rowState,
   onSelect,
   onAdd,
   onCancel,
@@ -840,6 +902,7 @@ export function UnityCatalogAssetAddForm({
   selection: UnityCatalogAssetSelection | null;
   busy: boolean;
   error: string;
+  rowState?: (value: string, pickedRow: PickedRow) => AssetPickerRowState;
   onSelect: (selection: UnityCatalogAssetSelection) => void;
   onAdd: () => void;
   onCancel: () => void;
@@ -853,22 +916,20 @@ export function UnityCatalogAssetAddForm({
       tabIndex={-1}
       aria-label="Add Unity Catalog asset"
     >
+      <p className="connections-scope-boundary">
+        This declares app data scope. It does not grant Unity Catalog permissions or change the deployed agent model.
+      </p>
       <AssetPicker
         spec={UNITY_CATALOG_ASSET_PICKER}
         current={selection?.value ?? ''}
+        rowState={rowState}
         onPick={(picked, pickedRow) => {
           if (pickedRow) onSelect(unityCatalogAssetSelection(picked, pickedRow));
         }}
       />
       {selection ? (
         <div className="connections-uc-selection" role="status" aria-label="Selected Unity Catalog asset">
-          <span className="connection-row-kind">
-            {selection.resourceType === 'table'
-              ? 'Table/view'
-              : selection.resourceType === 'schema'
-                ? 'Schema'
-                : 'Catalog'}
-          </span>
+          <span className="connection-row-kind">{unityCatalogTypeLabel(selection.resourceType)}</span>
           <code title={selection.value}>{selection.value}</code>
         </div>
       ) : null}
@@ -919,6 +980,7 @@ export function DeclaredTablesSection({
     () => declaredTableRows(tableChecks, controller.listed),
     [tableChecks, controller.listed]
   );
+  const managedTableNames = useMemo(() => managedRows.map((row) => row.check.name), [managedRows]);
   const managedChecks = useMemo(() => managedRows.map((row) => row.check), [managedRows]);
   const managedCatalogsAndSchemas = useMemo(
     () =>
@@ -985,6 +1047,10 @@ export function DeclaredTablesSection({
     setAdding(false);
   }
 
+  function scopeState(value: string, pickedRow: PickedRow): AssetPickerRowState {
+    return unityCatalogAssetScopeState(controller.listed, managedTableNames, value, pickedRow);
+  }
+
   const addAction =
     allowMutations && storeAvailable ? (
       <Button
@@ -995,12 +1061,13 @@ export function DeclaredTablesSection({
         aria-expanded={adding}
         aria-controls={`${formId}-form`}
         onClick={() => {
+          setOpen(true);
           setSelection(null);
           setAddError('');
           setAdding((shown) => !shown);
         }}
       >
-        Add asset
+        Manage scope
       </Button>
     ) : null;
 
@@ -1009,20 +1076,20 @@ export function DeclaredTablesSection({
       id={DECLARED_TABLES_SECTION_ID}
       open={open}
       onToggle={() => setOpen((was) => !was)}
-      summary="Unity Catalog"
-      aside={declaredTablesAside(managedChecks)}
+      summary="Unity Catalog scope"
+      aside={unityCatalogScopeSummary(controller.listed, managedRows)}
       controls={
-        open ? (
-          <DeclaredTableControls
-            filters={filters}
-            catalogs={catalogs}
-            schemas={schemas}
-            onChange={setFilters}
-            action={addAction}
-          />
-        ) : null
+        <DeclaredTableControls
+          filters={filters}
+          catalogs={catalogs}
+          schemas={schemas}
+          onChange={setFilters}
+          action={addAction}
+          showFilters={open}
+        />
       }
     >
+      <p className="connections-scope-copy">Catalogs, schemas, and tables declared for this app.</p>
       {adding ? (
         <UnityCatalogAssetAddForm
           formId={formId}
@@ -1030,6 +1097,7 @@ export function DeclaredTablesSection({
           selection={selection}
           busy={controller.busy}
           error={addError}
+          rowState={scopeState}
           onSelect={(next) => {
             setSelection(next);
             setAddError('');
@@ -1053,80 +1121,82 @@ export function DeclaredTablesSection({
           {controller.successNotice}
         </span>
       ) : null}
-      {managedCatalogsAndSchemas.length > 0 ? (
-        <div className="connections-uc-managed" aria-label="Added catalogs and schemas">
-          <p className="connections-uc-managed-title">Added catalogs and schemas</p>
-          {managedCatalogsAndSchemas.map((entry) => {
-            const resourceType = entry.connection.resourceType === 'catalog' ? 'Catalog' : 'Schema';
-            const confirming = controller.confirming === entry.connection.id;
-            return (
-              <div
-                key={entry.connection.id}
-                className="connections-uc-managed-row"
-                data-testid={`managed-uc-${entry.connection.id}`}
-              >
-                <div className="connections-uc-managed-summary">
-                  <span className="connection-row-kind">{resourceType}</span>
-                  <ConnectionEntityName name={entry.connection.value} />
-                  <StatusBadge value={entry.connection.state === 'withdrawn' ? 'Withdrawn' : 'Declared'} tone="plain" />
-                  <span className="connection-provenance-badge">
-                    {entry.connection.origin === 'app' ? 'Added in Astrolabe' : 'Bundle managed'}
-                  </span>
-                  {allowMutations && entry.connection.origin === 'app' ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={controller.busy}
-                      aria-label={`${DELETE_CONNECTION_LABEL}: ${entry.connection.value}`}
-                      onClick={() => {
-                        controller.setRowError(null);
-                        controller.setConfirming(entry.connection.id);
-                      }}
-                    >
-                      <Trash2 aria-hidden="true" />
-                      Delete
-                    </Button>
-                  ) : null}
-                </div>
-                {confirming ? (
-                  <div
-                    className="plane-confirm"
-                    role="group"
+      <div className="connections-uc-managed" aria-label="Current Unity Catalog scope">
+        <p className="connections-uc-managed-title">Current scope</p>
+        {managedCatalogsAndSchemas.map((entry) => {
+          const resourceType = entry.connection.resourceType === 'catalog' ? 'Catalog' : 'Schema';
+          const confirming = controller.confirming === entry.connection.id;
+          return (
+            <div
+              key={entry.connection.id}
+              className="connections-uc-managed-row"
+              data-testid={`managed-uc-${entry.connection.id}`}
+            >
+              <div className="connections-uc-managed-summary">
+                <span className="connection-row-kind">{resourceType}</span>
+                <ConnectionEntityName name={entry.connection.value} />
+                <span className="connections-table-scope-state">
+                  {entry.connection.state === 'withdrawn'
+                    ? 'Not in scope'
+                    : entry.connection.origin === 'app'
+                      ? 'In scope · added in Astrolabe'
+                      : 'In scope · managed by deployment'}
+                </span>
+                {allowMutations && entry.connection.origin === 'app' ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={controller.busy}
                     aria-label={`${DELETE_CONNECTION_LABEL}: ${entry.connection.value}`}
+                    onClick={() => {
+                      controller.setRowError(null);
+                      controller.setConfirming(entry.connection.id);
+                    }}
                   >
-                    <span className="plane-confirm-headline">Delete this Unity Catalog connection permanently?</span>
-                    <span className="plane-confirm-detail">{forgetConnectionDetail(entry.connection.origin)}</span>
-                    <span className="plane-confirm-actions">
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        disabled={controller.busy}
-                        onClick={() => void controller.remove(entry)}
-                      >
-                        <Trash2 aria-hidden="true" />
-                        {controller.busy ? 'Deleting\u2026' : DELETE_CONNECTION_LABEL}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={controller.busy}
-                        onClick={() => controller.setConfirming('')}
-                      >
-                        Keep
-                      </Button>
-                    </span>
-                    {controller.rowError?.id === entry.connection.id ? (
-                      <span className="plane-error" role="alert">
-                        {controller.rowError.detail}
-                      </span>
-                    ) : null}
-                  </div>
+                    <Trash2 aria-hidden="true" />
+                    Delete
+                  </Button>
                 ) : null}
               </div>
-            );
-          })}
-        </div>
-      ) : null}
+              {confirming ? (
+                <div
+                  className="plane-confirm"
+                  role="group"
+                  aria-label={`${DELETE_CONNECTION_LABEL}: ${entry.connection.value}`}
+                >
+                  <span className="plane-confirm-headline">Delete this Unity Catalog connection permanently?</span>
+                  <span className="plane-confirm-detail">{forgetConnectionDetail(entry.connection.origin)}</span>
+                  <span className="plane-confirm-actions">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={controller.busy}
+                      onClick={() => void controller.remove(entry)}
+                    >
+                      <Trash2 aria-hidden="true" />
+                      {controller.busy ? 'Deleting\u2026' : DELETE_CONNECTION_LABEL}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={controller.busy}
+                      onClick={() => controller.setConfirming('')}
+                    >
+                      Keep
+                    </Button>
+                  </span>
+                  {controller.rowError?.id === entry.connection.id ? (
+                    <span className="plane-error" role="alert">
+                      {controller.rowError.detail}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      <p className="connections-uc-managed-title connections-uc-table-title">Tables and views</p>
       <DeclaredTablesTable
         tableChecks={tableChecks}
         tableConnections={controller.listed}
@@ -2267,21 +2337,17 @@ export function ConnectionsPage() {
         </section>
       )}
 
-      {tableChecks.length > 0 ||
-      tableConnections.length > 0 ||
-      (allowMutations && payload?.storeAvailable !== false) ? (
-        <DeclaredTablesSection
-          tableChecks={tableChecks}
-          tableConnections={tableConnections}
-          requestedEntity={requestedEntity}
-          checkedAt={lastCheckedAt}
-          storeAvailable={payload?.storeAvailable ?? true}
-          allowMutations={allowMutations}
-          onChanged={async () => {
-            await refresh();
-          }}
-        />
-      ) : null}
+      <DeclaredTablesSection
+        tableChecks={tableChecks}
+        tableConnections={tableConnections}
+        requestedEntity={requestedEntity}
+        checkedAt={lastCheckedAt}
+        storeAvailable={payload?.storeAvailable ?? true}
+        allowMutations={allowMutations}
+        onChanged={async () => {
+          await refresh();
+        }}
+      />
     </div>
   );
 }

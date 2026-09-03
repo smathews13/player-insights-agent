@@ -24,7 +24,9 @@ import {
   DeclaredTablesSection,
   DeclaredTablesTable,
   UnityCatalogAssetAddForm,
+  unityCatalogAssetScopeState,
   unityCatalogAssetSelection,
+  unityCatalogScopeSummary,
   canonicalDeclaredTableNames,
   declaredTableNames,
   OptionalScopeLine,
@@ -1429,7 +1431,8 @@ describe('the Unity Catalog tables section', () => {
     const markup = text(
       render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations={allowed} />)
     );
-    expect(markup.includes('Add asset')).toBe(allowed);
+    expect(markup).toContain('Unity Catalog scope');
+    expect(markup.includes('Manage scope')).toBe(allowed);
     expect(markup).not.toMatch(/Add table|Add schema|Add catalog/);
   });
 
@@ -1445,7 +1448,7 @@ describe('the Unity Catalog tables section', () => {
     const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations />);
     expect(markup).not.toContain('data-testid="add-connection-row"');
     expect(text(markup)).not.toContain('+ Add a new connection');
-    expect(text(markup).match(/Add asset/g)).toHaveLength(1);
+    expect(text(markup).match(/Manage scope/g)).toHaveLength(1);
     expect(text(markup)).not.toMatch(/Add table|Add schema|Add catalog/);
     expect(markup).toContain('aria-controls=');
   });
@@ -1458,17 +1461,19 @@ describe('the Unity Catalog tables section', () => {
       })
     );
     const rendered = text(render(<DeclaredTablesSection tableChecks={twelve} requestedEntity="" allowMutations />));
-    expect(rendered).toContain('12 tables declared');
-    expect(rendered.match(/Add asset/g)).toHaveLength(1);
+    expect(rendered).toContain('0 catalogs · 0 schemas · 12 tables/views · Reachability: 12 reachable');
+    expect(rendered.match(/Manage scope/g)).toHaveLength(1);
   });
 
   it('hides all add actions from read-only and unavailable-store views', () => {
-    expect(text(render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />))).not.toContain('Add asset');
+    expect(text(render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />))).not.toContain(
+      'Manage scope'
+    );
     expect(
       text(
         render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations storeAvailable={false} />)
       )
-    ).not.toContain('Add asset');
+    ).not.toContain('Manage scope');
     expect(
       text(
         render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations storeAvailable={false} />)
@@ -1495,6 +1500,10 @@ describe('the Unity Catalog tables section', () => {
     expect(text(markup)).toContain('Unity Catalog assets your sign-in can see');
     expect(text(markup)).toContain('Add asset');
     expect(text(markup)).toContain('Cancel');
+    expect(text(markup)).toContain(
+      'This declares app data scope. It does not grant Unity Catalog permissions or change the deployed agent model.'
+    );
+    expect(text(markup)).not.toMatch(/grants? (select|access)|model (was|is) (updated|re-logged)/i);
     expect(markup).not.toContain('Resource type');
     expect(markup).toContain('aria-label="Add Unity Catalog asset"');
   });
@@ -1566,7 +1575,8 @@ describe('the Unity Catalog tables section', () => {
     const genericMarkup = render(
       <DeclaredConnectionsCard entries={[userCatalog, userSchema]} allowMutations onChanged={() => {}} />
     );
-    expect(text(ucMarkup)).toContain('Added catalogs and schemas');
+    expect(text(ucMarkup)).toContain('Current scope');
+    expect(text(ucMarkup)).toContain('In scope · added in Astrolabe');
     expect(ucMarkup).toContain('data-testid="managed-uc-catalog-a-catalog"');
     expect(ucMarkup).toContain('data-testid="managed-uc-schema-a-catalog-a-schema"');
     expect(genericMarkup).not.toContain('managed-uc-');
@@ -1574,11 +1584,55 @@ describe('the Unity Catalog tables section', () => {
     expect(text(genericMarkup)).not.toContain('Added schema');
   });
 
-  it('renders the UC section and one admin action with no table checks', () => {
-    const markup = render(<DeclaredTablesSection tableChecks={[]} requestedEntity="" allowMutations />);
-    expect(text(markup)).toContain('Unity Catalog');
-    expect(text(markup)).toContain('No Unity Catalog tables are declared yet.');
-    expect(text(markup).match(/Add asset/g)).toHaveLength(1);
+  it.each([
+    ['admin', true, true],
+    ['consumer', false, true],
+    ['store unavailable', true, false],
+  ] as const)('keeps the empty scope shell visible for %s', (_label, allowMutations, storeAvailable) => {
+    const markup = render(
+      <DeclaredTablesSection
+        tableChecks={[]}
+        requestedEntity=""
+        allowMutations={allowMutations}
+        storeAvailable={storeAvailable}
+      />
+    );
+    const shown = text(markup);
+    expect(shown).toContain('Unity Catalog scope');
+    expect(shown).toContain('Catalogs, schemas, and tables declared for this app.');
+    expect(shown).toContain('0 catalogs · 0 schemas · 0 tables/views · Reachability: 0 reachable');
+    expect(shown).toContain('No tables or views are declared in the current scope.');
+    expect(shown.includes('Manage scope')).toBe(allowMutations && storeAvailable);
+    expect(PAGE_SOURCE).not.toContain('{tableChecks.length > 0 ||');
+  });
+
+  it('counts exact declarations without inferring catalog or schema descendants', () => {
+    expect(unityCatalogScopeSummary([userCatalog, userSchema], [])).toBe(
+      '1 catalog · 1 schema · 0 tables/views · Reachability: 0 reachable'
+    );
+    expect(
+      unityCatalogAssetScopeState([userCatalog], [], 'a_catalog', {
+        cursor: PICKER_TOP,
+        item: { id: 'a_catalog', label: 'a_catalog', secondary: '', expandable: false },
+      })
+    ).toEqual({ label: 'In scope', selectable: false });
+    expect(
+      unityCatalogAssetScopeState([userCatalog], [], 'a_catalog.a_schema', {
+        cursor: { catalog: 'a_catalog', schema: '' },
+        item: { id: 'a_schema', label: 'a_schema', secondary: 'a_catalog.a_schema', expandable: false },
+      })
+    ).toEqual({ label: 'Available', selectable: true });
+    expect(
+      unityCatalogAssetScopeState([], ['a_catalog.a_schema.deployed_table'], 'a_catalog.a_schema.deployed_table', {
+        cursor: { catalog: 'a_catalog', schema: 'a_schema' },
+        item: {
+          id: 'a_catalog.a_schema.deployed_table',
+          label: 'deployed_table',
+          secondary: '',
+          expandable: false,
+        },
+      })
+    ).toEqual({ label: 'In scope · managed by deployment', selectable: false });
   });
 
   it('draws a row per declared table with concise reachability and freshness', () => {
@@ -1625,10 +1679,10 @@ describe('the Unity Catalog tables section', () => {
     expect(markup.indexOf('Filter tables by catalog')).toBeLessThan(markup.indexOf('Filter tables by schema'));
   });
 
-  it('puts search, Catalog, Schema, and UC actions with the declared count', () => {
+  it('puts search, Catalog, and Schema with the exact scope and reachability counts', () => {
     const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />);
     expect(markup).toMatch(
-      /class="connection-block-head"[\s\S]*?Unity Catalog[\s\S]*?declared[\s\S]*?class="connection-block-controls"[\s\S]*?Search tables[\s\S]*?Catalog[\s\S]*?Schema/
+      /class="connection-block-head"[\s\S]*?Unity Catalog scope[\s\S]*?3 tables\/views[\s\S]*?Reachability: 2 reachable[\s\S]*?class="connection-block-controls"[\s\S]*?Search tables[\s\S]*?Catalog[\s\S]*?Schema/
     );
     expect(markup.indexOf('connection-block-controls')).toBeLessThan(markup.indexOf('connection-block-body'));
     expect(markup).not.toMatch(/connection-block-body[\s\S]*?connections-table-toolbar/);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   connectionSubjects,
@@ -321,7 +321,7 @@ describe('running them', () => {
     let inFlight = 0;
     let peak = 0;
     const release: Array<() => void> = [];
-    const call = (() => {
+    const call: typeof fetch = vi.fn(() => {
       inFlight += 1;
       peak = Math.max(peak, inFlight);
       return new Promise<Response>((resolve) => {
@@ -330,7 +330,7 @@ describe('running them', () => {
           resolve({ status: 200, ok: true, json: () => Promise.resolve({}) } as Response);
         });
       });
-    }) as unknown as typeof fetch;
+    });
 
     const built = subjects({ tables: ['a.b.one', 'a.b.two', 'a.b.three'] });
     const running = runProbes(built, {
@@ -345,6 +345,59 @@ describe('running them', () => {
     expect(peak).toBe(built.length);
     release.forEach((finish) => finish());
     expect(await running).toHaveLength(built.length);
+  });
+
+  it('honours a bounded concurrency for a forced health run', async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const call: typeof fetch = vi.fn(() => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      return new Promise<Response>((resolve) => {
+        setTimeout(() => {
+          inFlight -= 1;
+          resolve({ status: 200, ok: true, json: () => Promise.resolve({}) } as Response);
+        }, 2);
+      });
+    });
+    const built = subjects({ tables: ['a.b.one', 'a.b.two', 'a.b.three', 'a.b.four'] });
+    const checks = await runProbes(built, {
+      host: 'https://workspace.example',
+      token: 'a-token',
+      principal: 'someone@example.com',
+      fetchImpl: call,
+      concurrency: 3,
+    });
+    expect(checks).toHaveLength(built.length);
+    expect(peak).toBe(3);
+  });
+
+  it('times out one slow resource without blocking the settled results for the rest', async () => {
+    const call: typeof fetch = vi.fn((url: string | URL | Request, init?: RequestInit) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+      if (!href.includes('/genie/')) {
+        return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({}) } as Response);
+      }
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          'abort',
+          () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          { once: true }
+        );
+      });
+    });
+    const built = subjects();
+    const checks = await runProbes(built, {
+      host: 'https://workspace.example',
+      token: 'a-token',
+      principal: 'someone@example.com',
+      fetchImpl: call,
+      concurrency: 4,
+      timeoutMs: 5,
+    });
+    expect(checks).toHaveLength(built.length);
+    expect(checks.find((check) => check.id === 'genie-data')?.status).toBe('unverified');
+    expect(checks.filter((check) => check.status === 'ok').length).toBeGreaterThan(0);
   });
 
   /**
@@ -450,9 +503,7 @@ describe('running them', () => {
       fetchImpl: call,
     });
     expect(checks.find((check) => check.id === 'semantic-index')?.status).toBe('ok');
-    expect(checks.find((check) => check.id === 'semantic-index')?.name).toBe(
-      'a_catalog.a_schema.semantic_layer_index'
-    );
+    expect(checks.find((check) => check.id === 'semantic-index')?.name).toBe('a_catalog.a_schema.semantic_layer_index');
     expect(checks.find((check) => check.id === 'semantic-index-endpoint')?.name).toBe('a-semantic-vs');
     expect(asked.some((url) => url.includes('semantic_layer_index'))).toBe(true);
   });

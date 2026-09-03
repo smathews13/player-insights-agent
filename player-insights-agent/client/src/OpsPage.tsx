@@ -42,6 +42,7 @@ import { ChevronLeft, ChevronRight, ExternalLink, Search, Users, X } from 'lucid
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
+import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
 import { ExperimentalBadge } from './ExperimentalBadge';
 import { Disclosure, PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
@@ -78,12 +79,13 @@ import {
   type HealthRow,
 } from './ops-view';
 import { healthConnectionsHref, healthRowsForDisplay } from './health-resource-view';
-import { useOpsBlock } from './ops-session';
+import { useOpsBlock, useOpsHealthCheck, type OpsHealthCheckSession } from './ops-session';
 import './styles/routes/ops.css';
 import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
 import { ForecastingBody } from './ForecastingPanel';
 import { MethodologySections, type MethodologyGroup } from './MethodologySection';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
+import { canCheckHealthResources } from '../../shared/user-roster-contract';
 import { persistCostDisplayUnit, readCostDisplayUnit } from './cost-unit-preference';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import { perUserSpendHref } from './cost-user-monitoring-link';
@@ -328,7 +330,37 @@ function ResultPill({ pill }: { pill: HealthRow['pill'] }) {
   );
 }
 
-export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
+const NO_HEALTH_CHECK: OpsHealthCheckSession = { busy: false, failed: '', checkAll: () => {} };
+
+export function HealthCheckButton({ check }: { check: OpsHealthCheckSession }) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      type="button"
+      className="ops-health-check-button"
+      disabled={check.busy}
+      aria-busy={check.busy || undefined}
+      onClick={check.checkAll}
+    >
+      {check.busy ? (
+        <AstrolabeLoadingLabel as="span" announce={false} label="Checking resources" />
+      ) : (
+        'Check all resources'
+      )}
+    </Button>
+  );
+}
+
+export function HealthBody({
+  block,
+  check = NO_HEALTH_CHECK,
+  allowCheck = false,
+}: {
+  block: Block<OpsHealthPayload>;
+  check?: OpsHealthCheckSession;
+  allowCheck?: boolean;
+}) {
   const host = useWorkspaceHost();
   const payload = block.data;
 
@@ -355,7 +387,7 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
   const rows = healthRowsForDisplay(payload);
 
   return (
-    <section className="ops-block" aria-labelledby="ops-health-heading">
+    <section className="ops-block" aria-labelledby="ops-health-heading" aria-busy={check.busy || undefined}>
       <BlockHead
         id="ops-health-heading"
         title="Health"
@@ -363,7 +395,12 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
         // the cost and traffic bands say "Read" for the same reason: they are.
         // Both wordings and the one rounding are the Refresh control's.
         meta={checkedAgoLine(payload?.checkedAt ?? '')}
-        control={<RefreshButton busy={block.busy} onRefresh={block.refresh} />}
+        control={
+          <div className="ops-health-head-controls">
+            {allowCheck ? <HealthCheckButton check={check} /> : null}
+            <RefreshButton busy={block.busy || check.busy} onRefresh={block.refresh} />
+          </div>
+        }
       />
       {/* NO PILLS IN THIS BAND. The platform's readings used to sit here as a
           cluster of their own, above a table that reported the same serving
@@ -371,6 +408,17 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
           resource, in the row for that resource: see `healthRows`. */}
 
       <BlockBody>
+        {check.failed ? (
+          <div className="ops-health-check-error" role="alert">
+            <span>{check.failed}</span>
+            <button type="button" onClick={check.checkAll}>
+              Try again
+            </button>
+          </div>
+        ) : null}
+        <p className="sr-only" role="status" aria-live="polite">
+          {check.busy ? 'Checking all health resources.' : payload?.checkedAt ? checkedAgoLine(payload.checkedAt) : ''}
+        </p>
         {block.busy && !payload ? (
           <Skeleton className="ops-skeleton" />
         ) : (
@@ -1647,6 +1695,11 @@ export function OpsPage() {
   // point of the arrangement. Retrospective blocks share one server-authoritative
   // calendar-month key; live Health remains independent.
   const health = useOpsBlock<OpsHealthPayload>('/api/ops/health', '');
+  const healthCheck = useOpsHealthCheck(
+    '/api/ops/health',
+    '/api/ops/health/check',
+    canCheckHealthResources(role.state)
+  );
   const cost = useOpsBlock<OpsCostPayload>('/api/ops/cost', '', monthKey);
   const traffic = useOpsBlock<OpsTrafficPayload>('/api/ops/traffic', '', monthKey);
   const latency = useOpsBlock<OpsLatencyPayload>('/api/ops/latency', '', monthKey);
@@ -1665,7 +1718,7 @@ export function OpsPage() {
 
       {/* Each measured block reads itself. Four read times on one page rather
           than one, because they were read at four different moments. */}
-      <HealthBody block={health} />
+      <HealthBody block={health} check={healthCheck} allowCheck={canCheckHealthResources(role.state)} />
       <CostBody
         block={cost}
         unit={costUnit}

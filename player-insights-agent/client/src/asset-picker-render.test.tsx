@@ -229,6 +229,39 @@ describe('a list the workspace answered', () => {
     expect(markup).toContain('aria-label="Browse catalog analytics"');
     expect(markup).toContain('aria-label="Select catalog analytics"');
   });
+
+  it('marks exact UC declarations in scope without blocking browse navigation', () => {
+    const markup = render(
+      <AssetPickerRow
+        spec={UNITY_CATALOG_ASSET_PICKER}
+        cursor={PICKER_TOP}
+        item={item({ id: 'analytics', label: 'analytics' })}
+        current=""
+        rowState={() => ({ label: 'In scope · managed by deployment', selectable: false })}
+        onOpen={() => {}}
+        onPick={() => {}}
+      />
+    );
+    expect(text(markup)).toContain('Catalog analytics In scope · managed by deployment');
+    expect(markup.match(/disabled=""/g)).toHaveLength(1);
+    expect(markup).toContain('aria-label="Browse catalog analytics"');
+  });
+
+  it('marks an unselected UC record available', () => {
+    const markup = render(
+      <AssetPickerRow
+        spec={UNITY_CATALOG_ASSET_PICKER}
+        cursor={{ catalog: 'analytics', schema: '' }}
+        item={item({ id: 'player', label: 'player', secondary: 'analytics.player' })}
+        current=""
+        rowState={() => ({ label: 'Available', selectable: true })}
+        onOpen={() => {}}
+        onPick={() => {}}
+      />
+    );
+    expect(text(markup)).toContain('Schema player analytics.player Available');
+    expect(markup).not.toContain('disabled=""');
+  });
 });
 
 describe('the data_catalogs browser and its blast radius', () => {
@@ -432,6 +465,7 @@ describe('long lists', () => {
       })
     );
     expect(text(markup)).toContain('Load more');
+    expect(text(markup)).toContain(`${many.length} loaded · More available`);
     expect(markup).toContain('aria-label="Load more catalogs your sign-in can see"');
     expect(text(panel('catalog', ok(many)))).not.toContain('Load more');
   });

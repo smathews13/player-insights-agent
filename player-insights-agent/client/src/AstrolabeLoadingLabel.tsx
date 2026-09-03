@@ -11,13 +11,16 @@ export function AstrolabeLoadingLabel({
   label,
   className,
   announce = true,
+  as: Element = 'div',
 }: {
   label: string;
   className?: string;
   announce?: boolean;
+  /** Use inline phrasing content when the loader sits inside a button. */
+  as?: 'div' | 'span';
 }) {
   return (
-    <div
+    <Element
       className={`ast-flick-row ${className ?? ''}`.trim()}
       role={announce ? 'status' : undefined}
       aria-live={announce ? 'polite' : undefined}
@@ -25,6 +28,6 @@ export function AstrolabeLoadingLabel({
     >
       <ConceptFlicker seat="inline" />
       <span className="ast-flick-row-say">{label}</span>
-    </div>
+    </Element>
   );
 }

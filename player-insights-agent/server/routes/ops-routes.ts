@@ -63,7 +63,12 @@ import {
 } from '../lib/ops-telemetry';
 import { classifyDenial, accessDependenciesFrom, UNKNOWN_PRINCIPAL } from './access-verification';
 import { executionToken } from '../lib/execution-credential';
-import { ANSWER_PATH_ENDPOINT_IDS, probeConnections, SERVING_ENDPOINT_KIND } from '../lib/dependency-probes';
+import {
+  ANSWER_PATH_ENDPOINT_IDS,
+  PROBE_TIMEOUT_MS,
+  probeConnections,
+  SERVING_ENDPOINT_KIND,
+} from '../lib/dependency-probes';
 import { appEnvironment, readStoredSettings, resourceStates, type ResourceState } from '../lib/app-settings';
 import { normalizeWorkspaceHost, workspaceAppsUrl } from '../../shared/databricks-links';
 import { readAppBillingTag } from '../lib/resource-tagging';
@@ -92,9 +97,9 @@ import {
 } from '../lib/user-spend';
 import { appSessionDeployment } from '../lib/app-session';
 import { buildUserSpendMetrics, userSpendComparisonWindows } from '../lib/user-spend-metrics';
-import { seedRoles } from '../lib/admin-roles';
+import { ADMIN_REQUIRED_BODY, recordAdminAction, resolveRoleForRequest, seedRoles } from '../lib/admin-roles';
 import { everyKnownUser, readRosterForRequest } from '../lib/user-roster';
-import { isRole, type Role } from '../../shared/user-roster-contract';
+import { canCheckHealthResources, isRole, type Role } from '../../shared/user-roster-contract';
 import { USER_MONITORING_SCHEMA_REVISION } from '../../shared/user-monitoring-contract';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import { MAX_PERSONA_FILTER_LENGTH } from '../../shared/conversation-filters';
@@ -137,6 +142,7 @@ import type {
   PlatformReading,
 } from '../../shared/ops-contract';
 import { opsCurrentMonthRange } from '../../shared/ops-contract';
+import { checkVerdict } from '../../shared/check-verdict';
 
 /* ── Shared plumbing ─────────────────────────────────────────────────────── */
 
@@ -144,6 +150,8 @@ import { opsCurrentMonthRange } from '../../shared/ops-contract';
 const STATEMENT_TIMEOUT_MS = 45_000;
 const USER_MONITORING_CACHE_MS = 30_000;
 const userMonitoringCache = new Map<string, { expiresAt: number; payload: OpsCostPayload }>();
+export const HEALTH_CHECK_CONCURRENCY = 4;
+export const HEALTH_CHECK_TOTAL_TIMEOUT_MS = 60_000;
 
 /**
  * One query parameter, and only where it arrived as a single string.
@@ -791,11 +799,18 @@ async function readAppMeasurement(req: Request, insightsHref: string): Promise<A
 async function readDependencies(
   appkit: InsightsAppKit,
   req: Request,
-  fetchImpl?: typeof fetch
+  options: {
+    fetchImpl?: typeof fetch;
+    readReport?: () => Promise<{ report: PreflightReport | null }>;
+    clock?: () => number;
+    concurrency?: number;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+  } = {}
 ): Promise<{ rows: HealthDependency[]; reason: string; checkedAt: string }> {
   try {
     const [{ report }, stored] = await Promise.all([
-      readOrchestratorReport(),
+      (options.readReport ?? readOrchestratorReport)(),
       readStoredSettings(appkit).catch(() => new Map()),
     ]);
     const states = resourceStates({ report, environment: appEnvironment(), stored });
@@ -821,7 +836,7 @@ async function readDependencies(
         host: host(),
         token: executionToken(req) ?? '',
         denylist,
-        fetchImpl,
+        fetchImpl: options.fetchImpl,
       });
       if (listed.length > tables.length) tables = unionTableNames(tables, listed);
     }
@@ -831,8 +846,12 @@ async function readDependencies(
       host: host(),
       token: executionToken(req),
       principal: userEmail(req) || '',
+      fetchImpl: options.fetchImpl,
+      timeoutMs: options.timeoutMs,
+      signal: options.signal,
+      concurrency: options.concurrency,
     });
-    const checkedAt = new Date().toISOString();
+    const checkedAt = new Date((options.clock ?? Date.now)()).toISOString();
     // Which of these probes has a row on Connections to land on. Built from the
     // same `resourceStates` list that page draws, so a resource renamed there
     // stops being linked here rather than producing a link to nothing.
@@ -840,20 +859,26 @@ async function readDependencies(
     return {
       checkedAt,
       reason: '',
-      rows: checks.map((check) => ({
-        id: check.id,
-        // The probe's own kind, carried so the platform pills can resolve
-        // themselves by what a probe IS rather than by one of its ids.
-        kind: check.kind,
-        connectionsId: documented.has(check.id) ? check.id : '',
-        label: check.label,
-        name: check.name,
-        result: resultFor(check.status),
-        lastCheckedAt: check.status === 'unverified' ? '' : checkedAt,
-        // The probe's own words, not a restatement. A reason rewritten here is a
-        // reason that drifts from the one Connections shows for the same probe.
-        reason: check.status === 'ok' ? '' : check.detail || check.error || '',
-      })),
+      rows: checks.map((check) => {
+        const verdict = checkVerdict(check);
+        return {
+          id: check.id,
+          // The probe's own kind, carried so the platform pills can resolve
+          // themselves by what a probe IS rather than by one of its ids.
+          kind: check.kind,
+          connectionsId: documented.has(check.id) ? check.id : '',
+          label: check.label,
+          name: check.name,
+          result: resultFor(check.status),
+          verdict,
+          // A refused or unreachable probe was checked. Only an unasked one has
+          // no check time, which keeps the timestamp aligned with the verdict.
+          lastCheckedAt: verdict === 'unasked' ? '' : checkedAt,
+          // The probe's own words, not a restatement. A reason rewritten here is a
+          // reason that drifts from the one Connections shows for the same probe.
+          reason: check.status === 'ok' ? '' : check.detail || check.error || '',
+        };
+      }),
     };
   } catch (error) {
     return {
@@ -1340,7 +1365,13 @@ export async function warehouseQueryAttribution(input: {
  * prefix is the protection; this list is what notices when a path falls outside
  * one. Keep it in step with the registrations.
  */
-export const OPS_ROUTES = ['/api/ops/health', '/api/ops/cost', '/api/ops/traffic', '/api/ops/latency'] as const;
+export const OPS_ROUTES = [
+  '/api/ops/health',
+  '/api/ops/health/check',
+  '/api/ops/cost',
+  '/api/ops/traffic',
+  '/api/ops/latency',
+] as const;
 
 export interface OpsDeps {
   /**
@@ -1370,6 +1401,10 @@ export interface OpsDeps {
   readOrchestratorReport?: () => Promise<{ report: PreflightReport | null }>;
   /** Injected by tests; production uses the forwarded user token through the Workspace SDK. */
   queryHistoryTransport?: WarehouseQueryHistoryTransport;
+  /** Test seam for the route's independent capability check. */
+  healthCheckRole?: (req: Request) => Promise<string>;
+  /** Test seam for the manual run's total deadline. */
+  healthCheckTotalTimeoutMs?: number;
 }
 
 /**
@@ -1402,39 +1437,104 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
     return;
   }
   const clock = deps.now ?? Date.now;
+  const healthSnapshots = new Map<string, OpsHealthPayload>();
+  const healthSnapshotVersions = new Map<string, number>();
+  const healthReads = new Map<string, Promise<OpsHealthPayload>>();
+  const forcedHealthChecks = new Map<string, Promise<OpsHealthPayload>>();
+
+  const buildHealthSnapshot = async (req: Request, forced: boolean): Promise<OpsHealthPayload> => {
+    const workspace = host();
+    const appsToken = executionToken(req);
+    const totalTimeoutMs = deps.healthCheckTotalTimeoutMs ?? HEALTH_CHECK_TOTAL_TIMEOUT_MS;
+    const deadline = forced ? AbortSignal.timeout(totalTimeoutMs) : undefined;
+    const appsWorkspaceId = appsToken
+      ? await resolveWorkspaceId({ host: workspace, token: appsToken, fetchImpl: deps.fetchImpl }).catch(() => '')
+      : '';
+    const insightsHref = workspaceAppsUrl(workspace, appsWorkspaceId);
+    const read = Promise.all([
+      readDependencies(appkit, req, {
+        fetchImpl: deps.fetchImpl,
+        readReport: deps.readOrchestratorReport,
+        clock,
+        concurrency: forced ? HEALTH_CHECK_CONCURRENCY : undefined,
+        timeoutMs: forced ? PROBE_TIMEOUT_MS : undefined,
+        signal: deadline,
+      }),
+      readAppMeasurement(req, insightsHref).catch((error: Error) =>
+        uncheckedMeasurement(insightsHref, `reading it threw: ${error.message}.`)
+      ),
+      lakebaseReading(appkit),
+    ]).then(
+      ([dependencies, appMeasurement, lakebase]): OpsHealthPayload => ({
+        checkedAt: dependencies.checkedAt,
+        dependencies: dependencies.rows,
+        platform: platformReadings(servingEndpointReading(dependencies.rows), [lakebase]),
+        app: appMeasurement,
+        reason: dependencies.reason,
+      })
+    );
+    if (!deadline) return read;
+    const timedOut = new Promise<never>((_resolve, reject) => {
+      deadline.addEventListener(
+        'abort',
+        () => reject(new Error(`The health check exceeded its ${totalTimeoutMs} ms deadline.`)),
+        { once: true }
+      );
+    });
+    return Promise.race([read, timedOut]);
+  };
+
+  const startHealthRead = (req: Request, forced: boolean): Promise<OpsHealthPayload> => {
+    const actor = userEmail(req);
+    if (!forced) {
+      const cached = healthSnapshots.get(actor);
+      if (cached) return Promise.resolve(cached);
+      const forcedRun = forcedHealthChecks.get(actor);
+      if (forcedRun) return forcedRun;
+      const existing = healthReads.get(actor);
+      if (existing) return existing;
+    } else {
+      const existing = forcedHealthChecks.get(actor);
+      if (existing) return existing;
+    }
+
+    const version = (healthSnapshotVersions.get(actor) ?? 0) + 1;
+    healthSnapshotVersions.set(actor, version);
+    const target = forced ? forcedHealthChecks : healthReads;
+    const work = buildHealthSnapshot(req, forced)
+      .then(async (payload) => {
+        if (healthSnapshotVersions.get(actor) === version) healthSnapshots.set(actor, payload);
+        if (forced) {
+          const reachable = payload.dependencies.filter((row) => row.result === 'answered').length;
+          const unavailable = payload.dependencies.filter((row) => row.result === 'did-not-answer').length;
+          const unverified = payload.dependencies.filter((row) => row.result === 'not-checked').length;
+          await recordAdminAction(appkit.lakebase, {
+            actor,
+            action: 'health-resources-checked',
+            subject: 'ops-health',
+            detail:
+              `Checked ${payload.dependencies.length} dependency resources: ${reachable} reachable, ` +
+              `${unavailable} not answering, ${unverified} unverified.`,
+          });
+        }
+        return payload;
+      })
+      .finally(() => {
+        if (target.get(actor) === work) target.delete(actor);
+      });
+    target.set(actor, work);
+    return work;
+  };
 
   appkit.server.extend((app: Application) => {
     /* ── Health ──────────────────────────────────────────────────────────── */
 
     app.get('/api/ops/health', async (req: Request, res: Response) => {
-      const workspace = host();
-      // `?o=` is what makes the Apps list land for a reader signed in to more
-      // than one workspace. The id is resolved rather than configured, since
-      // nothing hands the container one, and '' simply omits the parameter.
-      const appsToken = executionToken(req);
-      const appsWorkspaceId = appsToken
-        ? await resolveWorkspaceId({ host: workspace, token: appsToken }).catch(() => '')
-        : '';
-      const insightsHref = workspaceAppsUrl(workspace, appsWorkspaceId);
       try {
-        // Independent of each other as well as of the other blocks: a telemetry
-        // grant nobody has made must not stop the dependency rows rendering.
-        const [dependencies, appMeasurement, lakebase] = await Promise.all([
-          readDependencies(appkit, req, deps.fetchImpl),
-          readAppMeasurement(req, insightsHref).catch((error: Error) =>
-            uncheckedMeasurement(insightsHref, `reading it threw: ${error.message}.`)
-          ),
-          lakebaseReading(appkit),
-        ]);
-        const payload: OpsHealthPayload = {
-          checkedAt: dependencies.checkedAt,
-          dependencies: dependencies.rows,
-          platform: platformReadings(servingEndpointReading(dependencies.rows), [lakebase]),
-          app: appMeasurement,
-          reason: dependencies.reason,
-        };
-        res.json(payload);
+        res.json(await startHealthRead(req, false));
       } catch (error) {
+        const workspace = host();
+        const insightsHref = workspaceAppsUrl(workspace, '');
         const payload: OpsHealthPayload = {
           checkedAt: '',
           dependencies: [],
@@ -1446,6 +1546,31 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           reason: `This block could not be read, so nothing here was checked: ${(error as Error).message}`,
         };
         res.json(payload);
+      }
+    });
+
+    app.post('/api/ops/health/check', async (req: Request, res: Response) => {
+      let role = '';
+      try {
+        role = deps.healthCheckRole
+          ? await deps.healthCheckRole(req)
+          : (await resolveRoleForRequest(appkit.lakebase, req, userEmail)).role;
+      } catch {
+        res.status(403).json(ADMIN_REQUIRED_BODY);
+        return;
+      }
+      if (!canCheckHealthResources(role)) {
+        res.status(403).json(ADMIN_REQUIRED_BODY);
+        return;
+      }
+      try {
+        const payload = await startHealthRead(req, true);
+        res.json(payload);
+      } catch {
+        res.status(503).json({
+          error: 'health_check_unavailable',
+          detail: 'The health check could not finish. The previous results are unchanged; try again.',
+        });
       }
     });
 

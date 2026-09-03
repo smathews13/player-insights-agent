@@ -900,6 +900,15 @@ html:has(.connections-page) body[data-scroll-locked] {
   min-width: 0;
   overflow: hidden;
 }
+.connections-scope-copy,
+.connections-scope-boundary {
+  margin: 0 16px 10px;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+.connections-scope-boundary {
+  margin-inline: 0;
+}
 .connections-uc-selection {
   display: flex;
   align-items: center;
@@ -924,6 +933,9 @@ html:has(.connections-page) body[data-scroll-locked] {
   font-size: var(--text-sm);
   font-weight: 700;
 }
+.connections-uc-table-title {
+  margin: 0 16px 6px;
+}
 .connections-uc-managed-row {
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-sm);
@@ -939,6 +951,15 @@ html:has(.connections-page) body[data-scroll-locked] {
 }
 .connections-uc-managed-summary > button {
   margin-left: auto;
+}
+.connections-table-scope-state,
+.asset-picker-row-state,
+.asset-picker-result-count {
+  color: var(--muted-foreground);
+  font-size: var(--ast-fs-11);
+}
+.asset-picker-result-count {
+  margin: 0;
 }
 
 @media (max-width: 800px) {
@@ -1018,6 +1039,13 @@ html:has(.connections-page) body[data-scroll-locked] {
   font-family: var(--font-mono);
   font-weight: 400;
   overflow-wrap: anywhere;
+}
+.connections-table-name-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 2px;
 }
 .connections-table-detail {
   /* Wrap rather than clip. A nowrap detail cell is how "17 columns" lost its
