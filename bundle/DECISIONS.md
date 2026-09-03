@@ -418,6 +418,26 @@ repository certifies.
 external platform-control sentence is descriptive and requires separate
 deployment evidence.
 
+### D17. Mutable App staging is replaced, never accumulated
+
+**Decided 2026-09-03.** `workspace import-dir --overwrite` updates matching
+files but does not remove old Vite and esbuild hashes. The the demo workspace staging tree had
+grown to 2,457 files and 490,767,525 bytes while the release artifact contained
+137 files and 17,814,752 bytes. Of that remote tree, 2,320 files and
+472,952,773 bytes were stale.
+
+Before import, the release now deletes only an app-specific source directory
+directly below the current operator's `/Workspace/Users/<actor>/` home. Empty,
+root, nested, wrong-actor, and wrong-app paths are refused. The active App is not
+deleted or stopped: Apps reports `SNAPSHOT` mode and runs the deployment from a
+separate system-generated `/Workspace/Users/<app-id>/src/<deployment-id>` copy.
+A failed delete or import therefore stops before a new deployment and leaves the
+prior snapshot running.
+
+**Enforced by `bundle/app-source-staging.sh` and its mock-CLI regression test.**
+The deploy command also states `--mode SNAPSHOT` rather than relying on a
+platform default.
+
 ---
 
 ## Decisions recorded elsewhere, not repeated here

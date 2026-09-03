@@ -61,7 +61,12 @@ Before upload, the app release:
 6. builds and audits the deploy artifact;
 7. checks schema ownership and applies app-database grants.
 
-It then imports the artifact, starts a new app when necessary, and deploys it.
+It then verifies that any active App runs from Databricks' separate `SNAPSHOT`
+copy, validates the exact app-specific staging path under the profile actor's
+Workspace home, deletes only that staging directory, imports the exact artifact,
+starts a new app when necessary, and deploys in explicit `SNAPSHOT` mode. The
+mock-CLI staging test pins path refusals, stale-hash removal, command order, and
+failure-before-deploy behavior.
 The broad advisory live sweep is still available as
 `TARGET=... PROFILE=... bundle/preflight.sh --live`; it is not repeated on every
 code upload. The post-deploy status read remains, but the same scope contract is

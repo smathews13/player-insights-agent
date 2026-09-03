@@ -36,6 +36,9 @@ run_fast() {
   step "Release-critical public derivation leak canary"
   python3 "$ROOT/mirror/check-derived-tree.test.py"
 
+  step "Release-critical App staging cleanup safety"
+  bash "$HERE/app-source-staging.test.sh"
+
   if [[ -f "$HERE/scope-contract.py" && -f "$HERE/scope-contract.json" ]]; then
     step "Release-critical target and scope contract"
     python3 "$HERE/scope-contract.py" --check

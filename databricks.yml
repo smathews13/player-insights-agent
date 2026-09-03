@@ -202,8 +202,10 @@ variables:
       repo-relative Source code path used by Deploy from Git; that UI value is
       `player-insights-agent/build/deploy`. The workspace directory must not
       contain package.json because the app would run `npm install` during
-      deployment. Prefer a shared folder. Set this in the git-ignored
-      `.databricks/bundle/<target>/variable-overrides.json` or as
+      deployment. The CLI release replaces this mutable staging tree before
+      import, so use an app-specific source directory directly below the
+      releasing profile identity's /Workspace/Users home. Set this in the
+      git-ignored `.databricks/bundle/<target>/variable-overrides.json` or as
       BUNDLE_VAR_app_source_code_path. Do not put personal home paths in this
       tracked file or in a target block. After the app and bindings exist,
       app-code-only updates can use Deploy from Git and do not require another

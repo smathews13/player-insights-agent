@@ -51,6 +51,7 @@ for file in \
 done
 [[ "$FAST" == *'check-migration-order.mjs'* ]] || fail "fast tier lost migration ordering"
 [[ "$FAST" == *'check-derived-tree.test.py'* ]] || fail "fast tier lost the derived-tree adversarial canary"
+[[ "$FAST" == *'app-source-staging.test.sh'* ]] || fail "fast tier lost guarded App staging cleanup"
 [[ "$FAST" == *'scope-contract.py" --check'* ]] || fail "fast tier lost the target/scope contract"
 if [[ "$FAST" != *'pytest'* && "$FAST" != *'npm run typecheck'* \
    && "$FAST" != *'npm run lint'* && "$FAST" != *'npm run format'* \

@@ -103,7 +103,7 @@ Create the git-ignored file
   "app_schema": "astrolabe",
   "data_catalogs": ["<data_catalog>", "<data_catalog>.<restricted_schema>"],
   "warehouse_id": "<sql_warehouse_id>",
-  "app_source_code_path": "/Workspace/Shared/astrolabe-app-source",
+  "app_source_code_path": "/Workspace/Users/<release-actor>/astrolabe-app-source",
   "lakebase_project_id": "<lakebase_project_id>",
   "lakebase_branch_id": "production",
   "lakebase_database_id": "databricks-postgres",

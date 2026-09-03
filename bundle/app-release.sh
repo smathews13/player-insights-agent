@@ -22,6 +22,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/decisions-gate.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/app-source-staging.sh"
 
 APPLY=false; ROLLBACK_TO=""; CERTIFY_RUN=false
 while [[ $# -gt 0 ]]; do
@@ -94,7 +95,7 @@ EOF
   fi
   run_app_db_grant
   step "Re-pointing $APP_NAME at $ROLLBACK_TO"
-  databricks apps deploy "$APP_NAME" --source-code-path "$ROLLBACK_TO" --profile "$PROFILE"
+  databricks apps deploy "$APP_NAME" --source-code-path "$ROLLBACK_TO" --mode SNAPSHOT --profile "$PROFILE"
   step "Status"
   databricks apps get "$APP_NAME" --profile "$PROFILE" -o json \
     | python3 -c "
@@ -125,9 +126,14 @@ Dry run. Nothing was built or deployed. Re-run with --apply to:
   6. resolve the app role, direct Lakebase branch host, Postgres database and
      operator role from the live bundle resources, then run
      scripts/grant-app-db-access.mjs. This STOPS the release on failure.
-  7. databricks workspace import-dir build/deploy $SRC_PATH --overwrite
-  8. databricks apps deploy $APP_NAME --source-code-path $SRC_PATH
-  9. restore player-insights-agent/build/deploy/app.yaml, which the build wrote
+  7. verify the active deployment runs from Databricks' separate SNAPSHOT path,
+     then safety-check that $SRC_PATH is this app's staging directory directly
+     below /Workspace/Users/<current actor>/
+  8. recursively delete ONLY that validated mutable staging directory, then
+     databricks workspace import-dir build/deploy $SRC_PATH --overwrite
+     A delete or import failure stops here; the active snapshot keeps running.
+  9. databricks apps deploy $APP_NAME --source-code-path $SRC_PATH --mode SNAPSHOT
+ 10. restore player-insights-agent/build/deploy/app.yaml, which the build wrote
      this deployment's administrators and experiment id into. Tracked file, and
      it publishes; nothing to remember afterwards.
 
@@ -510,6 +516,12 @@ step "Building the dependency-free deploy tree"
      PLAYER_INSIGHTS_APP_SCHEMA="$LAKEBASE_APP_SCHEMA" \
      npm run build:deploy)
 
+read -r SOURCE_FILE_COUNT SOURCE_BYTE_COUNT SOURCE_MANIFEST_SHA < <(
+  app_source_manifest_summary "$DEPLOY_TREE"
+)
+note "source manifest      $SOURCE_FILE_COUNT files, $SOURCE_BYTE_COUNT bytes"
+note "source manifest sha  $SOURCE_MANIFEST_SHA"
+
 # The broad live advisory sweep remains useful before a handoff, but it repeats
 # resource/scope reads already made by release-gate.sh and can wait 75 seconds on
 # storage health. It is intentionally manual, not part of every code upload:
@@ -546,8 +558,8 @@ fi
 
 run_app_db_grant
 
-step "Uploading to $SRC_PATH"
-databricks workspace import-dir "$DEPLOY_TREE" "$SRC_PATH" --overwrite --profile "$PROFILE"
+step "Replacing validated staging source at $SRC_PATH"
+clean_and_import_app_source "$DEPLOY_TREE" "$SRC_PATH" "$APP_NAME" "$PROFILE"
 
 # A bundle-created app has no active deployment yet. Its compute commonly
 # settles at STOPPED, and `apps deploy` then refuses with "start the app first".
@@ -561,7 +573,7 @@ if [[ "$APP_COMPUTE_STATE" != "ACTIVE" ]]; then
 fi
 
 step "Deploying app $APP_NAME"
-databricks apps deploy "$APP_NAME" --source-code-path "$SRC_PATH" --profile "$PROFILE"
+databricks apps deploy "$APP_NAME" --source-code-path "$SRC_PATH" --mode SNAPSHOT --profile "$PROFILE"
 
 step "Status"
 APP_JSON="$(databricks apps get "$APP_NAME" --profile "$PROFILE" -o json)"

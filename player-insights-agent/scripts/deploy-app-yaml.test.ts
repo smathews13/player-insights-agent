@@ -11,6 +11,7 @@ const authored = readFileSync(path.join(repoRoot, 'app.yaml'), 'utf8');
 const bundleYaml = readFileSync(path.join(repoRoot, '..', 'databricks.yml'), 'utf8');
 const bundleServer = readFileSync(path.join(repoRoot, 'scripts', 'bundle-server.mjs'), 'utf8');
 const appRelease = readFileSync(path.join(repoRoot, '..', 'bundle', 'app-release.sh'), 'utf8');
+const appSourceStaging = readFileSync(path.join(repoRoot, '..', 'bundle', 'app-source-staging.sh'), 'utf8');
 const defaultPersonaTemplates = readFileSync(path.join(repoRoot, 'shared', 'default-sp-persona-templates.ts'), 'utf8');
 
 /** The deviations bundle-server.mjs applies. Kept here so the tests exercise the real shape. */
@@ -266,7 +267,10 @@ describe('every authored variable reaches the deploy target', () => {
     expect(appRelease).toContain('semantic_index_endpoint does not match the active index host');
     expect(appRelease).toContain('vector-search-endpoints get-endpoint "$LIVE_SEMANTIC_ENDPOINT"');
     expect(appRelease.indexOf('vector-search-indexes get-index')).toBeLessThan(
-      appRelease.indexOf('workspace import-dir "$DEPLOY_TREE"')
+      appRelease.indexOf('clean_and_import_app_source "$DEPLOY_TREE"')
+    );
+    expect(appSourceStaging).toContain(
+      'databricks workspace import-dir "$source_dir" "$source_path" --overwrite --profile "$profile"'
     );
   });
 
