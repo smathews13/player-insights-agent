@@ -233,8 +233,9 @@ html:not([data-theme='dark']) .app-sky {
 /*
  * EVERY DROPDOWN IN THE APP, LIFTED ABOVE EVERY SURFACE THAT CAN HOLD ONE.
  *
- * Radix renders select and menu content into a portal on `document.body`, not
- * inside the element that opened it, and AppKit ships that content at `z-50`.
+ * AppKit renders select content into its resolved portal container: normally
+ * `document.body`, and the active dialog overlay when a modal provides one.
+ * It still ships that content at `z-50`.
  * The app's own ladder runs well past 50 -- the composer is 20, the sticky
  * chrome 40, the first-open panel 60, the Settings modal 80 -- so a dropdown
  * opened inside Settings was painting UNDERNEATH the modal that opened it. The

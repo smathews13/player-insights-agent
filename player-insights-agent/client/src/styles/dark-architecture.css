@@ -1,5 +1,4 @@
 html[data-theme='dark'] .arch-flow,
-html[data-theme='dark'] .arch-tiles:not(.arch-tiles-loop) li,
 html[data-theme='dark'] .arch-node,
 html[data-theme='dark'] .arch-rail {
   background: var(--card);
@@ -14,7 +13,6 @@ html[data-theme='dark'] .arch-edge {
 
 @media (prefers-reduced-transparency: reduce) {
   html[data-theme='dark'] .arch-flow,
-  html[data-theme='dark'] .arch-tiles:not(.arch-tiles-loop) li,
   html[data-theme='dark'] .arch-node,
   html[data-theme='dark'] .arch-rail {
     backdrop-filter: none;

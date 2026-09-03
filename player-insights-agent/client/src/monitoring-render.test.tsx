@@ -350,6 +350,16 @@ describe('the filter row is built from the app, not from the platform', () => {
       />
     );
 
+  it('seats the controls directly on the page without a boxed surface wrapper', () => {
+    const markup = row();
+    const wrapper = markup.match(/<div class="monitoring-filters[^"]*"/)?.[0] ?? '';
+
+    expect(wrapper).toBe('<div class="monitoring-filters"');
+    expect(markup).not.toContain('monitoring-filters ast-surface-primary');
+    expect(markup.match(/data-slot="select-trigger"/g)).toHaveLength(4);
+    expect(markup).toContain('run-search monitoring-search');
+  });
+
   /**
    * These were native `<select>` elements. A native select opens the operating
    * system's own menu, which is drawn by the platform and cannot be styled where
@@ -1552,9 +1562,6 @@ describe('the per-user panel', () => {
               costPerQuestion: { value: 2.5, state: 'value', subtitle: '5 submitted questions' },
               averageDaily: { value: 3.125, state: 'value', subtitle: '4 covered days' },
               appShare: { value: 25, state: 'value', subtitle: 'of comparable app spend' },
-              weekOverWeek: { value: 10, state: 'value', subtitle: 'vs prior 7 days' },
-              monthOverMonth: { value: null, state: 'new', subtitle: 'vs prior matched month days' },
-              comparisonFreshness: '2026-08-31',
             },
             components: [
               {
@@ -1626,8 +1633,16 @@ describe('the per-user panel', () => {
     expect(rendered).toContain('Cost / question 2.50 USD 5 submitted questions');
     expect(rendered).toContain('Average daily spend 3.125 USD 4 covered days');
     expect(rendered).toContain('Share of app spend 25% of comparable app spend');
-    expect(rendered).toContain('Week over week +10% vs prior 7 days');
-    expect(rendered).toContain('Month over month New vs prior matched month days');
+    expect(rendered).not.toMatch(/Week over week|Month over month|prior 7 days|prior matched month/i);
+    expect(markup.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(5);
+    const cardOrder = [
+      'Total user spend',
+      'Cost / question',
+      'Average tokens',
+      'Average daily spend',
+      'Share of app spend',
+    ].map((label) => markup.indexOf(label));
+    expect(cardOrder).toEqual([...cardOrder].sort((left, right) => left - right));
     expect(rendered).not.toContain('6.25 DBU');
     for (const banned of [
       'Resource',
@@ -1692,6 +1707,7 @@ describe('the per-user panel', () => {
       />
     );
     expect(text(loading)).toContain('Loading user spend');
+    expect(loading.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(5);
     expect(loading.match(/ast-flick-slot--inline/g)).toHaveLength(1);
     expect(loading.match(/ast-anim-flick/g)).toHaveLength(4);
     expect(loading).toContain('data-ast-rest');
@@ -1726,9 +1742,6 @@ describe('the per-user panel', () => {
                 perQuestion: 126_900,
               },
               appShare: unavailable('No comparable app total'),
-              weekOverWeek: unavailable('No comparable period'),
-              monthOverMonth: unavailable('No comparable period'),
-              comparisonFreshness: '2026-09-01',
             },
             components: [],
           },
@@ -1749,12 +1762,11 @@ describe('the per-user panel', () => {
     expect(rendered).toContain('Average tokens 84.6K / run 126.9K / question');
     expect(markup).toContain('253,800 tokens across 3 token-covered runs');
     expect(rendered).toContain('Share of app spend No comparable app total');
-    expect(rendered).toContain('Week over week No comparable period');
-    expect(rendered).toContain('Month over month No comparable period');
+    expect(rendered).not.toMatch(/No comparable period|Week over week|Month over month/i);
     expect(rendered).not.toContain('–');
   });
 
-  it('keeps the final seven-card footprint while a seeded total is being enriched', () => {
+  it('keeps the final five-card footprint while a seeded total is being enriched', () => {
     const data = {
       currency: 'USD',
       spendByUser: {
@@ -1784,14 +1796,15 @@ describe('the per-user panel', () => {
       'Calculating average tokens',
       'Calculating daily spend',
       'Calculating share of app spend',
-      'Calculating week over week',
-      'Calculating month over month',
     ]) {
       expect(text(markup)).toContain(label);
     }
-    expect(markup.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(7);
+    expect(markup.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(5);
     expect(markup.match(/ast-flick-slot--inline/g)).toHaveLength(1);
     expect(text(markup)).not.toContain('Refreshing');
+    expect(text(markup)).not.toMatch(
+      /week over week|month over month|comparable period|prior 7 days|prior matched month/i
+    );
   });
 
   it('shows the authorized current role and only a real assigned persona', () => {

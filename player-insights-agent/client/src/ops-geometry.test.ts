@@ -164,8 +164,11 @@ describe('the figures line up', () => {
 
   it('keeps the latency search wide enough for its placeholder', () => {
     const search = rule('.ops-latency-head-controls .ops-latency-search');
-    expect(search).toMatch(/min-width:\s*280px/);
-    expect(search).toMatch(/flex:\s*1\s+0\s+280px/);
+    expect(search).toMatch(/min-width:\s*0/);
+    expect(search).toMatch(/flex:\s*1\s+1\s+280px/);
+    expect(RULES).toMatch(
+      /@media \(max-width:\s*800px\)[\s\S]*?\.ops-latency-block \.ops-latency-search\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*none;/
+    );
   });
 
   /**
@@ -188,10 +191,18 @@ describe('the figures line up', () => {
     expect(pill).toMatch(/align-items:\s*center/);
   });
 
-  it('keeps the TREND pills on the same header rail as search, not a second row', () => {
-    expect(rule('.ops-latency-block .ops-block-head')).toMatch(/flex-wrap:\s*nowrap/);
+  it('geometrically centers TREND and keeps search/Refresh in a separate right column', () => {
+    expect(rule('.ops-latency-block .ops-block-head')).toMatch(
+      /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+minmax\(0,\s*1fr\)/
+    );
     expect(rule('.ops-latency-head-controls')).toMatch(/flex-wrap:\s*nowrap/);
-    expect(rule('.ops-latency-trend-filters')).toMatch(/flex:\s*0\s+0\s+auto/);
+    expect(rule('.ops-latency-trend-filters')).toMatch(/grid-column:\s*2/);
+    expect(rule('.ops-latency-trend-filters')).toMatch(/justify-self:\s*center/);
+    expect(rule('.ops-latency-block .ops-latency-head-controls')).toMatch(/grid-column:\s*3/);
+    expect(rule('.ops-latency-block .ops-latency-head-controls')).toMatch(/justify-self:\s*end/);
+    expect(RULES).toMatch(
+      /@media \(max-width:\s*800px\)[\s\S]*?\.ops-latency-trend-filters\s*\{[^}]*grid-row:\s*2;[\s\S]*?\.ops-latency-block \.ops-latency-head-controls\s*\{[^}]*grid-row:\s*3;/
+    );
   });
 });
 

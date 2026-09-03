@@ -35,65 +35,6 @@
   gap: 16px;
 }
 
-/* ---------------------------------------------------------------------------
-   The four tiles
-
-   Four rather than the design's five: LAST CHECK went, because the heading's
-   Refresh control already states freshness. Four divides the row evenly here
-   and into 2x2 at the narrow width, so the strip has no short row at either
-   size -- five left one tile alone on a second row on a phone.
-   --------------------------------------------------------------------------- */
-
-.arch-tiles {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.arch-tiles li {
-  display: grid;
-  gap: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  /* Same pane fill as LIVE DATA FLOW and the rails. A border alone left these
-     four as holes in the sky; `--card` is the Architecture surface, not a new
-     gray and not the washed Connections slab. */
-  background: var(--card);
-  padding: 12px 14px;
-  min-width: 0;
-}
-.arch-tiles span {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-/* Tabular, because these are recounted on every press: a figure that goes from
-   9 to 10 must not widen its own tile and reflow the row. */
-/* Tabular comes from `.ast-num` in the markup. This rule asked for it with
-   `font-variant-numeric` alone, on DM Sans, whose files declare no `tnum`
-   feature, so four tiles a reader compares across the strip were set in
-   proportional figures and the strip shuffled sideways whenever a count changed. */
-.arch-tiles strong {
-  font-size: var(--text-kpi);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-/* Only a count that something established takes a colour. A green 0 spends the
-   colour on a state it does not describe, and the em-dash the tile shows before
-   anything has been checked is not a measurement at all. */
-.arch-tiles strong[data-tone='reachable'] {
-  color: var(--ast-pos-text);
-}
-.arch-tiles strong[data-tone='drifted'] {
-  color: var(--warning);
-}
-.arch-tiles [data-tile='drift'] span {
-  color: var(--ast-warn-deep);
-}
 /*
  * The loop bounds, three across rather than four.
  *
@@ -104,14 +45,24 @@
  * the run the drawing is of. The pane is already a grid, so they take the row
  * under the label and leave the drawing the row after that.
  *
- * It inherits the strip's tile, label and figure treatment, because it should read
- * as the same kind of object one row down. Only the column count differs, and the
- * two share the 2-across collapse in responsive.css.
+ * This is the only tile strip left on Architecture. Its styling is self-contained
+ * so removing summary KPIs cannot leave responsive space or hidden count rules.
  */
-.arch-tiles-loop {
+.arch-loop-tiles {
+  display: grid;
   grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.arch-tiles-loop li {
+.arch-loop-tiles li {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
   padding: 0;
   box-shadow: inset 3px 0 0 var(--arch-bound-color);
   /* Reserved so a hover or click only colours the ring. Growing an outline
@@ -126,13 +77,13 @@
  * calls, blue for the request deadline. Invented per-bound hues are how the
  * three tiles used to look unrelated to the diagram they explain.
  */
-.arch-tiles-loop li[data-accent='agent'] {
+.arch-loop-tiles li[data-accent='agent'] {
   --arch-bound-color: var(--ast-primary-control-border);
 }
-.arch-tiles-loop li[data-accent='genie'] {
+.arch-loop-tiles li[data-accent='genie'] {
   --arch-bound-color: var(--db-teal-600);
 }
-.arch-tiles-loop li[data-accent='question'] {
+.arch-loop-tiles li[data-accent='question'] {
   --arch-bound-color: var(--ast-blue);
 }
 .arch-bound-tile {
@@ -169,16 +120,24 @@
  * and the click writes a sticky one; both land here so the ring is the same.
  * Pointer pseudo-classes on the button were the white flash.
  */
-.arch-tiles-loop li.arch-bound-selected {
+.arch-loop-tiles li.arch-bound-selected {
   outline-color: var(--arch-bound-color);
 }
 /* Sentence case, unlike the counts above. These are the Settings pane's own
    labels -- "Max DSF steps", "Run budget (s)" -- and upper-casing them breaks the
    one thing they are for, which is being searchable in the gear. `DSF` is already
    capitals and `(s)` is not a word. */
-.arch-tiles-loop span {
+.arch-loop-tiles span {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--muted-foreground);
   letter-spacing: 0.01em;
   text-transform: none;
+}
+.arch-loop-tiles strong {
+  font-size: var(--text-kpi);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 /* ---------------------------------------------------------------------------
    The flow panel
@@ -199,10 +158,10 @@
 }
 /* The pane's own grid already stacks the label, then these, then the drawing.
    Width is the pane's, not a 720px rail pinned to the right of the eyebrow. */
-.arch-flow > .arch-tiles-loop {
+.arch-flow > .arch-loop-tiles {
   width: 100%;
 }
-.arch-flow > .arch-tiles-loop li {
+.arch-flow > .arch-loop-tiles li {
   background: var(--card);
 }
 /* The one eyebrow on this page that is blue: it heads the live half, and blue is
@@ -529,7 +488,7 @@ a.arch-node-main:hover .arch-node-label {
 }
 /* Deliberately no amber edge on the card itself: a 1px warning hairline on a
    white card is a mark nobody sees. The pill carries the fact. */
-.arch-node[data-tone='blocked'] {
+.arch-node[data-tone='not-connected'] {
   border-color: var(--ast-neg-border);
 }
 /* One line, ellipsised. An identifier that wraps to three lines pushes the card

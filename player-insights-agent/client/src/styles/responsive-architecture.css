@@ -5,7 +5,7 @@
 }
 
 @media (max-width: 800px) {
-  .arch-tiles {
+  .arch-loop-tiles {
     grid-template-columns: repeat(2, 1fr);
   }
 }

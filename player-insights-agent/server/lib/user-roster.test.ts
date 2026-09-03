@@ -77,16 +77,16 @@ describe('the deployment cannot be left with no super admin', () => {
       stored: [stored(DEPUTY, 'super_admin')],
       roleColumnPresent: true,
     });
-    expect(refusal).toBe('immutable-super-admin');
+    expect(refusal).toBe('last-super-admin');
   });
 
   it('refuses removing the only one', () => {
     expect(removalRefusal({ email: DEPUTY, seed: NO_SEED, stored: [stored(DEPUTY, 'super_admin')] })).toBe(
-      'immutable-super-admin'
+      'last-super-admin'
     );
   });
 
-  it('refuses demoting a super admin even when there are two', () => {
+  it('allows demoting a promoted super admin when another remains', () => {
     const refusal = roleChangeRefusal({
       email: DEPUTY,
       role: 'consumer',
@@ -94,16 +94,16 @@ describe('the deployment cannot be left with no super admin', () => {
       stored: [stored(DEPUTY, 'super_admin'), stored(ANALYST, 'super_admin')],
       roleColumnPresent: true,
     });
-    expect(refusal).toBe('immutable-super-admin');
+    expect(refusal).toBe('');
   });
 
-  it('refuses removing a stored super admin even when a seeded owner remains', () => {
+  it('allows removing a promoted super admin when a seeded owner remains', () => {
     const refusal = removalRefusal({
       email: DEPUTY,
       seed: LEAD_SEEDED,
       stored: [stored(DEPUTY, 'super_admin')],
     });
-    expect(refusal).toBe('immutable-super-admin');
+    expect(refusal).toBe('');
   });
 
   it('counts one address named by both halves once', () => {

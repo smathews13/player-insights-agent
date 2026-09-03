@@ -166,6 +166,7 @@
 /* ── The secondary filter row ──────────────────────────────────────────── */
 
 .monitoring-filters {
+  /* Arrangement only: the controls sit on the route surface, not in a band. */
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1199,12 +1200,6 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   min-width: 0;
   font-size: var(--ast-fs-18);
   overflow-wrap: anywhere;
-}
-.user-profile-modal-spend-kpi-value.is-positive {
-  color: var(--ast-pos-text);
-}
-.user-profile-modal-spend-kpi-value.is-negative {
-  color: var(--ast-neg-text);
 }
 .user-profile-modal-refreshing {
   color: var(--ast-text-secondary);

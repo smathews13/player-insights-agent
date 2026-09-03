@@ -1,11 +1,16 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import type { ComponentProps } from 'react';
-import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import type { TraceStage } from './answer-shape';
 import { agentToolCallSubtitle } from './run-overview-kpis';
 import { RunOverviewKpis } from './RunOverviewKpis';
+
+const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
+const KPI_SOURCE = readFileSync(new URL('./RunOverviewKpis.tsx', import.meta.url), 'utf8');
+const ANSWER = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
+const MONITORING = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
 
 function stage(id: string): TraceStage {
   return {
@@ -25,20 +30,17 @@ const STAGES = [stage('step-1-1-data_genie'), stage('step-2-1-data_genie'), stag
 
 function render(feedback: 'up' | 'down' | null, overrides: Partial<ComponentProps<typeof RunOverviewKpis>> = {}) {
   return renderToStaticMarkup(
-    <MemoryRouter>
-      <RunOverviewKpis
-        durationMs={15_670}
-        toolStageMs={10_700}
-        agentToolCalls={7}
-        stages={STAGES}
-        totalTokens={10_273}
-        promptTokens={9633}
-        completionTokens={640}
-        feedback={feedback}
-        ratePath="/ask?conversation=conv-1&amp;run=run-1"
-        {...overrides}
-      />
-    </MemoryRouter>
+    <RunOverviewKpis
+      durationMs={15_670}
+      toolStageMs={10_700}
+      agentToolCalls={7}
+      stages={STAGES}
+      totalTokens={10_273}
+      promptTokens={9633}
+      completionTokens={640}
+      feedback={feedback}
+      {...overrides}
+    />
   );
 }
 
@@ -63,15 +65,98 @@ describe('Run Explorer Overview KPIs', () => {
     expect(markup).toContain('Submitted by the asker');
   });
 
-  it('keeps an unrated run neutral and offers a rating without implying one exists', () => {
+  it('keeps an unrated read-only host neutral without offering a broken action', () => {
     const markup = render(null);
     expect(markup).toContain('run-rating-badge--none run-rating-badge--kpi');
     expect(markup).toContain('aria-label="No feedback"');
     expect(markup).toContain('title="No feedback"');
     expect(markup).toContain('No feedback');
-    expect(markup).toContain('Give feedback');
+    expect(markup).not.toContain('Give feedback');
     expect(markup).not.toContain('Submitted by the asker');
     expect(markup).not.toContain('lucide-thumbs-up');
+  });
+
+  it('renders compact canonical thumbs without duplicating the no-feedback subtitle', () => {
+    const markup = render(null, {
+      feedbackControls: {
+        saving: false,
+        saved: false,
+        open: false,
+        comment: '',
+        error: null,
+        onDirection: () => undefined,
+        onCommentChange: () => undefined,
+        onSaveComment: () => undefined,
+      },
+      feedbackAttribution: 'you',
+    });
+    expect(markup).toContain('aria-label="Mark answer helpful"');
+    expect(markup).toContain('aria-label="Mark answer not helpful"');
+    expect(markup).toContain('aria-label="Rate this answer"');
+    expect(markup).not.toContain('Give feedback');
+    expect(markup).not.toContain('run-kpi-subtitle">No feedback');
+  });
+
+  it('keeps a negative comment editable with saving and retry evidence', () => {
+    const markup = render('down', {
+      feedbackControls: {
+        saving: false,
+        saved: false,
+        open: true,
+        comment: 'Missing comparison.',
+        error: 'Feedback was not recorded.',
+        onDirection: () => undefined,
+        onCommentChange: () => undefined,
+        onSaveComment: () => undefined,
+      },
+      feedbackAttribution: 'you',
+    });
+    expect(markup).toContain('value="Missing comparison."');
+    expect(markup).toContain('placeholder="What could be better?"');
+    expect(markup).toContain('Save feedback');
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain('Feedback was not recorded.');
+    expect(KPI_SOURCE).toContain('feedbackInputRef.current?.focus()');
+  });
+
+  it('disables both choices while the canonical write is pending', () => {
+    const markup = render(null, {
+      feedbackControls: {
+        saving: true,
+        saved: false,
+        open: false,
+        comment: '',
+        error: null,
+        onDirection: () => undefined,
+        onCommentChange: () => undefined,
+        onSaveComment: () => undefined,
+      },
+    });
+    expect(markup.match(/disabled=""/g)).toHaveLength(2);
+    expect(markup).toContain('role="status">Saving…');
+  });
+
+  it('keeps existing feedback read-only and attributes Run Explorer feedback to this viewer', () => {
+    const existing = render('up', {
+      feedbackControls: {
+        saving: false,
+        saved: false,
+        open: false,
+        comment: '',
+        error: null,
+        onDirection: () => undefined,
+        onCommentChange: () => undefined,
+        onSaveComment: () => undefined,
+      },
+      feedbackAttribution: 'you',
+    });
+    expect(existing).toContain('Submitted by you');
+    expect(existing).not.toContain('Mark answer helpful');
+    expect(EXPLORER).toContain('const feedbackTarget = selected && validRunId(selected.id) ? selected.id : null');
+    expect(EXPLORER).toContain('feedbackAttribution="you"');
+    expect(EXPLORER).toContain('run.id === targetId ? { ...run, feedback: direction } : run');
+    expect(ANSWER).not.toContain('feedbackControls=');
+    expect(MONITORING).not.toContain('feedbackControls=');
   });
 
   it('uses only recorded tool identities for the dynamic call breakdown', () => {
@@ -118,7 +203,6 @@ describe('Run Explorer Overview KPIs', () => {
       totalTokens: null,
       promptTokens: null,
       completionTokens: null,
-      ratePath: null,
     });
     expect(markup.match(/>Not recorded</g)).toHaveLength(4);
     expect(markup).toContain('Question to final answer');
@@ -126,7 +210,7 @@ describe('Run Explorer Overview KPIs', () => {
     expect(markup).toContain('Governed tool invocations');
     expect(markup).toContain('Token usage not recorded');
     expect(markup).toContain('No feedback');
-    expect(markup.match(/run-kpi-subtitle/g)).toHaveLength(5);
+    expect(markup.match(/run-kpi-subtitle/g)).toHaveLength(4);
   });
 
   it('keeps recorded zeroes instead of turning them into missing evidence', () => {

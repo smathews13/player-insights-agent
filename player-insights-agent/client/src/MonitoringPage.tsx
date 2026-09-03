@@ -485,7 +485,7 @@ export function FilterRow({
   onOpenUsers?: () => void;
 }) {
   return (
-    <div className="monitoring-filters ast-surface-primary">
+    <div className="monitoring-filters">
       <FilterChip
         label="User"
         value={filters.person}
@@ -1202,16 +1202,11 @@ function spendFigure(amount: number, unit: 'USD' | 'DBU', currency = 'USD'): str
 
 function spendMetricFigure(
   metric: UserSpendKpi,
-  kind: 'spend' | 'percent' | 'growth',
+  kind: 'spend' | 'percent',
   unit: 'USD' | 'DBU',
   currency: string
 ): string {
-  if (metric.state === 'new') return 'New';
   if (metric.value === null) return '–';
-  if (kind === 'growth') {
-    const sign = metric.value > 0 ? '+' : '';
-    return `${sign}${metric.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
-  }
   if (kind === 'percent') return `${metric.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
   return spendFigure(metric.value, unit, currency);
 }
@@ -1225,26 +1220,15 @@ function SpendMetric({
 }: {
   label: string;
   metric: UserSpendKpi;
-  kind: 'spend' | 'percent' | 'growth';
+  kind: 'spend' | 'percent';
   unit: 'USD' | 'DBU';
   currency: string;
 }) {
-  const direction =
-    kind === 'growth' && metric.state === 'value' && metric.value !== null
-      ? metric.value > 0
-        ? 'positive'
-        : metric.value < 0
-          ? 'negative'
-          : 'flat'
-      : '';
   const figure = metric.state === 'unavailable' ? metric.subtitle : spendMetricFigure(metric, kind, unit, currency);
   return (
     <div className="user-profile-modal-spend-kpi">
       <span className="user-profile-modal-spend-kpi-label">{label}</span>
-      <strong
-        className={`user-profile-modal-spend-kpi-value ast-num${direction ? ` is-${direction}` : ''}`}
-        aria-label={`${label}: ${figure}`}
-      >
+      <strong className="user-profile-modal-spend-kpi-value ast-num" aria-label={`${label}: ${figure}`}>
         {figure}
       </strong>
       {metric.state === 'unavailable' ? null : (
@@ -1331,8 +1315,6 @@ export function PersonSpend({
           <LoadingSpendMetric label="Calculating average tokens" />
           <LoadingSpendMetric label="Calculating daily spend" />
           <LoadingSpendMetric label="Calculating share of app spend" />
-          <LoadingSpendMetric label="Calculating week over week" />
-          <LoadingSpendMetric label="Calculating month over month" />
         </div>
       </section>
     );
@@ -1414,28 +1396,6 @@ export function PersonSpend({
             label="Share of app spend"
             metric={authoritative.appShare}
             kind="percent"
-            unit={unit}
-            currency={state.status === 'ready' ? state.data.currency : ''}
-          />
-        ) : null}
-        {refreshing && (!authoritative || authoritative.weekOverWeek.state === 'unavailable') ? (
-          <LoadingSpendMetric label="Calculating week over week" />
-        ) : authoritative ? (
-          <SpendMetric
-            label="Week over week"
-            metric={authoritative.weekOverWeek}
-            kind="growth"
-            unit={unit}
-            currency={state.status === 'ready' ? state.data.currency : ''}
-          />
-        ) : null}
-        {refreshing && (!authoritative || authoritative.monthOverMonth.state === 'unavailable') ? (
-          <LoadingSpendMetric label="Calculating month over month" />
-        ) : authoritative ? (
-          <SpendMetric
-            label="Month over month"
-            metric={authoritative.monthOverMonth}
-            kind="growth"
             unit={unit}
             currency={state.status === 'ready' ? state.data.currency : ''}
           />
@@ -2360,7 +2320,7 @@ function usePanelRequest<T>(
 
 function spendPayloadFromCache(coordinates: UserSpendTotalCoordinates, cached: CachedUserSpendTotal): OpsCostPayload {
   const unavailable = { amount: null, quality: 'unavailable' as const };
-  const unavailableMetric = { value: null, state: 'unavailable' as const, subtitle: 'No comparable period' };
+  const unavailableAppShare = { value: null, state: 'unavailable' as const, subtitle: 'No comparable app total' };
   const selected = { amount: cached.amount, quality: cached.quality };
   const core = deriveCoreUserSpendMetrics({
     amount: cached.amount,
@@ -2413,10 +2373,7 @@ function spendPayloadFromCache(coordinates: UserSpendTotalCoordinates, cached: C
           costPerQuestion: core.costPerQuestion,
           averageDaily: core.averageDaily,
           averageTokens,
-          appShare: { ...unavailableMetric, subtitle: 'No comparable app total' },
-          weekOverWeek: unavailableMetric,
-          monthOverMonth: unavailableMetric,
-          comparisonFreshness: '',
+          appShare: unavailableAppShare,
         },
         components: [],
       };
@@ -2499,7 +2456,7 @@ function useUserSpendRequest(coordinates: UserSpendTotalCoordinates | null, url:
         currency: payload.currency,
         profile,
         dataRevision: spend?.dataRevision ?? 0,
-        snapshot: `${spend?.readAt ?? new Date().toISOString()}|${profile?.metrics?.comparisonFreshness ?? ''}|${spend?.identityRevision ?? ''}`,
+        snapshot: `${spend?.readAt ?? new Date().toISOString()}|${spend?.identityRevision ?? ''}`,
         seeded: false,
         complete:
           spend?.state === 'ready' &&

@@ -71,7 +71,7 @@ describe('app-wide density contract', () => {
         '.deployment-card-body',
         '.plane-card-body',
       ],
-      architecture: ['.arch-tiles li', '.arch-node', '.arch-legend li', '.arch-rail-row', '.arch-contract-row'],
+      architecture: ['.arch-loop-tiles li', '.arch-node', '.arch-legend li', '.arch-rail-row', '.arch-contract-row'],
       settings: [
         '.settings-modal-content',
         '.settings-rail button',

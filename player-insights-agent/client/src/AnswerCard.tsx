@@ -446,7 +446,6 @@ export function AnswerCard({
                   completionTokens={processTrace.completion_tokens ?? null}
                   feedback={feedback.sentiment}
                   legacyUsefulness={feedback.usefulness}
-                  ratePath={null}
                   tokenReconciliation={processTrace.token_reconciliation}
                 />
                 <TraceTimeline

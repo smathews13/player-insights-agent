@@ -124,7 +124,10 @@ describe('app budget guard UI', () => {
     expect(partial).toContain('Monthly app budget');
     expect(partial).toContain('800.00 USD');
     expect(partial).toContain('700.00 USD remaining');
-    expect(partial).toContain('Estimated');
+    expect(partial).toContain('Within budget');
+    expect(partial).not.toContain('Spent this calendar month');
+    expect(partial).not.toMatch(/>Estimated</);
+    expect(partial).toContain('enforcement remains fail-open until coverage is complete');
     expect(partial).toContain('aria-live="polite"');
 
     const complete = renderToStaticMarkup(
@@ -140,11 +143,12 @@ describe('app budget guard UI', () => {
   });
 
   it.each([
-    [79, 'normal'],
-    [80, 'warning'],
+    [10, 'normal'],
+    [79, 'danger'],
+    [80, 'danger'],
     [100, 'danger'],
     [120, 'danger'],
-  ] as const)('colors complete MTD spend %s by the shared guardrails', (measured, tone) => {
+  ] as const)('colors complete MTD spend %s by budget status and pacing', (measured, tone) => {
     expect(monthlyBudgetProgress(status('below', { measured, budget: 100 }), 100, 'USD')?.tone).toBe(tone);
   });
 
@@ -160,7 +164,8 @@ describe('app budget guard UI', () => {
       900,
       'USD'
     );
-    expect(crossing?.pace).toBe('8 days until budget exceeded');
+    expect(crossing?.pace).toBe('Will exceed budget in 8 days');
+    expect(crossing?.tone).toBe('danger');
     expect(
       monthlyBudgetProgress(
         status('below', {
@@ -173,7 +178,7 @@ describe('app budget guard UI', () => {
         900,
         'USD'
       )?.pace
-    ).toBe('Not projected to exceed this month');
+    ).toBe('Within budget');
     expect(monthlyBudgetProgress(status('unavailable/partial'), 100, 'USD')?.estimated).toBe(true);
     expect(
       monthlyBudgetProgress(status('unavailable/partial', { measured: null, coverage: 'unavailable' }), 100, 'USD')
@@ -198,7 +203,7 @@ describe('app budget guard UI', () => {
       coverage: 'partial',
       displayMtdSpend: {
         USD: {
-          amount: 180,
+          amount: 36.87,
           budget: 900,
           coverage: 'partial',
           sourceThrough: '2026-09-15',
@@ -208,12 +213,13 @@ describe('app budget guard UI', () => {
     const markup = renderToStaticMarkup(<SavedAppBudgetSummary savedBudget={900} unit="USD" status={production} />);
     expect(markup).toContain('Monthly app budget');
     expect(markup).toContain('900.00 USD');
-    expect(markup).toContain('720.00 USD remaining');
-    expect(markup).toContain('Estimated');
+    expect(markup).toContain('863.13 USD remaining');
+    expect(markup).not.toMatch(/>Estimated</);
+    expect(markup).not.toContain('Spent this calendar month');
     expect(markup).not.toContain('764.51 USD remaining');
-    expect(markup.indexOf('900.00 USD')).toBeLessThan(markup.indexOf('720.00 USD remaining'));
-    expect(markup.indexOf('720.00 USD remaining')).toBeLessThan(markup.indexOf('Not projected to exceed this month'));
-    expect(monthlyBudgetProgress(production, 1_000, 'USD')?.balance).toBe('820.00 USD remaining');
+    expect(markup.indexOf('900.00 USD')).toBeLessThan(markup.indexOf('863.13 USD remaining'));
+    expect(markup.indexOf('863.13 USD remaining')).toBeLessThan(markup.indexOf('Within budget'));
+    expect(monthlyBudgetProgress(production, 1_000, 'USD')?.balance).toBe('963.13 USD remaining');
   });
 
   it.each([
@@ -226,7 +232,7 @@ describe('app budget guard UI', () => {
       500,
       'USD'
     );
-    expect(view?.pace).toBe('Not projected to exceed this month');
+    expect(view?.pace).toBe('Within budget');
   });
 
   it('preserves the composer draft and optimistic conversation on a raced server rejection', () => {

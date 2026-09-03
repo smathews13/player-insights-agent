@@ -17,8 +17,6 @@ import {
   nodeContentAge,
   nodeReport,
   nodeValue,
-  semanticEndpointState,
-  semanticIndexState,
   staleContent,
 } from './architecture';
 import {
@@ -29,7 +27,6 @@ import {
 } from './semantic-freshness';
 import { NODE_FAMILY } from './architecture-view';
 import { readConnections, readingsById, type ResourceRow, type SettingsPayload } from './connection-model';
-import { CONNECTION_STATUS_LABEL } from './connection-status';
 import { ENTITY_PARAM, entityHref } from './data-entities';
 import { CONNECTED_RESOURCES, connectedResource } from '../../shared/deployment-config';
 import type { PreflightCheck } from './preflight';
@@ -145,63 +142,42 @@ describe('nothing on the page is a figure that was not read', () => {
   });
 });
 
-describe('a check that did not run is not a component that is broken', () => {
-  it('reads an unverified check as not checked, never as blocked', () => {
-    const unverified = { id: 'warehouse', status: 'unverified', name: '' } as unknown as PreflightCheck;
-    const resource = connectedResource('sql-warehouse')!;
-    const readings = readingsById(
-      readConnections(payload([row('sql-warehouse')]), [{ ...unverified, id: resource.actualFromCheck! }])
-    );
-    const report = nodeReport(
-      ARCHITECTURE_NODES.find((node) => node.id === 'sql-warehouse')!,
-      readings.get('sql-warehouse')
-    );
-    expect(report.tone).toBe('not-checked');
-    expect(report.label).not.toMatch(/blocked/i);
-    expect(report.note).not.toMatch(/fail|broken|missing/i);
-  });
-
-  it('starts every dependency at not checked on a page load that probed nothing', () => {
-    // The cheap read is the default, so this is what the diagram says most of
-    // the time it is looked at. It must not resolve to a green graph.
-    for (const node of ARCHITECTURE_NODES) {
-      if (node.presence !== 'connection') continue;
-      const report = nodeReport(node, undefined);
-      expect(report.tone, node.id).toBe('not-checked');
-      expect(report.label, node.id).toBe('Not checked');
+describe('every remote node has one binary operational connection state', () => {
+  it('maps success to Connected and every other detailed outcome to Not connected', () => {
+    const node = ARCHITECTURE_NODES.find((candidate) => candidate.id === 'sql-warehouse')!;
+    for (const [status, expected] of [
+      ['reachable', 'Connected'],
+      ['blocked', 'Not connected'],
+      ['refused', 'Not connected'],
+      ['unreachable', 'Not connected'],
+      ['not-checked', 'Not connected'],
+      ['nothing-to-reach', 'Not connected'],
+    ] as const) {
+      const report = nodeReport(node, {
+        status,
+        marker: 'none',
+        summary: { value: '', measured: false },
+      } as never);
+      expect(report.label, status).toBe(expected);
+      expect(report.tone, status).toBe(expected === 'Connected' ? 'connected' : 'not-connected');
     }
   });
 
-  it('keeps not-checked, blocked and nothing-to-reach three different words', () => {
-    const words = ['not-checked', 'blocked', 'nothing-to-reach'].map(
-      (status) =>
-        nodeReport({ ...ARCHITECTURE_NODES[2], presence: 'connection' }, {
-          status,
-          marker: 'none',
-          summary: { value: '', measured: false },
-        } as never).label
-    );
-    expect(new Set(words).size).toBe(3);
-    expect(words).toEqual(['Not checked', 'Blocked', 'Nothing to reach']);
+  it('starts every remote dependency at Not connected while the automatic run is pending', () => {
+    for (const node of ARCHITECTURE_NODES) {
+      if (node.presence !== 'connection') continue;
+      const report = nodeReport(node, undefined);
+      expect(report.tone, node.id).toBe('not-connected');
+      expect(report.label, node.id).toBe('Not connected');
+    }
   });
 
-  it('does not colour a node it has not checked', () => {
-    // Only the two statuses a probe actually established take a colour. The
-    // other four are neutral, which is the treatment the Connections page gives
-    // the same statuses -- an unrun check is not a finding, and tinting it would
-    // make the page look like it had found four problems on a clean load.
-    //
-    // Read off the tone-to-family map rather than off the stylesheet, because
-    // the per-tone rules the page used to carry are gone: the pills compose the
-    // one shared recipe now, and the map is where a node's tone becomes a
-    // colour. A tinted family here is the only way a node can be coloured.
-    const tinted = Object.entries(NODE_FAMILY)
-      .filter(([, family]) => family !== 'neutral-outline' && family !== 'neutral')
-      .map(([tone]) => tone);
-    expect(new Set(tinted)).toEqual(new Set(['reachable', 'blocked']));
-    // And the two that ARE tinted take the families their words mean.
-    expect(NODE_FAMILY.reachable).toBe('pos');
-    expect(NODE_FAMILY.blocked).toBe('neg');
+  it('uses green and red only for the two connection states', () => {
+    expect(NODE_FAMILY).toEqual({
+      connected: 'pos',
+      'not-connected': 'neg',
+      local: 'neutral-outline',
+    });
   });
 });
 
@@ -253,7 +229,8 @@ describe('the optional component reports which of its three states it is in', ()
   it('reads a release with no index as a deployment, not as a gap', () => {
     const report = nodeReport(node, indexReading({ configuredFrom: 'artifact' }));
     expect(report.note).toBe(SEMANTIC_INDEX_ABSENT);
-    expect(report.tone).toBe('nothing-to-reach');
+    expect(report.tone).toBe('not-connected');
+    expect(report.label).toBe('Not connected');
     // The distinction this test exists for: not the sentence about being unable
     // to see, which was what every release used to get.
     expect(report.note).not.toMatch(/unknown|cannot see|does not report/i);
@@ -262,9 +239,10 @@ describe('the optional component reports which of its three states it is in', ()
   it('separates a version too old to report it from one that reported none', () => {
     const report = nodeReport(node, indexReading({ configuredFrom: '' }));
     expect(report.note).toBe(SEMANTIC_INDEX_UNREPORTED);
-    expect(report.tone).toBe('unreadable');
+    expect(report.tone).toBe('not-connected');
+    expect(report.label).toBe('Not connected');
     expect(report.note).toMatch(/does not mean there is no index/);
-    expect(report.label).not.toMatch(/reachable|blocked/i);
+    expect(report.label).toBe('Not connected');
   });
 
   it('shows the index it searches, graded like any other connection, when there is one', () => {
@@ -368,8 +346,8 @@ describe('the semantic lane is two objects, and one can fail without the other',
     const { index, endpoint } = reports({ index: { configuredFrom: 'artifact' } });
     expect(index.note).toBe(SEMANTIC_INDEX_ABSENT);
     expect(endpoint.note).toBe(SEMANTIC_ENDPOINT_NO_INDEX);
-    expect(index.tone).toBe('nothing-to-reach');
-    expect(endpoint.tone).toBe('nothing-to-reach');
+    expect(index.tone).toBe('not-connected');
+    expect(endpoint.tone).toBe('not-connected');
     // Not a fault on either card, and not a claim that a probe was refused.
     for (const report of [index, endpoint]) {
       expect(report.note).not.toMatch(/unknown|cannot see|does not report|refus/i);
@@ -380,19 +358,18 @@ describe('the semantic lane is two objects, and one can fail without the other',
     const { index, endpoint } = reports({ index: { configuredFrom: '' } });
     expect(index.note).toBe(SEMANTIC_INDEX_UNREPORTED);
     expect(endpoint.note).toBe(SEMANTIC_ENDPOINT_UNREPORTED);
-    expect(index.tone).toBe('unreadable');
-    expect(endpoint.tone).toBe('unreadable');
+    expect(index.tone).toBe('not-connected');
+    expect(endpoint.tone).toBe('not-connected');
     expect(index.note).not.toBe(SEMANTIC_INDEX_ABSENT);
     expect(endpoint.note).not.toBe(SEMANTIC_ENDPOINT_NO_INDEX);
   });
 
-  it('says nobody has looked yet, rather than that there is nothing to look at', () => {
-    // The state the page opens in on a deployment that does search an index.
+  it('keeps both remote semantic nodes red until successful probes land', () => {
     const { index, endpoint } = reports({ index: CONFIGURED });
-    expect(index.label).toBe(CONNECTION_STATUS_LABEL['not-checked']);
-    expect(endpoint.label).toBe(CONNECTION_STATUS_LABEL['not-checked']);
-    expect(index.tone).toBe('not-checked');
-    expect(endpoint.tone).toBe('not-checked');
+    expect(index.label).toBe('Not connected');
+    expect(endpoint.label).toBe('Not connected');
+    expect(index.tone).toBe('not-connected');
+    expect(endpoint.tone).toBe('not-connected');
   });
 
   it('grades each object on its own check once the checks have run', () => {
@@ -400,8 +377,8 @@ describe('the semantic lane is two objects, and one can fail without the other',
       index: CONFIGURED,
       checks: [check(INDEX, 'ok', 'a_catalog.a_schema.an_index'), check(ENDPOINT, 'ok', 'an-endpoint')],
     });
-    expect(both.index.label).toBe(CONNECTION_STATUS_LABEL.reachable);
-    expect(both.endpoint.label).toBe(CONNECTION_STATUS_LABEL.reachable);
+    expect(both.index.label).toBe('Connected');
+    expect(both.endpoint.label).toBe('Connected');
   });
 
   /**
@@ -413,10 +390,10 @@ describe('the semantic lane is two objects, and one can fail without the other',
       index: CONFIGURED,
       checks: [check(INDEX, 'ok', 'a_catalog.a_schema.an_index'), check(ENDPOINT, 'failed')],
     });
-    expect(index.label).toBe(CONNECTION_STATUS_LABEL.reachable);
-    expect(endpoint.label).toBe(CONNECTION_STATUS_LABEL.blocked);
-    expect(index.tone).toBe('reachable');
-    expect(endpoint.tone).toBe('blocked');
+    expect(index.label).toBe('Connected');
+    expect(endpoint.label).toBe('Not connected');
+    expect(index.tone).toBe('connected');
+    expect(endpoint.tone).toBe('not-connected');
   });
 
   it('does not blame the endpoint for an index that was refused', () => {
@@ -424,21 +401,18 @@ describe('the semantic lane is two objects, and one can fail without the other',
     // leaves the endpoint unasked -- which is not the same as unhealthy, and not
     // the same as nobody having pressed the button.
     const { index, endpoint } = reports({ index: CONFIGURED, checks: [check(INDEX, 'failed')] });
-    expect(index.label).toBe(CONNECTION_STATUS_LABEL.blocked);
-    expect(endpoint.label).toBe(CONNECTION_STATUS_LABEL['not-checked']);
-    expect(endpoint.tone).toBe('not-checked');
+    expect(index.label).toBe('Not connected');
+    expect(endpoint.label).toBe('Not connected');
+    expect(endpoint.tone).toBe('not-connected');
     expect(endpoint.note).toBe(SEMANTIC_ENDPOINT_UNNAMED);
   });
 
   /**
-   * Distinct WITHIN a card, which is the claim that matters and is not the same
-   * as distinct across both. "Reachable" means the same thing on either card and
-   * is deliberately the same word -- the status vocabulary is shared, and giving
-   * this lane its own synonyms is how a second vocabulary starts. What may never
-   * collapse is two states of ONE object reading alike, because that is the
-   * reader mistaking a deployment that has no index for one nobody has asked.
+   * Detailed reasons remain distinct even though the primary badge is binary.
+   * The index can be absent, unreported, pending, healthy, or failed without
+   * creating a third connection state.
    */
-  it('keeps the index\u2019s five states apart, so no two of them read the same', () => {
+  it('keeps detailed index reasons while using one failed connection badge', () => {
     const cases = [
       reports({ index: { configuredFrom: 'artifact' } }).index, // no index at all
       reports({ index: { configuredFrom: '' } }).index, // the version did not say
@@ -446,10 +420,17 @@ describe('the semantic lane is two objects, and one can fail without the other',
       reports({ index: CONFIGURED, checks: [check(INDEX, 'ok', 'an_index')] }).index,
       reports({ index: CONFIGURED, checks: [check(INDEX, 'failed')] }).index,
     ];
-    expect(new Set(cases.map((report) => `${report.label}|${report.note}`)).size).toBe(cases.length);
+    expect(cases.map((report) => report.label)).toEqual([
+      'Not connected',
+      'Not connected',
+      'Not connected',
+      'Connected',
+      'Not connected',
+    ]);
+    expect(new Set(cases.map((report) => report.note)).size).toBeGreaterThan(2);
   });
 
-  it('keeps the endpoint\u2019s states apart too, including its two kinds of unchecked', () => {
+  it('keeps detailed endpoint reasons while using binary connection badges', () => {
     const online = [check(INDEX, 'ok', 'an_index')];
     const cases = [
       reports({ index: { configuredFrom: 'artifact' } }).endpoint, // nothing to serve
@@ -459,7 +440,15 @@ describe('the semantic lane is two objects, and one can fail without the other',
       reports({ index: CONFIGURED, checks: [...online, check(ENDPOINT, 'ok', 'an-endpoint')] }).endpoint,
       reports({ index: CONFIGURED, checks: [...online, check(ENDPOINT, 'failed')] }).endpoint,
     ];
-    expect(new Set(cases.map((report) => `${report.label}|${report.note}`)).size).toBe(cases.length);
+    expect(cases.map((report) => report.label)).toEqual([
+      'Not connected',
+      'Not connected',
+      'Not connected',
+      'Not connected',
+      'Connected',
+      'Not connected',
+    ]);
+    expect(new Set(cases.map((report) => report.note)).size).toBeGreaterThan(2);
   });
 
   it('shows the endpoint name the workspace reported, since nothing configures it', () => {
@@ -487,8 +476,8 @@ describe('the semantic lane is two objects, and one can fail without the other',
     expect(lines.some((line) => line.startsWith('Vector Search index:'))).toBe(true);
     expect(lines.some((line) => line.startsWith('Vector Search endpoint:'))).toBe(true);
     // And the two are graded differently in the words, not only in the pills.
-    expect(lines.find((line) => line.startsWith('Vector Search index:'))).toContain(CONNECTION_STATUS_LABEL.reachable);
-    expect(lines.find((line) => line.startsWith('Vector Search endpoint:'))).toContain(CONNECTION_STATUS_LABEL.blocked);
+    expect(lines.find((line) => line.startsWith('Vector Search index:'))).toContain('Connected');
+    expect(lines.find((line) => line.startsWith('Vector Search endpoint:'))).toContain('Not connected');
     expect(lines).toContain(
       'Vector Search endpoint and Vector Search index: The Vector Search endpoint hosts the index and provides its serving compute. This is not query flow.'
     );
@@ -608,11 +597,11 @@ describe('an index that answers is not an index that is current', () => {
     expect(age('ok', { content_at: new Date(NOW - REBUILD_INTERVAL_HOURS * HOUR).toISOString() })?.state).toBe('fresh');
   });
 
-  it('leaves the status word alone, so stale and unreachable stay different faults', () => {
+  it('leaves the connection badge alone, so stale content remains a secondary fact', () => {
     const reading = indexReading('ok', { content_at: new Date(NOW - 5 * 24 * HOUR).toISOString() });
     const report = nodeReport(architectureNode(INDEX)!, reading, reading);
-    expect(report.label).toBe(CONNECTION_STATUS_LABEL.reachable);
-    expect(report.tone).toBe('reachable');
+    expect(report.label).toBe('Connected');
+    expect(report.tone).toBe('connected');
     // The fault is on the second pill and in its own words.
     expect(nodeContentAge(architectureNode(INDEX)!, reading, NOW)?.label).toMatch(/stale/i);
     expect(report.note).not.toMatch(/stale/i);
@@ -735,14 +724,12 @@ describe('Architecture cannot know less about the semantic lane than Connections
       for (const id of ['semantic-index', 'semantic-index-endpoint']) {
         const reading = readings.get(id)!;
         expect(nodeReport(architectureNode(id)!, reading, readings.get('semantic-index')).label, id).toBe(
-          CONNECTION_STATUS_LABEL[reading.status]
+          reading.status === 'reachable' ? 'Connected' : 'Not connected'
         );
       }
     }
-    // And with nothing read at all, both say so rather than falling to a state
-    // that means something was established.
-    expect(semanticIndexState(undefined)).toBe('not-checked');
-    expect(semanticEndpointState(undefined, undefined)).toBe('not-checked');
+    expect(nodeReport(architectureNode('semantic-index')!, undefined).label).toBe('Not connected');
+    expect(nodeReport(architectureNode('semantic-index-endpoint')!, undefined).label).toBe('Not connected');
   });
 });
 

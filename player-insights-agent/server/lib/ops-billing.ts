@@ -438,7 +438,18 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
   const leakPredicate = resourcePredicates.length > 0 ? resourcePredicates.join('\n     OR ') : 'FALSE';
 
   const requestedComponents = covered.map((component) => `('${component}')`).join(',\n    ');
-  const statement = `WITH requested_components(component) AS (
+  const deploymentStart = ids.appName
+    ? `SELECT COALESCE(MIN(u.usage_date), :from_day) AS source_from
+  FROM system.billing.usage u
+  WHERE u.workspace_id = :workspaceId
+    AND u.billing_origin_product = 'APPS'
+    AND u.usage_metadata.app_name = :appName
+    AND u.usage_date <= :to_day`
+    : 'SELECT :from_day AS source_from';
+  const statement = `WITH deployment_start AS (
+  ${deploymentStart}
+),
+requested_components(component) AS (
   VALUES
     ${requestedComponents}
 ),
@@ -464,7 +475,7 @@ ${branches.join('\n')}
       ELSE NULL
     END AS component
   FROM system.billing.usage u
-  WHERE u.usage_date >= :from_day
+  WHERE u.usage_date >= GREATEST(:from_day, (SELECT source_from FROM deployment_start))
     AND u.usage_date <= :to_day
     AND u.workspace_id = :workspaceId
     AND u.billing_origin_product <> 'JOBS'
@@ -561,6 +572,7 @@ SELECT
       THEN GREATEST(0, UNIX_MILLIS(priced.usage_end_time) - UNIX_MILLIS(priced.usage_start_time)) / 1000.0
       ELSE 0 END
   ), 0) AS billed_seconds
+  , MIN(priced.usage_date) AS source_from
 FROM requested_components requested
 LEFT JOIN priced ON priced.component = requested.component
 GROUP BY requested.component
@@ -600,6 +612,7 @@ SELECT
       THEN GREATEST(0, UNIX_MILLIS(usage_end_time) - UNIX_MILLIS(usage_start_time)) / 1000.0
       ELSE 0 END
   ), 0) AS billed_seconds
+  , MIN(usage_date) AS source_from
 FROM priced
 GROUP BY billing_origin_product
 UNION ALL
@@ -632,6 +645,7 @@ SELECT
       THEN GREATEST(0, UNIX_MILLIS(usage_end_time) - UNIX_MILLIS(usage_start_time)) / 1000.0
       ELSE 0 END
   ), 0) AS billed_seconds
+  , COALESCE(MIN(CASE WHEN component = 'app-compute' THEN usage_date END), MIN(usage_date)) AS source_from
 FROM priced
 UNION ALL
 SELECT
@@ -660,9 +674,10 @@ SELECT
   CAST(0 AS BIGINT) AS usage_unit_count,
   CAST(0 AS DOUBLE) AS dbu_quantity,
   CAST(0 AS BIGINT) AS dbu_rows,
-  CAST(0 AS DOUBLE) AS billed_seconds
+  CAST(0 AS DOUBLE) AS billed_seconds,
+  MIN(u.usage_date) AS source_from
 FROM system.billing.usage u
-WHERE u.usage_date >= :from_day
+WHERE u.usage_date >= GREATEST(:from_day, (SELECT source_from FROM deployment_start))
   AND u.usage_date <= :to_day
   AND u.workspace_id = :workspaceId
   AND u.billing_origin_product <> 'JOBS'
@@ -701,6 +716,8 @@ export interface ComponentRow {
   dbuRows?: number;
   /** Sum of this component's priced billing intervals, used only as a duration denominator. */
   billedSeconds?: number;
+  /** Earliest authoritative matching billing day represented by this row. */
+  firstDay?: string;
 }
 
 function emptyRow(kind: ComponentRow['kind'], component: string): ComponentRow {
@@ -804,6 +821,7 @@ export function readComponentRows(dataArray: unknown): ComponentRow[] {
         dbuQuantity,
         dbuRows,
         billedSeconds,
+        firstDay,
       ] = cells;
       if (typeof component !== 'string' || typeof kind !== 'string') continue;
       rows.push({
@@ -830,6 +848,7 @@ export function readComponentRows(dataArray: unknown): ComponentRow[] {
         dbuQuantity: asCount(dbuQuantity),
         ...(dbuRows === undefined ? {} : { dbuRows: asCount(dbuRows) }),
         ...(billedSeconds === undefined ? {} : { billedSeconds: asCount(billedSeconds) }),
+        ...(firstDay === undefined ? {} : { firstDay: typeof firstDay === 'string' ? firstDay : '' }),
       });
       continue;
     }
@@ -1298,7 +1317,11 @@ function genieAccountingTiles(
       resourceId: instance.spaceId,
       resourceKind: 'genie-space',
       quality:
-        instance.paidUsd === null ? 'unknown' : instance.attribution.endsWith('-allocation') ? 'estimate' : 'real',
+        instance.paidUsd === null
+          ? 'unknown'
+          : instance.pricingState === 'partial' || instance.attribution.endsWith('-allocation')
+            ? 'estimate'
+            : 'real',
       amount: instance.paidUsd,
       dbus: instance.chargedEffectiveDbus,
       basis: 'total-in-range',

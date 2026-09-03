@@ -1,4 +1,9 @@
-import type { SpIdentityAdminPayload, SpPersonaDefinition, SpPersonaDefinitionWrite } from '../../shared/sp-identity';
+import type {
+  SpIdentityAdminPayload,
+  SpPersonaConnectionWrite,
+  SpPersonaDefinition,
+  SpPersonaDefinitionWrite,
+} from '../../shared/sp-identity';
 import type { Role, RosterPayload } from '../../shared/user-roster-contract';
 
 export const EMPTY_SP_IDENTITY: SpIdentityAdminPayload = {
@@ -91,6 +96,39 @@ export async function deleteSpPersonaDefinition(id: string): Promise<void> {
     const body = (await response.json().catch(() => null)) as { detail?: string } | null;
     throw new Error(serverDetail(body, `Removing the persona configuration answered ${response.status}.`));
   }
+}
+
+async function payloadMutation(response: Response, fallback: string): Promise<SpIdentityAdminPayload> {
+  const body = (await response.json().catch(() => null)) as {
+    payload?: SpIdentityAdminPayload;
+    detail?: string;
+  } | null;
+  if (!response.ok) throw new Error(serverDetail(body, fallback));
+  if (!body?.payload) throw new Error('The identity update returned no refreshed status.');
+  return body.payload;
+}
+
+export async function connectSpPersonaDefinition(
+  id: string,
+  write: SpPersonaConnectionWrite
+): Promise<SpIdentityAdminPayload> {
+  return payloadMutation(
+    await fetch(`/api/admin/sp-identity/persona-definitions/${encodeURIComponent(id)}/connection`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(write),
+    }),
+    'The service-principal connection reference was not saved.'
+  );
+}
+
+export async function checkSpPersonaDefinitionStatus(id: string): Promise<SpIdentityAdminPayload> {
+  return payloadMutation(
+    await fetch(`/api/admin/sp-identity/persona-definitions/${encodeURIComponent(id)}/status-check`, {
+      method: 'POST',
+    }),
+    'The service-principal status check did not complete.'
+  );
 }
 
 export type HumanRosterFailure =

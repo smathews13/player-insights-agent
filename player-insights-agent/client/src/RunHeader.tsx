@@ -141,18 +141,9 @@ export function RunHeader({
             )}
             {canEdit ? (
               <>
-                <button
-                  type="button"
-                  className="run-header-edit"
-                  aria-label="Edit run labels"
-                  aria-expanded={editing}
-                  onClick={() => setEditing((open) => !open)}
-                >
-                  <Pencil aria-hidden="true" />
-                </button>
-                {/* After the pencil, on this row: app dropdowns while editing,
-                    chips in that same slot when not, so the rail never grows a
-                    second form row. */}
+                {/* Outcome and feedback occupy the same slot as their editors.
+                    The edit toggle is always the final control, so the normal
+                    reading order stays metadata, status, feedback, then edit. */}
                 {editing ? (
                   <RunHeaderLabelEditor
                     outcome={railOutcomeValue(displayedStatus)}
@@ -168,6 +159,15 @@ export function RunHeader({
                     legacyUsefulness={run.rating}
                   />
                 )}
+                <button
+                  type="button"
+                  className="run-header-edit"
+                  aria-label="Edit run labels"
+                  aria-expanded={editing}
+                  onClick={() => setEditing((open) => !open)}
+                >
+                  <Pencil aria-hidden="true" />
+                </button>
               </>
             ) : (
               <OutcomeFeedbackChips

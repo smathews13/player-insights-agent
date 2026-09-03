@@ -61,14 +61,17 @@ describe('Genie billing classification', () => {
     expect(built?.statement).toContain('allocation_weight');
     expect(built?.statement).toContain('LEFT JOIN system.billing.list_prices');
     expect(built?.statement).toContain(`usage.sku_name <> '${GENIE_FREE_SKU}' AND usage.sku_name = p.sku_name`);
-    expect(built?.statement).toContain("LIKE '%SERVERLESS_REAL_TIME_INFERENCE%'");
+    expect(built?.statement).toContain("LIKE 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_%'");
     expect(built?.statement).toContain("UPPER(p.currency_code) = 'USD'");
     expect(built?.statement).toContain('usage.cloud = p.cloud');
     expect(built?.statement).toContain('usage.usage_end_time >= p.price_start_time');
     expect(built?.statement).toContain('COUNT(DISTINCT CASE WHEN unit_price IS NOT NULL');
     expect(built?.statement).toContain('observed_paid_skus');
+    expect(built?.statement).toContain('workspace_regional_skus');
+    expect(built?.statement).toContain('free_price_skus');
     expect(built?.statement).toContain('DATE_ADD(:through_day, -180)');
-    expect(built?.statement).toContain("UPPER(p.sku_name) = 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_REGION'");
+    expect(built?.statement).not.toContain("UPPER(p.sku_name) = 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_REGION'");
+    expect(built?.statement).not.toContain("UPPER(p.sku_name) LIKE '%SERVERLESS_REAL_TIME_INFERENCE%'");
     expect(built?.statement).toContain(`WHEN sku_name = '${GENIE_FREE_SKU}' THEN CAST(0 AS DOUBLE)`);
     expect(built?.statement).toContain('SUM(allocation_weight) AS source_rows');
     expect(built?.statement).toContain('AS free_equivalent_usd');
@@ -419,6 +422,37 @@ describe('Genie billing classification', () => {
     expect(result.paidUsd).toBeNull();
     expect(result.pricingState).toBe('unpriced');
     expect(result.reconciliation?.classificationDifferenceDbus).toBe(0);
+  });
+
+  it('keeps a known charged USD subtotal when other charged rows are unpriced', () => {
+    const result = classifyGenieAccounting(
+      [
+        row({
+          spaceId: 'space-data',
+          attributionMethod: 'query-history-exact',
+          skuName: 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_US_EAST_N_VIRGINIA',
+          dbus: 10,
+          paidUsd: 0.7,
+          pricedRows: 1,
+        }),
+        row({
+          spaceId: 'space-data',
+          attributionMethod: 'query-history-exact',
+          skuName: 'NEW_REGIONAL_PAID_SKU',
+          dbus: 5,
+          paidUsd: null,
+          pricedRows: 0,
+          unpricedRows: 1,
+        }),
+      ],
+      '2026-09-01',
+      SPACES
+    );
+    expect(result.instances?.[0]).toMatchObject({
+      chargedEffectiveDbus: 15,
+      paidUsd: 0.7,
+      pricingState: 'partial',
+    });
   });
 
   it('withholds malformed rows instead of converting them to zero', () => {

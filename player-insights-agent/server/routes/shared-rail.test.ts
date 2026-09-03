@@ -517,6 +517,26 @@ describe('what the flag deliberately does not widen', () => {
     expect(write?.params[2]).toBe('alice@example.example');
     expect(write?.params[5]).toBe(false);
   });
+
+  it("binds an admin's shared-run feedback to the current viewer, not to the asker", async () => {
+    const store = recordingStore('admin');
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+    try {
+      await app.fetch('/api/feedback', {
+        method: 'POST',
+        headers: { ...asAlice, 'content-type': 'application/json' },
+        body: JSON.stringify({ messageId: 'msg-bob', sentiment: 'down', comment: 'Missing detail.' }),
+      });
+    } finally {
+      await app.close();
+    }
+    const write = store.queries.find((entry) => /INSERT INTO player_insights\.feedback/i.test(entry.sql));
+    expect(write?.params[2]).toBe('alice@example.example');
+    expect(write?.params[3]).toBe('down');
+    expect(write?.params[4]).toBe('Missing detail.');
+    expect(write?.params[5]).toBe(true);
+  });
 });
 
 describe('what the app says about itself at boot', () => {

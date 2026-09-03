@@ -471,8 +471,31 @@ html body[data-scroll-locked] {
   padding-right: 8px;
   overflow: hidden;
 }
+.run-filter-trigger {
+  cursor: pointer;
+}
+.run-filter-trigger:is(:hover, [data-state='open']):not(:disabled):not([data-disabled]) {
+  border-color: var(--ast-blue);
+  background: var(--db-hover-tint);
+  color: var(--ast-text);
+}
+.run-filter-trigger[data-state='open']:not(:disabled):not([data-disabled]) {
+  background: var(--db-selected-tint);
+}
+.run-filter-trigger:focus-visible {
+  border-color: var(--ast-blue);
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
+  color: var(--ast-text);
+}
+.run-filter-trigger:is(:disabled, [data-disabled]) {
+  color: var(--ast-text-secondary);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 .run-list-filters [data-slot='select-trigger'] > svg {
   flex: none;
+  color: currentColor;
 }
 .run-filter-label {
   display: block;
@@ -486,9 +509,30 @@ html body[data-scroll-locked] {
   width: max-content;
   max-width: min(30rem, calc(100vw - 24px));
   max-height: min(22rem, var(--radix-select-content-available-height));
+  border: 1px solid var(--ast-border-input);
+  background: var(--background);
+  color: var(--ast-text);
+  backdrop-filter: none;
 }
 .run-filter-menu [data-slot='select-item'] {
   max-width: 100%;
+  border-radius: var(--radius-sm);
+  color: var(--ast-text-long);
+  cursor: pointer;
+}
+.run-filter-menu [data-slot='select-item'][data-highlighted] {
+  background: var(--db-hover-tint);
+  color: var(--ast-text);
+}
+.run-filter-menu [data-slot='select-item'][data-state='checked'] {
+  background: var(--db-selected-tint);
+  color: var(--ast-info-text);
+  font-weight: 500;
+}
+.run-filter-menu [data-slot='select-item'][data-disabled] {
+  color: var(--ast-text-secondary);
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 /* The search field's leading icon sits in the field rather than beside it, so
    the 340px column spends none of its width on a second box. */
@@ -1047,6 +1091,7 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   border-radius: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
+  overflow: visible;
 }
 .run-detail [data-slot='tabs-trigger'] {
   flex: none;
@@ -1062,6 +1107,24 @@ button.run-context-badge:not(.conversation-context-badge):hover {
      copy with a line under one word. */
   font-size: var(--ast-fs-13);
   color: var(--ast-text-secondary);
+  cursor: pointer;
+}
+.run-detail [data-slot='tabs-trigger'][data-state='inactive']:hover:not(:disabled):not([data-disabled]) {
+  border-bottom-color: var(--ast-border-input);
+  background: var(--db-hover-tint);
+  color: var(--ast-text);
+}
+.run-detail [data-slot='tabs-trigger']:focus-visible {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
+  color: var(--ast-text);
+}
+.run-detail [data-slot='tabs-trigger']:is(:disabled, [data-disabled]) {
+  border-bottom-color: transparent;
+  background: transparent;
+  color: var(--ast-text-secondary);
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 /*
  * The view you are in: the one blue, on the type and on the 2px rule under it.
@@ -1076,6 +1139,25 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   background: transparent;
   color: var(--ast-blue);
   font-weight: 500;
+}
+.run-detail [data-slot='tabs-trigger'][data-state='active']:hover {
+  border-bottom-color: var(--ast-blue);
+  background: transparent;
+  color: var(--ast-blue);
+}
+
+@media (forced-colors: active) {
+  .run-list-filters [data-slot='select-trigger']:is(:hover, :focus-visible, [data-state='open']),
+  .run-detail [data-slot='tabs-trigger']:is(:hover, :focus-visible) {
+    border-color: Highlight;
+    color: Highlight;
+  }
+  .run-filter-menu [data-slot='select-item']:is([data-highlighted], [data-state='checked']) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+    color: HighlightText;
+    background: Highlight;
+  }
 }
 
 /*
@@ -1158,10 +1240,6 @@ button.run-context-badge:not(.conversation-context-badge):hover {
 .run-explorer .summary-grid strong.tile-absent {
   color: var(--muted-foreground);
 }
-.run-explorer .summary-grid .tile-link {
-  color: var(--primary);
-  font-weight: 500;
-}
 .run-explorer .summary-grid .run-rating-badge--kpi {
   gap: 8px;
   min-width: 0;
@@ -1193,6 +1271,41 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   background: transparent;
   color: var(--muted-foreground);
   padding-inline: 0;
+}
+.run-kpi-feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.run-kpi-feedback-actions [data-slot='button'] {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+}
+.run-kpi-feedback-actions [data-slot='button'] svg {
+  width: 14px;
+  height: 14px;
+}
+.run-kpi-feedback-comment {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+.run-kpi-feedback-comment [data-slot='input'] {
+  min-width: 0;
+}
+.run-kpi-feedback-comment [data-slot='button'] {
+  white-space: nowrap;
+}
+.run-kpi-feedback-error {
+  color: var(--destructive) !important;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 /*

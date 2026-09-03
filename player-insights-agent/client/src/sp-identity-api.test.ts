@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
+  checkSpPersonaDefinitionStatus,
+  connectSpPersonaDefinition,
   createSpPersonaDefinition,
   deleteSpPersonaDefinition,
   EMPTY_SP_IDENTITY,
@@ -85,6 +87,30 @@ describe('credential-free persona configuration API', () => {
     expect(fetch).toHaveBeenCalledWith('/api/admin/sp-identity/persona-definitions/definition-1', {
       method: 'DELETE',
     });
+  });
+
+  it('stores only secret references and checks status without accepting a token', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(json({ payload: EMPTY_SP_IDENTITY }))
+      .mockResolvedValueOnce(json({ payload: EMPTY_SP_IDENTITY }));
+    vi.stubGlobal('fetch', fetch);
+    const connection = {
+      clientId: 'aaaaaaaa-0000-4000-8000-000000000001',
+      secretScope: 'persona-secrets',
+      secretKey: 'finance-client-secret',
+    };
+    await connectSpPersonaDefinition('definition-1', connection);
+    await checkSpPersonaDefinitionStatus('definition-1');
+    expect(fetch).toHaveBeenNthCalledWith(1, '/api/admin/sp-identity/persona-definitions/definition-1/connection', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(connection),
+    });
+    expect(fetch).toHaveBeenNthCalledWith(2, '/api/admin/sp-identity/persona-definitions/definition-1/status-check', {
+      method: 'POST',
+    });
+    expect(JSON.stringify(fetch.mock.calls)).not.toMatch(/clientSecret|access_token|bearer/i);
   });
 
   it('exposes no client request for model-generated permission suggestions', () => {

@@ -10,7 +10,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   checkExperimentAsApp,
   experimentIdOf,
@@ -18,9 +18,14 @@ import {
   readFailure,
   EXPERIMENT_PATH,
   EXPERIMENT_BY_NAME_PATH,
+  EXPERIMENT_PROBE_TIMEOUT_MS,
 } from './experiment-probe';
 
 const BUNDLE = readFileSync(join(import.meta.dirname, '../../..', 'databricks.yml'), 'utf8');
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('the experiment is read as the application', () => {
   it('passes when the workspace answers, naming the experiment it found', () => {
@@ -126,13 +131,11 @@ describe('the experiment is read as the application', () => {
     expect(check?.error).toBe('socket hang up');
   });
 
-  /**
-   * No check at all where there is no experiment. The row already reports the
-   * value as unset, and a red badge here would be a failure invented for a
-   * deployment that is simply configured without one.
-   */
-  it('makes no claim when no experiment is configured', () => {
-    expect(experimentVerdict({ experimentId: '  ', read: { kind: 'ok', body: {} } })).toBeNull();
+  it('fails when no experiment is configured, because traces have no destination', () => {
+    const check = experimentVerdict({ experimentId: '  ', read: { kind: 'ok', body: {} } });
+    expect(check.status).toBe('failed');
+    expect(check.id).toBe('experiment-id');
+    expect(check.error).toContain('no MLflow experiment');
   });
 
   it('is keyed to the resource, so the row and the card find it', () => {
@@ -165,14 +168,24 @@ describe('a thrown SDK error is read back rather than swallowed', () => {
     expect(check?.status).toBe('unverified');
   });
 
-  it('asks nothing at all when there is no experiment to ask about', async () => {
+  it('records missing configuration without making a workspace call', async () => {
     let asked = false;
     const check = await checkExperimentAsApp('', () => {
       asked = true;
       return Promise.resolve({ kind: 'ok', body: {} });
     });
-    expect(check).toBeNull();
+    expect(check.status).toBe('failed');
     expect(asked).toBe(false);
+  });
+
+  it('bounds a hanging MLflow read and records the timeout as a failed Architecture connection', async () => {
+    vi.useFakeTimers();
+    const pending = checkExperimentAsApp('e1', () => new Promise(() => undefined));
+    await vi.advanceTimersByTimeAsync(EXPERIMENT_PROBE_TIMEOUT_MS);
+    const check = await pending;
+
+    expect(check.status).toBe('unverified');
+    expect(check.error).toContain(`within ${EXPERIMENT_PROBE_TIMEOUT_MS} ms`);
   });
 });
 

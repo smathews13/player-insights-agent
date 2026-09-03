@@ -216,14 +216,17 @@ describe('the parts a reader has to be able to use', () => {
     // The UC toolbar owns its search geometry so unrelated run-search rules
     // cannot lift the icon out of the field.
     expect(rule('.connections-table-toolbar')).toMatch(/display:\s*flex/);
-    expect(rule('.connections-table-toolbar')).toMatch(/flex-flow:\s*row wrap/);
+    expect(rule('.connections-table-toolbar')).toMatch(/flex-flow:\s*row nowrap/);
     expect(rule('.connections-table-toolbar')).toMatch(/align-items:\s*center/);
     expect(rule('.connections-table-toolbar')).toMatch(/overflow:\s*visible/);
-    expect(rule('.connections-table-query-controls')).toMatch(/flex:\s*1 1 34rem/);
+    expect(rule('.connections-table-query-controls')).toMatch(/flex:\s*1 1 auto/);
+    expect(rule('.connections-table-query-controls')).toMatch(/justify-content:\s*flex-end/);
+    expect(rule('.connections-table-query-controls')).toMatch(/margin-left:\s*auto/);
     expect(rule('.connections-table-filter-menu')).toMatch(/width:\s*max-content/);
     expect(rule('.connections-table-filter-menu')).toMatch(/position:\s*absolute/);
     expect(rule('.connections-table-search')).toMatch(/position:\s*relative/);
-    expect(rule('.connections-table-search')).toMatch(/min-width:\s*12rem/);
+    expect(rule('.connections-table-search')).toMatch(/width:\s*20rem/);
+    expect(rule('.connections-table-search')).toMatch(/min-width:\s*14rem/);
     expect(rule('.connections-table-search')).toMatch(/height:\s*32px/);
     expect(rule('.connections-table-search-icon')).toMatch(/position:\s*absolute/);
     expect(rule('.connections-table-search-icon')).toMatch(/top:\s*50%/);
@@ -234,23 +237,60 @@ describe('the parts a reader has to be able to use', () => {
     expect(rule('.connections-table-filter')).toMatch(/flex:\s*none/);
     expect(rule('.connections-table-filter')).toMatch(/position:\s*relative/);
     expect(rule('.connections-table-filter')).toMatch(/overflow:\s*visible/);
+    expect(rule('.connections-table-filter .app-select-trigger')).toMatch(/width:\s*10\.5rem/);
     expect(rule('.connections-add-uc')).toMatch(/flex:\s*none/);
+    expect(rule('.connections-add-uc')).toMatch(/height:\s*32px/);
     expect(rule('.connections-add-uc')).toMatch(/white-space:\s*nowrap/);
-    expect(rule('.connections-add-uc')).toMatch(/border-color:\s*var\(--ast-blue\)/);
+    expect(rule('.connections-add-uc')).toMatch(/background:\s*var\(--primary\)/);
+    expect(rule('.connections-add-uc')).toMatch(/color:\s*var\(--primary-foreground\)/);
+    expect(rule('.connections-add-uc:hover:not(:disabled)')).toMatch(/background:\s*var\(--db-blue-700\)/);
+    expect(rule('.connections-add-uc:active:not(:disabled)')).toMatch(/background:\s*var\(--db-blue-800\)/);
+    expect(rule('.connections-add-uc:focus-visible')).toMatch(/outline:\s*2px solid var\(--primary\)/);
     expect(rule('.connection-block')).toMatch(/overflow:\s*visible/);
     expect(rule('html:has(.connections-page) body[data-scroll-locked]')).toMatch(/padding-right:\s*0\s*!important/);
     expect(rule('.connections-table-detail')).toMatch(/white-space:\s*normal/);
     expect(rule('.connections-table-detail')).toMatch(/overflow-wrap:\s*anywhere/);
   });
 
-  it('keeps table controls right-aligned in the header with a narrow fallback', () => {
-    expect(rule('.connection-block-head')).toMatch(/display:\s*flex/);
-    expect(rule('.connection-block-controls')).toMatch(/margin-left:\s*auto/);
-    expect(rule('.connection-block-controls')).toMatch(/flex:\s*0 0 auto/);
-    expect(RESPONSIVE).toMatch(/@media \(max-width: 800px\)[\s\S]*?\.connection-block-head\s*\{[^}]*flex-wrap:\s*wrap/);
-    expect(RESPONSIVE).toMatch(/\.connection-block-controls\s*\{[^}]*width:\s*100%/);
+  it('gives the UC toolbar proactive filter states and a narrow no-clipping fallback', () => {
+    expect(CSS).toMatch(
+      /\.connections-table-filter[\s\S]*?\.app-select-trigger:is\(:hover, \[data-state='open'\]\)[^{]*\{[^}]*border-color:\s*var\(--primary\)[^}]*background:\s*var\(--db-hover-tint\)/
+    );
+    expect(CSS).toMatch(
+      /\.connections-table-filter \.app-select-trigger\[data-state='open'\][^{]*\{[^}]*background:\s*var\(--db-selected-tint\)/
+    );
+    expect(rule('.connections-table-filter .app-select-trigger:focus-visible')).toMatch(
+      /outline:\s*2px solid var\(--primary\)/
+    );
+    expect(rule(".connections-table-filter-menu [data-slot='select-item'][data-highlighted]")).toMatch(
+      /background:\s*var\(--db-hover-tint\)/
+    );
+    expect(rule(".connections-table-filter-menu [data-slot='select-item'][data-state='checked']")).toMatch(
+      /background:\s*var\(--db-selected-tint\)/
+    );
     expect(RESPONSIVE).toMatch(
-      /\.connection-block-controls \.connections-table-query-controls,[\s\S]*?\.connections-uc-actions\s*\{[^}]*flex-wrap:\s*wrap/
+      /\.connections-table-toolbar\s*\{[^}]*flex-wrap:\s*wrap[\s\S]*?\.connections-table-toolbar \.connections-uc-actions\s*\{[^}]*flex:\s*1 0 100%/
+    );
+    expect(RESPONSIVE).toMatch(
+      /\.connections-table-toolbar \.connections-table-search\s*\{[^}]*flex:\s*1 1 100%[^}]*width:\s*100%[^}]*max-width:\s*none/
+    );
+    expect(RESPONSIVE).toMatch(
+      /\.connections-table-toolbar \.connections-table-filter \.app-select-trigger\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0/
+    );
+  });
+
+  it('keeps the catalog explorer opaque, viewport-safe, and internally scrollable', () => {
+    expect(rule('.uc-explorer-overlay')).toMatch(/position:\s*fixed/);
+    expect(rule('.uc-explorer-overlay')).toMatch(/place-items:\s*center/);
+    expect(rule('.uc-explorer-modal')).toMatch(/width:\s*min\(920px,\s*calc\(100vw - 48px\)\)/);
+    expect(rule('.uc-explorer-modal')).toMatch(/max-height:\s*min\(780px,\s*calc\(100vh/);
+    expect(rule('.uc-explorer-modal')).toMatch(/overflow:\s*hidden/);
+    expect(rule('.uc-explorer-modal')).toMatch(/background:\s*var\(--ast-surface-elevated\)/);
+    expect(rule('.uc-explorer-body')).toMatch(/overflow-y:\s*auto/);
+    expect(rule('.uc-explorer-body')).toMatch(/scrollbar-gutter:\s*stable/);
+    expect(rule(".uc-explorer-choice[aria-checked='true']")).toMatch(/background:\s*var\(--db-green-wash\)/);
+    expect(RESPONSIVE).toMatch(
+      /\.uc-explorer-modal\s*\{[^}]*width:\s*calc\(100vw - 16px\)[^}]*max-height:\s*calc\(100vh/
     );
   });
 

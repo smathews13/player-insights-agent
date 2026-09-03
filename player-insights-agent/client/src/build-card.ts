@@ -40,6 +40,8 @@ export type BuildRow =
       /** The whole value, for `title` and for the clipboard. */
       full: string;
       tone: StatusTone;
+      /** Concise explanation rendered inline after the badge. */
+      description?: string;
       /** Whether the row offers a copy button for `full`. */
       copyable?: boolean;
       /** Whether the row offers a link that opens `full`. */
@@ -87,7 +89,10 @@ export type BuildRow =
 
 /** The host somebody is actually on, without the scheme that is on every row. */
 export function endpointHost(url: string): string {
-  return url.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  return url
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/+$/, '');
 }
 
 /**
@@ -186,9 +191,7 @@ export function endpointTone(serving: AppFacts['serving']): StatusTone {
  * exists without. Drawn whenever the state is anything else, carrying the
  * platform's own message, because that is when a reader needs the words.
  */
-export function servingActivity(
-  serving: AppFacts['serving']
-): { value: string; aside: string } | null {
+export function servingActivity(serving: AppFacts['serving']): { value: string; aside: string } | null {
   if (endpointTone(serving) === 'reachable' || endpointTone(serving) === 'plain') return null;
   const states = [serving.app, serving.compute].filter(Boolean).join(' \u00b7 ');
   return { value: states, aside: serving.message ? ` \u00b7 ${serving.message}` : '' };
@@ -264,8 +267,17 @@ export function exporterActivity(
     };
   }
   const counted = reading.tables.map((entry) => `${countOf(entry.rows)} ${entry.table.replace(/^otel_/, '')}`);
-  const first = reading.tables.map((entry) => entry.firstAt).filter(Boolean).sort()[0] ?? '';
-  const last = reading.tables.map((entry) => entry.lastAt).filter(Boolean).sort().pop() ?? '';
+  const first =
+    reading.tables
+      .map((entry) => entry.firstAt)
+      .filter(Boolean)
+      .sort()[0] ?? '';
+  const last =
+    reading.tables
+      .map((entry) => entry.lastAt)
+      .filter(Boolean)
+      .sort()
+      .pop() ?? '';
   if (reading.state === 'silent') {
     return {
       value: counted.join(' \u00b7 ') || 'Nothing written',
@@ -324,6 +336,7 @@ export function deploymentRows(app: AppFacts): BuildRow[] {
       value: host,
       full: app.url,
       tone: endpointTone(app.serving),
+      description: 'Serves this Astrolabe deployment.',
       copyable: true,
       openable: true,
     });
@@ -342,7 +355,13 @@ export function deploymentRows(app: AppFacts): BuildRow[] {
     rows.push({ kind: 'text', key: 'description', label: 'Description', value: app.description });
   }
   if (app.compute) {
-    rows.push({ kind: 'text', key: 'compute', label: 'Compute', value: app.compute.size, aside: computeAside(app.compute) });
+    rows.push({
+      kind: 'text',
+      key: 'compute',
+      label: 'Compute',
+      value: app.compute.size,
+      aside: computeAside(app.compute),
+    });
   }
   rows.push(...sourceRows(app));
   if (app.tags.length > 0) {
@@ -460,6 +479,7 @@ export function telemetryRows(app: AppFacts, now: number): BuildRow[] {
       value: endpointHost(app.otelExporter),
       full: app.otelExporter,
       tone: exporterTone(app.otelExport),
+      description: 'Exports app traces, metrics, and logs.',
       copyable: true,
     });
   }

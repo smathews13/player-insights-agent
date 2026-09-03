@@ -20,6 +20,7 @@ import {
   spGrantSummary,
   type SpAssignment,
   type SpGrant,
+  type SpGrantVerification,
   type SpPersona,
   type SpPersonaDefinition,
   type SpPersonaDefinitionWrite,
@@ -31,6 +32,7 @@ import type { LakebaseReader } from './lakebase-store';
 export const SP_PERSONAS_TABLE = appTable('sp_personas');
 export const SP_PERSONA_DEFINITIONS_TABLE = appTable('sp_persona_definitions');
 export const SP_ASSIGNMENTS_TABLE = appTable('sp_assignments');
+export const SP_PERSONA_STATUS_TABLE = appTable('sp_persona_status');
 
 const UNDEFINED_TABLE = '42P01';
 
@@ -55,6 +57,7 @@ function iso(value: unknown): string {
 function personaFromRow(row: Record<string, unknown>): SpPersona {
   return {
     id: text(row.id),
+    definitionId: text(row.definition_id) || null,
     displayName: text(row.display_name),
     clientId: text(row.client_id),
     secretScope: text(row.secret_scope),
@@ -111,6 +114,7 @@ function definitionFromRow(row: Record<string, unknown>): SpPersonaDefinition {
       : capabilities(row.legacy_capabilities);
   return {
     id: text(row.id),
+    revision: Number(row.revision) || 1,
     displayName: text(row.display_name),
     description: text(row.description),
     capabilities: storedCapabilities,
@@ -121,10 +125,56 @@ function definitionFromRow(row: Record<string, unknown>): SpPersonaDefinition {
   };
 }
 
+export interface SpPersonaStatusRecord {
+  definitionId: string;
+  checkedAt: string;
+  definitionRevision: number;
+  connectionOk: boolean;
+  checks: SpGrantVerification[];
+  detail: string;
+}
+
+function statusChecks(value: unknown): SpGrantVerification[] {
+  let parsed: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const check = entry as Record<string, unknown>;
+    const state = text(check.state);
+    if (!['verified', 'mismatch', 'unsupported', 'unverified'].includes(state)) return [];
+    return [
+      {
+        key: text(check.key),
+        label: text(check.label),
+        state: state as SpGrantVerification['state'],
+        nextAction: text(check.nextAction),
+      },
+    ];
+  });
+}
+
+function statusFromRow(row: Record<string, unknown>): SpPersonaStatusRecord {
+  return {
+    definitionId: text(row.definition_id),
+    checkedAt: iso(row.checked_at),
+    definitionRevision: Number(row.definition_revision) || 0,
+    connectionOk: row.connection_ok === true,
+    checks: statusChecks(row.checks),
+    detail: text(row.detail),
+  };
+}
+
 export async function listSpPersonas(client: LakebaseReader): Promise<SpPersona[]> {
   try {
     const result = await client.lakebase.query(
-      `SELECT id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by
+      `SELECT id, definition_id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by
          FROM ${SP_PERSONAS_TABLE}
         ORDER BY display_name, id`
     );
@@ -138,7 +188,7 @@ export async function listSpPersonas(client: LakebaseReader): Promise<SpPersona[
 export async function readSpPersona(client: LakebaseReader, id: string): Promise<SpPersona | null> {
   try {
     const result = await client.lakebase.query(
-      `SELECT id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by
+      `SELECT id, definition_id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by
          FROM ${SP_PERSONAS_TABLE}
         WHERE id = $1`,
       [id]
@@ -161,7 +211,7 @@ export async function insertSpPersona(
     `INSERT INTO ${SP_PERSONAS_TABLE}
        (id, display_name, client_id, secret_scope, secret_key, updated_by, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, now())
-     RETURNING id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by`,
+     RETURNING id, definition_id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by`,
     [id, write.displayName, write.clientId, write.secretScope, write.secretKey, updatedBy]
   );
   return personaFromRow(result.rows[0]);
@@ -190,11 +240,56 @@ export async function updateSpPersona(
             updated_by = $6,
             updated_at = now()
       WHERE id = $1
-      RETURNING id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by`,
+      RETURNING id, definition_id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by`,
     [id, next.displayName, next.clientId, next.secretScope, next.secretKey, updatedBy]
   );
   const row = result?.rows?.[0];
   return row ? personaFromRow(row) : null;
+}
+
+export async function readSpPersonaByDefinitionId(
+  client: LakebaseReader,
+  definitionId: string
+): Promise<SpPersona | null> {
+  try {
+    const result = await client.lakebase.query(
+      `SELECT id, definition_id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by
+         FROM ${SP_PERSONAS_TABLE}
+        WHERE definition_id = $1`,
+      [definitionId]
+    );
+    const row = result?.rows?.[0];
+    return row ? personaFromRow(row) : null;
+  } catch (error) {
+    if (missingTable(error)) return null;
+    throw error;
+  }
+}
+
+export async function upsertSpPersonaForDefinition(
+  client: LakebaseReader,
+  definition: SpPersonaDefinition,
+  write: Omit<SpPersonaWrite, 'displayName'>,
+  updatedBy: string
+): Promise<SpPersona> {
+  const existing = await readSpPersonaByDefinitionId(client, definition.id);
+  const id = existing?.id ?? randomUUID();
+  const result = await client.lakebase.query(
+    `INSERT INTO ${SP_PERSONAS_TABLE}
+       (id, definition_id, display_name, client_id, secret_scope, secret_key, updated_by, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+     ON CONFLICT (definition_id) WHERE definition_id IS NOT NULL DO UPDATE
+        SET display_name = EXCLUDED.display_name,
+            client_id = EXCLUDED.client_id,
+            secret_scope = EXCLUDED.secret_scope,
+            secret_key = EXCLUDED.secret_key,
+            updated_by = EXCLUDED.updated_by,
+            updated_at = now()
+     RETURNING id, definition_id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by`,
+    [id, definition.id, definition.displayName, write.clientId, write.secretScope, write.secretKey, updatedBy]
+  );
+  await deleteSpPersonaStatus(client, definition.id);
+  return personaFromRow(result.rows[0]);
 }
 
 export async function deleteSpPersona(client: LakebaseReader, id: string): Promise<boolean> {
@@ -211,7 +306,7 @@ export async function deleteSpPersona(client: LakebaseReader, id: string): Promi
 export async function listSpPersonaDefinitions(client: LakebaseReader): Promise<SpPersonaDefinition[]> {
   try {
     const result = await client.lakebase.query(
-      `SELECT id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by
+      `SELECT id, revision, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by
          FROM ${SP_PERSONA_DEFINITIONS_TABLE}
         ORDER BY display_name, id`
     );
@@ -225,7 +320,7 @@ export async function listSpPersonaDefinitions(client: LakebaseReader): Promise<
 export async function readSpPersonaDefinition(client: LakebaseReader, id: string): Promise<SpPersonaDefinition | null> {
   try {
     const result = await client.lakebase.query(
-      `SELECT id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by
+      `SELECT id, revision, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by
          FROM ${SP_PERSONA_DEFINITIONS_TABLE}
         WHERE id = $1`,
       [id]
@@ -254,7 +349,7 @@ export async function insertSpPersonaDefinition(
     `INSERT INTO ${SP_PERSONA_DEFINITIONS_TABLE}
        (id, display_name, description, capabilities, grants, legacy_capabilities, updated_by, updated_at)
      VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, now())
-     RETURNING id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by`,
+     RETURNING id, revision, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by`,
     [
       id,
       write.displayName,
@@ -299,9 +394,10 @@ export async function updateSpPersonaDefinition(
             grants = $5::jsonb,
             legacy_capabilities = $6::jsonb,
             updated_by = $7,
-            updated_at = now()
+            updated_at = now(),
+            revision = revision + 1
       WHERE id = $1
-      RETURNING id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by`,
+      RETURNING id, revision, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by`,
     [
       id,
       next.displayName,
@@ -314,6 +410,74 @@ export async function updateSpPersonaDefinition(
   );
   const row = result?.rows?.[0];
   return row ? definitionFromRow(row) : null;
+}
+
+export async function readSpPersonaStatus(
+  client: LakebaseReader,
+  definitionId: string
+): Promise<SpPersonaStatusRecord | null> {
+  try {
+    const result = await client.lakebase.query(
+      `SELECT definition_id, checked_at, definition_revision, connection_ok, checks, detail
+         FROM ${SP_PERSONA_STATUS_TABLE}
+        WHERE definition_id = $1`,
+      [definitionId]
+    );
+    const row = result?.rows?.[0];
+    return row ? statusFromRow(row) : null;
+  } catch (error) {
+    if (missingTable(error)) return null;
+    throw error;
+  }
+}
+
+export async function listSpPersonaStatuses(client: LakebaseReader): Promise<SpPersonaStatusRecord[]> {
+  try {
+    const result = await client.lakebase.query(
+      `SELECT definition_id, checked_at, definition_revision, connection_ok, checks, detail
+         FROM ${SP_PERSONA_STATUS_TABLE}
+        ORDER BY definition_id`
+    );
+    return (result?.rows ?? []).map(statusFromRow);
+  } catch (error) {
+    if (missingTable(error)) return [];
+    throw error;
+  }
+}
+
+export async function writeSpPersonaStatus(
+  client: LakebaseReader,
+  status: SpPersonaStatusRecord
+): Promise<SpPersonaStatusRecord> {
+  const result = await client.lakebase.query(
+    `INSERT INTO ${SP_PERSONA_STATUS_TABLE}
+       (definition_id, checked_at, definition_revision, connection_ok, checks, detail)
+     VALUES ($1, $2::timestamptz, $3, $4, $5::jsonb, $6)
+     ON CONFLICT (definition_id) DO UPDATE
+        SET checked_at = EXCLUDED.checked_at,
+            definition_revision = EXCLUDED.definition_revision,
+            connection_ok = EXCLUDED.connection_ok,
+            checks = EXCLUDED.checks,
+            detail = EXCLUDED.detail
+     RETURNING definition_id, checked_at, definition_revision, connection_ok, checks, detail`,
+    [
+      status.definitionId,
+      status.checkedAt,
+      status.definitionRevision,
+      status.connectionOk,
+      JSON.stringify(status.checks),
+      status.detail,
+    ]
+  );
+  return statusFromRow(result.rows[0]);
+}
+
+export async function deleteSpPersonaStatus(client: LakebaseReader, definitionId: string): Promise<void> {
+  try {
+    await client.lakebase.query(`DELETE FROM ${SP_PERSONA_STATUS_TABLE} WHERE definition_id = $1`, [definitionId]);
+  } catch (error) {
+    if (!missingTable(error)) throw error;
+  }
 }
 
 export async function deleteSpPersonaDefinition(client: LakebaseReader, id: string): Promise<boolean> {

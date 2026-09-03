@@ -36,7 +36,6 @@
  * written down here once and used both for the visible caption and for the
  * text equivalent a screen reader gets.
  */
-import { CONNECTION_STATUS_LABEL, CONNECTION_STATUS_NOTE } from './connection-status';
 import { contentAge, type ContentAge } from './semantic-freshness';
 import type { ConnectionReading } from './connection-model';
 import type { BrandProduct } from './brand-icons';
@@ -50,12 +49,9 @@ import type { BrandProduct } from './brand-icons';
  * together, so a change to when the checks run fails beside the sentence it
  * contradicts.
  *
- * IT USED TO SAY THE OPPOSITE, and it was approved copy: "Checks only run when
- * you click Refresh — 'Not checked' means not checked yet, not broken." Both
- * halves were true of a page that probed nothing on load, and both stopped being
- * true the moment the checks began running themselves. A page that has already
- * run its checks and tells the reader it has not is worse than one that says
- * nothing, because the reader then distrusts the statuses as well.
+ * Earlier approved copy said checks only ran after Refresh. That stopped being
+ * true when the checks began running themselves, so the stale explanation was
+ * removed rather than teaching readers to distrust the statuses.
  *
  * The page's own sub-headline and the line under Live data flow were deleted
  * rather than rewritten. Neither was wrong; both explained the tab to a reader
@@ -355,46 +351,36 @@ export const ARCHITECTURE_EDGES: readonly ArchitectureEdge[] = [
   },
 ];
 
-/**
- * What a node's badge says, and why.
- *
- * The `connection` case delegates entirely: the label is the one
- * `connection-status.ts` gives that entry, so a node cannot grade a dependency
- * the row on the Connections page grades differently. The other two cases are
- * not statuses at all and say what they are.
- */
+/** What a node's badge says, and why. */
 export interface NodeReport {
   /** The word on the badge. */
   label: string;
   /** Which visual treatment it takes. Not a colour; the stylesheet decides that. */
-  tone: 'reachable' | 'blocked' | 'not-checked' | 'nothing-to-reach' | 'local' | 'unreadable';
+  tone: 'connected' | 'not-connected' | 'local';
   /** The sentence behind the word, for the detail and for the text equivalent. */
   note: string;
 }
 
 /**
- * Every `ConnectionStatus`, mapped to the tone of the same name where there is
- * one.
- *
- * `refused` and `unreachable` are the exceptions and take the `not-checked`
- * treatment. The WORD is still each one's own -- the label comes from
- * `CONNECTION_STATUS_LABEL`, so a refused node reads "Refused" and an unreachable
- * one "Unreachable", exactly as their rows do -- and only the tint is shared,
- * because this lane's tones are the ones the Architecture stylesheet draws and a
- * sixth would be a new tint on a diagram whose whole argument is that it grades
- * nothing the Connections page does not. An untinted node with the right word on
- * it is honest; the same node reading "Not checked" was not. `unreachable` in
- * particular must not borrow `blocked`: red would assert a fault on a diagram off
- * a call that never got an answer.
+ * Architecture deliberately compresses the detailed Connections verdicts into
+ * one operational question: did the current probe establish a working remote
+ * connection? Only a successful probe is green. Missing configuration, denial,
+ * absence, timeout, an unavailable call, and a check that has not completed are
+ * all red here. Connections retains the precise reason and remedy.
  */
-const CONNECTION_TONE = {
-  reachable: 'reachable',
-  blocked: 'blocked',
-  refused: 'not-checked',
-  unreachable: 'not-checked',
-  'not-checked': 'not-checked',
-  'nothing-to-reach': 'nothing-to-reach',
-} as const;
+function connectionReport(reading: ConnectionReading | undefined, note?: string): NodeReport {
+  const connected = reading?.status === 'reachable';
+  return {
+    label: connected ? 'Connected' : 'Not connected',
+    tone: connected ? 'connected' : 'not-connected',
+    note:
+      note ??
+      reading?.check?.detail?.trim() ??
+      (connected
+        ? 'The current dependency probe succeeded.'
+        : 'The current dependency probe did not establish an operational connection.'),
+  };
+}
 
 export const LOCAL_NOTE =
   'This is where the code runs rather than something it connects to, so there is nothing to probe.';
@@ -438,82 +424,6 @@ export const SEMANTIC_ENDPOINT_UNREPORTED =
 export const SEMANTIC_ENDPOINT_UNNAMED =
   'Only the index names the endpoint hosting it, and the index did not answer, so there was nothing to ask about.';
 
-/**
- * What the semantic lane is doing, as one word per card.
- *
- * Five values rather than the four `ConnectionStatus` has, because this lane
- * carries a distinction the others do not: a deployment may legitimately have
- * no semantic layer at all, and a served version may be too old to say either
- * way. Those two are not statuses -- nothing was probed -- and they must not
- * collapse into each other or into `not-checked`, which is why they are named
- * here rather than expressed as an absence.
- */
-export type SemanticState =
-  /** The served version does not report the setting. Unknown, not absent. */
-  | 'unreported'
-  /** Reported, and it is none. A supported deployment rather than a fault. */
-  | 'none'
-  /** There is one, and no check has run against it yet. */
-  | 'not-checked'
-  /** Checked, and the workspace answered. */
-  | 'online'
-  /** Checked, and it was refused or is not there. */
-  | 'unreachable';
-
-/**
- * Which of the five the index is in.
- *
- * Provenance rather than value decides the first two: the orchestrator writes
- * this setting whether or not it names an index, so a source at all is the
- * version having answered, and an empty source is nobody having been asked in a
- * way they could answer.
- */
-export function semanticIndexState(reading: ConnectionReading | undefined): SemanticState {
-  if (!reading) return 'not-checked';
-  if (!reading.summary.value) return reading.row.configuredFrom !== '' ? 'none' : 'unreported';
-  if (reading.status === 'reachable') return 'online';
-  if (reading.status === 'blocked') return 'unreachable';
-  return 'not-checked';
-}
-
-/**
- * Which of the five the endpoint is in, which depends on the index as well.
- *
- * The endpoint is only asked about after the index answers and names it, so its
- * own reading cannot be read alone: an endpoint with no check on a deployment
- * that searches nothing is not the same fact as an endpoint with no check on a
- * deployment whose index was refused.
- */
-export function semanticEndpointState(
-  index: ConnectionReading | undefined,
-  endpoint: ConnectionReading | undefined
-): SemanticState {
-  const indexState = semanticIndexState(index);
-  if (indexState === 'none' || indexState === 'unreported') return indexState;
-  if (endpoint?.status === 'reachable') return 'online';
-  if (endpoint?.status === 'blocked') return 'unreachable';
-  return 'not-checked';
-}
-
-/** The two cards a `SemanticState` is drawn as, where it is not a probe's verdict. */
-const SEMANTIC_INDEX_REPORT: Partial<Record<SemanticState, NodeReport>> = {
-  none: { label: 'None', tone: 'nothing-to-reach', note: SEMANTIC_INDEX_ABSENT },
-  unreported: { label: 'Not reported', tone: 'unreadable', note: SEMANTIC_INDEX_UNREPORTED },
-};
-
-const SEMANTIC_ENDPOINT_REPORT: Partial<Record<SemanticState, NodeReport>> = {
-  none: { label: 'None', tone: 'nothing-to-reach', note: SEMANTIC_ENDPOINT_NO_INDEX },
-  unreported: { label: 'Not reported', tone: 'unreadable', note: SEMANTIC_ENDPOINT_UNREPORTED },
-};
-
-/** The card for a node whose reading has not arrived, or could not be taken. */
-function notChecked(note: string): NodeReport {
-  return { label: CONNECTION_STATUS_LABEL['not-checked'], tone: 'not-checked', note };
-}
-
-const NOT_CHECKED_NOTE =
-  'No check has run against this one yet, so whether it is reachable is unknown rather than confirmed.';
-
 export function nodeReport(
   node: ArchitectureNode,
   reading: ConnectionReading | undefined,
@@ -531,34 +441,25 @@ export function nodeReport(
     };
   }
   if (node.id === 'semantic-index') {
-    const stated = SEMANTIC_INDEX_REPORT[semanticIndexState(reading)];
-    if (stated) return stated;
-  }
-  if (node.id === 'semantic-index-endpoint') {
-    const state = semanticEndpointState(indexReading, reading);
-    const stated = SEMANTIC_ENDPOINT_REPORT[state];
-    if (stated) return stated;
-    // An index that was refused takes its endpoint's name with it. Reported as
-    // the reason rather than as the generic "nobody looked", which is untrue:
-    // somebody looked at the index and was turned away.
-    if (state === 'not-checked' && semanticIndexState(indexReading) === 'unreachable') {
-      return notChecked(SEMANTIC_ENDPOINT_UNNAMED);
+    if (reading && !reading.summary.value) {
+      return connectionReport(
+        reading,
+        reading.row.configuredFrom !== '' ? SEMANTIC_INDEX_ABSENT : SEMANTIC_INDEX_UNREPORTED
+      );
     }
   }
-  // A registry-backed node whose reading has not arrived. Not checked, which is
-  // the honest word for it and a real status rather than a stand-in: the cheap
-  // page load runs no probes at all.
-  if (!reading) {
-    return notChecked(NOT_CHECKED_NOTE);
+  if (node.id === 'semantic-index-endpoint') {
+    if (indexReading && !indexReading.summary.value) {
+      return connectionReport(
+        reading,
+        indexReading.row.configuredFrom !== '' ? SEMANTIC_ENDPOINT_NO_INDEX : SEMANTIC_ENDPOINT_UNREPORTED
+      );
+    }
+    if (!reading?.check && indexReading && indexReading.status !== 'reachable') {
+      return connectionReport(reading, SEMANTIC_ENDPOINT_UNNAMED);
+    }
   }
-  // The word and the sentence are `connection-status.ts`'s, not this module's.
-  // A node cannot grade a dependency differently from the row that grades it on
-  // the Connections page, because it does not know how to grade one.
-  return {
-    label: CONNECTION_STATUS_LABEL[reading.status],
-    tone: CONNECTION_TONE[reading.status],
-    note: CONNECTION_STATUS_NOTE[reading.status],
-  };
+  return connectionReport(reading);
 }
 
 /**
@@ -573,8 +474,8 @@ export function nodeReport(
  *
  * ONLY WHERE A CHECK RAN AND THE OBJECT ANSWERED, and the exclusions are the
  * point. An index nobody has probed has no age to report and saying "not
- * reported" beside "Not checked" states one absence twice. An index that was
- * refused has no age either, and a second pill under a red one reads as a
+ * reported" beside a failed connection states one absence twice. An index that
+ * did not answer has no age either, and a second pill under a red one reads as a
  * second problem. In both cases the status pill is already saying the true
  * thing.
  *

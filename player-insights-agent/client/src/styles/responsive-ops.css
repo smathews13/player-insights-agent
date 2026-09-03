@@ -27,6 +27,15 @@
 }
 
 @media (max-width: 480px) {
+  .ops-cost-summary-peers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ops-cost-summary-peer + .ops-cost-summary-peer {
+    padding-top: 10px;
+    padding-left: 0;
+    border-top: 1px solid var(--ast-border-input);
+    border-left: 0;
+  }
   .ops-ticker-assumption-grid[data-columns='6'],
   .ops-ticker-assumption-grid[data-columns='4'] {
     grid-template-columns: minmax(0, 1fr);

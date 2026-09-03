@@ -37,7 +37,7 @@ import {
   type RosterEntry,
 } from './user-roster';
 import { isRole, type Role, type RosterPayload } from '../../shared/user-roster-contract';
-import type { SpIdentityAdminPayload, SpPersona } from '../../shared/sp-identity';
+import type { SpIdentityAdminPayload, SpPersona, SpPersonaConnectionWrite } from '../../shared/sp-identity';
 import { AppSelect } from './AppSelect';
 import { roleOptions } from './user-role-options';
 import { RoleBadge } from './RoleBadge';
@@ -47,7 +47,9 @@ import { organizationForEmail } from '../../shared/organization-mapping';
 import { notifyIdentitySettingsChanged } from './identity-settings-events';
 import {
   assignSpPersona,
+  checkSpPersonaDefinitionStatus,
   changeHumanRole,
+  connectSpPersonaDefinition,
   createSpPersonaDefinition,
   deleteSpPersonaDefinition,
   EMPTY_SP_IDENTITY,
@@ -106,9 +108,12 @@ function RoleControl({
   busy: boolean;
   onChange: (entry: RosterEntry, role: Role) => void;
 }) {
-  if (entry.role === 'super_admin') return <RoleBadge state="super_admin" />;
   if (entry.assignable.length === 0) {
-    return <span className="ast-pill ast-pill--neutral-outline roster-role-status">{roleWord(entry.role)}</span>;
+    return entry.role === 'super_admin' ? (
+      <RoleBadge state="super_admin" />
+    ) : (
+      <span className="ast-pill ast-pill--neutral-outline roster-role-status">{roleWord(entry.role)}</span>
+    );
   }
   return (
     <AppSelect
@@ -185,7 +190,7 @@ export function RosterAddRow({
   onAdd: () => void;
 }) {
   const validationError = draft.trim() ? rosterEmailError(draft) : '';
-  const feedback = error || validationError;
+  const feedback = error || (draft.trim() ? validationError : '');
   const disabledReason = addDisabledReason(draft, role, busy);
   return (
     <tr className="roster-add-row">
@@ -209,7 +214,7 @@ export function RosterAddRow({
           className={`roster-add-feedback${feedback ? ' admin-list-error' : ''}`}
           role={feedback ? 'alert' : undefined}
         >
-          {feedback || disabledReason}
+          {feedback}
         </span>
       </td>
       <td className="roster-add-help">Added by you</td>
@@ -553,19 +558,52 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
             showPersona={true}
             manageHumanRoles={canManageHumanRoles}
             onPersonaChange={(email, personaId) =>
-              void run(
-                () => assignSpPersona(email, personaId),
-                personaId ? `${email} now uses the selected persona.` : `${email} now has no persona.`
-              )
+              (() => {
+                if (mutationInFlight.current) return;
+                const before = spPayload;
+                setSpPayload((current) => ({
+                  ...current,
+                  roster: current.roster.map((row) => (row.email === email ? { ...row, personaId } : row)),
+                }));
+                void run(
+                  () => assignSpPersona(email, personaId),
+                  personaId ? `${email} now uses the selected persona.` : `${email} now has no persona.`,
+                  {
+                    apply: setSpPayload,
+                    onError: (message) => {
+                      setSpPayload(before);
+                      setWriteError(message);
+                    },
+                  }
+                );
+              })()
             }
             onChange={(entry, role) =>
-              void run(
-                () => changeHumanRole(entry.email, role),
-                [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
-                  .filter(Boolean)
-                  .join(' '),
-                { apply: setPayload }
-              )
+              (() => {
+                if (mutationInFlight.current) return;
+                const before = payload;
+                setPayload((current) =>
+                  current
+                    ? {
+                        ...current,
+                        entries: current.entries.map((row) => (row.email === entry.email ? { ...row, role } : row)),
+                      }
+                    : current
+                );
+                void run(
+                  () => changeHumanRole(entry.email, role),
+                  [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
+                    .filter(Boolean)
+                    .join(' '),
+                  {
+                    apply: setPayload,
+                    onError: (message) => {
+                      setPayload(before);
+                      setWriteError(message);
+                    },
+                  }
+                );
+              })()
             }
             onRemove={(entry) =>
               void run(
@@ -614,16 +652,33 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
           onCreateDefinition={(write) =>
             run(
               () => createSpPersonaDefinition(write),
-              `${write.displayName} configuration generated. Account admin setup is still required.`,
-              { spOperation: 'definition-save' }
+              `${write.displayName} permissions saved. Connect its service principal next.`,
+              {
+                spOperation: 'definition-save',
+              }
             )
           }
           onUpdateDefinition={(id, write) =>
             run(
               () => updateSpPersonaDefinition(id, write),
-              `${write.displayName} configuration updated. Account admin setup is still required.`,
-              { spOperation: 'definition-save' }
+              `${write.displayName} permissions updated. Run Check status again.`,
+              {
+                spOperation: 'definition-save',
+              }
             )
+          }
+          onConnectDefinition={(id: string, write: SpPersonaConnectionWrite) =>
+            run(
+              () => connectSpPersonaDefinition(id, write),
+              'Credential reference saved. Run Check status to verify the connection and permissions.',
+              { spOperation: 'connection-save', apply: setSpPayload }
+            )
+          }
+          onCheckDefinition={(id) =>
+            run(() => checkSpPersonaDefinitionStatus(id), 'Connection and permission status checked.', {
+              spOperation: 'status-check',
+              apply: setSpPayload,
+            })
           }
           onDeleteDefinition={(id) =>
             void run(

@@ -76,7 +76,6 @@ describe('dark mode covers the shipped surfaces', () => {
       '.user-profile-modal',
       '.monitoring-question-modal',
       '.arch-flow',
-      '.arch-tiles:not(.arch-tiles-loop) li',
       '.arch-node',
       '.account-menu',
       '.settings-page.settings-modal',
@@ -712,12 +711,12 @@ describe('dark mode covers the shipped surfaces', () => {
     );
   });
 
-  it('uses primary glass for Architecture KPI tiles and LIVE DATA FLOW', () => {
+  it('uses the dark surface for Architecture LIVE DATA FLOW', () => {
     const css = routeDark('architecture');
     const reducedAt = css.indexOf('@media (prefers-reduced-transparency: reduce)');
     const normal = css.slice(0, reducedAt);
     const reduced = css.slice(reducedAt);
-    for (const selector of ['.arch-flow', '.arch-tiles:not(.arch-tiles-loop) li']) {
+    for (const selector of ['.arch-flow']) {
       expect(bodyFor(normal, `html[data-theme='dark'] ${selector}`)).toMatch(
         /background:\s*var\(--card\)[\s\S]*backdrop-filter:\s*none/
       );

@@ -927,6 +927,41 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     statements: TRAFFIC_EVIDENCE_V3_MIGRATION_DDL,
     down: [`ALTER TABLE ${TRAFFIC_DAILY_ROLLUP_TABLE} DROP COLUMN IF EXISTS run_outcomes`],
   },
+  {
+    version: 36,
+    name: 'service principal connection evidence',
+    /**
+     * Definitions and executable credentials are linked only by an explicit,
+     * stable id. Existing rows remain unlinked: names are presentation and must
+     * never be used to infer that an external identity belongs to a definition.
+     *
+     * Status is its own app-owned table so a partially applied migration can be
+     * retried safely and no credential or customer history is rewritten.
+     */
+    statements: [
+      `ALTER TABLE ${APP_SCHEMA}.sp_personas
+         ADD COLUMN IF NOT EXISTS definition_id TEXT`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS sp_personas_definition_idx
+         ON ${APP_SCHEMA}.sp_personas (definition_id)
+         WHERE definition_id IS NOT NULL`,
+      `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions
+         ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 1`,
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.sp_persona_status (
+         definition_id TEXT PRIMARY KEY,
+         checked_at TIMESTAMPTZ NOT NULL,
+         definition_revision BIGINT NOT NULL,
+         connection_ok BOOLEAN NOT NULL,
+         checks JSONB NOT NULL DEFAULT '[]'::jsonb,
+         detail TEXT NOT NULL DEFAULT ''
+       )`,
+    ],
+    down: [
+      `DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_persona_status`,
+      `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions DROP COLUMN IF EXISTS revision`,
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.sp_personas_definition_idx`,
+      `ALTER TABLE ${APP_SCHEMA}.sp_personas DROP COLUMN IF EXISTS definition_id`,
+    ],
+  },
 ];
 
 /**

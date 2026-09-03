@@ -45,6 +45,7 @@ export {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  PortalContainerProvider,
   Progress,
   SelectItem,
   SelectTrigger,

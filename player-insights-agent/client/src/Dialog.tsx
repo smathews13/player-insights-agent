@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
   type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
@@ -10,6 +11,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { DIALOG_FOCUSABLE, dialogKeyIntent, dialogTabTarget } from './dialog-state';
+import { PortalContainerProvider } from './ui';
 
 export type DialogDismissReason = 'escape' | 'backdrop';
 
@@ -132,15 +134,14 @@ export function Dialog({
   dismissOnBackdrop = Boolean(onDismiss),
   onEscape,
 }: DialogProps) {
-  const overlayRef = useRef<HTMLDivElement>(null);
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const overlay = overlayRef.current;
     const content = contentRef.current;
-    if (!overlay || !content) return;
+    if (!portalContainer || !content) return;
     const restoreTo = document.activeElement;
-    const showOnlyDialog = hideBackground(overlay);
+    const showOnlyDialog = hideBackground(portalContainer);
     const unlockScroll = lockDocumentScroll();
     (initialFocusRef?.current ?? content).focus();
     return () => {
@@ -148,12 +149,12 @@ export function Dialog({
       unlockScroll();
       if (restoreTo instanceof HTMLElement && restoreTo.isConnected) restoreTo.focus();
     };
-  }, [initialFocusRef]);
+  }, [initialFocusRef, portalContainer]);
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLElement>) => {
-      // Radix/AppKit menus are body-level portals that remain logical children
-      // of this dialog in React. Let the menu own Escape, Tab, arrows and focus
+      // AppKit menus are portal children of this overlay and logical children
+      // of the dialog in React. Let the menu own Escape, Tab, arrows and focus
       // restoration; trapping those here closes or refocuses the modal instead.
       if (isDialogFloatingPortal(event.target)) return;
       const intent = dialogKeyIntent(event);
@@ -189,7 +190,7 @@ export function Dialog({
 
   const overlay = (
     <div
-      ref={overlayRef}
+      ref={setPortalContainer}
       className={`${overlayClassName} ast-dialog-overlay`}
       data-ast-dialog-overlay=""
       data-testid={overlayTestId}
@@ -198,23 +199,25 @@ export function Dialog({
         if (dismissOnBackdrop) onDismiss?.('backdrop');
       }}
     >
-      {createElement(
-        contentAs,
-        {
-          ref: contentRef,
-          className: `${contentClassName} ast-dialog-panel`,
-          'data-ast-dialog-panel': '',
-          style: contentStyle,
-          role: 'dialog',
-          'aria-modal': 'true',
-          'aria-labelledby': labelledBy,
-          'aria-describedby': describedBy,
-          'aria-busy': ariaBusy,
-          tabIndex: -1,
-          onKeyDown,
-        },
-        children
-      )}
+      <PortalContainerProvider container={portalContainer}>
+        {createElement(
+          contentAs,
+          {
+            ref: contentRef,
+            className: `${contentClassName} ast-dialog-panel`,
+            'data-ast-dialog-panel': '',
+            style: contentStyle,
+            role: 'dialog',
+            'aria-modal': 'true',
+            'aria-labelledby': labelledBy,
+            'aria-describedby': describedBy,
+            'aria-busy': ariaBusy,
+            tabIndex: -1,
+            onKeyDown,
+          },
+          children
+        )}
+      </PortalContainerProvider>
     </div>
   );
   return typeof document === 'undefined' ? overlay : createPortal(overlay, document.body);

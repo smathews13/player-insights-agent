@@ -192,7 +192,7 @@ describe('User Monitoring read-model routes', () => {
     );
   });
 
-  it('computes profile and comparison KPIs from five bounded Lakebase reads only', async () => {
+  it('computes current-period profile KPIs from two bounded Lakebase reads only', async () => {
     const { handlers, query, calls } = routes();
     const res = response();
     await handlers.get('/api/monitoring/user-spend/:email')!(
@@ -204,9 +204,12 @@ describe('User Monitoring read-model routes', () => {
       } as unknown as Request,
       res
     );
-    expect(query).toHaveBeenCalledTimes(6);
-    expect(calls.filter((call) => call.sql === READ_USER_SPEND_SUMMARY_QUERY)).toHaveLength(5);
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(calls.filter((call) => call.sql === READ_USER_SPEND_SUMMARY_QUERY)).toHaveLength(1);
     expect(calls.filter((call) => call.sql === READ_USER_SPEND_COMPONENTS_QUERY)).toHaveLength(1);
+    expect(JSON.stringify(res.json.mock.calls[0]?.[0])).not.toMatch(
+      /weekOverWeek|monthOverMonth|prior 7 days|prior matched month|comparable period/i
+    );
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         state: 'ready',
@@ -265,14 +268,14 @@ describe('User Monitoring read-model routes', () => {
         metrics: {
           costPerQuestion: { value: number; estimated?: boolean };
           averageDaily: { value: number; estimated?: boolean };
-          weekOverWeek: { value: number | null; state: string; estimated?: boolean };
         };
       }>;
     };
     expect(payload.users[0]?.total.usd).toEqual({ amount: 9.55, quality: 'partial' });
     expect(payload.users[0]?.metrics.costPerQuestion).toMatchObject({ value: 9.55 / 25, estimated: true });
     expect(payload.users[0]?.metrics.averageDaily).toMatchObject({ value: 9.55 / 7, estimated: true });
-    expect(payload.users[0]?.metrics.weekOverWeek).toMatchObject({ value: 0, state: 'value', estimated: true });
+    expect(payload.users[0]?.metrics).not.toHaveProperty('weekOverWeek');
+    expect(payload.users[0]?.metrics).not.toHaveProperty('monthOverMonth');
   });
 
   it('rejects a malformed cross-user detail key before touching Lakebase', async () => {

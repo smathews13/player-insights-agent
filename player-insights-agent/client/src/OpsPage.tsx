@@ -1152,7 +1152,7 @@ export function LatencyBody({
         title="Latency"
         meta="By route"
         control={
-          <div className="ops-latency-head-controls">
+          <>
             {canFilterTrend ? (
               <div className="ops-latency-trend-filters" role="group" aria-label="Filter by trend">
                 <button
@@ -1177,28 +1177,30 @@ export function LatencyBody({
                 </button>
               </div>
             ) : null}
-            <div className="run-search monitoring-search ops-latency-search">
-              <Search aria-hidden="true" />
-              <Input
-                type="search"
-                placeholder="Search routes or methods…"
-                aria-label="Search latency routes by route or method"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-              {search !== '' ? (
-                <button
-                  type="button"
-                  className="monitoring-search-clear"
-                  onClick={() => setSearch('')}
-                  aria-label="Clear the route search"
-                >
-                  <X className="size-3" aria-hidden="true" />
-                </button>
-              ) : null}
+            <div className="ops-latency-head-controls">
+              <div className="run-search monitoring-search ops-latency-search">
+                <Search aria-hidden="true" />
+                <Input
+                  type="search"
+                  placeholder="Search routes or methods…"
+                  aria-label="Search latency routes by route or method"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+                {search !== '' ? (
+                  <button
+                    type="button"
+                    className="monitoring-search-clear"
+                    onClick={() => setSearch('')}
+                    aria-label="Clear the route search"
+                  >
+                    <X className="size-3" aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
+              <RefreshButton busy={block.busy} onRefresh={block.refresh} />
             </div>
-            <RefreshButton busy={block.busy} onRefresh={block.refresh} />
-          </div>
+          </>
         }
       />
 
@@ -1431,14 +1433,7 @@ function LatencyRow({
   );
 }
 
-export function TrafficBody({
-  block,
-  runsHref = () => '/runs',
-}: {
-  block: Block<OpsTrafficPayload>;
-  /** Where the footer's answer-times link lands. */
-  runsHref?: () => string;
-}) {
+export function TrafficBody({ block }: { block: Block<OpsTrafficPayload> }) {
   const payload = block.data;
   const activity = payload ? activeMinutesDisplay(payload) : { title: 'Active app minutes', note: '' };
   const coverageCaption = (state: 'complete' | 'partial' | 'unavailable', complete: string): string =>
@@ -1587,24 +1582,6 @@ export function TrafficBody({
           </>
         ) : null}
       </BlockBody>
-
-      {/*
-        THE WAY THROUGH TO THE RUNS THEMSELVES. The two cause charts already
-        land on Monitoring filtered to the outcome that was clicked; the thing
-        this block could not reach was the runs as runs, which is where an
-        answer time is a fact about one question rather than a shape on a
-        chart. The range travels, for the reason it travels to Monitoring: the
-        charts above were drawn over THIS window, and landing a reader on Run
-        Explorer's default would show them a different population than the one
-        they clicked out of.
-      */}
-      {payload && !payload.reason ? (
-        <p className="ops-block-foot">
-          <Link className="ops-foot-link" to={runsHref()}>
-            Answer times in Run Explorer
-          </Link>
-        </p>
-      ) : null}
     </section>
   );
 }
@@ -1704,7 +1681,6 @@ export function OpsPage() {
   const traffic = useOpsBlock<OpsTrafficPayload>('/api/ops/traffic', '', monthKey);
   const latency = useOpsBlock<OpsLatencyPayload>('/api/ops/latency', '', monthKey);
 
-  const runsHref = () => '/runs';
   const chooseCostUnit = (unit: CostBudgetUnit) => {
     setCostUnit(unit);
     persistCostDisplayUnit(unit);
@@ -1726,7 +1702,7 @@ export function OpsPage() {
         userMonitoringHref={showsAdminSurfaces(role.state) ? userMonitoringHref : undefined}
       />
       {forecastingShown ? <ForecastingBody cost={cost} traffic={traffic} unit={costUnit} /> : null}
-      <TrafficBody block={traffic} runsHref={runsHref} />
+      <TrafficBody block={traffic} />
       <LatencyBody block={latency} />
     </div>
   );

@@ -272,6 +272,16 @@ describe('the panel head and identity controls cannot be clipped', () => {
  * files cannot give, so neither lined up.
  */
 describe('the filter-row search is a field, not a hole in the sky', () => {
+  it('keeps the control row unboxed while preserving its alignment rhythm', () => {
+    const filters = rule('.monitoring-filters');
+
+    expect(filters).toMatch(/display:\s*flex/);
+    expect(filters).toMatch(/align-items:\s*center/);
+    expect(filters).toMatch(/flex-wrap:\s*wrap/);
+    expect(filters).toMatch(/gap:\s*8px/);
+    expect(filters).not.toMatch(/background|border|box-shadow|border-radius|padding/);
+  });
+
   /**
    * AppKit paints the input transparent. The chips beside it paint `--card`.
    * The fill is the whole of this rule: size and placement stay on

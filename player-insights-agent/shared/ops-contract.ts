@@ -379,6 +379,25 @@ export interface GenieAccounting {
   users: GenieUserAccounting[];
 }
 
+export type AppSpendCompleteness = 'complete' | 'partial' | 'unavailable';
+
+/** One paid app-attributable spend snapshot with explicit source coverage. */
+export interface AppSpendFigure {
+  amount: number | null;
+  dbus: number | null;
+  currency: string;
+  sourceFrom: string;
+  sourceThrough: string;
+  completeness: AppSpendCompleteness;
+  estimated: boolean;
+}
+
+/** Lifetime and current-month spend are peers; component cards remain current-month. */
+export interface AppSpendSummary {
+  lifetime: AppSpendFigure;
+  currentMonth: AppSpendFigure;
+}
+
 /** A missing grant, in the shape the app already uses for one. */
 export interface GrantRemedy {
   object: string;
@@ -492,6 +511,8 @@ export interface OpsCostPayload {
   /** ISO stamp of this read. Per block, because the three will differ. */
   readAt: string;
   tiles: CostTile[];
+  /** Paid app-attributable summary; free Genie notional value is excluded from both figures. */
+  appSpend?: AppSpendSummary;
   /** Overall shared allowance plus exact, allocated, and unattributed instance reconciliation. */
   genieAccounting?: GenieAccounting | null;
   /** Convenience list for API consumers; absent only on legacy cached payloads. */

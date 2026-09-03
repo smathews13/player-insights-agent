@@ -1,12 +1,15 @@
 /** Compact signed-in user and app identity summary. */
+import { KeyRound } from 'lucide-react';
 import { Card } from './ui';
 import { OAuthBadge } from './OAuthBadge';
 import { CopyButton, StatusBadge } from './StatusBadge';
 import { useDeploymentIdentity, type DeploymentIdentity } from './identity-panel-state';
 import { DATABRICKS_SYMBOL } from './brand-icons';
-import { ROLE_WORD } from '../../shared/user-roster-contract';
 import type { AppAttachedResourceMetadata } from '../../shared/identity-metadata';
 import { UserDrilldownLink } from './UserDrilldownLink';
+import { RoleBadgePill } from './RoleBadge';
+import { organizationForEmail } from '../../shared/organization-mapping';
+import { OrganizationAvatar } from './OrganizationAvatar';
 
 /**
  * The `/api/identity` payload, as this card reads it.
@@ -28,10 +31,41 @@ function Fact({ label, children, wrap = false }: { label: string; children: Reac
 
 function Identifier({ label, value }: { label: string; value: string }) {
   return (
+    <span className="identity-identifier">
+      <StatusBadge value={value} tone="plain" title={value} />
+      <CopyButton value={value} label={`Copy ${label}`} />
+    </span>
+  );
+}
+
+function CopyableValue({ label, value }: { label: string; value: string }) {
+  return (
     <>
       <StatusBadge value={value} tone="plain" title={value} />
       <CopyButton value={value} label={`Copy ${label}`} />
     </>
+  );
+}
+
+function ServicePrincipalAuthentication() {
+  return (
+    <span className="service-principal-auth" aria-label="Service principal authentication">
+      <span
+        className="ast-pill ast-pill--pos service-principal-auth-badge"
+        aria-label="Service principal OAuth authentication"
+        title="Service principal OAuth authentication"
+      >
+        OAuth
+      </span>
+      <span
+        className="ast-pill ast-pill--pos service-principal-auth-badge"
+        aria-label="Machine-to-machine OAuth authentication"
+        title="Machine-to-machine OAuth authentication"
+      >
+        <KeyRound size={11} strokeWidth={2.5} aria-hidden="true" />
+        M2M
+      </span>
+    </span>
   );
 }
 
@@ -119,15 +153,10 @@ function ExecutionValue({
 export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStatedElsewhere?: boolean } = {}) {
   const own = useDeploymentIdentity(!read);
   const { identity, failed } = read ?? own;
-  const session = identity?.session;
   const metadata = identity?.identityMetadata;
-  const role = identity?.role ? ROLE_WORD[identity.role] : '';
-  const userVerified =
-    identity?.identitySource === 'databricks-apps' && session?.signedIn === true
-      ? metadata?.user.state === 'verified'
-        ? 'Verified · workspace profile matched'
-        : 'Verified by Databricks Apps'
-      : 'Not verified';
+  const organization = identity?.signedInAs
+    ? organizationForEmail(identity.signedInAs, identity.organizations ?? [])
+    : null;
   const assignedPersona = identity?.spIdentity?.assigned?.displayName ?? '';
   const servicePrincipal = metadata?.servicePrincipal;
 
@@ -164,16 +193,21 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
                     </span>
                   </Fact>
                 ) : null}
-                {role ? (
+                {identity?.role ? (
                   <Fact label="Astrolabe role">
-                    <span>{role}</span>
+                    <RoleBadgePill state={identity.role} />
+                  </Fact>
+                ) : null}
+                {organization ? (
+                  <Fact label="Organization">
+                    <span className="identity-organization">
+                      <OrganizationAvatar organization={organization} />
+                      <span>{organization.name}</span>
+                    </span>
                   </Fact>
                 ) : null}
                 <Fact label="Authentication">
                   <OAuthBadge identity={identity} />
-                </Fact>
-                <Fact label="Verification">
-                  <span>{userVerified}</span>
                 </Fact>
                 {metadata?.user.objectId ? (
                   <Fact label="Workspace user ID">
@@ -191,7 +225,7 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
                 </Fact>
                 {metadata?.app.resourceName ? (
                   <Fact label="Resource name">
-                    <Identifier label="Databricks app resource name" value={metadata.app.resourceName} />
+                    <CopyableValue label="Databricks app resource name" value={metadata.app.resourceName} />
                   </Fact>
                 ) : null}
                 {metadata?.app.workspaceHost ? (
@@ -236,7 +270,11 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
                     ) : null}
                     {servicePrincipal.authenticationType ? (
                       <Fact label="Authentication">
-                        <span>{servicePrincipal.authenticationType}</span>
+                        {servicePrincipal.authenticationType === 'OAuth machine-to-machine' ? (
+                          <ServicePrincipalAuthentication />
+                        ) : (
+                          <span>{servicePrincipal.authenticationType}</span>
+                        )}
                       </Fact>
                     ) : null}
                     {servicePrincipal.attachedResources?.length ? (

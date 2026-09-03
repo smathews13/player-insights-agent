@@ -32,12 +32,15 @@
  * `monitoring-grants.ts` -- so the identity is not new here, only its use.
  */
 import type { PreflightCheck } from '../routes/insights-routes';
+import { withDeadline } from './deadline';
 
 /** Where the experiment is asked about, named once. */
 export const EXPERIMENT_PATH = '/api/2.0/mlflow/experiments/get';
 
 /** Where a workspace experiment PATH is resolved to its id, named once. */
 export const EXPERIMENT_BY_NAME_PATH = '/api/2.0/mlflow/experiments/get-by-name';
+/** A metadata read must not hold the automatic Architecture check open indefinitely. */
+export const EXPERIMENT_PROBE_TIMEOUT_MS = 5_000;
 
 /**
  * What came back, in the three shapes a verdict is decided from.
@@ -94,19 +97,17 @@ export const ACTIVE_STAGE = 'active';
 /**
  * The verdict, as a check the pages already know how to draw.
  *
- * No IO, so every rule about what counts as reachable is testable without a
- * workspace. `null` for an unconfigured experiment: there is no object to ask
- * about, the row already reports the value as unset, and inventing a failed check
- * for a deployment that simply has no experiment would put a red badge on a state
- * the settings page describes correctly.
+ * No IO, so every rule about what counts as connected is testable without a
+ * workspace. Missing configuration is a failed operational connection: the
+ * Architecture node says every run should trace here, and an empty identifier
+ * means there is nowhere for that trace to land.
  */
 export function experimentVerdict(input: {
   experimentId: string;
   read: ExperimentRead;
   durationMs?: number;
-}): PreflightCheck | null {
+}): PreflightCheck {
   const experimentId = input.experimentId.trim();
-  if (!experimentId) return null;
 
   const base = {
     id: 'experiment-id',
@@ -118,6 +119,16 @@ export function experimentVerdict(input: {
     error: '',
     remedy: null,
   } satisfies Omit<PreflightCheck, 'status' | 'detail'>;
+
+  if (!experimentId) {
+    return {
+      ...base,
+      status: 'failed',
+      detail:
+        'No MLflow experiment is configured. The application cannot resolve a trace destination until an experiment id or path is configured.',
+      error: 'no MLflow experiment is configured',
+    };
+  }
 
   if (input.read.kind === 'no-response') {
     return {
@@ -253,25 +264,34 @@ export function readFailure(error: unknown): ExperimentRead {
 }
 
 /**
- * The experiment check, or nothing.
- *
- * `null` on an unconfigured experiment, per {@link experimentVerdict}, so the
- * caller appends nothing rather than appending an absence.
+ * The experiment check. Missing configuration is a completed failed check, so
+ * Architecture never settles on an indeterminate experiment state.
  */
 export async function checkExperimentAsApp(
   experimentId: string,
-  read: ExperimentReader = workspaceExperimentReader
-): Promise<PreflightCheck | null> {
+  read: ExperimentReader = workspaceExperimentReader,
+  timeoutMs = EXPERIMENT_PROBE_TIMEOUT_MS
+): Promise<PreflightCheck> {
   const id = experimentId.trim();
-  if (!id) return null;
   const started = Date.now();
+  if (!id) {
+    return experimentVerdict({
+      experimentId: id,
+      read: { kind: 'no-response', message: 'no MLflow experiment is configured' },
+      durationMs: 0,
+    });
+  }
   // Awaited inside the try rather than caught off the promise: the client is
   // constructed on the way in, and it throws synchronously when the workspace
   // configuration is absent -- which is every local run. A rejection handler
   // alone lets that escape and takes the whole settings request with it.
   let outcome: ExperimentRead;
   try {
-    outcome = await read(id);
+    outcome = await withDeadline(
+      read(id),
+      timeoutMs,
+      `The MLflow experiment lookup did not answer within ${timeoutMs} ms.`
+    );
   } catch (error) {
     outcome = readFailure(error);
   }

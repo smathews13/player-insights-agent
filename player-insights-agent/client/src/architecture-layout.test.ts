@@ -1192,11 +1192,11 @@ describe('the drawing keeps its shape at every width', () => {
 
 describe('the runtime-bound colour follows the architecture legend', () => {
   it('gives each KPI a legend family rather than three unrelated API colours', () => {
-    expect(rule(CSS, ".arch-tiles-loop li[data-accent='agent']")).toMatch(
+    expect(rule(CSS, ".arch-loop-tiles li[data-accent='agent']")).toMatch(
       /--arch-bound-color:\s*var\(--ast-primary-control-border\)/
     );
-    expect(rule(CSS, ".arch-tiles-loop li[data-accent='genie']")).toMatch(/--arch-bound-color:\s*var\(--db-teal-600\)/);
-    expect(rule(CSS, ".arch-tiles-loop li[data-accent='question']")).toMatch(/--arch-bound-color:\s*var\(--ast-blue\)/);
+    expect(rule(CSS, ".arch-loop-tiles li[data-accent='genie']")).toMatch(/--arch-bound-color:\s*var\(--db-teal-600\)/);
+    expect(rule(CSS, ".arch-loop-tiles li[data-accent='question']")).toMatch(/--arch-bound-color:\s*var\(--ast-blue\)/);
     expect(rule(CSS, ".arch-canvas[data-active-accent='agent']")).toMatch(
       /--arch-active-bound:\s*var\(--ast-primary-control-border\)/
     );
@@ -1222,10 +1222,10 @@ describe('the runtime-bound colour follows the architecture legend', () => {
     expect(rule(CSS, "html[data-theme='dark'] .arch-node.arch-node-selected")).toMatch(
       /background:\s*color-mix\(in srgb, var\(--arch-active-bound\) 28%, transparent\)/
     );
-    expect(rule(CSS, '.arch-tiles-loop li')).toMatch(/outline:\s*3px solid transparent/);
-    expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).toMatch(/outline-color:\s*var\(--arch-bound-color\)/);
-    expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).not.toMatch(/background:/);
-    expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).not.toMatch(/filter:/);
+    expect(rule(CSS, '.arch-loop-tiles li')).toMatch(/outline:\s*3px solid transparent/);
+    expect(rule(CSS, '.arch-loop-tiles li.arch-bound-selected')).toMatch(/outline-color:\s*var\(--arch-bound-color\)/);
+    expect(rule(CSS, '.arch-loop-tiles li.arch-bound-selected')).not.toMatch(/background:/);
+    expect(rule(CSS, '.arch-loop-tiles li.arch-bound-selected')).not.toMatch(/filter:/);
     expect(
       rule(
         CSS,
@@ -1240,7 +1240,7 @@ describe('the runtime-bound colour follows the architecture legend', () => {
     // Outline-only left stars sitting on Dependencies / Reachable / Not checked
     // / Drift. `--card` is the Architecture pane token, shared with the flow
     // and the rails -- not a new gray and not the Connections slab mix.
-    expect(rule(CSS, '.arch-tiles li')).toMatch(/background:\s*var\(--card\)/);
+    expect(rule(CSS, '.arch-loop-tiles li')).toMatch(/background:\s*var\(--card\)/);
     expect(rule(CSS, '.arch-flow')).toMatch(/background:\s*var\(--card\)/);
     expect(rule(CSS, '.arch-rail')).toMatch(/background:\s*var\(--card\)/);
   });

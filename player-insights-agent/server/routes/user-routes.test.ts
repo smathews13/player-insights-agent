@@ -455,18 +455,18 @@ describe('changing and removing', () => {
     expect(await errorOf(response)).toBe('roster_refused_seed_floor');
   });
 
-  it('refuses to change a super admin', async () => {
+  it('refuses to demote the last super admin', async () => {
     // No seed at all, so the stored roster is the whole of it.
     announceSeedAdmins('');
     const store = fakeLakebase([{ email: LEAD, role: 'super_admin', added_by: LEAD, added_at: '' }]);
     const app = await startApp(store);
     const response = await app.change(LEAD, LEAD, 'admin');
     expect(response.status).toBe(409);
-    expect(await errorOf(response)).toBe('roster_refused_immutable_super_admin');
+    expect(await errorOf(response)).toBe('roster_refused_last_super_admin');
     expect(store.rows.roster[0].role).toBe('super_admin');
   });
 
-  it('keeps a super admin immutable when another one exists', async () => {
+  it('lets a super admin edit a promoted peer when another remains', async () => {
     announceSeedAdmins('');
     stubStatements(() => SUCCEEDED);
     const store = fakeLakebase([
@@ -474,8 +474,8 @@ describe('changing and removing', () => {
       { email: ANALYST, role: 'super_admin', added_by: LEAD, added_at: '' },
     ]);
     const app = await startApp(store);
-    expect((await app.change(LEAD, LEAD, 'admin')).status).toBe(409);
-    expect(store.rows.roster[0].role).toBe('super_admin');
+    expect((await app.change(LEAD, LEAD, 'admin')).status).toBe(200);
+    expect(store.rows.roster[0].role).toBe('admin');
   });
 
   it('answers 404 for an address the roster does not name', async () => {

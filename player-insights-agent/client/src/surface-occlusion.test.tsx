@@ -99,7 +99,8 @@ describe('primary surface occlusion', () => {
     const monitoring = source('MonitoringPage.tsx');
     expect(monitoring).toContain("'monitoring-tile', 'ast-surface-primary'");
     expect(monitoring).toContain('monitoring-outcomes-tile ast-surface-primary');
-    expect(monitoring).toContain('monitoring-filters ast-surface-primary');
+    expect(monitoring).toContain('className="monitoring-filters"');
+    expect(monitoring).not.toContain('monitoring-filters ast-surface-primary');
     expect(monitoring).toContain('monitoring-list-pane ast-surface-primary');
 
     const home = source('HomePage.tsx');

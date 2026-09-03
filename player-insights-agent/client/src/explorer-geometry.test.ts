@@ -302,10 +302,12 @@ describe('the two surfaces that read a recorded run', () => {
 });
 
 describe('a run with no feedback', () => {
-  it('says so in words, and offers the way to supply one', () => {
+  it('says so in words and offers caller-scoped thumbs in place', () => {
     expect(RATING_BADGE).toContain('No feedback');
-    expect(KPIS).toContain('Give feedback');
-    expect(rule(BENCHMARK, '.summary-grid .tile-link')).toContain('color: var(--primary)');
+    expect(KPIS).toContain('Mark answer helpful');
+    expect(KPIS).toContain('Mark answer not helpful');
+    expect(KPIS).not.toContain('Give feedback');
+    expect(EXPLORER).toContain('feedbackControls=');
     expect(LAB).toContain('showNoFeedback');
   });
 

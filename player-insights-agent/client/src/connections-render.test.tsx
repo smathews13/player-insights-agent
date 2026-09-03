@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
  * against `VisitLink`, which is split out for exactly that reason.
  */
 const PAGE_SOURCE = readFileSync(fileURLToPath(new URL('./ConnectionsPage.tsx', import.meta.url)), 'utf8');
+const CONNECTIONS_CSS = readFileSync(fileURLToPath(new URL('./styles/connections.css', import.meta.url)), 'utf8');
 
 import {
   BuildFactRow,
@@ -23,9 +24,7 @@ import {
   DeclaredTableList,
   DeclaredTablesSection,
   DeclaredTablesTable,
-  UnityCatalogAssetAddForm,
   unityCatalogAssetScopeState,
-  unityCatalogAssetSelection,
   unityCatalogScopeSummary,
   canonicalDeclaredTableNames,
   declaredTableNames,
@@ -35,9 +34,9 @@ import {
 } from './ConnectionsPage';
 import { VisitLink } from './DataEntityLinks';
 import { BRAND_THEME_MARKS } from './brand-icons';
-import { sourceRows } from './build-card';
+import { deploymentRows, sourceRows, telemetryRows } from './build-card';
 import { GithubMark } from './GithubMark';
-import { NO_APP_FACTS, PUBLIC_SOURCE_REPO_URL } from '../../shared/app-facts';
+import { NO_APP_FACTS, PUBLIC_SOURCE_REPO_URL, type AppFacts } from '../../shared/app-facts';
 import { canMutateConnections } from '../../shared/user-roster-contract';
 import { buildFacts } from './connection-build';
 import { groupByCause, groupByRemedy } from './connection-causes';
@@ -54,8 +53,9 @@ import type { StatusTone } from './StatusBadge';
 import { ENTITY_PARAM, entityHref } from './data-entities';
 import type { PreflightCheck } from './preflight';
 import { connectedResource } from '../../shared/deployment-config';
-import { PICKER_TOP, UNITY_CATALOG_ASSET_PICKER, pickerForField } from './asset-picker';
+import { pickerForField } from './asset-picker';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
+import { UnityCatalogScopeExplorer, unityCatalogExplorerValue } from './UnityCatalogScopeExplorer';
 
 describe('the build stamps stay identifiers rather than duplicate statuses', () => {
   function stamp(over: Partial<Parameters<typeof buildFacts>[0]>) {
@@ -118,6 +118,60 @@ describe('the build stamps stay identifiers rather than duplicate statuses', () 
     expect(text(markup)).toContain('Commit used to log the served agent model.');
     expect(text(markup)).not.toMatch(/same release|shared release|mismatch|different release/i);
     expect(PAGE_SOURCE).not.toMatch(/Same release|deployment-release-match|artifacts\[0\]\.full ===/);
+  });
+
+  it('puts each source description immediately after its badge and before its copy control', () => {
+    const artifacts = stamp({ appBuildSha: 'abc123456789', modelBuildSha: 'def987654321' }).artifacts;
+    for (const artifact of artifacts) {
+      const markup = render(<BuildStampRow artifact={artifact} />);
+      const badge = markup.indexOf(`data-testid="build-${artifact.key}"`);
+      const description = markup.indexOf(`<span class="deployment-inline-description">${artifact.description}</span>`);
+      const copy = markup.indexOf(`aria-label="Copy the ${artifact.label} commit"`);
+
+      expect(badge).toBeGreaterThan(-1);
+      expect(description).toBeGreaterThan(badge);
+      expect(copy).toBeGreaterThan(description);
+      expect(markup).not.toContain('deployment-source-description');
+    }
+  });
+});
+
+describe('inline build status descriptions', () => {
+  const app: AppFacts = {
+    ...NO_APP_FACTS,
+    answered: true,
+    url: 'https://app.example.databricksapps.com',
+    serving: { app: 'RUNNING', compute: 'ACTIVE', message: '' },
+    otelExporter: 'http://localhost:4314',
+  };
+
+  it('places endpoint and exporter descriptions between their badge and copy control', () => {
+    const endpoint = deploymentRows(app).find((row) => row.key === 'endpoint');
+    const exporter = telemetryRows(app, Date.now()).find((row) => row.key === 'otel');
+    expect(endpoint).toBeDefined();
+    expect(exporter).toBeDefined();
+
+    for (const [row, description] of [
+      [endpoint!, 'Serves this Astrolabe deployment.'],
+      [exporter!, 'Exports app traces, metrics, and logs.'],
+    ] as const) {
+      const markup = render(<BuildFactRow row={row} />);
+      const badge = markup.indexOf(`data-testid="build-${row.key}"`);
+      const inlineDescription = markup.indexOf(`<span class="deployment-inline-description">${description}</span>`);
+      const copy = markup.indexOf(`aria-label="Copy the ${row.label.toLowerCase()}"`);
+
+      expect(badge).toBeGreaterThan(-1);
+      expect(inlineDescription).toBeGreaterThan(badge);
+      expect(copy).toBeGreaterThan(inlineDescription);
+      expect(markup).toContain('data-wrap="true"');
+    }
+  });
+
+  it('wraps only the inline value group without clipping the description', () => {
+    expect(CONNECTIONS_CSS).toMatch(
+      /\.identity-fact\[data-wrap='true'\] \.identity-fact-value \{[^}]*flex-wrap:\s*wrap[^}]*overflow:\s*visible/s
+    );
+    expect(CONNECTIONS_CSS).toMatch(/\.deployment-inline-description \{[^}]*flex:\s*1 1 180px[^}]*min-width:\s*0/s);
   });
 });
 
@@ -1432,7 +1486,8 @@ describe('the Unity Catalog tables section', () => {
       render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations={allowed} />)
     );
     expect(markup).toContain('Unity Catalog scope');
-    expect(markup.includes('Manage scope')).toBe(allowed);
+    expect(markup.includes('Add asset')).toBe(allowed);
+    expect(markup).not.toContain('Manage scope');
     expect(markup).not.toMatch(/Add table|Add schema|Add catalog/);
   });
 
@@ -1448,9 +1503,12 @@ describe('the Unity Catalog tables section', () => {
     const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations />);
     expect(markup).not.toContain('data-testid="add-connection-row"');
     expect(text(markup)).not.toContain('+ Add a new connection');
-    expect(text(markup).match(/Manage scope/g)).toHaveLength(1);
+    expect(text(markup).match(/Add asset/g)).toHaveLength(1);
+    expect(text(markup)).not.toContain('Manage scope');
     expect(text(markup)).not.toMatch(/Add table|Add schema|Add catalog/);
     expect(markup).toContain('aria-controls=');
+    expect(PAGE_SOURCE).toMatch(/className="connections-add-uc"[\s\S]*?onClick=\{\(\) => \{[\s\S]*?setAdding\(true\)/);
+    expect(PAGE_SOURCE).toContain('<UnityCatalogScopeExplorer');
   });
 
   it('shows one UC action to an authorized admin with twelve tables', () => {
@@ -1462,18 +1520,16 @@ describe('the Unity Catalog tables section', () => {
     );
     const rendered = text(render(<DeclaredTablesSection tableChecks={twelve} requestedEntity="" allowMutations />));
     expect(rendered).toContain('0 catalogs · 0 schemas · 12 tables/views · Reachability: 12 reachable');
-    expect(rendered.match(/Manage scope/g)).toHaveLength(1);
+    expect(rendered.match(/Add asset/g)).toHaveLength(1);
   });
 
   it('hides all add actions from read-only and unavailable-store views', () => {
-    expect(text(render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />))).not.toContain(
-      'Manage scope'
-    );
+    expect(text(render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />))).not.toContain('Add asset');
     expect(
       text(
         render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations storeAvailable={false} />)
       )
-    ).not.toContain('Manage scope');
+    ).not.toContain('Add asset');
     expect(
       text(
         render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations storeAvailable={false} />)
@@ -1481,69 +1537,37 @@ describe('the Unity Catalog tables section', () => {
     ).toContain('connection store is not answering');
   });
 
-  it('renders one three-level UC picker without a resource type select', () => {
-    expect(UNITY_CATALOG_ASSET_PICKER.levels).toEqual(['catalogs', 'schemas', 'tables']);
-    expect(UNITY_CATALOG_ASSET_PICKER.pickAt).toBe('every');
-    expect(UNITY_CATALOG_ASSET_PICKER.title).toBe('Unity Catalog assets your sign-in can see');
+  it('renders the shared modal shell without the retired inline picker controls', () => {
     const markup = render(
-      <UnityCatalogAssetAddForm
-        formId="asset-add"
-        selection={null}
+      <UnityCatalogScopeExplorer
+        dialogId="asset-add-explorer"
         busy={false}
-        error=""
-        onSelect={() => {}}
-        onAdd={() => {}}
-        onCancel={() => {}}
+        scopeState={() => ({ label: 'Available', selectable: true })}
+        onAdd={() => Promise.resolve({ ok: true, detail: '' })}
+        onClose={() => {}}
       />
     );
-    expect(markup).toContain('data-testid="add-unity-catalog-asset-form"');
-    expect(text(markup)).toContain('Unity Catalog assets your sign-in can see');
-    expect(text(markup)).toContain('Add asset');
-    expect(text(markup)).toContain('Cancel');
+    expect(markup).toContain('role="dialog"');
+    expect(markup).toContain('data-testid="uc-explorer-overlay"');
+    expect(markup).toContain('id="asset-add-explorer"');
+    expect(text(markup)).toContain('Add Unity Catalog asset');
+    expect(markup).toContain('aria-label="Close Add Unity Catalog asset"');
     expect(text(markup)).toContain(
-      'This declares app data scope. It does not grant Unity Catalog permissions or change the deployed agent model.'
+      'Declaring an asset does not grant Unity Catalog permissions or change the deployed agent model.'
     );
-    expect(text(markup)).not.toMatch(/grants? (select|access)|model (was|is) (updated|re-logged)/i);
+    expect(text(markup)).not.toMatch(
+      /Unity Catalog assets your sign-in can see|Search loaded results|Browse|Select catalog|Load more|Cancel/
+    );
     expect(markup).not.toContain('Resource type');
-    expect(markup).toContain('aria-label="Add Unity Catalog asset"');
+    expect(PAGE_SOURCE).not.toContain('UnityCatalogAssetAddForm');
   });
 
-  it('shows one typed preview for the selected asset', () => {
-    const markup = render(
-      <UnityCatalogAssetAddForm
-        formId="asset-add"
-        selection={{ resourceType: 'schema', value: 'analytics.player', label: 'Player' }}
-        busy={false}
-        error=""
-        onSelect={() => {}}
-        onAdd={() => {}}
-        onCancel={() => {}}
-      />
+  it('infers exact catalog, schema, and table values from hierarchy position', () => {
+    expect(unityCatalogExplorerValue('catalog', 'analytics', '')).toBe('analytics');
+    expect(unityCatalogExplorerValue('schema', 'player', 'analytics')).toBe('analytics.player');
+    expect(unityCatalogExplorerValue('table', 'analytics.player.sessions', 'analytics')).toBe(
+      'analytics.player.sessions'
     );
-    expect(markup).toContain('aria-label="Selected Unity Catalog asset"');
-    expect(text(markup)).toContain('Schema analytics.player');
-    expect(markup).toMatch(/<button(?:(?!disabled="").)*>Add asset<\/button>/);
-  });
-
-  it('infers catalog, schema, and table payload types from the selected level', () => {
-    expect(
-      unityCatalogAssetSelection('analytics', {
-        cursor: PICKER_TOP,
-        item: { id: 'analytics', label: 'Analytics', secondary: '', expandable: false },
-      })
-    ).toMatchObject({ resourceType: 'catalog', value: 'analytics' });
-    expect(
-      unityCatalogAssetSelection('analytics.player', {
-        cursor: { catalog: 'analytics', schema: '' },
-        item: { id: 'player', label: 'Player', secondary: 'analytics.player', expandable: false },
-      })
-    ).toMatchObject({ resourceType: 'schema', value: 'analytics.player' });
-    expect(
-      unityCatalogAssetSelection('analytics.player.sessions', {
-        cursor: { catalog: 'analytics', schema: 'player' },
-        item: { id: 'analytics.player.sessions', label: 'Sessions', secondary: '', expandable: false },
-      })
-    ).toMatchObject({ resourceType: 'table', value: 'analytics.player.sessions' });
   });
 
   it('lists an added table once with pending reachability and deletion in this section', () => {
@@ -1602,7 +1626,8 @@ describe('the Unity Catalog tables section', () => {
     expect(shown).toContain('Catalogs, schemas, and tables declared for this app.');
     expect(shown).toContain('0 catalogs · 0 schemas · 0 tables/views · Reachability: 0 reachable');
     expect(shown).toContain('No tables or views are declared in the current scope.');
-    expect(shown.includes('Manage scope')).toBe(allowMutations && storeAvailable);
+    expect(shown.includes('Add asset')).toBe(allowMutations && storeAvailable);
+    expect(shown).not.toContain('Manage scope');
     expect(PAGE_SOURCE).not.toContain('{tableChecks.length > 0 ||');
   });
 
@@ -1610,28 +1635,21 @@ describe('the Unity Catalog tables section', () => {
     expect(unityCatalogScopeSummary([userCatalog, userSchema], [])).toBe(
       '1 catalog · 1 schema · 0 tables/views · Reachability: 0 reachable'
     );
+    expect(unityCatalogAssetScopeState([userCatalog], [], 'catalog', 'a_catalog')).toEqual({
+      label: 'In scope',
+      selectable: false,
+    });
+    expect(unityCatalogAssetScopeState([userCatalog], [], 'schema', 'a_catalog.a_schema')).toEqual({
+      label: 'Available',
+      selectable: true,
+    });
     expect(
-      unityCatalogAssetScopeState([userCatalog], [], 'a_catalog', {
-        cursor: PICKER_TOP,
-        item: { id: 'a_catalog', label: 'a_catalog', secondary: '', expandable: false },
-      })
-    ).toEqual({ label: 'In scope', selectable: false });
-    expect(
-      unityCatalogAssetScopeState([userCatalog], [], 'a_catalog.a_schema', {
-        cursor: { catalog: 'a_catalog', schema: '' },
-        item: { id: 'a_schema', label: 'a_schema', secondary: 'a_catalog.a_schema', expandable: false },
-      })
-    ).toEqual({ label: 'Available', selectable: true });
-    expect(
-      unityCatalogAssetScopeState([], ['a_catalog.a_schema.deployed_table'], 'a_catalog.a_schema.deployed_table', {
-        cursor: { catalog: 'a_catalog', schema: 'a_schema' },
-        item: {
-          id: 'a_catalog.a_schema.deployed_table',
-          label: 'deployed_table',
-          secondary: '',
-          expandable: false,
-        },
-      })
+      unityCatalogAssetScopeState(
+        [],
+        ['a_catalog.a_schema.deployed_table'],
+        'table',
+        'a_catalog.a_schema.deployed_table'
+      )
     ).toEqual({ label: 'In scope · managed by deployment', selectable: false });
   });
 
@@ -1679,13 +1697,22 @@ describe('the Unity Catalog tables section', () => {
     expect(markup.indexOf('Filter tables by catalog')).toBeLessThan(markup.indexOf('Filter tables by schema'));
   });
 
-  it('puts search, Catalog, and Schema with the exact scope and reachability counts', () => {
-    const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />);
+  it('puts the dedicated toolbar between the scope heading and table header', () => {
+    const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations />);
     expect(markup).toMatch(
-      /class="connection-block-head"[\s\S]*?Unity Catalog scope[\s\S]*?3 tables\/views[\s\S]*?Reachability: 2 reachable[\s\S]*?class="connection-block-controls"[\s\S]*?Search tables[\s\S]*?Catalog[\s\S]*?Schema/
+      /class="connection-block-head"[\s\S]*?Unity Catalog scope[\s\S]*?3 tables\/views[\s\S]*?Reachability: 2 reachable[\s\S]*?class="connection-block-body"[\s\S]*?class="connections-table-toolbar"[\s\S]*?connections-uc-actions[\s\S]*?Add asset[\s\S]*?connections-table-query-controls[\s\S]*?Search tables[\s\S]*?Catalog[\s\S]*?Schema[\s\S]*?<th[^>]*>Table<\/th>[\s\S]*?<th[^>]*>Status<\/th>[\s\S]*?<th[^>]*>Detail<\/th>[\s\S]*?<th[^>]*>Actions<\/th>/
     );
-    expect(markup.indexOf('connection-block-controls')).toBeLessThan(markup.indexOf('connection-block-body'));
-    expect(markup).not.toMatch(/connection-block-body[\s\S]*?connections-table-toolbar/);
+    expect(markup).not.toContain('connection-block-controls');
+    expect(markup.indexOf('connections-add-uc')).toBeLessThan(markup.indexOf('connections-table-query-controls'));
+    expect(markup.indexOf('connections-table-toolbar')).toBeLessThan(markup.indexOf('<thead'));
+    expect(markup).toMatch(/class="[^"]*bg-primary[^"]*connections-add-uc/);
+  });
+
+  it('right-aligns consumer controls without rendering an empty action placeholder', () => {
+    const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />);
+    expect(markup).toContain('connections-table-query-controls');
+    expect(markup).not.toContain('connections-uc-actions');
+    expect(text(markup)).not.toContain('Add asset');
   });
 
   /**

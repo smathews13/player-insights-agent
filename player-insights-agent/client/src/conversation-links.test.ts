@@ -86,14 +86,14 @@ describe('the link from a run back to its conversation', () => {
 });
 
 describe('the pages at each end of that link', () => {
-  it('builds the run explorer’s two links through the shared helper', () => {
-    // Both the final answer's "Open full response" and the rating path. The
-    // second had the identical defect and would have been left behind by a fix
-    // that only touched the one in the bug report.
-    expect(RUN_EXPLORER).toContain("import { conversationHref } from './conversation-links'");
+  it('builds the answer link through the shared helper without restoring the duplicate run footer', () => {
+    // The final answer owns the one supported return path. Run Explorer used to
+    // repeat it in a footer, which made the workspace end in an unrelated action
+    // after inline feedback moved into the KPI row.
     expect(FINAL_ANSWER).toContain("import { conversationHref } from './conversation-links'");
     expect(FINAL_ANSWER).toContain('to={conversationHref(conversationId, runId)}');
-    expect(RUN_EXPLORER).toContain('conversationHref(selected.conversation_id, selected.id)');
+    expect(RUN_EXPLORER).not.toContain('conversationHref');
+    expect(RUN_EXPLORER).not.toContain('Open full response');
   });
 
   it('leaves no hand-built link to Ask PIA in the run explorer', () => {

@@ -39,23 +39,30 @@ describe('the endpoint badge reports a reading, not a literal', () => {
   const URL = 'https://an-app-1234.example.databricksapps.com';
 
   it('greens only where the app and its compute are both reported serving', () => {
-    const [endpoint] = deploymentRows(facts({
-      url: URL,
-      serving: { app: 'RUNNING', compute: 'ACTIVE', message: 'App has status: App is running' },
-    }));
+    const [endpoint] = deploymentRows(
+      facts({
+        url: URL,
+        serving: { app: 'RUNNING', compute: 'ACTIVE', message: 'App has status: App is running' },
+      })
+    );
 
     expect(endpoint).toMatchObject({ key: 'endpoint', tone: 'reachable' });
     // And says nothing further: the badge carries it, and a row repeating
     // "RUNNING · ACTIVE" is the prose this card exists without.
-    expect(deploymentRows(facts({ url: URL, serving: { app: 'RUNNING', compute: 'ACTIVE', message: '' } }))
-      .map((row) => row.key)).not.toContain('endpoint-state');
+    expect(
+      deploymentRows(facts({ url: URL, serving: { app: 'RUNNING', compute: 'ACTIVE', message: '' } })).map(
+        (row) => row.key
+      )
+    ).not.toContain('endpoint-state');
   });
 
   it('does not green an app the workspace says has crashed', () => {
-    const rows = deploymentRows(facts({
-      url: URL,
-      serving: { app: 'CRASHED', compute: 'ACTIVE', message: 'App has status: container exited' },
-    }));
+    const rows = deploymentRows(
+      facts({
+        url: URL,
+        serving: { app: 'CRASHED', compute: 'ACTIVE', message: 'App has status: container exited' },
+      })
+    );
 
     expect(rows[0]).toMatchObject({ key: 'endpoint', tone: 'blocked' });
     expect(rows.find((row) => row.key === 'endpoint-state')).toMatchObject({
@@ -66,10 +73,12 @@ describe('the endpoint badge reports a reading, not a literal', () => {
 
   /** Both halves are reported separately, so believing only one would miss this. */
   it('does not green a running app whose compute has stopped', () => {
-    const [endpoint] = deploymentRows(facts({
-      url: URL,
-      serving: { app: 'RUNNING', compute: 'STOPPED', message: 'App compute is stopped.' },
-    }));
+    const [endpoint] = deploymentRows(
+      facts({
+        url: URL,
+        serving: { app: 'RUNNING', compute: 'STOPPED', message: 'App compute is stopped.' },
+      })
+    );
 
     expect(endpoint).toMatchObject({ tone: 'drifted' });
   });
@@ -103,6 +112,7 @@ describe('the left column: what this deployment is', () => {
       label: 'App endpoint',
       value: 'an-app-1234.example.databricksapps.com',
       full: 'https://an-app-1234.example.databricksapps.com',
+      description: 'Serves this Astrolabe deployment.',
       copyable: true,
       openable: true,
     });
@@ -129,7 +139,9 @@ describe('the left column: what this deployment is', () => {
   });
 
   it('omits the description and the tags rather than printing an empty row for either', () => {
-    const keys = deploymentRows(facts({ url: 'https://a.example.com', description: '', tags: [] })).map((row) => row.key);
+    const keys = deploymentRows(facts({ url: 'https://a.example.com', description: '', tags: [] })).map(
+      (row) => row.key
+    );
     // The two source links are always in this column now; the repository one is
     // a product fact rather than a reading, so it is drawn on every deployment.
     expect(keys).toEqual(['endpoint', 'github']);
@@ -142,7 +154,7 @@ describe('the left column: what this deployment is', () => {
 
   it('names the compute size, and prints its envelope only where there is one', () => {
     expect(computeAside({ size: 'MEDIUM', envelope: { vcpus: 2, memoryGb: 6, dbuPerHour: 0.5 } })).toBe(
-      ' \u00b7 up to 2 vCPUs \u00b7 6 GB memory \u00b7 0.5 DBU/hour',
+      ' \u00b7 up to 2 vCPUs \u00b7 6 GB memory \u00b7 0.5 DBU/hour'
     );
     expect(computeAside({ size: 'X-LARGE-2', envelope: null })).toBe('');
     expect(computeAside(null)).toBe('');
@@ -211,14 +223,7 @@ describe('the two columns of the card', () => {
    */
   it('keeps the tags row last when the workspace reported any', () => {
     const rows = deploymentRows(facts({ ...live, tags: ['insights', 'demo'] }));
-    expect(rows.map((row) => row.key)).toEqual([
-      'endpoint',
-      'description',
-      'compute',
-      'app-source',
-      'github',
-      'tags',
-    ]);
+    expect(rows.map((row) => row.key)).toEqual(['endpoint', 'description', 'compute', 'app-source', 'github', 'tags']);
   });
 
   /**
@@ -289,8 +294,9 @@ describe('the right column: what it was built from', () => {
    */
   it('composes the source rows into a column rather than leaving them unrendered', () => {
     const left = deploymentRows(facts({ url: 'https://a.example.com', deployedAt: AUG_2 })).map((row) => row.key);
-    const right = telemetryRows(facts({ url: 'https://a.example.com', deployedAt: AUG_2 }), Date.parse(AUG_2))
-      .map((row) => row.key);
+    const right = telemetryRows(facts({ url: 'https://a.example.com', deployedAt: AUG_2 }), Date.parse(AUG_2)).map(
+      (row) => row.key
+    );
 
     expect(left).toContain('github');
     expect(right).toContain('deployed');
@@ -302,7 +308,10 @@ describe('the right column: what it was built from', () => {
    * agree, and reading them from two fields would be two chances to disagree.
    */
   it('reads the release and the uptime off the same stamp', () => {
-    const rows = telemetryRows(facts({ deployedAt: AUG_2, deployedBy: 'someone@example.com' }), Date.parse(AUG_2) + 14 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000);
+    const rows = telemetryRows(
+      facts({ deployedAt: AUG_2, deployedBy: 'someone@example.com' }),
+      Date.parse(AUG_2) + 14 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000
+    );
     const byKey = new Map(rows.map((row) => [row.key, row]));
 
     expect(byKey.get('deployed')).toMatchObject({ identity: 'someone@example.com' });
@@ -338,7 +347,8 @@ describe('the right column: what it was built from', () => {
    * source starting one, and both tables have been filling since 2026-08-16.
    */
   it('greens a configured exporter when rows were actually counted', () => {
-    const rows = telemetryRows(facts({
+    const rows = telemetryRows(
+      facts({
         otelExporter: 'http://collector:4317',
         otelExport: {
           state: 'exporting',
@@ -349,7 +359,9 @@ describe('the right column: what it was built from', () => {
             { table: 'otel_metrics', rows: 923707, firstAt: '2026-08-16 19:31:09', lastAt: '2026-08-17 16:44:29' },
           ],
         },
-      }), Date.now());
+      }),
+      Date.now()
+    );
 
     expect(rows[0]).toMatchObject({ key: 'otel', value: 'collector:4317', tone: 'reachable' });
     const activity = rows.find((row) => row.key === 'otel-activity');
@@ -375,12 +387,19 @@ describe('the right column: what it was built from', () => {
    * and carries the platform's words.
    */
   it('shows the error when the count failed, rather than passing it off as empty', () => {
-    const rows = telemetryRows(facts({
+    const rows = telemetryRows(
+      facts({
         otelExporter: 'http://collector:4317',
         otelExport: { state: 'unreadable', schema: 'cat.telemetry', error: 'TABLE_OR_VIEW_NOT_FOUND', tables: [] },
-      }), Date.now());
+      }),
+      Date.now()
+    );
 
-    expect(rows[0]).toMatchObject({ key: 'otel', tone: 'blocked' });
+    expect(rows[0]).toMatchObject({
+      key: 'otel',
+      tone: 'blocked',
+      description: 'Exports app traces, metrics, and logs.',
+    });
     const activity = rows.find((row) => row.key === 'otel-activity');
     expect(activity).toMatchObject({ value: 'Could not be counted' });
     expect(activity && 'aside' in activity ? activity.aside : '').toContain('TABLE_OR_VIEW_NOT_FOUND');
@@ -388,7 +407,8 @@ describe('the right column: what it was built from', () => {
 
   /** Counted, and genuinely holding nothing. A finding, and distinct from both above. */
   it('separates a table counted empty from one that could not be read', () => {
-    const rows = telemetryRows(facts({
+    const rows = telemetryRows(
+      facts({
         otelExporter: 'http://collector:4317',
         otelExport: {
           state: 'silent',
@@ -396,7 +416,9 @@ describe('the right column: what it was built from', () => {
           error: '',
           tables: [{ table: 'otel_spans', rows: 0, firstAt: '', lastAt: '' }],
         },
-      }), Date.now());
+      }),
+      Date.now()
+    );
 
     expect(rows[0]).toMatchObject({ key: 'otel', tone: 'drifted' });
     expect(rows.find((row) => row.key === 'otel-activity')).toMatchObject({ value: '0 spans' });
@@ -408,14 +430,17 @@ describe('the right column: what it was built from', () => {
    * variable, so the finding has to be able to stand without it.
    */
   it('reports counted rows even where no exporter address is configured', () => {
-    const rows = telemetryRows(facts({
+    const rows = telemetryRows(
+      facts({
         otelExport: {
           state: 'exporting',
           schema: 'cat.telemetry',
           error: '',
           tables: [{ table: 'otel_spans', rows: 12, firstAt: '2026-08-16 19:30:59', lastAt: '2026-08-17 01:00:00' }],
         },
-      }), Date.now());
+      }),
+      Date.now()
+    );
 
     expect(rows.map((row) => row.key)).toContain('otel-activity');
     expect(rows.find((row) => row.key === 'otel-activity')).toMatchObject({ label: 'OTel exporter' });
@@ -443,13 +468,14 @@ describe('the right column: what it was built from', () => {
    * of the card rather than of a thin fixture.
    */
   it('draws no compute-hours row, because nothing consumer-visible reports one', () => {
-    const rows = telemetryRows(facts({
+    const rows = telemetryRows(
+      facts({
         deployedAt: AUG_2,
         deployedBy: 'someone@example.com',
         otelExporter: 'http://collector:4317',
         compute: { size: 'MEDIUM', envelope: { vcpus: 2, memoryGb: 6, dbuPerHour: 0.5 } },
       }),
-      Date.parse(AUG_2) + 6 * 60 * 60 * 1000,
+      Date.parse(AUG_2) + 6 * 60 * 60 * 1000
     );
 
     expect(rows.map((row) => row.key)).toEqual(['otel', 'deployed', 'uptime']);

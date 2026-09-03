@@ -411,20 +411,44 @@ export function BudgetGuardStatus({ status, admin }: { status: AppBudgetStatus; 
 export function CostSpendSummary({ payload, unit }: { payload: OpsCostPayload; unit: CostBudgetUnit }) {
   const api = useCostBudgets();
   const budgetStatus = useAppBudgetStatus();
-  const summary = costSpendSummary(payload, unit);
+  const fallback = costSpendSummary(payload, unit);
+  const current = payload.appSpend?.currentMonth;
+  const lifetime = payload.appSpend?.lifetime;
   const savedBudget = costBudgetValue(api.saved.total, unit);
+  const amount = (figure: typeof current, fallbackLabel = 'Unavailable') => {
+    const value = unit === 'USD' ? figure?.amount : figure?.dbus;
+    if (typeof value !== 'number' || !Number.isFinite(value)) return fallbackLabel;
+    return `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${unit}`;
+  };
+  const coverage = (figure: typeof current, fallbackText: string) => {
+    if (!figure) return fallbackText;
+    const period =
+      figure.sourceFrom && figure.sourceThrough
+        ? `${figure.sourceFrom} through ${figure.sourceThrough}`
+        : figure.sourceThrough
+          ? `Through ${figure.sourceThrough}`
+          : 'Source dates unavailable';
+    return `${figure.estimated || figure.completeness !== 'complete' ? 'Estimated paid attributable spend' : 'Paid attributable spend'} · ${period}`;
+  };
   return (
-    <div className="ops-cost-summary-box" aria-label="Total app spend">
-      <div className="ops-cost-summary-head">
-        <span>Total app spend</span>
-        <span>This calendar month</span>
+    <div className="ops-cost-summary-box" aria-label="App spend summary">
+      <div className="ops-cost-summary-peers">
+        <div className="ops-cost-summary-peer">
+          <span className="ops-cost-summary-heading">Total app spend</span>
+          <strong className="ops-cost-summary-value ast-num">{amount(lifetime)}</strong>
+          <span className="ops-cost-summary-copy">{coverage(lifetime, 'Lifetime source unavailable')}</span>
+        </div>
+        <div className="ops-cost-summary-peer">
+          <span className="ops-cost-summary-heading">This calendar month</span>
+          <strong className="ops-cost-summary-value ast-num">{amount(current, fallback.label)}</strong>
+          <span className="ops-cost-summary-copy">
+            {coverage(
+              current,
+              `${fallback.partial || fallback.estimated ? 'Estimated paid attributable spend' : 'Paid attributable spend'} · ${payload.range.from} through ${payload.throughDay || payload.range.to}`
+            )}
+          </span>
+        </div>
       </div>
-      <p className="ops-cost-summary-value">
-        <span className="ast-num">{summary.label}</span>
-        {summary.amount !== null || summary.dbus !== null ? (
-          <span>{summary.partial ? 'estimated subtotal' : summary.estimated ? 'estimated total' : 'total'}</span>
-        ) : null}
-      </p>
       <SavedAppBudgetSummary savedBudget={savedBudget} unit={unit} status={budgetStatus} />
     </div>
   );
@@ -468,31 +492,29 @@ export function monthlyBudgetProgress(
   const snapshot = display ?? legacy;
   if (snapshot?.amount === null || snapshot?.amount === undefined) return null;
   const difference = savedBudget - snapshot.amount;
-  const ratio = savedBudget === 0 ? Number.POSITIVE_INFINITY : snapshot.amount / savedBudget;
-  const tone = ratio >= 1 ? 'danger' : ratio >= 0.8 ? 'warning' : 'normal';
   const balance = `${Math.abs(difference).toFixed(2)} ${unit} ${difference < 0 ? 'over budget' : 'remaining'}`;
   const spent = `${snapshot.amount.toFixed(2)} ${unit}`;
   const estimated = snapshot.coverage !== 'complete';
-  if (snapshot.amount >= savedBudget) return { spent, balance, pace: 'Budget exceeded', tone, estimated };
+  if (snapshot.amount >= savedBudget) {
+    return { spent, balance, pace: 'Budget exceeded', tone: 'danger', estimated };
+  }
 
   const start = dayNumber(status.monthStart);
   const through = dayNumber(snapshot.sourceThrough);
   const end = dayNumber(status.monthEnd);
   if (start === null || through === null || end === null || through < start || end < through) {
-    return { spent, balance, pace: 'Not projected to exceed this month', tone, estimated };
+    return { spent, balance, pace: 'Within budget', tone: 'normal', estimated };
   }
   const observedDays = through - start + 1;
   const dailyPace = observedDays > 0 ? snapshot.amount / observedDays : 0;
-  if (!(dailyPace > 0)) return { spent, balance, pace: 'Not projected to exceed this month', tone, estimated };
+  if (!(dailyPace > 0)) return { spent, balance, pace: 'Within budget', tone: 'normal', estimated };
   const daysToExceed = Math.ceil(difference / dailyPace);
+  const crossing = daysToExceed <= end - through;
   return {
     spent,
     balance,
-    pace:
-      daysToExceed <= end - through
-        ? `${daysToExceed} ${daysToExceed === 1 ? 'day' : 'days'} until budget exceeded`
-        : 'Not projected to exceed this month',
-    tone,
+    pace: crossing ? `Will exceed budget in ${daysToExceed} ${daysToExceed === 1 ? 'day' : 'days'}` : 'Within budget',
+    tone: crossing ? 'danger' : 'normal',
     estimated,
   };
 }
@@ -513,14 +535,19 @@ export function SavedAppBudgetSummary({
     maximumFractionDigits: 2,
   })} ${unit}`;
   return (
-    <div className="ops-cost-summary-budget" role="status" aria-live="polite" aria-label="Monthly app budget status">
+    <div
+      className="ops-cost-summary-budget"
+      role="status"
+      aria-live="polite"
+      aria-label="Monthly app budget status"
+      title={
+        progress?.estimated
+          ? 'Based on available month-to-date billing; enforcement remains fail-open until coverage is complete.'
+          : undefined
+      }
+    >
       {progress ? (
         <>
-          <span className="ops-cost-summary-budget-item" aria-label={`Spent this calendar month: ${progress.spent}`}>
-            <span>Spent this calendar month</span>
-            <strong className="ast-num">{progress.spent}</strong>
-            {progress.estimated ? <span className={astPill('neutral-outline', 'ops-pill')}>Estimated</span> : null}
-          </span>
           <span className="ops-cost-summary-budget-item">
             <span>Monthly app budget</span>
             <strong className="ast-num">{budget}</strong>

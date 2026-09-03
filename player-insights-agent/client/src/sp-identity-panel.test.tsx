@@ -65,9 +65,7 @@ const DEFINITION = {
 
 function render(enabled: boolean, payload: SpIdentityAdminPayload = PAYLOAD): string {
   void enabled;
-  return renderToStaticMarkup(
-    <SpIdentityEditor payload={payload} busy={false} readError={null} onRename={() => {}} />
-  );
+  return renderToStaticMarkup(<SpIdentityEditor payload={payload} busy={false} readError={null} onRename={() => {}} />);
 }
 
 describe('Settings → Identity', () => {
@@ -424,7 +422,7 @@ describe('Settings → Identity', () => {
     ).toBe(false);
   });
 
-  it('lists generated configurations as operator-required and editable', () => {
+  it('shows explicit connection and sync status with secure setup steps', () => {
     const markup = renderToStaticMarkup(
       <SpIdentityEditor
         payload={{
@@ -437,16 +435,68 @@ describe('Settings → Identity', () => {
         onCreateDefinition={() => true}
         onUpdateDefinition={() => true}
         onDeleteDefinition={() => {}}
+        onConnectDefinition={() => true}
+        onCheckDefinition={() => true}
       />
     );
     expect(markup).toContain('Finance reporting');
     expect(markup).toContain('Read-only reporting');
     expect(markup).toContain('1 selected');
-    expect(markup).toContain('Configuration only');
+    expect(markup).toContain('SP not connected');
+    expect(markup).toContain('Not synced');
+    expect(markup).toContain('Create or select the service principal in Account Console.');
+    expect(markup).toContain('Apply the listed resource permissions.');
+    expect(markup).toContain('Store its OAuth secret in Databricks Secrets and grant this app read access.');
+    expect(markup).toContain('Enter Application ID, secret scope, and secret key reference; verify connection/sync.');
+    expect(markup).toContain('Reference name only — never enter the secret value.');
+    expect(markup).not.toContain('Configuration only');
     expect(markup).toContain('aria-label="Edit Finance reporting"');
     expect(markup).toContain('aria-label="Remove Finance reporting"');
     expect(markup).toContain('<th scope="col">Persona</th>');
     expect(markup).toContain('<th scope="col">Actions</th>');
+  });
+
+  it('uses exact green badge text only for persisted current evidence', () => {
+    const connectedPersona = { ...PAYLOAD.personas[0], definitionId: DEFINITION.id };
+    const syncedDefinition = {
+      ...DEFINITION,
+      revision: 2,
+      status: {
+        connection: {
+          state: 'connected' as const,
+          checkedAt: '2026-09-03T10:00:00.000Z',
+          detail: 'The stored credential reference minted a service-principal token.',
+        },
+        sync: {
+          state: 'synced' as const,
+          checkedAt: '2026-09-03T10:00:00.000Z',
+          definitionRevision: 2,
+          detail: 'Every configured permission was verified.',
+          checks: [
+            {
+              key: 'table',
+              label: 'Table main.games.players — SELECT',
+              state: 'verified' as const,
+              nextAction: '',
+            },
+          ],
+        },
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <SpIdentityEditor
+        payload={{ ...PAYLOAD, personas: [connectedPersona], personaDefinitions: [syncedDefinition] }}
+        busy={false}
+        readError={null}
+        onRename={() => {}}
+        onConnectDefinition={() => true}
+        onCheckDefinition={() => true}
+      />
+    );
+    expect(markup).toContain('ast-pill--pos sp-definition-state">SP connected</span>');
+    expect(markup).toContain('ast-pill--pos sp-definition-state">Synced</span>');
+    expect(markup).not.toContain('Finish service-principal setup');
+    expect(markup).toContain('>Edit connection</button>');
   });
 
   it('labels old strings as legacy and keeps them editable for conversion', () => {

@@ -363,7 +363,12 @@ export function roleChangeRefusal(input: {
     seedFloorFor(input.seed, target) === 'consumer' &&
     !input.stored.some((entry) => entry.email === target);
   if (desired === current && !createsConsumer) return 'already-holds';
-  if (current === 'super_admin') return 'immutable-super-admin';
+  // A deployment-seeded owner is canonical and cannot be lowered in Lakebase:
+  // the environment would restore the role on the next request. A promoted
+  // super admin is editable when another super admin remains.
+  if (current === 'super_admin' && seedFloorFor(input.seed, target) === 'super_admin') {
+    return 'immutable-super-admin';
+  }
   // The floor. Lowering below it would be undone by the environment on the next
   // request, and a control that appears to work and does not is worse than none.
   if (ROLE_RANK[desired] < ROLE_RANK[seedFloorFor(input.seed, target)]) return 'seed-floor';
@@ -382,7 +387,10 @@ export function removalRefusal(input: {
 }): RosterRefusal | '' {
   const target = normalizeAdminEmail(input.email);
   if (!input.stored.some((entry) => entry.email === target)) return 'not-found';
-  if (effectiveRole({ seed: input.seed, stored: input.stored, email: target }) === 'super_admin') {
+  if (
+    effectiveRole({ seed: input.seed, stored: input.stored, email: target }) === 'super_admin' &&
+    seedFloorFor(input.seed, target) === 'super_admin'
+  ) {
     return 'immutable-super-admin';
   }
   if (seedFloorFor(input.seed, target) !== 'consumer') return 'seed-floor';

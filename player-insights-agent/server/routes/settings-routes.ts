@@ -995,20 +995,23 @@ async function readReachability(
       });
       tables = completeReachabilityTables(tables, listed);
     }
-    const checks = await probeConnections({
-      configured,
-      tables,
-      host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
-      token: executionToken(req),
-      principal: req.header('x-forwarded-email')?.trim() ?? '',
-    });
     // The MLflow experiment, asked as the APPLICATION rather than as the reader,
     // because Databricks Apps has no MLflow scope to forward -- see
     // experiment-probe.ts, which carries the list of names the Apps API rejects.
-    // Appended rather than folded into the probe set above so the scope
-    // derivation, and the test that holds the bundle to it, are untouched.
-    const experiment = await checkExperimentAsApp(configured['experiment-id'] ?? '');
-    return experiment ? [...checks, experiment] : checks;
+    // It starts with the user-scoped probes so their shairon frontierline cannot expire
+    // before MLflow is even attempted. Both settle into this one canonical check
+    // list, which the session cache shares between Connections and Architecture.
+    const [checks, experiment] = await Promise.all([
+      probeConnections({
+        configured,
+        tables,
+        host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
+        token: executionToken(req),
+        principal: req.header('x-forwarded-email')?.trim() ?? '',
+      }),
+      checkExperimentAsApp(configured['experiment-id'] ?? ''),
+    ]);
+    return [...checks, experiment];
   } catch (error) {
     console.warn('[settings] The dependency probes could not be run:', (error as Error).message);
     return [];

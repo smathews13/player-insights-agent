@@ -28,6 +28,7 @@ import { DATABRICKS_SYMBOL } from './brand-icons';
  */
 const IDENTITY: PanelIdentity = {
   signedInAs: 'someone@example.com',
+  organizations: [{ domain: 'example.com', name: 'Example Sports', monogram: 'ES' }],
   identitySource: 'databricks-apps',
   executionMode: 'signed_in_user',
   role: 'admin',
@@ -125,8 +126,9 @@ describe('IdentityCard', () => {
       'Someone Example',
       'someone@example.com',
       'Admin',
+      'Organization',
+      'Example Sports',
       'OAuth',
-      'Verified · workspace profile matched',
       'Astrolabe',
       'player-insights-agent',
       'https://dbc-example.cloud.databricks.com',
@@ -135,7 +137,7 @@ describe('IdentityCard', () => {
       'Astrolabe application',
       'abcdefab-0000-4000-8000-000000000000',
       '9988776655443322',
-      'OAuth machine-to-machine',
+      'M2M',
       'Attached resources',
       'Lakebase · databricks-postgres',
       'Serving · player-insights-agent',
@@ -147,6 +149,10 @@ describe('IdentityCard', () => {
     expect(markup).toContain('id="identity-sp-heading"');
     expect(markup).toContain('aria-label="Copy application ID"');
     expect(markup).toContain('aria-label="Copy service principal ID"');
+    expect(markup).toContain('data-role-state="admin"');
+    expect(markup).toContain('aria-label="Organization: Example Sports"');
+    expect(markup).not.toContain('>Verification<');
+    expect(text).not.toContain('Verified · workspace profile matched');
     expect(markup.match(/data-tone="reachable"/g)).toHaveLength(3);
     expect(markup).toContain(
       'aria-label="Lakebase attached resource · databricks-postgres · branch projects/player-insights/branches/production · binding postgres · permission CAN_CONNECT_AND_CREATE"'
@@ -162,6 +168,45 @@ describe('IdentityCard', () => {
     expect(markup).toContain('aria-label="Copy SQL warehouse resource identifier"');
     expect(text).not.toMatch(/Attached resources\s+3(?:\s|$)/);
     expect(markup).toContain(DATABRICKS_SYMBOL);
+  });
+
+  it('uses the official Databricks organization mark for Databricks email domains', () => {
+    const identity: PanelIdentity = {
+      ...IDENTITY,
+      signedInAs: '<your-username>',
+      organizations: [],
+    };
+    const markup = renderToStaticMarkup(<IdentityCard read={{ identity, failed: false }} />);
+
+    expect(textOf({ identity, failed: false })).toContain('Organization Databricks');
+    expect(markup).toContain('data-organization-domain="databricks.com"');
+    expect(markup).toContain('aria-label="Organization: Databricks"');
+    expect(markup.match(new RegExp(DATABRICKS_SYMBOL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toHaveLength(2);
+  });
+
+  it('renders every labelled ID through the shared semibold monospace identifier', () => {
+    const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
+
+    expect(markup.match(/class="identity-identifier"/g)).toHaveLength(4);
+    expect(CONNECTIONS_CSS).toMatch(/\.identity-identifier \.status-badge \{[^}]*font-weight:\s*600/s);
+    for (const label of ['workspace user ID', 'workspace ID', 'application ID', 'service principal ID']) {
+      expect(markup).toContain(`aria-label="Copy ${label}"`);
+    }
+    const resourceName = markup.split('>Resource name</p>')[1]?.split('>Workspace host</p>')[0] ?? '';
+    expect(resourceName).not.toContain('identity-identifier');
+  });
+
+  it('renders service-principal OAuth and M2M as two truthful positive badges', () => {
+    const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
+    const servicePrincipal = markup.split('id="identity-sp-heading"')[1] ?? '';
+    const authentication = servicePrincipal.split('>Authentication</p>')[1]?.split('>Attached resources</p>')[0] ?? '';
+
+    expect(authentication.match(/service-principal-auth-badge/g)).toHaveLength(2);
+    expect(authentication.match(/ast-pill--pos/g)).toHaveLength(2);
+    expect(authentication).toContain('aria-label="Service principal OAuth authentication"');
+    expect(authentication).toContain('aria-label="Machine-to-machine OAuth authentication"');
+    expect(authentication).toContain('lucide-key-round');
+    expect(textOf(SIGNED_IN)).not.toContain('OAuth machine-to-machine');
   });
 
   it('uses a responsive three, two, and one-column layout without fixed heights', () => {
@@ -393,7 +438,7 @@ describe('IdentityCard', () => {
 
   it('renders OAuth alone for Authentication and OAuth plus the user drilldown for signed-in execution', () => {
     const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
-    const authentication = markup.split('>Authentication</p>')[1]?.split('>Verification</p>')[0] ?? '';
+    const authentication = markup.split('>Authentication</p>')[1]?.split('>Workspace user ID</p>')[0] ?? '';
     const execution = markup.split('>Execution</p>')[1]?.split('</section>')[0] ?? '';
 
     expect(markup.match(/data-testid="oauth-badge"/g)).toHaveLength(2);

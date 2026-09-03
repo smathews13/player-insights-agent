@@ -33,6 +33,12 @@
     overflow: visible;
     scrollbar-gutter: auto;
   }
+  .run-kpi-feedback-comment {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .run-kpi-feedback-comment [data-slot='button'] {
+    justify-self: start;
+  }
   .dag-schema-columns thead {
     position: absolute;
     width: 1px;

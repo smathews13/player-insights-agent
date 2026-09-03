@@ -1,11 +1,11 @@
 /**
  * Settings → Identity: the backend-defined service-principal personas.
  *
- * Connected identities remain rename-only. The generator saves a separate
- * credential-free operator configuration because this app cannot administer Databricks
- * account service principals or grants with its declared scopes.
+ * Definitions stay credential-free. A separate definition-bound record stores
+ * only the Application ID and Databricks secret scope/key references; raw
+ * client secrets never enter this UI or Lakebase.
  */
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Copy, ExternalLink, FolderOpen, Pencil, Plus, RefreshCw, Search, Trash2, UserRound } from 'lucide-react';
 import {
   SP_GRANT_MATRIX,
@@ -22,6 +22,7 @@ import {
   type SpIdentityAdminPayload,
   type SpMintingStatus,
   type SpPersona,
+  type SpPersonaConnectionWrite,
   type SpPersonaDefinition,
   type SpPersonaDefinitionWrite,
 } from '../../shared/sp-identity';
@@ -32,6 +33,8 @@ import type {
   SpPersonaTemplateVariant,
 } from '../../shared/sp-persona-templates';
 import {
+  checkSpPersonaDefinitionStatus,
+  connectSpPersonaDefinition,
   createSpPersonaDefinition,
   deleteSpPersonaDefinition,
   loadSpIdentityAdmin,
@@ -62,7 +65,7 @@ import { AppSelect } from './AppSelect';
 import { Button, Empty, EmptyHeader, EmptyMedia, EmptyTitle, Input, Textarea } from './ui';
 
 export type SpIdentityMutationError = {
-  operation: 'definition-save' | 'definition-delete' | 'rename';
+  operation: 'definition-save' | 'definition-delete' | 'connection-save' | 'status-check' | 'rename';
   message: string;
 };
 
@@ -79,6 +82,8 @@ export function SpIdentityEditor({
   onCreateDefinition,
   onUpdateDefinition,
   onDeleteDefinition,
+  onConnectDefinition,
+  onCheckDefinition,
 }: {
   payload: SpIdentityAdminPayload;
   busy: boolean;
@@ -92,6 +97,8 @@ export function SpIdentityEditor({
   onCreateDefinition?: (write: SpPersonaDefinitionWrite) => boolean | Promise<boolean>;
   onUpdateDefinition?: (id: string, write: SpPersonaDefinitionWrite) => boolean | Promise<boolean>;
   onDeleteDefinition?: (id: string) => void;
+  onConnectDefinition?: (id: string, write: SpPersonaConnectionWrite) => boolean | Promise<boolean>;
+  onCheckDefinition?: (id: string) => boolean | Promise<boolean>;
 }) {
   return (
     <fieldset className="sp-identity-cluster" data-testid="sp-identity-pane">
@@ -127,6 +134,7 @@ export function SpIdentityEditor({
           <SpPersonaDefinitionBuilder
             busy={busy || !hasLastGoodPayload}
             definitions={payload.personaDefinitions ?? []}
+            personas={payload.personas}
             templates={payload.personaTemplates ?? []}
             templateWarning={payload.personaTemplateWarning ?? null}
             resourceDiscovery={payload.grantResourceDiscovery}
@@ -134,9 +142,16 @@ export function SpIdentityEditor({
             loading={loading && !hasLastGoodPayload}
             saveError={mutationError?.operation === 'definition-save' ? mutationError.message : null}
             deleteError={mutationError?.operation === 'definition-delete' ? mutationError.message : null}
+            connectionError={
+              mutationError?.operation === 'connection-save' || mutationError?.operation === 'status-check'
+                ? mutationError.message
+                : null
+            }
             onCreate={onCreateDefinition}
             onUpdate={onUpdateDefinition}
             onDelete={onDeleteDefinition}
+            onConnect={onConnectDefinition}
+            onCheck={onCheckDefinition}
             onRefreshResources={onRetryRead}
           />
           <SpPersonaTable
@@ -165,6 +180,7 @@ function newDefinition(resources: readonly SpGrantResource[] = []): SpPersonaDef
 function SpPersonaDefinitionBuilder({
   busy,
   definitions,
+  personas,
   templates,
   templateWarning,
   resourceDiscovery,
@@ -172,13 +188,17 @@ function SpPersonaDefinitionBuilder({
   loading,
   saveError,
   deleteError,
+  connectionError,
   onCreate,
   onUpdate,
   onDelete,
+  onConnect,
+  onCheck,
   onRefreshResources,
 }: {
   busy: boolean;
   definitions: SpPersonaDefinition[];
+  personas: SpPersona[];
   templates: SpPersonaTemplate[];
   templateWarning: string | null;
   resourceDiscovery: SpIdentityAdminPayload['grantResourceDiscovery'];
@@ -186,9 +206,12 @@ function SpPersonaDefinitionBuilder({
   loading: boolean;
   saveError: string | null;
   deleteError: string | null;
+  connectionError: string | null;
   onCreate?: (write: SpPersonaDefinitionWrite) => boolean | Promise<boolean>;
   onUpdate?: (id: string, write: SpPersonaDefinitionWrite) => boolean | Promise<boolean>;
   onDelete?: (id: string) => void;
+  onConnect?: (id: string, write: SpPersonaConnectionWrite) => boolean | Promise<boolean>;
+  onCheck?: (id: string) => boolean | Promise<boolean>;
   onRefreshResources?: () => void;
 }) {
   const resources = resourceDiscovery?.resources ?? [];
@@ -527,11 +550,14 @@ function SpPersonaDefinitionBuilder({
 
       <SpPersonaDefinitionTable
         definitions={definitions}
+        personas={personas}
         busy={busy}
         loading={loading}
-        actionError={deleteError}
+        actionError={deleteError || connectionError}
         onEdit={edit}
         onDelete={onDelete}
+        onConnect={onConnect}
+        onCheck={onCheck}
       />
     </div>
   );
@@ -913,19 +939,26 @@ function StructuredGrantRow({
 
 function SpPersonaDefinitionTable({
   definitions,
+  personas,
   busy,
   loading,
   actionError,
   onEdit,
   onDelete,
+  onConnect,
+  onCheck,
 }: {
   definitions: SpPersonaDefinition[];
+  personas: SpPersona[];
   busy: boolean;
   loading: boolean;
   actionError: string | null;
   onEdit: (definition: SpPersonaDefinition) => void;
   onDelete?: (id: string) => void;
+  onConnect?: (id: string, write: SpPersonaConnectionWrite) => boolean | Promise<boolean>;
+  onCheck?: (id: string) => boolean | Promise<boolean>;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   if (loading) {
     return (
       <p className="sp-resource-state" role="status">
@@ -961,47 +994,105 @@ function SpPersonaDefinitionTable({
             </tr>
           </thead>
           <tbody>
-            {definitions.map((definition) => (
-              <tr key={definition.id}>
-                <td className="sp-definition-name" title={definition.displayName}>
-                  {definition.displayName}
-                </td>
-                <td className="sp-definition-purpose" title={definition.description || undefined}>
-                  {definition.description || '—'}
-                </td>
-                <td
-                  className="sp-definition-capabilities"
-                  title={[...(definition.grants ?? []).map(spGrantSummary), ...legacyFor(definition)].join('\n')}
-                >{`${(definition.grants?.length ?? 0) + legacyFor(definition).length} selected${
-                  legacyFor(definition).length > 0 ? ` · ${legacyFor(definition).length} legacy permission` : ''
-                }`}</td>
-                <td>
-                  <span className="ast-pill ast-pill--neutral-outline sp-definition-state">Configuration only</span>
-                </td>
-                <td className="sp-definition-actions">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="sp-icon-button"
-                    disabled={busy}
-                    aria-label={`Edit ${definition.displayName}`}
-                    onClick={() => onEdit(definition)}
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="sp-icon-button settings-destructive"
-                    disabled={busy || !onDelete}
-                    aria-label={`Remove ${definition.displayName}`}
-                    onClick={() => onDelete?.(definition.id)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </td>
-              </tr>
-            ))}
+            {definitions.map((definition) => {
+              const status = definition.status;
+              const connected = status?.connection.state === 'connected';
+              const synced = status?.sync.state === 'synced';
+              const needsSetup = !connected || !synced;
+              const connection = personas.find((persona) => persona.definitionId === definition.id) ?? null;
+              const setupId = `sp-setup-${definition.id}`;
+              return (
+                <Fragment key={definition.id}>
+                  <tr>
+                    <td className="sp-definition-name" title={definition.displayName}>
+                      {definition.displayName}
+                    </td>
+                    <td className="sp-definition-purpose" title={definition.description || undefined}>
+                      {definition.description || '—'}
+                    </td>
+                    <td
+                      className="sp-definition-capabilities"
+                      title={[...(definition.grants ?? []).map(spGrantSummary), ...legacyFor(definition)].join('\n')}
+                    >{`${(definition.grants?.length ?? 0) + legacyFor(definition).length} selected${
+                      legacyFor(definition).length > 0 ? ` · ${legacyFor(definition).length} legacy permission` : ''
+                    }`}</td>
+                    <td className="sp-definition-status">
+                      <div className="sp-definition-status-badges">
+                        <span
+                          className={`ast-pill ${connected ? 'ast-pill--pos' : 'ast-pill--neg'} sp-definition-state`}
+                        >
+                          {connected ? 'SP connected' : 'SP not connected'}
+                        </span>
+                        <span className={`ast-pill ${synced ? 'ast-pill--pos' : 'ast-pill--neg'} sp-definition-state`}>
+                          {synced ? 'Synced' : 'Not synced'}
+                        </span>
+                      </div>
+                      {status?.connection.checkedAt ? (
+                        <time className="sp-definition-checked-at" dateTime={status.connection.checkedAt}>
+                          Checked {new Date(status.connection.checkedAt).toLocaleString()}
+                        </time>
+                      ) : null}
+                      <div className="sp-definition-status-actions">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busy || !onConnect}
+                          aria-controls={setupId}
+                          onClick={() => setExpandedId((current) => (current === definition.id ? null : definition.id))}
+                        >
+                          {connection ? 'Edit connection' : 'Connect SP'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busy || !connection || !onCheck}
+                          onClick={() => void onCheck?.(definition.id)}
+                        >
+                          Check status
+                        </Button>
+                      </div>
+                    </td>
+                    <td className="sp-definition-actions">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="sp-icon-button"
+                        disabled={busy}
+                        aria-label={`Edit ${definition.displayName}`}
+                        onClick={() => onEdit(definition)}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="sp-icon-button settings-destructive"
+                        disabled={busy || !onDelete}
+                        aria-label={`Remove ${definition.displayName}`}
+                        onClick={() => onDelete?.(definition.id)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </td>
+                  </tr>
+                  {needsSetup || expandedId === definition.id ? (
+                    <tr className="sp-definition-setup-row">
+                      <td colSpan={5}>
+                        <SpConnectionSetup
+                          id={setupId}
+                          definition={definition}
+                          connection={connection}
+                          busy={busy}
+                          onConnect={onConnect}
+                        />
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -1014,11 +1105,104 @@ function SpPersonaDefinitionTable({
   );
 }
 
+function SpConnectionSetup({
+  id,
+  definition,
+  connection,
+  busy,
+  onConnect,
+}: {
+  id: string;
+  definition: SpPersonaDefinition;
+  connection: SpPersona | null;
+  busy: boolean;
+  onConnect?: (id: string, write: SpPersonaConnectionWrite) => boolean | Promise<boolean>;
+}) {
+  const [clientId, setClientId] = useState(connection?.clientId ?? '');
+  const [secretScope, setSecretScope] = useState(connection?.secretScope ?? '');
+  const [secretKey, setSecretKey] = useState(connection?.secretKey ?? '');
+  const checks = definition.status?.sync.checks ?? [];
+  const canSave = Boolean(onConnect) && !busy && Boolean(clientId.trim() && secretScope.trim() && secretKey.trim());
+  return (
+    <div id={id} className="sp-connection-setup">
+      <div className="sp-connection-instructions">
+        <strong>Finish service-principal setup</strong>
+        <ol>
+          <li>Create or select the service principal in Account Console.</li>
+          <li>
+            Apply the listed resource permissions.
+            <ul>
+              {(definition.grants ?? []).map((grant) => (
+                <li key={spGrantKey(grant)}>{spGrantSummary(grant)}</li>
+              ))}
+              {(definition.legacyCapabilities ?? []).map((capability) => (
+                <li key={`legacy-${capability}`}>{capability} (convert before it can be checked)</li>
+              ))}
+            </ul>
+          </li>
+          <li>Store its OAuth secret in Databricks Secrets and grant this app read access.</li>
+          <li>Enter Application ID, secret scope, and secret key reference; verify connection/sync.</li>
+        </ol>
+      </div>
+      <form
+        className="sp-connection-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!canSave) return;
+          void onConnect?.(definition.id, {
+            clientId: clientId.trim(),
+            secretScope: secretScope.trim(),
+            secretKey: secretKey.trim(),
+          });
+        }}
+      >
+        <label className="runtime-field">
+          <span className="runtime-field-label">Application ID</span>
+          <Input value={clientId} onChange={(event) => setClientId(event.target.value)} disabled={busy} required />
+        </label>
+        <label className="runtime-field">
+          <span className="runtime-field-label">Secret scope</span>
+          <Input
+            value={secretScope}
+            onChange={(event) => setSecretScope(event.target.value)}
+            disabled={busy}
+            required
+          />
+          <span className="sp-connection-help">Databricks secret scope name.</span>
+        </label>
+        <label className="runtime-field">
+          <span className="runtime-field-label">Secret key</span>
+          <Input value={secretKey} onChange={(event) => setSecretKey(event.target.value)} disabled={busy} required />
+          <span className="sp-connection-help">Reference name only — never enter the secret value.</span>
+        </label>
+        <Button type="submit" disabled={!canSave}>
+          {connection ? 'Save connection' : 'Connect SP'}
+        </Button>
+      </form>
+      {definition.status ? (
+        <p className="sp-connection-status-detail" role="status">
+          {definition.status.connection.detail} {definition.status.sync.detail}
+        </p>
+      ) : null}
+      {checks.some((check) => check.state !== 'verified') ? (
+        <ul className="sp-status-actions">
+          {checks
+            .filter((check) => check.state !== 'verified')
+            .map((check) => (
+              <li key={check.key}>
+                <strong>{check.label}:</strong> {check.nextAction}
+              </li>
+            ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 /**
- * A generated definition cannot execute anything: the credential-backed table
- * below still contains only identities an operator connected outside this UI.
- * Keeping those records separate prevents a credential-free configuration from appearing
- * in the human assignment dropdown before it can mint a token.
+ * A definition cannot execute anything until its separate credential-reference
+ * record exists. Keeping those records separate prevents a credential-free
+ * configuration from appearing in the human assignment dropdown.
  */
 function SpPersonaTable({
   personas,
@@ -1175,8 +1359,18 @@ export function SpIdentityPanel() {
         })
       }
       onUpdateDefinition={(id, write) =>
-        run('definition-save', 'SP persona configuration saved.', async () => {
+        run('definition-save', 'SP persona permissions saved. Run Check status again.', async () => {
           await updateSpPersonaDefinition(id, write);
+        })
+      }
+      onConnectDefinition={(id, write) =>
+        run('connection-save', 'Credential reference saved. Run Check status.', async () => {
+          await connectSpPersonaDefinition(id, write);
+        })
+      }
+      onCheckDefinition={(id) =>
+        run('status-check', 'Connection and permission status checked.', async () => {
+          await checkSpPersonaDefinitionStatus(id);
         })
       }
       onDeleteDefinition={(id) =>

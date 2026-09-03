@@ -142,8 +142,8 @@ describe('opening the tab having never checked anything', () => {
 
   /**
    * THIS USED TO ASSERT THAT NOTHING WAS PROBED ON LOAD, and that requirement is
-   * gone rather than relaxed. The page opened on `Not checked` down its whole
-   * length, which the person it was built for read as broken -- twice. The cost
+   * gone rather than relaxed. The page opened without operational verdicts,
+   * which the person it was built for read as broken -- twice. The cost
    * argument for gating the probes was right; the conclusion that a reader should
    * therefore find an unchecked page was not.
    *
@@ -169,24 +169,20 @@ describe('opening the tab having never checked anything', () => {
 });
 
 describe('coming back to the tab after the checks have run', () => {
-  it('draws the results again instead of resetting to Not checked', () => {
+  it('draws the results again instead of resetting them', () => {
     // The defect, stated as plainly as it can be. Unmounting the page no longer
     // throws the run away.
     rememberChecks(ranAt());
     const shown = text(pageMarkup());
     expect(shown).not.toContain('Not read yet');
-    expect(shown).toContain('Reachable');
+    expect(shown).toContain('Connected');
   });
 
-  it('restores the tile strip, which is the other half a reader notices', () => {
-    // "Reachable 3" rather than the em-dash the strip falls back to when nothing
-    // has been checked. A restored page that redrew the cards and not the tiles
-    // would be a page disagreeing with itself.
+  it('keeps loop inputs and does not restore the removed summary strip', () => {
     rememberChecks(ranAt());
     const markup = pageMarkup();
-    const tiles = markup.match(/data-testid="architecture-tiles"[\s\S]*?<\/ul>/)?.[0] ?? '';
-    expect(tiles, 'the page still draws a tile strip').not.toEqual('');
-    expect(tiles).not.toContain('\u2014');
+    expect(markup).toContain('data-testid="architecture-loop-tiles"');
+    expect(markup).not.toContain('data-testid="architecture-tiles"');
   });
 
   it('keeps the readings behind one store, so the page cannot half-restore', () => {

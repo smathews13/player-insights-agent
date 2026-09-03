@@ -7,14 +7,14 @@ html[data-density='compact'] .arch-contract-rows {
   gap: var(--density-section-gap);
 }
 
-html[data-density='compact'] .arch-tiles,
+html[data-density='compact'] .arch-loop-tiles,
 html[data-density='compact'] .arch-node-pills,
 html[data-density='compact'] .arch-legend,
 html[data-density='compact'] .arch-rail-rows {
   gap: var(--density-card-gap);
 }
 
-html[data-density='compact'] .arch-tiles li,
+html[data-density='compact'] .arch-loop-tiles li,
 html[data-density='compact'] .arch-node,
 html[data-density='compact'] .arch-rail-row,
 html[data-density='compact'] .arch-contract-row {

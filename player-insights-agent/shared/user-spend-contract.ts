@@ -18,7 +18,7 @@ export interface UserSpendComponent {
 
 export interface UserSpendKpi {
   value: number | null;
-  state: 'value' | 'new' | 'unavailable';
+  state: 'value' | 'unavailable';
   subtitle: string;
   /** A useful best-known figure whose source coverage is not yet complete. */
   estimated?: boolean;
@@ -40,9 +40,6 @@ export interface UserSpendMetrics {
   averageDaily: UserSpendKpi;
   averageTokens?: UserTokenAverages;
   appShare: UserSpendKpi;
-  weekOverWeek: UserSpendKpi;
-  monthOverMonth: UserSpendKpi;
-  comparisonFreshness: string;
 }
 
 export interface UserSpendProfile {

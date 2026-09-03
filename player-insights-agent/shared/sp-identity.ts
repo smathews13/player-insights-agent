@@ -37,12 +37,40 @@ export const SP_IDENTITY_MINTING_UNAVAILABLE =
 
 export interface SpPersona {
   id: string;
+  /** Stable link to the credential-free definition. Null on pre-v36 legacy rows. */
+  definitionId?: string | null;
   displayName: string;
   clientId: string;
   secretScope: string;
   secretKey: string;
   updatedAt: string;
   updatedBy: string;
+}
+
+export type SpConnectionState = 'connected' | 'not_connected';
+export type SpSyncState = 'synced' | 'not_synced';
+export type SpGrantVerificationState = 'verified' | 'mismatch' | 'unsupported' | 'unverified';
+
+export interface SpGrantVerification {
+  key: string;
+  label: string;
+  state: SpGrantVerificationState;
+  nextAction: string;
+}
+
+export interface SpPersonaDefinitionStatus {
+  connection: {
+    state: SpConnectionState;
+    checkedAt: string | null;
+    detail: string;
+  };
+  sync: {
+    state: SpSyncState;
+    checkedAt: string | null;
+    definitionRevision: number | null;
+    detail: string;
+    checks: SpGrantVerification[];
+  };
 }
 
 /**
@@ -55,6 +83,8 @@ export interface SpPersona {
  */
 export interface SpPersonaDefinition {
   id: string;
+  /** Monotonic definition revision; a change invalidates an older sync check. */
+  revision?: number;
   displayName: string;
   description: string;
   /** Compatibility summaries for clients deployed before structured grants. */
@@ -65,6 +95,7 @@ export interface SpPersonaDefinition {
   legacyCapabilities?: string[];
   updatedAt: string;
   updatedBy: string;
+  status?: SpPersonaDefinitionStatus;
 }
 
 /** Old free-text examples. Read-only compatibility data, never new-row defaults. */
@@ -361,6 +392,9 @@ export const SpPersonaWriteSchema = z.object({
   secretKey: z.string().trim().min(1).max(SECRET_REF_MAX),
 });
 
+/** Definition-bound connection fields. No raw client secret is accepted. */
+export const SpPersonaConnectionWriteSchema = SpPersonaWriteSchema.omit({ displayName: true });
+
 export const SpPersonaPatchSchema = SpPersonaWriteSchema.partial().refine((value) => Object.keys(value).length > 0, {
   message: 'Nothing to update.',
 });
@@ -485,5 +519,6 @@ export const SpAssignmentWriteSchema = z.object({
 });
 
 export type SpPersonaWrite = z.infer<typeof SpPersonaWriteSchema>;
+export type SpPersonaConnectionWrite = z.infer<typeof SpPersonaConnectionWriteSchema>;
 export type SpPersonaDefinitionWrite = z.infer<typeof SpPersonaDefinitionWriteSchema>;
 export type SpAssignmentWrite = z.infer<typeof SpAssignmentWriteSchema>;

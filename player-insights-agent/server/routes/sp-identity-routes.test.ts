@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { isAdminRoute } from '../lib/admin-roles';
-import { SpPersonaDefinitionWriteSchema, SpPersonaWriteSchema } from '../../shared/sp-identity';
+import {
+  SpPersonaConnectionWriteSchema,
+  SpPersonaDefinitionWriteSchema,
+  SpPersonaWriteSchema,
+} from '../../shared/sp-identity';
 
 const source = readFileSync(new URL('sp-identity-routes.ts', import.meta.url), 'utf8');
 
@@ -12,6 +16,8 @@ describe('service-principal identity admin routes', () => {
     expect(isAdminRoute('/api/admin/sp-identity/personas')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/assignments')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/persona-definitions')).toBe(true);
+    expect(isAdminRoute('/api/admin/sp-identity/persona-definitions/id/connection')).toBe(true);
+    expect(isAdminRoute('/api/admin/sp-identity/persona-definitions/id/status-check')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity')).toBe(true);
   });
 
@@ -41,6 +47,11 @@ describe('service-principal identity admin routes', () => {
       'secretKey',
       'secretScope',
     ]);
+    expect(Object.keys(SpPersonaConnectionWriteSchema.shape).sort()).toEqual(['clientId', 'secretKey', 'secretScope']);
+    expect(source).toContain("app.put('/api/admin/sp-identity/persona-definitions/:id/connection'");
+    expect(source).toContain("app.post('/api/admin/sp-identity/persona-definitions/:id/status-check'");
+    expect(source).toContain("action: 'sp-persona-connection-updated'");
+    expect(source).toContain("action: 'sp-persona-status-checked'");
   });
 
   it('accepts only a credential-free structured and legacy permission plan', () => {

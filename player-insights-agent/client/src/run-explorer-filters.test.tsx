@@ -11,6 +11,7 @@ const RUNS = partial('runs.css');
 const RESPONSIVE = partial('responsive-runs.css');
 const BASE = partial('base.css');
 const UI = readFileSync(new URL('./ui.ts', import.meta.url), 'utf8');
+const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
 
 function rule(css: string, selector: string): string {
   const start = css.indexOf(`\n${selector} {`);
@@ -60,6 +61,38 @@ describe('Run Explorer filter geometry', () => {
     expect(menu).toContain('var(--radix-select-content-available-height)');
   });
 
+  it('gives both scoped triggers stable hover, open, focus, and disabled states', () => {
+    const markup = filters('All conversations', 'All users');
+    expect(markup.match(/run-filter-trigger/g)).toHaveLength(2);
+    expect(rule(RUNS, '.run-filter-trigger')).toContain('cursor: pointer');
+
+    const interactive = [
+      rule(RUNS, ".run-filter-trigger:is(:hover, [data-state='open']):not(:disabled):not([data-disabled])"),
+      rule(RUNS, ".run-filter-trigger[data-state='open']:not(:disabled):not([data-disabled])"),
+      rule(RUNS, '.run-filter-trigger:focus-visible'),
+    ];
+    expect(interactive[0]).toContain('border-color: var(--ast-blue)');
+    expect(interactive[0]).toContain('background: var(--db-hover-tint)');
+    expect(interactive[1]).toContain('background: var(--db-selected-tint)');
+    expect(interactive[2]).toContain('outline: 2px solid var(--ast-blue)');
+    for (const state of interactive) expect(state).not.toMatch(/(?:padding|margin|width|height|font-weight):/);
+
+    const disabled = rule(RUNS, '.run-filter-trigger:is(:disabled, [data-disabled])');
+    expect(disabled).toContain('cursor: not-allowed');
+    expect(disabled).toContain('opacity: 0.55');
+  });
+
+  it('gives the opaque scoped menu distinct hover, keyboard, selected, and disabled options', () => {
+    expect(rule(RUNS, '.run-filter-menu')).toContain('background: var(--background)');
+    expect(rule(RUNS, ".run-filter-menu [data-slot='select-item'][data-highlighted]")).toContain(
+      'background: var(--db-hover-tint)'
+    );
+    expect(rule(RUNS, ".run-filter-menu [data-slot='select-item'][data-state='checked']")).toContain(
+      'background: var(--db-selected-tint)'
+    );
+    expect(rule(RUNS, ".run-filter-menu [data-slot='select-item'][data-disabled]")).toContain('cursor: not-allowed');
+  });
+
   it('reserves the list scrollbar without changing the two-pane columns', () => {
     expect(rule(RUNS, '.run-list')).toContain('scrollbar-gutter: stable');
     expect(rule(RUNS, '.explorer-layout')).toContain('grid-template-columns: 340px minmax(0, 1fr)');
@@ -96,5 +129,42 @@ describe('Run Explorer filter geometry', () => {
       },
     ];
     expect(matchingRuns(rows, { conversationId: '', username: 'reader', search: 'alpha' })).toEqual([rows[0]]);
+  });
+});
+
+describe('Run Explorer tab interaction states', () => {
+  it('keeps the four tabs scoped to the Run Explorer detail pane', () => {
+    expect(EXPLORER).toMatch(
+      /className="run-detail-tabs"[\s\S]*value="overview"[\s\S]*value="map"[\s\S]*value="timeline"[\s\S]*value="details"/
+    );
+    expect(rule(RUNS, ".run-detail [data-slot='tabs-trigger']")).toContain('cursor: pointer');
+    expect(rule(RUNS, ".run-detail [data-slot='tabs-list']")).toContain('overflow: visible');
+  });
+
+  it('previews inactive tabs without moving them and preserves the active treatment', () => {
+    const hover = rule(
+      RUNS,
+      ".run-detail [data-slot='tabs-trigger'][data-state='inactive']:hover:not(:disabled):not([data-disabled])"
+    );
+    expect(hover).toContain('border-bottom-color: var(--ast-border-input)');
+    expect(hover).toContain('background: var(--db-hover-tint)');
+    expect(hover).toContain('color: var(--ast-text)');
+
+    const activeHover = rule(RUNS, ".run-detail [data-slot='tabs-trigger'][data-state='active']:hover");
+    expect(activeHover).toContain('border-bottom-color: var(--ast-blue)');
+    expect(activeHover).toContain('color: var(--ast-blue)');
+    for (const state of [hover, activeHover]) {
+      expect(state).not.toMatch(/(?:padding|margin|width|height|font-size|font-weight|border-width):/);
+    }
+  });
+
+  it('shows unclipped keyboard focus and leaves disabled tabs muted', () => {
+    const focus = rule(RUNS, ".run-detail [data-slot='tabs-trigger']:focus-visible");
+    expect(focus).toContain('outline: 2px solid var(--ast-blue)');
+    expect(focus).toContain('outline-offset: 2px');
+    const disabled = rule(RUNS, ".run-detail [data-slot='tabs-trigger']:is(:disabled, [data-disabled])");
+    expect(disabled).toContain('cursor: not-allowed');
+    expect(disabled).toContain('opacity: 0.55');
+    expect(RUNS).toContain('@media (forced-colors: active)');
   });
 });

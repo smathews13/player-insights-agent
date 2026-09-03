@@ -1562,6 +1562,44 @@ describe('the cost block', () => {
     );
   });
 
+  it('renders lifetime and current-month paid spend as peer figures without a duplicate spent label', () => {
+    const payload = cost({
+      throughDay: '2026-09-02',
+      range: { from: '2026-09-01', to: '2026-09-02' },
+      appSpend: {
+        lifetime: {
+          amount: 500,
+          dbus: 1_000,
+          currency: 'USD',
+          sourceFrom: '2026-08-04',
+          sourceThrough: '2026-09-02',
+          completeness: 'complete',
+          estimated: true,
+        },
+        currentMonth: {
+          amount: 36.87,
+          dbus: 72,
+          currency: 'USD',
+          sourceFrom: '2026-09-01',
+          sourceThrough: '2026-09-02',
+          completeness: 'complete',
+          estimated: true,
+        },
+      },
+      budgets: { total: { USD: 900, DBU: null }, resources: {} },
+    });
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    const summary = markup.slice(markup.indexOf('ops-cost-summary-peers'), markup.indexOf('ops-cost-summary-budget'));
+
+    expect(summary).toContain('Total app spend');
+    expect(summary).toContain('500.00 USD');
+    expect(summary).toContain('2026-08-04 through 2026-09-02');
+    expect(summary).toContain('This calendar month');
+    expect(summary).toContain('36.87 USD');
+    expect(summary).toContain('2026-09-01 through 2026-09-02');
+    expect(markup).not.toContain('Spent this calendar month');
+  });
+
   it('uses resource-specific DBU placeholders and an unavailable state without converting dollars', () => {
     const payload = cost({
       budgets: {
@@ -1825,6 +1863,21 @@ describe('the cost block', () => {
     expect(grid).not.toMatch(
       /space-data|space-dictionary|Configured-space|effective DBU|Free usage|Allowance 12\.00|Promotional 3\.00|Underlying total/
     );
+
+    const freeOnly = structuredClone(payload);
+    for (const tile of freeOnly.tiles) {
+      if (!tile.genieInstanceAccounting) continue;
+      tile.amount = 0;
+      tile.dbus = 0;
+      tile.genieInstanceAccounting.paidUsd = 0;
+      tile.genieInstanceAccounting.chargedEffectiveDbus = 0;
+    }
+    const freeOnlyMarkup = markupOf(<CostBody block={block(freeOnly)} />);
+    const freeOnlyGrid = text(
+      freeOnlyMarkup.slice(freeOnlyMarkup.indexOf('cost-primary-grid'), freeOnlyMarkup.indexOf('ops-cost-method'))
+    );
+    expect(freeOnlyGrid).toContain('Free $1.99 Charged $0.00');
+    expect(freeOnlyGrid).toContain('Free $19.18 Charged $0.00');
 
     const dbuMarkup = markupOf(<CostBody block={block(payload)} unit="DBU" />);
     const dbu = text(dbuMarkup.slice(dbuMarkup.indexOf('cost-primary-grid'), dbuMarkup.indexOf('ops-cost-method')));
@@ -2256,27 +2309,16 @@ describe('the traffic block', () => {
     expect(markup).not.toContain('href="/monitoring');
   });
 
-  /**
-   * THE WAY THROUGH TO THE RUNS THEMSELVES, which the handoff's footer asks for
-   * and this block did not have.
-   *
-   * The cause charts land on Monitoring filtered to an outcome. What was missing
-   * was the route to the runs as runs, where an answer time is a fact about one
-   * question rather than a shape on a chart.
-   */
-  it('links answer times through to Run Explorer', () => {
+  it('has no answer-times footer or reserved footer row before Latency', () => {
     const markup = markupOf(<TrafficBody block={block(traffic())} />);
-    expect(markup).toContain('href="/runs"');
-    expect(markup).toContain('Answer times in Run Explorer');
-    // Cost is greyed out as unfinished and Traffic is measured data. The class
-    // that greys Cost is on Cost's own section, and this is the half of that
-    // which a change to a shared wrapper would break.
+    expect(markup).not.toContain('Answer times in Run Explorer');
+    expect(markup).not.toContain('ops-block-foot');
+    expect(markup).not.toContain('ops-foot-link');
+    expect(OPS_STYLES).not.toContain('.ops-foot-link');
+    expect(
+      readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8').match(/className="ops-block-foot/g)
+    ).toHaveLength(1);
     expect(markup).not.toContain('ops-block-unfinished');
-  });
-
-  it('keeps the range on the way to Run Explorer', () => {
-    const markup = markupOf(<TrafficBody block={block(traffic())} runsHref={() => '/runs?range=30d'} />);
-    expect(markup).toContain('href="/runs?range=30d"');
   });
 
   /**
@@ -2421,7 +2463,8 @@ describe('Ops cost uses complete billing days', () => {
     expect(source).toContain("useOpsBlock<OpsHealthPayload>('/api/ops/health', '')");
     expect(source).not.toContain('TimeRangeControl');
     expect(source).toContain("canonical.delete('range')");
-    expect(source).toContain("const runsHref = () => '/runs'");
+    expect(source).not.toContain('Answer times in Run Explorer');
+    expect(source).not.toContain('runsHref');
     expect(source).toContain('costTileWorkspaceObject(tile)');
     expect(source).toContain('healthResourceObject(row)');
     expect(source).toContain('databricksLink(host, object)');
@@ -2532,7 +2575,7 @@ describe('the latency block', () => {
     expect(markup).not.toContain('data-testid="ops-latency"');
   });
 
-  it('keeps route search in the header rail beside Refresh', () => {
+  it('puts centered trend toggles and right-aligned search/Refresh in separate header groups', () => {
     const markup = markupOf(<LatencyBody block={block(latency())} />);
     const header = markup.slice(markup.indexOf('ops-block-head'), markup.indexOf('ops-block-body'));
 
@@ -2542,6 +2585,20 @@ describe('the latency block', () => {
     expect(header).toContain('Within baseline');
     expect(header).toContain('Outside baseline');
     expect(header).toContain('Refresh');
+    expect(header.indexOf('ops-block-head-text')).toBeLessThan(header.indexOf('ops-latency-trend-filters'));
+    expect(header.indexOf('ops-latency-trend-filters')).toBeLessThan(header.indexOf('ops-latency-head-controls'));
+
+    const css = readFileSync(new URL('./styles/ops.css', import.meta.url), 'utf8');
+    expect(css).toMatch(
+      /\.ops-latency-block \.ops-block-head\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\) auto minmax\(0,\s*1fr\);/
+    );
+    expect(css).toMatch(/\.ops-latency-trend-filters\s*\{[^}]*grid-column:\s*2;/);
+    expect(css).toMatch(
+      /\.ops-latency-block \.ops-latency-head-controls\s*\{[^}]*grid-column:\s*3;[^}]*justify-self:\s*end;/
+    );
+    expect(css).toMatch(
+      /@media \(max-width:\s*800px\)[\s\S]*?\.ops-latency-trend-filters\s*\{[^}]*grid-row:\s*2;[\s\S]*?\.ops-latency-block \.ops-latency-head-controls\s*\{[^}]*grid-row:\s*3;[^}]*width:\s*100%;/
+    );
   });
 
   it('keeps baseline filter state semantic and disables both controls during refresh', () => {

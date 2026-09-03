@@ -47,6 +47,50 @@
     width: 100%;
     max-width: none;
   }
+  .connections-table-toolbar {
+    flex-wrap: wrap;
+  }
+  .connections-table-toolbar .connections-uc-actions {
+    flex: 1 0 100%;
+  }
+  .connections-table-toolbar .connections-table-query-controls {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-left: 0;
+  }
+  .connections-table-toolbar .connections-table-search {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+  }
+  .connections-table-toolbar .connections-table-filter {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+  .connections-table-toolbar .connections-table-filter .app-select-trigger {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .uc-explorer-overlay {
+    padding: 8px;
+  }
+  .uc-explorer-modal {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - var(--app-header-h) - 16px);
+  }
+  .uc-explorer-header {
+    padding: 14px;
+  }
+  .uc-explorer-row {
+    grid-template-columns: 28px auto minmax(0, 1fr);
+  }
+  .uc-explorer-secondary,
+  .uc-explorer-choice-wrap {
+    grid-column: 3;
+    justify-self: start;
+  }
   .configuration-plane-row {
     grid-template-columns: 1fr;
   }

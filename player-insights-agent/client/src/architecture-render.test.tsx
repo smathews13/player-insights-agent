@@ -4,9 +4,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import { ArchitectureCanvas, ArchitecturePage, ArchitectureTiles, ChainBoundTiles } from './ArchitecturePage';
+import { ArchitectureCanvas, ArchitecturePage, ChainBoundTiles } from './ArchitecturePage';
 import { AGENT_CHAIN, ANSWER_CONTRACT, CHAIN_BOUND_LABEL, CHAIN_BOUNDS } from './agent-chain';
-import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES, dependencyNodes, drawnReadings } from './architecture';
+import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES, dependencyNodes } from './architecture';
 import { ARCHITECTURE_CONTROL_SCOPES, nextActiveBound } from './architecture-control-scopes';
 import { BOTTOM_ROW_NODES, NODE_BOXES, drawnEdges, pathEnds } from './architecture-layout';
 import { readConnections, readingsById, type SettingsPayload } from './connection-model';
@@ -279,67 +279,19 @@ describe('the page makes one cheap read of its own and delegates the expensive p
     expect(PAGE_SOURCE).not.toContain('const runChecks');
   });
 
-  it('says every dependency is unchecked before the first run has landed', () => {
+  it('shows every remote dependency as not connected before the first run has landed', () => {
     const markup = pageMarkup();
-    const unchecked = [...text(markup).matchAll(/Not checked/g)];
-
-    // Every dependency, plus the tile that counts them. Not a green graph, and
-    // not a blocked one: asserted on the tone each card carries, because the tile
-    // strip legitimately prints the words Reachable and Drift as labels.
-    expect(unchecked.length).toBeGreaterThan(dependencyNodes().length);
-    expect(markup).not.toContain('data-tone="reachable"');
-    expect(markup).not.toContain('data-tone="blocked"');
-  });
-});
-
-describe('the tiles count what is drawn below them, and invent nothing', () => {
-  function tiles(byResource = deployment().byResource) {
-    return text(
-      renderToStaticMarkup(
-        <ArchitectureTiles dependencies={dependencyNodes().length} readings={drawnReadings(byResource)} />
-      )
-    );
-  }
-
-  it('counts the dependencies the drawing has, not every entry Connections lists', () => {
-    // The registry has twenty entries and this diagram draws ten of them. A
-    // tile above the drawing reads as a count of the drawing.
-    expect(dependencyNodes()).toHaveLength(10);
-    expect(tiles()).toContain('Dependencies 10');
+    expect([...text(markup).matchAll(/Not connected/g)]).toHaveLength(dependencyNodes().length * 2);
+    expect(markup).not.toContain('data-tone="connected"');
+    expect(markup.match(/data-tone="not-connected"/g)).toHaveLength(dependencyNodes().length * 2);
   });
 
-  it('shows an em dash rather than a zero before anything has been checked', () => {
-    // "0 reachable" is a claim that somebody looked. Nobody has.
-    const fresh = tiles(new Map());
-
-    expect(fresh).toContain('Reachable \u2014');
-    expect(fresh).toContain('Drift \u2014');
-    expect(fresh).toContain('Not checked 10');
-  });
-
-  it('reports the reachable, unchecked and drifted counts the readings produce', () => {
-    // Two reachable (the endpoint and Lakebase), one blocked, one drifted, and the
-    // rest unchecked -- all of it out of the shared derivation rather than counted
-    // here. The drifted one is also reachable, which is why drift is its own tile
-    // rather than a fourth state in the first one.
-    const rendered = tiles();
-
-    expect(rendered).toContain('Reachable 3');
-    expect(rendered).toContain('Drift 1');
-  });
-
-  it('counts four, and states no freshness, because the Refresh control states it', () => {
-    // The design seats a fifth tile, LAST CHECK. Dropped: the heading already
-    // says how old the statuses are, right beside the button that changes it, and
-    // two readings of one clock can disagree. Four also fills the row and the
-    // narrow 2x2 exactly, which five did not.
-    const markup = renderToStaticMarkup(
-      <ArchitectureTiles dependencies={dependencyNodes().length} readings={drawnReadings(deployment().byResource)} />
-    );
-
-    expect([...markup.matchAll(/<li/g)]).toHaveLength(4);
-    expect(text(markup)).not.toContain('Last check');
-    expect(text(markup)).not.toMatch(/min ago|not yet|just now/);
+  it('removes the summary KPI strip while keeping the loop inputs', () => {
+    const markup = pageMarkup();
+    expect(markup).not.toContain('architecture-tiles');
+    expect(markup).not.toContain('>Dependencies<');
+    expect(markup).not.toContain('>Drift<');
+    expect(markup).toContain('architecture-loop-tiles');
   });
 });
 
@@ -350,10 +302,10 @@ describe('every card on the drawing reports the live reading and not a literal',
 
     // Each of these is asserted on the card itself rather than on the page, so a
     // status landing on the wrong node fails here.
-    expect(text(card(markup, 'agent-endpoint'))).toContain('Reachable');
-    expect(text(card(markup, 'genie-data'))).toContain('Blocked');
-    expect(text(card(markup, 'catalog'))).toContain('Not checked');
-    expect(text(card(markup, 'lakebase'))).toContain('Reachable');
+    expect(text(card(markup, 'agent-endpoint'))).toContain('Connected');
+    expect(text(card(markup, 'genie-data'))).toContain('Not connected');
+    expect(text(card(markup, 'catalog'))).toContain('Not connected');
+    expect(text(card(markup, 'lakebase'))).toContain('Connected');
   });
 
   it('shows the identifier the deployment reported, on the card that names it', () => {
@@ -390,17 +342,17 @@ describe('every card on the drawing reports the live reading and not a literal',
     const model = card(canvasMarkup(byResource), 'llm-endpoint');
 
     expect(text(model)).toContain(
-      'Foundation model Reachable databricks-claude-sonnet-4-6 Reasons over prompts and writes answer prose.'
+      'Foundation model Connected databricks-claude-sonnet-4-6 Reasons over prompts and writes answer prose.'
     );
     expect(text(model)).not.toContain('Judge');
     expect(model).toContain('Open in Databricks');
     expect(connectedResource('judge-endpoint')?.label).toBe('Benchmark judge model');
   });
 
-  it('marks the drifted dependency as drifted and still as reachable', () => {
+  it('marks the drifted dependency as drifted and still as connected', () => {
     const warehouse = card(canvasMarkup(), 'sql-warehouse');
 
-    expect(text(warehouse)).toContain('Reachable');
+    expect(text(warehouse)).toContain('Connected');
     expect(text(warehouse)).toContain('Drift');
     expect(warehouse).toContain('data-drift="drift"');
   });
@@ -412,10 +364,9 @@ describe('every card on the drawing reports the live reading and not a literal',
     // problem that does not exist.
     const model = card(canvasMarkup(), 'llm-endpoint');
 
-    expect(text(model)).toContain('Not checked');
-    expect(text(model)).not.toContain('Blocked');
+    expect(text(model)).toContain('Not connected');
     expect(model).not.toContain('data-drift=');
-    expect(model).toContain('data-tone="not-checked"');
+    expect(model).toContain('data-tone="not-connected"');
     expect(model).not.toContain('arch-node-value');
   });
 
@@ -424,8 +375,8 @@ describe('every card on the drawing reports the live reading and not a literal',
       const local = card(canvasMarkup(), id);
 
       expect(text(local), id).toContain('Runs here');
-      expect(text(local), id).not.toContain('Reachable');
-      expect(text(local), id).not.toContain('Not checked');
+      expect(text(local), id).not.toContain('Connected');
+      expect(text(local), id).not.toContain('Not connected');
     }
   });
 
@@ -489,6 +440,17 @@ describe('every card on the drawing reports the live reading and not a literal',
       expect(label.trim(), node.id).not.toBe('');
     }
   });
+
+  it('renders exactly one binary connection badge on every remote node and nowhere uses legacy status copy', () => {
+    const markup = canvasMarkup();
+    for (const node of dependencyNodes()) {
+      const drawn = card(markup, node.id);
+      expect(drawn.match(/arch-node-status/g), node.id).toHaveLength(1);
+      const label = drawn.match(/arch-node-status"[^>]*>([^<]*)</)?.[1]?.trim();
+      expect(['Connected', 'Not connected'], node.id).toContain(label);
+    }
+    expect(text(markup)).not.toMatch(/\b(Reachable|Blocked|Unreachable|Refused|Not checked)\b/);
+  });
 });
 
 /**
@@ -524,17 +486,17 @@ describe('the semantic lane draws the index and the endpoint separately', () => 
     const markup = canvasMarkup(lane('ok', 'ok'));
 
     expect(text(card(markup, 'semantic-index'))).toContain('a_catalog.a_schema.an_index');
-    expect(text(card(markup, 'semantic-index'))).toContain('Reachable');
+    expect(text(card(markup, 'semantic-index'))).toContain('Connected');
     expect(text(card(markup, 'semantic-index-endpoint'))).toContain('an-endpoint');
-    expect(text(card(markup, 'semantic-index-endpoint'))).toContain('Reachable');
+    expect(text(card(markup, 'semantic-index-endpoint'))).toContain('Connected');
   });
 
   it('shows a healthy index over an endpoint that did not answer', () => {
     // The state the two cards exist for. One drawing, two verdicts.
     const markup = canvasMarkup(lane('ok', 'failed'));
 
-    expect(card(markup, 'semantic-index')).toContain('data-tone="reachable"');
-    expect(card(markup, 'semantic-index-endpoint')).toContain('data-tone="blocked"');
+    expect(card(markup, 'semantic-index')).toContain('data-tone="connected"');
+    expect(card(markup, 'semantic-index-endpoint')).toContain('data-tone="not-connected"');
   });
 
   it('links the index to the index, and offers the endpoint no guessed link', () => {
@@ -553,8 +515,8 @@ describe('the semantic lane draws the index and the endpoint separately', () => 
     const markup = canvasMarkup(lane('ok', 'failed'));
     const equivalent = text(markup.slice(markup.indexOf('data-testid="architecture-equivalent"')));
 
-    expect(equivalent).toContain('Vector Search index: Reachable');
-    expect(equivalent).toContain('Vector Search endpoint: Blocked');
+    expect(equivalent).toContain('Vector Search index: Connected');
+    expect(equivalent).toContain('Vector Search endpoint: Not connected');
     expect(equivalent).toContain('queries this searchable index by name');
     expect(equivalent).toContain('hosts the index and provides its serving compute');
     expect(equivalent).toContain('This is not query flow.');
@@ -630,10 +592,9 @@ describe('the index card says how old its content is', () => {
     expect(text(markup)).toContain('5 d old');
     expect(markup).toContain('data-age="stale"');
     // The status word is untouched. An index serving old content answers every
-    // check there is, and calling it Blocked would make the word mean two
-    // things on one page.
-    expect(text(markup)).toContain('Reachable');
-    expect(markup).toContain('data-tone="reachable"');
+    // check there is; stale content remains a separate secondary fact.
+    expect(text(markup)).toContain('Connected');
+    expect(markup).toContain('data-tone="connected"');
   });
 
   it('keeps the reading in the pills, where this tab says status lives', () => {
@@ -694,7 +655,7 @@ describe('the drawing is reachable and readable without seeing it', () => {
   it('puts the status into the accessible name rather than leaving it to the pill', () => {
     const warehouse = card(canvasMarkup(), 'sql-warehouse');
 
-    expect(warehouse).toMatch(/aria-label="SQL warehouse: Reachable[^"]*drifted/);
+    expect(warehouse).toMatch(/aria-label="SQL warehouse: Connected[^"]*drifted/);
   });
 
   it('offers Databricks as a second, named control rather than as the whole card', () => {
@@ -855,7 +816,7 @@ describe('the drawing is reachable and readable without seeing it', () => {
     // 12/12/150 are the defaults and it would be easy to print them here. A stored
     // setting is what the agent actually uses, so a number on a page that has not
     // read the store is a claim about something nobody checked -- the same rule the
-    // dependency tiles above follow for `Reachable`.
+    // removed dependency summary tiles used to follow.
     const strip = pageMarkup();
     const tiles = strip.slice(strip.indexOf('architecture-loop-tiles'));
     expect(tiles).toContain('\u2014');

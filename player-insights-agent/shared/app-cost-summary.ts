@@ -1,5 +1,5 @@
 import type { CostBudgetUnit } from './cost-budgets';
-import type { CostTile, OpsCostPayload } from './ops-contract';
+import type { AppSpendFigure, CostTile, OpsCostPayload } from './ops-contract';
 
 const DAY_MS = 86_400_000;
 
@@ -65,5 +65,54 @@ export function appCostSummary(
     days,
     partial: activeMissing,
     estimated: included.some((tile) => tile.quality !== 'real'),
+  };
+}
+
+/** Build a wire-ready paid-spend figure without discarding a usable known subtotal. */
+export function appSpendFigure(
+  payload: Pick<OpsCostPayload, 'range' | 'tiles' | 'currency' | 'throughDay' | 'honesty'>,
+  sourceFrom = payload.range.from
+): AppSpendFigure {
+  const usd = appCostSummary(payload, 'USD');
+  const dbu = appCostSummary(payload, 'DBU');
+  const knownTotal = (unit: CostBudgetUnit): number | null => {
+    const known = payload.tiles.filter((tile) => {
+      if (tile.id === 'genie:unattributed' || !deploymentAttribution(tile)) return false;
+      const value = unit === 'USD' ? tile.amount : tile.dbus;
+      return typeof value === 'number' && Number.isFinite(value);
+    });
+    if (known.length === 0) return null;
+    return known.reduce((total, tile) => {
+      const value = unit === 'USD' ? (tile.amount ?? 0) : (tile.dbus ?? 0);
+      return total + value * (tile.basis === 'per-day' ? usd.days : 1);
+    }, 0);
+  };
+  const amount = knownTotal('USD');
+  const measuredDbus = knownTotal('DBU');
+  const hasKnown = amount !== null || measuredDbus !== null;
+  const displayIncomplete = payload.tiles.some((tile) => {
+    if (tile.id === 'genie:unattributed' || !tile.resourceId.trim()) return false;
+    const priceMatch = tile.pricing?.match;
+    return (
+      !deploymentAttribution(tile) ||
+      typeof tile.amount !== 'number' ||
+      !Number.isFinite(tile.amount) ||
+      (priceMatch !== undefined && !['priced', 'none'].includes(priceMatch))
+    );
+  });
+  const partial =
+    usd.partial ||
+    dbu.partial ||
+    displayIncomplete ||
+    payload.honesty?.rangeMayStillFill === true ||
+    payload.honesty?.currencyConsistent === false;
+  return {
+    amount,
+    dbus: measuredDbus,
+    currency: payload.currency,
+    sourceFrom,
+    sourceThrough: payload.throughDay,
+    completeness: !hasKnown ? 'unavailable' : partial ? 'partial' : 'complete',
+    estimated: usd.estimated || dbu.estimated || partial,
   };
 }

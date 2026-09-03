@@ -17,6 +17,7 @@ import { executionToken } from './execution-credential';
 import { readCostBudgets } from './cost-budgets-store';
 import { readAppBudgetApproval } from './app-budget-approval-store';
 import { buildFoundationCostStatement, foundationCostTile, readFoundationBillingRows } from './ops-foundation-billing';
+import { buildGenieAccountingStatement, classifyGenieAccounting, readGenieAccountingRows } from './genie-accounting';
 import type { InsightsAppKit } from '../routes/insights-routes';
 
 export const APP_BUDGET_MEASUREMENT_TTL_MS = 60_000;
@@ -85,6 +86,7 @@ async function queryMeasurement(
   const token = executionToken(req) ?? '';
   const {
     costIdentifiersFor,
+    genieAppActivityAttribution,
     host,
     resourceActivityAttribution,
     resolveWorkspaceId,
@@ -100,7 +102,10 @@ async function queryMeasurement(
   const range = { from: period.monthStart, to: period.measurementThrough };
   const workspaceId = await resolveWorkspaceId({ host: workspace, token }).catch(() => '');
   const resolved = await costIdentifiersFor(appkit, req, { workspaceId, warehouse });
-  const runRows = await appkit.lakebase.query(QUESTION_COST_RUNS_QUERY, [range.from, range.to]);
+  const [runRows, genieActivity] = await Promise.all([
+    appkit.lakebase.query(QUESTION_COST_RUNS_QUERY, [range.from, range.to]),
+    genieAppActivityAttribution(appkit, resolved.ids, range),
+  ]);
   const interactiveRuns = runRows.rows.map((row) => questionRun(row));
   const interactiveComplete = interactiveRuns[0]?.evidenceComplete ?? interactiveRuns.length === 0;
   const built = (await import('./ops-billing')).buildCostStatement(resolved.ids, range);
@@ -108,8 +113,14 @@ async function queryMeasurement(
   const foundationBuilt = interactiveComplete
     ? buildFoundationCostStatement(resolved.ids, range, interactiveRuns)
     : null;
+  const genieBuilt = buildGenieAccountingStatement(
+    resolved.ids.workspaceId,
+    range,
+    resolved.ids.genieSpaces,
+    genieActivity
+  );
   const signal = AbortSignal.timeout(50_000);
-  const [outcome, queryAttribution, activity, foundationOutcome] = await Promise.all([
+  const [outcome, queryAttribution, activity, foundationOutcome, genieOutcome] = await Promise.all([
     runStatement({
       host: workspace,
       token,
@@ -135,19 +146,44 @@ async function queryMeasurement(
           parameters: foundationBuilt.parameters,
         })
       : Promise.resolve({ ok: false as const, message: 'Foundation-model billing is unavailable.' }),
+    genieBuilt
+      ? runStatement({
+          host: workspace,
+          token,
+          warehouseId: warehouse,
+          statement: genieBuilt.statement,
+          parameters: genieBuilt.parameters,
+        })
+      : Promise.resolve({ ok: false as const, message: 'Genie billing is unavailable.' }),
   ]);
   if (!outcome.ok) return null;
   const split = splitBillingRows(readComponentRows(outcome.rows));
   const foundation = foundationOutcome.ok
     ? foundationCostTile(resolved.ids, readFoundationBillingRows(foundationOutcome.rows))
     : foundationCostTile(resolved.ids, null, foundationOutcome.message);
-  const tiles = buildTiles(resolved.ids, split.components, queryAttribution, activity, null, '', {
-    interactive: {
-      runs: interactiveRuns,
-      complete: interactiveComplete,
-    },
-    foundation,
-  });
+  const genieRows = genieOutcome.ok ? readGenieAccountingRows(genieOutcome.rows) : [];
+  const genie = genieOutcome.ok
+    ? classifyGenieAccounting(
+        genieRows.filter((row) => row.usageDay >= range.from && row.usageDay <= range.to),
+        range.to,
+        resolved.ids.genieSpaces
+      )
+    : null;
+  const tiles = buildTiles(
+    resolved.ids,
+    split.components,
+    queryAttribution,
+    activity,
+    genie ? { month: genie, period: genie } : null,
+    genieOutcome.ok ? '' : genieOutcome.message,
+    {
+      interactive: {
+        runs: interactiveRuns,
+        complete: interactiveComplete,
+      },
+      foundation,
+    }
+  );
   return {
     readAt: new Date(now).toISOString(),
     payload: {

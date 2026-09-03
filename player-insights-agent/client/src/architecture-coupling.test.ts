@@ -3,20 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES, describeArchitecture, nodeReport, nodeValue } from './architecture';
-import {
-  countConnections,
-  hasRemoteEnd,
-  readConnections,
-  readingsById,
-  type SettingsPayload,
-} from './connection-model';
-import {
-  CONNECTION_STATUS_LABEL,
-  connectionCounts,
-  connectionStatus,
-  driftMarker,
-  inUseSummary,
-} from './connection-status';
+import { hasRemoteEnd, readConnections, readingsById, type SettingsPayload } from './connection-model';
+import { connectionStatus, driftMarker, inUseSummary } from './connection-status';
 import { CONNECTED_RESOURCES, connectedResource } from '../../shared/deployment-config';
 import type { PreflightCheck } from './preflight';
 
@@ -118,7 +106,7 @@ function fixture(): { payload: SettingsPayload; checks: PreflightCheck[] } {
 }
 
 describe('a node reports what the shared derivation says, and nothing else', () => {
-  it('gives every node the status connection-status.ts gives its resource', () => {
+  it('maps the shared detailed status to Architecture’s binary operational state', () => {
     const { payload, checks } = fixture();
     const byResource = readingsById(readConnections(payload, checks));
 
@@ -134,7 +122,7 @@ describe('a node reports what the shared derivation says, and nothing else', () 
         hasRemoteEnd: hasRemoteEnd(reading.row, check),
       });
       expect(reading.status, node.id).toBe(expected);
-      expect(nodeReport(node, reading).label, node.id).toBe(CONNECTION_STATUS_LABEL[expected]);
+      expect(nodeReport(node, reading).label, node.id).toBe(expected === 'reachable' ? 'Connected' : 'Not connected');
     }
   });
 
@@ -174,17 +162,6 @@ describe('a node reports what the shared derivation says, and nothing else', () 
     expect(warehouse.disagrees).toBe(true);
   });
 
-  it('counts what the Connections page counts', () => {
-    const { payload, checks } = fixture();
-    const readings = readConnections(payload, checks);
-    expect(countConnections(readings)).toEqual(
-      connectionCounts({
-        statuses: readings.map((reading) => reading.status),
-        markers: readings.map((reading) => reading.marker),
-      })
-    );
-  });
-
   it('says drift in the text equivalent and hides legacy pending intentions', () => {
     const { payload, checks } = fixture();
     const lines = describeArchitecture(readingsById(readConnections(payload, checks)));
@@ -211,15 +188,10 @@ describe('the page has no way to derive a status for itself', () => {
     expect(ARCHITECTURE_PAGE).toMatch(/readConnections/);
   });
 
-  it('takes its status words from connection-status rather than spelling them', () => {
-    expect(ARCHITECTURE_MODEL).toMatch(/CONNECTION_STATUS_LABEL\[/);
-    expect(ARCHITECTURE_MODEL).toMatch(/CONNECTION_STATUS_NOTE\[/);
-    // The four words, written out, would be the beginning of a second
-    // vocabulary. Only the two states that are NOT connection statuses may
-    // carry their own wording.
-    expect(ARCHITECTURE_MODEL).not.toMatch(/label: 'Reachable'/);
-    expect(ARCHITECTURE_MODEL).not.toMatch(/label: 'Blocked'/);
-    expect(ARCHITECTURE_MODEL).not.toMatch(/label: 'Nothing to reach'/);
+  it('owns exactly the two Architecture connection labels', () => {
+    expect(ARCHITECTURE_MODEL).toContain("'Connected'");
+    expect(ARCHITECTURE_MODEL).toContain("'Not connected'");
+    expect(ARCHITECTURE_MODEL).not.toMatch(/label:\s*'(Reachable|Blocked|Unreachable|Refused|Not checked)'/);
   });
 
   it('gives the Connections page no second derivation to drift from', () => {

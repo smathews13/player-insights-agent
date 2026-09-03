@@ -47,7 +47,6 @@ import {
   TabsTrigger,
 } from './ui';
 import { CircleAlert, Search, Workflow } from 'lucide-react';
-import { conversationHref } from './conversation-links';
 import { readConversationList } from './initial-rail';
 import { RunDetails } from './RunDetails';
 import { FinalAnswer } from './FinalAnswer';
@@ -84,6 +83,26 @@ import {
   type RunLabelOverride,
 } from './run-header-labels';
 import { AIAnalysisCaveat } from './AIAnalysisCaveat';
+import { RunFeedbackWriter } from './run-feedback-writer';
+import type { FeedbackDirection } from '../../shared/feedback-direction';
+
+interface RunFeedbackUi {
+  targetId: string | null;
+  saving: boolean;
+  saved: boolean;
+  open: boolean;
+  comment: string;
+  error: string | null;
+}
+
+const EMPTY_RUN_FEEDBACK: RunFeedbackUi = {
+  targetId: null,
+  saving: false,
+  saved: false,
+  open: false,
+  comment: '',
+  error: null,
+};
 
 /** Stages whose time belongs to data work, including older traces that tagged
  * the finder or SQL wrapper as an agent stage instead of a tool stage. */
@@ -141,7 +160,7 @@ export function RunExplorerFilters({
           onValueChange={(value) => onConversationChange(value === 'all' ? '' : value)}
         >
           <SelectTrigger
-            className="run-conversation-filter"
+            className="run-filter-trigger run-conversation-filter"
             aria-label={`Filter runs by conversation: ${conversationLabel}`}
             title={conversationLabel}
           >
@@ -169,7 +188,7 @@ export function RunExplorerFilters({
           onValueChange={(value) => onUsernameChange(value === 'all' ? '' : value)}
         >
           <SelectTrigger
-            className="run-username-filter"
+            className="run-filter-trigger run-username-filter"
             aria-label={`Filter runs by username: ${usernameLabel}`}
             title={usernameLabel}
           >
@@ -216,6 +235,10 @@ export function RunExplorer() {
   const [advanced, setAdvanced] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const workspaceScrollRef = useRef<HTMLDivElement>(null);
+  const feedbackWriterRef = useRef(new RunFeedbackWriter());
+  const confirmedFeedbackRef = useRef(new Map<string, FeedbackDirection | null>());
+  const runFeedbackUiRef = useRef<Record<string, RunFeedbackUi>>({});
+  const [runFeedbackById, setRunFeedbackById] = useState<Record<string, RunFeedbackUi>>({});
   const [searchText, setSearchText] = useState('');
   // Always "All conversations" on arrival. This used to be seeded from
   // `?conversation=`, so clicking through from Ask PIA hid every other run in
@@ -356,10 +379,73 @@ export function RunExplorer() {
   const totalTokens = typeof tokens?.total_tokens === 'number' ? tokens.total_tokens : null;
   const promptTokens = typeof tokens?.prompt_tokens === 'number' ? tokens.prompt_tokens : null;
   const completionTokens = typeof tokens?.completion_tokens === 'number' ? tokens.completion_tokens : null;
-  const ratePath = selected?.conversation_id ? conversationHref(selected.conversation_id, selected.id) : null;
   const displayed = selected
     ? applyRunLabelOverride(selected, canEdit && labelOverlay?.runId === selected.id ? labelOverlay.value : null)
     : null;
+  const feedbackTarget = selected && validRunId(selected.id) ? selected.id : null;
+  const patchFeedbackUi = (targetId: string, changes: Partial<RunFeedbackUi>) => {
+    setRunFeedbackById((current) => {
+      const nextEntry = {
+        ...(current[targetId] ?? { ...EMPTY_RUN_FEEDBACK, targetId }),
+        ...changes,
+      };
+      const next = { ...current, [targetId]: nextEntry };
+      runFeedbackUiRef.current = next;
+      return next;
+    });
+  };
+  const setRunFeedbackDirection = (targetId: string, direction: FeedbackDirection | null) => {
+    setRuns((current) => current.map((run) => (run.id === targetId ? { ...run, feedback: direction } : run)));
+  };
+  const saveSelectedFeedback = (sentiment: FeedbackDirection, keepCommentOpen = false) => {
+    if (!feedbackTarget) return;
+    const current = runFeedbackUiRef.current[feedbackTarget] ?? { ...EMPTY_RUN_FEEDBACK, targetId: feedbackTarget };
+    if (!confirmedFeedbackRef.current.has(feedbackTarget)) {
+      confirmedFeedbackRef.current.set(feedbackTarget, selected?.feedback ?? null);
+    }
+    void feedbackWriterRef.current.save(
+      {
+        messageId: feedbackTarget,
+        sentiment,
+        ...(sentiment === 'down' && current.comment.trim() ? { comment: current.comment } : {}),
+      },
+      {
+        pending: () => {
+          setRunFeedbackDirection(feedbackTarget, sentiment);
+          patchFeedbackUi(feedbackTarget, {
+            saving: true,
+            saved: false,
+            open: sentiment === 'down' && (keepCommentOpen || current.open),
+            error: null,
+          });
+        },
+        committed: () => {
+          confirmedFeedbackRef.current.set(feedbackTarget, sentiment);
+        },
+        saved: () => {
+          patchFeedbackUi(feedbackTarget, {
+            saving: false,
+            saved: true,
+            open: sentiment === 'down' && keepCommentOpen,
+            error: null,
+          });
+        },
+        failed: (error) => {
+          const rollback = confirmedFeedbackRef.current.get(feedbackTarget) ?? null;
+          setRunFeedbackDirection(feedbackTarget, rollback);
+          patchFeedbackUi(feedbackTarget, {
+            saving: false,
+            saved: false,
+            open: sentiment === 'down' || rollback === 'down',
+            error: error.message || 'Feedback was not recorded.',
+          });
+        },
+      }
+    );
+  };
+  const runFeedbackUi = feedbackTarget
+    ? (runFeedbackById[feedbackTarget] ?? { ...EMPTY_RUN_FEEDBACK, targetId: feedbackTarget })
+    : EMPTY_RUN_FEEDBACK;
 
   // The complete right workspace is one bounded scroll owner: header, tabs,
   // active view, map and selected-step detail move together. This is deliberately
@@ -556,9 +642,23 @@ export function RunExplorer() {
                       totalTokens={totalTokens}
                       promptTokens={promptTokens}
                       completionTokens={completionTokens}
-                      feedback={displayed?.feedback}
-                      legacyUsefulness={displayed?.rating}
-                      ratePath={ratePath}
+                      feedback={selected?.feedback}
+                      legacyUsefulness={selected?.rating}
+                      feedbackAttribution="you"
+                      feedbackControls={
+                        feedbackTarget
+                          ? {
+                              saving: runFeedbackUi.saving,
+                              saved: runFeedbackUi.saved,
+                              open: runFeedbackUi.open,
+                              comment: runFeedbackUi.comment,
+                              error: runFeedbackUi.error,
+                              onDirection: (direction) => saveSelectedFeedback(direction, direction === 'down'),
+                              onCommentChange: (comment) => patchFeedbackUi(feedbackTarget, { comment }),
+                              onSaveComment: () => saveSelectedFeedback('down', true),
+                            }
+                          : undefined
+                      }
                     />
                     {runTrace.takeaway ? (
                       <FinalAnswer

@@ -113,7 +113,7 @@ genie_usage AS (
     AND UPPER(TRIM(u.usage_unit)) = 'DBU'
 ),
 observed_paid_skus AS (
-  SELECT cloud, usage_unit, sku_name,
+  SELECT cloud, usage_unit, sku_name, MAX(usage_end_time) AS observed_at,
          ROW_NUMBER() OVER (
            PARTITION BY cloud, usage_unit
            ORDER BY MAX(usage_end_time) DESC, sku_name
@@ -126,41 +126,59 @@ observed_paid_skus AS (
     AND UPPER(TRIM(usage_unit)) = 'DBU'
   GROUP BY cloud, usage_unit, sku_name
 ),
+workspace_regional_skus AS (
+  SELECT cloud, usage_unit, sku_name, MAX(usage_end_time) AS observed_at,
+         ROW_NUMBER() OVER (
+           PARTITION BY cloud, usage_unit
+           ORDER BY MAX(usage_end_time) DESC, sku_name
+         ) AS recency_rank
+  FROM system.billing.usage
+  WHERE workspace_id = :workspaceId
+    AND usage_date BETWEEN DATE_ADD(:through_day, -180) AND :through_day
+    AND UPPER(sku_name) LIKE 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_%'
+    AND UPPER(TRIM(usage_unit)) = 'DBU'
+  GROUP BY cloud, usage_unit, sku_name
+),
+free_price_skus AS (
+  SELECT cloud, usage_unit, sku_name
+  FROM (
+    SELECT cloud, usage_unit, sku_name,
+           ROW_NUMBER() OVER (
+             PARTITION BY cloud, usage_unit
+             ORDER BY source_priority, observed_at DESC, sku_name
+           ) AS preferred_rank
+    FROM (
+      SELECT cloud, usage_unit, sku_name, observed_at, 1 AS source_priority
+      FROM observed_paid_skus
+      WHERE recency_rank = 1
+      UNION ALL
+      SELECT cloud, usage_unit, sku_name, observed_at, 2 AS source_priority
+      FROM workspace_regional_skus
+      WHERE recency_rank = 1
+    )
+  )
+  WHERE preferred_rank = 1
+),
 price_hits AS (
   SELECT
     usage.*,
     p.pricing.default AS unit_price,
-    p.currency_code,
-    CASE
-      WHEN usage.sku_name <> '${GENIE_FREE_SKU}' THEN 0
-      WHEN observed.sku_name IS NOT NULL AND p.sku_name = observed.sku_name THEN 1
-      WHEN UPPER(p.sku_name) = 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_REGION' THEN 2
-      ELSE 3
-    END AS candidate_priority
+    p.currency_code
   FROM genie_usage usage
-  LEFT JOIN observed_paid_skus observed
+  LEFT JOIN free_price_skus free_price
     ON usage.sku_name = '${GENIE_FREE_SKU}'
-   AND usage.cloud = observed.cloud
-   AND usage.usage_unit = observed.usage_unit
-   AND observed.recency_rank = 1
+   AND usage.cloud = free_price.cloud
+   AND usage.usage_unit = free_price.usage_unit
   LEFT JOIN system.billing.list_prices p
     ON (
       (usage.sku_name <> '${GENIE_FREE_SKU}' AND usage.sku_name = p.sku_name)
-      OR (
-        usage.sku_name = '${GENIE_FREE_SKU}'
-        AND UPPER(p.sku_name) LIKE '%SERVERLESS_REAL_TIME_INFERENCE%'
-        AND UPPER(p.currency_code) = 'USD'
-      )
+      OR (usage.sku_name = '${GENIE_FREE_SKU}' AND free_price.sku_name = p.sku_name)
    )
    AND usage.cloud = p.cloud
    AND usage.usage_unit = p.usage_unit
+   AND UPPER(p.currency_code) = 'USD'
    AND usage.usage_end_time >= p.price_start_time
    AND (p.price_end_time IS NULL OR usage.usage_end_time < p.price_end_time)
-),
-ranked_price_hits AS (
-  SELECT *,
-         MIN(candidate_priority) OVER (PARTITION BY record_id) AS best_candidate_priority
-  FROM price_hits
 ),
 deduped AS (
   SELECT
@@ -169,8 +187,7 @@ deduped AS (
       THEN CONCAT_WS('|', CAST(unit_price AS STRING), COALESCE(currency_code, '')) END) AS price_match_count,
     MAX(unit_price) AS unit_price,
     MAX(currency_code) AS currency_code
-  FROM ranked_price_hits
-  WHERE candidate_priority = best_candidate_priority
+  FROM price_hits
   GROUP BY record_id, usage_date, sku_name, usage_quantity, record_type, run_as, surface, channel, offering_type
 ),
 query_space_evidence AS (
@@ -270,8 +287,8 @@ SELECT
   SUM(usage_quantity * allocation_weight) AS dbus,
   CASE
     WHEN sku_name = '${GENIE_FREE_SKU}' THEN CAST(0 AS DOUBLE)
-    WHEN COUNT(*) FILTER (WHERE price_match_count <> 1 OR unit_price IS NULL) > 0 THEN CAST(NULL AS DOUBLE)
-    ELSE SUM(usage_quantity * unit_price * allocation_weight)
+    ELSE SUM(CASE WHEN price_match_count = 1 AND unit_price IS NOT NULL
+      THEN usage_quantity * unit_price * allocation_weight ELSE 0 END)
   END AS paid_usd,
   COUNT(*) FILTER (WHERE sku_name <> '${GENIE_FREE_SKU}' AND price_match_count = 1 AND unit_price IS NOT NULL)
     AS priced_rows,
@@ -503,12 +520,13 @@ function addCategory(
     target.chargedRaw += raw;
     surfaceTarget.chargedEffective += quantity;
     surfaceTarget.chargedRaw += raw;
+    if (paidUsd !== null) {
+      target.paidUsd += paidUsd;
+      surfaceTarget.paidUsd += paidUsd;
+    }
     if (!priced || paidUsd === null) {
       target.paidUsdComplete = false;
       surfaceTarget.paidUsdComplete = false;
-    } else {
-      target.paidUsd += paidUsd;
-      surfaceTarget.paidUsd += paidUsd;
     }
   } else {
     target.unknown += quantity;
@@ -520,6 +538,11 @@ function pricingState(value: MutableSlice): GenieInstanceAccounting['pricingStat
   if (!value.hasRows) return 'none';
   if (!value.hasCharged || value.paidUsdComplete) return 'priced';
   return value.paidUsd > 0 ? 'partial' : 'unpriced';
+}
+
+function paidAmount(value: MutableSlice): number | null {
+  if (value.paidUsdComplete) return Math.max(0, value.paidUsd);
+  return value.paidUsd > 0 ? Math.max(0, value.paidUsd) : null;
 }
 
 function freeEquivalent(value: MutableSlice): {
@@ -550,7 +573,7 @@ function surfaceResults(value: MutableSlice): GenieSurfaceAccounting[] {
       chargedEffectiveDbus: Math.max(0, item.chargedEffective),
       chargedRawEquivalentDbus: Math.max(0, item.chargedRaw),
       unknownDbus: Math.max(0, item.unknown),
-      paidUsd: item.paidUsdComplete ? Math.max(0, item.paidUsd) : null,
+      paidUsd: paidAmount(item),
     }))
     .sort((left, right) => left.surface.localeCompare(right.surface));
 }
@@ -568,7 +591,7 @@ function instanceResult(space: ConfiguredGenieSpace, value: MutableSlice, priced
     chargedEffectiveDbus: Math.max(0, value.chargedEffective),
     chargedRawEquivalentDbus: Math.max(0, value.chargedRaw),
     unknownDbus: Math.max(0, value.unknown),
-    paidUsd: value.paidUsdComplete ? Math.max(0, value.paidUsd) : null,
+    paidUsd: paidAmount(value),
     freeEquivalentUsd: equivalent.amount,
     freeEquivalentPricingState: equivalent.state,
     freeEquivalentPriceSource: 'system.billing.list_prices',
@@ -594,7 +617,7 @@ function userResult(
     chargedEffectiveDbus: Math.max(0, value.chargedEffective),
     chargedRawEquivalentDbus: Math.max(0, value.chargedRaw),
     unknownDbus: Math.max(0, value.unknown),
-    paidUsd: value.paidUsdComplete ? Math.max(0, value.paidUsd) : null,
+    paidUsd: paidAmount(value),
     freeEquivalentUsd: equivalent.amount,
     freeEquivalentPricingState: equivalent.state,
     freeEquivalentPriceSource: 'system.billing.list_prices',
@@ -803,7 +826,7 @@ export function classifyGenieAccounting(
     chargedEffectiveDbus: Math.max(0, overall.chargedEffective),
     chargedRawEquivalentDbus: Math.max(0, overall.chargedRaw),
     unknownDbus: Math.max(0, overall.unknown),
-    paidUsd: overall.paidUsdComplete ? Math.max(0, overall.paidUsd) : overall.hasCharged ? null : 0,
+    paidUsd: overall.hasCharged ? paidAmount(overall) : 0,
     freeEquivalentUsd: overallEquivalent.amount,
     freeEquivalentPricingState: overallEquivalent.state,
     freeEquivalentPriceSource: 'system.billing.list_prices',

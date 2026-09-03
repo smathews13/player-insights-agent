@@ -165,6 +165,37 @@ describe('what one run reads, and what it keeps', () => {
     expect(stored?.error).toBe('');
   });
 
+  it('caches the automatic MLflow result for the session and refreshes it only on request', async () => {
+    const mlflow = {
+      id: 'experiment-id',
+      kind: 'observability',
+      name: 'e1',
+      label: 'MLflow experiment',
+      status: 'ok',
+      detail: 'Read as the application.',
+      checked_with: 'GET experiment',
+      duration_ms: 1,
+      error: '',
+      remedy: null,
+    };
+    const { paths } = stubFetch({
+      '/api/settings': { body: { ...settingsBody(), checks: [mlflow] } },
+    });
+
+    expect(claimAutoCheck()).toBe(true);
+    await runSessionChecks();
+    expect(recallChecks()?.settings?.checks).toContainEqual(mlflow);
+
+    // A second page reads the remembered result and cannot claim another run.
+    expect(claimAutoCheck()).toBe(false);
+    expect(paths.filter((path) => path === '/api/settings')).toHaveLength(1);
+
+    // Refresh invokes the same canonical run and replaces the cache.
+    await runSessionChecks();
+    expect(paths.filter((path) => path === '/api/settings')).toHaveLength(2);
+    expect(recallChecks()?.settings?.checks).toContainEqual(mlflow);
+  });
+
   it('publishes settings evidence while preflight is still pending', async () => {
     let resolvePreflight!: (response: Response) => void;
     vi.stubGlobal(

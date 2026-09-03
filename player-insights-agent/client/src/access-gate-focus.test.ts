@@ -29,7 +29,8 @@ describe('shared dialog focus geometry', () => {
     expect(ACCESS_GATE).toContain('onEscape={() => skip.current?.focus()}');
     expect(ACCESS_GATE).not.toContain('querySelectorAll<HTMLElement>');
     expect(DIALOG).toContain("'aria-modal': 'true'");
-    expect(DIALOG).toContain('hideBackground(overlay)');
+    expect(DIALOG).toContain('hideBackground(portalContainer)');
+    expect(DIALOG).toContain('<PortalContainerProvider container={portalContainer}>');
     expect(DIALOG).toContain('lockDocumentScroll()');
     expect(DIALOG).toContain('restoreTo instanceof HTMLElement && restoreTo.isConnected');
   });

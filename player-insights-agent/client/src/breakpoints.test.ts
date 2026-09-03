@@ -70,7 +70,7 @@ describe('the app has one set of breakpoints', () => {
       /@media \(max-width: 800px\)[\s\S]*\.connection-pair\s*\{[^}]*grid-template-columns:\s*1fr/
     );
     expect(architecture).toMatch(
-      /@media \(max-width: 800px\)[\s\S]*\.arch-tiles\s*\{[^}]*grid-template-columns:\s*repeat\(2/
+      /@media \(max-width: 800px\)[\s\S]*\.arch-loop-tiles\s*\{[^}]*grid-template-columns:\s*repeat\(2/
     );
     expect(architecture).toMatch(
       /@media \(max-width: 1180px\)[\s\S]*\.arch-rails\s*\{[^}]*grid-template-columns:\s*1fr/

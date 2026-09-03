@@ -49,7 +49,7 @@ describe('billing attribution', () => {
     expect(query?.statement).not.toContain("billing_origin_product = 'JOBS'");
     expect(query?.statement).not.toContain('COALESCE(p.pricing.default, 0)');
     expect(query?.statement).toContain('t.usage_unit = p.usage_unit');
-    expect(query?.statement.match(/u\.workspace_id = :workspaceId/g) ?? []).toHaveLength(2);
+    expect(query?.statement.match(/u\.workspace_id = :workspaceId/g) ?? []).toHaveLength(3);
     expect(query?.parameters).toContainEqual({ name: 'workspaceId', value: IDS.workspaceId, type: 'STRING' });
   });
 
@@ -69,8 +69,12 @@ describe('billing attribution', () => {
 
   it('bounds the billing scan to the complete days the page requested', () => {
     const query = buildCostStatement(IDS, RANGE);
-    expect(query?.statement).toContain('u.usage_date >= :from_day');
+    expect(query?.statement).toContain(
+      'u.usage_date >= GREATEST(:from_day, (SELECT source_from FROM deployment_start))'
+    );
     expect(query?.statement).toContain('u.usage_date <= :to_day');
+    expect(query?.statement).toContain("u.billing_origin_product = 'APPS'");
+    expect(query?.statement).toContain('u.usage_metadata.app_name = :appName');
     expect(query?.parameters).toEqual(
       expect.arrayContaining([
         { name: 'from_day', value: RANGE.from, type: 'DATE' },
@@ -222,6 +226,65 @@ describe('billing attribution', () => {
       freeEquivalentUsd: 4,
     });
     expect(tiles.find((tile) => tile.id === 'genie:data')?.amount).toBe(0);
+  });
+
+  it('renders a known charged Genie subtotal as estimated when another paid row is unpriced', () => {
+    const testIds: CostIdentifiers = {
+      ...IDS,
+      genieSpaces: [{ id: 'space-data', label: 'Data Genie', tool: 'data_genie', tileId: 'genie:data' }],
+    };
+    const accounting = classifyGenieAccounting(
+      [
+        {
+          usageDay: '2026-09-01',
+          identity: 'person@example.test',
+          identityKind: 'human',
+          surface: 'GENIE_CODE',
+          channel: 'UI',
+          offeringType: 'PAYGO',
+          skuName: 'PAID',
+          spaceId: 'space-data',
+          attributionMethod: 'query-history-exact',
+          dbus: 10,
+          paidUsd: 0.7,
+          pricedRows: 1,
+          unpricedRows: 0,
+          correctionRows: 0,
+          sourceRows: 1,
+          throughDay: '2026-09-01',
+        },
+        {
+          usageDay: '2026-09-01',
+          identity: 'person@example.test',
+          identityKind: 'human',
+          surface: 'GENIE_CODE',
+          channel: 'UI',
+          offeringType: 'PAYGO',
+          skuName: 'UNPRICED',
+          spaceId: 'space-data',
+          attributionMethod: 'query-history-exact',
+          dbus: 5,
+          paidUsd: null,
+          pricedRows: 0,
+          unpricedRows: 1,
+          correctionRows: 0,
+          sourceRows: 1,
+          throughDay: '2026-09-01',
+        },
+      ],
+      '2026-09-01',
+      testIds.genieSpaces
+    );
+    const tile = buildTiles(testIds, [], undefined, [], { month: accounting, period: accounting }).find(
+      (item) => item.id === 'genie:data'
+    );
+    expect(tile).toMatchObject({
+      amount: 0.7,
+      dbus: 15,
+      quality: 'estimate',
+      attribution: 'deployment',
+      pricing: { match: 'partial' },
+    });
   });
 
   it('keeps unmatched workspace Genie usage out of configured-space tiles', () => {

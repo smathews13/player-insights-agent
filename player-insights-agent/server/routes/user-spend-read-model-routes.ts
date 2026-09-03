@@ -17,7 +17,7 @@ import {
   runUserSpendHourlyRefresh,
   type RollingHourWindow,
 } from '../lib/user-spend-hourly-read-model';
-import { buildUserSpendMetrics, userSpendComparisonWindows } from '../lib/user-spend-metrics';
+import { buildUserSpendMetrics } from '../lib/user-spend-metrics';
 import { invalidAdminEmail } from '../lib/admin-roles';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 
@@ -400,17 +400,6 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         res.status(404).json({ error: 'monitoring_user_not_rostered' });
         return;
       }
-      const latestCompleteDay = current.freshness.billingCompleteThrough;
-      const windows = latestCompleteDay ? userSpendComparisonWindows(latestCompleteDay) : null;
-      const comparisons = windows
-        ? await Promise.all([
-            readDaily(req, windows.week.current, email, false, 1, 0, true),
-            readDaily(req, windows.week.prior, email, false, 1, 0, true),
-            readDaily(req, windows.month.current, email, false, 1, 0, true),
-            readDaily(req, windows.month.prior, email, false, 1, 0, true),
-          ])
-        : [];
-      const metric = (page: UserSpendReadModelPage) => selectedAmount(page, email, unit);
       const appTotal = unit === 'USD' ? selected.row?.appSpendUsd : selected.row?.appSpendDbu;
       const profile = selected.row
         ? {
@@ -433,15 +422,6 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
                 tokenCoveredRuns: selected.row.tokenCoveredRuns,
                 tokenCoveredQuestions: selected.row.tokenCoveredQuestions,
               },
-              week: {
-                current: comparisons[0] ? metric(comparisons[0]) : { amount: null, comparable: false },
-                prior: comparisons[1] ? metric(comparisons[1]) : { amount: null, comparable: false },
-              },
-              month: {
-                current: comparisons[2] ? metric(comparisons[2]) : { amount: null, comparable: false },
-                prior: comparisons[3] ? metric(comparisons[3]) : { amount: null, comparable: false },
-              },
-              comparisonFreshness: latestCompleteDay ?? '',
             }),
             components,
           }

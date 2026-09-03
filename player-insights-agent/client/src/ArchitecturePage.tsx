@@ -19,10 +19,8 @@
  *
  * It used to be that nothing ran until Refresh was pressed, and the info row at
  * the bottom said so. The cost reasoning was right and the conclusion was wrong:
- * a page that opens on `Not checked` down its whole length is read as broken, not
- * as unasked, and it was read that way by the person it was built for. `Not
- * checked` is still a real status and still never a stand-in for a green one --
- * it is simply no longer the state the page opens in.
+ * a page that opens without operational verdicts reads as broken, not as
+ * pending, and it was read that way by the person it was built for.
  *
  * COLOUR HERE STATES WHAT A CONNECTION IS, NEVER HOW IT IS. The accent on a
  * card's edge, the colour of a line and the colour of the dot travelling along it
@@ -51,7 +49,6 @@ import { refreshLiveRuntimeSettings, useLiveRuntimeSettings } from './runtime-se
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 import {
   ARCHITECTURE_NODES,
-  dependencyNodes,
   describeArchitecture,
   drawnReadings,
   nodeAccessibleName,
@@ -80,7 +77,7 @@ import {
   nodeControlBounds,
 } from './architecture-control-scopes';
 import type { ChainBound } from './agent-chain';
-import { countConnections, readConnections, readingsById, type ConnectionReading } from './connection-model';
+import { readConnections, readingsById, type ConnectionReading } from './connection-model';
 import { DRIFT_MARKER_LABEL } from './connection-status';
 import { checkedAtOf } from './check-session';
 import { useSessionChecks } from './session-checks';
@@ -126,7 +123,10 @@ const ARCHITECTURE_DESCRIPTION_TIMEOUT_MS = 5_000;
 const useCanvasLayoutEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect;
 
 /** Keep a diagram exception from replacing the whole Architecture tab. */
-class ArchitectureDiagramBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+class ArchitectureDiagramBoundary extends Component<
+  { byResource: ReadonlyMap<string, ConnectionReading>; children: ReactNode; now: number },
+  { failed: boolean }
+> {
   state = { failed: false };
 
   static getDerivedStateFromError() {
@@ -148,9 +148,9 @@ class ArchitectureDiagramBoundary extends Component<{ children: ReactNode }, { f
           </AlertDescription>
         </Alert>
         <ul className="arch-equivalent">
-          {ARCHITECTURE_NODES.map((node) => (
-            <li key={node.id}>
-              <strong>{node.label}</strong>: status unavailable. {node.role}
+          {describeArchitecture(this.props.byResource, this.props.now).map((line) => (
+            <li key={line}>
+              {line}
             </li>
           ))}
         </ul>
@@ -223,17 +223,7 @@ function workspaceObject(
  * The card is inert only where BOTH are unavailable, which is the two nodes that
  * are not dependencies at all: the browser and the app server.
  */
-/**
- * A node's verdict, in the palette's own families.
- *
- * `architecture.ts` keeps six tones because six is what this page has to
- * distinguish, and none of them is a colour: `local` is "the code runs here",
- * `nothing-to-reach` is "there is no remote end", `unreadable` is "nobody
- * answered about it". Four of the six collapse to the outlined neutral, which is
- * the correct rendering of all four: nothing was established, and an outline
- * with a word in it says exactly that. Only `reachable` and `blocked` are
- * verdicts, and only they are tinted.
- */
+/** A node's operational connection verdict, in the shared pill palette. */
 function ArchitectureNodeCard({
   activeBound,
   node,
@@ -294,12 +284,7 @@ function ArchitectureNodeCard({
             {reading.marker === 'drift' && reading.driftCount > 1 ? ` \u00d7${reading.driftCount}` : ''}
           </span>
         ) : null}
-        {/*
-          A third pill rather than a different status, for the reason set out in
-          semantic-freshness.ts: an index serving old content is reachable, and
-          calling it Blocked would say something false about a word that means
-          "this identity cannot get to it" everywhere else on the page.
-        */}
+        {/* Freshness remains a secondary fact; it never becomes a third connection state. */}
         {age ? (
           <span
             className={astPill(age.state === 'stale' ? 'warn' : 'neutral-outline', 'arch-node-age')}
@@ -544,67 +529,6 @@ export function ArchitectureCanvas({
 }
 
 /**
- * The four tiles.
- *
- * EVERY VALUE IS COUNTED FROM THE DEPENDENCIES DRAWN BELOW, and the two that
- * cannot be counted until something has been checked render an em-dash rather
- * than a zero. "0 reachable" and "nobody has looked" are different claims, and
- * printing the first on a page that has probed nothing is the single most
- * misleading thing this tile strip could do.
- *
- * The design seats a fifth tile here, LAST CHECK. It is deliberately not built:
- * the Refresh control in the heading states the same freshness beside the button
- * that changes it, and a second reading of the same clock is a second thing to
- * disagree. Freshness belongs to `RefreshControl` and is read nowhere else on
- * this page — do not take `checkedAt` as a prop to put it back. Recorded in
- * `docs/design-handoff-pia-dubois-revamp/AS-COMMITTED.md`.
- */
-export function ArchitectureTiles({
-  readings,
-  dependencies,
-}: {
-  /** The readings for the drawn dependencies. Empty until the checks have run. */
-  readings: readonly ConnectionReading[];
-  dependencies: number;
-}) {
-  const ran = readings.length > 0;
-  const counts = countConnections(readings);
-  const unknown = '\u2014';
-  return (
-    <ul className="arch-tiles" data-testid="architecture-tiles">
-      {/* `.ast-num` on all four, because four tiles in a row are read across and
-          a reader compares them. The rule they carried asked for tabular figures
-          with `font-variant-numeric` on DM Sans, which declares no `tnum`
-          feature, so nothing was tabular and the strip shuffled sideways every
-          time a count changed under a refresh. */}
-      <li>
-        <span>Dependencies</span>
-        <strong className="ast-num">{dependencies}</strong>
-      </li>
-      <li>
-        <span>Reachable</span>
-        <strong className="ast-num" data-tone={ran && counts.reachable > 0 ? 'reachable' : undefined}>
-          {ran ? counts.reachable : unknown}
-        </strong>
-      </li>
-      <li>
-        <span>Not checked</span>
-        {/* Before anything has run, every dependency is unchecked, which is what
-            the cards below say too. This is the one tile whose value is known
-            without a probe. */}
-        <strong className="ast-num">{ran ? counts.notChecked : dependencies}</strong>
-      </li>
-      <li data-tile="drift">
-        <span>Drift</span>
-        <strong className="ast-num" data-tone={ran && counts.drifted > 0 ? 'drifted' : undefined}>
-          {ran ? counts.drifted : unknown}
-        </strong>
-      </li>
-    </ul>
-  );
-}
-
-/**
  * The loop bounds, as a strip of tiles under the live-data-flow label.
  *
  * THE THREE NUMBERS THAT DECIDE HOW LONG AN ANSWER MAY TAKE, which were readable
@@ -639,7 +563,7 @@ export function ChainBoundTiles({
   const unknown = '\u2014';
   const shown = displayedBound(activeBound, previewBound);
   return (
-    <ul className="arch-tiles arch-tiles-loop" data-testid="architecture-loop-tiles">
+    <ul className="arch-loop-tiles" data-testid="architecture-loop-tiles">
       {CHAIN_BOUNDS.map((bound) => {
         const pressed = activeBound === bound;
         const painted = shown === bound;
@@ -749,9 +673,8 @@ export function ArchitecturePage() {
    * rather than keyed on the store being empty.
    *
    * The page used to hold all of this itself, and probe nothing until Refresh was
-   * pressed. That was the defect Sam reported: a tab that opens on `Not checked`
-   * down its whole length reads as broken, however carefully the sentence at the
-   * bottom explains that it is not.
+   * pressed. That was the defect Sam reported: a tab that opens without
+   * operational verdicts down its whole length reads as broken.
    */
   const { session, running: checking, refresh } = useSessionChecks();
   const settings = session?.settings ?? null;
@@ -869,15 +792,13 @@ export function ArchitecturePage() {
           <CircleAlert />
           <AlertDescription>
             <span>
-              <strong>{entry.node.label} is reachable and its content is out of date</strong>
+              <strong>{entry.node.label} is connected and its content is out of date</strong>
               {': '}
               {entry.age.note}
             </span>
           </AlertDescription>
         </Alert>
       ))}
-
-      <ArchitectureTiles dependencies={dependencyNodes().length} readings={drawn} />
 
       <section className="arch-flow" aria-labelledby="arch-flow-title">
         <div className="arch-flow-head">
@@ -892,7 +813,11 @@ export function ArchitecturePage() {
           onActiveBoundChange={setActiveBound}
           onPreviewBoundChange={setPreviewBound}
         />
-        <ArchitectureDiagramBoundary key={`${checkedAt}:${payload?.readAt ?? ''}`}>
+        <ArchitectureDiagramBoundary
+          byResource={byResource}
+          key={`${checkedAt}:${payload?.readAt ?? ''}`}
+          now={now}
+        >
           <ArchitectureCanvas activeBound={shownBound} byResource={byResource} now={now} payload={payload} />
         </ArchitectureDiagramBoundary>
       </section>

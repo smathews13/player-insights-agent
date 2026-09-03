@@ -8,12 +8,14 @@ import {
   SP_ASSIGNMENTS_TABLE,
   SP_PERSONA_DEFINITIONS_TABLE,
   SP_PERSONAS_TABLE,
+  SP_PERSONA_STATUS_TABLE,
   deleteSpPersonaDefinition,
   insertSpPersonaDefinition,
   insertSpPersona,
   listSpAssignments,
   listSpPersonaDefinitions,
   listSpPersonas,
+  upsertSpPersonaForDefinition,
   writeSpAssignment,
 } from './sp-identity-store';
 
@@ -39,11 +41,16 @@ function client(
         calls.push({ sql, values });
         if (options.fail) return Promise.reject(options.fail);
         if (sql.includes(SP_PERSONAS_TABLE) && sql.includes('INSERT')) {
-          const [id, displayName, clientId, secretScope, secretKey, updatedBy] = values ?? [];
+          const definitionBound = sql.includes('(id, definition_id');
+          const [id, linkedDefinition, linkedName, linkedClient, linkedScope, linkedKey, linkedBy] = values ?? [];
+          const [displayName, clientId, secretScope, secretKey, updatedBy] = definitionBound
+            ? [linkedName, linkedClient, linkedScope, linkedKey, linkedBy]
+            : [linkedDefinition, linkedName, linkedClient, linkedScope, linkedKey];
           return Promise.resolve({
             rows: [
               {
                 id,
+                definition_id: definitionBound ? linkedDefinition : null,
                 display_name: displayName,
                 client_id: clientId,
                 secret_scope: secretScope,
@@ -100,6 +107,10 @@ function client(
           const row = (options.personas ?? []).find((persona) => persona.id === values?.[0]);
           return Promise.resolve({ rows: row ? [row] : [] });
         }
+        if (sql.includes(SP_PERSONAS_TABLE) && sql.includes('WHERE definition_id')) {
+          const row = (options.personas ?? []).find((persona) => persona.definition_id === values?.[0]);
+          return Promise.resolve({ rows: row ? [row] : [] });
+        }
         if (sql.includes(SP_PERSONAS_TABLE)) {
           return Promise.resolve({ rows: options.personas ?? [] });
         }
@@ -117,6 +128,7 @@ describe('service-principal persona persistence', () => {
     expect(SP_PERSONAS_TABLE).toBe(`${APP_SCHEMA}.sp_personas`);
     expect(SP_PERSONA_DEFINITIONS_TABLE).toBe(`${APP_SCHEMA}.sp_persona_definitions`);
     expect(SP_ASSIGNMENTS_TABLE).toBe(`${APP_SCHEMA}.sp_assignments`);
+    expect(SP_PERSONA_STATUS_TABLE).toBe(`${APP_SCHEMA}.sp_persona_status`);
   });
 
   it('returns nobody and no personas when the tables do not exist yet', async () => {
@@ -148,6 +160,36 @@ describe('service-principal persona persistence', () => {
       secret: 's3cret',
     });
     expect(parsed).not.toHaveProperty('secret');
+  });
+
+  it('links credentials by definition id and invalidates prior status evidence', async () => {
+    const store = client();
+    const definition = {
+      id: 'definition-1',
+      revision: 2,
+      displayName: 'Finance reader',
+      description: '',
+      capabilities: ['Table main.games.players — SELECT'],
+      grants: [],
+      legacyCapabilities: ['Table main.games.players — SELECT'],
+      updatedAt: '',
+      updatedBy: '',
+    };
+    const persona = await upsertSpPersonaForDefinition(
+      store as never,
+      definition,
+      {
+        clientId: 'aaaaaaaa-0000-4000-8000-000000000001',
+        secretScope: 'astrolabe',
+        secretKey: 'finance-sp',
+      },
+      'admin@example.com'
+    );
+    expect(persona.definitionId).toBe(definition.id);
+    expect(store.calls.some((call) => call.sql.includes('ON CONFLICT (definition_id)'))).toBe(true);
+    expect(store.calls.some((call) => call.sql.includes('DELETE') && call.sql.includes(SP_PERSONA_STATUS_TABLE))).toBe(
+      true
+    );
   });
 
   it('stores a credential-free persona plan as JSON capabilities', async () => {

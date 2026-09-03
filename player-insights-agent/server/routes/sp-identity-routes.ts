@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import {
   SpAssignmentWriteSchema,
+  SpPersonaConnectionWriteSchema,
   SpPersonaDefinitionPatchSchema,
   SpPersonaDefinitionWriteSchema,
   SpPersonaPatchSchema,
@@ -18,19 +19,26 @@ import {
 import { accountConsoleUrlForWorkspace } from '../../shared/databricks-links';
 import { parseOrganizationMappings } from '../../shared/organization-mapping';
 import { invalidAdminEmail, normalizeAdminEmail, recordAdminAction } from '../lib/admin-roles';
-import { describeSpTokenMinting } from '../lib/sp-token';
+import { describeSpTokenMinting, forgetSpTokens } from '../lib/sp-token';
 import { boundedSpGrantResources, discoverSpGrantResources } from '../lib/sp-grant-resources';
+import { checkSpPersonaDefinitionStatus, statusForSpPersonaDefinition } from '../lib/sp-persona-status';
 import { configuredSpPersonaTemplates } from '../lib/sp-persona-templates';
 import {
   deleteSpPersonaDefinition,
+  deleteSpPersonaStatus,
   deleteSpPersona,
   insertSpPersonaDefinition,
   insertSpPersona,
   listSpAssignments,
   listSpPersonaDefinitions,
   listSpPersonas,
+  listSpPersonaStatuses,
+  readSpPersonaByDefinitionId,
+  readSpPersonaDefinition,
   updateSpPersonaDefinition,
   updateSpPersona,
+  upsertSpPersonaForDefinition,
+  writeSpPersonaStatus,
   writeSpAssignment,
 } from '../lib/sp-identity-store';
 import { readRoster } from '../lib/user-roster';
@@ -38,9 +46,10 @@ import { userEmail, type InsightsAppKit } from './insights-routes';
 
 async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayload> {
   const templateConfig = configuredSpPersonaTemplates();
-  const [personas, personaDefinitions, assignments, rosterRead, grantResourceDiscovery] = await Promise.all([
+  const [personas, rawDefinitions, statuses, assignments, rosterRead, grantResourceDiscovery] = await Promise.all([
     listSpPersonas(appkit),
     listSpPersonaDefinitions(appkit),
+    listSpPersonaStatuses(appkit),
     listSpAssignments(appkit),
     readRoster(appkit.lakebase).catch(() => ({ rows: [] as { email: string; role: string }[] })),
     discoverSpGrantResources(appkit)
@@ -51,6 +60,18 @@ async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayl
         detail: `Configured resources could not be read: ${(error as Error).message}`,
       })),
   ]);
+  const personaByDefinition = new Map(
+    personas.flatMap((persona) => (persona.definitionId ? [[persona.definitionId, persona] as const] : []))
+  );
+  const statusByDefinition = new Map(statuses.map((status) => [status.definitionId, status]));
+  const personaDefinitions = rawDefinitions.map((definition) => ({
+    ...definition,
+    status: statusForSpPersonaDefinition(
+      definition,
+      personaByDefinition.get(definition.id) ?? null,
+      statusByDefinition.get(definition.id) ?? null
+    ),
+  }));
   const assignedByEmail = new Map(assignments.map((row) => [row.email, row.personaId]));
   const roster: SpIdentityRosterRow[] = rosterRead.rows.map((row) => ({
     email: row.email,
@@ -170,6 +191,82 @@ export function setupSpIdentityRoutes(appkit: InsightsAppKit): void {
       }
     });
 
+    app.put('/api/admin/sp-identity/persona-definitions/:id/connection', async (req, res) => {
+      const parsed = SpPersonaConnectionWriteSchema.safeParse(req.body);
+      const id = z.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!parsed.success || !id.success) {
+        res.status(400).json({
+          error: 'invalid_sp_persona_connection',
+          detail: 'Enter an Application ID, secret scope, and secret key reference.',
+        });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const definition = await readSpPersonaDefinition(appkit, id.data);
+        if (!definition) {
+          res.status(404).json({ error: 'sp_persona_definition_missing', detail: 'That persona is not defined.' });
+          return;
+        }
+        const persona = await upsertSpPersonaForDefinition(appkit, definition, parsed.data, actor);
+        forgetSpTokens();
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'sp-persona-connection-updated',
+          subject: definition.id,
+          detail: `Updated the credential reference for ${definition.displayName}; connection and sync require a new check.`,
+        });
+        res.json({ persona, payload: await adminPayload(appkit) });
+      } catch {
+        res.status(503).json({
+          error: 'sp_identity_store_unavailable',
+          detail: 'The service-principal connection reference was not saved. No secret value was accepted.',
+        });
+      }
+    });
+
+    app.post('/api/admin/sp-identity/persona-definitions/:id/status-check', async (req, res) => {
+      const id = z.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!id.success) {
+        res.status(400).json({ error: 'invalid_sp_persona_status_check', detail: 'Missing persona id.' });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const [definition, persona] = await Promise.all([
+          readSpPersonaDefinition(appkit, id.data),
+          readSpPersonaByDefinitionId(appkit, id.data),
+        ]);
+        if (!definition) {
+          res.status(404).json({ error: 'sp_persona_definition_missing', detail: 'That persona is not defined.' });
+          return;
+        }
+        if (!persona) {
+          res.status(409).json({
+            error: 'sp_persona_not_connected',
+            detail: 'Connect a service principal to this definition before checking status.',
+          });
+          return;
+        }
+        const status = await checkSpPersonaDefinitionStatus(definition, persona);
+        await writeSpPersonaStatus(appkit, status);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'sp-persona-status-checked',
+          subject: definition.id,
+          detail: status.connectionOk
+            ? `Checked the connection and ${status.checks.length} configured permissions for ${definition.displayName}.`
+            : `Checked the connection for ${definition.displayName}; token minting did not succeed.`,
+        });
+        res.json({ payload: await adminPayload(appkit) });
+      } catch {
+        res.status(503).json({
+          error: 'sp_persona_status_unavailable',
+          detail: 'The bounded connection and permission check could not be completed. Retry Check status.',
+        });
+      }
+    });
+
     app.delete('/api/admin/sp-identity/persona-definitions/:id', async (req, res) => {
       const id = z.string().trim().min(1).max(80).safeParse(req.params.id);
       if (!id.success) {
@@ -215,6 +312,15 @@ export function setupSpIdentityRoutes(appkit: InsightsAppKit): void {
         if (!persona) {
           res.status(404).json({ error: 'sp_persona_missing', detail: 'That persona is not defined.' });
           return;
+        }
+        if (
+          persona.definitionId &&
+          (parsed.data.clientId !== undefined ||
+            parsed.data.secretScope !== undefined ||
+            parsed.data.secretKey !== undefined)
+        ) {
+          await deleteSpPersonaStatus(appkit, persona.definitionId);
+          forgetSpTokens();
         }
         await recordAdminAction(appkit.lakebase, {
           actor,

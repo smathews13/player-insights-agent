@@ -707,6 +707,8 @@ export type AdminAction =
   | 'sp-persona-definition-created'
   | 'sp-persona-definition-updated'
   | 'sp-persona-definition-removed'
+  | 'sp-persona-connection-updated'
+  | 'sp-persona-status-checked'
   | 'sp-persona-assigned'
   | 'sp-persona-unassigned';
 

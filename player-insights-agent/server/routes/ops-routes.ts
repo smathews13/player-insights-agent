@@ -96,7 +96,7 @@ import {
   userSpendCacheKey,
 } from '../lib/user-spend';
 import { appSessionDeployment } from '../lib/app-session';
-import { buildUserSpendMetrics, userSpendComparisonWindows } from '../lib/user-spend-metrics';
+import { buildUserSpendMetrics } from '../lib/user-spend-metrics';
 import { ADMIN_REQUIRED_BODY, recordAdminAction, resolveRoleForRequest, seedRoles } from '../lib/admin-roles';
 import { everyKnownUser, readRosterForRequest } from '../lib/user-roster';
 import { canCheckHealthResources, isRole, type Role } from '../../shared/user-roster-contract';
@@ -104,6 +104,7 @@ import { USER_MONITORING_SCHEMA_REVISION } from '../../shared/user-monitoring-co
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import { MAX_PERSONA_FILTER_LENGTH } from '../../shared/conversation-filters';
 import { attributableCostBudgets } from '../../shared/cost-budgets';
+import { appSpendFigure } from '../../shared/app-cost-summary';
 import {
   createWorkspaceQueryHistoryTransport,
   EMPTY_WAREHOUSE_QUERY_ATTRIBUTION,
@@ -131,6 +132,7 @@ import {
   type TrafficBreakdownRead,
 } from '../lib/ops-traffic';
 import type {
+  AppSpendFigure,
   AppMeasurement,
   DependencyResult,
   GrantRemedy,
@@ -143,6 +145,7 @@ import type {
 } from '../../shared/ops-contract';
 import { opsCurrentMonthRange } from '../../shared/ops-contract';
 import { checkVerdict } from '../../shared/check-verdict';
+import { cachedLifetimeSpend, lifetimeSpendRange } from '../lib/ops-lifetime-spend';
 
 /* ── Shared plumbing ─────────────────────────────────────────────────────── */
 
@@ -1353,6 +1356,116 @@ export async function warehouseQueryAttribution(input: {
   }
 }
 
+async function readLifetimeSpendSnapshot(input: {
+  appkit: InsightsAppKit;
+  ids: CostIdentifiers;
+  range: { from: string; to: string };
+  workspace: string;
+  warehouse: string;
+  token: string;
+  fetchImpl?: typeof fetch;
+  queryHistoryTransport?: WarehouseQueryHistoryTransport;
+}): Promise<AppSpendFigure> {
+  const costStatement = buildCostStatement(input.ids, input.range);
+  if (!costStatement) throw new Error('No billable app resources were resolved.');
+  const costOutcome = await runStatement({
+    host: input.workspace,
+    token: input.token,
+    warehouseId: input.warehouse,
+    statement: costStatement.statement,
+    parameters: costStatement.parameters,
+    fetchImpl: input.fetchImpl,
+  });
+  if (!costOutcome.ok) throw new Error(costOutcome.message);
+  const split = splitBillingRows(readComponentRows(costOutcome.rows));
+  const effectiveRange = {
+    from: split.meta?.firstDay || input.range.from,
+    to: input.range.to,
+  };
+  const [resourceActivity, genieActivity, runRows] = await Promise.all([
+    resourceActivityAttribution(input.appkit, input.ids, effectiveRange),
+    genieAppActivityAttribution(input.appkit, input.ids, effectiveRange),
+    input.appkit.lakebase.query(QUESTION_COST_RUNS_QUERY, [effectiveRange.from, effectiveRange.to]),
+  ]);
+  const runs = runRows.rows.map((row) => questionRun(row));
+  const interactiveComplete = runs[0]?.evidenceComplete ?? runs.length === 0;
+  const genieStatement = buildGenieAccountingStatement(
+    input.ids.workspaceId,
+    effectiveRange,
+    input.ids.genieSpaces,
+    genieActivity
+  );
+  const foundationStatement = interactiveComplete
+    ? buildFoundationCostStatement(input.ids, effectiveRange, runs)
+    : null;
+  const [queryAttribution, genieOutcome, foundationOutcome] = await Promise.all([
+    warehouseQueryAttribution({
+      host: input.workspace,
+      token: input.token,
+      warehouseId: input.warehouse,
+      range: effectiveRange,
+      transport: input.queryHistoryTransport,
+      signal: AbortSignal.timeout(STATEMENT_TIMEOUT_MS),
+      interactiveRuns: runs,
+    }),
+    genieStatement
+      ? runStatement({
+          host: input.workspace,
+          token: input.token,
+          warehouseId: input.warehouse,
+          statement: genieStatement.statement,
+          parameters: genieStatement.parameters,
+          fetchImpl: input.fetchImpl,
+        })
+      : Promise.resolve({ ok: false as const, rows: [], message: 'No workspace id is configured for Genie billing.' }),
+    foundationStatement
+      ? runStatement({
+          host: input.workspace,
+          token: input.token,
+          warehouseId: input.warehouse,
+          statement: foundationStatement.statement,
+          parameters: foundationStatement.parameters,
+          fetchImpl: input.fetchImpl,
+        })
+      : Promise.resolve({ ok: false as const, rows: [], message: 'Foundation-model evidence is incomplete.' }),
+  ]);
+  const genieRows = genieOutcome.ok ? readGenieAccountingRows(genieOutcome.rows) : [];
+  const genie = genieOutcome.ok
+    ? classifyGenieAccounting(
+        genieRows.filter((row) => row.usageDay >= effectiveRange.from && row.usageDay <= effectiveRange.to),
+        effectiveRange.to,
+        input.ids.genieSpaces
+      )
+    : null;
+  const foundation = foundationOutcome.ok
+    ? foundationCostTile(input.ids, readFoundationBillingRows(foundationOutcome.rows))
+    : foundationCostTile(input.ids, null, foundationOutcome.message);
+  const tiles = buildTiles(
+    input.ids,
+    split.components,
+    queryAttribution,
+    resourceActivity,
+    genie ? { month: genie, period: genie } : null,
+    genieOutcome.ok ? '' : genieOutcome.message,
+    {
+      interactive: { runs, complete: interactiveComplete },
+      foundation,
+    }
+  );
+  const currency = split.meta?.currency ?? tiles.find((tile) => tile.pricing?.currency)?.pricing?.currency ?? '';
+  const throughDay = split.meta?.lastDay || '';
+  return appSpendFigure(
+    {
+      range: effectiveRange,
+      tiles,
+      currency,
+      throughDay,
+      honesty: buildHonesty(effectiveRange, split.meta, tiles),
+    },
+    effectiveRange.from
+  );
+}
+
 /* ── Routes ──────────────────────────────────────────────────────────────── */
 
 /**
@@ -2075,168 +2188,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             }
           : spendByUser;
         cacheUserSpend(spendCacheKey, spendWithGenie, clock());
-        const today = new Date(clock()).toISOString().slice(0, 10);
-        const latestCompleteDay =
-          split.meta?.lastDay && split.meta.lastDay < today
-            ? split.meta.lastDay
-            : new Date(clock() - 86_400_000).toISOString().slice(0, 10);
-        const comparisonWindows = spendUser ? userSpendComparisonWindows(latestCompleteDay) : null;
-        const comparisonReads = new Map<string, Promise<ReturnType<typeof buildSpendByUser> | null>>();
-        const readComparisonSpend = (targetRange: { from: string; to: string }) => {
-          const key = `${targetRange.from}|${targetRange.to}`;
-          const existing = comparisonReads.get(key);
-          if (existing) return existing;
-          const read = (async () => {
-            const comparisonCacheKey = userSpendCacheKey(userEmail(req), targetRange);
-            const cached = cachedUserSpend(comparisonCacheKey, clock());
-            if (cached) return cached;
-            const comparisonCost = buildCostStatement(ids, targetRange);
-            if (!comparisonCost) return null;
-            const [comparisonResourceActivity, comparisonGenieActivity, comparisonRuns, comparisonActivity] =
-              await Promise.all([
-                resourceActivityAttribution(appkit, ids, targetRange),
-                genieAppActivityAttribution(appkit, ids, targetRange),
-                appkit.lakebase
-                  .query(USER_SPEND_RUNS_QUERY, [targetRange.from, targetRange.to])
-                  .then((result) => readUserRunSpendEvidence(result.rows))
-                  .catch(() => []),
-                appkit.lakebase
-                  .query(USER_ACTIVE_MINUTES_QUERY, [targetRange.from, targetRange.to])
-                  .then((result) => ({ available: true as const, ...readUserActivitySpendEvidence(result.rows) }))
-                  .catch(() => ({
-                    available: false as const,
-                    users: [],
-                    recordedFrom: '',
-                    recordedThrough: '',
-                  })),
-              ]);
-            const comparisonQuestionRead = await appkit.lakebase
-              .query(QUESTION_COST_RUNS_QUERY, [targetRange.from, targetRange.to])
-              .then((result) => result.rows.map((row) => questionRun(row)))
-              .catch(() => [] as QuestionRunInput[]);
-            const comparisonInteractiveComplete =
-              comparisonQuestionRead[0]?.evidenceComplete ?? comparisonQuestionRead.length === 0;
-            const comparisonGenieStatement = buildGenieAccountingStatement(
-              ids.workspaceId,
-              targetRange,
-              ids.genieSpaces,
-              comparisonGenieActivity
-            );
-            const comparisonFoundationStatement = comparisonInteractiveComplete
-              ? buildFoundationCostStatement(ids, targetRange, comparisonQuestionRead)
-              : null;
-            const [comparisonOutcome, comparisonQueryAttribution, comparisonGenieOutcome, comparisonFoundationOutcome] =
-              await Promise.all([
-                runStatement({
-                  host: workspace,
-                  token,
-                  warehouseId: warehouse,
-                  statement: comparisonCost.statement,
-                  parameters: comparisonCost.parameters,
-                  fetchImpl: deps.fetchImpl,
-                }),
-                warehouseQueryAttribution({
-                  host: workspace,
-                  token,
-                  warehouseId: warehouse,
-                  range: targetRange,
-                  transport: deps.queryHistoryTransport,
-                  signal: requestAbort.signal,
-                  interactiveRuns: comparisonQuestionRead,
-                }),
-                comparisonGenieStatement
-                  ? runStatement({
-                      host: workspace,
-                      token,
-                      warehouseId: warehouse,
-                      statement: comparisonGenieStatement.statement,
-                      parameters: comparisonGenieStatement.parameters,
-                      fetchImpl: deps.fetchImpl,
-                    })
-                  : Promise.resolve({ ok: false as const, message: 'No Genie comparison statement.' }),
-                comparisonFoundationStatement
-                  ? runStatement({
-                      host: workspace,
-                      token,
-                      warehouseId: warehouse,
-                      statement: comparisonFoundationStatement.statement,
-                      parameters: comparisonFoundationStatement.parameters,
-                      fetchImpl: deps.fetchImpl,
-                    })
-                  : Promise.resolve({ ok: false as const, message: 'No Foundation comparison statement.' }),
-              ]);
-            if (!comparisonOutcome.ok) return null;
-            const comparisonSplit = splitBillingRows(readComponentRows(comparisonOutcome.rows));
-            const comparisonGenieRows = comparisonGenieOutcome.ok
-              ? readGenieAccountingRows(comparisonGenieOutcome.rows)
-              : [];
-            const comparisonGenie = comparisonGenieOutcome.ok
-              ? classifyGenieAccounting(
-                  comparisonGenieRows.filter(
-                    (row) => row.usageDay >= targetRange.from && row.usageDay <= targetRange.to
-                  ),
-                  targetRange.to,
-                  ids.genieSpaces
-                )
-              : null;
-            const comparisonFoundation = comparisonFoundationOutcome.ok
-              ? foundationCostTile(ids, readFoundationBillingRows(comparisonFoundationOutcome.rows))
-              : foundationCostTile(ids, null, comparisonFoundationOutcome.message);
-            const comparisonTiles = buildTiles(
-              ids,
-              comparisonSplit.components,
-              comparisonQueryAttribution,
-              comparisonResourceActivity,
-              comparisonGenie ? { month: comparisonGenie, period: comparisonGenie } : null,
-              comparisonGenieOutcome.ok ? '' : comparisonGenieOutcome.message,
-              {
-                interactive: {
-                  runs: comparisonQuestionRead,
-                  complete: comparisonInteractiveComplete,
-                },
-                foundation: comparisonFoundation,
-              }
-            );
-            const comparisonSpend = buildSpendByUser({
-              readAt,
-              requestedRange: targetRange,
-              range: targetRange,
-              tiles: comparisonTiles,
-              queryComplete: comparisonQueryAttribution.complete,
-              queryUsers: comparisonQueryAttribution.users ?? [],
-              runs: comparisonRuns,
-              activity: comparisonActivity,
-              direct:
-                comparisonGenie?.users.flatMap((user) =>
-                  (user.instances ?? [])
-                    .filter((instance) => Boolean(instance.spaceId))
-                    .map((instance) => ({
-                      email: user.identity,
-                      componentId: instance.tileId,
-                      quality: 'direct' as const,
-                      usd: instance.paidUsd,
-                      dbu: instance.chargedEffectiveDbus,
-                    }))
-                ) ?? [],
-              partialReason:
-                comparisonQueryAttribution.complete && comparisonActivity.available
-                  ? ''
-                  : 'Comparison-window attribution is incomplete.',
-            });
-            cacheUserSpend(comparisonCacheKey, comparisonSpend, clock());
-            return comparisonSpend;
-          })();
-          comparisonReads.set(key, read);
-          return read;
-        };
-        const comparisonSpends = comparisonWindows
-          ? await Promise.all([
-              readComparisonSpend(comparisonWindows.week.current).catch(() => null),
-              readComparisonSpend(comparisonWindows.week.prior).catch(() => null),
-              readComparisonSpend(comparisonWindows.month.current).catch(() => null),
-              readComparisonSpend(comparisonWindows.month.prior).catch(() => null),
-            ])
-          : [null, null, null, null];
         const metricSnapshot = (spend: ReturnType<typeof buildSpendByUser> | null) => {
           const profile = spend?.users.find((user) => user.email.toLowerCase() === spendUser);
           const reading = userUnit === 'USD' ? profile?.total.usd : profile?.total.dbu;
@@ -2286,9 +2237,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
                   tokenCoveredRuns: selectedRun?.tokenCoveredRuns ?? null,
                   tokenCoveredQuestions: selectedRun?.tokenCoveredQuestions ?? null,
                 },
-                week: { current: metricSnapshot(comparisonSpends[0]), prior: metricSnapshot(comparisonSpends[1]) },
-                month: { current: metricSnapshot(comparisonSpends[2]), prior: metricSnapshot(comparisonSpends[3]) },
-                comparisonFreshness: latestCompleteDay,
               })
             : null;
         const userMonitoring = userMonitoringFor(spendWithGenie, split.meta?.billedDays ?? 0);
@@ -2308,21 +2256,66 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               ...empty.perQuestion,
               reason: questionRunsRead.reason || 'Per-question attribution could not be read from the run ledger.',
             };
+        const currentCurrency =
+          split.meta?.currency ?? tiles.find((tile) => tile.pricing?.currency)?.pricing?.currency ?? '';
+        const currentThrough = split.meta?.lastDay || '';
+        const currentHonesty = buildHonesty(range, split.meta, tiles);
+        const currentMonthSpend = appSpendFigure({
+          range,
+          tiles,
+          currency: currentCurrency,
+          throughDay: currentThrough,
+          honesty: currentHonesty,
+        });
+        const lifetimeRange = lifetimeSpendRange(range.to);
+        const lifetimeKey = [
+          userEmail(req).toLowerCase(),
+          ids.workspaceId,
+          ids.appName,
+          ids.endpointName,
+          ids.warehouseId,
+          ids.vectorEndpoint,
+          ...ids.genieSpaces.map((space) => space.id),
+          lifetimeRange.to,
+        ].join('|');
+        const lifetimeSpend = await cachedLifetimeSpend(lifetimeKey, clock(), () =>
+          readLifetimeSpendSnapshot({
+            appkit,
+            ids,
+            range: lifetimeRange,
+            workspace,
+            warehouse,
+            token,
+            fetchImpl: deps.fetchImpl,
+            queryHistoryTransport: deps.queryHistoryTransport,
+          })
+        ).catch(
+          (): AppSpendFigure => ({
+            amount: null,
+            dbus: null,
+            currency: currentCurrency,
+            sourceFrom: '',
+            sourceThrough: currentThrough,
+            completeness: 'unavailable',
+            estimated: false,
+          })
+        );
 
         sendCost({
           ...empty,
           state: 'ready',
-          currency: split.meta?.currency ?? tiles.find((tile) => tile.pricing?.currency)?.pricing?.currency ?? '',
-          throughDay: split.meta?.lastDay || '',
-          billingLagDays: lagDays(range.to, split.meta?.lastDay || ''),
+          currency: currentCurrency,
+          throughDay: currentThrough,
+          billingLagDays: lagDays(range.to, currentThrough),
           tiles,
+          appSpend: { lifetime: lifetimeSpend, currentMonth: currentMonthSpend },
           genieAccounting: genieMonth,
           genieInstances: geniePeriod?.instances ?? [],
           perQuestion,
           spendByUser: selectedSpendByUser,
           userMonitoring,
           coverage,
-          honesty: buildHonesty(range, split.meta, tiles),
+          honesty: currentHonesty,
         } satisfies OpsCostPayload);
       } catch (error) {
         const tiles = buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity);

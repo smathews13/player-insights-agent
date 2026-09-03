@@ -114,15 +114,34 @@ describe('only an administrator can edit the rail labels', () => {
     expect(editor).toContain('RAIL_FEEDBACK_OPTIONS');
   });
 
-  it('puts Outcome and Feedback on the chip row, after the pencil', () => {
+  it('keeps the editor on the chip row and leaves its pencil as the final control', () => {
     const markup = header({ canEdit: true, editing: true });
     const pencil = markup.indexOf('aria-label="Edit run labels"');
     const editor = markup.indexOf('data-testid="run-header-label-editor"');
     expect(pencil).toBeGreaterThan(-1);
-    expect(editor).toBeGreaterThan(pencil);
+    expect(editor).toBeGreaterThan(-1);
+    expect(pencil).toBeGreaterThan(editor);
     expect(markup).not.toContain('run-header-label-field');
     expect(rule('.run-detail-ident .run-header-label-editor')).toContain('display: inline-flex');
     expect(rule('.run-detail-ident .run-header-label-editor')).toContain('margin-top: 0');
+  });
+
+  it('puts the pencil after every metadata, outcome, and feedback badge at rest', () => {
+    const markup = header({ canEdit: true });
+    const ordered = [
+      'conversation-context-badge',
+      'title="Run 1 in this conversation"',
+      'run-id-chip',
+      'identity-chip',
+      'Tools ·',
+      'run-status-pill',
+      'aria-label="No feedback"',
+      'aria-label="Edit run labels"',
+    ].map((needle) => markup.indexOf(needle));
+
+    expect(ordered.every((position) => position >= 0)).toBe(true);
+    expect(ordered).toEqual([...ordered].sort((left, right) => left - right));
+    expect(markup).toContain('aria-expanded="false"');
   });
 });
 
