@@ -235,6 +235,8 @@ describe('fast hourly reads', () => {
     expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('FROM player_insights.admin_emails');
     expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('LEFT JOIN aggregated');
     expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('WHERE $14::boolean');
+    expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('WHERE NOT $14::boolean');
+    expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).not.toContain('WHERE NOT $13::boolean');
     expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('AND ($5::boolean OR roster.user_key = lower($6))');
     expect(READ_USER_SPEND_HOURLY_SUMMARY_QUERY).toContain('cardinality($10::text[]) = 0');
     expect(READ_USER_SPEND_HOURLY_SOURCE_QUERY).not.toMatch(/system\.billing|sql\/history|\/api\/2\.0/i);

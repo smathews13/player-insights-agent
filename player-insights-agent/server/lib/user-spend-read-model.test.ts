@@ -316,6 +316,8 @@ describe('fast read semantics', () => {
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('FROM player_insights.admin_emails');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('LEFT JOIN aggregated');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('WHERE $14::boolean');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('WHERE NOT $14::boolean');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).not.toContain('WHERE NOT $13::boolean');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('AND ($5::boolean OR roster.user_key = lower($6))');
     expect(READ_USER_SPEND_SUMMARY_QUERY).not.toContain("COALESCE(NULLIF(admin_user.role, ''), 'consumer')");
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('BOOL_AND(billing_complete)');

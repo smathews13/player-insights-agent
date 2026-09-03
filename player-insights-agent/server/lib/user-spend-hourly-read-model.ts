@@ -532,7 +532,7 @@ identity_population AS (
   UNION ALL
   SELECT aggregated.user_key, aggregated.display_email, 'consumer', NULL::timestamptz
   FROM aggregated
-  WHERE NOT $13::boolean AND aggregated.user_key = lower($6)
+  WHERE NOT $14::boolean AND aggregated.user_key = lower($6)
 ),
 identity_revision AS (
   SELECT GREATEST(
