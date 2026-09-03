@@ -22,18 +22,7 @@
  * the old one. Which affordance a row gets is decided in
  * `shared/deployment-config.ts` rather than here.
  */
-import {
-  Fragment,
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { Fragment, lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useLocation, useOutletContext } from 'react-router';
 import './styles/routes/connections.css';
 import { useRole, type AppOutletContext } from './role';
@@ -55,6 +44,7 @@ import {
   ChevronRight,
   CircleAlert,
   CircleHelp,
+  Calendar,
   Clock,
   ExternalLink,
   GitCommitHorizontal,
@@ -97,11 +87,12 @@ import { buildFacts, type BuildArtifact } from './connection-build';
 // before the markup sees it.
 import { deploymentRows, telemetryRows, type BuildRow } from './build-card';
 import { UserDrilldownLink } from './UserDrilldownLink';
+import { DateBadge, DateRangeBadges } from './DateBadge';
 import { NO_APP_FACTS } from '../../shared/app-facts';
 import { EntityHighlight, EntityParts, VisitInDatabricks } from './DataEntityLinks';
 import { entityRowProps, isRequestedEntity, useRequestedEntity } from './data-entity-state';
 import { entityRowId } from './data-entities';
-import { checkBadgeVariant, checkVerdictLabel, verdictBadgeVariant, type PreflightCheck } from './preflight';
+import { verdictBadgeVariant, type PreflightCheck } from './preflight';
 // Refused, unreachable and not-checked-yet are three different next moves, and
 // the words for them are decided in one place so a row and the strip counting
 // the rows cannot disagree. See shared/check-verdict.ts.
@@ -116,7 +107,13 @@ import {
   filterDeclaredTables,
 } from './connections-view';
 import { useSessionChecks } from './session-checks';
-import { DRIFT_MARKER_LABEL, truncateHead, visibleCounts, type ConnectionCounts } from './connection-status';
+import {
+  DRIFT_MARKER_LABEL,
+  primaryConnectionState,
+  truncateHead,
+  visibleCounts,
+  type ConnectionCounts,
+} from './connection-status';
 // One cause said once over every check that shares it, and one remedy said once
 // over every cause it clears. See connection-causes.ts for why the cause key is
 // a verdict, a sentence and a whole remedy rather than something looser.
@@ -186,6 +183,8 @@ import {
   type UnityCatalogExplorerSelection,
   type UnityCatalogScopeType,
 } from './UnityCatalogScopeExplorer';
+import { LakebaseMigrationPanel } from './LakebaseMigrationPanel';
+import { useLakebaseMigrationStatus, type LakebaseMigrationClientState } from './lakebase-migration-status';
 
 const NotebookAgentSyncPane = lazy(() =>
   import('./NotebookAgentSyncPane').then((loaded) => ({ default: loaded.NotebookAgentSyncPane }))
@@ -250,7 +249,11 @@ const SEVERITY_ICON: Record<DriftSeverity, typeof CircleAlert> = {
  * ever composed with facts in a test.
  */
 export function BuildFactRow({ row }: { row: BuildRow }) {
-  const wraps = row.kind === 'chips' || (row.kind === 'badge' && Boolean(row.description));
+  const wraps =
+    row.kind === 'chips' ||
+    row.kind === 'date' ||
+    (row.kind === 'text' && Boolean(row.dateRange)) ||
+    (row.kind === 'badge' && Boolean(row.description));
   return (
     <div className="identity-fact" data-wrap={wraps ? 'true' : undefined}>
       <p className="identity-fact-label">{row.label}</p>
@@ -279,11 +282,18 @@ export function BuildFactRow({ row }: { row: BuildRow }) {
         {row.kind === 'text' ? ( // The exact figures where the row shows a shortened one, which today is
           // the telemetry span: two Delta stamps to the millisecond, printed
           // whole, wrapped this row over three lines.
-          <p className="deployment-fact-text" title={row.title}>
+          <p className={`deployment-fact-text${row.dateRange ? ' deployment-fact-dates' : ''}`} title={row.title}>
             <span className="deployment-fact-lead">{row.value}</span>
+            {row.dateRange ? <DateRangeBadges value={row.dateRange} /> : null}
             {row.aside ? <span className="deployment-fact-aside">{row.aside}</span> : null}
             {row.identity ? <UserDrilldownLink identity={row.identity} label="by" compact /> : null}
           </p>
+        ) : null}
+        {row.kind === 'date' ? (
+          <div className="deployment-fact-text deployment-date-fact">
+            <DateBadge value={row.date} />
+            {row.identity ? <UserDrilldownLink identity={row.identity} label="by" compact /> : null}
+          </div>
         ) : null}
         {/* A PLACE, NOT A VALUE. These two rows are the only ones on the card
             whose point is to be followed, so they are anchors and they carry
@@ -363,6 +373,7 @@ function Disclosure({
   onToggle,
   summary,
   aside,
+  action,
   controls,
   children,
 }: {
@@ -371,17 +382,21 @@ function Disclosure({
   onToggle: () => void;
   summary: string;
   aside?: string;
+  action?: React.ReactNode;
   controls?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section id={id} className="connection-block">
       <div className="connection-block-head">
-        <button type="button" className="connection-block-summary" aria-expanded={open} onClick={onToggle}>
-          <ChevronRight className={`size-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
-          <span className="connection-block-label">{summary}</span>
-          {aside ? <span className="connection-block-aside">{aside}</span> : null}
-        </button>
+        <div className="connection-block-title-actions">
+          <button type="button" className="connection-block-summary" aria-expanded={open} onClick={onToggle}>
+            <ChevronRight className={`size-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+            <span className="connection-block-label">{summary}</span>
+            {aside ? <span className="connection-block-aside">{aside}</span> : null}
+          </button>
+          {action}
+        </div>
         {controls ? <div className="connection-block-controls">{controls}</div> : null}
       </div>
       {open ? <div className="connection-block-body">{children}</div> : null}
@@ -471,61 +486,53 @@ function DeclaredTableControls({
   catalogs,
   schemas,
   onChange,
-  action,
 }: {
   filters: DeclaredTableFilters;
   catalogs: readonly string[];
   schemas: readonly string[];
   onChange: (next: DeclaredTableFilters) => void;
-  action?: ReactNode;
 }) {
   return (
-    <div className="connections-table-toolbar">
-      {action ? <div className="connections-uc-actions">{action}</div> : null}
-      <div className="connections-table-query-controls">
-        <div className="connections-table-search">
-          <Search className="connections-table-search-icon" aria-hidden="true" />
-          <Input
-            type="search"
-            placeholder="Search tables"
-            aria-label="Search Unity Catalog tables"
-            value={filters.query}
-            onChange={(event) => onChange({ ...filters, query: event.target.value })}
+    <div className="connections-table-query-controls">
+      <div className="connections-table-search">
+        <Search className="connections-table-search-icon" aria-hidden="true" />
+        <Input
+          type="search"
+          placeholder="Search tables"
+          aria-label="Search Unity Catalog tables"
+          value={filters.query}
+          onChange={(event) => onChange({ ...filters, query: event.target.value })}
+        />
+      </div>
+      {catalogs.length > 0 ? (
+        <div className="connections-table-filter">
+          <AppSelect
+            label="Catalog"
+            ariaLabel="Filter tables by catalog"
+            value={filters.catalog || 'all'}
+            options={[
+              { value: 'all', label: 'All catalogs' },
+              ...catalogs.map((name) => ({ value: name, label: name })),
+            ]}
+            onValueChange={(next) => onChange({ ...filters, catalog: next === 'all' ? '' : next, schema: '' })}
+            contentClassName="connections-table-filter-menu"
+            contentProps={{ position: 'popper' }}
           />
         </div>
-        {catalogs.length > 0 ? (
-          <div className="connections-table-filter">
-            <AppSelect
-              label="Catalog"
-              ariaLabel="Filter tables by catalog"
-              value={filters.catalog || 'all'}
-              options={[
-                { value: 'all', label: 'All catalogs' },
-                ...catalogs.map((name) => ({ value: name, label: name })),
-              ]}
-              onValueChange={(next) => onChange({ ...filters, catalog: next === 'all' ? '' : next, schema: '' })}
-              contentClassName="connections-table-filter-menu"
-              contentProps={{ position: 'popper' }}
-            />
-          </div>
-        ) : null}
-        {schemas.length > 0 ? (
-          <div className="connections-table-filter">
-            <AppSelect
-              label="Schema"
-              ariaLabel="Filter tables by schema"
-              value={filters.schema || 'all'}
-              options={[
-                { value: 'all', label: 'All schemas' },
-                ...schemas.map((name) => ({ value: name, label: name })),
-              ]}
-              onValueChange={(next) => onChange({ ...filters, schema: next === 'all' ? '' : next })}
-              contentClassName="connections-table-filter-menu"
-              contentProps={{ position: 'popper' }}
-            />
-          </div>
-        ) : null}
-      </div>
+      ) : null}
+      {schemas.length > 0 ? (
+        <div className="connections-table-filter">
+          <AppSelect
+            label="Schema"
+            ariaLabel="Filter tables by schema"
+            value={filters.schema || 'all'}
+            options={[{ value: 'all', label: 'All schemas' }, ...schemas.map((name) => ({ value: name, label: name }))]}
+            onValueChange={(next) => onChange({ ...filters, schema: next === 'all' ? '' : next })}
+            contentClassName="connections-table-filter-menu"
+            contentProps={{ position: 'popper' }}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -559,7 +566,7 @@ function declaredTableRows(
       name: connection.connection.value,
       label: connection.connection.label || connection.connection.value,
       status: 'unverified',
-      detail: 'Reachability will be checked on refresh.',
+      detail: 'Connection will be checked on refresh.',
       checked_with: '',
       duration_ms: 0,
       error: '',
@@ -568,26 +575,71 @@ function declaredTableRows(
     rows.push({ check, connection, pending: connection.connection.state === 'declared' });
     byName.set(key, { check, pending: true });
   }
-  return rows;
+  return rows.sort((a, b) => {
+    const aUser = a.connection?.connection.origin === 'app';
+    const bUser = b.connection?.connection.origin === 'app';
+    if (aUser !== bUser) return aUser ? -1 : 1;
+    if (aUser && bUser) {
+      return (b.connection?.connection.createdAt ?? '').localeCompare(a.connection?.connection.createdAt ?? '');
+    }
+    return 0;
+  });
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- pure summary shared with focused render tests
 export function unityCatalogScopeSummary(
-  connections: readonly ConnectionEntry[],
+  _connections: readonly ConnectionEntry[],
   tableRows: readonly DeclaredTableRow[]
 ): string {
-  const active = connections.filter((entry) => entry.connection.state === 'declared');
-  const catalogs = active.filter((entry) => entry.connection.resourceType === 'catalog').length;
-  const schemas = active.filter((entry) => entry.connection.resourceType === 'schema').length;
   const tables = tableRows.length;
-  const reachable = tableRows.filter((row) => row.check.status === 'ok' && !row.pending).length;
-  return `${catalogs} ${catalogs === 1 ? 'catalog' : 'catalogs'} · ${schemas} ${
-    schemas === 1 ? 'schema' : 'schemas'
-  } · ${tables} tables/views · Reachability: ${reachable} reachable`;
+  if (tables === 0) return '';
+  const connected = tableRows.filter((row) => row.check.status === 'ok' && !row.pending).length;
+  const disconnected = tableRows.filter((row) => row.check.status !== 'ok' && !row.pending).length;
+  const parts = [`${tables} ${tables === 1 ? 'table declared' : 'tables declared'}`];
+  if (connected > 0) parts.push(`${connected} Connected`);
+  if (disconnected > 0) parts.push(`${disconnected} Disconnected`);
+  return parts.join(' · ');
+}
+
+function ConnectionAddedMetadata({ entry }: { entry: ConnectionEntry | undefined }) {
+  if (!entry || entry.connection.origin !== 'app') return null;
+  const addedBy = entry.connection.createdBy?.trim();
+  const addedAt = entry.connection.createdAt?.trim();
+  const parsed = addedAt ? new Date(addedAt) : null;
+  const validDate = parsed && Number.isFinite(parsed.getTime()) ? parsed : null;
+  return (
+    <span className="connections-scope-metadata">
+      {addedBy ? (
+        <UserDrilldownLink
+          identity={addedBy}
+          label="Added by"
+          compact
+          className="connections-scope-user"
+          showArrow
+          canOpen
+        />
+      ) : null}
+      {validDate && addedAt ? (
+        <Badge variant="outline" className="connections-scope-date" title={`Added ${validDate.toLocaleString()}`}>
+          <Calendar aria-hidden="true" />
+          <time dateTime={addedAt}>
+            {validDate.toLocaleString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+            })}
+          </time>
+        </Badge>
+      ) : null}
+    </span>
+  );
 }
 
 export function DeclaredTablesTable({
   tableChecks,
+  scopeChecks = [],
   tableConnections = [],
   requestedEntity,
   checkedAt = '',
@@ -597,6 +649,7 @@ export function DeclaredTablesTable({
   management,
 }: {
   tableChecks: readonly PreflightCheck[];
+  scopeChecks?: readonly PreflightCheck[];
   tableConnections?: readonly ConnectionEntry[];
   requestedEntity: string;
   checkedAt?: string;
@@ -624,93 +677,136 @@ export function DeclaredTablesTable({
   );
   const visible = useMemo(() => filterDeclaredTables(checks, filters), [checks, filters]);
   const rowsById = new Map(rows.map((row) => [row.check.id, row]));
+  const nonTableConnections = useMemo(() => {
+    const seen = new Set<string>();
+    return tableConnections
+      .filter(
+        (entry) =>
+          entry.connection.state === 'declared' &&
+          (entry.connection.resourceType === 'catalog' ||
+            entry.connection.resourceType === 'schema' ||
+            (entry.connection.resourceType === 'table' && entry.connection.origin === 'app'))
+      )
+      .sort((a, b) => {
+        const aUser = a.connection.origin === 'app';
+        const bUser = b.connection.origin === 'app';
+        if (aUser !== bUser) return aUser ? -1 : 1;
+        return aUser ? (b.connection.createdAt ?? '').localeCompare(a.connection.createdAt ?? '') : 0;
+      })
+      .filter((entry) => {
+        const key = `${entry.connection.resourceType}:${normalizedConnectionValue(entry.connection.value)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        const parts = entry.connection.value.split('.');
+        const catalog = parts[0] ?? '';
+        const schema = parts[1] ?? '';
+        return (
+          (!filters.query ||
+            entry.connection.value.toLocaleLowerCase().includes(filters.query.trim().toLocaleLowerCase())) &&
+          (!filters.catalog || catalog === filters.catalog) &&
+          (!filters.schema || schema === filters.schema)
+        );
+      });
+  }, [filters.catalog, filters.query, filters.schema, tableConnections]);
 
   return (
     <div className="connections-table-wrap">
       {showToolbar ? (
-        <DeclaredTableControls filters={filters} catalogs={catalogs} schemas={schemas} onChange={changeFilters} />
+        <div className="connections-table-toolbar">
+          <DeclaredTableControls filters={filters} catalogs={catalogs} schemas={schemas} onChange={changeFilters} />
+        </div>
       ) : null}
       <Table className="connections-table">
         <TableHeader>
           <TableRow>
-            <TableHead>Table</TableHead>
+            <TableHead>Asset</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Detail</TableHead>
             {management ? <TableHead className="connections-table-actions-head">Actions</TableHead> : null}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {visible.map((check) => {
-            const declared = rowsById.get(check.id);
-            const connection = declared?.connection;
-            const confirmOpen = connection && management?.confirming === connection.connection.id;
-            // One reading, used for the cell and its hover. Two calls were two
-            // chances for a decoy count in the probe text to land on one surface
-            // and the workspace's count on the other.
-            const reachability = tableReachabilityCopy(check, checkedAt);
+          {nonTableConnections.map((entry) => {
+            const type =
+              entry.connection.resourceType === 'catalog'
+                ? 'Catalog'
+                : entry.connection.resourceType === 'schema'
+                  ? 'Schema'
+                  : entry.connection.note === 'asset-type:view'
+                    ? 'View'
+                    : 'Table';
+            const tableRow =
+              entry.connection.resourceType === 'table'
+                ? rows.find((row) => row.connection?.connection.id === entry.connection.id)
+                : undefined;
+            const scopeCheck =
+              entry.connection.resourceType === 'table'
+                ? tableRow?.check
+                : scopeChecks.find(
+                    (check) =>
+                      check.kind === entry.connection.resourceType &&
+                      normalizedConnectionValue(check.name) === normalizedConnectionValue(entry.connection.value)
+                  );
+            const pending =
+              Boolean(tableRow?.pending) ||
+              Boolean(scopeCheck?.status === 'unverified' && (!scopeCheck.stopped || scopeCheck.stopped === 'unasked'));
+            const connected = scopeCheck ? scopeCheck.status === 'ok' : true;
+            const confirmOpen = management?.confirming === entry.connection.id;
             return (
-              <Fragment key={check.id}>
-                <TableRow
-                  {...entityRowProps(check.name, requestedEntity)}
-                  id={connection ? `declared-table-row-${connection.connection.id}` : undefined}
-                  tabIndex={connection ? -1 : undefined}
-                >
-                  {/* THE MARK LEADS THE NAME, per the ask, and it is the icon-only link
-                  rather than the phrase: twelve rows would otherwise carry twelve
-                  copies of "Open in Databricks" against 40-character table names in
-                  a column that has to hold both. It renders nothing at all when the
-                  app was given no workspace host, which is a supported deployment
-                  and the reason this is not a disabled-looking control. */}
+              <Fragment key={entry.connection.id}>
+                <TableRow id={`declared-table-row-${entry.connection.id}`} tabIndex={-1}>
                   <TableCell className="connections-table-name">
-                    <VisitInDatabricks name={check.name} />
                     <span className="connections-table-name-stack">
-                      <ConnectionEntityName name={check.name} />
+                      <ConnectionEntityName name={entry.connection.value} />
                       <span className="connections-table-scope-state">
-                        {connection?.connection.origin === 'app'
+                        <Badge variant="outline" className="connections-scope-type">
+                          {type}
+                        </Badge>
+                        {entry.connection.origin === 'app'
                           ? 'In scope · added in Astrolabe'
                           : 'In scope · managed by deployment'}
                       </span>
                     </span>
                   </TableCell>
-                  {/* THE WORD, NOT THE STATUS. Every row here read `Not checked`
-                beside a Detail of `HTTP 403`, which contradicts itself on one
-                line: a call the workspace refused was made. `checkVerdict`
-                separates a refusal from a broken call and from a probe nobody
-                ran, and the strip above this table counts through the same
-                function so the two cannot disagree. */}
                   <TableCell>
-                    {declared?.pending ? (
-                      <Badge variant="outline">Checking</Badge>
+                    {pending ? (
+                      <AstrolabeLoadingLabel
+                        as="span"
+                        announce={false}
+                        className="connections-table-status-loader"
+                        label={`Checking ${entry.connection.label || entry.connection.value}`}
+                      />
                     ) : (
-                      <Badge variant={checkBadgeVariant(check)}>{checkVerdictLabel(check)}</Badge>
+                      <Badge
+                        variant={connected ? 'secondary' : 'destructive'}
+                        aria-label={`${entry.connection.value} connection status: ${
+                          connected ? 'Connected' : 'Disconnected'
+                        }`}
+                      >
+                        {connected ? 'Connected' : 'Disconnected'}
+                      </Badge>
                     )}
                   </TableCell>
-                  {/* A STATUS, NOT AN ESSAY. This cell used to print the check's whole
-                detail, and on this deployment one missing OAuth scope gives all
-                twelve of these rows the same three-sentence diagnosis: opening
-                the section meant reading it twelve more times. The first
-                sentence is the part that is about THIS table, which is what the
-                workspace said about it or the code it answered with. The
-                reasoning is stated once, on the group in What to fix, and the
-                whole sentence is still here in a title. */}
-                  <TableCell className="connections-table-detail" title={reachability.title}>
-                    {isRequestedEntity(check.name, requestedEntity) ? (
-                      <span className="connections-table-arrival">Linked from the answer you followed here. </span>
-                    ) : null}
-                    {declared?.pending ? 'Reachability pending' : reachability.row}
-                    {connection && management?.justAdded === connection.connection.id ? (
+                  <TableCell className="connections-table-detail">
+                    {tableRow
+                      ? pending
+                        ? 'Connection check pending'
+                        : tableReachabilityCopy(tableRow.check, checkedAt).row
+                      : scopeCheck?.detail}
+                    <ConnectionAddedMetadata entry={entry} />
+                    {management?.justAdded === entry.connection.id ? (
                       <span className="plane-row-new">{JUST_ADDED_LABEL}</span>
                     ) : null}
                   </TableCell>
                   {management ? (
                     <TableCell className="connections-table-actions">
-                      {connection?.connection.origin === 'app' ? (
+                      {entry.connection.origin === 'app' ? (
                         <Button
                           variant="ghost"
                           size="sm"
                           disabled={management.busy}
-                          aria-label={`${DELETE_CONNECTION_LABEL}: ${check.name}`}
-                          onClick={() => management.onConfirm(connection.connection.id)}
+                          aria-label={`${DELETE_CONNECTION_LABEL}: ${entry.connection.value}`}
+                          onClick={() => management.onConfirm(entry.connection.id)}
                         >
                           <Trash2 aria-hidden="true" />
                           Delete
@@ -719,24 +815,24 @@ export function DeclaredTablesTable({
                     </TableCell>
                   ) : null}
                 </TableRow>
-                {connection?.connection.origin === 'app' && management && confirmOpen ? (
+                {entry.connection.origin === 'app' && management && confirmOpen ? (
                   <TableRow className="connections-table-confirm-row">
                     <TableCell colSpan={4}>
                       <div
                         className="plane-confirm"
                         role="group"
-                        aria-label={`${DELETE_CONNECTION_LABEL}: ${check.name}`}
+                        aria-label={`${DELETE_CONNECTION_LABEL}: ${entry.connection.value}`}
                       >
-                        <span className="plane-confirm-headline">Delete this table connection permanently?</span>
-                        <span className="plane-confirm-detail">
-                          {forgetConnectionDetail(connection.connection.origin)}
+                        <span className="plane-confirm-headline">
+                          Delete this Unity Catalog connection permanently?
                         </span>
+                        <span className="plane-confirm-detail">{forgetConnectionDetail(entry.connection.origin)}</span>
                         <span className="plane-confirm-actions">
                           <Button
                             variant="destructive"
                             size="sm"
                             disabled={management.busy}
-                            onClick={() => management.onRemove(connection)}
+                            onClick={() => management.onRemove(entry)}
                           >
                             <Trash2 aria-hidden="true" />
                             {management.busy ? 'Deleting\u2026' : DELETE_CONNECTION_LABEL}
@@ -745,7 +841,7 @@ export function DeclaredTablesTable({
                             Keep
                           </Button>
                         </span>
-                        {management.rowError?.id === connection.connection.id ? (
+                        {management.rowError?.id === entry.connection.id ? (
                           <span className="plane-error" role="alert">
                             {management.rowError.detail}
                           </span>
@@ -757,9 +853,149 @@ export function DeclaredTablesTable({
               </Fragment>
             );
           })}
+          {visible
+            .filter((check) => rowsById.get(check.id)?.connection?.connection.origin !== 'app')
+            .map((check) => {
+              const declared = rowsById.get(check.id);
+              const connection = declared?.connection;
+              const confirmOpen = connection && management?.confirming === connection.connection.id;
+              // One reading, used for the cell and its hover. Two calls were two
+              // chances for a decoy count in the probe text to land on one surface
+              // and the workspace's count on the other.
+              const reachability = tableReachabilityCopy(check, checkedAt);
+              return (
+                <Fragment key={check.id}>
+                  <TableRow
+                    {...entityRowProps(check.name, requestedEntity)}
+                    id={connection ? `declared-table-row-${connection.connection.id}` : undefined}
+                    tabIndex={connection ? -1 : undefined}
+                  >
+                    {/* THE MARK LEADS THE NAME, per the ask, and it is the icon-only link
+                  rather than the phrase: twelve rows would otherwise carry twelve
+                  copies of "Open in Databricks" against 40-character table names in
+                  a column that has to hold both. It renders nothing at all when the
+                  app was given no workspace host, which is a supported deployment
+                  and the reason this is not a disabled-looking control. */}
+                    <TableCell className="connections-table-name">
+                      <VisitInDatabricks name={check.name} />
+                      <span className="connections-table-name-stack">
+                        <ConnectionEntityName name={check.name} />
+                        <span className="connections-table-scope-state">
+                          <Badge variant="outline" className="connections-scope-type">
+                            {connection?.connection.note === 'asset-type:view' ? 'View' : 'Table'}
+                          </Badge>
+                          {connection?.connection.origin === 'app'
+                            ? 'In scope · added in Astrolabe'
+                            : 'In scope · managed by deployment'}
+                        </span>
+                      </span>
+                    </TableCell>
+                    {/* THE WORD, NOT THE STATUS. Every row here read `Not checked`
+                beside a Detail of `HTTP 403`, which contradicts itself on one
+                line: a call the workspace refused was made. `checkVerdict`
+                separates a refusal from a broken call and from a probe nobody
+                ran, and the strip above this table counts through the same
+                function so the two cannot disagree. */}
+                    <TableCell>
+                      {declared?.pending ? (
+                        <AstrolabeLoadingLabel
+                          as="span"
+                          announce={false}
+                          className="connections-table-status-loader"
+                          label={`Checking ${check.label || check.name}`}
+                        />
+                      ) : (
+                        <Badge
+                          variant={check.status === 'ok' ? 'secondary' : 'destructive'}
+                          aria-label={`${check.label || check.name} connection status: ${
+                            check.status === 'ok' ? 'Connected' : 'Disconnected'
+                          }`}
+                        >
+                          {check.status === 'ok' ? 'Connected' : 'Disconnected'}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    {/* A STATUS, NOT AN ESSAY. This cell used to print the check's whole
+                detail, and on this deployment one missing OAuth scope gives all
+                twelve of these rows the same three-sentence diagnosis: opening
+                the section meant reading it twelve more times. The first
+                sentence is the part that is about THIS table, which is what the
+                workspace said about it or the code it answered with. The
+                reasoning is stated once, on the group in What to fix, and the
+                whole sentence is still here in a title. */}
+                    <TableCell className="connections-table-detail" title={reachability.title}>
+                      {isRequestedEntity(check.name, requestedEntity) ? (
+                        <span className="connections-table-arrival">Linked from the answer you followed here. </span>
+                      ) : null}
+                      {declared?.pending ? 'Connection check pending' : reachability.row}
+                      <ConnectionAddedMetadata entry={connection} />
+                      {connection && management?.justAdded === connection.connection.id ? (
+                        <span className="plane-row-new">{JUST_ADDED_LABEL}</span>
+                      ) : null}
+                    </TableCell>
+                    {management ? (
+                      <TableCell className="connections-table-actions">
+                        {connection?.connection.origin === 'app' ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={management.busy}
+                            aria-label={`${DELETE_CONNECTION_LABEL}: ${check.name}`}
+                            onClick={() => management.onConfirm(connection.connection.id)}
+                          >
+                            <Trash2 aria-hidden="true" />
+                            Delete
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                  {connection?.connection.origin === 'app' && management && confirmOpen ? (
+                    <TableRow className="connections-table-confirm-row">
+                      <TableCell colSpan={4}>
+                        <div
+                          className="plane-confirm"
+                          role="group"
+                          aria-label={`${DELETE_CONNECTION_LABEL}: ${check.name}`}
+                        >
+                          <span className="plane-confirm-headline">Delete this table connection permanently?</span>
+                          <span className="plane-confirm-detail">
+                            {forgetConnectionDetail(connection.connection.origin)}
+                          </span>
+                          <span className="plane-confirm-actions">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={management.busy}
+                              onClick={() => management.onRemove(connection)}
+                            >
+                              <Trash2 aria-hidden="true" />
+                              {management.busy ? 'Deleting\u2026' : DELETE_CONNECTION_LABEL}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={management.busy}
+                              onClick={management.onCancel}
+                            >
+                              Keep
+                            </Button>
+                          </span>
+                          {management.rowError?.id === connection.connection.id ? (
+                            <span className="plane-error" role="alert">
+                              {management.rowError.detail}
+                            </span>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </Fragment>
+              );
+            })}
         </TableBody>
       </Table>
-      {visible.length === 0 ? (
+      {visible.length === 0 && nonTableConnections.length === 0 ? (
         <p className="connections-table-empty">
           {checks.length === 0
             ? 'No tables or views are declared in the current scope.'
@@ -861,6 +1097,7 @@ export function unityCatalogAssetScopeState(
 
 export function DeclaredTablesSection({
   tableChecks,
+  scopeChecks = [],
   tableConnections = [],
   requestedEntity,
   checkedAt = '',
@@ -869,6 +1106,7 @@ export function DeclaredTablesSection({
   onChanged = () => {},
 }: {
   tableChecks: readonly PreflightCheck[];
+  scopeChecks?: readonly PreflightCheck[];
   tableConnections?: ConnectionEntry[];
   requestedEntity: string;
   checkedAt?: string;
@@ -889,13 +1127,6 @@ export function DeclaredTablesSection({
   );
   const managedTableNames = useMemo(() => managedRows.map((row) => row.check.name), [managedRows]);
   const managedChecks = useMemo(() => managedRows.map((row) => row.check), [managedRows]);
-  const managedCatalogsAndSchemas = useMemo(
-    () =>
-      controller.listed.filter(
-        (entry) => entry.connection.resourceType === 'catalog' || entry.connection.resourceType === 'schema'
-      ),
-    [controller.listed]
-  );
   const { catalogs, schemas } = useMemo(
     () => declaredTableFilterOptions(managedChecks, filters.catalog),
     [managedChecks, filters.catalog]
@@ -908,41 +1139,51 @@ export function DeclaredTablesSection({
     row?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
   }, [adding, controller.justAdded]);
 
-  async function addUnityCatalogConnection(selection: UnityCatalogExplorerSelection) {
-    const { resourceType, value, label } = selection;
-    const duplicate =
-      (resourceType === 'table' &&
-        managedChecks.some((check) => normalizedConnectionValue(check.name) === normalizedConnectionValue(value))) ||
-      controller.listed.some(
-        (entry) =>
-          entry.connection.resourceType === resourceType &&
-          normalizedConnectionValue(entry.connection.value) === normalizedConnectionValue(value)
-      );
-    if (duplicate) {
+  async function addUnityCatalogConnections(selections: readonly UnityCatalogExplorerSelection[]) {
+    const ids = controller.listed.map((entry) => entry.connection.id);
+    const inputs = selections.map((selection) => {
+      const id = derivedConnectionKey(selection.resourceType, selection.value, ids);
+      ids.push(id);
       return {
-        ok: false,
-        detail: `That ${resourceType === 'table' ? 'table/view' : resourceType} is already in the Unity Catalog scope.`,
-      };
-    }
-    const result = await controller.add(
-      {
-        id: derivedConnectionKey(
-          resourceType,
-          value,
-          controller.listed.map((entry) => entry.connection.id)
-        ),
-        label: addedConnectionLabel(value, label),
+        id,
+        label: addedConnectionLabel(selection.value, selection.label),
         kind: 'unity-catalog',
-        resourceType,
-        value,
-      },
-      `That ${resourceType === 'table' ? 'table/view' : resourceType} is already in the Unity Catalog list.`
-    );
-    return result.ok ? { ok: true, detail: '' } : { ok: false, detail: result.detail };
+        resourceType: selection.resourceType,
+        value: selection.value,
+        note: selection.assetType === 'view' ? 'asset-type:view' : '',
+      };
+    });
+    const result = await controller.addBatch(inputs, 'One of those assets is already in the Unity Catalog scope.');
+    if (!result.ok) return result;
+    setAdding(false);
+    return { ok: true, detail: '' };
   }
 
   function scopeState(resourceType: UnityCatalogScopeType, value: string): UnityCatalogExplorerRowState {
     return unityCatalogAssetScopeState(controller.listed, managedTableNames, resourceType, value);
+  }
+  const declaredExplorerAssets: UnityCatalogExplorerSelection[] = controller.listed
+    .filter(
+      (entry) =>
+        entry.connection.state === 'declared' &&
+        (entry.connection.resourceType === 'catalog' ||
+          entry.connection.resourceType === 'schema' ||
+          entry.connection.resourceType === 'table')
+    )
+    .map((entry) => ({
+      resourceType: entry.connection.resourceType as UnityCatalogScopeType,
+      value: entry.connection.value,
+      label: entry.connection.label || entry.connection.value.split('.').at(-1) || entry.connection.value,
+    }));
+  for (const value of managedTableNames) {
+    if (
+      !declaredExplorerAssets.some(
+        (asset) =>
+          asset.resourceType === 'table' && normalizedConnectionValue(asset.value) === normalizedConnectionValue(value)
+      )
+    ) {
+      declaredExplorerAssets.push({ resourceType: 'table', value, label: value.split('.').at(-1) || value });
+    }
   }
 
   const addAction =
@@ -968,22 +1209,16 @@ export function DeclaredTablesSection({
       open={open}
       onToggle={() => setOpen((was) => !was)}
       summary="Unity Catalog scope"
-      aside={unityCatalogScopeSummary(controller.listed, managedRows)}
+      action={addAction}
+      controls={<DeclaredTableControls filters={filters} catalogs={catalogs} schemas={schemas} onChange={setFilters} />}
     >
-      <DeclaredTableControls
-        filters={filters}
-        catalogs={catalogs}
-        schemas={schemas}
-        onChange={setFilters}
-        action={addAction}
-      />
-      <p className="connections-scope-copy">Catalogs, schemas, and tables declared for this app.</p>
       {adding ? (
         <UnityCatalogScopeExplorer
           dialogId={explorerId}
           busy={controller.busy}
+          declared={declaredExplorerAssets}
           scopeState={scopeState}
-          onAdd={addUnityCatalogConnection}
+          onSave={addUnityCatalogConnections}
           onClose={() => {
             setAdding(false);
           }}
@@ -999,84 +1234,9 @@ export function DeclaredTablesSection({
           {controller.successNotice}
         </span>
       ) : null}
-      <div className="connections-uc-managed" aria-label="Current Unity Catalog scope">
-        <p className="connections-uc-managed-title">Current scope</p>
-        {managedCatalogsAndSchemas.map((entry) => {
-          const resourceType = entry.connection.resourceType === 'catalog' ? 'Catalog' : 'Schema';
-          const confirming = controller.confirming === entry.connection.id;
-          return (
-            <div
-              key={entry.connection.id}
-              className="connections-uc-managed-row"
-              data-testid={`managed-uc-${entry.connection.id}`}
-            >
-              <div className="connections-uc-managed-summary">
-                <span className="connection-row-kind">{resourceType}</span>
-                <ConnectionEntityName name={entry.connection.value} />
-                <span className="connections-table-scope-state">
-                  {entry.connection.state === 'withdrawn'
-                    ? 'Not in scope'
-                    : entry.connection.origin === 'app'
-                      ? 'In scope · added in Astrolabe'
-                      : 'In scope · managed by deployment'}
-                </span>
-                {allowMutations && entry.connection.origin === 'app' ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={controller.busy}
-                    aria-label={`${DELETE_CONNECTION_LABEL}: ${entry.connection.value}`}
-                    onClick={() => {
-                      controller.setRowError(null);
-                      controller.setConfirming(entry.connection.id);
-                    }}
-                  >
-                    <Trash2 aria-hidden="true" />
-                    Delete
-                  </Button>
-                ) : null}
-              </div>
-              {confirming ? (
-                <div
-                  className="plane-confirm"
-                  role="group"
-                  aria-label={`${DELETE_CONNECTION_LABEL}: ${entry.connection.value}`}
-                >
-                  <span className="plane-confirm-headline">Delete this Unity Catalog connection permanently?</span>
-                  <span className="plane-confirm-detail">{forgetConnectionDetail(entry.connection.origin)}</span>
-                  <span className="plane-confirm-actions">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      disabled={controller.busy}
-                      onClick={() => void controller.remove(entry)}
-                    >
-                      <Trash2 aria-hidden="true" />
-                      {controller.busy ? 'Deleting\u2026' : DELETE_CONNECTION_LABEL}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={controller.busy}
-                      onClick={() => controller.setConfirming('')}
-                    >
-                      Keep
-                    </Button>
-                  </span>
-                  {controller.rowError?.id === entry.connection.id ? (
-                    <span className="plane-error" role="alert">
-                      {controller.rowError.detail}
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-      <p className="connections-uc-managed-title connections-uc-table-title">Tables and views</p>
       <DeclaredTablesTable
         tableChecks={tableChecks}
+        scopeChecks={scopeChecks}
         tableConnections={controller.listed}
         requestedEntity={requestedEntity}
         checkedAt={checkedAt}
@@ -1356,6 +1516,12 @@ export function OptionalScopeLine({ shortfall }: { shortfall: OptionalScopeShort
  * affordance and the configured/in-use pair are only decidable from composed
  * markup, and the page cannot compose either without effects having run.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- pure async-open decision used by focused UI tests
+export function opensForLakebaseMigration(state: LakebaseMigrationClientState | undefined): boolean {
+  const status = state?.value?.status;
+  return Boolean(status && status !== 'up_to_date');
+}
+
 export function ConnectionRow({
   reading,
   tone,
@@ -1369,6 +1535,7 @@ export function ConnectionRow({
   hostedIndex = '',
   catalogInUse = '',
   allowMutations = false,
+  lakebaseMigration,
 }: {
   /**
    * The whole reading, derived once by `readConnections` and handed down.
@@ -1415,6 +1582,10 @@ export function ConnectionRow({
   catalogInUse?: string;
   /** Administrators only may stage or save. Consumers still see the row. */
   allowMutations?: boolean;
+  lakebaseMigration?: {
+    state: LakebaseMigrationClientState;
+    apply: () => void;
+  };
 }) {
   // `problems` is every finding but the pending one, which says what the
   // Intended banner directly above it already says, and two statements of one
@@ -1437,7 +1608,7 @@ export function ConnectionRow({
   // Open on arrival when a link named this row. The collapsed line carries the
   // value and its verdict; the reason for either is inside, and somebody who
   // followed a link from a diagram came for the reason.
-  const [open, setOpen] = useState(requested);
+  const [open, setOpen] = useState(requested || opensForLakebaseMigration(lakebaseMigration?.state));
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(row.configured);
 
@@ -1450,6 +1621,7 @@ export function ConnectionRow({
    * the value with loading copy would throw cached evidence away.
    */
   const restating = refreshing && status !== 'nothing-to-reach';
+  const primaryState = primaryConnectionState(status, resource.namesRemoteObject);
 
   /**
    * Closed only when the server took it.
@@ -1465,6 +1637,7 @@ export function ConnectionRow({
   return (
     <div
       className="connection-row"
+      data-tone={tone}
       id={entityRowId(resource.id)}
       data-testid={`connection-${resource.id}`}
       data-status={status}
@@ -1499,22 +1672,31 @@ export function ConnectionRow({
             hears this row's verdict change, which is the fact that changed,
             instead of nineteen of them being read out at once. */}
         <span className="connection-row-value" aria-live="polite" aria-busy={restating || undefined}>
-          <StatusBadge
-            value={truncateHead(view.displayIdentity)}
-            tone={!view.connected ? 'plain' : tone}
-            title={view.displayIdentity}
-          />
+          <StatusBadge value={truncateHead(view.displayIdentity)} tone="plain" title={view.displayIdentity} />
           {view.secondaryIdentity ? (
             <code className="connection-row-raw-id" title={view.secondaryIdentity}>
               {view.secondaryIdentity}
             </code>
           ) : null}
         </span>
-        {view.connected ? (
-          <span className="connection-row-state" data-tone={tone}>
-            {view.status}
-          </span>
-        ) : null}
+        {primaryState === 'loading' ? (
+          <AstrolabeLoadingLabel
+            as="span"
+            announce={false}
+            className="connection-row-status-loader"
+            label={`Checking ${resource.label}`}
+          />
+        ) : primaryState === 'not-applicable' ? null : (
+          <Badge
+            variant={primaryState === 'connected' ? 'secondary' : 'destructive'}
+            className="connection-row-state"
+            aria-label={`${resource.label} connection status: ${
+              primaryState === 'connected' ? 'Connected' : 'Disconnected'
+            }`}
+          >
+            {primaryState === 'connected' ? 'Connected' : 'Disconnected'}
+          </Badge>
+        )}
         {/* Announced, not drawn. A row in the Drifted section is under a header
             that says so, and repeating it per row is what the chip did; the
             count is the one thing the header cannot carry, and a reader who
@@ -1541,6 +1723,9 @@ export function ConnectionRow({
 
       {open ? (
         <div className="connection-row-detail">
+          {resource.id === 'lakebase' && lakebaseMigration ? (
+            <LakebaseMigrationPanel state={lakebaseMigration.state} onApply={lakebaseMigration.apply} />
+          ) : null}
           {view.comparison ? (
             <div className="connection-drift">
               <p className="connection-drift-status">Drift · expected and observed resources differ</p>
@@ -1687,6 +1872,7 @@ export function ConnectionsPage() {
     !notebookAgentSyncEnabled && notebookAgentSyncTarget({ search: location.search, hash: location.hash }) !== null;
   const [saving, setSaving] = useState('');
   const [writeError, setWriteError] = useState('');
+  const lakebaseMigration = useLakebaseMigrationStatus(allowMutations);
 
   /**
    * The checks, from the one mechanism that runs them for the whole session.
@@ -2181,7 +2367,13 @@ export function ConnectionsPage() {
                 />
               ) : (
                 <ConnectionRow
-                  key={reading.resource.id}
+                  key={`${reading.resource.id}:${
+                    reading.resource.id === 'lakebase'
+                      ? lakebaseMigration.state.value
+                        ? 'checked'
+                        : 'unchecked'
+                      : 'settled'
+                  }`}
                   reading={reading}
                   tone={GROUP_TONE[group.key]}
                   saving={saving === reading.resource.id}
@@ -2193,6 +2385,11 @@ export function ConnectionsPage() {
                   requested={requestedResource === reading.resource.id}
                   catalogInUse={catalogInUse}
                   allowMutations={allowMutations}
+                  lakebaseMigration={
+                    reading.resource.id === 'lakebase'
+                      ? { state: lakebaseMigration.state, apply: () => void lakebaseMigration.apply() }
+                      : undefined
+                  }
                   onSave={(value) => write(reading.row, value)}
                   onClear={() => clear(reading.row)}
                 />
@@ -2217,6 +2414,7 @@ export function ConnectionsPage() {
 
       <DeclaredTablesSection
         tableChecks={tableChecks}
+        scopeChecks={checks}
         tableConnections={tableConnections}
         requestedEntity={requestedEntity}
         checkedAt={lastCheckedAt}

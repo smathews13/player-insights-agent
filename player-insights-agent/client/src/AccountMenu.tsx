@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react';
 import type { Identity } from './app-types';
 import { organizationForEmail } from '../../shared/organization-mapping';
 import { OrganizationAvatar } from './OrganizationAvatar';
-import { signOutAndEndAppSession } from './app-session';
 import type { RoleState } from './role';
 import { identityName } from './user-identity';
 
@@ -21,10 +20,17 @@ export function AccountMenu({ identity, role }: { identity: Identity; role: Role
   useEffect(() => {
     if (!open) return;
     const onMouseDown = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target;
+      if (
+        root.current?.contains(target as Node) ||
+        (target instanceof Element && target.closest('[data-account-feedback-menu]'))
+      ) {
+        return;
+      }
+      setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+      if (event.defaultPrevented || event.key !== 'Escape') return;
       setOpen(false);
       trigger.current?.focus();
     };
@@ -35,11 +41,6 @@ export function AccountMenu({ identity, role }: { identity: Identity; role: Role
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [open]);
-
-  const signOut = () => {
-    setOpen(false);
-    void signOutAndEndAppSession();
-  };
 
   return (
     <>
@@ -64,7 +65,7 @@ export function AccountMenu({ identity, role }: { identity: Identity; role: Role
         {open ? (
           <div id={menuId}>
             <Suspense fallback={null}>
-              <AccountMenuPanel identity={identity} role={role} onSignOut={signOut} />
+              <AccountMenuPanel identity={identity} role={role} onClose={() => setOpen(false)} />
             </Suspense>
           </div>
         ) : null}

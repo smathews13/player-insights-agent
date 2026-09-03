@@ -422,6 +422,12 @@ fi
 # the first administrator.
 ADMIN_EMAILS="${PLAYER_INSIGHTS_ADMIN_EMAILS:-$(bundle_var_or_empty admin_emails)}"
 ORGANIZATIONS="${PLAYER_INSIGHTS_ORGANIZATIONS:-$(bundle_var_or_empty organization_domains)}"
+# Optional deployment-only feedback destination. These values never come from
+# authored defaults or a public bundle variable; the release environment owns
+# them and bundle-server writes them only into the generated app.yaml that this
+# script uploads and restores on every exit path.
+FEEDBACK_SLACK_URL="${PLAYER_INSIGHTS_FEEDBACK_SLACK_URL:-}"
+FEEDBACK_SLACK_LABEL="${PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL:-}"
 # Empty means the server uses its compiled, customer-neutral product defaults.
 # A deployment may provide a validated JSON array / replace object, or an
 # explicit {"mode":"extend","templates":[...]} object whose IDs must not
@@ -511,6 +517,8 @@ step "Building the dependency-free deploy tree"
      PLAYER_INSIGHTS_USER_API_SCOPES="$DECLARED_SCOPES" \
      PLAYER_INSIGHTS_ADMIN_EMAILS="$ADMIN_EMAILS" \
      PLAYER_INSIGHTS_ORGANIZATIONS="$ORGANIZATIONS" \
+     PLAYER_INSIGHTS_FEEDBACK_SLACK_URL="$FEEDBACK_SLACK_URL" \
+     PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL="$FEEDBACK_SLACK_LABEL" \
      PLAYER_INSIGHTS_PERSONA_TEMPLATES="$PERSONA_TEMPLATE_OVERRIDE" \
      PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES="$IDLE_TIMEOUT" \
      PLAYER_INSIGHTS_APP_SCHEMA="$LAKEBASE_APP_SCHEMA" \

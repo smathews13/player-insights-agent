@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { ExperimentalBadge } from './ExperimentalBadge';
 import { astPill } from './astrolabe-pill';
 import {
@@ -174,8 +175,11 @@ export function ProjectionBreakdown({
         aria-controls="ops-forecast-breakdown-table"
         onClick={onToggle}
       >
-        <span>Projection breakdown</span>
-        <span className={astPill('neutral-outline', 'ops-pill')}>Estimated</span>
+        <span className="ops-forecast-breakdown-label">Projection breakdown</span>
+        <span className="ops-forecast-breakdown-actions">
+          <span className={astPill('neutral-outline', 'ops-pill')}>Estimated</span>
+          <ChevronRight className="ops-forecast-breakdown-chevron" aria-hidden="true" />
+        </span>
       </button>
       {open ? (
         <div

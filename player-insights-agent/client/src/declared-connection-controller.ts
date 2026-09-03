@@ -3,6 +3,7 @@ import type { ConnectionEntry } from './connection-model';
 import {
   createConnectionDeleteGate,
   createDeclaredConnection,
+  createDeclaredConnectionsBatch,
   deleteDeclaredConnection,
   type CreateConnectionInput,
   type CreateConnectionResult,
@@ -104,6 +105,37 @@ export function useDeclaredConnectionController({
     }
   }
 
+  async function addBatch(
+    inputs: readonly CreateConnectionInput[],
+    duplicateDetail = 'One of those connections is already in the list.'
+  ): Promise<{ ok: true; entries: ConnectionEntry[] } | { ok: false; detail: string }> {
+    if (busy) return { ok: false, detail: 'Save is already running.' };
+    if (inputs.some((input) => isDuplicateConnection(listed, input.resourceType, input.value))) {
+      return { ok: false, detail: duplicateDetail };
+    }
+    setBusy(true);
+    setRowError(null);
+    setSuccessNotice('');
+    try {
+      beginConnectionMutation();
+      const result = await createDeclaredConnectionsBatch(inputs);
+      if (!result.ok) return result;
+      setInstantEntries((current) => {
+        const saved = new Map(result.entries.map((entry) => [entry.connection.id, entry]));
+        return [...current.filter((entry) => !saved.has(entry.connection.id)), ...result.entries];
+      });
+      for (const entry of result.entries) commitConnectionAddition(entry);
+      setJustAdded(result.entries[0]?.connection.id ?? '');
+      setSuccessNotice(
+        `${result.entries.length} ${result.entries.length === 1 ? 'Unity Catalog asset' : 'Unity Catalog assets'} added.`
+      );
+      await onChanged();
+      return result;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function remove(entry: ConnectionEntry): Promise<DeleteConnectionResult | null> {
     if (busy || deleteGate.current.pending(entry.connection.id)) return null;
     setBusy(true);
@@ -156,6 +188,7 @@ export function useDeclaredConnectionController({
     setRowError,
     successNotice,
     add,
+    addBatch,
     remove,
   };
 }

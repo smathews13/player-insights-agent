@@ -50,7 +50,9 @@ import { UserIdentityChip } from './UserIdentityChip';
 import { UserDrilldownLink } from './UserDrilldownLink';
 import { UnitSegmentedControl } from './UnitSegmentedControl';
 import { RoleBadgePill } from './RoleBadge';
+import { EstimatedBadge } from './EstimatedBadge';
 import { identityName } from './user-identity';
+import { ToolCallsLabel } from './ToolCallsLabel';
 import type { Answer, FeedbackEntry } from './app-types';
 import { tokenTotalUsageView } from './token-usage-view';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
@@ -757,7 +759,7 @@ function QuestionCard({
         </span>
         {question.toolCalls !== null ? (
           <span>
-            Tools <span className="ast-num">{question.toolCalls}</span>
+            <ToolCallsLabel>Tools</ToolCallsLabel> <span className="ast-num">{question.toolCalls}</span>
           </span>
         ) : null}
         <FeedbackMark feedback={question.feedback ?? question.rating} />
@@ -832,7 +834,7 @@ export function QuestionList({
             Total tokens
           </th>
           <th scope="col" className="monitoring-numeric monitoring-col-tools">
-            Tools
+            <ToolCallsLabel>Tools</ToolCallsLabel>
           </th>
           <th scope="col" className="monitoring-col-rating">
             Feedback
@@ -1227,15 +1229,15 @@ function SpendMetric({
   const figure = metric.state === 'unavailable' ? metric.subtitle : spendMetricFigure(metric, kind, unit, currency);
   return (
     <div className="user-profile-modal-spend-kpi">
-      <span className="user-profile-modal-spend-kpi-label">{label}</span>
+      <div className="user-profile-modal-spend-kpi-head">
+        <span className="user-profile-modal-spend-kpi-label">{label}</span>
+        <EstimatedBadge />
+      </div>
       <strong className="user-profile-modal-spend-kpi-value ast-num" aria-label={`${label}: ${figure}`}>
         {figure}
       </strong>
       {metric.state === 'unavailable' ? null : (
-        <span className="user-profile-modal-spend-kpi-subtitle">
-          {metric.subtitle}
-          {metric.estimated ? ' · Estimated' : ''}
-        </span>
+        <span className="user-profile-modal-spend-kpi-subtitle">{metric.subtitle}</span>
       )}
     </div>
   );
@@ -1244,12 +1246,17 @@ function SpendMetric({
 function LoadingSpendMetric({ label, animated = false }: { label: string; animated?: boolean }) {
   return (
     <div className="user-profile-modal-spend-kpi user-profile-modal-spend-kpi-loading">
-      {animated ? (
-        <ConceptFlicker seat="inline" />
-      ) : (
-        <AstrolabeMark size={16} ink="light" className="user-profile-modal-spend-static-mark" />
-      )}
-      <span>{label}</span>
+      <div className="user-profile-modal-spend-kpi-head">
+        <span className="user-profile-modal-spend-kpi-label">{label}</span>
+        <EstimatedBadge />
+      </div>
+      <div className="user-profile-modal-spend-kpi-loading-body">
+        {animated ? (
+          <ConceptFlicker seat="inline" />
+        ) : (
+          <AstrolabeMark size={16} ink="light" className="user-profile-modal-spend-static-mark" />
+        )}
+      </div>
     </div>
   );
 }
@@ -1264,7 +1271,10 @@ function AverageTokensMetric({ metrics }: { metrics: ReturnType<typeof deriveUse
   const perQuestion = metrics.perQuestion;
   return (
     <div className="user-profile-modal-spend-kpi">
-      <span className="user-profile-modal-spend-kpi-label">Average tokens</span>
+      <div className="user-profile-modal-spend-kpi-head">
+        <span className="user-profile-modal-spend-kpi-label">Average tokens</span>
+        <EstimatedBadge />
+      </div>
       <strong
         className="user-profile-modal-spend-kpi-value ast-num"
         title={
@@ -1340,7 +1350,8 @@ export function PersonSpend({
   const costPerQuestion =
     authoritative?.costPerQuestion.state === 'value' ? authoritative.costPerQuestion : core.costPerQuestion;
   const averageDaily = authoritative?.averageDaily.state === 'value' ? authoritative.averageDaily : core.averageDaily;
-  const estimated = reading?.quality === 'allocated' || reading?.quality === 'partial';
+  const appShare =
+    authoritative?.appShare ?? ({ value: null, state: 'unavailable', subtitle: 'No comparable app total' } as const);
   return (
     <section
       className="user-profile-modal-spend"
@@ -1352,15 +1363,15 @@ export function PersonSpend({
       </h4>
       <div className="user-profile-modal-spend-kpis">
         <div className="user-profile-modal-spend-kpi">
-          <span className="user-profile-modal-spend-kpi-label">Total user spend</span>
+          <div className="user-profile-modal-spend-kpi-head">
+            <span className="user-profile-modal-spend-kpi-label">Total user spend</span>
+            <EstimatedBadge />
+          </div>
           <strong className="user-profile-modal-spend-kpi-value ast-num">
             {amount === null
               ? 'Spend not available yet'
               : spendFigure(amount, unit, state.status === 'ready' ? state.data.currency : '')}
           </strong>
-          {amount === null ? null : (
-            <span className="user-profile-modal-spend-kpi-subtitle">{estimated ? 'Estimated' : 'Attributable'}</span>
-          )}
         </div>
         {refreshing && costPerQuestion.state === 'unavailable' ? (
           <LoadingSpendMetric label="Calculating cost per question" />
@@ -1389,17 +1400,17 @@ export function PersonSpend({
             currency={state.status === 'ready' ? state.data.currency : ''}
           />
         )}
-        {refreshing && (!authoritative || authoritative.appShare.state === 'unavailable') ? (
+        {refreshing && appShare.state === 'unavailable' ? (
           <LoadingSpendMetric label="Calculating share of app spend" animated />
-        ) : authoritative ? (
+        ) : (
           <SpendMetric
             label="Share of app spend"
-            metric={authoritative.appShare}
+            metric={appShare}
             kind="percent"
             unit={unit}
             currency={state.status === 'ready' ? state.data.currency : ''}
           />
-        ) : null}
+        )}
       </div>
       {refreshing ? (
         <span className="sr-only" role="status" aria-live="polite">
@@ -1428,7 +1439,9 @@ function ProfileQuestionHistory({
             <th scope="col">When</th>
             <th scope="col">Outcome</th>
             <th scope="col">Time</th>
-            <th scope="col">Tools</th>
+            <th scope="col">
+              <ToolCallsLabel>Tools</ToolCallsLabel>
+            </th>
             <th scope="col">Feedback</th>
           </tr>
         </thead>

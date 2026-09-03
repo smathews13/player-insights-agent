@@ -278,19 +278,6 @@ function TokenConsumption({ trace }: { trace: NonNullable<RunTrace['trace']> }) 
             <dd>{TOKEN_UNAVAILABLE}</dd>
           </>
         )}
-        <dt>Attributed coverage</dt>
-        <dd>
-          {view.attributedTokens === undefined ? (
-            TOKEN_UNAVAILABLE
-          ) : (
-            <>
-              <span className="ast-num">{view.attributedTokens.toLocaleString()}</span> tokens
-              {view.coveragePercent !== undefined ? ` · ${view.coveragePercent.toFixed(1)}% of run total` : ''}
-            </>
-          )}
-        </dd>
-        <dt>Unattributed difference</dt>
-        <dd className="ast-num">{view.unattributedTokens?.toLocaleString() ?? TOKEN_UNAVAILABLE}</dd>
       </dl>
       {view.invocations.length > 0 ? (
         <div className="token-invocations">

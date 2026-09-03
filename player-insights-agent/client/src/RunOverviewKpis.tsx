@@ -10,6 +10,7 @@ import { Button, Card, CardContent, Input } from './ui';
 import type { TokenReconciliation } from '../../shared/llm-token-usage';
 import type { FeedbackDirection } from '../../shared/feedback-direction';
 import { runTokenUsageView } from './token-usage-view';
+import { ToolCallsLabel } from './ToolCallsLabel';
 
 const ABSENT = 'Not recorded';
 
@@ -28,7 +29,7 @@ function KpiCard({
   absent = false,
   subtitleClassName = '',
 }: {
-  label: string;
+  label: ReactNode;
   value: string;
   subtitle: ReactNode;
   absent?: boolean;
@@ -133,7 +134,7 @@ export function RunOverviewKpis({
         absent={!hasToolStageTime}
       />
       <KpiCard
-        label="Agent tool calls"
+        label={<ToolCallsLabel>Agent tool calls</ToolCallsLabel>}
         value={hasToolCalls ? agentToolCalls.toLocaleString() : ABSENT}
         subtitle={agentToolCallSubtitle(agentToolCalls, stages)}
         absent={!hasToolCalls}

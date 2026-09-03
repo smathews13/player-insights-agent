@@ -1,9 +1,9 @@
 /**
  * The flicker's inline seating (`#17a`): one row, one mark, one real number.
  *
- * `loading-suite.md`: "Inline row: 20px mark + 'Working on your question' 500 +
- * right-pinned mono elapsed time." It is the loading suite's narrow seating, for
- * a column that a 520px constellation panel does not fit in.
+ * It uses the same "Planning out your answer" phrase as the centered pre-stage
+ * state, followed by a separately pinned mono elapsed time. It is the loading
+ * suite's narrow seating, for a column that a 520px panel does not fit in.
  *
  * WHY THIS IS NOT A LIVE REGION, when the two constellation panels are. §5 allows
  * one `aria-live="polite"` string per surface and the surface this sits on already

@@ -70,6 +70,23 @@ import { checkVerdict, type CheckStop } from '../../shared/check-verdict';
  */
 export type ConnectionStatus = 'reachable' | 'blocked' | 'refused' | 'unreachable' | 'not-checked' | 'nothing-to-reach';
 
+export type PrimaryConnectionState = 'connected' | 'disconnected' | 'loading' | 'not-applicable';
+
+/**
+ * The binary status shown on a collapsed Connections row.
+ *
+ * Detailed diagnostics retain the precise internal verdict. The scan surface
+ * only answers whether the current remote connection succeeded. A missing
+ * optional remote is disconnected; local configuration values that name no
+ * remote object have no connection badge at all.
+ */
+export function primaryConnectionState(status: ConnectionStatus, namesRemoteObject: boolean): PrimaryConnectionState {
+  if (!namesRemoteObject) return 'not-applicable';
+  if (status === 'reachable') return 'connected';
+  if (status === 'not-checked') return 'loading';
+  return 'disconnected';
+}
+
 export const CONNECTION_STATUS_LABEL: Record<ConnectionStatus, string> = {
   reachable: 'Reachable',
   blocked: 'Blocked',
@@ -348,23 +365,11 @@ export interface CountEntry {
  * answered (D8).
  */
 export function visibleCounts(counts: ConnectionCounts): CountEntry[] {
+  const disconnected = counts.blocked + counts.refused + counts.unreachable;
   return [
-    { key: 'reachable', word: 'reachable', tone: 'reachable' as const, count: counts.reachable },
-    { key: 'blocked', word: 'blocked', tone: 'blocked' as const, count: counts.blocked },
+    { key: 'connected', word: 'connected', tone: 'reachable' as const, count: counts.reachable },
+    { key: 'disconnected', word: 'disconnected', tone: 'blocked' as const, count: disconnected },
     { key: 'drifted', word: 'drifted', tone: 'drifted' as const, count: counts.drifted },
-    // Above `not checked`, and tinted, because it is the actionable one of the
-    // two: a refusal is answered by a permission and rows nobody asked about are
-    // answered by a run. Amber rather than red, on the page's own rung for "worth
-    // a look, not settled" -- nothing was established about the objects, so this
-    // must not read as a dependency being down.
-    { key: 'refused', word: 'refused', tone: 'drifted' as const, count: counts.refused },
-    // Amber too, where `checkVerdictTone` leaves a single unreachable CHECK
-    // untinted. Different job: there the tint separates one refusal out of a
-    // twelve-row matrix, here the word is a whole dependency nothing could reach,
-    // and the headline beside it no longer earns its tick in that state. An
-    // untinted word under an unticked headline is the disagreement this file exists
-    // to prevent.
-    { key: 'unreachable', word: 'unreachable', tone: 'drifted' as const, count: counts.unreachable },
     { key: 'pending', word: 'pending', count: counts.pending },
   ]
     .filter((entry) => entry.count > 0)

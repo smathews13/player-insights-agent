@@ -6,6 +6,7 @@
  * merges only its group, then atomically upserts the complete JSON document.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { CheckCircle2, CircleX } from 'lucide-react';
 
 import {
   COST_BUDGET_MAX,
@@ -22,7 +23,6 @@ import {
   type CostBudgets,
 } from '../../shared/cost-budgets';
 import type { CostTile, OpsCostPayload } from '../../shared/ops-contract';
-import { astPill } from './astrolabe-pill';
 import { budgetFieldText } from './cost-budget-amount';
 import { COST_BUDGETS_UNREADABLE, loadCostBudgets, saveCostBudgets } from './cost-budgets-api';
 import { budgetHelper, budgetPlaceholder, costSpendSummary, resourceBudgetBaseline } from './cost-budget-view';
@@ -30,7 +30,7 @@ import { NumberTicker, TickerAssumptionField, TickerAssumptionGrid, tickerNumber
 import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad, type SettingsSaveState } from './settings-save-state';
 import { Badge, Button, Progress } from './ui';
 import { ConceptFlicker } from './ConceptFlicker';
-import { ADVISORY_RESOURCE_BUDGET_ENFORCEMENT } from '../../shared/ai-gateway-contract';
+import { dateOnlyBadgeValue, DateRangeBadges } from './DateBadge';
 import {
   approveContinuedUsage,
   refreshAppBudgetStatus,
@@ -420,33 +420,36 @@ export function CostSpendSummary({ payload, unit }: { payload: OpsCostPayload; u
     if (typeof value !== 'number' || !Number.isFinite(value)) return fallbackLabel;
     return `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${unit}`;
   };
-  const coverage = (figure: typeof current, fallbackText: string) => {
-    if (!figure) return fallbackText;
-    const period =
-      figure.sourceFrom && figure.sourceThrough
-        ? `${figure.sourceFrom} through ${figure.sourceThrough}`
-        : figure.sourceThrough
-          ? `Through ${figure.sourceThrough}`
-          : 'Source dates unavailable';
-    return `${figure.estimated || figure.completeness !== 'complete' ? 'Estimated paid attributable spend' : 'Paid attributable spend'} · ${period}`;
-  };
+  const dates = (figure: typeof current, fallbackFrom: string, fallbackThrough: string) => ({
+    from: figure?.sourceFrom || fallbackFrom,
+    through: figure?.sourceThrough || fallbackThrough,
+  });
+  const lifetimeDates = dates(lifetime, payload.range.from, payload.throughDay || payload.range.to);
+  const currentDates = dates(current, payload.range.from, payload.throughDay || payload.range.to);
   return (
     <div className="ops-cost-summary-box" aria-label="App spend summary">
       <div className="ops-cost-summary-peers">
         <div className="ops-cost-summary-peer">
           <span className="ops-cost-summary-heading">Total app spend</span>
           <strong className="ops-cost-summary-value ast-num">{amount(lifetime)}</strong>
-          <span className="ops-cost-summary-copy">{coverage(lifetime, 'Lifetime source unavailable')}</span>
+          <DateRangeBadges
+            accessibleLabel={`Billing date range from ${lifetimeDates.from} through ${lifetimeDates.through}`}
+            value={{
+              start: dateOnlyBadgeValue(lifetimeDates.from),
+              end: dateOnlyBadgeValue(lifetimeDates.through),
+            }}
+          />
         </div>
         <div className="ops-cost-summary-peer">
           <span className="ops-cost-summary-heading">This calendar month</span>
           <strong className="ops-cost-summary-value ast-num">{amount(current, fallback.label)}</strong>
-          <span className="ops-cost-summary-copy">
-            {coverage(
-              current,
-              `${fallback.partial || fallback.estimated ? 'Estimated paid attributable spend' : 'Paid attributable spend'} · ${payload.range.from} through ${payload.throughDay || payload.range.to}`
-            )}
-          </span>
+          <DateRangeBadges
+            accessibleLabel={`Billing date range from ${currentDates.from} through ${currentDates.through}`}
+            value={{
+              start: dateOnlyBadgeValue(currentDates.from),
+              end: dateOnlyBadgeValue(currentDates.through),
+            }}
+          />
         </div>
       </div>
       <SavedAppBudgetSummary savedBudget={savedBudget} unit={unit} status={budgetStatus} />
@@ -548,23 +551,18 @@ export function SavedAppBudgetSummary({
     >
       {progress ? (
         <>
-          <span className="ops-cost-summary-budget-item">
+          <span className="ops-cost-summary-budget-item ops-cost-summary-budget-limit">
             <span>Monthly app budget</span>
             <strong className="ast-num">{budget}</strong>
           </span>
-          <span
-            className="ops-cost-summary-budget-item ops-cost-budget-balance"
-            data-budget-tone={progress.tone}
-            aria-label={`Budget balance: ${progress.balance}`}
-          >
-            <strong className="ast-num">{progress.balance}</strong>
-          </span>
-          <span
-            className="ops-cost-summary-budget-item ops-cost-summary-budget-mtd"
-            data-budget-tone={progress.tone}
-            aria-label={`Budget pacing: ${progress.pace}`}
-          >
-            {progress.pace}
+          <span className="ops-cost-summary-budget-outcome" data-budget-tone={progress.tone}>
+            <strong className="ast-num" aria-label={`Budget balance: ${progress.balance}`}>
+              {progress.balance}
+            </strong>
+            <span className="ops-cost-summary-budget-status" aria-label={`Budget pacing: ${progress.pace}`}>
+              {progress.tone === 'normal' ? <CheckCircle2 aria-hidden="true" /> : <CircleX aria-hidden="true" />}
+              {progress.pace}
+            </span>
           </span>
         </>
       ) : (
@@ -621,10 +619,7 @@ export function CostResourceBudgets({ tiles }: { tiles: readonly CostTile[] }) {
   return (
     <section className="ops-cost-resource-budgets" aria-labelledby="ops-resource-budgets-heading">
       <div className="ops-cost-summary-head">
-        <span id="ops-resource-budgets-heading">Resource budgets</span>
-        <span className={astPill('neutral-outline', 'ops-pill')} title={ADVISORY_RESOURCE_BUDGET_ENFORCEMENT.detail}>
-          Advisory
-        </span>
+        <span id="ops-resource-budgets-heading">Resource budgets (monthly)</span>
       </div>
       <TickerAssumptionGrid columns={tiles.length} labelledBy="ops-resource-budgets-heading" framed={false}>
         {tiles.map((tile) => (
@@ -644,9 +639,24 @@ export function CostResourceBudgets({ tiles }: { tiles: readonly CostTile[] }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- pure label contract is covered without mounting the editor
+export function resourceBudgetLabel(tile: Pick<CostTile, 'id' | 'label'>): string {
+  return (
+    {
+      'serving-endpoint': 'Agent serving budget',
+      'foundation-model': 'Foundation model tokens budget',
+      'sql-warehouse': 'Ask SQL budget',
+      'genie:data': 'Data Genie budget',
+      'genie:dictionary': 'Dictionary Genie budget',
+      'vector-search': 'Vector Search budget',
+      'app-compute': 'App compute budget',
+    }[tile.id] ?? `${tile.label} budget`
+  );
+}
+
 function CostResourceBudgetField({ tile }: { tile: CostTile }) {
   const api = useCostBudgets();
-  const label = `${tile.label} monthly budget`;
+  const label = resourceBudgetLabel(tile);
   return (
     <CostBudgetField
       fieldKey={`resource:${tile.id}`}

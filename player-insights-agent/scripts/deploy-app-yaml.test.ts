@@ -13,6 +13,15 @@ const bundleServer = readFileSync(path.join(repoRoot, 'scripts', 'bundle-server.
 const appRelease = readFileSync(path.join(repoRoot, '..', 'bundle', 'app-release.sh'), 'utf8');
 const appSourceStaging = readFileSync(path.join(repoRoot, '..', 'bundle', 'app-source-staging.sh'), 'utf8');
 const defaultPersonaTemplates = readFileSync(path.join(repoRoot, 'shared', 'default-sp-persona-templates.ts'), 'utf8');
+const idlePolicyDocuments = [
+  readFileSync(path.join(repoRoot, '..', 'README.md'), 'utf8'),
+  readFileSync(path.join(repoRoot, '..', 'mirror', 'public-README.md'), 'utf8'),
+  readFileSync(path.join(repoRoot, '..', 'bundle', 'DECISIONS.md'), 'utf8'),
+  readFileSync(path.join(repoRoot, '..', 'docs', 'Astrolabe_Access_Guide.md'), 'utf8'),
+  readFileSync(path.join(repoRoot, '..', 'docs', 'Astrolabe_Security_Access_Specification.md'), 'utf8'),
+  authored,
+  bundleYaml,
+];
 
 /** The deviations bundle-server.mjs applies. Kept here so the tests exercise the real shape. */
 const DEPLOY_OVERRIDES = {
@@ -172,6 +181,15 @@ describe('every authored variable reaches the deploy target', () => {
     expect(generated.match(/name: PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES/g)).toHaveLength(1);
   });
 
+  it('keeps every active timeout policy document on the two-hour default', () => {
+    for (const document of idlePolicyDocuments) {
+      expect(document).toMatch(/120[\s\S]{0,40}2 hours/);
+      expect(document).not.toMatch(
+        /(?:defaults? to|default is|default idle limit|idle limit defaults to)[^\n]{0,30}(?:30|45)(?:`)?(?: minutes)?/i
+      );
+    }
+  });
+
   it('carries no build stamp in the authored file', () => {
     // A literal here would ship one commit's identity into every later build,
     // which is worse than no stamp: the Connections page compares this against
@@ -296,6 +314,31 @@ describe('every authored variable reaches the deploy target', () => {
 
     expect(generated).toContain("name: PLAYER_INSIGHTS_ADMIN_EMAILS\n    value: 'someone@example.com'");
     expect(generated.match(/name: PLAYER_INSIGHTS_ADMIN_EMAILS/g)).toHaveLength(1);
+  });
+
+  it('keeps feedback routing deployment-only and carries explicit release values', () => {
+    for (const name of ['PLAYER_INSIGHTS_FEEDBACK_SLACK_URL', 'PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL']) {
+      const localName = name.replace('PLAYER_INSIGHTS_', '');
+      expect(envNames(authored)).toContain(name);
+      expect(new RegExp(`- name: ${name}\\n\\s+value: '?([^'\\n]*)'?`).exec(authored)?.[1]).toBe('');
+      expect(bundleServer).toContain(`process.env.${name}`);
+      expect(appRelease).toContain(`${localName}="\${${name}:-}"`);
+      expect(appRelease).toContain(`${name}="$${localName}"`);
+    }
+
+    const url = `https://app.slack.com/client/T${'1'.repeat(8)}/search?q=Feedback%20contact`;
+    const generated = renderDeployAppYaml(authored, {
+      ...DEPLOY_OVERRIDES,
+      env: [
+        ...DEPLOY_OVERRIDES.env,
+        { name: 'PLAYER_INSIGHTS_FEEDBACK_SLACK_URL', value: `'${url}'` },
+        { name: 'PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL', value: "'Feedback contact'" },
+      ],
+    });
+    expect(generated).toContain(`name: PLAYER_INSIGHTS_FEEDBACK_SLACK_URL\n    value: '${url}'`);
+    expect(generated).toContain("name: PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL\n    value: 'Feedback contact'");
+    expect(appRelease).toContain('on_exit restore_deploy_app_yaml');
+    expect(appRelease).toContain('git -C "$BUNDLE_ROOT" restore -- "$DEPLOY_APP_YAML_REL"');
   });
 
   it('embeds public defaults in the server and carries only explicit deployment overrides in app.yaml', () => {

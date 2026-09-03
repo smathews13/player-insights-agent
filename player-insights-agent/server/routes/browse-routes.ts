@@ -31,6 +31,7 @@ import {
   listVectorSearchIndexes,
   listVolumes,
   listWarehouses,
+  searchUnityCatalogAssets,
 } from '../lib/browse-assets';
 
 export const BROWSE_ROUTE_DEADLINE_MS = 10_000;
@@ -96,6 +97,20 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
 
     app.get('/api/browse/catalogs', async (req, res) => {
       await sendBrowse(req, res, (ctx) => listCatalogs({ ...ctx, pageToken: pageToken(req) }));
+    });
+
+    app.get('/api/browse/unity-catalog/search', async (req, res) => {
+      const query = queryString(req, 'q').slice(0, 200);
+      if (query.length < 2) {
+        res.status(400).json({
+          status: 'failed',
+          items: [],
+          detail: 'Enter at least two characters to search Unity Catalog.',
+          more_results: false,
+        });
+        return;
+      }
+      await sendBrowse(req, res, (ctx) => searchUnityCatalogAssets({ ...ctx, page: 1 }, query));
     });
 
     app.get('/api/browse/schemas', async (req, res) => {

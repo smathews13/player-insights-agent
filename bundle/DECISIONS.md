@@ -378,9 +378,9 @@ Astrolabe now adds a compensating application session. A random opaque
 per-browser identifier is held in a Secure, HttpOnly, SameSite cookie; Lakebase
 stores only its hash, normalized authenticated subject, deployment binding, and
 activity/expiry timestamps. Every protected API request checks that shared row.
-Only trusted, throttled pointer, keyboard, touch, and wheel interaction extends
-activity; background polling, ordinary reads, visibility changes, and
-script-dispatched events do not.
+Only trusted, throttled click, input, key, pointer, touch, wheel, and scroll
+interaction extends activity; background polling, ordinary reads, visibility
+changes, and script-dispatched events do not.
 
 The account menu ends the stored app session and navigates the same origin to
 `/.auth/sign_out`. This is explicitly partial: if the workspace or identity

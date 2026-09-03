@@ -1,12 +1,10 @@
 /* eslint-disable react-refresh/only-export-components -- startup state, policy, and blocking boundary are one contract */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ACCESS_GATE_ENABLED } from '../../shared/access-gate';
 import { AccessGate, gateIdentityFromResponse, requiresAccessDecision, type GateIdentity } from './AccessGate';
 import { ConceptFlicker } from './ConceptFlicker';
 import { useFirstOpen, type FirstOpenStage } from './FirstOpenGate';
 import {
-  SessionTimedOut,
-  SessionUnavailable,
   bootstrapAppSession,
   startExplicitUserActivity,
   useAppSessionState,
@@ -22,6 +20,10 @@ import {
 import type { Identity } from './app-types';
 import { StartupReadinessProvider } from './startup-readiness';
 import { focusAfterLogin } from './motion-transitions';
+
+const AppSessionRecovery = lazy(() =>
+  import('./AppSessionRecovery').then(({ AppSessionRecovery: recovery }) => ({ default: recovery }))
+);
 
 export type StartupPhase =
   | 'native-auth-pending'
@@ -125,6 +127,13 @@ export function StartupLoadingSurface({ phase }: { phase: StartupPhase }) {
   );
 }
 
+export function startStartupActivity(
+  appSession: AppSessionState,
+  start: () => () => void = startExplicitUserActivity
+): (() => void) | undefined {
+  return appSession === 'ready' ? start() : undefined;
+}
+
 export function StartupBoundary({ children }: { children: ReactNode }) {
   const appSession = useAppSessionState();
   const [identity, setIdentity] = useState<Identity>(resolvingIdentity);
@@ -148,7 +157,7 @@ export function StartupBoundary({ children }: { children: ReactNode }) {
     void bootstrapAppSession();
   }, []);
 
-  useEffect(() => (appSession === 'ready' ? startExplicitUserActivity() : undefined), [appSession]);
+  useEffect(() => startStartupActivity(appSession), [appSession]);
 
   useEffect(() => {
     if (appSession !== 'ready') return;
@@ -213,8 +222,13 @@ export function StartupBoundary({ children }: { children: ReactNode }) {
     return () => window.cancelAnimationFrame(frame);
   }, [firstOpen.focusOnOpen, firstOpen.stage]);
 
-  if (owner === 'session-timeout') return <SessionTimedOut />;
-  if (owner === 'session-error') return <SessionUnavailable />;
+  if (owner === 'session-timeout' || owner === 'session-error') {
+    return (
+      <Suspense fallback={<main className="startup-surface" aria-busy="true" aria-label="Loading session recovery" />}>
+        <AppSessionRecovery state={owner === 'session-timeout' ? 'timed-out' : 'unavailable'} />
+      </Suspense>
+    );
+  }
 
   return (
     <StartupReadinessProvider value={readiness}>

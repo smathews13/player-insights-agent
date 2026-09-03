@@ -665,6 +665,8 @@ export type AdminAction =
   | 'resource-tags-applied'
   /** An admin corrected a run’s outcome or rating on the Run Explorer rail. */
   | 'run-labels-updated'
+  /** An admin asked the app service principal to apply pending Lakebase schema versions. */
+  | 'lakebase-migrations-applied'
   /** A reader explicitly stopped their own active Ask run. */
   | 'run-cancelled'
   /** An administrator stopped the one-time snapshot of active Ask runs. */

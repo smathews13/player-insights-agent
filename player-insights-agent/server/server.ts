@@ -35,8 +35,9 @@ createApp({
     // store before importing modules whose SQL constants capture APP_SCHEMA.
     await preserveOwnedAppSchema(appkit.lakebase);
     const [
-      { setupInsightsRoutes },
+      { setupInsightsRoutes, MIGRATIONS },
       { setupSettingsRoutes },
+      { setupLakebaseMigrationRoutes },
       { setupAiGatewayRoutes },
       { setupBrowseRoutes },
       { setupArchitectureRoutes },
@@ -65,6 +66,7 @@ createApp({
     ] = await Promise.all([
       import('./routes/insights-routes'),
       import('./routes/settings-routes'),
+      import('./routes/lakebase-migration-routes'),
       import('./routes/ai-gateway-routes'),
       import('./routes/browse-routes'),
       import('./routes/architecture-routes'),
@@ -115,6 +117,10 @@ createApp({
     // and Express applies middleware to whatever is added afterwards. Registering
     // the settings routes first would leave the write route unguarded.
     setupSettingsRoutes(appkit);
+    // Git-based deploys keep the app-owned Lakebase schema but can skip DDL.
+    // This admin-only recovery route uses the same app pool and ordered registry
+    // as boot, and waits for the background boot pass before reporting state.
+    setupLakebaseMigrationRoutes(appkit, { migrations: MIGRATIONS, storeReady });
     // Metadata-only AI Gateway discovery and atomic staging. Registered under
     // /api/admin so the existing fail-closed role middleware protects every
     // list, validation and write without a client-side role claim.

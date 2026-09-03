@@ -37,6 +37,13 @@ describe('the client shell import graph', () => {
     expect(account).toContain('<Suspense fallback={null}>');
   });
 
+  it('loads session recovery controls only for a failed session', () => {
+    const startup = source('StartupBoundary.tsx');
+    expect(startup).not.toContain("from './AppSessionRecovery'");
+    expect(startup).toContain("import('./AppSessionRecovery')");
+    expect(startup).toContain('aria-label="Loading session recovery"');
+  });
+
   it('keeps route-only Architecture data behind its boundary without dropping shell motion', () => {
     const refresh = source('refresh-state.ts');
     const layout = source('Layout.tsx');
@@ -73,9 +80,13 @@ describe('the client shell import graph', () => {
     for (const style of routeStyles) {
       expect(entry, `${style} stays out of Ask's entry cascade`).not.toContain(`@import './styles/${style}'`);
     }
-    for (const shared of ['timeline.css', 'trace.css', 'page-shell.css', 'summary-grid.css']) {
+    for (const shared of ['trace.css', 'page-shell.css', 'summary-grid.css']) {
       expect(entry, `${shared} remains globally available`).toContain(`@import './styles/${shared}'`);
     }
+    expect(entry, 'timeline.css stays behind its shared lazy component').not.toContain(
+      "@import './styles/timeline.css'"
+    );
+    expect(source('TraceTimeline.tsx')).toContain("import './styles/timeline.css'");
     for (const answerOnly of ['answer-body.css', 'answer-charts.css']) {
       expect(entry, `${answerOnly} stays behind the lazy answer boundary`).not.toContain(
         `@import './styles/${answerOnly}'`
@@ -99,11 +110,6 @@ describe('the client shell import graph', () => {
   });
 
   it('preserves each route cascade as base, responsive, then dark', () => {
-    const entry = source('index.css');
-    const at = (name: string) => entry.indexOf(`@import './styles/${name}'`);
-    expect(at('timeline.css')).toBeGreaterThan(-1);
-    expect(at('timeline.css')).toBeLessThan(at('dark-mode.css'));
-
     for (const route of ['architecture', 'benchmark', 'connections', 'monitoring', 'ops', 'runs', 'settings']) {
       const css = readFileSync(new URL(`./styles/routes/${route}.css`, import.meta.url), 'utf8');
       const imports = [...css.matchAll(/@import '\.\.\/([^']+)'/g)].map((match) => match[1]);

@@ -18,6 +18,8 @@ import {
   type BrowseUnavailable,
   type ConnectionTypeAvailability,
   type ConnectionTypesResponse,
+  type UnityCatalogSearchItem,
+  type UnityCatalogSearchResponse,
 } from '../../shared/browse-contract';
 import { declaredUserApiScopes } from '../../shared/declared-scopes';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
@@ -32,6 +34,9 @@ export const BROWSE_TIMEOUT_MS = 15_000;
 export const BROWSE_PAGE_SIZE = 100;
 /** At most 500 rows can be loaded into one picker traversal. */
 export const BROWSE_PAGE_LIMIT = 5;
+export const UC_SEARCH_RESULT_LIMIT = 100;
+const UC_SEARCH_CATALOG_SCAN_LIMIT = 24;
+const UC_SEARCH_SCHEMA_SCAN_LIMIT = 32;
 
 /**
  * Workspace API families this module lists, mapped to Apps-API scopes.
@@ -536,6 +541,169 @@ export async function listTables(
     `&schema_name=${encodeURIComponent(schema)}` +
     `&${pageQuery(options.pageToken)}`;
   return listWithGuard('tables', apiPath, `${apiPath}?${query}`, options, tableItems);
+}
+
+export async function validateUnityCatalogAsset(
+  options: BrowseCallOptions & { resourceType: 'catalog' | 'schema' | 'table'; value: string }
+): Promise<{ ok: true } | { ok: false; detail: string }> {
+  const value = options.value.trim();
+  const apiPath =
+    options.resourceType === 'catalog'
+      ? '/api/2.1/unity-catalog/catalogs'
+      : options.resourceType === 'schema'
+        ? '/api/2.1/unity-catalog/schemas'
+        : '/api/2.1/unity-catalog/tables';
+  if (!options.host || !options.token) {
+    return { ok: false, detail: 'The signed-in user context needed to validate this asset is unavailable.' };
+  }
+  const blocked = browseBlockedByScope({
+    apiPath,
+    token: options.token,
+    declaredScopes: options.declaredScopes,
+  });
+  if (blocked) return { ok: false, detail: blocked };
+  const answer = await workspaceGet(`${apiPath}/${encodeURIComponent(value)}`, options);
+  if (answer.kind === 'http' && answer.status >= 200 && answer.status < 300) return { ok: true };
+  if (answer.kind === 'http') {
+    return {
+      ok: false,
+      detail: `Unity Catalog could not validate ${value}: HTTP ${answer.status}.`,
+    };
+  }
+  return {
+    ok: false,
+    detail:
+      answer.kind === 'timeout'
+        ? `Validation timed out for ${value}.`
+        : `Validation was cancelled before ${value} could be confirmed.`,
+  };
+}
+
+export function normalizedUnityCatalogSearch(value: string): { words: string; compact: string } {
+  const words = value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[._\-\s]+/g, ' ')
+    .replace(/\s+/g, ' ');
+  return { words, compact: words.replace(/\s+/g, '') };
+}
+
+export function matchesUnityCatalogSearch(
+  value: string,
+  query: ReturnType<typeof normalizedUnityCatalogSearch>
+): boolean {
+  const candidate = normalizedUnityCatalogSearch(value);
+  return candidate.words.includes(query.words) || candidate.compact.includes(query.compact);
+}
+
+async function browsePages(
+  first: () => Promise<BrowseResponse>,
+  next: (token: string, page: number) => Promise<BrowseResponse>,
+  maxPages: number
+): Promise<{ items: BrowseItem[]; response: BrowseResponse; more: boolean }> {
+  let response = await first();
+  let items: BrowseItem[] = [];
+  let page = 1;
+  const tokens = new Set<string>();
+  while (response.status === 'ok') {
+    items = [...new Map([...items, ...response.items].map((item) => [item.id, item])).values()];
+    if (!response.next_page_token || page >= maxPages || tokens.has(response.next_page_token)) {
+      return { items, response, more: Boolean(response.next_page_token) };
+    }
+    tokens.add(response.next_page_token);
+    page += 1;
+    response = await next(response.next_page_token, page);
+  }
+  return { items, response, more: false };
+}
+
+export async function searchUnityCatalogAssets(
+  options: BrowseCallOptions,
+  rawQuery: string
+): Promise<UnityCatalogSearchResponse> {
+  const query = normalizedUnityCatalogSearch(rawQuery);
+  if (query.compact.length < 2) return { status: 'ok', items: [], more_results: false };
+  const catalogs = await browsePages(
+    () => listCatalogs({ ...options, page: 1 }),
+    (pageToken, page) => listCatalogs({ ...options, pageToken, page }),
+    BROWSE_PAGE_LIMIT
+  );
+  if (catalogs.response.status !== 'ok') {
+    return {
+      status: catalogs.response.status,
+      items: [],
+      detail: catalogs.response.detail,
+      more_results: false,
+    };
+  }
+
+  const results: UnityCatalogSearchItem[] = catalogs.items
+    .filter((item) => matchesUnityCatalogSearch(item.id, query))
+    .map((item) => ({ resource_type: 'catalog', value: item.id, label: item.label }));
+  const orderedCatalogs = [...catalogs.items].sort(
+    (a, b) => Number(matchesUnityCatalogSearch(b.id, query)) - Number(matchesUnityCatalogSearch(a.id, query))
+  );
+  const scannedCatalogs = orderedCatalogs.slice(0, UC_SEARCH_CATALOG_SCAN_LIMIT);
+  let more = catalogs.more || orderedCatalogs.length > scannedCatalogs.length;
+  const schemaLists = await Promise.all(
+    scannedCatalogs.map(async (catalog) => {
+      const listed = await browsePages(
+        () => listSchemas({ ...options, catalog: catalog.id, page: 1 }),
+        (pageToken, page) => listSchemas({ ...options, catalog: catalog.id, pageToken, page }),
+        2
+      );
+      return { catalog: catalog.id, ...listed };
+    })
+  );
+  const schemas: Array<{ catalog: string; item: BrowseItem; value: string }> = [];
+  for (const listed of schemaLists) {
+    more ||= listed.more || listed.response.status !== 'ok';
+    for (const item of listed.items) {
+      const value = item.secondary || `${listed.catalog}.${item.id}`;
+      schemas.push({ catalog: listed.catalog, item, value });
+      if (matchesUnityCatalogSearch(value, query)) {
+        results.push({ resource_type: 'schema', value, label: item.label });
+      }
+    }
+  }
+
+  const orderedSchemas = [...schemas].sort(
+    (a, b) => Number(matchesUnityCatalogSearch(b.value, query)) - Number(matchesUnityCatalogSearch(a.value, query))
+  );
+  const scannedSchemas = orderedSchemas.slice(0, UC_SEARCH_SCHEMA_SCAN_LIMIT);
+  more ||= orderedSchemas.length > scannedSchemas.length;
+  const tableLists = await Promise.all(
+    scannedSchemas.map(async ({ catalog, item }) => {
+      const listed = await browsePages(
+        () => listTables({ ...options, catalog, schema: item.id, page: 1 }),
+        (pageToken, page) => listTables({ ...options, catalog, schema: item.id, pageToken, page }),
+        1
+      );
+      return listed;
+    })
+  );
+  for (const listed of tableLists) {
+    more ||= listed.more || listed.response.status !== 'ok';
+    for (const item of listed.items) {
+      if (matchesUnityCatalogSearch(item.id, query)) {
+        results.push({
+          resource_type: 'table',
+          value: item.id,
+          label: item.label,
+          asset_type: /view/i.test(item.secondary) ? 'view' : 'table',
+        });
+      }
+    }
+  }
+
+  const deduped = [
+    ...new Map(results.map((item) => [`${item.resource_type}:${item.value.toLocaleLowerCase()}`, item])).values(),
+  ];
+  return {
+    status: 'ok',
+    items: deduped.slice(0, UC_SEARCH_RESULT_LIMIT),
+    more_results: more || deduped.length > UC_SEARCH_RESULT_LIMIT,
+  };
 }
 
 export async function listWarehouses(options: BrowseCallOptions & { pageToken?: string }): Promise<BrowseResponse> {

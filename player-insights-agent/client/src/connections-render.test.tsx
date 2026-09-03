@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
  */
 const PAGE_SOURCE = readFileSync(fileURLToPath(new URL('./ConnectionsPage.tsx', import.meta.url)), 'utf8');
 const CONNECTIONS_CSS = readFileSync(fileURLToPath(new URL('./styles/connections.css', import.meta.url)), 'utf8');
+const BASE_CSS = readFileSync(fileURLToPath(new URL('./styles/base.css', import.meta.url)), 'utf8');
 
 import {
   BuildFactRow,
@@ -145,26 +146,27 @@ describe('inline build status descriptions', () => {
     otelExporter: 'http://localhost:4314',
   };
 
-  it('places endpoint and exporter descriptions between their badge and copy control', () => {
+  it('keeps the endpoint free of filler and places exporter context before its copy control', () => {
     const endpoint = deploymentRows(app).find((row) => row.key === 'endpoint');
     const exporter = telemetryRows(app, Date.now()).find((row) => row.key === 'otel');
     expect(endpoint).toBeDefined();
     expect(exporter).toBeDefined();
 
-    for (const [row, description] of [
-      [endpoint!, 'Serves this Astrolabe deployment.'],
-      [exporter!, 'Exports app traces, metrics, and logs.'],
-    ] as const) {
-      const markup = render(<BuildFactRow row={row} />);
-      const badge = markup.indexOf(`data-testid="build-${row.key}"`);
-      const inlineDescription = markup.indexOf(`<span class="deployment-inline-description">${description}</span>`);
-      const copy = markup.indexOf(`aria-label="Copy the ${row.label.toLowerCase()}"`);
+    const endpointMarkup = render(<BuildFactRow row={endpoint!} />);
+    expect(endpointMarkup).not.toContain('deployment-inline-description');
+    expect(endpointMarkup).not.toContain('Serves this Astrolabe deployment.');
+    expect(endpointMarkup).not.toContain('data-wrap="true"');
 
-      expect(badge).toBeGreaterThan(-1);
-      expect(inlineDescription).toBeGreaterThan(badge);
-      expect(copy).toBeGreaterThan(inlineDescription);
-      expect(markup).toContain('data-wrap="true"');
-    }
+    const exporterMarkup = render(<BuildFactRow row={exporter!} />);
+    const badge = exporterMarkup.indexOf('data-testid="build-otel"');
+    const inlineDescription = exporterMarkup.indexOf(
+      '<span class="deployment-inline-description">Exports app traces, metrics, and logs.</span>'
+    );
+    const copy = exporterMarkup.indexOf('aria-label="Copy the otel exporter"');
+    expect(badge).toBeGreaterThan(-1);
+    expect(inlineDescription).toBeGreaterThan(badge);
+    expect(copy).toBeGreaterThan(inlineDescription);
+    expect(exporterMarkup).toContain('data-wrap="true"');
   });
 
   it('wraps only the inline value group without clipping the description', () => {
@@ -172,6 +174,92 @@ describe('inline build status descriptions', () => {
       /\.identity-fact\[data-wrap='true'\] \.identity-fact-value \{[^}]*flex-wrap:\s*wrap[^}]*overflow:\s*visible/s
     );
     expect(CONNECTIONS_CSS).toMatch(/\.deployment-inline-description \{[^}]*flex:\s*1 1 180px[^}]*min-width:\s*0/s);
+  });
+});
+
+describe('Build and telemetry date badges', () => {
+  const activityApp: AppFacts = {
+    ...NO_APP_FACTS,
+    answered: true,
+    otelExport: {
+      state: 'exporting',
+      schema: 'cat.telemetry',
+      error: '',
+      tables: [
+        { table: 'otel_metrics', rows: 11891305, firstAt: '2026-08-16 19:30:59', lastAt: '2026-09-03 20:12:04' },
+        { table: 'otel_spans', rows: 85261, firstAt: '2026-08-16 19:31:09', lastAt: '2026-09-03 20:11:58' },
+      ],
+    },
+  };
+
+  it('renders counts followed by two semantic calendar badges and only an en dash', () => {
+    const activity = telemetryRows(activityApp, Date.now()).find((row) => row.key === 'otel-activity');
+    expect(activity).toBeDefined();
+    const markup = render(<BuildFactRow row={activity!} />);
+    const visible = text(markup);
+    const firstTime = markup.indexOf('<time');
+    const separator = markup.indexOf('<span class="date-range-separator"');
+    const secondTime = markup.indexOf('<time', firstTime + 1);
+
+    expect(visible).toContain('11,891,305 metrics · 85,261 spans');
+    expect(visible).not.toMatch(/\bcovering\b|\bto\b/i);
+    expect(markup.match(/<time\b/g)).toHaveLength(2);
+    expect(markup.match(/lucide-calendar-days/g)).toHaveLength(2);
+    expect(markup).toContain('dateTime="2026-08-16T19:30:59"');
+    expect(markup).toContain('dateTime="2026-09-03T20:12:04"');
+    expect(markup).toContain('title="2026-08-16 19:30:59"');
+    expect(markup).toContain('aria-label="Start date and time: 2026-08-16 19:30:59"');
+    expect(markup).toContain('aria-label="End date and time: 2026-09-03 20:12:04"');
+    expect(markup).toContain('<span class="date-range-separator" aria-hidden="true">–</span>');
+    expect(firstTime).toBeGreaterThan(markup.indexOf('deployment-fact-lead'));
+    expect(separator).toBeGreaterThan(firstTime);
+    expect(secondTime).toBeGreaterThan(separator);
+  });
+
+  it('renders Last deployed as one date badge followed by the existing user badge', () => {
+    const deployed = telemetryRows(
+      { ...NO_APP_FACTS, answered: true, deployedAt: '2026-09-03T13:50:00Z', deployedBy: 'sam@example.com' },
+      Date.parse('2026-09-03T14:00:00Z')
+    ).find((row) => row.key === 'deployed');
+    expect(deployed).toBeDefined();
+    const markup = render(<BuildFactRow row={deployed!} />);
+    const time = markup.indexOf('<time');
+    const user = markup.indexOf('class="identity-chip identity-chip--compact"');
+
+    expect(markup.match(/<time\b/g)).toHaveLength(1);
+    expect(markup).toContain('dateTime="2026-09-03T13:50:00Z"');
+    expect(markup).toContain('aria-label="Date and time: 2026-09-03T13:50:00Z"');
+    expect(markup).toContain('lucide-calendar-days');
+    expect(markup).not.toContain('deployment-fact-lead');
+    expect(user).toBeGreaterThan(time);
+    expect(text(markup)).toContain('by sam');
+  });
+
+  it('keeps counts and renders no date badge when the measured range is incomplete', () => {
+    const incomplete: AppFacts = {
+      ...activityApp,
+      otelExport: {
+        ...activityApp.otelExport,
+        tables: [{ table: 'otel_spans', rows: 12, firstAt: '2026-08-16 19:30:59', lastAt: '' }],
+      },
+    };
+    const activity = telemetryRows(incomplete, Date.now()).find((row) => row.key === 'otel-activity');
+    expect(activity).toBeDefined();
+    const markup = render(<BuildFactRow row={activity!} />);
+
+    expect(text(markup)).toContain('12 spans');
+    expect(markup).not.toContain('<time');
+    expect(markup).not.toContain('date-range-badges');
+  });
+
+  it('uses neutral theme tokens and wrapping geometry without date-specific colors', () => {
+    const activity = telemetryRows(activityApp, Date.now()).find((row) => row.key === 'otel-activity');
+    const markup = render(<BuildFactRow row={activity!} />);
+
+    expect(markup.match(/ast-pill ast-pill--neutral date-badge/g)).toHaveLength(2);
+    expect(BASE_CSS).toMatch(/\.date-range-badges \{[^}]*flex-wrap:\s*wrap[^}]*max-width:\s*100%/s);
+    expect(CONNECTIONS_CSS).toMatch(/\.deployment-fact-dates,\s*\.deployment-date-fact \{[^}]*flex-wrap:\s*wrap/s);
+    expect(BASE_CSS.match(/\.date-badge \{[^}]*(?:#[\da-f]{3,8}|rgb\()/gi) ?? []).toHaveLength(0);
   });
 });
 
@@ -378,8 +466,8 @@ describe('the counts line under the status headline', () => {
     expect(counts.reachable + counts.blocked + counts.notChecked + counts.nothingToReach).toBe(4);
 
     const rendered = text(render(<ConnectionsCounts counts={counts} />));
-    expect(rendered).toContain('1 reachable');
-    expect(rendered).toContain('1 blocked');
+    expect(rendered).toContain('1 connected');
+    expect(rendered).toContain('1 disconnected');
   });
 
   it('does not publish a separate not-checked count', () => {
@@ -429,9 +517,9 @@ describe('the counts line under the status headline', () => {
     const healthy = text(
       render(<ConnectionsCounts counts={countsFor([row('catalog', { configured: 'c' })], [check('catalog', 'ok')])} />)
     );
-    expect(healthy).toBe('1 reachable');
+    expect(healthy).toBe('1 connected');
     expect(healthy).not.toContain('0');
-    expect(healthy).not.toContain('blocked');
+    expect(healthy).not.toContain('disconnected');
     expect(healthy).not.toContain('not checked');
     expect(healthy).not.toContain('drifted');
     expect(healthy).not.toContain('pending');
@@ -453,7 +541,7 @@ describe('the counts line under the status headline', () => {
         />
       )
     );
-    expect(line).toBe('1 reachable · 1 blocked');
+    expect(line).toBe('1 connected · 1 disconnected');
     expect(line).not.toMatch(/^ ?\u00b7/);
     expect(line).not.toMatch(/\u00b7 ?\u00b7/);
   });
@@ -1447,6 +1535,8 @@ describe('the Unity Catalog tables section', () => {
       note: '',
       state: 'declared',
       origin: 'app',
+      createdAt: '2026-09-02T15:30:00.000Z',
+      createdBy: 'scope-admin@example.invalid',
     },
     impact: {
       headline: 'Remove Added table.',
@@ -1519,7 +1609,8 @@ describe('the Unity Catalog tables section', () => {
       })
     );
     const rendered = text(render(<DeclaredTablesSection tableChecks={twelve} requestedEntity="" allowMutations />));
-    expect(rendered).toContain('0 catalogs · 0 schemas · 12 tables/views · Reachability: 12 reachable');
+    expect(rendered).not.toContain('tables declared');
+    expect(rendered).not.toContain('0 catalogs');
     expect(rendered.match(/Add asset/g)).toHaveLength(1);
   });
 
@@ -1542,8 +1633,9 @@ describe('the Unity Catalog tables section', () => {
       <UnityCatalogScopeExplorer
         dialogId="asset-add-explorer"
         busy={false}
+        declared={[]}
         scopeState={() => ({ label: 'Available', selectable: true })}
-        onAdd={() => Promise.resolve({ ok: true, detail: '' })}
+        onSave={() => Promise.resolve({ ok: true, detail: '' })}
         onClose={() => {}}
       />
     );
@@ -1556,7 +1648,7 @@ describe('the Unity Catalog tables section', () => {
       'Declaring an asset does not grant Unity Catalog permissions or change the deployed agent model.'
     );
     expect(text(markup)).not.toMatch(
-      /Unity Catalog assets your sign-in can see|Search loaded results|Browse|Select catalog|Load more|Cancel/
+      /Unity Catalog assets your sign-in can see|Search loaded results|Browse|Select catalog|Load more/
     );
     expect(markup).not.toContain('Resource type');
     expect(PAGE_SOURCE).not.toContain('UnityCatalogAssetAddForm');
@@ -1577,7 +1669,7 @@ describe('the Unity Catalog tables section', () => {
     const genericMarkup = render(<DeclaredConnectionsCard entries={[userTable]} allowMutations onChanged={() => {}} />);
     expect(tableMarkup.match(/id="declared-table-row-table-a-catalog-a-schema-added"/g)).toHaveLength(1);
     expect(text(tableMarkup)).toContain('Checking');
-    expect(text(tableMarkup)).toContain('Reachability pending');
+    expect(text(tableMarkup)).toContain('Connection check pending');
     expect(tableMarkup).toContain('Delete connection: a_catalog.a_schema.added_table');
     expect(genericMarkup).not.toContain('declared-connection-table-a-catalog-a-schema-added');
   });
@@ -1587,7 +1679,7 @@ describe('the Unity Catalog tables section', () => {
     expect(markup).not.toContain('Delete connection: a_catalog.a_schema.gold_title_daily_summary');
   });
 
-  it('keeps added catalogs and schemas only in the UC managed list', () => {
+  it('keeps added catalogs and schemas in the one Unity Catalog table', () => {
     const ucMarkup = render(
       <DeclaredTablesSection
         tableChecks={tables}
@@ -1599,13 +1691,54 @@ describe('the Unity Catalog tables section', () => {
     const genericMarkup = render(
       <DeclaredConnectionsCard entries={[userCatalog, userSchema]} allowMutations onChanged={() => {}} />
     );
-    expect(text(ucMarkup)).toContain('Current scope');
+    expect(text(ucMarkup)).not.toContain('Current scope');
+    expect(text(ucMarkup)).not.toContain('Catalogs and schemas');
     expect(text(ucMarkup)).toContain('In scope · added in Astrolabe');
-    expect(ucMarkup).toContain('data-testid="managed-uc-catalog-a-catalog"');
-    expect(ucMarkup).toContain('data-testid="managed-uc-schema-a-catalog-a-schema"');
+    expect(text(ucMarkup)).toContain('Catalog');
+    expect(text(ucMarkup)).toContain('Schema');
+    expect(ucMarkup).toContain('id="declared-table-row-catalog-a-catalog"');
+    expect(ucMarkup).toContain('id="declared-table-row-schema-a-catalog-a-schema"');
     expect(genericMarkup).not.toContain('managed-uc-');
     expect(text(genericMarkup)).not.toContain('Added catalog');
     expect(text(genericMarkup)).not.toContain('Added schema');
+  });
+
+  it('renders authoritative actor/time metadata and newest user assets first', () => {
+    const newerSchema = {
+      ...userSchema,
+      connection: { ...userSchema.connection, createdAt: '2026-09-03T16:45:00.000Z' },
+    };
+    const markup = render(
+      <DeclaredTablesSection
+        tableChecks={tables}
+        tableConnections={[userCatalog, newerSchema, userTable]}
+        requestedEntity=""
+        allowMutations
+      />
+    );
+    expect(markup.indexOf('a_catalog.a_schema')).toBeLessThan(markup.indexOf('title="a_catalog"'));
+    expect(text(markup)).toContain('Added by scope-admin');
+    expect(markup).toContain('href="/monitoring?who=scope-admin%40example.invalid"');
+    expect(markup).toMatch(/<time dateTime="2026-09-03T16:45:00.000Z"/);
+    expect(text(markup)).toContain('Connected');
+    expect(text(markup)).not.toMatch(/Current scope|Added scope|Catalogs and schemas/);
+  });
+
+  it('preserves a known view type in the shared asset list', () => {
+    const view = {
+      ...userTable,
+      connection: {
+        ...userTable.connection,
+        id: 'view-a-catalog-a-schema-summary',
+        value: 'a_catalog.a_schema.summary_view',
+        note: 'asset-type:view',
+      },
+    };
+    const markup = text(
+      render(<DeclaredTablesSection tableChecks={tables} tableConnections={[view]} requestedEntity="" />)
+    );
+    expect(markup).toContain('summary_view');
+    expect(markup).toContain('View');
   });
 
   it.each([
@@ -1623,8 +1756,9 @@ describe('the Unity Catalog tables section', () => {
     );
     const shown = text(markup);
     expect(shown).toContain('Unity Catalog scope');
-    expect(shown).toContain('Catalogs, schemas, and tables declared for this app.');
-    expect(shown).toContain('0 catalogs · 0 schemas · 0 tables/views · Reachability: 0 reachable');
+    expect(shown).not.toContain('Catalogs, schemas, and tables declared for this app.');
+    expect(shown).not.toContain('0 catalogs');
+    expect(shown).not.toContain('0 schemas');
     expect(shown).toContain('No tables or views are declared in the current scope.');
     expect(shown.includes('Add asset')).toBe(allowMutations && storeAvailable);
     expect(shown).not.toContain('Manage scope');
@@ -1632,9 +1766,7 @@ describe('the Unity Catalog tables section', () => {
   });
 
   it('counts exact declarations without inferring catalog or schema descendants', () => {
-    expect(unityCatalogScopeSummary([userCatalog, userSchema], [])).toBe(
-      '1 catalog · 1 schema · 0 tables/views · Reachability: 0 reachable'
-    );
+    expect(unityCatalogScopeSummary([userCatalog, userSchema], [])).toBe('');
     expect(unityCatalogAssetScopeState([userCatalog], [], 'catalog', 'a_catalog')).toEqual({
       label: 'In scope',
       selectable: false,
@@ -1653,19 +1785,19 @@ describe('the Unity Catalog tables section', () => {
     ).toEqual({ label: 'In scope · managed by deployment', selectable: false });
   });
 
-  it('draws a row per declared table with concise reachability and freshness', () => {
+  it('draws a row per declared table with binary status and freshness', () => {
     const markup = render(
       <DeclaredTablesTable tableChecks={tables} requestedEntity="" checkedAt="2026-08-19T15:00:00.000Z" />
     );
     const rendered = text(markup);
     expect(rendered).toContain('gold_title_daily_summary');
     expect(rendered).toContain('gold_player_geo_summary');
-    expect(rendered).toContain('Reachable');
-    expect(rendered).toContain('Blocked');
+    expect(rendered).toContain('Connected');
+    expect(rendered).toContain('Disconnected');
     expect(rendered).toContain('17 columns');
     expect(rendered).toContain('Permission not confirmed');
     expect(rendered).toContain('checked');
-    expect(markup).toMatch(/title="Reachability confirmed\. Schema has 17 columns\./);
+    expect(markup).toMatch(/title="Connection confirmed\. Schema has 17 columns\./);
     expect(rendered).not.toContain('@example.com');
   });
 
@@ -1697,14 +1829,15 @@ describe('the Unity Catalog tables section', () => {
     expect(markup.indexOf('Filter tables by catalog')).toBeLessThan(markup.indexOf('Filter tables by schema'));
   });
 
-  it('puts the dedicated toolbar between the scope heading and table header', () => {
+  it('puts title, Add asset, and filters in one header before the table', () => {
     const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations />);
     expect(markup).toMatch(
-      /class="connection-block-head"[\s\S]*?Unity Catalog scope[\s\S]*?3 tables\/views[\s\S]*?Reachability: 2 reachable[\s\S]*?class="connection-block-body"[\s\S]*?class="connections-table-toolbar"[\s\S]*?connections-uc-actions[\s\S]*?Add asset[\s\S]*?connections-table-query-controls[\s\S]*?Search tables[\s\S]*?Catalog[\s\S]*?Schema[\s\S]*?<th[^>]*>Table<\/th>[\s\S]*?<th[^>]*>Status<\/th>[\s\S]*?<th[^>]*>Detail<\/th>[\s\S]*?<th[^>]*>Actions<\/th>/
+      /class="connection-block-head"[\s\S]*?class="connection-block-title-actions"[\s\S]*?Unity Catalog scope[\s\S]*?Add asset[\s\S]*?class="connection-block-controls"[\s\S]*?connections-table-query-controls[\s\S]*?Search tables[\s\S]*?Catalog[\s\S]*?Schema[\s\S]*?class="connection-block-body"[\s\S]*?<th[^>]*>Asset<\/th>[\s\S]*?<th[^>]*>Status<\/th>[\s\S]*?<th[^>]*>Detail<\/th>[\s\S]*?<th[^>]*>Actions<\/th>/
     );
-    expect(markup).not.toContain('connection-block-controls');
+    expect(markup).not.toContain('connections-table-toolbar');
+    expect(markup).not.toContain('connections-uc-actions');
     expect(markup.indexOf('connections-add-uc')).toBeLessThan(markup.indexOf('connections-table-query-controls'));
-    expect(markup.indexOf('connections-table-toolbar')).toBeLessThan(markup.indexOf('<thead'));
+    expect(markup.indexOf('connections-table-query-controls')).toBeLessThan(markup.indexOf('<thead'));
     expect(markup).toMatch(/class="[^"]*bg-primary[^"]*connections-add-uc/);
   });
 
@@ -1749,7 +1882,7 @@ describe('the Unity Catalog tables section', () => {
     );
     expect(text(markup)).toMatch(/\b17 columns\b/);
     expect(text(markup)).not.toMatch(/\b7 columns\b/);
-    expect(markup).toMatch(/title="Reachability confirmed\. Schema has 17 columns\./);
+    expect(markup).toMatch(/title="Connection confirmed\. Schema has 17 columns\./);
     expect(markup).not.toMatch(/title="[^"]*\b7 columns\b/);
   });
 

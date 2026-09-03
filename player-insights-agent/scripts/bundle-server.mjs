@@ -415,6 +415,11 @@ async function main() {
   // role.
   const adminEmails = (process.env.PLAYER_INSIGHTS_ADMIN_EMAILS ?? '').trim();
   const organizations = (process.env.PLAYER_INSIGHTS_ORGANIZATIONS ?? '').trim();
+  // Deployment-private feedback routing. Authored defaults are empty; a release
+  // may carry a validated Slack URL and its exact display label into generated
+  // app.yaml without compiling either value into publishable JavaScript.
+  const feedbackSlackUrl = (process.env.PLAYER_INSIGHTS_FEEDBACK_SLACK_URL ?? '').trim();
+  const feedbackSlackLabel = (process.env.PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL ?? '').trim();
   // Empty is intentional: the server bundle contains the validated public
   // defaults. A deployment-provided array or explicit replace/extend object is
   // carried into app.yaml and interpreted fail-closed by the server.
@@ -444,6 +449,12 @@ async function main() {
         '        an address is a personal name and an employer. The release uploads the\n' +
         '        local tree directly, so the container gets the list either way. Restore it\n' +
         '        afterwards with:  git restore -- ':(glob)*/build/deploy/app.yaml''
+    );
+  }
+  if (feedbackSlackUrl || feedbackSlackLabel) {
+    console.log(
+      '\n  note  the generated build/deploy/app.yaml now carries deployment-private feedback routing.\n' +
+        '        DO NOT COMMIT IT. bundle/app-release.sh restores the tracked authored file on exit.'
     );
   }
 
@@ -534,6 +545,12 @@ async function main() {
       ...(adminEmails ? [{ name: 'PLAYER_INSIGHTS_ADMIN_EMAILS', value: `'${adminEmails}'` }] : []),
       ...(organizations
         ? [{ name: 'PLAYER_INSIGHTS_ORGANIZATIONS', value: `'${organizations.replaceAll("'", "''")}'` }]
+        : []),
+      ...(feedbackSlackUrl
+        ? [{ name: 'PLAYER_INSIGHTS_FEEDBACK_SLACK_URL', value: `'${feedbackSlackUrl.replaceAll("'", "''")}'` }]
+        : []),
+      ...(feedbackSlackLabel
+        ? [{ name: 'PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL', value: `'${feedbackSlackLabel.replaceAll("'", "''")}'` }]
         : []),
       ...(personaTemplateOverride
         ? [{ name: 'PLAYER_INSIGHTS_PERSONA_TEMPLATES', value: `'${personaTemplateOverride.replaceAll("'", "''")}'` }]

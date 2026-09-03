@@ -125,6 +125,8 @@ describe('app budget guard UI', () => {
     expect(partial).toContain('800.00 USD');
     expect(partial).toContain('700.00 USD remaining');
     expect(partial).toContain('Within budget');
+    expect(partial).toContain('lucide-circle-check');
+    expect(partial).toContain('ops-cost-summary-budget-outcome');
     expect(partial).not.toContain('Spent this calendar month');
     expect(partial).not.toMatch(/>Estimated</);
     expect(partial).toContain('enforcement remains fail-open until coverage is complete');
@@ -139,6 +141,7 @@ describe('app budget guard UI', () => {
     );
     expect(complete).toContain('123.27 USD over budget');
     expect(complete).toContain('Budget exceeded');
+    expect(complete).toContain('lucide-circle-x');
     expect(complete).toContain('data-budget-tone="danger"');
   });
 
@@ -166,6 +169,21 @@ describe('app budget guard UI', () => {
     );
     expect(crossing?.pace).toBe('Will exceed budget in 8 days');
     expect(crossing?.tone).toBe('danger');
+    const crossingMarkup = renderToStaticMarkup(
+      <SavedAppBudgetSummary
+        savedBudget={900}
+        unit="USD"
+        status={status('below', {
+          measured: 600,
+          budget: 900,
+          monthStart: '2026-09-01',
+          measuredThrough: '2026-09-15',
+          monthEnd: '2026-09-30',
+        })}
+      />
+    );
+    expect(crossingMarkup).toContain('Will exceed budget in 8 days');
+    expect(crossingMarkup).toContain('lucide-circle-x');
     expect(
       monthlyBudgetProgress(
         status('below', {

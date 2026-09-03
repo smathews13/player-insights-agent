@@ -5,8 +5,21 @@
  * only the Application ID and Databricks secret scope/key references; raw
  * client secrets never enter this UI or Lakebase.
  */
-import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Copy, ExternalLink, FolderOpen, Pencil, Plus, RefreshCw, Search, Trash2, UserRound } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  FolderOpen,
+  KeyRound,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  UserRound,
+} from 'lucide-react';
 import {
   SP_GRANT_MATRIX,
   SP_GRANT_RESOURCE_TYPES,
@@ -62,6 +75,7 @@ import {
   startSpIdentityRead,
 } from './sp-identity-read-state';
 import { AppSelect } from './AppSelect';
+import { CopyButton } from './StatusBadge';
 import { Button, Empty, EmptyHeader, EmptyMedia, EmptyTitle, Input, Textarea } from './ui';
 
 export type SpIdentityMutationError = {
@@ -551,6 +565,7 @@ function SpPersonaDefinitionBuilder({
       <SpPersonaDefinitionTable
         definitions={definitions}
         personas={personas}
+        accountConsoleUrl={accountConsoleUrl}
         busy={busy}
         loading={loading}
         actionError={deleteError || connectionError}
@@ -940,6 +955,7 @@ function StructuredGrantRow({
 function SpPersonaDefinitionTable({
   definitions,
   personas,
+  accountConsoleUrl,
   busy,
   loading,
   actionError,
@@ -950,6 +966,7 @@ function SpPersonaDefinitionTable({
 }: {
   definitions: SpPersonaDefinition[];
   personas: SpPersona[];
+  accountConsoleUrl: string;
   busy: boolean;
   loading: boolean;
   actionError: string | null;
@@ -1084,8 +1101,10 @@ function SpPersonaDefinitionTable({
                           id={setupId}
                           definition={definition}
                           connection={connection}
+                          accountConsoleUrl={accountConsoleUrl}
                           busy={busy}
                           onConnect={onConnect}
+                          onCheck={onCheck}
                         />
                       </td>
                     </tr>
@@ -1109,92 +1128,190 @@ function SpConnectionSetup({
   id,
   definition,
   connection,
+  accountConsoleUrl,
   busy,
   onConnect,
+  onCheck,
 }: {
   id: string;
   definition: SpPersonaDefinition;
   connection: SpPersona | null;
+  accountConsoleUrl: string;
   busy: boolean;
   onConnect?: (id: string, write: SpPersonaConnectionWrite) => boolean | Promise<boolean>;
+  onCheck?: (id: string) => boolean | Promise<boolean>;
 }) {
   const [clientId, setClientId] = useState(connection?.clientId ?? '');
   const [secretScope, setSecretScope] = useState(connection?.secretScope ?? '');
   const [secretKey, setSecretKey] = useState(connection?.secretKey ?? '');
   const checks = definition.status?.sync.checks ?? [];
   const canSave = Boolean(onConnect) && !busy && Boolean(clientId.trim() && secretScope.trim() && secretKey.trim());
+  const hasStoredReference = Boolean(connection?.clientId && connection.secretScope && connection.secretKey);
+  const connected = definition.status?.connection.state === 'connected';
+  const synced = definition.status?.sync.state === 'synced';
+  const grants = definition.grants ?? [];
+  const step = (complete: boolean, title: string, body: ReactNode, action?: ReactNode, testId?: string) => (
+    <li className={`sp-setup-step${complete ? ' is-complete' : ''}`} data-testid={testId}>
+      <span className="sp-setup-step-marker" aria-hidden="true">
+        {complete ? <Check size={14} strokeWidth={3} /> : null}
+      </span>
+      <div className="sp-setup-step-content">
+        <div className="sp-setup-step-heading">
+          <strong>{title}</strong>
+          {action}
+        </div>
+        <div className="sp-setup-step-body">{body}</div>
+      </div>
+    </li>
+  );
+
   return (
     <div id={id} className="sp-connection-setup">
-      <div className="sp-connection-instructions">
-        <strong>Finish service-principal setup</strong>
-        <ol>
-          <li>Create or select the service principal in Account Console.</li>
-          <li>
-            Apply the listed resource permissions.
-            <ul>
-              {(definition.grants ?? []).map((grant) => (
-                <li key={spGrantKey(grant)}>{spGrantSummary(grant)}</li>
-              ))}
-              {(definition.legacyCapabilities ?? []).map((capability) => (
-                <li key={`legacy-${capability}`}>{capability} (convert before it can be checked)</li>
-              ))}
-            </ul>
-          </li>
-          <li>Store its OAuth secret in Databricks Secrets and grant this app read access.</li>
-          <li>Enter Application ID, secret scope, and secret key reference; verify connection/sync.</li>
-        </ol>
+      <div className="sp-connection-setup-header">
+        <div>
+          <strong>Finish service-principal setup</strong>
+          <p>Complete these five steps in order, then verify the connection and permissions.</p>
+        </div>
+        <span className="sp-connection-security-note">
+          <KeyRound size={14} aria-hidden="true" />
+          Credential references only
+        </span>
       </div>
-      <form
-        className="sp-connection-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!canSave) return;
-          void onConnect?.(definition.id, {
-            clientId: clientId.trim(),
-            secretScope: secretScope.trim(),
-            secretKey: secretKey.trim(),
-          });
-        }}
-      >
-        <label className="runtime-field">
-          <span className="runtime-field-label">Application ID</span>
-          <Input value={clientId} onChange={(event) => setClientId(event.target.value)} disabled={busy} required />
-        </label>
-        <label className="runtime-field">
-          <span className="runtime-field-label">Secret scope</span>
-          <Input
-            value={secretScope}
-            onChange={(event) => setSecretScope(event.target.value)}
-            disabled={busy}
-            required
-          />
-          <span className="sp-connection-help">Databricks secret scope name.</span>
-        </label>
-        <label className="runtime-field">
-          <span className="runtime-field-label">Secret key</span>
-          <Input value={secretKey} onChange={(event) => setSecretKey(event.target.value)} disabled={busy} required />
-          <span className="sp-connection-help">Reference name only — never enter the secret value.</span>
-        </label>
-        <Button type="submit" disabled={!canSave}>
-          {connection ? 'Save connection' : 'Connect SP'}
-        </Button>
-      </form>
-      {definition.status ? (
-        <p className="sp-connection-status-detail" role="status">
-          {definition.status.connection.detail} {definition.status.sync.detail}
-        </p>
-      ) : null}
-      {checks.some((check) => check.state !== 'verified') ? (
-        <ul className="sp-status-actions">
-          {checks
-            .filter((check) => check.state !== 'verified')
-            .map((check) => (
-              <li key={check.key}>
-                <strong>{check.label}:</strong> {check.nextAction}
-              </li>
-            ))}
-        </ul>
-      ) : null}
+      <ol className="sp-setup-checklist">
+        {step(
+          connected,
+          'Create or select the service principal',
+          'Open Account Console and copy the service principal Application ID.',
+          <Button asChild variant="outline" size="sm">
+            <a href={accountConsoleUrl} target="_blank" rel="noopener noreferrer">
+              Open Account Console <ExternalLink className="size-3.5" aria-hidden="true" />
+            </a>
+          </Button>,
+          'sp-setup-step-account'
+        )}
+        {step(
+          synced,
+          'Apply resource permissions',
+          grants.length > 0 ? (
+            <details className="sp-permission-disclosure">
+              <summary>
+                <span>{grants.length} required permissions</span>
+                <ChevronDown size={14} aria-hidden="true" />
+              </summary>
+              <ul>
+                {grants.map((grant) => {
+                  const summary = spGrantSummary(grant);
+                  return (
+                    <li key={spGrantKey(grant)}>
+                      <code>{summary}</code>
+                      <CopyButton value={summary} label={`Copy ${summary}`} />
+                    </li>
+                  );
+                })}
+                {(definition.legacyCapabilities ?? []).map((capability) => (
+                  <li key={`legacy-${capability}`}>
+                    <span>{capability} — convert before this can be checked</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : (
+            'Add at least one supported resource permission to this persona definition.'
+          ),
+          undefined,
+          'sp-setup-step-permissions'
+        )}
+        {step(
+          connected,
+          'Store the OAuth secret securely',
+          'Store the value in Databricks Secrets and grant this app read access. Existing secret values cannot be retrieved or displayed.',
+          undefined,
+          'sp-setup-step-secret'
+        )}
+        {step(
+          hasStoredReference,
+          'Link credential references',
+          <>
+            <p className="sp-connection-reference-copy">
+              Enter identifiers and Databricks Secret references only. Never paste an OAuth secret here.
+            </p>
+            <form
+              className="sp-connection-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!canSave) return;
+                void onConnect?.(definition.id, {
+                  clientId: clientId.trim(),
+                  secretScope: secretScope.trim(),
+                  secretKey: secretKey.trim(),
+                });
+              }}
+            >
+              <div className="sp-connection-fields" data-testid="sp-connection-reference-fields">
+                <label className="runtime-field">
+                  <span className="runtime-field-label">Application ID</span>
+                  <Input value={clientId} onChange={(event) => setClientId(event.target.value)} disabled={busy} required />
+                  <span className="sp-connection-help">Service principal identifier.</span>
+                </label>
+                <label className="runtime-field">
+                  <span className="runtime-field-label">Secret scope</span>
+                  <Input
+                    value={secretScope}
+                    onChange={(event) => setSecretScope(event.target.value)}
+                    disabled={busy}
+                    required
+                  />
+                  <span className="sp-connection-help">Databricks Secret scope name.</span>
+                </label>
+                <label className="runtime-field">
+                  <span className="runtime-field-label">Secret key</span>
+                  <Input value={secretKey} onChange={(event) => setSecretKey(event.target.value)} disabled={busy} required />
+                  <span className="sp-connection-help">Key name only — never the value.</span>
+                </label>
+              </div>
+              <div className="sp-connection-form-actions">
+                <Button type="submit" disabled={!canSave}>
+                  {connection ? 'Save connection' : 'Connect SP'}
+                </Button>
+              </div>
+            </form>
+          </>,
+          undefined,
+          'sp-setup-step-credentials'
+        )}
+        {step(
+          connected && synced,
+          'Verify connection and permissions',
+          <>
+            <span role="status">
+              {definition.status
+                ? `${definition.status.connection.detail} ${definition.status.sync.detail}`
+                : 'Run the check after linking credential references.'}
+            </span>
+            {checks.some((check) => check.state !== 'verified') ? (
+              <ul className="sp-status-actions">
+                {checks
+                  .filter((check) => check.state !== 'verified')
+                  .map((check) => (
+                    <li key={check.key}>
+                      <strong>{check.label}:</strong> {check.nextAction}
+                    </li>
+                  ))}
+              </ul>
+            ) : null}
+          </>,
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy || !hasStoredReference || !onCheck}
+            onClick={() => void onCheck?.(definition.id)}
+          >
+            Check status
+          </Button>,
+          'sp-setup-step-verify'
+        )}
+      </ol>
     </div>
   );
 }

@@ -6,10 +6,10 @@ import {
 } from '../../shared/ai-gateway-contract';
 
 describe('Cost and Gateway enforcement contracts', () => {
-  it('keeps resource budgets advisory while the app budget has its own guard', () => {
+  it('keeps advisory behavior in the contract without visible advisory copy', () => {
     const source = readFileSync(new URL('./CostBudgets.tsx', import.meta.url), 'utf8');
     expect(source).toContain('label="Monthly app budget"');
-    expect(source).toContain('ADVISORY_RESOURCE_BUDGET_ENFORCEMENT.detail');
+    expect(source).not.toMatch(/Advisory|advisory/);
     expect(ADVISORY_RESOURCE_BUDGET_ENFORCEMENT).toMatchObject({
       source: 'advisory-resource-budget',
       label: 'Advisory',

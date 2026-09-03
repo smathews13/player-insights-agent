@@ -42,7 +42,7 @@ import { readAgentModel } from '../lib/agent-model';
 import { readAppFacts } from '../lib/app-metadata';
 import { probeConnections } from '../lib/dependency-probes';
 import { accessDependenciesFrom } from './access-verification';
-import { validateNotebookPath } from '../lib/browse-assets';
+import { browseRequestContext, validateNotebookPath, validateUnityCatalogAsset } from '../lib/browse-assets';
 import { checkExperimentAsApp } from '../lib/experiment-probe';
 import { executionToken } from '../lib/execution-credential';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
@@ -60,6 +60,7 @@ import {
   removalImpact,
   restoreDeclaredConnection,
   writeDeclaredConnection,
+  writeDeclaredConnectionsBatch,
   type RemovalImpact,
   type StoredDeclaredConnection,
 } from '../lib/declared-connections';
@@ -140,6 +141,45 @@ const ConnectionBody = z.object({
   value: z.string().trim().max(500),
   note: z.string().trim().max(500).default(''),
 });
+
+const UnityCatalogBatchBody = z.strictObject({
+  connections: z.array(ConnectionBody).min(1).max(50),
+});
+
+function normalizedUcValue(value: string): string {
+  return value
+    .split('.')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join('.');
+}
+
+function unityCatalogValueFault(resourceType: string | undefined, value: string): string | null {
+  const parts = value.split('.');
+  const expected = resourceType === 'catalog' ? 1 : resourceType === 'schema' ? 2 : resourceType === 'table' ? 3 : 0;
+  return expected > 0 && parts.length === expected && parts.every((part) => part.length > 0)
+    ? null
+    : `A ${resourceType ?? 'Unity Catalog'} asset must use its fully qualified identifier.`;
+}
+
+async function mapBounded<T, R>(
+  values: readonly T[],
+  concurrency: number,
+  worker: (value: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, values.length) }, async () => {
+      while (next < values.length) {
+        const index = next;
+        next += 1;
+        results[index] = await worker(values[index]);
+      }
+    })
+  );
+  return results;
+}
 
 const ClaimBody = z.strictObject({
   executionId: z.string().trim().min(8).max(200),
@@ -351,6 +391,109 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
      * caller that reported "connected" without it would be telling a customer the
      * opposite of what happened.
      */
+    app.post('/api/settings/connections/batch', async (req, res) => {
+      const parsed = UnityCatalogBatchBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'invalid_connection_batch', detail: parsed.error.message });
+        return;
+      }
+      const connections = parsed.data.connections.map((connection) => ({
+        ...connection,
+        value: normalizedUcValue(connection.value),
+      }));
+      const invalid = connections.find(
+        (connection) =>
+          connection.kind !== 'unity-catalog' ||
+          !connection.resourceType ||
+          !(['catalog', 'schema', 'table'] as const).includes(
+            connection.resourceType as 'catalog' | 'schema' | 'table'
+          ) ||
+          unityCatalogValueFault(connection.resourceType, connection.value) ||
+          addFault(connection)
+      );
+      if (invalid) {
+        res.status(400).json({
+          error: 'connection_not_allowed',
+          detail:
+            unityCatalogValueFault(invalid.resourceType, invalid.value) ??
+            addFault(invalid) ??
+            'Only catalog, schema, and table assets can be saved from this explorer.',
+        });
+        return;
+      }
+      const logical = new Set<string>();
+      for (const connection of connections) {
+        const key = `${connection.resourceType}:${connection.value.toLocaleLowerCase()}`;
+        if (logical.has(key)) {
+          res.status(409).json({ error: 'duplicate_connection', detail: 'The selection contains a duplicate asset.' });
+          return;
+        }
+        logical.add(key);
+      }
+      try {
+        const existing = await readDeclaredConnections(appkit);
+        const duplicate = existing.some(
+          (connection) =>
+            connection.state === 'declared' &&
+            logical.has(`${connection.resourceType}:${normalizedUcValue(connection.value).toLocaleLowerCase()}`)
+        );
+        if (duplicate) {
+          res.status(409).json({
+            error: 'duplicate_connection',
+            detail: 'One of these Unity Catalog assets is already in scope. Refresh and review the selection.',
+          });
+          return;
+        }
+        const ctx = browseRequestContext({
+          token: executionToken(req),
+          principal: userEmail(req),
+          signal: AbortSignal.timeout(10_000),
+        });
+        const validations = await mapBounded(connections, 4, (connection) =>
+          validateUnityCatalogAsset({
+            ...ctx,
+            resourceType: connection.resourceType as 'catalog' | 'schema' | 'table',
+            value: connection.value,
+          })
+        );
+        const failed = validations.find((validation) => !validation.ok);
+        if (failed && !failed.ok) {
+          res.status(409).json({ error: 'asset_not_visible', detail: failed.detail });
+          return;
+        }
+        const actor = userEmail(req);
+        const saved = await writeDeclaredConnectionsBatch(
+          appkit,
+          connections.map((connection) => ({
+            ...connection,
+            kind: 'unity-catalog' as const,
+            resourceType: connection.resourceType as 'catalog' | 'schema' | 'table',
+          })),
+          actor
+        );
+        if (saved.conflict) {
+          res.status(409).json({
+            error: 'duplicate_connection',
+            detail: 'The scope changed while Save was running. Nothing was added; refresh and try again.',
+          });
+          return;
+        }
+        const entries = await Promise.all(
+          saved.connections.map(async (connection) => ({
+            connection,
+            impact: await impactFor(appkit, connection),
+          }))
+        );
+        res.status(201).json({ connections: entries, count: entries.length, effect: addedConnectionEffect() });
+      } catch (error) {
+        console.error('[connections] The Unity Catalog batch could not be added:', (error as Error).message);
+        res.status(503).json({
+          error: 'settings_store_unavailable',
+          detail: 'No assets were added. Validation or the atomic Lakebase write did not complete.',
+        });
+      }
+    });
+
     app.post('/api/settings/connections', async (req, res) => {
       const parsed = ConnectionBody.safeParse(req.body);
       if (!parsed.success) {

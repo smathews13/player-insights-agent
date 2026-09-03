@@ -136,6 +136,10 @@
   border: 1px solid var(--db-line);
   border-radius: var(--radius-md);
   background: var(--card);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 /*
  * The map's card, from the handoff: a column of two lines with 7px between them,
@@ -162,11 +166,34 @@
   cursor: pointer;
 }
 .trace-dag.map .dag-node:hover {
-  background: var(--db-row-hover);
+  border-color: var(--ast-blue);
+  background: var(--db-blue-faint);
+  color: var(--ast-text);
+}
+.trace-dag.map .dag-node:hover .dag-index {
+  color: var(--ast-blue);
+}
+.trace-dag.map .dag-node:hover .dag-name {
+  color: var(--ast-blue);
+}
+.trace-dag.map .dag-node:hover .dag-metric-badge {
+  color: var(--ast-blue);
+}
+.trace-dag.map .dag-node:focus-visible .dag-index {
+  color: var(--ast-blue);
+}
+.trace-dag.map .dag-node:focus-visible .dag-name {
+  color: var(--ast-blue);
+}
+.trace-dag.map .dag-node:focus-visible .dag-metric-badge {
+  color: var(--ast-blue);
 }
 /* Inset, because the card sits in a track whose right edge is the clip edge: a
    2px ring outside the box would be cropped on the last column of every row. */
 .trace-dag.map .dag-node:focus-visible {
+  border-color: var(--ast-blue);
+  background: var(--db-blue-faint);
+  color: var(--ast-text);
   outline: 2px solid var(--db-blue-600);
   outline-offset: -2px;
 }
@@ -371,11 +398,34 @@
   cursor: pointer;
 }
 .trace-dag.compact .dag-node:hover {
-  background: var(--db-row-hover);
+  border-color: var(--ast-blue);
+  background: var(--db-blue-faint);
+  color: var(--ast-text);
+}
+.trace-dag.compact .dag-node:hover .dag-num {
+  color: var(--ast-blue);
+}
+.trace-dag.compact .dag-node:hover .dag-name {
+  color: var(--ast-blue);
+}
+.trace-dag.compact .dag-node:hover .dag-elapsed {
+  color: var(--ast-blue);
+}
+.trace-dag.compact .dag-node:focus-visible .dag-num {
+  color: var(--ast-blue);
+}
+.trace-dag.compact .dag-node:focus-visible .dag-name {
+  color: var(--ast-blue);
+}
+.trace-dag.compact .dag-node:focus-visible .dag-elapsed {
+  color: var(--ast-blue);
 }
 /* Inset, like the map's: the tile's own connector is drawn 16px below it, and a
    ring outside the box would sit on the arrowhead. */
 .trace-dag.compact .dag-node:focus-visible {
+  border-color: var(--ast-blue);
+  background: var(--db-blue-faint);
+  color: var(--ast-text);
   outline: 2px solid var(--db-blue-600);
   outline-offset: -2px;
 }
@@ -1682,6 +1732,9 @@
  * by the guard in astrolabe-animation.css.
  */
 @media (prefers-reduced-motion: reduce) {
+  .dag-node {
+    transition: none;
+  }
   .trace-dag.map .dag-raw > button > svg {
     transition: none;
   }

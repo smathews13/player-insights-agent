@@ -7,6 +7,8 @@
   }
   .explorer-layout {
     grid-template-columns: 1fr;
+    height: auto;
+    max-height: none;
     overflow: visible;
   }
   .run-list-filters {
@@ -29,6 +31,7 @@
     position: relative;
     top: auto;
     height: auto;
+    max-height: none;
     min-height: min(520px, calc(100dvh - var(--app-header-h) - 24px));
     overflow: visible;
     scrollbar-gutter: auto;

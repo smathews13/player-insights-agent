@@ -26,12 +26,25 @@
   margin: 0 0 2px;
 }
 .run-explorer {
+  /*
+   * One viewport contract for the whole route. The sticky header token already
+   * includes the safe-area inset; the page shell's own padding, heading and gap
+   * are then consumed by the two grid rows below. Capping only very tall
+   * displays keeps a reading surface from becoming an unbounded column while
+   * short laptops always use their actual dvh and never a desktop minimum that
+   * would be cut off.
+   */
+  --run-explorer-viewport-block-size: min(
+    1440px,
+    calc(100dvh - var(--app-header-h) - env(safe-area-inset-bottom, 0px))
+  );
   /* Recorded result tables benefit from the available desktop width. The shell
      still contracts fluidly below this cap and the narrow breakpoint stacks the
      run list above the detail. */
   max-width: 1760px;
   width: 100%;
-  height: calc(100dvh - var(--app-header-h));
+  height: var(--run-explorer-viewport-block-size);
+  min-height: min(560px, var(--run-explorer-viewport-block-size));
   box-sizing: border-box;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -419,6 +432,9 @@ html body[data-scroll-locked] {
   grid-template-columns: 340px minmax(0, 1fr);
   gap: 20px;
   align-items: stretch;
+  align-self: stretch;
+  height: 100%;
+  max-height: 100%;
   min-width: 0;
   min-height: 0;
   /* Clip rather than scroll: a menu that failed to portal must not grow the
@@ -429,7 +445,7 @@ html body[data-scroll-locked] {
 .run-list {
   position: static;
   height: 100%;
-  max-height: none;
+  max-height: 100%;
   min-width: 0;
   min-height: 0;
   overflow-x: clip;
@@ -723,6 +739,7 @@ html body[data-scroll-locked] {
 .run-detail {
   position: static;
   height: 100%;
+  max-height: 100%;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -1111,13 +1128,14 @@ button.run-context-badge:not(.conversation-context-badge):hover {
 }
 .run-detail [data-slot='tabs-trigger'][data-state='inactive']:hover:not(:disabled):not([data-disabled]) {
   border-bottom-color: var(--ast-border-input);
-  background: var(--db-hover-tint);
+  background: transparent;
   color: var(--ast-text);
 }
 .run-detail [data-slot='tabs-trigger']:focus-visible {
-  outline: 2px solid var(--ast-blue);
-  outline-offset: 2px;
-  color: var(--ast-text);
+  outline: none;
+  border-bottom-color: var(--ast-blue);
+  background: transparent;
+  color: var(--ast-blue);
 }
 .run-detail [data-slot='tabs-trigger']:is(:disabled, [data-disabled]) {
   border-bottom-color: transparent;

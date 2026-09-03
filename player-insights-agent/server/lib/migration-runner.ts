@@ -46,8 +46,10 @@
  * own and the `schema_version` row is a separate write, which is why every
  * migration statement has to be idempotent. See `migrations.ts`.
  *
- * Nothing in this file writes an identifier belonging to a person or a question.
- * `schema_version` records a number, an object-level name, a count and a clock.
+ * `schema_version` records a number, an object-level name, a count, a clock,
+ * and the trusted actor supplied by the caller. Boot and release callers use an
+ * object label; the explicit in-app admin recovery path records the signed-in
+ * administrator so a migration action is attributable without storing content.
  */
 
 import {
@@ -160,8 +162,8 @@ export interface RunnerOptions {
   mode?: 'apply' | 'verify';
   /**
    * Recorded in `schema_version.applied_by`, so an operator can tell whether the
-   * explicit deploy step ran or the app's own fallback did. An object-level
-   * label, never a person.
+   * explicit deploy step, boot fallback, or signed-in administrator applied it.
+   * The caller must supply only a trusted actor label, never request content.
    */
   appliedBy?: string;
 }
@@ -333,8 +335,8 @@ export const SCHEMA_VERSION_TABLE = 'schema_version';
  * `CREATE TABLE IF NOT EXISTS`, which is the statement that would have run
  * anyway.
  *
- * Nothing in this table is a person, a question or a raw identifier: a version
- * number, an object-level name, two counts, a clock, and which caller ran it.
+ * Nothing in this table is a question or request content: a version number, an
+ * object-level name, two counts, a clock, and the trusted actor that ran it.
  */
 export function schemaVersionDdl(schema: string): string {
   return `CREATE TABLE IF NOT EXISTS ${schema}.${SCHEMA_VERSION_TABLE} (

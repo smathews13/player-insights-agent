@@ -69,7 +69,7 @@ describe('the status on a truncated run', () => {
 
   it('keeps the tool-call count and rating state in the same badge row', () => {
     const markup = rowMarkup(RUN);
-    expect(markup).toMatch(/run-item-pills[\s\S]*Tools · <span class="ast-num">7<\/span>/);
+    expect(markup).toMatch(/run-item-pills[\s\S]*tool-calls-label[\s\S]*>Tools<[\s\S]*ast-num">7<\/span>/);
     expect(markup).not.toContain('run-rating-badge');
     expect(rowMarkup({ ...RUN, feedback: 'up' })).toMatch(/run-item-pills[\s\S]*aria-label="Helpful"/);
   });
@@ -105,7 +105,7 @@ describe('the same status on the run the reader opened', () => {
 
   it('keeps the tool-call count and rating state beside the id, user, and status', () => {
     const markup = headerMarkup(RUN);
-    expect(markup).toMatch(/run-detail-ident[\s\S]*Tools · <span class="ast-num">7<\/span>/);
+    expect(markup).toMatch(/run-detail-ident[\s\S]*tool-calls-label[\s\S]*>Tools<[\s\S]*ast-num">7<\/span>/);
     expect(markup).toMatch(/run-detail-ident[\s\S]*No feedback/);
     expect(headerMarkup({ ...RUN, feedback: 'up' })).toMatch(/run-detail-ident[\s\S]*Helpful/);
   });

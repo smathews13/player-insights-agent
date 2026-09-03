@@ -81,7 +81,7 @@ describe('Run Explorer Timeline token evidence', () => {
     expect(markup).toContain('20,000 cached');
   });
 
-  it('shows the complete token, cache, attempts, and coverage record in expanded LLM details', () => {
+  it('shows token, cache, and attempts without internal attribution diagnostics', () => {
     const source = trace();
     const row = buildTimeline(source).rows.find((item) => item.id === 'step-1');
     expect(row).toBeDefined();
@@ -97,10 +97,11 @@ describe('Run Explorer Timeline token evidence', () => {
       'Cache write',
       'Not reported',
       'Attempts',
-      '100.0% of the run token total',
     ]) {
       expect(markup).toContain(text);
     }
+    expect(markup).not.toContain('Attributed coverage');
+    expect(markup).not.toContain('Unattributed difference');
   });
 
   it('keeps Tokens bounded while the table wraps inside the workspace', () => {

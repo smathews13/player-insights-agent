@@ -145,6 +145,26 @@ export interface BrowseFailed {
 
 export type BrowseResponse = BrowseOk | BrowseUnavailable | BrowseFailed;
 
+export interface UnityCatalogSearchItem {
+  resource_type: 'catalog' | 'schema' | 'table';
+  value: string;
+  label: string;
+  asset_type?: 'table' | 'view';
+}
+
+export type UnityCatalogSearchResponse =
+  | {
+      status: 'ok';
+      items: UnityCatalogSearchItem[];
+      more_results: boolean;
+    }
+  | {
+      status: 'unavailable' | 'failed';
+      items: UnityCatalogSearchItem[];
+      detail: string;
+      more_results: false;
+    };
+
 /**
  * One concrete category the signed-in reader can enumerate.
  *

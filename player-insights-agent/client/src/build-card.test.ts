@@ -112,10 +112,10 @@ describe('the left column: what this deployment is', () => {
       label: 'App endpoint',
       value: 'an-app-1234.example.databricksapps.com',
       full: 'https://an-app-1234.example.databricksapps.com',
-      description: 'Serves this Astrolabe deployment.',
       copyable: true,
       openable: true,
     });
+    expect(endpoint).not.toHaveProperty('description');
   });
 
   /**
@@ -314,7 +314,11 @@ describe('the right column: what it was built from', () => {
     );
     const byKey = new Map(rows.map((row) => [row.key, row]));
 
-    expect(byKey.get('deployed')).toMatchObject({ identity: 'someone@example.com' });
+    expect(byKey.get('deployed')).toMatchObject({
+      kind: 'date',
+      date: { dateTime: AUG_2, full: AUG_2 },
+      identity: 'someone@example.com',
+    });
     expect(byKey.get('uptime')).toMatchObject({ value: '14d 6h', aside: ' \u00b7 since last deploy' });
   });
 
@@ -365,19 +369,38 @@ describe('the right column: what it was built from', () => {
 
     expect(rows[0]).toMatchObject({ key: 'otel', value: 'collector:4317', tone: 'reachable' });
     const activity = rows.find((row) => row.key === 'otel-activity');
-    expect(activity).toMatchObject({ kind: 'text', value: '5,469 spans · 923,707 metrics' });
-    // THE SPAN IS STATED, because telemetry does not backfill. A count printed
-    // bare reads as a total for the life of the app; on this deployment it
-    // covers hours.
-    const aside = activity && 'aside' in activity ? (activity.aside ?? '') : '';
-    expect(aside).toMatch(/covering .*Aug 16.* to .*Aug 17/);
-    // TO THE MINUTE, and the exact pair in `title`. Printed whole, the two Delta
-    // stamps were 46 characters that wrapped this row over three lines to answer
-    // "roughly when did the telemetry start", which a day and a time answer. The
-    // tab's rule is that a full timestamp is `title` or clipboard content.
-    expect(aside).not.toContain('19:30:59');
-    const title = activity && 'title' in activity ? (activity.title ?? '') : '';
-    expect(title).toBe('2026-08-16 19:30:59 to 2026-08-17 16:44:29');
+    expect(activity).toMatchObject({
+      kind: 'text',
+      value: '5,469 spans · 923,707 metrics',
+      dateRange: {
+        start: {
+          dateTime: '2026-08-16T19:30:59',
+          full: '2026-08-16 19:30:59',
+        },
+        end: {
+          dateTime: '2026-08-17T16:44:29',
+          full: '2026-08-17 16:44:29',
+        },
+      },
+    });
+    expect(JSON.stringify(activity)).not.toMatch(/covering|\bto\b/i);
+  });
+
+  it('keeps measured counts without inventing a date range when either endpoint is missing', () => {
+    const activity = telemetryRows(
+      facts({
+        otelExport: {
+          state: 'exporting',
+          schema: 'cat.telemetry',
+          error: '',
+          tables: [{ table: 'otel_spans', rows: 12, firstAt: '2026-08-16 19:30:59', lastAt: '' }],
+        },
+      }),
+      Date.now()
+    ).find((row) => row.key === 'otel-activity');
+
+    expect(activity).toMatchObject({ kind: 'text', value: '12 spans' });
+    expect(activity).not.toHaveProperty('dateRange');
   });
 
   /**

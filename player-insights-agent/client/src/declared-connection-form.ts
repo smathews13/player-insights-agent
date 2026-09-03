@@ -7,9 +7,11 @@ export interface CreateConnectionInput {
   kind: string;
   resourceType: DeclaredResourceType;
   value: string;
+  note?: string;
 }
 
 export type CreateConnectionResult = { ok: true; entry: ConnectionEntry } | { ok: false; detail: string };
+export type CreateConnectionsBatchResult = { ok: true; entries: ConnectionEntry[] } | { ok: false; detail: string };
 
 export type DeleteConnectionResult =
   | { ok: true; outcome: 'forgotten'; deletedCount: number; deletedIds: string[] }
@@ -58,6 +60,32 @@ export async function createDeclaredConnection(
     return {
       ok: false,
       detail: `The connection was not added: ${(error as Error).message || 'the app could not be reached.'}`,
+    };
+  }
+}
+
+export async function createDeclaredConnectionsBatch(
+  connections: readonly CreateConnectionInput[],
+  fetchImpl: typeof fetch = fetch
+): Promise<CreateConnectionsBatchResult> {
+  try {
+    const response = await fetchImpl('/api/settings/connections/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connections }),
+    });
+    const body = (await response.json().catch(() => ({}))) as {
+      connections?: ConnectionEntry[];
+      detail?: string;
+    };
+    if (!response.ok || !Array.isArray(body.connections) || body.connections.length !== connections.length) {
+      return { ok: false, detail: body.detail ?? 'The Unity Catalog scope was not saved.' };
+    }
+    return { ok: true, entries: body.connections };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: `The Unity Catalog scope was not saved: ${(error as Error).message || 'the app could not be reached.'}`,
     };
   }
 }

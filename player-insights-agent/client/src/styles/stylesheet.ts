@@ -20,6 +20,7 @@ const ROUTES = new URL('./routes/', HERE);
 
 /** fonts.css predates the split. It carries @font-face and no app rules. */
 const NOT_A_PARTIAL = new Set(['fonts.css']);
+const COMPONENT_PARTIALS = ['timeline.css'];
 
 /** The partial filenames, in the order index.css imports them. */
 export function partialNames(): string[] {
@@ -34,7 +35,7 @@ export function partialNames(): string[] {
       const source = readFileSync(new URL(entry, ROUTES), 'utf8');
       return [...source.matchAll(/^@import '\.\.\/([\w-]+\.css)';/gm)].map((match) => match[1]);
     });
-  return [...new Set([...global, ...routes])];
+  return [...new Set([...global, ...COMPONENT_PARTIALS, ...routes])];
 }
 
 /** One partial, on its own, for a claim that is about where a rule lives. */

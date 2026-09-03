@@ -2,8 +2,8 @@
   "provenance": {
     "evaluatedAt": "2026-08-18T03:05:14.665Z",
     "agentCommit": "e9fd096",
-    "executedAs": "<your-username>",
-    "executedAsNote": "The run executed as this signed-in account, with its own OAuth token forwarded to the endpoint. This account is an administrator of the deployment, which is the single biggest qualifier on the governed-access scorers below: an administrator passes a row filter by not being subject to one.",
+    "executedAs": "release-operator@example.com",
+    "executedAsNote": "The run executed as a signed-in release operator, with its own OAuth token forwarded to the endpoint. That operator was an administrator of the deployment, which is the single biggest qualifier on the governed-access scorers below: an administrator passes a row filter by not being subject to one.",
     "judgeEndpoint": "databricks-claude-sonnet-4-5",
     "labelProvenance": "Labels were written by the coding agent that implemented this evaluation lane on 2026-08-17. No domain expert has reviewed them, and nobody who knows this data has confirmed that a correct answer looks the way a label says it does. Read the correctness rate as \"consistent with what this repository says a good answer contains\", not as \"right\". No label names a figure, because the tables are rebuilt periodically and a labelled number would fail a correct answer by the next rebuild.",
     "labelsReviewed": false,

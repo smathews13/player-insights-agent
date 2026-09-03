@@ -6,6 +6,7 @@ import { AccessGate, type GateIdentity } from './AccessGate';
 import { FirstOpenGate } from './FirstOpenGate';
 import {
   StartupLoadingSurface,
+  startStartupActivity,
   startupCanMountApplication,
   startupPhase,
   startupSurfaceOwner,
@@ -220,16 +221,48 @@ describe('frame ownership', () => {
       })
     ).toBe(false);
   });
+
+  it('gives timeout sole ownership without mounting stale protected content', () => {
+    const expired: StartupSnapshot = {
+      ...base,
+      nativeAuthReturned: true,
+      appSession: 'timed-out',
+      identityResolved: true,
+      applicationReady: true,
+      firstOpen: 'open',
+    };
+
+    expect(startupPhase(expired)).toBe('timed-out');
+    expect(startupSurfaceOwner(startupPhase(expired))).toBe('session-timeout');
+    expect(startupCanMountApplication(expired)).toBe(false);
+  });
 });
 
 describe('StrictMode replay', () => {
+  it('starts activity only while ready and safely cleans up before restart', () => {
+    const stopFirst = vi.fn();
+    const stopSecond = vi.fn();
+    const start = vi.fn().mockReturnValueOnce(stopFirst).mockReturnValueOnce(stopSecond);
+
+    expect(startStartupActivity('booting', start)).toBeUndefined();
+    expect(startStartupActivity('unavailable', start)).toBeUndefined();
+    const cleanupFirst = startStartupActivity('ready', start);
+    expect(start).toHaveBeenCalledTimes(1);
+    cleanupFirst?.();
+    expect(stopFirst).toHaveBeenCalledTimes(1);
+    expect(startStartupActivity('timed-out', start)).toBeUndefined();
+    const cleanupSecond = startStartupActivity('ready', start);
+    expect(start).toHaveBeenCalledTimes(2);
+    cleanupSecond?.();
+    expect(stopSecond).toHaveBeenCalledTimes(1);
+  });
+
   it('makes the production startup coordinator own explicit-activity listener cleanup', () => {
     expect(mainSource).toContain('<StartupBoundary>');
     expect(mainSource).not.toContain('<AppSessionBoundary>');
     expect(startupSource).toContain('startExplicitUserActivity');
-    expect(startupSource).toMatch(
-      /useEffect\(\(\) => \(appSession === 'ready' \? startExplicitUserActivity\(\) : undefined\), \[appSession\]\)/
-    );
+    expect(startupSource).toContain("return appSession === 'ready' ? start() : undefined;");
+    expect(startupSource).toContain('useEffect(() => startStartupActivity(appSession), [appSession]);');
   });
 
   it('deduplicates app-session bootstrap and identity reads', async () => {

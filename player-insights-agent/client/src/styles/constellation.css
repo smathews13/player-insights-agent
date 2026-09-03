@@ -114,10 +114,14 @@
   cursor: pointer;
   outline: none;
 }
-.ast-star-select:hover,
-.ast-star-select:focus-visible,
-.ast-star-select.selected {
+.ast-star-select:hover {
   filter: drop-shadow(0 0 4px var(--ast-blue-on-dark));
+}
+.ast-star-select:focus-visible {
+  filter: drop-shadow(0 0 6px var(--ast-blue-on-dark));
+}
+.ast-star-select.selected {
+  filter: drop-shadow(0 0 8px var(--ast-blue-on-dark));
 }
 
 /* ---- Connectors ---- */
@@ -511,9 +515,15 @@ html:not([data-theme='dark']) .agent-path > .step-rail {
   cursor: pointer;
 }
 
-.step-rail-pick:hover {
-  border-color: var(--ast-border-input);
-  border-left-color: var(--ast-border-input);
+.step-rail-pick:is(:hover, :focus-visible) {
+  border-color: var(--ast-blue);
+  border-left-color: var(--ast-blue);
+  background: var(--db-blue-faint);
+  color: var(--ast-text);
+}
+.step-rail-pick:focus-visible {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: -2px;
 }
 
 /* The step the run is inside: a blue edge, and nothing that moves. §1 gives the

@@ -161,11 +161,11 @@ Astrolabe adds a server-enforced idle timeout for every protected API route. It
 defaults to 120 minutes (2 hours) and can be configured with
 `PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES` (`5`-`480`; only `disabled` turns it
 off). Background polling and programmatic events do not extend the timeout;
-trusted pointer, keyboard, touch, and wheel interactions do. On expiry, the app
-stops polling, clears user-data caches, and requires sign-out before a new app
-session can start. This control protects only the Astrolabe application layer;
-strict immediate coordinated logout requires a customer-controlled OIDC/gateway
-architecture.
+trusted click, input, key, pointer, touch, wheel, and scroll interactions do. On
+expiry, the app stops polling, clears user-data caches, and requires sign-out
+before a new app session can start. This control protects only the Astrolabe
+application layer; strict immediate coordinated logout requires a
+customer-controlled OIDC/gateway architecture.
 
 ## Update an existing deployment
 

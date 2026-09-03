@@ -143,17 +143,25 @@
   text-decoration: none;
   transition:
     color 0.15s ease,
-    border-color 0.15s ease,
-    background-color 0.15s ease;
+    border-color 0.15s ease;
 }
 .app-nav-tab svg {
   width: 14px;
   height: 14px;
 }
-/* The wash every outline and ghost control gets under the pointer. */
+/* Tabs preview with type and their reserved underline only. A rectangular wash
+   made the navigation read as a row of square buttons and fought the active
+   underline; the transparent background also prevents any hover-size change. */
 .app-nav-tab:hover {
   color: var(--foreground);
-  background: var(--db-hover-tint);
+  border-bottom-color: var(--ast-border-input);
+  background: transparent;
+}
+.app-nav-tab:focus-visible {
+  outline: none;
+  border-bottom-color: var(--db-blue-600);
+  background: transparent;
+  color: var(--db-blue-600);
 }
 /* Keyed on aria-current rather than on a class the router hands the callback,
    so the state a screen reader is told and the state that is painted are the
@@ -162,6 +170,11 @@
   border-bottom-color: var(--db-blue-600);
   color: var(--db-blue-600);
   font-weight: 500;
+}
+.app-nav-tab[aria-current='page']:is(:hover, :focus-visible) {
+  border-bottom-color: var(--db-blue-600);
+  background: transparent;
+  color: var(--db-blue-600);
 }
 /* Above the width where the nav collapses into the sheet, the hamburger is not
    drawn at all; responsive.css turns these two around at 1180px. */

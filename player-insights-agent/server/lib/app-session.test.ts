@@ -235,11 +235,22 @@ describe('idle timeout configuration', () => {
   it('enforces safe bounds and fails invalid input back to the default', () => {
     expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: '1' }).minutes).toBe(5);
     expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: '9999' }).minutes).toBe(480);
-    expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: 'forever' })).toMatchObject({
-      enabled: true,
-      minutes: 120,
-      source: 'invalid-default',
-    });
+    for (const invalid of ['forever', '2h', '120.5']) {
+      expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: invalid })).toMatchObject({
+        enabled: true,
+        minutes: 120,
+        source: 'invalid-default',
+      });
+    }
+  });
+
+  it('publishes the 120-minute default in the browser bootstrap contract', async () => {
+    const running = await start();
+    open.push(running.close);
+    const response = await running.bootstrap();
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ enabled: true, idleTimeoutMinutes: 120 });
   });
 });
 
@@ -308,7 +319,9 @@ describe('expiry and activity semantics', () => {
     const running = await start();
     open.push(running.close);
     const cookie = cookieFrom(await running.bootstrap());
-    running.store.advance(DEFAULT_IDLE_TIMEOUT_MINUTES * 60_000);
+    running.store.advance(DEFAULT_IDLE_TIMEOUT_MINUTES * 60_000 - 1_000);
+    expect((await running.call('/api/data', { headers: { cookie } })).status).toBe(200);
+    running.store.advance(1_000);
     for (const [path, method] of [
       ['/api/data', 'GET'],
       ['/api/mutate', 'POST'],
@@ -320,6 +333,26 @@ describe('expiry and activity semantics', () => {
       expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
     }
     expect([...running.store.rows.values()][0]?.revoked).not.toBeNull();
+  });
+
+  it('keeps an explicitly active session alive for more than two hours without renewing the absolute cookie', async () => {
+    const running = await start();
+    open.push(running.close);
+    const bootstrap = await running.bootstrap();
+    const cookie = cookieFrom(bootstrap);
+    const row = [...running.store.rows.values()][0];
+
+    for (let interval = 0; interval < 3; interval += 1) {
+      running.store.advance(119 * 60_000);
+      const activity = await running.activity(cookie);
+      expect(activity.status).toBe(204);
+      expect(activity.headers.get('set-cookie')).toBeNull();
+      expect((await running.call('/api/data', { headers: { cookie } })).status).toBe(200);
+    }
+
+    expect(row.lastActive - row.created).toBe(357 * 60_000);
+    expect(row.idleExpires).toBe(row.lastActive + DEFAULT_IDLE_TIMEOUT_MINUTES * 60_000);
+    expect(bootstrap.headers.get('set-cookie')).toContain('Max-Age=86400');
   });
 
   it('also enforces the absolute boundary and subject binding', async () => {

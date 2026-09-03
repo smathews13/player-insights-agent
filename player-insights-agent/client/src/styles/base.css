@@ -86,6 +86,27 @@ svg {
   flex: none;
 }
 
+/* A neutral tool-call mark shared by Run Explorer, Answer and Monitoring.
+   Product tools keep their own artwork; this wrench only accompanies generic
+   measurement labels. Its fixed box keeps counts and headings from shifting. */
+.tool-calls-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: inherit;
+  vertical-align: text-bottom;
+}
+.tool-calls-label > svg {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 1em;
+  stroke-width: 1.8;
+}
+.tool-calls-label > span {
+  min-width: 0;
+}
+
 /*
  * THE NIGHT SKY IS DARK MODE'S, AND THIS IS THE RULE THAT SAYS SO.
  *
@@ -307,6 +328,38 @@ html:not([data-theme='dark']) .app-sky {
 .state-switch > .ast-pill {
   min-width: 48px;
   justify-content: center;
+}
+
+/* Shared date primitives for compact facts across route cards. The neutral
+   pill family owns theme color; these rules only keep the semantic `<time>`
+   content and a range's single separator together without clipping. */
+.date-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.date-badge > svg,
+.date-range-separator {
+  flex: none;
+}
+
+.date-range-badges {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.date-range-separator {
+  color: var(--muted-foreground);
 }
 /*
  * Keyboard focus is an action, so it is blue, and it is the same blue everywhere.

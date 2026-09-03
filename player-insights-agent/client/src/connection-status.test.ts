@@ -8,11 +8,21 @@ import {
   driftCount,
   driftMarker,
   inUseSummary,
+  primaryConnectionState,
+  visibleCounts,
   type ConnectionStatus,
 } from './connection-status';
 import { PREFLIGHT_STATUS_LABEL } from './preflight';
 
 describe('the row badge', () => {
+  it('maps precise probe outcomes to binary primary states without a false failure while loading', () => {
+    expect(primaryConnectionState('reachable', true)).toBe('connected');
+    expect(primaryConnectionState('blocked', true)).toBe('disconnected');
+    expect(primaryConnectionState('refused', true)).toBe('disconnected');
+    expect(primaryConnectionState('unreachable', true)).toBe('disconnected');
+    expect(primaryConnectionState('not-checked', true)).toBe('loading');
+    expect(primaryConnectionState('nothing-to-reach', false)).toBe('not-applicable');
+  });
   it('reads a passing check as reachable', () => {
     expect(connectionStatus({ check: { status: 'ok' }, hasRemoteEnd: true })).toBe('reachable');
   });
@@ -100,9 +110,9 @@ describe('the row badge', () => {
     // Something answered and it was not usable, which is unreachable. Reading the
     // words "403" out of a bare error string would be inferring the one verdict
     // that changes what a reader is told to do, off prose nobody promised to keep.
-    expect(
-      connectionStatus({ check: { status: 'unverified', error: 'HTTP 403' }, hasRemoteEnd: true })
-    ).toBe('unreachable');
+    expect(connectionStatus({ check: { status: 'unverified', error: 'HTTP 403' }, hasRemoteEnd: true })).toBe(
+      'unreachable'
+    );
   });
 
   it('explains every badge it can show', () => {
@@ -190,7 +200,8 @@ describe('the value on the collapsed line', () => {
 
 describe('the counts on the one status line', () => {
   it('tallies reachability and configuration side by side rather than merging them', () => {
-    expect(connectionCounts({
+    expect(
+      connectionCounts({
         statuses: ['reachable', 'reachable', 'blocked', 'refused', 'unreachable', 'not-checked', 'nothing-to-reach'],
         markers: ['none', 'drift', 'drift', 'none', 'none', 'pending', 'none'],
       })
@@ -220,5 +231,16 @@ describe('the counts on the one status line', () => {
       drifted: 0,
       pending: 0,
     });
+  });
+
+  it('collapses all resolved failures into one Disconnected summary', () => {
+    const counts = connectionCounts({
+      statuses: ['reachable', 'blocked', 'refused', 'unreachable'],
+      markers: ['none', 'none', 'none', 'none'],
+    });
+    expect(visibleCounts(counts).slice(0, 2)).toEqual([
+      { key: 'connected', word: 'connected', tone: 'reachable', count: 1 },
+      { key: 'disconnected', word: 'disconnected', tone: 'blocked', count: 3 },
+    ]);
   });
 });

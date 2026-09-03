@@ -60,11 +60,32 @@
   font: inherit;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
 }
 
-.account-menu-trigger[aria-expanded='true'],
-.account-menu-trigger:hover {
-  background: var(--muted);
+.account-menu-trigger.identity-chip:hover,
+.account-menu-trigger.identity-chip:focus-visible {
+  border-color: var(--ast-pos-border);
+  background: color-mix(in srgb, var(--ast-surface-chrome) 96%, var(--ast-pos-text));
+  color: var(--ast-pos-text);
+}
+
+.account-menu-trigger.identity-chip:focus-visible {
+  outline: 2px solid var(--ast-pos-text);
+  outline-offset: 2px;
+}
+
+/* Open is a stronger version of hover, so the selected trigger remains obvious
+   while the near-opaque menu is present without becoming a blue tab. */
+.account-menu-trigger.identity-chip[aria-expanded='true'] {
+  border-color: var(--ast-pos-text);
+  background: color-mix(in srgb, var(--ast-surface-chrome) 90%, var(--ast-pos-text));
+  box-shadow: inset 0 0 0 1px var(--ast-pos-border);
+  color: var(--ast-pos-text);
 }
 
 .account-menu-trigger > .roster-organization-mark {
@@ -101,7 +122,7 @@
   top: calc(100% + 10px);
   right: 0;
   z-index: 70;
-  width: min(292px, calc(100vw - 24px));
+  width: min(336px, calc(100vw - 24px));
   padding: 6px;
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
@@ -113,7 +134,7 @@
 
 .account-menu-identity {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   min-width: 0;
   gap: 10px;
   padding: 14px 18px;
@@ -135,29 +156,20 @@
   min-width: 0;
   display: grid;
   flex: 1;
-  gap: 2px;
+  justify-items: start;
+  gap: 4px;
 }
 
-.account-menu-identity strong {
+.account-menu-identity-copy > .role-badge {
+  width: max-content;
+  max-width: 100%;
+}
+
+.account-menu-name {
   font-weight: 600;
-  /* The name is what gives when the row is tight, because the mark and the rank
-     beside it are both fixed-width and neither can be shortened usefully. */
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Name and rank stay together beside the organization mark. */
-.account-menu-who {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  gap: 8px;
-}
-
-.account-menu-who > .role-badge {
-  flex: none;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 /*
@@ -169,11 +181,11 @@
  * 11.5px grey and clipped it to one ellipsised line.
  */
 .account-menu-address {
-  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
   color: var(--ast-text-secondary);
   font-size: 11.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .account-menu-group {
@@ -205,6 +217,85 @@
 .account-menu-group > a:hover,
 .account-menu-group > a:focus-visible {
   background: var(--muted);
+  outline: none;
+}
+
+.account-feedback-trigger {
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.account-feedback-trigger > svg {
+  transition:
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.account-feedback-trigger:hover,
+.account-feedback-trigger:focus-visible {
+  background: color-mix(in srgb, var(--ast-surface-menu) 96%, var(--ast-pos-text));
+  box-shadow: inset 0 0 0 1px var(--ast-pos-border);
+  color: var(--ast-pos-text);
+  outline: none;
+}
+
+.account-feedback-trigger[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--ast-surface-menu) 90%, var(--ast-pos-text));
+  box-shadow: inset 0 0 0 1px var(--ast-pos-text);
+  color: var(--ast-pos-text);
+}
+
+.account-feedback-trigger[aria-expanded='true'] > svg {
+  color: currentColor;
+  transform: rotate(180deg);
+}
+
+.account-feedback-menu {
+  z-index: var(--ast-layer-menu);
+  width: min(264px, calc(100vw - 24px));
+  display: grid;
+  gap: 2px;
+  padding: 7px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+  background: var(--ast-surface-menu);
+  box-shadow: 0 12px 32px color-mix(in oklab, var(--db-ink-deep) 22%, transparent);
+  color: var(--foreground);
+  backdrop-filter: none;
+}
+
+.account-feedback-menu > a {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-decoration: none;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.account-feedback-menu > a > svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: var(--db-slate-icon);
+}
+
+.account-feedback-menu > a:hover,
+.account-feedback-menu > a:focus-visible {
+  background: color-mix(in srgb, var(--ast-surface-menu) 96%, var(--ast-pos-text));
+  box-shadow: inset 0 0 0 1px var(--ast-pos-border);
+  color: var(--ast-pos-text);
   outline: none;
 }
 
@@ -408,4 +499,31 @@
 .account-composer-send svg {
   width: 14px;
   height: 14px;
+}
+
+@media (forced-colors: active) {
+  .account-menu-trigger.identity-chip:is(:hover, :focus-visible, [aria-expanded='true']) {
+    border-color: Highlight;
+    color: Highlight;
+  }
+
+  .account-menu-trigger.identity-chip:focus-visible {
+    outline-color: Highlight;
+  }
+
+  .account-feedback-trigger:is(:hover, :focus-visible, [aria-expanded='true']),
+  .account-feedback-menu > a:is(:hover, :focus-visible) {
+    color: Highlight;
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-menu-trigger,
+  .account-feedback-trigger,
+  .account-feedback-trigger > svg,
+  .account-feedback-menu > a {
+    transition: none;
+  }
 }

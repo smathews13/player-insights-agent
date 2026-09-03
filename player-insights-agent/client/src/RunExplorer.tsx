@@ -47,6 +47,7 @@ import {
   TabsTrigger,
 } from './ui';
 import { CircleAlert, Search, Workflow } from 'lucide-react';
+import { ToolCallsLabel } from './ToolCallsLabel';
 import { readConversationList } from './initial-rail';
 import { RunDetails } from './RunDetails';
 import { FinalAnswer } from './FinalAnswer';
@@ -815,7 +816,8 @@ export function RunListItem({ run, active, onSelect }: { run: Run; active: boole
           </Badge>
           {typeof run.tool_calls === 'number' && (
             <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
-              Tools · <span className="ast-num">{run.tool_calls.toLocaleString()}</span>
+              <ToolCallsLabel>Tools</ToolCallsLabel> ·{' '}
+              <span className="ast-num">{run.tool_calls.toLocaleString()}</span>
             </Badge>
           )}
           <RunRatingBadge feedback={run.feedback} legacyUsefulness={run.rating} />

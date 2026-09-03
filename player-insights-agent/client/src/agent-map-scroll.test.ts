@@ -9,6 +9,8 @@ const RUNS_CSS = readFileSync(new URL('./styles/runs.css', import.meta.url), 'ut
 const TRACE_CSS = readFileSync(new URL('./styles/trace.css', import.meta.url), 'utf8');
 const TIMELINE_CSS = readFileSync(new URL('./styles/timeline.css', import.meta.url), 'utf8');
 const RESPONSIVE_CSS = readFileSync(new URL('./styles/responsive-runs.css', import.meta.url), 'utf8');
+const DENSITY_CSS = readFileSync(new URL('./styles/density-runs.css', import.meta.url), 'utf8');
+const ANSWER_BODY_CSS = readFileSync(new URL('./styles/answer-body.css', import.meta.url), 'utf8');
 
 type MockElement = HTMLElement & {
   focus: ReturnType<typeof vi.fn>;
@@ -278,20 +280,46 @@ describe('Run Explorer has two desktop scroll owners', () => {
   });
 
   it('makes only the recent-runs rail and complete right workspace vertically scrollable', () => {
-    expect(RUNS_CSS).toMatch(/\.run-explorer \{[^}]*height: calc\(100dvh[^}]*overflow: hidden/s);
-    expect(RUNS_CSS).toMatch(/\.run-list \{[^}]*overflow-y: auto[^}]*scrollbar-gutter: stable/s);
-    expect(RUNS_CSS).toMatch(/\.run-detail \{[^}]*overflow-y: auto[^}]*scrollbar-gutter: stable/s);
+    const root = RUNS_CSS.match(/\.run-explorer \{([^}]*)\}/)?.[1] ?? '';
+    const layout = RUNS_CSS.match(/\.explorer-layout \{([^}]*)\}/)?.[1] ?? '';
+    expect(root).toMatch(
+      /--run-explorer-viewport-block-size: min\(\s*1440px,\s*calc\(100dvh - var\(--app-header-h\) - env\(safe-area-inset-bottom, 0px\)\)\s*\)/
+    );
+    expect(root).toMatch(/height: var\(--run-explorer-viewport-block-size\)/);
+    expect(root).toMatch(/min-height: min\(560px, var\(--run-explorer-viewport-block-size\)\)/);
+    expect(root).toMatch(/grid-template-rows: auto minmax\(0, 1fr\)/);
+    expect(root).toMatch(/overflow: hidden/);
+    expect(layout).toMatch(/align-items: stretch/);
+    expect(layout).toMatch(/align-self: stretch/);
+    expect(layout).toMatch(/height: 100%/);
+    expect(layout).toMatch(/max-height: 100%/);
+    for (const selector of ['run-list', 'run-detail']) {
+      const body = RUNS_CSS.match(new RegExp(`\\.${selector} \\{([^}]*)\\}`))?.[1] ?? '';
+      expect(body, selector).toMatch(/height: 100%/);
+      expect(body, selector).toMatch(/max-height: 100%/);
+      expect(body, selector).toMatch(/min-height: 0/);
+      expect(body, selector).toMatch(/overflow-y: auto/);
+      expect(body, selector).toMatch(/scrollbar-gutter: stable/);
+    }
+    expect(RUNS_CSS.match(/overflow-y:\s*auto/g)).toHaveLength(2);
     for (const selector of ['run-detail-tabs', 'run-detail-tab-panel', 'run-detail-content']) {
       const body = RUNS_CSS.match(new RegExp(`\\.${selector} \\{([^}]*)\\}`))?.[1] ?? '';
       expect(body, selector).not.toMatch(/overflow-y:\s*(auto|scroll)/);
       expect(body, selector).not.toMatch(/max-height|height:\s*100%/);
     }
+    for (const selector of ['run-process-body', 'answer-card-content']) {
+      const body = ANSWER_BODY_CSS.match(new RegExp(`\\.${selector} \\{([^}]*)\\}`))?.[1] ?? '';
+      expect(body, selector).not.toMatch(/overflow-y:\s*(auto|scroll)|max-height/);
+    }
   });
 
   it('returns to normal document flow when the rail and workspace stack', () => {
     expect(RESPONSIVE_CSS).toMatch(/\.run-explorer \{[^}]*height: auto[^}]*overflow: visible/s);
+    expect(RESPONSIVE_CSS).toMatch(/\.explorer-layout \{[^}]*height: auto[^}]*max-height: none[^}]*overflow: visible/s);
     expect(RESPONSIVE_CSS).toMatch(/\.run-list \{[^}]*height: auto[^}]*overflow: visible/s);
-    expect(RESPONSIVE_CSS).toMatch(/\.run-detail \{[^}]*height: auto[^}]*overflow: visible/s);
+    expect(RESPONSIVE_CSS).toMatch(/\.run-detail \{[^}]*height: auto[^}]*max-height: none[^}]*overflow: visible/s);
+    expect(DENSITY_CSS).toContain("html[data-density='compact'] .run-explorer");
+    expect(DENSITY_CSS).not.toMatch(/overflow-y:\s*(auto|scroll)|height:\s*\d+(?:px|vh|dvh)/);
   });
 
   it('keeps the page top unchanged while steps 10 through 19 are selected', () => {
@@ -316,6 +344,20 @@ describe('Run Explorer has two desktop scroll owners', () => {
     expect(leftRail.scrollTo).not.toHaveBeenCalled();
     expect(pageScroll).not.toHaveBeenCalled();
     expect(container.getBoundingClientRect().top).toBe(100);
+  });
+
+  it('keeps empty, loading, unavailable, and selected content inside the same tall right surface', () => {
+    const rightSurface = EXPLORER.indexOf('className="run-detail ast-surface-primary"');
+    expect(rightSurface).toBeGreaterThan(-1);
+    for (const state of [
+      "detailMode === 'loading'",
+      "detailMode === 'empty'",
+      "detailMode === 'invalid'",
+      "detailMode === 'ready'",
+    ]) {
+      expect(EXPLORER.indexOf(state)).toBeGreaterThan(rightSurface);
+    }
+    expect(EXPLORER.indexOf('className="run-list ast-surface-primary"')).toBeLessThan(rightSurface);
   });
 
   it('lets a large map grow to its complete grid bounds without an internal viewport', () => {

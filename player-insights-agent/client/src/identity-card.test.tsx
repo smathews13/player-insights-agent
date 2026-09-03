@@ -196,6 +196,22 @@ describe('IdentityCard', () => {
     expect(resourceName).not.toContain('identity-identifier');
   });
 
+  it('compacts only the Identity-card role badge without clipping Super admin', () => {
+    const identity: PanelIdentity = { ...IDENTITY, role: 'super_admin' };
+    const markup = renderToStaticMarkup(<IdentityCard read={{ identity, failed: false }} />);
+
+    expect(markup).toContain('data-role-state="super_admin"');
+    expect(markup).toContain('aria-label="Role: Super admin"');
+    expect(markup).toContain('lucide-shield-plus');
+    expect(textOf({ identity, failed: false })).toContain('Astrolabe role Super admin');
+    expect(CONNECTIONS_CSS).toMatch(
+      /\.deployment-card-identity \.role-badge \{[^}]*height:\s*24px[^}]*padding:\s*2px 8px[^}]*font-size:\s*12px[^}]*white-space:\s*nowrap/s
+    );
+    expect(CONNECTIONS_CSS).toMatch(
+      /\.deployment-card-identity \.role-badge > svg \{[^}]*width:\s*14px[^}]*height:\s*14px/s
+    );
+  });
+
   it('renders service-principal OAuth and M2M as two truthful positive badges', () => {
     const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
     const servicePrincipal = markup.split('id="identity-sp-heading"')[1] ?? '';

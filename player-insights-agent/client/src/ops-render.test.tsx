@@ -27,6 +27,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CostBody,
   CostTileTitle,
+  GenieDatabricksLink,
   HealthBody,
   HealthCheckButton,
   LatencyBody,
@@ -36,6 +37,7 @@ import {
   type Block,
 } from './OpsPage';
 import { perUserSpendHref } from './cost-user-monitoring-link';
+import { resourceBudgetLabel } from './CostBudgets';
 import { activeMinutesDisplay, queryHistoryCoverageDetail } from './ops-view';
 import { REFRESH_LABEL } from './refresh-state';
 import { canCheckHealthResources } from '../../shared/user-roster-contract';
@@ -338,6 +340,7 @@ describe('the health block', () => {
     expect(canCheckHealthResources(role)).toBe(allowed);
     const markup = render(<HealthBody block={block(health())} allowCheck={canCheckHealthResources(role)} />);
     expect(markup.includes('Check all resources')).toBe(allowed);
+    expect(markup.includes('Check scopes')).toBe(allowed);
   });
 
   it('uses the canonical loader, disables duplicate presses, and announces the busy state', () => {
@@ -1475,6 +1478,25 @@ describe('the cost block', () => {
   });
 
   it('lets an operator set monthly app and resource budgets without replacing saved values', () => {
+    expect(
+      [
+        ['serving-endpoint', 'Agent serving'],
+        ['foundation-model', 'Foundation model tokens'],
+        ['sql-warehouse', 'Ask SQL'],
+        ['genie:data', 'Data Genie'],
+        ['genie:dictionary', 'Dictionary Genie'],
+        ['vector-search', 'Vector Search'],
+        ['app-compute', 'App compute'],
+      ].map(([id, label]) => resourceBudgetLabel({ id, label }))
+    ).toEqual([
+      'Agent serving budget',
+      'Foundation model tokens budget',
+      'Ask SQL budget',
+      'Data Genie budget',
+      'Dictionary Genie budget',
+      'Vector Search budget',
+      'App compute budget',
+    ]);
     const baseTiles = cost().tiles;
     const payload = cost({
       budgets: {
@@ -1508,16 +1530,21 @@ describe('the cost block', () => {
     expect(markup).toContain('aria-label="Vector Search monthly budget in USD"');
     expect(editor).toContain('data-columns="6"');
     expect(editor.match(/ops-number-ticker ops-forecast-number-control/g)).toHaveLength(6);
+    expect(markup).toContain('Resource budgets (monthly)');
     for (const label of [
-      'Serving endpoint monthly budget',
-      'SQL warehouse monthly budget',
-      'Data Genie monthly budget',
-      'Dictionary Genie monthly budget',
-      'Vector Search monthly budget',
-      'App compute monthly budget',
+      'Agent serving budget',
+      'Ask SQL budget',
+      'Data Genie budget',
+      'Dictionary Genie budget',
+      'Vector Search budget',
+      'App compute budget',
     ]) {
-      expect(editor).toContain(label);
+      expect(editor).toContain(`>${label}</label>`);
     }
+    expect(editor).not.toContain('>Advisory<');
+    expect(OPS_STYLES).toMatch(
+      /\.ops-cost-resource-budgets \.ops-ticker-assumption-grid\s*\{[^}]*repeat\(auto-fit,\s*minmax\(15rem,\s*1fr\)\)/
+    );
     expect(markup).not.toContain('Actual cost breakdown');
     expect(markup).not.toContain('ops-cost-actual-breakdown');
     expect(text(markup)).not.toContain('Applies to paid, attributable month-to-date spend.');
@@ -1593,11 +1620,35 @@ describe('the cost block', () => {
 
     expect(summary).toContain('Total app spend');
     expect(summary).toContain('500.00 USD');
-    expect(summary).toContain('2026-08-04 through 2026-09-02');
+    expect(summary).toContain('aria-label="Billing date range from 2026-08-04 through 2026-09-02"');
+    expect(summary).toContain('dateTime="2026-08-04"');
+    expect(summary).toContain('Aug 4, 2026');
     expect(summary).toContain('This calendar month');
     expect(summary).toContain('36.87 USD');
-    expect(summary).toContain('2026-09-01 through 2026-09-02');
+    expect(summary).toContain('aria-label="Billing date range from 2026-09-01 through 2026-09-02"');
+    expect(summary).toContain('Sep 1, 2026');
+    expect(summary.match(/class="ast-pill ast-pill--neutral date-badge"/g)).toHaveLength(4);
+    expect(summary.match(/date-range-separator/g)).toHaveLength(2);
+    expect(summary).not.toContain('Estimated paid attributable spend');
     expect(markup).not.toContain('Spent this calendar month');
+  });
+
+  it('uses the canonical Databricks Genie room link without printing the space id', () => {
+    const markup = markupOf(
+      <GenieDatabricksLink href="https://workspace.example/genie/rooms/space-data" title="Data Genie" />
+    );
+    expect(markup).toContain('Open in Databricks');
+    expect(markup).toContain('href="https://workspace.example/genie/rooms/space-data"');
+    expect(markup).toContain('aria-label="Open Data Genie in Databricks (opens in a new tab)"');
+    expect(text(markup)).not.toContain('space-data');
+  });
+
+  it('replaces component Billing through prose with the shared date badge', () => {
+    const markup = markupOf(<CostBody block={block(cost({ throughDay: '2026-08-14' }))} />);
+    expect(markup).toContain('aria-label="Billing through: 2026-08-14"');
+    expect(markup).toContain('dateTime="2026-08-14"');
+    expect(markup).toContain('Aug 14, 2026');
+    expect(text(markup)).not.toContain('Billing through 2026-08-14');
   });
 
   it('uses resource-specific DBU placeholders and an unavailable state without converting dollars', () => {
@@ -2103,8 +2154,8 @@ describe('the cost block', () => {
   it('keeps budget fields when billing has no rows and when the grant is missing', () => {
     const empty = render(<CostBody block={block(cost({ state: 'no-rows', tiles: [] }))} />);
     expect(empty).toContain('Monthly app budget');
-    expect(empty).toContain('Data Genie monthly budget');
-    expect(empty).toContain('Dictionary Genie monthly budget');
+    expect(empty).toContain('Data Genie budget');
+    expect(empty).toContain('Dictionary Genie budget');
     expect(empty).toContain('No monthly run-rate baseline');
     const denied = render(
       <CostBody

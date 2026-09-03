@@ -18,6 +18,7 @@
  */
 import { PUBLIC_SOURCE_REPO_URL, type AppFacts } from '../../shared/app-facts';
 import type { StatusTone } from './StatusBadge';
+import type { DateBadgeValue, DateRangeValue } from './DateBadge';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -54,6 +55,8 @@ export type BuildRow =
       value: string;
       /** A quieter clause after the value. */
       aside?: string;
+      /** A measured interval rendered as two semantic date badges. */
+      dateRange?: DateRangeValue;
       /** A person associated with this fact, rendered by the shared identity chip. */
       identity?: string;
       /**
@@ -65,6 +68,14 @@ export type BuildRow =
        * the row over three lines.
        */
       title?: string;
+    }
+  | {
+      kind: 'date';
+      key: string;
+      label: string;
+      date: DateBadgeValue;
+      /** A person associated with this date, rendered after its badge. */
+      identity?: string;
     }
   | {
       kind: 'link';
@@ -118,10 +129,21 @@ export function uptimeSince(deployedAt: string, now: number): string {
  * an uptime, so the part that carries meaning is which day and roughly when.
  * The whole stamp goes in the row's `title`.
  */
+export function dateBadgeValue(stamp: string): DateBadgeValue | null {
+  const full = stamp.trim();
+  if (!full) return null;
+  const dateTime = full.includes('T') ? full : full.replace(' ', 'T');
+  const at = new Date(dateTime);
+  if (Number.isNaN(at.getTime())) return null;
+  return {
+    dateTime,
+    label: at.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    full,
+  };
+}
+
 export function deployedAtLabel(deployedAt: string): string {
-  const at = new Date(deployedAt);
-  if (!deployedAt || Number.isNaN(at.getTime())) return '';
-  return at.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return dateBadgeValue(deployedAt)?.label ?? '';
 }
 
 /**
@@ -240,9 +262,7 @@ function countOf(rows: number): string {
 export function stampLabel(stamp: string): string {
   const trimmed = stamp.trim();
   if (!trimmed) return '';
-  const at = new Date(trimmed.replace(' ', 'T'));
-  if (Number.isNaN(at.getTime())) return trimmed;
-  return at.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return dateBadgeValue(trimmed)?.label ?? trimmed;
 }
 
 /**
@@ -258,7 +278,7 @@ export function stampLabel(stamp: string): string {
  */
 export function exporterActivity(
   reading: AppFacts['otelExport']
-): { value: string; aside: string; title?: string } | null {
+): { value: string; aside?: string; dateRange?: DateRangeValue } | null {
   if (reading.state === 'unmeasured') return null;
   if (reading.state === 'unreadable') {
     return {
@@ -284,18 +304,11 @@ export function exporterActivity(
       aside: ' \u00b7 the tables exist and hold no rows',
     };
   }
+  const start = dateBadgeValue(first);
+  const end = dateBadgeValue(last);
   return {
     value: counted.join(' \u00b7 '),
-    // "covering", not "in the last N hours". The span is whatever the rows
-    // carry, and saying so is what keeps a partial window from reading whole.
-    //
-    // Shortened to the minute. The millisecond stamps read straight from Delta
-    // were 46 characters that wrapped this row over three lines to answer a
-    // question -- roughly when does the telemetry start -- that day and time
-    // answers. The exact pair is in `title`, which is where this tab puts a full
-    // timestamp.
-    aside: first && last ? ` \u00b7 covering ${stampLabel(first)} to ${stampLabel(last)}` : '',
-    title: first && last ? `${first} to ${last}` : undefined,
+    dateRange: start && end ? { start, end } : undefined,
   };
 }
 
@@ -336,7 +349,6 @@ export function deploymentRows(app: AppFacts): BuildRow[] {
       value: host,
       full: app.url,
       tone: endpointTone(app.serving),
-      description: 'Serves this Astrolabe deployment.',
       copyable: true,
       openable: true,
     });
@@ -495,7 +507,7 @@ export function telemetryRows(app: AppFacts, now: number): BuildRow[] {
       label: app.otelExporter ? 'OTel activity' : 'OTel exporter',
       value: activity.value,
       aside: activity.aside,
-      title: activity.title,
+      ...(activity.dateRange ? { dateRange: activity.dateRange } : {}),
     });
   }
   // ONLY WHERE THERE IS NO LEFT COLUMN. The two source links live under Compute
@@ -503,13 +515,13 @@ export function telemetryRows(app: AppFacts, now: number): BuildRow[] {
   // left column, and dropping the links entirely on that one would lose the
   // repository row -- which is a product fact and was never a reading.
   if (!hasDeploymentFacts(app)) rows.push(...sourceRows(app));
-  const deployed = deployedAtLabel(app.deployedAt);
+  const deployed = dateBadgeValue(app.deployedAt);
   if (deployed) {
     rows.push({
-      kind: 'text',
+      kind: 'date',
       key: 'deployed',
       label: 'Last deployed',
-      value: deployed,
+      date: deployed,
       identity: app.deployedBy || undefined,
     });
   }

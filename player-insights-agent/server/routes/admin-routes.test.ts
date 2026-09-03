@@ -266,9 +266,11 @@ describe('a consumer is refused at the route', () => {
 
     for (const email of [admin, owner, superAdmin]) {
       expect((await app.probeWithMethod('/api/settings/connections', email, 'POST')).status).not.toBe(403);
+      expect((await app.probeWithMethod('/api/settings/connections/batch', email, 'POST')).status).not.toBe(403);
       expect((await app.probeWithMethod('/api/settings/connections/resource-1', email, 'DELETE')).status).not.toBe(403);
     }
     expect((await app.probeWithMethod('/api/settings/connections', CONSUMER, 'POST')).status).toBe(403);
+    expect((await app.probeWithMethod('/api/settings/connections/batch', CONSUMER, 'POST')).status).toBe(403);
     expect((await app.probeWithMethod('/api/settings/connections/resource-1', CONSUMER, 'DELETE')).status).toBe(403);
   });
 });

@@ -319,8 +319,8 @@ describe('advanced token consumption', () => {
     expect(markup).toContain('Run output 4,576');
     expect(markup).toContain('Run total 84,576');
     expect(markup).toContain('Cache Not reported');
-    expect(markup).toContain('Attributed coverage 84,576 tokens · 100.0% of run total');
-    expect(markup).toContain('Unattributed difference 0');
+    expect(markup).not.toContain('Attributed coverage');
+    expect(markup).not.toContain('Unattributed difference');
     expect(markup).toContain('Component and invocation token usage');
     expect(markup).toContain('Component / turn Attempt Input Output Total tokens Cached tokens');
     expect(markup).not.toContain('Cache status');

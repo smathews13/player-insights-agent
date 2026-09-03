@@ -133,7 +133,7 @@ describe('only an administrator can edit the rail labels', () => {
       'title="Run 1 in this conversation"',
       'run-id-chip',
       'identity-chip',
-      'Tools ·',
+      'tool-calls-label',
       'run-status-pill',
       'aria-label="No feedback"',
       'aria-label="Edit run labels"',

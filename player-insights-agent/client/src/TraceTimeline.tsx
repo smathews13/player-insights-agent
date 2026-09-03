@@ -14,6 +14,7 @@
  *   labels (`run - [orchestrator]`, `model call … turn N`, tool + payload),
  *   and bars coloured by kind. Ask must not inherit that look.
  */
+import './styles/timeline.css';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { ChevronDown } from 'lucide-react';
 
@@ -193,7 +194,7 @@ function KindKpis({ rows, tokens }: { rows: RollUpRow[]; tokens: RunTokenView })
   );
 }
 
-export function TimelineTokenDetails({ row, run }: { row: TimelineRow; run: RunTokenView }) {
+export function TimelineTokenDetails({ row }: { row: TimelineRow; run: RunTokenView }) {
   if (!row.tokenUsage) return null;
   const view = stepTokenUsageView(row.tokenUsage);
   return (
@@ -212,12 +213,6 @@ export function TimelineTokenDetails({ row, run }: { row: TimelineRow; run: RunT
       <dd>{view.cacheStatus}</dd>
       <dt>Attempts</dt>
       <dd className="ast-num">{view.attempts.toLocaleString()}</dd>
-      <dt>Attributed coverage</dt>
-      <dd>
-        {run.coveragePercent !== undefined
-          ? `${run.coveragePercent.toFixed(1)}% of the run token total`
-          : 'Not reported'}
-      </dd>
       {view.totalMismatch ? (
         <>
           <dt>Diagnostic</dt>

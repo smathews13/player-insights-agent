@@ -34,6 +34,7 @@ import { abbreviatedConversationId } from './display-id';
 import { CopyIdChip } from './CopyIdChip';
 import { RunHeaderLabelEditor } from './RunHeaderLabelEditor';
 import { RunRatingBadge } from './RunRatingBadge';
+import { ToolCallsLabel } from './ToolCallsLabel';
 import {
   persistRunLabels,
   railOutcomeValue,
@@ -136,7 +137,7 @@ export function RunHeader({
             <UserDrilldownLink identity={run.stakeholder} compact className="run-detail-user" canOpen={canOpenUser} />
             {typeof toolCalls === 'number' && Number.isFinite(toolCalls) && (
               <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
-                Tools · <span className="ast-num">{toolCalls.toLocaleString()}</span>
+                <ToolCallsLabel>Tools</ToolCallsLabel> · <span className="ast-num">{toolCalls.toLocaleString()}</span>
               </Badge>
             )}
             {canEdit ? (

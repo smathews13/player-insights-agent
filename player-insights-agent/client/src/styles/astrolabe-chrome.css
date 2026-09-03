@@ -1,3 +1,9 @@
+.ast-estimated-badge {
+  flex: none;
+  align-items: baseline;
+  padding: 1px 6px;
+  font-size: var(--ast-fs-11);
+}
 /*
  * The 52px top bar's own furniture: the two dividers and the Databricks
  * attribution. The signed-in identity chip lives in shell.css with the rest of

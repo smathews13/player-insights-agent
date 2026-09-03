@@ -80,10 +80,12 @@ import {
 } from './ops-view';
 import { healthConnectionsHref, healthRowsForDisplay } from './health-resource-view';
 import { useOpsBlock, useOpsHealthCheck, type OpsHealthCheckSession } from './ops-session';
+import { useOpsScopeCheck } from './OpsScopeModal';
 import './styles/routes/ops.css';
 import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
 import { ForecastingBody } from './ForecastingPanel';
 import { MethodologySections, type MethodologyGroup } from './MethodologySection';
+import { dateOnlyBadgeValue, DateBadge } from './DateBadge';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
 import { canCheckHealthResources } from '../../shared/user-roster-contract';
 import { persistCostDisplayUnit, readCostDisplayUnit } from './cost-unit-preference';
@@ -363,6 +365,7 @@ export function HealthBody({
 }) {
   const host = useWorkspaceHost();
   const payload = block.data;
+  const scopes = useOpsScopeCheck();
 
   if (block.failed) {
     return (
@@ -398,6 +401,7 @@ export function HealthBody({
         control={
           <div className="ops-health-head-controls">
             {allowCheck ? <HealthCheckButton check={check} /> : null}
+            {allowCheck ? scopes.button : null}
             <RefreshButton busy={block.busy || check.busy} onRefresh={block.refresh} />
           </div>
         }
@@ -583,6 +587,7 @@ export function HealthBody({
           </>
         )}
       </BlockBody>
+      {allowCheck ? scopes.modal : null}
     </section>
   );
 }
@@ -703,6 +708,11 @@ function CostCardGrid({
         <PrimaryCostCard key={card.id} card={card} tile={displayed.find((item) => item.id === card.id)} host={host} />
       ))}
       {genie.map((card) => {
+        const tile = displayed.find((item) => item.id === card.id);
+        const href =
+          tile?.resourceId && tile.resourceKind === 'genie-space'
+            ? databricksLink(host, { kind: 'genie-space', spaceId: tile.resourceId })
+            : null;
         return (
           <article key={card.id} className="ops-tile ops-primary-cost-card ops-genie-card">
             <div className="ops-tile-head">
@@ -722,6 +732,7 @@ function CostCardGrid({
                 <dd className="ast-num">{card.charged}</dd>
               </div>
             </dl>
+            <GenieDatabricksLink href={href} title={card.title} />
           </article>
         );
       })}
@@ -757,7 +768,16 @@ function PrimaryCostCard({
         <span className="ast-num">{card.amount}</span>
       </p>
       <p className="ops-tile-basis">{card.basis}</p>
-      <p className="ops-tile-evidence">{card.evidence || '\u00a0'}</p>
+      {/^Billing through \d{4}-\d{2}-\d{2}$/.test(card.evidence) ? (
+        <div className="ops-tile-evidence">
+          <DateBadge
+            value={dateOnlyBadgeValue(card.evidence.slice('Billing through '.length))}
+            accessiblePrefix="Billing through"
+          />
+        </div>
+      ) : (
+        <p className="ops-tile-evidence">{card.evidence || '\u00a0'}</p>
+      )}
       {card.resource ? <CostResourceLine label={card.resource} href={href} /> : null}
     </article>
   );
@@ -793,6 +813,22 @@ export function CostResourceLine({ label, href }: { label: string; href: string 
 
 /** Compatibility export for focused render tests; resource links no longer serve as card titles. */
 export const CostTileTitle = CostResourceLine;
+
+export function GenieDatabricksLink({ href, title }: { href: string | null; title: string }) {
+  if (!href) return null;
+  return (
+    <a
+      className="ops-genie-open"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Open ${title} in Databricks (opens in a new tab)`}
+    >
+      Open in Databricks
+      <ExternalLink aria-hidden="true" />
+    </a>
+  );
+}
 
 function CostMethodology() {
   const groups: MethodologyGroup[] = [

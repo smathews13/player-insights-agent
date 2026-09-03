@@ -30,7 +30,7 @@
   .connection-block-head {
     flex-wrap: wrap;
   }
-  .connection-block-head > .connection-block-summary {
+  .connection-block-title-actions {
     flex-basis: 100%;
   }
   .connection-block-controls {
@@ -82,6 +82,18 @@
   }
   .uc-explorer-header {
     padding: 14px;
+  }
+  .uc-explorer-search {
+    margin: 10px 14px 0;
+  }
+  .uc-explorer-footer {
+    padding: 10px 14px;
+  }
+  .uc-explorer-search-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .uc-explorer-search-row > .connection-row-kind {
+    grid-column: 1 / -1;
   }
   .uc-explorer-row {
     grid-template-columns: 28px auto minmax(0, 1fr);

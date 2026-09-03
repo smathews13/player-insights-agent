@@ -14,6 +14,7 @@ import {
   restoreDeclaredConnection,
   withdrawDeclaredConnection,
   writeDeclaredConnection,
+  writeDeclaredConnectionsBatch,
   type StoredDeclaredConnection,
 } from './declared-connections';
 import type { LakebaseReader } from './lakebase-store';
@@ -144,6 +145,52 @@ describe('reading and writing declarations', () => {
       changedBy: 'analyst@example.invalid',
     });
     expect(params[0]).toContain('notebook');
+  });
+
+  it('persists an audited selection in one atomic statement', async () => {
+    const params: unknown[][] = [];
+    const rows = [{ connections: [{ ...ROW, resource_type: 'table' }], conflict_count: 0 }];
+    const saved = await writeDeclaredConnectionsBatch(
+      client(rows, params),
+      [
+        {
+          id: 'roster-table',
+          label: 'Title roster',
+          kind: 'unity-catalog',
+          resourceType: 'table',
+          value: 'gamesight_share_prod.analytics.title_roster',
+          note: '',
+        },
+      ],
+      'analyst@example.invalid'
+    );
+    expect(saved.conflict).toBe(false);
+    expect(saved.connections[0]).toMatchObject({
+      createdBy: 'analyst@example.invalid',
+      createdAt: '2026-08-17T18:00:00.000Z',
+    });
+    expect(params).toHaveLength(1);
+    expect(params[0]?.[1]).toBe('analyst@example.invalid');
+    expect(String(params[0]?.[0])).toContain('"resource_type":"table"');
+  });
+
+  it('reports a batch conflict without accepting a partial result', async () => {
+    await expect(
+      writeDeclaredConnectionsBatch(
+        client([{ connections: [], conflict_count: 1 }]),
+        [
+          {
+            id: 'roster-table',
+            label: 'Title roster',
+            kind: 'unity-catalog',
+            resourceType: 'table',
+            value: 'gamesight_share_prod.analytics.title_roster',
+            note: '',
+          },
+        ],
+        'analyst@example.invalid'
+      )
+    ).resolves.toEqual({ connections: [], conflict: true });
   });
 
   it('reports nothing withdrawn when there was nothing to withdraw', async () => {

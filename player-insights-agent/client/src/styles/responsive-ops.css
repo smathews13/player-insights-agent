@@ -59,4 +59,14 @@
   .ops-cost-summary-budget-mtd {
     grid-column: auto;
   }
+  .ops-scope-dialog-overlay {
+    padding: 8px;
+  }
+  .ops-scope-dialog {
+    max-height: calc(100vh - 16px);
+    padding: 12px;
+  }
+  .ops-scope-pagination {
+    justify-content: space-between;
+  }
 }

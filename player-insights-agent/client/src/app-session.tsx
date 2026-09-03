@@ -1,6 +1,4 @@
-/* eslint-disable react-refresh/only-export-components -- session state and its blocking boundary must share one latch */
-import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
-import { LogIn, RotateCcw } from 'lucide-react';
+import { useSyncExternalStore } from 'react';
 import { forgetIdentityRequest } from './app-state';
 import { clearActiveConversationRuns } from './active-conversation-runs';
 import { abortActiveAsksForSessionEnd } from './ask-cancellation';
@@ -12,6 +10,7 @@ import { forgetMonitoringSession } from './monitoring-session';
 import { forgetOpsSession } from './ops-session';
 import { forgetRunLabelOverrides } from './run-header-labels';
 import { forgetLiveRuntimeSettings } from './runtime-settings-live';
+import { resetRegisteredSensitiveState } from './sensitive-state-resets';
 import { clearSelectedConversation } from './selected-conversation';
 import { resetSessionChecks } from './session-checks';
 
@@ -22,8 +21,15 @@ export const APP_SESSION_END_PATH = '/api/app-session/end';
 export const APP_IDLE_TIMEOUT_CODE = 'APP_IDLE_TIMEOUT';
 export const APP_SESSION_TIMEOUT_KEY = 'astrolabe.app-session.timed-out';
 export const USER_ACTIVITY_THROTTLE_MS = 45_000;
-export const SIGN_OUT_END_WAIT_MS = 1_500;
-const EXPLICIT_USER_ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel'] as const;
+const EXPLICIT_USER_ACTIVITY_EVENTS = [
+  'click',
+  'input',
+  'keydown',
+  'pointerdown',
+  'scroll',
+  'touchstart',
+  'wheel',
+] as const;
 
 export type AppSessionState = 'booting' | 'ready' | 'timed-out' | 'unavailable';
 type Listener = () => void;
@@ -77,6 +83,7 @@ export function clearSensitiveClientState(store = browserAcknowledgementStore())
   abortActiveAsksForSessionEnd();
   clearActiveConversationRuns();
   resetLiveAsks();
+  resetRegisteredSensitiveState();
   forgetIdentityRequest();
   forgetChecks();
   resetSessionChecks();
@@ -240,13 +247,13 @@ export function startExplicitUserActivity(
     });
   };
   for (const event of EXPLICIT_USER_ACTIVITY_EVENTS) {
-    documentRef.addEventListener(event, onActivity, { passive: true });
+    documentRef.addEventListener(event, onActivity, { passive: true, capture: event === 'scroll' });
   }
   const registration = {
     owners: 1,
     remove: () => {
       for (const event of EXPLICIT_USER_ACTIVITY_EVENTS) {
-        documentRef.removeEventListener(event, onActivity);
+        documentRef.removeEventListener(event, onActivity, { capture: event === 'scroll' });
       }
     },
   };
@@ -260,121 +267,6 @@ export function startExplicitUserActivity(
     registration.remove();
     explicitActivityRegistration = null;
   };
-}
-
-export async function signOutAndEndAppSession(
-  options: {
-    fetchImpl?: AppSessionFetch;
-    navigate?: (path: string) => void;
-    store?: AcknowledgementStore | null;
-  } = {}
-): Promise<void> {
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const navigate = options.navigate ?? ((path: string) => window.location.assign(path));
-  clearSensitiveClientState(options.store === undefined ? browserAcknowledgementStore() : options.store);
-  try {
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, SIGN_OUT_END_WAIT_MS);
-      void fetchImpl(APP_SESSION_END_PATH, {
-        method: 'POST',
-        credentials: 'same-origin',
-        keepalive: true,
-        headers: {
-          'content-type': 'application/json',
-          'x-astrolabe-session-action': 'end',
-        },
-        body: '{}',
-      }).then(
-        () => {
-          clearTimeout(timer);
-          resolve();
-        },
-        () => {
-          clearTimeout(timer);
-          resolve();
-        }
-      );
-    });
-  } finally {
-    // Relative and same-origin by construction. Databricks clears its native app
-    // cookie here; no workspace host is guessed or embedded.
-    navigate(NATIVE_APP_SIGN_OUT_PATH);
-  }
-}
-
-export function returnToSignIn(
-  options: {
-    navigate?: (path: string) => void;
-    store?: AcknowledgementStore | null;
-  } = {}
-): void {
-  const navigate = options.navigate ?? ((path: string) => window.location.assign(path));
-  const store = options.store === undefined ? browserAcknowledgementStore() : options.store;
-  clearSensitiveClientState(store);
-  try {
-    store?.removeItem?.(APP_SESSION_TIMEOUT_KEY);
-  } catch {
-    // Navigation still ends the current native app auth when storage is unavailable.
-  }
-  // This same-origin native Apps endpoint resets native app auth. An active
-  // upstream workspace/IdP session may authenticate the person again.
-  navigate(NATIVE_APP_SIGN_OUT_PATH);
-}
-
-export function SessionTimedOut() {
-  return (
-    <main className="app-session-block" role="alert" aria-labelledby="app-session-timeout-title">
-      <section className="app-session-card">
-        <h1 id="app-session-timeout-title">Session timed out</h1>
-        <p>Your Astrolabe session ended after inactivity. Return to sign in to continue.</p>
-        <a
-          href={NATIVE_APP_SIGN_OUT_PATH}
-          onClick={(event) => {
-            event.preventDefault();
-            returnToSignIn();
-          }}
-        >
-          <LogIn aria-hidden="true" />
-          Return to sign in
-        </a>
-      </section>
-    </main>
-  );
-}
-
-export function SessionUnavailable() {
-  return (
-    <main className="app-session-block" role="alert" aria-labelledby="app-session-unavailable-title">
-      <section className="app-session-card">
-        <h1 id="app-session-unavailable-title">Session unavailable</h1>
-        <p>Astrolabe could not verify its server-side session, so no protected data was loaded.</p>
-        <button type="button" onClick={retryAppSessionBootstrap}>
-          <RotateCcw aria-hidden="true" />
-          Try again
-        </button>
-      </section>
-    </main>
-  );
-}
-
-export function AppSessionBoundary({ children }: { children: ReactNode }) {
-  const current = useAppSessionState();
-  useEffect(() => {
-    void bootstrapAppSession();
-  }, []);
-  useEffect(() => (current === 'ready' ? startExplicitUserActivity() : undefined), [current]);
-  if (current === 'timed-out') return <SessionTimedOut />;
-  if (current === 'unavailable') return <SessionUnavailable />;
-  if (current !== 'ready') {
-    return (
-      <main className="app-session-block" aria-busy="true" aria-label="Starting secure app session">
-        <section className="app-session-card">
-          <p>Starting secure app session…</p>
-        </section>
-      </main>
-    );
-  }
-  return children;
 }
 
 /** The startup coordinator reads the same module latch as timeout handling. */

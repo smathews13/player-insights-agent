@@ -113,6 +113,18 @@ describe('Settings Identity controls', () => {
     );
   });
 
+  it('keeps credential references aligned without forcing horizontal overflow', () => {
+    expect(SETTINGS).toMatch(/\.sp-definitions-table\s*\{[^}]*min-width:\s*0[^}]*table-layout:\s*fixed/s);
+    expect(SETTINGS).toMatch(
+      /\.sp-connection-fields\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/s
+    );
+    expect(SETTINGS).toMatch(
+      /\.sp-connection-fields \.runtime-field\s*\{[^}]*grid-template-rows:\s*18px 34px 32px/s
+    );
+    expect(SETTINGS).toMatch(/\.sp-connection-form \[data-slot='input'\]\s*\{[^}]*height:\s*34px/s);
+    expect(SETTINGS).toMatch(/@media \(max-width: 900px\)[\s\S]*?\.sp-connection-fields\s*\{[^}]*minmax\(0, 1fr\)/s);
+  });
+
   it('optimistically selects, applies canonical replies, and rolls back into an alert on failure', () => {
     expect(EDITOR).toContain('row.email === entry.email ? { ...row, role } : row');
     expect(EDITOR).toContain('row.email === email ? { ...row, personaId } : row');

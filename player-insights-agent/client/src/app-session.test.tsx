@@ -6,7 +6,6 @@ import {
   APP_SESSION_ACTIVITY_PATH,
   APP_SESSION_END_PATH,
   APP_SESSION_TIMEOUT_KEY,
-  AppSessionBoundary,
   NATIVE_APP_SIGN_OUT_PATH,
   type AppSessionFetch,
   appSessionStateFromStore,
@@ -15,10 +14,10 @@ import {
   installAppSessionFetchGuard,
   resetAppSessionForTests,
   retryAppSessionBootstrap,
-  returnToSignIn,
-  signOutAndEndAppSession,
   startExplicitUserActivity,
 } from './app-session';
+import { AppSessionBoundary, returnToSignIn } from './AppSessionRecovery';
+import { signOutAndEndAppSession } from './AccountMenuPanel';
 import { FIRST_OPEN_KEY, FIRST_OPEN_OUTCOME_KEY, type AcknowledgementStore } from './first-open';
 
 afterEach(() => {
@@ -33,7 +32,7 @@ function requestText(input: RequestInfo | URL): string {
 }
 
 describe('explicit user activity', () => {
-  it('refreshes only on throttled trusted interactions, including deliberate wheel scrolling', async () => {
+  it('refreshes on every trusted deliberate event without allowing request storms', async () => {
     const listeners = new Map<string, EventListener>();
     const listenerOptions = new Map<string, AddEventListenerOptions | undefined>();
     const documentRef = {
@@ -55,23 +54,26 @@ describe('explicit user activity', () => {
     resetAppSessionForTests('ready');
     const stop = startExplicitUserActivity(documentRef, fetchImpl, () => now);
 
-    expect([...listeners.keys()].sort()).toEqual(['keydown', 'pointerdown', 'touchstart', 'wheel']);
+    const expectedEvents = ['click', 'input', 'keydown', 'pointerdown', 'scroll', 'touchstart', 'wheel'];
+    expect([...listeners.keys()].sort()).toEqual(expectedEvents);
     expect(listenerOptions.get('wheel')).toMatchObject({ passive: true });
+    expect(listenerOptions.get('scroll')).toMatchObject({ passive: true, capture: true });
     expect(listeners.has('visibilitychange')).toBe(false);
+    expect(listeners.has('mousemove')).toBe(false);
     expect(requests).toEqual([]);
     await fetchImpl('/api/background-refresh');
-    listeners.get('wheel')?.(new Event('wheel'));
+    for (const event of expectedEvents) listeners.get(event)?.(new Event(event));
     expect(requests.map(({ path }) => path)).toEqual(['/api/background-refresh']);
 
     const trustedEvent = { isTrusted: true } as Event;
-    listeners.get('pointerdown')?.(trustedEvent);
-    now += 1_000;
-    listeners.get('keydown')?.(trustedEvent);
-    now += 44_000;
-    listeners.get('wheel')?.(trustedEvent);
+    for (const event of expectedEvents) {
+      listeners.get(event)?.(trustedEvent);
+      for (const noisyEvent of expectedEvents) listeners.get(noisyEvent)?.(trustedEvent);
+      now += 45_000;
+    }
 
     const activityRequests = requests.filter(({ path }) => path === APP_SESSION_ACTIVITY_PATH);
-    expect(activityRequests).toHaveLength(2);
+    expect(activityRequests).toHaveLength(expectedEvents.length);
     expect(new Headers(activityRequests[0]?.init?.headers).get('x-astrolabe-session-action')).toBe('activity');
     stop();
     expect(listeners.size).toBe(0);
@@ -92,15 +94,18 @@ describe('explicit user activity', () => {
       },
     };
     const fetchImpl: AppSessionFetch = () => Promise.resolve(new Response(null, { status: 204 }));
-    const expected = ['keydown', 'pointerdown', 'touchstart', 'wheel'];
+    const expected = ['click', 'input', 'keydown', 'pointerdown', 'scroll', 'touchstart', 'wheel'];
     resetAppSessionForTests('ready');
 
     const startupOwner = startExplicitUserActivity(documentRef, fetchImpl);
     const nestedLegacyOwner = startExplicitUserActivity(documentRef, fetchImpl);
     expect([...listeners.keys()].sort()).toEqual(expected);
     expect(Object.fromEntries(additions)).toEqual({
-      pointerdown: 1,
+      click: 1,
+      input: 1,
       keydown: 1,
+      pointerdown: 1,
+      scroll: 1,
       touchstart: 1,
       wheel: 1,
     });
@@ -119,15 +124,77 @@ describe('explicit user activity', () => {
     strictModeReplay();
     expect(listeners.size).toBe(0);
     expect(Object.fromEntries(removals)).toEqual({
-      pointerdown: 3,
+      click: 3,
+      input: 3,
       keydown: 3,
+      pointerdown: 3,
+      scroll: 3,
       touchstart: 3,
       wheel: 3,
     });
   });
+
+  it('ignores activity write failures and retries after the throttle window', async () => {
+    const listeners = new Map<string, EventListener>();
+    const documentRef = {
+      addEventListener(type: string, listener: EventListener) {
+        listeners.set(type, listener);
+      },
+      removeEventListener(type: string) {
+        listeners.delete(type);
+      },
+    };
+    const fetchImpl = vi.fn<AppSessionFetch>().mockRejectedValue(new Error('offline'));
+    let now = 1_000;
+    resetAppSessionForTests('ready');
+    const stop = startExplicitUserActivity(documentRef, fetchImpl, () => now);
+    const trustedEvent = { isTrusted: true } as Event;
+
+    listeners.get('click')?.(trustedEvent);
+    await Promise.resolve();
+    now += 44_999;
+    listeners.get('input')?.(trustedEvent);
+    now += 1;
+    listeners.get('scroll')?.(trustedEvent);
+    await Promise.resolve();
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect([...listeners.keys()].sort()).toEqual([
+      'click',
+      'input',
+      'keydown',
+      'pointerdown',
+      'scroll',
+      'touchstart',
+      'wheel',
+    ]);
+    stop();
+    expect(listeners.size).toBe(0);
+  });
 });
 
 describe('timeout boundary', () => {
+  it('accepts the 120-minute server bootstrap contract before mounting protected content', async () => {
+    const bootstrapFetch = vi.fn().mockResolvedValue(
+      Response.json({
+        enabled: true,
+        idleTimeoutMinutes: 120,
+      })
+    );
+    resetAppSessionForTests('booting');
+
+    await bootstrapAppSession(bootstrapFetch);
+    const markup = renderToStaticMarkup(
+      <AppSessionBoundary>
+        <div>protected content</div>
+      </AppSessionBoundary>
+    );
+
+    expect(bootstrapFetch).toHaveBeenCalledTimes(1);
+    expect(markup).toContain('protected content');
+    expect(markup).not.toContain('Starting secure app session');
+  });
+
   it('ends the client session, blocks retry bootstrap, and shows the concise return action', async () => {
     const values = new Map<string, string>();
     const sessionStorage: AcknowledgementStore = {
@@ -167,6 +234,7 @@ describe('timeout boundary', () => {
     expect(markup).toContain(`href="${NATIVE_APP_SIGN_OUT_PATH}"`);
     expect(markup).toContain('lucide-log-in');
     expect(markup).toContain('Return to sign in');
+    expect(markup).toMatch(/<a[^>]*href="\/\.auth\/sign_out"[^>]*><svg[\s\S]*<\/svg>Return to sign in<\/a>/);
     expect(markup).not.toMatch(/Sign out of Astrolabe|workspace session|identity-provider|authenticate you again/);
     expect(values.get(APP_SESSION_TIMEOUT_KEY)).toBe('true');
     expect(nativeFetch).toHaveBeenCalledTimes(1);
@@ -190,6 +258,7 @@ describe('timeout boundary', () => {
       'abortActiveAsksForSessionEnd()',
       'clearActiveConversationRuns()',
       'resetLiveAsks()',
+      'resetRegisteredSensitiveState()',
       'forgetIdentityRequest()',
       'forgetChecks()',
       'forgetMonitoringSession()',
@@ -201,6 +270,7 @@ describe('timeout boundary', () => {
 
   it('persists the timeout across reload and clears it only for native sign-in return', () => {
     const values = new Map([[APP_SESSION_TIMEOUT_KEY, 'true']]);
+    const otherTabValues = new Map<string, string>();
     const removed: string[] = [];
     const store: AcknowledgementStore = {
       getItem: (key) => values.get(key) ?? null,
@@ -213,6 +283,13 @@ describe('timeout boundary', () => {
     const navigate = vi.fn();
 
     expect(appSessionStateFromStore(store)).toBe('timed-out');
+    expect(
+      appSessionStateFromStore({
+        getItem: (key) => otherTabValues.get(key) ?? null,
+        setItem: (key, value) => otherTabValues.set(key, value),
+        removeItem: (key) => void otherTabValues.delete(key),
+      })
+    ).toBe('booting');
     returnToSignIn({ store, navigate });
 
     expect(removed).toContain(APP_SESSION_TIMEOUT_KEY);
@@ -227,7 +304,7 @@ describe('timeout boundary', () => {
       'utf8'
     );
     const accountMenu = readFileSync(new URL('./AccountMenuPanel.tsx', import.meta.url), 'utf8');
-    const timeoutSource = readFileSync(new URL('./app-session.tsx', import.meta.url), 'utf8');
+    const timeoutSource = readFileSync(new URL('./AppSessionRecovery.tsx', import.meta.url), 'utf8');
 
     for (const document of [accessGuide, securitySpec]) {
       expect(document).toMatch(/upstream(?: workspace or identity-provider| workspace\/IdP)? session/i);

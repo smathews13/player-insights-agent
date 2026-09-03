@@ -29,6 +29,11 @@ html[data-density='compact'] .ops-forecast-horizon {
   padding: var(--density-card-padding-block) var(--density-inline-padding);
 }
 
+html[data-density='compact'] .ops-page .date-badge {
+  min-height: 20px;
+  padding-block: 1px;
+}
+
 html[data-density='compact'] .ops-table th,
 html[data-density='compact'] .ops-table td,
 html[data-density='compact'] .ops-forecast-breakdown th,

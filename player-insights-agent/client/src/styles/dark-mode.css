@@ -741,7 +741,6 @@ html[data-theme='dark'] .trace-inspector .trace-explore:active:not(:disabled) {
  * computed style and absent on screen. 12% is the same step the pressed chips and
  * the menus use, so hover, selected and highlighted stay one family.
  */
-html[data-theme='dark'] .app-nav-tab:hover,
 html[data-theme='dark'] .conversation-owner-trigger:hover,
 html[data-theme='dark'] .conversation-owner-trigger[aria-expanded='true'],
 html[data-theme='dark'] .conversation-owner-option:hover,

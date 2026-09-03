@@ -447,7 +447,7 @@ export interface ConnectionGroup {
  * wrong, and everything below them is a report.
  */
 const GROUP_ORDER: Array<{ key: ConnectionGroupKey; title: string }> = [
-  { key: 'blocked', title: 'Blocked' },
+  { key: 'blocked', title: 'Disconnected resources' },
   { key: 'drifted', title: 'Drifted' },
   // Above `reachable` because it is actionable, below the two that assert
   // something is WRONG because a refusal does not: the call stopped at the
@@ -455,12 +455,6 @@ const GROUP_ORDER: Array<{ key: ConnectionGroupKey; title: string }> = [
   // rather than a heading shared with `not-checked` -- a permission and a run are
   // different next moves, and one heading over both is the conflation the count
   // line was making.
-  { key: 'refused', title: 'Refused' },
-  // Beside refused rather than folded in with it, and in the same place the count
-  // line puts it, so the section order and the line read the same left to right.
-  // A refusal is answered by a permission and an unreachable call by a retry or an
-  // escalation, which is two next moves and so two headings.
-  { key: 'unreachable', title: 'Unreachable' },
   { key: 'reachable', title: 'Connections' },
 ];
 
@@ -474,10 +468,10 @@ const GROUP_ORDER: Array<{ key: ConnectionGroupKey; title: string }> = [
  * it would be the twelfth green row in a list nobody reads to the end.
  */
 export function connectionGroupKey(reading: ConnectionReading): ConnectionGroupKey {
-  if (reading.status === 'blocked') return 'blocked';
+  if (reading.status === 'blocked' || reading.status === 'refused' || reading.status === 'unreachable') {
+    return 'blocked';
+  }
   if (reading.marker === 'drift') return 'drifted';
-  if (reading.status === 'refused') return 'refused';
-  if (reading.status === 'unreachable') return 'unreachable';
   // Reachable, absent and unavailable checks all remain in the main logical
   // resource list. Each row states its own exact status from its canonical view.
   return 'reachable';

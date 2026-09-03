@@ -61,6 +61,62 @@ export const UPSERT_DECLARED_CONNECTION_QUERY = `
   RETURNING id, label, kind, resource_type, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
 
 /**
+ * Insert one reviewed group as one database statement.
+ *
+ * The conflict CTE gates the whole insert, so a duplicate id or normalized
+ * type/value produces zero writes rather than a partially saved selection.
+ */
+export const INSERT_DECLARED_CONNECTIONS_BATCH_QUERY = `
+  WITH incoming AS (
+    SELECT *
+      FROM jsonb_to_recordset($1::jsonb) AS row(
+        id TEXT, label TEXT, kind TEXT, resource_type TEXT, value TEXT, note TEXT
+      )
+  ),
+  conflicts AS (
+    SELECT 1
+      FROM incoming
+      JOIN ${APP_SCHEMA}.declared_connections existing
+        ON lower(btrim(existing.id)) = lower(btrim(incoming.id))
+        OR (
+          existing.state = 'declared'
+          AND lower(btrim(existing.kind)) = lower(btrim(incoming.kind))
+          AND lower(btrim(existing.resource_type)) = lower(btrim(incoming.resource_type))
+          AND lower(btrim(existing.value)) = lower(btrim(incoming.value))
+        )
+    UNION ALL
+    SELECT 1
+      FROM incoming
+     GROUP BY lower(btrim(id))
+    HAVING count(*) > 1
+    UNION ALL
+    SELECT 1
+      FROM incoming a
+      JOIN incoming b
+        ON a.id < b.id
+       AND (
+         lower(btrim(a.id)) = lower(btrim(b.id))
+         OR (
+           lower(btrim(a.kind)) = lower(btrim(b.kind))
+           AND lower(btrim(a.resource_type)) = lower(btrim(b.resource_type))
+           AND lower(btrim(a.value)) = lower(btrim(b.value))
+         )
+       )
+  ),
+  inserted AS (
+    INSERT INTO ${APP_SCHEMA}.declared_connections
+      (id, label, kind, resource_type, value, note, state, origin, created_by, changed_by, changed_at)
+    SELECT id, label, kind, resource_type, value, note, 'declared', 'app', $2, $2, now()
+      FROM incoming
+     WHERE NOT EXISTS (SELECT 1 FROM conflicts)
+    RETURNING id, label, kind, resource_type, value, note, state, origin,
+              created_at, created_by, changed_at, changed_by
+  )
+  SELECT coalesce(jsonb_agg(to_jsonb(inserted)), '[]'::jsonb) AS connections,
+         (SELECT count(*)::int FROM conflicts) AS conflict_count
+    FROM inserted`;
+
+/**
  * Withdraw a declaration, keeping the row.
  *
  * `RETURNING` so the caller can tell "withdrew it" from "there was nothing to
@@ -188,6 +244,45 @@ export async function writeDeclaredConnection(
   const row = (result?.rows ?? [])[0];
   if (!row) throw new Error('the declared connection was not written back');
   return storedFromRow(row);
+}
+
+export async function writeDeclaredConnectionsBatch(
+  client: LakebaseReader,
+  connections: Array<{
+    id: string;
+    label: string;
+    kind: ResourceKind;
+    resourceType: DeclaredResourceType;
+    value: string;
+    note: string;
+  }>,
+  changedBy: string
+): Promise<{ connections: StoredDeclaredConnection[]; conflict: boolean }> {
+  const payload = connections.map((connection) => ({
+    id: connection.id,
+    label: connection.label,
+    kind: connection.kind,
+    resource_type: connection.resourceType,
+    value: connection.value,
+    note: connection.note,
+  }));
+  const result = await client.lakebase.query(INSERT_DECLARED_CONNECTIONS_BATCH_QUERY, [
+    JSON.stringify(payload),
+    changedBy,
+  ]);
+  const row = result?.rows?.[0] ?? {};
+  const raw = Array.isArray(row.connections)
+    ? row.connections
+    : typeof row.connections === 'string'
+      ? (JSON.parse(row.connections) as unknown)
+      : [];
+  const saved = Array.isArray(raw)
+    ? raw.filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    : [];
+  return {
+    connections: saved.map(storedFromRow),
+    conflict: Number(row.conflict_count) > 0 || saved.length !== connections.length,
+  };
 }
 
 export async function withdrawDeclaredConnection(

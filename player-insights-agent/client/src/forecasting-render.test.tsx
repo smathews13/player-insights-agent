@@ -223,6 +223,7 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).not.toContain('Projected breakdown');
     expect(markup).toContain('Projection breakdown');
     expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain('ops-forecast-breakdown-chevron');
     expect(markup).not.toContain('Projected cost breakdown by horizon');
     expect(markup).not.toContain('<th scope="row">App compute</th>');
     expect(markup).toContain('Measured app-compute daily billing rate, held fixed');
@@ -301,6 +302,14 @@ describe('Forecasting visibility and placement', () => {
     expect(closedBreakdown).toContain('aria-expanded="false"');
     expect(closedBreakdown).not.toContain('<table>');
     expect(closedBreakdown.match(/>Estimated</g)).toHaveLength(1);
+    expect(OPS_CSS).toMatch(/\.ops-forecast-breakdown-trigger:hover\s*\{[^}]*background:/);
+    expect(OPS_CSS).toMatch(
+      /\.ops-forecast-breakdown-trigger\[aria-expanded='true'\] \.ops-forecast-breakdown-chevron\s*\{[^}]*rotate\(90deg\)/
+    );
+    expect(OPS_CSS).toMatch(/\.ops-forecast-breakdown table\s*\{[^}]*table-layout:\s*fixed/);
+    expect(OPS_CSS).toMatch(
+      /\.ops-forecast-breakdown th:not\(:first-child\),\s*\.ops-forecast-breakdown td\s*\{[^}]*font-variant-numeric:\s*tabular-nums/
+    );
 
     for (const component of ['Serving endpoint', 'Astrolabe SQL', 'App compute', 'Vector Search', 'Data Genie']) {
       expect(breakdown).toContain(`<th scope="row">${component}</th>`);

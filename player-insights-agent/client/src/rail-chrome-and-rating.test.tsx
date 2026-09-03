@@ -124,10 +124,10 @@ describe('the release badge and the two controls beside it', () => {
     expect(markup).not.toMatch(/class="[^"]*size-3"/);
   });
 
-  it('answers the pointer with the same fill its neighbours do', () => {
-    // The inert chip on a rail of three was most of the reported difference: two
-    // of them lift under the pointer and one did nothing.
-    expect(ACCOUNT).toMatch(/\.account-menu-trigger:hover \{\s*background: var\(--muted\)/);
+  it('answers the pointer with its own near-opaque identity lift', () => {
+    expect(ACCOUNT).toMatch(
+      /\.account-menu-trigger\.identity-chip:hover,[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-chrome\) 96%,\s*var\(--ast-pos-text\)\)/
+    );
     expect(SHELL).toMatch(
       /\.deployment-time-chip:hover,\s*\.deployment-time-chip:focus-visible \{\s*background: var\(--muted\)/
     );

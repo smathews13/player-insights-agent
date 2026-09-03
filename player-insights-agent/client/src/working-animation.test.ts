@@ -109,13 +109,9 @@ describe('which seating the loader takes', () => {
 });
 
 describe('the inline row is the narrow seating, and says a real number', () => {
-  it('is the spec’s own words rather than the panel’s', () => {
-    // "Working on your question" is `loading-suite.md`'s label for this seating.
-    // The panels say "Working on it", and the difference is what each sits next
-    // to: the panel has already said what the agent is connecting, and this row
-    // is alone in a column with no other copy in it.
-    expect(INLINE_WORKING_LABEL).toBe('Working on your question');
-    expect(INLINE_WORKING_LABEL).not.toBe(WORKING_LABEL);
+  it('matches the centered pre-stage copy exactly', () => {
+    expect(INLINE_WORKING_LABEL).toBe('Planning out your answer');
+    expect(WORKING_LABEL).toBe('Planning out your answer');
   });
 
   it('sets the count in mono and pins it right without recentring the label', () => {

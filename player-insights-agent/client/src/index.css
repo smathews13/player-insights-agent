@@ -76,7 +76,6 @@
 /* Shared by the Benchmark and Run Explorer lazy routes. It stays in the entry
    cascade because both routes reshape it and neither route owns the primitive. */
 @import './styles/summary-grid.css';
-@import './styles/timeline.css';
 @import './styles/responsive.css';
 @import './styles/gate.css';
 /* After gate.css, which holds the access gate's modal treatment. This partial

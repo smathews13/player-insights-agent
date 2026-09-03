@@ -189,6 +189,9 @@ describe('the figures line up', () => {
     const pill = rule('.ops-latency-trend-filter');
     expect(pill).toMatch(/height:\s*32px/);
     expect(pill).toMatch(/align-items:\s*center/);
+    expect(pill).toMatch(/justify-content:\s*center/);
+    expect(pill).toMatch(/text-align:\s*center/);
+    expect(rule('.ops-latency-trend-filter::before')).toMatch(/position:\s*absolute/);
   });
 
   it('geometrically centers TREND and keeps search/Refresh in a separate right column', () => {
@@ -311,7 +314,7 @@ describe('the Cost card layout', () => {
     }
     expect(rule('.ops-cost-resource')).toMatch(/text-overflow:\s*ellipsis/);
     expect(rule('.ops-tile-evidence')).toMatch(/overflow-wrap:\s*anywhere/);
-    expect(rule('.ops-cost-summary-budget')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.ops-cost-summary-budget')).toMatch(/grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
     expect(rule('.ops-cost-summary-budget-item')).toMatch(/min-width:\s*0/);
     expect(rule('.ops-block-title-group')).toMatch(/white-space:\s*nowrap/);
   });

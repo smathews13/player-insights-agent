@@ -152,6 +152,7 @@ import { ConversationRailRunStatus } from './ConversationRailRunStatus';
 import { ConceptFlicker } from './ConceptFlicker';
 import { WorkingInlineRow } from './WorkingInlineRow';
 import { elapsedSeconds, seatForTranscript, WORKING_LABEL } from './working-animation';
+import { ToolCallsLabel } from './ToolCallsLabel';
 import {
   normalizeAnswer,
   normalizeClarification,
@@ -2637,7 +2638,7 @@ export function HomePage() {
                   steps as the question needs. A percentage would be the same
                   invention as the four hardcoded stage names this replaced, which
                   ticked to full in 2.6 seconds and froze for the remaining 23. */}
-              {!conversationLoading && <Progress value={null} aria-label="Working on your question" />}
+              {!conversationLoading && <Progress value={null} aria-label="Planning out your answer" />}
               {/* The run, said from what has been observed of it: the request
                   going out, then each step with the arguments it was actually
                   given. The skeletons this replaces stood in for content that
@@ -2903,7 +2904,7 @@ export function HomePage() {
                  waiting on their first step got an empty-state heading. */
         loading ? (
           /* A run is in flight and no step has landed yet, which is `#17a`'s
-               inline seating: 20px mark, "Working on your question", the real
+               inline seating: 20px mark, "Planning out your answer", the real
                count pinned right. It was a lucide spinner in a washed tile over
                "No steps yet" and a sentence explaining that each step would
                appear as it completed -- a generic glyph standing in for the agent
@@ -2936,7 +2937,7 @@ export function HomePage() {
                 </strong>
               </span>
               <span>
-                Tool calls
+                <ToolCallsLabel>Tool calls</ToolCallsLabel>
                 <strong>{answer.trace.stages.length > 0 ? answer.trace.toolCalls : 'Not recorded'}</strong>
               </span>
               <span>

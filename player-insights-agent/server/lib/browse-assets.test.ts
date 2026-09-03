@@ -19,11 +19,22 @@ import {
   listVectorSearchIndexes,
   listVolumes,
   listWarehouses,
+  matchesUnityCatalogSearch,
+  normalizedUnityCatalogSearch,
   resetBrowsePageCache,
   validateNotebookPath,
 } from './browse-assets';
 import { DISCOVERY_MAX_CONCURRENCY } from './discovery-control';
 import { isBrowseOk, isBrowseUnavailable } from '../../shared/browse-contract';
+
+describe('Unity Catalog search matching', () => {
+  it('matches spaces, underscores, hyphens, and compact identifiers without changing display ids', () => {
+    const query = normalizedUnityCatalogSearch('<your profile>');
+    expect(matchesUnityCatalogSearch('example-demos', query)).toBe(true);
+    expect(matchesUnityCatalogSearch('example-demos_catalog', query)).toBe(true);
+    expect(matchesUnityCatalogSearch('other_catalog', query)).toBe(false);
+  });
+});
 
 const HOST = 'https://example-workspace.invalid';
 

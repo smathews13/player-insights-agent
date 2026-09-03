@@ -79,10 +79,10 @@ export function tableReachabilityCopy(check: PreflightCheck, checkedAt: string):
   const countLabel = columns === null ? '' : `${columns} column${columns === 1 ? '' : 's'}`;
   const when = checkedAt ? formatCheckedAt(checkedAt) : 'time not reported';
   if (check.status === 'ok') {
-    const count = countLabel || 'schema metadata reachable';
+    const count = countLabel || 'schema metadata available';
     return {
       row: `${count} · checked ${when}`,
-      title: `Reachability confirmed. ${countLabel ? `Schema has ${countLabel}. ` : ''}Last checked ${when}.`,
+      title: `Connection confirmed. ${countLabel ? `Schema has ${countLabel}. ` : ''}Last checked ${when}.`,
     };
   }
   const evidence = `${check.error} ${check.detail}`.trim();
@@ -90,12 +90,12 @@ export function tableReachabilityCopy(check: PreflightCheck, checkedAt: string):
   if (check.stopped === 'refused' || permission) {
     return {
       row: `Permission not confirmed · checked ${when}`,
-      title: `The workspace refused the metadata read, so reachability under this sign-in is not confirmed. Last checked ${when}.`,
+      title: `The workspace refused the metadata read, so this connection is not confirmed. Last checked ${when}.`,
     };
   }
   return {
-    row: `Reachability not confirmed · checked ${when}`,
-    title: `The metadata read did not establish reachability. Last checked ${when}.`,
+    row: `Connection not confirmed · checked ${when}`,
+    title: `The metadata read did not establish a connection. Last checked ${when}.`,
   };
 }
 

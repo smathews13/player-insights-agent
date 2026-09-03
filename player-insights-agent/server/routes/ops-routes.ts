@@ -61,8 +61,9 @@ import {
   telemetrySchema,
   uncheckedMeasurement,
 } from '../lib/ops-telemetry';
-import { classifyDenial, accessDependenciesFrom, UNKNOWN_PRINCIPAL } from './access-verification';
+import { classifyDenial, accessDependenciesFrom, forwardedUserToken, UNKNOWN_PRINCIPAL } from './access-verification';
 import { executionToken } from '../lib/execution-credential';
+import { readOpsScopes } from '../lib/ops-scope-check';
 import {
   ANSWER_PATH_ENDPOINT_IDS,
   PROBE_TIMEOUT_MS,
@@ -1481,6 +1482,7 @@ async function readLifetimeSpendSnapshot(input: {
 export const OPS_ROUTES = [
   '/api/ops/health',
   '/api/ops/health/check',
+  '/api/ops/scopes',
   '/api/ops/cost',
   '/api/ops/traffic',
   '/api/ops/latency',
@@ -1516,6 +1518,9 @@ export interface OpsDeps {
   queryHistoryTransport?: WarehouseQueryHistoryTransport;
   /** Test seam for the route's independent capability check. */
   healthCheckRole?: (req: Request) => Promise<string>;
+  /** Test seams for the independent scope-comparison authorization and app credential. */
+  scopeCheckRole?: (req: Request) => Promise<string>;
+  scopeAppToken?: () => Promise<{ host: string; token: string }>;
   /** Test seam for the manual run's total deadline. */
   healthCheckTotalTimeoutMs?: number;
 }
@@ -1684,6 +1689,59 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           error: 'health_check_unavailable',
           detail: 'The health check could not finish. The previous results are unchanged; try again.',
         });
+      }
+    });
+
+    app.get('/api/ops/scopes', async (req: Request, res: Response) => {
+      let role = '';
+      try {
+        role = deps.scopeCheckRole
+          ? await deps.scopeCheckRole(req)
+          : (await resolveRoleForRequest(appkit.lakebase, req, userEmail)).role;
+      } catch {
+        res.status(403).json(ADMIN_REQUIRED_BODY);
+        return;
+      }
+      if (!canCheckHealthResources(role)) {
+        res.status(403).json(ADMIN_REQUIRED_BODY);
+        return;
+      }
+      const userToken = forwardedUserToken(req);
+      if (!userToken) {
+        res.status(503).json({
+          error: 'scope_check_unavailable',
+          detail: 'Scope comparison needs a current signed-in user session. Sign in again and retry.',
+        });
+        return;
+      }
+      const disconnected = new AbortController();
+      const abort = () => disconnected.abort(new DOMException('Client disconnected', 'AbortError'));
+      const close = () => {
+        if (!res.writableEnded) abort();
+      };
+      req.once('aborted', abort);
+      res.once('close', close);
+      const signal = AbortSignal.any([disconnected.signal, AbortSignal.timeout(30_000)]);
+      try {
+        const payload = await readOpsScopes({
+          userToken,
+          principal: userEmail(req),
+          signal,
+          now: clock,
+          fetchImpl: deps.fetchImpl,
+          appToken: deps.scopeAppToken,
+        });
+        if (!res.destroyed && !res.writableEnded) res.json(payload);
+      } catch {
+        if (!res.destroyed && !res.writableEnded) {
+          res.status(503).json({
+            error: 'scope_check_unavailable',
+            detail: 'The catalog scope comparison could not finish. No grants were changed; retry the check.',
+          });
+        }
+      } finally {
+        req.off('aborted', abort);
+        res.off('close', close);
       }
     });
 

@@ -17,17 +17,10 @@ export type WorkingSeat = 'splash' | 'card';
  * is long and that nothing has hung, and saying it again in words is the
  * reassuring register the rest of the app no longer uses.
  */
-export const WORKING_LABEL = 'Working on it';
+export const WORKING_LABEL = 'Planning out your answer';
 
-/**
- * The inline row's label, which is `loading-suite.md`'s own words for it.
- *
- * Different from `WORKING_LABEL` on purpose, and the difference is what each
- * seating is next to. "Working on it" sits under a panel that has already said
- * what the agent is connecting; this row sits in a column with no other copy in
- * it, so it names the thing being worked on.
- */
-export const INLINE_WORKING_LABEL = 'Working on your question';
+/** The Agent path repeats the exact pre-stage label until stage one lands. */
+export const INLINE_WORKING_LABEL = 'Planning out your answer';
 
 /**
  * One assistant answer on screen is enough to seat the strip in the card.

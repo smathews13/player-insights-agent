@@ -1629,10 +1629,13 @@ describe('the per-user panel', () => {
     );
     const rendered = text(markup);
 
-    expect(rendered).toContain('Total user spend 12.50 USD Estimated');
-    expect(rendered).toContain('Cost / question 2.50 USD 5 submitted questions');
-    expect(rendered).toContain('Average daily spend 3.125 USD 4 covered days');
-    expect(rendered).toContain('Share of app spend 25% of comparable app spend');
+    expect(rendered).toContain('Total user spend Estimated 12.50 USD');
+    expect(rendered).toContain('Cost / question Estimated 2.50 USD 5 submitted questions');
+    expect(rendered).toContain('Average tokens Estimated');
+    expect(rendered).toContain('Average daily spend Estimated 3.125 USD 4 covered days');
+    expect(rendered).toContain('Share of app spend Estimated 25% of comparable app spend');
+    expect(rendered.match(/Estimated/g)).toHaveLength(5);
+    expect(rendered).not.toMatch(/(?:submitted questions|\/ question|covered days|app spend) · Estimated/);
     expect(rendered).not.toMatch(/Week over week|Month over month|prior 7 days|prior matched month/i);
     expect(markup.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(5);
     const cardOrder = [
@@ -1662,22 +1665,22 @@ describe('the per-user panel', () => {
     expect(markup).not.toContain('user-profile-modal-spend-resource');
     expect(new Set(markup.match(/id="[^"]+"/g)).size).toBe(markup.match(/id="[^"]+"/g)?.length);
 
-    const dbu = text(
-      render(
-        <PersonPanel
-          panel={panel()}
-          spendState={{ status: 'ready', key: 'spend', requestId: 1, data: cost, error: null }}
-          spendUnit="DBU"
-          now={NOW}
-          rangeLabel="last 7 days"
-          onClose={() => {}}
-          onOpenQuestion={() => {}}
-        />
-      )
+    const dbuMarkup = render(
+      <PersonPanel
+        panel={panel()}
+        spendState={{ status: 'ready', key: 'spend', requestId: 1, data: cost, error: null }}
+        spendUnit="DBU"
+        now={NOW}
+        rangeLabel="last 7 days"
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+      />
     );
-    expect(dbu).toContain('Total user spend 6.25 DBU Estimated');
-    expect(dbu).toContain('Cost / question Question count unavailable');
-    expect(dbu).toContain('Average daily spend Covered days unavailable');
+    const dbu = text(dbuMarkup);
+    expect(dbu).toContain('Total user spend Estimated 6.25 DBU');
+    expect(dbu).toContain('Cost / question Estimated Question count unavailable');
+    expect(dbu).toContain('Average daily spend Estimated Covered days unavailable');
+    expect(dbu.match(/Estimated/g)).toHaveLength(5);
     expect(dbu).not.toContain('12.50 USD');
 
     const noSpend: OpsCostPayload = structuredClone(cost);
@@ -1693,7 +1696,8 @@ describe('the per-user panel', () => {
         onOpenQuestion={() => {}}
       />
     );
-    expect(text(hidden)).toContain('Total user spend Spend not available yet');
+    expect(text(hidden)).toContain('Total user spend Estimated Spend not available yet');
+    expect(text(hidden).match(/Estimated/g)).toHaveLength(5);
     expect(hidden.indexOf('user-profile-modal-spend"')).toBeLessThan(hidden.indexOf('What they asked'));
 
     const loading = render(
@@ -1707,6 +1711,7 @@ describe('the per-user panel', () => {
       />
     );
     expect(text(loading)).toContain('Loading user spend');
+    expect(text(loading).match(/Estimated/g)).toHaveLength(5);
     expect(loading.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(5);
     expect(loading.match(/ast-flick-slot--inline/g)).toHaveLength(1);
     expect(loading.match(/ast-anim-flick/g)).toHaveLength(4);
@@ -1714,6 +1719,25 @@ describe('the per-user panel', () => {
     expect(loading).not.toContain('lucide-wallet');
     expect(loading).not.toContain('user-profile-modal-spend-loading-icon');
     expect(loading).not.toContain('skeleton');
+
+    for (const rangeLabel of ['last 24 hours', 'last 7 days', 'last 30 days', 'all time']) {
+      for (const spendUnit of ['USD', 'DBU'] as const) {
+        const variant = text(
+          render(
+            <PersonPanel
+              panel={panel()}
+              spendState={{ status: 'ready', key: `${rangeLabel}:${spendUnit}`, requestId: 1, data: cost, error: null }}
+              spendUnit={spendUnit}
+              now={NOW}
+              rangeLabel={rangeLabel}
+              onClose={() => {}}
+              onOpenQuestion={() => {}}
+            />
+          )
+        );
+        expect(variant.match(/Estimated/g), `${rangeLabel} ${spendUnit}`).toHaveLength(5);
+      }
+    }
   });
 
   it('upgrades the production KPI shape from known totals and denominators', () => {
@@ -1756,12 +1780,13 @@ describe('the per-user panel', () => {
       />
     );
     const rendered = text(markup);
-    expect(rendered).toContain('Total user spend 9.55 USD');
-    expect(rendered).toContain('Cost / question 0.382 USD 25 submitted questions');
-    expect(rendered).toContain('Average daily spend 1.364 USD 7 covered days');
-    expect(rendered).toContain('Average tokens 84.6K / run 126.9K / question');
+    expect(rendered).toContain('Total user spend Estimated 9.55 USD');
+    expect(rendered).toContain('Cost / question Estimated 0.382 USD 25 submitted questions');
+    expect(rendered).toContain('Average daily spend Estimated 1.364 USD 7 covered days');
+    expect(rendered).toContain('Average tokens Estimated 84.6K / run 126.9K / question');
     expect(markup).toContain('253,800 tokens across 3 token-covered runs');
-    expect(rendered).toContain('Share of app spend No comparable app total');
+    expect(rendered).toContain('Share of app spend Estimated No comparable app total');
+    expect(rendered.match(/Estimated/g)).toHaveLength(5);
     expect(rendered).not.toMatch(/No comparable period|Week over week|Month over month/i);
     expect(rendered).not.toContain('–');
   });
@@ -1790,7 +1815,8 @@ describe('the per-user panel', () => {
         state={{ status: 'ready', key: 'seeded', requestId: 1, data, error: null }}
       />
     );
-    expect(text(markup)).toContain('Total user spend 62.61 USD');
+    expect(text(markup)).toContain('Total user spend Estimated 62.61 USD');
+    expect(text(markup).match(/Estimated/g)).toHaveLength(5);
     for (const label of [
       'Calculating cost per question',
       'Calculating average tokens',

@@ -141,7 +141,7 @@ describe('the run header sums the run up in one line', () => {
   it('keeps wall time at the edge and puts calls and feedback in the identity badges', () => {
     const markup = header();
     expect(markup).toContain('run-detail-meta ast-num">73.2s');
-    expect(markup).toContain('Tools · <span class="ast-num">12</span>');
+    expect(markup).toMatch(/tool-calls-label[\s\S]*>Tools<[\s\S]*ast-num">12<\/span>/);
     expect(markup).toContain('aria-label="Helpful"');
     expect(markup).toContain('lucide-thumbs-up');
   });
@@ -178,7 +178,7 @@ describe('the run header sums the run up in one line', () => {
     // The row carries no call count; the agent's own counter is on the trace. The
     // Overview tile beside this line reads the same number, so a header that
     // derived its own would be the second opinion this page keeps deleting.
-    expect(header({ toolCalls: 3 })).toContain('Tools · <span class="ast-num">3</span>');
+    expect(header({ toolCalls: 3 })).toMatch(/tool-calls-label[\s\S]*>Tools<[\s\S]*ast-num">3<\/span>/);
   });
 });
 
