@@ -6,6 +6,7 @@ export interface CoreUserSpendMetricInput {
   questions: number | null;
   coveredDays: number | null;
   unit: CostBudgetUnit;
+  estimated?: boolean;
 }
 
 export function deriveUserTokenAverages(input: {
@@ -63,6 +64,7 @@ export function deriveCoreUserSpendMetrics(input: CoreUserSpendMetricInput): {
             value: amount / questions,
             state: 'value',
             subtitle: `${questions.toLocaleString()} submitted questions`,
+            estimated: input.estimated,
           }
         : unavailable(
             questions === null
@@ -77,6 +79,7 @@ export function deriveCoreUserSpendMetrics(input: CoreUserSpendMetricInput): {
             value: amount / coveredDays,
             state: 'value',
             subtitle: `${coveredDays.toLocaleString()} covered days`,
+            estimated: input.estimated,
           }
         : unavailable(
             coveredDays === null

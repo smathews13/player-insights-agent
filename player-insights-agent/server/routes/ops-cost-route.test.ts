@@ -295,12 +295,13 @@ describe('the ranged cost route', () => {
       { json: (body: OpsCostPayload) => (payload = body) } as unknown as Response
     );
 
-    expect(payload.range).toEqual({ from: '2026-08-10', to: '2026-08-17' });
+    expect(payload.period).toBe('current_month');
+    expect(payload.range).toEqual({ from: '2026-08-01', to: '2026-08-17' });
     expect(payload.billingLagDays).toBe(1);
-    expect(lakebase).toHaveBeenCalledWith(QUESTION_COST_RUNS_QUERY, ['2026-08-10', '2026-08-17']);
+    expect(lakebase).toHaveBeenCalledWith(QUESTION_COST_RUNS_QUERY, ['2026-08-01', '2026-08-17']);
     expect(statementBodies[0].parameters).toEqual(
       expect.arrayContaining([
-        { name: 'from_day', value: '2026-08-10', type: 'DATE' },
+        { name: 'from_day', value: '2026-08-01', type: 'DATE' },
         { name: 'to_day', value: '2026-08-17', type: 'DATE' },
       ])
     );

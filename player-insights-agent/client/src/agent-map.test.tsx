@@ -258,7 +258,7 @@ describe('the agent map fits the page it is drawn on', () => {
     expect(markup).not.toContain('0.1s');
   });
 
-  it('starts with the same Orchestrator run envelope as Timeline row 1', () => {
+  it('starts with the same Orchestrator run card without adding an outer perimeter', () => {
     const markup = renderToStaticMarkup(
       <TraceDag
         stages={run}
@@ -273,22 +273,14 @@ describe('the agent map fits the page it is drawn on', () => {
     expect(markup).toContain('12.34s');
     expect(markup).toContain('3 tool calls');
     expect(rule('.trace-dag.map .dag-step.run-envelope')).toMatch(/grid-column: 1 \/ -1/);
-    expect(markup).toContain('class="trace-dag map has-run-envelope"');
-    const wholeRun = rule('.trace-dag.map.has-run-envelope');
-    // The envelope is the app's action blue, the same token the open card's 2px
-    // edge and every other primary outline take -- not a second blue mixed for
-    // this one rule, and not the grey connector it used to be, which read as
-    // chrome around the run rather than a boundary belonging to it.
-    expect(wholeRun).toMatch(/border: 1px dashed var\(--primary\)/);
-    // DASHED, NOT DOTTED. 1px dots at a 1px pitch are a half-tone haze rather
-    // than a line, and that fuzz is what this rule was changed to remove.
-    expect(wholeRun).not.toMatch(/dotted/);
-    expect(wholeRun).toMatch(/border-radius: var\(--radius-md\)/);
-    // Even padding on all four sides: the gap between the perimeter and the
-    // cards is the same everywhere, so a single shorthand and no per-side
-    // override is the assertion.
-    expect(wholeRun).toMatch(/padding: 14px;/);
-    expect(wholeRun).not.toMatch(/padding-(top|right|bottom|left)/);
+    expect(markup).toContain('class="trace-dag map"');
+    expect(markup).not.toContain('has-run-envelope');
+    expect(rule('.trace-dag.map.has-run-envelope')).toBe('');
+    // Removing the perimeter also removes its inset, so every graph keeps the
+    // same base geometry whether or not it carries a measured run card.
+    expect(rule('.trace-dag')).toMatch(/padding: 4px 0/);
+    expect(rule('.trace-dag.map .dag-node.open')).toMatch(/border: 2px solid var\(--primary\)/);
+    expect(rule('.trace-dag.map .dag-node:focus-visible')).toMatch(/outline: 2px solid var\(--db-blue-600\)/);
   });
 
   it('opens the aggregate root as a real run summary, never a fake empty result', () => {

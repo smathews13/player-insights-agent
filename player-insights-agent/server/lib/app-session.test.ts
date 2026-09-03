@@ -5,9 +5,11 @@ import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   APP_IDLE_TIMEOUT_CODE,
+  APP_SESSION_ACTIVITY_THROTTLE_SECONDS,
   APP_SESSION_COOKIE,
   APP_SESSION_REQUIRED_CODE,
   APP_SESSION_UNAVAILABLE_CODE,
+  DEFAULT_IDLE_TIMEOUT_MINUTES,
   appSessionCookie,
   cleanupExpiredAppSessions,
   createOpaqueSessionId,
@@ -109,7 +111,7 @@ function memoryStore(start = Date.parse('2026-08-28T12:00:00Z')) {
           row.revoked === null &&
           row.idleExpires > now &&
           row.absoluteExpires > now &&
-          row.lastActive <= now - 45_000
+          row.lastActive <= now - APP_SESSION_ACTIVITY_THROTTLE_SECONDS * 1_000
         ) {
           row.lastActive = now;
           row.idleExpires = now + idleMinutes * 60_000;
@@ -138,7 +140,11 @@ function memoryStore(start = Date.parse('2026-08-28T12:00:00Z')) {
   };
 }
 
-const enabled: IdleTimeoutConfig = { enabled: true, minutes: 30, source: 'configured' };
+const enabled: IdleTimeoutConfig = {
+  enabled: true,
+  minutes: DEFAULT_IDLE_TIMEOUT_MINUTES,
+  source: 'configured',
+};
 const env = {
   NODE_ENV: 'production',
   DATABRICKS_APP_NAME: 'astrolabe',
@@ -179,10 +185,21 @@ async function start(store = memoryStore(), config: IdleTimeoutConfig = enabled)
       },
       body: '{}',
     });
+  const activity = (cookie: string) =>
+    call('/api/app-session/activity', {
+      method: 'POST',
+      headers: {
+        cookie,
+        'x-astrolabe-session-action': 'activity',
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    });
   return {
     store,
     call,
     bootstrap,
+    activity,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }
@@ -197,8 +214,16 @@ afterEach(async () => {
 });
 
 describe('idle timeout configuration', () => {
-  it('defaults to 30 minutes and requires an explicit disable', () => {
-    expect(resolveIdleTimeout({})).toEqual({ enabled: true, minutes: 30, source: 'default' });
+  it('defaults to 45 minutes and accepts a configured override', () => {
+    expect(resolveIdleTimeout({})).toEqual({ enabled: true, minutes: 45, source: 'default' });
+    expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: '120' })).toEqual({
+      enabled: true,
+      minutes: 120,
+      source: 'configured',
+    });
+  });
+
+  it('requires an explicit disable', () => {
     expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: 'disabled' })).toEqual({
       enabled: false,
       minutes: 0,
@@ -212,7 +237,7 @@ describe('idle timeout configuration', () => {
     expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: '9999' }).minutes).toBe(480);
     expect(resolveIdleTimeout({ PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES: 'forever' })).toMatchObject({
       enabled: true,
-      minutes: 30,
+      minutes: 45,
       source: 'invalid-default',
     });
   });
@@ -283,7 +308,7 @@ describe('expiry and activity semantics', () => {
     const running = await start();
     open.push(running.close);
     const cookie = cookieFrom(await running.bootstrap());
-    running.store.advance(30 * 60_000);
+    running.store.advance(DEFAULT_IDLE_TIMEOUT_MINUTES * 60_000);
     for (const [path, method] of [
       ['/api/data', 'GET'],
       ['/api/mutate', 'POST'],
@@ -336,24 +361,39 @@ describe('expiry and activity semantics', () => {
     );
     expect(row.idleExpires).toBe(originalExpiry);
 
-    const activity = await running.call('/api/app-session/activity', {
-      method: 'POST',
-      headers: {
-        cookie,
-        'x-astrolabe-session-action': 'activity',
-        'content-type': 'application/json',
-      },
-      body: '{}',
-    });
+    const activity = await running.activity(cookie);
     expect(activity.status).toBe(204);
     expect(row.idleExpires).toBeGreaterThan(originalExpiry);
+  });
+
+  it('refreshes near expiry but never revives an authoritatively expired session', async () => {
+    const fiveMinutes: IdleTimeoutConfig = { enabled: true, minutes: 5, source: 'configured' };
+    const running = await start(memoryStore(), fiveMinutes);
+    open.push(running.close);
+    const cookie = cookieFrom(await running.bootstrap());
+    const row = [...running.store.rows.values()][0];
+    const originalExpiry = row.idleExpires;
+
+    running.store.advance(5 * 60_000 - 1_000);
+    expect((await running.activity(cookie)).status).toBe(204);
+    expect(row.idleExpires).toBeGreaterThan(originalExpiry);
+
+    running.store.advance(5 * 60_000 - 1_000);
+    expect((await running.call('/api/data', { headers: { cookie } })).status).toBe(200);
+    running.store.advance(1_000);
+    const refreshedExpiry = row.idleExpires;
+    const expiredActivity = await running.activity(cookie);
+    expect(expiredActivity.status).toBe(401);
+    expect(await expiredActivity.json()).toMatchObject({ error: APP_IDLE_TIMEOUT_CODE });
+    expect(row.idleExpires).toBe(refreshedExpiry);
+    expect(row.revoked).not.toBeNull();
   });
 
   it('clears but never replaces an expired or attacker-supplied cookie during bootstrap', async () => {
     const running = await start();
     open.push(running.close);
     const cookie = cookieFrom(await running.bootstrap());
-    running.store.advance(30 * 60_000);
+    running.store.advance(DEFAULT_IDLE_TIMEOUT_MINUTES * 60_000);
     const expired = await running.bootstrap(cookie);
     expect(expired.status).toBe(401);
     expect(((await expired.json()) as { error: string }).error).toBe(APP_IDLE_TIMEOUT_CODE);

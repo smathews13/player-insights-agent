@@ -240,11 +240,11 @@ variables:
     default: player_insights
   app_idle_timeout_minutes:
     description: >-
-      App-layer inactivity limit for protected API routes. Defaults to 30
+      App-layer inactivity limit for protected API routes. Defaults to 45
       minutes. Whole numbers are clamped to 5-480; only the literal `disabled`
       turns the control off. This does not change the separate Databricks
       workspace or identity-provider session.
-    default: "30"
+    default: "45"
   # Derived resource names for the existing Lakebase objects.
   postgres_branch_name:
     description: Full Lakebase branch resource name (derived).

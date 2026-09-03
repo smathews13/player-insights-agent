@@ -79,7 +79,7 @@ export function queryHistoryCoverageDetail(coverage: QueryHistoryCoverage): stri
   }
   const reasons = coverage.reasons.map((reason) => QUERY_HISTORY_REASON[reason]).join('; ');
   return (
-    `Partial: requested ${dates(coverage.requestedRange)}; queried ${dates(coverage.queriedRange)}; ` +
+    `Estimated: requested ${dates(coverage.requestedRange)}; queried ${dates(coverage.queriedRange)}; ` +
     `${coverage.rowsRead} rows across ${coverage.pagesRead} pages and ${coverage.chunksRead} bounded date chunks. ` +
     `${reasons || 'Coverage was not established'}. SQL and Genie allocations are withheld.`
   );
@@ -1270,7 +1270,6 @@ export function activeMinutesDisplay(payload: OpsTrafficPayload): { title: strin
       hour: 'numeric',
       minute: '2-digit',
       timeZone,
-      timeZoneName: 'short',
     });
   };
   const firstDay = payload.activeMinutesPerDay?.[0]?.day ?? '';
@@ -1283,7 +1282,7 @@ export function activeMinutesDisplay(payload: OpsTrafficPayload): { title: strin
     .formatToParts(new Date(from))
     .reduce<Record<string, string>>((parts, part) => ({ ...parts, [part.type]: part.value }), {});
   const recordedStartDay = `${dayParts.year}-${dayParts.month}-${dayParts.day}`;
-  const prefix = firstDay && firstDay === recordedStartDay ? 'Partial coverage since' : 'Recorded since';
+  const prefix = firstDay && firstDay === recordedStartDay ? 'Estimated from data recorded since' : 'Recorded since';
   return {
     title,
     note: `${prefix} ${format(from)}${through ? ` · latest ${format(through)}` : ''}`,

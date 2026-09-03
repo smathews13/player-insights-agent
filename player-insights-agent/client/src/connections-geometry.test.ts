@@ -216,8 +216,10 @@ describe('the parts a reader has to be able to use', () => {
     // The UC toolbar owns its search geometry so unrelated run-search rules
     // cannot lift the icon out of the field.
     expect(rule('.connections-table-toolbar')).toMatch(/display:\s*flex/);
-    expect(rule('.connections-table-toolbar')).toMatch(/flex-direction:\s*column/);
+    expect(rule('.connections-table-toolbar')).toMatch(/flex-flow:\s*row wrap/);
+    expect(rule('.connections-table-toolbar')).toMatch(/align-items:\s*center/);
     expect(rule('.connections-table-toolbar')).toMatch(/overflow:\s*visible/);
+    expect(rule('.connections-table-query-controls')).toMatch(/flex:\s*1 1 34rem/);
     expect(rule('.connections-table-filter-menu')).toMatch(/width:\s*max-content/);
     expect(rule('.connections-table-filter-menu')).toMatch(/position:\s*absolute/);
     expect(rule('.connections-table-search')).toMatch(/position:\s*relative/);

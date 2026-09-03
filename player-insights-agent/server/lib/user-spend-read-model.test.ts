@@ -236,8 +236,10 @@ describe('fast read semantics', () => {
             run_count: '2',
             active_minutes: '4',
             total_tokens: null,
-            covered_days: '1',
-            app_covered_days: '1',
+            spend_usd_covered_days: '1',
+            spend_dbu_covered_days: '0',
+            app_usd_covered_days: '1',
+            app_dbu_covered_days: '0',
             spend_usd: '0',
             spend_dbu: null,
             spend_usd_quality: 'direct',
@@ -284,6 +286,8 @@ describe('fast read semantics', () => {
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('AND ($5::boolean OR roster.user_key = lower($6))');
     expect(READ_USER_SPEND_SUMMARY_QUERY).not.toContain("COALESCE(NULLIF(admin_user.role, ''), 'consumer')");
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('BOOL_AND(billing_complete)');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('SUM(spend_usd) AS spend_usd');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain("WHEN COUNT(spend_usd) = 0 THEN 'unavailable'");
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('LIMIT $11 OFFSET $12');
   });
 

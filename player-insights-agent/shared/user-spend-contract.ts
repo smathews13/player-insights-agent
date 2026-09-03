@@ -20,6 +20,8 @@ export interface UserSpendKpi {
   value: number | null;
   state: 'value' | 'new' | 'unavailable';
   subtitle: string;
+  /** A useful best-known figure whose source coverage is not yet complete. */
+  estimated?: boolean;
 }
 
 export interface UserTokenAverages {

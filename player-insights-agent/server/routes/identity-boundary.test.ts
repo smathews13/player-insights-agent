@@ -321,7 +321,24 @@ describe('a deployed app with a forwarded identity', () => {
         service_principal_name: 'Astrolabe application',
         service_principal_client_id: process.env.DATABRICKS_CLIENT_ID,
         service_principal_id: '9988776655443322',
-        resources: [{ name: 'sql-warehouse' }],
+        resources: [
+          {
+            name: 'postgres',
+            postgres: {
+              branch: 'projects/player-insights/branches/production',
+              database: 'databricks-postgres',
+              permission: 'CAN_CONNECT_AND_CREATE',
+            },
+          },
+          {
+            name: 'serving-endpoint',
+            serving_endpoint: { name: 'player-insights-agent', permission: 'CAN_QUERY' },
+          },
+          {
+            name: 'sql-warehouse',
+            sql_warehouse: { id: '9cd123456789abcd', permission: 'CAN_USE' },
+          },
+        ],
       });
     };
     const app = await startApp(recordingStore().lakebase, undefined, reader);
@@ -343,14 +360,33 @@ describe('a deployed app with a forwarded identity', () => {
           applicationId: process.env.DATABRICKS_CLIENT_ID,
           objectId: '9988776655443322',
           authenticationType: 'OAuth machine-to-machine',
-          attachedResourceCount: 1,
+          attachedResources: [
+            {
+              resourceKey: 'postgres',
+              resourceType: 'postgres',
+              displayIdentifier: 'databricks-postgres',
+              permission: 'CAN_CONNECT_AND_CREATE',
+            },
+            {
+              resourceKey: 'serving-endpoint',
+              resourceType: 'serving_endpoint',
+              displayIdentifier: 'player-insights-agent',
+              permission: 'CAN_QUERY',
+            },
+            {
+              resourceKey: 'sql-warehouse',
+              resourceType: 'sql_warehouse',
+              displayIdentifier: '9cd123456789abcd',
+              permission: 'CAN_USE',
+            },
+          ],
           state: 'verified',
         },
       });
       const wire = JSON.stringify(body);
       expect(wire).toContain(process.env.DATABRICKS_CLIENT_ID);
       expect(wire).not.toMatch(
-        /client.?secret|authorization|bearer|database.?password|DATABRICKS_CLIENT_SECRET/i
+        /client.?secret|authorization|bearer|database.?password|DATABRICKS_CLIENT_SECRET|attachedResourceCount/i
       );
       expect(body).not.toHaveProperty('executionIdentity');
       // Removing the browser field does not remove the credential from the

@@ -460,24 +460,10 @@
   background: var(--chart-1);
   display: block;
 }
-/*
- * The envelope is a frame, not a mass: an outline, so it cannot be mistaken for
- * another measured step lying under the others. 1.5px, which is the design's
- * weight, and heavy enough to read as a frame rather than as a faint bar.
- *
- * Dashed action blue, the same stroke the Agent map draws around the whole run
- * (`.trace-dag.map.has-run-envelope`) and the answer-card Orchestrator card uses
- * as its identity. A solid grey hollow used to sit here and read as chrome, not
- * as the container those other two surfaces already name in blue. `--primary` is
- * `--db-blue-600` in light and `--ast-ice-accent` in dark, so the Gantt, the map
- * and the card stay one envelope.
- *
- * Dashed, not a 1px dotted rule: a 1px dotted border is 1px dots at a 1px pitch
- * and resolves to haze, which is why the map's perimeter is dashed too.
- */
+/* The run is a quiet duration track, not another call and not an action outline. */
 .trace-bar-run {
   background: transparent;
-  border: 1.5px dashed var(--primary);
+  border: 1px solid var(--ast-border-input);
   height: 10px;
   border-radius: 2px;
 }
@@ -571,12 +557,6 @@
 }
 .trace-timeline--explorer .trace-bar-agent {
   background: #9aa7b2;
-}
-.trace-timeline--explorer .trace-bar-run {
-  /* Keep the envelope on the shared dashed-blue stroke. Notebook kind colour
-     paints the solid step bars; the run is not a kind of step. */
-  background: transparent;
-  border: 1.5px dashed var(--primary);
 }
 /* Explorer: kind totals as a compact badge row above the table, not a
    full-width kind/duration listing. Ask keeps the larger `.trace-kpis` tiles. */

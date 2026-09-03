@@ -338,6 +338,62 @@
 }
 .run-process-body {
   padding: 14px 16px;
+  overflow: visible;
+  container: run-process / inline-size;
+}
+.run-process .run-kpi-grid--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+.run-process .run-kpi-grid--compact [data-slot='card'] {
+  min-width: 0;
+  height: 100%;
+  background: var(--ast-surface-primary);
+}
+.run-process .run-kpi-grid--compact [data-slot='card-content'] {
+  align-items: flex-start;
+  min-height: 112px;
+  height: 100%;
+  gap: 5px;
+  padding: 12px 14px;
+}
+.run-process .run-kpi-grid--compact .run-kpi-value,
+.run-process .run-kpi-grid--compact .run-kpi-feedback {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+}
+.run-process .run-kpi-grid--compact .run-kpi-subtitle {
+  min-width: 0;
+  margin-top: auto;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.run-process .run-kpi-grid--compact .run-rating-badge--kpi {
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 7px;
+  font-size: var(--ast-fs-18);
+  font-weight: 700;
+}
+.run-process .run-kpi-grid--compact .run-rating-badge--kpi > svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+}
+.run-process .run-kpi-grid--compact .run-rating-badge-label {
+  color: currentColor;
+  font-size: inherit;
+}
+@container run-process (max-width: 680px) {
+  .run-process .run-kpi-grid--compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container run-process (max-width: 420px) {
+  .run-process .run-kpi-grid--compact {
+    grid-template-columns: 1fr;
+  }
 }
 /*
  * The toggle row's edge, at the control rung rather than the hairline.

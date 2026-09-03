@@ -152,6 +152,43 @@ describe('interpretBrowseAnswer', () => {
 });
 
 describe('listCatalogs', () => {
+  it('preserves an empty page token so the signed-in user can continue to visible catalogs', async () => {
+    const fetchSpy = vi.fn((url: string, _init?: RequestInit) =>
+      Promise.resolve({
+        status: 200,
+        json: () =>
+          Promise.resolve(
+            String(url).includes('page_token=hidden-prefix')
+              ? { catalogs: [{ name: 'customer_catalog' }], next_page_token: '' }
+              : { catalogs: [], next_page_token: 'hidden-prefix' }
+          ),
+      })
+    );
+    const fetchImpl = fetchSpy as unknown as typeof fetch;
+    const options = {
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl,
+    };
+    const first = await listCatalogs(options);
+    expect(first).toMatchObject({
+      status: 'ok',
+      items: [],
+      next_page_token: 'hidden-prefix',
+      pagination: { complete: false, incomplete_reason: 'more_available', page: 1 },
+    });
+    const second = await listCatalogs({ ...options, pageToken: 'hidden-prefix', page: 2 });
+    expect(second).toMatchObject({
+      status: 'ok',
+      items: [{ id: 'customer_catalog', label: 'customer_catalog' }],
+      pagination: { complete: true, page: 2 },
+    });
+    const [secondUrl, secondInit] = fetchSpy.mock.calls[1] ?? [];
+    expect(secondUrl).toContain('page_token=hidden-prefix');
+    expect((secondInit?.headers as Record<string, string>).authorization).toMatch(/^Bearer /);
+  });
+
   it('returns catalogs the caller can see', async () => {
     const fetchImpl = fetchFor({
       '/api/2.1/unity-catalog/catalogs': {

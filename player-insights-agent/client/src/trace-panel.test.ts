@@ -19,8 +19,10 @@ const HOME = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 const STORED_ANSWER = readFileSync(new URL('./StoredAnswerRenderer.tsx', import.meta.url), 'utf8');
 const RUN_EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
 const MONITORING = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
+const TRACE_DAG = readFileSync(new URL('./TraceDag.tsx', import.meta.url), 'utf8');
 const STYLESHEET = stylesheet();
 const TIMELINE_CSS = partial('timeline.css');
+const TRACE_CSS = partial('trace.css');
 const DARK = partial('dark-mode.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
 
 function cssBody(css: string, selector: string): string {
@@ -270,13 +272,25 @@ describe('the bars carry the outcome, and nothing else', () => {
     expect(STYLESHEET).toMatch(/\.trace-timeline--explorer \.trace-bar-sql \{/);
   });
 
-  it('draws the run envelope as an outline, so it cannot read as another step', () => {
+  it('draws the run duration as a neutral solid hairline on every timeline surface', () => {
     const run = STYLESHEET.match(/\n\.trace-bar-run \{([^}]*)\}/)?.[1] ?? '';
     expect(run).toMatch(/background: transparent/);
-    expect(run).toMatch(/border: 1\.5px dashed var\(--primary\)/);
+    expect(run).toMatch(/border: 1px solid var\(--ast-border-input\)/);
+    expect(run).not.toMatch(/dashed|dotted|primary|blue/i);
     const explorer = STYLESHEET.match(/\n\.trace-timeline--explorer \.trace-bar-run \{([^}]*)\}/)?.[1] ?? '';
-    expect(explorer).toMatch(/border: 1\.5px dashed var\(--primary\)/);
-    expect(explorer).not.toMatch(/#8a97a3/);
+    expect(explorer).toBe('');
+  });
+
+  it('ships no blue dashed run perimeter or run-envelope SVG dash array', () => {
+    expect(TRACE_CSS).not.toContain('.trace-dag.map.has-run-envelope');
+    expect(TRACE_DAG).not.toContain('has-run-envelope');
+    for (const css of [TRACE_CSS, TIMELINE_CSS]) {
+      const runRules = [...css.matchAll(/([^{}]*(?:run-envelope|trace-bar-run|trace-dag\.map)[^{}]*)\{([^}]*)\}/gi)];
+      for (const [, selector, body] of runRules) {
+        expect(body, selector).not.toMatch(/(?:border(?:-[a-z]+)?|stroke)[^;]*(?:dashed|dotted)[^;]*(?:primary|blue)/i);
+      }
+    }
+    expect(`${TRACE_DAG}\n${TIMELINE}`).not.toMatch(/run[-A-Za-z]*envelope[\s\S]{0,120}strokeDasharray/i);
   });
 
   it('keeps the hatch on every bar that did not finish cleanly', () => {

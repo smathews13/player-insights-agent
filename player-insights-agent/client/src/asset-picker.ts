@@ -81,6 +81,16 @@ const CATALOG_LEVELS: readonly BrowseKind[] = ['catalogs'];
 const SCHEMA_LEVELS: readonly BrowseKind[] = ['catalogs', 'schemas'];
 const TABLE_LEVELS: readonly BrowseKind[] = ['catalogs', 'schemas', 'tables'];
 
+export const UNITY_CATALOG_ASSET_PICKER: AssetPickerSpec = {
+  field: 'add-unity-catalog-asset',
+  levels: TABLE_LEVELS,
+  pickAt: 'every',
+  multi: false,
+  title: 'Unity Catalog assets your sign-in can see',
+  typeLabel: '',
+  typeNote: '',
+};
+
 /**
  * Every field that gets a browser, and the browser it gets.
  *
@@ -494,7 +504,7 @@ export function rowActions(spec: AssetPickerSpec, cursor: PickerCursor, item: Br
   if (!last) {
     actions.push({
       kind: 'open',
-      label: 'Open',
+      label: spec.field === UNITY_CATALOG_ASSET_PICKER.field ? 'Browse' : 'Open',
       cursor:
         kind === 'catalogs' || kind === 'lakebase-projects' || kind === 'vector-search-endpoints'
           ? { catalog: item.id.trim(), schema: '' }
@@ -510,15 +520,28 @@ export function rowActions(spec: AssetPickerSpec, cursor: PickerCursor, item: Br
         value: item.id.trim(),
         note: dataCatalogFormLabel('whole-catalog'),
       });
-    } else if ((spec.field === 'catalog-allowlist' || spec.field === 'add-schema') && kind === 'schemas') {
+    } else if (
+      (spec.field === 'catalog-allowlist' ||
+        spec.field === 'add-schema' ||
+        spec.field === UNITY_CATALOG_ASSET_PICKER.field) &&
+      kind === 'schemas'
+    ) {
       actions.push({
         kind: 'pick',
-        label: 'This schema',
+        label: spec.field === UNITY_CATALOG_ASSET_PICKER.field ? 'Select schema' : 'This schema',
         value: twoPartName(cursor, item),
         note: dataCatalogFormLabel('single-schema'),
       });
     } else {
-      actions.push({ kind: 'pick', label: 'Use', value: item.id.trim(), note: '' });
+      const selectionLabel =
+        spec.field === UNITY_CATALOG_ASSET_PICKER.field
+          ? kind === 'catalogs'
+            ? 'Select catalog'
+            : kind === 'tables'
+              ? 'Select table/view'
+              : 'Select asset'
+          : 'Use';
+      actions.push({ kind: 'pick', label: selectionLabel, value: item.id.trim(), note: '' });
     }
   }
 

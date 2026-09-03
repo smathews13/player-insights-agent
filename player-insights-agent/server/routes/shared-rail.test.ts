@@ -83,6 +83,7 @@ const asAlice = { 'x-forwarded-email': 'alice@example.example' };
 const ROUTE_SOURCE = readFileSync(new URL('insights-routes.ts', import.meta.url), 'utf8');
 
 let previous: string | undefined;
+let previousOrganizations: string | undefined;
 let nodeEnv: string | undefined;
 let logs: string[];
 
@@ -90,6 +91,7 @@ beforeEach(() => {
   resetLakebaseHealth();
   announceSeedAdmins('');
   previous = process.env[SHARED_CONVERSATION_RAIL_ENV];
+  previousOrganizations = process.env.PLAYER_INSIGHTS_ORGANIZATIONS;
   nodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = 'production';
   logs = [];
@@ -103,6 +105,8 @@ afterEach(() => {
   announceSeedAdmins('');
   if (previous === undefined) delete process.env[SHARED_CONVERSATION_RAIL_ENV];
   else process.env[SHARED_CONVERSATION_RAIL_ENV] = previous;
+  if (previousOrganizations === undefined) delete process.env.PLAYER_INSIGHTS_ORGANIZATIONS;
+  else process.env.PLAYER_INSIGHTS_ORGANIZATIONS = previousOrganizations;
   if (nodeEnv === undefined) delete process.env.NODE_ENV;
   else process.env.NODE_ENV = nodeEnv;
   vi.restoreAllMocks();
@@ -516,6 +520,35 @@ describe('what the flag deliberately does not widen', () => {
 });
 
 describe('what the app says about itself at boot', () => {
+  it('includes only sanitized organization mappings on /api/identity', async () => {
+    process.env.PLAYER_INSIGHTS_ORGANIZATIONS = JSON.stringify([
+      { domain: 'NORTHWINDGAMES.COM', name: 'Northwind Games', monogram: 'R*' },
+      { domain: 'take2.example', name: 'Acme Interactive', monogram: 'T2' },
+    ]);
+    const app = await startApp(recordingStore().lakebase);
+
+    try {
+      const response = await app.fetch('/api/identity', { headers: asAlice });
+      const payload = (await response.json()) as Record<string, unknown>;
+      expect(payload.organizations).toEqual([
+        { domain: 'northwindgames.com', name: 'Northwind Games', monogram: 'R*' },
+        { domain: 'take2.example', name: 'Acme Interactive', monogram: 'T2' },
+      ]);
+      expect(JSON.stringify(payload.organizations)).not.toMatch(/credential|secret|token|password/i);
+
+      process.env.PLAYER_INSIGHTS_ORGANIZATIONS = JSON.stringify([
+        { domain: 'unsafe.example', name: 'Unsafe', monogram: 'U', token: 'must-not-cross-the-wire' },
+      ]);
+      const malformed = (await (await app.fetch('/api/identity', { headers: asAlice })).json()) as {
+        organizations: unknown[];
+      };
+      expect(malformed.organizations).toEqual([]);
+      expect(JSON.stringify(malformed)).not.toContain('must-not-cross-the-wire');
+    } finally {
+      await app.close();
+    }
+  });
+
   it('announces a widened rail loudly, rather than leaving it to be discovered', async () => {
     process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
     const app = await startApp(recordingStore().lakebase);

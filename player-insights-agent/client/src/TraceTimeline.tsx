@@ -34,8 +34,8 @@ import { BrandIcon } from './BrandIcon';
 import { productForTool } from './brand-icons';
 import { stepNumber } from './agent-map';
 import { Badge } from './ui';
-import { MarkdownText, StructuredTableResultView } from './StepResult';
-import { structuredTableResult, withoutDeclaredTableCaption } from './step-results';
+import { MarkdownText, SchemaResultView, StructuredTableResultView } from './StepResult';
+import { schemaResult, structuredTableResult, withoutDeclaredTableCaption } from './step-results';
 import { EntityText, TableEntityList } from './DataEntityLinks';
 import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
 import { InlineSqlCode, SqlCodeBlocks } from './SqlPresentation';
@@ -254,10 +254,13 @@ export function PayloadView({
 }) {
   const [raw, setRaw] = useState(initialRaw);
   const payload = describePayload(withoutDeclaredTableCaption(text));
+  const schema = schemaResult(payload.body);
   const tableResult = structuredTableResult(payload.body);
   const renderedBody =
     rendered ??
-    (tableResult ? (
+    (schema ? (
+      <SchemaResultView result={schema} />
+    ) : tableResult ? (
       <StructuredTableResultView result={tableResult} />
     ) : tableListing ? (
       <TableEntityList tables={tables} />
@@ -375,6 +378,7 @@ function GanttRow({
   row,
   eventLabel,
   variant,
+  tokenized,
   expanded,
   onToggle,
   hasGeometry,
@@ -385,6 +389,7 @@ function GanttRow({
   row: TimelineRow;
   eventLabel: string;
   variant: TraceTimelineVariant;
+  tokenized: boolean;
   expanded: boolean;
   onToggle: () => void;
   hasGeometry: boolean;
@@ -437,7 +442,7 @@ function GanttRow({
             )}
           </td>
         )}
-        {variant !== 'default' ? (
+        {tokenized ? (
           <td className="trace-num trace-tokens ast-num">
             {row.type === 'llm' && row.tokenUsage ? (
               stepTokenUsageView(row.tokenUsage).total
@@ -451,7 +456,7 @@ function GanttRow({
       {expanded && (
         <tr className="trace-detail" ref={detailRef}>
           <td />
-          <td colSpan={(hasGeometry ? 4 : 3) + (variant !== 'default' ? 1 : 0)}>
+          <td colSpan={(hasGeometry ? 4 : 3) + (tokenized ? 1 : 0)}>
             {row.container ? (
               <dl>
                 <dt>Task</dt>
@@ -471,9 +476,7 @@ function GanttRow({
               </dl>
             ) : (
               <div className="trace-detail-content">
-                {variant !== 'default' && row.type === 'llm' ? (
-                  <TimelineTokenDetails row={row} run={runTokens} />
-                ) : null}
+                {tokenized && row.type === 'llm' ? <TimelineTokenDetails row={row} run={runTokens} /> : null}
                 <dl>
                   <dt>Started</dt>
                   <dd className="trace-measured">
@@ -507,6 +510,8 @@ function GanttRow({
 function Gantt({
   model,
   variant,
+  tokenized,
+  showTokenRollup,
   eventLabels,
   expanded,
   onToggle,
@@ -515,6 +520,8 @@ function Gantt({
 }: {
   model: ReturnType<typeof buildTimeline>;
   variant: TraceTimelineVariant;
+  tokenized: boolean;
+  showTokenRollup: boolean;
   eventLabels: ReadonlyMap<string, string>;
   expanded: string | null;
   onToggle: (id: string) => void;
@@ -523,13 +530,12 @@ function Gantt({
 }) {
   if (model.rows.length === 0) return null;
   const explorer = variant === 'explorer';
-  const tokenized = variant !== 'default';
   return (
     <div className="trace-gantt">
       {explorer ? (
         <KindKpis rows={model.rollUp} tokens={runTokens} />
       ) : (
-        <RollUp rows={model.rollUp} tokens={variant === 'monitoring' ? runTokens : undefined} />
+        <RollUp rows={model.rollUp} tokens={variant === 'monitoring' && showTokenRollup ? runTokens : undefined} />
       )}
       {!explorer && (
         <div className="trace-panel-heading">
@@ -575,6 +581,7 @@ function Gantt({
                 row={row}
                 eventLabel={eventLabels.get(row.id) ?? row.name}
                 variant={variant}
+                tokenized={tokenized}
                 hasGeometry={model.hasGeometry}
                 expanded={expanded === row.id}
                 onToggle={() => onToggle(row.id)}
@@ -603,6 +610,8 @@ export function TraceTimeline({
   variant = 'default',
   className = '',
   scrollContainerRef,
+  tokenized = variant !== 'default',
+  showTokenRollup = true,
 }: {
   trace: TraceSummary | { stages: TraceStage[]; totalMs?: number; toolCalls?: number } | null | undefined;
   /** The run's own prompt, shown on the envelope row. Display text, not a measurement. */
@@ -617,6 +626,10 @@ export function TraceTimeline({
   className?: string;
   /** Run Explorer's complete right workspace; omitted on embedded timelines. */
   scrollContainerRef?: RefObject<HTMLElement | null>;
+  /** Enables shared per-event token evidence independently of surface density. */
+  tokenized?: boolean;
+  /** Hide only the run-level token tile when a shared KPI grid already shows it. */
+  showTokenRollup?: boolean;
 }) {
   const summary = (trace ?? null) as TraceSummary | null;
   const model = useMemo(() => buildTimeline(summary, question, verdict), [summary, question, verdict]);
@@ -667,6 +680,8 @@ export function TraceTimeline({
       <Gantt
         model={model}
         variant={variant}
+        tokenized={tokenized}
+        showTokenRollup={showTokenRollup}
         eventLabels={eventLabels}
         expanded={expanded}
         onToggle={(id) =>

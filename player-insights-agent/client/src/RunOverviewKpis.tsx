@@ -56,6 +56,7 @@ export function RunOverviewKpis({
   legacyUsefulness,
   ratePath,
   tokenReconciliation,
+  compact = false,
 }: {
   durationMs: number | null | undefined;
   toolStageMs: number | null;
@@ -68,6 +69,8 @@ export function RunOverviewKpis({
   legacyUsefulness?: number | null;
   ratePath: string | null;
   tokenReconciliation?: TokenReconciliation;
+  /** Uses the same measurements in the denser AnswerCard process disclosure. */
+  compact?: boolean;
 }) {
   const hasDuration = measured(durationMs);
   const hasToolStageTime = measured(toolStageMs);
@@ -94,7 +97,7 @@ export function RunOverviewKpis({
   const hasFeedback = direction !== 'none';
 
   return (
-    <div className="summary-grid run-kpi-grid">
+    <div className={`summary-grid run-kpi-grid${compact ? ' run-kpi-grid--compact' : ''}`}>
       <KpiCard
         label="Wall time"
         value={hasDuration ? formatMs(durationMs) : ABSENT}

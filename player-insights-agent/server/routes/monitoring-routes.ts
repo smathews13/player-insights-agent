@@ -50,15 +50,8 @@ import { feedbackDirection } from '../../shared/feedback-direction';
 import { runRuntimeUsedFromStored } from '../../shared/run-runtime-used';
 import { chooseRows, markResponse, readStored } from '../lib/lakebase-store';
 import { workspaceLinksAllowed } from '../lib/egress-store';
-import {
-  resolveGrants,
-  conditioningFor,
-  readTableGrant,
-  type TableProbe,
-  type WorkspaceRead,
-} from '../lib/monitoring-grants';
-import { accessDependenciesFrom, statementRunnerFor } from './access-verification';
-import { executionToken } from '../lib/execution-credential';
+import { resolveGrants, conditioningFor, type GrantResolution, type TableProbe } from '../lib/monitoring-grants';
+import { accessDependenciesFrom, forwardedUserToken, statementRunnerFor } from './access-verification';
 import { mlflowReference, userEmail, PLAN_APPROVAL_MESSAGE, type InsightsAppKit } from './insights-routes';
 import { resolveExperimentId } from '../lib/app-settings';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
@@ -70,6 +63,7 @@ import { listSpAssignments, listSpPersonas } from '../lib/sp-identity-store';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
 import type { TokenAttribution } from '../../shared/llm-token-usage';
+import { listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
 
 /**
  * Default and hard maximum for one API page. The query asks for one look-ahead
@@ -507,6 +501,41 @@ export const MONITORING_PERSON_TABLES_QUERY = `
   LIMIT $5
 `;
 
+/** Verified user-token reads for the declared-table ledger; never an app-SP permission inference. */
+export const MONITORING_PERSON_TABLE_EVIDENCE_QUERY = `
+  WITH asked AS (
+    SELECT u.conversation_id, u.created_at AS asked_at
+    FROM ${APP_SCHEMA}.messages u
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
+    WHERE u.role = 'user' AND u.content <> $1
+      AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
+      AND lower(c.user_email) = lower($4)
+  ),
+  answered AS (
+    SELECT a.id AS answer_id, a.response_json, a.created_at
+    FROM asked q
+    JOIN LATERAL (
+      SELECT m.id, m.response_json, m.created_at
+      FROM ${APP_SCHEMA}.messages m
+      WHERE m.conversation_id = q.conversation_id
+        AND m.role = 'assistant'
+        AND m.execution_mode = 'signed_in_user'
+        AND m.execution_identity_verified = TRUE
+        AND jsonb_typeof(m.response_json->'sources') = 'array'
+        AND m.created_at >= q.asked_at
+      ORDER BY m.created_at DESC
+      LIMIT 1
+    ) a ON TRUE
+  )
+  SELECT lower(source->>'name') AS table_key,
+         COUNT(DISTINCT answered.answer_id)::int AS runs,
+         MAX(answered.created_at) AS latest_read_at
+  FROM answered
+  CROSS JOIN LATERAL jsonb_array_elements(answered.response_json->'sources') source
+  WHERE lower(source->>'name') = ANY($5::text[])
+  GROUP BY lower(source->>'name')
+`;
+
 /**
  * The tables PIA is configured to read, which is what the grants table lists.
  *
@@ -520,6 +549,65 @@ export const MONITORING_PERSON_TABLES_QUERY = `
  */
 function manifestTables(): readonly string[] {
   return accessDependenciesFrom({ env: process.env }).tables;
+}
+
+async function declaredTablesForRequest(req: Request): Promise<string[]> {
+  const configured = manifestTables();
+  const discovered = await listDeclarableTablesInSchema({
+    catalog: (process.env.PLAYER_INSIGHTS_CATALOG ?? '').trim(),
+    schema: (process.env.PLAYER_INSIGHTS_SCHEMA ?? '').trim(),
+    host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
+    token: forwardedUserToken(req) ?? '',
+    denylist: (process.env.PLAYER_INSIGHTS_CATALOG_DENYLIST ?? '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+  });
+  return unionTableNames(configured, discovered);
+}
+
+export function liveSelfGrantLedger(
+  tables: readonly string[],
+  resolution: GrantResolution
+): NonNullable<PersonPanelPayload['grants']> {
+  return tables.map((table) => {
+    const verdict = resolution.verdicts.get(table);
+    return {
+      table,
+      canRead: verdict?.status === 'ok' ? true : verdict?.status === 'denied' ? false : null,
+      missing: verdict?.status === 'denied' ? (verdict.missing?.permission ?? 'SELECT missing') : null,
+      rowFilter: null,
+      maskedColumns: null,
+      source: 'live-user-probe',
+      verifiedRuns: 0,
+      latestVerifiedReadAt: null,
+    };
+  });
+}
+
+export function historicalGrantLedger(
+  tables: readonly string[],
+  rows: readonly Record<string, unknown>[]
+): NonNullable<PersonPanelPayload['grants']> {
+  const evidence = new Map(
+    rows.map((row) => [
+      text(row.table_key).toLowerCase(),
+      { runs: integer(row.runs) ?? 0, latest: stamp(row.latest_read_at) || null },
+    ])
+  );
+  return tables.map((table) => {
+    const recorded = evidence.get(table.toLowerCase());
+    return {
+      table,
+      canRead: recorded && recorded.runs > 0 ? true : null,
+      missing: null,
+      rowFilter: null,
+      maskedColumns: null,
+      source: recorded && recorded.runs > 0 ? 'verified-run' : 'no-evidence',
+      verifiedRuns: recorded?.runs ?? 0,
+      latestVerifiedReadAt: recorded?.latest ?? null,
+    };
+  });
 }
 
 /**
@@ -916,24 +1004,9 @@ async function readLedger(appkit: InsightsAppKit, answerIds: string[]): Promise<
 function probeForAdmin(req: Request): TableProbe | null {
   const host = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
   const warehouseId = (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? '').trim();
-  const token = executionToken(req);
+  const token = forwardedUserToken(req);
   if (!host || !warehouseId || !token) return null;
   return statementRunnerFor({ host, token, warehouseId });
-}
-
-/** The workspace API as the application, for the per-user grants read. */
-function workspaceReader(): WorkspaceRead {
-  return async (path, query) => {
-    const { WorkspaceClient } = await import('@databricks/sdk-experimental');
-    const client = new WorkspaceClient({});
-    return client.apiClient.request({
-      path,
-      method: 'GET',
-      ...(query ? { query } : {}),
-      headers: new Headers({ Accept: 'application/json' }),
-      raw: false,
-    });
-  };
 }
 
 /* ── Routes ──────────────────────────────────────────────────────────────── */
@@ -966,8 +1039,8 @@ export interface MonitoringDeps {
   isAdminRoute: (path: string) => boolean;
   /** Injected by tests so the grant probe does not need a warehouse. */
   probeFor?: (req: Request) => TableProbe | null;
-  /** Injected by tests so the per-user grants read does not need a workspace. */
-  workspaceRead?: WorkspaceRead;
+  /** Injected by tests to use the exact Connections inventory without workspace calls. */
+  declaredTablesFor?: (req: Request) => Promise<string[]>;
   now?: () => number;
   /** One cached, redacted trace read for an opened answer; never used by the list. */
   traceTokenEvidenceReader?: TraceTokenEvidenceReader;
@@ -1002,8 +1075,8 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
     return;
   }
   const probeFor = deps.probeFor ?? probeForAdmin;
-  const read = deps.workspaceRead ?? workspaceReader();
   const clock = deps.now ?? Date.now;
+  const declaredTables = deps.declaredTablesFor ?? declaredTablesForRequest;
 
   appkit.server.extend((app: Application) => {
     /**
@@ -1343,26 +1416,31 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         .sort((left, right) => right.runs - left.runs || left.table.localeCompare(right.table))
         .slice(0, MONITORING_TOP_TABLE_LIMIT);
 
-      // Live, as the application, for the named person. Null where nothing could
-      // be read at all, and the panel says the read could not run rather than
-      // rendering an empty table as "no grants".
-      const wanted = manifestTables();
+      // Inventory is the same configured-plus-discovered set Connections shows.
+      // Permission evidence is deliberately tied to the selected human: a live
+      // OBO probe only for self, otherwise verified historical user-token runs.
+      const wanted = await declaredTables(req);
       let grants: PersonPanelPayload['grants'] = null;
+      const self = admin.trim().toLowerCase() === person.trim().toLowerCase();
       if (wanted.length > 0) {
-        const readings = await Promise.all(wanted.map((table) => readTableGrant(read, table, person)));
-        const answered = readings.filter((reading) => reading.canRead !== null || reading.rowFilter !== null);
-        grants =
-          answered.length === 0
-            ? null
-            : readings.map((reading) => ({
-                table: reading.table,
-                // A reading that did not answer is not a denial. `canRead` false
-                // here would report a permissions problem nobody established.
-                canRead: reading.canRead === true,
-                missing: reading.canRead === null ? 'Not checked' : reading.missing,
-                rowFilter: reading.rowFilter,
-                maskedColumns: reading.maskedColumns,
-              }));
+        if (self) {
+          const resolution = await resolveGrants({
+            key: { admin, window: `person-self:${range.from}:${range.to}` },
+            tables: wanted,
+            probe: probeFor(req),
+            now: clock(),
+          });
+          grants = liveSelfGrantLedger(wanted, resolution);
+        } else {
+          const evidenceResult = await appkit.lakebase.query(MONITORING_PERSON_TABLE_EVIDENCE_QUERY, [
+            PLAN_APPROVAL_SENTINEL,
+            range.from,
+            range.to,
+            person,
+            wanted.map((table) => table.toLowerCase()),
+          ]);
+          grants = historicalGrantLedger(wanted, evidenceResult.rows);
+        }
       }
 
       let firstSeen: string | null = null;
@@ -1414,6 +1492,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         executionSplit,
         subjectSplit,
         grants,
+        grantsMode: self ? 'live-self' : 'historical',
         refusedMissingGrant,
         refusedAgentRules,
         questions,

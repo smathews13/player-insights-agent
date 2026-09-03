@@ -8,6 +8,7 @@ import {
   NO_NAME_REPORTED,
   PICKER_FIELDS,
   PICKER_TOP,
+  UNITY_CATALOG_ASSET_PICKER,
   alreadyHeld,
   applyPick,
   browseEmptyNote,
@@ -239,6 +240,38 @@ describe('where a browser opens', () => {
 });
 
 describe('what a row offers', () => {
+  it('lets one UC browser select or browse catalogs and schemas before selecting a table', () => {
+    expect(UNITY_CATALOG_ASSET_PICKER).toMatchObject({
+      levels: ['catalogs', 'schemas', 'tables'],
+      pickAt: 'every',
+      multi: false,
+      title: 'Unity Catalog assets your sign-in can see',
+    });
+    expect(
+      rowActions(UNITY_CATALOG_ASSET_PICKER, PICKER_TOP, item({ id: 'analytics', label: 'analytics' }))
+    ).toMatchObject([
+      { kind: 'open', label: 'Browse', cursor: { catalog: 'analytics', schema: '' } },
+      { kind: 'pick', label: 'Select catalog', value: 'analytics' },
+    ]);
+    expect(
+      rowActions(
+        UNITY_CATALOG_ASSET_PICKER,
+        { catalog: 'analytics', schema: '' },
+        item({ id: 'player', label: 'player', secondary: 'analytics.player' })
+      )
+    ).toMatchObject([
+      { kind: 'open', label: 'Browse', cursor: { catalog: 'analytics', schema: 'player' } },
+      { kind: 'pick', label: 'Select schema', value: 'analytics.player' },
+    ]);
+    expect(
+      rowActions(
+        UNITY_CATALOG_ASSET_PICKER,
+        { catalog: 'analytics', schema: 'player' },
+        item({ id: 'analytics.player.sessions', label: 'sessions' })
+      )
+    ).toMatchObject([{ kind: 'pick', label: 'Select table/view', value: 'analytics.player.sessions' }]);
+  });
+
   it('opens a catalog and takes a schema for the App schema field', () => {
     const schema = spec('schema');
     const atTop = rowActions(schema, PICKER_TOP, item({ id: 'analytics', label: 'analytics' }));

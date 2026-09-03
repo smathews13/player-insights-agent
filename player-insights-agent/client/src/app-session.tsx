@@ -21,8 +21,9 @@ export const APP_SESSION_ACTIVITY_PATH = '/api/app-session/activity';
 export const APP_SESSION_END_PATH = '/api/app-session/end';
 export const APP_IDLE_TIMEOUT_CODE = 'APP_IDLE_TIMEOUT';
 export const APP_SESSION_TIMEOUT_KEY = 'astrolabe.app-session.timed-out';
-export const USER_ACTIVITY_THROTTLE_MS = 60_000;
+export const USER_ACTIVITY_THROTTLE_MS = 45_000;
 export const SIGN_OUT_END_WAIT_MS = 1_500;
+const EXPLICIT_USER_ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel'] as const;
 
 export type AppSessionState = 'booting' | 'ready' | 'timed-out' | 'unavailable';
 type Listener = () => void;
@@ -193,8 +194,9 @@ interface ActivityDocument {
 }
 
 /**
- * Only a physical interaction refreshes last_active_at. Visibility changes,
- * timers, storage polling, run polling, and ordinary reads never call this.
+ * Only a trusted physical interaction refreshes last_active_at. Visibility
+ * changes, timers, storage polling, run polling, ordinary reads, and
+ * script-dispatched events never call this.
  */
 export function startExplicitUserActivity(
   documentRef: ActivityDocument = document,
@@ -202,7 +204,8 @@ export function startExplicitUserActivity(
   now: () => number = Date.now
 ): () => void {
   let lastSentAt = 0;
-  const onActivity: EventListener = () => {
+  const onActivity: EventListener = (event) => {
+    if (!event.isTrusted) return;
     if (state !== 'ready') return;
     const at = now();
     if (lastSentAt && at - lastSentAt < USER_ACTIVITY_THROTTLE_MS) return;
@@ -221,11 +224,11 @@ export function startExplicitUserActivity(
       // transient activity-write failure must not invent a timeout client-side.
     });
   };
-  for (const event of ['pointerdown', 'keydown', 'touchstart']) {
+  for (const event of EXPLICIT_USER_ACTIVITY_EVENTS) {
     documentRef.addEventListener(event, onActivity, { passive: true });
   }
   return () => {
-    for (const event of ['pointerdown', 'keydown', 'touchstart']) {
+    for (const event of EXPLICIT_USER_ACTIVITY_EVENTS) {
       documentRef.removeEventListener(event, onActivity);
     }
   };

@@ -5,6 +5,8 @@ import { CopyButton, StatusBadge } from './StatusBadge';
 import { useDeploymentIdentity, type DeploymentIdentity } from './identity-panel-state';
 import { DATABRICKS_SYMBOL } from './brand-icons';
 import { ROLE_WORD } from '../../shared/user-roster-contract';
+import type { AppAttachedResourceMetadata } from '../../shared/identity-metadata';
+import { UserDrilldownLink } from './UserDrilldownLink';
 
 /**
  * The `/api/identity` payload, as this card reads it.
@@ -15,9 +17,9 @@ import { ROLE_WORD } from '../../shared/user-roster-contract';
  * badge on a deployment whose sign-in had failed.
  */
 /** One label-and-value line. Nothing renders when there is no value. */
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+function Fact({ label, children, wrap = false }: { label: string; children: React.ReactNode; wrap?: boolean }) {
   return (
-    <div className="identity-fact">
+    <div className="identity-fact" data-wrap={wrap || undefined}>
       <p className="identity-fact-label">{label}</p>
       <div className="identity-fact-value">{children}</div>
     </div>
@@ -43,6 +45,73 @@ function DatabricksMark() {
   );
 }
 
+function resourceTypeLabel(resourceType: string): string {
+  if (resourceType === 'postgres') return 'Lakebase';
+  if (resourceType === 'serving_endpoint') return 'Serving';
+  if (resourceType === 'sql_warehouse') return 'SQL warehouse';
+  const words = resourceType.replace(/[_-]+/g, ' ').trim();
+  return words && words !== 'unknown' ? words.charAt(0).toLocaleUpperCase() + words.slice(1) : 'Resource';
+}
+
+function visibleResourceIdentifier(resource: AppAttachedResourceMetadata): string {
+  if (resource.resourceType !== 'sql_warehouse' || resource.displayIdentifier.length <= 9) {
+    return resource.displayIdentifier;
+  }
+  return `${resource.displayIdentifier.slice(0, 8)}…`;
+}
+
+function AttachedResource({ resource }: { resource: AppAttachedResourceMetadata }) {
+  const typeLabel = resourceTypeLabel(resource.resourceType);
+  const fullTitle = resource.title || resource.displayIdentifier;
+  const accessibleName = [
+    `${typeLabel} attached resource`,
+    fullTitle,
+    `binding ${resource.resourceKey}`,
+    resource.permission ? `permission ${resource.permission}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <span className="identity-attached-resource" role="listitem">
+      <StatusBadge
+        value={`${typeLabel} · ${visibleResourceIdentifier(resource)}`}
+        tone="reachable"
+        title={accessibleName}
+        ariaLabel={accessibleName}
+      />
+      <CopyButton value={resource.displayIdentifier} label={`Copy ${typeLabel} resource identifier`} />
+    </span>
+  );
+}
+
+function ExecutionValue({
+  identity,
+  assignedPersona,
+}: {
+  identity: NonNullable<DeploymentIdentity['identity']>;
+  assignedPersona: string;
+}) {
+  const mode = identity.analyticalExecution?.mode;
+  if (mode === 'signed_in_user') {
+    return (
+      <>
+        <OAuthBadge identity={identity} />
+        <UserDrilldownLink identity={identity.signedInAs} compact role={identity.role ?? 'failed'} />
+      </>
+    );
+  }
+  if (mode === 'app_service_principal') {
+    return <span>{identity.identityMetadata?.app.displayName || 'Astrolabe'} app</span>;
+  }
+  if (mode === 'assigned_service_principal') {
+    return <span>{assignedPersona ? `Assigned persona · ${assignedPersona}` : 'Assigned persona'}</span>;
+  }
+  if (identity.spIdentity?.executingAs === 'service_principal') {
+    return <span>{assignedPersona ? `Assigned persona · ${assignedPersona}` : 'Service principal'}</span>;
+  }
+  return <span>{mode ? mode.replaceAll('_', ' ') : 'Not reported'}</span>;
+}
+
 /**
  * A read the caller has already made. When it is absent this card makes its
  * own, so a caller that only wants the card keeps working unchanged.
@@ -59,18 +128,8 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
         ? 'Verified · workspace profile matched'
         : 'Verified by Databricks Apps'
       : 'Not verified';
-  const authMode =
-    identity?.identitySource === 'databricks-apps' ? 'Databricks Apps OAuth' : 'Local development fallback';
   const assignedPersona = identity?.spIdentity?.assigned?.displayName ?? '';
   const servicePrincipal = metadata?.servicePrincipal;
-  const execution =
-    identity?.analyticalExecution?.mode === 'app_service_principal'
-      ? 'Astrolabe app'
-      : identity?.spIdentity?.executingAs === 'service_principal' && assignedPersona
-        ? `Assigned persona · ${assignedPersona}`
-        : assignedPersona
-          ? `Signed-in user · assigned persona ${assignedPersona}`
-          : 'Signed-in user';
 
   return (
     <Card className="deployment-card deployment-card-identity" data-testid="identity-panel">
@@ -112,7 +171,6 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
                 ) : null}
                 <Fact label="Authentication">
                   <OAuthBadge identity={identity} />
-                  <span>{authMode}</span>
                 </Fact>
                 <Fact label="Verification">
                   <span>{userVerified}</span>
@@ -149,7 +207,7 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
                   </Fact>
                 ) : null}
                 <Fact label="Execution">
-                  <span>{execution}</span>
+                  {identity ? <ExecutionValue identity={identity} assignedPersona={assignedPersona} /> : null}
                 </Fact>
               </div>
             </section>
@@ -181,9 +239,16 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
                         <span>{servicePrincipal.authenticationType}</span>
                       </Fact>
                     ) : null}
-                    {servicePrincipal.attachedResourceCount !== null ? (
-                      <Fact label="Attached resources">
-                        <span className="ast-num">{servicePrincipal.attachedResourceCount}</span>
+                    {servicePrincipal.attachedResources?.length ? (
+                      <Fact label="Attached resources" wrap>
+                        <span className="identity-attached-resources" role="list" aria-label="Attached app resources">
+                          {servicePrincipal.attachedResources.map((resource) => (
+                            <AttachedResource
+                              key={`${resource.resourceType}:${resource.resourceKey}:${resource.displayIdentifier}`}
+                              resource={resource}
+                            />
+                          ))}
+                        </span>
                       </Fact>
                     ) : null}
                   </>

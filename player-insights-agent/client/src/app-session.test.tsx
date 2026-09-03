@@ -33,14 +33,17 @@ function requestText(input: RequestInfo | URL): string {
 }
 
 describe('explicit user activity', () => {
-  it('refreshes only on throttled physical interactions, not timers or visibility', () => {
+  it('refreshes only on throttled trusted interactions, including deliberate wheel scrolling', async () => {
     const listeners = new Map<string, EventListener>();
+    const listenerOptions = new Map<string, AddEventListenerOptions | undefined>();
     const documentRef = {
-      addEventListener(type: string, listener: EventListener) {
+      addEventListener(type: string, listener: EventListener, options?: AddEventListenerOptions) {
         listeners.set(type, listener);
+        listenerOptions.set(type, options);
       },
       removeEventListener(type: string) {
         listeners.delete(type);
+        listenerOptions.delete(type);
       },
     };
     const requests: { path: string; init?: RequestInit }[] = [];
@@ -52,18 +55,24 @@ describe('explicit user activity', () => {
     resetAppSessionForTests('ready');
     const stop = startExplicitUserActivity(documentRef, fetchImpl, () => now);
 
-    expect([...listeners.keys()].sort()).toEqual(['keydown', 'pointerdown', 'touchstart']);
+    expect([...listeners.keys()].sort()).toEqual(['keydown', 'pointerdown', 'touchstart', 'wheel']);
+    expect(listenerOptions.get('wheel')).toMatchObject({ passive: true });
     expect(listeners.has('visibilitychange')).toBe(false);
     expect(requests).toEqual([]);
-    listeners.get('pointerdown')?.(new Event('pointerdown'));
-    now += 1_000;
-    listeners.get('keydown')?.(new Event('keydown'));
-    now += 60_000;
-    listeners.get('keydown')?.(new Event('keydown'));
+    await fetchImpl('/api/background-refresh');
+    listeners.get('wheel')?.(new Event('wheel'));
+    expect(requests.map(({ path }) => path)).toEqual(['/api/background-refresh']);
 
-    expect(requests).toHaveLength(2);
-    expect(requests[0]?.path).toBe(APP_SESSION_ACTIVITY_PATH);
-    expect(new Headers(requests[0]?.init?.headers).get('x-astrolabe-session-action')).toBe('activity');
+    const trustedEvent = { isTrusted: true } as Event;
+    listeners.get('pointerdown')?.(trustedEvent);
+    now += 1_000;
+    listeners.get('keydown')?.(trustedEvent);
+    now += 44_000;
+    listeners.get('wheel')?.(trustedEvent);
+
+    const activityRequests = requests.filter(({ path }) => path === APP_SESSION_ACTIVITY_PATH);
+    expect(activityRequests).toHaveLength(2);
+    expect(new Headers(activityRequests[0]?.init?.headers).get('x-astrolabe-session-action')).toBe('activity');
     stop();
     expect(listeners.size).toBe(0);
   });
@@ -168,7 +177,7 @@ describe('timeout boundary', () => {
       new URL('../../../docs/Astrolabe_Security_Access_Specification.md', import.meta.url),
       'utf8'
     );
-    const accountMenu = readFileSync(new URL('./AccountMenu.tsx', import.meta.url), 'utf8');
+    const accountMenu = readFileSync(new URL('./AccountMenuPanel.tsx', import.meta.url), 'utf8');
     const timeoutSource = readFileSync(new URL('./app-session.tsx', import.meta.url), 'utf8');
 
     for (const document of [accessGuide, securitySpec]) {

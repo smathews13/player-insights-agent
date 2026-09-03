@@ -32,7 +32,6 @@ import {
   loadOpsBlock,
   opsAutoLoadClaimed,
   opsBlockKey,
-  opsCostRangeId,
   recallOpsBlock,
 } from './ops-session';
 
@@ -80,16 +79,16 @@ describe('the automatic run is taken once per block', () => {
 
   it('lets each block take its own first read', () => {
     expect(claimOpsAutoLoad('/api/ops/health')).toBe(true);
-    expect(claimOpsAutoLoad('/api/ops/cost:7d')).toBe(true);
-    expect(claimOpsAutoLoad('/api/ops/traffic')).toBe(true);
-    expect(claimOpsAutoLoad('/api/ops/latency')).toBe(true);
+    expect(claimOpsAutoLoad('/api/ops/cost:current-month:2026-09')).toBe(true);
+    expect(claimOpsAutoLoad('/api/ops/traffic:current-month:2026-09')).toBe(true);
+    expect(claimOpsAutoLoad('/api/ops/latency:current-month:2026-09')).toBe(true);
     expect(claimOpsAutoLoad('/api/ops/health')).toBe(false);
   });
 
-  it('lets a different cost range take its own first read', () => {
-    expect(claimOpsAutoLoad(opsBlockKey('/api/ops/cost', '7d'))).toBe(true);
-    expect(claimOpsAutoLoad(opsBlockKey('/api/ops/cost', '30d'))).toBe(true);
-    expect(claimOpsAutoLoad(opsBlockKey('/api/ops/cost', '7d'))).toBe(false);
+  it('lets a new calendar month take its own first read', () => {
+    expect(claimOpsAutoLoad(opsBlockKey('/api/ops/cost', 'current-month:2026-09'))).toBe(true);
+    expect(claimOpsAutoLoad(opsBlockKey('/api/ops/cost', 'current-month:2026-10'))).toBe(true);
+    expect(claimOpsAutoLoad(opsBlockKey('/api/ops/cost', 'current-month:2026-09'))).toBe(false);
   });
 
   it('stays claimed after a run that FAILED, so a bad read is not retried forever', async () => {
@@ -158,21 +157,10 @@ describe('the first Ops visit fetches; a later visit does not', () => {
   });
 });
 
-describe('the cost range identity a remount must reuse', () => {
-  it('is the word in the URL, not the computed timestamps', () => {
-    expect(opsCostRangeId(new URLSearchParams())).toBe('7d');
-    expect(opsCostRangeId(new URLSearchParams('range=24h'))).toBe('24h');
-    expect(opsCostRangeId(new URLSearchParams('range=30d'))).toBe('30d');
-    expect(opsCostRangeId(new URLSearchParams('range=all'))).toBe('all');
-  });
-
-  it('uses the safe default key for a retired custom URL', () => {
-    expect(opsCostRangeId(new URLSearchParams('range=custom&from=2026-01-01&to=2026-01-31'))).toBe('7d');
-  });
-
-  it('does not put health, traffic or latency under a range key', () => {
+describe('the current-month identity a remount must reuse', () => {
+  it('keeps live health unkeyed and keys retrospective reads by month', () => {
     expect(opsBlockKey('/api/ops/health')).toBe('/api/ops/health');
-    expect(opsBlockKey('/api/ops/cost', '7d')).toBe('/api/ops/cost:7d');
+    expect(opsBlockKey('/api/ops/cost', 'current-month:2026-09')).toBe('/api/ops/cost:current-month:2026-09');
   });
 });
 
@@ -193,7 +181,7 @@ describe('the page no longer fetches the blocks itself', () => {
     expect(source).toContain('useOpsBlock<OpsCostPayload>');
     expect(source).toContain('useOpsBlock<OpsTrafficPayload>');
     expect(source).toContain('useOpsBlock<OpsLatencyPayload>');
-    expect(source).toContain('opsCostRangeId(params)');
+    expect(source).toContain('opsCurrentMonthKey(openedAt)');
   });
 
   it('does not fetch /api/ops itself', () => {

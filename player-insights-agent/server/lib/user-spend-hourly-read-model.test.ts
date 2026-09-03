@@ -147,7 +147,9 @@ describe('hourly materialization', () => {
     ]);
     expect(unavailable.spendUsd).toBeNull();
     expect(unavailable.usdQuality).toBe('unavailable');
+    expect(unavailable.appSpendUsd).toBe(0);
     expect(zero.spendUsd).toBe(0);
+    expect(zero.appSpendUsd).toBe(0);
     expect(zero.usdQuality).toBe('partial');
   });
 });
@@ -194,7 +196,8 @@ describe('fast hourly reads', () => {
           run_count: '1',
           active_minutes: '3',
           total_tokens: '120',
-          covered_hours: '24',
+          spend_usd_covered_hours: '24',
+          spend_dbu_covered_hours: '24',
           spend_usd: '6',
           spend_dbu: '3',
           spend_usd_quality: 'partial',

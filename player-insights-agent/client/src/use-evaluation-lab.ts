@@ -79,7 +79,12 @@ export function useEvaluationLab(): EvaluationLabModel {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [reviewerOnly, setReviewerOnly] = useState(false);
   const [expandedId, setExpandedId] = useState('');
-  const [importFilters, setImportFilters] = useState<ImportFilter[]>(['low_judge_score', 'tool_failure', 'latency', 'customer_feedback']);
+  const [importFilters, setImportFilters] = useState<ImportFilter[]>([
+    'low_judge_score',
+    'tool_failure',
+    'latency',
+    'customer_feedback',
+  ]);
   const [candidates, setCandidates] = useState<EvaluationLabModel['candidates']>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [alignDraft, setAlignDraft] = useState('');
@@ -119,21 +124,18 @@ export function useEvaluationLab(): EvaluationLabModel {
     void reload();
   }, [reload]);
 
-  const run = useCallback(
-    async (label: string, work: () => Promise<void>) => {
-      setBusy(label);
-      setError(null);
-      setNotice(null);
-      try {
-        await work();
-      } catch (caught) {
-        setError((caught as Error).message);
-      } finally {
-        setBusy(null);
-      }
-    },
-    []
-  );
+  const run = useCallback(async (label: string, work: () => Promise<void>) => {
+    setBusy(label);
+    setError(null);
+    setNotice(null);
+    try {
+      await work();
+    } catch (caught) {
+      setError((caught as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }, []);
 
   const lastSuiteKind: SuiteKind = lastGenieRun?.suiteKind === 'partial' ? 'partial' : 'complete';
 
@@ -308,7 +310,9 @@ export function useEvaluationLab(): EvaluationLabModel {
         });
         setLastGenieRun(runResult);
         setNotice(
-          kind === 'complete' ? 'Complete suite finished. Matching is executed-result equivalence.' : 'Partial suite finished. Excluded cases stay out of the denominator.'
+          kind === 'complete'
+            ? 'Complete suite finished. Matching is executed-result equivalence.'
+            : 'Incomplete suite finished. Excluded cases stay out of the denominator.'
         );
         await reload();
       }),

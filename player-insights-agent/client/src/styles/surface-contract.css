@@ -41,6 +41,18 @@
   backdrop-filter: none;
 }
 
+/*
+ * Dialog programmatically focuses this `tabIndex=-1` container when no explicit
+ * initial target is supplied. The panel is a reading boundary, not an
+ * interactive selection; controls inside remain eligible for the global ring.
+ * The Dialog-owned data attribute also makes this more specific than the dark
+ * theme's universal focus rule.
+ */
+.ast-dialog-panel[data-ast-dialog-panel]:focus,
+.ast-dialog-panel[data-ast-dialog-panel]:focus-visible {
+  outline: none;
+}
+
 .ast-dialog-overlay:not(.first-open) {
   background: var(--ast-overlay-occlusion);
   backdrop-filter: none;

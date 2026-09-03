@@ -59,6 +59,9 @@ describe('the panel', () => {
     const panel = rule('.access-gate-panel');
     expect(panel).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
     expect(panel).not.toMatch(/border-top|--(?:db-blue|ast-blue|primary)/);
+    expect(CSS).toMatch(
+      /\.access-gate-panel\.ast-dialog-panel:focus,\s*\.access-gate-panel\.ast-dialog-panel:focus-visible\s*\{[^}]*outline:\s*none/
+    );
   });
 
   it('keeps exactly two exceptions to the flat, opaque rule: the scrim and the panel’s shadow', () => {

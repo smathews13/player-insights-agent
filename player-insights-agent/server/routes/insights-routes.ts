@@ -61,6 +61,7 @@ import {
 } from '../lib/deployment-decisions';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 import { runRuntimeUsedFromStored, type RunRuntimeUsed } from '../../shared/run-runtime-used';
+import { parseOrganizationMappings } from '../../shared/organization-mapping';
 import {
   isAdminRoute,
   recordAdminAction,
@@ -3555,6 +3556,7 @@ export function setupInsightsRoutes(
       ]);
       res.json({
         ...identityPayload(req),
+        organizations: parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS),
         // The deployment switch never widens a consumer. The browser receives
         // the effective scope, derived beside the authoritative stored role,
         // so it cannot accidentally advertise other people or retain a legacy

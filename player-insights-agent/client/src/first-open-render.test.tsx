@@ -361,6 +361,10 @@ describe('once per session', () => {
     expect(opening).not.toContain('ast-opening');
     expect(opening).toContain('You are signing in as');
     expect(opening).toContain('role="dialog"');
+    expect(opening).toContain('class="first-open-card ast-dialog-panel"');
+    expect(opening).toContain('tabindex="-1"');
+    expect(GATE).toContain('contentClassName="first-open-card"');
+    expect(GATE).not.toContain('initialFocusRef=');
   });
 
   it('keeps the opening sequence populated to the right of the login card', () => {

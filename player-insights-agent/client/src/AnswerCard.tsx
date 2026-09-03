@@ -54,6 +54,8 @@ import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { readRunProcessPreference, writeRunProcessPreference } from './run-process-preference';
 import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 import { answerHasGeneratedSql } from './answer-sql';
+import { RunOverviewKpis } from './RunOverviewKpis';
+import { toolStageDurationMs } from './run-explorer-state';
 
 /** Shared by Ask and Monitoring, which mounts this same answer card. */
 export function AnswerSql({ sql }: { sql: string }) {
@@ -208,6 +210,15 @@ export function AnswerCard({
     narrative: readerAnswer.narrative,
     content: readerAnswer.content,
   });
+  const processDurationMs =
+    typeof processTrace.totalMs === 'number' && Number.isFinite(processTrace.totalMs) && processTrace.totalMs >= 0
+      ? processTrace.totalMs
+      : null;
+  const processToolCalls =
+    typeof processTrace.toolCalls === 'number' && Number.isFinite(processTrace.toolCalls) && processTrace.toolCalls >= 0
+      ? processTrace.toolCalls
+      : null;
+  const processToolStageMs = toolStageDurationMs(processTrace.stages, processDurationMs);
   const headline = readerFacingTakeaway(readerAnswer.takeaway, readerAnswer.narrative, {
     figures: readerAnswer.figures,
     content: readerAnswer.content,
@@ -424,11 +435,27 @@ export function AnswerCard({
                 </CollapsibleTrigger>
               </div>
               <CollapsibleContent className="run-process-body">
+                <RunOverviewKpis
+                  compact
+                  durationMs={processDurationMs}
+                  toolStageMs={processToolStageMs}
+                  agentToolCalls={processToolCalls}
+                  stages={processTrace.stages}
+                  totalTokens={processTrace.total_tokens ?? null}
+                  promptTokens={processTrace.prompt_tokens ?? null}
+                  completionTokens={processTrace.completion_tokens ?? null}
+                  feedback={feedback.sentiment}
+                  legacyUsefulness={feedback.usefulness}
+                  ratePath={null}
+                  tokenReconciliation={processTrace.token_reconciliation}
+                />
                 <TraceTimeline
                   trace={processTrace}
                   question={question}
                   verdict={processVerdict}
                   variant={runProcessVariant}
+                  tokenized
+                  showTokenRollup={false}
                 />
               </CollapsibleContent>
             </Collapsible>

@@ -2,14 +2,12 @@ import type { Application, Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ACTIVE_MINUTES_PER_DAY_QUERY } from '../lib/app-activity';
-import { RUNTIME_SETTINGS_TABLE } from '../lib/runtime-settings-store';
-import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
 import type { OpsTrafficPayload } from '../../shared/ops-contract';
 import { DISTINCT_ASKERS_PER_DAY_QUERY, QUESTIONS_PER_DAY_QUERY, setupOpsRoutes } from './ops-routes';
 import type { InsightsAppKit } from './insights-routes';
 
-describe('Ops active-minute timezone and freshness', () => {
-  it('prefers Runtime timezone, buckets locally, and returns recording bounds', async () => {
+describe('Ops active-minute calendar and freshness', () => {
+  it('uses the budget calendar month and returns recording bounds', async () => {
     let handler: ((req: Request, res: Response) => Promise<void>) | undefined;
     const app = {
       get: (path: string, registered: (req: Request, res: Response) => Promise<void>) => {
@@ -17,19 +15,6 @@ describe('Ops active-minute timezone and freshness', () => {
       },
     } as unknown as Application;
     const query = vi.fn((sql: string) => {
-      if (sql.includes(`FROM ${RUNTIME_SETTINGS_TABLE}`) && sql.includes('SELECT settings')) {
-        return Promise.resolve({
-          rows: [
-            {
-              settings: {
-                ...DEFAULT_RUNTIME_SETTINGS,
-                behavior: { ...DEFAULT_RUNTIME_SETTINGS.behavior, timezone: 'America/Los_Angeles' },
-              },
-              revision: 1,
-            },
-          ],
-        });
-      }
       if (sql === ACTIVE_MINUTES_PER_DAY_QUERY) {
         return Promise.resolve({
           rows: [
@@ -59,12 +44,13 @@ describe('Ops active-minute timezone and freshness', () => {
       { json: (body: OpsTrafficPayload) => (payload = body) } as unknown as Response
     );
 
-    const parameters = ['America/Los_Angeles', '2026-08-24', '2026-08-30'];
+    const parameters = ['UTC', '2026-08-01', '2026-08-30'];
     expect(query).toHaveBeenCalledWith(ACTIVE_MINUTES_PER_DAY_QUERY, parameters);
     expect(query).toHaveBeenCalledWith(QUESTIONS_PER_DAY_QUERY, parameters);
     expect(query).toHaveBeenCalledWith(DISTINCT_ASKERS_PER_DAY_QUERY, parameters);
     expect(payload.activeMinutesPerDay).toEqual([{ day: '2026-08-27', count: 3 }]);
-    expect(payload.activeMinutesTimeZone).toBe('America/Los_Angeles');
+    expect(payload.activeMinutesTimeZone).toBe('UTC');
+    expect(payload.period).toBe('current_month');
     expect(payload.activeMinutesRecordedFrom).toBe('2026-08-28T05:58:00.000Z');
     expect(payload.activeMinutesRecordedThrough).toBe('2026-08-28T06:00:00.000Z');
   });

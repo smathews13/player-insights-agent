@@ -73,7 +73,7 @@ import { sqlQueryTags } from '../lib/sql-query-tags';
 import { isDataContractFallback, listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
 import { PLAN_APPROVAL_MESSAGE, userEmail, type InsightsAppKit, type PreflightReport } from './insights-routes';
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
-import { ACTIVE_MINUTES_PER_DAY_QUERY, validIanaTimeZone } from '../lib/app-activity';
+import { ACTIVE_MINUTES_PER_DAY_QUERY } from '../lib/app-activity';
 import {
   buildSpendByUser,
   buildUserMonitoringPage,
@@ -117,7 +117,6 @@ import {
   foundationCostTile,
   readFoundationBillingRows,
 } from '../lib/ops-foundation-billing';
-import { readRuntimeSettings } from '../lib/runtime-settings-store';
 import { listSpAssignments, listSpPersonas } from '../lib/sp-identity-store';
 import {
   LEGACY_TRAFFIC_BREAKDOWNS_QUERY,
@@ -137,7 +136,7 @@ import type {
   OpsTrafficPayload,
   PlatformReading,
 } from '../../shared/ops-contract';
-import { opsDayRange } from '../../shared/ops-contract';
+import { opsCurrentMonthRange } from '../../shared/ops-contract';
 
 /* ── Shared plumbing ─────────────────────────────────────────────────────── */
 
@@ -867,15 +866,63 @@ async function readDependencies(
 
 /* ── Traffic ─────────────────────────────────────────────────────────────── */
 
-/** Every recorded question, by the Runtime calendar day it was asked. */
+/**
+ * Every recorded question by day plus one canonical current-month statistics
+ * snapshot. This replaces, rather than supplements, the former daily query so
+ * Traffic still pays one read for question counts.
+ */
 export const QUESTIONS_PER_DAY_QUERY = `
-  SELECT to_char(date_trunc('day', m.created_at AT TIME ZONE $1), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
-  FROM ${APP_SCHEMA}.messages m
-  WHERE m.role = 'user'
-    AND m.created_at >= ($2::date::timestamp AT TIME ZONE $1)
-    AND m.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
-  GROUP BY 1
-  ORDER BY 1`;
+  WITH questions AS (
+    SELECT m.id, m.created_at
+    FROM ${APP_SCHEMA}.messages m
+    WHERE m.role = 'user'
+      AND m.created_at >= ($2::date::timestamp AT TIME ZONE $1)
+      AND m.created_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
+  ),
+  question_days AS (
+    SELECT to_char(date_trunc('day', created_at AT TIME ZONE $1), 'YYYY-MM-DD') AS day,
+           COUNT(*)::int AS count
+    FROM questions
+    GROUP BY 1
+  ),
+  terminal_answers AS (
+    SELECT DISTINCT r.terminal_message_id AS message_id
+    FROM ${APP_SCHEMA}.runs r
+    JOIN ${APP_SCHEMA}.messages answer ON answer.id = r.terminal_message_id
+    WHERE r.state = 'SUCCEEDED'
+      AND answer.role = 'assistant'
+      AND r.completed_at >= ($2::date::timestamp AT TIME ZONE $1)
+      AND r.completed_at < (($3::date + 1)::timestamp AT TIME ZONE $1)
+  ),
+  latest_feedback AS (
+    SELECT DISTINCT ON (f.message_id, lower(f.user_email))
+           f.message_id,
+           CASE
+             WHEN lower(f.sentiment) IN ('up', 'down') THEN lower(f.sentiment)
+             WHEN f.usefulness BETWEEN 4 AND 5 THEN 'up'
+             WHEN f.usefulness BETWEEN 1 AND 2 THEN 'down'
+             ELSE NULL
+           END AS direction
+    FROM ${APP_SCHEMA}.feedback f
+    JOIN terminal_answers answer ON answer.message_id = f.message_id
+    ORDER BY f.message_id, lower(f.user_email), f.created_at DESC
+  ),
+  stats AS (
+    SELECT
+      (SELECT COUNT(*)::int FROM questions) AS questions_asked,
+      (SELECT COUNT(*)::int FROM terminal_answers) AS questions_answered,
+      (SELECT COUNT(*)::int FROM latest_feedback WHERE direction = 'up') AS helpful_feedback,
+      (SELECT COUNT(*)::int FROM latest_feedback WHERE direction = 'down') AS not_helpful_feedback
+  ),
+  all_days AS (
+    SELECT day, count FROM question_days
+    UNION ALL
+    SELECT ''::text, 0::int WHERE NOT EXISTS (SELECT 1 FROM question_days)
+  )
+  SELECT day, count, stats.*
+  FROM all_days
+  CROSS JOIN stats
+  ORDER BY day`;
 
 /** Signed-in people who stored at least one user question on each Runtime calendar day. */
 export const DISTINCT_ASKERS_PER_DAY_QUERY = `
@@ -1406,7 +1453,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
     app.get('/api/ops/cost', async (req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
-      const range = opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
+      const range = opsCurrentMonthRange(clock());
       const userBrowse = queryText(req, 'userBrowse') === '1';
       const spendUser = queryText(req, 'spendUser').toLowerCase();
       const requestedUnit = queryText(req, 'unit');
@@ -1559,6 +1606,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         (questionRunsRead.runs[0]?.evidenceComplete ?? questionRunsRead.runs.length === 0);
       const costBudgets = attributableCostBudgets(storedBudgets.budgets);
       const empty = {
+        period: 'current_month' as const,
         grant: null,
         reason: '',
         currency: '',
@@ -2165,13 +2213,11 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
     /* ── Traffic ─────────────────────────────────────────────────────────── */
 
-    app.get('/api/ops/traffic', async (req: Request, res: Response) => {
+    app.get('/api/ops/traffic', async (_req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
-      const range = opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
+      const range = opsCurrentMonthRange(clock());
       try {
-        const runtime = await readRuntimeSettings(appkit);
-        const activeMinutesTimeZone =
-          validIanaTimeZone(runtime.behavior.timezone) || validIanaTimeZone(queryText(req, 'timeZone')) || 'UTC';
+        const activeMinutesTimeZone = 'UTC';
         // Settled rather than awaited together: the run ledger is newer than the
         // messages table and a deployment that has not created it yet should
         // still get its questions chart rather than an empty block.
@@ -2184,8 +2230,20 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
         const questionsPerDay =
           questions.status === 'fulfilled'
-            ? questions.value.rows.map((row) => ({ day: text(row.day), count: count(row.count) }))
+            ? questions.value.rows
+                .filter((row) => Boolean(text(row.day)))
+                .map((row) => ({ day: text(row.day), count: count(row.count) }))
             : [];
+        const questionStatsRow = questions.status === 'fulfilled' ? questions.value.rows[0] : undefined;
+        const questionStatistics =
+          questions.status === 'fulfilled'
+            ? {
+                asked: count(questionStatsRow?.questions_asked),
+                answered: count(questionStatsRow?.questions_answered),
+                helpful: count(questionStatsRow?.helpful_feedback),
+                notHelpful: count(questionStatsRow?.not_helpful_feedback),
+              }
+            : undefined;
         const distinctAskersPerDay =
           askers.status === 'fulfilled'
             ? askers.value.rows.map((row) => ({ day: text(row.day), count: count(row.count) }))
@@ -2224,6 +2282,14 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
                 failuresByCause: [],
                 refusalsByCause: [],
                 toolCalls: [],
+                runStatistics: {
+                  total: 0,
+                  completed: 0,
+                  partial: 0,
+                  refused: 0,
+                  failed: 0,
+                  unclassified: 0,
+                },
                 outcomesCoverage: unavailableCoverage,
                 toolCallsCoverage: unavailableCoverage,
               };
@@ -2241,7 +2307,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           { done: questions, charts: 'Questions per day' },
           { done: askers, charts: 'Distinct askers per day' },
           { done: activeMinutes, charts: 'Recorded active app minutes per day' },
-          { done: breakdowns, charts: 'Failures, refusals and tool calls' },
+          { done: breakdowns, charts: 'Run statistics and tool calls' },
         ].filter((read) => read.done.status === 'rejected');
         const rejected = outstanding.map((read) => read.done as PromiseRejectedResult);
         const readCount = 4;
@@ -2254,9 +2320,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             : '';
         const coverageRead =
           activityCoverage?.state === 'partial'
-            ? `Recorded active app minutes have ${activityCoverage.missingDays} missing UTC rollup day(s); the returned days are partial rather than zero-filled.`
+            ? `Recorded active app minutes have ${activityCoverage.missingDays} missing calendar day(s); returned days are not zero-filled.`
             : '';
         const payload: OpsTrafficPayload = {
+          period: 'current_month',
           readAt,
           range,
           reason:
@@ -2274,6 +2341,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           failuresByCause: measured.failuresByCause,
           refusalsByCause: measured.refusalsByCause,
           toolCalls: measured.toolCalls,
+          questionStatistics,
+          runStatistics: measured.runStatistics,
           runsInRange: measured.runsInRange,
           breakdownCoverage: {
             outcomes: measured.outcomesCoverage,
@@ -2283,6 +2352,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         res.json(payload);
       } catch (error) {
         const payload: OpsTrafficPayload = {
+          period: 'current_month',
           readAt,
           range,
           reason: `Nothing about traffic could be read: ${(error as Error).message}`,
@@ -2296,6 +2366,15 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           failuresByCause: [],
           refusalsByCause: [],
           toolCalls: [],
+          questionStatistics: undefined,
+          runStatistics: {
+            total: 0,
+            completed: 0,
+            partial: 0,
+            refused: 0,
+            failed: 0,
+            unclassified: 0,
+          },
           runsInRange: 0,
           breakdownCoverage: {
             outcomes: { state: 'unavailable', coveredRuns: 0, reason: (error as Error).message },
@@ -2310,10 +2389,11 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
     /* ── Latency ─────────────────────────────────────────────────────────── */
 
     /** Per-route request timings from Lakebase, independent of billed app telemetry. */
-    app.get('/api/ops/latency', async (req: Request, res: Response) => {
+    app.get('/api/ops/latency', async (_req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
-      const range = opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
+      const range = opsCurrentMonthRange(clock());
       const base: OpsLatencyPayload = {
+        period: 'current_month',
         readAt,
         range,
         state: 'no-rows',
@@ -2348,7 +2428,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           coverage: { state: measured.coverageState, missingDays: measured.missingDays },
           reason:
             measured.coverageState === 'partial'
-              ? `${measured.missingDays} UTC day(s) are missing from raw and rolled request timings, so these figures are partial.`
+              ? `${measured.missingDays} calendar day(s) are missing from request timings, so these figures are estimated.`
               : '',
         } satisfies OpsLatencyPayload);
       } catch (error) {

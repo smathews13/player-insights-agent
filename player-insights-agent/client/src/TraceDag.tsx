@@ -78,12 +78,14 @@ import {
   GenieCard,
   MarkdownText,
   ResultSource,
+  SchemaResultView,
   SemanticCard,
   StructuredTableResultView,
 } from './StepResult';
 import {
   genieResult,
   reportSections,
+  schemaResult,
   resultShape,
   semanticResult,
   sqlStatements,
@@ -436,6 +438,8 @@ function RenderedResult({
   tables?: readonly string[];
   tableListing?: boolean;
 }) {
+  const schema = schemaResult(text);
+  if (schema) return <SchemaResultView result={schema} />;
   const tableResult = structuredTableResult(text);
   if (tableResult) return <StructuredTableResultView result={tableResult} />;
   if (tableListing) return <TableEntityList tables={tables} />;
@@ -998,7 +1002,7 @@ export function TraceDag({
   // question the moment they were numbered, which is the usual way round -- the
   // numbering did not break the pane, it published what the pane had been doing.
   const steps = (
-    <div ref={mapRef} className={`trace-dag ${compact ? 'compact' : `map${envelopeStage ? ' has-run-envelope' : ''}`}`}>
+    <div ref={mapRef} className={`trace-dag ${compact ? 'compact' : 'map'}`}>
       {displayedStages.map((item, index) => {
         // Capped, because the indent is a reading aid and a deep run should not
         // push its last stages off the side of the rail. Handed to the stylesheet

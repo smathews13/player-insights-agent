@@ -23,8 +23,8 @@ import {
   DeclaredTableList,
   DeclaredTablesSection,
   DeclaredTablesTable,
-  TableConnectionAddForm,
-  UnityCatalogConnectionAddForm,
+  UnityCatalogAssetAddForm,
+  unityCatalogAssetSelection,
   canonicalDeclaredTableNames,
   declaredTableNames,
   OptionalScopeLine,
@@ -52,8 +52,7 @@ import type { StatusTone } from './StatusBadge';
 import { ENTITY_PARAM, entityHref } from './data-entities';
 import type { PreflightCheck } from './preflight';
 import { connectedResource } from '../../shared/deployment-config';
-import { pickerForField } from './asset-picker';
-import { ADD_CONNECTION_PICKERS } from './declared-connection-view';
+import { PICKER_TOP, UNITY_CATALOG_ASSET_PICKER, pickerForField } from './asset-picker';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 
 describe('the build stamps stay identifiers rather than duplicate statuses', () => {
@@ -1430,9 +1429,8 @@ describe('the Unity Catalog tables section', () => {
     const markup = text(
       render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations={allowed} />)
     );
-    expect(markup.includes('Add table')).toBe(allowed);
-    expect(markup.includes('Add schema')).toBe(allowed);
-    expect(markup.includes('Add catalog')).toBe(allowed);
+    expect(markup.includes('Add asset')).toBe(allowed);
+    expect(markup).not.toMatch(/Add table|Add schema|Add catalog/);
   });
 
   it('starts expanded on the rows it exists for', () => {
@@ -1443,17 +1441,16 @@ describe('the Unity Catalog tables section', () => {
     expect(text(markup)).not.toContain('Listing an asset lets the agent consider it');
   });
 
-  it('uses UC-specific admin actions and never the generic add control', () => {
+  it('uses one UC-specific admin action and never the generic add control', () => {
     const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations />);
     expect(markup).not.toContain('data-testid="add-connection-row"');
     expect(text(markup)).not.toContain('+ Add a new connection');
-    expect(text(markup)).toContain('Add table');
-    expect(text(markup)).toContain('Add schema');
-    expect(text(markup)).toContain('Add catalog');
+    expect(text(markup).match(/Add asset/g)).toHaveLength(1);
+    expect(text(markup)).not.toMatch(/Add table|Add schema|Add catalog/);
     expect(markup).toContain('aria-controls=');
   });
 
-  it('shows all three UC actions to an authorized admin with twelve tables', () => {
+  it('shows one UC action to an authorized admin with twelve tables', () => {
     const twelve = Array.from({ length: 12 }, (_, index) =>
       check(`table-${index}`, 'ok', {
         kind: 'table',
@@ -1462,18 +1459,16 @@ describe('the Unity Catalog tables section', () => {
     );
     const rendered = text(render(<DeclaredTablesSection tableChecks={twelve} requestedEntity="" allowMutations />));
     expect(rendered).toContain('12 tables declared');
-    expect(rendered).toContain('Add table');
-    expect(rendered).toContain('Add schema');
-    expect(rendered).toContain('Add catalog');
+    expect(rendered.match(/Add asset/g)).toHaveLength(1);
   });
 
   it('hides all add actions from read-only and unavailable-store views', () => {
-    expect(text(render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />))).not.toContain('Add table');
+    expect(text(render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" />))).not.toContain('Add asset');
     expect(
       text(
         render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations storeAvailable={false} />)
       )
-    ).not.toContain('Add table');
+    ).not.toContain('Add asset');
     expect(
       text(
         render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations storeAvailable={false} />)
@@ -1481,46 +1476,65 @@ describe('the Unity Catalog tables section', () => {
     ).toContain('connection store is not answering');
   });
 
-  it('renders a table-only three-level picker without a resource type select', () => {
-    expect(ADD_CONNECTION_PICKERS.table.levels).toEqual(['catalogs', 'schemas', 'tables']);
+  it('renders one three-level UC picker without a resource type select', () => {
+    expect(UNITY_CATALOG_ASSET_PICKER.levels).toEqual(['catalogs', 'schemas', 'tables']);
+    expect(UNITY_CATALOG_ASSET_PICKER.pickAt).toBe('every');
+    expect(UNITY_CATALOG_ASSET_PICKER.title).toBe('Unity Catalog assets your sign-in can see');
     const markup = render(
-      <TableConnectionAddForm
-        formId="table-add"
-        value=""
+      <UnityCatalogAssetAddForm
+        formId="asset-add"
+        selection={null}
         busy={false}
         error=""
-        onPick={() => {}}
+        onSelect={() => {}}
         onAdd={() => {}}
         onCancel={() => {}}
       />
     );
-    expect(markup).toContain('data-testid="add-table-form"');
-    expect(text(markup)).toContain('Add table');
+    expect(markup).toContain('data-testid="add-unity-catalog-asset-form"');
+    expect(text(markup)).toContain('Unity Catalog assets your sign-in can see');
+    expect(text(markup)).toContain('Add asset');
     expect(text(markup)).toContain('Cancel');
     expect(markup).not.toContain('Resource type');
-    expect(markup).toContain('aria-label="Add Unity Catalog table"');
+    expect(markup).toContain('aria-label="Add Unity Catalog asset"');
   });
 
-  it('defines catalog and schema pickers at their exact UC levels', () => {
-    expect(ADD_CONNECTION_PICKERS.catalog.levels).toEqual(['catalogs']);
-    expect(ADD_CONNECTION_PICKERS.schema.levels).toEqual(['catalogs', 'schemas']);
-    for (const resourceType of ['catalog', 'schema'] as const) {
-      const markup = render(
-        <UnityCatalogConnectionAddForm
-          resourceType={resourceType}
-          formId={`${resourceType}-add`}
-          value=""
-          busy={false}
-          error=""
-          onPick={() => {}}
-          onAdd={() => {}}
-          onCancel={() => {}}
-        />
-      );
-      expect(markup).toContain(`data-testid="add-${resourceType}-form"`);
-      expect(markup).not.toContain('Resource type');
-      expect(markup).toContain(`aria-label="Add Unity Catalog ${resourceType}"`);
-    }
+  it('shows one typed preview for the selected asset', () => {
+    const markup = render(
+      <UnityCatalogAssetAddForm
+        formId="asset-add"
+        selection={{ resourceType: 'schema', value: 'analytics.player', label: 'Player' }}
+        busy={false}
+        error=""
+        onSelect={() => {}}
+        onAdd={() => {}}
+        onCancel={() => {}}
+      />
+    );
+    expect(markup).toContain('aria-label="Selected Unity Catalog asset"');
+    expect(text(markup)).toContain('Schema analytics.player');
+    expect(markup).toMatch(/<button(?:(?!disabled="").)*>Add asset<\/button>/);
+  });
+
+  it('infers catalog, schema, and table payload types from the selected level', () => {
+    expect(
+      unityCatalogAssetSelection('analytics', {
+        cursor: PICKER_TOP,
+        item: { id: 'analytics', label: 'Analytics', secondary: '', expandable: false },
+      })
+    ).toMatchObject({ resourceType: 'catalog', value: 'analytics' });
+    expect(
+      unityCatalogAssetSelection('analytics.player', {
+        cursor: { catalog: 'analytics', schema: '' },
+        item: { id: 'player', label: 'Player', secondary: 'analytics.player', expandable: false },
+      })
+    ).toMatchObject({ resourceType: 'schema', value: 'analytics.player' });
+    expect(
+      unityCatalogAssetSelection('analytics.player.sessions', {
+        cursor: { catalog: 'analytics', schema: 'player' },
+        item: { id: 'analytics.player.sessions', label: 'Sessions', secondary: '', expandable: false },
+      })
+    ).toMatchObject({ resourceType: 'table', value: 'analytics.player.sessions' });
   });
 
   it('lists an added table once with pending reachability and deletion in this section', () => {
@@ -1560,13 +1574,11 @@ describe('the Unity Catalog tables section', () => {
     expect(text(genericMarkup)).not.toContain('Added schema');
   });
 
-  it('renders the UC section and all admin actions with no table checks', () => {
+  it('renders the UC section and one admin action with no table checks', () => {
     const markup = render(<DeclaredTablesSection tableChecks={[]} requestedEntity="" allowMutations />);
     expect(text(markup)).toContain('Unity Catalog');
     expect(text(markup)).toContain('No Unity Catalog tables are declared yet.');
-    expect(text(markup)).toContain('Add table');
-    expect(text(markup)).toContain('Add schema');
-    expect(text(markup)).toContain('Add catalog');
+    expect(text(markup).match(/Add asset/g)).toHaveLength(1);
   });
 
   it('draws a row per declared table with concise reachability and freshness', () => {

@@ -186,7 +186,34 @@ describe('primary surface occlusion', () => {
     );
     const sessionAction = session.match(/\.app-session-card :is\(button, a\)\s*\{([^}]*)\}/)?.[1] ?? '';
     expect(sessionAction).toMatch(/border:\s*1px solid var\(--primary\)[\s\S]*background:\s*var\(--primary\)/);
-    expect(bodyFor(partial('base.css'), ':focus-visible')).toMatch(/outline:\s*2px solid var\(--ast-blue\)/);
+
+    for (const [css, selector] of [
+      [firstOpen, '.first-open-card.ast-dialog-panel:focus'],
+      [firstOpen, '.first-open-card.ast-dialog-panel:focus-visible'],
+      [gate, '.access-gate-panel.ast-dialog-panel:focus'],
+      [gate, '.access-gate-panel.ast-dialog-panel:focus-visible'],
+      [contract, '.ast-dialog-panel[data-ast-dialog-panel]:focus'],
+      [contract, '.ast-dialog-panel[data-ast-dialog-panel]:focus-visible'],
+    ] as const) {
+      expect(bodyFor(css, selector), selector).toMatch(/outline:\s*none/);
+    }
+
+    const baseFocus = bodyFor(partial('base.css'), ':focus-visible');
+    const darkFocus = bodyFor(partial('dark-mode.css'), "html[data-theme='dark'] :focus-visible");
+    expect(baseFocus).toMatch(/outline:\s*2px solid var\(--ast-blue\)/);
+    expect(darkFocus).toMatch(/outline:\s*1px solid var\(--ast-ice-accent\)/);
+    expect(bodyFor(firstOpen, '.fo-continue')).toMatch(/background:\s*var\(--ast-blue\)/);
+    const outlineSuppressions = [...withoutComments(`${firstOpen}\n${contract}`).matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, , body]) => /outline:\s*none/.test(body))
+      .flatMap(([, selectors]) => selectors.split(',').map((selector) => selector.trim()));
+    expect(outlineSuppressions.sort()).toEqual(
+      [
+        '.ast-dialog-panel[data-ast-dialog-panel]:focus',
+        '.ast-dialog-panel[data-ast-dialog-panel]:focus-visible',
+        '.first-open-card.ast-dialog-panel:focus',
+        '.first-open-card.ast-dialog-panel:focus-visible',
+      ].sort()
+    );
   });
 });
 
@@ -280,5 +307,9 @@ describe('constellation and chrome layers', () => {
     expect(markup).toContain('data-ast-dialog-overlay=""');
     expect(markup).toContain('sample-panel ast-dialog-panel');
     expect(markup).toContain('data-ast-dialog-panel=""');
+    expect(markup).toContain('tabindex="-1"');
+    const dialog = source('Dialog.tsx');
+    expect(dialog).toContain('(initialFocusRef?.current ?? content).focus()');
+    expect(dialog).toContain('tabIndex: -1');
   });
 });

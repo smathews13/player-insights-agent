@@ -12,6 +12,7 @@ import type { Chart } from './AnswerCharts';
 import type { ExperimentalFeatures } from './experimental-features';
 import type { Derivation, NormalizedAnswer, StageStatus, TraceStage, TraceSummary } from './answer-shape';
 import type { TokenInvocationUsage, TokenReconciliation } from '../../shared/llm-token-usage';
+import type { OrganizationMapping } from '../../shared/organization-mapping';
 import type { SessionReport } from '../../shared/session-contract';
 import type { RunRuntimeUsed } from '../../shared/run-runtime-used';
 import type { SpIdentitySummary } from '../../shared/sp-identity';
@@ -66,6 +67,8 @@ export interface ClarificationResponse {
 export type AgentResponse = Answer | PlanResponse | ClarificationResponse;
 export interface Identity {
   signedInAs: string;
+  /** Sanitized organization labels used to brand identities from their email domain. */
+  organizations?: OrganizationMapping[];
   /**
    * Where the signed-in address came from: the Apps proxy, or the development
    * fallback the server uses when a request carried no `x-forwarded-email`.

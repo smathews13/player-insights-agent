@@ -244,8 +244,6 @@ export function ForecastingBody({
 }: {
   cost: ForecastBlock<OpsCostPayload>;
   traffic: ForecastBlock<OpsTrafficPayload>;
-  /** Accepted for compatibility; the selected Cost period is disclosed in methodology, not as a horizon badge. */
-  periodLabel?: string;
   unit?: CostBudgetUnit;
 }) {
   const [saved, setSaved] = useState<ForecastAssumptions | null>(readForecastAssumptions);
@@ -279,7 +277,7 @@ export function ForecastingBody({
       rows: [
         {
           label: 'Observed baseline',
-          detail: `${baseline.window.from}–${baseline.window.to} (selected Cost period)`,
+          detail: `${baseline.window.from}–${baseline.window.to} (current calendar month)`,
         },
         ...result.components.map((component) => ({
           label: component.label,

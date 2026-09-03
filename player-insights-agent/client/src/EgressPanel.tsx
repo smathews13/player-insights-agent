@@ -338,7 +338,7 @@ export function EgressPanel({
         </div>
         <div>
           <span>Observation</span>
-          <strong>Partial</strong>
+          <strong>Limited</strong>
         </div>
       </div>
       <p className="egress-compact-note">{EGRESS_JUDGE_COPY}</p>

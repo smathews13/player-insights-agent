@@ -1,0 +1,27 @@
+/* Compact Architecture cards, graph nodes, rails, contracts, and legend. */
+html[data-density='compact'] .architecture-page,
+html[data-density='compact'] .arch-flow,
+html[data-density='compact'] .arch-rails,
+html[data-density='compact'] .arch-rail,
+html[data-density='compact'] .arch-contract-rows {
+  gap: var(--density-section-gap);
+}
+
+html[data-density='compact'] .arch-tiles,
+html[data-density='compact'] .arch-node-pills,
+html[data-density='compact'] .arch-legend,
+html[data-density='compact'] .arch-rail-rows {
+  gap: var(--density-card-gap);
+}
+
+html[data-density='compact'] .arch-tiles li,
+html[data-density='compact'] .arch-node,
+html[data-density='compact'] .arch-rail-row,
+html[data-density='compact'] .arch-contract-row {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .arch-legend li {
+  min-height: var(--density-row-height);
+  padding-block: var(--density-row-padding-block);
+}

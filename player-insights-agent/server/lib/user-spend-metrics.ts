@@ -8,6 +8,7 @@ const DAY_MS = 86_400_000;
 interface MetricSnapshot {
   amount: number | null;
   comparable: boolean;
+  estimated?: boolean;
 }
 
 export interface UserSpendMetricInput {
@@ -32,12 +33,19 @@ function unavailable(subtitle: string): UserSpendKpi {
 
 export function spendGrowth(current: MetricSnapshot, prior: MetricSnapshot, subtitle: string): UserSpendKpi {
   if (!current.comparable || !prior.comparable || current.amount === null || prior.amount === null) {
-    return unavailable(subtitle);
+    return unavailable('No comparable period');
   }
   if (prior.amount === 0) {
-    return current.amount > 0 ? { value: null, state: 'new', subtitle } : { value: 0, state: 'value', subtitle };
+    return current.amount > 0
+      ? { value: null, state: 'new', subtitle, estimated: current.estimated || prior.estimated }
+      : { value: 0, state: 'value', subtitle, estimated: current.estimated || prior.estimated };
   }
-  return { value: ((current.amount - prior.amount) / Math.abs(prior.amount)) * 100, state: 'value', subtitle };
+  return {
+    value: ((current.amount - prior.amount) / Math.abs(prior.amount)) * 100,
+    state: 'value',
+    subtitle,
+    estimated: current.estimated || prior.estimated,
+  };
 }
 
 export function buildUserSpendMetrics(input: UserSpendMetricInput): UserSpendMetrics {
@@ -47,6 +55,7 @@ export function buildUserSpendMetrics(input: UserSpendMetricInput): UserSpendMet
     questions: current.questions,
     coveredDays: current.coveredDays,
     unit: input.unit,
+    estimated: current.estimated,
   });
   return {
     unit: input.unit,
@@ -61,7 +70,12 @@ export function buildUserSpendMetrics(input: UserSpendMetricInput): UserSpendMet
     }),
     appShare:
       current.appComparable && current.amount !== null && current.appTotal !== null && current.appTotal > 0
-        ? { value: (current.amount / current.appTotal) * 100, state: 'value', subtitle: 'of attributable app spend' }
+        ? {
+            value: (current.amount / current.appTotal) * 100,
+            state: 'value',
+            subtitle: 'of attributable app spend',
+            estimated: current.estimated,
+          }
         : unavailable('No comparable app total'),
     weekOverWeek: spendGrowth(input.week.current, input.week.prior, 'vs prior 7 days'),
     monthOverMonth: spendGrowth(input.month.current, input.month.prior, 'vs prior matched month days'),

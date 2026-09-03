@@ -1,0 +1,52 @@
+/* Compact Benchmarking and Evaluation regions, pipeline, tables, and drawers. */
+html[data-density='compact'] .benchmark-lab,
+html[data-density='compact'] .bench-pipeline,
+html[data-density='compact'] .bench-lanes,
+html[data-density='compact'] .eval-compare-grid {
+  gap: var(--density-section-gap);
+}
+
+html[data-density='compact'] .bench-region-head,
+html[data-density='compact'] .bench-contract-cell,
+html[data-density='compact'] .bench-stage,
+html[data-density='compact'] .bench-lane,
+html[data-density='compact'] .bench-failure-pane,
+html[data-density='compact'] .bench-failure-drawer,
+html[data-density='compact'] .bench-case-editor,
+html[data-density='compact'] .bench-import-pane,
+html[data-density='compact'] .bench-align-preview {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .bench-ledger-row,
+html[data-density='compact'] .bench-failure-list li,
+html[data-density='compact'] .bench-turn-card {
+  min-height: var(--density-row-height);
+  padding: var(--density-row-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .table-scroll thead th,
+html[data-density='compact'] .table-scroll tbody td,
+html[data-density='compact'] .bench-sheet th,
+html[data-density='compact'] .bench-sheet td {
+  padding: var(--density-table-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .summary-grid,
+html[data-density='compact'] .bench-turn-grid,
+html[data-density='compact'] .bench-lane-metrics {
+  gap: var(--density-card-gap);
+}
+
+html[data-density='compact'] .summary-grid [data-slot='card-content'],
+html[data-density='compact'] .bench-stat-strip > div,
+html[data-density='compact'] .bench-metric {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .bench-btn,
+html[data-density='compact'] .bench-space-select,
+html[data-density='compact'] .bench-approver,
+html[data-density='compact'] .bench-target-seg button {
+  min-height: var(--density-control-height);
+}

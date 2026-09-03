@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import type { Identity, RunTrace } from './app-types';
 import { normalizeStage } from './answer-shape';
+import { sanitizeOrganizationMappings } from '../../shared/organization-mapping';
 import type { StorageHealth } from './storage-banner-copy';
 import { IDENTITY_RESOLVING, IDENTITY_UNAVAILABLE } from './user-initials';
 import { browserPollHost, pollWhileVisible } from './visibility-polling';
@@ -101,10 +102,12 @@ export function identityFromResponse(value: unknown): Identity {
   if (!value || typeof value !== 'object') return unavailableIdentity();
   const candidate = value as Record<string, unknown>;
   if (typeof candidate.signedInAs !== 'string') return unavailableIdentity();
+  const organizations = sanitizeOrganizationMappings(candidate.organizations);
 
   return {
     signedInAs: candidate.signedInAs,
     executionMode: typeof candidate.executionMode === 'string' ? candidate.executionMode : 'service-principal',
+    ...(organizations.length > 0 ? { organizations } : {}),
     ...(candidate.identitySource === 'databricks-apps' || candidate.identitySource === 'development-fallback'
       ? { identitySource: candidate.identitySource }
       : {}),

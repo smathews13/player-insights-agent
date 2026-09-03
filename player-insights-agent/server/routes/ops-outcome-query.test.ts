@@ -19,12 +19,12 @@ describe('Ops failure and refusal population', () => {
     expect(RUN_OUTCOMES_QUERY).toContain('DISTINCT ON (event_id, call_id)');
   });
 
-  it('keeps refusals distinct and classifies missing terminal causes honestly', () => {
+  it('keeps terminal outcome classes distinct without reading failure causes', () => {
     expect(RUN_OUTCOMES_QUERY).toContain("r.state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED')");
-    expect(RUN_OUTCOMES_QUERY).toContain('UNKNOWN_FAILURE_CAUSE');
-    expect(RUN_OUTCOMES_QUERY).toContain('UNKNOWN_REFUSAL_CAUSE');
-    expect(RUN_OUTCOMES_QUERY).toContain('UNKNOWN_STORED_ANSWER_FAILURE');
     expect(RUN_OUTCOMES_QUERY).toContain("WHEN a.answer_status = 'failed' THEN 'FAILED'");
+    expect(RUN_OUTCOMES_QUERY).toContain("WHEN a.answer_status = 'partial' THEN 'PARTIAL'");
+    expect(RUN_OUTCOMES_QUERY).not.toContain('UNKNOWN_FAILURE_CAUSE');
+    expect(RUN_OUTCOMES_QUERY).not.toContain('UNKNOWN_REFUSAL_CAUSE');
   });
 
   it('prefers durable stage evidence when the stored answer repeats the same tool call', () => {
@@ -74,6 +74,30 @@ describe('Ops failure and refusal population', () => {
       ['Called search_semantics', 7],
     ]);
     expect(read.outcomesCoverage.state).toBe('complete');
+  });
+
+  it('parses canonical terminal outcomes without a cause query', () => {
+    const read = readTrafficBreakdowns([
+      { kind: 'population', key: '', count: '29' },
+      { kind: 'outcome_covered', key: '', count: '28' },
+      { kind: 'tool_covered', key: '', count: '27' },
+      { kind: 'run_outcome', key: 'completed', count: '20' },
+      { kind: 'run_outcome', key: 'partial', count: '4' },
+      { kind: 'run_outcome', key: 'refused', count: '2' },
+      { kind: 'run_outcome', key: 'failed', count: '2' },
+      { kind: 'run_outcome', key: 'unclassified', count: '1' },
+    ]);
+    expect(read.runStatistics).toEqual({
+      total: 29,
+      completed: 20,
+      partial: 4,
+      refused: 2,
+      failed: 2,
+      unclassified: 1,
+    });
+    expect(RUN_OUTCOMES_QUERY).toContain("SELECT 'run_outcome'");
+    expect(RUN_OUTCOMES_QUERY).not.toContain("SELECT 'failure'");
+    expect(RUN_OUTCOMES_QUERY).not.toContain("SELECT 'refusal'");
   });
 
   it('never turns malformed or unavailable aggregate rows into a complete zero', () => {

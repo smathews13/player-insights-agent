@@ -141,16 +141,36 @@
 }
 
 .exp-feature-name {
-  display: inline-grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  max-width: 100%;
+}
+
+.exp-feature-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--ast-text-secondary);
+  stroke-width: 1.75;
+}
+
+.exp-feature-label {
+  min-width: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
 }
 
 .exp-feature-title {
   min-width: 0;
   font-weight: 500;
+}
+
+.exp-feature-label .experimental-pane-badge {
+  flex: none;
 }
 
 .exp-feature-control {
@@ -1293,7 +1313,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 }
 
 .access-guide-download-row {
-  width: clamp(360px, 50%, 520px);
+  width: min(100%, 520px);
   max-width: 100%;
   min-width: 0;
   padding: 10px 12px;
@@ -1305,6 +1325,11 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--muted);
+}
+
+.environment-access-guide {
+  min-width: 0;
+  display: grid;
 }
 
 .access-guide-download-row > div {
@@ -1735,14 +1760,16 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   min-width: 190px;
 }
 
-.appearance-size {
+.appearance-size,
+.appearance-density {
   display: flex;
   gap: 6px;
 }
 
-.appearance-size button {
+.appearance-size button,
+.appearance-density button {
   min-width: 36px;
-  height: 28px;
+  height: 32px;
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1752,10 +1779,38 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   cursor: pointer;
 }
 
-.appearance-size button[aria-checked='true'] {
+.appearance-size button[aria-checked='true'],
+.appearance-density button[aria-checked='true'] {
   background: var(--ast-seg-pressed);
   color: var(--ast-seg-pressed-ink);
   border-color: var(--ast-primary-control-border);
+}
+
+.appearance-display-rows {
+  display: grid;
+}
+
+.appearance-display-row {
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.appearance-display-row + .appearance-display-row {
+  border-top: 1px solid var(--border);
+}
+
+.appearance-display-row > :first-child {
+  min-width: 0;
+}
+
+.appearance-display-row .state-switch,
+.appearance-display-row .appearance-density {
+  flex: none;
 }
 
 .appearance-display-preview {
@@ -2407,7 +2462,6 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   display: grid;
   gap: 14px;
 }
-
 
 .sp-personas-table {
   min-width: 420px;

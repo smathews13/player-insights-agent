@@ -417,6 +417,7 @@ export function CostSpendSummary({ payload, unit }: { payload: OpsCostPayload; u
     <div className="ops-cost-summary-box" aria-label="Total app spend">
       <div className="ops-cost-summary-head">
         <span>Total app spend</span>
+        <span>This calendar month</span>
       </div>
       <p className="ops-cost-summary-value">
         <span className="ast-num">{summary.label}</span>
@@ -430,6 +431,7 @@ export function CostSpendSummary({ payload, unit }: { payload: OpsCostPayload; u
 }
 
 export interface MonthlyBudgetProgress {
+  spent: string;
   balance: string;
   pace: string;
   tone: 'normal' | 'warning' | 'danger';
@@ -469,20 +471,22 @@ export function monthlyBudgetProgress(
   const ratio = savedBudget === 0 ? Number.POSITIVE_INFINITY : snapshot.amount / savedBudget;
   const tone = ratio >= 1 ? 'danger' : ratio >= 0.8 ? 'warning' : 'normal';
   const balance = `${Math.abs(difference).toFixed(2)} ${unit} ${difference < 0 ? 'over budget' : 'remaining'}`;
+  const spent = `${snapshot.amount.toFixed(2)} ${unit}`;
   const estimated = snapshot.coverage !== 'complete';
-  if (snapshot.amount >= savedBudget) return { balance, pace: 'Budget exceeded', tone, estimated };
+  if (snapshot.amount >= savedBudget) return { spent, balance, pace: 'Budget exceeded', tone, estimated };
 
   const start = dayNumber(status.monthStart);
   const through = dayNumber(snapshot.sourceThrough);
   const end = dayNumber(status.monthEnd);
   if (start === null || through === null || end === null || through < start || end < through) {
-    return { balance, pace: 'Not projected to exceed this month', tone, estimated };
+    return { spent, balance, pace: 'Not projected to exceed this month', tone, estimated };
   }
   const observedDays = through - start + 1;
   const dailyPace = observedDays > 0 ? snapshot.amount / observedDays : 0;
-  if (!(dailyPace > 0)) return { balance, pace: 'Not projected to exceed this month', tone, estimated };
+  if (!(dailyPace > 0)) return { spent, balance, pace: 'Not projected to exceed this month', tone, estimated };
   const daysToExceed = Math.ceil(difference / dailyPace);
   return {
+    spent,
     balance,
     pace:
       daysToExceed <= end - through
@@ -504,23 +508,29 @@ export function SavedAppBudgetSummary({
 }) {
   if (savedBudget === null) return null;
   const progress = monthlyBudgetProgress(status, savedBudget, unit);
+  const budget = `${savedBudget.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ${unit}`;
   return (
     <div className="ops-cost-summary-budget" role="status" aria-live="polite" aria-label="Monthly app budget status">
-      <span className="ops-cost-summary-budget-item">
-        <span>Monthly app budget</span>
-        <strong className="ast-num">
-          {savedBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}
-        </strong>
-      </span>
       {progress ? (
         <>
+          <span className="ops-cost-summary-budget-item" aria-label={`Spent this calendar month: ${progress.spent}`}>
+            <span>Spent this calendar month</span>
+            <strong className="ast-num">{progress.spent}</strong>
+            {progress.estimated ? <span className={astPill('neutral-outline', 'ops-pill')}>Estimated</span> : null}
+          </span>
+          <span className="ops-cost-summary-budget-item">
+            <span>Monthly app budget</span>
+            <strong className="ast-num">{budget}</strong>
+          </span>
           <span
             className="ops-cost-summary-budget-item ops-cost-budget-balance"
             data-budget-tone={progress.tone}
             aria-label={`Budget balance: ${progress.balance}`}
           >
             <strong className="ast-num">{progress.balance}</strong>
-            {progress.estimated ? <span className={astPill('neutral-outline', 'ops-pill')}>Estimated</span> : null}
           </span>
           <span
             className="ops-cost-summary-budget-item ops-cost-summary-budget-mtd"
@@ -531,9 +541,15 @@ export function SavedAppBudgetSummary({
           </span>
         </>
       ) : (
-        <span className="ops-cost-summary-budget-item ops-cost-summary-budget-unavailable">
-          Spend estimate unavailable
-        </span>
+        <>
+          <span className="ops-cost-summary-budget-item">
+            <span>Monthly app budget</span>
+            <strong className="ast-num">{budget}</strong>
+          </span>
+          <span className="ops-cost-summary-budget-item ops-cost-summary-budget-unavailable">
+            Spend estimate unavailable
+          </span>
+        </>
       )}
     </div>
   );

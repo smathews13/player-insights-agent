@@ -369,7 +369,7 @@ building one to hold a logo is the mistake this records.
 
 ### D15. App and workspace sessions are separate; Astrolabe adds an app-only idle control
 
-**Revised 2026-08-28.** Native Databricks App sessions are separate from
+**Revised 2026-09-02.** Native Databricks App sessions are separate from
 workspace sessions, may persist or refresh for up to 24 hours, and do not
 support federated logout. Workspace logout therefore does not invalidate or
 prove the absence of an App session, and Astrolabe must not claim otherwise.
@@ -378,15 +378,16 @@ Astrolabe now adds a compensating application session. A random opaque
 per-browser identifier is held in a Secure, HttpOnly, SameSite cookie; Lakebase
 stores only its hash, normalized authenticated subject, deployment binding, and
 activity/expiry timestamps. Every protected API request checks that shared row.
-Only throttled physical interaction extends activity; background polling and
-ordinary reads do not.
+Only trusted, throttled pointer, keyboard, touch, and wheel interaction extends
+activity; background polling, ordinary reads, visibility changes, and
+script-dispatched events do not.
 
 The account menu ends the stored app session and navigates the same origin to
 `/.auth/sign_out`. This is explicitly partial: if the workspace or identity
 provider session remains active, Databricks can authenticate the App again
 without prompting. The app cannot see or revoke those upstream sessions.
 
-The idle limit defaults to 30 minutes and is configurable with
+The idle limit defaults to 45 minutes and is configurable with
 `PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES`; the only off switch is the literal
 `disabled`. Expiry leaves a tombstone until explicit sign-out, so reload and the
 next API request cannot silently create a replacement. `APP_IDLE_TIMEOUT`

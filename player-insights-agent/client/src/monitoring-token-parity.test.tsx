@@ -126,7 +126,8 @@ describe('Monitoring answer timeline and links', () => {
     expect(markup).toContain('trace-timeline--monitoring');
     expect(markup).toContain('>Tokens</th>');
     expect(markup).toContain('trace-num trace-tokens ast-num">84,576</td>');
-    expect(markup.split('84,576 total tokens')).toHaveLength(2);
+    expect(markup).toMatch(/LLM tokens[\s\S]*?>84,576</);
+    expect(markup).not.toContain('trace-token-rollup');
     expect(markup).not.toContain('monitoring-drawer-tokens');
   });
 

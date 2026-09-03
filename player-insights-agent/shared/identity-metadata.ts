@@ -27,13 +27,27 @@ export interface AppIdentityMetadata {
   workspaceId: string;
 }
 
+/** One credential-free Databricks Apps resource binding attached to the app. */
+export interface AppAttachedResourceMetadata {
+  /** Manifest binding name, retained even when this client does not know the resource kind. */
+  resourceKey: string;
+  /** Control-plane resource kind, such as postgres, serving_endpoint, or sql_warehouse. */
+  resourceType: string;
+  /** Concrete database, endpoint, or warehouse identifier shown to the operator. */
+  displayIdentifier: string;
+  /** Databricks Apps permission reported for this binding, when present. */
+  permission: string;
+  /** Full safe identifier context for tooltips when the visible label is shortened. */
+  title?: string;
+}
+
 /** Sanitized fields returned by the Databricks Apps record for this app. */
 export interface AppServicePrincipalMetadata {
   displayName: string;
   applicationId: string;
   objectId: string;
   authenticationType: string;
-  attachedResourceCount: number | null;
+  attachedResources: AppAttachedResourceMetadata[];
   state: IdentityMetadataReadState;
 }
 
@@ -51,7 +65,7 @@ export const NO_CONTROL_PLANE_IDENTITY_METADATA: ControlPlaneIdentityMetadata = 
     applicationId: '',
     objectId: '',
     authenticationType: '',
-    attachedResourceCount: null,
+    attachedResources: [],
     state: 'not_reported',
   },
 };

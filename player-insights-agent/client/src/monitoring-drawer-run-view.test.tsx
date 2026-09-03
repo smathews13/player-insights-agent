@@ -260,6 +260,16 @@ describe("the modal draws one run view, the card's own", () => {
     expect(occurrences(rendered, 'Advanced trace details')).toBe(1);
   });
 
+  it("shows the asker's feedback as a read-only KPI without admin voting controls", () => {
+    const markup = drawer({ feedback: 'down', usefulness: 5 });
+    const rendered = text(markup);
+
+    expect(rendered).toMatch(/User feedback (?:Not helpful ){1,2}Submitted by the asker/);
+    expect(rendered).not.toContain('Was this answer useful?');
+    expect(MONITORING).toContain('feedback={readOnlyFeedback(detail)}');
+    expect(MONITORING).toContain('showFeedback={false}');
+  });
+
   it('does not add process-omission copy when the timeline is empty', () => {
     const empty = { ...trace, id: 'tr-2', totalMs: 0, toolCalls: 0, stages: [] };
     const bare = text(drawer({ trace: empty, answer: answerWith(empty) }));

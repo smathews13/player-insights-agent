@@ -77,26 +77,6 @@
   overflow-x: clip;
   overflow-y: visible;
 }
-/*
- * The measured run is one envelope, not a header followed by an unrelated
- * grid. The solid 2px blue edge remains on the Orchestrator run card; this
- * quieter 1px dashed perimeter groups that card with every numbered stage
- * beneath it, and it is the SAME blue -- one envelope inside one identity,
- * rather than a grey rule that reads as chrome the run happens to sit in.
- *
- * DASHED AND NOT DOTTED, at 1px. A 1px dotted border is drawn as 1px dots at a
- * 1px pitch, which resolves to a half-tone haze rather than a line and turns
- * fuzzier still on a fractional-DPR display. A dash is a segment the renderer
- * can land on whole pixels, so the perimeter stays a line at any zoom.
- *
- * The radius matches the cards inside it, because --radius-md is the only card
- * radius this design has.
- */
-.trace-dag.map.has-run-envelope {
-  padding: 14px;
-  border: 1px dashed var(--primary);
-  border-radius: var(--radius-md);
-}
 /* The rail: one column, in the order the run happened, and no wrapping to undo. */
 .trace-dag.compact {
   display: flex;
@@ -1038,6 +1018,76 @@
 .trace-dag.map .dag-structured-table-list .entity-table-list,
 .trace-payload .dag-structured-table-list .entity-table-list {
   padding: 8px 10px 10px;
+}
+.dag-schema-result {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.dag-schema-object {
+  min-width: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.dag-schema-comment {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--ast-radius-control);
+  background: var(--ast-surface-muted);
+}
+.dag-schema-comment strong {
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-11);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dag-schema-comment p {
+  min-width: 0;
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.dag-schema-columns {
+  width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.dag-schema-columns th,
+.dag-schema-columns td {
+  min-width: 0;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--ast-hairline);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.dag-schema-columns th:first-child,
+.dag-schema-columns td:first-child {
+  width: 56%;
+}
+.dag-schema-column-token {
+  display: inline-block;
+  max-width: 100%;
+  padding: 1px 4px;
+  border-radius: var(--ast-radius-control);
+  color: var(--ast-entity-column-fg);
+  background: var(--ast-entity-column-bg);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.dag-schema-type {
+  color: var(--ast-text-secondary);
+  font-family: var(--font-mono);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .trace-dag.map .entity-table-list li,
 .trace-payload .entity-table-list li {

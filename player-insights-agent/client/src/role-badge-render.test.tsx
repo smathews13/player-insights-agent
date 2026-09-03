@@ -159,15 +159,12 @@ describe('the Super admin chip leaves the top rail while Benchmarking is on', ()
   it('still names the rank in the signed-in menu', () => {
     const layout = readFileSync(new URL('Layout.tsx', import.meta.url), 'utf8');
     expect(layout).toContain('<AccountMenu identity={identity} role={role.state} />');
-    const menu = readFileSync(new URL('AccountMenu.tsx', import.meta.url), 'utf8');
+    const menu = readFileSync(new URL('AccountMenuPanel.tsx', import.meta.url), 'utf8');
     expect(menu).toContain('<RoleBadgePill state={role} />');
   });
 
   it('hides the rail copy only, and only on the header', () => {
-    const source = readFileSync(new URL('Layout.tsx', import.meta.url), 'utf8').replace(
-      /\{\/\*[\s\S]*?\*\/\}/g,
-      ' '
-    );
+    const source = readFileSync(new URL('Layout.tsx', import.meta.url), 'utf8').replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ');
     expect(source).toContain('hideRoleBadge={!showsHeaderRoleBadge(features)}');
     expect((source.match(/hideRoleBadge=\{!showsHeaderRoleBadge\(features\)\}/g) ?? []).length).toBe(1);
     expect(source).toMatch(

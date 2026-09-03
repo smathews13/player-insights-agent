@@ -4,7 +4,6 @@ import { opsDayRange } from '../../shared/ops-contract';
 import { USER_MONITORING_SCHEMA_REVISION, type UserMonitoringPayload } from '../../shared/user-monitoring-contract';
 import type { SpendByUserPayload, UserSpendAmount, UserSpendReconciliation } from '../../shared/user-spend-contract';
 import {
-  USER_SPEND_CALCULATION_VERSION,
   readUserSpendReadModelComponents,
   readUserSpendReadModelPage,
   runUserSpendReadModelRefresh,
@@ -21,6 +20,8 @@ import {
 import { buildUserSpendMetrics, userSpendComparisonWindows } from '../lib/user-spend-metrics';
 import { invalidAdminEmail } from '../lib/admin-roles';
 import { userEmail, type InsightsAppKit } from './insights-routes';
+
+export const USER_SPEND_RESPONSE_REVISION = 2;
 
 export const USER_SPEND_READ_MODEL_ROUTES = [
   '/api/monitoring/user-spend',
@@ -141,7 +142,7 @@ function listPayload(
         count: page.rows.filter((row) => row.persona?.id === persona.id).length,
       }))
       .sort((left, right) => left.name.localeCompare(right.name)),
-    dataRevision: USER_SPEND_CALCULATION_VERSION,
+    dataRevision: USER_SPEND_RESPONSE_REVISION,
     identityRevision: identityRevision(page),
     pagination: {
       total: page.total,
@@ -164,7 +165,9 @@ function selectedAmount(page: UserSpendReadModelPage, email: string, unit: 'USD'
   return {
     row,
     amount: value ?? null,
-    comparable: Boolean(row?.billingComplete && value !== null && quality !== 'partial'),
+    comparable: value !== null && value !== undefined,
+    estimated: quality === 'partial' || !row?.billingComplete,
+    coveredDays: unit === 'USD' ? (row?.spendUsdCoveredDays ?? 0) : (row?.spendDbuCoveredDays ?? 0),
   };
 }
 
@@ -271,7 +274,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       }
       const selected = current.rows.find((row) => row.email.toLowerCase() === email);
       const payload: SpendByUserPayload = {
-        dataRevision: USER_SPEND_CALCULATION_VERSION,
+        dataRevision: USER_SPEND_RESPONSE_REVISION,
         readAt: current.freshness.computedAt ?? new Date(clock()).toISOString(),
         requestedRange: range,
         range,
@@ -421,8 +424,9 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
               current: {
                 amount: selected.amount,
                 comparable: selected.comparable,
+                estimated: selected.estimated,
                 questions: selected.row.questions,
-                coveredDays: selected.row.coveredDays,
+                coveredDays: selected.coveredDays,
                 appTotal: appTotal ?? null,
                 appComparable: appTotal !== null && appTotal !== undefined,
                 totalTokens: selected.row.totalTokens,
@@ -443,7 +447,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
           }
         : null;
       const payload: SpendByUserPayload = {
-        dataRevision: USER_SPEND_CALCULATION_VERSION,
+        dataRevision: USER_SPEND_RESPONSE_REVISION,
         readAt: current.freshness.computedAt ?? new Date(clock()).toISOString(),
         requestedRange: range,
         range,

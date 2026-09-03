@@ -8,13 +8,13 @@
  * keeps the list in {@link ./monitoring-session.ts}; this is that latch for
  * the four Ops reads.
  *
- * ONCE PER SESSION PER BLOCK (AND PER COST RANGE), NOT ONCE PER VISIT. The
+ * ONCE PER SESSION PER BLOCK AND CALENDAR MONTH, NOT ONCE PER VISIT. The
  * claim is taken from {@link claimOpsAutoLoad} before any fetch is issued. So:
  *
  *   - a second mount of the same block does not re-run it
  *   - React's development double-mount does not re-run it
  *   - an automatic run that FAILED does not re-run it on the next visit
- *   - a different cost range is a different question and gets its own first read
+ *   - a new calendar month is a new question and gets its own first read
  *
  * The last-but-one is the one that is easy to get wrong by keying on the store
  * instead of on a latch: a deployment whose billing table cannot be read would
@@ -32,14 +32,10 @@
  * switches away two seconds later must see that run land when they come back,
  * not an empty page that has given up waiting for a fetch it never made.
  *
- * COST RANGE IDENTITY IS THE WORD IN THE URL. The computed `from`/`to`
- * timestamps move every time the clock is read, so they cannot be the key: a
- * remount a second later would look like a different window and pay for the
- * billing scan again. Health, traffic and latency do not take a range.
+ * RETROSPECTIVE IDENTITY IS THE CALENDAR MONTH. Arbitrary Ops URL ranges no
+ * longer exist; Health remains live and therefore has no month suffix.
  */
 import { useCallback, useEffect, useState } from 'react';
-
-import { rangeFromParams, type ReadableParams } from './time-range';
 
 type Listener = () => void;
 
@@ -74,19 +70,9 @@ export interface OpsBlockAnswer<T> {
   failed: string;
 }
 
-/**
- * Which cost range the URL is asking for, as a stable session key.
- *
- * Same rule as Monitoring: the supported preset in the URL is the question the
- * reader asked, and it is what a later visit is still asking.
- */
-export function opsCostRangeId(params: ReadableParams): string {
-  return rangeFromParams(params);
-}
-
-/** One block's session key: the route, plus a cost range when the read has one. */
-export function opsBlockKey(path: string, rangeId = ''): string {
-  return rangeId ? `${path}:${rangeId}` : path;
+/** One block's session key, optionally suffixed by the authoritative month. */
+export function opsBlockKey(path: string, identity = ''): string {
+  return identity ? `${path}:${identity}` : path;
 }
 
 /**
@@ -202,13 +188,11 @@ export interface OpsBlockSession<T> {
  * The first visit of a key starts the read; every visit after that restores
  * the same store. Refresh is the only thing that reads again.
  *
- * `search` is the query string this render would send. It is captured for the
- * automatic run of THIS key and for Refresh; it is not the session key. A
- * remount recomputes cost `from`/`to` from a later clock and must not count
- * as a new question.
+ * `search` is captured for the automatic run of THIS key and for Refresh; Ops
+ * itself now passes an empty search because the server owns the month window.
  */
-export function useOpsBlock<T>(path: string, search: string, rangeId = '', enabled = true): OpsBlockSession<T> {
-  const key = opsBlockKey(path, rangeId);
+export function useOpsBlock<T>(path: string, search: string, identity = '', enabled = true): OpsBlockSession<T> {
+  const key = opsBlockKey(path, identity);
   const url = `${path}${search}`;
   const [, bump] = useState(0);
   useEffect(() => subscribe(() => bump((count) => count + 1)), []);

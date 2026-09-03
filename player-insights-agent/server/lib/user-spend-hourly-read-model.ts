@@ -163,13 +163,15 @@ ON CONFLICT (app_scope, user_key, activity_hour, calculation_version) DO UPDATE 
   total_tokens = EXCLUDED.total_tokens,
   token_covered_runs = EXCLUDED.token_covered_runs,
   token_covered_questions = EXCLUDED.token_covered_questions,
-  spend_usd = EXCLUDED.spend_usd,
-  spend_dbu = EXCLUDED.spend_dbu,
-  app_spend_usd = EXCLUDED.app_spend_usd,
-  app_spend_dbu = EXCLUDED.app_spend_dbu,
-  spend_usd_quality = EXCLUDED.spend_usd_quality,
-  spend_dbu_quality = EXCLUDED.spend_dbu_quality,
-  components = EXCLUDED.components,
+  spend_usd = COALESCE(EXCLUDED.spend_usd, ${USER_SPEND_HOURLY_TABLE}.spend_usd),
+  spend_dbu = COALESCE(EXCLUDED.spend_dbu, ${USER_SPEND_HOURLY_TABLE}.spend_dbu),
+  app_spend_usd = COALESCE(EXCLUDED.app_spend_usd, ${USER_SPEND_HOURLY_TABLE}.app_spend_usd),
+  app_spend_dbu = COALESCE(EXCLUDED.app_spend_dbu, ${USER_SPEND_HOURLY_TABLE}.app_spend_dbu),
+  spend_usd_quality = CASE WHEN EXCLUDED.spend_usd IS NULL
+    THEN ${USER_SPEND_HOURLY_TABLE}.spend_usd_quality ELSE EXCLUDED.spend_usd_quality END,
+  spend_dbu_quality = CASE WHEN EXCLUDED.spend_dbu IS NULL
+    THEN ${USER_SPEND_HOURLY_TABLE}.spend_dbu_quality ELSE EXCLUDED.spend_dbu_quality END,
+  components = ${USER_SPEND_HOURLY_TABLE}.components || EXCLUDED.components,
   billing_basis_day = EXCLUDED.billing_basis_day,
   source_through = EXCLUDED.source_through,
   computed_at = EXCLUDED.computed_at,
@@ -320,17 +322,23 @@ export function materializeUserSpendHours(rows: readonly Record<string, unknown>
       },
     ];
   });
-  const totals = new Map<string, { usd: number | null; dbu: number | null }>();
+  const totals = new Map<string, { usd: number; dbu: number; usdKnown: boolean; dbuKnown: boolean }>();
   for (const row of result) {
-    const current = totals.get(row.activityHour) ?? { usd: 0, dbu: 0 };
-    current.usd = current.usd === null || row.spendUsd === null ? null : current.usd + row.spendUsd;
-    current.dbu = current.dbu === null || row.spendDbu === null ? null : current.dbu + row.spendDbu;
+    const current = totals.get(row.activityHour) ?? { usd: 0, dbu: 0, usdKnown: false, dbuKnown: false };
+    if (row.spendUsd !== null) {
+      current.usd += row.spendUsd;
+      current.usdKnown = true;
+    }
+    if (row.spendDbu !== null) {
+      current.dbu += row.spendDbu;
+      current.dbuKnown = true;
+    }
     totals.set(row.activityHour, current);
   }
   for (const row of result) {
     const total = totals.get(row.activityHour);
-    row.appSpendUsd = total?.usd ?? null;
-    row.appSpendDbu = total?.dbu ?? null;
+    row.appSpendUsd = total?.usdKnown ? total.usd : null;
+    row.appSpendDbu = total?.dbuKnown ? total.dbu : null;
   }
   return result;
 }
@@ -392,12 +400,14 @@ export function runUserSpendHourlyRefresh(
       const rows = materializeUserSpendHours(source.rows);
       await connection.query('BEGIN');
       try {
-        await connection.query(
-          `DELETE FROM ${USER_SPEND_HOURLY_TABLE}
-           WHERE app_scope = $1 AND calculation_version = $2
-             AND activity_hour >= $3::timestamptz AND activity_hour < $4::timestamptz`,
-          [appScope, version, from, to]
-        );
+        if (rows.every((row) => row.spendUsd !== null && row.spendDbu !== null)) {
+          await connection.query(
+            `DELETE FROM ${USER_SPEND_HOURLY_TABLE}
+             WHERE app_scope = $1 AND calculation_version = $2
+               AND activity_hour >= $3::timestamptz AND activity_hour < $4::timestamptz`,
+            [appScope, version, from, to]
+          );
+        }
         for (const row of rows) {
           await connection.query(UPSERT_USER_SPEND_HOUR_QUERY, [
             appScope,
@@ -492,7 +502,8 @@ aggregated AS (
          SUM(total_tokens)::numeric AS total_tokens,
          SUM(token_covered_runs)::bigint AS token_covered_runs,
          SUM(token_covered_questions)::bigint AS token_covered_questions,
-         COUNT(DISTINCT activity_hour)::int AS covered_hours,
+         COUNT(DISTINCT activity_hour) FILTER (WHERE spend_usd IS NOT NULL)::int AS spend_usd_covered_hours,
+         COUNT(DISTINCT activity_hour) FILTER (WHERE spend_dbu IS NOT NULL)::int AS spend_dbu_covered_hours,
          MAX(source_through) AS source_through, MAX(computed_at) AS computed_at,
          SUM(spend_usd) AS spend_usd, SUM(spend_dbu) AS spend_dbu,
          CASE WHEN COUNT(spend_usd) = 0 THEN 'unavailable' ELSE 'partial' END AS spend_usd_quality,
@@ -538,7 +549,8 @@ filtered AS (
          COALESCE(aggregated.run_count, 0) AS run_count,
          COALESCE(aggregated.active_minutes, 0) AS active_minutes,
          aggregated.total_tokens, aggregated.token_covered_runs, aggregated.token_covered_questions,
-         COALESCE(aggregated.covered_hours, 0) AS covered_hours,
+         COALESCE(aggregated.spend_usd_covered_hours, 0) AS spend_usd_covered_hours,
+         COALESCE(aggregated.spend_dbu_covered_hours, 0) AS spend_dbu_covered_hours,
          aggregated.source_through, aggregated.computed_at,
          aggregated.spend_usd, aggregated.spend_dbu,
          COALESCE(aggregated.spend_usd_quality, 'unavailable') AS spend_usd_quality,
@@ -656,7 +668,12 @@ export async function readUserSpendHourlyPage(
     totalTokens: nullableNumber(row.total_tokens),
     tokenCoveredRuns: nullableNumber(row.token_covered_runs),
     tokenCoveredQuestions: nullableNumber(row.token_covered_questions),
-    coveredDays: Math.ceil(number(row.covered_hours) / 24),
+    coveredDays: Math.max(
+      Math.ceil(number(row.spend_usd_covered_hours) / 24),
+      Math.ceil(number(row.spend_dbu_covered_hours) / 24)
+    ),
+    spendUsdCoveredDays: Math.ceil(number(row.spend_usd_covered_hours) / 24),
+    spendDbuCoveredDays: Math.ceil(number(row.spend_dbu_covered_hours) / 24),
     spendUsd: nullableNumber(row.spend_usd),
     spendDbu: nullableNumber(row.spend_dbu),
     spendUsdQuality: quality(row.spend_usd_quality),

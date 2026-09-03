@@ -367,16 +367,19 @@ export interface MonitoringDetail {
   runtimeUsed?: RunRuntimeUsed | null;
 }
 
-/** One table on the per-user panel, read live rather than recalled. */
+/** One declared table and the strongest evidence available for the selected human. */
 export interface EffectiveGrant {
   table: string;
-  canRead: boolean;
+  canRead: boolean | null;
   /** The privilege found missing, when the answer was no. */
   missing: string | null;
   /** Whether the table carries a row filter, or null where it was not read. */
   rowFilter: boolean | null;
   /** The masked columns, or an empty list. Null where masks were not read. */
   maskedColumns: string[] | null;
+  source: 'live-user-probe' | 'verified-run' | 'no-evidence';
+  verifiedRuns: number;
+  latestVerifiedReadAt: string | null;
 }
 
 export interface PersonPanelPayload {
@@ -424,8 +427,9 @@ export interface PersonPanelPayload {
    * `access_mode` column is still written and still read back elsewhere; nothing
    * reads it into a figure for a reader.
    */
-  /** Live, as the application. Null when the read could not run at all. */
+  /** Every declared table, evaluated as the selected self or from verified historical runs. */
   grants: EffectiveGrant[] | null;
+  grantsMode: 'live-self' | 'historical';
   refusedMissingGrant: number;
   refusedAgentRules: number;
   questions: MonitoringQuestion[];

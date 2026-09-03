@@ -3,13 +3,21 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import { AssetPickerField, AssetPickerPanel, AssetPickerRow, BrowseGrantPrompt } from './AssetPicker';
+import {
+  AssetPickerField,
+  AssetPickerPanel,
+  AssetPickerRow,
+  BrowseGrantPrompt,
+  mergeBrowseItems,
+  shouldAutoAdvanceEmptyPage,
+} from './AssetPicker';
 import {
   BROWSE_GRANT_PROMPT,
   BROWSE_UNAVAILABLE_CHIP,
   NO_NAME_REPORTED,
   PICKER_FIELDS,
   PICKER_TOP,
+  UNITY_CATALOG_ASSET_PICKER,
   pickerForField,
   type AssetPickerSpec,
   type PickerCursor,
@@ -206,6 +214,21 @@ describe('a list the workspace answered', () => {
     );
     expect(markup).toContain('disabled');
   });
+
+  it('separates browse and select actions for a UC catalog row', () => {
+    const markup = render(
+      <AssetPickerRow
+        spec={UNITY_CATALOG_ASSET_PICKER}
+        cursor={PICKER_TOP}
+        item={item({ id: 'analytics', label: 'analytics' })}
+        current=""
+        onOpen={() => {}}
+        onPick={() => {}}
+      />
+    );
+    expect(markup).toContain('aria-label="Browse catalog analytics"');
+    expect(markup).toContain('aria-label="Select catalog analytics"');
+  });
 });
 
 describe('the data_catalogs browser and its blast radius', () => {
@@ -329,6 +352,51 @@ describe('an empty answer', () => {
     expect(shown).not.toContain(BROWSE_GRANT_PROMPT);
   });
 
+  it('does not show the screenshot false-empty state while a later catalog page exists', () => {
+    const firstEmptyPage = ok([], {
+      next_page_token: 'catalog-page-2',
+      pagination: {
+        complete: false,
+        incomplete_reason: 'more_available',
+        page: 1,
+        page_limit: 5,
+        page_size: 100,
+        returned: 0,
+      },
+    });
+    expect(shouldAutoAdvanceEmptyPage(firstEmptyPage)).toBe(true);
+    const markup = panel('catalog', firstEmptyPage, { loading: shouldAutoAdvanceEmptyPage(firstEmptyPage) });
+    expect(markup).toContain('data-testid="asset-picker-loading"');
+    expect(markup).not.toContain('data-testid="asset-picker-empty"');
+    expect(text(markup)).not.toContain('No catalogs are visible to your sign-in.');
+    expect(text(markup)).not.toContain('Load more');
+  });
+
+  it('deduplicates useful rows found across automatically advanced pages', () => {
+    const main = item({ id: 'main', label: 'main' });
+    const analytics = item({ id: 'analytics', label: 'analytics' });
+    expect(mergeBrowseItems([main], [main, analytics])).toEqual([main, analytics]);
+  });
+
+  it('bounds empty-page advancement and fences repeated or stale paging', () => {
+    const capped = ok([], {
+      next_page_token: '',
+      pagination: {
+        complete: false,
+        incomplete_reason: 'page_cap',
+        page: 5,
+        page_limit: 5,
+        page_size: 100,
+        returned: 0,
+      },
+    });
+    expect(shouldAutoAdvanceEmptyPage(capped)).toBe(false);
+    expect(PICKER_SOURCE).toContain('pagingTokens');
+    expect(PICKER_SOURCE).toContain('seen.has(token)');
+    expect(PICKER_SOURCE).toContain('controller.signal.aborted');
+    expect(PICKER_SOURCE).toContain('shouldAutoAdvanceEmptyPage(response)');
+  });
+
   it('draws no filter box over a list with nothing in it', () => {
     expect(panel('sql-warehouse', ok([], { kind: 'warehouses' }))).not.toContain('Narrow this list');
   });
@@ -368,7 +436,7 @@ describe('long lists', () => {
     expect(text(panel('catalog', ok(many)))).not.toContain('Load more');
   });
 
-  it('labels a capped prefix as partial and does not offer another page', () => {
+  it('labels a capped prefix without calling ordinary pagination partial', () => {
     const markup = panel(
       'catalog',
       ok(many, {
@@ -383,18 +451,19 @@ describe('long lists', () => {
       })
     );
     expect(markup).toContain('data-testid="asset-picker-partial"');
-    expect(text(markup)).toContain('Partial list');
+    expect(text(markup)).not.toContain('Partial list');
+    expect(text(markup)).toContain('Discovery stopped');
     expect(text(markup)).toContain('500 resources maximum');
     expect(text(markup)).not.toContain('Load more');
   });
 });
 
 describe('resource discovery loading', () => {
-  it('shows one concise live loading state with an animated icon', () => {
+  it('shows one concise live Astrolabe loading state', () => {
     const markup = panel('sql-warehouse', null, { loading: true });
     expect(markup).toContain('role="status"');
-    expect(markup).toContain('asset-picker-spinner');
-    expect(text(markup)).toContain('Finding resources your sign-in can access…');
+    expect(markup).toContain('ast-anim-flick');
+    expect(text(markup)).toContain('Finding resources your sign-in can access');
     expect(markup).not.toContain('asset-picker-rows');
   });
 

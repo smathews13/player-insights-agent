@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Check, Copy, Search } from 'lucide-react';
 import type { EnvironmentInfo, EnvironmentPackage, EnvironmentVariable } from '../../shared/environment-info';
+import { AccessGuideDownload } from './AccessGuideDownload';
 import { AgentCodeRow } from './AgentCodeRow';
 import { filterEnvironmentItems } from './environment-filter';
 import { environmentInfoFromResponse } from './environment-response';
@@ -22,9 +23,15 @@ async function copyText(value: string): Promise<void> {
 export function EnvironmentPanel({
   initialData,
   initialAgentModel,
+  showAccessGuide = false,
+  accessGuideFocusTarget,
+  initialAccessGuideAvailable,
 }: {
   initialData?: unknown;
   initialAgentModel?: unknown;
+  showAccessGuide?: boolean;
+  accessGuideFocusTarget?: string | null;
+  initialAccessGuideAvailable?: boolean;
 }) {
   const normalizedInitial = initialData === undefined ? null : environmentInfoFromResponse(initialData);
   const [data, setData] = useState<EnvironmentInfo | null>(normalizedInitial);
@@ -84,6 +91,12 @@ export function EnvironmentPanel({
           of THIS process -- the app container is never told it -- and burying it
           in a hundred-row table is how a fact stops being read. */}
       <AgentCodeRow initialData={initialAgentModel} />
+
+      {showAccessGuide ? (
+        <section className="environment-access-guide" aria-label="Environment operating guide">
+          <AccessGuideDownload focusTarget={accessGuideFocusTarget} initialAvailable={initialAccessGuideAvailable} />
+        </section>
+      ) : null}
 
       {data ? (
         <>

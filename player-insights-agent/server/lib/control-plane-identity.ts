@@ -6,7 +6,7 @@
  * identity. No forwarded user token is used and no credential or raw
  * control-plane error is returned.
  */
-import type { ControlPlaneIdentityMetadata } from '../../shared/identity-metadata';
+import type { AppAttachedResourceMetadata, ControlPlaneIdentityMetadata } from '../../shared/identity-metadata';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { APP_NAME_ENV, APPS_PATH, workspaceIdFromAppUrl } from './app-metadata';
 import { ExpiringLruCache } from './expiring-lru';
@@ -15,6 +15,7 @@ export const USER_METADATA_TTL_MS = 60_000;
 export const USER_METADATA_CACHE_MAX_ENTRIES = 512;
 export const APP_CONTEXT_TTL_MS = 5 * 60_000;
 export const APP_CONTEXT_CACHE_MAX_ENTRIES = 64;
+export const APP_ATTACHED_RESOURCE_MAX_RECORDS = 64;
 
 export const SCIM_USERS_PATH = '/api/2.0/preview/scim/v2/Users';
 
@@ -39,12 +40,19 @@ function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-function textOf(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
+function textOf(value: unknown, maxLength = 512): string {
+  if (typeof value !== 'string') return '';
+  let safe = '';
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    if (codePoint >= 32 && codePoint !== 127) safe += character;
+    if (safe.length >= maxLength) break;
+  }
+  return safe.trim().slice(0, maxLength);
 }
 
 function identifierOf(value: unknown): string {
-  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'string') return textOf(value);
   return typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : '';
 }
 
@@ -59,6 +67,65 @@ function keyPart(value: string): string {
 function scimResources(body: unknown): Record<string, unknown>[] {
   const resources = recordOf(body).Resources;
   return Array.isArray(resources) ? resources.map(recordOf) : [];
+}
+
+const KNOWN_APP_RESOURCE_TYPES = ['postgres', 'serving_endpoint', 'sql_warehouse'] as const;
+const SENSITIVE_RESOURCE_FIELD = /authorization|credential|password|secret|token/i;
+
+function resourceTypeOf(resource: Record<string, unknown>): string {
+  const known = KNOWN_APP_RESOURCE_TYPES.find((type) => Object.prototype.hasOwnProperty.call(resource, type));
+  if (known) return known;
+  const future = Object.keys(resource)
+    .filter((key) => key !== 'name' && !SENSITIVE_RESOURCE_FIELD.test(key))
+    .sort()[0];
+  return textOf(future, 128) || 'unknown';
+}
+
+function attachedResource(value: unknown, index: number): AppAttachedResourceMetadata | null {
+  const resource = recordOf(value);
+  const resourceType = resourceTypeOf(resource);
+  const suppliedKey = textOf(resource.name, 256);
+  if (resourceType === 'unknown' && !suppliedKey) return null;
+
+  const resourceKey = suppliedKey || resourceType || `resource-${index + 1}`;
+  const details = recordOf(resource[resourceType]);
+  const permission = textOf(details.permission, 128);
+  let displayIdentifier = resourceKey;
+  let title = '';
+
+  if (resourceType === 'postgres') {
+    const database = textOf(details.database);
+    const branch = textOf(details.branch);
+    displayIdentifier = database || branch || resourceKey;
+    title = database && branch && branch !== database ? `${database} · branch ${branch}` : displayIdentifier;
+  } else if (resourceType === 'serving_endpoint') {
+    displayIdentifier = textOf(details.name) || resourceKey;
+    title = displayIdentifier;
+  } else if (resourceType === 'sql_warehouse') {
+    displayIdentifier = identifierOf(details.id) || resourceKey;
+    title = displayIdentifier;
+  } else {
+    // Future resource bodies are deliberately opaque: the binding name is safe
+    // deployment metadata, while arbitrary nested fields may contain secrets.
+    displayIdentifier = resourceKey;
+    title = resourceKey;
+  }
+
+  return {
+    resourceKey,
+    resourceType,
+    displayIdentifier,
+    permission,
+    ...(title && title !== displayIdentifier ? { title } : {}),
+  };
+}
+
+function attachedResourcesOf(value: unknown): AppAttachedResourceMetadata[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, APP_ATTACHED_RESOURCE_MAX_RECORDS)
+    .map(attachedResource)
+    .filter((resource): resource is AppAttachedResourceMetadata => resource !== null);
 }
 
 async function readUser(email: string, host: string, reader: ControlPlaneReader, now: number): Promise<UserRead> {
@@ -105,7 +172,7 @@ async function readAppContext(
       applicationId: '',
       objectId: '',
       authenticationType: '',
-      attachedResourceCount: null,
+      attachedResources: [],
       state: 'not_reported',
     },
   };
@@ -115,7 +182,7 @@ async function readAppContext(
       const applicationId = textOf(app.service_principal_client_id);
       const displayName = textOf(app.service_principal_name);
       const objectId = identifierOf(app.service_principal_id);
-      const resources = Array.isArray(app.resources) ? app.resources.length : null;
+      const attachedResources = attachedResourcesOf(app.resources);
       result = {
         workspaceId: workspaceIdFromAppUrl(textOf(app.url)),
         servicePrincipal: {
@@ -123,7 +190,7 @@ async function readAppContext(
           applicationId,
           objectId,
           authenticationType: applicationId ? 'OAuth machine-to-machine' : '',
-          attachedResourceCount: resources,
+          attachedResources,
           state: displayName || applicationId || objectId ? 'verified' : 'not_reported',
         },
       };

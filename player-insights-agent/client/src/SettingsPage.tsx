@@ -16,7 +16,7 @@ import {
 } from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
-import { showsUserRoster, type RoleResolution } from './role';
+import { showsAdminSurfaces, showsUserRoster, type RoleResolution } from './role';
 import {
   SAVE_PRESS_MS,
   SETTINGS_SAVE_IDLE,
@@ -127,6 +127,8 @@ export function SettingsPage({
   experimentalLoaded = true,
   experimentalFailure = '',
   onExperimentalSaved = () => {},
+  accessGuideFocusTarget,
+  initialAccessGuideAvailable,
 }: {
   onClose?: () => void;
   initialSection?: SettingsSection;
@@ -137,6 +139,8 @@ export function SettingsPage({
   experimentalLoaded?: boolean;
   experimentalFailure?: string;
   onExperimentalSaved?: (document: ExperimentalSettingsDocument) => void;
+  accessGuideFocusTarget?: string | null;
+  initialAccessGuideAvailable?: boolean;
 }) {
   const features = featuresProp ?? NO_EXPERIMENTS;
   const [active, setActive] = useState<SettingsSection>(() => normalizeSettingsSection(initialSection, features));
@@ -300,7 +304,13 @@ export function SettingsPage({
             {active === 'runtime' || active === 'appearance' ? (
               <RuntimeSettingsPanel section={active} onSaveState={setSaveState} onDirtyChange={handlePaneDirty} />
             ) : null}
-            {active === 'environment' ? <EnvironmentPanel /> : null}
+            {active === 'environment' ? (
+              <EnvironmentPanel
+                showAccessGuide={showsAdminSurfaces(role.state)}
+                accessGuideFocusTarget={accessGuideFocusTarget}
+                initialAccessGuideAvailable={initialAccessGuideAvailable}
+              />
+            ) : null}
             {active === 'egress' ? <EgressPanel onSaveState={setSaveState} onDirtyChange={handlePaneDirty} /> : null}
             {active === 'experimental' ? (
               <div className="settings-pane">
@@ -328,7 +338,7 @@ export function SettingsPage({
                   <tbody>
                     <tr>
                       <td>
-                        <ExperimentalFeatureName>Egress controls panel</ExperimentalFeatureName>
+                        <ExperimentalFeatureName kind="egress-controls">Egress controls panel</ExperimentalFeatureName>
                         <p className="settings-row-note">
                           Configures approved outbound network destinations for app requests.
                         </p>
@@ -354,7 +364,9 @@ export function SettingsPage({
                     </tr>
                     <tr>
                       <td>
-                        <ExperimentalFeatureName>Notebook agent sync</ExperimentalFeatureName>
+                        <ExperimentalFeatureName kind="notebook-agent-sync">
+                          Notebook agent sync
+                        </ExperimentalFeatureName>
                         <p className="settings-row-note">
                           Selects the agent notebook and applies staged agent versions.
                         </p>
@@ -381,7 +393,7 @@ export function SettingsPage({
                     <ResourceTagsPanel />
                     <tr>
                       <td>
-                        <ExperimentalFeatureName>Forecasting</ExperimentalFeatureName>
+                        <ExperimentalFeatureName kind="forecasting">Forecasting</ExperimentalFeatureName>
                         <p className="settings-row-note">
                           Projects 7- and 30-day costs from configurable usage assumptions.
                         </p>
@@ -405,7 +417,7 @@ export function SettingsPage({
                     </tr>
                     <tr>
                       <td>
-                        <ExperimentalFeatureName>Benchmarking</ExperimentalFeatureName>
+                        <ExperimentalFeatureName kind="benchmarking">Benchmarking</ExperimentalFeatureName>
                         <p className="settings-row-note">
                           Runs repeatable evaluation suites against saved test questions.
                         </p>

@@ -36,7 +36,7 @@
  * `ops-session.ts` rather than in this page's `useState`: leaving the tab and
  * coming back is not a reason to scan billing again. Refresh still is.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, ExternalLink, Search, Users, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
@@ -46,7 +46,6 @@ import { ExperimentalBadge } from './ExperimentalBadge';
 import { Disclosure, PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
 import { ageAgo, checkedAgoLine } from './refresh-state';
-import { OUTCOME_PARAM } from './monitoring-filters';
 import { useWorkspaceHost } from './data-entity-state';
 import { databricksLink } from '../../shared/databricks-links';
 import { CostBudgetProvider, CostResourceBudgets, CostSpendSummary, CostTotalBudget } from './CostBudgets';
@@ -75,20 +74,16 @@ import {
   telemetryNotice,
   WITHHELD,
   withheldReason,
-  trafficCaption,
   type Absence as AbsenceCopy,
   type HealthRow,
 } from './ops-view';
 import { healthConnectionsHref, healthRowsForDisplay } from './health-resource-view';
-import { opsCostRangeId, useOpsBlock } from './ops-session';
-import { TimeRangeControl } from './TimeRangeControl';
+import { useOpsBlock } from './ops-session';
 import './styles/routes/ops.css';
-import { rangeLabel, rangeWindow } from './time-range';
 import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
 import { ForecastingBody } from './ForecastingPanel';
 import { MethodologySections, type MethodologyGroup } from './MethodologySection';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
-import { EntityText } from './DataEntityLinks';
 import { persistCostDisplayUnit, readCostDisplayUnit } from './cost-unit-preference';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import { perUserSpendHref } from './cost-user-monitoring-link';
@@ -102,7 +97,7 @@ import type {
   OpsTrafficPayload,
   RouteLatency,
 } from '../../shared/ops-contract';
-import { opsDayRange } from '../../shared/ops-contract';
+import { opsCurrentMonthKey } from '../../shared/ops-contract';
 
 /* ── Loading one block ───────────────────────────────────────────────────── */
 
@@ -558,13 +553,11 @@ export function CostUnitControl({
 
 export function CostBody({
   block,
-  periodLabel = '7 days',
   unit = 'USD',
   onUnitChange = () => {},
   userMonitoringHref,
 }: {
   block: Block<OpsCostPayload>;
-  periodLabel?: string;
   unit?: CostBudgetUnit;
   onUnitChange?: (unit: CostBudgetUnit) => void;
   userMonitoringHref?: string;
@@ -597,7 +590,6 @@ export function CostBody({
       <BlockHead
         id="ops-cost-heading"
         title="Cost Tracking"
-        meta={<span className={astPill('neutral-outline', 'ops-pill ops-period-pill')}>{periodLabel}</span>}
         control={
           <div className="ops-cost-head-controls">
             {userMonitoringHref ? (
@@ -847,7 +839,7 @@ function BarChart({
                   carries its meaning; the full text stays on `title` as well for
                   a pointer. */}
               <span className="ops-bar-label" title={bar.label}>
-                {tone === 'tool' ? <EntityText text={bar.label} sources={[]} /> : bar.label}
+                {tone === 'tool' ? <code title={bar.label}>{bar.label}</code> : bar.label}
               </span>
               <span className="ops-bar-track">
                 <span className="ops-bar-fill" style={{ width: `${bar.percent}%` }} aria-hidden="true" />
@@ -863,6 +855,42 @@ function BarChart({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+type StatisticTone = 'neutral' | 'positive' | 'warning' | 'refusal' | 'negative';
+
+function StatisticsChart({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<{ label: string; count: number | null; tone: StatisticTone }>;
+}) {
+  const maximum = Math.max(0, ...rows.map((row) => row.count ?? 0));
+  return (
+    <div className="ops-chart ops-statistics-chart">
+      <h4>{title}</h4>
+      <ul className="ops-bars">
+        {rows.map((row) => {
+          const percent = row.count === null || maximum === 0 ? 0 : Math.min(100, (row.count / maximum) * 100);
+          const value = row.count === null ? 'Unavailable' : count(row.count);
+          return (
+            <li
+              key={row.label}
+              className={`ops-bar-row ops-statistic-${row.tone}`}
+              aria-label={`${row.label}: ${value}`}
+            >
+              <span className="ops-bar-label">{row.label}</span>
+              <span className="ops-bar-track">
+                <span className="ops-bar-fill" style={{ width: `${percent}%` }} aria-hidden="true" />
+              </span>
+              <span className="ops-bar-count">{value}</span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -964,9 +992,6 @@ function DailyBars({
     </div>
   );
 }
-
-/** Where a cause count lands on Monitoring, with that outcome already chosen. */
-export type MonitoringHref = (outcome: 'failed' | 'refused') => string;
 
 /**
  * How many routes one page of the latency table holds.
@@ -1360,32 +1385,16 @@ function LatencyRow({
 
 export function TrafficBody({
   block,
-  monitoringHref = (outcome) => `/monitoring?${OUTCOME_PARAM}=${outcome}`,
   runsHref = () => '/runs',
 }: {
   block: Block<OpsTrafficPayload>;
-  monitoringHref?: MonitoringHref;
-  /** Where the footer's answer-times link lands, carrying this page's range. */
+  /** Where the footer's answer-times link lands. */
   runsHref?: () => string;
 }) {
   const payload = block.data;
   const activity = payload ? activeMinutesDisplay(payload) : { title: 'Active app minutes', note: '' };
   const coverageCaption = (state: 'complete' | 'partial' | 'unavailable', complete: string): string =>
-    state === 'complete' ? complete : state === 'partial' ? 'Partial coverage' : 'Unavailable';
-  const outcomeEvidence = payload?.breakdownCoverage.outcomes;
-  const legacyRuns = payload && outcomeEvidence ? Math.max(0, payload.runsInRange - outcomeEvidence.coveredRuns) : 0;
-  const outcomeEvidenceLabel = !outcomeEvidence
-    ? ''
-    : outcomeEvidence.state === 'unavailable'
-      ? 'Outcome detail unavailable'
-      : `${count(outcomeEvidence.coveredRuns)} classified${
-          legacyRuns > 0 ? ` \u00b7 ${count(legacyRuns)} legacy runs lack detail` : ''
-        }`;
-  const emptyOutcomeCaption = (noun: 'failures' | 'refusals'): string => {
-    if (!payload || !outcomeEvidence || outcomeEvidence.state === 'unavailable') return 'Unavailable';
-    if (outcomeEvidence.state === 'complete') return `No ${noun} recorded`;
-    return `0 recorded \u00b7 ${count(outcomeEvidence.coveredRuns)} classified \u00b7 ${count(legacyRuns)} legacy runs lack detail`;
-  };
+    state === 'complete' ? complete : state === 'partial' ? 'Estimated' : 'Unavailable';
 
   if (block.failed) {
     return (
@@ -1450,39 +1459,63 @@ export function TrafficBody({
                 />
               </div>
 
-              {/* TWO CHARTS, NEVER ONE SERIES AND NEVER A TOTAL. A refusal is the
-                app working correctly and telling somebody they may not read
-                something; a failure is the app not working. Drawn together they
-                make a "problems" figure an operator will chase, and most of it
-                would be the access controls doing their job.
-
-                The failures title used to carry that as a clause: "refusals are
-                the next chart, never this one". It was the design narrating its
-                own layout to a reader who can see two headings, and it is the
-                comment above rather than words on the page. */}
-              <div className="ops-chart-pair" data-testid="ops-traffic-causes">
-                {outcomeEvidenceLabel ? <p className="ops-chart-evidence">{outcomeEvidenceLabel}</p> : null}
-                <BarChart
-                  title="Failures by cause"
-                  caption={
-                    payload.failuresByCause.length > 0
-                      ? trafficCaption(payload.failuresByCause, 'failure', 'failures', payload.runsInRange)
-                      : emptyOutcomeCaption('failures')
-                  }
-                  series={bars(payload.failuresByCause)}
-                  tone="failure"
-                  href={() => monitoringHref('failed')}
+              <div className="ops-statistics-pair" data-testid="ops-traffic-statistics">
+                <StatisticsChart
+                  title="Question statistics"
+                  rows={[
+                    {
+                      label: 'Questions asked',
+                      count:
+                        payload.questionStatistics?.asked ??
+                        payload.questionsPerDay.reduce((total, day) => total + day.count, 0),
+                      tone: 'neutral',
+                    },
+                    {
+                      label: 'Questions answered',
+                      count: payload.questionStatistics?.answered ?? null,
+                      tone: 'positive',
+                    },
+                    {
+                      label: 'Helpful feedback',
+                      count: payload.questionStatistics?.helpful ?? null,
+                      tone: 'positive',
+                    },
+                    {
+                      label: 'Not helpful feedback',
+                      count: payload.questionStatistics?.notHelpful ?? null,
+                      tone: 'negative',
+                    },
+                  ]}
                 />
-                <BarChart
-                  title="Refusals by cause"
-                  caption={
-                    payload.refusalsByCause.length > 0
-                      ? trafficCaption(payload.refusalsByCause, 'refusal', 'refusals', payload.runsInRange)
-                      : emptyOutcomeCaption('refusals')
-                  }
-                  series={bars(payload.refusalsByCause)}
-                  tone="refusal"
-                  href={() => monitoringHref('refused')}
+                <StatisticsChart
+                  title="Run statistics"
+                  rows={[
+                    {
+                      label: 'Total runs',
+                      count: payload.runStatistics?.total ?? payload.runsInRange,
+                      tone: 'neutral',
+                    },
+                    {
+                      label: 'Completed',
+                      count: payload.runStatistics?.completed ?? null,
+                      tone: 'positive',
+                    },
+                    {
+                      label: 'Partial',
+                      count: payload.runStatistics?.partial ?? null,
+                      tone: 'warning',
+                    },
+                    {
+                      label: 'Refused',
+                      count: payload.runStatistics?.refused ?? null,
+                      tone: 'refusal',
+                    },
+                    {
+                      label: 'Failed',
+                      count: payload.runStatistics?.failed ?? null,
+                      tone: 'negative',
+                    },
+                  ]}
                 />
               </div>
 
@@ -1596,80 +1629,51 @@ export function OpsPage() {
   const role = useRole();
   const features = useOutletContext<AppOutletContext | null>()?.features ?? NO_EXPERIMENTS;
   const forecastingShown = showsForecasting(features);
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const [openedAt] = useState(() => Date.now());
   const [costUnit, setCostUnit] = useState<CostBudgetUnit>(readCostDisplayUnit);
-  const selected = rangeWindow(params, openedAt);
-  const selectedPeriodLabel = rangeLabel(params);
-  const range = opsDayRange(selected.from, selected.to, openedAt);
-  const costParams = new URLSearchParams();
-  costParams.set('from', range.from);
-  costParams.set('to', range.to);
-  const costSearch = `?${costParams.toString()}`;
-  const [browserTimeZone] = useState(() => {
-    try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-    } catch {
-      return '';
-    }
-  });
-  const trafficParams = new URLSearchParams();
-  trafficParams.set('from', range.from);
-  trafficParams.set('to', range.to);
-  if (browserTimeZone) trafficParams.set('timeZone', browserTimeZone);
-  const trafficSearch = `?${trafficParams.toString()}`;
+  const monthKey = opsCurrentMonthKey(openedAt);
+  useEffect(() => {
+    if (!params.has('range') && !params.has('from') && !params.has('to')) return;
+    const canonical = new URLSearchParams(params);
+    canonical.delete('range');
+    canonical.delete('from');
+    canonical.delete('to');
+    setParams(canonical, { replace: true });
+  }, [params, setParams]);
 
   // Four reads, started together on the first visit and finishing whenever
   // each finishes. Nothing below waits on anything else, which is the whole
-  // point of the arrangement. Cost alone is a complete-day billing window,
-  // keyed on the word in the URL so a remount a second later is not a new
-  // question. The other blocks retain their existing source windows; implying
-  // the billing selector also bounded live health or all-time latency would be
-  // a second range bug, not consistency.
+  // point of the arrangement. Retrospective blocks share one server-authoritative
+  // calendar-month key; live Health remains independent.
   const health = useOpsBlock<OpsHealthPayload>('/api/ops/health', '');
-  const cost = useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params));
-  const traffic = useOpsBlock<OpsTrafficPayload>(
-    '/api/ops/traffic',
-    trafficSearch,
-    `timezone:${browserTimeZone || 'local'}`
-  );
-  const latency = useOpsBlock<OpsLatencyPayload>('/api/ops/latency', '');
+  const cost = useOpsBlock<OpsCostPayload>('/api/ops/cost', '', monthKey);
+  const traffic = useOpsBlock<OpsTrafficPayload>('/api/ops/traffic', '', monthKey);
+  const latency = useOpsBlock<OpsLatencyPayload>('/api/ops/latency', '', monthKey);
 
-  /** Monitoring narrowed to one all-time outcome. */
-  const monitoringHref: MonitoringHref = (outcome) => {
-    const params = new URLSearchParams();
-    params.set('range', 'all');
-    params.set(OUTCOME_PARAM, outcome);
-    return `/monitoring?${params.toString()}`;
-  };
-
-  const runsHref = () => '/runs?range=all';
+  const runsHref = () => '/runs';
   const chooseCostUnit = (unit: CostBudgetUnit) => {
     setCostUnit(unit);
     persistCostDisplayUnit(unit);
   };
-  const userMonitoringHref = perUserSpendHref(params.toString(), costUnit);
+  const userMonitoringHref = perUserSpendHref('', costUnit);
 
   return (
     <div className="page-shell ops-page">
       <PageHeading title="Ops" />
-      <div className="ops-page-controls">
-        <TimeRangeControl page="Ops cost" />
-        {showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}
-      </div>
+      <div className="ops-page-controls">{showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}</div>
 
       {/* Each measured block reads itself. Four read times on one page rather
           than one, because they were read at four different moments. */}
       <HealthBody block={health} />
       <CostBody
         block={cost}
-        periodLabel={selectedPeriodLabel}
         unit={costUnit}
         onUnitChange={chooseCostUnit}
         userMonitoringHref={showsAdminSurfaces(role.state) ? userMonitoringHref : undefined}
       />
       {forecastingShown ? <ForecastingBody cost={cost} traffic={traffic} unit={costUnit} /> : null}
-      <TrafficBody block={traffic} monitoringHref={monitoringHref} runsHref={runsHref} />
+      <TrafficBody block={traffic} runsHref={runsHref} />
       <LatencyBody block={latency} />
     </div>
   );

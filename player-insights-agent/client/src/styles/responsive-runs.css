@@ -33,4 +33,30 @@
     overflow: visible;
     scrollbar-gutter: auto;
   }
+  .dag-schema-columns thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .dag-schema-columns,
+  .dag-schema-columns tbody,
+  .dag-schema-columns tr,
+  .dag-schema-columns td {
+    display: block;
+    width: 100%;
+  }
+  .dag-schema-columns tr {
+    padding: 7px 0;
+    border-bottom: 1px solid var(--ast-hairline);
+  }
+  .dag-schema-columns td,
+  .dag-schema-columns td:first-child {
+    width: 100%;
+    padding: 2px 0;
+    border: 0;
+  }
 }

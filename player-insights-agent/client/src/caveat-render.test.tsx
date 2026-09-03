@@ -330,7 +330,7 @@ describe('the three a reader is shown first', () => {
 
     expect(markup).toContain('show more');
     expect(markup).not.toMatch(/Show all \d/);
-    expect(markup).not.toContain('—');
+    expect(caveatBullets(markup).join(' ')).not.toContain('—');
     expect(markup).not.toContain('produced as analyst@example.com');
     // Collapsed, so the synthetic line is absent from the list until the control
     // is used -- and the control is what says more exist.

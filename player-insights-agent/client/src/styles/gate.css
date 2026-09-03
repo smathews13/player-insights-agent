@@ -27,7 +27,8 @@
    the paragraph about what a check does and does not establish before they meet
    three consequential choices. It is `tabIndex=-1`, so it is a focus target and
    never a Tab stop. */
-.access-gate-panel:focus {
+.access-gate-panel.ast-dialog-panel:focus,
+.access-gate-panel.ast-dialog-panel:focus-visible {
   outline: none;
 }
 

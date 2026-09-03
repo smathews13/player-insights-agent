@@ -8,6 +8,7 @@ import { validateRuntimePersonas } from './check-runtime-personas.mjs';
 
 const repoRoot = path.resolve(__dirname, '..');
 const authored = readFileSync(path.join(repoRoot, 'app.yaml'), 'utf8');
+const bundleYaml = readFileSync(path.join(repoRoot, '..', 'databricks.yml'), 'utf8');
 const bundleServer = readFileSync(path.join(repoRoot, 'scripts', 'bundle-server.mjs'), 'utf8');
 const appRelease = readFileSync(path.join(repoRoot, '..', 'bundle', 'app-release.sh'), 'utf8');
 const defaultPersonaTemplates = readFileSync(path.join(repoRoot, 'shared', 'default-sp-persona-templates.ts'), 'utf8');
@@ -151,16 +152,22 @@ describe('every authored variable reaches the deploy target', () => {
 
   it('ships the conservative app idle timeout and lets a release override it', () => {
     const authoredTimeout = /- name: PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES\n\s+value: '?([^'\n]*)'?/.exec(authored)?.[1];
-    expect(authoredTimeout).toBe('30');
+    expect(authoredTimeout).toBe('45');
+    expect(bundleYaml).toMatch(
+      /app_idle_timeout_minutes:\n\s+description:[\s\S]*?Defaults to 45[\s\S]*?\n\s+default: "45"/
+    );
     expect(appRelease).toContain('bundle_var_or_empty app_idle_timeout_minutes');
+    expect(appRelease).toContain(
+      'IDLE_TIMEOUT="${PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES:-$(bundle_var_or_empty app_idle_timeout_minutes)}"'
+    );
     expect(appRelease).toContain('PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES="$IDLE_TIMEOUT"');
     expect(bundleServer).toContain('process.env.PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES');
 
     const generated = renderDeployAppYaml(authored, {
       ...DEPLOY_OVERRIDES,
-      env: [...DEPLOY_OVERRIDES.env, { name: 'PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES', value: "'disabled'" }],
+      env: [...DEPLOY_OVERRIDES.env, { name: 'PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES', value: "'90'" }],
     });
-    expect(generated).toContain("name: PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES\n    value: 'disabled'");
+    expect(generated).toContain("name: PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES\n    value: '90'");
     expect(generated.match(/name: PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES/g)).toHaveLength(1);
   });
 

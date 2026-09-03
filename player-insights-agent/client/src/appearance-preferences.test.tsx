@@ -18,6 +18,12 @@ const PANEL = readFileSync(new URL('./RuntimeSettingsPanel.tsx', import.meta.url
 const ROOT_RUNTIME = readFileSync(new URL('./runtime-entity-styles.ts', import.meta.url), 'utf8');
 const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 const ROOT_STYLES = readFileSync(new URL('./styles/appearance-preferences.css', import.meta.url), 'utf8');
+const DENSITY_STYLES = [
+  ROOT_STYLES,
+  ...['runs', 'monitoring', 'ops', 'connections', 'architecture', 'settings', 'benchmark'].map((route) =>
+    readFileSync(new URL(`./styles/density-${route}.css`, import.meta.url), 'utf8')
+  ),
+].join('\n');
 const RESPONSIVE = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');
 const INDEX = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
@@ -115,6 +121,27 @@ describe('Appearance preferences', () => {
     expect(setItem).toHaveBeenCalledWith(RUNTIME_APPEARANCE_CACHE_KEY, JSON.stringify(DEFAULT_RUNTIME_SETTINGS));
     expect(runtimeAppearanceFromCache(JSON.stringify(DEFAULT_RUNTIME_SETTINGS))).toEqual(DEFAULT_RUNTIME_SETTINGS);
     expect(runtimeAppearanceFromCache('{"density":"dense"}')).toBeNull();
+
+    const invalidLegacyDensity = JSON.stringify({ ...DEFAULT_RUNTIME_SETTINGS, density: 'dense' });
+    expect(runtimeAppearanceFromCache(invalidLegacyDensity)).toEqual({
+      ...DEFAULT_RUNTIME_SETTINGS,
+      density: 'comfortable',
+    });
+  });
+
+  it('toggles the one root density contract in both directions independently of theme', () => {
+    const setAttribute = vi.fn();
+    const compact = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' as const, density: 'compact' as const };
+
+    writeRuntimeAppearanceAttributes(compact, { setAttribute });
+    writeRuntimeAppearanceAttributes(DEFAULT_RUNTIME_SETTINGS, { setAttribute });
+
+    expect(setAttribute.mock.calls.filter(([name]) => name === 'data-density')).toEqual([
+      ['data-density', 'compact'],
+      ['data-density', 'comfortable'],
+    ]);
+    expect(compact.colorScheme).toBe('light');
+    expect(compact.density).toBe('compact');
   });
 
   it('renders consolidated controls and preview from a complete custom draft', () => {
@@ -250,28 +277,35 @@ describe('Appearance preferences', () => {
 
   it('Density changes targeted spacing tokens and surface classes without shrinking prose', () => {
     expect(ROOT_STYLES).toMatch(
-      /html\[data-density='compact']\s*\{[^}]*--density-card-gap:\s*8px[^}]*--density-row-padding:\s*6px[^}]*--density-table-padding:\s*5px[^}]*--density-settings-gap:\s*10px/s
+      /html\[data-density='compact']\s*\{[^}]*--density-page-gap:\s*18px[^}]*--density-card-gap:\s*9px[^}]*--density-row-height:\s*36px[^}]*--density-control-height:\s*32px/s
     );
     for (const selector of [
+      '.app-nav-tab',
       '.settings-data-table',
       '.conversation-row',
       '.run-item',
       '.monitoring-row',
+      '.ops-block',
+      '.connection-row-summary',
+      '.arch-node',
+      '.bench-region-head',
       '.summary-grid',
     ]) {
-      expect(ROOT_STYLES).toContain(selector);
+      expect(DENSITY_STYLES).toContain(selector);
     }
-    expect(ROOT_STYLES).toContain('--density-table-padding');
-    expect(ROOT_STYLES).toContain('--density-card-gap');
-    expect(ROOT_STYLES).not.toMatch(/data-density='compact'][^{]*\{[^}]*font-size/s);
-    expect(ROOT_STYLES).not.toContain('.answer-card-content');
+    expect(DENSITY_STYLES).toContain('--density-table-padding-block');
+    expect(DENSITY_STYLES).toContain('--density-card-gap');
+    expect(DENSITY_STYLES).not.toMatch(/data-density='compact'][^{]*\{[^}]*font-size/s);
+    expect(DENSITY_STYLES).toContain('.answer-card-content');
+    expect(ROOT_STYLES).toContain('@media (max-width: 800px)');
+    expect(ROOT_STYLES).toContain('--density-control-height: 44px');
   });
 
   it('keeps Display rows aligned and stacks their controls cleanly at phone widths', () => {
     expect(SETTINGS_STYLES).toMatch(
       /\.appearance-text-controls\s*\{[^}]*grid-template-columns:\s*minmax\(190px,\s*1\.35fr\)\s*auto\s*repeat\(2,\s*minmax\(150px,\s*1fr\)\)/s
     );
-    expect(ROOT_STYLES).toMatch(
+    expect(SETTINGS_STYLES).toMatch(
       /\.appearance-display-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/s
     );
     expect(RESPONSIVE).toMatch(

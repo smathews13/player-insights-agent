@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  APP_ATTACHED_RESOURCE_MAX_RECORDS,
   SCIM_USERS_PATH,
   USER_METADATA_TTL_MS,
   USER_METADATA_CACHE_MAX_ENTRIES,
@@ -41,12 +42,43 @@ function completeReader(calls: string[] = []): ControlPlaneReader {
         service_principal_name: 'Astrolabe application',
         service_principal_client_id: 'abcdefab-0000-4000-8000-000000000000',
         service_principal_id: '9988776655443322',
-        resources: [{ name: 'warehouse' }, { name: 'serving' }],
+        resources: [
+          {
+            name: 'postgres',
+            postgres: {
+              branch: 'projects/player-insights/branches/production',
+              database: 'databricks-postgres',
+              permission: 'CAN_CONNECT_AND_CREATE',
+            },
+          },
+          {
+            name: 'serving-endpoint',
+            serving_endpoint: { name: 'player-insights-agent', permission: 'CAN_QUERY' },
+          },
+          {
+            name: 'sql-warehouse',
+            sql_warehouse: { id: '9cd123456789abcd', permission: 'CAN_USE' },
+          },
+        ],
         client_secret: 'never-cross-the-wire',
         authorization: 'Bearer never-cross-the-wire',
       });
     }
     return Promise.reject(new Error('unexpected path'));
+  };
+}
+
+function readerWithResources(resources: unknown): ControlPlaneReader {
+  const base = completeReader();
+  return (path, query) => {
+    if (path !== `${APPS_PATH}/${INPUT.appName}`) return base(path, query);
+    return Promise.resolve({
+      url: 'https://player-insights-agent-<workspace-id>.<region>.databricksapps.com',
+      service_principal_name: 'Astrolabe application',
+      service_principal_client_id: 'abcdefab-0000-4000-8000-000000000000',
+      service_principal_id: '9988776655443322',
+      resources,
+    });
   };
 }
 
@@ -72,7 +104,27 @@ describe('Databricks control-plane identity metadata', () => {
         applicationId: 'abcdefab-0000-4000-8000-000000000000',
         objectId: '9988776655443322',
         authenticationType: 'OAuth machine-to-machine',
-        attachedResourceCount: 2,
+        attachedResources: [
+          {
+            resourceKey: 'postgres',
+            resourceType: 'postgres',
+            displayIdentifier: 'databricks-postgres',
+            permission: 'CAN_CONNECT_AND_CREATE',
+            title: 'databricks-postgres · branch projects/player-insights/branches/production',
+          },
+          {
+            resourceKey: 'serving-endpoint',
+            resourceType: 'serving_endpoint',
+            displayIdentifier: 'player-insights-agent',
+            permission: 'CAN_QUERY',
+          },
+          {
+            resourceKey: 'sql-warehouse',
+            resourceType: 'sql_warehouse',
+            displayIdentifier: '9cd123456789abcd',
+            permission: 'CAN_USE',
+          },
+        ],
         state: 'verified',
       },
     });
@@ -144,5 +196,82 @@ describe('Databricks control-plane identity metadata', () => {
     expect(calls).not.toContain('/api/2.0/preview/scim/v2/Me:');
     expect(metadata.servicePrincipal.applicationId).toBe('abcdefab-0000-4000-8000-000000000000');
     expect(wire).not.toMatch(/clientSecret|client_secret|authorization|bearer|databasePassword|never-cross-the-wire/i);
+  });
+
+  it('keeps future bindings in manifest order while safely degrading malformed known resources', async () => {
+    const metadata = await readControlPlaneIdentityMetadata(INPUT, {
+      read: readerWithResources([
+        {
+          name: 'vector-index-binding',
+          vector_search: {
+            index_name: 'must-not-be-read-from-an-unknown-shape',
+            permission: 'CAN_QUERY',
+            api_token: 'future-secret-must-not-cross',
+          },
+        },
+        { name: 'warehouse-fallback', sql_warehouse: { id: null, permission: { raw: true } } },
+        { name: 'serving-fallback', serving_endpoint: 'malformed' },
+        { name: '\u0000future-binding\u007f', future_kind: { permission: 'CAN_USE', token: 'nested-secret' } },
+        null,
+      ]),
+      now: 5_000,
+    });
+
+    expect(metadata.servicePrincipal.attachedResources).toEqual([
+      {
+        resourceKey: 'vector-index-binding',
+        resourceType: 'vector_search',
+        displayIdentifier: 'vector-index-binding',
+        permission: 'CAN_QUERY',
+      },
+      {
+        resourceKey: 'warehouse-fallback',
+        resourceType: 'sql_warehouse',
+        displayIdentifier: 'warehouse-fallback',
+        permission: '',
+      },
+      {
+        resourceKey: 'serving-fallback',
+        resourceType: 'serving_endpoint',
+        displayIdentifier: 'serving-fallback',
+        permission: '',
+      },
+      {
+        resourceKey: 'future-binding',
+        resourceType: 'future_kind',
+        displayIdentifier: 'future-binding',
+        permission: 'CAN_USE',
+      },
+    ]);
+    expect(JSON.stringify(metadata)).not.toMatch(
+      /must-not-be-read|future-secret|nested-secret|\[object Object\]|attachedResourceCount/i
+    );
+  });
+
+  it('reports no attached resources when the Apps response omits the collection', async () => {
+    const metadata = await readControlPlaneIdentityMetadata(INPUT, {
+      read: readerWithResources(undefined),
+      now: 6_000,
+    });
+
+    expect(metadata.servicePrincipal.attachedResources).toEqual([]);
+    expect(metadata.servicePrincipal).not.toHaveProperty('attachedResourceCount');
+  });
+
+  it('bounds cached resource metadata without changing manifest order', async () => {
+    const resources = Array.from({ length: APP_ATTACHED_RESOURCE_MAX_RECORDS + 5 }, (_, index) => ({
+      name: `binding-${index}`,
+      future_kind: { permission: 'CAN_USE' },
+    }));
+    const metadata = await readControlPlaneIdentityMetadata(INPUT, {
+      read: readerWithResources(resources),
+      now: 7_000,
+    });
+
+    expect(metadata.servicePrincipal.attachedResources).toHaveLength(APP_ATTACHED_RESOURCE_MAX_RECORDS);
+    expect(metadata.servicePrincipal.attachedResources[0]?.resourceKey).toBe('binding-0');
+    expect(
+      metadata.servicePrincipal.attachedResources[metadata.servicePrincipal.attachedResources.length - 1]?.resourceKey
+    ).toBe(`binding-${APP_ATTACHED_RESOURCE_MAX_RECORDS - 1}`);
   });
 });

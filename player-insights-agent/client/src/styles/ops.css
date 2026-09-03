@@ -1599,9 +1599,7 @@ a.ops-cost-resource {
 /* ── Traffic ─────────────────────────────────────────────────────────────── */
 
 /*
- * Three groups in three columns: the day series, the two cause charts, and the
- * tools. The pair sits in the middle column as one stack, which is what keeps
- * failures and refusals adjacent and comparable without ever being one series.
+ * Three compact groups: daily trends, question/run statistics, and tools.
  */
 /*
  * THREE GROUPS, THREE EQUAL COLUMNS (ops-tab.md Traffic). The old
@@ -1618,10 +1616,7 @@ a.ops-cost-resource {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   width: 100%;
-  /* Stretch rather than start, so the rules below run the full height of the
-     row instead of stopping at the bottom of the shortest chart. The charts
-     themselves are fixed-height and stay at the top of their column. */
-  align-items: stretch;
+  align-items: start;
 }
 
 /*
@@ -1672,24 +1667,11 @@ a.ops-cost-resource {
   line-height: 1.35;
 }
 
-/*
- * Failures and refusals, stacked, and they are two charts rather than one
- * stacked series everywhere. A refusal is the app correctly telling somebody
- * they may not read something, a failure is the app not working, and one series
- * would invite a total of the two that an operator would then chase.
- */
-.ops-chart-pair {
+.ops-statistics-pair {
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-}
-
-.ops-chart-evidence {
-  margin: 0;
-  color: var(--ast-text-secondary);
-  font-size: var(--text-xs);
-  line-height: 1.35;
 }
 
 /* The three daily series share one column and one compact chart vocabulary. */
@@ -1743,14 +1725,21 @@ a.ops-cost-resource {
  * how this app sets recorded values.
  */
 .ops-chart-tool .ops-bar-row {
-  grid-template-columns: minmax(0, 110px) 1fr auto;
-  align-items: start;
+  grid-template-columns: minmax(min(9rem, 42%), 12rem) minmax(0, 1fr) max-content;
+  align-items: center;
 }
 
 .ops-chart-tool .ops-bar-label {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ops-chart-tool .ops-bar-label code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ops-bar-track {
@@ -1764,6 +1753,22 @@ a.ops-cost-resource {
   display: block;
   height: 100%;
   background: var(--ast-blue);
+}
+
+.ops-statistic-positive .ops-bar-fill {
+  background: var(--ast-pos-text);
+}
+
+.ops-statistic-warning .ops-bar-fill {
+  background: var(--ast-warn-text);
+}
+
+.ops-statistic-refusal .ops-bar-fill {
+  background: var(--ast-neutral-text);
+}
+
+.ops-statistic-negative .ops-bar-fill {
+  background: var(--ast-neg-text);
 }
 
 /* Two series and two colours, because failures and refusals are two charts and
@@ -1802,6 +1807,16 @@ a.ops-bar-count {
 
 a.ops-bar-count:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 36rem) {
+  .ops-chart-tool .ops-bar-row {
+    grid-template-columns: minmax(0, 1fr) max-content;
+  }
+
+  .ops-chart-tool .ops-bar-label {
+    grid-column: 1 / -1;
+  }
 }
 
 /*
@@ -1940,7 +1955,21 @@ a.ops-bar-count:hover {
   transition:
     color 120ms ease,
     border-color 120ms ease,
-    background-color 120ms ease;
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.ops-latency-trend-filter::before {
+  content: '✓';
+  display: inline-block;
+  width: 1em;
+  margin-right: 4px;
+  opacity: 0;
+  font-weight: 800;
+}
+
+.ops-latency-trend-filter[aria-pressed='true']::before {
+  opacity: 1;
 }
 
 .ops-latency-trend-filter.ast-pill--pos[aria-pressed='false'] {
@@ -1957,23 +1986,50 @@ a.ops-bar-count:hover {
   opacity: 1;
 }
 
-.ops-latency-trend-filter.ast-pill--pos:hover:not(:disabled),
-.ops-latency-trend-filter.ast-pill--pos:focus-visible {
+.ops-latency-trend-filter.ast-pill--pos[aria-pressed='true'] {
   color: var(--ast-pos-text);
   border-color: var(--ast-pos-border);
-  background: var(--ast-pos-fill);
+  background: color-mix(in srgb, var(--ast-pos-text) 22%, var(--ast-pos-fill));
+  box-shadow: inset 0 0 0 1px var(--ast-pos-border);
+  font-weight: 700;
 }
 
-.ops-latency-trend-filter.ast-pill--neg:hover:not(:disabled),
-.ops-latency-trend-filter.ast-pill--neg:focus-visible {
+.ops-latency-trend-filter.ast-pill--neg[aria-pressed='true'] {
   color: var(--ast-neg-text);
   border-color: var(--ast-neg-border);
-  background: var(--ast-neg-fill);
+  background: color-mix(in srgb, var(--ast-neg-text) 22%, var(--ast-neg-fill));
+  box-shadow: inset 0 0 0 1px var(--ast-neg-border);
+  font-weight: 700;
+}
+
+.ops-latency-trend-filter.ast-pill--pos:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ast-pos-text) 30%, var(--ast-pos-fill));
+  border-color: var(--ast-pos-text);
+}
+
+.ops-latency-trend-filter.ast-pill--neg:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ast-neg-text) 30%, var(--ast-neg-fill));
+  border-color: var(--ast-neg-text);
+}
+
+.ops-latency-trend-filter:active:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 2px currentColor,
+    inset 0 2px 3px color-mix(in srgb, currentColor 24%, transparent);
 }
 
 .ops-latency-trend-filter:focus-visible {
   outline: 2px solid var(--ast-blue);
   outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .ops-latency-trend-filter[aria-pressed='true'] {
+    border-color: Highlight;
+    color: HighlightText;
+    background: Highlight;
+    forced-color-adjust: none;
+  }
 }
 
 .ops-latency-trend-filter:disabled,

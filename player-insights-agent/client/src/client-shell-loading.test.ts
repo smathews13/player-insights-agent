@@ -30,6 +30,13 @@ describe('the client shell import graph', () => {
     expect(layout).toContain('data-testid="settings-loading"');
   });
 
+  it('loads account-menu actions only after the account trigger opens', () => {
+    const account = source('AccountMenu.tsx');
+    expect(account).not.toContain("from './AccountMenuPanel'");
+    expect(account).toContain("import('./AccountMenuPanel')");
+    expect(account).toContain('<Suspense fallback={null}>');
+  });
+
   it('keeps route-only Architecture data behind its boundary without dropping shell motion', () => {
     const refresh = source('refresh-state.ts');
     const layout = source('Layout.tsx');

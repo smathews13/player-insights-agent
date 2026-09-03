@@ -229,6 +229,8 @@ function traffic(overrides: Partial<OpsTrafficPayload> = {}): OpsTrafficPayload 
     refusalsByCause: [{ key: 'NOT_PERMITTED', label: 'Not permitted', count: 40 }],
     toolCalls: [{ key: 'genie', label: 'Genie', count: 30 }],
     runsInRange: 50,
+    questionStatistics: { asked: 12, answered: 11, helpful: 8, notHelpful: 1 },
+    runStatistics: { total: 50, completed: 39, partial: 3, refused: 6, failed: 2, unclassified: 0 },
     breakdownCoverage: {
       outcomes: { state: 'complete', coveredRuns: 50, reason: '' },
       toolCalls: { state: 'complete', coveredRuns: 50, reason: '' },
@@ -887,7 +889,7 @@ describe('the cost block', () => {
     expect(render(<CostBody block={block(cost())} />)).not.toContain("custom_tags['astrolabe']");
   });
 
-  it('orders Cost Tracking, adjacent Experimental, then its period', () => {
+  it('keeps Experimental adjacent to Cost Tracking with no period control', () => {
     const markup = markupOf(<CostBody block={block(cost())} />);
     const visible = text(markup);
     const heading = markup.slice(0, markup.indexOf('ops-block-body'));
@@ -896,13 +898,11 @@ describe('the cost block', () => {
     expect(visible).not.toContain('Under development');
     expect(visible).not.toContain('Not production');
     expect(visible).not.toMatch(/How to read these figures/);
-    expect(visible).toContain('7 days');
+    expect(visible).not.toMatch(/24 hours|7 days|30 days|All time/);
     expect(visible).not.toContain('Prices use Databricks list rates; contracted rates are not available.');
     expect(visible).not.toContain('system.billing.list_prices');
     expect(visible).not.toContain('complete days');
-    expect(markup.indexOf('>Cost Tracking</h3>')).toBeLessThan(markup.indexOf('>7 days</span>'));
     expect(markup.indexOf('>Cost Tracking</h3>')).toBeLessThan(markup.indexOf('>Experimental</span>'));
-    expect(markup.indexOf('>Experimental</span>')).toBeLessThan(markup.indexOf('>7 days</span>'));
     expect(heading).toContain('ops-block-title-group');
   });
 
@@ -917,7 +917,7 @@ describe('the cost block', () => {
       reasons: ['range-clamped', 'page-cap'],
     });
 
-    expect(detail).toContain('Partial: requested 1970-01-01 to 2026-08-30');
+    expect(detail).toContain('Estimated: requested 1970-01-01 to 2026-08-30');
     expect(detail).toContain('queried 2025-08-30 to 2026-08-30');
     expect(detail).toContain('1998 rows across 2 pages');
     expect(detail).toContain('requested span exceeded the bounded history window');
@@ -925,7 +925,7 @@ describe('the cost block', () => {
     expect(detail).toContain('SQL and Genie allocations are withheld');
   });
 
-  it('draws the period as the neutral badge the rest of the tab uses', () => {
+  it('does not draw a Cost period badge', () => {
     // By class, on the raw markup: the word alone would pass against a bare
     // span, and a section-level caveat set in body text is the sentence this
     // replaced.
@@ -935,7 +935,7 @@ describe('the cost block', () => {
       </MemoryRouter>
     );
     const heading = markup.slice(0, markup.indexOf('ops-block-body'));
-    expect(markup).toContain('ast-pill ast-pill--neutral-outline ops-pill ops-period-pill');
+    expect(markup).not.toContain('ops-period-pill');
     expect(heading.match(/ast-pill--warn/g)).toHaveLength(1);
     expect(markup).not.toContain('ops-block-unfinished');
   });
@@ -2025,7 +2025,7 @@ describe('the cost block', () => {
 /* ── Traffic ─────────────────────────────────────────────────────────────── */
 
 describe('the traffic block', () => {
-  it('keeps the first local active-minute sample partial and on its Runtime calendar day', () => {
+  it('keeps the first local active-minute sample estimated and on its Runtime calendar day', () => {
     const payload = traffic({
       activeMinutesPerDay: [{ day: '2026-08-27', count: 3 }],
       activeMinutesTimeZone: 'America/Los_Angeles',
@@ -2034,87 +2034,42 @@ describe('the traffic block', () => {
     });
     const summary = activeMinutesDisplay(payload);
     expect(summary.title).toBe('Active app minutes · 3 total');
-    expect(summary.note).toContain('Partial coverage since Aug 27');
+    expect(summary.note).toContain('Estimated from data recorded since Aug 27');
     expect(summary.note).not.toContain('since Aug 28');
 
     const markup = render(<TrafficBody block={block(payload)} />);
     expect(markup).toContain('Active app minutes · 3 total');
-    expect(markup).toContain('Partial coverage since Aug 27');
+    expect(markup).toContain('Estimated from data recorded since Aug 27');
   });
 
-  it('draws failures and refusals as two charts', () => {
-    const markup = render(<TrafficBody block={block(traffic())} />);
-    expect(markup).toContain('Failures by cause');
-    expect(markup).toContain('Refusals by cause');
-    // Two headings say this. The title no longer narrates the layout under them.
-    expect(markup).not.toContain('never this one');
-  });
-
-  it('renders one compact partial-evidence summary and no empty refusal wall', () => {
-    const markup = text(
-      render(
-        <TrafficBody
-          block={block(
-            traffic({
-              runsInRange: 34,
-              failuresByCause: [
-                { key: 'UNKNOWN_STORED_ANSWER_FAILURE', label: 'Legacy failure · cause unavailable', count: 2 },
-              ],
-              refusalsByCause: [],
-              breakdownCoverage: {
-                outcomes: {
-                  state: 'partial',
-                  coveredRuns: 32,
-                  reason: '32 of 34 recorded runs have specific outcome evidence.',
-                },
-                toolCalls: { state: 'complete', coveredRuns: 34, reason: '' },
-              },
-            })
-          )}
-        />
-      )
+  it('renders production-shaped question and run statistics without cause charts', () => {
+    const markup = markupOf(
+      <TrafficBody
+        block={block(
+          traffic({
+            runsInRange: 29,
+            questionStatistics: { asked: 26, answered: 25, helpful: 9, notHelpful: 2 },
+            runStatistics: { total: 29, completed: 20, partial: 4, refused: 3, failed: 1, unclassified: 1 },
+            toolCalls: [
+              { key: 'describe_table', label: 'describe_table', count: 56 },
+              { key: 'run_sql', label: 'run_sql', count: 51 },
+              { key: 'search', label: 'search_tagged_assets_with_a_name_longer_than_forty_chars', count: 10 },
+            ],
+          })
+        )}
+      />
     );
-    expect(markup).toContain('32 classified · 2 legacy runs lack detail');
-    expect(markup).toContain('0 recorded · 32 classified · 2 legacy runs lack detail');
-    expect(markup.match(/32 of 34 recorded runs/g)).toBeNull();
-    expect(markup).not.toContain('Partial coverage');
-    expect(markup).toContain('Legacy failure · cause unavailable');
-    expect(markup).not.toContain('Unknown historical answer failure');
-  });
-
-  it('distinguishes complete-zero and unavailable refusal reads', () => {
-    const complete = text(render(<TrafficBody block={block(traffic({ failuresByCause: [], refusalsByCause: [] }))} />));
-    expect(complete).toContain('No refusals recorded');
-
-    const unavailable = text(
-      render(
-        <TrafficBody
-          block={block(
-            traffic({
-              failuresByCause: [],
-              refusalsByCause: [],
-              breakdownCoverage: {
-                outcomes: { state: 'unavailable', coveredRuns: 0, reason: 'Outcome query failed.' },
-                toolCalls: { state: 'complete', coveredRuns: 34, reason: '' },
-              },
-            })
-          )}
-        />
-      )
+    const copy = text(markup);
+    expect(copy).toContain(
+      'Question statistics Questions asked 26 Questions answered 25 Helpful feedback 9 Not helpful feedback 2'
     );
-    expect(unavailable).toContain('Outcome detail unavailable');
-    expect(unavailable).toContain('Refusals by cause Unavailable');
-    expect(unavailable).not.toContain('No refusals recorded');
-  });
-
-  it('keeps both cause charts together as the middle visual group', () => {
-    const markup = markupOf(<TrafficBody block={block(traffic())} />);
-    const middle = markup.match(
-      /<div class="ops-chart-pair"[^>]*>([\s\S]*?)<\/div><div class="ops-chart ops-chart-tool">/
-    )?.[1];
-    expect(middle).toBeDefined();
-    expect(text(middle!)).toContain('Failures by cause');
-    expect(text(middle!)).toContain('Refusals by cause');
+    expect(copy).toContain('Run statistics Total runs 29 Completed 20 Partial 4 Refused 3 Failed 1');
+    expect(markup).toContain('aria-label="Questions asked: 26"');
+    expect(markup).toContain('aria-label="Failed: 1"');
+    expect(markup).toContain(
+      '<code title="search_tagged_assets_with_a_name_longer_than_forty_chars">search_tagged_assets_with_a_name_longer_than_forty_chars</code>'
+    );
+    expect(copy).not.toMatch(/Failures by cause|Refusals by cause|Legacy failure|lack detail/);
   });
 
   /**
@@ -2153,20 +2108,12 @@ describe('the traffic block', () => {
     expect(text(month.slice(month.indexOf('ops-daybars-peak')))).toMatch(/^[^0-9]*30/);
   });
 
-  it('never shows a total of the two', () => {
-    // The freshness line is relative to the real clock, so it can say "Read 42
-    // days ago" on some future afternoon and fail this for a reason that has
-    // nothing to do with the claim. Dropped before the assertion rather than
-    // frozen, because freezing it here would mean threading a clock through the
-    // block head for one test.
-    const markup = render(<TrafficBody block={block(traffic())} />).replace(/Read[^A-Z]*ago/g, '');
-    // 2 failures and 40 refusals. 42 is the number nothing on this page is
-    // allowed to produce: a refusal is the app working correctly, a failure is
-    // the app not working, and the sum is a "problems" figure an operator would
-    // chase into the access controls doing their job.
-    expect(markup).not.toContain('42');
-    expect(markup).toContain('2');
-    expect(markup).toContain('40');
+  it('keeps each terminal run outcome as an exact named count', () => {
+    const markup = text(render(<TrafficBody block={block(traffic())} />));
+    expect(markup).toContain('Completed 39');
+    expect(markup).toContain('Partial 3');
+    expect(markup).toContain('Refused 6');
+    expect(markup).toContain('Failed 2');
   });
 
   it('prints every count as a number rather than only as a bar length', () => {
@@ -2187,12 +2134,18 @@ describe('the traffic block', () => {
    * only word that differed was the noun. The run count is in the band above,
    * once, where it governs all three charts.
    */
-  it('says an empty chart is empty in as few words as that takes', () => {
-    const markup = render(<TrafficBody block={block(traffic({ failuresByCause: [], refusalsByCause: [] }))} />);
-    expect(markup).toContain('No failures');
-    expect(markup).toContain('No refusals');
-    expect(markup).not.toMatch(/out of 50 runs that ended in it/);
-    expect(markup).not.toMatch(/No failures in this range/);
+  it('keeps zero outcomes visible as exact empty bars', () => {
+    const markup = markupOf(
+      <TrafficBody
+        block={block(
+          traffic({
+            runStatistics: { total: 1, completed: 1, partial: 0, refused: 0, failed: 0, unclassified: 0 },
+          })
+        )}
+      />
+    );
+    expect(text(markup)).toContain('Partial 0 Refused 0 Failed 0');
+    expect(markup).toContain('aria-label="Failed: 0"');
   });
 
   it('replaces itself with a reason when the store could not be read', () => {
@@ -2225,7 +2178,7 @@ describe('the traffic block', () => {
     expect(markup).toContain('Questions per day could not be read');
     // The block is still standing, with the charts that did answer on it.
     expect(markup).not.toContain('Traffic could not be read');
-    expect(markup).toContain('Warehouse unavailable');
+    expect(markup).toContain('Tool calls by tool');
   });
 
   it('says nothing extra when every read answered and the answer was nothing', () => {
@@ -2245,10 +2198,9 @@ describe('the traffic block', () => {
    * show a reader a list that cannot contain what they clicked, and the page
    * they came from would look like it had invented the number.
    */
-  it('sends a cause count to the runs behind it, filtered to that outcome', () => {
+  it('removes cause-count links to Monitoring with the cause charts', () => {
     const markup = markupOf(<TrafficBody block={block(traffic())} />);
-    expect(markup).toContain('href="/monitoring?outcome=failed"');
-    expect(markup).toContain('href="/monitoring?outcome=refused"');
+    expect(markup).not.toContain('href="/monitoring');
   });
 
   /**
@@ -2287,18 +2239,14 @@ describe('the traffic block', () => {
     );
     expect(markup).not.toContain('out of 0 runs');
     expect(markup).not.toMatch(/From 0 recorded runs/);
-    // The chart still says it is empty. What it no longer does is divide by it.
-    expect(markup).toContain('No failures');
+    // Outcome rows remain explicit zero measurements.
+    expect(markup).toContain('Failed');
     expect(markup).toContain('No tool calls');
   });
 
-  it('keeps the range on the way to Monitoring', () => {
-    // The count was counted over THIS window. Landing on Monitoring's default
-    // week would show a different number for the same question.
-    const markup = markupOf(
-      <TrafficBody block={block(traffic())} monitoringHref={(outcome) => `/monitoring?range=30d&outcome=${outcome}`} />
-    );
-    expect(markup).toContain('href="/monitoring?range=30d&amp;outcome=failed"');
+  it('does not share an Ops range with Monitoring', () => {
+    const markup = markupOf(<TrafficBody block={block(traffic())} />);
+    expect(markup).not.toContain('range=30d');
   });
 
   /**
@@ -2355,7 +2303,8 @@ describe('the traffic block', () => {
         <TrafficBody block={block(traffic({ toolCalls: [], failuresByCause: [], refusalsByCause: [] }))} />
       );
       expect(text(markup)).toContain('No tool calls');
-      expect(markup).not.toContain('ops-bar-fill');
+      const toolChart = markup.slice(markup.indexOf('ops-chart-tool'));
+      expect(toolChart).not.toContain('ops-bar-fill');
     });
 
     it('prints the bars with no standing note under them', () => {
@@ -2399,25 +2348,27 @@ describe('Ops cost uses complete billing days', () => {
       </MemoryRouter>
     );
 
-  it('renders the shared range control and no billing-window caption', () => {
+  it('renders no Ops range control or billing-window caption', () => {
     const markup = at('?range=24h&from=2026-03-02&to=2026-03-06');
-    expect(markup).toContain('time-range-segments');
+    expect(markup).not.toContain('Time range for Ops');
+    expect(text(markup)).not.toMatch(/24h|7 days|30 days|All time/);
     expect(markup).not.toContain('ops-range-dates');
     expect(text(markup)).not.toContain('Cost billing window');
     expect(text(markup)).not.toContain('Today is excluded because billing arrives late');
   });
 
-  it('sends validated from and to dates to cost only', () => {
+  it('lets the server own one calendar-month window for every retrospective block', () => {
     const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
-    expect(source).toContain("costParams.set('from', range.from)");
-    expect(source).toContain("costParams.set('to', range.to)");
-    expect(source).toContain("'/api/ops/cost',");
+    expect(source).not.toContain("costParams.set('from'");
+    expect(source).not.toContain("trafficParams.set('from'");
     expect(source).not.toContain('costEstimatesShown');
-    expect(source).toContain("useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params))");
+    expect(source).toContain("useOpsBlock<OpsCostPayload>('/api/ops/cost', '', monthKey)");
+    expect(source).toContain("useOpsBlock<OpsTrafficPayload>('/api/ops/traffic', '', monthKey)");
+    expect(source).toContain("useOpsBlock<OpsLatencyPayload>('/api/ops/latency', '', monthKey)");
     expect(source).toContain("useOpsBlock<OpsHealthPayload>('/api/ops/health', '')");
-    expect(source).toContain('TimeRangeControl page="Ops cost"');
-    expect(source).toContain("params.set('range', 'all')");
-    expect(source).toContain("const runsHref = () => '/runs?range=all'");
+    expect(source).not.toContain('TimeRangeControl');
+    expect(source).toContain("canonical.delete('range')");
+    expect(source).toContain("const runsHref = () => '/runs'");
     expect(source).toContain('costTileWorkspaceObject(tile)');
     expect(source).toContain('healthResourceObject(row)');
     expect(source).toContain('databricksLink(host, object)');
@@ -2541,9 +2492,10 @@ describe('the latency block', () => {
   });
 
   it('keeps baseline filter state semantic and disables both controls during refresh', () => {
-    const selected = markupOf(<LatencyBody block={block(latency())} initialWithin />);
+    const selected = markupOf(<LatencyBody block={block(latency())} initialWithin initialOutside />);
     expect(selected).toMatch(/ast-pill--pos[^"]*ops-latency-trend-filter" aria-pressed="true"/);
-    expect(selected).toMatch(/ast-pill--neg[^"]*ops-latency-trend-filter" aria-pressed="false"/);
+    expect(selected).toMatch(/ast-pill--neg[^"]*ops-latency-trend-filter" aria-pressed="true"/);
+    expect(selected.match(/aria-pressed="true"/g)).toHaveLength(2);
     const busy = markupOf(<LatencyBody block={block(latency(), { busy: true })} />);
     expect(busy.match(/ops-latency-trend-filter"[^>]*disabled=""/g)).toHaveLength(2);
     expect(busy).not.toMatch(/ops-latency-trend-filter"[^>]*style="[^"]*opacity/);

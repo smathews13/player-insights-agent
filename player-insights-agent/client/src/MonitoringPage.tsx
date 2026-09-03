@@ -915,28 +915,22 @@ function answerFrom(raw: unknown): Answer | null {
 }
 
 /**
- * Feedback is read-only here. An admin does not rate somebody else's answer, so
- * the card is passed `showFeedback={false}` and this stands in for state that is
- * never rendered and never written.
- *
- * `usefulness` is null rather than the asker's score deliberately. The score
- * would be drawn as a pressed thumb belonging to the reader looking at it, and
- * an admin who then pressed the other one would be writing over the asker's
- * rating. The asker's rating is reported in the list's own rating column, where
- * it reads as theirs.
- *
- * Annotated rather than inferred so that the next field added to `FeedbackEntry`
- * fails here, at the one place that has to decide what it means for a reader who
- * cannot rate, instead of at the call site.
+ * Feedback is read-only here. The shared KPI may report the asker's stored
+ * direction, while `showFeedback={false}` keeps interactive thumbs absent so an
+ * admin can never overwrite it.
  */
-const READ_ONLY_FEEDBACK: FeedbackEntry = {
-  open: false,
-  comment: '',
-  saved: false,
-  saving: false,
-  error: null,
-  sentiment: null,
-};
+function readOnlyFeedback(detail: MonitoringDetail): FeedbackEntry {
+  const sentiment = detail.feedback ?? detail.rating ?? null;
+  return {
+    open: false,
+    comment: detail.comment ?? '',
+    saved: sentiment !== null || detail.usefulness != null,
+    saving: false,
+    error: null,
+    sentiment,
+    usefulness: detail.usefulness,
+  };
+}
 
 function tokensNote(tokens: MonitoringDetail['tokens']) {
   return (
@@ -1041,7 +1035,7 @@ export function QuestionDrawer({
         <AnswerCard
           answer={answer}
           question={detail.question}
-          feedback={READ_ONLY_FEEDBACK}
+          feedback={readOnlyFeedback(detail)}
           onFeedbackChange={() => {}}
           saveFeedback={async () => {}}
           showFeedback={false}
@@ -1254,7 +1248,10 @@ function SpendMetric({
         {figure}
       </strong>
       {metric.state === 'unavailable' ? null : (
-        <span className="user-profile-modal-spend-kpi-subtitle">{metric.subtitle}</span>
+        <span className="user-profile-modal-spend-kpi-subtitle">
+          {metric.subtitle}
+          {metric.estimated ? ' · Estimated' : ''}
+        </span>
       )}
     </div>
   );
@@ -1353,6 +1350,7 @@ export function PersonSpend({
     questions: authoritative?.questions ?? null,
     coveredDays: authoritative?.coveredDays ?? null,
     unit,
+    estimated: reading?.quality === 'allocated' || reading?.quality === 'partial',
   });
   const averageTokens =
     authoritative?.averageTokens ??
@@ -1375,7 +1373,7 @@ export function PersonSpend({
           <span className="user-profile-modal-spend-kpi-label">Total user spend</span>
           <strong className="user-profile-modal-spend-kpi-value ast-num">
             {amount === null
-              ? 'Spend unavailable'
+              ? 'Spend not available yet'
               : spendFigure(amount, unit, state.status === 'ready' ? state.data.currency : '')}
           </strong>
           {amount === null ? null : (
@@ -1662,7 +1660,9 @@ export function PersonPanel({
           ) : null}
           <div className="user-profile-modal-grants">
             <p className="user-profile-modal-grants-heading">
-              Effective grants on the tables PIA reads · read now, as the application
+              {panel.grantsMode === 'live-self'
+                ? 'Declared tables · read now as you'
+                : 'Declared tables · verified evidence from this user’s runs'}
             </p>
             {panel.grants === null ? (
               <p className="user-profile-modal-state">
@@ -1671,7 +1671,17 @@ export function PersonPanel({
               </p>
             ) : (
               panel.grants.map((grant) => {
-                const badge = grantBadge(grant);
+                const badge =
+                  grant.source === 'verified-run'
+                    ? {
+                        label: `Read in ${grant.verifiedRuns.toLocaleString()} verified ${grant.verifiedRuns === 1 ? 'run' : 'runs'}`,
+                        tone: 'ok' as const,
+                      }
+                    : grant.source === 'no-evidence'
+                      ? { label: 'No verified read evidence', tone: 'neutral' as const }
+                      : grant.canRead === null
+                        ? { label: 'Not checked', tone: 'neutral' as const }
+                        : grantBadge({ canRead: grant.canRead, missing: grant.missing });
                 return (
                   <div className="user-profile-modal-grant-row" key={grant.table}>
                     <p className="user-profile-modal-grant-line">
@@ -1680,7 +1690,7 @@ export function PersonPanel({
                         {grant.table}
                       </span>
                       <span className={astPill(PILL_FAMILY[badge.tone], 'monitoring-pill')}>{badge.label}</span>
-                      {grant.missing && grant.missing !== badge.label ? (
+                      {grant.source === 'live-user-probe' && grant.missing && grant.missing !== badge.label ? (
                         <span className="user-profile-modal-grant-detail">{grant.missing}</span>
                       ) : null}
                     </p>

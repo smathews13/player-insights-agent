@@ -48,11 +48,13 @@ export function StatusBadge({
   value,
   tone,
   title,
+  ariaLabel,
   testId,
 }: {
   value: string;
   tone: StatusTone;
   title?: string;
+  ariaLabel?: string;
   testId?: string;
 }) {
   return (
@@ -64,6 +66,7 @@ export function StatusBadge({
       data-tone={tone}
       data-testid={testId}
       title={title ?? value}
+      aria-label={ariaLabel}
     >
       {value}
     </span>

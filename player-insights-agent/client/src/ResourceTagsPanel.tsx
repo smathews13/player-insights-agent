@@ -279,7 +279,7 @@ export function ResourceTagsPanel() {
     <Fragment>
       <tr className="settings-resource-tags">
         <td>
-          <ExperimentalFeatureName>Resource tags</ExperimentalFeatureName>
+          <ExperimentalFeatureName kind="resource-tags">Resource tags</ExperimentalFeatureName>
           <p className="settings-row-note">Applies billing attribution tags to supported Databricks resources.</p>
           {error ? (
             <p className="settings-status settings-error" role="alert">

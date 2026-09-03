@@ -60,7 +60,13 @@ export function cacheRuntimeAppearance(
 export function runtimeAppearanceFromCache(value: string | null): RuntimeSettings | null {
   if (!value) return null;
   try {
-    return parsePersistedRuntimeSettings(JSON.parse(value));
+    const stored: unknown = JSON.parse(value);
+    const parsed = parsePersistedRuntimeSettings(stored);
+    if (parsed) return parsed;
+    if (stored && typeof stored === 'object' && !Array.isArray(stored) && 'density' in stored) {
+      return parsePersistedRuntimeSettings({ ...stored, density: 'comfortable' });
+    }
+    return null;
   } catch {
     return null;
   }

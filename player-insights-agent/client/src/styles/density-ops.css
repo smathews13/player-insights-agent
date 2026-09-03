@@ -1,0 +1,49 @@
+/* Compact Ops, cost, forecasting, methodology, charts, and tables. */
+html[data-density='compact'] .ops-page,
+html[data-density='compact'] .ops-block-body,
+html[data-density='compact'] .ops-cost-resources,
+html[data-density='compact'] .ops-forecast-horizons,
+html[data-density='compact'] .ops-methodology-sections,
+html[data-density='compact'] .ops-charts {
+  gap: var(--density-section-gap);
+}
+
+html[data-density='compact'] .ops-page-controls,
+html[data-density='compact'] .ops-block-head,
+html[data-density='compact'] .ops-tiles,
+html[data-density='compact'] .ops-cost-summary-grid,
+html[data-density='compact'] .ops-ticker-assumption-grid,
+html[data-density='compact'] .ops-chart-pair,
+html[data-density='compact'] .ops-latency-head-controls {
+  gap: var(--density-card-gap);
+}
+
+html[data-density='compact'] .ops-block-head,
+html[data-density='compact'] .ops-block-body,
+html[data-density='compact'] .ops-block-foot,
+html[data-density='compact'] .ops-tile,
+html[data-density='compact'] .ops-cost-summary-box,
+html[data-density='compact'] .ops-cost-resource-budgets,
+html[data-density='compact'] .ops-chart,
+html[data-density='compact'] .ops-forecast-horizon {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .ops-table th,
+html[data-density='compact'] .ops-table td,
+html[data-density='compact'] .ops-forecast-breakdown th,
+html[data-density='compact'] .ops-forecast-breakdown td,
+html[data-density='compact'] .ops-latency-table th,
+html[data-density='compact'] .ops-latency-table td {
+  padding: var(--density-table-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .ops-methodology-rows > div,
+html[data-density='compact'] .ops-bar-row {
+  padding-block: var(--density-row-padding-block);
+}
+
+html[data-density='compact'] .ops-forecast-number-control,
+html[data-density='compact'] .ops-number-ticker {
+  min-height: var(--density-control-height);
+}

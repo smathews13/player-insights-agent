@@ -40,6 +40,7 @@ import { AccountMenu } from './AccountMenu';
 import { AppSky } from './AppSky';
 import { mobileNavLinkClass } from './layout-view';
 import { settingsOriginPath } from './settings-origin';
+import { settingsDeepLink as readSettingsDeepLink } from './settings-deep-link';
 import {
   navEntries,
   roleFrom,
@@ -431,6 +432,29 @@ export function Layout() {
   }, [location.pathname, role.state, startupReadiness]);
   const settingsDeepLink = location.pathname === '/settings';
   const settingsVisible = settingsOpen || settingsDeepLink;
+  const settingsDestination = readSettingsDeepLink(
+    settingsDeepLink ? location.search : '',
+    settingsDeepLink ? location.hash : ''
+  );
+  useEffect(() => {
+    if (!settingsDeepLink || settingsDestination.canonicalSearch === location.search) return;
+    void navigate(
+      {
+        pathname: location.pathname,
+        search: settingsDestination.canonicalSearch,
+        hash: location.hash,
+      },
+      { replace: true, state: location.state }
+    );
+  }, [
+    location.hash,
+    location.pathname,
+    location.search,
+    location.state,
+    navigate,
+    settingsDeepLink,
+    settingsDestination.canonicalSearch,
+  ]);
   /**
    * Closing settings returns the reader to the page that sent them, when a page
    * did.
@@ -694,6 +718,8 @@ export function Layout() {
               {experimentalLoaded || experimentalFailure ? (
                 <SettingsPage
                   onClose={closeSettings}
+                  initialSection={settingsDestination.section}
+                  accessGuideFocusTarget={settingsDestination.focusTarget}
                   features={features}
                   setFeature={setFeature}
                   role={role}

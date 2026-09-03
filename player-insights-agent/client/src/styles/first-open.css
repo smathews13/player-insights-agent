@@ -86,6 +86,19 @@
   gap: 12px;
 }
 
+/*
+ * Dialog moves focus to its `tabIndex=-1` content so assistive technology starts
+ * at the heading. That container focus is not a selected or actionable state:
+ * suppress the global blue focus ring on the card itself while leaving every
+ * button and link inside it governed by the shared interactive focus contract.
+ * Both classes are intentional: their specificity outranks the dark theme's
+ * `html[data-theme='dark'] :focus-visible` rule.
+ */
+.first-open-card.ast-dialog-panel:focus,
+.first-open-card.ast-dialog-panel:focus-visible {
+  outline: none;
+}
+
 /* A column flex item shrinks on the main axis by default, so without this the
    capped card would compress its blocks into each other instead of scrolling. */
 .first-open-card > * {

@@ -931,8 +931,8 @@ export function unpricedUnavailable(pricing: CostTilePricing): string {
   if (pricing.match === 'partial') {
     const skus = pricing.unpricedSkus.slice(0, 4).join(', ');
     return skus
-      ? `Partial list-price coverage; spend withheld. Unpriced SKUs: ${skus}`
-      : 'Partial list-price coverage; spend withheld';
+      ? `Estimated coverage is unavailable; spend withheld. Unpriced SKUs: ${skus}`
+      : 'Estimated coverage is unavailable; spend withheld';
   }
   if (pricing.match === 'unpriced') {
     const skus = pricing.unpricedSkus.slice(0, 4).join(', ');

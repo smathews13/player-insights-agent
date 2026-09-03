@@ -34,8 +34,9 @@
  * suppress. The list appears when it arrives.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronRight, LoaderCircle, Search } from 'lucide-react';
+import { ChevronRight, Search } from 'lucide-react';
 import { Button, Input } from './ui';
+import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
 import type { BrowseItem, BrowseResponse } from '../../shared/browse-contract';
 import {
   pickerForField,
@@ -58,6 +59,7 @@ import {
   applyPick,
   type AssetPickerSpec,
   type PickerCursor,
+  UNITY_CATALOG_ASSET_PICKER,
 } from './asset-picker';
 
 /**
@@ -72,6 +74,27 @@ import {
 export interface PickedRow {
   item: BrowseItem;
   cursor: PickerCursor;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- pure pagination helper shared with focused tests
+export function mergeBrowseItems(current: readonly BrowseItem[], incoming: readonly BrowseItem[]): BrowseItem[] {
+  const merged = new Map(current.map((item) => [item.id.trim(), item]));
+  for (const item of incoming) {
+    const key = item.id.trim();
+    if (key && !merged.has(key)) merged.set(key, item);
+  }
+  return [...merged.values()];
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- pure pagination helper shared with focused tests
+export function shouldAutoAdvanceEmptyPage(response: BrowseResponse | null): boolean {
+  return Boolean(
+    response?.status === 'ok' &&
+      response.items.length === 0 &&
+      response.next_page_token &&
+      response.pagination.incomplete_reason === 'more_available' &&
+      response.pagination.page < response.pagination.page_limit
+  );
 }
 
 /**
@@ -140,6 +163,7 @@ export function AssetPickerRow({
   const kind = cursorKind(spec, cursor);
   const text = pickerRowText(kind, item);
   const actions = rowActions(spec, cursor, item);
+  const unityCatalogType = kind === 'catalogs' ? 'catalog' : kind === 'schemas' ? 'schema' : 'table/view';
   const warehousePick = kind === 'warehouses' ? actions.find((action) => action.kind === 'pick') : undefined;
   const selected = actions.some((action) => action.kind === 'pick' && alreadyHeld(spec, current, action.value));
   if (warehousePick?.kind === 'pick') {
@@ -192,7 +216,11 @@ export function AssetPickerRow({
               variant="ghost"
               size="sm"
               onClick={() => onOpen(action.cursor)}
-              aria-label={`Open ${text.primary}`}
+              aria-label={
+                spec.field === UNITY_CATALOG_ASSET_PICKER.field
+                  ? `Browse ${unityCatalogType} ${text.primary}`
+                  : `Open ${text.primary}`
+              }
             >
               {action.label}
               <ChevronRight className="size-3.5" aria-hidden="true" />
@@ -210,7 +238,11 @@ export function AssetPickerRow({
                 // a volume row is a leaf name, and only the catalog and schema
                 // it was found in make it into an identifier.
                 onClick={() => onPick(applyPick(spec, current, action.value), { item, cursor })}
-                aria-label={`${action.label}: ${action.value}`}
+                aria-label={
+                  spec.field === UNITY_CATALOG_ASSET_PICKER.field
+                    ? `Select ${unityCatalogType} ${action.value}`
+                    : `${action.label}: ${action.value}`
+                }
               >
                 {action.label}
               </Button>
@@ -310,9 +342,8 @@ export function AssetPickerPanel({
       ) : null}
 
       {loading ? (
-        <div className="asset-picker-loading" data-testid="asset-picker-loading" role="status">
-          <LoaderCircle className="asset-picker-spinner" aria-hidden="true" />
-          <span>Finding resources your sign-in can access…</span>
+        <div data-testid="asset-picker-loading">
+          <AstrolabeLoadingLabel label="Finding resources your sign-in can access" className="asset-picker-loading" />
         </div>
       ) : null}
 
@@ -342,7 +373,7 @@ export function AssetPickerPanel({
       {/* AN EMPTY ANSWER IS AN ANSWER, and it says which of the two empties it
           is. A reader who cannot tell "there is nothing here" from "nobody
           looked" has been told nothing at all. */}
-      {!loading && response && response.status === 'ok' && items.length === 0 ? (
+      {!loading && response?.status === 'ok' && items.length === 0 && response.pagination.complete ? (
         <div className="asset-picker-empty" data-testid="asset-picker-empty">
           <p className="asset-picker-empty-head">{browseEmptyNote(kind)}</p>
         </div>
@@ -364,18 +395,38 @@ export function AssetPickerPanel({
         </ul>
       ) : null}
 
-      {!loading && response?.status === 'ok' && !response.pagination.complete ? (
+      {!loading && response?.status === 'ok' && items.length > 0 && !response.pagination.complete ? (
         <p className="asset-picker-empty-note" data-testid="asset-picker-partial">
           {response.pagination.incomplete_reason === 'page_cap'
-            ? `Partial list: discovery stopped at ${response.pagination.page_limit} pages (${response.pagination.page_size * response.pagination.page_limit} resources maximum).`
+            ? `Discovery stopped at ${response.pagination.page_limit} pages (${response.pagination.page_size * response.pagination.page_limit} resources maximum).`
             : response.pagination.incomplete_reason === 'more_available'
               ? 'More resources are available. Search currently covers the loaded results.'
               : response.pagination.incomplete_reason === 'deadline'
-                ? 'Partial list: loading the next page reached its deadline.'
+                ? 'Loading the next page reached its deadline.'
                 : response.pagination.incomplete_reason === 'cancelled'
-                  ? 'Partial list: loading the next page was cancelled.'
-                  : 'Partial list: the next page could not be loaded.'}
+                  ? 'Loading the next page was cancelled.'
+                  : 'The next page could not be loaded.'}
         </p>
+      ) : null}
+
+      {!loading && response?.status === 'ok' && items.length === 0 && !response.pagination.complete ? (
+        <div className="asset-picker-empty-note">
+          <p role="status">
+            {response.pagination.incomplete_reason === 'page_cap'
+              ? 'Discovery reached its page limit before finding a visible resource.'
+              : response.pagination.incomplete_reason === 'deadline'
+                ? 'Resource discovery reached its deadline before finding a visible resource.'
+                : response.pagination.incomplete_reason === 'cancelled'
+                  ? 'Resource discovery was cancelled before finding a visible resource.'
+                  : 'Resource discovery could not finish.'}
+          </p>
+          {response.pagination.incomplete_reason === 'deadline' ||
+          response.pagination.incomplete_reason === 'failed' ? (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              Try again
+            </Button>
+          ) : null}
+        </div>
       ) : null}
 
       {/* The filter hid everything the list held. Said, because an empty list
@@ -384,7 +435,7 @@ export function AssetPickerPanel({
         <p className="asset-picker-empty-note">Nothing in this list matches what you typed.</p>
       ) : null}
 
-      {!loading && response && response.status === 'ok' && response.next_page_token ? (
+      {!loading && response?.status === 'ok' && items.length > 0 && response.next_page_token ? (
         <div className="asset-picker-more">
           <Button
             variant="outline"
@@ -431,8 +482,9 @@ export function AssetPicker({
   const [cursor, setCursor] = useState<PickerCursor>(() => initialCursor(spec, { current, catalog }));
   /** Bumped by Try again, so a retry is a new key rather than a re-run. */
   const [attempt, setAttempt] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [pagingKey, setPagingKey] = useState('');
   const pagingController = useRef<AbortController | null>(null);
+  const pagingTokens = useRef<Map<string, Set<string>>>(new Map());
 
   const kind = cursorKind(spec, cursor);
   /**
@@ -447,6 +499,7 @@ export function AssetPicker({
    * while opening a new one.
    */
   const key = `${attempt}:${browseUrl(kind, cursor)}`;
+  const loadingMore = pagingKey === key;
   const [answers, setAnswers] = useState<ReadonlyMap<string, BrowseResponse>>(() => new Map());
   /** What was typed, and which list it was typed over. */
   const [typed, setTyped] = useState<{ key: string; text: string }>({ key: '', text: '' });
@@ -501,10 +554,30 @@ export function AssetPicker({
     []
   );
 
+  useEffect(() => {
+    pagingController.current?.abort();
+    pagingController.current = null;
+  }, [key]);
+
   const more = useCallback(() => {
     if (!response || response.status !== 'ok' || !response.next_page_token) return;
     const token = response.next_page_token;
     const nextPage = response.pagination.page + 1;
+    const seen = pagingTokens.current.get(key) ?? new Set<string>();
+    if (seen.has(token)) {
+      setAnswers((held) => {
+        const current = held.get(key);
+        if (!current || current.status !== 'ok') return held;
+        return new Map(held).set(key, {
+          ...current,
+          next_page_token: '',
+          pagination: { ...current.pagination, complete: false, incomplete_reason: 'failed' },
+        });
+      });
+      return;
+    }
+    seen.add(token);
+    pagingTokens.current.set(key, seen);
     pagingController.current?.abort();
     const controller = new AbortController();
     pagingController.current = controller;
@@ -512,13 +585,14 @@ export function AssetPicker({
       () => controller.abort(new DOMException('Resource discovery timed out', 'TimeoutError')),
       15_000
     );
-    setLoadingMore(true);
+    setPagingKey(key);
     fetch(browsePageUrl(kind, cursor, token, nextPage), { signal: controller.signal })
       .then((answer) => {
         if (!answer.ok) throw new Error(`resource discovery answered ${answer.status}`);
         return answer.json() as Promise<BrowseResponse>;
       })
       .then((body) => {
+        if (controller.signal.aborted) return;
         // Appended only when the next page is itself an `ok`. A refusal or a
         // failure on page two says nothing about page one, and folding it in
         // would either drop rows already on screen or claim the list ended.
@@ -535,13 +609,14 @@ export function AssetPicker({
               },
             });
           }
+          const items = mergeBrowseItems(current.items, body.items);
           return new Map(held).set(key, {
             ...current,
-            items: [...current.items, ...body.items],
+            items,
             next_page_token: body.next_page_token,
             pagination: {
               ...body.pagination,
-              returned: current.items.length + body.items.length,
+              returned: items.length,
             },
           });
         });
@@ -568,10 +643,16 @@ export function AssetPicker({
         window.clearTimeout(timeout);
         if (pagingController.current === controller) {
           pagingController.current = null;
-          setLoadingMore(false);
+          setPagingKey((active) => (active === key ? '' : active));
         }
       });
   }, [response, kind, cursor, key]);
+
+  useEffect(() => {
+    if (loadingMore || !shouldAutoAdvanceEmptyPage(response)) return;
+    const timer = window.setTimeout(more, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadingMore, more, response]);
 
   // A query is an explicit request to look beyond the first page. Continue
   // through the bounded page window after a short pause, so a match on page two
@@ -582,13 +663,15 @@ export function AssetPicker({
     return () => window.clearTimeout(timer);
   }, [loadingMore, more, query, response]);
 
+  const advancingEmptyPage = loadingMore || shouldAutoAdvanceEmptyPage(response);
+
   return (
     <AssetPickerPanel
       spec={spec}
       cursor={cursor}
       current={current}
       response={response}
-      loading={loading}
+      loading={loading || (response?.status === 'ok' && response.items.length === 0 && advancingEmptyPage)}
       loadingMore={loadingMore}
       query={query}
       onQuery={(text) => setTyped({ key, text })}

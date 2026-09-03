@@ -3,9 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   MONITORING_DETAIL_QUERY,
   MONITORING_PERSON_SEEN_QUERY,
+  MONITORING_PERSON_TABLE_EVIDENCE_QUERY,
   MONITORING_PERSON_TABLES_QUERY,
   MONITORING_QUESTIONS_QUERY,
   MONITORING_ROUTES,
+  historicalGrantLedger,
+  liveSelfGrantLedger,
   matchingQuestions,
   questionFromRow,
   rangeTotalsFrom,
@@ -37,6 +40,39 @@ import { APP_SCHEMA } from '../../shared/app-schema';
  */
 
 const ledger = (entries: [string, { state: string; code: string | null }][] = []) => new Map(entries);
+
+describe('per-user declared-table permission evidence', () => {
+  const tables = Array.from({ length: 12 }, (_value, index) => `catalog.schema.table_${index + 1}`);
+
+  it('keeps all twelve declared tables for a successful self OBO probe', () => {
+    const grants = liveSelfGrantLedger(tables, {
+      resolved: true,
+      resolvedAt: 1,
+      verdicts: new Map(
+        tables.map((table) => [table, { table, status: 'ok' as const, detail: 'SELECT succeeded under user token' }])
+      ),
+    });
+    expect(grants).toHaveLength(12);
+    expect(grants.every((grant) => grant.canRead && grant.source === 'live-user-probe')).toBe(true);
+  });
+
+  it('shows verified evidence for six tables and neutral evidence for the other six', () => {
+    const grants = historicalGrantLedger(
+      tables,
+      tables.slice(0, 6).map((table, index) => ({
+        table_key: table,
+        runs: String(index + 1),
+        latest_read_at: '2026-09-01T12:00:00Z',
+      }))
+    );
+    expect(grants).toHaveLength(12);
+    expect(grants.filter((grant) => grant.source === 'verified-run')).toHaveLength(6);
+    expect(grants.filter((grant) => grant.source === 'no-evidence')).toHaveLength(6);
+    expect(grants.every((grant) => grant.missing === null)).toBe(true);
+    expect(MONITORING_PERSON_TABLE_EVIDENCE_QUERY).toContain("m.execution_mode = 'signed_in_user'");
+    expect(MONITORING_PERSON_TABLE_EVIDENCE_QUERY).toContain('m.execution_identity_verified = TRUE');
+  });
+});
 
 function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {

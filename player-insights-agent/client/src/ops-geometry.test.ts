@@ -52,6 +52,14 @@ describe('latency baseline filter states', () => {
     expect(outside).toContain('var(--ast-neg-text)');
     expect(outside).toContain('var(--ast-neg-border)');
     expect(`${within}${outside}`).not.toMatch(/opacity:\s*0\./);
+    const selectedWithin = rule(".ops-latency-trend-filter.ast-pill--pos[aria-pressed='true']");
+    const selectedOutside = rule(".ops-latency-trend-filter.ast-pill--neg[aria-pressed='true']");
+    expect(selectedWithin).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--ast-pos-border\)/);
+    expect(selectedOutside).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--ast-neg-border\)/);
+    expect(`${selectedWithin}${selectedOutside}`).toMatch(/font-weight:\s*700/);
+    expect(RULES).toContain(".ops-latency-trend-filter[aria-pressed='true']::before");
+    expect(RULES).toContain("content: '✓'");
+    expect(RULES).toContain('.ops-latency-trend-filter:active:not(:disabled)');
   });
 
   it('makes focus explicit and keeps disabled controls from brightening', () => {
@@ -63,6 +71,7 @@ describe('latency baseline filter states', () => {
     expect(disabled).toContain('var(--ast-border-input)');
     expect(disabled).toContain('opacity: 1');
     expect(RULES).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(RULES).toContain('@media (forced-colors: active)');
   });
 
   it('uses positive and negative tokens that have light and dark theme values', () => {
@@ -187,13 +196,17 @@ describe('the figures line up', () => {
 });
 
 describe('the traffic groups share the row', () => {
-  it('keeps the questions, causes, and tools in three equal columns', () => {
+  it('keeps the trends, statistics, and tools in three equal columns', () => {
     expect(rule('.ops-charts')).toMatch(/grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
     expect(rule('.ops-charts')).toMatch(/gap:\s*16px/);
   });
 
   it('uses the specified label width without crowding tool bars', () => {
-    expect(rule('.ops-chart-tool .ops-bar-row')).toMatch(/minmax\(0,\s*110px\)\s+1fr\s+auto/);
+    expect(rule('.ops-chart-tool .ops-bar-row')).toMatch(
+      /minmax\(min\(9rem,\s*42%\),\s*12rem\)\s+minmax\(0,\s*1fr\)\s+max-content/
+    );
+    expect(rule('.ops-chart-tool .ops-bar-label')).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(RULES).toContain('grid-column: 1 / -1');
   });
 });
 

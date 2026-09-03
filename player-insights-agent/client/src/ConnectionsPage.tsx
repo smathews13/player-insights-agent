@@ -148,8 +148,8 @@ import {
 // `asset-picker.ts` rather than in either editor below: the same two editors draw
 // ten fields between them, and a mapping written at the call site would be
 // written twice.
-import { AssetPicker, AssetPickerField } from './AssetPicker';
-import { pickerForField } from './asset-picker';
+import { AssetPicker, AssetPickerField, type PickedRow } from './AssetPicker';
+import { UNITY_CATALOG_ASSET_PICKER, cursorKind, pickerForField } from './asset-picker';
 import { AppSelect } from './AppSelect';
 // The derivation itself -- which check belongs to which resource, which
 // findings are about it, and what that makes its badge -- is shared with the
@@ -172,7 +172,6 @@ import { AiGatewayConnection } from './AiGatewayConnection';
 import { NO_EXPERIMENTS, showsNotebookAgentSync } from './experimental-features';
 import { notebookAgentSyncTarget } from './notebook-agent-sync-deep-link';
 import {
-  ADD_CONNECTION_PICKERS,
   DELETE_CONNECTION_LABEL,
   JUST_ADDED_LABEL,
   addedConnectionLabel,
@@ -180,7 +179,7 @@ import {
   isDeclaredTableConnection,
   isDeclaredUnityCatalogConnection,
 } from './declared-connection-view';
-import { connectionValueError, derivedConnectionKey } from './declared-connection-form';
+import { derivedConnectionKey } from './declared-connection-form';
 import { normalizedConnectionValue, useDeclaredConnectionController } from './declared-connection-controller';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
 import { canMutateConnections } from '../../shared/user-roster-contract';
@@ -805,55 +804,82 @@ export function DeclaredTableList({ configured }: { configured: string }) {
   );
 }
 
-export function UnityCatalogConnectionAddForm({
-  resourceType,
+type UnityCatalogResourceType = Extract<DeclaredResourceType, 'catalog' | 'schema' | 'table'>;
+
+interface UnityCatalogAssetSelection {
+  resourceType: UnityCatalogResourceType;
+  value: string;
+  label: string;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- pure picker result shared with focused tests
+export function unityCatalogAssetSelection(value: string, pickedRow: PickedRow): UnityCatalogAssetSelection {
+  const kind = cursorKind(UNITY_CATALOG_ASSET_PICKER, pickedRow.cursor);
+  const resourceType: UnityCatalogResourceType =
+    kind === 'catalogs' ? 'catalog' : kind === 'schemas' ? 'schema' : 'table';
+  const canonicalValue = value.trim();
+  return {
+    resourceType,
+    value: canonicalValue,
+    label: addedConnectionLabel(canonicalValue, pickedRow.item.label),
+  };
+}
+
+export function UnityCatalogAssetAddForm({
   formId,
   formRef,
-  value,
+  selection,
   busy,
   error,
-  onPick,
+  onSelect,
   onAdd,
   onCancel,
 }: {
-  resourceType: Extract<DeclaredResourceType, 'catalog' | 'schema' | 'table'>;
   formId: string;
   formRef?: RefObject<HTMLDivElement | null>;
-  value: string;
+  selection: UnityCatalogAssetSelection | null;
   busy: boolean;
   error: string;
-  onPick: (value: string, label: string) => void;
+  onSelect: (selection: UnityCatalogAssetSelection) => void;
   onAdd: () => void;
   onCancel: () => void;
 }) {
-  const label = resourceType;
-  const valueError = connectionValueError(resourceType, value);
   return (
     <div
       ref={formRef}
       id={`${formId}-form`}
       className="connections-table-add-form plane-form"
-      data-testid={`add-${resourceType}-form`}
+      data-testid="add-unity-catalog-asset-form"
       tabIndex={-1}
-      aria-label={`Add Unity Catalog ${resourceType}`}
+      aria-label="Add Unity Catalog asset"
     >
       <AssetPicker
-        key={resourceType}
-        spec={ADD_CONNECTION_PICKERS[resourceType]}
-        current={value}
+        spec={UNITY_CATALOG_ASSET_PICKER}
+        current={selection?.value ?? ''}
         onPick={(picked, pickedRow) => {
-          const next = picked.trim();
-          onPick(next, addedConnectionLabel(next, pickedRow?.item.label));
+          if (pickedRow) onSelect(unityCatalogAssetSelection(picked, pickedRow));
         }}
       />
-      {error || valueError ? (
+      {selection ? (
+        <div className="connections-uc-selection" role="status" aria-label="Selected Unity Catalog asset">
+          <span className="connection-row-kind">
+            {selection.resourceType === 'table'
+              ? 'Table/view'
+              : selection.resourceType === 'schema'
+                ? 'Schema'
+                : 'Catalog'}
+          </span>
+          <code title={selection.value}>{selection.value}</code>
+        </div>
+      ) : null}
+      {error ? (
         <span className="plane-error plane-form-error" role="alert">
-          {error || valueError}
+          {error}
         </span>
       ) : null}
       <div className="plane-form-actions">
-        <Button size="sm" disabled={busy || !value.trim() || Boolean(valueError)} onClick={onAdd}>
-          {busy ? `Adding ${label}\u2026` : `Add ${label}`}
+        <Button size="sm" disabled={busy || !selection} onClick={onAdd}>
+          {busy ? 'Adding asset\u2026' : 'Add asset'}
         </Button>
         <Button variant="outline" size="sm" disabled={busy} onClick={onCancel}>
           Cancel
@@ -861,12 +887,6 @@ export function UnityCatalogConnectionAddForm({
       </div>
     </div>
   );
-}
-
-export function TableConnectionAddForm(
-  props: Omit<Parameters<typeof UnityCatalogConnectionAddForm>[0], 'resourceType'>
-) {
-  return <UnityCatalogConnectionAddForm {...props} resourceType="table" />;
 }
 
 export function DeclaredTablesSection({
@@ -887,13 +907,12 @@ export function DeclaredTablesSection({
   onChanged?: () => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(true);
-  const [adding, setAdding] = useState<Extract<DeclaredResourceType, 'catalog' | 'schema' | 'table'> | null>(null);
-  const [pickedValue, setPickedValue] = useState('');
-  const [pickedLabel, setPickedLabel] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [selection, setSelection] = useState<UnityCatalogAssetSelection | null>(null);
   const [addError, setAddError] = useState('');
   const [filters, setFilters] = useState<DeclaredTableFilters>({ query: '', catalog: '', schema: '' });
   const formId = useId();
-  const addButtonRefs = useRef<Partial<Record<DeclaredResourceType, HTMLButtonElement | null>>>({});
+  const addButtonRef = useRef<HTMLButtonElement | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
   const controller = useDeclaredConnectionController({ entries: tableConnections, onChanged });
   const managedRows = useMemo(
@@ -927,69 +946,63 @@ export function DeclaredTablesSection({
   }, [controller.justAdded]);
 
   async function addUnityCatalogConnection() {
-    if (!adding) return;
-    const value = pickedValue.trim();
-    if (!value) return;
+    if (!selection) return;
+    const { resourceType, value, label } = selection;
     const duplicate =
-      (adding === 'table' &&
+      (resourceType === 'table' &&
         managedChecks.some((check) => normalizedConnectionValue(check.name) === normalizedConnectionValue(value))) ||
       controller.listed.some(
         (entry) =>
-          entry.connection.resourceType === adding &&
+          entry.connection.resourceType === resourceType &&
           normalizedConnectionValue(entry.connection.value) === normalizedConnectionValue(value)
       );
     if (duplicate) {
-      setAddError(`That ${adding} is already in the Unity Catalog list.`);
+      setAddError(
+        `That ${resourceType === 'table' ? 'table/view' : resourceType} is already in the Unity Catalog list.`
+      );
       return;
     }
     const result = await controller.add(
       {
         id: derivedConnectionKey(
-          adding,
+          resourceType,
           value,
           controller.listed.map((entry) => entry.connection.id)
         ),
-        label: pickedLabel,
+        label,
         kind: 'unity-catalog',
-        resourceType: adding,
+        resourceType,
         value,
       },
-      `That ${adding} is already in the Unity Catalog list.`
+      `That ${resourceType === 'table' ? 'table/view' : resourceType} is already in the Unity Catalog list.`
     );
     if (!result.ok) {
       setAddError(result.detail);
       return;
     }
-    setPickedValue('');
-    setPickedLabel('');
+    setSelection(null);
     setAddError('');
-    setAdding(null);
+    setAdding(false);
   }
 
   const addAction =
-    allowMutations && storeAvailable
-      ? (['table', 'schema', 'catalog'] as const).map((resourceType) => (
-          <Button
-            key={resourceType}
-            ref={(node) => {
-              addButtonRefs.current[resourceType] = node;
-            }}
-            variant={resourceType === 'table' ? 'default' : 'outline'}
-            size="sm"
-            className={resourceType === 'table' ? 'connections-add-uc-primary' : 'connections-add-uc'}
-            aria-expanded={adding === resourceType}
-            aria-controls={`${formId}-form`}
-            onClick={() => {
-              setPickedValue('');
-              setPickedLabel('');
-              setAddError('');
-              setAdding((shown) => (shown === resourceType ? null : resourceType));
-            }}
-          >
-            Add {resourceType}
-          </Button>
-        ))
-      : null;
+    allowMutations && storeAvailable ? (
+      <Button
+        ref={addButtonRef}
+        variant="outline"
+        size="sm"
+        className="connections-add-uc"
+        aria-expanded={adding}
+        aria-controls={`${formId}-form`}
+        onClick={() => {
+          setSelection(null);
+          setAddError('');
+          setAdding((shown) => !shown);
+        }}
+      >
+        Add asset
+      </Button>
+    ) : null;
 
   return (
     <Disclosure
@@ -1011,24 +1024,22 @@ export function DeclaredTablesSection({
       }
     >
       {adding ? (
-        <UnityCatalogConnectionAddForm
-          resourceType={adding}
+        <UnityCatalogAssetAddForm
           formId={formId}
           formRef={formRef}
-          value={pickedValue}
+          selection={selection}
           busy={controller.busy}
           error={addError}
-          onPick={(value, label) => {
-            setPickedValue(value);
-            setPickedLabel(label);
+          onSelect={(next) => {
+            setSelection(next);
             setAddError('');
           }}
           onAdd={() => void addUnityCatalogConnection()}
           onCancel={() => {
-            const previous = adding;
-            setAdding(null);
+            setAdding(false);
+            setSelection(null);
             setAddError('');
-            addButtonRefs.current[previous]?.focus();
+            addButtonRef.current?.focus();
           }}
         />
       ) : null}

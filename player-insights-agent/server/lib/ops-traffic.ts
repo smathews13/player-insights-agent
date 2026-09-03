@@ -3,13 +3,14 @@ import { classifiedRunStatusSql } from '../../shared/run-verdict';
 import type { TrafficBar, TrafficBreakdownCoverage } from '../../shared/ops-contract';
 
 export const TRAFFIC_DAILY_ROLLUP_TABLE = appTable('traffic_daily_rollups');
-export const TRAFFIC_EVIDENCE_VERSION = 2;
+export const TRAFFIC_EVIDENCE_VERSION = 3;
 
 export const TRAFFIC_DAILY_ROLLUP_DDL = `CREATE TABLE IF NOT EXISTS ${TRAFFIC_DAILY_ROLLUP_TABLE} (
   day DATE PRIMARY KEY,
   run_count INTEGER NOT NULL,
   failure_causes JSONB NOT NULL DEFAULT '{}'::jsonb,
   refusal_causes JSONB NOT NULL DEFAULT '{}'::jsonb,
+  run_outcomes JSONB NOT NULL DEFAULT '{}'::jsonb,
   tool_calls JSONB NOT NULL DEFAULT '{}'::jsonb,
   completed_at TIMESTAMPTZ NOT NULL,
   CHECK (run_count >= 0)
@@ -59,39 +60,6 @@ function evidenceCtes(start: string, end: string): string {
            COALESCE(NULLIF(m.trace_id, ''), NULLIF(m.response_json->'trace'->>'id', '')) AS trace_id,
            ${answerStatus} AS answer_status,
            m.response_json->'trace' AS trace,
-           CASE
-             WHEN ${answerStatus} <> 'failed' THEN ''
-             WHEN EXISTS (
-               SELECT 1
-               FROM jsonb_array_elements_text(
-                 CASE WHEN jsonb_typeof(m.response_json->'caveats') = 'array'
-                      THEN m.response_json->'caveats' ELSE '[]'::jsonb END
-               ) caveat
-               WHERE caveat ~* 'APITimeoutError|Request timed out|reasoning endpoint.*not reachable'
-             ) THEN 'REASONING_ENDPOINT_TIMEOUT'
-             WHEN EXISTS (
-               SELECT 1
-               FROM jsonb_array_elements(
-                 CASE WHEN jsonb_typeof(m.response_json->'trace'->'stages') = 'array'
-                      THEN m.response_json->'trace'->'stages' ELSE '[]'::jsonb END
-               ) stage
-               WHERE stage->>'status' = 'failed'
-                 AND stage->>'output' ~* 'UNRESOLVED_COLUMN'
-             ) THEN 'SQL_UNRESOLVED_COLUMN'
-             WHEN EXISTS (
-               SELECT 1
-               FROM jsonb_array_elements(
-                 CASE WHEN jsonb_typeof(m.response_json->'trace'->'stages') = 'array'
-                      THEN m.response_json->'trace'->'stages' ELSE '[]'::jsonb END
-               ) stage
-               WHERE stage->>'status' = 'failed' AND stage->>'kind' = 'sql'
-             ) THEN 'SQL_TOOL_FAILURE'
-             WHEN jsonb_path_exists(
-               m.response_json->'trace',
-               '$.stages[*] ? (@.id == "synthesis" && @.status == "failed")'
-             ) THEN 'ANSWER_SYNTHESIS_FAILED'
-             ELSE 'UNKNOWN_STORED_ANSWER_FAILURE'
-           END AS answer_cause,
            m.created_at
     FROM ${APP_SCHEMA}.messages m
     WHERE m.role = 'assistant'
@@ -105,38 +73,11 @@ function evidenceCtes(start: string, end: string): string {
              WHEN r.state = 'REFUSED' THEN 'REFUSED'
              WHEN r.state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED') THEN r.state
              WHEN a.answer_status = 'failed' THEN 'FAILED'
+             WHEN a.answer_status = 'partial' THEN 'PARTIAL'
+             WHEN r.state = 'SUCCEEDED' THEN 'COMPLETED'
              ELSE r.state
            END AS state,
-           CASE
-             WHEN COALESCE(r.terminal_code, '') <> '' THEN r.terminal_code
-             WHEN r.state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED')
-               THEN COALESCE(
-                 (
-                   SELECT NULLIF(evidence.payload->>'outcome_code', '')
-                   FROM ${APP_SCHEMA}.run_events evidence
-                   WHERE evidence.run_id = r.run_id
-                     AND evidence.event_type = 'stage'
-                     AND COALESCE(evidence.payload->>'outcome_code', '') <> ''
-                   ORDER BY evidence.seq DESC
-                   LIMIT 1
-                 ),
-                 'UNKNOWN_FAILURE_CAUSE'
-               )
-             WHEN r.state = 'REFUSED' THEN COALESCE(
-               (
-                 SELECT NULLIF(evidence.payload->>'outcome_code', '')
-                 FROM ${APP_SCHEMA}.run_events evidence
-                 WHERE evidence.run_id = r.run_id
-                   AND evidence.event_type = 'stage'
-                   AND COALESCE(evidence.payload->>'outcome_code', '') <> ''
-                 ORDER BY evidence.seq DESC
-                 LIMIT 1
-               ),
-               'UNKNOWN_REFUSAL_CAUSE'
-             )
-             WHEN a.answer_status = 'failed' THEN a.answer_cause
-             ELSE ''
-           END AS cause,
+           ''::text AS cause,
            a.trace,
            (
              jsonb_typeof(a.trace->'stages') = 'array'
@@ -147,7 +88,7 @@ function evidenceCtes(start: string, end: string): string {
            ) AS tool_evidence
     FROM ${APP_SCHEMA}.runs r
     LEFT JOIN LATERAL (
-      SELECT candidate.trace, candidate.answer_status, candidate.answer_cause
+      SELECT candidate.trace, candidate.answer_status
       FROM answers candidate
       WHERE candidate.message_id = r.terminal_message_id
          OR (COALESCE(r.trace_id, '') <> '' AND candidate.trace_id = r.trace_id)
@@ -161,8 +102,12 @@ function evidenceCtes(start: string, end: string): string {
     SELECT 'message:' || a.message_id AS event_id,
            ''::text AS run_id,
            a.created_at AS event_at,
-           CASE WHEN a.answer_status = 'failed' THEN 'FAILED' ELSE 'SUCCEEDED' END AS state,
-           CASE WHEN a.answer_status = 'failed' THEN a.answer_cause ELSE '' END AS cause,
+           CASE
+             WHEN a.answer_status = 'failed' THEN 'FAILED'
+             WHEN a.answer_status = 'partial' THEN 'PARTIAL'
+             ELSE 'COMPLETED'
+           END AS state,
+           ''::text AS cause,
            a.trace,
            jsonb_typeof(a.trace->'stages') = 'array' AS tool_evidence
     FROM answers a
@@ -235,25 +180,23 @@ function metricSelect(population: string, tools: string): string {
   UNION ALL
   SELECT 'outcome_covered', '', COUNT(*)::bigint
   FROM ${population}
-  WHERE cause NOT IN (
-    'UNKNOWN_FAILURE_CAUSE',
-    'UNKNOWN_REFUSAL_CAUSE',
-    'UNKNOWN_STORED_ANSWER_FAILURE'
-  )
+  WHERE state IN ('COMPLETED', 'SUCCEEDED', 'PARTIAL', 'REFUSED', 'FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED')
   UNION ALL
   SELECT 'tool_covered', '', COUNT(*)::bigint
   FROM ${population}
   WHERE tool_evidence
   UNION ALL
-  SELECT 'failure', cause, COUNT(*)::bigint
+  SELECT 'run_outcome',
+         CASE
+           WHEN state IN ('COMPLETED', 'SUCCEEDED') THEN 'completed'
+           WHEN state = 'PARTIAL' THEN 'partial'
+           WHEN state = 'REFUSED' THEN 'refused'
+           WHEN state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED') THEN 'failed'
+           ELSE 'unclassified'
+         END,
+         COUNT(*)::bigint
   FROM ${population}
-  WHERE state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED')
-  GROUP BY cause
-  UNION ALL
-  SELECT 'refusal', cause, COUNT(*)::bigint
-  FROM ${population}
-  WHERE state = 'REFUSED'
-  GROUP BY cause
+  GROUP BY 2
   UNION ALL
   SELECT 'tool', tool, SUM(calls)::bigint
   FROM ${tools}
@@ -311,12 +254,8 @@ export const TRAFFIC_BREAKDOWNS_QUERY = `WITH ${rawEvidence},
     UNION ALL
     SELECT 'tool_covered', '', SUM(tool_covered_count)::bigint FROM selected_rollups
     UNION ALL
-    SELECT 'failure', item.key, SUM(item.value::bigint)
-    FROM selected_rollups, LATERAL jsonb_each_text(failure_causes) item
-    GROUP BY item.key
-    UNION ALL
-    SELECT 'refusal', item.key, SUM(item.value::bigint)
-    FROM selected_rollups, LATERAL jsonb_each_text(refusal_causes) item
+    SELECT 'run_outcome', item.key, SUM(item.value::bigint)
+    FROM selected_rollups, LATERAL jsonb_each_text(run_outcomes) item
     GROUP BY item.key
     UNION ALL
     SELECT 'tool', item.key, SUM(item.value::bigint)
@@ -336,35 +275,6 @@ ORDER BY 1, 3 DESC, 2`;
 export const LEGACY_TRAFFIC_BREAKDOWNS_QUERY = `WITH answers AS (
   SELECT m.id AS event_id,
          ${answerStatus} AS answer_status,
-         CASE
-           WHEN ${answerStatus} <> 'failed' THEN ''
-           WHEN EXISTS (
-             SELECT 1 FROM jsonb_array_elements_text(
-               CASE WHEN jsonb_typeof(m.response_json->'caveats') = 'array'
-                    THEN m.response_json->'caveats' ELSE '[]'::jsonb END
-             ) caveat
-             WHERE caveat ~* 'APITimeoutError|Request timed out|reasoning endpoint.*not reachable'
-           ) THEN 'REASONING_ENDPOINT_TIMEOUT'
-           WHEN EXISTS (
-             SELECT 1 FROM jsonb_array_elements(
-               CASE WHEN jsonb_typeof(m.response_json->'trace'->'stages') = 'array'
-                    THEN m.response_json->'trace'->'stages' ELSE '[]'::jsonb END
-             ) stage
-             WHERE stage->>'status' = 'failed' AND stage->>'output' ~* 'UNRESOLVED_COLUMN'
-           ) THEN 'SQL_UNRESOLVED_COLUMN'
-           WHEN EXISTS (
-             SELECT 1 FROM jsonb_array_elements(
-               CASE WHEN jsonb_typeof(m.response_json->'trace'->'stages') = 'array'
-                    THEN m.response_json->'trace'->'stages' ELSE '[]'::jsonb END
-             ) stage
-             WHERE stage->>'status' = 'failed' AND stage->>'kind' = 'sql'
-           ) THEN 'SQL_TOOL_FAILURE'
-           WHEN jsonb_path_exists(
-             m.response_json->'trace',
-             '$.stages[*] ? (@.id == "synthesis" && @.status == "failed")'
-           ) THEN 'ANSWER_SYNTHESIS_FAILED'
-           ELSE 'UNKNOWN_STORED_ANSWER_FAILURE'
-         END AS cause,
          m.response_json->'trace' AS trace
   FROM ${APP_SCHEMA}.messages m
   WHERE m.role = 'assistant'
@@ -387,13 +297,18 @@ tools AS (
 SELECT 'population' AS kind, '' AS key, COUNT(*)::bigint AS count FROM answers
 UNION ALL
 SELECT 'outcome_covered', '', COUNT(*)::bigint FROM answers
-WHERE cause <> 'UNKNOWN_STORED_ANSWER_FAILURE'
 UNION ALL
 SELECT 'tool_covered', '', COUNT(*)::bigint FROM answers
 WHERE jsonb_typeof(trace->'stages') = 'array'
 UNION ALL
-SELECT 'failure', cause, COUNT(*)::bigint
-FROM answers WHERE answer_status = 'failed' GROUP BY cause
+SELECT 'run_outcome',
+       CASE
+         WHEN answer_status = 'failed' THEN 'failed'
+         WHEN answer_status = 'partial' THEN 'partial'
+         ELSE 'completed'
+       END,
+       COUNT(*)::bigint
+FROM answers GROUP BY 2
 UNION ALL
 SELECT 'tool', tool, SUM(calls)::bigint FROM tools GROUP BY tool
 ORDER BY 1, 3 DESC, 2`;
@@ -403,25 +318,29 @@ const rollupEnd = `(($1::date + 1)::timestamp AT TIME ZONE 'UTC')`;
 
 /** Preserve the same deduplicated outcomes/tools before any raw telemetry is pruned. */
 export const ROLLUP_TRAFFIC_DAY_QUERY = `WITH ${evidenceCtes(rollupStart, rollupEnd)},
-failure_counts AS (
-  SELECT cause, COUNT(*)::int AS count
+outcome_counts AS (
+  SELECT CASE
+           WHEN state IN ('COMPLETED', 'SUCCEEDED') THEN 'completed'
+           WHEN state = 'PARTIAL' THEN 'partial'
+           WHEN state = 'REFUSED' THEN 'refused'
+           WHEN state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED') THEN 'failed'
+           ELSE 'unclassified'
+         END AS outcome,
+         COUNT(*)::int AS count
   FROM population
-  WHERE state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED')
-  GROUP BY cause
-),
-refusal_counts AS (
-  SELECT cause, COUNT(*)::int AS count FROM population WHERE state = 'REFUSED' GROUP BY cause
+  GROUP BY 1
 ),
 tool_counts AS (
   SELECT tool, SUM(calls)::int AS count FROM deduped_tool_events GROUP BY tool
 )
 INSERT INTO ${TRAFFIC_DAILY_ROLLUP_TABLE}
-  (day, run_count, failure_causes, refusal_causes, tool_calls,
+  (day, run_count, failure_causes, refusal_causes, run_outcomes, tool_calls,
    outcome_covered_count, tool_covered_count, evidence_version, completed_at)
 SELECT $1::date,
        (SELECT COUNT(*)::int FROM population),
-       COALESCE((SELECT jsonb_object_agg(cause, count) FROM failure_counts), '{}'::jsonb),
-       COALESCE((SELECT jsonb_object_agg(cause, count) FROM refusal_counts), '{}'::jsonb),
+       '{}'::jsonb,
+       '{}'::jsonb,
+       COALESCE((SELECT jsonb_object_agg(outcome, count) FROM outcome_counts), '{}'::jsonb),
        COALESCE((SELECT jsonb_object_agg(tool, count) FROM tool_counts), '{}'::jsonb),
        (SELECT COUNT(*)::int FROM population
          WHERE cause NOT IN (
@@ -436,6 +355,7 @@ ON CONFLICT (day) DO UPDATE SET
   run_count = EXCLUDED.run_count,
   failure_causes = EXCLUDED.failure_causes,
   refusal_causes = EXCLUDED.refusal_causes,
+  run_outcomes = EXCLUDED.run_outcomes,
   tool_calls = EXCLUDED.tool_calls,
   outcome_covered_count = EXCLUDED.outcome_covered_count,
   tool_covered_count = EXCLUDED.tool_covered_count,
@@ -447,6 +367,14 @@ export interface TrafficBreakdownRead {
   failuresByCause: TrafficBar[];
   refusalsByCause: TrafficBar[];
   toolCalls: TrafficBar[];
+  runStatistics: {
+    total: number;
+    completed: number;
+    partial: number;
+    refused: number;
+    failed: number;
+    unclassified: number;
+  };
   outcomesCoverage: TrafficBreakdownCoverage;
   toolCallsCoverage: TrafficBreakdownCoverage;
 }
@@ -517,6 +445,7 @@ export function readTrafficBreakdowns(
   const failures = new Map<string, number>();
   const refusals = new Map<string, number>();
   const tools = new Map<string, number>();
+  const outcomes = new Map<string, number>();
   let population: number | null = null;
   let outcomeCovered: number | null = null;
   let toolCovered: number | null = null;
@@ -541,7 +470,16 @@ export function readTrafficBreakdowns(
       toolCovered = parsed;
       continue;
     }
-    const target = kind === 'failure' ? failures : kind === 'refusal' ? refusals : kind === 'tool' ? tools : null;
+    const target =
+      kind === 'failure'
+        ? failures
+        : kind === 'refusal'
+          ? refusals
+          : kind === 'run_outcome'
+            ? outcomes
+            : kind === 'tool'
+              ? tools
+              : null;
     if (!target) {
       malformed = true;
       continue;
@@ -581,6 +519,14 @@ export function readTrafficBreakdowns(
     failuresByCause: sortedBars(failures, 'failure'),
     refusalsByCause: sortedBars(refusals, 'refusal'),
     toolCalls: sortedBars(tools, 'tool'),
+    runStatistics: {
+      total: population ?? 0,
+      completed: outcomes.get('completed') ?? 0,
+      partial: outcomes.get('partial') ?? 0,
+      refused: outcomes.get('refused') ?? 0,
+      failed: outcomes.get('failed') ?? 0,
+      unclassified: outcomes.get('unclassified') ?? 0,
+    },
     outcomesCoverage: coverageFor(outcomeCovered, 'specific outcome'),
     toolCallsCoverage: coverageFor(toolCovered, 'named stage'),
   };

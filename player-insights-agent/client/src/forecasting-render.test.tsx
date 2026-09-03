@@ -197,7 +197,7 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).not.toContain('Assumption baselines');
     expect(markup).not.toContain('complete days');
     expect(markup).toContain('Observed baseline');
-    expect(markup).toContain('2026-08-08–2026-08-14 (selected Cost period)');
+    expect(markup).toContain('2026-08-08–2026-08-14 (current calendar month)');
     expect(markup).not.toContain('ops-period-pill');
     expect(markup).toContain('How totals are calculated');
     expect(markup).toContain('Daily questions × observed serving cost per question');
@@ -370,7 +370,7 @@ describe('Forecasting visibility and placement', () => {
     trafficPayload.activeMinutesRecordedFrom = '2026-08-12T00:00:00Z';
     const markup = renderToStaticMarkup(
       <MemoryRouter>
-        <ForecastingBody cost={block(payload)} traffic={block(trafficPayload)} periodLabel="30 days" />
+        <ForecastingBody cost={block(payload)} traffic={block(trafficPayload)} />
       </MemoryRouter>
     );
     expect(markup).toContain('Next 30 days');
@@ -407,7 +407,7 @@ describe('Forecasting visibility and placement', () => {
 describe('Cost after retiring its experiment', () => {
   it('always mounts the cost read with no feature gate', () => {
     const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
-    expect(source).toContain("useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params))");
+    expect(source).toContain("useOpsBlock<OpsCostPayload>('/api/ops/cost', '', monthKey)");
     expect(source).not.toContain('showsCostEstimates');
     expect(source).not.toContain('costEstimatesShown');
   });

@@ -1,0 +1,66 @@
+/* Compact Connections groups, resources, pickers, identity, and build cards. */
+html[data-density='compact'] .connections-page,
+html[data-density='compact'] .connection-group,
+html[data-density='compact'] .connection-row-detail,
+html[data-density='compact'] .connection-block-body,
+html[data-density='compact'] .plane-card-body,
+html[data-density='compact'] .asset-picker {
+  gap: var(--density-section-gap);
+}
+
+html[data-density='compact'] .connection-rows,
+html[data-density='compact'] .connection-details,
+html[data-density='compact'] .connection-pair,
+html[data-density='compact'] .connections-table-toolbar,
+html[data-density='compact'] .deployment-cards,
+html[data-density='compact'] .deployment-grid,
+html[data-density='compact'] .identity-section-grid,
+html[data-density='compact'] .plane-rows,
+html[data-density='compact'] .asset-picker-rows {
+  gap: var(--density-card-gap);
+}
+
+html[data-density='compact'] .connection-row-summary,
+html[data-density='compact'] .connection-block-summary,
+html[data-density='compact'] .plane-row,
+html[data-density='compact'] .declared-connection-summary,
+html[data-density='compact'] .asset-picker-row {
+  min-height: var(--density-row-height);
+  padding: var(--density-row-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .connection-group-title,
+html[data-density='compact'] .connection-row-detail,
+html[data-density='compact'] .connection-block-body,
+html[data-density='compact'] .deployment-card-head,
+html[data-density='compact'] .deployment-card-body,
+html[data-density='compact'] .plane-card-head,
+html[data-density='compact'] .plane-card-body,
+html[data-density='compact'] .asset-picker-head {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .connections-table th,
+html[data-density='compact'] .connections-table td,
+html[data-density='compact'] .connections-table [data-slot='table-head'],
+html[data-density='compact'] .connections-table [data-slot='table-cell'] {
+  padding: var(--density-table-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .identity-fact,
+html[data-density='compact'] .connection-tile {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .plane-button {
+  min-height: var(--density-control-height);
+}
+
+@media (max-width: 800px) {
+  html[data-density='compact'] .connection-row-summary,
+  html[data-density='compact'] .connection-block-summary,
+  html[data-density='compact'] .plane-row,
+  html[data-density='compact'] .asset-picker-row {
+    min-height: var(--density-row-height);
+  }
+}

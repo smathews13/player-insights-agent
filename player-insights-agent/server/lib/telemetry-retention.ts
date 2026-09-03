@@ -106,6 +106,11 @@ export const TRAFFIC_EVIDENCE_V2_MIGRATION_DDL: readonly string[] = [
      ADD COLUMN IF NOT EXISTS tool_covered_count INTEGER NOT NULL DEFAULT 0,
      ADD COLUMN IF NOT EXISTS evidence_version INTEGER NOT NULL DEFAULT 1`,
 ];
+/** Outcome totals replace cause charts; old rows are replayed at evidence version 3. */
+export const TRAFFIC_EVIDENCE_V3_MIGRATION_DDL: readonly string[] = [
+  `ALTER TABLE ${TRAFFIC_DAILY_ROLLUP_TABLE}
+     ADD COLUMN IF NOT EXISTS run_outcomes JSONB NOT NULL DEFAULT '{}'::jsonb`,
+];
 
 /** Stable two-key PostgreSQL advisory lock namespace for telemetry retention. */
 export const TELEMETRY_ADVISORY_LOCK_KEYS = [0x504941, 0x54454c] as const;

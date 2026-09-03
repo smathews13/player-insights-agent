@@ -1,0 +1,31 @@
+/* Compact Run Explorer rail, header, KPIs, tabs, and result workspace. */
+html[data-density='compact'] .run-explorer,
+html[data-density='compact'] .run-detail,
+html[data-density='compact'] .run-detail-content {
+  gap: var(--density-section-gap);
+}
+
+html[data-density='compact'] .run-list-filters,
+html[data-density='compact'] .run-detail-head,
+html[data-density='compact'] .run-detail-ident,
+html[data-density='compact'] .run-detail-tabs {
+  gap: var(--density-card-gap);
+}
+
+html[data-density='compact'] .run-detail [data-slot='tabs-trigger'] {
+  min-height: var(--density-control-height);
+  padding-inline: var(--density-inline-padding);
+}
+
+html[data-density='compact'] .run-filter-menu [data-slot='select-item'] {
+  min-height: var(--density-row-height);
+  padding-block: var(--density-row-padding-block);
+}
+
+html[data-density='compact'] .summary-grid {
+  gap: var(--density-card-gap);
+}
+
+html[data-density='compact'] .summary-grid [data-slot='card-content'] {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
+}

@@ -30,7 +30,7 @@ import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { BrandIcon } from './BrandIcon';
 import { parseAnswerMarkdown, type Block, type Inline } from './answer-markdown';
-import { EntityText, TableEntityList } from './DataEntityLinks';
+import { EntityParts, EntityText, TableEntityList } from './DataEntityLinks';
 import {
   chipRuns,
   fieldDefinition,
@@ -45,6 +45,7 @@ import {
   type ResultTable,
   type SemanticEntry,
   type SemanticResult,
+  type SchemaResult,
   type StructuredTableResult,
 } from './step-results';
 
@@ -271,6 +272,43 @@ export function StructuredTableResultView({ result }: { result: StructuredTableR
   );
 }
 
+/** The canonical describe-table payload as one object, its comment, and ordered columns. */
+export function SchemaResultView({ result }: { result: SchemaResult }) {
+  return (
+    <section className="dag-schema-result" aria-label={`Schema for ${result.table}`}>
+      <header className="dag-schema-object">
+        <EntityParts text={result.table} entity={result.table} />
+      </header>
+      {result.comment ? (
+        <div className="dag-schema-comment">
+          <strong>Table comment</strong>
+          <p>{result.comment}</p>
+        </div>
+      ) : null}
+      <table className="dag-schema-columns">
+        <thead>
+          <tr>
+            <th scope="col">Column</th>
+            <th scope="col">Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {result.columns.map((column) => (
+            <tr key={column.name}>
+              <td data-label="Column">
+                <code className="dag-schema-column-token">{column.name}</code>
+              </td>
+              <td data-label="Type">
+                <code className="dag-schema-type">{column.type}</code>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
 /**
  * A Genie result set as a grid, one column wide or twelve.
  *
@@ -454,7 +492,7 @@ function SemanticRow({ entry, open }: { entry: SemanticEntry; open: boolean }) {
               {shown.map((column) => (
                 <span className="dag-col-chip" key={column.name}>
                   <strong className="dag-col-name">
-                    <code>{column.name}</code>
+                    <code className="dag-schema-column-token">{column.name}</code>
                   </strong>
                   {column.type && <span className="dag-col-type">{column.type}</span>}
                 </span>

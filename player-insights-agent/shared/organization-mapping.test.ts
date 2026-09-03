@@ -18,6 +18,7 @@ describe('organization mapping', () => {
     expect(
       organizationForEmail('person@labs.databricks.com', [
         { domain: 'databricks.com', name: 'Configured initials', monogram: 'XX' },
+        { domain: 'labs.databricks.com', name: 'Configured subdomain', monogram: 'YY' },
       ])
     ).toEqual({
       domain: 'databricks.com',
@@ -43,5 +44,19 @@ describe('organization mapping', () => {
   it('fails closed on malformed configuration', () => {
     expect(parseOrganizationMappings('{"domain":"example.org"}')).toEqual([]);
     expect(parseOrganizationMappings('not json')).toEqual([]);
+    expect(
+      parseOrganizationMappings(
+        JSON.stringify([{ domain: 'northwindgames.com', name: 'Northwind Games', monogram: 'R*', token: 'secret' }])
+      )
+    ).toEqual([]);
+    expect(
+      organizationForEmail('person@northwindgames.com', [
+        { domain: undefined, name: 'Malformed', monogram: 'M' },
+      ] as never)
+    ).toEqual({
+      domain: 'northwindgames.com',
+      name: 'northwindgames.com',
+      monogram: '•',
+    });
   });
 });

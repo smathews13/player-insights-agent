@@ -22,8 +22,12 @@ function storedRow(overrides: Record<string, unknown> = {}) {
     total_tokens: '250',
     token_covered_runs: '3',
     token_covered_questions: '2',
-    covered_days: '7',
-    app_covered_days: '7',
+    spend_usd_covered_days: '7',
+    spend_dbu_covered_days: '7',
+    spend_usd_covered_hours: '24',
+    spend_dbu_covered_hours: '24',
+    app_usd_covered_days: '7',
+    app_dbu_covered_days: '7',
     spend_usd: '12.5',
     spend_dbu: '6.25',
     spend_usd_quality: 'allocated',
@@ -233,6 +237,42 @@ describe('User Monitoring read-model routes', () => {
         ],
       })
     );
+  });
+
+  it('keeps best-known spend and derives core KPIs when one source is incomplete', async () => {
+    const { handlers } = routes([
+      storedRow({
+        submitted_questions: '25',
+        spend_usd: '9.55',
+        spend_usd_quality: 'partial',
+        billing_complete: false,
+        spend_usd_covered_days: '7',
+      }),
+    ]);
+    const res = response();
+    await handlers.get('/api/monitoring/user-spend/:email')!(
+      {
+        params: { email: 'person@example.test' },
+        query: { from: '2026-08-25', to: '2026-08-31', unit: 'USD' },
+        headers: { 'x-forwarded-email': 'admin@example.test' },
+        header: (name: string) => (name.toLowerCase() === 'x-forwarded-email' ? 'admin@example.test' : undefined),
+      } as unknown as Request,
+      res
+    );
+    const payload = res.json.mock.calls[0]?.[0] as {
+      users: Array<{
+        total: { usd: { amount: number; quality: string } };
+        metrics: {
+          costPerQuestion: { value: number; estimated?: boolean };
+          averageDaily: { value: number; estimated?: boolean };
+          weekOverWeek: { value: number | null; state: string; estimated?: boolean };
+        };
+      }>;
+    };
+    expect(payload.users[0]?.total.usd).toEqual({ amount: 9.55, quality: 'partial' });
+    expect(payload.users[0]?.metrics.costPerQuestion).toMatchObject({ value: 9.55 / 25, estimated: true });
+    expect(payload.users[0]?.metrics.averageDaily).toMatchObject({ value: 9.55 / 7, estimated: true });
+    expect(payload.users[0]?.metrics.weekOverWeek).toMatchObject({ value: 0, state: 'value', estimated: true });
   });
 
   it('rejects a malformed cross-user detail key before touching Lakebase', async () => {

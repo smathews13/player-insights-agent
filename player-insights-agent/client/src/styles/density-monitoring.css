@@ -1,0 +1,58 @@
+/* Compact Monitoring and User Monitoring consume the shared density tokens. */
+html[data-density='compact'] .monitoring-page,
+html[data-density='compact'] .monitoring-card-list,
+html[data-density='compact'] .monitoring-drawer-section,
+html[data-density='compact'] .user-profile-modal-body,
+html[data-density='compact'] .monitoring-users-body {
+  gap: var(--density-section-gap);
+}
+
+html[data-density='compact'] .monitoring-heading-actions,
+html[data-density='compact'] .monitoring-filters,
+html[data-density='compact'] .monitoring-filter-actions,
+html[data-density='compact'] .monitoring-strip,
+html[data-density='compact'] .monitoring-outcome-grid,
+html[data-density='compact'] .user-profile-modal-spend-kpis,
+html[data-density='compact'] .user-profile-modal-kpi-grid,
+html[data-density='compact'] .monitoring-users-toolbar {
+  gap: var(--density-card-gap);
+}
+
+html[data-density='compact'] .monitoring-tile,
+html[data-density='compact'] .monitoring-question-card,
+html[data-density='compact'] .user-profile-modal-spend-kpi,
+html[data-density='compact'] .user-profile-modal-kpi {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .monitoring-table th,
+html[data-density='compact'] .monitoring-row td,
+html[data-density='compact'] .user-profile-modal-question-table th,
+html[data-density='compact'] .user-profile-modal-question-table td {
+  padding: var(--density-table-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .monitoring-user-row,
+html[data-density='compact'] .user-profile-modal-table-list > li,
+html[data-density='compact'] .user-profile-modal-grant-row {
+  min-height: var(--density-row-height);
+  padding: var(--density-row-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] .user-profile-modal-header,
+html[data-density='compact'] .monitoring-users-header,
+html[data-density='compact'] .user-profile-modal-body,
+html[data-density='compact'] .monitoring-users-body {
+  padding: var(--density-modal-padding);
+}
+
+html[data-density='compact'] .monitoring-chip-menu [data-slot='select-item'] {
+  min-height: var(--density-row-height);
+  padding-block: var(--density-row-padding-block);
+}
+
+@media (max-width: 800px) {
+  html[data-density='compact'] .monitoring-user-row {
+    min-height: var(--density-row-height);
+  }
+}

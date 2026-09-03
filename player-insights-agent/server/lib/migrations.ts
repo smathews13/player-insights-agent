@@ -10,6 +10,7 @@ import {
   TELEMETRY_ROLLUP_DAYS_TABLE,
   TELEMETRY_ROLLUP_MIGRATION_DDL,
   TRAFFIC_EVIDENCE_V2_MIGRATION_DDL,
+  TRAFFIC_EVIDENCE_V3_MIGRATION_DDL,
   TRAFFIC_ROLLUP_MIGRATION_DDL,
 } from './telemetry-retention';
 import { TRAFFIC_DAILY_ROLLUP_TABLE } from './ops-traffic';
@@ -919,6 +920,12 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
       `ALTER TABLE ${USER_SPEND_DAILY_TABLE} DROP COLUMN IF EXISTS token_covered_questions`,
       `ALTER TABLE ${USER_SPEND_DAILY_TABLE} DROP COLUMN IF EXISTS token_covered_runs`,
     ],
+  },
+  {
+    version: 35,
+    name: 'traffic run outcome totals',
+    statements: TRAFFIC_EVIDENCE_V3_MIGRATION_DDL,
+    down: [`ALTER TABLE ${TRAFFIC_DAILY_ROLLUP_TABLE} DROP COLUMN IF EXISTS run_outcomes`],
   },
 ];
 

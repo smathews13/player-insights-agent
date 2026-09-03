@@ -95,7 +95,7 @@ describe('dark mode covers the shipped surfaces', () => {
       /className=\{selected \? 'arch-node arch-node-selected' : 'arch-node'\}/
     );
     expect(source('MonitoringPage.tsx')).toContain('contentClassName="user-profile-modal"');
-    expect(source('AccountMenu.tsx')).toContain('className="account-menu"');
+    expect(source('AccountMenuPanel.tsx')).toContain('className="account-menu"');
     expect(source('App.tsx')).toContain('useRuntimeEntityStyles();');
     expect(source('AppSky.tsx')).toContain('<StarField');
     expect(source('StarField.tsx')).toContain('<circle');

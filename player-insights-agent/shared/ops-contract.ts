@@ -470,6 +470,8 @@ export interface QuestionCostAttribution {
 }
 
 export interface OpsCostPayload {
+  /** Retrospective Ops reads are locked to the current budget calendar month. */
+  period?: 'current_month';
   state: CostState;
   /** Present only when `state` is 'no-grant'. */
   grant: GrantRemedy | null;
@@ -759,6 +761,8 @@ export interface TrafficBreakdownCoverage {
 }
 
 export interface OpsTrafficPayload {
+  /** Retrospective Ops reads are locked to the current budget calendar month. */
+  period?: 'current_month';
   readAt: string;
   /** '' or the storage-failure sentence, which replaces the block. */
   reason: string;
@@ -810,6 +814,20 @@ export interface OpsTrafficPayload {
   failuresByCause: TrafficBar[];
   refusalsByCause: TrafficBar[];
   toolCalls: TrafficBar[];
+  questionStatistics?: {
+    asked: number;
+    answered: number;
+    helpful: number;
+    notHelpful: number;
+  };
+  runStatistics?: {
+    total: number;
+    completed: number;
+    partial: number;
+    refused: number;
+    failed: number;
+    unclassified: number;
+  };
   /** Runs that ended in the range, whatever they ended as. */
   runsInRange: number;
   /**
@@ -898,6 +916,8 @@ export interface RouteLatency {
 export type LatencyState = 'ready' | 'no-rows' | 'no-grant' | 'unreadable' | 'no-warehouse' | 'not-enabled';
 
 export interface OpsLatencyPayload {
+  /** Retrospective Ops reads are locked to the current budget calendar month. */
+  period?: 'current_month';
   readAt: string;
   state: LatencyState;
   /** Why there are no figures. '' exactly when `state` is 'ready'. */
@@ -937,6 +957,19 @@ export interface OpsDayRange {
 }
 
 const DAY_MS = 86_400_000;
+
+/** The UTC calendar month used by monthly budgets and every retrospective Ops read. */
+export function opsCurrentMonthRange(now: number = Date.now()): OpsDayRange {
+  const today = new Date(now).toISOString().slice(0, 10);
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const lastComplete = new Date(now - DAY_MS).toISOString().slice(0, 10);
+  return { from: monthStart, to: lastComplete < monthStart ? monthStart : lastComplete };
+}
+
+/** Session/cache identity rolls naturally when the authoritative month changes. */
+export function opsCurrentMonthKey(now: number = Date.now()): string {
+  return `current-month:${new Date(now).toISOString().slice(0, 7)}`;
+}
 
 /**
  * The whole-day window a pair of timestamps means to Ops.

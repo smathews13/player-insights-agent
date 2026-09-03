@@ -247,15 +247,17 @@ ON CONFLICT (app_scope, user_key, activity_date, calculation_version) DO UPDATE 
   total_tokens = EXCLUDED.total_tokens,
   token_covered_runs = EXCLUDED.token_covered_runs,
   token_covered_questions = EXCLUDED.token_covered_questions,
-  spend_usd = EXCLUDED.spend_usd,
-  spend_dbu = EXCLUDED.spend_dbu,
-  app_spend_usd = EXCLUDED.app_spend_usd,
-  app_spend_dbu = EXCLUDED.app_spend_dbu,
-  spend_usd_quality = EXCLUDED.spend_usd_quality,
-  spend_dbu_quality = EXCLUDED.spend_dbu_quality,
-  components = EXCLUDED.components,
+  spend_usd = COALESCE(EXCLUDED.spend_usd, ${USER_SPEND_DAILY_TABLE}.spend_usd),
+  spend_dbu = COALESCE(EXCLUDED.spend_dbu, ${USER_SPEND_DAILY_TABLE}.spend_dbu),
+  app_spend_usd = COALESCE(EXCLUDED.app_spend_usd, ${USER_SPEND_DAILY_TABLE}.app_spend_usd),
+  app_spend_dbu = COALESCE(EXCLUDED.app_spend_dbu, ${USER_SPEND_DAILY_TABLE}.app_spend_dbu),
+  spend_usd_quality = CASE WHEN EXCLUDED.spend_usd IS NULL
+    THEN ${USER_SPEND_DAILY_TABLE}.spend_usd_quality ELSE EXCLUDED.spend_usd_quality END,
+  spend_dbu_quality = CASE WHEN EXCLUDED.spend_dbu IS NULL
+    THEN ${USER_SPEND_DAILY_TABLE}.spend_dbu_quality ELSE EXCLUDED.spend_dbu_quality END,
+  components = ${USER_SPEND_DAILY_TABLE}.components || EXCLUDED.components,
   activity_complete = EXCLUDED.activity_complete,
-  billing_complete = EXCLUDED.billing_complete,
+  billing_complete = EXCLUDED.billing_complete OR ${USER_SPEND_DAILY_TABLE}.billing_complete,
   source_through = EXCLUDED.source_through,
   computed_at = EXCLUDED.computed_at,
   updated_at = NOW()`;
@@ -369,12 +371,14 @@ export function runUserSpendReadModelRefresh(
             row.activityDate <= to
         );
         await transaction(connection, async () => {
-          await connection.query(
-            `DELETE FROM ${USER_SPEND_DAILY_TABLE}
-             WHERE app_scope = $1 AND calculation_version = $2
-               AND activity_date BETWEEN $3::date AND $4::date`,
-            [appScope, version, from, to]
-          );
+          if (batch.billingCompleteThrough && batch.billingCompleteThrough >= to) {
+            await connection.query(
+              `DELETE FROM ${USER_SPEND_DAILY_TABLE}
+               WHERE app_scope = $1 AND calculation_version = $2
+                 AND activity_date BETWEEN $3::date AND $4::date`,
+              [appScope, version, from, to]
+            );
+          }
           for (const row of validRows) {
             const userKey = row.userKey.trim().toLowerCase();
             await connection.query(UPSERT_USER_SPEND_DAY_QUERY, [
@@ -506,22 +510,23 @@ aggregated AS (
          SUM(token_covered_questions)::bigint AS token_covered_questions,
          MAX(source_through) AS source_through,
          MAX(computed_at) AS computed_at,
-         COUNT(*) FILTER (WHERE billing_complete)::int AS covered_days,
+         COUNT(spend_usd)::int AS spend_usd_covered_days,
+         COUNT(spend_dbu)::int AS spend_dbu_covered_days,
          BOOL_AND(activity_complete) AS activity_complete,
          BOOL_AND(billing_complete) AS billing_complete,
-         CASE WHEN BOOL_AND(billing_complete) AND COUNT(spend_usd) = COUNT(*)
-              THEN SUM(spend_usd) ELSE NULL END AS spend_usd,
-         CASE WHEN BOOL_AND(billing_complete) AND COUNT(spend_dbu) = COUNT(*)
-              THEN SUM(spend_dbu) ELSE NULL END AS spend_dbu,
+         SUM(spend_usd) AS spend_usd,
+         SUM(spend_dbu) AS spend_dbu,
          CASE
-           WHEN NOT BOOL_AND(billing_complete) OR COUNT(spend_usd) <> COUNT(*) THEN 'unavailable'
+           WHEN COUNT(spend_usd) = 0 THEN 'unavailable'
+           WHEN NOT BOOL_AND(billing_complete) OR COUNT(spend_usd) <> COUNT(*) THEN 'partial'
            WHEN BOOL_OR(spend_usd_quality = 'partial') THEN 'partial'
            WHEN BOOL_OR(spend_usd_quality = 'allocated') THEN 'allocated'
            WHEN BOOL_OR(spend_usd_quality = 'joined') THEN 'joined'
            ELSE MIN(spend_usd_quality)
          END AS spend_usd_quality,
          CASE
-           WHEN NOT BOOL_AND(billing_complete) OR COUNT(spend_dbu) <> COUNT(*) THEN 'unavailable'
+           WHEN COUNT(spend_dbu) = 0 THEN 'unavailable'
+           WHEN NOT BOOL_AND(billing_complete) OR COUNT(spend_dbu) <> COUNT(*) THEN 'partial'
            WHEN BOOL_OR(spend_dbu_quality = 'partial') THEN 'partial'
            WHEN BOOL_OR(spend_dbu_quality = 'allocated') THEN 'allocated'
            WHEN BOOL_OR(spend_dbu_quality = 'joined') THEN 'joined'
@@ -539,11 +544,10 @@ daily_app AS (
   GROUP BY activity_date
 ),
 app_totals AS (
-  SELECT CASE WHEN BOOL_AND(billing_complete) AND COUNT(app_spend_usd) = COUNT(*)
-              THEN SUM(app_spend_usd) ELSE NULL END AS app_spend_usd,
-         CASE WHEN BOOL_AND(billing_complete) AND COUNT(app_spend_dbu) = COUNT(*)
-              THEN SUM(app_spend_dbu) ELSE NULL END AS app_spend_dbu,
-         COUNT(*) FILTER (WHERE billing_complete)::int AS app_covered_days
+  SELECT SUM(app_spend_usd) AS app_spend_usd,
+         SUM(app_spend_dbu) AS app_spend_dbu,
+         COUNT(app_spend_usd)::int AS app_usd_covered_days,
+         COUNT(app_spend_dbu)::int AS app_dbu_covered_days
   FROM daily_app
 ),
 identity_population AS (
@@ -580,7 +584,8 @@ filtered AS (
          COALESCE(aggregated.active_minutes, 0) AS active_minutes,
          aggregated.total_tokens, aggregated.token_covered_runs, aggregated.token_covered_questions,
          aggregated.source_through, aggregated.computed_at,
-         COALESCE(aggregated.covered_days, 0) AS covered_days,
+         COALESCE(aggregated.spend_usd_covered_days, 0) AS spend_usd_covered_days,
+         COALESCE(aggregated.spend_dbu_covered_days, 0) AS spend_dbu_covered_days,
          COALESCE(aggregated.activity_complete, FALSE) AS activity_complete,
          COALESCE(aggregated.billing_complete, FALSE) AS billing_complete,
          aggregated.spend_usd, aggregated.spend_dbu,
@@ -625,6 +630,8 @@ export interface UserSpendSummaryRow {
   tokenCoveredRuns: number | null;
   tokenCoveredQuestions: number | null;
   coveredDays: number;
+  spendUsdCoveredDays: number;
+  spendDbuCoveredDays: number;
   spendUsd: number | null;
   spendDbu: number | null;
   spendUsdQuality: UserSpendQuality;
@@ -759,10 +766,6 @@ export async function readUserSpendReadModelPage(
   const computedAt = stamp(metadata?.refresh_completed_at) ?? stamp(metadata?.computed_at);
   const sourceThrough = stamp(metadata?.refresh_source_through) ?? stamp(metadata?.source_through);
   const billingCompleteThrough = day(metadata?.billing_complete_through) || null;
-  const coveredThrough =
-    billingCompleteThrough && billingCompleteThrough < input.range.to ? billingCompleteThrough : input.range.to;
-  const coveredDays =
-    billingCompleteThrough && coveredThrough >= input.range.from ? daysBetween(input.range.from, coveredThrough) : 0;
   const staleMs = Math.max(60_000, input.staleMs ?? USER_SPEND_STALE_MS);
   const now = input.now ?? Date.now();
   return {
@@ -776,7 +779,9 @@ export async function readUserSpendReadModelPage(
       totalTokens: nullableNumber(row.total_tokens),
       tokenCoveredRuns: nullableNumber(row.token_covered_runs),
       tokenCoveredQuestions: nullableNumber(row.token_covered_questions),
-      coveredDays,
+      coveredDays: Math.max(integer(row.spend_usd_covered_days), integer(row.spend_dbu_covered_days)),
+      spendUsdCoveredDays: integer(row.spend_usd_covered_days),
+      spendDbuCoveredDays: integer(row.spend_dbu_covered_days),
       spendUsd: nullableNumber(row.spend_usd),
       spendDbu: nullableNumber(row.spend_dbu),
       spendUsdQuality: quality(row.spend_usd_quality),

@@ -129,6 +129,60 @@ export interface StructuredTableResult {
   tableCount: number;
 }
 
+export interface SchemaColumn {
+  name: string;
+  type: string;
+}
+
+export interface SchemaResult {
+  table: string;
+  comment: string | null;
+  columns: SchemaColumn[];
+}
+
+const SCHEMA_TABLE = /^(?:[A-Za-z_][A-Za-z0-9_]*\.){2}[A-Za-z_][A-Za-z0-9_]*$/;
+const SCHEMA_COLUMN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const SCHEMA_TYPE =
+  /^(?:(?:string|boolean|byte|tinyint|short|smallint|int|integer|long|bigint|float|double|date|timestamp|timestamp_ntz|binary|void|variant)|decimal(?:\(\d+\s*,\s*\d+\))?|(?:char|varchar)\(\d+\)|(?:array|map|struct)<.+>|interval\s+.+)(?:\s+not\s+null)?$/i;
+const TABLE_COMMENT = /^Table comment:\s*/i;
+
+/**
+ * Parse the canonical `describe_table` projection without guessing at prose.
+ *
+ * The safety boundary is deliberately narrow: the first non-empty line must be
+ * one complete three-part identifier and every later line must be either the
+ * optional comment or a valid `column_name: type` pair. Any leftover line makes
+ * the whole parse fail so Rendered falls back without dropping text.
+ */
+export function schemaResult(text: string): SchemaResult | null {
+  const lines = text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const table = lines[0]?.replaceAll('`', '') ?? '';
+  if (!SCHEMA_TABLE.test(table)) return null;
+
+  let index = 1;
+  let comment: string | null = null;
+  if (TABLE_COMMENT.test(lines[index] ?? '')) {
+    comment = (lines[index] ?? '').replace(TABLE_COMMENT, '').trim();
+    if (!comment) return null;
+    index += 1;
+  }
+
+  const columns: SchemaColumn[] = [];
+  for (const line of lines.slice(index)) {
+    const colon = line.indexOf(':');
+    if (colon <= 0) return null;
+    const name = line.slice(0, colon).trim();
+    const type = line.slice(colon + 1).trim();
+    if (!SCHEMA_COLUMN.test(name) || !SCHEMA_TYPE.test(type)) return null;
+    columns.push({ name, type });
+  }
+  return columns.length > 0 ? { table, comment, columns } : null;
+}
+
 const DECLARED_TABLE_CAPTION =
   'This is the declared set in one listing. A missing franchise tag means untagged, not that the table cannot answer.';
 const DECLARED_TABLE_HELP = 'Call describe_table for columns, types, and comments.';

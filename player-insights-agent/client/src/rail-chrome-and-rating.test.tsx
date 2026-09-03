@@ -118,7 +118,7 @@ describe('the release badge and the two controls beside it', () => {
     // Stated in the rule as well as in the markup's utility class, so the size
     // cannot quietly change to a third value with the class still in place.
     expect(rule(SHELL, '.deployment-time-chip > svg')).toMatch(/width:\s*14px/);
-    expect(rule(ACCOUNT, '.account-menu-trigger > svg')).toMatch(/width:\s*14px/);
+    expect(rule(ACCOUNT, '.account-menu-trigger > .roster-organization-mark')).toMatch(/width:\s*14px/);
     const markup = renderToStaticMarkup(<DeploymentTimeChip deployedAt="2026-08-20T16:51:23.456Z" />);
     expect(markup).toContain('size-3.5');
     expect(markup).not.toMatch(/class="[^"]*size-3"/);

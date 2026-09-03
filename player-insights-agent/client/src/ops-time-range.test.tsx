@@ -1,25 +1,25 @@
-import { renderToStaticMarkup } from 'react-dom/server';
-import { MemoryRouter } from 'react-router';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { opsCurrentMonthKey, opsCurrentMonthRange } from '../../shared/ops-contract';
 
-import { TimeRangeControl } from './TimeRangeControl';
+describe('the retired Ops timeframe control', () => {
+  it('is absent and legacy range parameters are canonicalized away', () => {
+    const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
+    expect(source).not.toContain('TimeRangeControl');
+    expect(source).not.toContain('rangeWindow(');
+    expect(source).toContain("canonical.delete('range')");
+    expect(source).toContain("canonical.delete('from')");
+    expect(source).toContain("canonical.delete('to')");
+  });
 
-describe('the Ops timeframe control', () => {
-  it('shows only supported presets for a retired custom URL', () => {
-    const markup = renderToStaticMarkup(
-      <MemoryRouter initialEntries={['/ops?range=custom&from=2026-03-02&to=2026-03-06']}>
-        <TimeRangeControl page="Ops cost" />
-      </MemoryRouter>
-    );
-
-    expect(markup).toContain('aria-label="Time range for Ops cost"');
-    for (const label of ['24h', '7 days', '30 days', 'All time']) {
-      expect(markup).toContain(`>${label}<`);
-    }
-    expect(markup.match(/role="radio"/g)).toHaveLength(4);
-    expect(markup).toMatch(/aria-checked="true"[^>]*>7 days<\/button>/);
-    expect(markup).not.toContain('>Custom<');
-    expect(markup).not.toContain('type="date"');
-    expect(markup).not.toContain('Pick both dates');
+  it('starts on the first and rolls cache identity with the budget calendar month', () => {
+    const september = Date.parse('2026-09-02T12:00:00Z');
+    expect(opsCurrentMonthRange(september)).toEqual({ from: '2026-09-01', to: '2026-09-01' });
+    expect(opsCurrentMonthKey(september)).toBe('current-month:2026-09');
+    expect(opsCurrentMonthKey(Date.parse('2026-10-01T12:00:00Z'))).toBe('current-month:2026-10');
+    expect(opsCurrentMonthRange(Date.parse('2028-03-01T12:00:00Z'))).toEqual({
+      from: '2028-03-01',
+      to: '2028-03-01',
+    });
   });
 });

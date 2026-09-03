@@ -3,131 +3,206 @@
  * the cascade: a saved user choice must beat each surface's normal recipe.
  */
 :root {
+  --density-page-gap: 24px;
+  --density-section-gap: 16px;
   --density-card-gap: 12px;
-  --density-row-padding: 10px;
-  --density-table-padding: 8px;
-  --density-settings-gap: 16px;
+  --density-card-padding-block: 16px;
+  --density-inline-padding: 16px;
+  --density-row-height: 44px;
+  --density-row-padding-block: 10px;
+  --density-table-padding-block: 8px;
+  --density-control-height: 36px;
+  --density-modal-padding: 24px;
 }
 
 html[data-density='compact'] {
-  --density-card-gap: 8px;
-  --density-row-padding: 6px;
-  --density-table-padding: 5px;
-  --density-settings-gap: 10px;
+  --density-page-gap: 18px;
+  --density-section-gap: 12px;
+  --density-card-gap: 9px;
+  --density-card-padding-block: 12px;
+  --density-inline-padding: 12px;
+  --density-row-height: 36px;
+  --density-row-padding-block: 8px;
+  --density-table-padding-block: 6px;
+  --density-control-height: 32px;
+  --density-modal-padding: 18px;
 }
 
 html[data-background-graphics='off'] .app-sky {
   display: none !important;
 }
 
-.appearance-size,
-.appearance-density {
-  display: flex;
-  gap: 6px;
+/*
+ * Density is one root contract and one spacing vocabulary. Comfortable keeps
+ * every route's authored baseline. Compact changes whitespace and row rhythm,
+ * never the selected type scale, colors, motion, or decorative graphics.
+ */
+html[data-density='compact'] .page-shell {
+  gap: var(--density-page-gap);
+  padding-block: 44px 56px;
 }
 
-.appearance-size button,
-.appearance-density button {
-  min-width: 36px;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-  color: var(--foreground);
-  font: 500 var(--text-sm) var(--font-sans);
-  cursor: pointer;
+/* Shell chrome, primary navigation, account menu, and its portalled composer. */
+html[data-density='compact'] .app-nav-tab {
+  gap: 4px;
+  padding-inline: 9px;
 }
 
-.appearance-size button[aria-checked='true'],
-.appearance-density button[aria-checked='true'] {
-  border-color: var(--ast-primary-control-border);
-  background: var(--ast-seg-pressed);
-  color: var(--ast-seg-pressed-ink);
+html[data-density='compact'] .account-menu {
+  padding: 4px;
 }
 
-.appearance-display-rows {
-  display: grid;
+html[data-density='compact'] .account-menu-identity {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
 }
 
-.appearance-display-row {
-  min-width: 0;
-  min-height: 48px;
-  padding: 8px 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 16px;
+html[data-density='compact'] .account-menu-group {
+  padding: 6px 9px;
 }
 
-.appearance-display-row + .appearance-display-row {
-  border-top: 1px solid var(--border);
+html[data-density='compact'] .account-menu-group > button,
+html[data-density='compact'] .account-menu-group > a {
+  min-height: var(--density-row-height);
+  gap: var(--density-card-gap);
+  padding: var(--density-row-padding-block) var(--density-inline-padding);
 }
 
-.appearance-display-row > :first-child {
-  min-width: 0;
+html[data-density='compact'] :is(.account-composer-header, .account-composer-body, .account-composer-footer) {
+  padding-inline: var(--density-modal-padding);
 }
 
-.appearance-display-row .state-switch,
-.appearance-display-row .appearance-density {
-  flex: none;
+html[data-density='compact'] .account-composer-body {
+  padding-block: var(--density-modal-padding);
 }
 
-html[data-density='compact'] .settings-pane {
-  gap: var(--density-settings-gap);
+html[data-density='compact'] .account-composer-footer {
+  padding-block: var(--density-card-padding-block);
 }
 
-html[data-density='compact'] .runtime-section {
-  gap: 8px;
-  padding-bottom: 10px;
-}
-
-html[data-density='compact'] .settings-pane > .settings-row + .settings-row {
-  padding-top: 8px;
-}
-
-html[data-density='compact'] .appearance-display-row {
-  min-height: 40px;
-  padding-block: 5px;
-}
-
-html[data-density='compact'] .settings-data-table th,
-html[data-density='compact'] .settings-data-table td,
-html[data-density='compact'] .exp-feature-table th,
-html[data-density='compact'] .exp-feature-table td,
-html[data-density='compact'] .environment-list th,
-html[data-density='compact'] .environment-list td,
-html[data-density='compact'] .monitoring-row td,
-html[data-density='compact'] .trace-gantt td,
-html[data-density='compact'] .dag-result-table th,
-html[data-density='compact'] .dag-result-table td {
-  padding-block: var(--density-table-padding);
-}
-
+/* Ask: conversation rail, transcript, answer process, composer, and attachments. */
 html[data-density='compact'] .conversation-row,
 html[data-density='compact'] .run-item {
   gap: 4px;
-  padding: var(--density-row-padding);
+  padding: var(--density-row-padding-block) var(--density-inline-padding);
 }
 
 html[data-density='compact'] .conversation-row + .conversation-row {
   margin-top: 4px;
 }
 
-html[data-density='compact'] .connection-row-summary,
-html[data-density='compact'] .connection-block-summary {
-  min-height: 40px;
-  padding-block: var(--density-row-padding);
+html[data-density='compact'] :is(.conversation-filter-row, .conversation-owner-option) {
+  gap: var(--density-card-gap);
+  padding-block: var(--density-row-padding-block);
 }
 
-html[data-density='compact'] .summary-grid,
-html[data-density='compact'] .deployment-cards,
-html[data-density='compact'] .user-profile-modal-kpi-grid {
+html[data-density='compact'] .conversation-owner-option {
+  min-height: var(--density-row-height);
+}
+
+html[data-density='compact'] .conversation-main {
+  padding-top: 44px;
+}
+
+html[data-density='compact'] .composer {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact']
+  :is(
+    .attachment-list,
+    .composer-actions,
+    .answer-card-content,
+    .answer-main-row,
+    .answer-evidence-rows,
+    .run-process-body
+  ) {
   gap: var(--density-card-gap);
 }
 
-html[data-density='compact'] .summary-grid [data-slot='card-content'] {
-  padding: 10px 12px;
+html[data-density='compact'] .attachment-chip,
+html[data-density='compact'] .user-bubble {
+  padding-block: var(--density-row-padding-block);
+}
+
+html[data-density='compact']
+  :is(
+    .answer-card > [data-slot='card-header'],
+    .answer-card > [data-slot='card-content'],
+    .run-process-head,
+    .run-process-body
+  ) {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] :is(.answer-prose > * + *, .source-list, .answer-charts) {
+  margin-top: var(--density-card-gap);
+}
+
+/* Agent Map, Timeline, Details, and raw I/O also appear inside Ask answers. */
+html[data-density='compact'] :is(.trace-timeline, .trace-detail-content) {
+  gap: var(--density-section-gap);
+}
+
+html[data-density='compact'] :is(.trace-kpis, .trace-kind-kpis, .dag-detail-payloads, .trace-payload-actions) {
+  gap: var(--density-card-gap);
+}
+
+html[data-density='compact'] :is(.trace-dag.map .dag-node, .trace-kpi, .trace-payload--pane) {
+  padding: var(--density-card-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact']
+  :is(.trace-gantt tbody td, .trace-gantt thead th, .dag-result-table th, .dag-result-table td) {
+  padding: var(--density-table-padding-block) var(--density-inline-padding);
+}
+
+html[data-density='compact'] :is(.trace-detail-payloads, .trace-payload-fields) {
+  gap: var(--density-card-gap);
+}
+
+html[data-density='compact'] .app-select-content [data-slot='select-item'] {
+  min-height: var(--density-row-height);
+  padding-block: var(--density-row-padding-block);
+}
+
+/* Desktop controls never trade away a usable target to gain density. */
+html[data-density='compact']
+  :is(
+    .app-select-trigger,
+    .account-menu-trigger,
+    .account-composer-footer button,
+    .composer-actions [data-slot='button'],
+    .appearance-size button,
+    .appearance-density button
+  ) {
+  min-height: var(--density-control-height);
+}
+
+/*
+ * Compact mobile keeps desktop information density but restores touch targets.
+ * Route responsive sheets still own wrapping and stacking; this contract only
+ * supplies minimum hit areas and avoids a second nested scrolling model.
+ */
+@media (max-width: 800px) {
+  html[data-density='compact'] {
+    --density-row-height: 44px;
+    --density-control-height: 44px;
+  }
+
+  html[data-density='compact'] .page-shell {
+    padding-block: 40px 48px;
+  }
+
+  html[data-density='compact']
+    :is(
+      .app-nav-tab,
+      .account-menu-group > button,
+      .account-menu-group > a,
+      .conversation-owner-option,
+      .app-select-content [data-slot='select-item']
+    ) {
+    min-height: var(--density-row-height);
+  }
 }
 
 /*

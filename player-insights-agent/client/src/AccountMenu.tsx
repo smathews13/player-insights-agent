@@ -1,74 +1,14 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { LogOut, ShieldPlus, UserRound } from 'lucide-react';
+import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react';
 import type { Identity } from './app-types';
-import { BrandIcon } from './BrandIcon';
-import { DATABRICKS_SYMBOL } from './brand-icons';
+import { organizationForEmail } from '../../shared/organization-mapping';
+import { OrganizationAvatar } from './OrganizationAvatar';
 import { signOutAndEndAppSession } from './app-session';
-import { accountSlackHref } from './account-slack-links';
-import { RoleBadgePill } from './RoleBadge';
 import type { RoleState } from './role';
 import { identityName } from './user-identity';
 
-function DatabricksSymbol({ className }: { className?: string }) {
-  return <span className={className} aria-hidden="true" dangerouslySetInnerHTML={{ __html: DATABRICKS_SYMBOL }} />;
-}
-
-export function AccountMenuPanel({
-  identity,
-  role,
-  onSignOut,
-}: {
-  identity: Identity;
-  role: RoleState;
-  onSignOut: () => void;
-}) {
-  const name = identityName(identity.signedInAs);
-  return (
-    <div className="account-menu" aria-label="Account controls">
-      <div className="account-menu-identity">
-        {/*
-          THE SAME THREE THINGS THE TRIGGER CARRIES, in the same order: the mark,
-          the name, then the rank. The panel used to open on a bare name and an
-          address, so pressing the chip replaced the reader's own icon and badge
-          with two lines of text and the dropdown read as somebody else's account.
-
-          It matters most at narrow widths, which is where it is not merely a
-          repetition: responsive.css hides the header cluster's informational
-          members below 800px, so this is the only place the rank appears at all.
-
-          `RoleBadgePill` and not `RoleBadge` -- the second live region would
-          announce a lost role twice. See the note on the pill.
-        */}
-        <span className="account-menu-who">
-          <UserRound aria-hidden="true" />
-          <strong>{name}</strong>
-          <RoleBadgePill state={role} />
-        </span>
-        <span className="account-menu-address">{identity.signedInAs}</span>
-      </div>
-      <div className="account-menu-group">
-        <a href={accountSlackHref('feedback')} target="_blank" rel="noopener noreferrer">
-          <span>Report feedback</span>
-          <DatabricksSymbol className="account-menu-databricks" />
-        </a>
-        <a href={accountSlackHref('escalation')} target="_blank" rel="noopener noreferrer">
-          <span>Escalate to Super Admin</span>
-          <ShieldPlus aria-hidden="true" />
-        </a>
-      </div>
-      <div className="account-menu-group account-menu-leave">
-        <a href="/api/account/apps">
-          <BrandIcon product="apps" size={14} />
-          <span>Back to Databricks Apps</span>
-        </a>
-        <button type="button" onClick={onSignOut}>
-          <LogOut aria-hidden="true" />
-          <span className="account-menu-signout-label">Sign out of Astrolabe</span>
-        </button>
-      </div>
-    </div>
-  );
-}
+const AccountMenuPanel = lazy(() =>
+  import('./AccountMenuPanel').then(({ AccountMenuPanel: panel }) => ({ default: panel }))
+);
 
 export function AccountMenu({ identity, role }: { identity: Identity; role: RoleState }) {
   const menuId = useId();
@@ -76,6 +16,7 @@ export function AccountMenu({ identity, role }: { identity: Identity; role: Role
   const trigger = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const name = identityName(identity.signedInAs);
+  const organization = organizationForEmail(identity.signedInAs, identity.organizations ?? []);
 
   useEffect(() => {
     if (!open) return;
@@ -109,11 +50,12 @@ export function AccountMenu({ identity, role }: { identity: Identity; role: Role
           data-testid="identity-chip"
           type="button"
           title={identity.signedInAs}
+          aria-label={`Signed in as ${identity.signedInAs}`}
           aria-expanded={open}
           aria-controls={open ? menuId : undefined}
           onClick={() => setOpen((current) => !current)}
         >
-          <UserRound aria-hidden="true" />
+          <OrganizationAvatar organization={organization} />
           <span className="identity-chip-text">
             <span className="identity-chip-label">Signed in </span>
             <strong className="identity-chip-name">{name}</strong>
@@ -121,7 +63,9 @@ export function AccountMenu({ identity, role }: { identity: Identity; role: Role
         </button>
         {open ? (
           <div id={menuId}>
-            <AccountMenuPanel identity={identity} role={role} onSignOut={signOut} />
+            <Suspense fallback={null}>
+              <AccountMenuPanel identity={identity} role={role} onSignOut={signOut} />
+            </Suspense>
           </div>
         ) : null}
       </div>

@@ -1,0 +1,44 @@
+/* Compact Settings rail, rows, forms, tables, cards, and footer. */
+html[data-density='compact'] .settings-modal-body,
+html[data-density='compact'] .settings-pane,
+html[data-density='compact'] .runtime-section,
+html[data-density='compact'] .appearance-text-panel,
+html[data-density='compact'] .appearance-text-controls,
+html[data-density='compact'] .appearance-grid,
+html[data-density='compact'] .benchmark-settings {
+  gap: var(--density-section-gap);
+}
+
+html[data-density='compact'] .settings-rail button,
+html[data-density='compact'] .appearance-display-row,
+html[data-density='compact'] .appearance-grid-row,
+html[data-density='compact'] .runtime-answer-row {
+  min-height: var(--density-row-height);
+  padding-block: var(--density-row-padding-block);
+}
+
+html[data-density='compact'] .settings-modal-header,
+html[data-density='compact'] .settings-modal-footer,
+html[data-density='compact'] .settings-modal-content {
+  padding: var(--density-modal-padding);
+}
+
+html[data-density='compact'] .settings-pane > .settings-row + .settings-row,
+html[data-density='compact'] .runtime-section {
+  padding-top: var(--density-row-padding-block);
+}
+
+html[data-density='compact'] .settings-data-table th,
+html[data-density='compact'] .settings-data-table td,
+html[data-density='compact'] .exp-feature-table th,
+html[data-density='compact'] .exp-feature-table td,
+html[data-density='compact'] .environment-list th,
+html[data-density='compact'] .environment-list td {
+  padding: var(--density-table-padding-block) var(--density-inline-padding);
+}
+
+@media (max-width: 800px) {
+  html[data-density='compact'] .settings-rail button {
+    min-height: var(--density-row-height);
+  }
+}

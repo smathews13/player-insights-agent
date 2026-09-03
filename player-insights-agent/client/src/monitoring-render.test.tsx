@@ -1436,6 +1436,9 @@ function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload 
         missing: null,
         rowFilter: true,
         maskedColumns: [],
+        source: 'live-user-probe',
+        verifiedRuns: 0,
+        latestVerifiedReadAt: null,
       },
       {
         table: 'a_catalog.a_schema.b_table',
@@ -1443,8 +1446,12 @@ function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload 
         missing: 'SELECT missing',
         rowFilter: false,
         maskedColumns: ['a_column'],
+        source: 'live-user-probe',
+        verifiedRuns: 0,
+        latestVerifiedReadAt: null,
       },
     ],
+    grantsMode: 'live-self',
     refusedMissingGrant: 2,
     refusedAgentRules: 1,
     questions: [question()],
@@ -1671,7 +1678,7 @@ describe('the per-user panel', () => {
         onOpenQuestion={() => {}}
       />
     );
-    expect(text(hidden)).toContain('Total user spend Spend unavailable');
+    expect(text(hidden)).toContain('Total user spend Spend not available yet');
     expect(hidden.indexOf('user-profile-modal-spend"')).toBeLessThan(hidden.indexOf('What they asked'));
 
     const loading = render(
@@ -2000,6 +2007,37 @@ describe('the per-user panel', () => {
     expect(rendered).toContain('Column mask on a_column.');
   });
 
+  it('renders every declared table under the selected human identity', () => {
+    const tables = Array.from({ length: 12 }, (_value, index) => `catalog.schema.table_${index + 1}`);
+    const grants = tables.map((table, index) => ({
+      table,
+      canRead: index < 6 ? true : null,
+      missing: null,
+      rowFilter: null,
+      maskedColumns: null,
+      source: index < 6 ? ('verified-run' as const) : ('no-evidence' as const),
+      verifiedRuns: index < 6 ? index + 1 : 0,
+      latestVerifiedReadAt: index < 6 ? '2026-09-01T12:00:00Z' : null,
+    }));
+    const rendered = text(
+      render(
+        <PersonPanel
+          panel={panel({ grants, grantsMode: 'historical' })}
+          now={NOW}
+          rangeLabel="last 7 days"
+          onClose={() => {}}
+          onOpenQuestion={() => {}}
+        />
+      )
+    );
+    expect(rendered).toContain('Declared tables · verified evidence from this user’s runs');
+    expect(rendered.match(/catalog\.schema\.table_/g)).toHaveLength(12);
+    expect(rendered.match(/Read in \d+ verified run/g)).toHaveLength(6);
+    expect(rendered.match(/No verified read evidence/g)).toHaveLength(6);
+    expect(rendered).not.toContain('as the application');
+    expect(rendered).not.toContain('SELECT missing');
+  });
+
   it('does not close with a live-versus-recorded lecture', () => {
     expect(
       text(
@@ -2128,6 +2166,9 @@ describe('the per-user panel', () => {
           missing: 'Not checked',
           rowFilter: null,
           maskedColumns: null,
+          source: 'live-user-probe',
+          verifiedRuns: 0,
+          latestVerifiedReadAt: null,
         },
       ],
     });

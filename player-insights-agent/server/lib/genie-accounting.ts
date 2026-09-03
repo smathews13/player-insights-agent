@@ -112,12 +112,37 @@ genie_usage AS (
     AND u.usage_date <= :through_day
     AND UPPER(TRIM(u.usage_unit)) = 'DBU'
 ),
+observed_paid_skus AS (
+  SELECT cloud, usage_unit, sku_name,
+         ROW_NUMBER() OVER (
+           PARTITION BY cloud, usage_unit
+           ORDER BY MAX(usage_end_time) DESC, sku_name
+         ) AS recency_rank
+  FROM system.billing.usage
+  WHERE billing_origin_product = 'GENIE'
+    AND workspace_id = :workspaceId
+    AND usage_date BETWEEN DATE_ADD(:through_day, -180) AND :through_day
+    AND sku_name <> '${GENIE_FREE_SKU}'
+    AND UPPER(TRIM(usage_unit)) = 'DBU'
+  GROUP BY cloud, usage_unit, sku_name
+),
 price_hits AS (
   SELECT
     usage.*,
     p.pricing.default AS unit_price,
-    p.currency_code
+    p.currency_code,
+    CASE
+      WHEN usage.sku_name <> '${GENIE_FREE_SKU}' THEN 0
+      WHEN observed.sku_name IS NOT NULL AND p.sku_name = observed.sku_name THEN 1
+      WHEN UPPER(p.sku_name) = 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_REGION' THEN 2
+      ELSE 3
+    END AS candidate_priority
   FROM genie_usage usage
+  LEFT JOIN observed_paid_skus observed
+    ON usage.sku_name = '${GENIE_FREE_SKU}'
+   AND usage.cloud = observed.cloud
+   AND usage.usage_unit = observed.usage_unit
+   AND observed.recency_rank = 1
   LEFT JOIN system.billing.list_prices p
     ON (
       (usage.sku_name <> '${GENIE_FREE_SKU}' AND usage.sku_name = p.sku_name)
@@ -132,13 +157,20 @@ price_hits AS (
    AND usage.usage_end_time >= p.price_start_time
    AND (p.price_end_time IS NULL OR usage.usage_end_time < p.price_end_time)
 ),
+ranked_price_hits AS (
+  SELECT *,
+         MIN(candidate_priority) OVER (PARTITION BY record_id) AS best_candidate_priority
+  FROM price_hits
+),
 deduped AS (
   SELECT
     record_id, usage_date, sku_name, usage_quantity, record_type, run_as, surface, channel, offering_type,
-    COUNT(DISTINCT CONCAT_WS('|', CAST(unit_price AS STRING), COALESCE(currency_code, ''))) AS price_match_count,
+    COUNT(DISTINCT CASE WHEN unit_price IS NOT NULL
+      THEN CONCAT_WS('|', CAST(unit_price AS STRING), COALESCE(currency_code, '')) END) AS price_match_count,
     MAX(unit_price) AS unit_price,
     MAX(currency_code) AS currency_code
-  FROM price_hits
+  FROM ranked_price_hits
+  WHERE candidate_priority = best_candidate_priority
   GROUP BY record_id, usage_date, sku_name, usage_quantity, record_type, run_as, surface, channel, offering_type
 ),
 query_space_evidence AS (

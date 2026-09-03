@@ -827,9 +827,9 @@ html:has(.connections-page) body[data-scroll-locked] {
 }
 .connections-table-toolbar {
   display: flex;
-  flex-direction: column;
+  flex-flow: row wrap;
   gap: 8px;
-  align-items: stretch;
+  align-items: center;
   min-width: 0;
   overflow: visible;
 }
@@ -841,9 +841,11 @@ html:has(.connections-page) body[data-scroll-locked] {
   min-width: 0;
 }
 .connections-table-query-controls {
+  flex: 1 1 34rem;
   flex-wrap: wrap;
 }
 .connections-uc-actions {
+  flex: 0 0 auto;
   justify-content: flex-end;
 }
 .connections-table-search {
@@ -893,14 +895,24 @@ html:has(.connections-page) body[data-scroll-locked] {
   color: var(--ast-blue);
   border-color: var(--ast-blue);
 }
-.connections-add-uc-primary {
-  flex: none;
-  white-space: nowrap;
-}
 .connections-table-add-form {
   margin: 0 16px 12px;
   min-width: 0;
   overflow: hidden;
+}
+.connections-uc-selection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--ast-pane);
+}
+.connections-uc-selection code {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .connections-uc-managed {
   display: grid;
@@ -1264,6 +1276,28 @@ html:has(.connections-page) body[data-scroll-locked] {
   gap: 4px;
   overflow: hidden;
   font-size: var(--text-sm);
+}
+.identity-fact[data-wrap='true'] .identity-fact-value {
+  overflow: visible;
+}
+.identity-attached-resources {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-width: 0;
+}
+.identity-attached-resource {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  gap: 2px;
+}
+.identity-attached-resource .status-badge {
+  flex: 0 1 auto;
+  max-width: calc(100% - 24px);
 }
 .identity-full-value {
   min-width: 0;

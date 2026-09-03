@@ -1,20 +1,34 @@
-import { z } from 'zod';
+export interface OrganizationMapping {
+  domain: string;
+  name: string;
+  monogram: string;
+}
 
-export const OrganizationMappingSchema = z
-  .object({
-    domain: z
-      .string()
-      .trim()
-      .min(1)
-      .max(253)
-      .transform((value) => value.toLocaleLowerCase()),
-    name: z.string().trim().min(1).max(120),
-    monogram: z.string().trim().min(1).max(4),
-  })
-  .strict();
+const ORGANIZATION_KEYS = new Set<keyof OrganizationMapping>(['domain', 'name', 'monogram']);
 
-export const OrganizationMappingsSchema = z.array(OrganizationMappingSchema).max(50);
-export type OrganizationMapping = z.infer<typeof OrganizationMappingSchema>;
+function organizationMapping(value: unknown): OrganizationMapping | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (Object.keys(candidate).some((key) => !ORGANIZATION_KEYS.has(key as keyof OrganizationMapping))) return null;
+  if (
+    typeof candidate.domain !== 'string' ||
+    typeof candidate.name !== 'string' ||
+    typeof candidate.monogram !== 'string'
+  ) {
+    return null;
+  }
+  const domain = candidate.domain.trim().toLocaleLowerCase();
+  const name = candidate.name.trim();
+  const monogram = candidate.monogram.trim();
+  if (!domain || domain.length > 253 || !name || name.length > 120 || !monogram || monogram.length > 4) return null;
+  return { domain, name, monogram };
+}
+
+export function sanitizeOrganizationMappings(value: unknown): OrganizationMapping[] {
+  if (!Array.isArray(value) || value.length > 50) return [];
+  const mappings = value.map(organizationMapping);
+  return mappings.every((mapping): mapping is OrganizationMapping => mapping !== null) ? mappings : [];
+}
 
 /**
  * Organizations for which the application has a verified, committed brand mark.
@@ -31,8 +45,7 @@ const BUILT_IN_ORGANIZATIONS: readonly OrganizationMapping[] = [
 export function parseOrganizationMappings(raw: string | undefined | null): OrganizationMapping[] {
   if (!raw?.trim()) return [];
   try {
-    const parsed = OrganizationMappingsSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : [];
+    return sanitizeOrganizationMappings(JSON.parse(raw));
   } catch {
     return [];
   }
@@ -50,7 +63,12 @@ export function emailDomain(email: string): string {
 
 export function organizationForEmail(email: string, mappings: readonly OrganizationMapping[]): OrganizationMapping {
   const domain = emailDomain(email);
-  const match = [...BUILT_IN_ORGANIZATIONS, ...mappings]
+  const builtIn = BUILT_IN_ORGANIZATIONS.find(
+    (candidate) => domain === candidate.domain || domain.endsWith(`.${candidate.domain}`)
+  );
+  if (builtIn) return builtIn;
+
+  const match = sanitizeOrganizationMappings(mappings)
     .sort((left, right) => right.domain.length - left.domain.length)
     .find((candidate) => domain === candidate.domain || domain.endsWith(`.${candidate.domain}`));
   if (match) return match;

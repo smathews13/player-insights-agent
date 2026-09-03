@@ -65,7 +65,10 @@ describe('Genie billing classification', () => {
     expect(built?.statement).toContain("UPPER(p.currency_code) = 'USD'");
     expect(built?.statement).toContain('usage.cloud = p.cloud');
     expect(built?.statement).toContain('usage.usage_end_time >= p.price_start_time');
-    expect(built?.statement).toContain('COUNT(DISTINCT CONCAT_WS');
+    expect(built?.statement).toContain('COUNT(DISTINCT CASE WHEN unit_price IS NOT NULL');
+    expect(built?.statement).toContain('observed_paid_skus');
+    expect(built?.statement).toContain('DATE_ADD(:through_day, -180)');
+    expect(built?.statement).toContain("UPPER(p.sku_name) = 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_REGION'");
     expect(built?.statement).toContain(`WHEN sku_name = '${GENIE_FREE_SKU}' THEN CAST(0 AS DOUBLE)`);
     expect(built?.statement).toContain('SUM(allocation_weight) AS source_rows');
     expect(built?.statement).toContain('AS free_equivalent_usd');

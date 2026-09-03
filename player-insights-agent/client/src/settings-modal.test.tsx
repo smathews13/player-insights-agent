@@ -13,10 +13,17 @@ const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.met
 
 function render(
   section: 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental' = 'runtime',
-  role: RoleResolution = roleFrom(NORMAL_IDENTITY)
+  role: RoleResolution = roleFrom(NORMAL_IDENTITY),
+  initialAccessGuideAvailable?: boolean
 ) {
   return renderToStaticMarkup(
-    <SettingsPage initialSection={section} features={FEATURES} setFeature={() => {}} role={role} />
+    <SettingsPage
+      initialSection={section}
+      features={FEATURES}
+      setFeature={() => {}}
+      role={role}
+      initialAccessGuideAvailable={initialAccessGuideAvailable}
+    />
   );
 }
 
@@ -139,27 +146,56 @@ describe('Settings modal', () => {
     expect(SETTINGS_STYLES).not.toMatch(/\.exp-feature-control \{[^}]*display:\s*(?:inline-)?flex/);
   });
 
-  it('puts one shared, fixed-position Experimental badge before every feature name', () => {
+  it('puts a distinct icon, title, then one shared Experimental badge on every feature', () => {
     const markup = render('experimental');
     const badges = markup.split('experimental-pane-badge').length - 1;
     expect(badges).toBe(5);
     const rows = markup.match(/<tr(?: [^>]*)?>[\s\S]*?<\/tr>/g) ?? [];
-    for (const feature of [
-      'Egress controls panel',
-      'Notebook agent sync',
-      'Resource tags',
-      'Forecasting',
-      'Benchmarking',
-    ]) {
+    for (const [feature, kind, iconName] of [
+      ['Egress controls panel', 'egress-controls', 'lucide-network'],
+      ['Notebook agent sync', 'notebook-agent-sync', 'lucide-notebook-tabs'],
+      ['Resource tags', 'resource-tags', 'lucide-tags'],
+      ['Forecasting', 'forecasting', 'lucide-trending-up'],
+      ['Benchmarking', 'benchmarking', 'lucide-flask-conical'],
+    ] as const) {
       const row = rows.find((candidate) => candidate.includes(`>${feature}</span>`));
       expect(row, feature).toBeDefined();
       expect(row?.match(/class="exp-feature-name"/g) ?? [], feature).toHaveLength(1);
-      expect(row?.indexOf('experimental-pane-badge'), feature).toBeLessThan(row?.indexOf(`>${feature}</span>`) ?? -1);
+      expect(row?.match(/experimental-pane-badge/g) ?? [], feature).toHaveLength(1);
+      expect(row?.match(/class="settings-row-note"/g) ?? [], feature).toHaveLength(1);
+      expect(row, feature).toContain(iconName);
+      expect(row, feature).toContain('aria-hidden="true"');
+      const icon = row?.indexOf(`exp-feature-icon--${kind}`) ?? -1;
+      const title = row?.indexOf(`>${feature}</span>`) ?? -1;
+      const badge = row?.indexOf('experimental-pane-badge') ?? -1;
+      expect(icon, feature).toBeGreaterThan(-1);
+      expect(icon, feature).toBeLessThan(title);
+      expect(title, feature).toBeLessThan(badge);
     }
+    expect(SETTINGS_STYLES).toMatch(/\.exp-feature-name \{[^}]*display:\s*inline-flex[^}]*align-items:\s*center/);
     expect(SETTINGS_STYLES).toMatch(
-      /\.exp-feature-name \{[^}]*display:\s*inline-grid[^}]*grid-template-columns:\s*max-content minmax\(0,\s*1fr\)/
+      /\.exp-feature-label \{[^}]*display:\s*inline-flex[^}]*flex-wrap:\s*wrap[^}]*align-items:\s*center/
+    );
+    expect(SETTINGS_STYLES).toMatch(
+      /\.exp-feature-icon \{[^}]*width:\s*16px[^}]*height:\s*16px[^}]*color:\s*var\(--ast-text-secondary\)/
     );
     expect(markup).not.toContain('Resource tags · Experimental');
+  });
+
+  it('shows the access guide once on Environment for each current admin rank and never on Identity', () => {
+    for (const state of ['admin', 'super_admin'] as const) {
+      const role = { state, addedAdminsReadable: true };
+      const environment = render('environment', role, true);
+      const identity = render('identity', role, true);
+      expect(environment.match(/Access points and operating guide/g) ?? [], state).toHaveLength(1);
+      expect(identity, state).not.toContain('Access points and operating guide');
+    }
+  });
+
+  it('does not render the guide for a consumer even when availability is known', () => {
+    const consumer = render('environment', { state: 'consumer', addedAdminsReadable: true }, true);
+    expect(consumer).not.toContain('Access points and operating guide');
+    expect(consumer).not.toContain('/api/admin/access-guide');
   });
 
   it('keeps SP Persona mappings on Identity and removes their Experimental pivot', () => {

@@ -44,8 +44,11 @@ for (const [route, sentinel] of Object.entries(routes)) {
   if (entryCss.includes(sentinel)) throw new Error(`${route}'s CSS leaked into the Ask entry stylesheet`);
 }
 
-const timeRange = Object.values(manifest).find((item) => item.name === 'TimeRangeControl');
-if (!timeRange?.css?.length) throw new Error('The shared TimeRangeControl CSS chunk is missing');
+// Once Ops retired its range selector, Vite correctly names this shared chunk
+// after UnitSegmentedControl. Assert the CSS contract rather than a transient
+// module-derived chunk name.
+const timeRangeAsset = [...cssAssets].find(([, css]) => css.includes('.time-range{'))?.[0];
+if (!timeRangeAsset) throw new Error('The shared segmented-control CSS chunk is missing');
 
 const bytes = (asset) => {
   const raw = Buffer.from(cssAssets.get(asset));
@@ -63,7 +66,7 @@ console.log(
   JSON.stringify(
     {
       initial: { asset: entryAsset, ...initial },
-      shared: { TimeRangeControl: { asset: timeRange.css[0], ...bytes(timeRange.css[0]) } },
+      shared: { segmentedControls: { asset: timeRangeAsset, ...bytes(timeRangeAsset) } },
       routes: routeMeasurements,
     },
     null,

@@ -49,14 +49,23 @@ type Answers = {
 const REFUSAL = 'canceling statement due to statement timeout';
 
 const ROWS: Record<string, Record<string, unknown>[]> = {
-  [QUESTIONS_PER_DAY_QUERY]: [{ day: '2026-08-14', count: 12 }],
+  [QUESTIONS_PER_DAY_QUERY]: [
+    {
+      day: '2026-08-14',
+      count: 12,
+      questions_asked: 26,
+      questions_answered: 25,
+      helpful_feedback: 9,
+      not_helpful_feedback: 2,
+    },
+  ],
   [DISTINCT_ASKERS_PER_DAY_QUERY]: [{ day: '2026-08-14', count: 4 }],
   [ACTIVE_MINUTES_PER_DAY_QUERY]: [{ day: '2026-08-14', count: 80 }],
   [RUN_OUTCOMES_QUERY]: [
     { kind: 'population', key: '', count: 2 },
     { kind: 'outcome_covered', key: '', count: 2 },
     { kind: 'tool_covered', key: '', count: 2 },
-    { kind: 'failure', key: 'WAREHOUSE_UNAVAILABLE', count: 2 },
+    { kind: 'run_outcome', key: 'failed', count: 2 },
     { kind: 'tool', key: 'genie', count: 30 },
   ],
 };
@@ -142,7 +151,8 @@ describe('the Traffic block when a read is cut off', () => {
 
     expect(payload.reason).toBe('');
     expect(payload.questionsPerDay).toEqual([]);
-    expect(payload.failuresByCause).toHaveLength(1);
+    expect(payload.questionStatistics).toBeUndefined();
+    expect(payload.runStatistics?.failed).toBe(2);
     expect(payload.toolCalls).toHaveLength(1);
     expect(payload.runsInRange).toBe(2);
   });
@@ -153,7 +163,7 @@ describe('the Traffic block when a read is cut off', () => {
 
     const said = payload.unread.toLowerCase();
     expect(said).toContain('questions per day');
-    expect(said).toContain('failures, refusals and tool calls');
+    expect(said).toContain('run statistics and tool calls');
     expect(payload.reason).toBe('');
     expect(payload.toolCalls).toEqual([]);
   });
@@ -164,6 +174,8 @@ describe('the Traffic block when a read is cut off', () => {
     expect(payload.reason).toBe('');
     expect(payload.unread).toContain('Recorded active app minutes per day');
     expect(payload.questionsPerDay).toHaveLength(1);
+    expect(payload.questionStatistics).toEqual({ asked: 26, answered: 25, helpful: 9, notHelpful: 2 });
+    expect(payload.period).toBe('current_month');
     expect(payload.distinctAskersPerDay).toHaveLength(1);
     expect(payload.activeMinutesPerDay).toEqual([]);
   });
@@ -176,7 +188,7 @@ describe('the Traffic block when a read is cut off', () => {
     const payload = await trafficPayload({ ...ALL, outcomes: false });
 
     expect(payload.runsInRange).toBe(0);
-    expect(payload.unread.toLowerCase()).toContain('failures, refusals and tool calls');
+    expect(payload.unread.toLowerCase()).toContain('run statistics and tool calls');
   });
 
   /**
