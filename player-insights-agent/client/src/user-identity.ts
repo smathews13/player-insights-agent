@@ -1,8 +1,20 @@
+import type { Identity } from './app-types';
+
 export function identityName(identity: string | null | undefined): string {
   const value = identity?.trim() ?? '';
   if (!value) return 'Unknown';
   const at = value.indexOf('@');
   return at > 0 ? value.slice(0, at) : value;
+}
+
+/** Complete identity for tooltips, copy actions, panels, and organization lookup. */
+export function canonicalIdentityEmail(identity: Identity): string {
+  return identity.canonicalEmail || identity.signedInAs;
+}
+
+/** Compact identity for the visible global account trigger. */
+export function identityDisplayName(identity: Identity): string {
+  return identity.displayName?.trim() || identityName(canonicalIdentityEmail(identity));
 }
 
 /**

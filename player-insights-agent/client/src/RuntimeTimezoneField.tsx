@@ -28,7 +28,6 @@ export function RuntimeTimezoneField({ value, update }: { value: string; update:
         <AppSelect
           label="Timezone"
           ariaLabel="Timezone"
-          showLabel={false}
           className="runtime-timezone-select"
           contentClassName="runtime-timezone-menu"
           value={selectValue}

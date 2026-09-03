@@ -22,6 +22,7 @@ import type { MonitoringQuestion } from '../../shared/monitoring-contract';
 /** Which question the drawer is open on, and which person's panel. */
 export const QUESTION_PARAM = 'question';
 export const PERSON_PANEL_PARAM = 'who';
+export const FEEDBACK_BROWSER_PARAM = 'feedbacks';
 
 export const PERSON_PARAM = 'person';
 export const OUTCOME_PARAM = 'outcome';
@@ -235,8 +236,20 @@ export interface UserBrowserState {
   search: string;
   role: string;
   persona?: string;
+  organizations: string[];
   unit: UserMonitoringUnit;
   cursor: string;
+}
+
+function organizationIds(raw: string | null): string[] {
+  return [
+    ...new Set(
+      (raw ?? '')
+        .split(',')
+        .map((value) => value.trim().toLocaleLowerCase())
+        .filter(Boolean)
+    ),
+  ].slice(0, 20);
 }
 
 export function userBrowserFromParams(params: ReadableParams): UserBrowserState {
@@ -246,9 +259,31 @@ export function userBrowserFromParams(params: ReadableParams): UserBrowserState 
     search: (params.get('userSearch') ?? '').trim(),
     role: (params.get('userRole') ?? '').trim(),
     persona: persona === 'none' ? '' : persona,
+    organizations: organizationIds(params.get('userOrganization')),
     unit: params.get('userUnit') === 'DBU' ? 'DBU' : 'USD',
     cursor: (params.get('userCursor') ?? '').trim(),
   };
+}
+
+/** Write every User Monitoring control without disturbing the page below it. */
+export function withUserBrowserFilters(
+  search: string,
+  state: Pick<UserBrowserState, 'search' | 'role' | 'persona' | 'organizations' | 'unit'>
+): string {
+  const next = new URLSearchParams(search);
+  const entries = [
+    ['userSearch', state.search.trim()],
+    ['userRole', state.role.trim()],
+    ['userPersona', state.persona?.trim() ?? ''],
+    ['userOrganization', state.organizations.join(',')],
+    ['userUnit', state.unit],
+  ] as const;
+  for (const [key, value] of entries) {
+    if (value) next.set(key, value);
+    else next.delete(key);
+  }
+  next.delete('userCursor');
+  return next.toString();
 }
 
 export function openUserBrowser(search: string, unit: UserMonitoringUnit = 'USD'): string {
@@ -279,9 +314,32 @@ export function backToUserBrowser(search: string): string {
 
 export function closedUserMonitoring(search: string): string {
   const next = new URLSearchParams(search);
-  for (const name of ['users', 'userSearch', 'userRole', 'userPersona', 'userUnit', 'userCursor']) next.delete(name);
+  for (const name of ['users', 'userSearch', 'userRole', 'userPersona', 'userOrganization', 'userUnit', 'userCursor']) {
+    next.delete(name);
+  }
   next.delete(PERSON_PANEL_PARAM);
   next.delete(QUESTION_PARAM);
+  return next.toString();
+}
+
+export function feedbackBrowserFromParams(params: ReadableParams): boolean {
+  return params.get(FEEDBACK_BROWSER_PARAM) === '1';
+}
+
+export function openFeedbackBrowser(search: string): string {
+  const next = new URLSearchParams(search);
+  next.set(FEEDBACK_BROWSER_PARAM, '1');
+  next.delete(QUESTION_PARAM);
+  next.delete(PERSON_PANEL_PARAM);
+  next.delete('users');
+  return next.toString();
+}
+
+export function closedFeedbackBrowser(search: string): string {
+  const next = new URLSearchParams(search);
+  next.delete(FEEDBACK_BROWSER_PARAM);
+  next.delete(QUESTION_PARAM);
+  next.delete(PERSON_PANEL_PARAM);
   return next.toString();
 }
 

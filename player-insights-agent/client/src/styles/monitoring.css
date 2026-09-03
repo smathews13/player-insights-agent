@@ -71,6 +71,38 @@
   min-height: 82px;
   min-width: 0;
 }
+.monitoring-tile-action {
+  width: 100%;
+  appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+.monitoring-tile-action:hover {
+  border-color: var(--ast-blue);
+  background: color-mix(in srgb, var(--ast-surface-primary) 94%, var(--ast-blue));
+}
+.monitoring-tile-action:focus-visible {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
+}
+.monitoring-tile-affordance {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--ast-info-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.monitoring-tile-affordance > svg {
+  width: 13px;
+  height: 13px;
+}
 .monitoring-tile-head {
   min-width: 0;
   display: flex;
@@ -191,14 +223,7 @@
   width: 14px;
   height: 14px;
 }
-/*
- * The chip is the bordered box; the Select inside it is borderless.
- *
- * The border is on the wrapper rather than on the trigger because the Table chip
- * holds a clear button inside the same border, and that button cannot live inside
- * the trigger: the trigger is a button. One structure for all four keeps the set
- * and unset states the same shape, which is what the design shows.
- */
+/* The clear action stays beside, never inside, the shared trigger button. */
 .monitoring-chip {
   display: inline-flex;
   align-items: center;
@@ -211,42 +236,12 @@
 }
 /*
  * The value is allowed to be long. The design shows a set table filter reading
- * its whole name, `Table · gold_title_daily_summary`, and a table name truncated
+ * its whole current name, and a table name truncated
  * in the middle is a filter a reader cannot confirm. It is capped only where it
  * would push the row apart, and clipped with an ellipsis at that point.
  */
 .monitoring-chip .app-select-value {
   max-width: 34ch;
-}
-/*
- * The open menu. Anchored under the trigger by Radix and at least its width,
- * which is the "connected to what I clicked" part, and painted in the app's own
- * surface tokens rather than the operating system's.
- */
-.monitoring-chip-menu {
-  border: 1px solid var(--ast-border-input);
-  border-radius: var(--radius-sm);
-  background: var(--ast-surface-menu);
-  font-size: var(--text-sm);
-  color: var(--ast-navy);
-}
-.monitoring-chip-menu [data-slot='select-item'] {
-  border-radius: 2px;
-  cursor: pointer;
-}
-.monitoring-chip-menu [data-slot='select-item'][data-highlighted] {
-  background: var(--db-hover-tint);
-  color: var(--ast-navy);
-}
-/*
- * The chosen option, marked in the OPEN menu and not only on the closed trigger.
- * Radix puts a tick in the item; this is the fill behind it, so the current
- * choice is visible at a glance rather than needing to be read.
- */
-.monitoring-chip-menu [data-slot='select-item'][data-state='checked'] {
-  background: var(--db-selected-tint);
-  color: var(--ast-info-text);
-  font-weight: 500;
 }
 .monitoring-chip-clear {
   display: inline-flex;
@@ -541,7 +536,16 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   width: 94px;
 }
 .monitoring-col-tools {
-  width: 60px;
+  width: 72px;
+  min-width: 72px;
+}
+.monitoring-tool-cell,
+.monitoring-tool-inline {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.monitoring-tool-cell .tool-calls-label {
+  margin-left: auto;
 }
 .monitoring-token-cell,
 .monitoring-token-total {
@@ -1067,6 +1071,24 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   flex-wrap: wrap;
   gap: 6px;
 }
+.user-profile-modal-organization {
+  min-width: 0;
+  max-width: min(260px, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-profile-modal-identity-row .identity-chip > .roster-organization-mark {
+  flex-basis: 18px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: transparent;
+}
+.user-profile-modal-identity-row .identity-chip .roster-organization-logo {
+  width: 18px;
+  height: 18px;
+}
 .user-profile-modal-persona {
   min-width: 0;
   max-width: min(260px, 100%);
@@ -1148,6 +1170,26 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 }
 .user-profile-modal-spend {
   padding: 12px 14px;
+}
+.user-profile-modal-spend-diagnosis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+  color: var(--ast-text-secondary);
+  font-size: var(--text-sm);
+}
+.user-profile-modal-spend-diagnosis strong {
+  color: var(--ast-text-long);
+}
+.user-profile-modal-spend-diagnosis a {
+  flex: none;
+  color: var(--ast-link);
+  font-weight: 650;
 }
 .user-profile-modal-section-title {
   margin: 0;
@@ -1372,16 +1414,31 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   overflow-wrap: anywhere;
 }
 .user-profile-modal-question-table th:first-child {
-  width: 42%;
+  width: 39%;
 }
 .user-profile-modal-question-table th:nth-child(2) {
-  width: 14%;
+  width: 13%;
 }
 .user-profile-modal-question-table th:nth-child(3) {
-  width: 16%;
+  width: 15%;
 }
-.user-profile-modal-question-table th:nth-child(n + 4) {
-  width: 9.33%;
+.user-profile-modal-question-table th:nth-child(4) {
+  width: 10%;
+}
+.user-profile-modal-question-table th:nth-child(5) {
+  width: 11%;
+}
+.user-profile-modal-question-table th:nth-child(6) {
+  width: 12%;
+}
+.user-profile-modal-tools-column,
+.user-profile-modal-feedback-column {
+  min-width: max-content;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.user-profile-modal-tools-column .tool-calls-label {
+  white-space: nowrap;
 }
 .user-profile-modal-question-table tbody tr:last-child td {
   border-bottom: 0;
@@ -1445,11 +1502,51 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .monitoring-users-toolbar [data-slot='select-trigger'] {
   min-width: 132px;
 }
+.monitoring-organization-select {
+  min-width: 0;
+}
+.monitoring-organization-trigger {
+  min-width: 176px;
+  max-width: 260px;
+}
+.monitoring-organization-trigger .app-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.monitoring-organization-trigger > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
 [data-radix-popper-content-wrapper]:has(.monitoring-users-filter-menu) {
   z-index: 1100;
 }
+[data-radix-popper-content-wrapper]:has(.monitoring-organization-menu) {
+  z-index: 1100;
+}
+.monitoring-organization-menu {
+  width: var(--radix-popover-trigger-width);
+  min-width: var(--radix-popover-trigger-width);
+}
+.monitoring-organization-option-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.monitoring-organization-option-content > .roster-organization-mark {
+  width: 24px;
+  height: 24px;
+}
+.monitoring-organization-option-content > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .monitoring-users-filter-menu {
-  max-height: min(320px, var(--radix-select-content-available-height));
+  max-height: min(320px, var(--radix-popover-content-available-height));
   overflow-y: auto;
   scrollbar-gutter: stable;
   background: var(--popover);
@@ -1566,4 +1663,170 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 }
 .monitoring-users-back {
   flex: none;
+}
+
+/* ── Submitted feedback corpus ─────────────────────────────────────────── */
+.monitoring-feedback-modal {
+  width: min(1220px, calc(100vw - 48px));
+}
+.monitoring-feedback-body {
+  overflow-x: hidden;
+}
+.monitoring-feedback-toolbar {
+  align-items: stretch;
+}
+.monitoring-feedback-toolbar .monitoring-feedback-search {
+  flex: 1 1 300px;
+  width: min(100%, 420px);
+  min-width: 260px;
+  max-width: 420px;
+  margin-left: 0;
+}
+.monitoring-feedback-toolbar [data-slot='select-trigger'] {
+  min-width: 142px;
+}
+.monitoring-feedback-table-frame {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+}
+.monitoring-feedback-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.monitoring-feedback-table th,
+.monitoring-feedback-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ast-hairline);
+  text-align: left;
+  vertical-align: middle;
+}
+.monitoring-feedback-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--ast-fill-band);
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.monitoring-feedback-table th:nth-child(1) {
+  width: 31%;
+}
+.monitoring-feedback-table th:nth-child(2) {
+  width: 18%;
+}
+.monitoring-feedback-table th:nth-child(3) {
+  width: 14%;
+}
+.monitoring-feedback-table th:nth-child(4) {
+  width: 23%;
+}
+.monitoring-feedback-table th:nth-child(5) {
+  width: 14%;
+}
+.monitoring-feedback-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.monitoring-feedback-row {
+  cursor: pointer;
+}
+.monitoring-feedback-row:hover {
+  background: var(--db-hover-tint);
+}
+.monitoring-feedback-row:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--ast-blue);
+  outline-offset: -2px;
+}
+.monitoring-feedback-question,
+.monitoring-feedback-comment {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.monitoring-feedback-comment-empty {
+  color: var(--ast-text-secondary);
+}
+.monitoring-feedback-direction {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.monitoring-feedback-direction > svg {
+  width: 15px;
+  height: 15px;
+}
+.monitoring-feedback-direction-up {
+  color: var(--ast-pos-text);
+}
+.monitoring-feedback-direction-down {
+  color: var(--ast-neg-text);
+}
+.monitoring-feedback-submitted {
+  color: var(--ast-text-long);
+  font-size: var(--text-sm);
+}
+.monitoring-feedback-loading {
+  min-height: 260px;
+  display: grid;
+  align-content: center;
+  gap: 18px;
+}
+.monitoring-feedback-loading-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--ast-text-long);
+  font-size: var(--text-sm);
+}
+.monitoring-feedback-skeleton {
+  display: grid;
+  gap: 1px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.monitoring-feedback-skeleton > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.34fr);
+  gap: 24px;
+  min-height: 58px;
+  padding: 12px;
+  border-bottom: 1px solid var(--ast-hairline);
+}
+.monitoring-feedback-skeleton > div:last-child {
+  border-bottom: 0;
+}
+.monitoring-feedback-error {
+  min-height: 180px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  color: var(--ast-text-long);
+}
+.monitoring-feedback-error > p,
+.monitoring-feedback-empty {
+  margin: 0;
+}
+.monitoring-feedback-empty {
+  min-height: 180px;
+  display: grid;
+  place-content: center;
+  color: var(--ast-text-long);
+  font-size: var(--text-sm);
 }

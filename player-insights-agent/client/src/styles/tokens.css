@@ -336,12 +336,10 @@
    * surfaced cards; result tables use the extra measure and keep their own
    * horizontal scroller when their natural width is larger still.
    *
-   * 1280 and not 1120, which it was: the card carries its figures in a right-hand
-   * rail again (see `.answer-main-row` in answer-body.css), and 1120 less the
-   * card's 28px insets, the rail and its gap put the narrative under 600px on the
-   * only screens where the cap binds at all. This is the lever that widens the
-   * card, in place of the two that were reached for first and cost it its frame:
-   * the card's own inset and the gutter either side of the transcript.
+   * 1280 keeps wide tables and charts useful while the prose itself now starts
+   * at the card's full content width. This is the lever that widens the card,
+   * in place of the two that were reached for first and cost it its frame: the
+   * card's own inset and the gutter either side of the transcript.
    */
   --conversation-measure: 1280px;
 

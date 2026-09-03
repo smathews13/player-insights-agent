@@ -1,4 +1,4 @@
-@media (max-width: 800px) {
+@media (max-width: 960px) {
   .run-explorer {
     height: auto;
     min-height: calc(100dvh - var(--app-header-h));
@@ -23,6 +23,7 @@
   .run-list {
     position: static;
     height: auto;
+    min-height: 0;
     max-height: none;
     overflow: visible;
     scrollbar-gutter: auto;

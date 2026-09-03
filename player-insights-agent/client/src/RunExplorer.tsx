@@ -36,16 +36,13 @@ import {
   EmptyMedia,
   EmptyTitle,
   Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
   Skeleton,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from './ui';
+import { AppSelect } from './AppSelect';
 import { CircleAlert, Search, Workflow } from 'lucide-react';
 import { ToolCallsLabel } from './ToolCallsLabel';
 import { readConversationList } from './initial-rail';
@@ -151,65 +148,36 @@ export function RunExplorerFilters({
   const conversationLabel = conversationsUnreadable
     ? 'Conversations could not be read'
     : (conversationOptions.find((option) => option.id === conversationFilter)?.label ?? 'All conversations');
-  const usernameLabel = usernameOptions.find((option) => option.value === usernameFilter)?.label ?? 'All users';
 
   return (
     <div className="run-list-filters">
       <div className="run-filter-field">
-        <Select
+        <AppSelect
+          label="Conversation"
+          ariaLabel="Filter runs by conversation"
           value={conversationFilter || 'all'}
+          options={[
+            {
+              value: 'all',
+              label: conversationLabel === 'Conversations could not be read' ? conversationLabel : 'All conversations',
+            },
+            ...conversationOptions.map((option) => ({ value: option.id, label: option.label })),
+          ]}
           onValueChange={(value) => onConversationChange(value === 'all' ? '' : value)}
-        >
-          <SelectTrigger
-            className="run-filter-trigger run-conversation-filter"
-            aria-label={`Filter runs by conversation: ${conversationLabel}`}
-            title={conversationLabel}
-          >
-            <span className="run-filter-label">{conversationLabel}</span>
-          </SelectTrigger>
-          <SelectContent
-            className="app-select-content run-filter-menu"
-            position="popper"
-            align="start"
-            sideOffset={4}
-            collisionPadding={12}
-          >
-            <SelectItem value="all">All conversations</SelectItem>
-            {conversationOptions.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          className="run-filter-trigger run-conversation-filter"
+          contentClassName="run-filter-menu"
+        />
       </div>
       <div className="run-filter-field">
-        <Select
+        <AppSelect
+          label="User"
+          ariaLabel="Filter runs by username"
           value={usernameFilter || 'all'}
+          options={[{ value: 'all', label: 'All users' }, ...usernameOptions]}
           onValueChange={(value) => onUsernameChange(value === 'all' ? '' : value)}
-        >
-          <SelectTrigger
-            className="run-filter-trigger run-username-filter"
-            aria-label={`Filter runs by username: ${usernameLabel}`}
-            title={usernameLabel}
-          >
-            <span className="run-filter-label">{usernameLabel}</span>
-          </SelectTrigger>
-          <SelectContent
-            className="app-select-content run-filter-menu"
-            position="popper"
-            align="start"
-            sideOffset={4}
-            collisionPadding={12}
-          >
-            <SelectItem value="all">All users</SelectItem>
-            {usernameOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          className="run-filter-trigger run-username-filter"
+          contentClassName="run-filter-menu"
+        />
       </div>
     </div>
   );

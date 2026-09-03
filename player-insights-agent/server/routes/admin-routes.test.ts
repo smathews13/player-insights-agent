@@ -238,6 +238,7 @@ describe('a consumer is refused at the route', () => {
 
     expect((await app.probe('/api/ops/cost', CONSUMER)).status).toBe(403);
     expect((await app.probe('/api/monitoring/runs', CONSUMER)).status).toBe(403);
+    expect((await app.probe('/api/monitoring/feedback', CONSUMER)).status).toBe(403);
   });
 
   it('leaves a consumer-visible path alone', async () => {

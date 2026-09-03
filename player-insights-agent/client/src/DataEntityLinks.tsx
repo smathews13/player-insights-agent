@@ -815,6 +815,7 @@ export function AnswerProse({
   badges = false,
   blocks: selection = 'all',
   originMap,
+  preserveProse = false,
 }: {
   text: string;
   sources: readonly { name: string; freshness?: string; role?: SourceRef['role'] }[];
@@ -832,6 +833,8 @@ export function AnswerProse({
   badges?: boolean;
   /** Which parsed blocks this seating owns; source text is never regex-edited. */
   blocks?: AnswerBlockSelection;
+  /** Keep legacy paragraphs as paragraphs instead of inferring finding lists. */
+  preserveProse?: boolean;
   /**
    * Source tables for this body's Markdown tables, already zipped across
    * narrative + content so a table in `content` can name a source the prose
@@ -844,7 +847,7 @@ export function AnswerProse({
   const parsed = answerBlocks(text, declared, tracked, columns);
   const origins = originMap ?? tableOriginSources(parsed, sources as SourceRef[]);
   const selected = selectAnswerBlocks(parsed, selection);
-  const blocks = selection === 'tables' ? selected : layoutFindingBlocks(selected);
+  const blocks = selection === 'tables' || preserveProse ? selected : layoutFindingBlocks(selected);
   if (blocks.length === 0) return null;
   return (
     <div className={className ? `answer-prose ${className}` : 'answer-prose'}>

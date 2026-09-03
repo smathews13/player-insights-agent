@@ -12,7 +12,7 @@ import type { Chart } from './AnswerCharts';
 import type { ExperimentalFeatures } from './experimental-features';
 import type { Derivation, NormalizedAnswer, StageStatus, TraceStage, TraceSummary } from './answer-shape';
 import type { TokenInvocationUsage, TokenReconciliation } from '../../shared/llm-token-usage';
-import type { OrganizationMapping } from '../../shared/organization-mapping';
+import type { OrganizationMapping } from '../../shared/organization-contract';
 import type { SessionReport } from '../../shared/session-contract';
 import type { RunRuntimeUsed } from '../../shared/run-runtime-used';
 import type { SpIdentitySummary } from '../../shared/sp-identity';
@@ -66,7 +66,21 @@ export interface ClarificationResponse {
 }
 export type AgentResponse = Answer | PlanResponse | ClarificationResponse;
 export interface Identity {
+  /** Proxy-authenticated value used by server authorization and tenancy checks. */
   signedInAs: string;
+  /**
+   * Complete canonical address for identity display and organization mapping.
+   *
+   * Null when the proxy supplied only a local part that did not match exactly
+   * one Identity-roster row. The client must never invent a domain.
+   */
+  canonicalEmail?: string | null;
+  /** Intentionally short label for the global account trigger. */
+  displayName?: string;
+  /** Changes whenever the roster evidence used for canonical resolution changes. */
+  identityRevision?: string;
+  /** Server-resolved organization shared by the account trigger and panel. */
+  organization?: OrganizationMapping;
   /** Sanitized organization labels used to brand identities from their email domain. */
   organizations?: OrganizationMapping[];
   /**

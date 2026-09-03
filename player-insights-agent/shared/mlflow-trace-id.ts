@@ -108,7 +108,7 @@ export function withoutUntracedTimeline<T extends { id: string; stages?: unknown
  * Take the process view off an answer that has no recorded MLflow trace.
  *
  * The agent's `RunLog` always records local stages, even when MLflow handed
- * back a no-op span. Those stages are what made Keep in mind say "no trace"
+ * back a no-op span. Those stages are what made Caveats say "no trace"
  * while the card still drew a convincing Gantt. Figures, SQL, wall time and
  * the tool-call count stay: they are the answer and the agent's own meters.
  * The timeline does not.

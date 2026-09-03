@@ -28,7 +28,18 @@ import { DATABRICKS_SYMBOL } from './brand-icons';
  */
 const IDENTITY: PanelIdentity = {
   signedInAs: 'someone@example.com',
-  organizations: [{ domain: 'example.com', name: 'Example Sports', monogram: 'ES' }],
+  organizations: [
+    {
+      id: 'domain:example.com',
+      domain: 'example.com',
+      domainSuffixes: ['example.com'],
+      name: 'Example Sports',
+      monogram: 'ES',
+      logoKey: 'monogram',
+      ariaLabel: 'Organization: Example Sports',
+      fallback: 'monogram',
+    },
+  ],
   identitySource: 'databricks-apps',
   executionMode: 'signed_in_user',
   role: 'admin',

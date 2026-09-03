@@ -115,11 +115,14 @@ describe('the Overview Final Answer module', () => {
     expect(incomplete).not.toContain('Incomplete answer');
   });
 
-  it('keeps specific caveats in Keep in mind without an inline answer banner', () => {
+  it('keeps specific warnings under the exact Caveats heading without an inline banner', () => {
     const html = markup();
     expect(html).toContain('The sources for this answer are incomplete');
     expect(html).toContain('The turn deadline was reached');
-    expect(html).toContain('Keep in mind');
+    expect(html).toContain('>Caveats</h3>');
+    expect(html).toContain('aria-label="Caveats"');
+    expect(html).not.toContain('Keep in mind');
+    expect(html).not.toContain('What to keep in mind');
     expect(html).not.toContain('Partial evidence');
     expect(html).not.toContain('final-answer-warning');
     expect(html).not.toContain('data-variant="destructive"');
@@ -186,6 +189,23 @@ describe('the Overview Final Answer module', () => {
     expect(html).toContain('data-tone="complete"');
     expect(html).not.toContain('final-answer-warning');
   });
+
+  it('keeps a concise takeaway exact above its ordered supporting bullets', () => {
+    const supplied = '42 million unique users';
+    const html = markup({
+      takeaway: supplied,
+      narrative: '- Lifetime window.\n- Person-level counting key.\n- Governed source.',
+      caveats: [],
+      truncated: false,
+    });
+    const headline = /class="final-answer-takeaway"[^>]*>([\s\S]*?)<\/h4>/.exec(html)?.[1] ?? '';
+    expect(headline.replace(/<[^>]+>/g, '').trim()).toBe(supplied);
+    expect(html.indexOf(supplied)).toBeLessThan(html.indexOf('Lifetime window.'));
+    expect(html.indexOf('Lifetime window.')).toBeLessThan(html.indexOf('Person-level counting key.'));
+    expect(html.indexOf('Person-level counting key.')).toBeLessThan(html.indexOf('Governed source.'));
+    const context = /<ul class="answer-list">([\s\S]*?)<\/ul>/.exec(html)?.[1] ?? '';
+    expect(context.match(/<li\b/g)).toHaveLength(3);
+  });
 });
 
 describe('the Overview column width', () => {
@@ -226,5 +246,18 @@ describe('the Overview warning family', () => {
     expect(css).not.toMatch(/\.final-answer-head \{[^}]*margin-inline:\s*-/s);
     expect(css).toMatch(/\.run-explorer \.final-answer \{[^}]*padding:\s*0/s);
     expect(css).not.toMatch(/\.final-answer \[data-slot='card-content'\] \{[^}]*padding:\s*18px/s);
+  });
+
+  it('lets compact-run Caveats expand inside the pane scroll owner', () => {
+    const css = partial('runs.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const answer = partial('answer-body.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    expect(css).toMatch(/\.run-detail \{[^}]*overflow-x:\s*clip[^}]*overflow-y:\s*auto/s);
+    expect(css).toMatch(/\.final-answer \[data-slot='card-content'\],[^{]*\{[^}]*display:\s*grid[^}]*gap:\s*14px/s);
+    expect(answer).toMatch(
+      /\.keep-in-mind \{[^}]*height:\s*auto[^}]*max-height:\s*none[^}]*overflow-x:\s*clip[^}]*overflow-y:\s*visible/s
+    );
+    expect(answer).toMatch(
+      /\.keep-in-mind \.answer-list \{[^}]*gap:\s*8px[^}]*font-size:\s*var\(--ast-fs-13\)[^}]*line-height:\s*1\.5/s
+    );
   });
 });

@@ -1,7 +1,7 @@
 /**
  * What is set apart inside a caveat: the table it is about, and its numbers.
  *
- * The Keep in mind section is a block of amber prose, and the reported problem
+ * The Caveats section is a block of amber prose, and the reported problem
  * with it was that everything in it weighs the same. A reader looking for which
  * table a warning is about, or for how big "understated" turned out to be, had
  * to read every bullet to the end. So a caveat that names exactly one of the

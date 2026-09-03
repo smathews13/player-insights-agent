@@ -34,6 +34,15 @@ html[data-density='compact'] .ops-page .date-badge {
   padding-block: 1px;
 }
 
+html[data-density='compact'] .ops-admin-action,
+html[data-density='compact'] .ops-stop-all {
+  padding-block: 4px;
+}
+
+html[data-density='compact'] .ops-scope-skeleton-row td {
+  height: 34px;
+}
+
 html[data-density='compact'] .ops-table th,
 html[data-density='compact'] .ops-table td,
 html[data-density='compact'] .ops-forecast-breakdown th,

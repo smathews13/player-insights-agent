@@ -36,7 +36,6 @@ import { DeploymentTimeChip } from './DeploymentTimeChip';
 import { RoleBadge } from './RoleBadge';
 import { AdminOnly, RoleLostNotice } from './GatePanel';
 import { UserIdentityChip } from './UserIdentityChip';
-import { AccountMenu } from './AccountMenu';
 import { AppSky } from './AppSky';
 import { mobileNavLinkClass } from './layout-view';
 import { settingsOriginPath } from './settings-origin';
@@ -55,6 +54,7 @@ import { browserMotionRuns, startRouteEnter } from './motion-transitions';
 import { useStartupReadiness } from './startup-readiness';
 
 const SettingsPage = lazy(() => import('./SettingsPage').then((loaded) => ({ default: loaded.SettingsPage })));
+const AccountMenu = lazy(() => import('./AccountMenu').then((loaded) => ({ default: loaded.AccountMenu })));
 
 /**
  * Animate only the route body. The wrapper never receives a key, so it cannot
@@ -401,7 +401,18 @@ export function IdentityChips({
   return (
     <div className={`identity-chips ${className ?? ''}`}>
       {hideRoleBadge ? null : <RoleBadge state={role.state} />}
-      <AccountMenu identity={identity} role={role.state} />
+      <Suspense
+        fallback={
+          <UserIdentityChip
+            identity={identity.canonicalEmail ?? identity.signedInAs}
+            label="Signed in"
+            className="account-menu-trigger"
+            testId="identity-chip"
+          />
+        }
+      >
+        <AccountMenu identity={identity} role={role.state} />
+      </Suspense>
       {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
       {gear}
       <span className="app-chrome-rule" aria-hidden="true" />
@@ -444,7 +455,7 @@ export function Layout() {
         search: settingsDestination.canonicalSearch,
         hash: location.hash,
       },
-      { replace: true, state: location.state }
+      { replace: true, state: location.state as unknown }
     );
   }, [
     location.hash,

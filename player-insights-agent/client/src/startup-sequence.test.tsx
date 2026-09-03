@@ -175,6 +175,7 @@ describe('frame ownership', () => {
       </AccessGate>
     );
     expect(markup).toContain('Access check');
+    expect(markup).toContain('class="access-gate-panel ast-login-panel ast-dialog-panel"');
     expect(markup).not.toContain('route-loading');
     expect(markup).not.toContain('data-startup-symbol');
   });

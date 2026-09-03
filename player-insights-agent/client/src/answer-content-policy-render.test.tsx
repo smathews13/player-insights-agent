@@ -31,7 +31,7 @@ describe('answer content cleanup at render boundaries', () => {
     expect(answerHasGeneratedSql('SELECT 1')).toBe(true);
   });
 
-  it('removes an empty Keep in mind section from a current structured answer', () => {
+  it('removes an empty Caveats section from a current structured answer', () => {
     const answer = normalizeAnswer({
       id: 'msg-live',
       mode: 'live',
@@ -51,7 +51,7 @@ describe('answer content cleanup at render boundaries', () => {
         showFeedback={false}
       />
     );
-    expect(markup).not.toContain('Keep in mind');
+    expect(markup).not.toContain('Caveats');
     expect(markup).not.toMatch(/Partial evidence|optional tail|Validation:|declared table is not|untagged/i);
     expect(markup).not.toContain('show more');
   });
@@ -88,11 +88,11 @@ describe('answer content cleanup at render boundaries', () => {
         />
       </MemoryRouter>
     );
-    expect(markup).not.toContain('Keep in mind');
+    expect(markup).not.toContain('Caveats');
     expect(markup).not.toMatch(/Partial evidence|optional tail|Validation:|declared table is not|untagged/i);
   });
 
-  it('keeps an actual permission failure in Keep in mind without an inline answer banner', () => {
+  it('keeps an actual permission failure in Caveats without an inline answer banner', () => {
     const answer = normalizeAnswer({
       id: 'msg-denied',
       mode: 'live',
@@ -112,7 +112,8 @@ describe('answer content cleanup at render boundaries', () => {
         showFeedback={false}
       />
     );
-    expect(markup).toContain('Keep in mind');
+    expect(markup).toContain('Caveats');
+    expect(markup).not.toContain('Keep in mind');
     expect(markup).toContain('Permission denied');
     expect(markup).not.toContain('Partial evidence');
     expect(markup).not.toContain('data-variant="destructive"');

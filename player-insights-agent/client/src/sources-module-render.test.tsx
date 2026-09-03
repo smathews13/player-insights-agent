@@ -110,7 +110,7 @@ describe('the source list', () => {
     expect(markup.match(/class="source-list-separator"/g)).toHaveLength(2);
   });
 
-  it('keeps Keep in mind as its own list under Sources', () => {
+  it('keeps Caveats as its own list under Sources', () => {
     const markup = renderToStaticMarkup(
       <SourcesModule
         sources={QUERIED.map((name) => ({ name, freshness: FRESHNESS }))}
@@ -122,6 +122,7 @@ describe('the source list', () => {
     expect(markup.match(/<li class="source-list-row"/g)).toHaveLength(2);
     expect(markup.indexOf('source-list')).toBeLessThan(markup.indexOf('keep-in-mind'));
     expect(text(markup)).toContain('Watch the window.');
+    expect(text(markup)).toContain('Caveats');
   });
 
   it('says the governance line nowhere and keeps each table freshness visible', () => {
@@ -321,7 +322,7 @@ describe('the row that names a source', () => {
     const list = /<ul class="answer-list source-list">([\s\S]*?)<\/ul>/.exec(markup)?.[1] ?? '';
     expect(list).not.toContain(QUERIED[0]);
     expect(list).toContain(NAME);
-    expect(text(markup)).toContain('Keep in mind');
+    expect(text(markup)).toContain('Caveats');
     expect(text(markup)).toContain(QUERIED[0]);
   });
 
@@ -351,14 +352,14 @@ describe('what the module refuses to draw', () => {
   });
 
   it('still draws, for the caveats alone, when the answer cited no table', () => {
-    // The case that must not regress. "What to keep in mind" was invisible for
+    // The case that must not regress. Caveats was invisible for
     // months, and the module is now the only thing that draws it -- so an answer
     // with caveats and no sources has to bring the module with it.
     const rendered = text(
       renderToStaticMarkup(<SourcesModule sources={[]} caveats={['Totals are cumulative player-days.']} />)
     );
 
-    expect(rendered).toContain('Keep in mind');
+    expect(rendered).toContain('Caveats');
     expect(rendered).toContain('Totals are cumulative player-days.');
     // No count, because there is no claim about tables to make. "0 tables" is a
     // claim; saying nothing is not.

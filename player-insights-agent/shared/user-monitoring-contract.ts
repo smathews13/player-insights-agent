@@ -1,15 +1,18 @@
 import type { CostBudgetUnit } from './cost-budgets';
 import type { OpsDayRange } from './ops-contract';
+import type { OrganizationFilterOption, OrganizationMapping } from './organization-mapping';
 import type { Role } from './user-roster-contract';
 import type { UserSpendAmount, UserSpendQuality, UserSpendReconciliation } from './user-spend-contract';
 
-export const USER_MONITORING_SCHEMA_REVISION = 4;
+export const USER_MONITORING_SCHEMA_REVISION = 5;
 
 export interface UserMonitoringRow {
   email: string;
   role: Role;
   /** Current assignment only. Historical run persona remains immutable elsewhere. */
   persona: { id: string; name: string } | null;
+  /** Canonical organization derived from the authoritative roster address. */
+  organization: OrganizationMapping;
   lastActive: string | null;
   questions: number;
   runs: number;
@@ -35,6 +38,8 @@ export interface UserMonitoringPayload {
   reason: string;
   users: UserMonitoringRow[];
   personas: Array<{ id: string; name: string; count: number }>;
+  /** Organizations represented in the Identity roster, independent of active filters. */
+  organizations: OrganizationFilterOption[];
   dataRevision: number;
   identityRevision: string;
   pagination: {

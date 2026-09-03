@@ -1,75 +1,59 @@
-import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react';
+import { lazy, Suspense, useId, useState } from 'react';
 import type { Identity } from './app-types';
-import { organizationForEmail } from '../../shared/organization-mapping';
+import type { OrganizationMapping } from '../../shared/organization-contract';
 import { OrganizationAvatar } from './OrganizationAvatar';
 import type { RoleState } from './role';
-import { identityName } from './user-identity';
+import { Popover, PopoverTrigger } from './ui';
+import { canonicalIdentityEmail, identityDisplayName } from './user-identity';
 
-const AccountMenuPanel = lazy(() =>
-  import('./AccountMenuPanel').then(({ AccountMenuPanel: panel }) => ({ default: panel }))
+const AccountMenuContent = lazy(() =>
+  import('./AccountMenuPanel').then(({ AccountMenuContent: content }) => ({ default: content }))
 );
+
+const EXTERNAL_ORGANIZATION: OrganizationMapping = {
+  id: 'external',
+  domain: '',
+  domainSuffixes: [],
+  name: 'External',
+  monogram: '•',
+  logoKey: 'fallback',
+  ariaLabel: 'Organization: External',
+  fallback: 'building',
+};
 
 export function AccountMenu({ identity, role }: { identity: Identity; role: RoleState }) {
   const menuId = useId();
-  const root = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const name = identityName(identity.signedInAs);
-  const organization = organizationForEmail(identity.signedInAs, identity.organizations ?? []);
-
-  useEffect(() => {
-    if (!open) return;
-    const onMouseDown = (event: MouseEvent) => {
-      const target = event.target;
-      if (
-        root.current?.contains(target as Node) ||
-        (target instanceof Element && target.closest('[data-account-feedback-menu]'))
-      ) {
-        return;
-      }
-      setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.key !== 'Escape') return;
-      setOpen(false);
-      trigger.current?.focus();
-    };
-    document.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
+  const canonicalEmail = canonicalIdentityEmail(identity);
+  const name = identityDisplayName(identity);
+  const organization = identity.organization ?? EXTERNAL_ORGANIZATION;
 
   return (
-    <>
-      <div ref={root} className="account-menu-root">
-        <button
-          ref={trigger}
-          className="identity-chip account-menu-trigger"
-          data-testid="identity-chip"
-          type="button"
-          title={identity.signedInAs}
-          aria-label={`Signed in as ${identity.signedInAs}`}
-          aria-expanded={open}
-          aria-controls={open ? menuId : undefined}
-          onClick={() => setOpen((current) => !current)}
-        >
-          <OrganizationAvatar organization={organization} />
-          <span className="identity-chip-text">
-            <span className="identity-chip-label">Signed in </span>
-            <strong className="identity-chip-name">{name}</strong>
-          </span>
-        </button>
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className="account-menu-root">
+        <PopoverTrigger asChild>
+          <button
+            className="identity-chip account-menu-trigger app-menu-trigger"
+            data-testid="identity-chip"
+            type="button"
+            title={canonicalEmail}
+            aria-label={`Signed in as ${canonicalEmail}`}
+            aria-expanded={open}
+            aria-controls={menuId}
+          >
+            <OrganizationAvatar organization={organization} />
+            <span className="identity-chip-text">
+              <span className="identity-chip-label">Signed in </span>
+              <strong className="identity-chip-name">{name}</strong>
+            </span>
+          </button>
+        </PopoverTrigger>
         {open ? (
-          <div id={menuId}>
-            <Suspense fallback={null}>
-              <AccountMenuPanel identity={identity} role={role} onClose={() => setOpen(false)} />
-            </Suspense>
-          </div>
+          <Suspense fallback={null}>
+            <AccountMenuContent menuId={menuId} identity={identity} role={role} onClose={() => setOpen(false)} />
+          </Suspense>
         ) : null}
       </div>
-    </>
+    </Popover>
   );
 }

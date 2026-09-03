@@ -45,6 +45,7 @@ createApp({
       { setupAccessGuideRoutes },
       { setupUserRoutes },
       { setupMonitoringRoutes },
+      { setupMonitoringFeedbackRoutes },
       { setupUserSpendReadModelRoutes },
       { createUserSpendRefreshSource },
       { startUserSpendHourlyScheduler },
@@ -74,6 +75,7 @@ createApp({
       import('./routes/access-guide-routes'),
       import('./routes/user-routes'),
       import('./routes/monitoring-routes'),
+      import('./routes/monitoring-feedback-routes'),
       import('./routes/user-spend-read-model-routes'),
       import('./lib/user-spend-refresh-source'),
       import('./lib/user-spend-hourly-read-model'),
@@ -168,6 +170,7 @@ createApp({
     // nothing if it does not, but that check cannot see this ordering, so this is
     // the half of the protection that lives here.
     setupMonitoringRoutes(appkit, { isAdminRoute, traceTokenEvidenceReader: readMlflowTokenEvidence });
+    setupMonitoringFeedbackRoutes(appkit, { isAdminRoute });
     setupUserSpendReadModelRoutes(appkit, {
       isAdminRoute,
       sourceForRequest: (req) => createUserSpendRefreshSource(appkit, req),

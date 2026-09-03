@@ -225,6 +225,39 @@ describe('bounded user spend materialization', () => {
 });
 
 describe('fast read semantics', () => {
+  it('does not treat an Identity-only roster row as a completed spend refresh', async () => {
+    const store = {
+      query: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            display_email: 'spend.user@example.test',
+            submitted_questions: '0',
+            completed_questions: '0',
+            run_count: '0',
+            active_minutes: '0',
+            spend_usd_covered_days: '0',
+            spend_dbu_covered_days: '0',
+            activity_complete: false,
+            billing_complete: false,
+            app_role: 'consumer',
+            computed_at: null,
+            refresh_completed_at: null,
+            total_users: '1',
+          },
+        ],
+      }),
+    };
+    const page = await readUserSpendReadModelPage(store, {
+      appScope: 'astrolabe',
+      range: { from: '2026-08-31', to: '2026-08-31' },
+      principal: 'admin@example.test',
+      allowBrowse: true,
+      unit: 'USD',
+    });
+    expect(page.rows).toHaveLength(1);
+    expect(page.available).toBe(false);
+  });
+
   it('scopes non-admins in SQL and preserves zero separately from missing values', async () => {
     const store = {
       query: vi.fn().mockResolvedValue({
@@ -282,13 +315,14 @@ describe('fast read semantics', () => {
     });
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('FROM player_insights.admin_emails');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('LEFT JOIN aggregated');
-    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('WHERE $13::boolean');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('WHERE $14::boolean');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('AND ($5::boolean OR roster.user_key = lower($6))');
     expect(READ_USER_SPEND_SUMMARY_QUERY).not.toContain("COALESCE(NULLIF(admin_user.role, ''), 'consumer')");
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('BOOL_AND(billing_complete)');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('SUM(spend_usd) AS spend_usd');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain("WHEN COUNT(spend_usd) = 0 THEN 'unavailable'");
-    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('LIMIT $11 OFFSET $12');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('cardinality($10::text[]) = 0');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('LIMIT $12 OFFSET $13');
   });
 
   it('starts only one local timer and shutdown prevents its immediate warm', async () => {

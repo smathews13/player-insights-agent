@@ -962,6 +962,20 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
       `ALTER TABLE ${APP_SCHEMA}.sp_personas DROP COLUMN IF EXISTS definition_id`,
     ],
   },
+  {
+    version: 37,
+    name: 'feedback corpus keyset index',
+    /**
+     * The admin feedback browser starts from feedback submission time rather
+     * than question time and orders ties by the append-only id. This index makes
+     * every period and cursor page bounded without changing a feedback row.
+     */
+    statements: [
+      `CREATE INDEX IF NOT EXISTS feedback_created_id_idx
+         ON ${APP_SCHEMA}.feedback (created_at DESC, id DESC)`,
+    ],
+    down: [`DROP INDEX IF EXISTS ${APP_SCHEMA}.feedback_created_id_idx`],
+  },
 ];
 
 /**

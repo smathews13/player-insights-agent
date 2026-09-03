@@ -53,6 +53,8 @@ import { RoleBadgePill } from './RoleBadge';
 import { EstimatedBadge } from './EstimatedBadge';
 import { identityName } from './user-identity';
 import { ToolCallsLabel } from './ToolCallsLabel';
+import { OrganizationAvatar } from './OrganizationAvatar';
+import { UserOrganizationSelect } from './UserOrganizationSelect';
 import type { Answer, FeedbackEntry } from './app-types';
 import { tokenTotalUsageView } from './token-usage-view';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
@@ -90,11 +92,14 @@ import {
   chipsActive,
   clearedFilters,
   backToUserBrowser,
+  closedFeedbackBrowser,
   closedUserMonitoring,
   closedDrawer,
   drawerFromParams,
+  feedbackBrowserFromParams,
   filtersActive,
   filtersFromParams,
+  openFeedbackBrowser,
   openPerson,
   openQuestion,
   openUserBrowser,
@@ -102,6 +107,7 @@ import {
   scrollMemory,
   userBrowserFromParams,
   withFilters,
+  withUserBrowserFilters,
   type MonitoringFilters,
 } from './monitoring-filters';
 import { monitoringQuestionRowHandlers } from './monitoring-row-activation';
@@ -153,8 +159,16 @@ import {
   type UserSpendTotalCoordinates,
 } from './user-spend-total-cache';
 import { listenForIdentitySettingsChanges } from './identity-settings-events';
+import { USER_SPEND_DIAGNOSES, userSpendHttpDiagnosis, userSpendPayloadDiagnosis } from './user-spend-diagnosis';
 import { UsedThisRun } from './UsedThisRun';
 import { Dialog } from './Dialog';
+import { FeedbackBrowserPanel } from './FeedbackBrowserPanel';
+import {
+  invalidateFeedbackBrowserSession,
+  useFeedbackBrowser,
+  type FeedbackBrowserFilters,
+} from './feedback-browser-session';
+import type { MonitoringFeedbackRow } from '../../shared/monitoring-feedback-contract';
 
 /* ── The summary strip ───────────────────────────────────────────────────── */
 
@@ -173,18 +187,18 @@ export function SummaryTile({
   tile,
   periodLabel,
   className = '',
+  onOpen,
+  actionLabel,
 }: {
   label: string;
   tile: TileValue;
   periodLabel: string;
   className?: string;
+  onOpen?: () => void;
+  actionLabel?: string;
 }) {
-  return (
-    <div
-      className={['monitoring-tile', 'ast-surface-primary', className].filter(Boolean).join(' ')}
-      role="group"
-      aria-label={`${label}, ${periodLabel}`}
-    >
+  const content = (
+    <>
       <div className="monitoring-tile-head">
         <p className="monitoring-tile-label">{label}</p>
         <PeriodBadge label={periodLabel} />
@@ -198,6 +212,24 @@ export function SummaryTile({
         <p className="monitoring-tile-absent">{tile.absence}</p>
       )}
       {tile.caption ? <p className="monitoring-tile-caption">{tile.caption}</p> : null}
+      {onOpen && actionLabel ? (
+        <span className="monitoring-tile-affordance">
+          {actionLabel}
+          <ChevronRight aria-hidden="true" />
+        </span>
+      ) : null}
+    </>
+  );
+  const classes = ['monitoring-tile', 'ast-surface-primary', onOpen ? 'monitoring-tile-action' : '', className]
+    .filter(Boolean)
+    .join(' ');
+  return onOpen ? (
+    <button type="button" className={classes} aria-label={`${label}, ${periodLabel}. ${actionLabel}`} onClick={onOpen}>
+      {content}
+    </button>
+  ) : (
+    <div className={classes} role="group" aria-label={`${label}, ${periodLabel}`}>
+      {content}
     </div>
   );
 }
@@ -210,7 +242,15 @@ export function SummaryTile({
  * the app not working. The two are separately coloured and separately counted,
  * and the caption only claims they sum to the questions asked when they do.
  */
-export function SummaryStrip({ payload, periodLabel }: { payload: MonitoringQuestionsPayload; periodLabel: string }) {
+export function SummaryStrip({
+  payload,
+  periodLabel,
+  onOpenFeedback,
+}: {
+  payload: MonitoringQuestionsPayload;
+  periodLabel: string;
+  onOpenFeedback?: () => void;
+}) {
   const outcomes = outcomeTile(payload.summary);
   const outcomeMetrics = [
     { label: 'Completed', value: outcomes.completed, count: payload.summary.completed, className: '' },
@@ -272,6 +312,8 @@ export function SummaryStrip({ payload, periodLabel }: { payload: MonitoringQues
         tile={feedbackTile(payload.summary)}
         periodLabel={periodLabel}
         className="monitoring-summary-rated"
+        onOpen={onOpenFeedback}
+        actionLabel={onOpenFeedback ? 'Open feedback' : undefined}
       />
       <SummaryTile
         label="Median answer time"
@@ -313,19 +355,17 @@ function SkeletonStrip({ periodLabel }: { periodLabel: string }) {
 const NO_FILTER = '__any__';
 
 /**
- * One filter dropdown: the app's own Select, not a native one.
+ * One filter dropdown, through the app's shared non-modal primitive.
  *
  * It was a native `<select>`. A native select opens the operating system's menu,
  * which is drawn by the platform and cannot be styled where it matters, so it
  * looked like nothing else in the app and appeared detached from the control
- * that opened it. This is the same Radix Select the rest of the app's components
- * come from, through `./ui`: it opens anchored to the trigger, at the trigger's
- * width, and it is drawn by the app, so it takes DuBois tokens like everything
- * else.
+ * that opened it. The menu opens in a body portal anchored to the trigger, owns
+ * its scrolling, and does not lock or resize the document.
  *
  * Accessibility is not traded for the appearance. The trigger is a combobox
  * whose accessible name is the filter and whose value is the current choice, so
- * a reader hears "User, All" as it heard from the native control. Arrow keys
+ * a reader hears "User, All users" as it heard from the native control. Arrow keys
  * move through the options, typing jumps to one, Escape dismisses, and the
  * chosen option carries a tick in the open menu rather than being marked only on
  * the closed trigger.
@@ -492,14 +532,17 @@ export function FilterRow({
         label="User"
         value={filters.person}
         onChange={(person) => onChange({ ...filters, person })}
-        options={[{ value: '', label: 'All' }, ...people.map((email) => ({ value: email, label: localPart(email) }))]}
+        options={[
+          { value: '', label: 'All users' },
+          ...people.map((email) => ({ value: email, label: localPart(email) })),
+        ]}
       />
       <FilterChip
         label="Outcome"
         value={filters.outcome}
         onChange={(outcome) => onChange({ ...filters, outcome: outcome as MonitoringFilters['outcome'] })}
         options={[
-          { value: '', label: 'All' },
+          { value: '', label: 'All outcomes' },
           { value: 'completed', label: 'Completed' },
           { value: 'partial', label: 'Partial' },
           { value: 'refused', label: 'Refused' },
@@ -511,7 +554,7 @@ export function FilterRow({
         value={filters.feedback ?? ''}
         onChange={(feedback) => onChange({ ...filters, feedback: feedback as MonitoringFilters['feedback'] })}
         options={[
-          { value: '', label: 'All' },
+          { value: '', label: 'All feedback' },
           { value: 'up', label: 'Helpful' },
           { value: 'down', label: 'Not helpful' },
           { value: 'none', label: 'No feedback' },
@@ -524,7 +567,7 @@ export function FilterRow({
         label="Table"
         value={filters.table}
         onChange={(table) => onChange({ ...filters, table })}
-        options={[{ value: '', label: 'Any' }, ...tables.map((table) => ({ value: table, label: table }))]}
+        options={[{ value: '', label: 'Any table' }, ...tables.map((table) => ({ value: table, label: table }))]}
       />
       {/* Clearing the whole row, offered here whenever anything is set.
           
@@ -695,7 +738,13 @@ function QuestionRow({
       <td className="monitoring-numeric monitoring-token-cell">
         <TotalTokens value={question.totalTokens} />
       </td>
-      <td className="monitoring-numeric ast-num">{question.toolCalls === null ? '' : question.toolCalls}</td>
+      <td className="monitoring-numeric monitoring-tool-cell">
+        {question.toolCalls === null ? null : (
+          <ToolCallsLabel>
+            <span className="ast-num">{question.toolCalls}</span>
+          </ToolCallsLabel>
+        )}
+      </td>
       <td>
         <FeedbackMark feedback={question.feedback ?? question.rating} />
       </td>
@@ -758,7 +807,7 @@ function QuestionCard({
           Total tokens <TotalTokens value={question.totalTokens} />
         </span>
         {question.toolCalls !== null ? (
-          <span>
+          <span className="monitoring-tool-inline">
             <ToolCallsLabel>Tools</ToolCallsLabel> <span className="ast-num">{question.toolCalls}</span>
           </span>
         ) : null}
@@ -1236,7 +1285,7 @@ function SpendMetric({
       <strong className="user-profile-modal-spend-kpi-value ast-num" aria-label={`${label}: ${figure}`}>
         {figure}
       </strong>
-      {metric.state === 'unavailable' ? null : (
+      {metric.state === 'unavailable' || !metric.subtitle ? null : (
         <span className="user-profile-modal-spend-kpi-subtitle">{metric.subtitle}</span>
       )}
     </div>
@@ -1329,6 +1378,28 @@ export function PersonSpend({
       </section>
     );
   }
+  if (state.status === 'error') {
+    const diagnosis = USER_SPEND_DIAGNOSES.find((candidate) => candidate === state.error) ?? null;
+    return (
+      <section className="user-profile-modal-spend" aria-labelledby="user-profile-spend-title">
+        <h4 id="user-profile-spend-title" className="user-profile-modal-section-title">
+          User spend
+        </h4>
+        <div className="user-profile-modal-spend-diagnosis" role="status">
+          <strong>{diagnosis ?? 'Attributable spend could not be loaded.'}</strong>
+          {diagnosis === 'Lakebase update required' ? (
+            <Link to="/connections">Update Lakebase</Link>
+          ) : diagnosis === 'Preparing user spend' ? (
+            <span>Retry shortly while the first read completes.</span>
+          ) : diagnosis === 'Billing access required' ? (
+            <span>Retry with an administrator identity that can read the app billing sources.</span>
+          ) : diagnosis === 'User not added in Identity settings' ? (
+            <span>Add this user in Identity settings before monitoring their spend.</span>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
   const spend = state.status === 'ready' ? state.data.spendByUser : null;
   const profile = spend?.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase()) ?? null;
   const reading = unit === 'USD' ? profile?.total.usd : profile?.total.dbu;
@@ -1405,7 +1476,7 @@ export function PersonSpend({
         ) : (
           <SpendMetric
             label="Share of app spend"
-            metric={appShare}
+            metric={appShare.state === 'value' ? { ...appShare, subtitle: '' } : appShare}
             kind="percent"
             unit={unit}
             currency={state.status === 'ready' ? state.data.currency : ''}
@@ -1439,10 +1510,12 @@ function ProfileQuestionHistory({
             <th scope="col">When</th>
             <th scope="col">Outcome</th>
             <th scope="col">Time</th>
-            <th scope="col">
+            <th scope="col" className="user-profile-modal-tools-column">
               <ToolCallsLabel>Tools</ToolCallsLabel>
             </th>
-            <th scope="col">Feedback</th>
+            <th scope="col" className="user-profile-modal-feedback-column">
+              Feedback
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -1460,10 +1533,16 @@ function ProfileQuestionHistory({
               <td data-label="Time" className="ast-num">
                 {formatDuration(question.durationMs) ?? 'Not recorded'}
               </td>
-              <td data-label="Tools" className="ast-num">
-                {question.toolCalls ?? 'Not recorded'}
+              <td data-label="Tools" className="user-profile-modal-tools-column">
+                {question.toolCalls === null ? (
+                  'Not recorded'
+                ) : (
+                  <ToolCallsLabel>
+                    <span className="ast-num">{question.toolCalls}</span>
+                  </ToolCallsLabel>
+                )}
               </td>
-              <td data-label="Feedback">
+              <td data-label="Feedback" className="user-profile-modal-feedback-column">
                 <FeedbackMark feedback={question.feedback ?? question.rating} />
               </td>
             </tr>
@@ -1479,7 +1558,15 @@ function profilePersonaName(persona: { name: string } | null | undefined): strin
   return /^(no persona|none|unassigned|n\/a|null|unknown)$/i.test(name) ? '' : name;
 }
 
-function ProfileIdentityBadges({ role, persona }: { role: Role; persona: { name: string } | null | undefined }) {
+function ProfileIdentityBadges({
+  role,
+  persona,
+  organization,
+}: {
+  role: Role;
+  persona: { name: string } | null | undefined;
+  organization: UserMonitoringRow['organization'];
+}) {
   const personaName = profilePersonaName(persona);
   return (
     <div className="user-profile-modal-identity-badges">
@@ -1493,6 +1580,13 @@ function ProfileIdentityBadges({ role, persona }: { role: Role; persona: { name:
           {personaName}
         </span>
       ) : null}
+      <span
+        className={astPill('neutral-outline', 'user-profile-modal-organization')}
+        title={organization.name}
+        aria-label={organization.ariaLabel}
+      >
+        {organization.name}
+      </span>
     </div>
   );
 }
@@ -1510,6 +1604,7 @@ export function PersonPanel({
   onPreviousPage = () => {},
   onNextPage = () => {},
   onBack,
+  backLabel = 'Back to all users',
 }: {
   panel: PersonPanelPayload;
   spendState?: PanelLoadState<OpsCostPayload>;
@@ -1534,6 +1629,7 @@ export function PersonPanel({
   onNextPage?: () => void;
   compactQuestions?: boolean;
   onBack?: () => void;
+  backLabel?: string;
 }) {
   const times = answerTimeTile(panel.durationsMs);
   const outcomes = outcomeTile(panel.summary);
@@ -1552,15 +1648,19 @@ export function PersonPanel({
           {onBack ? (
             <Button variant="ghost" size="sm" className="user-profile-modal-back" onClick={onBack}>
               <ArrowLeft className="monitoring-link-arrow size-3.5" aria-hidden="true" />
-              Back to all users
+              {backLabel}
             </Button>
           ) : null}
           <div className="user-profile-modal-user">
             <div className="user-profile-modal-identity-row">
               <h3 id="user-profile-modal-title">
-                <UserIdentityChip identity={panel.email} />
+                <UserIdentityChip
+                  identity={panel.email}
+                  showFullIdentity
+                  icon={<OrganizationAvatar organization={panel.organization} />}
+                />
               </h3>
-              <ProfileIdentityBadges role={panel.role} persona={panel.persona} />
+              <ProfileIdentityBadges role={panel.role} persona={panel.persona} organization={panel.organization} />
             </div>
             <p id="user-profile-modal-description" className="user-profile-modal-description">
               {panel.firstSeen ? `First seen ${whenLabel(panel.firstSeen, now)}` : 'First seen not recorded'}
@@ -1714,6 +1814,7 @@ export function PersonPanelShell({
   onNextPage,
   onRetry,
   onBack,
+  backLabel,
   identitySeed,
 }: {
   state: PanelLoadState<PersonPanelPayload>;
@@ -1730,7 +1831,8 @@ export function PersonPanelShell({
   onNextPage: () => void;
   onRetry: () => void;
   onBack?: () => void;
-  identitySeed?: Pick<UserMonitoringRow, 'role' | 'persona'> | null;
+  backLabel?: string;
+  identitySeed?: Pick<UserMonitoringRow, 'role' | 'persona' | 'organization'> | null;
 }) {
   if (state.status === 'ready') {
     return (
@@ -1747,6 +1849,7 @@ export function PersonPanelShell({
         onPreviousPage={onPreviousPage}
         onNextPage={onNextPage}
         onBack={onBack}
+        backLabel={backLabel}
       />
     );
   }
@@ -1764,14 +1867,28 @@ export function PersonPanelShell({
           {onBack ? (
             <Button variant="ghost" size="sm" className="user-profile-modal-back" onClick={onBack}>
               <ArrowLeft className="monitoring-link-arrow size-3.5" aria-hidden="true" />
-              Back to all users
+              {backLabel ?? 'Back to all users'}
             </Button>
           ) : null}
           <div className="user-profile-modal-identity-row">
             <h3 id="user-profile-modal-title" className="user-profile-modal-loading-title">
-              {localPart(email) || 'User activity'}
+              {identitySeed ? (
+                <UserIdentityChip
+                  identity={email}
+                  showFullIdentity
+                  icon={<OrganizationAvatar organization={identitySeed.organization} />}
+                />
+              ) : (
+                localPart(email) || 'User activity'
+              )}
             </h3>
-            {identitySeed ? <ProfileIdentityBadges role={identitySeed.role} persona={identitySeed.persona} /> : null}
+            {identitySeed ? (
+              <ProfileIdentityBadges
+                role={identitySeed.role}
+                persona={identitySeed.persona}
+                organization={identitySeed.organization}
+              />
+            ) : null}
           </div>
           <p id="user-profile-modal-description" className="sr-only">
             User activity and attributable spend
@@ -1829,6 +1946,7 @@ export function UserMonitoringPanel({
   onSearch,
   onRole,
   onPersona = () => {},
+  onOrganizations = () => {},
   onRange,
   onUnit,
   onClear,
@@ -1846,6 +1964,7 @@ export function UserMonitoringPanel({
   onSearch: (search: string) => void;
   onRole: (role: string) => void;
   onPersona?: (persona: string) => void;
+  onOrganizations?: (organizations: readonly string[]) => void;
   onRange: (range: RangeKey) => void;
   onUnit: (unit: 'USD' | 'DBU') => void;
   onClear: () => void;
@@ -1855,7 +1974,7 @@ export function UserMonitoringPanel({
   cacheKey?: string;
 }) {
   const payload: UserMonitoringPayload | null = state.status === 'ready' ? (state.data.userMonitoring ?? null) : null;
-  const changed = Boolean(browser.search || browser.role || browser.persona);
+  const changed = Boolean(browser.search || browser.role || browser.persona || browser.organizations.length > 0);
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!cacheKey || !body.current) return;
@@ -1920,11 +2039,17 @@ export function UserMonitoringPanel({
               { value: NO_FILTER, label: 'All personas' },
               ...(payload?.personas ?? []).map((persona) => ({
                 value: persona.id,
-                label: `${persona.name} (${persona.count})`,
+                label: persona.name,
               })),
             ]}
             onValueChange={(persona) => onPersona(persona === NO_FILTER ? '' : persona)}
             contentClassName="monitoring-users-filter-menu"
+          />
+          <UserOrganizationSelect
+            organizations={payload?.organizations ?? []}
+            total={(payload?.organizations ?? []).reduce((sum, organization) => sum + organization.count, 0)}
+            selected={browser.organizations}
+            onChange={onOrganizations}
           />
           <TimeRangeSegments page="User Monitoring" value={browser.range} onChange={onRange} />
           <UnitSegmentedControl
@@ -1982,7 +2107,11 @@ export function UserMonitoringPanel({
                   aria-label={`Open ${localPart(row.email)} User Overview`}
                 >
                   <span className="monitoring-user-identity">
-                    <UserIdentityChip identity={row.email} compact />
+                    <UserIdentityChip
+                      identity={row.email}
+                      compact
+                      icon={<OrganizationAvatar organization={row.organization} />}
+                    />
                   </span>
                   <span>
                     <span className="monitoring-users-mobile-label">Role</span>
@@ -2015,6 +2144,7 @@ export function UserMonitoringPanel({
                 No users match {browser.search ? `"${browser.search}"` : 'the active filters'}
                 {browser.role ? ` and ${ROLE_WORD[isRole(browser.role) ? browser.role : 'consumer']} role` : ''}.
                 {browser.persona ? ' No users have the selected current persona.' : ''}
+                {browser.organizations.length > 0 ? ' No users belong to the selected organizations.' : ''}
               </p>
             ) : null}
             <div className="monitoring-users-pagination">
@@ -2050,6 +2180,7 @@ export interface MonitoringBodyProps {
   onOpen: (question: MonitoringQuestion) => void;
   onOpenPerson?: (email: string) => void;
   onOpenUsers?: () => void;
+  onOpenFeedback?: () => void;
   onChangeFilters: (next: MonitoringFilters) => void;
   onClearFilters: () => void;
   onRetry: () => void;
@@ -2078,6 +2209,7 @@ export function MonitoringBody({
   onOpen,
   onOpenPerson,
   onOpenUsers,
+  onOpenFeedback,
   onChangeFilters,
   onClearFilters,
   onRetry,
@@ -2108,7 +2240,7 @@ export function MonitoringBody({
       {state === 'loading' ? (
         <SkeletonStrip periodLabel={rangeLabel} />
       ) : payload ? (
-        <SummaryStrip payload={payload} periodLabel={rangeLabel} />
+        <SummaryStrip payload={payload} periodLabel={rangeLabel} onOpenFeedback={onOpenFeedback} />
       ) : null}
 
       {/* A partial read renders its figures and says what they are over, so a
@@ -2449,9 +2581,14 @@ function useUserSpendRequest(coordinates: UserSpendTotalCoordinates | null, url:
     setRefreshing(Boolean(retained));
     void requestUserSpendTotal(stableCoordinates, async () => {
       const response = await fetch(url);
-      if (!response.ok) throw new Error(response.status === 403 ? 'forbidden' : `http_${response.status}`);
+      if (!response.ok) {
+        const diagnosis = await userSpendHttpDiagnosis(response);
+        throw new Error(diagnosis ?? (response.status === 403 ? 'forbidden' : `http_${response.status}`));
+      }
       const payload = decodeUserSpendPayload(await response.json());
       const spend = payload.spendByUser;
+      const diagnosis = userSpendPayloadDiagnosis(spend);
+      if (diagnosis) throw new Error(diagnosis);
       const profile =
         spend?.users.find((candidate) => candidate.email.toLowerCase() === stableCoordinates.email.toLowerCase()) ??
         null;
@@ -2491,10 +2628,13 @@ function useUserSpendRequest(coordinates: UserSpendTotalCoordinates | null, url:
       })
       .catch((error: unknown) => {
         if (!active || retained) return;
+        const diagnosis =
+          error instanceof Error ? USER_SPEND_DIAGNOSES.find((candidate) => candidate === error.message) : null;
         const message =
-          error instanceof Error && error.message === 'forbidden'
+          diagnosis ??
+          (error instanceof Error && error.message === 'forbidden'
             ? 'You do not have access to these Monitoring details.'
-            : 'Attributable spend could not be loaded.';
+            : 'Attributable spend could not be loaded.');
         setState((current) => rejectPanelLoad(current, cacheKey, requestId, message));
       })
       .finally(() => {
@@ -2518,6 +2658,15 @@ interface CursorPages {
   cursors: string[];
   index: number;
 }
+
+const EMPTY_FEEDBACK_FILTERS: FeedbackBrowserFilters = {
+  search: '',
+  feedback: '',
+  user: '',
+  role: '',
+  persona: '',
+  organization: '',
+};
 
 function cursorFor(owner: string, pages: CursorPages): string {
   return pages.owner === owner ? (pages.cursors[pages.index] ?? '') : '';
@@ -2559,8 +2708,9 @@ export function MonitoringPage() {
   const outlet = useOutletContext<AppOutletContext | null>();
   const cacheScope = `${outlet?.subject?.trim().toLowerCase() || 'unknown'}|${outlet?.role.state ?? 'unknown'}`;
   const [profileIdentitySeed, setProfileIdentitySeed] = useState<
-    (Pick<UserMonitoringRow, 'email' | 'role' | 'persona'> & { scope: string }) | null
+    (Pick<UserMonitoringRow, 'email' | 'role' | 'persona' | 'organization'> & { scope: string }) | null
   >(null);
+  const [feedbackQuestionWindow, setFeedbackQuestionWindow] = useState<{ from: string; to: string } | null>(null);
   // The clock is read once per render pass rather than per row, so every
   // relative stamp on one paint is relative to the same instant.
   const [now, setNow] = useState(() => Date.now());
@@ -2571,6 +2721,7 @@ export function MonitoringPage() {
       listenForIdentitySettingsChanges(() => {
         panelCache.clear();
         clearUserSpendTotalCache();
+        invalidateFeedbackBrowserSession();
         setProfileIdentitySeed(null);
         setIdentityEpoch((value) => value + 1);
       }),
@@ -2580,10 +2731,12 @@ export function MonitoringPage() {
   const filters = filtersFromParams(searchParams);
   const drawer = drawerFromParams(searchParams);
   const routedUserBrowser = userBrowserFromParams(searchParams);
+  const feedbackBrowserOpen = feedbackBrowserFromParams(searchParams);
   const [userControls, setUserControls] = useState(() => ({
     search: routedUserBrowser.search,
     role: routedUserBrowser.role,
     persona: routedUserBrowser.persona ?? '',
+    organizations: routedUserBrowser.organizations,
     unit: routedUserBrowser.unit,
     range: rangeFromParams(searchParams),
     cursors: [''],
@@ -2594,9 +2747,20 @@ export function MonitoringPage() {
     open: routedUserBrowser.open,
     cursor: userControls.cursors[userControls.cursorIndex] ?? '',
   };
+  const [feedbackControls, setFeedbackControls] = useState(() => ({
+    filters: { ...EMPTY_FEEDBACK_FILTERS },
+    range: rangeFromParams(searchParams),
+    cursors: [''],
+    cursorIndex: 0,
+  }));
+  const feedbackBrowser = {
+    ...feedbackControls,
+    cursor: feedbackControls.cursors[feedbackControls.cursorIndex] ?? '',
+  };
   const window_ = rangeWindow(searchParams, now);
   const userWindow = rangeWindow({ get: (name) => (name === 'range' ? userBrowser.range : null) }, now);
-  const profileWindow = userBrowser.open ? userWindow : window_;
+  const feedbackWindow = rangeWindow({ get: (name) => (name === 'range' ? feedbackBrowser.range : null) }, now);
+  const profileWindow = userBrowser.open ? userWindow : feedbackBrowserOpen ? feedbackWindow : window_;
   const periodLabel = rangeLabel(searchParams);
   const rangeId = monitoringRangeId(searchParams);
   const filterKey = JSON.stringify(filters);
@@ -2627,10 +2791,14 @@ export function MonitoringPage() {
   const personCursor = cursorFor(personOwner, personPages);
   const personPage = monitoringPageForOwner(personOwner, personPages);
 
-  const questionKey = drawer.question ? monitoringDetailKey('question', drawer.question, window_.from, window_.to) : '';
+  const questionReadWindow =
+    feedbackBrowserOpen && feedbackQuestionWindow ? feedbackQuestionWindow : { from: window_.from, to: window_.to };
+  const questionKey = drawer.question
+    ? monitoringDetailKey('question', drawer.question, questionReadWindow.from, questionReadWindow.to)
+    : '';
   const questionRequest = usePanelRequest<MonitoringDetail>(
     questionKey,
-    drawer.question ? questionDetailUrl(drawer.question, window_.from, window_.to) : '',
+    drawer.question ? questionDetailUrl(drawer.question, questionReadWindow.from, questionReadWindow.to) : '',
     'Question details could not be loaded.',
     cacheScope
   );
@@ -2669,11 +2837,14 @@ export function MonitoringPage() {
   if (userBrowser.search) userBrowserParams.set('q', userBrowser.search);
   if (userBrowser.role) userBrowserParams.set('role', userBrowser.role);
   if (userBrowser.persona) userBrowserParams.set('persona', userBrowser.persona);
+  if (userBrowser.organizations.length > 0) {
+    userBrowserParams.set('organization', userBrowser.organizations.join(','));
+  }
   if (userBrowser.cursor) userBrowserParams.set('cursor', userBrowser.cursor);
   userBrowserParams.set('identityEpoch', String(identityEpoch));
   const userBrowserKey =
     userBrowser.open && !drawer.person
-      ? `users|v${USER_MONITORING_SCHEMA_REVISION}|${identityEpoch}|${userWindow.from}|${userWindow.to}|${userBrowser.unit}|${userBrowser.search}|${userBrowser.role}|${userBrowser.persona}|${userBrowser.cursor}|25`
+      ? `users|v${USER_MONITORING_SCHEMA_REVISION}|${identityEpoch}|${userWindow.from}|${userWindow.to}|${userBrowser.unit}|${userBrowser.search}|${userBrowser.role}|${userBrowser.persona}|${userBrowser.organizations.join(',')}|${userBrowser.cursor}|25`
       : '';
   const userBrowserRequest = usePanelRequest<OpsCostPayload>(
     userBrowserKey,
@@ -2682,6 +2853,20 @@ export function MonitoringPage() {
     cacheScope,
     decodeUserMonitoringCostPayload,
     true
+  );
+  const feedbackCursor = feedbackControls.cursors[feedbackControls.cursorIndex] ?? '';
+  const feedbackPage = feedbackControls.cursorIndex;
+  const feedbackRequestInput = {
+    scope: cacheScope,
+    from: feedbackWindow.from,
+    to: feedbackWindow.to,
+    filters: feedbackBrowser.filters,
+    cursor: feedbackCursor,
+    pageSize: 25,
+  };
+  const feedbackRequest = useFeedbackBrowser(
+    feedbackRequestInput,
+    feedbackBrowserOpen && !drawer.person && !drawer.question
   );
 
   /**
@@ -2706,8 +2891,15 @@ export function MonitoringPage() {
     if (offset !== null && typeof globalThis.scrollTo === 'function') globalThis.scrollTo({ top: offset });
   }, [location.search, navigate]);
 
+  const closeFeedbackBrowser = useCallback(() => {
+    void navigate({ search: closedFeedbackBrowser(location.search) }, { replace: true });
+    const offset = scroll.current.take();
+    if (offset !== null && typeof globalThis.scrollTo === 'function') globalThis.scrollTo({ top: offset });
+  }, [location.search, navigate]);
+
   const open = useCallback(
     (question: MonitoringQuestion) => {
+      setFeedbackQuestionWindow(null);
       scroll.current.capture(typeof globalThis.scrollY === 'number' ? globalThis.scrollY : 0);
       void navigate({ search: openQuestion(location.search, question.id) });
     },
@@ -2723,6 +2915,28 @@ export function MonitoringPage() {
   );
 
   const userBrowserUnit = userBrowser.unit;
+  const openFeedback = () => {
+    scroll.current.capture(typeof globalThis.scrollY === 'number' ? globalThis.scrollY : 0);
+    setFeedbackControls((current) => ({
+      ...current,
+      range: rangeFromParams(searchParams),
+      cursors: [''],
+      cursorIndex: 0,
+    }));
+    void navigate({ search: openFeedbackBrowser(location.search) });
+  };
+  const openFeedbackQuestion = (row: MonitoringFeedbackRow) => {
+    const asked = Date.parse(row.askedAt);
+    setFeedbackQuestionWindow(
+      Number.isFinite(asked)
+        ? {
+            from: new Date(asked - 1_000).toISOString(),
+            to: new Date(asked + 1_000).toISOString(),
+          }
+        : { from: feedbackWindow.from, to: feedbackWindow.to }
+    );
+    void navigate({ search: openQuestion(location.search, row.questionId) });
+  };
   const openUsers = () => {
     scroll.current.capture(typeof globalThis.scrollY === 'number' ? globalThis.scrollY : 0);
     setUserControls((current) => ({
@@ -2735,14 +2949,16 @@ export function MonitoringPage() {
   };
 
   const updateUserBrowser = (
-    updates: Partial<Pick<typeof userControls, 'search' | 'role' | 'persona' | 'unit' | 'range'>>
+    updates: Partial<Pick<typeof userControls, 'search' | 'role' | 'persona' | 'organizations' | 'unit' | 'range'>>
   ) => {
+    const next = { ...userControls, ...updates };
     setUserControls((current) => ({
       ...current,
       ...updates,
       cursors: [''],
       cursorIndex: 0,
     }));
+    setSearchParams(new URLSearchParams(withUserBrowserFilters(location.search, next)), { replace: true });
   };
 
   // A filter change rewrites only the filter parameters. Everything else in the
@@ -2791,6 +3007,7 @@ export function MonitoringPage() {
         onOpen={open}
         onOpenPerson={openPersonPanel}
         onOpenUsers={openUsers}
+        onOpenFeedback={showsAdminSurfaces(outlet?.role.state ?? 'failed') ? openFeedback : undefined}
         onChangeFilters={changeFilters}
         onClearFilters={() => setSearchParams(new URLSearchParams(clearedFilters(location.search)), { replace: true })}
         onRetry={refreshView}
@@ -2831,8 +3048,16 @@ export function MonitoringPage() {
           now={now}
           rangeLabel={profileWindow.label}
           page={personPage}
-          onClose={userBrowser.open ? closeUserMonitoring : close}
-          onBack={userBrowser.open ? () => void navigate({ search: backToUserBrowser(location.search) }) : undefined}
+          onClose={userBrowser.open ? closeUserMonitoring : feedbackBrowserOpen ? closeFeedbackBrowser : close}
+          onBack={
+            userBrowser.open || feedbackBrowserOpen
+              ? () =>
+                  void navigate({
+                    search: userBrowser.open ? backToUserBrowser(location.search) : closedDrawer(location.search),
+                  })
+              : undefined
+          }
+          backLabel={feedbackBrowserOpen && !userBrowser.open ? 'Back to feedback' : undefined}
           onOpenQuestion={open}
           onRetry={personRequest.retry}
           identitySeed={
@@ -2871,6 +3096,7 @@ export function MonitoringPage() {
               email: user.email,
               role: user.role,
               persona: user.persona,
+              organization: user.organization,
             });
             const monitoring =
               userBrowserRequest.state.status === 'ready' ? userBrowserRequest.state.data.userMonitoring : null;
@@ -2903,18 +3129,10 @@ export function MonitoringPage() {
           onSearch={(search) => updateUserBrowser({ search })}
           onRole={(role) => updateUserBrowser({ role })}
           onPersona={(persona) => updateUserBrowser({ persona })}
+          onOrganizations={(organizations) => updateUserBrowser({ organizations: [...organizations] })}
           onRange={(range) => updateUserBrowser({ range })}
           onUnit={(unit) => updateUserBrowser({ unit })}
-          onClear={() =>
-            setUserControls((current) => ({
-              ...current,
-              search: '',
-              role: '',
-              persona: '',
-              cursors: [''],
-              cursorIndex: 0,
-            }))
-          }
+          onClear={() => updateUserBrowser({ search: '', role: '', persona: '', organizations: [] })}
           onNext={(cursor) =>
             setUserControls((current) => {
               const cursors = current.cursors.slice(0, current.cursorIndex + 1);
@@ -2926,6 +3144,54 @@ export function MonitoringPage() {
           }
           refreshing={userBrowserRequest.refreshing}
           cacheKey={`${cacheScope}|${userBrowserKey}`}
+        />
+      ) : null}
+      {feedbackBrowserOpen && !userBrowser.open && !drawer.person && !drawer.question ? (
+        <FeedbackBrowserPanel
+          state={feedbackRequest.state}
+          filters={feedbackBrowser.filters}
+          range={feedbackBrowser.range}
+          rangeLabel={feedbackWindow.label}
+          page={feedbackPage}
+          onClose={closeFeedbackBrowser}
+          onFilters={(nextFilters) =>
+            setFeedbackControls((current) => ({
+              ...current,
+              filters: nextFilters,
+              cursors: [''],
+              cursorIndex: 0,
+            }))
+          }
+          onRange={(range) =>
+            setFeedbackControls((current) => ({
+              ...current,
+              range,
+              cursors: [''],
+              cursorIndex: 0,
+            }))
+          }
+          onClear={() =>
+            setFeedbackControls((current) => ({
+              ...current,
+              filters: { ...EMPTY_FEEDBACK_FILTERS },
+              cursors: [''],
+              cursorIndex: 0,
+            }))
+          }
+          onOpenQuestion={openFeedbackQuestion}
+          onPrevious={() =>
+            setFeedbackControls((current) => ({
+              ...current,
+              cursorIndex: Math.max(0, current.cursorIndex - 1),
+            }))
+          }
+          onNext={(cursor) =>
+            setFeedbackControls((current) => {
+              const cursors = current.cursors.slice(0, current.cursorIndex + 1);
+              return { ...current, cursors: [...cursors, cursor], cursorIndex: cursors.length };
+            })
+          }
+          onRetry={feedbackRequest.retry}
         />
       ) : null}
     </div>

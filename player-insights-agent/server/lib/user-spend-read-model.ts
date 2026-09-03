@@ -561,7 +561,7 @@ identity_population AS (
     FROM ${ADMIN_EMAILS_TABLE}
     ORDER BY lower(email), added_at DESC
   ) roster
-  WHERE $13::boolean
+  WHERE $14::boolean
     AND ($5::boolean OR roster.user_key = lower($6))
   UNION ALL
   SELECT aggregated.user_key, aggregated.display_email, 'consumer', NULL::timestamptz
@@ -607,6 +607,15 @@ filtered AS (
   WHERE ($7 = '' OR identity_population.display_email LIKE ('%' || lower($7) || '%'))
     AND ($8 = '' OR identity_population.app_role = $8)
     AND ($9 = '' OR assignment.persona_id = $9)
+    AND (
+      cardinality($10::text[]) = 0
+      OR EXISTS (
+        SELECT 1
+        FROM unnest($10::text[]) AS organization_suffix
+        WHERE split_part(identity_population.user_key, '@', 2) = organization_suffix
+           OR split_part(identity_population.user_key, '@', 2) LIKE ('%.' || organization_suffix)
+      )
+    )
 )
 SELECT filtered.*, refresh.status AS refresh_status,
        refresh.source_through AS refresh_source_through,
@@ -616,9 +625,9 @@ FROM filtered
 LEFT JOIN ${USER_SPEND_REFRESH_TABLE} refresh
   ON refresh.app_scope = $1 AND refresh.calculation_version = $2
 ORDER BY
-  CASE WHEN $10 = 'DBU' THEN spend_dbu ELSE spend_usd END DESC NULLS LAST,
+  CASE WHEN $11 = 'DBU' THEN spend_dbu ELSE spend_usd END DESC NULLS LAST,
   user_key ASC
-LIMIT $11 OFFSET $12`;
+LIMIT $12 OFFSET $13`;
 
 export interface UserSpendSummaryRow {
   email: string;
@@ -734,6 +743,7 @@ export async function readUserSpendReadModelPage(
     search?: string;
     role?: string;
     persona?: string;
+    organizationDomains?: readonly string[];
     unit: CostBudgetUnit;
     limit?: number;
     offset?: number;
@@ -756,6 +766,7 @@ export async function readUserSpendReadModelPage(
     (input.search ?? '').trim().slice(0, 120),
     (input.role ?? '').trim(),
     (input.persona ?? '').trim(),
+    [...new Set(input.organizationDomains ?? [])],
     input.unit,
     limit,
     offset,
@@ -769,7 +780,11 @@ export async function readUserSpendReadModelPage(
   const staleMs = Math.max(60_000, input.staleMs ?? USER_SPEND_STALE_MS);
   const now = input.now ?? Date.now();
   return {
-    available: Boolean(first || computedAt),
+    // Identity-population rows exist before the first spend refresh. They make
+    // the roster browsable, but they are not evidence that billing/activity was
+    // materialized. Only a completed refresh or an aggregated row timestamp can
+    // move this projection out of its initial unavailable state.
+    available: computedAt !== null,
     rows: result.rows.map((row) => ({
       email: typeof row.display_email === 'string' ? row.display_email : '',
       questions: integer(row.submitted_questions),

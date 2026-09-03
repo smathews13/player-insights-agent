@@ -124,7 +124,6 @@ function RoleControl({
       onValueChange={(role) => onChange(entry, role)}
       options={roleOptions(entry)}
       className="roster-control roster-role-select"
-      showLabel={false}
     />
   );
 }
@@ -160,7 +159,6 @@ function PersonaControl({
       onValueChange={(next) => onChange?.(email, next === UNASSIGNED_PERSONA ? null : next)}
       options={options}
       className="roster-control roster-persona-select"
-      showLabel={false}
     />
   );
 }
@@ -227,7 +225,6 @@ export function RosterAddRow({
           onValueChange={onRoleChange}
           options={ADDABLE_ROLES.map((option) => ({ value: option, label: roleWord(option) }))}
           className="roster-control roster-role-select"
-          showLabel={false}
         />
       </td>
       <td className="roster-add-persona">Assign after adding</td>

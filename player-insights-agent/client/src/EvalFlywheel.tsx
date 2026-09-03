@@ -23,15 +23,12 @@ import {
   type SideScore,
 } from '../../shared/eval-flywheel';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
+import { AppSelect } from './AppSelect';
 import { connectedGenieSpaces, type ConnectedGenieSpace } from './eval-spaces';
 import type { ResourceRow } from './connection-model';
 import type { Run, RunTrace } from './app-types';
 import type { MonitoringQuestionsPayload } from '../../shared/monitoring-contract';
-import {
-  liveScoreSummary,
-  type LiveTraceScore,
-  type WorkspaceMonitor,
-} from '../../shared/eval-live-scoring';
+import { liveScoreSummary, type LiveTraceScore, type WorkspaceMonitor } from '../../shared/eval-live-scoring';
 import {
   Alert,
   AlertDescription,
@@ -184,10 +181,7 @@ export function EvalFlywheel({
         setSides(named);
         setCurrentAgentEndpoint(loaded.currentAgentEndpoint);
         const extras = extraJudgesFromSettings(loaded.settings);
-        const judges = [
-          ...loaded.settings.enabledJudges,
-          ...extras.map((entry) => entry.name),
-        ].join(', ');
+        const judges = [...loaded.settings.enabledJudges, ...extras.map((entry) => entry.name)].join(', ');
         setJudgeNote(
           `Phase B uses ${loaded.settings.judgeEndpoint} in experiment ${loaded.settings.experimentId || '(the one already configured)'} · ${judges}. ${
             named.length > 1
@@ -280,9 +274,7 @@ export function EvalFlywheel({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ spaceId: chosen, spaceLabel: space?.label }),
       });
-      const body = (await response.json().catch(() => null)) as
-        | { run?: GenieAccuracyView; message?: unknown }
-        | null;
+      const body = (await response.json().catch(() => null)) as { run?: GenieAccuracyView; message?: unknown } | null;
       if (!response.ok) {
         throw new Error(typeof body?.message === 'string' ? body.message : 'Genie accuracy could not be started.');
       }
@@ -350,7 +342,10 @@ export function EvalFlywheel({
         endpoint,
         side: which,
         at: new Date().toISOString(),
-        note: which === 'candidate' ? 'Promoted the candidate for the next Ask.' : 'Promoted the baseline for the next Ask.',
+        note:
+          which === 'candidate'
+            ? 'Promoted the candidate for the next Ask.'
+            : 'Promoted the baseline for the next Ask.',
       }),
     });
     const body = (await response.json().catch(() => null)) as { flywheel?: FlywheelState; message?: unknown } | null;
@@ -433,7 +428,9 @@ export function EvalFlywheel({
       setCurateCandidates(unique);
       setCuratePicked(unique.slice(0, 10));
       if (unique.length === 0) {
-        setCurateNote((current) => current ?? 'No new questions in Ask or Monitoring. Ask something first, then come back.');
+        setCurateNote(
+          (current) => current ?? 'No new questions in Ask or Monitoring. Ask something first, then come back.'
+        );
       }
     } catch (caught) {
       setCurateNote((caught as Error).message);
@@ -486,7 +483,10 @@ export function EvalFlywheel({
   const checkWorkspaceMonitoring = async () => {
     setLiveMonitorNote(null);
     const response = await fetch('/api/admin/benchmarks/live-monitoring', { method: 'POST' });
-    const body = (await response.json().catch(() => null)) as { workspace?: WorkspaceMonitor; message?: unknown } | null;
+    const body = (await response.json().catch(() => null)) as {
+      workspace?: WorkspaceMonitor;
+      message?: unknown;
+    } | null;
     if (!response.ok || !body?.workspace) {
       setLiveMonitorNote(
         typeof body?.message === 'string'
@@ -506,7 +506,11 @@ export function EvalFlywheel({
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ questions: curatePicked }),
     });
-    const body = (await response.json().catch(() => null)) as { dataset?: EvalDataset; added?: number; detail?: unknown } | null;
+    const body = (await response.json().catch(() => null)) as {
+      dataset?: EvalDataset;
+      added?: number;
+      detail?: unknown;
+    } | null;
     if (!response.ok) {
       setCurateNote(typeof body?.detail === 'string' ? body.detail : 'Those questions were not added.');
       return;
@@ -556,9 +560,9 @@ export function EvalFlywheel({
           <strong>Run agent judges</strong> Same dataset, baseline and candidate if you set one.
         </li>
         <li>
-          <strong>Promote the winner</strong> Next Ask uses that agent and the Prompt Registry{' '}
-          <code>production</code> alias when this app can move it. This does not change Connections, and it cannot
-          write Genie space instructions.
+          <strong>Promote the winner</strong> Next Ask uses that agent and the Prompt Registry <code>production</code>{' '}
+          alias when this app can move it. This does not change Connections, and it cannot write Genie space
+          instructions.
         </li>
       </ol>
 
@@ -566,9 +570,8 @@ export function EvalFlywheel({
         <CardHeader>
           <CardTitle className="text-base">Always-on scoring</CardTitle>
           <CardDescription>
-            About {Math.round(liveSampleRate * 100)}% of Ask turns get the same deterministic checks and
-            judges without a Benchmarking run. Workspace production scorers are listed when this app can
-            see them — never invented.
+            About {Math.round(liveSampleRate * 100)}% of Ask turns get the same deterministic checks and judges without
+            a Benchmarking run. Workspace production scorers are listed when this app can see them — never invented.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -580,8 +583,8 @@ export function EvalFlywheel({
             </p>
           ) : (
             <p className="settings-row-note">
-              Sampled Ask turns are scored in this app. Check workspace monitoring to see whether MLflow
-              already has production scorers on the experiment.
+              Sampled Ask turns are scored in this app. Check workspace monitoring to see whether MLflow already has
+              production scorers on the experiment.
             </p>
           )}
           <div className="eval-dataset-actions">
@@ -719,7 +722,12 @@ export function EvalFlywheel({
             <Button type="button" variant="outline" onClick={loadStarter} disabled={datasetState === 'saving'}>
               Load the six demo questions
             </Button>
-            <Button type="button" variant="outline" onClick={() => void loadCurateCandidates()} disabled={curateLoading}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void loadCurateCandidates()}
+              disabled={curateLoading}
+            >
               {curateLoading ? <Loader2 className="animate-spin" /> : null}
               Pull questions from Ask and Monitoring
             </Button>
@@ -735,7 +743,12 @@ export function EvalFlywheel({
           {reviewNote ? <p className="settings-row-note">{reviewNote}</p> : null}
           {flywheel.labelingSession?.url ? (
             <p className="settings-row-note">
-              <a className="benchmark-settings-link" href={flywheel.labelingSession.url} target="_blank" rel="noreferrer">
+              <a
+                className="benchmark-settings-link"
+                href={flywheel.labelingSession.url}
+                target="_blank"
+                rel="noreferrer"
+              >
                 Open the Review App
               </a>
               {flywheel.labelingSession.name ? ` · ${flywheel.labelingSession.name}` : ''}
@@ -746,7 +759,9 @@ export function EvalFlywheel({
           {curateNote ? <p className="settings-row-note">{curateNote}</p> : null}
           {curateCandidates.length > 0 ? (
             <div className="eval-curate">
-              <p className="settings-row-note">Pick the real questions to add. Ground-truth SQL stays blank until you write it.</p>
+              <p className="settings-row-note">
+                Pick the real questions to add. Ground-truth SQL stays blank until you write it.
+              </p>
               <ul className="eval-curate-list">
                 {curateCandidates.map((question) => (
                   <li key={question}>
@@ -756,7 +771,9 @@ export function EvalFlywheel({
                         checked={curatePicked.includes(question)}
                         onChange={(event) =>
                           setCuratePicked((current) =>
-                            event.target.checked ? [...current, question] : current.filter((entry) => entry !== question)
+                            event.target.checked
+                              ? [...current, question]
+                              : current.filter((entry) => entry !== question)
                           )
                         }
                       />
@@ -777,8 +794,8 @@ export function EvalFlywheel({
         <CardHeader>
           <CardTitle className="text-base">Phase A · Genie accuracy</CardTitle>
           <CardDescription>
-            Ask one connected Genie space each question that has ground-truth SQL. Re-run after you change
-            that space&apos;s instructions or tables — the questions stay put.
+            Ask one connected Genie space each question that has ground-truth SQL. Re-run after you change that
+            space&apos;s instructions or tables — the questions stay put.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -789,18 +806,14 @@ export function EvalFlywheel({
           ) : (
             <label className="runtime-field runtime-field-wide">
               <span className="runtime-field-label">Genie space</span>
-              <select
-                aria-label="Genie space"
+              <AppSelect
+                label="Genie space"
+                ariaLabel="Genie space"
                 className="eval-space-select"
                 value={spaceId}
-                onChange={(event) => setSpaceId(event.target.value)}
-              >
-                {spaces.map((space) => (
-                  <option key={space.id} value={space.id}>
-                    {space.label}
-                  </option>
-                ))}
-              </select>
+                onValueChange={setSpaceId}
+                options={spaces.map((space) => ({ value: space.id, label: space.label }))}
+              />
             </label>
           )}
           <div className="eval-dataset-actions">
@@ -892,8 +905,8 @@ export function EvalFlywheel({
         <CardContent>
           <p className="settings-row-note">{judgeNote || 'Judge defaults load from Settings → Experimental.'}</p>
           <p className="settings-row-note">
-            This starts a real agent run ({OPERATOR_EVAL_SUITE_ID}), not a placeholder score. It takes several
-            minutes. Results land in the recorded runs below.
+            This starts a real agent run ({OPERATOR_EVAL_SUITE_ID}), not a placeholder score. It takes several minutes.
+            Results land in the recorded runs below.
           </p>
           <div className="eval-dataset-actions">
             <Button type="button" onClick={() => void runAgent()} disabled={agentRunning || !agentReady}>

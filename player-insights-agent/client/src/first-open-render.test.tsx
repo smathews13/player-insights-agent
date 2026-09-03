@@ -361,10 +361,27 @@ describe('once per session', () => {
     expect(opening).not.toContain('ast-opening');
     expect(opening).toContain('You are signing in as');
     expect(opening).toContain('role="dialog"');
-    expect(opening).toContain('class="first-open-card ast-dialog-panel"');
+    expect(opening).toContain('class="first-open-card ast-login-panel ast-dialog-panel"');
     expect(opening).toContain('tabindex="-1"');
-    expect(GATE).toContain('contentClassName="first-open-card"');
+    expect(GATE).toContain('contentClassName="first-open-card ast-login-panel"');
     expect(GATE).not.toContain('initialFocusRef=');
+  });
+
+  it('keeps the same neutral outer-panel class while authorization is loading', () => {
+    const loading = renderToStaticMarkup(
+      <FirstOpenPanel
+        report={firstOpenReport(identity())}
+        onContinue={() => {}}
+        onRefresh={() => {}}
+        onSkip={() => {}}
+        onAllowRequiredScopes={() => {}}
+        onRequestScope={() => {}}
+        preparing
+      />
+    );
+    expect(loading).toContain('class="first-open-card ast-login-panel ast-dialog-panel"');
+    expect(loading).toContain('aria-busy="true"');
+    expect(loading).toContain('Preparing Ask');
   });
 
   it('keeps the opening sequence populated to the right of the login card', () => {

@@ -527,7 +527,7 @@ identity_population AS (
     FROM ${appTable('admin_emails')}
     ORDER BY lower(email), added_at DESC
   ) roster
-  WHERE $13::boolean
+  WHERE $14::boolean
     AND ($5::boolean OR roster.user_key = lower($6))
   UNION ALL
   SELECT aggregated.user_key, aggregated.display_email, 'consumer', NULL::timestamptz
@@ -569,6 +569,15 @@ filtered AS (
   WHERE ($7 = '' OR identity_population.display_email LIKE ('%' || lower($7) || '%'))
     AND ($8 = '' OR identity_population.app_role = $8)
     AND ($9 = '' OR assignment.persona_id = $9)
+    AND (
+      cardinality($10::text[]) = 0
+      OR EXISTS (
+        SELECT 1
+        FROM unnest($10::text[]) AS organization_suffix
+        WHERE split_part(identity_population.user_key, '@', 2) = organization_suffix
+           OR split_part(identity_population.user_key, '@', 2) LIKE ('%.' || organization_suffix)
+      )
+    )
 )
 SELECT filtered.*, refresh.status AS refresh_status,
        refresh.source_through AS refresh_source_through,
@@ -576,8 +585,8 @@ SELECT filtered.*, refresh.status AS refresh_status,
 FROM filtered
 LEFT JOIN ${USER_SPEND_HOURLY_REFRESH_TABLE} refresh
   ON refresh.app_scope = $1 AND refresh.calculation_version = $2
-ORDER BY CASE WHEN $10 = 'DBU' THEN spend_dbu ELSE spend_usd END DESC NULLS LAST, user_key ASC
-LIMIT $11 OFFSET $12`;
+ORDER BY CASE WHEN $11 = 'DBU' THEN spend_dbu ELSE spend_usd END DESC NULLS LAST, user_key ASC
+LIMIT $12 OFFSET $13`;
 
 export const READ_USER_SPEND_HOURLY_COMPONENTS_QUERY = `SELECT component.key AS component_id,
        MIN(component.value->>'label') AS label,
@@ -610,6 +619,7 @@ export async function readUserSpendHourlyPage(
     search?: string;
     role?: string;
     persona?: string;
+    organizationDomains?: readonly string[];
     unit: CostBudgetUnit;
     limit?: number;
     offset?: number;
@@ -632,6 +642,7 @@ export async function readUserSpendHourlyPage(
     (input.search ?? '').trim().slice(0, 120),
     (input.role ?? '').trim(),
     (input.persona ?? '').trim(),
+    [...new Set(input.organizationDomains ?? [])],
     input.unit,
     limit,
     offset,

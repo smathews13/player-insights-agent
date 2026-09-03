@@ -211,7 +211,7 @@ function isProseOnlyDegraded(
 /**
  * Whether this section may be labelled "Final answer".
  *
- * Specific caveats stay in Keep in mind. Partial is already represented by the
+ * Specific warnings stay in Caveats. Partial is already represented by the
  * outcome badge; duplicating caveat prose in a large red alert made harmless
  * DSF package notes look like answer failures.
  */

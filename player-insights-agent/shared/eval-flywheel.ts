@@ -4,7 +4,7 @@ import { accuracyScore, type AccuracyScore } from './eval-dataset';
 import { LabelingSessionSchema } from './eval-review-app';
 
 /**
- * The rest of Acme's flywheel: compare, promote, re-run, history, and
+ * The rest of the evaluation flywheel: compare, promote, re-run, history, and
  * misses that must not count as "Genie got the SQL wrong."
  */
 

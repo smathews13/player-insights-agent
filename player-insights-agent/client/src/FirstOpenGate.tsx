@@ -263,9 +263,10 @@ export function FirstOpenPanel({
   return (
     <Dialog
       overlayClassName={`first-open on-sky${leaving ? ' is-leaving' : ''}`}
-      contentClassName="first-open-card"
+      contentClassName="first-open-card ast-login-panel"
       labelledBy="first-open-title"
       describedBy="first-open-description"
+      ariaBusy={preparing || allowingRequiredScopes || Boolean(requestingScope)}
       dismissOnEscape={false}
       dismissOnBackdrop={false}
     >

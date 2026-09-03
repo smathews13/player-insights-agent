@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 
+import { assertNeutralLoginPanelCss } from './client-css-contract.mjs';
+
 const root = path.resolve(import.meta.dirname, '..');
 const dist = path.join(root, 'client', 'dist');
 const manifest = JSON.parse(readFileSync(path.join(dist, '.vite', 'manifest.json'), 'utf8'));
@@ -31,6 +33,7 @@ for (const item of Object.values(manifest)) {
 const entryAsset = entry.css[0];
 const entryCss = cssAssets.get(entryAsset);
 if (!entryCss) throw new Error(`Entry stylesheet ${entryAsset} is missing`);
+assertNeutralLoginPanelCss(entryCss);
 
 for (const [route, sentinel] of Object.entries(routes)) {
   const record = manifest[`src/${route}.tsx`];

@@ -6,7 +6,7 @@ import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 import type { Answer, FeedbackEntry } from './app-types';
 
 /**
- * Whether "What to keep in mind" reaches the document, from a payload shaped
+ * Whether Caveats reaches the document, from a payload shaped
  * like the wire rather than like the type.
  *
  * It was reported as never appearing on real answers, and the four places it
@@ -103,16 +103,16 @@ function renderCard(caveats: string[]): string {
   return renderWire(wireAnswer(caveats));
 }
 
-/** Everything from the Keep in mind heading down. */
-function keepInMind(markup: string): string {
-  const at = markup.indexOf('Keep in mind');
-  if (at < 0) throw new Error('The Keep in mind section is not in the document');
+/** Everything from the Caveats heading down. */
+function caveatsSection(markup: string): string {
+  const at = markup.indexOf('Caveats');
+  if (at < 0) throw new Error('The Caveats section is not in the document');
   return markup.slice(at);
 }
 
-/** The bullets of the Keep in mind section, in the order they were drawn. */
+/** The bullets of the Caveats section, in the order they were drawn. */
 function caveatBullets(markup: string): string[] {
-  const panel = keepInMind(markup);
+  const panel = caveatsSection(markup);
   const list = panel.slice(panel.indexOf('<ul'), panel.indexOf('</ul>'));
   return [...list.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((match) =>
     match[1]
@@ -127,7 +127,9 @@ describe('the caveats an answer arrives with', () => {
   it('shows material caveats and drops process-only figure omissions', () => {
     const markup = renderCard(WIRE_CAVEATS);
 
-    expect(markup).toContain('Keep in mind');
+    expect(markup).toContain('Caveats');
+    expect(markup).not.toContain('Keep in mind');
+    expect(markup).not.toContain('What to keep in mind');
     expect(caveatBullets(markup)).toHaveLength(3);
     expect(markup).not.toContain('show more');
     expect(markup).not.toContain(OMITTED);
@@ -150,7 +152,7 @@ describe('the caveats an answer arrives with', () => {
     expect(module.indexOf('sources-row')).toBeLessThan(module.indexOf('keep-in-mind'));
     // The alert it used to be is gone, not merely restyled.
     expect(markup).not.toContain('caveat-alert');
-    expect(markup).not.toContain('What to keep in mind');
+    expect(markup).toContain('aria-label="Caveats"');
   });
 
   /**
@@ -194,7 +196,7 @@ describe('the caveats an answer arrives with', () => {
    * which is `proseForms`' existing precedence rule and not a new one.
    */
   it('marks the identifiers named inside a caveat', () => {
-    const panel = keepInMind(
+    const panel = caveatsSection(
       renderCard([
         'active_players is not additive across labels; the value in gold_title_daily_summary is a daily count.',
       ])
@@ -218,7 +220,7 @@ describe('the caveats an answer arrives with', () => {
    */
   it('tags a caveat with the one table it is about, and only then', () => {
     const scoped = caveatBullets(renderCard(['gold_title_daily_summary counts a player once per day.']));
-    expect(keepInMind(renderCard(['gold_title_daily_summary counts a player once per day.']))).toContain(
+    expect(caveatsSection(renderCard(['gold_title_daily_summary counts a player once per day.']))).toContain(
       'caveat-scope'
     );
     // Short name, because the catalog and schema are the same on every row and
@@ -227,7 +229,7 @@ describe('the caveats an answer arrives with', () => {
     expect(scoped[0]).not.toContain('main.player_insights.gold_title_daily_summary');
 
     // Run-level: nothing named, so nothing tagged.
-    expect(keepInMind(renderCard([PLAYER_DAYS]))).not.toContain('caveat-scope');
+    expect(caveatsSection(renderCard([PLAYER_DAYS]))).not.toContain('caveat-scope');
   });
 
   /**
@@ -236,7 +238,7 @@ describe('the caveats an answer arrives with', () => {
    * paragraph of amber prose it read as a clause like any other.
    */
   it('draws the counts and percentages inside a caveat in bold', () => {
-    const panel = keepInMind(renderCard([COVERAGE]));
+    const panel = caveatsSection(renderCard([COVERAGE]));
 
     expect(panel).toContain('<b>19</b>');
     expect(panel).toContain('<b>30</b>');
@@ -255,7 +257,7 @@ describe('the caveats an answer arrives with', () => {
   it('draws no panel at all when the answer sent no caveats', () => {
     const markup = renderCard([]);
 
-    expect(markup).not.toContain('Keep in mind');
+    expect(markup).not.toContain('Caveats');
     expect(markup).not.toContain('keep-in-mind');
     // The module itself stays, because this answer did cite a table. Only the
     // footer is absent.
@@ -272,7 +274,7 @@ describe('the caveats an answer arrives with', () => {
   it('still draws the panel when one caveat was lifted out as a degradation', () => {
     const markup = renderCard([`${DEGRADED_ANSWER_MARKER} the agent fell back to stored data.`, ...WIRE_CAVEATS]);
 
-    expect(markup).toContain('Keep in mind');
+    expect(markup).toContain('Caveats');
     const bullets = caveatBullets(markup);
     expect(bullets).toHaveLength(3);
     expect(bullets.some((bullet) => bullet.includes(DEGRADED_ANSWER_MARKER))).toBe(false);
@@ -316,7 +318,7 @@ describe('the three a reader is shown first', () => {
     expect(caveatBullets(renderCard(TEN))).toHaveLength(3);
   });
 
-  /** A real refusal leads Keep in mind without becoming a second red banner. */
+  /** A real refusal leads Caveats without becoming a second red banner. */
   it('shows the refusal on the card, not behind the fold', () => {
     const markup = renderCard(TEN);
     expect(markup).toContain('A governance control refused part of this request');

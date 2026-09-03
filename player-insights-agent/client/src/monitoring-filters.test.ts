@@ -6,18 +6,22 @@ import {
   chipsActive,
   clearedFilters,
   closedDrawer,
+  closedFeedbackBrowser,
   closedUserMonitoring,
   drawerFromParams,
+  feedbackBrowserFromParams,
   filtersActive,
   filtersFromParams,
   NO_FILTERS,
   onlyDrawerChanged,
+  openFeedbackBrowser,
   openPerson,
   openQuestion,
   openUserBrowser,
   openUserFromBrowser,
   scrollMemory,
   withFilters,
+  withUserBrowserFilters,
   userBrowserFromParams,
 } from './monitoring-filters';
 import type { MonitoringQuestion } from '../../shared/monitoring-contract';
@@ -28,6 +32,22 @@ import type { MonitoringQuestion } from '../../shared/monitoring-contract';
  */
 
 const params = (search: string) => new URLSearchParams(search);
+
+describe('feedback browser navigation state', () => {
+  it('opens over the current filters and closes without disturbing them', () => {
+    const opened = openFeedbackBrowser('range=30d&person=coach%40example.com');
+    expect(feedbackBrowserFromParams(params(opened))).toBe(true);
+    expect(opened).toContain('range=30d');
+    expect(opened).toContain('person=coach%40example.com');
+    expect(closedFeedbackBrowser(`${opened}&question=q1`)).toBe('range=30d&person=coach%40example.com');
+  });
+
+  it('keeps the browser marker behind question and user detail links for Back', () => {
+    const feedback = openFeedbackBrowser('range=7d');
+    expect(openQuestion(feedback, 'q1')).toContain('feedbacks=1');
+    expect(openPerson(feedback, 'coach@example.com')).toContain('feedbacks=1');
+  });
+});
 
 function question(overrides: Partial<MonitoringQuestion> = {}): MonitoringQuestion {
   return {
@@ -136,8 +156,9 @@ describe('the User Monitoring modal lives in the URL', () => {
     expect(userBrowserFromParams(opened)).toMatchObject({ open: true, unit: 'DBU' });
   });
 
-  it('moves browser to profile and back without losing search, role, persona, unit, or cursor', () => {
-    const browser = 'users=1&userSearch=ada&userRole=admin&userPersona=analyst&userUnit=USD&userCursor=next';
+  it('moves browser to profile and back without losing search, role, persona, organization, unit, or cursor', () => {
+    const browser =
+      'users=1&userSearch=ada&userRole=admin&userPersona=analyst&userOrganization=2k%2Cnorthwind-games&userUnit=USD&userCursor=next';
     const profile = params(openUserFromBrowser(browser, 'ada@example.test'));
     expect(profile.get('who')).toBe('ada@example.test');
     const returned = params(backToUserBrowser(profile.toString()));
@@ -145,18 +166,44 @@ describe('the User Monitoring modal lives in the URL', () => {
     expect(returned.get('userSearch')).toBe('ada');
     expect(returned.get('userRole')).toBe('admin');
     expect(returned.get('userPersona')).toBe('analyst');
+    expect(returned.get('userOrganization')).toBe('2k,northwind-games');
     expect(returned.get('userCursor')).toBe('next');
     expect(userBrowserFromParams(returned).persona).toBe('analyst');
+    expect(userBrowserFromParams(returned).organizations).toEqual(['2k', 'northwind-games']);
+  });
+
+  it('round-trips organization multiselect filters and clears stale cursors', () => {
+    const written = params(
+      withUserBrowserFilters('users=1&range=7d&userCursor=stale', {
+        search: 'sam',
+        role: 'admin',
+        persona: 'analyst',
+        organizations: ['acme-interactive', '2k'],
+        unit: 'DBU',
+      })
+    );
+    expect(userBrowserFromParams(written)).toMatchObject({
+      search: 'sam',
+      role: 'admin',
+      persona: 'analyst',
+      organizations: ['acme-interactive', '2k'],
+      unit: 'DBU',
+    });
+    expect(written.get('userCursor')).toBeNull();
+    expect(written.get('range')).toBe('7d');
   });
 
   it('closes the whole modal without clearing Monitoring filters or period', () => {
     const closed = params(
-      closedUserMonitoring('range=24h&outcome=partial&users=1&who=a%40b.test&userPersona=analyst&userUnit=DBU')
+      closedUserMonitoring(
+        'range=24h&outcome=partial&users=1&who=a%40b.test&userPersona=analyst&userOrganization=2k&userUnit=DBU'
+      )
     );
     expect(closed.get('users')).toBeNull();
     expect(closed.get('who')).toBeNull();
     expect(closed.get('userUnit')).toBeNull();
     expect(closed.get('userPersona')).toBeNull();
+    expect(closed.get('userOrganization')).toBeNull();
     expect(closed.get('range')).toBe('24h');
     expect(closed.get('outcome')).toBe('partial');
   });

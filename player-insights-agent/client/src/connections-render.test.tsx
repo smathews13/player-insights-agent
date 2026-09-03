@@ -1818,8 +1818,6 @@ describe('the Unity Catalog tables section', () => {
     expect(markup).toContain('placeholder="Search tables"');
     expect(markup).toContain('Filter tables by catalog');
     expect(markup).toContain('Filter tables by schema');
-    expect(text(markup)).toContain('Catalog');
-    expect(text(markup)).toContain('Schema');
     expect(text(markup)).toContain('All catalogs');
     expect(text(markup)).toContain('All schemas');
     expect(markup).toContain('a_catalog');
@@ -1832,7 +1830,7 @@ describe('the Unity Catalog tables section', () => {
   it('puts title, Add asset, and filters in one header before the table', () => {
     const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations />);
     expect(markup).toMatch(
-      /class="connection-block-head"[\s\S]*?class="connection-block-title-actions"[\s\S]*?Unity Catalog scope[\s\S]*?Add asset[\s\S]*?class="connection-block-controls"[\s\S]*?connections-table-query-controls[\s\S]*?Search tables[\s\S]*?Catalog[\s\S]*?Schema[\s\S]*?class="connection-block-body"[\s\S]*?<th[^>]*>Asset<\/th>[\s\S]*?<th[^>]*>Status<\/th>[\s\S]*?<th[^>]*>Detail<\/th>[\s\S]*?<th[^>]*>Actions<\/th>/
+      /class="connection-block-head"[\s\S]*?class="connection-block-title-actions"[\s\S]*?Unity Catalog scope[\s\S]*?Add asset[\s\S]*?class="connection-block-controls"[\s\S]*?connections-table-query-controls[\s\S]*?Search tables[\s\S]*?All catalogs[\s\S]*?All schemas[\s\S]*?class="connection-block-body"[\s\S]*?<th[^>]*>Asset<\/th>[\s\S]*?<th[^>]*>Status<\/th>[\s\S]*?<th[^>]*>Detail<\/th>[\s\S]*?<th[^>]*>Actions<\/th>/
     );
     expect(markup).not.toContain('connections-table-toolbar');
     expect(markup).not.toContain('connections-uc-actions');
@@ -1856,7 +1854,8 @@ describe('the Unity Catalog tables section', () => {
   it('opens catalog and schema as overlays, without taking a toolbar slot', () => {
     expect(PAGE_SOURCE).toMatch(/className="connections-table-filter"/);
     expect(PAGE_SOURCE).toMatch(/contentClassName="connections-table-filter-menu"/);
-    expect(PAGE_SOURCE).toMatch(/contentProps=\{\{\s*position:\s*'popper'\s*\}\}/);
+    expect(PAGE_SOURCE.match(/<AppSelect/g)).toHaveLength(2);
+    expect(PAGE_SOURCE).not.toContain('contentProps={{ position:');
   });
 
   /**

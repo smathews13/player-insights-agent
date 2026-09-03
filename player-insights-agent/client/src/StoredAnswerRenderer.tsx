@@ -37,7 +37,7 @@ export default function StoredAnswerRenderer({
     return (
       <Card className="answer-card">
         <CardContent className="pt-6 space-y-4">
-          <AnswerProse text={displayedContent} sources={[]} />
+          <AnswerProse text={displayedContent} sources={[]} preserveProse />
           <AIAnalysisCaveat className="ai-note" />
         </CardContent>
       </Card>

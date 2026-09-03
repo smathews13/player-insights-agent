@@ -9,6 +9,7 @@ import { accountEscalationSlackHref } from './account-slack-links';
 import { identityFromResponse } from './app-state';
 import { DATABRICKS_SYMBOL } from './brand-icons';
 import { accountFeedbackTargets } from '../../shared/account-feedback';
+import { organizationForEmail, parseOrganizationMappings } from '../../shared/organization-mapping';
 
 const MENU_SOURCE = readFileSync(new URL('./AccountMenu.tsx', import.meta.url), 'utf8');
 const PANEL_SOURCE = readFileSync(new URL('./AccountMenuPanel.tsx', import.meta.url), 'utf8');
@@ -22,9 +23,9 @@ const IDENTITY: Identity = {
 describe('account menu', () => {
   it('uses the official Databricks organization mark in the trigger and panel', () => {
     const identity: Identity = {
-      signedInAs: '<your-username>@labs.databricks.com',
+      signedInAs: 'employee@example.com',
+      organization: organizationForEmail('employee@example.com'),
       executionMode: 'user-verified',
-      organizations: [{ domain: 'labs.databricks.com', name: 'Conflicting config', monogram: 'XX' }],
     };
     const trigger = renderToStaticMarkup(<AccountMenu identity={identity} role="super_admin" />);
     const panel = renderToStaticMarkup(<AccountMenuPanel identity={identity} role="super_admin" onClose={() => {}} />);
@@ -36,29 +37,71 @@ describe('account menu', () => {
       expect(markup).toContain('aria-label="Organization: Databricks"');
       expect(markup).not.toContain('lucide-user-round');
     }
-    expect(trigger).toContain('aria-label="Signed in as <your-username>@labs.databricks.com"');
-    expect(trigger).toContain('title="<your-username>@labs.databricks.com"');
+    expect(trigger).toContain('aria-label="Signed in as employee@example.com"');
+    expect(trigger).toContain('title="employee@example.com"');
+    expect(trigger).toContain('<strong class="identity-chip-name">employee</strong>');
   });
 
-  it.each([
-    ['artist@studio.northwindgames.com', 'Northwind Games', 'R*'],
-    ['producer@games.take2.example', 'Acme Interactive', 'T2'],
-  ])('uses configured organization identity for %s', (signedInAs, organizationName, monogram) => {
-    const identity: Identity = {
-      signedInAs,
+  it('uses one canonical Identity record for the short trigger, full panel, and deployment organization', () => {
+    const [organization] = parseOrganizationMappings(
+      JSON.stringify([{ domain: 'studio.example', name: 'Example Studio', monogram: 'ES' }])
+    ).filter((candidate) => candidate.domain === 'studio.example');
+    const identity = identityFromResponse({
+      signedInAs: 'jordan.lee',
+      canonicalEmail: 'jordan.lee@studio.example',
+      displayName: 'jordan.lee',
+      identityRevision: 'roster-revision-1',
+      organization,
+      organizations: organization ? [organization] : [],
       executionMode: 'user-verified',
-      organizations: [
-        { domain: 'northwindgames.com', name: 'Northwind Games', monogram: 'R*' },
-        { domain: 'take2.example', name: 'Acme Interactive', monogram: 'T2' },
-      ],
+    });
+    const trigger = renderToStaticMarkup(<AccountMenu identity={identity} role="super_admin" />);
+    const panel = renderToStaticMarkup(<AccountMenuPanel identity={identity} role="super_admin" onClose={() => {}} />);
+
+    for (const markup of [trigger, panel]) {
+      expect(markup).toContain('aria-label="Organization: Example Studio"');
+      expect(markup).toContain('>ES</span>');
+    }
+    expect(trigger).toContain('<strong class="identity-chip-name">jordan.lee</strong>');
+    expect(trigger).not.toContain('identity-chip-name">jordan.lee@studio.example');
+    expect(trigger).toContain('title="jordan.lee@studio.example"');
+    expect(panel).toContain('<span class="account-menu-address">jordan.lee@studio.example</span>');
+    expect(identity.identityRevision).toBe('roster-revision-1');
+  });
+
+  it('keeps an unresolved local part on the neutral organization fallback', () => {
+    const identity = identityFromResponse({
+      signedInAs: 'shared.user',
+      canonicalEmail: null,
+      displayName: 'shared.user',
+      executionMode: 'user-verified',
+    });
+    const trigger = renderToStaticMarkup(<AccountMenu identity={identity} role="consumer" />);
+    const panel = renderToStaticMarkup(<AccountMenuPanel identity={identity} role="consumer" onClose={() => {}} />);
+    for (const markup of [trigger, panel]) {
+      expect(markup).toContain('aria-label="Organization: External"');
+      expect(markup).toContain('lucide-building-2');
+      expect(markup).not.toContain(DATABRICKS_SYMBOL);
+    }
+  });
+
+  it('uses deployment-provided organization monograms without compiling customer artwork', () => {
+    const [organization] = parseOrganizationMappings(
+      JSON.stringify([{ domain: 'partner.example', name: 'Example Partner', monogram: 'EP' }])
+    ).filter((candidate) => candidate.domain === 'partner.example');
+    const identity: Identity = {
+      signedInAs: 'reader@partner.example',
+      organization,
+      organizations: organization ? [organization] : [],
+      executionMode: 'user-verified',
     };
     const trigger = renderToStaticMarkup(<AccountMenu identity={identity} role="consumer" />);
     const panel = renderToStaticMarkup(<AccountMenuPanel identity={identity} role="consumer" onClose={() => {}} />);
 
-    expect(trigger).toContain(`aria-label="Organization: ${organizationName}"`);
-    expect(trigger).toContain(`>${monogram}</span>`);
-    expect(panel).toContain(`aria-label="Organization: ${organizationName}"`);
-    expect(panel).toContain(`>${monogram}</span>`);
+    expect(trigger).toContain('aria-label="Organization: Example Partner"');
+    expect(trigger).toContain('>EP</span>');
+    expect(panel).toContain('aria-label="Organization: Example Partner"');
+    expect(panel).toContain('>EP</span>');
     expect(panel).not.toContain('lucide-user-round');
   });
 
@@ -99,7 +142,8 @@ describe('account menu', () => {
 
   it('makes feedback a disclosure and leaves the Super Admin escalation unchanged', () => {
     const panel = renderToStaticMarkup(<AccountMenuPanel identity={IDENTITY} role="super_admin" onClose={() => {}} />);
-    const feedback = panel.match(/<button[^>]*class="account-feedback-trigger"[^>]*>[\s\S]*?<\/button>/)?.[0] ?? '';
+    const feedback =
+      panel.match(/<button[^>]*class="account-feedback-trigger[^"]*"[^>]*>[\s\S]*?<\/button>/)?.[0] ?? '';
     expect(feedback).toContain('aria-haspopup="menu"');
     expect(feedback).toContain('aria-expanded="false"');
     expect(feedback).toContain('Report feedback');
@@ -175,10 +219,8 @@ describe('account menu', () => {
     const source = `${MENU_SOURCE}\n${PANEL_SOURCE}`;
     expect(source).not.toContain('/api/account/slack-message');
     expect(source).not.toContain('chat.postMessage');
-    expect(source).toContain("window.addEventListener('keydown', onKeyDown)");
-    expect(source).toContain("event.key !== 'Escape'");
-    expect(source).toContain("target.closest('[data-account-feedback-menu]')");
-    expect(source).toContain('event.defaultPrevented');
+    expect(MENU_SOURCE).toContain('<Popover');
+    expect(PANEL_SOURCE).toContain('<PopoverContent');
     expect(PANEL_SOURCE).toContain("event.key === 'Tab'");
     expect(PANEL_SOURCE).toContain("event.key === 'Escape'");
     expect(PANEL_SOURCE).toContain("['ArrowDown', 'ArrowUp', 'Home', 'End']");
@@ -190,31 +232,38 @@ describe('account menu', () => {
   it('keeps native trigger semantics and gives hover, keyboard focus, and open distinct states', () => {
     expect(MENU_SOURCE).toContain('type="button"');
     expect(MENU_SOURCE).toContain('aria-expanded={open}');
-    expect(MENU_SOURCE).toContain('aria-controls={open ? menuId : undefined}');
-    expect(MENU_SOURCE).toContain("event.key !== 'Escape'");
+    expect(MENU_SOURCE).toContain('aria-controls={menuId}');
+    expect(MENU_SOURCE).toContain('onOpenChange={setOpen}');
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-menu-trigger\.identity-chip:hover,\s*\.account-menu-trigger\.identity-chip:focus-visible\s*\{[^}]*border-color:\s*var\(--ast-pos-border\)[^}]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-chrome\) 96%,\s*var\(--ast-pos-text\)\)[^}]*color:\s*var\(--ast-pos-text\)/s
+      /\.account-menu-trigger\.identity-chip:hover,\s*\.account-menu-trigger\.identity-chip:focus-visible\s*\{[^}]*border-color:\s*var\(--ast-pos-border\)[^}]*background:\s*color-mix\(in srgb,\s*var\(--background\) 94%,\s*var\(--ast-pos-text\)\)[^}]*color:\s*var\(--ast-pos-text\)/s
     );
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-menu-trigger\.identity-chip:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--ast-pos-text\)/
+      /\.account-menu-trigger\.identity-chip:focus-visible\s*\{[^}]*outline:\s*none[^}]*box-shadow:\s*0 0 0 2px/
     );
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-menu-trigger\.identity-chip\[aria-expanded='true'\]\s*\{[^}]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-chrome\) 90%,\s*var\(--ast-pos-text\)\)[^}]*box-shadow:\s*inset 0 0 0 1px var\(--ast-pos-border\)/
+      /\.account-menu-trigger\.identity-chip\[aria-expanded='true'\]\s*\{[^}]*background:\s*color-mix\(in srgb,\s*var\(--background\) 88%,\s*var\(--ast-pos-text\)\)[^}]*box-shadow:\s*inset 0 0 0 1px var\(--ast-pos-border\)/
     );
     expect(ACCOUNT_CSS).not.toMatch(/account-menu-trigger[^{]*\{[^}]*(?:--ast-blue|--primary)/s);
   });
 
   it('keeps the feedback disclosure and portaled choices opaque, distinct, and non-blue', () => {
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-feedback-menu\s*\{[^}]*z-index:\s*var\(--ast-layer-menu\)[^}]*background:\s*var\(--ast-surface-menu\)[^}]*backdrop-filter:\s*none/s
+      /\.account-feedback-menu\s*\{[^}]*z-index:\s*var\(--ast-layer-menu\)[^}]*background:\s*var\(--background\)[^}]*backdrop-filter:\s*none/s
     );
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-feedback-trigger:hover,[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-menu\) 96%,\s*var\(--ast-pos-text\)\)/
+      /\.account-feedback-trigger:hover,[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--background\) 94%,\s*var\(--ast-pos-text\)\)/
     );
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-feedback-trigger\[aria-expanded='true'\]\s*\{[^}]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-menu\) 90%,\s*var\(--ast-pos-text\)\)/
+      /\.account-feedback-trigger\[aria-expanded='true'\]\s*\{[^}]*background:\s*color-mix\(in srgb,\s*var\(--background\) 88%,\s*var\(--ast-pos-text\)\)/
     );
     expect(ACCOUNT_CSS).not.toMatch(/account-feedback-(?:trigger|menu)[^{]*\{[^}]*(?:--ast-blue|--primary)/s);
+  });
+
+  it('uses the shared non-modal portal without changing body scroll width', () => {
+    expect(PANEL_SOURCE).toContain('<PopoverContent');
+    expect(MENU_SOURCE).not.toContain('document.body');
+    expect(MENU_SOURCE).not.toMatch(/<Popover[^>]*modal=/);
+    expect(ACCOUNT_CSS).toMatch(/\.account-menu-portal[^}]*scrollbar-gutter:\s*stable/s);
   });
 
   it('uses the coordinated app and native-cookie sign-out path', () => {

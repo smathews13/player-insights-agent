@@ -100,6 +100,12 @@
     grid-template-columns: minmax(70px, auto) minmax(0, 1fr);
     gap: 8px;
   }
+  .user-profile-modal-question-table td.user-profile-modal-tools-column,
+  .user-profile-modal-question-table td.user-profile-modal-feedback-column {
+    min-width: 0;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
   .user-profile-modal-question-table td::before {
     content: attr(data-label);
     color: var(--ast-text-secondary);
@@ -146,6 +152,47 @@
   .monitoring-users-toolbar {
     top: -14px;
   }
+  .monitoring-feedback-table,
+  .monitoring-feedback-table tbody,
+  .monitoring-feedback-table tr,
+  .monitoring-feedback-table td {
+    display: block;
+    width: 100%;
+  }
+  .monitoring-feedback-table {
+    min-width: 0;
+  }
+  .monitoring-feedback-table thead {
+    display: none;
+  }
+  .monitoring-feedback-table tr {
+    padding: 10px 12px;
+  }
+  .monitoring-feedback-table tr + tr {
+    border-top: 1px solid var(--ast-hairline);
+  }
+  .monitoring-feedback-table td {
+    display: grid;
+    grid-template-columns: minmax(90px, auto) minmax(0, 1fr);
+    gap: 8px;
+    padding: 4px 0;
+    border: 0;
+  }
+  .monitoring-feedback-table td::before {
+    content: attr(data-label);
+    color: var(--ast-text-secondary);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .monitoring-feedback-table td:first-child {
+    display: block;
+    padding-bottom: 8px;
+  }
+  .monitoring-feedback-table td:first-child::before {
+    display: block;
+    margin-bottom: 4px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -175,12 +222,25 @@
   .monitoring-users-toolbar > * {
     width: 100%;
   }
+  .monitoring-organization-trigger {
+    width: 100%;
+    max-width: none;
+  }
   .monitoring-users-toolbar .unit-segmented-control {
     display: flex;
   }
   .monitoring-users-toolbar .unit-segmented-options,
   .monitoring-users-toolbar .unit-segmented-option {
     flex: 1 1 0;
+  }
+  .monitoring-feedback-toolbar > *,
+  .monitoring-feedback-toolbar .monitoring-feedback-search,
+  .monitoring-feedback-toolbar [data-slot='select-trigger'],
+  .monitoring-feedback-toolbar .time-range,
+  .monitoring-feedback-toolbar .time-range-segments {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
   }
   .monitoring-heading-period,
   .monitoring-heading-actions .refresh-control {

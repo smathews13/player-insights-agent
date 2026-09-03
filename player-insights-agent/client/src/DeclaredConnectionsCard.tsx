@@ -360,7 +360,6 @@ export function DeclaredConnectionsCard({
               <AppSelect
                 label="Resource type"
                 ariaLabel="Resource type"
-                showLabel={false}
                 value={kindChoice}
                 onValueChange={(next) => {
                   setKindChoice(next);

@@ -36,7 +36,7 @@
  * `ops-session.ts` rather than in this page's `useState`: leaving the tab and
  * coming back is not a reason to scan billing again. Refresh still is.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, ExternalLink, Search, Users, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
@@ -346,7 +346,7 @@ export function HealthCheckButton({ check }: { check: OpsHealthCheckSession }) {
       onClick={check.checkAll}
     >
       {check.busy ? (
-        <AstrolabeLoadingLabel as="span" announce={false} label="Checking resources" />
+        <AstrolabeLoadingLabel as="span" seat="button" announce={false} label="Checking…" />
       ) : (
         'Check all resources'
       )}
@@ -365,8 +365,6 @@ export function HealthBody({
 }) {
   const host = useWorkspaceHost();
   const payload = block.data;
-  const scopes = useOpsScopeCheck();
-
   if (block.failed) {
     return (
       <section className="ops-block" aria-labelledby="ops-health-heading">
@@ -401,7 +399,6 @@ export function HealthBody({
         control={
           <div className="ops-health-head-controls">
             {allowCheck ? <HealthCheckButton check={check} /> : null}
-            {allowCheck ? scopes.button : null}
             <RefreshButton busy={block.busy || check.busy} onRefresh={block.refresh} />
           </div>
         }
@@ -587,7 +584,6 @@ export function HealthBody({
           </>
         )}
       </BlockBody>
-      {allowCheck ? scopes.modal : null}
     </section>
   );
 }
@@ -1686,6 +1682,16 @@ export function StopAllActiveRuns() {
   );
 }
 
+export function ScopeAdminControl({ action }: { action: ReactNode }) {
+  return (
+    <section className="ops-admin-action ops-admin-action-scope" aria-labelledby="ops-scope-admin-heading">
+      <strong id="ops-scope-admin-heading">ADMIN</strong>
+      <span>Compare user and app catalog access.</span>
+      {action}
+    </section>
+  );
+}
+
 export function OpsPage() {
   const role = useRole();
   const features = useOutletContext<AppOutletContext | null>()?.features ?? NO_EXPERIMENTS;
@@ -1716,6 +1722,7 @@ export function OpsPage() {
   const cost = useOpsBlock<OpsCostPayload>('/api/ops/cost', '', monthKey);
   const traffic = useOpsBlock<OpsTrafficPayload>('/api/ops/traffic', '', monthKey);
   const latency = useOpsBlock<OpsLatencyPayload>('/api/ops/latency', '', monthKey);
+  const scopes = useOpsScopeCheck();
 
   const chooseCostUnit = (unit: CostBudgetUnit) => {
     setCostUnit(unit);
@@ -1726,7 +1733,11 @@ export function OpsPage() {
   return (
     <div className="page-shell ops-page">
       <PageHeading title="Ops" />
-      <div className="ops-page-controls">{showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}</div>
+      <div className="ops-page-controls">
+        {canCheckHealthResources(role.state) ? <ScopeAdminControl action={scopes.button} /> : null}
+        {showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}
+      </div>
+      {canCheckHealthResources(role.state) ? scopes.modal : null}
 
       {/* Each measured block reads itself. Four read times on one page rather
           than one, because they were read at four different moments. */}

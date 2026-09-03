@@ -885,7 +885,6 @@ function StructuredGrantRow({
           value={grant.resourceType}
           options={typeOptions}
           disabled={busy}
-          showLabel={false}
           onValueChange={(next) => onChange(changeSpGrantType(next, resources))}
           className="sp-grant-select"
         />
@@ -911,7 +910,6 @@ function StructuredGrantRow({
           value={grant.action}
           options={actionOptions}
           disabled={busy}
-          showLabel={false}
           onValueChange={(next) => onChange(changeSpGrantAction(grant, next))}
           className="sp-grant-select"
         />

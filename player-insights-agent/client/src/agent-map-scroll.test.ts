@@ -11,6 +11,7 @@ const TIMELINE_CSS = readFileSync(new URL('./styles/timeline.css', import.meta.u
 const RESPONSIVE_CSS = readFileSync(new URL('./styles/responsive-runs.css', import.meta.url), 'utf8');
 const DENSITY_CSS = readFileSync(new URL('./styles/density-runs.css', import.meta.url), 'utf8');
 const ANSWER_BODY_CSS = readFileSync(new URL('./styles/answer-body.css', import.meta.url), 'utf8');
+const BASE_CSS = readFileSync(new URL('./styles/base.css', import.meta.url), 'utf8');
 
 type MockElement = HTMLElement & {
   focus: ReturnType<typeof vi.fn>;
@@ -282,24 +283,27 @@ describe('Run Explorer has two desktop scroll owners', () => {
   it('makes only the recent-runs rail and complete right workspace vertically scrollable', () => {
     const root = RUNS_CSS.match(/\.run-explorer \{([^}]*)\}/)?.[1] ?? '';
     const layout = RUNS_CSS.match(/\.explorer-layout \{([^}]*)\}/)?.[1] ?? '';
+    const sharedPanes = RUNS_CSS.match(/\.run-list,\s*\.run-detail \{([^}]*)\}/)?.[1] ?? '';
     expect(root).toMatch(
-      /--run-explorer-viewport-block-size: min\(\s*1440px,\s*calc\(100dvh - var\(--app-header-h\) - env\(safe-area-inset-bottom, 0px\)\)\s*\)/
+      /--run-explorer-pane-block-size: clamp\(\s*760px,\s*calc\(100dvh - var\(--app-header-h\) - 8px - env\(safe-area-inset-bottom, 0px\)\),\s*1120px\s*\)/
     );
-    expect(root).toMatch(/height: var\(--run-explorer-viewport-block-size\)/);
-    expect(root).toMatch(/min-height: min\(560px, var\(--run-explorer-viewport-block-size\)\)/);
-    expect(root).toMatch(/grid-template-rows: auto minmax\(0, 1fr\)/);
-    expect(root).toMatch(/overflow: hidden/);
+    expect(root).toMatch(/height: auto/);
+    expect(root).toMatch(/grid-template-rows: auto auto/);
+    expect(root).toMatch(/overflow: visible/);
     expect(layout).toMatch(/align-items: stretch/);
-    expect(layout).toMatch(/align-self: stretch/);
-    expect(layout).toMatch(/height: 100%/);
-    expect(layout).toMatch(/max-height: 100%/);
+    expect(layout).not.toMatch(/(?:height|max-height):\s*100%/);
+    for (const property of ['height', 'min-height', 'max-height']) {
+      expect(sharedPanes, `${property} shares the pane token`).toMatch(
+        new RegExp(`${property}: var\\(--run-explorer-pane-block-size\\)`)
+      );
+    }
+    expect(sharedPanes).toMatch(/overscroll-behavior: contain/);
+    expect(sharedPanes).toMatch(/scrollbar-gutter: stable/);
     for (const selector of ['run-list', 'run-detail']) {
-      const body = RUNS_CSS.match(new RegExp(`\\.${selector} \\{([^}]*)\\}`))?.[1] ?? '';
-      expect(body, selector).toMatch(/height: 100%/);
-      expect(body, selector).toMatch(/max-height: 100%/);
-      expect(body, selector).toMatch(/min-height: 0/);
+      const matches = [...RUNS_CSS.matchAll(new RegExp(`^\\.${selector} \\{([^}]*)\\}`, 'gm'))];
+      const body = matches.at(-1)?.[1] ?? '';
       expect(body, selector).toMatch(/overflow-y: auto/);
-      expect(body, selector).toMatch(/scrollbar-gutter: stable/);
+      expect(body, selector).not.toMatch(/(?:height|min-height|max-height):/);
     }
     expect(RUNS_CSS.match(/overflow-y:\s*auto/g)).toHaveLength(2);
     for (const selector of ['run-detail-tabs', 'run-detail-tab-panel', 'run-detail-content']) {
@@ -311,9 +315,14 @@ describe('Run Explorer has two desktop scroll owners', () => {
       const body = ANSWER_BODY_CSS.match(new RegExp(`\\.${selector} \\{([^}]*)\\}`))?.[1] ?? '';
       expect(body, selector).not.toMatch(/overflow-y:\s*(auto|scroll)|max-height/);
     }
+    expect(BASE_CSS).toMatch(/\*\s*\{[^}]*scrollbar-width: thin[^}]*scrollbar-color: transparent transparent/s);
+    expect(RUNS_CSS).toMatch(
+      /@media \(forced-colors: active\)[\s\S]*?\.run-list,\s*\.run-detail \{[^}]*scrollbar-color: CanvasText Canvas/
+    );
   });
 
   it('returns to normal document flow when the rail and workspace stack', () => {
+    expect(RESPONSIVE_CSS).toContain('@media (max-width: 960px)');
     expect(RESPONSIVE_CSS).toMatch(/\.run-explorer \{[^}]*height: auto[^}]*overflow: visible/s);
     expect(RESPONSIVE_CSS).toMatch(/\.explorer-layout \{[^}]*height: auto[^}]*max-height: none[^}]*overflow: visible/s);
     expect(RESPONSIVE_CSS).toMatch(/\.run-list \{[^}]*height: auto[^}]*overflow: visible/s);

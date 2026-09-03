@@ -50,7 +50,7 @@ export function buildUserSpendMetrics(input: UserSpendMetricInput): UserSpendMet
         ? {
             value: (current.amount / current.appTotal) * 100,
             state: 'value',
-            subtitle: 'of attributable app spend',
+            subtitle: '',
             estimated: current.estimated,
           }
         : unavailable('No comparable app total'),

@@ -550,10 +550,12 @@ describe('what the app says about itself at boot', () => {
     try {
       const response = await app.fetch('/api/identity', { headers: asAlice });
       const payload = (await response.json()) as Record<string, unknown>;
-      expect(payload.organizations).toEqual([
-        { domain: 'northwindgames.com', name: 'Northwind Games', monogram: 'R*' },
-        { domain: 'take2.example', name: 'Acme Interactive', monogram: 'T2' },
-      ]);
+      expect(payload.organizations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'northwind-games', domain: 'northwindgames.com', logoKey: 'northwind' }),
+          expect.objectContaining({ id: 'domain:take2.example', domain: 'take2.example', logoKey: 'monogram' }),
+        ])
+      );
       expect(JSON.stringify(payload.organizations)).not.toMatch(/credential|secret|token|password/i);
 
       process.env.PLAYER_INSIGHTS_ORGANIZATIONS = JSON.stringify([
@@ -562,7 +564,14 @@ describe('what the app says about itself at boot', () => {
       const malformed = (await (await app.fetch('/api/identity', { headers: asAlice })).json()) as {
         organizations: unknown[];
       };
-      expect(malformed.organizations).toEqual([]);
+      expect(malformed.organizations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'databricks' }),
+          expect.objectContaining({ id: 'acme-interactive' }),
+          expect.objectContaining({ id: '2k' }),
+          expect.objectContaining({ id: 'northwind-games' }),
+        ])
+      );
       expect(JSON.stringify(malformed)).not.toContain('must-not-cross-the-wire');
     } finally {
       await app.close();

@@ -1,5 +1,5 @@
 /**
- * How loudly a Keep in mind bullet should be drawn.
+ * How loudly a Caveats bullet should be drawn.
  *
  * Ranking (caveat-priority.ts) decides order. This file decides treatment:
  * a real failure is a dark-red warning, identity/grants are a secondary note,
@@ -15,7 +15,7 @@ export type CaveatSurface = 'failure' | 'note' | 'ordinary';
  * Endpoint / model failures the agent writes as a caveat rather than a banner.
  *
  * Phrases from live answers. APITimeoutError is the reported one: it sat in
- * Keep in mind as a quiet grey bullet next to the identity line.
+ * Caveats as a quiet grey bullet next to the identity line.
  */
 const FAILURE_DISCLOSURE =
   /APITimeoutError|Request timed out|reasoning endpoint failed|was not reachable|the model that writes the answer/i;

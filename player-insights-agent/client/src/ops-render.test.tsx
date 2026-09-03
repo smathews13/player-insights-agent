@@ -32,10 +32,12 @@ import {
   HealthCheckButton,
   LatencyBody,
   OpsPage,
+  ScopeAdminControl,
   StopAllActiveRuns,
   TrafficBody,
   type Block,
 } from './OpsPage';
+import { CheckScopesButton } from './OpsScopeModal';
 import { perUserSpendHref } from './cost-user-monitoring-link';
 import { resourceBudgetLabel } from './CostBudgets';
 import { activeMinutesDisplay, queryHistoryCoverageDetail } from './ops-view';
@@ -87,13 +89,29 @@ describe('the admin cancellation control', () => {
     const markup = markupOf(<StopAllActiveRuns />);
     expect(markup).toContain('ops-stop-all-button');
     expect(markup).toContain('data-variant="destructive"');
-    expect(OPS_STYLES).toMatch(/\.ops-stop-all strong\s*\{[^}]*color:\s*var\(--db-red-700\)[^}]*font-weight:\s*800/);
+    expect(OPS_STYLES).toMatch(/\.ops-stop-all strong\s*\{[^}]*color:\s*var\(--db-red-700\)/);
+    expect(OPS_STYLES).toMatch(/\.ops-stop-all strong,\s*\.ops-admin-action strong\s*\{[^}]*font-weight:\s*800/);
   });
 
   it('is gated by the resolved admin role on Ops', () => {
     const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
-    expect(source).toContain('showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null');
+    expect(source).toContain(
+      'canCheckHealthResources(role.state) ? <ScopeAdminControl action={scopes.button} /> : null'
+    );
+    expect(source).toContain('canCheckHealthResources(role.state) ? scopes.modal : null');
     expect(source).toContain("fetch('/api/admin/runs/cancel-all'");
+  });
+
+  it('puts the only scope action in its neutral admin box', () => {
+    const admin = markupOf(<ScopeAdminControl action={<CheckScopesButton busy={false} onClick={() => {}} />} />);
+    expect(admin).toContain('ADMIN');
+    expect(admin).toContain('Compare user and app catalog access.');
+    expect(admin.match(/Check scopes/g)).toHaveLength(1);
+    expect(admin).toContain('ops-admin-action-scope');
+    expect(admin).not.toContain('data-variant="destructive"');
+    const toolbar = render(<HealthBody block={block(health())} allowCheck />);
+    expect(toolbar).toContain('Check all resources');
+    expect(toolbar).not.toContain('Check scopes');
   });
 });
 
@@ -340,15 +358,23 @@ describe('the health block', () => {
     expect(canCheckHealthResources(role)).toBe(allowed);
     const markup = render(<HealthBody block={block(health())} allowCheck={canCheckHealthResources(role)} />);
     expect(markup.includes('Check all resources')).toBe(allowed);
-    expect(markup.includes('Check scopes')).toBe(allowed);
+    expect(markup).not.toContain('Check scopes');
   });
 
   it('uses the canonical loader, disables duplicate presses, and announces the busy state', () => {
     const markup = markupOf(<HealthCheckButton check={{ busy: true, failed: '', checkAll: () => {} }} />);
-    expect(markup).toContain('Checking resources');
+    expect(markup).toContain('Checking…');
     expect(markup).toContain('ast-flick-row');
+    expect(markup).toContain('ast-flick-slot--button');
     expect(markup).toContain('disabled=""');
     expect(markup).toContain('aria-busy="true"');
+    expect(OPS_STYLES).toMatch(
+      /\.ops-health-check-button\s*\{[^}]*width:\s*154px[^}]*min-width:\s*154px[^}]*height:\s*32px/
+    );
+    expect(OPS_STYLES).toMatch(
+      /\.ops-health-check-button \.ast-flick-row,[^]*?\{[^}]*padding:\s*0[^}]*background:\s*transparent/
+    );
+    expect(OPS_STYLES).not.toMatch(/\.ops-health-check-button[^{]*\{[^}]*position:\s*absolute/);
   });
 
   it('lets the Health header controls wrap without clipping on narrow screens', () => {

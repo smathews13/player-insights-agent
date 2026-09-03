@@ -59,6 +59,7 @@ import { APP_ACTIVITY_TABLE } from '../lib/app-activity';
 import { APP_SESSION_TABLE, appSessionDeployment } from '../lib/app-session';
 import { effectiveRole, everyKnownUser, readRosterForRequest } from '../lib/user-roster';
 import { invalidAdminEmail, seedRoles } from '../lib/admin-roles';
+import { organizationForEmail, parseOrganizationMappings } from '../../shared/organization-mapping';
 import { listSpAssignments, listSpPersonas } from '../lib/sp-identity-store';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
@@ -1497,6 +1498,10 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         email: person,
         role,
         persona,
+        organization: organizationForEmail(
+          person,
+          parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS)
+        ),
         firstSeen,
         lastSeen,
         summary: summarize(questions, totals.threads),

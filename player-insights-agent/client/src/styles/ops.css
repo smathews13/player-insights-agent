@@ -34,36 +34,56 @@
 .ops-page-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
-.ops-stop-all {
+.ops-stop-all,
+.ops-admin-action {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-left: auto;
   padding: 6px 8px 6px 10px;
   border: 1px solid var(--border);
   border-radius: var(--ast-radius-control);
   background: var(--card);
 }
 
+.ops-admin-action-scope {
+  flex: 0 1 430px;
+}
+
+.ops-admin-action-scope .ops-scope-check-button {
+  margin-left: auto;
+}
+
 .ops-stop-all strong,
 .ops-stop-all span,
-.ops-stop-all p {
+.ops-stop-all p,
+.ops-admin-action strong,
+.ops-admin-action span {
   margin: 0;
 }
 
-.ops-stop-all strong {
-  color: var(--db-red-700);
+.ops-stop-all strong,
+.ops-admin-action strong {
   font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
 
+.ops-stop-all strong {
+  color: var(--db-red-700);
+}
+
+.ops-admin-action strong {
+  color: var(--ast-blue);
+}
+
 .ops-stop-all span,
-.ops-stop-all p {
+.ops-stop-all p,
+.ops-admin-action span {
   color: var(--ast-text-secondary);
   font-size: var(--text-xs);
 }
@@ -155,11 +175,43 @@
 }
 
 .ops-health-check-button {
+  width: 154px;
+  min-width: 154px;
+  height: 32px;
+  justify-content: center;
+  overflow: hidden;
   white-space: nowrap;
 }
 
-.ops-health-check-button .ast-flick-row {
+.ops-health-check-button .ast-flick-row,
+.ops-scope-check-button .ast-flick-row,
+.ops-scope-pagination .ast-flick-row,
+.ops-scope-skeleton-row .ast-flick-row {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
   gap: 6px;
+  overflow: hidden;
+}
+
+.ops-health-check-button .ast-flick-row-say,
+.ops-scope-check-button .ast-flick-row-say,
+.ops-scope-pagination .ast-flick-row-say {
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.ops-scope-check-button {
+  width: 112px;
+  min-width: 112px;
+  height: 32px;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .ops-scope-dialog-overlay {
@@ -177,6 +229,7 @@
   gap: 12px;
   width: min(70rem, 100%);
   max-height: min(780px, calc(100vh - 48px));
+  overflow: hidden;
   padding: 18px;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--ast-radius-card);
@@ -228,19 +281,46 @@
 
 .ops-scope-provenance {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 4px 18px;
   color: var(--ast-text-secondary);
   font-size: var(--text-xs);
 }
 
+.ops-scope-provenance > button {
+  margin-left: auto;
+}
+
+.ops-scope-provenance [data-principal-availability='unavailable'] {
+  color: var(--ast-warn-text);
+}
+
+.ops-scope-filters {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+
 .ops-scope-search {
   width: min(24rem, 100%);
+}
+
+.ops-scope-type-filter {
+  display: grid;
+  gap: 4px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.ops-scope-type-filter .app-select-trigger {
+  min-width: 8rem;
 }
 
 .ops-scope-table-scroll {
   min-height: 12rem;
   overflow: auto;
+  scrollbar-gutter: stable both-edges;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--ast-radius-control);
 }
@@ -276,10 +356,46 @@
   background: var(--ast-neg-fill);
 }
 
+.ops-scope-status[data-scope-status='unavailable'] {
+  color: var(--ast-text-secondary);
+  background: var(--ast-fill-band);
+}
+
+.ops-scope-skeleton-row td {
+  height: 42px;
+}
+
+.ops-scope-skeleton-line,
+.ops-scope-skeleton-pill {
+  display: block;
+  width: min(15rem, 80%);
+  height: 10px;
+  border-radius: 999px;
+  background: var(--ast-fill-band);
+}
+
+.ops-scope-skeleton-pill {
+  width: 5rem;
+  height: 22px;
+}
+
 .ops-scope-dialog-state,
 .ops-scope-empty {
   margin: 0;
   color: var(--ast-text-secondary);
+}
+
+.ops-scope-dialog-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ops-scope-more-note {
+  margin: 0;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
 }
 
 .ops-scope-pagination {

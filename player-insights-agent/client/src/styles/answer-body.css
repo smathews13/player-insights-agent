@@ -107,14 +107,13 @@
   line-height: 1.5;
 }
 /*
- * The Sources module: the tables an answer read, then what to keep in mind
- * about the numbers they produced.
+ * The Sources module: the tables an answer read, then its caveats.
  *
  * ONE BULLET PER TABLE, NOT A SENTENCE AND NOT A CARD. It was a bordered card
  * of ruled rows, then a wrapping provenance sentence that ran every name into
  * one paragraph. Both hid the thing a reader is checking: which tables, and
  * which of them the numbers came from. The list below is the same blue middot
- * Keep in mind uses, so the card is one list language.
+ * Caveats uses, so the card is one list language.
  *
  * The pill families stay: a source's role is carried by the colour of its own
  * name, and the words in parentheses after the name say what that colour means.
@@ -198,7 +197,7 @@
 }
 
 /*
- * Keep in mind: the footer zone of the same card.
+ * Caveats: the footer zone of the same card.
  *
  * The amber wash, which the handoff assigns to qualifications as well as to
  * evaluation. The line is the amber family's own edge token rather than the
@@ -210,7 +209,15 @@
   border: 0;
   border-radius: 6px;
   background: var(--ast-ice);
-  padding: 12px 16px;
+  padding: 14px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  max-height: none;
+  overflow-x: clip;
+  overflow-y: visible;
+  box-sizing: border-box;
   /* In the card grid, not pulled back over the Sources line or under Run
      process. The toggle below keeps a small negative inset for the ghost
      button's own padding; that is horizontal only. */
@@ -221,16 +228,18 @@
    a sentence. No warning glyph either: the wash is the alarm, and a second one
    beside the heading made the block read as an error the reader had caused. */
 .keep-in-mind-heading {
+  margin: 0 0 8px;
   font-size: 10px;
   font-weight: 700;
+  line-height: 1.45;
   letter-spacing: var(--ast-tracking-eyebrow);
   color: var(--ast-text-secondary);
 }
 .keep-in-mind .answer-list {
   color: var(--ast-text-long);
-  margin-top: 8px;
-  gap: 6px;
-  font-size: 11.5px;
+  margin: 0;
+  gap: 8px;
+  font-size: var(--ast-fs-13);
   line-height: 1.5;
 }
 /*
@@ -269,6 +278,12 @@
   border-radius: 3px;
   padding: 1px 5px;
   color: inherit;
+}
+.keep-in-mind :is(.caveat-scope, .entity-token, .entity-mark, .answer-code, a[data-entity]) {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .keep-in-mind .caveat-scope {
   margin-right: 6px;
@@ -548,94 +563,17 @@
   gap: 14px;
   min-width: 0;
   /* Auto rows, content height. A 1fr track or a height taken from a shrinking
-     flex parent is what let later sections (Sources, Keep in mind, Run process)
+     flex parent is what let later sections (Sources, Caveats, Run process)
      start before the tables had finished, so they painted through each other. */
   grid-auto-rows: auto;
   height: auto;
   overflow: visible;
   align-content: start;
 }
-.answer-main-row {
-  display: grid;
-  gap: 18px;
-  min-width: 0;
-}
 .answer-narrative {
   display: grid;
   gap: 6px;
   min-width: 0;
-}
-/*
- * 190px, up from 172, and the eighteen pixels are a legibility fix rather than a
- * preference.
- *
- * The agent writes a figure's `display` string with its unit in it -- "3,118
- * player-days", "$1,381 net bookings" -- and the value below is set in DM Mono,
- * whose every glyph has an advance of 0.6em. At 172px the box has 152px of inner
- * width, and seventeen mono glyphs at the old 18px rung need 184. So the string
- * wrapped, and it did not wrap where a reader would put the break: the last
- * opportunity that fitted was the HYPHEN, so the rail printed "3,118 player-"
- * above "days". A figure that has to be reassembled across a line break is the
- * one thing a scan column must not do, and it was reported as the rail being too
- * narrow, which it was.
- *
- * 190px of box is 170px of text, and the value rung drops to 16px below, which
- * puts that same string at 163px -- one line, with room, and the unit intact.
- * Neither number is a magic constant: they are the two terms of "the longest unit
- * string this agent writes fits on one line", and if the agent starts writing
- * longer ones this is the pair to move.
- */
-.answer-stat-rail {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  width: 100%;
-  gap: 6px;
-}
-.answer-stat {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--ast-fill-band);
-}
-.answer-stat-label {
-  color: var(--ast-text-secondary);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: var(--ast-tracking-eyebrow);
-  line-height: 1.3;
-  text-transform: uppercase;
-}
-.answer-stat-value {
-  color: var(--ast-text);
-  /* 16px rather than 18: see the width note on `.answer-stat-rail`. The two are
-     one decision and moving either alone brings the mid-word break back. */
-  font-size: var(--ast-fs-16);
-  font-weight: 500;
-  line-height: 1.25;
-  /* The floor, not the plan. The rail is sized so the figures this agent writes
-     fit, and `break-word` is what stops an unforeseen long one from painting
-     outside the rounded box instead of wrapping inside it. `break-word` and not
-     `anywhere` on purpose: `anywhere` also lowers the element's min-content
-     width, which would let the grid track below collapse under the width this
-     rail was just widened to. */
-  overflow-wrap: break-word;
-}
-.answer-stat-context {
-  display: -webkit-box;
-  overflow: hidden;
-  color: var(--ast-text-secondary);
-  font-size: 10px;
-  line-height: 1.35;
-  white-space: normal;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-.answer-stat-context:focus {
-  display: block;
-  overflow: visible;
-  -webkit-line-clamp: unset;
 }
 .answer-evidence,
 .answer-evidence > .answer-prose {
@@ -675,7 +613,7 @@
 
 /*
  * Sources list: one leftover table per bullet. Filter, metric and window sit
- * inside that bullet. Same `.answer-list` middot and 6px gap as Keep in mind.
+ * inside that bullet. Same `.answer-list` middot and rhythm as Caveats.
  * Name first, role after, Open last — wrapping inside the bullet, never a
  * three-column row or a middle-dot paragraph.
  */
@@ -689,7 +627,7 @@
 .source-list {
   margin: 0;
   color: var(--ast-text-long);
-  /* Same middot, 6px gap and 1.5 rhythm as Keep in mind; 14px so Sources
+  /* Same middot and 1.5 rhythm as Caveats; 14px so Sources
      stays on the prose rung rather than shrinking to the caveat footer. */
   gap: 6px;
   font-size: var(--ast-fs-14);
@@ -745,50 +683,4 @@
 .source-list a,
 .source-list-derivation a {
   vertical-align: baseline;
-}
-
-/*
- * ============================================================================
- * WHEN THE FIGURES MAY TAKE A COLUMN OFF THE PROSE, AND WHEN THEY MAY NOT.
- * ============================================================================
- *
- * The design's card is the narrative with the figures stacked in a column down
- * its right-hand side, and that is what this restores. It is the shape the card
- * is drawn in in the handoff and the shape it is signed off in.
- *
- * It was removed, not by accident: a fixed 190px rail beside the prose left the
- * narrative around 450px on a laptop, because the middle column is the window
- * less a 264px conversation rail and a 340px inspector, and a bulleted claim
- * wrapping every eight words is worse than figures under the prose. Both of
- * those readings are true. They are true at DIFFERENT CARD WIDTHS, which is why
- * the answer is a container query on the card and not a global choice between
- * them:
- *
- *  - At 840px of card and up, the narrative still has 570px with the rail and
- *    its gap taken off, which is a reading measure. The figures go beside it.
- *    This is the normal case now that the inspector's track is released when no
- *    run is being inspected (see `.ask-layout` in rail.css), which is what makes
- *    `--conversation-measure` a width the card reaches rather than an aspiration.
- *  - Below it -- a live run holding the inspector open, a narrow window, the
- *    Monitoring drawer's 620px -- the rail stacks under the prose and lays out
- *    in as many columns as fit. Nothing is lost; the figures are simply read
- *    after the sentence instead of beside it.
- *
- * The query is on the CARD, so the drawer, the transcript and a future surface
- * all get the shape their own width earns, with no surface named in here.
- */
-@container answer-card (min-width: 840px) {
-  .answer-main-row {
-    /* The rail's own track, not a fraction: a figure column that grows with the
-       card is a column of white space around four short strings. 230px is the
-       design's, and its floor is the 190px the longest unit string this agent
-       writes fits on one line in -- see `.answer-stat-value`. */
-    grid-template-columns: minmax(0, 1fr) minmax(190px, 230px);
-    align-items: start;
-  }
-  /* One figure per row when the rail is a rail. `auto-fit` here would put two
-     190px cells side by side inside a 230px track and clip them both. */
-  .answer-stat-rail {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }

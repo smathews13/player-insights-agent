@@ -110,7 +110,15 @@ export interface WireAnswer {
   id?: unknown;
   mode?: unknown;
   provenance?: unknown;
+  /**
+   * Reader headline. New producers should put only the concise answer here
+   * (for example, "42 million unique users").
+   */
   takeaway?: unknown;
+  /**
+   * Supporting context. New producers should send Markdown list items here so
+   * they render directly below the takeaway; legacy prose remains valid.
+   */
   narrative?: unknown;
   content?: unknown;
   figures?: unknown;

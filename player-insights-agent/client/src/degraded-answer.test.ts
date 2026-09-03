@@ -17,7 +17,7 @@ import { REPRESENTATIVE_ANSWER_CAVEAT } from '../../shared/representative-answer
  * The incident: a Genie space that had never been shared with the agent's
  * serving principal refused every call, the agent answered from its SQL
  * fallback instead, and the only sign was one sentence third in a list of five
- * under the heading "What to keep in mind", beneath four boilerplate caveats
+ * under the heading "Caveats", beneath four boilerplate caveats
  * the reader had seen on every previous answer. The figure was acted on.
  *
  * These cover the two halves of the fix that live in the browser: recognising
@@ -277,7 +277,7 @@ describe('an answer carrying prose and nothing else', () => {
   });
 
   it('does not relabel successful live evidence as fallback data when another step failed', () => {
-    // Partial and Keep in mind already disclose the failed step. These sections
+    // Partial and Caveats already disclose the failed step. These sections
     // came from this run and retain their own SQL/source provenance.
     expect(answerFallback({ ...proseOnly, figures: [{ label: 'Active', value: 1 }] })).toBeNull();
     expect(answerFallback({ ...proseOnly, sources: [{ name: 'main.player_insights.x' }] })).toBeNull();

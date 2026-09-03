@@ -143,7 +143,7 @@ describe('the count in the header, which is the whole of what it says', () => {
 
   it('says nothing rather than "0 tables" when the answer declared none', () => {
     // A module drawn for its caveats alone is making no claim about tables.
-    // "0 tables" is a claim, and next to a Keep in mind section it reads as one
+    // "0 tables" is a claim, and next to a Caveats section it reads as one
     // about the answer's provenance.
     expect(sourceFacts([])).toBe('');
   });

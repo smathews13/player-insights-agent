@@ -66,6 +66,47 @@ function card(value: Answer): string {
   );
 }
 
+describe('answer hierarchy', () => {
+  it('keeps the supplied takeaway exact and renders ordered context bullets directly below it', () => {
+    const supplied = '42 million unique users';
+    const markup = card(
+      answer({
+        takeaway: supplied,
+        narrative: [
+          supplied,
+          '- Lifetime window: `2013-10-01` through `2026-09-01`.',
+          '- Counted by `brand_firstpartyid`.',
+          '- Read from `main.game.daily_summary`.',
+        ].join('\n'),
+      })
+    );
+    const headline = /class="[^"]*answer-takeaway[^"]*"[^>]*>([\s\S]*?)<\/div>/.exec(markup)?.[1] ?? '';
+    const plainHeadline = headline.replace(/<[^>]+>/g, '').trim();
+    const visible = markup.replace(/<[^>]+>/g, '');
+    const bullets = [...markup.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((match) =>
+      match[1].replace(/<[^>]+>/g, '').trim()
+    );
+
+    expect(plainHeadline).toBe(supplied);
+    expect(visible.split(supplied)).toHaveLength(2);
+    expect(bullets.slice(0, 3).map((bullet) => bullet.replace(/&#x27;/g, "'"))).toEqual([
+      'Lifetime window: 2013-10-01 through 2026-09-01.',
+      'Counted by brand_firstpartyid.',
+      'Read from main.game.daily_summary.',
+    ]);
+    expect(markup.indexOf('answer-takeaway')).toBeLessThan(markup.indexOf('<ul class="answer-list"'));
+  });
+
+  it('keeps legacy prose readable without heuristically turning it into claims', () => {
+    const legacy =
+      'Across the recorded period, returning players increased. The older payload stores this as one paragraph.';
+    const markup = card(answer({ takeaway: 'Returning players increased.', narrative: legacy }));
+
+    expect(markup).toContain(`<p>${legacy}</p>`);
+    expect(markup).not.toMatch(/<li[^>]*>Across the recorded period/);
+  });
+});
+
 describe('answer evidence variants', () => {
   it('renders prose plus table evidence when no chart exists', () => {
     const markup = card(answer());
@@ -129,10 +170,12 @@ describe('answer evidence variants', () => {
     expect(evidenceSource).toContain('onFailure={() => setShowRows(true)}');
   });
 
-  it('keeps every figure in the stat rail, including historical extras', () => {
+  it('keeps figures in the answer data without rendering KPI tiles', () => {
     const markup = card(answer());
-    expect(markup.match(/class="answer-stat"/g)).toHaveLength(5);
-    expect(markup).toContain('Historical extra');
+    expect(answer().figures).toHaveLength(5);
+    expect(markup).not.toContain('answer-stat');
+    expect(markup).not.toContain('Key figures');
+    expect(markup).not.toContain('Historical extra');
     expect(markup).not.toContain('Result breakdown');
   });
 });
@@ -251,50 +294,18 @@ describe('the answer card remains the substantial reading surface', () => {
   });
 });
 
-describe('responsive answer rail', () => {
+describe('full-width answer body', () => {
   const css = partial('answer-body.css');
-  it('gives the figures a column only on a card wide enough to spare one', () => {
-    /*
-     * The design's card is the narrative with the figures down its right-hand
-     * side, and the card is drawn that way wherever it is wide enough to be.
-     *
-     * Both of the readings this rule has swung between are true, at different
-     * widths. A fixed rail at every width left the narrative around 450px on a
-     * laptop holding an open inspector, which is a bulleted claim wrapping every
-     * eight words. No rail at any width is the design's card with its right-hand
-     * column deleted. So the threshold is a CONTAINER query on the card -- the
-     * only box whose width actually decides this -- and not a viewport query and
-     * not a global choice.
-     */
-    expect(css).toMatch(/@container answer-card \(min-width: 840px\)/);
-    const sideRail = css.slice(css.indexOf('@container answer-card (min-width: 840px)'));
-    expect(sideRail).toMatch(
-      /\.answer-main-row \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(190px, 230px\)/s
-    );
-    // Stacked is still the base rule, so a narrow card needs no override to get
-    // it: the Monitoring drawer is 620px and never enters the query above.
-    expect(css).toMatch(/\.answer-main-row \{[^}]*display: grid/s);
-    // Not a viewport question. The transcript column is the window less two
-    // rails and four insets, any of which can be absent.
-    expect(css).not.toMatch(/@media[^{]*\{[^}]*\.answer-stat-rail/s);
-    expect(css).not.toMatch(/\.answer-stat-rail \{[^}]*flex: 0 0/s);
+  it('reserves no second column at any card width', () => {
+    expect(css).not.toContain('.answer-main-row');
+    expect(css).not.toContain('.answer-stat-rail');
+    expect(css).not.toContain('.answer-stat');
+    expect(css).not.toMatch(/@container answer-card/);
   });
 
-  it('lays the figures out in as many columns as the card can hold', () => {
-    // `auto-fit` rather than one wide cell each: stacked, the rail is as wide as
-    // the card, and two 340px cells holding a 163px figure is a scan row with
-    // half its width unused.
-    expect(css).toMatch(/\.answer-stat-rail \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(190px, 1fr\)\)/s);
-    expect(css).toMatch(/\.answer-stat-rail \{[^}]*width: 100%/s);
-    // 190px and the value's size are one decision: 190px of box is 170px of
-    // text, and 16px DM Mono puts "3,118 player-days" at 163px. At the old
-    // 172/18px pair the last break opportunity that fitted was the HYPHEN, so
-    // the rail printed "3,118 player-" above "days".
-    expect(css).toMatch(/\.answer-stat-value \{[^}]*font-size: var\(--ast-fs-16\)/s);
-    // And one figure per row once the rail IS a rail: `auto-fit` inside a 230px
-    // track would fit two 190px cells side by side and clip them both.
-    const sideRail = css.slice(css.indexOf('@container answer-card (min-width: 840px)'));
-    expect(sideRail).toMatch(/\.answer-stat-rail \{[^}]*grid-template-columns: minmax\(0, 1fr\)/s);
+  it('lets narrative and evidence start at the full content width without a transition', () => {
+    expect(css).toMatch(/\.answer-narrative \{[^}]*display:\s*grid[^}]*min-width:\s*0/s);
+    expect(css).not.toMatch(/grid-template-columns:[^;]*(190px|230px)/);
   });
 });
 

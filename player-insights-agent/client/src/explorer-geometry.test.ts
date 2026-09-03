@@ -14,11 +14,13 @@ import { partial, partialNames } from './styles/stylesheet';
  */
 
 const RUNS = partial('runs.css');
+const BASE = partial('base.css');
 const SHELL = partial('page-shell.css');
 const BENCHMARK = `${partial('summary-grid.css')}\n${partial('benchmark.css')}`;
 const TIMELINE = partial('timeline.css');
 const RESPONSIVE = `${partial('responsive.css')}\n${partial('responsive-runs.css')}`;
 const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
+const APP_SELECT = readFileSync(new URL('./AppSelect.tsx', import.meta.url), 'utf8');
 const KPIS = readFileSync(new URL('./RunOverviewKpis.tsx', import.meta.url), 'utf8');
 const RATING_BADGE = readFileSync(new URL('./RunRatingBadge.tsx', import.meta.url), 'utf8');
 const LAB = readFileSync(new URL('./BenchmarkLab.tsx', import.meta.url), 'utf8');
@@ -63,19 +65,19 @@ describe('the Run Explorer’s two columns', () => {
     expect(triggers).toContain('width: 100%');
     expect(triggers).toContain('max-width: 100%');
     expect(triggers).toContain('min-width: 0');
-    expect(rule(RUNS, '.run-filter-label')).toContain('text-overflow: ellipsis');
-    expect(EXPLORER).toContain('run-filter-label');
+    expect(rule(BASE, '.app-select-value')).toContain('text-overflow: ellipsis');
+    expect(APP_SELECT).toContain('app-select-value');
   });
 
   it('opens All conversations and All users as overlay popovers', () => {
     // A long conversation title used to widen the 340px column and shove the
     // detail pane. The menu is a popper overlay; opening it cannot change the
     // field of view, chrome width, or scrollbar.
-    expect(EXPLORER).toMatch(/position="popper"/);
-    expect(EXPLORER).toMatch(/className="app-select-content run-filter-menu"/);
+    expect(EXPLORER.match(/<AppSelect/g)).toHaveLength(2);
+    expect(APP_SELECT).toContain('<PopoverContent');
     expect(rule(RUNS, '.explorer-layout')).toContain('overflow-x: clip');
-    expect(rule(RUNS, 'html body[data-scroll-locked]')).toContain('margin-right: 0 !important');
-    expect(rule(RUNS, 'html body[data-scroll-locked]')).toContain('padding-right: 0 !important');
+    expect(RUNS).not.toContain('body[data-scroll-locked]');
+    expect(rule(BASE, '.app-select-content')).toContain('scrollbar-gutter: stable');
   });
 
   it('gives the detail column a real pane, not a floating tint', () => {

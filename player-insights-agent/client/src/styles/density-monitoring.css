@@ -3,7 +3,8 @@ html[data-density='compact'] .monitoring-page,
 html[data-density='compact'] .monitoring-card-list,
 html[data-density='compact'] .monitoring-drawer-section,
 html[data-density='compact'] .user-profile-modal-body,
-html[data-density='compact'] .monitoring-users-body {
+html[data-density='compact'] .monitoring-users-body,
+html[data-density='compact'] .monitoring-feedback-body {
   gap: var(--density-section-gap);
 }
 
@@ -14,7 +15,8 @@ html[data-density='compact'] .monitoring-strip,
 html[data-density='compact'] .monitoring-outcome-grid,
 html[data-density='compact'] .user-profile-modal-spend-kpis,
 html[data-density='compact'] .user-profile-modal-kpi-grid,
-html[data-density='compact'] .monitoring-users-toolbar {
+html[data-density='compact'] .monitoring-users-toolbar,
+html[data-density='compact'] .monitoring-feedback-toolbar {
   gap: var(--density-card-gap);
 }
 
@@ -33,6 +35,7 @@ html[data-density='compact'] .user-profile-modal-question-table td {
 }
 
 html[data-density='compact'] .monitoring-user-row,
+html[data-density='compact'] .monitoring-feedback-table td,
 html[data-density='compact'] .user-profile-modal-table-list > li,
 html[data-density='compact'] .user-profile-modal-grant-row {
   min-height: var(--density-row-height);
@@ -47,6 +50,10 @@ html[data-density='compact'] .monitoring-users-body {
 }
 
 html[data-density='compact'] .monitoring-chip-menu [data-slot='select-item'] {
+  min-height: var(--density-row-height);
+  padding-block: var(--density-row-padding-block);
+}
+html[data-density='compact'] .monitoring-organization-menu .app-menu-option {
   min-height: var(--density-row-height);
   padding-block: var(--density-row-padding-block);
 }

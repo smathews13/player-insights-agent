@@ -12,6 +12,11 @@ import type {
 } from '../../shared/user-spend-contract';
 import type { Role } from '../../shared/user-roster-contract';
 import {
+  organizationForEmail,
+  organizationsForEmails,
+  type OrganizationMapping,
+} from '../../shared/organization-mapping';
+import {
   USER_MONITORING_SCHEMA_REVISION,
   type UserMonitoringPayload,
   type UserMonitoringRow,
@@ -718,6 +723,8 @@ export function buildUserMonitoringPage(input: {
   roles: ReadonlyMap<string, Role>;
   personas?: ReadonlyMap<string, { id: string; name: string }>;
   personaOptions?: Array<{ id: string; name: string }>;
+  organizationMappings?: readonly OrganizationMapping[];
+  organizations?: readonly string[];
   coveredDays?: number;
   identityRevision?: string;
   unit: CostBudgetUnit;
@@ -730,6 +737,8 @@ export function buildUserMonitoringPage(input: {
   const profiles = new Map(input.spend.users.map((profile) => [profile.email.toLowerCase(), profile]));
   const interactions = new Map((input.interactions ?? []).map((row) => [row.email.toLowerCase(), row]));
   const emails = [...input.roles.keys()];
+  const organizationOptions = organizationsForEmails(emails, input.organizationMappings);
+  const selectedOrganizations = new Set(input.organizations ?? []);
   const search = (input.search ?? '').trim().toLowerCase().slice(0, 120);
 
   const unavailable: UserSpendAmount = { amount: null, quality: 'unavailable' };
@@ -746,6 +755,7 @@ export function buildUserMonitoringPage(input: {
         email,
         role: input.roles.get(email) ?? 'consumer',
         persona: input.personas?.get(email) ?? null,
+        organization: organizationForEmail(email, input.organizationMappings),
         lastActive,
         questions: interaction?.questions ?? 0,
         runs: interaction?.runs ?? 0,
@@ -759,7 +769,12 @@ export function buildUserMonitoringPage(input: {
         coverage: (input.unit === 'USD' ? usd : dbu).quality,
       };
     })
-    .filter((row) => (!search || row.email.includes(search)) && (!input.role || row.role === input.role));
+    .filter(
+      (row) =>
+        (!search || row.email.includes(search)) &&
+        (!input.role || row.role === input.role) &&
+        (selectedOrganizations.size === 0 || selectedOrganizations.has(row.organization.id))
+    );
   const personaCounts = new Map<string, number>();
   for (const row of authorizedRows) {
     if (row.persona) personaCounts.set(row.persona.id, (personaCounts.get(row.persona.id) ?? 0) + 1);
@@ -794,6 +809,7 @@ export function buildUserMonitoringPage(input: {
     personas: [...(input.personaOptions ?? [])]
       .map((persona) => ({ ...persona, count: personaCounts.get(persona.id) ?? 0 }))
       .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)),
+    organizations: organizationOptions,
     dataRevision: userSpendDataRevision(),
     identityRevision: input.identityRevision ?? '',
     pagination: {

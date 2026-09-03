@@ -10,7 +10,7 @@ import type { Run } from './app-types';
 const RUNS = partial('runs.css');
 const RESPONSIVE = partial('responsive-runs.css');
 const BASE = partial('base.css');
-const UI = readFileSync(new URL('./ui.ts', import.meta.url), 'utf8');
+const APP_SELECT = readFileSync(new URL('./AppSelect.tsx', import.meta.url), 'utf8');
 const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
 
 function rule(css: string, selector: string): string {
@@ -39,7 +39,7 @@ describe('Run Explorer filter geometry', () => {
     expect(layout).toContain('min-width: 0');
     expect(rule(RUNS, '.run-filter-field')).toContain('max-width: 100%');
     expect(rule(RUNS, '.run-conversation-filter,\n.run-username-filter')).toContain('max-width: 100%');
-    expect(rule(RUNS, '.run-filter-label')).toContain('text-overflow: ellipsis');
+    expect(rule(BASE, '.app-select-value')).toContain('text-overflow: ellipsis');
   });
 
   it('keeps full selected values in accessible names and tooltips', () => {
@@ -53,56 +53,55 @@ describe('Run Explorer filter geometry', () => {
   });
 
   it('portals popper menus above panels and caps them to the viewport', () => {
-    expect(UI).toContain("createElement(AppKitSelectContent, { position: 'popper', ...props })");
+    expect(APP_SELECT).toContain('<PopoverContent');
+    expect(APP_SELECT).toContain('avoidCollisions');
     expect(rule(BASE, '[data-radix-popper-content-wrapper]')).toContain('z-index: var(--ast-layer-menu)');
     expect(rule(BASE, '[data-radix-popper-content-wrapper]')).toContain('max-width: calc(100vw - 24px)');
-    const menu = rule(RUNS, '.run-filter-menu');
-    expect(menu).toContain('max-width: min(30rem, calc(100vw - 24px))');
-    expect(menu).toContain('var(--radix-select-content-available-height)');
+    const menu = rule(BASE, '.app-select-content');
+    expect(menu).toContain('width: var(--radix-popover-trigger-width)');
+    expect(menu).toContain('var(--radix-popover-content-available-height)');
   });
 
-  it('gives both scoped triggers stable hover, open, focus, and disabled states', () => {
+  it('gives both scoped triggers the shared hover, open, focus, and disabled states', () => {
     const markup = filters('All conversations', 'All users');
     expect(markup.match(/run-filter-trigger/g)).toHaveLength(2);
-    expect(rule(RUNS, '.run-filter-trigger')).toContain('cursor: pointer');
 
     const interactive = [
-      rule(RUNS, ".run-filter-trigger:is(:hover, [data-state='open']):not(:disabled):not([data-disabled])"),
-      rule(RUNS, ".run-filter-trigger[data-state='open']:not(:disabled):not([data-disabled])"),
-      rule(RUNS, '.run-filter-trigger:focus-visible'),
+      rule(BASE, ".app-select-trigger:hover:not(:disabled),\n.app-select-trigger[data-state='open']:not(:disabled)"),
+      rule(BASE, '.app-select-trigger:focus-visible'),
     ];
-    expect(interactive[0]).toContain('border-color: var(--ast-blue)');
-    expect(interactive[0]).toContain('background: var(--db-hover-tint)');
-    expect(interactive[1]).toContain('background: var(--db-selected-tint)');
-    expect(interactive[2]).toContain('outline: 2px solid var(--ast-blue)');
+    expect(interactive[0]).toContain('border-color: var(--primary)');
+    expect(interactive[0]).toContain('background: color-mix(in srgb, var(--background) 94%, var(--primary))');
+    expect(BASE).toMatch(
+      /\.app-select-trigger\[data-state='open'\]:not\(:disabled\)\s*\{\s*background:\s*color-mix\(in srgb, var\(--background\) 88%, var\(--primary\)\)/
+    );
+    expect(interactive[1]).toContain('box-shadow: 0 0 0 2px');
     for (const state of interactive) expect(state).not.toMatch(/(?:padding|margin|width|height|font-weight):/);
 
-    const disabled = rule(RUNS, '.run-filter-trigger:is(:disabled, [data-disabled])');
+    const disabled = rule(BASE, '.app-select-trigger:disabled,\n.app-select-trigger[data-disabled]');
     expect(disabled).toContain('cursor: not-allowed');
-    expect(disabled).toContain('opacity: 0.55');
+    expect(disabled).toContain('opacity: 1');
   });
 
-  it('gives the opaque scoped menu distinct hover, keyboard, selected, and disabled options', () => {
-    expect(rule(RUNS, '.run-filter-menu')).toContain('background: var(--background)');
-    expect(rule(RUNS, ".run-filter-menu [data-slot='select-item'][data-highlighted]")).toContain(
+  it('gives the opaque shared menu distinct hover, selected, and disabled options', () => {
+    expect(rule(BASE, '.app-menu-content')).toContain('background: var(--background)');
+    expect(rule(BASE, '.app-menu-option:is(:hover, :focus-visible),\n.app-menu-option[data-highlighted]')).toContain(
       'background: var(--db-hover-tint)'
     );
-    expect(rule(RUNS, ".run-filter-menu [data-slot='select-item'][data-state='checked']")).toContain(
-      'background: var(--db-selected-tint)'
-    );
-    expect(rule(RUNS, ".run-filter-menu [data-slot='select-item'][data-disabled]")).toContain('cursor: not-allowed');
+    expect(rule(BASE, ".app-menu-option[data-state='checked']")).toContain('background: var(--db-selected-tint)');
+    expect(rule(BASE, '.app-menu-option:disabled')).toContain('cursor: not-allowed');
   });
 
   it('reserves the list scrollbar without changing the two-pane columns', () => {
-    expect(rule(RUNS, '.run-list')).toContain('scrollbar-gutter: stable');
+    expect(rule(RUNS, '.run-list,\n.run-detail')).toContain('scrollbar-gutter: stable');
     expect(rule(RUNS, '.explorer-layout')).toContain('grid-template-columns: 340px minmax(0, 1fr)');
   });
 
-  it('stacks both full-width filters at the shared 800px breakpoint', () => {
-    const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
+  it('stacks both full-width filters with the tablet Run Explorer layout', () => {
+    const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 960px)'));
     expect(narrow).toMatch(/\.run-list-filters\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
     expect(narrow).toMatch(/\.run-filter-field,[\s\S]*?width:\s*100%/);
-    expect(RESPONSIVE).not.toMatch(/@media \(max-width: (?!1365|1180|800|480)\d+px\)/);
+    expect(RESPONSIVE).not.toMatch(/@media \(max-width: (?!1365|1180|960|480)\d+px\)/);
   });
 
   it('clearing one filter leaves the other filter and search in force', () => {

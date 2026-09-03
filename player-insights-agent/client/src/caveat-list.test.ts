@@ -80,10 +80,11 @@ describe('the caveats under an answer', () => {
   });
 
   it('still labels the block, which is what tells a reader what the bullets are', () => {
-    // "Keep in mind" rather than "What to keep in mind:", and a heading rather
-    // than a bolded run of the first line: it is now a named zone of a card, so
-    // the label sits on the zone instead of introducing a sentence.
-    expect(PANEL_SOURCE).toContain('<p className="keep-in-mind-heading">Keep in mind</p>');
+    // A semantic heading labels the named zone and its accessible section.
+    expect(PANEL_SOURCE).toContain('<section className="keep-in-mind" aria-label="Caveats">');
+    expect(PANEL_SOURCE).toContain('<h3 className="keep-in-mind-heading">Caveats</h3>');
+    expect(PANEL_SOURCE).not.toContain('Keep in mind');
+    expect(PANEL_SOURCE).not.toContain('What to keep in mind');
   });
 
   /**

@@ -248,6 +248,6 @@ export function readerAnswerPlainText(answer: ReaderAnswerContent): string {
     (section): section is string => Boolean(section?.trim())
   );
   const caveats = normalized.caveats?.filter((caveat) => caveat.trim()) ?? [];
-  if (caveats.length > 0) sections.push(`Keep in mind\n${caveats.map((caveat) => `- ${caveat}`).join('\n')}`);
+  if (caveats.length > 0) sections.push(`Caveats\n${caveats.map((caveat) => `- ${caveat}`).join('\n')}`);
   return sections.join('\n\n').trim();
 }

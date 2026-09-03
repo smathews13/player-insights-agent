@@ -32,9 +32,44 @@ import type {
 import type { MonitoringState } from './monitoring-view';
 import { beginPanelLoad, idlePanel, rejectPanelLoad } from './monitoring-detail-state';
 import type { OpsCostPayload } from '../../shared/ops-contract';
+import { organizationForEmail, type OrganizationMapping } from '../../shared/organization-mapping';
+import { USER_MONITORING_SCHEMA_REVISION } from '../../shared/user-monitoring-contract';
 
 const MONITORING_SOURCE = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
 const MONITORING_CSS = readFileSync(new URL('./styles/monitoring.css', import.meta.url), 'utf8');
+const TEST_ORGANIZATIONS: readonly OrganizationMapping[] = [
+  {
+    id: 'northwind-games',
+    domain: 'northwindgames.com',
+    domainSuffixes: ['northwindgames.com'],
+    name: 'Northwind Games',
+    monogram: 'R*',
+    logoKey: 'monogram',
+    ariaLabel: 'Organization: Northwind Games',
+    fallback: 'monogram',
+  },
+  {
+    id: '2k',
+    domain: '2k.com',
+    domainSuffixes: ['2k.com'],
+    name: 'Contoso Games',
+    monogram: 'Contoso',
+    logoKey: 'monogram',
+    ariaLabel: 'Organization: Contoso Games',
+    fallback: 'monogram',
+  },
+  {
+    id: 'acme-interactive',
+    domain: 'take2games.com',
+    domainSuffixes: ['take2games.com'],
+    name: 'Acme Interactive',
+    monogram: 'T2',
+    logoKey: 'monogram',
+    ariaLabel: 'Organization: Acme Interactive',
+    fallback: 'monogram',
+  },
+];
+const testOrganizationForEmail = (email: string) => organizationForEmail(email, TEST_ORGANIZATIONS);
 
 /**
  * What a reader actually sees on Monitoring, asserted against rendered output.
@@ -398,16 +433,15 @@ describe('the filter row is built from the app, not from the platform', () => {
   });
 
   /**
-   * The label and the current value on one line, as the design shows, and present
-   * on first paint. Rendered from the options rather than resolved out of the open
-   * menu, which is empty until Radix mounts and left the chip reading "User ·".
+   * One concise current value on first paint. The category remains in the
+   * accessible name instead of being repeated inside the trigger.
    */
   it('reads label and value together on the trigger', () => {
     const rendered = text(row());
 
-    expect(rendered).toContain('User · All');
-    expect(rendered).toContain('Outcome · All');
-    expect(rendered).toContain('Feedback · All');
+    expect(rendered).toContain('All users');
+    expect(rendered).toContain('All outcomes');
+    expect(rendered).toContain('All feedback');
   });
 
   it('offers the primary User Monitoring action without changing the secondary filters', () => {
@@ -421,7 +455,7 @@ describe('the filter row is built from the app, not from the platform', () => {
         onOpenUsers={() => {}}
       />
     );
-    expect(text(markup)).toContain('User · All');
+    expect(text(markup)).toContain('All users');
     expect(text(markup)).toContain('User Monitoring');
     expect(markup).toContain('monitoring-user-browser-trigger');
     expect(markup).toContain('lucide-users');
@@ -440,7 +474,7 @@ describe('the filter row is built from the app, not from the platform', () => {
     const markup = row();
 
     expect(markup).toContain('monitoring-chip-active');
-    expect(text(markup)).toContain('Table · a_catalog.a_schema.gold_title_daily_summary');
+    expect(text(markup)).toContain('a_catalog.a_schema.gold_title_daily_summary');
     expect(markup).toContain('aria-label="Clear the table filter"');
   });
 
@@ -452,7 +486,7 @@ describe('the filter row is built from the app, not from the platform', () => {
     expect(markup).not.toContain('aria-label="Clear the person filter"');
     // And the unset Table filter reads "Any", not "All": there is one table per
     // row and the question is whether a run touched it.
-    expect(text(markup)).toContain('Table · Any');
+    expect(text(markup)).toContain('Any table');
   });
 
   /**
@@ -527,17 +561,17 @@ describe('removing a filter', () => {
    * anything without opening it.
    *
    * The MENU's items are not asserted here and cannot be. Radix mounts
-   * `SelectContent` only while the menu is open, so a static render contains the
+   * Popover content only while the menu is open, so a static render contains the
    * trigger and nothing else. Whether "All" is in each list is unverified without
    * a browser; that the chip reads "All" when nothing is set is not.
    */
   it('reads its own off state on each closed chip', () => {
     const rendered = text(unfiltered());
 
-    expect(rendered).toContain('User · All');
-    expect(rendered).toContain('Outcome · All');
-    expect(rendered).toContain('Feedback · All');
-    expect(rendered).toContain('Table · Any');
+    expect(rendered).toContain('All users');
+    expect(rendered).toContain('All outcomes');
+    expect(rendered).toContain('All feedback');
+    expect(rendered).toContain('Any table');
   });
 
   /**
@@ -547,8 +581,8 @@ describe('removing a filter', () => {
    * indistinguishable. A reader who picks it must be able to tell they did.
    */
   it('tells a No feedback filter apart from an unset one', () => {
-    expect(text(withEverythingSet({ feedback: 'none' }))).toContain('Feedback · No feedback');
-    expect(text(unfiltered())).toContain('Feedback · All');
+    expect(text(withEverythingSet({ feedback: 'none' }))).toContain('No feedback');
+    expect(text(unfiltered())).toContain('All feedback');
     // And it is a set filter, so it clears like one.
     expect(withEverythingSet({ feedback: 'none' })).toContain('aria-label="Clear the feedback filter"');
   });
@@ -693,13 +727,11 @@ describe('every state in the list', () => {
     const markup = body('loading');
     const rendered = text(markup);
 
-    expect(rendered).toContain('User');
-    expect(rendered).toContain('Outcome');
-    expect(rendered).toContain('Feedback');
-    expect(rendered).toContain('Table');
-    // The attribute, not the word. The app's own Select carries Tailwind classes
-    // named `disabled:opacity-50`, so a substring match on "disabled" passed
-    // judgement on a class list rather than on whether anything is switched off.
+    expect(rendered).toContain('All users');
+    expect(rendered).toContain('All outcomes');
+    expect(rendered).toContain('All feedback');
+    expect(rendered).toContain('Any table');
+    // The attribute, not the word: judge whether a control is actually disabled.
     expect(markup).not.toMatch(/\sdisabled[=\s>]/);
     expect(markup).not.toMatch(/aria-disabled="true"/);
     // Skeletons, not figures, and not a zero.
@@ -975,7 +1007,7 @@ describe('the question list', () => {
   it('prints the figures it does have, tabular', () => {
     const markup = body('ready', { questions: [question({ durationMs: 12_400, toolCalls: 3 })] });
     expect(markup).toMatch(/class="monitoring-numeric ast-num">12\.4s</);
-    expect(markup).toMatch(/class="monitoring-numeric ast-num">3</);
+    expect(markup).toMatch(/class="monitoring-numeric monitoring-tool-cell"[\s\S]*tool-calls-label[\s\S]*ast-num">3</);
   });
 });
 
@@ -1290,6 +1322,7 @@ describe('the User Monitoring browser', () => {
     search: '',
     role: '',
     persona: '',
+    organizations: [],
     unit: 'USD' as const,
     cursor: '',
     range: '7d' as const,
@@ -1297,19 +1330,30 @@ describe('the User Monitoring browser', () => {
   const noop = () => {};
   const payload = {
     userMonitoring: {
-      schemaRevision: 2,
+      schemaRevision: USER_MONITORING_SCHEMA_REVISION,
       readAt: '2026-08-15T12:00:00Z',
       range: { from: '2026-08-09', to: '2026-08-15' },
       unit: 'USD',
       state: 'partial',
       reason: 'Vector Search coverage is partial.',
       personas: [{ id: 'analyst', name: 'Analyst', count: 1 }],
+      organizations: [
+        {
+          ...testOrganizationForEmail('person@northwindgames.com'),
+          count: 1,
+        },
+        {
+          ...testOrganizationForEmail('person@outside.test'),
+          count: 1,
+        },
+      ],
       dataRevision: 7,
       users: [
         {
-          email: 'ada.reader@example.test',
+          email: 'ada.reader@northwindgames.com',
           role: 'admin',
           persona: { id: 'analyst', name: 'Analyst' },
+          organization: testOrganizationForEmail('ada.reader@northwindgames.com'),
           lastActive: '2026-08-15T10:00:00Z',
           questions: 12,
           runs: 12,
@@ -1323,6 +1367,7 @@ describe('the User Monitoring browser', () => {
           email: 'no.cost@example.test',
           role: 'consumer',
           persona: null,
+          organization: testOrganizationForEmail('no.cost@outside.test'),
           lastActive: '2026-08-14T10:00:00Z',
           questions: 1,
           runs: 1,
@@ -1368,6 +1413,9 @@ describe('the User Monitoring browser', () => {
     expect(visible).toContain('$8.50');
     expect(visible).toContain('Admin');
     expect(visible).toContain('Analyst');
+    expect(visible).toContain('All organizations');
+    expect(markup).toContain('aria-label="Filter users by organization: All organizations"');
+    expect(markup).toContain('data-organization-id="northwind-games"');
     expect(visible).toContain('–');
     expect(visible).not.toContain('Unavailable');
     expect(markup).not.toMatch(/>\s*Coverage\s*</);
@@ -1417,6 +1465,7 @@ function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload 
     email: 'first.person@example.test',
     role: 'consumer',
     persona: null,
+    organization: testOrganizationForEmail('first.person@example.test'),
     firstSeen: '2026-03-04T09:00:00Z',
     lastSeen: '2026-08-15T10:00:00Z',
     summary: {
@@ -1633,7 +1682,8 @@ describe('the per-user panel', () => {
     expect(rendered).toContain('Cost / question Estimated 2.50 USD 5 submitted questions');
     expect(rendered).toContain('Average tokens Estimated');
     expect(rendered).toContain('Average daily spend Estimated 3.125 USD 4 covered days');
-    expect(rendered).toContain('Share of app spend Estimated 25% of comparable app spend');
+    expect(rendered).toContain('Share of app spend Estimated 25%');
+    expect(rendered).not.toContain('of comparable app spend');
     expect(rendered.match(/Estimated/g)).toHaveLength(5);
     expect(rendered).not.toMatch(/(?:submitted questions|\/ question|covered days|app spend) · Estimated/);
     expect(rendered).not.toMatch(/Week over week|Month over month|prior 7 days|prior matched month/i);
@@ -1880,7 +1930,11 @@ describe('the per-user panel', () => {
         onPreviousPage={() => {}}
         onNextPage={() => {}}
         onRetry={() => {}}
-        identitySeed={{ role: 'admin', persona: { id: 'analyst', name: 'Business Analyst' } }}
+        identitySeed={{
+          role: 'admin',
+          persona: { id: 'analyst', name: 'Business Analyst' },
+          organization: testOrganizationForEmail('reader@2k.com'),
+        }}
       />
     );
     const failedState = rejectPanelLoad(
@@ -2001,13 +2055,26 @@ describe('the per-user panel', () => {
     expect(markup).toContain('user-profile-modal-range');
   });
 
-  it('uses the shared identity chip for the person panel too', () => {
+  it('uses the canonical organization logo and full email in the person profile header', () => {
     const markup = render(
-      <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
+      <PersonPanel
+        panel={panel({
+          email: 'customer.admin@take2games.com',
+          organization: testOrganizationForEmail('customer.admin@take2games.com'),
+        })}
+        now={NOW}
+        rangeLabel="last 7 days"
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+      />
     );
 
     expect(markup).toContain('class="identity-chip"');
-    expect(markup).toContain('lucide-user-round');
+    expect(markup).toContain('data-organization-id="acme-interactive"');
+    expect(markup).toContain('aria-label="Organization: Acme Interactive"');
+    expect(markup).toContain('customer.admin@take2games.com');
+    expect(markup).toContain('user-profile-modal-organization');
+    expect(markup).not.toContain('lucide-user-round');
     expect(markup).not.toContain('>FP<');
   });
 

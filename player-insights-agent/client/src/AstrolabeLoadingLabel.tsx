@@ -1,4 +1,5 @@
 import { ConceptFlicker } from './ConceptFlicker';
+import type { FlickerSeat } from './astrolabe-mark';
 
 /**
  * The canonical compact Astrolabe loader: one stable concept slot and one label.
@@ -12,12 +13,14 @@ export function AstrolabeLoadingLabel({
   className,
   announce = true,
   as: Element = 'div',
+  seat = 'inline',
 }: {
   label: string;
   className?: string;
   announce?: boolean;
   /** Use inline phrasing content when the loader sits inside a button. */
   as?: 'div' | 'span';
+  seat?: FlickerSeat;
 }) {
   return (
     <Element
@@ -26,7 +29,7 @@ export function AstrolabeLoadingLabel({
       aria-live={announce ? 'polite' : undefined}
       aria-busy="true"
     >
-      <ConceptFlicker seat="inline" />
+      <ConceptFlicker seat={seat} />
       <span className="ast-flick-row-say">{label}</span>
     </Element>
   );

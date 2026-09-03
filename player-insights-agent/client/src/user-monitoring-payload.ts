@@ -1,4 +1,9 @@
 import type { OpsCostPayload } from '../../shared/ops-contract';
+import {
+  organizationForEmail,
+  sanitizeOrganizationMappings,
+  type OrganizationFilterOption,
+} from '../../shared/organization-mapping';
 import { USER_MONITORING_SCHEMA_REVISION, type UserMonitoringPayload } from '../../shared/user-monitoring-contract';
 import type { SpendByUserPayload } from '../../shared/user-spend-contract';
 
@@ -17,20 +22,29 @@ export function decodeUserMonitoringCostPayload(value: unknown): OpsCostPayload 
     throw new Error('user_monitoring_payload_stale');
   }
   const monitoring = rawMonitoring as unknown as UserMonitoringPayload;
-  const users = monitoring.users.filter(
-    (row) =>
-      (row?.lastActive === null ||
-        (typeof row?.lastActive === 'string' && Number.isFinite(Date.parse(row.lastActive)))) &&
-      Number.isFinite(row.questions) &&
-      Number.isFinite(row.coveredDays) &&
-      isRecord(row.tokenUsage)
-  );
+  const organizations = sanitizeOrganizationMappings(monitoring.organizations).map((organization) => {
+    const source = monitoring.organizations.find((candidate) => candidate.id === organization.id);
+    const count = source?.count;
+    return { ...organization, count: typeof count === 'number' && Number.isFinite(count) ? Math.max(0, count) : 0 };
+  }) as OrganizationFilterOption[];
+  const users = monitoring.users
+    .filter(
+      (row) =>
+        (row?.lastActive === null ||
+          (typeof row?.lastActive === 'string' && Number.isFinite(Date.parse(row.lastActive)))) &&
+        typeof row.email === 'string' &&
+        Number.isFinite(row.questions) &&
+        Number.isFinite(row.coveredDays) &&
+        isRecord(row.tokenUsage)
+    )
+    .map((row) => ({ ...row, organization: organizationForEmail(row.email, organizations) }));
   if (typeof monitoring.identityRevision !== 'string') throw new Error('user_monitoring_payload_stale');
   return {
     ...(direct ? ({ currency: 'USD' } as OpsCostPayload) : (value as unknown as OpsCostPayload)),
     userMonitoring: {
       ...monitoring,
       users,
+      organizations,
     },
   };
 }

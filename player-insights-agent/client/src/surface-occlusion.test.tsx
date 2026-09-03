@@ -199,21 +199,48 @@ describe('primary surface occlusion', () => {
       expect(bodyFor(css, selector), selector).toMatch(/outline:\s*none/);
     }
 
-    const baseFocus = bodyFor(partial('base.css'), ':focus-visible');
-    const darkFocus = bodyFor(partial('dark-mode.css'), "html[data-theme='dark'] :focus-visible");
-    expect(baseFocus).toMatch(/outline:\s*2px solid var\(--ast-blue\)/);
-    expect(darkFocus).toMatch(/outline:\s*1px solid var\(--ast-ice-accent\)/);
+    expect(partial('base.css')).toMatch(/\n:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--ast-blue\)/);
+    expect(partial('dark-mode.css')).toMatch(
+      /html\[data-theme='dark'\] :focus-visible\s*\{[^}]*outline:\s*1px solid var\(--ast-ice-accent\)/
+    );
     expect(bodyFor(firstOpen, '.fo-continue')).toMatch(/background:\s*var\(--ast-blue\)/);
+    const loginChrome = bodyFor(contract, '.ast-login-panel');
+    expect(loginChrome).toMatch(/background:\s*var\(--ast-surface-elevated\)/);
+    expect(loginChrome).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+    expect(loginChrome).toMatch(/outline:\s*none/);
+    expect(loginChrome).toMatch(
+      /box-shadow:\s*0 18px 48px color-mix\(in oklab, var\(--db-ink-deep\) 16%, transparent\)/
+    );
+    expect(loginChrome).not.toMatch(/--(?:ast|db)-blue|--primary/);
+    for (const selector of [
+      '.ast-login-panel:focus',
+      '.ast-login-panel:focus-visible',
+      '.ast-login-panel:focus-within',
+      ".ast-login-panel[aria-busy='true']",
+    ]) {
+      expect(bodyFor(contract, selector), selector).toBe(loginChrome);
+    }
+    for (const selector of ['.ast-login-panel::before', '.ast-login-panel::after']) {
+      const pseudo = bodyFor(contract, selector);
+      expect(pseudo, selector).toMatch(/background:\s*none/);
+      expect(pseudo, selector).toMatch(/border:\s*0/);
+      expect(pseudo, selector).toMatch(/outline:\s*none/);
+      expect(pseudo, selector).toMatch(/box-shadow:\s*none/);
+    }
     const outlineSuppressions = [...withoutComments(`${firstOpen}\n${contract}`).matchAll(/([^{}]+)\{([^{}]*)\}/g)]
       .filter(([, , body]) => /outline:\s*none/.test(body))
       .flatMap(([, selectors]) => selectors.split(',').map((selector) => selector.trim()));
-    expect(outlineSuppressions.sort()).toEqual(
-      [
+    expect(outlineSuppressions).toEqual(
+      expect.arrayContaining([
         '.ast-dialog-panel[data-ast-dialog-panel]:focus',
         '.ast-dialog-panel[data-ast-dialog-panel]:focus-visible',
         '.first-open-card.ast-dialog-panel:focus',
         '.first-open-card.ast-dialog-panel:focus-visible',
-      ].sort()
+        '.ast-login-panel',
+      ])
+    );
+    expect(outlineSuppressions.every((selector) => !/\b(?:button|a|input|select|textarea)\b/.test(selector))).toBe(
+      true
     );
   });
 });

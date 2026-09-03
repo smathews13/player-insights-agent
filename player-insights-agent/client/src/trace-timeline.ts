@@ -297,7 +297,7 @@ export function llmTurnByRowId(rows: readonly Pick<TimelineRow, 'id' | 'type' | 
  * Event text for Run Explorer's Timeline, in the notebook's vocabulary.
  *
  * Ask keeps the stakeholder stage names (`Queried governed data`). Explorer
- * shows the tool / model identity Acme's viz uses so a reader can match the
+ * shows the tool / model identity the reference visualization uses so a reader can match the
  * two side by side. Timing and kinds are unchanged; only the label string moves.
  */
 export function explorerEventLabel(

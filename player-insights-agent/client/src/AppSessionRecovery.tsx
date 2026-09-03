@@ -34,7 +34,7 @@ export function returnToSignIn(
 export function SessionTimedOut() {
   return (
     <main className="app-session-block" role="alert" aria-labelledby="app-session-timeout-title">
-      <section className="app-session-card">
+      <section className="app-session-card ast-login-panel">
         <h1 id="app-session-timeout-title">Session timed out</h1>
         <p>Your Astrolabe session ended after inactivity. Return to sign in to continue.</p>
         <a
@@ -55,7 +55,7 @@ export function SessionTimedOut() {
 export function SessionUnavailable() {
   return (
     <main className="app-session-block" role="alert" aria-labelledby="app-session-unavailable-title">
-      <section className="app-session-card">
+      <section className="app-session-card ast-login-panel">
         <h1 id="app-session-unavailable-title">Session unavailable</h1>
         <p>Astrolabe could not verify its server-side session, so no protected data was loaded.</p>
         <button type="button" onClick={retryAppSessionBootstrap}>
@@ -86,7 +86,7 @@ export function AppSessionBoundary({ children }: { children: ReactNode }) {
   if (current !== 'ready') {
     return (
       <main className="app-session-block" aria-busy="true" aria-label="Starting secure app session">
-        <section className="app-session-card">
+        <section className="app-session-card ast-login-panel" aria-busy="true">
           <p>Starting secure app session…</p>
         </section>
       </main>

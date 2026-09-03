@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConversationOwnerOptions, ConversationOwnerSelect } from './ConversationOwnerSelect';
+import { ConversationOwnerSelect } from './ConversationOwnerSelect';
 import type { RailOwner } from './conversation-rail';
 import {
   CONVERSATION_OWNER_SELECTION_KEY,
@@ -16,11 +16,14 @@ import {
 } from './conversation-owner-selection';
 
 const COMPONENT = readFileSync(new URL('ConversationOwnerSelect.tsx', import.meta.url), 'utf8');
+const MULTISELECT = [
+  readFileSync(new URL('AppMultiSelect.tsx', import.meta.url), 'utf8'),
+  readFileSync(new URL('AppMultiSelectMenu.tsx', import.meta.url), 'utf8'),
+].join('\n');
 const HOME = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
 const CSS = readFileSync(new URL('styles/rail.css', import.meta.url), 'utf8');
+const BASE = readFileSync(new URL('styles/base.css', import.meta.url), 'utf8');
 const RESPONSIVE = readFileSync(new URL('styles/responsive.css', import.meta.url), 'utf8');
-const TOKENS = readFileSync(new URL('styles/tokens.css', import.meta.url), 'utf8');
-const ASTROLABE_TOKENS = readFileSync(new URL('styles/astrolabe-tokens.css', import.meta.url), 'utf8');
 const UI = readFileSync(new URL('ui.ts', import.meta.url), 'utf8');
 const ME = '<your-username>@example.com';
 const owners: RailOwner[] = [
@@ -120,39 +123,28 @@ describe('the admin owner dropdown', () => {
   });
 
   it('implements multiselect ARIA, keyboard focus, Escape, and outside click closing', () => {
-    expect(COMPONENT).toContain('role="listbox"');
-    expect(COMPONENT).toContain('aria-multiselectable="true"');
-    expect(COMPONENT).toContain('role="option"');
-    expect(COMPONENT).toContain('aria-selected=');
-    expect(COMPONENT).toContain("event.key === 'Escape'");
-    expect(COMPONENT).toContain("'ArrowDown', 'ArrowUp', 'Home', 'End'");
-    expect(COMPONENT).toContain('<Popover');
-    expect(COMPONENT).toContain('onOpenChange=');
-    expect(COMPONENT).toContain('<PopoverContent');
+    expect(COMPONENT).toContain('<AppMultiSelect');
+    expect(MULTISELECT).toContain('role="listbox"');
+    expect(MULTISELECT).toContain('aria-multiselectable="true"');
+    expect(MULTISELECT).toContain('role="option"');
+    expect(MULTISELECT).toContain('aria-selected=');
+    expect(MULTISELECT).toContain("event.key === 'Escape'");
+    expect(MULTISELECT).toContain("'ArrowDown', 'ArrowUp', 'Home', 'End'");
+    expect(MULTISELECT).toContain('<Popover');
+    expect(MULTISELECT).toContain('onOpenChange=');
+    expect(MULTISELECT).toContain('<PopoverContent');
     expect(UI).toContain('PopoverContent,');
-    expect(COMPONENT).toContain('triggerRef.current?.focus()');
+    expect(MULTISELECT).toContain('triggerRef.current?.focus()');
   });
 
-  it('renders All users and every owner with stable counts and selected state', () => {
+  it('renders a concise trigger and maps every owner into the shared menu', () => {
     const markup = renderToStaticMarkup(
-      <div role="listbox" aria-multiselectable="true">
-        <ConversationOwnerOptions
-          owners={owners}
-          total={7}
-          selected={[owners[1].key]}
-          onChange={() => undefined}
-          onFocus={() => undefined}
-          onOptionRef={() => undefined}
-        />
-      </div>
+      <ConversationOwnerSelect owners={owners} total={7} selected={[owners[1].key]} onChange={() => undefined} />
     );
-    expect(markup).toContain('>All users<');
-    expect(markup).toContain('>7<');
-    expect(markup).toContain('aria-selected="true"');
-    for (const owner of owners) {
-      expect(markup).toContain(`title="${owner.email}"`);
-      expect(markup).toContain(`>${owner.count}<`);
-    }
+    expect(markup).toContain('>jay<');
+    expect(markup).not.toContain('User ·');
+    expect(COMPONENT).toContain('count: owner.count');
+    expect(COMPONENT).toContain('title: owner.email');
   });
 
   it('is admin-only and clears a consumer’s legacy preference', () => {
@@ -166,29 +158,17 @@ describe('the admin owner dropdown', () => {
 
   it('cannot widen or push the narrow rail', () => {
     expect(CSS).toMatch(/\.conversation-owner-select \{[^}]*width:\s*100%[^}]*min-width:\s*0/s);
-    expect(CSS).toMatch(/\.conversation-owner-trigger \{[^}]*width:\s*100%[^}]*min-width:\s*0/s);
-    expect(CSS).toMatch(/\.conversation-owner-summary \{[^}]*text-overflow:\s*ellipsis/s);
-    expect(CSS).toMatch(
-      /\.conversation-owner-menu \{[^}]*width:\s*max\([^}]*var\(--radix-popover-trigger-width\)[^}]*max-width:\s*calc\(100vw - 16px\)/s
+    expect(BASE).toMatch(/\.app-multiselect-trigger \{[^}]*width:\s*100%/s);
+    expect(BASE).toMatch(/\.app-select-value \{[^}]*text-overflow:\s*ellipsis/s);
+    expect(BASE).toMatch(
+      /\.app-select-content \{[^}]*width:\s*var\(--radix-popover-trigger-width\)[^}]*min-width:\s*var\(--radix-popover-trigger-width\)/s
     );
-    expect(CSS).not.toMatch(/\.conversation-owner-menu \{[^}]*position:\s*absolute/s);
   });
 
-  it('resolves the menu surface to the strongest translucent menu role in both themes', () => {
-    const lightPopover = TOKENS.match(/--popover:\s*var\(--ast-surface-menu\);/);
-    const darkPopover = TOKENS.match(/html\[data-theme='dark'\]\s*\{[\s\S]*?--popover:\s*var\(--ast-surface-menu\);/);
-    const menuMixes = [
-      ...ASTROLABE_TOKENS.matchAll(/--ast-surface-menu:\s*color-mix\([^;]*\s([\d.]+)%,\s*transparent\);/g),
-    ].map((match) => Number(match[1]));
-
-    expect(lightPopover).not.toBeNull();
-    expect(darkPopover).not.toBeNull();
-    expect(menuMixes).toEqual([98.5, 98.5]);
-    expect(CSS).toMatch(
-      /\.conversation-owner-menu \{[^}]*z-index:\s*var\(--ast-layer-menu\)[^}]*isolation:\s*isolate[^}]*border:\s*1px solid var\(--db-line-strong\)/s
-    );
-    expect(CSS).toMatch(
-      /\.conversation-owner-menu \{[^}]*background-color:\s*var\(--popover\)[^}]*background-image:\s*none[^}]*opacity:\s*1[^}]*backdrop-filter:\s*none/s
+  it('resolves the menu surface to the opaque shared menu role in both themes', () => {
+    expect(BASE).toMatch(/\.app-menu-content \{[^}]*isolation:\s*isolate[^}]*border:\s*1px solid/s);
+    expect(BASE).toMatch(
+      /\.app-menu-content \{[^}]*background:\s*var\(--background\)[^}]*background-image:\s*none[^}]*opacity:\s*1[^}]*backdrop-filter:\s*none/s
     );
   });
 
@@ -196,23 +176,23 @@ describe('the admin owner dropdown', () => {
     expect(CSS).toMatch(/\.conversation-rail \{[^}]*overflow-y:\s*auto/s);
     expect(CSS).toMatch(/\.rail-sheet \{[^}]*overflow:\s*hidden/s);
     expect(CSS).toMatch(/\.conversation-rail\.is-sheet \{[^}]*overflow-y:\s*auto/s);
-    expect(COMPONENT).toContain('<PopoverContent');
+    expect(MULTISELECT).toContain('<PopoverContent');
     expect(HOME).toContain('<SheetContent side="left" className="rail-sheet">');
     expect(HOME).toContain('<div className="conversation-rail is-sheet ast-surface-primary">');
     expect(RESPONSIVE).toMatch(/\.conversation-rail\s*\{\s*display:\s*none/);
-    expect(CSS).toMatch(/\.conversation-owner-menu \{[^}]*z-index:\s*var\(--ast-layer-menu\)/s);
+    expect(BASE).toMatch(/\[data-radix-popper-content-wrapper\] \{[^}]*z-index:\s*var\(--ast-layer-menu\)/s);
   });
 
   it('uses portal collision geometry and a bounded internal scroller at the rail bottom', () => {
-    expect(COMPONENT).toContain('side="bottom"');
-    expect(COMPONENT).toContain('sideOffset={4}');
-    expect(COMPONENT).toContain('avoidCollisions');
-    expect(COMPONENT).toContain('collisionPadding={8}');
-    expect(COMPONENT).toContain('sticky="always"');
-    expect(COMPONENT).toContain('hideWhenDetached');
-    expect(COMPONENT).toContain('updatePositionStrategy="always"');
-    expect(CSS).toMatch(
-      /\.conversation-owner-menu \{[^}]*max-height:\s*min\(280px,\s*var\(--radix-popover-content-available-height\)\)[^}]*overflow-y:\s*auto[^}]*overflow-x:\s*hidden[^}]*overscroll-behavior:\s*contain[^}]*scrollbar-gutter:\s*stable/s
+    expect(MULTISELECT).toContain('side="bottom"');
+    expect(MULTISELECT).toContain('sideOffset={4}');
+    expect(MULTISELECT).toContain('avoidCollisions');
+    expect(MULTISELECT).toContain('collisionPadding={8}');
+    expect(MULTISELECT).toContain('sticky="always"');
+    expect(MULTISELECT).toContain('hideWhenDetached');
+    expect(MULTISELECT).toContain('updatePositionStrategy="always"');
+    expect(BASE).toMatch(
+      /\.app-select-content \{[^}]*max-height:\s*min\(320px,\s*var\(--radix-popover-content-available-height\)\)[^}]*overflow-y:\s*auto[^}]*overflow-x:\s*hidden[^}]*overscroll-behavior:\s*contain[^}]*scrollbar-gutter:\s*stable/s
     );
   });
 });

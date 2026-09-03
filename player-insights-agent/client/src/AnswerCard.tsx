@@ -1,6 +1,6 @@
 /**
- * One answered turn: the takeaway, the narrative, the figures the agent
- * returned, what to keep in mind about them, and how the run got there.
+ * One answered turn: the takeaway, its supporting context, the evidence the
+ * agent returned, the caveats, and how the run got there.
  *
  * Split out of App.tsx when the pages became modules. Ask PIA is its only
  * caller, and the card is the largest thing in the transcript, so it is the one
@@ -8,8 +8,8 @@
  *
  * The order of the sections below is the specification's and is argued for
  * there. It is not a layout preference: the fallback banner leads because it
- * governs how every number under it reads, the caveats sit under the figures
- * they qualify, and the run process sits under the answer it produced.
+ * governs how every number under it reads, Caveats follow Sources, and the run
+ * process sits under the answer it produced.
  */
 import './styles/answer-body.css';
 import './styles/answer-charts.css';
@@ -140,7 +140,7 @@ export function AnswerCard({
   /** Shared Timeline presentation selected by the surface hosting this card. */
   runProcessVariant?: TraceTimelineVariant;
   /**
-   * A note that belongs after the figures and before Sources.
+   * A note that belongs after the answer evidence and before Sources.
    *
    * Monitoring uses this for the run's token line so that line is a grid sibling
    * of the tables rather than a later flex child of the dialog. A sibling after
@@ -171,7 +171,7 @@ export function AnswerCard({
   };
   // A degradation is not a caveat about the answer, it is a statement about
   // whether the answer is the answer. Separated so it can be shown above the
-  // figures instead of below them in a list of five, see degraded-answer.ts.
+  // supporting context instead of below it in a list of five, see degraded-answer.ts.
   const { ordinary: ordinaryCaveats } = splitCaveats(readerAnswer.caveats);
   // Whether this card may be read as an answer to the question at all, and if
   // not, which of the two ways it failed. See degraded-answer.ts for why this
@@ -234,19 +234,6 @@ export function AnswerCard({
   // Null on a run that did not record which identity read the data, and the
   // footer then simply ends earlier. See analytical-execution.ts.
   const dataAccess = dataAccessDisclosure(readerAnswer.executionIdentity);
-  /*
-   * A label is not an id: two measures can both be called "Current", and keying
-   * only on it makes React reconcile the second against the first. The content
-   * signature is stable if figures move, unlike an array position. Exact
-   * duplicates get an occurrence suffix so even a repeated object stays present.
-   */
-  const figureOccurrences = new Map<string, number>();
-  const keyedFigures = readerAnswer.figures.map((figure) => {
-    const signature = JSON.stringify([figure.label, figure.value, figure.display, figure.comparison]);
-    const occurrence = figureOccurrences.get(signature) ?? 0;
-    figureOccurrences.set(signature, occurrence + 1);
-    return { figure, key: `${signature}:${occurrence}` };
-  });
   return (
     <Card className="answer-card" id={id}>
       <CardHeader>
@@ -280,7 +267,7 @@ export function AnswerCard({
         </div>
       </CardHeader>
       <CardContent className="answer-card-content">
-        {/* First in the card, above the narrative and the figures, because it
+        {/* First in the card, above the supporting context and evidence, because it
             governs how every number below it should be read. Below them it was
             a footnote to a conclusion the reader had already drawn. */}
         {fallbackNotice && (
@@ -299,46 +286,23 @@ export function AnswerCard({
             </AlertDescription>
           </Alert>
         )}
-        <div className="answer-main-row">
-          <div className="answer-narrative">
+        <div className="answer-narrative">
+          <AnswerProse
+            text={narrative}
+            sources={readerAnswer.sources}
+            columns={mentionedIdentifiers([narrative])}
+            blocks="prose"
+            preserveProse
+          />
+          {readerAnswer.content ? (
             <AnswerProse
-              text={narrative}
+              text={readerAnswer.content}
               sources={readerAnswer.sources}
-              columns={mentionedIdentifiers([narrative])}
+              columns={mentionedIdentifiers([readerAnswer.content])}
+              badges
               blocks="prose"
+              preserveProse
             />
-            {readerAnswer.content ? (
-              <AnswerProse
-                text={readerAnswer.content}
-                sources={readerAnswer.sources}
-                columns={mentionedIdentifiers([readerAnswer.content])}
-                badges
-                blocks="prose"
-              />
-            ) : null}
-          </div>
-          {readerAnswer.figures.length > 0 ? (
-            <aside className="answer-stat-rail" aria-label="Key figures">
-              {keyedFigures.map(({ figure, key }) => (
-                <div className="answer-stat" key={key}>
-                  <span className="answer-stat-label">{figure.label}</span>
-                  <b className="answer-stat-value ast-num">{figure.display ?? figure.value}</b>
-                  {/* Two visible lines keep the baseline in the card without
-                      making the stat rail sprawl. The focusable text expands in
-                      place, so keyboard and touch readers can reach the complete
-                      comparison without depending on a pointer-only title. */}
-                  {figure.comparison ? (
-                    <span
-                      className="answer-stat-context provenance-detail"
-                      tabIndex={0}
-                      aria-label={`Comparison: ${figure.comparison}`}
-                    >
-                      {figure.comparison}
-                    </span>
-                  ) : null}
-                </div>
-              ))}
-            </aside>
           ) : null}
         </div>
         {/* Charts XOR tables, which is the specification's rule and is about what

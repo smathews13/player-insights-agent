@@ -25,6 +25,7 @@ import { partial } from './styles/stylesheet';
  */
 
 const CSS = partial('connections.css');
+const BASE = partial('base.css');
 /*
  * The palette's own partial, because the status families moved there.
  *
@@ -222,8 +223,8 @@ describe('the parts a reader has to be able to use', () => {
     expect(rule('.connections-table-query-controls')).toMatch(/flex:\s*1 1 auto/);
     expect(rule('.connections-table-query-controls')).toMatch(/justify-content:\s*flex-end/);
     expect(rule('.connections-table-query-controls')).toMatch(/margin-left:\s*auto/);
-    expect(rule('.connections-table-filter-menu')).toMatch(/width:\s*max-content/);
-    expect(rule('.connections-table-filter-menu')).toMatch(/position:\s*absolute/);
+    expect(BASE).toMatch(/\.app-select-content\s*\{[^}]*width:\s*var\(--radix-popover-trigger-width\)/);
+    expect(BASE).toMatch(/\[data-radix-popper-content-wrapper\]\s*\{[^}]*max-width:\s*calc\(100vw - 24px\)/);
     expect(rule('.connections-table-search')).toMatch(/position:\s*relative/);
     expect(rule('.connections-table-search')).toMatch(/width:\s*20rem/);
     expect(rule('.connections-table-search')).toMatch(/min-width:\s*14rem/);
@@ -247,27 +248,21 @@ describe('the parts a reader has to be able to use', () => {
     expect(rule('.connections-add-uc:active:not(:disabled)')).toMatch(/background:\s*var\(--db-blue-800\)/);
     expect(rule('.connections-add-uc:focus-visible')).toMatch(/outline:\s*2px solid var\(--primary\)/);
     expect(rule('.connection-block')).toMatch(/overflow:\s*visible/);
-    expect(rule('html:has(.connections-page) body[data-scroll-locked]')).toMatch(/padding-right:\s*0\s*!important/);
+    expect(CSS).not.toContain('body[data-scroll-locked]');
     expect(rule('.connections-table-detail')).toMatch(/white-space:\s*normal/);
     expect(rule('.connections-table-detail')).toMatch(/overflow-wrap:\s*anywhere/);
   });
 
   it('gives the UC toolbar proactive filter states and a narrow no-clipping fallback', () => {
-    expect(CSS).toMatch(
-      /\.connections-table-filter[\s\S]*?\.app-select-trigger:is\(:hover, \[data-state='open'\]\)[^{]*\{[^}]*border-color:\s*var\(--primary\)[^}]*background:\s*var\(--db-hover-tint\)/
+    expect(BASE).toMatch(
+      /\.app-select-trigger:hover:not\(:disabled\),[\s\S]*?background:\s*color-mix\(in srgb, var\(--background\) 94%, var\(--primary\)\)/
     );
-    expect(CSS).toMatch(
-      /\.connections-table-filter \.app-select-trigger\[data-state='open'\][^{]*\{[^}]*background:\s*var\(--db-selected-tint\)/
+    expect(BASE).toMatch(
+      /\.app-select-trigger\[data-state='open'\]:not\(:disabled\)\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--background\) 88%, var\(--primary\)\)/
     );
-    expect(rule('.connections-table-filter .app-select-trigger:focus-visible')).toMatch(
-      /outline:\s*2px solid var\(--primary\)/
-    );
-    expect(rule(".connections-table-filter-menu [data-slot='select-item'][data-highlighted]")).toMatch(
-      /background:\s*var\(--db-hover-tint\)/
-    );
-    expect(rule(".connections-table-filter-menu [data-slot='select-item'][data-state='checked']")).toMatch(
-      /background:\s*var\(--db-selected-tint\)/
-    );
+    expect(BASE).toMatch(/\.app-select-trigger:focus-visible\s*\{[^}]*box-shadow:\s*0 0 0 2px/);
+    expect(BASE).toMatch(/\.app-menu-option\[data-highlighted\]\s*\{[^}]*background:\s*var\(--db-hover-tint\)/);
+    expect(BASE).toMatch(/\.app-menu-option\[data-state='checked'\]\s*\{[^}]*background:\s*var\(--db-selected-tint\)/);
     expect(RESPONSIVE).toMatch(
       /\.connections-table-toolbar\s*\{[^}]*flex-wrap:\s*wrap[\s\S]*?\.connections-table-toolbar \.connections-uc-actions\s*\{[^}]*flex:\s*1 0 100%/
     );

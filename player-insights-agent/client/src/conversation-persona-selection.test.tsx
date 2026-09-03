@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConversationPersonaOptions, ConversationPersonaSelect } from './ConversationPersonaSelect';
+import { ConversationPersonaSelect } from './ConversationPersonaSelect';
 import {
   CONVERSATION_PERSONA_SELECTION_KEY,
   normalizePersonaSelection,
@@ -16,6 +16,10 @@ import { CONVERSATION_PERSONA_FILTER_RULE } from '../../shared/conversation-filt
 import type { Conversation } from './app-types';
 
 const COMPONENT = readFileSync(new URL('ConversationPersonaSelect.tsx', import.meta.url), 'utf8');
+const MULTISELECT = [
+  readFileSync(new URL('AppMultiSelect.tsx', import.meta.url), 'utf8'),
+  readFileSync(new URL('AppMultiSelectMenu.tsx', import.meta.url), 'utf8'),
+].join('\n');
 const HOME = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
 const CSS = readFileSync(new URL('styles/rail.css', import.meta.url), 'utf8');
 
@@ -55,34 +59,25 @@ describe('persisted persona facets', () => {
       { key: 'id:finance', name: 'Finance analyst', count: 2 },
     ]);
     const markup = renderToStaticMarkup(
-      <ConversationPersonaOptions
+      <ConversationPersonaSelect
         personas={personas}
         total={conversations.length}
         selected={[]}
         onChange={() => undefined}
-        onFocus={() => undefined}
-        onOptionRef={() => undefined}
       />
     );
     expect(markup).toContain('>All personas<');
-    expect(markup).toContain('>3<');
-    expect(markup).toContain('Finance analyst, 2 conversations');
+    expect(COMPONENT).toContain('count: persona.count');
+    expect(COMPONENT).toContain('persona.count} conversation');
   });
 
   it('shows only All personas for missing-only history with no empty second row', () => {
     const personas = railPersonas([conversations[2]]);
     expect(personas).toEqual([]);
     const markup = renderToStaticMarkup(
-      <ConversationPersonaOptions
-        personas={personas}
-        total={1}
-        selected={[]}
-        onChange={() => undefined}
-        onFocus={() => undefined}
-        onOptionRef={() => undefined}
-      />
+      <ConversationPersonaSelect personas={personas} total={1} selected={[]} onChange={() => undefined} />
     );
-    expect(markup.match(/role="option"/g)).toHaveLength(1);
+    expect(markup.match(/role="combobox"/g)).toHaveLength(1);
     expect(markup).toContain('>All personas<');
   });
 
@@ -180,20 +175,12 @@ describe('admin persona control', () => {
 
   it('renders All and named options with stable counts and no banned rail text', () => {
     const markup = renderToStaticMarkup(
-      <div role="listbox" aria-multiselectable="true">
-        <ConversationPersonaOptions
-          personas={personas}
-          total={3}
-          selected={['id:finance']}
-          onChange={() => undefined}
-          onFocus={() => undefined}
-          onOptionRef={() => undefined}
-        />
-      </div>
+      <ConversationPersonaSelect personas={personas} total={3} selected={['id:finance']} onChange={() => undefined} />
     );
-    expect(markup).toContain('>All personas<');
     expect(markup).toContain('>Finance analyst<');
-    expect(markup).toContain('aria-selected="true"');
+    expect(markup).not.toContain('Persona ·');
+    expect(COMPONENT).toContain('count: persona.count');
+    expect(COMPONENT).toContain('allLabel="All personas"');
     expect(markup.toLowerCase()).not.toMatch(/no persona|unassigned|placeholder/);
   });
 
@@ -212,15 +199,13 @@ describe('admin persona control', () => {
     expect(moveOwnerFocus(0, 'ArrowUp', 1)).toBe(0);
     expect(moveOwnerFocus(0, 'Home', 1)).toBe(0);
     expect(moveOwnerFocus(0, 'End', 1)).toBe(0);
-    expect(COMPONENT).toContain('role="listbox"');
-    expect(COMPONENT).toContain('aria-multiselectable="true"');
-    expect(COMPONENT).toContain("event.key === 'Escape'");
-    expect(COMPONENT).toContain("'ArrowDown', 'ArrowUp', 'Home', 'End'");
-    expect(COMPONENT).toContain('onOpenChange=');
-    expect(COMPONENT).toContain('avoidCollisions');
-    expect(COMPONENT).toContain('collisionPadding={8}');
-    expect(CSS).toMatch(/\.conversation-owner-menu \{[^}]*z-index:\s*var\(--ast-layer-menu\)/s);
-    expect(CSS).toMatch(/\.conversation-owner-menu \{[^}]*background-color:\s*var\(--popover\)/s);
+    expect(MULTISELECT).toContain('role="listbox"');
+    expect(MULTISELECT).toContain('aria-multiselectable="true"');
+    expect(MULTISELECT).toContain("event.key === 'Escape'");
+    expect(MULTISELECT).toContain("'ArrowDown', 'ArrowUp', 'Home', 'End'");
+    expect(MULTISELECT).toContain('onOpenChange=');
+    expect(MULTISELECT).toContain('avoidCollisions');
+    expect(MULTISELECT).toContain('collisionPadding={8}');
   });
 
   it('keeps Owner and Persona at equal usable widths and stacks only below the control minimum', () => {
@@ -231,6 +216,6 @@ describe('admin persona control', () => {
     expect(CSS).toMatch(
       /@container conversation-rail \(max-width:\s*210px\)[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\)/
     );
-    expect(CSS).toMatch(/\.conversation-owner-summary \{[^}]*text-overflow:\s*ellipsis/s);
+    expect(MULTISELECT).toContain('<span className="app-select-value">{summary}</span>');
   });
 });

@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import type { Identity, RunTrace } from './app-types';
 import { normalizeStage } from './answer-shape';
-import { sanitizeOrganizationMappings } from '../../shared/organization-mapping';
+import { sanitizeOrganizationMappings } from '../../shared/organization-contract';
 import type { StorageHealth } from './storage-banner-copy';
 import { IDENTITY_RESOLVING, IDENTITY_UNAVAILABLE } from './user-initials';
 import { browserPollHost, pollWhileVisible } from './visibility-polling';
@@ -103,9 +103,22 @@ export function identityFromResponse(value: unknown): Identity {
   const candidate = value as Record<string, unknown>;
   if (typeof candidate.signedInAs !== 'string') return unavailableIdentity();
   const organizations = sanitizeOrganizationMappings(candidate.organizations);
+  const organization = sanitizeOrganizationMappings([candidate.organization])[0];
 
   return {
     signedInAs: candidate.signedInAs,
+    ...(typeof candidate.canonicalEmail === 'string' && candidate.canonicalEmail.includes('@')
+      ? { canonicalEmail: candidate.canonicalEmail }
+      : candidate.canonicalEmail === null
+        ? { canonicalEmail: null }
+        : {}),
+    ...(typeof candidate.displayName === 'string' && candidate.displayName.trim()
+      ? { displayName: candidate.displayName.trim() }
+      : {}),
+    ...(typeof candidate.identityRevision === 'string' && candidate.identityRevision
+      ? { identityRevision: candidate.identityRevision }
+      : {}),
+    ...(organization ? { organization } : {}),
     executionMode: typeof candidate.executionMode === 'string' ? candidate.executionMode : 'service-principal',
     ...(organizations.length > 0 ? { organizations } : {}),
     ...(candidate.identitySource === 'databricks-apps' || candidate.identitySource === 'development-fallback'
@@ -151,10 +164,7 @@ export function useIdentity(deadlineMs = IDENTITY_DEADLINE_MS) {
       }
   );
   useEffect(() => {
-    if (resolvedIdentity) {
-      setIdentity(resolvedIdentity);
-      return;
-    }
+    if (resolvedIdentity) return;
     let settled = false;
     // Only ever moves a read that is STILL resolving. An answer that lands after
     // the deadline is still the truth and still replaces this, and the timer

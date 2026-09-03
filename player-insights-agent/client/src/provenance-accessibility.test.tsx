@@ -31,8 +31,8 @@ describe('source freshness provenance', () => {
   });
 });
 
-describe('figure comparison provenance', () => {
-  it('renders the complete comparison in a keyboard and touch focus target', () => {
+describe('legacy figure compatibility', () => {
+  it('keeps figure comparison data without rendering the retired KPI rail', () => {
     const comparison = '+12% against the previous 28-day retained-player baseline';
     const raw = {
       id: 'answer-1',
@@ -56,17 +56,15 @@ describe('figure comparison provenance', () => {
       />
     );
 
-    expect(markup).toContain(comparison);
-    expect(markup).toContain('class="answer-stat-context provenance-detail"');
-    expect(markup).toContain('tabindex="0"');
-    expect(markup).toContain(`aria-label="Comparison: ${comparison}`);
-    expect(markup).not.toContain(`title="${comparison}"`);
+    expect(normalizeAnswer(raw).figures[0]?.comparison).toBe(comparison);
+    expect(markup).not.toContain(comparison);
+    expect(markup).not.toContain('answer-stat');
+    expect(markup).not.toContain('Key figures');
   });
 
-  it('uses a two-line clamp that opens while focused and draws a visible focus ring', () => {
+  it('removes figure-card-only CSS without removing shared focus styling', () => {
     const css = readFileSync(new URL('./styles/answer-body.css', import.meta.url), 'utf8');
-    expect(css).toMatch(/\.answer-stat-context\s*\{[^}]*-webkit-line-clamp:\s*2/s);
-    expect(css).toMatch(/\.answer-stat-context:focus\s*\{[^}]*-webkit-line-clamp:\s*unset/s);
+    expect(css).not.toContain('.answer-stat-context');
     expect(css).toMatch(/\.provenance-detail:focus-visible\s*\{[^}]*outline:\s*2px solid/s);
   });
 });

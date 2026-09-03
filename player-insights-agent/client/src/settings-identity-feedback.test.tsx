@@ -221,7 +221,18 @@ describe('the demo workspace Identity feedback', () => {
         payload={{
           ...humanRoles,
           entries: [{ ...humanRoles.entries[0], email }],
-          organizations: [{ domain: 'example.org', name: 'Example Studio', monogram: 'ES' }],
+          organizations: [
+            {
+              id: 'domain:example.org',
+              domain: 'example.org',
+              domainSuffixes: ['example.org'],
+              name: 'Example Studio',
+              monogram: 'ES',
+              logoKey: 'monogram',
+              ariaLabel: 'Organization: Example Studio',
+              fallback: 'monogram',
+            },
+          ],
         }}
         busy={false}
         onChange={() => {}}

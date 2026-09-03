@@ -16,7 +16,7 @@ import {
   retryAppSessionBootstrap,
   startExplicitUserActivity,
 } from './app-session';
-import { AppSessionBoundary, returnToSignIn } from './AppSessionRecovery';
+import { AppSessionBoundary, SessionTimedOut, SessionUnavailable, returnToSignIn } from './AppSessionRecovery';
 import { signOutAndEndAppSession } from './AccountMenuPanel';
 import { FIRST_OPEN_KEY, FIRST_OPEN_OUTCOME_KEY, type AcknowledgementStore } from './first-open';
 
@@ -174,6 +174,26 @@ describe('explicit user activity', () => {
 });
 
 describe('timeout boundary', () => {
+  it('uses the neutral login panel for loading, retry, and return-to-sign-in states', () => {
+    resetAppSessionForTests('booting');
+    const loading = renderToStaticMarkup(
+      <AppSessionBoundary>
+        <div>protected content</div>
+      </AppSessionBoundary>
+    );
+    const unavailable = renderToStaticMarkup(<SessionUnavailable />);
+    const timedOut = renderToStaticMarkup(<SessionTimedOut />);
+
+    for (const markup of [loading, unavailable, timedOut]) {
+      expect(markup).toContain('class="app-session-card ast-login-panel"');
+    }
+    expect(loading).toContain('aria-busy="true"');
+    expect(unavailable).toMatch(/<button[^>]*type="button"/);
+    expect(timedOut).toMatch(/<a[^>]*href="\/\.auth\/sign_out"/);
+    expect(unavailable).not.toContain('tabindex="-1"');
+    expect(timedOut).not.toContain('tabindex="-1"');
+  });
+
   it('accepts the 120-minute server bootstrap contract before mounting protected content', async () => {
     const bootstrapFetch = vi.fn().mockResolvedValue(
       Response.json({

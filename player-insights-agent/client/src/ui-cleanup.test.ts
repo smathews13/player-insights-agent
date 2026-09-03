@@ -1,58 +1,116 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const source = (name: string) => readFileSync(new URL(`./${name}`, import.meta.url), 'utf8');
 const style = (name: string) => readFileSync(new URL(`./styles/${name}`, import.meta.url), 'utf8');
 
 describe('app-wide dropdown recipe', () => {
-  it('formats every owned dropdown as Label · Value through one component', () => {
+  const appSelectUsers = [
+    'MonitoringPage.tsx',
+    'RunExplorer.tsx',
+    'RuntimeSettingsPanel.tsx',
+    'RuntimeTimezoneField.tsx',
+    'UserRoleEditor.tsx',
+    'DeclaredConnectionsCard.tsx',
+    'ConnectionsPage.tsx',
+    'AiGatewayConnection.tsx',
+    'SpIdentityPanel.tsx',
+    'RunHeaderLabelEditor.tsx',
+    'OpsScopeModal.tsx',
+    'BenchmarkLabChrome.tsx',
+    'GenieAccuracyDiagnostics.tsx',
+    'EvaluationSet.tsx',
+    'EvalFlywheel.tsx',
+  ];
+
+  it('inventories every dropdown trigger through a shared primitive or documented exception', () => {
+    const componentFiles = readdirSync(new URL('.', import.meta.url), { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.tsx') && !entry.name.endsWith('.test.tsx'))
+      .map((entry) => entry.name);
+
+    for (const name of appSelectUsers) expect(source(name), name).toContain('<AppSelect');
+    expect(source('ConversationOwnerSelect.tsx')).toContain('<AppMultiSelect');
+    expect(source('ConversationPersonaSelect.tsx')).toContain('<AppMultiSelect');
+
+    for (const name of componentFiles) {
+      const component = source(name);
+      expect(component, `${name} has no native select`).not.toMatch(/^\s*<select\b/m);
+      expect(component, `${name} has no local Select root`).not.toMatch(/^\s*<Select\b/m);
+      if (component.includes('aria-haspopup="listbox"')) {
+        expect(['AppSelect.tsx', 'AppMultiSelect.tsx'], `${name} owns no local listbox trigger`).toContain(name);
+      }
+    }
+
+    // Documented exceptions: search results are a persistent listbox, while
+    // asset hierarchy expansion and time ranges are disclosures/segments.
+    expect(source('AiGatewayConnection.tsx')).toContain('aria-label="Eligible AI Gateway resources"');
+    expect(source('DeclaredConnectionsCard.tsx')).toContain('<AssetPicker');
+    expect(source('MonitoringPage.tsx')).toContain('<TimeRangeSegments page="User Monitoring"');
+  });
+
+  it('shows only the concise current value and keeps category in the accessible name', () => {
     const appSelect = source('AppSelect.tsx');
     expect(appSelect).toContain('app-select-trigger');
-    expect(appSelect).toContain('app-select-separator');
-    expect(appSelect).toContain('·');
-
-    for (const name of [
-      'MonitoringPage.tsx',
-      'RuntimeSettingsPanel.tsx',
-      'UserRoleEditor.tsx',
-      'DeclaredConnectionsCard.tsx',
-    ]) {
-      expect(source(name), name).toContain('<AppSelect');
-    }
+    expect(appSelect).toContain('<span className="app-select-value">{optionContent(selected)}</span>');
+    expect(appSelect).toContain('aria-label={`${ariaLabel}: ${accessibleValue}`}');
+    expect(appSelect).not.toContain('app-select-separator');
+    expect(appSelect).not.toMatch(/Role\s*·|Persona\s*·|User\s*·/);
+    expect(source('conversation-owner-selection.ts')).toContain('`${chosen.length} users`');
+    expect(source('conversation-persona-selection.ts')).toContain('`${chosen.length} personas`');
   });
 
-  it('shares the white field, neutral border, focus, hover and menu states', () => {
+  it('shares neutral, hover, open, focus, selected, and high-contrast states', () => {
     const css = style('base.css');
     expect(css).toMatch(/\.app-select-trigger \{[^}]*height: 32px/);
-    expect(css).toMatch(/\.app-select-trigger \{[^}]*background: var\(--card\)/);
+    expect(css).toMatch(/\.app-select-trigger \{[^}]*background: var\(--background\)/);
     expect(css).toMatch(/\.app-select-trigger \{[^}]*border: 1px solid var\(--ast-border-input\)/);
-    expect(css).toMatch(/\.app-select-trigger:hover \{/);
+    expect(css).toMatch(/\.app-select-trigger:hover:not\(:disabled\)/);
+    expect(css).toMatch(/\.app-select-trigger\[data-state='open'\]/);
     expect(css).toMatch(/\.app-select-trigger:focus-visible \{/);
-    expect(css).toMatch(/\.app-select-content \{/);
+    expect(css).toMatch(/\.app-menu-content \{[^}]*background: var\(--background\)/);
+    expect(css).toMatch(/\.app-menu-option\[data-state='checked'\]/);
+    expect(css).toMatch(/\.app-menu-check/);
+    expect(css).toContain('@media (forced-colors: active)');
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)');
   });
 
-  it('puts the Recent runs conversation filter on that same opaque menu', () => {
-    // This is the one Select that does not go through AppSelect. Without the
-    // shared class it inherited AppKit's translucent popover and the run list
-    // showed through the options. The search hint is the short copy that fits.
+  it('puts Recent runs on the same opaque primitive', () => {
     const explorer = source('RunExplorer.tsx');
-    expect(explorer).toMatch(/<SelectContent[\s\S]*className="app-select-content(?:\s[^"]*)?"/);
+    expect(explorer.match(/<AppSelect/g)).toHaveLength(2);
+    expect(explorer).toContain('contentClassName="run-filter-menu"');
     expect(explorer).toContain('placeholder="Search across runs"');
     expect(explorer).not.toContain('Search conversations, prompts, or people');
   });
 
-  it('opens every owned dropdown as an overlay popover, not a page-shifting modal', () => {
-    // Radix Select 2.2 dropped `modal`; passing it is a type error and a no-op.
-    // Overlay is popper plus the reserved gutter, not a lock switch.
-    const ui = source('ui.ts');
-    expect(ui).not.toMatch(/\bmodal\s*:/);
-    expect(ui).toMatch(/position:\s*['"]popper['"]/);
-    expect(source('AppSelect.tsx')).not.toMatch(/\bmodal\b/);
+  it('portals non-modal menus with bounded internal scrolling and no body lock', () => {
+    const appSelect = source('AppSelect.tsx');
+    const multiselect = source('AppMultiSelect.tsx');
+    expect(appSelect).toContain('<PopoverContent');
+    expect(multiselect).toContain('<PopoverContent');
+    expect(appSelect).not.toContain('document.body.style');
+    expect(multiselect).not.toContain('document.body.style');
     const css = style('base.css');
     expect(css).toMatch(/html \{[^}]*scrollbar-gutter:\s*stable/s);
     expect(css).toMatch(/\[data-radix-popper-content-wrapper\] \{[^}]*min-width: 0 !important/s);
     expect(css).toMatch(/\[data-radix-popper-content-wrapper\] \{[^}]*max-width: calc\(100vw - 24px\) !important/s);
-    expect(css).toMatch(/\.app-select-content \{[^}]*max-width: min\(32rem, calc\(100vw - 24px\)\)/s);
+    expect(css).toMatch(
+      /\.app-select-content \{[^}]*width: var\(--radix-popover-trigger-width\)[^}]*overflow-y: auto[^}]*scrollbar-gutter: stable/s
+    );
+    expect(style('runs.css')).not.toContain('body[data-scroll-locked]');
+    expect(style('connections.css')).not.toContain('body[data-scroll-locked]');
+  });
+
+  it('keeps arrows, typeahead, Escape, click-away, checks, and focus return', () => {
+    for (const name of ['AppSelect.tsx', 'AppMultiSelect.tsx']) {
+      const component = source(name);
+      expect(component).toContain("'ArrowDown', 'ArrowUp', 'Home', 'End'");
+      expect(component).toContain('typeaheadRef');
+      expect(component).toContain("event.key === 'Escape'");
+      expect(component).toContain('onOpenChange=');
+      expect(component).toContain('triggerRef.current?.focus()');
+      expect(component).toContain('role="option"');
+      expect(component).toContain('aria-selected=');
+    }
   });
 });
 

@@ -237,7 +237,7 @@ describe('where it sits in the card', () => {
     );
 
     expect(markup.indexOf('source-list-row')).toBeLessThan(markup.indexOf('source-list-derivation'));
-    expect(markup.indexOf('source-list-derivation')).toBeLessThan(markup.indexOf('Keep in mind'));
+    expect(markup.indexOf('source-list-derivation')).toBeLessThan(markup.indexOf('Caveats'));
     // And the caveat is still there, in its own footer.
     expect(text(markup)).toContain('Totals are cumulative player-days.');
   });

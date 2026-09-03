@@ -108,14 +108,7 @@ html[data-density='compact'] .composer {
 }
 
 html[data-density='compact']
-  :is(
-    .attachment-list,
-    .composer-actions,
-    .answer-card-content,
-    .answer-main-row,
-    .answer-evidence-rows,
-    .run-process-body
-  ) {
+  :is(.attachment-list, .composer-actions, .answer-card-content, .answer-evidence-rows, .run-process-body) {
   gap: var(--density-card-gap);
 }
 

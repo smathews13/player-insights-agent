@@ -18,6 +18,7 @@
  */
 
 import { FAILURE_TAXONOMY, isFailureCode, type FailureCode, type FailureLayer } from './failure-taxonomy';
+import type { OrganizationMapping } from './organization-mapping';
 import type { Role } from './user-roster-contract';
 import type { RunRuntimeUsed } from './run-runtime-used';
 
@@ -386,6 +387,7 @@ export interface PersonPanelPayload {
   email: string;
   role: Role;
   persona: { id: string; name: string } | null;
+  organization: OrganizationMapping;
   firstSeen: string | null;
   lastSeen: string | null;
   summary: MonitoringSummary;

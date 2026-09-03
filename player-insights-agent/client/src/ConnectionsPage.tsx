@@ -516,7 +516,6 @@ function DeclaredTableControls({
             ]}
             onValueChange={(next) => onChange({ ...filters, catalog: next === 'all' ? '' : next, schema: '' })}
             contentClassName="connections-table-filter-menu"
-            contentProps={{ position: 'popper' }}
           />
         </div>
       ) : null}
@@ -529,7 +528,6 @@ function DeclaredTableControls({
             options={[{ value: 'all', label: 'All schemas' }, ...schemas.map((name) => ({ value: name, label: name }))]}
             onValueChange={(next) => onChange({ ...filters, schema: next === 'all' ? '' : next })}
             contentClassName="connections-table-filter-menu"
-            contentProps={{ position: 'popper' }}
           />
         </div>
       ) : null}

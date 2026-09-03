@@ -14,7 +14,7 @@ const SCREENSHOT_CAVEATS = [
 ];
 
 describe('reader-facing answer content policy', () => {
-  it('removes the screenshot banner and generic Keep in mind filler', () => {
+  it('removes the screenshot banner and generic caveat filler', () => {
     expect(normalizeReaderAnswer({ caveats: SCREENSHOT_CAVEATS, sql: '', sources: [] }).caveats).toEqual([]);
   });
 
@@ -120,6 +120,9 @@ describe('reader-facing answer content policy', () => {
     expect(stored).toEqual(live);
     const exported = readerAnswerPlainText(raw);
     expect(live.caveats).toEqual(['Permission denied while reading main.analytics.private_players.']);
+    expect(exported).toContain('Caveats\n- Permission denied while reading main.analytics.private_players.');
+    expect(exported).not.toContain('Keep in mind');
+    expect(exported).not.toContain('What to keep in mind');
     expect(exported).toContain('Permission denied while reading main.analytics.private_players.');
     expect(exported).not.toMatch(/partial evidence|optional tail|validation:|declared table is not|untagged/i);
   });

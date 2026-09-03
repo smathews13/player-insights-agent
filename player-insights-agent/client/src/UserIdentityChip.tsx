@@ -16,6 +16,8 @@ export function UserIdentityChip({
   className,
   testId,
   suffix,
+  icon,
+  showFullIdentity = false,
 }: {
   identity: string | null | undefined;
   label?: string;
@@ -23,6 +25,10 @@ export function UserIdentityChip({
   className?: string;
   testId?: string;
   suffix?: ReactNode;
+  /** Replace the generic person glyph when the caller has a stronger identity mark. */
+  icon?: ReactNode;
+  /** Profile headers may show the full address; dense lists keep the local part. */
+  showFullIdentity?: boolean;
 }) {
   const value = identity?.trim() ?? '';
   const name = identityName(value);
@@ -32,10 +38,10 @@ export function UserIdentityChip({
       data-testid={testId}
       title={value || 'User identity not recorded'}
     >
-      <UserRound className={compact ? 'size-3' : 'size-3.5'} aria-hidden="true" />
+      {icon ?? <UserRound className={compact ? 'size-3' : 'size-3.5'} aria-hidden="true" />}
       <span className="identity-chip-text">
         {label ? <span className="identity-chip-label">{label} </span> : null}
-        <span className="identity-chip-name">{name}</span>
+        <span className="identity-chip-name">{showFullIdentity && value ? value : name}</span>
       </span>
       {suffix}
     </span>

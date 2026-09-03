@@ -53,6 +53,51 @@
   outline: none;
 }
 
+/*
+ * Login and authorization panels are reading surfaces, even while a request is
+ * running or a control inside them has focus. The old fix only removed the CSS
+ * outline from the programmatically focused Dialog host. That left border and
+ * ring-style box-shadow channels available to AppKit utilities, theme rules,
+ * focus-within states, and transition classes, which could still paint the
+ * entire card blue.
+ *
+ * Keep every login host on one neutral chrome contract. The shadow is ordinary
+ * modal depth made from ink, never the action colour. Descendant controls still
+ * receive the global :focus-visible indicator.
+ */
+.ast-login-panel,
+.ast-login-panel:focus,
+.ast-login-panel:focus-visible,
+.ast-login-panel:focus-within,
+.ast-login-panel[aria-busy='true'] {
+  background: var(--ast-surface-elevated);
+  border: 1px solid var(--ast-border-input);
+  outline: none;
+  box-shadow: 0 18px 48px color-mix(in oklab, var(--db-ink-deep) 16%, transparent);
+}
+
+/* Retired gate glows and dotted focus frames must not return through a wrapper
+   pseudo-element while the real panel declarations remain neutral. */
+.ast-login-panel::before,
+.ast-login-panel::after {
+  background: none;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+
+@media (forced-colors: active) {
+  .ast-login-panel,
+  .ast-login-panel:focus,
+  .ast-login-panel:focus-visible,
+  .ast-login-panel:focus-within,
+  .ast-login-panel[aria-busy='true'] {
+    border-color: CanvasText;
+    outline: none;
+    box-shadow: none;
+  }
+}
+
 .ast-dialog-overlay:not(.first-open) {
   background: var(--ast-overlay-occlusion);
   backdrop-filter: none;

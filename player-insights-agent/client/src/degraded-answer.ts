@@ -218,7 +218,7 @@ export function answerFallback(
   // does not describe it.
   if (splitCaveats(answer.caveats).degraded.length === 0) return null;
   // A structured result on a live payload is still live evidence. Its Partial
-  // verdict and Keep in mind lines explain which calls did not finish; calling
+  // verdict and Caveats lines explain which calls did not finish; calling
   // those successful figures "fallback data" contradicts their sources and SQL.
   if (!statesItsEvidence(answer)) return 'degraded-data';
   if (hasStructuredResult(answer)) return null;

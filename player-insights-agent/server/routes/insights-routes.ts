@@ -61,7 +61,7 @@ import {
 } from '../lib/deployment-decisions';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 import { runRuntimeUsedFromStored, type RunRuntimeUsed } from '../../shared/run-runtime-used';
-import { parseOrganizationMappings } from '../../shared/organization-mapping';
+import { organizationForEmail, parseOrganizationMappings } from '../../shared/organization-mapping';
 import {
   isAdminRoute,
   recordAdminAction,
@@ -70,6 +70,8 @@ import {
   resolveRole,
   rolePayload,
 } from '../lib/admin-roles';
+import { readRosterForRequest } from '../lib/user-roster';
+import { resolveCanonicalUserIdentity } from '../lib/canonical-user-identity';
 import { opensAdminSurfaces } from '../../shared/user-roster-contract';
 import {
   admitRun,
@@ -3546,17 +3548,23 @@ export function setupInsightsRoutes(
      */
     app.get('/api/identity', async (req, res) => {
       const signedInAs = userEmail(req);
-      const [role, spIdentity, identityMetadata] = await Promise.all([
+      const [role, spIdentity, identityMetadata, roster] = await Promise.all([
         rolePayload(appkit.lakebase, signedInAs),
         describeSpIdentity(req, appkit),
         readControlPlaneIdentityMetadata(
           { email: signedInAs },
           options.identityControlPlaneReader ? { read: options.identityControlPlaneReader } : {}
         ),
+        readRosterForRequest(appkit.lakebase, req).catch(() => ({ rows: [], roleColumnPresent: true })),
       ]);
+      const canonicalIdentity = resolveCanonicalUserIdentity(signedInAs, roster.rows);
+      const organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
+      const organization = organizationForEmail(canonicalIdentity.canonicalEmail ?? signedInAs, organizations);
       res.json({
         ...identityPayload(req),
-        organizations: parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS),
+        ...canonicalIdentity,
+        organization,
+        organizations,
         // The deployment switch never widens a consumer. The browser receives
         // the effective scope, derived beside the authoritative stored role,
         // so it cannot accidentally advertise other people or retain a legacy

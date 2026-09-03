@@ -1,4 +1,5 @@
 import { astPill } from './astrolabe-pill';
+import { AppSelect } from './AppSelect';
 import { BenchButton, GenieStatTiles, LabSurface } from './BenchmarkLabChrome';
 import { MATCHING_POLICY_REFERENCE, mlflowTraceHref } from '../../shared/benchmark-lab-v3';
 import type { GenieAccuracyCaseView, GenieAccuracyRunView } from '../../shared/eval-genie-run';
@@ -155,18 +156,14 @@ export function GenieStageControls({ lab }: { lab: EvaluationLabModel }) {
         {lab.spaces.length === 0 ? (
           <p className="bench-caption">No Genie space is connected yet.</p>
         ) : (
-          <select
-            className="eval-space-select bench-space-select"
-            aria-label="Genie space"
+          <AppSelect
+            label="Genie space"
+            ariaLabel="Genie space"
             value={lab.spaceId}
-            onChange={(event) => lab.setSpaceId(event.target.value)}
-          >
-            {lab.spaces.map((space) => (
-              <option key={space.id} value={space.id}>
-                {space.label}
-              </option>
-            ))}
-          </select>
+            onValueChange={lab.setSpaceId}
+            options={lab.spaces.map((space) => ({ value: space.id, label: space.label }))}
+            className="eval-space-select bench-space-select"
+          />
         )}
         <BenchButton
           variant="primary"

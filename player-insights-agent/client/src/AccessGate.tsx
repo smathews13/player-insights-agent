@@ -37,10 +37,7 @@ export interface GateIdentity {
 export function gateIdentityFromResponse(value: unknown): GateIdentity {
   if (!value || typeof value !== 'object') throw new Error('Identity unavailable');
   const identity = value as Partial<GateIdentity>;
-  if (
-    typeof identity.signedInAs !== 'string' ||
-    typeof identity.executionMode !== 'string'
-  ) {
+  if (typeof identity.signedInAs !== 'string' || typeof identity.executionMode !== 'string') {
     throw new Error('Identity unavailable');
   }
   return {
@@ -644,9 +641,10 @@ export function AccessGate({
   return (
     <Dialog
       overlayClassName="access-gate"
-      contentClassName="access-gate-panel"
+      contentClassName="access-gate-panel ast-login-panel"
       labelledBy="access-gate-title"
       describedBy="access-gate-description"
+      ariaBusy={busy}
       dismissOnEscape={false}
       dismissOnBackdrop={false}
       onEscape={() => skip.current?.focus()}

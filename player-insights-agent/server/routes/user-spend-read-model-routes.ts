@@ -1,6 +1,14 @@
 import type { Application, Request, Response } from 'express';
 
 import { opsDayRange } from '../../shared/ops-contract';
+import {
+  organizationForEmail,
+  organizationsForEmails,
+  organizationSuffixesForSelection,
+  parseOrganizationMappings,
+  type OrganizationFilterOption,
+  type OrganizationMapping,
+} from '../../shared/organization-mapping';
 import { USER_MONITORING_SCHEMA_REVISION, type UserMonitoringPayload } from '../../shared/user-monitoring-contract';
 import type { SpendByUserPayload, UserSpendAmount, UserSpendReconciliation } from '../../shared/user-spend-contract';
 import {
@@ -11,6 +19,11 @@ import {
   type UserSpendRefreshSource,
 } from '../lib/user-spend-read-model';
 import {
+  recoverInitialUserSpendRead,
+  type UserSpendRecoveryDiagnosis,
+  type UserSpendRecoveryResult,
+} from '../lib/user-spend-recovery';
+import {
   readUserSpendHourlyComponents,
   readUserSpendHourlyPage,
   rollingCompleteHours,
@@ -18,7 +31,8 @@ import {
   type RollingHourWindow,
 } from '../lib/user-spend-hourly-read-model';
 import { buildUserSpendMetrics } from '../lib/user-spend-metrics';
-import { invalidAdminEmail } from '../lib/admin-roles';
+import { invalidAdminEmail, seedRoles } from '../lib/admin-roles';
+import { everyKnownUser, readRosterForRequest } from '../lib/user-roster';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 
 export const USER_SPEND_RESPONSE_REVISION = 2;
@@ -32,6 +46,17 @@ export const USER_SPEND_SELF_ROUTE = '/api/user-spend/me';
 function queryText(req: Request, name: string): string {
   const value = req.query[name];
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function organizationSelection(req: Request): string[] {
+  return [
+    ...new Set(
+      queryText(req, 'organization')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+    ),
+  ].slice(0, 20);
 }
 
 function pageSize(req: Request): number {
@@ -99,12 +124,49 @@ function identityRevision(page: UserSpendReadModelPage): string {
   return page.identityRevision;
 }
 
+function writeRecoveryFailure(res: Response, diagnosis: UserSpendRecoveryDiagnosis): boolean {
+  if (diagnosis === 'ready') return false;
+  if (diagnosis === 'lakebase_update_required') {
+    res.status(409).json({
+      error: 'lakebase_update_required',
+      detail: 'Lakebase update required',
+      action: 'Open Connections and select Update Lakebase.',
+    });
+    return true;
+  }
+  if (diagnosis === 'preparing_user_spend') {
+    res.status(503).json({
+      error: 'user_spend_preparing',
+      detail: 'Preparing user spend',
+      action: 'Retry shortly. Another app instance is completing the initial refresh.',
+    });
+    return true;
+  }
+  if (diagnosis === 'user_not_rostered') {
+    res.status(404).json({ error: 'monitoring_user_not_rostered' });
+    return true;
+  }
+  res.status(503).json({
+    error: 'billing_access_required',
+    detail: 'Billing access required',
+    action: 'Use an administrator identity that can read the app billing sources, then retry.',
+  });
+  return true;
+}
+
+function recoveredPage(result: UserSpendRecoveryResult): UserSpendReadModelPage {
+  if (!result.page) throw new Error('Recovered user spend page was missing.');
+  return result.page;
+}
+
 function listPayload(
   page: UserSpendReadModelPage,
   range: ReturnType<typeof opsDayRange>,
   unit: 'USD' | 'DBU',
   offset: number,
-  limit: number
+  limit: number,
+  organizations: OrganizationFilterOption[],
+  manifest: readonly OrganizationMapping[]
 ): UserMonitoringPayload {
   const first = page.rows[0];
   const appUsd = first?.appSpendUsd ?? null;
@@ -122,6 +184,7 @@ function listPayload(
       role: row.role,
       persona: row.persona,
       lastActive: row.sourceThrough ?? null,
+      organization: organizationForEmail(row.email, manifest),
       questions: row.questions,
       runs: row.runs,
       coveredDays: row.coveredDays,
@@ -143,6 +206,7 @@ function listPayload(
       }))
       .sort((left, right) => left.name.localeCompare(right.name)),
     dataRevision: USER_SPEND_RESPONSE_REVISION,
+    organizations,
     identityRevision: identityRevision(page),
     pagination: {
       total: page.total,
@@ -205,7 +269,8 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
     allowBrowse: boolean,
     limit = pageSize(req),
     offset = pageOffset(req),
-    rosterOnly = allowBrowse
+    rosterOnly = allowBrowse,
+    organizationDomains: readonly string[] = []
   ) =>
     readUserSpendReadModelPage(appkit.lakebase, {
       range,
@@ -216,6 +281,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       persona: queryText(req, 'persona'),
       unit: queryText(req, 'unit') === 'DBU' ? 'DBU' : 'USD',
       limit,
+      organizationDomains,
       offset,
       now: clock(),
       rosterOnly,
@@ -227,7 +293,8 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
     allowBrowse: boolean,
     limit = pageSize(req),
     offset = pageOffset(req),
-    rosterOnly = allowBrowse
+    rosterOnly = allowBrowse,
+    organizationDomains: readonly string[] = []
   ) =>
     readUserSpendHourlyPage(appkit.lakebase, {
       window,
@@ -239,6 +306,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       unit: queryText(req, 'unit') === 'DBU' ? 'DBU' : 'USD',
       limit,
       offset,
+      organizationDomains,
       now: clock(),
       rosterOnly,
     });
@@ -313,13 +381,14 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         ? dayRangeForHours(window)
         : opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
       const source = sourceFor(req);
-      const readRosterPage = () =>
-        hourly
-          ? readHourly(req, window, principal, true, limit, offset, true)
-          : readDaily(req, range, principal, true, limit, offset, true);
-      let page: UserSpendReadModelPage;
+      const manifest = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
+      let organizations: OrganizationFilterOption[];
       try {
-        page = await readRosterPage();
+        const roster = await readRosterForRequest(appkit.lakebase, req);
+        organizations = organizationsForEmails(
+          everyKnownUser({ seed: seedRoles(), stored: roster.rows }).map((entry) => entry.email),
+          manifest
+        );
       } catch {
         res.status(503).json({
           error: 'identity_roster_unavailable',
@@ -327,20 +396,34 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         });
         return;
       }
-      if (!page.available) {
-        if (hourly) {
-          await runUserSpendHourlyRefresh(appkit.lakebase, { from: window.from, to: window.to, now: clock() }).catch(
-            () => undefined
-          );
-          page = await readRosterPage();
-        } else if (source) {
-          await runUserSpendReadModelRefresh(appkit.lakebase, source, {
-            fromDay: range.from,
-            throughDay: range.to,
-          }).catch(() => undefined);
-          page = await readRosterPage();
-        }
+      const organizationDomains = organizationSuffixesForSelection(organizationSelection(req), organizations);
+      const readRosterPage = () =>
+        hourly
+          ? readHourly(req, window, principal, true, limit, offset, true, organizationDomains)
+          : readDaily(req, range, principal, true, limit, offset, true, organizationDomains);
+      let recovery: UserSpendRecoveryResult;
+      try {
+        recovery = await recoverInitialUserSpendRead({
+          read: readRosterPage,
+          refresh: hourly
+            ? () => runUserSpendHourlyRefresh(appkit.lakebase, { from: window.from, to: window.to, now: clock() })
+            : source
+              ? () =>
+                  runUserSpendReadModelRefresh(appkit.lakebase, source, {
+                    fromDay: range.from,
+                    throughDay: range.to,
+                  })
+              : null,
+        });
+      } catch {
+        res.status(503).json({
+          error: 'identity_roster_unavailable',
+          detail: 'User Monitoring could not read the authoritative Identity settings roster.',
+        });
+        return;
       }
+      if (writeRecoveryFailure(res, recovery.diagnosis)) return;
+      const page = recoveredPage(recovery);
       if (hourly) {
         if (page.freshness.isStale) {
           void runUserSpendHourlyRefresh(appkit.lakebase, { now: clock() }).catch((error: Error) => {
@@ -352,7 +435,17 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       } else {
         enqueueIfStale(page, source);
       }
-      res.json(listPayload(page, range, queryText(req, 'unit') === 'DBU' ? 'DBU' : 'USD', offset, limit));
+      res.json(
+        listPayload(
+          page,
+          range,
+          queryText(req, 'unit') === 'DBU' ? 'DBU' : 'USD',
+          offset,
+          limit,
+          organizations,
+          manifest
+        )
+      );
     });
 
     app.get('/api/monitoring/user-spend/:email', async (req: Request, res: Response) => {
@@ -367,11 +460,29 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         ? dayRangeForHours(window)
         : opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
       const unit = queryText(req, 'unit') === 'DBU' ? 'DBU' : 'USD';
-      let current: UserSpendReadModelPage;
+      const source = sourceFor(req);
+      let recovery: UserSpendRecoveryResult;
       try {
-        current = hourly
-          ? await readHourly(req, window, email, false, 1, 0, true)
-          : await readDaily(req, range, email, false, 1, 0, true);
+        const readProfile = () =>
+          hourly ? readHourly(req, window, email, false, 1, 0, true) : readDaily(req, range, email, false, 1, 0, true);
+        recovery = await recoverInitialUserSpendRead({
+          read: readProfile,
+          isRostered: async () => {
+            const roster = await readRosterForRequest(appkit.lakebase, req);
+            return everyKnownUser({ seed: seedRoles(), stored: roster.rows }).some(
+              (entry) => entry.email.toLowerCase() === email
+            );
+          },
+          refresh: hourly
+            ? () => runUserSpendHourlyRefresh(appkit.lakebase, { from: window.from, to: window.to, now: clock() })
+            : source
+              ? () =>
+                  runUserSpendReadModelRefresh(appkit.lakebase, source, {
+                    fromDay: range.from,
+                    throughDay: range.to,
+                  })
+              : null,
+        });
       } catch {
         res.status(503).json({
           error: 'identity_roster_unavailable',
@@ -379,6 +490,8 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         });
         return;
       }
+      if (writeRecoveryFailure(res, recovery.diagnosis)) return;
+      const current = recoveredPage(recovery);
       const components = await (
         hourly
           ? readUserSpendHourlyComponents(appkit.lakebase, { email, window })
@@ -393,7 +506,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
           });
         }
       } else {
-        enqueueIfStale(current, sourceFor(req));
+        enqueueIfStale(current, source);
       }
       const selected = selectedAmount(current, email, unit);
       if (!selected.row) {

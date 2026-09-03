@@ -679,7 +679,7 @@ describe('every addable kind browses', () => {
 
   it('puts the type label above a value-only dropdown trigger', () => {
     expect(CARD_SOURCE).toMatch(/plane-field-label[\s\S]*Resource type[\s\S]*<AppSelect/);
-    expect(CARD_SOURCE).toContain('showLabel={false}');
+    expect(CARD_SOURCE).not.toContain('showLabel=');
   });
 
   it('requires user-scoped discovery and offers no typed identifier or display name', () => {

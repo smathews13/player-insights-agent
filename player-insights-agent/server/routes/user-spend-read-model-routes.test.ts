@@ -8,7 +8,11 @@ import {
   USER_SPEND_SELF_ROUTE,
 } from './user-spend-read-model-routes';
 import type { InsightsAppKit } from './insights-routes';
-import { READ_USER_SPEND_COMPONENTS_QUERY, READ_USER_SPEND_SUMMARY_QUERY } from '../lib/user-spend-read-model';
+import {
+  READ_USER_SPEND_COMPONENTS_QUERY,
+  READ_USER_SPEND_REFRESH_STATE_QUERY,
+  READ_USER_SPEND_SUMMARY_QUERY,
+} from '../lib/user-spend-read-model';
 import { READ_USER_SPEND_HOURLY_SUMMARY_QUERY } from '../lib/user-spend-hourly-read-model';
 import { isAdminRoute } from '../lib/admin-roles';
 
@@ -57,14 +61,20 @@ function response() {
   return { json, status } as unknown as Response & { json: ReturnType<typeof vi.fn>; status: ReturnType<typeof vi.fn> };
 }
 
-function routes(rows = [storedRow()]) {
+function routes(rows = [storedRow()], rosterRows = rows) {
   const handlers = new Map<string, (req: Request, res: Response) => Promise<void>>();
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const query = vi.fn((sql: string, params: unknown[] = []) => {
     calls.push({ sql, params });
     return Promise.resolve({
-      rows:
-        sql === READ_USER_SPEND_COMPONENTS_QUERY
+      rows: /SELECT email, role, added_by, added_at FROM player_insights\.admin_emails/.test(sql)
+        ? rosterRows.map((row) => ({
+            email: row.display_email,
+            role: row.app_role,
+            added_by: 'bootstrap',
+            added_at: row.identity_updated_at,
+          }))
+        : sql === READ_USER_SPEND_COMPONENTS_QUERY
           ? [
               {
                 component_id: 'genie:data',
@@ -76,7 +86,17 @@ function routes(rows = [storedRow()]) {
                 reason: '',
               },
             ]
-          : rows,
+          : sql === READ_USER_SPEND_REFRESH_STATE_QUERY
+            ? [
+                {
+                  refresh_status: 'ready',
+                  refresh_source_through: '2026-09-01T03:00:00Z',
+                  refresh_completed_at: '2026-09-01T04:00:00Z',
+                  billing_complete_through: '2026-08-31',
+                  identity_updated_at: '2026-09-01T03:30:00Z',
+                },
+              ]
+            : rows,
     });
   });
   const appkit = {
@@ -123,6 +143,7 @@ describe('User Monitoring read-model routes', () => {
           q: 'person',
           role: 'consumer',
           persona: 'analyst',
+          organization: 'domain:example.test',
           pageSize: '25',
         },
         headers: { 'x-forwarded-email': 'admin@example.test' },
@@ -130,23 +151,26 @@ describe('User Monitoring read-model routes', () => {
       } as unknown as Request,
       res
     );
-    expect(query).toHaveBeenCalledTimes(1);
-    expect(calls[0]?.sql).toBe(READ_USER_SPEND_SUMMARY_QUERY);
-    expect(calls[0]?.sql).not.toMatch(/system\.billing|sql\/history|\/api\/2\.0/i);
-    expect(calls[0]?.sql).toContain('FROM player_insights.admin_emails');
-    expect(calls[0]?.sql).toContain('LEFT JOIN aggregated');
-    expect(calls[0]?.sql).not.toContain("COALESCE(NULLIF(admin_user.role, ''), 'consumer')");
+    expect(query).toHaveBeenCalledTimes(2);
+    const summary = calls.find((call) => call.sql === READ_USER_SPEND_SUMMARY_QUERY);
+    expect(summary?.sql).not.toMatch(/system\.billing|sql\/history|\/api\/2\.0/i);
+    expect(summary?.sql).toContain('FROM player_insights.admin_emails');
+    expect(summary?.sql).toContain('LEFT JOIN aggregated');
+    expect(summary?.sql).not.toContain("COALESCE(NULLIF(admin_user.role, ''), 'consumer')");
+    expect(summary?.params).toContainEqual(['example.test']);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         state: 'ready',
         users: [
           expect.objectContaining({
             email: 'person@example.test',
+            organization: expect.objectContaining({ id: 'domain:example.test', name: 'example.test' }),
             questions: 4,
             coveredDays: 7,
             tokenUsage: { totalTokens: 250, coveredRuns: 3, coveredQuestions: 2 },
           }),
         ],
+        organizations: [expect.objectContaining({ id: 'domain:example.test', count: 1 })],
         freshness: expect.objectContaining({
           computedAt: '2026-09-01T04:00:00.000Z',
           sourceThrough: '2026-09-01T03:00:00.000Z',
@@ -180,16 +204,66 @@ describe('User Monitoring read-model routes', () => {
       } as unknown as Request,
       res
     );
-    expect(query).toHaveBeenCalledTimes(1);
-    expect(calls[0]?.sql).toBe(READ_USER_SPEND_HOURLY_SUMMARY_QUERY);
-    expect(calls[0]?.params).toEqual(expect.arrayContaining(['2026-08-31T04:00:00.000Z', '2026-09-01T04:00:00.000Z']));
-    expect(calls[0]?.sql).not.toMatch(/system\.billing|sql\/history|\/api\/2\.0/i);
+    expect(query).toHaveBeenCalledTimes(2);
+    const hourly = calls.find((call) => call.sql === READ_USER_SPEND_HOURLY_SUMMARY_QUERY);
+    expect(hourly?.params).toEqual(expect.arrayContaining(['2026-08-31T04:00:00.000Z', '2026-09-01T04:00:00.000Z']));
+    expect(hourly?.sql).not.toMatch(/system\.billing|sql\/history|\/api\/2\.0/i);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         state: 'partial',
         users: [expect.objectContaining({ email: 'person@example.test', coveredDays: 1 })],
       })
     );
+  });
+
+  it('keeps Identity-roster organization options when combined filters return no rows', async () => {
+    const previousOrganizations = process.env.PLAYER_INSIGHTS_ORGANIZATIONS;
+    process.env.PLAYER_INSIGHTS_ORGANIZATIONS = JSON.stringify([
+      { domain: 'studio.example', name: 'Example Studio', monogram: 'ES' },
+      { domain: 'partner.example', name: 'Example Partner', monogram: 'EP' },
+    ]);
+    const { handlers, calls } = routes(
+      [],
+      [
+        storedRow({ display_email: 'producer@studio.example' }),
+        storedRow({ display_email: 'artist@north.partner.example' }),
+      ]
+    );
+    const res = response();
+    await handlers.get('/api/monitoring/user-spend')!(
+      {
+        query: {
+          from: '2026-08-25',
+          to: '2026-08-31',
+          q: 'no match',
+          role: 'admin',
+          persona: 'analyst',
+          organization: 'domain:studio.example,domain:partner.example',
+        },
+        headers: { 'x-forwarded-email': 'admin@example.test' },
+        header: (name: string) => (name.toLowerCase() === 'x-forwarded-email' ? 'admin@example.test' : undefined),
+      } as unknown as Request,
+      res
+    );
+    const summary = calls.find((call) => call.sql === READ_USER_SPEND_SUMMARY_QUERY);
+    expect(summary?.params.slice(6, 10)).toEqual([
+      'no match',
+      'admin',
+      'analyst',
+      ['studio.example', 'partner.example'],
+    ]);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        users: [],
+        pagination: expect.objectContaining({ total: 0 }),
+        organizations: expect.arrayContaining([
+          expect.objectContaining({ id: 'domain:studio.example', count: 1 }),
+          expect.objectContaining({ id: 'domain:partner.example', count: 1 }),
+        ]),
+      })
+    );
+    if (previousOrganizations === undefined) delete process.env.PLAYER_INSIGHTS_ORGANIZATIONS;
+    else process.env.PLAYER_INSIGHTS_ORGANIZATIONS = previousOrganizations;
   });
 
   it('computes current-period profile KPIs from two bounded Lakebase reads only', async () => {

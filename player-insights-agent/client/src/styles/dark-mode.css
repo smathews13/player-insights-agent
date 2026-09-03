@@ -447,9 +447,13 @@ html[data-theme='dark'] [data-slot='popover-content'] {
   border-color: var(--ast-border-input);
   color: var(--foreground);
 }
+html[data-theme='dark'] .app-menu-content {
+  background: var(--background);
+  backdrop-filter: none;
+}
 
 html[data-theme='dark'] .account-menu {
-  background: var(--ast-surface-menu);
+  background: var(--background);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
@@ -741,10 +745,12 @@ html[data-theme='dark'] .trace-inspector .trace-explore:active:not(:disabled) {
  * computed style and absent on screen. 12% is the same step the pressed chips and
  * the menus use, so hover, selected and highlighted stay one family.
  */
-html[data-theme='dark'] .conversation-owner-trigger:hover,
-html[data-theme='dark'] .conversation-owner-trigger[aria-expanded='true'],
-html[data-theme='dark'] .conversation-owner-option:hover,
-html[data-theme='dark'] .conversation-owner-option:focus-visible,
+html[data-theme='dark'] .app-select-trigger:hover:not(:disabled),
+html[data-theme='dark'] .app-select-trigger[data-state='open']:not(:disabled) {
+  background: color-mix(in srgb, var(--background) 88%, var(--primary));
+}
+html[data-theme='dark'] .app-menu-option:hover,
+html[data-theme='dark'] .app-menu-option:focus-visible,
 html[data-theme='dark'] .access-gate-actions button:not(.refresh-button):hover:not(:disabled),
 html[data-theme='dark'] .conversation-confirm-cancel:hover {
   background: rgba(255, 255, 255, 0.12);

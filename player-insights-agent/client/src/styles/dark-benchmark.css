@@ -37,8 +37,7 @@ html[data-theme='dark'] .bench-type-tag {
   background: rgba(255, 255, 255, 0.12);
   color: var(--ast-text-secondary);
 }
-html[data-theme='dark'] .bench-approver,
-html[data-theme='dark'] .bench-space-select {
+html[data-theme='dark'] .bench-approver {
   background: var(--ast-surface-primary);
   border-color: rgba(255, 255, 255, 0.22);
   color: var(--ast-ink-on-dark);

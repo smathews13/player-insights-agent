@@ -271,9 +271,8 @@ describe('the #24a Roles geometry', () => {
     expect(markup).toContain(`aria-label="User role for ${ANALYST}: Admin"`);
     const editor = readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8');
     expect(editor).toContain('ariaLabel="User role to give them"');
-    expect(
-      editor.match(/className="roster-control roster-role-select"[\s\S]*?showLabel=\{false\}/g) ?? []
-    ).toHaveLength(2);
+    expect(editor.match(/className="roster-control roster-role-select"/g) ?? []).toHaveLength(2);
+    expect(editor).not.toContain('showLabel=');
   });
 });
 

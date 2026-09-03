@@ -63,7 +63,8 @@ import {
 } from '../lib/ops-telemetry';
 import { classifyDenial, accessDependenciesFrom, forwardedUserToken, UNKNOWN_PRINCIPAL } from './access-verification';
 import { executionToken } from '../lib/execution-credential';
-import { readOpsScopes } from '../lib/ops-scope-check';
+import { readOpsScopesPage } from '../lib/ops-scope-check';
+import type { OpsScopeFilter } from '../../shared/ops-scope-contract';
 import {
   ANSWER_PATH_ENDPOINT_IDS,
   PROBE_TIMEOUT_MS,
@@ -1721,22 +1722,35 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       };
       req.once('aborted', abort);
       res.once('close', close);
-      const signal = AbortSignal.any([disconnected.signal, AbortSignal.timeout(30_000)]);
+      const signal = AbortSignal.any([disconnected.signal, AbortSignal.timeout(12_000)]);
       try {
-        const payload = await readOpsScopes({
+        const requestedType = queryText(req, 'type').toLowerCase();
+        const filter: OpsScopeFilter =
+          requestedType === 'catalog' || requestedType === 'schema' || requestedType === 'table'
+            ? requestedType
+            : 'all';
+        const requestedLimit = Number.parseInt(queryText(req, 'limit'), 10);
+        const payload = await readOpsScopesPage({
           userToken,
           principal: userEmail(req),
           signal,
+          query: queryText(req, 'q'),
+          filter,
+          cursor: queryText(req, 'cursor'),
+          limit: Number.isFinite(requestedLimit) ? requestedLimit : 50,
           now: clock,
           fetchImpl: deps.fetchImpl,
           appToken: deps.scopeAppToken,
         });
         if (!res.destroyed && !res.writableEnded) res.json(payload);
-      } catch {
+      } catch (error) {
         if (!res.destroyed && !res.writableEnded) {
-          res.status(503).json({
-            error: 'scope_check_unavailable',
-            detail: 'The catalog scope comparison could not finish. No grants were changed; retry the check.',
+          const expired = error instanceof Error && error.message === 'scope_cursor_expired';
+          res.status(expired ? 400 : 503).json({
+            error: expired ? 'scope_cursor_expired' : 'scope_check_unavailable',
+            detail: expired
+              ? 'These scope results expired. Retry the comparison.'
+              : 'The catalog scope page could not finish. No grants were changed; retry.',
           });
         }
       } finally {

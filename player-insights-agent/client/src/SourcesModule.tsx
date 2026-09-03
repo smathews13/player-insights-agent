@@ -103,7 +103,7 @@ export function SourcesModule({
   /**
    * Source names that already carry an Open-in-workspace control on a table or
    * chart header. Those drop out of this leftover list so the same table is not
-   * named twice; Keep in mind still sees the full list, so a caveat can tag it.
+   * named twice; Caveats still sees the full list, so a caveat can tag it.
    */
   hideWorkspaceLinks?: readonly string[];
 }) {

@@ -1,5 +1,6 @@
 import type { FeedbackDirection } from '../../shared/feedback-direction';
 import { FeedbackWriteQueue } from './feedback-write-queue';
+import { notifyFeedbackChanged } from './feedback-events';
 
 export interface RunFeedbackRequest {
   messageId: string;
@@ -27,6 +28,7 @@ export async function postRunFeedback(request: RunFeedbackRequest, send: typeof 
     }),
   });
   if (!response.ok) throw new Error(`Feedback was not recorded (HTTP ${response.status}).`);
+  if (typeof window !== 'undefined') notifyFeedbackChanged(window);
 }
 
 /**

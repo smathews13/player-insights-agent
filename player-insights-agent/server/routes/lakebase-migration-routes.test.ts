@@ -13,6 +13,7 @@ import { LakebaseMigrationReadinessService, setupLakebaseMigrationRoutes } from 
 
 const SCHEMA = 'player_insights';
 const ADMIN = 'admin@example.test';
+const MIGRATION_TARGET = Math.max(...MIGRATIONS.map(({ version }) => version));
 
 interface FakeStoreOptions {
   version?: number;
@@ -22,7 +23,7 @@ interface FakeStoreOptions {
 }
 
 function fakeStore(options: FakeStoreOptions = {}) {
-  const highest = options.version ?? 36;
+  const highest = options.version ?? MIGRATION_TARGET;
   const versions = new Set(Array.from({ length: highest }, (_, index) => index + 1));
   if (options.ahead) versions.add(options.ahead);
   const tables = new Set<string>();
@@ -120,8 +121,8 @@ describe('Lakebase migration readiness contracts', () => {
   it('reports current, behind, ahead, unavailable, and blocked states without raw database material', async () => {
     const current = await service(fakeStore()).read();
     expect(current).toMatchObject({
-      currentVersion: 36,
-      targetVersion: 36,
+      currentVersion: MIGRATION_TARGET,
+      targetVersion: MIGRATION_TARGET,
       pendingCount: 0,
       status: 'up_to_date',
       canApply: false,
@@ -129,7 +130,9 @@ describe('Lakebase migration readiness contracts', () => {
 
     const behind = await service(fakeStore({ version: 30 })).read();
     expect(behind.status).toBe('update_required');
-    expect(behind.pending.map(({ version }) => version)).toEqual([31, 32, 33, 34, 35, 36]);
+    expect(behind.pending.map(({ version }) => version)).toEqual(
+      MIGRATIONS.filter(({ version }) => version > 30).map(({ version }) => version)
+    );
     expect(behind.pending.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         'daily user spend read model',
@@ -138,7 +141,7 @@ describe('Lakebase migration readiness contracts', () => {
       ])
     );
 
-    expect((await service(fakeStore({ ahead: 37 })).read()).status).toBe('ahead');
+    expect((await service(fakeStore({ ahead: MIGRATION_TARGET + 1 })).read()).status).toBe('ahead');
     expect((await service(fakeStore({ unavailable: true })).read()).status).toBe('unavailable');
     const blocked = await service(fakeStore({ version: 30, ownsSchema: false })).read();
     expect(blocked).toMatchObject({ status: 'blocked', canApply: false });
@@ -171,13 +174,18 @@ describe('Lakebase migration readiness contracts', () => {
     expect(verifies).toBe(2);
   });
 
-  it('applies v31 through v36 in order and records the signed-in admin', async () => {
+  it('applies v31 through the registry tip in order and records the signed-in admin', async () => {
     const store = fakeStore({ version: 30 });
     const result = await service(store).apply(ADMIN);
 
-    expect(result).toMatchObject({ status: 'up_to_date', currentVersion: 36, targetVersion: 36, appliedCount: 6 });
+    expect(result).toMatchObject({
+      status: 'up_to_date',
+      currentVersion: MIGRATION_TARGET,
+      targetVersion: MIGRATION_TARGET,
+      appliedCount: MIGRATION_TARGET - 30,
+    });
     const orderedVersions = [...store.versions].sort((left, right) => left - right);
-    expect(orderedVersions[orderedVersions.length - 1]).toBe(36);
+    expect(orderedVersions[orderedVersions.length - 1]).toBe(MIGRATION_TARGET);
     expect([...store.tables]).toEqual(
       expect.arrayContaining([
         'user_spend_daily',
@@ -192,7 +200,7 @@ describe('Lakebase migration readiness contracts', () => {
     expect(store.tables.has('user_spend_hourly_refresh_state')).toBe(true);
     expect(store.columns.get('user_spend_daily')?.has('token_covered_runs')).toBe(true);
     expect(store.columns.get('user_spend_hourly')?.has('token_covered_questions')).toBe(true);
-    expect(store.appliedBy).toEqual(Array(6).fill(ADMIN));
+    expect(store.appliedBy).toEqual(Array(MIGRATION_TARGET - 30).fill(ADMIN));
     expect(store.auditActors).toEqual([ADMIN]);
     expect(store.queries.flatMap(({ params }) => params)).not.toContain('forwarded-user-token');
   });
@@ -205,12 +213,15 @@ describe('Lakebase migration readiness contracts', () => {
     vi.stubEnv('PLAYER_INSIGHTS_MIGRATE_ON_BOOT', 'verify');
     await applySchema({ lakebase: verifyOnly.lakebase } as unknown as InsightsAppKit);
     expect(Math.max(...verifyOnly.versions)).toBe(30);
-    expect(await service(verifyOnly).apply(ADMIN)).toMatchObject({ status: 'up_to_date', currentVersion: 36 });
+    expect(await service(verifyOnly).apply(ADMIN)).toMatchObject({
+      status: 'up_to_date',
+      currentVersion: MIGRATION_TARGET,
+    });
 
     const defaultApply = fakeStore({ version: 30 });
     vi.stubEnv('PLAYER_INSIGHTS_MIGRATE_ON_BOOT', '');
     await applySchema({ lakebase: defaultApply.lakebase } as unknown as InsightsAppKit);
-    expect(Math.max(...defaultApply.versions)).toBe(36);
+    expect(Math.max(...defaultApply.versions)).toBe(MIGRATION_TARGET);
   });
 
   it('coalesces double clicks, remains idempotent, and permits a failed migration retry', async () => {
@@ -232,8 +243,8 @@ describe('Lakebase migration readiness contracts', () => {
     const second = readiness.apply(ADMIN);
     await vi.waitFor(() => expect(applyRuns).toBe(1));
     release();
-    expect(await first).toMatchObject({ status: 'up_to_date', appliedCount: 6 });
-    expect(await second).toMatchObject({ status: 'up_to_date', appliedCount: 6 });
+    expect(await first).toMatchObject({ status: 'up_to_date', appliedCount: MIGRATION_TARGET - 30 });
+    expect(await second).toMatchObject({ status: 'up_to_date', appliedCount: MIGRATION_TARGET - 30 });
     expect((await readiness.apply(ADMIN)).appliedCount).toBe(0);
 
     const retryStore = fakeStore({ version: 30 });
@@ -246,7 +257,7 @@ describe('Lakebase migration readiness contracts', () => {
           versionBefore: 30,
           versionAfter: 30,
           attempts: [{ version: 31, name: 'daily user spend read model', outcome: 'failed', failures: [] }],
-          pending: [31, 32, 33, 34, 35, 36],
+          pending: MIGRATIONS.filter(({ version }) => version >= 31).map(({ version }) => version),
           ahead: [],
           blocked: '',
           ok: false,
@@ -256,7 +267,7 @@ describe('Lakebase migration readiness contracts', () => {
     };
     const retry = service(retryStore, { run: flakyRun });
     expect(await retry.apply(ADMIN)).toMatchObject({ status: 'blocked', canApply: true });
-    expect(await retry.apply(ADMIN)).toMatchObject({ status: 'up_to_date', currentVersion: 36 });
+    expect(await retry.apply(ADMIN)).toMatchObject({ status: 'up_to_date', currentVersion: MIGRATION_TARGET });
   });
 
   it('bounds boot waits, honors caller cancellation, and fences a stale verification result', async () => {

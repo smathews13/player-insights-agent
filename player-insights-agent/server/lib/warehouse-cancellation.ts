@@ -320,7 +320,7 @@ async function scanPass(input: {
 }
 
 /**
- * Cancel the finite set of attributable statements visible in two Query
+ * Cancel the finite attributable statements visible in two Query
  * History passes. Queries that begin after the second pass are outside this
  * one-shot sweep.
  */

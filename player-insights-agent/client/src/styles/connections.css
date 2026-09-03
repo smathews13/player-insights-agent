@@ -16,16 +16,6 @@
 .connections-page {
   gap: 16px;
 }
-/*
- * Catalog / Schema overlay. A dropdown scroll-lock pads the body for a bar this
- * page already reserved on `html`; that extra padding shoves the whole shell
- * left. Scoped to this page so a lock opened from Catalog / Schema cannot
- * move the chrome.
- */
-html:has(.connections-page) body[data-scroll-locked] {
-  margin-right: 0 !important;
-  padding-right: 0 !important;
-}
 /* The page h2 is 22px here rather than the shell's clamp up to 38px. This page
    opens with an eyebrow above the heading, and a 38px word under an 11px label
    reads as two unrelated things stacked. Scoped rather than changed in
@@ -960,44 +950,6 @@ html:has(.connections-page) body[data-scroll-locked] {
   width: 10.5rem;
   min-width: 10.5rem;
   max-width: 10.5rem;
-}
-.connections-table-filter .app-select-trigger:is(:hover, [data-state='open']):not(:disabled):not([data-disabled]) {
-  border-color: var(--primary);
-  background: var(--db-hover-tint);
-  color: var(--ast-text);
-}
-.connections-table-filter .app-select-trigger[data-state='open']:not(:disabled):not([data-disabled]) {
-  background: var(--db-selected-tint);
-}
-.connections-table-filter .app-select-trigger:is(:hover, :focus-visible, [data-state='open']) svg {
-  color: var(--primary);
-}
-.connections-table-filter .app-select-trigger:focus-visible {
-  border-color: var(--primary);
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-.connections-table-filter-menu {
-  /* Overlay: width follows the trigger, never the toolbar. */
-  position: absolute;
-  z-index: 40;
-  min-width: var(--radix-select-trigger-width);
-  width: max-content;
-  max-width: min(20rem, 80vw);
-  background: var(--ast-surface-menu);
-}
-.connections-table-filter-menu [data-slot='select-item'] {
-  color: var(--ast-text-long);
-  cursor: pointer;
-}
-.connections-table-filter-menu [data-slot='select-item'][data-highlighted] {
-  background: var(--db-hover-tint);
-  color: var(--ast-text);
-}
-.connections-table-filter-menu [data-slot='select-item'][data-state='checked'] {
-  background: var(--db-selected-tint);
-  color: var(--ast-info-text);
-  font-weight: 500;
 }
 .connections-add-uc {
   flex: none;

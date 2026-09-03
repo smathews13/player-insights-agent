@@ -7,6 +7,7 @@
  * invent counts or scores.
  */
 import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { AppSelect } from './AppSelect';
 import { astPill } from './astrolabe-pill';
 import { Lock } from 'lucide-react';
 import {
@@ -252,11 +253,15 @@ function DefaultGenieStage({ workspace }: { workspace?: LabWorkspace | null }) {
   return (
     <>
       <div className="bench-btn-row">
-        <select className="eval-space-select bench-space-select" aria-label="Genie space" defaultValue="">
-          <option value="" disabled>
-            Pick a Genie space
-          </option>
-        </select>
+        <AppSelect
+          label="Genie space"
+          ariaLabel="Genie space"
+          value="unavailable"
+          options={[{ value: 'unavailable', label: 'Pick a Genie space' }]}
+          onValueChange={() => undefined}
+          className="eval-space-select bench-space-select"
+          disabled
+        />
         <UnwiredButton variant="primary">Run complete suite</UnwiredButton>
         <UnwiredButton>Run partial suite</UnwiredButton>
       </div>

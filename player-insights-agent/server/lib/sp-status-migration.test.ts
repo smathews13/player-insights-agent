@@ -3,11 +3,11 @@ import { APP_SCHEMA } from '../../shared/app-schema';
 import { LATER_MIGRATIONS } from './migrations';
 
 describe('service-principal status migration', () => {
-  it('appends idempotent v36 stable-link and evidence storage after v35', () => {
+  it('keeps idempotent v36 stable-link and evidence storage before the latest additive index', () => {
     const migration = LATER_MIGRATIONS.find((entry) => entry.version === 36);
     expect(migration?.name).toBe('service principal connection evidence');
-    expect(LATER_MIGRATIONS[LATER_MIGRATIONS.length - 2]?.version).toBe(35);
-    expect(LATER_MIGRATIONS[LATER_MIGRATIONS.length - 1]?.version).toBe(36);
+    expect(LATER_MIGRATIONS[LATER_MIGRATIONS.length - 2]?.version).toBe(36);
+    expect(LATER_MIGRATIONS[LATER_MIGRATIONS.length - 1]?.version).toBe(37);
     const sql = migration?.statements.join('\n') ?? '';
     expect(sql).toContain('ADD COLUMN IF NOT EXISTS definition_id TEXT');
     expect(sql).toContain('sp_personas_definition_idx');

@@ -27,27 +27,31 @@
 }
 .run-explorer {
   /*
-   * One viewport contract for the whole route. The sticky header token already
-   * includes the safe-area inset; the page shell's own padding, heading and gap
-   * are then consumed by the two grid rows below. Capping only very tall
-   * displays keeps a reading surface from becoming an unbounded column while
-   * short laptops always use their actual dvh and never a desktop minimum that
-   * would be cut off.
+   * One block-size contract for BOTH top-level panes.
+   *
+   * The pane starts after the app header, 56px page inset, title and 24px page
+   * gap. Subtracting the header and another 8px from one dynamic viewport makes
+   * its bottom land about 100px past the first fold on an ordinary desktop.
+   * 760px keeps a useful reading surface on shorter desktop windows; 1120px
+   * stops a very tall display turning either scroll owner into an unbounded
+   * column. The narrow layout below removes this contract and returns both
+   * panes to page flow.
    */
-  --run-explorer-viewport-block-size: min(
-    1440px,
-    calc(100dvh - var(--app-header-h) - env(safe-area-inset-bottom, 0px))
+  --run-explorer-pane-block-size: clamp(
+    760px,
+    calc(100dvh - var(--app-header-h) - 8px - env(safe-area-inset-bottom, 0px)),
+    1120px
   );
   /* Recorded result tables benefit from the available desktop width. The shell
      still contracts fluidly below this cap and the narrow breakpoint stacks the
      run list above the detail. */
   max-width: 1760px;
   width: 100%;
-  height: var(--run-explorer-viewport-block-size);
-  min-height: min(560px, var(--run-explorer-viewport-block-size));
+  height: auto;
+  min-height: 0;
   box-sizing: border-box;
-  grid-template-rows: auto minmax(0, 1fr);
-  overflow: hidden;
+  grid-template-rows: auto auto;
+  overflow: visible;
   /*
    * Restate the shell's top air so this page cannot lose it to a later
    * shorthand. The title sat flush under the nav; 56px is the room that
@@ -412,29 +416,11 @@
   box-shadow: none;
   border-radius: var(--radius-md);
 }
-/*
- * Overlay menus must not move chrome. Radix RemoveScroll pads `body` by the
- * bar width even though `html` already reserved the gutter, so opening All
- * conversations / All users shoved the right pane and left a gap after Built
- * on Databricks. `Select` in ui.ts already defaults `modal={false}`; this
- * rule is the failsafe if a lock still lands. Higher specificity than the
- * injected `body[data-scroll-locked]` rule, so it still wins after the
- * library inserts its stylesheet.
- */
-html body[data-scroll-locked] {
-  margin-right: 0 !important;
-  padding-right: 0 !important;
-  position: static !important;
-  --removed-body-scroll-bar-size: 0px;
-}
 .explorer-layout {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
   gap: 20px;
   align-items: stretch;
-  align-self: stretch;
-  height: 100%;
-  max-height: 100%;
   min-width: 0;
   min-height: 0;
   /* Clip rather than scroll: a menu that failed to portal must not grow the
@@ -442,15 +428,24 @@ html body[data-scroll-locked] {
      from `document.body`. */
   overflow-x: clip;
 }
+.run-list,
+.run-detail {
+  /*
+   * Equal by construction: neither pane derives its size from its contents or
+   * from the other column. The shared min/max pins also keep async empty and
+   * loading states from changing the grid's bottom edge.
+   */
+  height: var(--run-explorer-pane-block-size);
+  min-height: var(--run-explorer-pane-block-size);
+  max-height: var(--run-explorer-pane-block-size);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 .run-list {
   position: static;
-  height: 100%;
-  max-height: 100%;
   min-width: 0;
-  min-height: 0;
   overflow-x: clip;
   overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 .run-list [data-slot='card-title'] {
   font-size: var(--text-h-sub);
@@ -486,69 +481,6 @@ html body[data-scroll-locked] {
   gap: 6px;
   padding-right: 8px;
   overflow: hidden;
-}
-.run-filter-trigger {
-  cursor: pointer;
-}
-.run-filter-trigger:is(:hover, [data-state='open']):not(:disabled):not([data-disabled]) {
-  border-color: var(--ast-blue);
-  background: var(--db-hover-tint);
-  color: var(--ast-text);
-}
-.run-filter-trigger[data-state='open']:not(:disabled):not([data-disabled]) {
-  background: var(--db-selected-tint);
-}
-.run-filter-trigger:focus-visible {
-  border-color: var(--ast-blue);
-  outline: 2px solid var(--ast-blue);
-  outline-offset: 2px;
-  color: var(--ast-text);
-}
-.run-filter-trigger:is(:disabled, [data-disabled]) {
-  color: var(--ast-text-secondary);
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-.run-list-filters [data-slot='select-trigger'] > svg {
-  flex: none;
-  color: currentColor;
-}
-.run-filter-label {
-  display: block;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.run-filter-menu {
-  width: max-content;
-  max-width: min(30rem, calc(100vw - 24px));
-  max-height: min(22rem, var(--radix-select-content-available-height));
-  border: 1px solid var(--ast-border-input);
-  background: var(--background);
-  color: var(--ast-text);
-  backdrop-filter: none;
-}
-.run-filter-menu [data-slot='select-item'] {
-  max-width: 100%;
-  border-radius: var(--radius-sm);
-  color: var(--ast-text-long);
-  cursor: pointer;
-}
-.run-filter-menu [data-slot='select-item'][data-highlighted] {
-  background: var(--db-hover-tint);
-  color: var(--ast-text);
-}
-.run-filter-menu [data-slot='select-item'][data-state='checked'] {
-  background: var(--db-selected-tint);
-  color: var(--ast-info-text);
-  font-weight: 500;
-}
-.run-filter-menu [data-slot='select-item'][data-disabled] {
-  color: var(--ast-text-secondary);
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 /* The search field's leading icon sits in the field rather than beside it, so
    the 340px column spends none of its width on a second box. */
@@ -738,10 +670,7 @@ html body[data-scroll-locked] {
  */
 .run-detail {
   position: static;
-  height: 100%;
-  max-height: 100%;
   min-width: 0;
-  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -753,9 +682,7 @@ html body[data-scroll-locked] {
   background: var(--ast-pane);
   overflow-x: clip;
   overflow-y: auto;
-  overscroll-behavior: contain;
   overflow-anchor: none;
-  scrollbar-gutter: stable;
 }
 /*
  * The run header, tabs and active body expand as one document inside
@@ -1165,6 +1092,10 @@ button.run-context-badge:not(.conversation-context-badge):hover {
 }
 
 @media (forced-colors: active) {
+  .run-list,
+  .run-detail {
+    scrollbar-color: CanvasText Canvas;
+  }
   .run-list-filters [data-slot='select-trigger']:is(:hover, :focus-visible, [data-state='open']),
   .run-detail [data-slot='tabs-trigger']:is(:hover, :focus-visible) {
     border-color: Highlight;

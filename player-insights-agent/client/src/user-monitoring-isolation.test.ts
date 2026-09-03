@@ -6,6 +6,7 @@ const SOURCE = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'u
 const DIALOG = readFileSync(new URL('./Dialog.tsx', import.meta.url), 'utf8');
 const SELECT = readFileSync(new URL('./AppSelect.tsx', import.meta.url), 'utf8');
 const CSS = partial('monitoring.css');
+const BASE = partial('base.css');
 
 describe('User Monitoring modal filter isolation', () => {
   it('owns range, role, persona, search, unit, and paging without rewriting the parent URL', () => {
@@ -30,9 +31,9 @@ describe('User Monitoring modal filter isolation', () => {
 });
 
 describe('User Monitoring filter menus', () => {
-  it('uses the shared body-level Radix popper without fighting the dialog focus trap', () => {
-    expect(SELECT).toContain('<SelectContent');
-    expect(SELECT).toContain("position={contentProps?.position ?? 'popper'}");
+  it('uses the shared body-level non-modal popover without fighting the dialog focus trap', () => {
+    expect(SELECT).toContain('<PopoverContent');
+    expect(SELECT).toContain('avoidCollisions');
     expect(SOURCE.match(/contentClassName="monitoring-users-filter-menu"/g)).toHaveLength(2);
     expect(DIALOG).toContain('isDialogFloatingPortal(event.target)');
     expect(DIALOG).toContain('[data-radix-popper-content-wrapper]');
@@ -43,8 +44,9 @@ describe('User Monitoring filter menus', () => {
       /\[data-radix-popper-content-wrapper\]:has\(\.monitoring-users-filter-menu\)\s*\{[^}]*z-index:\s*1100/
     );
     expect(CSS).toMatch(
-      /\.monitoring-users-filter-menu\s*\{[^}]*max-height:[^;}]*var\(--radix-select-content-available-height\)[^}]*overflow-y:\s*auto[^}]*scrollbar-gutter:\s*stable[^}]*background:\s*var\(--popover\)[^}]*opacity:\s*1/
+      /\.monitoring-users-filter-menu\s*\{[^}]*max-height:[^;}]*var\(--radix-popover-content-available-height\)[^}]*overflow-y:\s*auto[^}]*scrollbar-gutter:\s*stable[^}]*background:\s*var\(--popover\)[^}]*opacity:\s*1/
     );
+    expect(BASE).toMatch(/\.app-menu-content\s*\{[^}]*background:\s*var\(--background\)[^}]*opacity:\s*1/s);
     expect(CSS).toMatch(/\.user-profile-modal-overlay,[\s\S]*?z-index:\s*1000/);
   });
 });

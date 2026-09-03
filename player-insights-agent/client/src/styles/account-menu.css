@@ -28,6 +28,13 @@
   text-transform: none;
 }
 
+.roster-organization-mark--branded {
+  background: var(--card);
+  color: var(--foreground);
+  text-transform: none;
+}
+
+.roster-organization-logo,
 .roster-databricks-symbol {
   width: 19px;
   height: 19px;
@@ -35,10 +42,16 @@
   place-items: center;
 }
 
+.roster-organization-logo svg,
 .roster-databricks-symbol svg,
 .roster-organization-fallback {
   width: 100%;
   height: 100%;
+}
+
+.roster-organization-logo svg {
+  display: block;
+  color: inherit;
 }
 
 .roster-organization-fallback {
@@ -50,12 +63,12 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 30px;
+  min-height: 32px;
   max-width: 250px;
   padding: 0 10px;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
-  background: var(--card);
+  background: var(--background);
   color: var(--foreground);
   font: inherit;
   white-space: nowrap;
@@ -70,20 +83,20 @@
 .account-menu-trigger.identity-chip:hover,
 .account-menu-trigger.identity-chip:focus-visible {
   border-color: var(--ast-pos-border);
-  background: color-mix(in srgb, var(--ast-surface-chrome) 96%, var(--ast-pos-text));
+  background: color-mix(in srgb, var(--background) 94%, var(--ast-pos-text));
   color: var(--ast-pos-text);
 }
 
 .account-menu-trigger.identity-chip:focus-visible {
-  outline: 2px solid var(--ast-pos-text);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ast-pos-text) 36%, transparent);
 }
 
 /* Open is a stronger version of hover, so the selected trigger remains obvious
    while the near-opaque menu is present without becoming a blue tab. */
 .account-menu-trigger.identity-chip[aria-expanded='true'] {
   border-color: var(--ast-pos-text);
-  background: color-mix(in srgb, var(--ast-surface-chrome) 90%, var(--ast-pos-text));
+  background: color-mix(in srgb, var(--background) 88%, var(--ast-pos-text));
   box-shadow: inset 0 0 0 1px var(--ast-pos-border);
   color: var(--ast-pos-text);
 }
@@ -97,7 +110,7 @@
   font-size: 7px;
 }
 
-.account-menu-trigger .roster-databricks-symbol {
+.account-menu-trigger .roster-organization-logo {
   width: 14px;
   height: 14px;
 }
@@ -118,18 +131,26 @@
 }
 
 .account-menu {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  z-index: 70;
-  width: min(336px, calc(100vw - 24px));
+  width: 100%;
   padding: 6px;
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
-  background: var(--ast-surface-menu);
+  background: var(--background);
   box-shadow: 0 12px 32px color-mix(in oklab, var(--db-ink-deep) 16%, transparent);
   color: var(--foreground);
   font-size: 13px;
+}
+
+.account-menu-portal {
+  width: min(336px, calc(100vw - 24px));
+  max-height: min(640px, var(--radix-popover-content-available-height));
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .account-menu-identity {
@@ -147,7 +168,7 @@
   font-size: 10px;
 }
 
-.account-menu-identity > .roster-organization-mark .roster-databricks-symbol {
+.account-menu-identity > .roster-organization-mark .roster-organization-logo {
   width: 22px;
   height: 22px;
 }
@@ -235,14 +256,14 @@
 
 .account-feedback-trigger:hover,
 .account-feedback-trigger:focus-visible {
-  background: color-mix(in srgb, var(--ast-surface-menu) 96%, var(--ast-pos-text));
+  background: color-mix(in srgb, var(--background) 94%, var(--ast-pos-text));
   box-shadow: inset 0 0 0 1px var(--ast-pos-border);
   color: var(--ast-pos-text);
   outline: none;
 }
 
 .account-feedback-trigger[aria-expanded='true'] {
-  background: color-mix(in srgb, var(--ast-surface-menu) 90%, var(--ast-pos-text));
+  background: color-mix(in srgb, var(--background) 88%, var(--ast-pos-text));
   box-shadow: inset 0 0 0 1px var(--ast-pos-text);
   color: var(--ast-pos-text);
 }
@@ -260,7 +281,7 @@
   padding: 7px;
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
-  background: var(--ast-surface-menu);
+  background: var(--background);
   box-shadow: 0 12px 32px color-mix(in oklab, var(--db-ink-deep) 22%, transparent);
   color: var(--foreground);
   backdrop-filter: none;
@@ -293,7 +314,7 @@
 
 .account-feedback-menu > a:hover,
 .account-feedback-menu > a:focus-visible {
-  background: color-mix(in srgb, var(--ast-surface-menu) 96%, var(--ast-pos-text));
+  background: color-mix(in srgb, var(--background) 94%, var(--ast-pos-text));
   box-shadow: inset 0 0 0 1px var(--ast-pos-border);
   color: var(--ast-pos-text);
   outline: none;

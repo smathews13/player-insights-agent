@@ -32,7 +32,7 @@ import { DEGRADED_ANSWER_MARKER } from './setup-remedies';
 import { normalizeReaderStageStatus, projectReaderStage, type ReaderStageStatus } from './stage-lexicon';
 
 /**
- * Said above the answer, in red, rather than fifth under "What to keep in mind".
+ * Said above the answer, in red, rather than fifth under Caveats.
  *
  * Carries `DEGRADED_ANSWER_MARKER` because the client lifts those out of the
  * caveat list, and the sentence has to do the work `provenance` cannot: a
@@ -134,7 +134,7 @@ export function attachRecordedStages<
   T extends { trace: { id?: string; stages: unknown[]; totalMs?: number; toolCalls?: number } },
 >(answer: T, recorded: readonly unknown[]): T {
   // Local stream stages without an MLflow id are exactly the split this helper
-  // used to create: a Gantt that looks recorded and a Keep in mind line that
+  // used to create: a Gantt that looks recorded and a Caveats line that
   // says it was not. The live rail can still narrate the run; the stored answer
   // may not.
   if (!isMlflowTraceId(answer.trace.id)) return answer;
@@ -203,7 +203,7 @@ const TAKEAWAY_LIMIT = 220;
 /** The sections a reader is shown, in the order they are shown in. */
 const PROSE_SECTIONS = ['Interpretation', 'Findings / data'];
 
-/** The sections that become caveats under "What to keep in mind". */
+/** The sections that become bullets under Caveats. */
 const CAVEAT_SECTIONS = ['Caveats & rules applied', 'Gaps'];
 
 /*

@@ -26,10 +26,10 @@ describe('Settings Identity controls', () => {
     expect(DIALOG).toContain('<PortalContainerProvider container={portalContainer}>');
     expect(DIALOG).toContain('if (isDialogFloatingPortal(event.target)) return');
     expect(DIALOG).toContain('[data-radix-popper-content-wrapper]');
-    expect(SELECT).toContain('<SelectContent');
-    expect(SELECT).toContain('onValueChange={(next) => onValueChange(next as T)}');
+    expect(SELECT).toContain('<PopoverContent');
+    expect(SELECT).toContain('onValueChange(option.value)');
     expect(BASE).toMatch(/\[data-radix-popper-content-wrapper\]\s*\{[^}]*z-index:\s*var\(--ast-layer-menu\)/s);
-    expect(BASE).toMatch(/\.app-select-content\s*\{[^}]*background:\s*var\(--ast-surface-menu\)/s);
+    expect(BASE).toMatch(/\.app-menu-content\s*\{[^}]*background:\s*var\(--background\)/s);
   });
 
   it('renders editable role/persona selects for other roster users and locks only the canonical owner row', () => {
@@ -118,9 +118,7 @@ describe('Settings Identity controls', () => {
     expect(SETTINGS).toMatch(
       /\.sp-connection-fields\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/s
     );
-    expect(SETTINGS).toMatch(
-      /\.sp-connection-fields \.runtime-field\s*\{[^}]*grid-template-rows:\s*18px 34px 32px/s
-    );
+    expect(SETTINGS).toMatch(/\.sp-connection-fields \.runtime-field\s*\{[^}]*grid-template-rows:\s*18px 34px 32px/s);
     expect(SETTINGS).toMatch(/\.sp-connection-form \[data-slot='input'\]\s*\{[^}]*height:\s*34px/s);
     expect(SETTINGS).toMatch(/@media \(max-width: 900px\)[\s\S]*?\.sp-connection-fields\s*\{[^}]*minmax\(0, 1fr\)/s);
   });

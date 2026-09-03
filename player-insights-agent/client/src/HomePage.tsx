@@ -10,16 +10,13 @@
  * that asks for a clarification.
  */
 import { Link, useSearchParams } from 'react-router';
-import { memo, useCallback, useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { lazy, memo, Suspense, useCallback, useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { type ListAvailability } from './list-availability';
 import { readConversationList, readRunSummaries, startInitialRail } from './initial-rail';
 import { UnavailablePanel } from './UnavailablePanel';
 import { unavailableNotice, unavailableNoticeFor, type UnavailableNotice } from './unavailable-copy';
 import { submitsOnEnter } from './submit-on-enter';
 import { PASSWORD_MANAGER_OPT_OUT } from './password-manager-optout';
-import { UserDrilldownLink } from './UserDrilldownLink';
-import { ConversationOwnerSelect } from './ConversationOwnerSelect';
-import { ConversationPersonaSelect } from './ConversationPersonaSelect';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import {
   claimConversationTitle,
@@ -89,7 +86,6 @@ import { attachControlState } from './attach-control';
 import { ANSWER_PARAM, CONVERSATION_PARAM, answerRowId } from './conversation-links';
 import { formatDuration } from './benchmark-format';
 import { conversationRunSummary, railDuration, type RailRunSummary } from './rail-run-summary';
-import { RunRatingBadge } from './RunRatingBadge';
 import {
   applyRunLabelOverrideToConversations,
   applyRunLabelOverrideToSummaries,
@@ -197,6 +193,15 @@ import type {
 } from './app-types';
 import type { FeedbackDirection } from '../../shared/feedback-direction';
 import { FeedbackWriteQueue } from './feedback-write-queue';
+import { notifyFeedbackChanged } from './feedback-events';
+
+const ConversationFilters = lazy(() =>
+  import('./ConversationFilters').then(({ ConversationFilters: filters }) => ({ default: filters }))
+);
+const UserDrilldownLink = lazy(() =>
+  import('./UserDrilldownLink').then(({ UserDrilldownLink: link }) => ({ default: link }))
+);
+const RunRatingBadge = lazy(() => import('./RunRatingBadge').then(({ RunRatingBadge: badge }) => ({ default: badge })));
 
 /** Formats the customer confirmed: PDF, Markdown, JSON, TXT, CSV. */
 const ATTACHMENT_ACCEPT = '.pdf,.md,.json,.txt,.csv';
@@ -1794,6 +1799,7 @@ export function HomePage() {
         body: JSON.stringify({ messageId, sentiment, comment: comment || undefined }),
       });
       if (!response.ok) throw new Error(`Feedback was not recorded (HTTP ${response.status}).`);
+      notifyFeedbackChanged();
     });
 
     try {
@@ -2193,24 +2199,30 @@ export function HomePage() {
         <p className="section-label">Conversations</p>
         {adminSharedRail && rail.owners.length > 0 ? (
           <div className="conversation-filter-row">
-            <ConversationOwnerSelect
-              owners={rail.owners}
-              total={rail.entries.length}
-              selected={activeOwnerFilters}
-              onChange={(next) => {
-                setOwnerFilters(next);
-                rememberOwnerSelectionPreference(identity.signedInAs, next);
-              }}
-            />
-            <ConversationPersonaSelect
-              personas={personas}
-              total={rail.entries.length}
-              selected={activePersonaFilters}
-              onChange={(next) => {
-                setPersonaFilters(next);
-                rememberPersonaSelectionPreference(identity.signedInAs, next);
-              }}
-            />
+            <Suspense
+              fallback={
+                <>
+                  <Skeleton className="conversation-owner-select app-select-trigger" />
+                  <Skeleton className="conversation-owner-select conversation-persona-select app-select-trigger" />
+                </>
+              }
+            >
+              <ConversationFilters
+                owners={rail.owners}
+                personas={personas}
+                total={rail.entries.length}
+                selectedOwners={activeOwnerFilters}
+                selectedPersonas={activePersonaFilters}
+                onOwnersChange={(next) => {
+                  setOwnerFilters(next);
+                  rememberOwnerSelectionPreference(identity.signedInAs, next);
+                }}
+                onPersonasChange={(next) => {
+                  setPersonaFilters(next);
+                  rememberPersonaSelectionPreference(identity.signedInAs, next);
+                }}
+              />
+            </Suspense>
           </div>
         ) : null}
         {conversationLoading && conversations.length === 0 ? (
@@ -2353,17 +2365,23 @@ export function HomePage() {
                       {/* Wall time of that latest turn, when the trace recorded one.
                           Absent rather than zero for a turn stored before it did. */}
                       {duration && <span className="conversation-duration ast-num">{duration}</span>}
-                      {summary?.feedback ? <RunRatingBadge feedback={summary.feedback} /> : null}
+                      {summary?.feedback ? (
+                        <Suspense fallback={null}>
+                          <RunRatingBadge feedback={summary.feedback} />
+                        </Suspense>
+                      ) : null}
                     </span>
                   </button>
                   {adminSharedRail && owner ? (
-                    <UserDrilldownLink
-                      identity={owner}
-                      label="Asked by"
-                      compact
-                      className="conversation-owner"
-                      canOpen
-                    />
+                    <Suspense fallback={null}>
+                      <UserDrilldownLink
+                        identity={owner}
+                        label="Asked by"
+                        compact
+                        className="conversation-owner"
+                        canOpen
+                      />
+                    </Suspense>
                   ) : null}
                   {you ? (
                     <button
@@ -3055,7 +3073,9 @@ const MessageItem = memo(function MessageItem({
     return (
       <div className="user-message">
         <div className="user-bubble">{message.content}</div>
-        <UserDrilldownLink identity={asker} label="Asked by" compact className="user-avatar" canOpen={canOpenUser} />
+        <Suspense fallback={null}>
+          <UserDrilldownLink identity={asker} label="Asked by" compact className="user-avatar" canOpen={canOpenUser} />
+        </Suspense>
       </div>
     );
   }

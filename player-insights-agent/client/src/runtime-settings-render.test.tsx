@@ -148,7 +148,8 @@ describe('runtime and appearance modal sections', () => {
   });
 
   it('does not repeat the Runtime select field labels inside their triggers', () => {
-    expect(source.match(/showLabel=\{false\}/g) ?? []).toHaveLength(2);
+    expect(source).not.toContain('showLabel=');
+    expect(fs.readFileSync(path.join(__dirname, 'AppSelect.tsx'), 'utf8')).not.toContain('app-select-label');
     expect(source).toContain("label: 'Recommended order'");
     expect(source).toContain("label: 'Auto'");
     expect(source).toContain("label: 'Bar + line'");

@@ -1,31 +1,36 @@
 import { Building2 } from 'lucide-react';
-import type { OrganizationMapping } from '../../shared/organization-mapping';
-import { DATABRICKS_SYMBOL } from './brand-icons';
+import type { OrganizationMapping } from '../../shared/organization-contract';
+import { ORGANIZATION_LOGOS } from './organization-logos';
 
 /**
  * The organization beside a roster identity.
  *
- * Databricks uses the committed official corporate symbol. Configured
- * organizations keep their supplied monogram; an unrecognized domain gets a
- * neutral organization glyph rather than an invented logo.
+ * Canonical organizations use the local mark named by the shared manifest.
+ * Configured organizations keep their supplied monogram; an unrecognized
+ * domain gets a neutral organization glyph rather than an invented logo.
  */
 export function OrganizationAvatar({ organization }: { organization: OrganizationMapping }) {
-  const databricks = organization.domain === 'databricks.com';
-  const unknown = organization.monogram === '•';
+  const logo = ORGANIZATION_LOGOS[organization.logoKey];
+  const unknown = organization.fallback === 'building';
 
   return (
     <span
-      className={`roster-organization-mark${databricks ? ' roster-organization-mark--databricks' : ''}`}
+      className={`roster-organization-mark${logo ? ' roster-organization-mark--branded' : ''}${
+        organization.logoKey === 'databricks' ? ' roster-organization-mark--databricks' : ''
+      }`}
       role="img"
-      aria-label={`Organization: ${organization.name}`}
+      aria-label={organization.ariaLabel}
       title={organization.name}
+      data-organization-id={organization.id}
       data-organization-domain={organization.domain || undefined}
     >
-      {databricks ? (
+      {logo ? (
         <span
-          className="roster-databricks-symbol"
+          className={`roster-organization-logo${
+            organization.logoKey === 'databricks' ? ' roster-databricks-symbol' : ''
+          }`}
           aria-hidden="true"
-          dangerouslySetInnerHTML={{ __html: DATABRICKS_SYMBOL }}
+          dangerouslySetInnerHTML={{ __html: logo }}
         />
       ) : unknown ? (
         <Building2 className="roster-organization-fallback" aria-hidden="true" />

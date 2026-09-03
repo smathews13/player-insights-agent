@@ -93,7 +93,9 @@ svg {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-width: 0;
+  min-width: max-content;
+  white-space: nowrap;
+  overflow-wrap: normal;
   color: inherit;
   vertical-align: text-bottom;
 }
@@ -205,45 +207,49 @@ html:not([data-theme='dark']) .app-sky {
   background: var(--db-line-strong);
 }
 
-/*
- * Every dropdown uses the Monitoring filter format: "Label · Value" in one
- * white, neutral field. The menu is Radix Select, so this shared paint does not
- * replace its keyboard navigation, typeahead or selected-item semantics.
- */
+/* One compact, opaque dropdown language across pages, rails, and modals. */
 .app-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
   width: auto;
   min-width: 0;
   height: 32px;
-  padding: 0 10px;
-  gap: 4px;
+  padding: 0 9px 0 10px;
+  gap: 8px;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
-  background: var(--card);
+  background: var(--background);
   color: var(--ast-text-long);
   font-size: var(--text-sm);
   font-weight: 400;
   box-shadow: none;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease-out,
+    border-color 120ms ease-out,
+    color 120ms ease-out;
 }
-.app-select-trigger:hover {
-  border-color: var(--ast-text-secondary);
-  background: var(--card);
+.app-select-trigger:hover:not(:disabled),
+.app-select-trigger[data-state='open']:not(:disabled) {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--background) 94%, var(--primary));
+  color: var(--ast-text);
+}
+.app-select-trigger[data-state='open']:not(:disabled) {
+  background: color-mix(in srgb, var(--background) 88%, var(--primary));
 }
 .app-select-trigger:focus-visible {
-  outline: 2px solid var(--ast-blue);
-  outline-offset: 2px;
-  box-shadow: none;
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 36%, transparent);
 }
+.app-select-trigger:disabled,
 .app-select-trigger[data-disabled] {
   color: var(--muted-foreground);
   background: var(--ast-fill-band);
+  cursor: not-allowed;
   opacity: 1;
-}
-.app-select-label,
-.app-select-separator {
-  flex: none;
-}
-.app-select-label {
-  font-weight: 500;
 }
 .app-select-value {
   min-width: 0;
@@ -251,19 +257,39 @@ html:not([data-theme='dark']) .app-sky {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.app-select-trigger > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--ast-text-secondary);
+  transition:
+    color 120ms ease-out,
+    transform 120ms ease-out;
+}
+.app-select-trigger:is(:hover, :focus-visible, [data-state='open']) > svg {
+  color: var(--primary);
+}
+.app-select-trigger[data-state='open'] > svg {
+  transform: rotate(180deg);
+}
+.app-multiselect {
+  min-width: 0;
+}
+.app-multiselect-trigger {
+  width: 100%;
+}
 /*
  * EVERY DROPDOWN IN THE APP, LIFTED ABOVE EVERY SURFACE THAT CAN HOLD ONE.
  *
- * AppKit renders select content into its resolved portal container: normally
+ * AppKit renders Popover content into its resolved portal container: normally
  * `document.body`, and the active dialog overlay when a modal provides one.
- * It still ships that content at `z-50`.
  * The app's own ladder runs well past 50 -- the composer is 20, the sticky
  * chrome 40, the first-open panel 60, the Settings modal 80 -- so a dropdown
  * opened inside Settings was painting UNDERNEATH the modal that opened it. The
  * report was that the Roles pane's role control "doesn't work when clicked,
- * causes stutter, dead end", and all three halves of that are this: the menu
- * opened where it could not be seen, Radix's scroll lock shifted the page
- * behind it, and there was nothing to click.
+ * causes stutter, dead end": the menu opened where it could not be seen and
+ * there was nothing to click. AppSelect now uses non-modal Popover, so it also
+ * never locks the document while solving this stacking problem.
  *
  * THE WRAPPER AND NOT THE CONTENT. `[data-radix-popper-content-wrapper]` is the
  * positioned div Radix owns; it carries a `transform`, which makes it a stacking
@@ -291,29 +317,114 @@ html:not([data-theme='dark']) .app-sky {
   min-width: 0 !important;
   max-width: calc(100vw - 24px) !important;
 }
-.app-select-content {
-  min-width: var(--radix-select-trigger-width);
+.app-menu-content {
+  isolation: isolate;
   max-width: min(32rem, calc(100vw - 24px));
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
-  background: var(--ast-surface-menu);
+  background: var(--background);
+  background-image: none;
   color: var(--ast-text-long);
   font-size: var(--text-sm);
+  opacity: 1;
+  backdrop-filter: none;
+  box-shadow: var(--shadow-lg);
 }
-.app-select-content [data-slot='select-item'] {
+.app-select-content {
+  width: var(--radix-popover-trigger-width);
+  min-width: var(--radix-popover-trigger-width);
+  max-height: min(320px, var(--radix-popover-content-available-height));
+  padding: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.app-action-menu-content {
+  max-height: min(320px, var(--radix-popover-content-available-height));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.app-menu-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 7px;
+  border: 0;
   white-space: normal;
   overflow-wrap: anywhere;
   border-radius: 2px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
 }
-.app-select-content [data-slot='select-item'][data-highlighted] {
+.app-menu-option:is(:hover, :focus-visible),
+.app-menu-option[data-highlighted] {
+  outline: none;
   background: var(--db-hover-tint);
   color: var(--ast-text);
 }
-.app-select-content [data-slot='select-item'][data-state='checked'] {
+.app-menu-option[data-state='checked'] {
   background: var(--db-selected-tint);
   color: var(--ast-info-text);
   font-weight: 500;
+}
+.app-menu-option:disabled {
+  color: var(--muted-foreground);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.app-menu-check {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--primary);
+  opacity: 0;
+}
+.app-menu-option[data-state='checked'] .app-menu-check {
+  opacity: 1;
+}
+.app-menu-check > svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.25;
+}
+.app-menu-option-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.app-menu-option-count {
+  color: var(--ast-text-secondary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+@media (forced-colors: active) {
+  .app-select-trigger:is(:hover, :focus-visible, [data-state='open']) {
+    border-color: Highlight;
+    box-shadow: 0 0 0 1px Highlight;
+  }
+  .app-menu-option:is(:hover, :focus-visible, [data-highlighted], [data-state='checked']) {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
+  .app-menu-check {
+    color: Highlight;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-select-trigger,
+  .app-select-trigger > svg {
+    transition: none;
+  }
 }
 
 /* Every binary control says its state in words as well as thumb position. */

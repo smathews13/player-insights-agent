@@ -75,7 +75,7 @@ export function FinalAnswer({
         ) : null}
         {/* Prose only: the tables that came with it are evidence and are drawn
             below under the same charts-or-rows rule the live card uses. */}
-        <AnswerProse text={story} sources={sources} columns={columns} blocks="prose" />
+        <AnswerProse text={story} sources={sources} columns={columns} blocks="prose" preserveProse />
         <AnswerEvidence narrative={story} charts={charts} sources={sources} />
         <SourcesModule
           sources={sources}

@@ -450,7 +450,6 @@ export function RuntimeSettingsPanel({
                 <AppSelect
                   label="Order"
                   ariaLabel="Order"
-                  showLabel={false}
                   value={settings.answer.figuresOrder}
                   onValueChange={(value) => setAnswer('figuresOrder', value)}
                   options={[
@@ -477,7 +476,6 @@ export function RuntimeSettingsPanel({
                 <AppSelect
                   label="Types"
                   ariaLabel="Types"
-                  showLabel={false}
                   value={settings.answer.chartsTypes}
                   onValueChange={(value) => setAnswer('chartsTypes', value)}
                   options={[

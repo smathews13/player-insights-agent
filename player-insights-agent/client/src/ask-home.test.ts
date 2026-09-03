@@ -26,7 +26,11 @@ const RESPONSIVE_BASE = readFileSync(new URL('./styles/responsive.css', import.m
 const RAIL = partial('rail.css');
 const COMPOSER = partial('composer.css');
 const HOME_PAGE = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
-const OWNER_SELECT = readFileSync(new URL('ConversationOwnerSelect.tsx', import.meta.url), 'utf8');
+const OWNER_SELECT = [
+  readFileSync(new URL('ConversationOwnerSelect.tsx', import.meta.url), 'utf8'),
+  readFileSync(new URL('AppMultiSelect.tsx', import.meta.url), 'utf8'),
+  readFileSync(new URL('AppMultiSelectMenu.tsx', import.meta.url), 'utf8'),
+].join('\n');
 const RUN_STATUS = readFileSync(new URL('run-status.ts', import.meta.url), 'utf8');
 
 describe('the harness column stays reserved when there is no run', () => {
@@ -637,23 +641,24 @@ describe('the two marks that sign a transcript', () => {
 
 describe('the conversation owner filter stays compact', () => {
   it('uses one fixed-height trigger across every selection', () => {
-    const trigger = body('.conversation-owner-trigger');
-    expect(trigger).toMatch(/width:\s*100%/);
-    expect(trigger).toMatch(/height:\s*34px/);
-    expect(trigger).toMatch(/min-width:\s*0/);
+    const control = body('.conversation-owner-select');
+    const trigger = body('.app-select-trigger');
+    expect(control).toMatch(/width:\s*100%/);
+    expect(control).toMatch(/min-width:\s*0/);
+    expect(trigger).toMatch(/height:\s*32px/);
   });
 
   it('overlays its options instead of pushing conversations down', () => {
-    const menu = body('.conversation-owner-menu');
+    const menu = body('.app-select-content');
     expect(OWNER_SELECT).toContain('<PopoverContent');
     expect(menu).toMatch(/width:\s*var\(--radix-popover-trigger-width\)/);
-    expect(menu).toMatch(/max-height:\s*min\(280px,\s*var\(--radix-popover-content-available-height\)\)/);
+    expect(menu).toMatch(/max-height:\s*min\(320px,\s*var\(--radix-popover-content-available-height\)\)/);
     expect(menu).toMatch(/overflow-y:\s*auto/);
     expect(menu).not.toMatch(/position:\s*absolute/);
   });
 
   it('clips only the trigger summary with an ellipsis', () => {
-    const summary = body('.conversation-owner-summary');
+    const summary = body('.app-select-value');
     expect(summary).toMatch(/overflow:\s*hidden/);
     expect(summary).toMatch(/text-overflow:\s*ellipsis/);
     expect(summary).toMatch(/white-space:\s*nowrap/);

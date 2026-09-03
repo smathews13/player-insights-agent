@@ -19,10 +19,39 @@ import { accountEscalationSlackHref } from './account-slack-links';
 import { RoleBadgePill } from './RoleBadge';
 import type { RoleState } from './role';
 import { Popover, PopoverContent, PopoverTrigger } from './ui';
-import { identityName } from './user-identity';
+import { canonicalIdentityEmail, identityDisplayName } from './user-identity';
 
 type FeedbackItem = HTMLAnchorElement;
 const SIGN_OUT_END_WAIT_MS = 1_500;
+
+export function AccountMenuContent({
+  menuId,
+  identity,
+  role,
+  onClose,
+}: {
+  menuId: string;
+  identity: Identity;
+  role: RoleState;
+  onClose: () => void;
+}) {
+  return (
+    <PopoverContent
+      id={menuId}
+      className="account-menu-portal app-action-menu-content"
+      align="end"
+      side="bottom"
+      sideOffset={8}
+      avoidCollisions
+      collisionPadding={12}
+      sticky="always"
+      hideWhenDetached
+      updatePositionStrategy="always"
+    >
+      <AccountMenuPanel identity={identity} role={role} onClose={onClose} />
+    </PopoverContent>
+  );
+}
 
 export async function signOutAndEndAppSession(
   options: {
@@ -82,6 +111,7 @@ export function AccountFeedbackChoices({
         href={targets.github.url}
         target="_blank"
         rel="noopener noreferrer"
+        className="app-action-menu-item"
         onClick={onChoose}
       >
         <Github aria-hidden="true" />
@@ -95,6 +125,7 @@ export function AccountFeedbackChoices({
           href={targets.slack.url}
           target="_blank"
           rel="noopener noreferrer"
+          className="app-action-menu-item"
           onClick={onChoose}
         >
           <Slack aria-hidden="true" />
@@ -114,8 +145,9 @@ export function AccountMenuPanel({
   role: RoleState;
   onClose?: () => void;
 }) {
-  const name = identityName(identity.signedInAs);
-  const organization = organizationForEmail(identity.signedInAs, identity.organizations ?? []);
+  const canonicalEmail = canonicalIdentityEmail(identity);
+  const name = identityDisplayName(identity);
+  const organization = identity.organization ?? organizationForEmail(canonicalEmail, identity.organizations ?? []);
   const feedbackMenuId = useId();
   const feedbackTriggerRef = useRef<HTMLButtonElement>(null);
   const feedbackItemRefs = useRef<Array<FeedbackItem | null>>([]);
@@ -196,7 +228,7 @@ export function AccountMenuPanel({
           */}
           <RoleBadgePill state={role} />
           <strong className="account-menu-name">{name}</strong>
-          <span className="account-menu-address">{identity.signedInAs}</span>
+          <span className="account-menu-address">{canonicalEmail}</span>
         </span>
       </div>
       <div className="account-menu-group">
@@ -211,7 +243,7 @@ export function AccountMenuPanel({
             <button
               ref={feedbackTriggerRef}
               type="button"
-              className="account-feedback-trigger"
+              className="account-feedback-trigger app-action-menu-trigger"
               aria-haspopup="menu"
               aria-expanded={feedbackOpen}
               aria-controls={feedbackMenuId}
@@ -234,7 +266,7 @@ export function AccountMenuPanel({
           <PopoverContent
             id={feedbackMenuId}
             data-account-feedback-menu
-            className="account-feedback-menu ast-surface-menu"
+            className="account-feedback-menu app-menu-content app-action-menu-content ast-surface-menu"
             role="menu"
             aria-label="Feedback destinations"
             align="start"

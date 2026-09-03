@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { USER_MONITORING_SCHEMA_REVISION } from '../../shared/user-monitoring-contract';
+import { organizationForEmail } from '../../shared/organization-mapping';
 import { decodeUserMonitoringCostPayload } from './user-monitoring-payload';
 
 const MONITORING_SOURCE = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
@@ -11,9 +12,10 @@ function payload(revision = USER_MONITORING_SCHEMA_REVISION) {
     userMonitoring: {
       schemaRevision: revision,
       identityRevision: '2026-09-01T12:00:00Z',
+      organizations: [{ ...organizationForEmail('person@northwindgames.com'), count: 1 }],
       users: [
         {
-          email: 'active@example.test',
+          email: 'active@north.northwindgames.com',
           lastActive: '2026-09-01T12:00:00Z',
           questions: 4,
           coveredDays: 7,
@@ -42,15 +44,26 @@ describe('User Monitoring response decoding', () => {
   it('keeps valid timestamped rows and drops a malformed legacy row defensively', () => {
     const decoded = decodeUserMonitoringCostPayload(payload());
     expect(decoded.userMonitoring?.users.map((row) => row.email)).toEqual([
-      'active@example.test',
+      'active@north.northwindgames.com',
       'rostered-without-activity@example.test',
     ]);
+  });
+
+  it('re-derives the canonical organization when a cached row is decoded', () => {
+    const cached = payload();
+    (cached.userMonitoring.users[0] as Record<string, unknown>).organization = organizationForEmail('spoof@2k.com');
+    const decoded = decodeUserMonitoringCostPayload(cached);
+    expect(decoded.userMonitoring?.users[0]?.organization).toMatchObject({
+      id: 'northwind-games',
+      name: 'Northwind Games',
+      logoKey: 'northwind',
+    });
   });
 
   it('accepts the fast endpoint direct payload without routing through Cost', () => {
     const direct = decodeUserMonitoringCostPayload(payload().userMonitoring);
     expect(direct.userMonitoring?.users.map((row) => row.email)).toEqual([
-      'active@example.test',
+      'active@north.northwindgames.com',
       'rostered-without-activity@example.test',
     ]);
     expect(MONITORING_SOURCE).toContain('`/api/monitoring/user-spend?${userBrowserParams.toString()}`');

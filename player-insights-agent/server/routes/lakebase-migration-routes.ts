@@ -6,6 +6,8 @@ import { recordAdminAction, requireAdmin } from '../lib/admin-roles';
 import { runMigrations, type MigrationOutcome } from '../lib/migration-runner';
 import type { Migration } from '../lib/migrations';
 import { schemaOwnershipQuery, schemaWriteRefusal } from '../lib/schema-ownership-guard';
+import { runUserSpendReadModelRefresh } from '../lib/user-spend-read-model';
+import { createUserSpendRefreshSource } from '../lib/user-spend-refresh-source';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 
 export const MIGRATION_READINESS_CACHE_MS = 5_000;
@@ -23,6 +25,7 @@ interface MigrationRouteDependencies {
   cacheMs?: number;
   timeoutMs?: number;
   audit?: typeof recordAdminAction;
+  warmUserSpend?: (req: Request) => Promise<void>;
 }
 
 class TimedOut extends Error {}
@@ -405,6 +408,13 @@ export function setupLakebaseMigrationRoutes(
 ): LakebaseMigrationReadinessService {
   const service = new LakebaseMigrationReadinessService(appkit.lakebase, dependencies);
   const admin = requireAdmin(appkit.lakebase, userEmail);
+  const warmUserSpend =
+    dependencies.warmUserSpend ??
+    (async (req: Request) => {
+      const source = createUserSpendRefreshSource(appkit, req);
+      if (!source) return;
+      await runUserSpendReadModelRefresh(appkit.lakebase, source);
+    });
   appkit.server.extend((app) => {
     app.get('/api/admin/lakebase/migrations', admin, async (req, res) => {
       res.setHeader('Cache-Control', 'no-store');
@@ -412,7 +422,16 @@ export function setupLakebaseMigrationRoutes(
     });
     app.post('/api/admin/lakebase/migrations/apply', admin, async (req, res) => {
       res.setHeader('Cache-Control', 'no-store');
-      res.json(await service.apply(userEmail(req), requestSignal(req)));
+      const value = await service.apply(userEmail(req), requestSignal(req));
+      if (value.status === 'up_to_date' && (value.appliedCount ?? 0) > 0) {
+        // Start the first durable projection before returning. The refresh owns
+        // its own process single-flight and database lock; the first Monitoring
+        // read joins it and waits, while this migration response stays bounded.
+        void warmUserSpend(req).catch((error: Error) => {
+          console.warn(`[user-spend-read-model] post-migration warmup failed (${error.name}); first read will retry.`);
+        });
+      }
+      res.json(value);
     });
   });
   return service;

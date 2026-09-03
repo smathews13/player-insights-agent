@@ -205,7 +205,7 @@ describe("the modal draws one run view, the card's own", () => {
     /*
      * THE SCREENSHOT. The token line was a flex sibling after a shrinking
      * answer card, so "49,923 tokens recorded" sat on the last table row,
-     * Sources flooded the table pane, and Keep in mind tucked under Run
+     * Sources flooded the table pane, and Caveats tucked under Run
      * process. It is now a grid sibling of those sections, in this order.
      *
      * The reading table now carries Open in Databricks on its header, so
@@ -217,6 +217,7 @@ describe("the modal draws one run view, the card's own", () => {
       answer: {
         ...answerWith(trace),
         caveats: ['Coverage ends last Tuesday.'],
+        figures: [{ label: 'Legacy KPI', value: 10, display: '10', comparison: 'retained in payload' }],
         content: ['| Franchise | Players |', '| --- | ---: |', '| VLH | 10 |'].join('\n'),
         sources: [
           { name: 'a_catalog.a_schema.a_table', freshness: 'today', role: 'reading' },
@@ -230,8 +231,14 @@ describe("the modal draws one run view, the card's own", () => {
       rendered.indexOf('1,200 tokens recorded on this run.')
     );
     expect(rendered.indexOf('1,200 tokens recorded on this run.')).toBeLessThan(rendered.indexOf('Sources'));
-    expect(rendered.indexOf('Sources')).toBeLessThan(rendered.indexOf('Keep in mind'));
-    expect(rendered.indexOf('Keep in mind')).toBeLessThan(rendered.indexOf('Run process'));
+    expect(rendered.indexOf('Sources')).toBeLessThan(rendered.indexOf('Caveats'));
+    expect(rendered.indexOf('Caveats')).toBeLessThan(rendered.indexOf('Run process'));
+    expect(markup).toContain('aria-label="Caveats"');
+    expect(rendered).not.toContain('Keep in mind');
+    expect(rendered).not.toContain('What to keep in mind');
+    expect(markup).not.toContain('answer-stat');
+    expect(markup).not.toContain('Key figures');
+    expect(markup).not.toContain('Legacy KPI');
 
     const evidence = markup.indexOf('answer-evidence');
     const origin = markup.indexOf('answer-table-origin');

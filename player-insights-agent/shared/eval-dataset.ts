@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { CASE_REVIEWS, CASE_SOURCES, CASE_SPLITS, CASE_TAGS, mergeLabRowExtras } from './benchmark-lab-v3';
 
 /**
- * The evaluation dataset Acme runs: questions first, then Genie accuracy,
+ * The operator evaluation dataset: questions first, then Genie accuracy,
  * then agent judges on the same rows.
  *
  * A row may carry ground-truth SQL (Phase A) and/or an expected answer

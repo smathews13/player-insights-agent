@@ -344,7 +344,7 @@ describe('dark mode covers the shipped surfaces', () => {
       expect(body, `${selector} still frosts the column`).toMatch(/backdrop-filter:\s*none/);
       expect(body, `${selector} still uses the lifted gray mix`).not.toMatch(/color-mix/);
     }
-    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--ast-surface-menu\)/);
+    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--background\)/);
     expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='select-content']")).toMatch(
       /background:\s*var\(--ast-surface-menu\)/
     );
@@ -416,7 +416,8 @@ describe('dark mode covers the shipped surfaces', () => {
      * panes remain in the frosted recipe tested below.
      */
     for (const [selector, role] of [
-      ['.account-menu', '--ast-surface-menu'],
+      ['.account-menu', '--background'],
+      ['.app-menu-content', '--background'],
       ['.app-select-content', '--ast-surface-menu'],
       ["[data-slot='select-content']", '--ast-surface-menu'],
       ["[data-slot='dropdown-menu-content']", '--ast-surface-menu'],
@@ -432,15 +433,12 @@ describe('dark mode covers the shipped surfaces', () => {
     }
   });
 
-  it('gives AppKit floating menus the shared 98.5 percent role', () => {
-    // The conversation filter is a raw SelectContent. It never wore
-    // `.app-select-content`, so it painted `--popover` -- seven percent white --
-    // and the run list showed through the options. The account menu already
-    // uses the solid stand-in; this token is what every AppKit dropdown reads.
+  it('keeps legacy AppKit popovers near-opaque and app menus fully opaque', () => {
     const darkTokens = TOKENS.split("html[data-theme='dark']")[1] ?? '';
     expect(darkTokens).toMatch(/--popover:\s*var\(--ast-surface-menu\)/);
     expect(darkTokens).not.toMatch(/--popover:\s*rgba\(255,\s*255,\s*255,\s*0\.07\)/);
-    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--ast-surface-menu\)/);
+    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--background\)/);
+    expect(bodyFor(DARK, "html[data-theme='dark'] .app-menu-content")).toMatch(/background:\s*var\(--background\)/);
   });
 
   it('keeps Settings on elevated glass without backdrop blur', () => {

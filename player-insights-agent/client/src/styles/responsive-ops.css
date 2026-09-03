@@ -1,4 +1,16 @@
 @media (max-width: 800px) {
+  .ops-page-controls {
+    align-items: stretch;
+  }
+  .ops-admin-action,
+  .ops-stop-all {
+    width: 100%;
+    margin-left: 0;
+  }
+  .ops-admin-action .ops-scope-check-button,
+  .ops-stop-all .ops-stop-all-button {
+    margin-left: auto;
+  }
   .ops-forecast-horizons {
     grid-template-columns: 1fr;
   }
@@ -68,5 +80,13 @@
   }
   .ops-scope-pagination {
     justify-content: space-between;
+  }
+  .ops-scope-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .ops-scope-search,
+  .ops-scope-type-filter .app-select-trigger {
+    width: 100%;
   }
 }

@@ -12,6 +12,7 @@ import {
   type LabWorkspace,
 } from '../../shared/benchmark-lab-v3';
 import { POC_STARTER_QUESTIONS } from '../../shared/eval-dataset';
+import { AppSelect } from './AppSelect';
 import { astPill } from './astrolabe-pill';
 import { BenchButton, LabSurface } from './BenchmarkLabChrome';
 import type { EvaluationLabModel } from './use-evaluation-lab';
@@ -76,9 +77,7 @@ export function EvaluationSetTable({
         {rows.length === 0 ? (
           <tr>
             <td className="bench-empty-row" colSpan={8}>
-              {reviewerOnly
-                ? 'No open reviewer items.'
-                : 'No cases yet'}
+              {reviewerOnly ? 'No open reviewer items.' : 'No cases yet'}
             </td>
           </tr>
         ) : (
@@ -155,7 +154,9 @@ function CaseRow({
 
 export function EvaluationSet({ lab }: { lab: EvaluationLabModel }) {
   const toggle = (id: string) => {
-    lab.setSelectedIds(lab.selectedIds.includes(id) ? lab.selectedIds.filter((entry) => entry !== id) : [...lab.selectedIds, id]);
+    lab.setSelectedIds(
+      lab.selectedIds.includes(id) ? lab.selectedIds.filter((entry) => entry !== id) : [...lab.selectedIds, id]
+    );
   };
 
   return (
@@ -164,7 +165,11 @@ export function EvaluationSet({ lab }: { lab: EvaluationLabModel }) {
       title="Evaluation set"
       actions={
         <div className="bench-btn-row">
-          <BenchButton variant="primary" onClick={() => void lab.loadImportCandidates()} disabled={lab.busy === 'import'}>
+          <BenchButton
+            variant="primary"
+            onClick={() => void lab.loadImportCandidates()}
+            disabled={lab.busy === 'import'}
+          >
             Import from traces
           </BenchButton>
           <BenchButton onClick={() => void lab.commitVersion()} disabled={lab.busy === 'version'}>
@@ -184,7 +189,9 @@ export function EvaluationSet({ lab }: { lab: EvaluationLabModel }) {
       {lab.lab.currentVersionId ? (
         <p className="bench-caption ast-num">
           Dataset {lab.lab.currentVersionId}
-          {lab.lab.heldOutAudit.length > 0 ? ` · ${lab.lab.heldOutAudit.length} held-out edit(s) recorded after the split` : ''}
+          {lab.lab.heldOutAudit.length > 0
+            ? ` · ${lab.lab.heldOutAudit.length} held-out edit(s) recorded after the split`
+            : ''}
         </p>
       ) : null}
 
@@ -197,7 +204,9 @@ export function EvaluationSet({ lab }: { lab: EvaluationLabModel }) {
         onExpand={(id) => lab.setExpandedId(lab.expandedId === id ? '' : id)}
       />
 
-      {lab.expandedId ? <CaseEditor lab={lab} row={lab.lab.cases.find((entry) => entry.id === lab.expandedId)} /> : null}
+      {lab.expandedId ? (
+        <CaseEditor lab={lab} row={lab.lab.cases.find((entry) => entry.id === lab.expandedId)} />
+      ) : null}
 
       {lab.lab.cases.length === 0 ? (
         <div className="bench-empty-samples">
@@ -233,7 +242,9 @@ function ImportPane({ lab }: { lab: EvaluationLabModel }) {
               checked={lab.importFilters.includes(entry.id)}
               onChange={(event) =>
                 lab.setImportFilters(
-                  event.target.checked ? [...lab.importFilters, entry.id] : lab.importFilters.filter((id) => id !== entry.id)
+                  event.target.checked
+                    ? [...lab.importFilters, entry.id]
+                    : lab.importFilters.filter((id) => id !== entry.id)
                 )
               }
             />
@@ -337,33 +348,25 @@ function CaseEditor({ lab, row }: { lab: EvaluationLabModel; row: LabCase | unde
       <div className="bench-btn-row">
         <label className="bench-inline-label">
           Tag
-          <select
+          <AppSelect<CaseTag>
+            label="Tag"
+            ariaLabel="Case tag"
             className="eval-space-select bench-space-select"
-            aria-label="Case tag"
             value={row.tag || 'happy_path'}
-            onChange={(event) => void lab.saveCase(row.id, { tag: event.target.value })}
-          >
-            {CASE_TAGS.map((tag) => (
-              <option key={tag} value={tag}>
-                {TAG_LABEL[tag]}
-              </option>
-            ))}
-          </select>
+            onValueChange={(tag) => void lab.saveCase(row.id, { tag })}
+            options={CASE_TAGS.map((tag) => ({ value: tag, label: TAG_LABEL[tag] }))}
+          />
         </label>
         <label className="bench-inline-label">
           Review
-          <select
+          <AppSelect<CaseReview>
+            label="Review"
+            ariaLabel="Review status"
             className="eval-space-select bench-space-select"
-            aria-label="Review status"
             value={row.review}
-            onChange={(event) => void lab.setReview(row.id, event.target.value as CaseReview)}
-          >
-            {CASE_REVIEWS.map((review) => (
-              <option key={review} value={review}>
-                {REVIEW_LABEL[review]}
-              </option>
-            ))}
-          </select>
+            onValueChange={(review) => void lab.setReview(row.id, review)}
+            options={CASE_REVIEWS.map((review) => ({ value: review, label: REVIEW_LABEL[review] }))}
+          />
         </label>
       </div>
     </div>

@@ -36,12 +36,16 @@ function harness(role: string) {
   return get.get('/api/ops/scopes')!;
 }
 
-async function invoke(handler: Handler): Promise<{ status: number; body: unknown }> {
+async function invoke(
+  handler: Handler,
+  query: Record<string, string> = {}
+): Promise<{ status: number; body: unknown }> {
   const headers: Record<string, string> = {
     'x-forwarded-email': 'operator@example.test',
     'x-forwarded-access-token': 'user-token',
   };
   const req = {
+    query,
     header: (name: string) => headers[name.toLowerCase()],
     once: () => req,
     off: () => req,
@@ -86,10 +90,18 @@ describe('GET /api/ops/scopes', () => {
   it('returns only safe credential provenance and scope rows', async () => {
     const answer = await invoke(harness('admin'));
     expect(answer.body).toMatchObject({
-      user: { label: 'Signed-in user', provenance: 'obo' },
-      app: { label: 'App service principal', provenance: 'app-service-principal' },
+      user: { label: 'Signed-in user', provenance: 'obo', availability: 'available' },
+      app: { label: 'App service principal', provenance: 'app-service-principal', availability: 'available' },
       assets: [],
+      nextCursor: null,
+      moreResults: false,
     });
     expect(JSON.stringify(answer.body)).not.toMatch(/token|secret|authorization/i);
+  });
+
+  it('accepts bounded page, search, type, and cursor query parameters', async () => {
+    const answer = await invoke(harness('admin'), { limit: '500', q: 'events', type: 'table' });
+    expect(answer.status).toBe(200);
+    expect(answer.body).toMatchObject({ assets: [], moreResults: false });
   });
 });

@@ -20,6 +20,7 @@ import { partial, stylesheet } from './styles/stylesheet';
  * provenance chip in the colour of a button.
  */
 const CARD = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
+const CAVEATS = readFileSync(new URL('./KeepInMind.tsx', import.meta.url), 'utf8');
 /**
  * The card's copy with its comments removed, for the assertions about what the
  * card may not SAY. The comments explain at length what a sentence used to claim
@@ -107,11 +108,10 @@ describe('the answer and plan cards sit on the design’s scale, not the library
   it('sets Source and the following paragraphs on the same 14px body rung', () => {
     // 12.5px prose and an 11px Source line were the same reading block drawn
     // two sizes too small for the unused measure. One type step to 14px; the
-    // takeaway and the figure rail stay on the rungs already pinned above.
+    // takeaway stays on the heading rung already pinned above.
     expect(ruleFor(ANSWER_CSS, '.answer-prose {')).toContain('font-size: var(--ast-fs-14)');
     expect(ruleFor(BODY_CSS, '.source-list {')).toContain('font-size: var(--ast-fs-14)');
     expect(ruleFor(ANSWER_CSS, '.answer-takeaway {')).toContain('font-size: calc(var(--ast-fs-16) + 0.5px)');
-    expect(ruleFor(BODY_CSS, '.answer-stat-value {')).toContain('font-size: var(--ast-fs-16)');
   });
 });
 
@@ -179,47 +179,20 @@ describe('the provenance chip has three tones and none is the action colour', ()
   });
 });
 
-describe('the compact stat rail preserves every figure', () => {
-  it('replaces the old bar panel with stat rail cards', () => {
-    expect(CARD).toContain('className="answer-stat-rail"');
-    expect(CARD).toContain('className="answer-stat-value ast-num"');
+describe('the answer body never renders figure KPI tiles', () => {
+  it('leaves figures available to evidence logic without reserving a rail', () => {
+    expect(CARD).toContain('figures: readerAnswer.figures');
+    expect(CARD).not.toContain('className="answer-stat-rail"');
+    expect(CARD).not.toContain('className="answer-stat-value ast-num"');
+    expect(BODY_CSS).not.toContain('.answer-stat');
+    expect(BODY_CSS).not.toContain('.answer-main-row');
     expect(CARD).not.toContain('Result breakdown');
     expect(CARD).not.toContain('<i style={{ width:');
-  });
-
-  it('keeps the figures in the agent’s order, uncapped', () => {
-    // The same rule the caveats have and for the same reason: the agent chose
-    // which figures to return and in what order, and a sort or a slice here
-    // would be this surface editing the result.
-    // Two figures can share a label, and a key that was the label alone dropped
-    // the second. The content signature stays stable when figures move; exact
-    // duplicates receive an occurrence suffix rather than an array-position key.
-    expect(CARD).toContain('const figureOccurrences = new Map<string, number>();');
-    expect(CARD).toContain('const keyedFigures = readerAnswer.figures.map((figure) => {');
-    expect(CARD).toContain('{keyedFigures.map(({ figure, key }) => (');
-    expect(CARD).toContain('<div className="answer-stat" key={key}>');
-    expect(CARD).not.toContain('key={`${position}-');
-    expect(CARD).not.toMatch(/(?:answer|readerAnswer)\.figures\.(slice|sort|filter)\(/);
-  });
-});
-
-describe('stat comparisons remain neutral and recoverable', () => {
-  it('keeps comparison text neutral and verbatim in the stat context', () => {
-    expect(CARD).toMatch(
-      /className="answer-stat-context provenance-detail"[\s\S]*tabIndex=\{0\}[\s\S]*\{figure\.comparison\}/
-    );
-    expect(CARD).not.toContain('title={figure.comparison}');
-    expect(CARD).not.toMatch(/comparison\.(replace|slice|substring)\(/);
-  });
-
-  it('leaves the sign in the text, so the direction is never colour alone', () => {
-    expect(CARD).toContain('{figure.comparison}');
-    expect(CARD).not.toMatch(/comparison\.(replace|slice|substring)\(/);
   });
 });
 
 describe('the caveats change how loudly they are said and nothing else', () => {
-  it('keeps Keep in mind and Run process in the card’s stacking flow', () => {
+  it('keeps Caveats and Run process in the card’s stacking flow', () => {
     expect(ruleFor(BODY_CSS, '.keep-in-mind {')).toContain('position: static');
     expect(ruleFor(BODY_CSS, '.keep-in-mind {')).toContain('margin: 0');
     expect(ruleFor(BODY_CSS, '.run-process {')).toContain('position: static');
@@ -231,7 +204,7 @@ describe('the caveats change how loudly they are said and nothing else', () => {
     expect(content).toContain('align-content: start');
   });
 
-  it('draws Keep in mind as its own compact surface box', () => {
+  it('draws Caveats as a comfortably spaced surface box', () => {
     // Amber is the evaluation colour and these are the qualifications on the
     // figures above them. What changed is where it is spent: this was a
     // free-standing alert under the sources, and an alert is a box, so on the
@@ -249,6 +222,11 @@ describe('the caveats change how loudly they are said and nothing else', () => {
     expect(rule).toContain('background: var(--ast-ice)');
     expect(rule).toContain('border-radius: 6px');
     expect(rule).toContain('border: 0');
+    expect(rule).toContain('padding: 14px');
+    expect(rule).toContain('height: auto');
+    expect(rule).toContain('max-height: none');
+    expect(rule).toContain('overflow-x: clip');
+    expect(rule).toContain('overflow-y: visible');
   });
 
   it('labels the block with a heading rather than a warning glyph', () => {
@@ -258,6 +236,8 @@ describe('the caveats change how loudly they are said and nothing else', () => {
     // figures, so the label is now a heading and the wash is the whole alarm.
     expect(ruleFor(BODY_CSS, '.keep-in-mind-heading {')).toContain('font-weight: 700');
     expect(ruleFor(BODY_CSS, '.keep-in-mind-heading {')).toContain('letter-spacing: var(--ast-tracking-eyebrow)');
+    expect(ruleFor(BODY_CSS, '.keep-in-mind-heading {')).toContain('margin: 0 0 8px');
+    expect(CAVEATS).toContain('aria-label="Caveats"');
     expect(BODY_CSS).not.toContain('caveat-alert');
     // The deep rung survives on the one control in the block, which needs to be
     // legible as a control without recruiting the action blue into an amber
@@ -278,6 +258,8 @@ describe('the caveats change how loudly they are said and nothing else', () => {
     // opaque second tint at these two values reads as a rendering fault.
     expect(rule).toContain('background: var(--ast-warn-mono-fill)');
     expect(BODY_CSS).toContain('.keep-in-mind a[data-entity] {');
+    expect(ruleFor(BODY_CSS, '.keep-in-mind :is(')).toContain('overflow-wrap: anywhere');
+    expect(ruleFor(BODY_CSS, '.keep-in-mind :is(')).toContain('white-space: normal');
   });
 
   // Count, order, wording and the absence of a cap are caveat-list.test.ts's,
@@ -812,7 +794,8 @@ describe('the two cards do not reach past the token block', () => {
 
   it('loads the body rules with the lazy answer card', () => {
     expect(STYLESHEET).toContain('.provenance-chip {');
-    expect(BODY_CSS).toContain('.answer-stat-rail {');
+    expect(BODY_CSS).toContain('.answer-narrative {');
+    expect(BODY_CSS).not.toContain('.answer-stat-rail {');
     expect(CARD).toContain("import './styles/answer-body.css'");
   });
 });

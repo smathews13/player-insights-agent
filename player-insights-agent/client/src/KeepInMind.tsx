@@ -1,5 +1,5 @@
 /**
- * "Keep in mind": the caveats under an answer, ranked, tagged, with a fold.
+ * "Caveats": the qualifications under an answer, ranked, tagged, with a fold.
  *
  * A compact box after the one-line provenance sentence. IT MUST KEEP RENDERING:
  * an answer with caveats and no sources still draws this section, because a
@@ -96,10 +96,10 @@ export function KeepInMind({
   if (top.length === 0) return null;
 
   return (
-    <div className="keep-in-mind">
+    <section className="keep-in-mind" aria-label="Caveats">
       {/* No colon and no warning glyph. The heading is a label on the list, and
           the amber wash under it is already the whole of the alarm. */}
-      <p className="keep-in-mind-heading">Keep in mind</p>
+      <h3 className="keep-in-mind-heading">Caveats</h3>
       {/* One list, not two. The hidden bullets are appended to the same `ul`
           when they are shown, so the rules between rows and the indent stay
           continuous and the fold does not read as a second unrelated panel
@@ -116,6 +116,6 @@ export function KeepInMind({
           <ChevronDown className={showAll ? 'rotate-180 transition-transform' : 'transition-transform'} />
         </Button>
       )}
-    </div>
+    </section>
   );
 }

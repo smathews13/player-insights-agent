@@ -30,6 +30,29 @@ function recordingStore() {
   };
 }
 
+function rosterStore(emails: string[]) {
+  const queries: { sql: string; params: unknown[] }[] = [];
+  return {
+    queries,
+    lakebase: {
+      query(sql: string, params: unknown[] = []) {
+        queries.push({ sql, params });
+        if (sql.includes('admin_emails')) {
+          return Promise.resolve({
+            rows: emails.map((email) => ({
+              email,
+              role: 'consumer',
+              added_by: 'admin@example.test',
+              added_at: '2026-09-03T12:00:00.000Z',
+            })),
+          });
+        }
+        return Promise.resolve({ rows: [] as Record<string, unknown>[] });
+      },
+    },
+  };
+}
+
 /**
  * Queries that name a person. The experimental SP-identity pivot reads
  * deployment settings (and maybe a persona row) on the way through; those are
@@ -296,6 +319,57 @@ describe('a deployed app with a forwarded identity', () => {
 
       expect(body.signedInAs).toBe('analyst@example.example');
       expect(body.identitySource).toBe('databricks-apps');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('resolves a local-only proxy identity through one unique canonical roster row', async () => {
+    const app = await startApp(rosterStore(['customer.admin@take2games.com']).lakebase);
+    try {
+      const response = await app.fetch('/api/identity', {
+        headers: {
+          'x-forwarded-email': 'customer.admin',
+          // An unverified token claim is not allowed to replace the proxy identity.
+          'x-forwarded-access-token': 'not-a-jwt',
+        },
+      });
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        signedInAs: string;
+        canonicalEmail: string | null;
+        displayName: string;
+        identityRevision: string;
+        organization: { id: string };
+      };
+      expect(body).toMatchObject({
+        signedInAs: 'customer.admin',
+        canonicalEmail: 'customer.admin@take2games.com',
+        displayName: 'customer.admin',
+        organization: { id: 'domain:take2games.com' },
+      });
+      expect(body.identityRevision).toMatch(/^[a-f0-9]{24}$/);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('does not brand an ambiguous local-only identity from a token claim or guessed domain', async () => {
+    const app = await startApp(rosterStore(['shared.user@example.com', 'shared.user@take2games.com']).lakebase);
+    try {
+      const tokenPayload = Buffer.from(JSON.stringify({ email: 'shared.user@example.com' })).toString('base64url');
+      const response = await app.fetch('/api/identity', {
+        headers: {
+          'x-forwarded-email': 'shared.user',
+          'x-forwarded-access-token': `header.${tokenPayload}.signature`,
+        },
+      });
+      const body = (await response.json()) as {
+        canonicalEmail: string | null;
+        organization: { id: string; fallback: string };
+      };
+      expect(body.canonicalEmail).toBeNull();
+      expect(body.organization).toMatchObject({ id: 'external', fallback: 'building' });
     } finally {
       await app.close();
     }
