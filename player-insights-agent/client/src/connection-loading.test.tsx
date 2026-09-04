@@ -11,7 +11,7 @@ import {
   connectionResourceLoadState,
 } from './connection-loading';
 import { readConnection, type SettingsPayload } from './connection-model';
-import { ConnectionLoadRow } from './ConnectionsPage';
+import { ConnectionLoadRow, DeclaredTablesSection } from './ConnectionsPage';
 import type { PreflightCheck } from './preflight';
 import { partial } from './styles/stylesheet';
 
@@ -121,6 +121,34 @@ describe('Connections first-load settlement', () => {
     expect(markup).toContain(connectionLoadErrorLabel(unresolved));
     expect(markup).toContain('Refresh to try again');
     expect(markup).not.toContain('pia-flick-slot');
+  });
+});
+
+describe('Unity Catalog scope settlement', () => {
+  const render = (readState: 'loading' | 'ready' | 'unavailable' | 'not-connected') =>
+    renderToStaticMarkup(
+      <DeclaredTablesSection tableChecks={[]} requestedEntity="" readState={readState} allowMutations />
+    );
+
+  it.each([
+    ['loading', 'Loading Unity Catalog scope'],
+    ['unavailable', 'The Unity Catalog scope could not be loaded'],
+    ['not-connected', 'This app release did not provide its configured Unity Catalog scope'],
+  ] as const)('does not render a false empty or removal state while %s', (readState, expected) => {
+    const markup = render(readState);
+
+    expect(markup).toContain(expected);
+    expect(markup).not.toContain('No tables or views are declared in the current scope.');
+    expect(markup).not.toContain('Connection removed');
+    expect(markup).not.toContain('Add asset');
+  });
+
+  it('uses the empty message only after a successful settled read', () => {
+    const markup = render('ready');
+
+    expect(markup).toContain('No tables or views are declared in the current scope.');
+    expect(markup).toContain('Add asset');
+    expect(markup).not.toContain('Connection removed');
   });
 });
 

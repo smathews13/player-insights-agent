@@ -1,7 +1,7 @@
 /*
  * Ambient star motion is isolated on the app's fixed decorative SVG. Nothing in
  * the content tree inherits an animation, and every animated property below is
- * opacity, transform, or stroke-dashoffset so a frame cannot change layout or
+ * opacity or stroke-dashoffset so a frame cannot change layout or
  * repaint text.
  */
 .app-sky[data-star-motion-field] {
@@ -38,22 +38,16 @@
 }
 
 .app-topology-node {
-  opacity: 0.7;
-  transform-box: fill-box;
-  transform-origin: center;
+  opacity: 0.62;
 }
 
 /*
- * Anchor twinkle is ambient on every surface.
- *
- * The working treatment used to render these circles as `anchor-still` and
- * omit their inline duration. Since every route except Ask is a working
- * surface, that single branch disabled the visible fade on every other tab.
- * Connectors and drift used to be Ask-only as well, which is why Continue
- * landed on a sky with no lines. Every surface now gets the same living field.
+ * Nodes stay at their authored coordinates. The only node animation is a slow
+ * opacity fade: no transform means even product and controller marks cannot
+ * wander, orbit, or pulse away from connector endpoints.
  */
 .app-sky[data-star-motion-field] [data-star-motion='anchor'] {
-  animation-name: ast-tw;
+  animation-name: ast-topology-blink;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
   animation-fill-mode: both;
@@ -75,68 +69,28 @@
   stroke-linecap: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  opacity: 0.45;
+  opacity: 0.28;
   animation-name: ast-sky-draw;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
   animation-fill-mode: both;
 }
 
-.star-motion-drift {
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  animation-direction: alternate;
-}
-
-.star-motion-drift-anchor {
-  animation-name: ast-drift;
-  animation-duration: 90s;
-}
-
-/*
- * THE GATE'S SKY DRIFTS TOO, AND THE RULE THAT STOPPED IT IS GONE.
- *
- * `html:has(.first-open) .star-motion-drift { animation: none }` used to sit
- * here, for a defect it did not actually cure: "a fixed card against a sliding
- * sky made the card appear to move". What made something appear to move was the
- * connectors being outside the drifting group, so half the drawing slid and the
- * other half did not -- see the comment in StarField.tsx. The chains and their
- * stars now carry one transform, and 14px over ninety seconds under a card is
- * not a card that moves.
- *
- * It is also the only place the app switched an ambient animation off for a
- * reader who had asked for nothing of the kind, and the login gate is the screen
- * that is looked at longest: with the drift off, the whole of the opening was a
- * twinkle. Reduced motion is the one thing that freezes this layer, and it is the
- * guard at the foot of this file.
- */
-
-@keyframes ast-tw {
+@keyframes ast-topology-blink {
   0%,
   100% {
-    opacity: 0.4;
-    transform: scale(0.75);
+    opacity: 0.48;
   }
   50% {
-    opacity: 0.85;
-    transform: scale(1.2);
-  }
-}
-
-@keyframes ast-drift {
-  from {
-    transform: translate(0, 0);
-  }
-  to {
-    transform: translate(-14px, 8px);
+    opacity: 0.72;
   }
 }
 
 /*
  * A connector inking itself, holding, then retracting and fading so the field
- * breathes — add and remove, not only add. 0–12% is the visible draw (ink
- * speed is this slice of the cycle, not the spawn stagger); 12–60% the hold;
- * 60–80% retract and fade together (dashoffset returns to 1, no pop-off);
+ * breathes — add and remove, not only add. 0–8% is the visible draw (ink
+ * speed is this slice of the cycle, not the spawn stagger); 8–72% the hold;
+ * 72–80% retract and fade together (dashoffset returns to 1, no pop-off);
  * then the line stays gone until the stagger brings it back. Live-window
  * math in StarField (`SKY_DRAW_LIVE_UNTIL`) matches the 80% mark.
  */
@@ -145,13 +99,13 @@
     stroke-dashoffset: 1;
     opacity: 0;
   }
-  12% {
+  8% {
     stroke-dashoffset: 0;
-    opacity: 0.45;
+    opacity: 0.28;
   }
-  60% {
+  72% {
     stroke-dashoffset: 0;
-    opacity: 0.45;
+    opacity: 0.28;
   }
   80% {
     stroke-dashoffset: 1;
@@ -172,19 +126,13 @@
 @media (prefers-reduced-motion: reduce) {
   .app-sky[data-star-motion-field] [data-star-motion='anchor'] {
     animation: none;
-    opacity: 0.7;
-    transform: none;
+    opacity: 0.62;
   }
 
   .app-sky[data-star-motion-field] .star-motion-draw {
     animation: none;
     stroke-dashoffset: 0;
-    opacity: 0.45;
-  }
-
-  .app-sky[data-star-motion-field] .star-motion-drift {
-    animation: none;
-    transform: translate(0, 0);
+    opacity: 0.28;
   }
 }
 

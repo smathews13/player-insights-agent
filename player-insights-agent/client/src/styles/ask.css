@@ -255,7 +255,7 @@ html:not([data-theme='dark']) .ask-hero h2 {
  * what brings it up there.
  */
 /* Ask positions the shared question-attribution bubble in the transcript. The
-   shared component owns the connected border, tail, wrapping and identity link. */
+   shared component owns its single outer surface, wrapping and identity link. */
 .user-message {
   /*
    * THE QUESTION (AND ITS ASKED-BY CHIP) STARTS RIGHT OF THE ANSWER'S LEFT EDGE.

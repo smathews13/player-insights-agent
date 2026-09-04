@@ -30,6 +30,7 @@ const LIST_KEYS = new Set(['catalog_allowlist', 'catalog_denylist', 'declared_ma
 export interface BakedConfigTransport {
   getJson: (path: string, query?: Record<string, string>) => Promise<unknown>;
   getText?: (path: string, query?: Record<string, string>) => Promise<string>;
+  downloadText?: (path: string) => Promise<string>;
 }
 
 export type EndpointReader = (name: string) => Promise<unknown>;
@@ -41,17 +42,12 @@ function text(value: unknown): string {
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
 function unquote(value: string): string {
   const trimmed = value.trim();
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
     return trimmed.slice(1, -1);
   }
   return trimmed;
@@ -185,6 +181,13 @@ function runIdOf(body: unknown): string {
   return text(version.run_id ?? version.runId ?? record.run_id ?? record.runId);
 }
 
+function modelIdOf(body: unknown): string {
+  const record = asRecord(body);
+  const version = asRecord(record.model_version ?? record.modelVersion);
+  const source = text(version.source ?? record.source);
+  return /^models:\/(m-[A-Za-z0-9_-]+)$/.exec(source)?.[1] ?? '';
+}
+
 function envVarFor(key: string): string {
   return APPLY_ENV_VARS[key] ?? EXTRA_ENV[key] ?? '';
 }
@@ -203,9 +206,9 @@ export function configurationFromBaked(config: Record<string, unknown>): Preflig
       ? Array.isArray(raw)
         ? raw.map((item) => text(item)).filter(Boolean)
         : text(raw)
-          .split(',')
-          .map((item) => item.trim())
-          .filter(Boolean)
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean)
       : text(raw);
     if (Array.isArray(value) ? value.length === 0 : !value) continue;
     entries.push({
@@ -233,15 +236,20 @@ async function defaultGetJson(path: string, query: Record<string, string> = {}):
   });
 }
 
+async function defaultDownloadText(path: string): Promise<string> {
+  const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+  const response = await new WorkspaceClient({}).files.download({ file_path: path });
+  const chunks: Buffer[] = [];
+  for await (const chunk of response.contents ?? []) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 async function describeEndpoint(name: string): Promise<unknown> {
   const { WorkspaceClient } = await import('@databricks/sdk-experimental');
   return new WorkspaceClient({}).servingEndpoints.get({ name });
 }
 
-async function readModelConfigText(
-  transport: BakedConfigTransport,
-  runId: string
-): Promise<string> {
+async function readModelConfigText(transport: BakedConfigTransport, runId: string): Promise<string> {
   const paths = ['agent/MLmodel', 'MLmodel', 'agent/model_config', 'model_config.json', 'agent/config.json'];
   for (const artifact of paths) {
     try {
@@ -266,7 +274,7 @@ async function readModelConfigText(
     const listed = asRecord(
       await transport.getJson('/api/2.0/mlflow/artifacts/list', { run_id: runId, path: 'agent' })
     );
-    const files = Array.isArray(listed.files) ? listed.files : [];
+    const files: unknown[] = Array.isArray(listed.files) ? listed.files : [];
     const mlmodel = files.find((file) => {
       const path = text(asRecord(file).path);
       return path.endsWith('MLmodel') || path.endsWith('model_config') || path.endsWith('config.json');
@@ -280,11 +288,16 @@ async function readModelConfigText(
   }
 }
 
-async function runIdForServedModel(
+interface ServedModelArtifacts {
+  runId: string;
+  modelId: string;
+}
+
+async function artifactsForServedModel(
   transport: BakedConfigTransport,
   entityName: string,
   version: string
-): Promise<string> {
+): Promise<ServedModelArtifacts> {
   const attempts: Array<{ path: string; query: Record<string, string> }> = [
     {
       path: `/api/2.1/unity-catalog/models/${encodeURIComponent(entityName)}/versions/${encodeURIComponent(version)}`,
@@ -305,13 +318,33 @@ async function runIdForServedModel(
   ];
   for (const attempt of attempts) {
     try {
-      const runId = runIdOf(await transport.getJson(attempt.path, attempt.query));
-      if (runId) return runId;
+      const body = await transport.getJson(attempt.path, attempt.query);
+      const reference = { runId: runIdOf(body), modelId: modelIdOf(body) };
+      if (reference.runId || reference.modelId) return reference;
     } catch {
       // The model may be UC or workspace-registry; try the next spelling.
     }
   }
-  return '';
+  return { runId: '', modelId: '' };
+}
+
+/**
+ * Read an MLflow 3 Logged Model through the same Workspace Files route the
+ * MLflow client uses. Logged Model artifacts are not run artifacts: asking
+ * `/mlflow/artifacts/get` with the source run id returns 404 even though the
+ * registered version and its MLmodel are intact.
+ */
+async function readLoggedModelConfigText(transport: BakedConfigTransport, modelId: string): Promise<string> {
+  if (!modelId || !transport.downloadText) return '';
+  const body = asRecord(await transport.getJson(`/api/2.0/mlflow/logged-models/${encodeURIComponent(modelId)}`));
+  const model = asRecord(body.model);
+  const info = asRecord(model.info ?? body.info);
+  const artifactUri = text(info.artifact_uri ?? info.artifactUri);
+  const match = /databricks\/mlflow-tracking\/([^/]+)\/logged_models\/([^/]+)(\/.*)?$/.exec(artifactUri);
+  if (!match || match[2] !== modelId) return '';
+  const relative = (match[3] ?? '').replace(/\/$/, '');
+  const root = `/WorkspaceInternal/Mlflow/Artifacts/${match[1]}/LoggedModels/${modelId}${relative}`;
+  return transport.downloadText(`${root}/MLmodel`);
 }
 
 let cache: { at: number; endpoint: string; entries: PreflightConfiguration[] } | null = null;
@@ -328,12 +361,14 @@ export function forgetBakedModelConfig(): void {
  * A failed read is never cached, matching stored settings: one outage must not
  * become 45 seconds of a blank Foundation model row.
  */
-export async function readBakedModelConfig(input: {
-  endpointName?: string;
-  readEndpoint?: EndpointReader;
-  transport?: BakedConfigTransport;
-  now?: number;
-} = {}): Promise<PreflightConfiguration[]> {
+export async function readBakedModelConfig(
+  input: {
+    endpointName?: string;
+    readEndpoint?: EndpointReader;
+    transport?: BakedConfigTransport;
+    now?: number;
+  } = {}
+): Promise<PreflightConfiguration[]> {
   const endpointName = (input.endpointName ?? process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim();
   if (!endpointName) return [];
   // No workspace, no model version to ask. Local tests and a laptop checkout
@@ -344,16 +379,18 @@ export async function readBakedModelConfig(input: {
     return cache.entries;
   }
 
-  const transport: BakedConfigTransport = input.transport ?? { getJson: defaultGetJson };
+  const transport: BakedConfigTransport = input.transport ?? {
+    getJson: defaultGetJson,
+    downloadText: defaultDownloadText,
+  };
   try {
-    const served = parseServedModel(
-      endpointName,
-      await (input.readEndpoint ?? describeEndpoint)(endpointName)
-    );
+    const served = parseServedModel(endpointName, await (input.readEndpoint ?? describeEndpoint)(endpointName));
     if (!served.entityName || !served.version) return [];
-    const runId = await runIdForServedModel(transport, served.entityName, served.version);
-    if (!runId) return [];
-    const document = await readModelConfigText(transport, runId);
+    const artifacts = await artifactsForServedModel(transport, served.entityName, served.version);
+    const document =
+      (artifacts.modelId ? await readLoggedModelConfigText(transport, artifacts.modelId).catch(() => '') : '') ||
+      (artifacts.runId ? await readModelConfigText(transport, artifacts.runId) : '');
+    if (!document) return [];
     const entries = configurationFromBaked(parseModelConfigDocument(document));
     cache = { at: now, endpoint: endpointName, entries };
     return entries;

@@ -191,7 +191,9 @@ describe('POST /api/ops/health/check', () => {
       'semantic-index',
       'semantic-index-endpoint',
       'declared-manifest',
+      'experiment-id',
     ]);
+    expect(payload.dependencies.find((row) => row.id === 'experiment-id')?.label).toBe('MLflow experiment');
     expect(payload.dependencies.find((row) => row.id === 'genie-dictionary')).toMatchObject({
       verdict: 'refused',
       lastCheckedAt: payload.checkedAt,

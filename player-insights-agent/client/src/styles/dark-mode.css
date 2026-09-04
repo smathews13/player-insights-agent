@@ -614,7 +614,7 @@ html[data-theme='dark'] :is(input, textarea, select, .app-select-trigger):focus-
 html[data-theme='dark'] .app-sky-line {
   stroke: var(--ast-blue-on-dark);
   stroke-width: 1;
-  opacity: 0.6;
+  opacity: 0.32;
 }
 
 /*

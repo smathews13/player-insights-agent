@@ -44,11 +44,11 @@ import { astPill } from './pia-pill';
 import { BrandIcon } from './BrandIcon';
 import { ExperimentalBadge } from './ExperimentalBadge';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
-import { PiaBusyButtonContent } from './PiaLoader';
+import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 import { PiaEmptyStateMark } from './PiaMark';
 import { Disclosure, PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
-import { ageAgo, checkedAgoLine } from './refresh-state';
+import { ageAgo, checkedAgoLine, readAgo } from './refresh-state';
 import { useWorkspaceHost } from './data-entity-state';
 import { databricksLink } from '../../shared/databricks-links';
 import { CostBudgetProvider, CostResourceBudgets, CostSpendSummary, CostTotalBudget } from './CostBudgets';
@@ -632,7 +632,7 @@ export function CostBody({
 
       <BlockBody>
         {block.busy && !payload ? (
-          <Skeleton className="ops-skeleton" />
+          <PiaLoader variant="panel" label="Loading cost tracking" className="ops-skeleton" />
         ) : payload ? (
           <CostBudgetProvider payload={payload} tileIds={budgetTiles.map((tile) => tile.id)} unit={unit}>
             {replaceGrid && absent ? (
@@ -1149,6 +1149,7 @@ export function LatencyBody({
       <BlockHead
         id="ops-latency-heading"
         title="Latency"
+        meta={payload ? `App-owned request timings · ${readAgo(payload.readAt)}` : ''}
         control={
           <div className="ops-latency-head-controls">
             <div className="run-search monitoring-search ops-latency-search">

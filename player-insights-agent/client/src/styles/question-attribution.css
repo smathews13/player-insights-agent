@@ -1,137 +1,142 @@
 /*
  * One question and the person who asked it.
  *
- * The small rotated square is the speech tail. It spans the only space between
- * the message surface and the identity control, so the two borders read as one
- * connected object without making the question itself clickable.
+ * The wrapper only positions the bubble for each host. The nested surface owns
+ * the one background, border and radius around both pieces of content; the
+ * divider is internal and the question itself is not clickable.
  */
 .question-attribution-bubble {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: flex-end;
   min-width: 0;
   max-width: 100%;
 }
 
+.question-attribution-surface {
+  display: inline-flex;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--ast-border-input);
+  border-radius: var(--radius-md);
+  background: var(--ast-pane);
+  color: var(--foreground);
+}
+
 .question-attribution-message {
-  position: relative;
-  z-index: 1;
   flex: 0 1 auto;
   width: fit-content;
   max-width: 100%;
   min-width: 0;
   margin: 0;
-  padding: 10px 14px;
-  border: 1px solid var(--ast-border-input);
-  border-radius: var(--radius-md) var(--radius-md) 0 var(--radius-md);
-  background: var(--ast-pane);
-  color: var(--foreground);
+  padding: var(--density-row-padding-block) 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
   line-height: 1.4;
   overflow-wrap: anywhere;
   cursor: text;
 }
 
-.question-attribution-message::after {
-  content: '';
-  position: absolute;
-  right: -7px;
-  bottom: 7px;
-  z-index: -1;
-  width: 11px;
-  height: 11px;
-  box-sizing: border-box;
-  border-top: 1px solid var(--ast-border-input);
-  border-right: 1px solid var(--ast-border-input);
-  background: inherit;
-  transform: rotate(45deg);
-  pointer-events: none;
+.question-attribution-meta {
+  display: flex;
+  align-items: stretch;
+  flex: none;
+  min-width: 0;
+  border-left: 1px solid var(--ast-border-input);
 }
 
-.question-attribution-bubble > .user-drilldown-link,
-.question-attribution-bubble > .question-attribution-user {
-  position: relative;
-  z-index: 2;
-  flex: none;
-  margin-left: 7px;
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+.question-attribution-meta > .user-drilldown-link {
+  align-items: stretch;
+  border-radius: 0;
 }
 
 .question-attribution-bubble .question-attribution-user.identity-chip {
   max-width: min(180px, 42vw);
-  min-height: 28px;
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  background: var(--ast-surface-elevated);
+  min-height: 100%;
+  padding: var(--density-row-padding-block) 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted-foreground);
 }
 
 /*
- * The link owns its hover and keyboard state. The adjacent question surface
- * deliberately has no hover selector, so opening User Monitoring remains an
- * isolated action rather than turning the whole speech bubble into a control.
+ * Only the link's name and icon react to hover. Keyboard focus keeps the shared
+ * blue focus ring from shell.css, while the bubble itself never becomes a
+ * control or gains a blue edge.
  */
-.question-attribution-bubble > .user-drilldown-link:hover .question-attribution-user,
-.question-attribution-bubble > .user-drilldown-link:focus-visible .question-attribution-user {
-  border-color: var(--ast-blue);
-  background: var(--db-hover-tint);
+.question-attribution-meta > .user-drilldown-link .identity-chip-name {
+  color: var(--ast-info-text);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+}
+
+.question-attribution-meta > .user-drilldown-link:is(:hover, :focus-visible) .question-attribution-user.identity-chip {
+  border: 0;
+  background: transparent;
+}
+
+.question-attribution-meta
+  > .user-drilldown-link:is(:hover, :focus-visible)
+  :is(.identity-chip-name, .question-attribution-user > svg) {
   color: var(--foreground);
 }
 
-html[data-theme='dark'] .question-attribution-message {
+.question-attribution-meta > .user-drilldown-link:is(:hover, :focus-visible) .identity-chip-name {
+  text-decoration-color: currentColor;
+}
+
+html[data-theme='dark'] .question-attribution-surface {
   background: var(--card);
-  border-color: var(--ast-border-input);
-}
-
-html[data-theme='dark'] .question-attribution-message::after {
-  border-color: var(--ast-border-input);
-}
-
-html[data-theme='dark'] .question-attribution-bubble .question-attribution-user.identity-chip {
-  background: var(--ast-surface-elevated);
 }
 
 @media (max-width: 480px) {
-  .question-attribution-bubble {
+  .question-attribution-surface {
+    width: 100%;
     flex-direction: column;
-    align-items: flex-end;
   }
 
   .question-attribution-bubble .question-attribution-message {
     width: 100%;
     max-width: 100%;
-    border-radius: var(--radius-md) var(--radius-md) 0 var(--radius-md);
   }
 
-  .question-attribution-message::after {
-    right: 20px;
-    bottom: -7px;
-    transform: rotate(135deg);
-  }
-
-  .question-attribution-bubble > .user-drilldown-link,
-  .question-attribution-bubble > .question-attribution-user {
-    margin-top: 7px;
-    margin-left: 0;
-    border-radius: 0 0 var(--radius-md) var(--radius-md);
+  .question-attribution-meta {
+    width: 100%;
+    justify-content: flex-end;
+    border-top: 1px solid var(--ast-border-input);
+    border-left: 0;
   }
 
   .question-attribution-bubble .question-attribution-user.identity-chip {
     max-width: min(100%, 240px);
-    border-radius: 0 0 var(--radius-md) var(--radius-md);
   }
 }
 
 @media (forced-colors: active) {
-  .question-attribution-message,
-  .question-attribution-message::after,
-  .question-attribution-bubble .question-attribution-user.identity-chip {
+  .question-attribution-surface {
     border-color: CanvasText;
     background: Canvas;
     color: CanvasText;
     forced-color-adjust: none;
   }
 
-  .question-attribution-bubble > .user-drilldown-link:is(:hover, :focus-visible) .question-attribution-user {
-    border-color: Highlight;
-    background: Highlight;
-    color: HighlightText;
+  .question-attribution-meta {
+    border-color: CanvasText;
+  }
+
+  .question-attribution-bubble .question-attribution-user.identity-chip,
+  .question-attribution-meta > .user-drilldown-link .identity-chip-name {
+    color: CanvasText;
+  }
+
+  .question-attribution-meta
+    > .user-drilldown-link:is(:hover, :focus-visible)
+    :is(.identity-chip-name, .question-attribution-user > svg) {
+    color: Highlight;
   }
 }

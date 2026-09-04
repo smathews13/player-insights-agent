@@ -95,6 +95,84 @@ export function telemetrySchema(raw: string | undefined = process.env[TELEMETRY_
   return parts.join('.');
 }
 
+export type TelemetryDestination =
+  | { state: 'configured'; schema: string; reason: '' }
+  | { state: 'disabled'; schema: ''; reason: '' }
+  | { state: 'unreadable'; schema: ''; reason: string };
+
+export type TelemetryDestinationReader = (appName: string) => Promise<unknown>;
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+/**
+ * The Apps control-plane record is authoritative for whether platform telemetry
+ * is enabled. Deploy from Git replaces app.yaml and can blank the convenience
+ * environment variable without changing the app's live export destinations.
+ */
+export function telemetryDestinationFromApp(body: unknown): TelemetryDestination {
+  const app = record(body);
+  const raw = app.telemetry_export_destinations ?? app.telemetryExportDestinations;
+  const destinations = Array.isArray(raw) ? raw : [];
+  if (destinations.length === 0) return { state: 'disabled', schema: '', reason: '' };
+  for (const destination of destinations) {
+    const row = record(destination);
+    const unityCatalog = record(row.unity_catalog ?? row.unityCatalog);
+    const logs =
+      typeof unityCatalog.logs_table === 'string'
+        ? unityCatalog.logs_table
+        : typeof unityCatalog.logsTable === 'string'
+          ? unityCatalog.logsTable
+          : '';
+    const match = /^([^.]+\.[^.]+)\.otel_logs$/.exec(logs.trim());
+    if (match) return { state: 'configured', schema: match[1], reason: '' };
+  }
+  return {
+    state: 'unreadable',
+    schema: '',
+    reason: 'The Apps record has telemetry destinations, but none names a valid Unity Catalog logs table.',
+  };
+}
+
+export const workspaceTelemetryDestinationReader: TelemetryDestinationReader = async (appName) => {
+  const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+  return new WorkspaceClient({}).apiClient.request({
+    path: `/api/2.0/apps/${encodeURIComponent(appName)}`,
+    method: 'GET',
+    headers: new Headers({ Accept: 'application/json' }),
+    raw: false,
+  });
+};
+
+export async function readTelemetryDestination(
+  input: {
+    raw?: string;
+    appName?: string;
+    read?: TelemetryDestinationReader;
+  } = {}
+): Promise<TelemetryDestination> {
+  const fromEnvironment = telemetrySchema(input.raw);
+  if (fromEnvironment) return { state: 'configured', schema: fromEnvironment, reason: '' };
+  const appName = (input.appName ?? process.env.DATABRICKS_APP_NAME ?? '').trim();
+  if (!appName) {
+    return {
+      state: 'unreadable',
+      schema: '',
+      reason: 'The app name is unavailable, so the live telemetry configuration could not be checked.',
+    };
+  }
+  try {
+    return telemetryDestinationFromApp(await (input.read ?? workspaceTelemetryDestinationReader)(appName));
+  } catch (error) {
+    return {
+      state: 'unreadable',
+      schema: '',
+      reason: `The Apps record could not be read, so telemetry configuration is unknown: ${(error as Error).message}`,
+    };
+  }
+}
+
 /** The fully qualified `otel_logs` table for a destination, or empty. */
 export function logsTable(schema: string): string {
   return schema ? `${schema}.${LOGS_TABLE}` : '';
@@ -154,7 +232,13 @@ export function offMeasurement(insightsHref: string): AppMeasurement {
  */
 export function uncheckedMeasurement(insightsHref: string, note: string): AppMeasurement {
   const schema = telemetrySchema();
-  if (!schema) return offMeasurement(insightsHref);
+  if (!schema) {
+    return {
+      ...offMeasurement(insightsHref),
+      telemetry: 'unreadable',
+      reason: `Telemetry configuration could not be checked because ${note}`,
+    };
+  }
   const table = logsTable(schema);
   return {
     ...offMeasurement(insightsHref),
@@ -193,7 +277,10 @@ export function noHistoryReason(): string {
  * between "no grant" and "no table" would send an admin to ask for a privilege
  * they may already hold on a table that does not exist.
  */
-export function stateFromFailure(message: string, table: string): {
+export function stateFromFailure(
+  message: string,
+  table: string
+): {
   state: Extract<TelemetryState, 'no-grant' | 'unreadable'>;
   permission: string;
   object: string;
@@ -348,10 +435,9 @@ export const RECENT_ERROR_LIMIT = 5;
  * `last-served` stays empty rather than becoming the start of the range, which
  * would claim the app answered at a time nothing recorded.
  */
-export function readTelemetryRows(dataArray: unknown): Omit<
-  AppMeasurement,
-  'telemetry' | 'variable' | 'table' | 'grant' | 'insightsHref' | 'reason'
-> {
+export function readTelemetryRows(
+  dataArray: unknown
+): Omit<AppMeasurement, 'telemetry' | 'variable' | 'table' | 'grant' | 'insightsHref' | 'reason'> {
   const requestsPerHour: Array<{ hour: string; count: number }> = [];
   const signInsPerDay: Array<{ day: string; count: number }> = [];
   const recent: Array<{ at: string; body: string }> = [];
@@ -405,14 +491,8 @@ export function readTelemetryRows(dataArray: unknown): Omit<
  * history for a window it has nothing in -- which is the confusion it was added
  * to end, restated as a bug.
  */
-export function hasHistory(
-  figures: ReturnType<typeof readTelemetryRows>
-): boolean {
-  return (
-    figures.requestsPerHour.length > 0 ||
-    figures.signInsPerDay.length > 0 ||
-    Boolean(figures.lastServedAt)
-  );
+export function hasHistory(figures: ReturnType<typeof readTelemetryRows>): boolean {
+  return figures.requestsPerHour.length > 0 || figures.signInsPerDay.length > 0 || Boolean(figures.lastServedAt);
 }
 
 /* ── The exporter, counted rather than assumed ───────────────────────────── */
@@ -483,9 +563,7 @@ export function readExporterRows(dataArray: unknown, schema: string): ExporterRe
     state: tables.length === 0 ? 'unreadable' : written > 0 ? 'exporting' : 'silent',
     tables,
     error:
-      tables.length === 0
-        ? 'The warehouse answered the count with no rows at all, so nothing was established.'
-        : '',
+      tables.length === 0 ? 'The warehouse answered the count with no rows at all, so nothing was established.' : '',
     schema,
   };
 }
@@ -511,8 +589,14 @@ export function exporterFailure(message: string, schema: string): ExporterReadin
  * figure being read as a complete history.
  */
 export function exporterCoverage(reading: ExporterReading): string {
-  const stamps = reading.tables.map((entry) => entry.firstAt).filter(Boolean).sort();
-  const latest = reading.tables.map((entry) => entry.lastAt).filter(Boolean).sort();
+  const stamps = reading.tables
+    .map((entry) => entry.firstAt)
+    .filter(Boolean)
+    .sort();
+  const latest = reading.tables
+    .map((entry) => entry.lastAt)
+    .filter(Boolean)
+    .sort();
   if (stamps.length === 0) return '';
   const last = latest[latest.length - 1];
   return last ? `${stamps[0]} to ${last}` : `since ${stamps[0]}`;
@@ -743,19 +827,10 @@ export function readLatencyRows(dataArray: unknown): {
   if (Array.isArray(dataArray)) {
     for (const raw of dataArray) {
       if (!Array.isArray(raw) || raw.length < 5) continue;
-      const [
-        kind,
-        label,
-        spans,
-        p50,
-        p95,
-        p99,
-        slowest,
-        errors,
-        lastAt,
-        priorSpans,
-        priorP50,
-      ] = raw as (string | null)[];
+      const [kind, label, spans, p50, p95, p99, slowest, errors, lastAt, priorSpans, priorP50] = raw as (
+        | string
+        | null
+      )[];
       if (kind === 'covered') {
         coveredFrom = rowText(spans);
         coveredTo = rowText(p50);

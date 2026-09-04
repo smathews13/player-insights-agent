@@ -60,6 +60,21 @@ describe('deployment config is not runtime role authority', () => {
   });
 });
 
+describe('source-only deployment configuration', () => {
+  it('restores release values before route imports and records releases after migrations', () => {
+    const source = serverSourceWithoutComments();
+    const restore = source.indexOf('restoreReleaseEnvironment(appkit.lakebase)');
+    const routeImports = source.indexOf("import('./routes/insights-routes')");
+    const storeReady = source.indexOf('const { storeReady }');
+    const record = source.indexOf('recordReleaseEnvironment(appkit.lakebase)');
+
+    expect(restore).toBeGreaterThan(-1);
+    expect(routeImports).toBeGreaterThan(restore);
+    expect(storeReady).toBeGreaterThan(routeImports);
+    expect(record).toBeGreaterThan(storeReady);
+  });
+});
+
 describe('the allowlist that made the plugin unsafe', () => {
   /**
    * Runs AppKit's own filter to show the hazard is real rather than theoretical,

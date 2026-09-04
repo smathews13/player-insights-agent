@@ -492,8 +492,9 @@ describe('the list of assets the agent may consider', () => {
     expect(CARD_SOURCE).toMatch(
       /className="plane-add-connection"[\s\S]*?\+ Add a new connection[\s\S]*?<\/button>\s*<ConnectionRemovalStatus notice=\{removalNotice\}/
     );
-    expect(PAGE_SOURCE).toMatch(
-      /summary="Unity Catalog scope"[\s\S]*?action=\{addAction\}\s*status=\{<ConnectionRemovalStatus notice=\{controller\.removalNotice\}/
+    expect(PAGE_SOURCE).toContain("action={readState === 'ready' ? addAction : null}");
+    expect(PAGE_SOURCE).toContain(
+      "status={readState === 'ready' ? <ConnectionRemovalStatus notice={controller.removalNotice} /> : null}"
     );
     expect(PAGE_SOURCE).toMatch(/\{action\}\s*\{status\}[\s\S]*?connection-block-controls/);
     expect(PAGE_SOURCE).not.toContain('className="plane-success"');

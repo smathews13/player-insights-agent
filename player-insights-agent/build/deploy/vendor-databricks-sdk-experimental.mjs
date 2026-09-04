@@ -44,9 +44,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// node_modules/reflect-metadata/Reflect.js
+// ../../player-insights-agent/player-insights-agent/node_modules/reflect-metadata/Reflect.js
 var require_Reflect = __commonJS({
-  "node_modules/reflect-metadata/Reflect.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/reflect-metadata/Reflect.js"() {
     var Reflect2;
     (function(Reflect3) {
       (function(factory) {
@@ -1129,9 +1129,9 @@ var require_Reflect = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/Redactor.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/Redactor.js
 var require_Redactor = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/Redactor.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/Redactor.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.defaultRedactor = exports.Redactor = void 0;
@@ -1183,9 +1183,9 @@ var require_Redactor = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/logging/DefaultLogger.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/DefaultLogger.js
 var require_DefaultLogger = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/logging/DefaultLogger.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/DefaultLogger.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DefaultLogger = void 0;
@@ -1210,9 +1210,9 @@ var require_DefaultLogger = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/logging/NamedLogger.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/NamedLogger.js
 var require_NamedLogger = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/logging/NamedLogger.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/NamedLogger.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NamedLogger = exports.defaultOpts = exports.LEVELS = void 0;
@@ -1316,9 +1316,9 @@ var require_NamedLogger = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/context/Context.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/context/Context.js
 var require_Context = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/context/Context.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/context/Context.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Context = void 0;
@@ -1361,9 +1361,9 @@ var require_Context = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/context/contextDecorator.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/context/contextDecorator.js
 var require_contextDecorator = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/context/contextDecorator.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/context/contextDecorator.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.context = context;
@@ -1385,9 +1385,9 @@ var require_contextDecorator = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/context/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/context/index.js
 var require_context = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/context/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/context/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -1411,9 +1411,9 @@ var require_context = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/logging/loggingDecorators.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/loggingDecorators.js
 var require_loggingDecorators = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/logging/loggingDecorators.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/loggingDecorators.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.withLogContext = withLogContext;
@@ -1449,9 +1449,9 @@ var require_loggingDecorators = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/logging/ExposedLoggers.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/ExposedLoggers.js
 var require_ExposedLoggers = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/logging/ExposedLoggers.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/ExposedLoggers.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ExposedLoggers = void 0;
@@ -1461,17 +1461,17 @@ var require_ExposedLoggers = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/logging/types.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/types.js
 var require_types = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/logging/types.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/types.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/logging/utils.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/utils.js
 var require_utils = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/logging/utils.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/utils.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.liftAllErrorProps = liftAllErrorProps;
@@ -1490,9 +1490,9 @@ var require_utils = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/logging/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/index.js
 var require_logging = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/logging/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/logging/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -1545,9 +1545,9 @@ var require_logging = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/ConfigAttributes.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/ConfigAttributes.js
 var require_ConfigAttributes = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/ConfigAttributes.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/ConfigAttributes.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ConfigAttributes = exports.EnvironmentLoader = exports.ConfigAttribute = void 0;
@@ -1702,9 +1702,9 @@ var require_ConfigAttributes = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/Token.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/Token.js
 var require_Token = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/Token.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/Token.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Token = void 0;
@@ -1741,9 +1741,9 @@ var require_Token = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/execUtils.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/execUtils.js
 var require_execUtils = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/execUtils.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/execUtils.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -1825,9 +1825,9 @@ var require_execUtils = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/fetch.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/fetch.js
 var require_fetch = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/fetch.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/fetch.js"(exports) {
     "use strict";
     var __importDefault = exports && exports.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -2076,9 +2076,9 @@ var require_fetch = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/BasicCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/BasicCredentials.js
 var require_BasicCredentials = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/BasicCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/BasicCredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BasicCredentials = void 0;
@@ -2107,9 +2107,9 @@ var require_BasicCredentials = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/oauth/Client.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/oauth/Client.js
 var require_Client = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/oauth/Client.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/oauth/Client.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -2219,9 +2219,9 @@ var require_Client = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/oauth/OidcEndpoints.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/oauth/OidcEndpoints.js
 var require_OidcEndpoints = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/oauth/OidcEndpoints.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/oauth/OidcEndpoints.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.OidcEndpoints = void 0;
@@ -2240,9 +2240,9 @@ var require_OidcEndpoints = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/Azure.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/Azure.js
 var require_Azure = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/Azure.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/Azure.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.getAzureEnvironment = getAzureEnvironment;
@@ -2355,9 +2355,9 @@ var require_Azure = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/AzureCliCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/AzureCliCredentials.js
 var require_AzureCliCredentials = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/AzureCliCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/AzureCliCredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AzureCliCredentials = void 0;
@@ -2483,9 +2483,9 @@ var require_AzureCliCredentials = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/HostType.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/HostType.js
 var require_HostType = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/HostType.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/HostType.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ConfigType = exports.HostType = void 0;
@@ -2504,9 +2504,9 @@ var require_HostType = __commonJS({
   }
 });
 
-// node_modules/semver/internal/constants.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/internal/constants.js
 var require_constants = __commonJS({
-  "node_modules/semver/internal/constants.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/internal/constants.js"(exports, module) {
     "use strict";
     var SEMVER_SPEC_VERSION = "2.0.0";
     var MAX_LENGTH = 256;
@@ -2536,9 +2536,9 @@ var require_constants = __commonJS({
   }
 });
 
-// node_modules/semver/internal/debug.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/internal/debug.js
 var require_debug = __commonJS({
-  "node_modules/semver/internal/debug.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/internal/debug.js"(exports, module) {
     "use strict";
     var debug = typeof process === "object" && process.env && process.env.NODE_DEBUG && /\bsemver\b/i.test(process.env.NODE_DEBUG) ? (...args) => console.error("SEMVER", ...args) : () => {
     };
@@ -2546,9 +2546,9 @@ var require_debug = __commonJS({
   }
 });
 
-// node_modules/semver/internal/re.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/internal/re.js
 var require_re = __commonJS({
-  "node_modules/semver/internal/re.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/internal/re.js"(exports, module) {
     "use strict";
     var {
       MAX_SAFE_COMPONENT_LENGTH,
@@ -2634,9 +2634,9 @@ var require_re = __commonJS({
   }
 });
 
-// node_modules/semver/internal/parse-options.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/internal/parse-options.js
 var require_parse_options = __commonJS({
-  "node_modules/semver/internal/parse-options.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/internal/parse-options.js"(exports, module) {
     "use strict";
     var looseOption = Object.freeze({ loose: true });
     var emptyOpts = Object.freeze({});
@@ -2653,9 +2653,9 @@ var require_parse_options = __commonJS({
   }
 });
 
-// node_modules/semver/internal/identifiers.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/internal/identifiers.js
 var require_identifiers = __commonJS({
-  "node_modules/semver/internal/identifiers.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/internal/identifiers.js"(exports, module) {
     "use strict";
     var numeric = /^[0-9]+$/;
     var compareIdentifiers = (a, b) => {
@@ -2678,9 +2678,9 @@ var require_identifiers = __commonJS({
   }
 });
 
-// node_modules/semver/classes/semver.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/classes/semver.js
 var require_semver = __commonJS({
-  "node_modules/semver/classes/semver.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/classes/semver.js"(exports, module) {
     "use strict";
     var debug = require_debug();
     var { MAX_LENGTH, MAX_SAFE_INTEGER } = require_constants();
@@ -2957,9 +2957,9 @@ var require_semver = __commonJS({
   }
 });
 
-// node_modules/semver/functions/parse.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/parse.js
 var require_parse = __commonJS({
-  "node_modules/semver/functions/parse.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/parse.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var parse = (version, options, throwErrors = false) => {
@@ -2979,9 +2979,9 @@ var require_parse = __commonJS({
   }
 });
 
-// node_modules/semver/functions/valid.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/valid.js
 var require_valid = __commonJS({
-  "node_modules/semver/functions/valid.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/valid.js"(exports, module) {
     "use strict";
     var parse = require_parse();
     var valid = (version, options) => {
@@ -2992,9 +2992,9 @@ var require_valid = __commonJS({
   }
 });
 
-// node_modules/semver/functions/clean.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/clean.js
 var require_clean = __commonJS({
-  "node_modules/semver/functions/clean.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/clean.js"(exports, module) {
     "use strict";
     var parse = require_parse();
     var clean = (version, options) => {
@@ -3005,9 +3005,9 @@ var require_clean = __commonJS({
   }
 });
 
-// node_modules/semver/functions/inc.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/inc.js
 var require_inc = __commonJS({
-  "node_modules/semver/functions/inc.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/inc.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var inc = (version, release, options, identifier, identifierBase) => {
@@ -3029,9 +3029,9 @@ var require_inc = __commonJS({
   }
 });
 
-// node_modules/semver/functions/diff.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/diff.js
 var require_diff = __commonJS({
-  "node_modules/semver/functions/diff.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/diff.js"(exports, module) {
     "use strict";
     var parse = require_parse();
     var diff = (version1, version2) => {
@@ -3073,9 +3073,9 @@ var require_diff = __commonJS({
   }
 });
 
-// node_modules/semver/functions/major.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/major.js
 var require_major = __commonJS({
-  "node_modules/semver/functions/major.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/major.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var major = (a, loose) => new SemVer(a, loose).major;
@@ -3083,9 +3083,9 @@ var require_major = __commonJS({
   }
 });
 
-// node_modules/semver/functions/minor.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/minor.js
 var require_minor = __commonJS({
-  "node_modules/semver/functions/minor.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/minor.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var minor = (a, loose) => new SemVer(a, loose).minor;
@@ -3093,9 +3093,9 @@ var require_minor = __commonJS({
   }
 });
 
-// node_modules/semver/functions/patch.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/patch.js
 var require_patch = __commonJS({
-  "node_modules/semver/functions/patch.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/patch.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var patch = (a, loose) => new SemVer(a, loose).patch;
@@ -3103,9 +3103,9 @@ var require_patch = __commonJS({
   }
 });
 
-// node_modules/semver/functions/prerelease.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/prerelease.js
 var require_prerelease = __commonJS({
-  "node_modules/semver/functions/prerelease.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/prerelease.js"(exports, module) {
     "use strict";
     var parse = require_parse();
     var prerelease = (version, options) => {
@@ -3116,9 +3116,9 @@ var require_prerelease = __commonJS({
   }
 });
 
-// node_modules/semver/functions/compare.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/compare.js
 var require_compare = __commonJS({
-  "node_modules/semver/functions/compare.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/compare.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var compare = (a, b, loose) => new SemVer(a, loose).compare(new SemVer(b, loose));
@@ -3126,9 +3126,9 @@ var require_compare = __commonJS({
   }
 });
 
-// node_modules/semver/functions/rcompare.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/rcompare.js
 var require_rcompare = __commonJS({
-  "node_modules/semver/functions/rcompare.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/rcompare.js"(exports, module) {
     "use strict";
     var compare = require_compare();
     var rcompare = (a, b, loose) => compare(b, a, loose);
@@ -3136,9 +3136,9 @@ var require_rcompare = __commonJS({
   }
 });
 
-// node_modules/semver/functions/compare-loose.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/compare-loose.js
 var require_compare_loose = __commonJS({
-  "node_modules/semver/functions/compare-loose.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/compare-loose.js"(exports, module) {
     "use strict";
     var compare = require_compare();
     var compareLoose = (a, b) => compare(a, b, true);
@@ -3146,9 +3146,9 @@ var require_compare_loose = __commonJS({
   }
 });
 
-// node_modules/semver/functions/compare-build.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/compare-build.js
 var require_compare_build = __commonJS({
-  "node_modules/semver/functions/compare-build.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/compare-build.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var compareBuild = (a, b, loose) => {
@@ -3160,9 +3160,9 @@ var require_compare_build = __commonJS({
   }
 });
 
-// node_modules/semver/functions/sort.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/sort.js
 var require_sort = __commonJS({
-  "node_modules/semver/functions/sort.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/sort.js"(exports, module) {
     "use strict";
     var compareBuild = require_compare_build();
     var sort = (list, loose) => list.sort((a, b) => compareBuild(a, b, loose));
@@ -3170,9 +3170,9 @@ var require_sort = __commonJS({
   }
 });
 
-// node_modules/semver/functions/rsort.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/rsort.js
 var require_rsort = __commonJS({
-  "node_modules/semver/functions/rsort.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/rsort.js"(exports, module) {
     "use strict";
     var compareBuild = require_compare_build();
     var rsort = (list, loose) => list.sort((a, b) => compareBuild(b, a, loose));
@@ -3180,9 +3180,9 @@ var require_rsort = __commonJS({
   }
 });
 
-// node_modules/semver/functions/gt.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/gt.js
 var require_gt = __commonJS({
-  "node_modules/semver/functions/gt.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/gt.js"(exports, module) {
     "use strict";
     var compare = require_compare();
     var gt = (a, b, loose) => compare(a, b, loose) > 0;
@@ -3190,9 +3190,9 @@ var require_gt = __commonJS({
   }
 });
 
-// node_modules/semver/functions/lt.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/lt.js
 var require_lt = __commonJS({
-  "node_modules/semver/functions/lt.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/lt.js"(exports, module) {
     "use strict";
     var compare = require_compare();
     var lt = (a, b, loose) => compare(a, b, loose) < 0;
@@ -3200,9 +3200,9 @@ var require_lt = __commonJS({
   }
 });
 
-// node_modules/semver/functions/eq.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/eq.js
 var require_eq = __commonJS({
-  "node_modules/semver/functions/eq.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/eq.js"(exports, module) {
     "use strict";
     var compare = require_compare();
     var eq = (a, b, loose) => compare(a, b, loose) === 0;
@@ -3210,9 +3210,9 @@ var require_eq = __commonJS({
   }
 });
 
-// node_modules/semver/functions/neq.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/neq.js
 var require_neq = __commonJS({
-  "node_modules/semver/functions/neq.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/neq.js"(exports, module) {
     "use strict";
     var compare = require_compare();
     var neq = (a, b, loose) => compare(a, b, loose) !== 0;
@@ -3220,9 +3220,9 @@ var require_neq = __commonJS({
   }
 });
 
-// node_modules/semver/functions/gte.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/gte.js
 var require_gte = __commonJS({
-  "node_modules/semver/functions/gte.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/gte.js"(exports, module) {
     "use strict";
     var compare = require_compare();
     var gte = (a, b, loose) => compare(a, b, loose) >= 0;
@@ -3230,9 +3230,9 @@ var require_gte = __commonJS({
   }
 });
 
-// node_modules/semver/functions/lte.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/lte.js
 var require_lte = __commonJS({
-  "node_modules/semver/functions/lte.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/lte.js"(exports, module) {
     "use strict";
     var compare = require_compare();
     var lte = (a, b, loose) => compare(a, b, loose) <= 0;
@@ -3240,9 +3240,9 @@ var require_lte = __commonJS({
   }
 });
 
-// node_modules/semver/functions/cmp.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/cmp.js
 var require_cmp = __commonJS({
-  "node_modules/semver/functions/cmp.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/cmp.js"(exports, module) {
     "use strict";
     var eq = require_eq();
     var neq = require_neq();
@@ -3290,9 +3290,9 @@ var require_cmp = __commonJS({
   }
 });
 
-// node_modules/semver/functions/coerce.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/coerce.js
 var require_coerce = __commonJS({
-  "node_modules/semver/functions/coerce.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/coerce.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var parse = require_parse();
@@ -3336,9 +3336,9 @@ var require_coerce = __commonJS({
   }
 });
 
-// node_modules/semver/internal/lrucache.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/internal/lrucache.js
 var require_lrucache = __commonJS({
-  "node_modules/semver/internal/lrucache.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/internal/lrucache.js"(exports, module) {
     "use strict";
     var LRUCache = class {
       constructor() {
@@ -3374,9 +3374,9 @@ var require_lrucache = __commonJS({
   }
 });
 
-// node_modules/semver/classes/range.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/classes/range.js
 var require_range = __commonJS({
-  "node_modules/semver/classes/range.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/classes/range.js"(exports, module) {
     "use strict";
     var SPACE_CHARACTERS = /\s+/g;
     var Range = class _Range {
@@ -3751,9 +3751,9 @@ var require_range = __commonJS({
   }
 });
 
-// node_modules/semver/classes/comparator.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/classes/comparator.js
 var require_comparator = __commonJS({
-  "node_modules/semver/classes/comparator.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/classes/comparator.js"(exports, module) {
     "use strict";
     var ANY = Symbol("SemVer ANY");
     var Comparator = class _Comparator {
@@ -3864,9 +3864,9 @@ var require_comparator = __commonJS({
   }
 });
 
-// node_modules/semver/functions/satisfies.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/functions/satisfies.js
 var require_satisfies = __commonJS({
-  "node_modules/semver/functions/satisfies.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/functions/satisfies.js"(exports, module) {
     "use strict";
     var Range = require_range();
     var satisfies = (version, range, options) => {
@@ -3881,9 +3881,9 @@ var require_satisfies = __commonJS({
   }
 });
 
-// node_modules/semver/ranges/to-comparators.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/to-comparators.js
 var require_to_comparators = __commonJS({
-  "node_modules/semver/ranges/to-comparators.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/to-comparators.js"(exports, module) {
     "use strict";
     var Range = require_range();
     var toComparators = (range, options) => new Range(range, options).set.map((comp) => comp.map((c) => c.value).join(" ").trim().split(" "));
@@ -3891,9 +3891,9 @@ var require_to_comparators = __commonJS({
   }
 });
 
-// node_modules/semver/ranges/max-satisfying.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/max-satisfying.js
 var require_max_satisfying = __commonJS({
-  "node_modules/semver/ranges/max-satisfying.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/max-satisfying.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var Range = require_range();
@@ -3920,9 +3920,9 @@ var require_max_satisfying = __commonJS({
   }
 });
 
-// node_modules/semver/ranges/min-satisfying.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/min-satisfying.js
 var require_min_satisfying = __commonJS({
-  "node_modules/semver/ranges/min-satisfying.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/min-satisfying.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var Range = require_range();
@@ -3949,9 +3949,9 @@ var require_min_satisfying = __commonJS({
   }
 });
 
-// node_modules/semver/ranges/min-version.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/min-version.js
 var require_min_version = __commonJS({
-  "node_modules/semver/ranges/min-version.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/min-version.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var Range = require_range();
@@ -4008,9 +4008,9 @@ var require_min_version = __commonJS({
   }
 });
 
-// node_modules/semver/ranges/valid.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/valid.js
 var require_valid2 = __commonJS({
-  "node_modules/semver/ranges/valid.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/valid.js"(exports, module) {
     "use strict";
     var Range = require_range();
     var validRange = (range, options) => {
@@ -4024,9 +4024,9 @@ var require_valid2 = __commonJS({
   }
 });
 
-// node_modules/semver/ranges/outside.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/outside.js
 var require_outside = __commonJS({
-  "node_modules/semver/ranges/outside.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/outside.js"(exports, module) {
     "use strict";
     var SemVer = require_semver();
     var Comparator = require_comparator();
@@ -4093,9 +4093,9 @@ var require_outside = __commonJS({
   }
 });
 
-// node_modules/semver/ranges/gtr.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/gtr.js
 var require_gtr = __commonJS({
-  "node_modules/semver/ranges/gtr.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/gtr.js"(exports, module) {
     "use strict";
     var outside = require_outside();
     var gtr = (version, range, options) => outside(version, range, ">", options);
@@ -4103,9 +4103,9 @@ var require_gtr = __commonJS({
   }
 });
 
-// node_modules/semver/ranges/ltr.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/ltr.js
 var require_ltr = __commonJS({
-  "node_modules/semver/ranges/ltr.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/ltr.js"(exports, module) {
     "use strict";
     var outside = require_outside();
     var ltr = (version, range, options) => outside(version, range, "<", options);
@@ -4113,9 +4113,9 @@ var require_ltr = __commonJS({
   }
 });
 
-// node_modules/semver/ranges/intersects.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/intersects.js
 var require_intersects = __commonJS({
-  "node_modules/semver/ranges/intersects.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/intersects.js"(exports, module) {
     "use strict";
     var Range = require_range();
     var intersects = (r1, r2, options) => {
@@ -4127,9 +4127,9 @@ var require_intersects = __commonJS({
   }
 });
 
-// node_modules/semver/ranges/simplify.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/simplify.js
 var require_simplify = __commonJS({
-  "node_modules/semver/ranges/simplify.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/simplify.js"(exports, module) {
     "use strict";
     var satisfies = require_satisfies();
     var compare = require_compare();
@@ -4177,9 +4177,9 @@ var require_simplify = __commonJS({
   }
 });
 
-// node_modules/semver/ranges/subset.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/subset.js
 var require_subset = __commonJS({
-  "node_modules/semver/ranges/subset.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/ranges/subset.js"(exports, module) {
     "use strict";
     var Range = require_range();
     var Comparator = require_comparator();
@@ -4339,9 +4339,9 @@ var require_subset = __commonJS({
   }
 });
 
-// node_modules/semver/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/semver/index.js
 var require_semver2 = __commonJS({
-  "node_modules/semver/index.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/semver/index.js"(exports, module) {
     "use strict";
     var internalRe = require_re();
     var constants = require_constants();
@@ -4434,9 +4434,9 @@ var require_semver2 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/DatabricksCliCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/DatabricksCliCredentials.js
 var require_DatabricksCliCredentials = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/DatabricksCliCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/DatabricksCliCredentials.js"(exports) {
     "use strict";
     var __importDefault = exports && exports.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -4539,9 +4539,9 @@ var require_DatabricksCliCredentials = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/MetadataServiceCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/MetadataServiceCredentials.js
 var require_MetadataServiceCredentials = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/MetadataServiceCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/MetadataServiceCredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MetadataServiceCredentials = exports.MetadataServiceHostHeader = exports.MetadataServiceVersionHeader = exports.MetadataServiceVersion = void 0;
@@ -4618,9 +4618,9 @@ var require_MetadataServiceCredentials = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/PatCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/PatCredentials.js
 var require_PatCredentials = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/PatCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/PatCredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PatCredentials = void 0;
@@ -4641,9 +4641,9 @@ var require_PatCredentials = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/M2mCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/M2mCredentials.js
 var require_M2mCredentials = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/M2mCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/M2mCredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.M2mCredentials = void 0;
@@ -4681,9 +4681,9 @@ var require_M2mCredentials = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/AzureClientSecretCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/AzureClientSecretCredentials.js
 var require_AzureClientSecretCredentials = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/AzureClientSecretCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/AzureClientSecretCredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AzureClientSecretCredentials = void 0;
@@ -4723,9 +4723,9 @@ var require_AzureClientSecretCredentials = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/AzureMsiCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/AzureMsiCredentials.js
 var require_AzureMsiCredentials = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/AzureMsiCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/AzureMsiCredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AzureMsiToken = exports.AzureMsiCredentials = void 0;
@@ -4820,9 +4820,9 @@ var require_AzureMsiCredentials = __commonJS({
   }
 });
 
-// node_modules/extend/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/extend/index.js
 var require_extend = __commonJS({
-  "node_modules/extend/index.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/extend/index.js"(exports, module) {
     "use strict";
     var hasOwn = Object.prototype.hasOwnProperty;
     var toStr = Object.prototype.toString;
@@ -4911,9 +4911,9 @@ var require_extend = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/node_modules/gaxios/package.json
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/package.json
 var require_package = __commonJS({
-  "node_modules/google-auth-library/node_modules/gaxios/package.json"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/package.json"(exports, module) {
     module.exports = {
       name: "gaxios",
       version: "7.1.3",
@@ -5025,18 +5025,18 @@ var require_package = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/util.cjs
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/util.cjs
 var require_util = __commonJS({
-  "node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/util.cjs"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/util.cjs"(exports, module) {
     "use strict";
     var pkg = require_package();
     module.exports = { pkg };
   }
 });
 
-// node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/common.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/common.js
 var require_common = __commonJS({
-  "node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/common.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/common.js"(exports) {
     "use strict";
     var __importDefault = exports && exports.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -5276,9 +5276,9 @@ var require_common = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/retry.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/retry.js
 var require_retry = __commonJS({
-  "node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/retry.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/retry.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.getRetryConfig = getRetryConfig;
@@ -5381,9 +5381,9 @@ var require_retry = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/interceptor.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/interceptor.js
 var require_interceptor = __commonJS({
-  "node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/interceptor.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/interceptor.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GaxiosInterceptorManager = void 0;
@@ -5393,9 +5393,9 @@ var require_interceptor = __commonJS({
   }
 });
 
-// node_modules/ms/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/ms/index.js
 var require_ms = __commonJS({
-  "node_modules/ms/index.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/ms/index.js"(exports, module) {
     var s2 = 1e3;
     var m2 = s2 * 60;
     var h2 = m2 * 60;
@@ -5509,9 +5509,9 @@ var require_ms = __commonJS({
   }
 });
 
-// node_modules/debug/src/common.js
+// ../../player-insights-agent/player-insights-agent/node_modules/debug/src/common.js
 var require_common2 = __commonJS({
-  "node_modules/debug/src/common.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/debug/src/common.js"(exports, module) {
     function setup(env) {
       createDebug.debug = createDebug;
       createDebug.default = createDebug;
@@ -5686,9 +5686,9 @@ var require_common2 = __commonJS({
   }
 });
 
-// node_modules/debug/src/browser.js
+// ../../player-insights-agent/player-insights-agent/node_modules/debug/src/browser.js
 var require_browser = __commonJS({
-  "node_modules/debug/src/browser.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/debug/src/browser.js"(exports, module) {
     exports.formatArgs = formatArgs;
     exports.save = save;
     exports.load = load;
@@ -5856,9 +5856,9 @@ var require_browser = __commonJS({
   }
 });
 
-// node_modules/has-flag/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/has-flag/index.js
 var require_has_flag = __commonJS({
-  "node_modules/has-flag/index.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/has-flag/index.js"(exports, module) {
     "use strict";
     module.exports = (flag, argv = process.argv) => {
       const prefix = flag.startsWith("-") ? "" : flag.length === 1 ? "-" : "--";
@@ -5869,9 +5869,9 @@ var require_has_flag = __commonJS({
   }
 });
 
-// node_modules/supports-color/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/supports-color/index.js
 var require_supports_color = __commonJS({
-  "node_modules/supports-color/index.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/supports-color/index.js"(exports, module) {
     "use strict";
     var os = __require("os");
     var tty = __require("tty");
@@ -5971,9 +5971,9 @@ var require_supports_color = __commonJS({
   }
 });
 
-// node_modules/debug/src/node.js
+// ../../player-insights-agent/player-insights-agent/node_modules/debug/src/node.js
 var require_node = __commonJS({
-  "node_modules/debug/src/node.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/debug/src/node.js"(exports, module) {
     var tty = __require("tty");
     var util = __require("util");
     exports.init = init;
@@ -6145,9 +6145,9 @@ var require_node = __commonJS({
   }
 });
 
-// node_modules/debug/src/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/debug/src/index.js
 var require_src = __commonJS({
-  "node_modules/debug/src/index.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/debug/src/index.js"(exports, module) {
     if (typeof process === "undefined" || process.type === "renderer" || process.browser === true || process.__nwjs) {
       module.exports = require_browser();
     } else {
@@ -6156,9 +6156,9 @@ var require_src = __commonJS({
   }
 });
 
-// node_modules/agent-base/dist/helpers.js
+// ../../player-insights-agent/player-insights-agent/node_modules/agent-base/dist/helpers.js
 var require_helpers = __commonJS({
-  "node_modules/agent-base/dist/helpers.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/agent-base/dist/helpers.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -6226,9 +6226,9 @@ var require_helpers = __commonJS({
   }
 });
 
-// node_modules/agent-base/dist/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/agent-base/dist/index.js
 var require_dist = __commonJS({
-  "node_modules/agent-base/dist/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/agent-base/dist/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -6382,9 +6382,9 @@ var require_dist = __commonJS({
   }
 });
 
-// node_modules/https-proxy-agent/dist/parse-proxy-response.js
+// ../../player-insights-agent/player-insights-agent/node_modules/https-proxy-agent/dist/parse-proxy-response.js
 var require_parse_proxy_response = __commonJS({
-  "node_modules/https-proxy-agent/dist/parse-proxy-response.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/https-proxy-agent/dist/parse-proxy-response.js"(exports) {
     "use strict";
     var __importDefault = exports && exports.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -6478,9 +6478,9 @@ var require_parse_proxy_response = __commonJS({
   }
 });
 
-// node_modules/https-proxy-agent/dist/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/https-proxy-agent/dist/index.js
 var require_dist2 = __commonJS({
-  "node_modules/https-proxy-agent/dist/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/https-proxy-agent/dist/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -6628,7 +6628,7 @@ var require_dist2 = __commonJS({
   }
 });
 
-// node_modules/data-uri-to-buffer/dist/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/data-uri-to-buffer/dist/index.js
 function dataUriToBuffer(uri) {
   if (!/^data:/i.test(uri)) {
     throw new TypeError('`uri` does not appear to be a Data URI (must begin with "data:")');
@@ -6667,14 +6667,14 @@ function dataUriToBuffer(uri) {
 }
 var dist_default;
 var init_dist = __esm({
-  "node_modules/data-uri-to-buffer/dist/index.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/data-uri-to-buffer/dist/index.js"() {
     dist_default = dataUriToBuffer;
   }
 });
 
-// node_modules/web-streams-polyfill/dist/ponyfill.es2018.js
+// ../../player-insights-agent/player-insights-agent/node_modules/web-streams-polyfill/dist/ponyfill.es2018.js
 var require_ponyfill_es2018 = __commonJS({
-  "node_modules/web-streams-polyfill/dist/ponyfill.es2018.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/web-streams-polyfill/dist/ponyfill.es2018.js"(exports, module) {
     (function(global2, factory) {
       typeof exports === "object" && typeof module !== "undefined" ? factory(exports) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global2 = typeof globalThis !== "undefined" ? globalThis : global2 || self, factory(global2.WebStreamsPolyfill = {}));
     })(exports, (function(exports2) {
@@ -10947,9 +10947,9 @@ var require_ponyfill_es2018 = __commonJS({
   }
 });
 
-// node_modules/fetch-blob/streams.cjs
+// ../../player-insights-agent/player-insights-agent/node_modules/fetch-blob/streams.cjs
 var require_streams = __commonJS({
-  "node_modules/fetch-blob/streams.cjs"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/fetch-blob/streams.cjs"() {
     var POOL_SIZE2 = 65536;
     if (!globalThis.ReadableStream) {
       try {
@@ -10993,7 +10993,7 @@ var require_streams = __commonJS({
   }
 });
 
-// node_modules/fetch-blob/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/fetch-blob/index.js
 async function* toIterator(parts, clone2 = true) {
   for (const part of parts) {
     if ("stream" in part) {
@@ -11030,7 +11030,7 @@ async function* toIterator(parts, clone2 = true) {
 }
 var import_streams, POOL_SIZE, _Blob, Blob3, fetch_blob_default;
 var init_fetch_blob = __esm({
-  "node_modules/fetch-blob/index.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/fetch-blob/index.js"() {
     import_streams = __toESM(require_streams(), 1);
     POOL_SIZE = 65536;
     _Blob = class Blob2 {
@@ -11197,10 +11197,10 @@ var init_fetch_blob = __esm({
   }
 });
 
-// node_modules/fetch-blob/file.js
+// ../../player-insights-agent/player-insights-agent/node_modules/fetch-blob/file.js
 var _File, File3, file_default;
 var init_file = __esm({
-  "node_modules/fetch-blob/file.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/fetch-blob/file.js"() {
     init_fetch_blob();
     _File = class File2 extends fetch_blob_default {
       #lastModified = 0;
@@ -11241,7 +11241,7 @@ var init_file = __esm({
   }
 });
 
-// node_modules/formdata-polyfill/esm.min.js
+// ../../player-insights-agent/player-insights-agent/node_modules/formdata-polyfill/esm.min.js
 function formDataToBlob(F2, B = fetch_blob_default) {
   var b = `${r()}${r()}`.replace(/\./g, "").slice(-28).padStart(32, "-"), c = [], p = `--${b}\r
 Content-Disposition: form-data; name="`;
@@ -11257,7 +11257,7 @@ Content-Type: ${v.type || "application/octet-stream"}\r
 }
 var t, i, h, r, m, f, e, x, FormData2;
 var init_esm_min = __esm({
-  "node_modules/formdata-polyfill/esm.min.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/formdata-polyfill/esm.min.js"() {
     init_fetch_blob();
     init_file();
     ({ toStringTag: t, iterator: i, hasInstance: h } = Symbol);
@@ -11338,10 +11338,10 @@ var init_esm_min = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/errors/base.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/errors/base.js
 var FetchBaseError;
 var init_base = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/errors/base.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/errors/base.js"() {
     FetchBaseError = class extends Error {
       constructor(message, type) {
         super(message);
@@ -11358,10 +11358,10 @@ var init_base = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/errors/fetch-error.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/errors/fetch-error.js
 var FetchError;
 var init_fetch_error = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/errors/fetch-error.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/errors/fetch-error.js"() {
     init_base();
     FetchError = class extends FetchBaseError {
       /**
@@ -11380,10 +11380,10 @@ var init_fetch_error = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/utils/is.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/utils/is.js
 var NAME, isURLSearchParameters, isBlob, isAbortSignal, isDomainOrSubdomain, isSameProtocol;
 var init_is = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/utils/is.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/utils/is.js"() {
     NAME = Symbol.toStringTag;
     isURLSearchParameters = (object) => {
       return typeof object === "object" && typeof object.append === "function" && typeof object.delete === "function" && typeof object.get === "function" && typeof object.getAll === "function" && typeof object.has === "function" && typeof object.set === "function" && typeof object.sort === "function" && object[NAME] === "URLSearchParams";
@@ -11407,9 +11407,9 @@ var init_is = __esm({
   }
 });
 
-// node_modules/node-domexception/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/node-domexception/index.js
 var require_node_domexception = __commonJS({
-  "node_modules/node-domexception/index.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/node-domexception/index.js"(exports, module) {
     if (!globalThis.DOMException) {
       try {
         const { MessageChannel } = __require("worker_threads"), port = new MessageChannel().port1, ab = new ArrayBuffer();
@@ -11422,12 +11422,12 @@ var require_node_domexception = __commonJS({
   }
 });
 
-// node_modules/fetch-blob/from.js
+// ../../player-insights-agent/player-insights-agent/node_modules/fetch-blob/from.js
 import { statSync, createReadStream, promises as fs } from "node:fs";
 import { basename } from "node:path";
 var import_node_domexception, stat, blobFromSync, blobFrom, fileFrom, fileFromSync, fromBlob, fromFile, BlobDataItem;
 var init_from = __esm({
-  "node_modules/fetch-blob/from.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/fetch-blob/from.js"() {
     import_node_domexception = __toESM(require_node_domexception(), 1);
     init_file();
     init_fetch_blob();
@@ -11486,7 +11486,7 @@ var init_from = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/utils/multipart-parser.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/utils/multipart-parser.js
 var multipart_parser_exports = {};
 __export(multipart_parser_exports, {
   toFormData: () => toFormData
@@ -11580,7 +11580,7 @@ async function toFormData(Body2, ct) {
 }
 var s, S, f2, F, LF, CR, SPACE, HYPHEN, COLON, A, Z, lower, noop, MultipartParser;
 var init_multipart_parser = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/utils/multipart-parser.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/utils/multipart-parser.js"() {
     init_from();
     init_esm_min();
     s = 0;
@@ -11848,7 +11848,7 @@ var init_multipart_parser = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/body.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/body.js
 import Stream, { PassThrough } from "node:stream";
 import { types, deprecate, promisify } from "node:util";
 import { Buffer as Buffer2 } from "node:buffer";
@@ -11898,7 +11898,7 @@ async function consumeBody(data) {
 }
 var pipeline, INTERNALS, Body, clone, getNonSpecFormDataBoundary, extractContentType, getTotalBytes, writeToStream;
 var init_body = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/body.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/body.js"() {
     init_fetch_blob();
     init_esm_min();
     init_fetch_error();
@@ -12106,7 +12106,7 @@ var init_body = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/headers.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/headers.js
 import { types as types2 } from "node:util";
 import http from "node:http";
 function fromRawHeaders(headers = []) {
@@ -12129,7 +12129,7 @@ function fromRawHeaders(headers = []) {
 }
 var validateHeaderName, validateHeaderValue, Headers2;
 var init_headers = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/headers.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/headers.js"() {
     validateHeaderName = typeof http.validateHeaderName === "function" ? http.validateHeaderName : (name) => {
       if (!/^[\^`\-\w!#$%&'*+.|~]+$/.test(name)) {
         const error = new TypeError(`Header name must be a valid HTTP token [${name}]`);
@@ -12297,10 +12297,10 @@ var init_headers = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/utils/is-redirect.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/utils/is-redirect.js
 var redirectStatus, isRedirect;
 var init_is_redirect = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/utils/is-redirect.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/utils/is-redirect.js"() {
     redirectStatus = /* @__PURE__ */ new Set([301, 302, 303, 307, 308]);
     isRedirect = (code) => {
       return redirectStatus.has(code);
@@ -12308,10 +12308,10 @@ var init_is_redirect = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/response.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/response.js
 var INTERNALS2, Response;
 var init_response = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/response.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/response.js"() {
     init_headers();
     init_body();
     init_is_redirect();
@@ -12434,10 +12434,10 @@ var init_response = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/utils/get-search.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/utils/get-search.js
 var getSearch;
 var init_get_search = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/utils/get-search.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/utils/get-search.js"() {
     getSearch = (parsedURL) => {
       if (parsedURL.search) {
         return parsedURL.search;
@@ -12449,7 +12449,7 @@ var init_get_search = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/utils/referrer.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/utils/referrer.js
 import { isIP } from "node:net";
 function stripURLForUseAsAReferrer(url, originOnly = false) {
   if (url == null) {
@@ -12578,7 +12578,7 @@ function parseReferrerPolicyFromHeader(headers) {
 }
 var ReferrerPolicy, DEFAULT_REFERRER_POLICY;
 var init_referrer = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/utils/referrer.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/utils/referrer.js"() {
     ReferrerPolicy = /* @__PURE__ */ new Set([
       "",
       "no-referrer",
@@ -12594,12 +12594,12 @@ var init_referrer = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/request.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/request.js
 import { format as formatUrl } from "node:url";
 import { deprecate as deprecate2 } from "node:util";
 var INTERNALS3, isRequest, doBadDataWarn, Request, getNodeRequestOptions;
 var init_request = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/request.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/request.js"() {
     init_headers();
     init_body();
     init_is();
@@ -12799,10 +12799,10 @@ var init_request = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/errors/abort-error.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/errors/abort-error.js
 var AbortError;
 var init_abort_error = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/errors/abort-error.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/errors/abort-error.js"() {
     init_base();
     AbortError = class extends FetchBaseError {
       constructor(message, type = "aborted") {
@@ -12812,7 +12812,7 @@ var init_abort_error = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/node-fetch/src/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/index.js
 var src_exports = {};
 __export(src_exports, {
   AbortError: () => AbortError,
@@ -13098,7 +13098,7 @@ function fixResponseChunkedTransferBadEnding(request, errorCallback) {
 }
 var supportedSchemas;
 var init_src = __esm({
-  "node_modules/google-auth-library/node_modules/node-fetch/src/index.js"() {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/node-fetch/src/index.js"() {
     init_dist();
     init_body();
     init_response();
@@ -13115,9 +13115,9 @@ var init_src = __esm({
   }
 });
 
-// node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/gaxios.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/gaxios.js
 var require_gaxios = __commonJS({
-  "node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/gaxios.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/gaxios.js"(exports) {
     "use strict";
     var __importDefault = exports && exports.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -13589,9 +13589,9 @@ Content-Type: ${partContentType}\r
   }
 });
 
-// node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/index.js
 var require_src2 = __commonJS({
-  "node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gaxios/build/cjs/src/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -13628,9 +13628,9 @@ var require_src2 = __commonJS({
   }
 });
 
-// node_modules/bignumber.js/bignumber.js
+// ../../player-insights-agent/player-insights-agent/node_modules/bignumber.js/bignumber.js
 var require_bignumber = __commonJS({
-  "node_modules/bignumber.js/bignumber.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/bignumber.js/bignumber.js"(exports, module) {
     (function(globalObject) {
       "use strict";
       var BigNumber, isNumeric = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i, mathceil = Math.ceil, mathfloor = Math.floor, bignumberError = "[BigNumber Error] ", tooManyDigits = bignumberError + "Number primitive has more than 15 significant digits: ", BASE = 1e14, LOG_BASE = 14, MAX_SAFE_INTEGER = 9007199254740991, POWS_TEN = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13], SQRT_BASE = 1e7, MAX = 1e9;
@@ -14979,9 +14979,9 @@ var require_bignumber = __commonJS({
   }
 });
 
-// node_modules/json-bigint/lib/stringify.js
+// ../../player-insights-agent/player-insights-agent/node_modules/json-bigint/lib/stringify.js
 var require_stringify = __commonJS({
-  "node_modules/json-bigint/lib/stringify.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/json-bigint/lib/stringify.js"(exports, module) {
     var BigNumber = require_bignumber();
     var JSON2 = module.exports;
     (function() {
@@ -15091,9 +15091,9 @@ var require_stringify = __commonJS({
   }
 });
 
-// node_modules/json-bigint/lib/parse.js
+// ../../player-insights-agent/player-insights-agent/node_modules/json-bigint/lib/parse.js
 var require_parse2 = __commonJS({
-  "node_modules/json-bigint/lib/parse.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/json-bigint/lib/parse.js"(exports, module) {
     var BigNumber = null;
     var suspectProtoRx = /(?:_|\\u005[Ff])(?:_|\\u005[Ff])(?:p|\\u0070)(?:r|\\u0072)(?:o|\\u006[Ff])(?:t|\\u0074)(?:o|\\u006[Ff])(?:_|\\u005[Ff])(?:_|\\u005[Ff])/;
     var suspectConstructorRx = /(?:c|\\u0063)(?:o|\\u006[Ff])(?:n|\\u006[Ee])(?:s|\\u0073)(?:t|\\u0074)(?:r|\\u0072)(?:u|\\u0075)(?:c|\\u0063)(?:t|\\u0074)(?:o|\\u006[Ff])(?:r|\\u0072)/;
@@ -15372,9 +15372,9 @@ var require_parse2 = __commonJS({
   }
 });
 
-// node_modules/json-bigint/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/json-bigint/index.js
 var require_json_bigint = __commonJS({
-  "node_modules/json-bigint/index.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/json-bigint/index.js"(exports, module) {
     var json_stringify = require_stringify().stringify;
     var json_parse = require_parse2();
     module.exports = function(options) {
@@ -15388,9 +15388,9 @@ var require_json_bigint = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/node_modules/gcp-metadata/build/src/gcp-residency.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gcp-metadata/build/src/gcp-residency.js
 var require_gcp_residency = __commonJS({
-  "node_modules/google-auth-library/node_modules/gcp-metadata/build/src/gcp-residency.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gcp-metadata/build/src/gcp-residency.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GCE_LINUX_BIOS_PATHS = void 0;
@@ -15443,9 +15443,9 @@ var require_gcp_residency = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/node_modules/google-logging-utils/build/src/colours.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/google-logging-utils/build/src/colours.js
 var require_colours = __commonJS({
-  "node_modules/google-auth-library/node_modules/google-logging-utils/build/src/colours.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/google-logging-utils/build/src/colours.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Colours = void 0;
@@ -15504,9 +15504,9 @@ var require_colours = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/node_modules/google-logging-utils/build/src/logging-utils.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/google-logging-utils/build/src/logging-utils.js
 var require_logging_utils = __commonJS({
-  "node_modules/google-auth-library/node_modules/google-logging-utils/build/src/logging-utils.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/google-logging-utils/build/src/logging-utils.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -15793,9 +15793,9 @@ var require_logging_utils = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/node_modules/google-logging-utils/build/src/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/google-logging-utils/build/src/index.js
 var require_src3 = __commonJS({
-  "node_modules/google-auth-library/node_modules/google-logging-utils/build/src/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/google-logging-utils/build/src/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -15818,9 +15818,9 @@ var require_src3 = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/node_modules/gcp-metadata/build/src/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gcp-metadata/build/src/index.js
 var require_src4 = __commonJS({
-  "node_modules/google-auth-library/node_modules/gcp-metadata/build/src/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/node_modules/gcp-metadata/build/src/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -16074,9 +16074,9 @@ var require_src4 = __commonJS({
   }
 });
 
-// node_modules/base64-js/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/base64-js/index.js
 var require_base64_js = __commonJS({
-  "node_modules/base64-js/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/base64-js/index.js"(exports) {
     "use strict";
     exports.byteLength = byteLength;
     exports.toByteArray = toByteArray;
@@ -16175,9 +16175,9 @@ var require_base64_js = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/crypto/shared.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/crypto/shared.js
 var require_shared = __commonJS({
-  "node_modules/google-auth-library/build/src/crypto/shared.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/crypto/shared.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.fromArrayBufferToHex = fromArrayBufferToHex;
@@ -16190,9 +16190,9 @@ var require_shared = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/crypto/browser/crypto.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/crypto/browser/crypto.js
 var require_crypto = __commonJS({
-  "node_modules/google-auth-library/build/src/crypto/browser/crypto.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/crypto/browser/crypto.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BrowserCrypto = void 0;
@@ -16286,9 +16286,9 @@ var require_crypto = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/crypto/node/crypto.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/crypto/node/crypto.js
 var require_crypto2 = __commonJS({
-  "node_modules/google-auth-library/build/src/crypto/node/crypto.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/crypto/node/crypto.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NodeCrypto = void 0;
@@ -16355,9 +16355,9 @@ var require_crypto2 = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/crypto/crypto.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/crypto/crypto.js
 var require_crypto3 = __commonJS({
-  "node_modules/google-auth-library/build/src/crypto/crypto.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/crypto/crypto.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -16393,9 +16393,9 @@ var require_crypto3 = __commonJS({
   }
 });
 
-// node_modules/safe-buffer/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/safe-buffer/index.js
 var require_safe_buffer = __commonJS({
-  "node_modules/safe-buffer/index.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/safe-buffer/index.js"(exports, module) {
     var buffer = __require("buffer");
     var Buffer4 = buffer.Buffer;
     function copyProps(src, dst) {
@@ -16451,9 +16451,9 @@ var require_safe_buffer = __commonJS({
   }
 });
 
-// node_modules/ecdsa-sig-formatter/src/param-bytes-for-alg.js
+// ../../player-insights-agent/player-insights-agent/node_modules/ecdsa-sig-formatter/src/param-bytes-for-alg.js
 var require_param_bytes_for_alg = __commonJS({
-  "node_modules/ecdsa-sig-formatter/src/param-bytes-for-alg.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/ecdsa-sig-formatter/src/param-bytes-for-alg.js"(exports, module) {
     "use strict";
     function getParamSize(keySize) {
       var result = (keySize / 8 | 0) + (keySize % 8 === 0 ? 0 : 1);
@@ -16475,9 +16475,9 @@ var require_param_bytes_for_alg = __commonJS({
   }
 });
 
-// node_modules/ecdsa-sig-formatter/src/ecdsa-sig-formatter.js
+// ../../player-insights-agent/player-insights-agent/node_modules/ecdsa-sig-formatter/src/ecdsa-sig-formatter.js
 var require_ecdsa_sig_formatter = __commonJS({
-  "node_modules/ecdsa-sig-formatter/src/ecdsa-sig-formatter.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/ecdsa-sig-formatter/src/ecdsa-sig-formatter.js"(exports, module) {
     "use strict";
     var Buffer4 = require_safe_buffer().Buffer;
     var getParamBytesForAlg = require_param_bytes_for_alg();
@@ -16615,9 +16615,9 @@ var require_ecdsa_sig_formatter = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/util.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/util.js
 var require_util2 = __commonJS({
-  "node_modules/google-auth-library/build/src/util.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/util.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LRUCache = void 0;
@@ -16730,9 +16730,9 @@ var require_util2 = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/package.json
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/package.json
 var require_package2 = __commonJS({
-  "node_modules/google-auth-library/package.json"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/package.json"(exports, module) {
     module.exports = {
       name: "google-auth-library",
       version: "10.6.1",
@@ -16828,9 +16828,9 @@ var require_package2 = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/shared.cjs
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/shared.cjs
 var require_shared2 = __commonJS({
-  "node_modules/google-auth-library/build/src/shared.cjs"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/shared.cjs"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.USER_AGENT = exports.PRODUCT_NAME = exports.pkg = void 0;
@@ -16843,9 +16843,9 @@ var require_shared2 = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/authclient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/authclient.js
 var require_authclient = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/authclient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/authclient.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AuthClient = exports.DEFAULT_EAGER_REFRESH_THRESHOLD_MILLIS = exports.DEFAULT_UNIVERSE = void 0;
@@ -17078,9 +17078,9 @@ var require_authclient = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/loginticket.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/loginticket.js
 var require_loginticket = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/loginticket.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/loginticket.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LoginTicket = void 0;
@@ -17130,9 +17130,9 @@ var require_loginticket = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/oauth2client.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/oauth2client.js
 var require_oauth2client = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/oauth2client.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/oauth2client.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.OAuth2Client = exports.ClientAuthentication = exports.CertificateFormat = exports.CodeChallengeMethod = void 0;
@@ -17811,9 +17811,9 @@ var require_oauth2client = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/computeclient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/computeclient.js
 var require_computeclient = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/computeclient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/computeclient.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Compute = void 0;
@@ -17903,9 +17903,9 @@ var require_computeclient = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/idtokenclient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/idtokenclient.js
 var require_idtokenclient = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/idtokenclient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/idtokenclient.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IdTokenClient = void 0;
@@ -17949,9 +17949,9 @@ var require_idtokenclient = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/envDetect.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/envDetect.js
 var require_envDetect = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/envDetect.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/envDetect.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GCPEnv = void 0;
@@ -18026,9 +18026,9 @@ var require_envDetect = __commonJS({
   }
 });
 
-// node_modules/jws/lib/data-stream.js
+// ../../player-insights-agent/player-insights-agent/node_modules/jws/lib/data-stream.js
 var require_data_stream = __commonJS({
-  "node_modules/jws/lib/data-stream.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/jws/lib/data-stream.js"(exports, module) {
     var Buffer4 = require_safe_buffer().Buffer;
     var Stream3 = __require("stream");
     var util = __require("util");
@@ -18074,9 +18074,9 @@ var require_data_stream = __commonJS({
   }
 });
 
-// node_modules/buffer-equal-constant-time/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/buffer-equal-constant-time/index.js
 var require_buffer_equal_constant_time = __commonJS({
-  "node_modules/buffer-equal-constant-time/index.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/buffer-equal-constant-time/index.js"(exports, module) {
     "use strict";
     var Buffer4 = __require("buffer").Buffer;
     var SlowBuffer = __require("buffer").SlowBuffer;
@@ -18108,9 +18108,9 @@ var require_buffer_equal_constant_time = __commonJS({
   }
 });
 
-// node_modules/jwa/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/jwa/index.js
 var require_jwa = __commonJS({
-  "node_modules/jwa/index.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/jwa/index.js"(exports, module) {
     var Buffer4 = require_safe_buffer().Buffer;
     var crypto2 = __require("crypto");
     var formatEcdsa = require_ecdsa_sig_formatter();
@@ -18332,9 +18332,9 @@ var require_jwa = __commonJS({
   }
 });
 
-// node_modules/jws/lib/tostring.js
+// ../../player-insights-agent/player-insights-agent/node_modules/jws/lib/tostring.js
 var require_tostring = __commonJS({
-  "node_modules/jws/lib/tostring.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/jws/lib/tostring.js"(exports, module) {
     var Buffer4 = __require("buffer").Buffer;
     module.exports = function toString(obj) {
       if (typeof obj === "string")
@@ -18346,9 +18346,9 @@ var require_tostring = __commonJS({
   }
 });
 
-// node_modules/jws/lib/sign-stream.js
+// ../../player-insights-agent/player-insights-agent/node_modules/jws/lib/sign-stream.js
 var require_sign_stream = __commonJS({
-  "node_modules/jws/lib/sign-stream.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/jws/lib/sign-stream.js"(exports, module) {
     var Buffer4 = require_safe_buffer().Buffer;
     var DataStream = require_data_stream();
     var jwa = require_jwa();
@@ -18421,9 +18421,9 @@ var require_sign_stream = __commonJS({
   }
 });
 
-// node_modules/jws/lib/verify-stream.js
+// ../../player-insights-agent/player-insights-agent/node_modules/jws/lib/verify-stream.js
 var require_verify_stream = __commonJS({
-  "node_modules/jws/lib/verify-stream.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/jws/lib/verify-stream.js"(exports, module) {
     var Buffer4 = require_safe_buffer().Buffer;
     var DataStream = require_data_stream();
     var jwa = require_jwa();
@@ -18536,9 +18536,9 @@ var require_verify_stream = __commonJS({
   }
 });
 
-// node_modules/jws/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/jws/index.js
 var require_jws = __commonJS({
-  "node_modules/jws/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/jws/index.js"(exports) {
     var SignStream = require_sign_stream();
     var VerifyStream = require_verify_stream();
     var ALGORITHMS = [
@@ -18569,9 +18569,9 @@ var require_jws = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/gtoken/jwsSign.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/jwsSign.js
 var require_jwsSign = __commonJS({
-  "node_modules/google-auth-library/build/src/gtoken/jwsSign.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/jwsSign.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.buildPayloadForJwsSign = buildPayloadForJwsSign;
@@ -18603,9 +18603,9 @@ var require_jwsSign = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/gtoken/getToken.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/getToken.js
 var require_getToken = __commonJS({
-  "node_modules/google-auth-library/build/src/gtoken/getToken.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/getToken.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.getToken = getToken;
@@ -18647,9 +18647,9 @@ var require_getToken = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/gtoken/errorWithCode.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/errorWithCode.js
 var require_errorWithCode = __commonJS({
-  "node_modules/google-auth-library/build/src/gtoken/errorWithCode.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/errorWithCode.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ErrorWithCode = void 0;
@@ -18664,9 +18664,9 @@ var require_errorWithCode = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/gtoken/getCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/getCredentials.js
 var require_getCredentials = __commonJS({
-  "node_modules/google-auth-library/build/src/gtoken/getCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/getCredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.getCredentials = getCredentials;
@@ -18765,9 +18765,9 @@ var require_getCredentials = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/gtoken/tokenHandler.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/tokenHandler.js
 var require_tokenHandler = __commonJS({
-  "node_modules/google-auth-library/build/src/gtoken/tokenHandler.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/tokenHandler.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TokenHandler = void 0;
@@ -18856,9 +18856,9 @@ var require_tokenHandler = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/gtoken/revokeToken.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/revokeToken.js
 var require_revokeToken = __commonJS({
-  "node_modules/google-auth-library/build/src/gtoken/revokeToken.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/revokeToken.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.revokeToken = revokeToken;
@@ -18874,9 +18874,9 @@ var require_revokeToken = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/gtoken/googleToken.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/googleToken.js
 var require_googleToken = __commonJS({
-  "node_modules/google-auth-library/build/src/gtoken/googleToken.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/gtoken/googleToken.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GoogleToken = void 0;
@@ -18980,9 +18980,9 @@ var require_googleToken = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/jwtaccess.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/jwtaccess.js
 var require_jwtaccess = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/jwtaccess.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/jwtaccess.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.JWTAccess = void 0;
@@ -19150,9 +19150,9 @@ var require_jwtaccess = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/jwtclient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/jwtclient.js
 var require_jwtclient = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/jwtclient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/jwtclient.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.JWT = void 0;
@@ -19422,9 +19422,9 @@ var require_jwtclient = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/refreshclient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/refreshclient.js
 var require_refreshclient = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/refreshclient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/refreshclient.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.UserRefreshClient = exports.USER_REFRESH_ACCOUNT_TYPE = void 0;
@@ -19550,9 +19550,9 @@ var require_refreshclient = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/impersonated.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/impersonated.js
 var require_impersonated = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/impersonated.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/impersonated.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Impersonated = exports.IMPERSONATED_ACCOUNT_TYPE = void 0;
@@ -19729,9 +19729,9 @@ var require_impersonated = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/oauth2common.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/oauth2common.js
 var require_oauth2common = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/oauth2common.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/oauth2common.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.OAuthClientAuthHandler = void 0;
@@ -19877,9 +19877,9 @@ var require_oauth2common = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/stscredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/stscredentials.js
 var require_stscredentials = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/stscredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/stscredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StsCredentials = void 0;
@@ -19965,9 +19965,9 @@ var require_stscredentials = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/baseexternalclient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/baseexternalclient.js
 var require_baseexternalclient = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/baseexternalclient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/baseexternalclient.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BaseExternalAccountClient = exports.CLOUD_RESOURCE_MANAGER = exports.EXTERNAL_ACCOUNT_TYPE = exports.EXPIRATION_TIME_OFFSET = void 0;
@@ -20344,9 +20344,9 @@ var require_baseexternalclient = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/filesubjecttokensupplier.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/filesubjecttokensupplier.js
 var require_filesubjecttokensupplier = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/filesubjecttokensupplier.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/filesubjecttokensupplier.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FileSubjectTokenSupplier = void 0;
@@ -20409,9 +20409,9 @@ var require_filesubjecttokensupplier = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/urlsubjecttokensupplier.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/urlsubjecttokensupplier.js
 var require_urlsubjecttokensupplier = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/urlsubjecttokensupplier.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/urlsubjecttokensupplier.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.UrlSubjectTokenSupplier = void 0;
@@ -20467,9 +20467,9 @@ var require_urlsubjecttokensupplier = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/certificatesubjecttokensupplier.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/certificatesubjecttokensupplier.js
 var require_certificatesubjecttokensupplier = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/certificatesubjecttokensupplier.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/certificatesubjecttokensupplier.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CertificateSubjectTokenSupplier = exports.InvalidConfigurationError = exports.CertificateSourceUnavailableError = exports.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = void 0;
@@ -20651,9 +20651,9 @@ var require_certificatesubjecttokensupplier = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/identitypoolclient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/identitypoolclient.js
 var require_identitypoolclient = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/identitypoolclient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/identitypoolclient.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IdentityPoolClient = void 0;
@@ -20763,9 +20763,9 @@ var require_identitypoolclient = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/awsrequestsigner.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/awsrequestsigner.js
 var require_awsrequestsigner = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/awsrequestsigner.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/awsrequestsigner.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AwsRequestSigner = void 0;
@@ -20913,9 +20913,9 @@ ${credentialScope}
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/defaultawssecuritycredentialssupplier.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/defaultawssecuritycredentialssupplier.js
 var require_defaultawssecuritycredentialssupplier = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/defaultawssecuritycredentialssupplier.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/defaultawssecuritycredentialssupplier.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DefaultAwsSecurityCredentialsSupplier = void 0;
@@ -21068,9 +21068,9 @@ var require_defaultawssecuritycredentialssupplier = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/awsclient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/awsclient.js
 var require_awsclient = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/awsclient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/awsclient.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AwsClient = void 0;
@@ -21182,9 +21182,9 @@ var require_awsclient = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/executable-response.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/executable-response.js
 var require_executable_response = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/executable-response.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/executable-response.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InvalidSubjectTokenError = exports.InvalidMessageFieldError = exports.InvalidCodeFieldError = exports.InvalidTokenTypeFieldError = exports.InvalidExpirationTimeFieldError = exports.InvalidSuccessFieldError = exports.InvalidVersionFieldError = exports.ExecutableResponseError = exports.ExecutableResponse = void 0;
@@ -21313,9 +21313,9 @@ var require_executable_response = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/pluggable-auth-handler.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/pluggable-auth-handler.js
 var require_pluggable_auth_handler = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/pluggable-auth-handler.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/pluggable-auth-handler.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PluggableAuthHandler = exports.ExecutableError = void 0;
@@ -21454,9 +21454,9 @@ var require_pluggable_auth_handler = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/pluggable-auth-client.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/pluggable-auth-client.js
 var require_pluggable_auth_client = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/pluggable-auth-client.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/pluggable-auth-client.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PluggableAuthClient = exports.ExecutableError = void 0;
@@ -21581,9 +21581,9 @@ var require_pluggable_auth_client = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/externalclient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/externalclient.js
 var require_externalclient = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/externalclient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/externalclient.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ExternalAccountClient = void 0;
@@ -21630,9 +21630,9 @@ var require_externalclient = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/externalAccountAuthorizedUserClient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/externalAccountAuthorizedUserClient.js
 var require_externalAccountAuthorizedUserClient = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/externalAccountAuthorizedUserClient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/externalAccountAuthorizedUserClient.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ExternalAccountAuthorizedUserClient = exports.EXTERNAL_ACCOUNT_AUTHORIZED_USER_TYPE = void 0;
@@ -21817,9 +21817,9 @@ var require_externalAccountAuthorizedUserClient = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/googleauth.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/googleauth.js
 var require_googleauth = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/googleauth.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/googleauth.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GoogleAuth = exports.GoogleAuthExceptionMessages = void 0;
@@ -22607,9 +22607,9 @@ var require_googleauth = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/iam.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/iam.js
 var require_iam = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/iam.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/iam.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IAMAuth = void 0;
@@ -22643,9 +22643,9 @@ var require_iam = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/downscopedclient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/downscopedclient.js
 var require_downscopedclient = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/downscopedclient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/downscopedclient.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DownscopedClient = exports.EXPIRATION_TIME_OFFSET = exports.MAX_ACCESS_BOUNDARY_RULES_COUNT = void 0;
@@ -22828,9 +22828,9 @@ var require_downscopedclient = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/auth/passthrough.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/passthrough.js
 var require_passthrough = __commonJS({
-  "node_modules/google-auth-library/build/src/auth/passthrough.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/auth/passthrough.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PassThroughClient = void 0;
@@ -22873,9 +22873,9 @@ var require_passthrough = __commonJS({
   }
 });
 
-// node_modules/google-auth-library/build/src/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/index.js
 var require_src5 = __commonJS({
-  "node_modules/google-auth-library/build/src/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/google-auth-library/build/src/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -23002,9 +23002,9 @@ var require_src5 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/GoogleDefaultCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/GoogleDefaultCredentials.js
 var require_GoogleDefaultCredentials = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/GoogleDefaultCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/GoogleDefaultCredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GoogleDefaultCredentials = exports.gcpScopes = void 0;
@@ -23066,9 +23066,9 @@ var require_GoogleDefaultCredentials = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/GoogleCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/GoogleCredentials.js
 var require_GoogleCredentials = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/GoogleCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/GoogleCredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GoogleCredentials = void 0;
@@ -23116,9 +23116,9 @@ var require_GoogleCredentials = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/DefaultCredentials.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/DefaultCredentials.js
 var require_DefaultCredentials = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/DefaultCredentials.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/DefaultCredentials.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DefaultCredentials = void 0;
@@ -23171,9 +23171,9 @@ var require_DefaultCredentials = __commonJS({
   }
 });
 
-// node_modules/ini/lib/ini.js
+// ../../player-insights-agent/player-insights-agent/node_modules/ini/lib/ini.js
 var require_ini = __commonJS({
-  "node_modules/ini/lib/ini.js"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/ini/lib/ini.js"(exports, module) {
     var { hasOwnProperty } = Object.prototype;
     var encode = (obj, opt = {}) => {
       if (typeof opt === "string") {
@@ -23383,9 +23383,9 @@ var require_ini = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/KnownConfigLoader.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/KnownConfigLoader.js
 var require_KnownConfigLoader = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/KnownConfigLoader.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/KnownConfigLoader.js"(exports) {
     "use strict";
     var __importDefault = exports && exports.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -23469,9 +23469,9 @@ var require_KnownConfigLoader = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/Config.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/Config.js
 var require_Config = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/Config.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/Config.js"(exports) {
     "use strict";
     var __decorate = exports && exports.__decorate || function(decorators, target, key, desc) {
       var c = arguments.length, r2 = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -23880,9 +23880,9 @@ var require_Config = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/retries/Time.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/retries/Time.js
 var require_Time = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/retries/Time.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/retries/Time.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TimeUnits = void 0;
@@ -23933,9 +23933,9 @@ var require_Time = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/retries/retries.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/retries/retries.js
 var require_retries = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/retries/retries.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/retries/retries.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -24053,9 +24053,9 @@ var require_retries = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apierr.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apierr.js
 var require_apierr = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apierr.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apierr.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ApiError = exports.HttpError = void 0;
@@ -24170,9 +24170,9 @@ var require_apierr = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/package.json
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/package.json
 var require_package3 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/package.json"(exports, module) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/package.json"(exports, module) {
     module.exports = {
       name: "@databricks/sdk-experimental",
       version: "0.17.0",
@@ -24286,9 +24286,9 @@ var require_package3 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/api-client.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/api-client.js
 var require_api_client = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/api-client.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/api-client.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -24534,17 +24534,17 @@ var require_api_client = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/model.js
 var require_model = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/apiError.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/apiError.js
 var require_apiError = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/apiError.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/apiError.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ApiRetriableError = exports.ApiError = void 0;
@@ -24564,9 +24564,9 @@ var require_apiError = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/api.js
 var require_api = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -24881,9 +24881,9 @@ var require_api = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/index.js
 var require_agentbricks = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/agentbricks/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -24907,17 +24907,17 @@ var require_agentbricks = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/apps/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/apps/model.js
 var require_model2 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/apps/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/apps/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/wait.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/wait.js
 var require_wait = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/wait.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/wait.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.asWaiter = asWaiter;
@@ -24932,9 +24932,9 @@ var require_wait = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/apps/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/apps/api.js
 var require_api2 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/apps/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/apps/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -26051,9 +26051,9 @@ var require_api2 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/apps/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/apps/index.js
 var require_apps = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/apps/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/apps/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -26077,17 +26077,17 @@ var require_apps = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/catalog/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/catalog/model.js
 var require_model3 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/catalog/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/catalog/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/config/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/index.js
 var require_config = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/config/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/config/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -26142,9 +26142,9 @@ var require_config = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/catalog/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/catalog/api.js
 var require_api3 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/catalog/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/catalog/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -33875,9 +33875,9 @@ var require_api3 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/catalog/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/catalog/index.js
 var require_catalog = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/catalog/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/catalog/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -33901,17 +33901,17 @@ var require_catalog = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/model.js
 var require_model4 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/api.js
 var require_api4 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -34931,9 +34931,9 @@ var require_api4 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/index.js
 var require_cleanrooms = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/cleanrooms/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -34957,17 +34957,17 @@ var require_cleanrooms = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/compute/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/compute/model.js
 var require_model5 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/compute/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/compute/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/compute/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/compute/api.js
 var require_api5 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/compute/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/compute/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -38635,9 +38635,9 @@ var require_api5 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/compute/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/compute/index.js
 var require_compute = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/compute/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/compute/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -38661,17 +38661,17 @@ var require_compute = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/dashboards/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dashboards/model.js
 var require_model6 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/dashboards/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dashboards/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/dashboards/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dashboards/api.js
 var require_api6 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/dashboards/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dashboards/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40222,9 +40222,9 @@ var require_api6 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/dashboards/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dashboards/index.js
 var require_dashboards = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/dashboards/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dashboards/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40248,17 +40248,17 @@ var require_dashboards = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/database/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/database/model.js
 var require_model7 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/database/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/database/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/database/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/database/api.js
 var require_api7 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/database/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/database/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -41342,9 +41342,9 @@ var require_api7 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/database/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/database/index.js
 var require_database = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/database/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/database/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -41368,17 +41368,17 @@ var require_database = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/dataquality/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dataquality/model.js
 var require_model8 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/dataquality/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dataquality/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/dataquality/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dataquality/api.js
 var require_api8 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/dataquality/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dataquality/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -42000,9 +42000,9 @@ var require_api8 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/dataquality/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dataquality/index.js
 var require_dataquality = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/dataquality/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/dataquality/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -42026,17 +42026,17 @@ var require_dataquality = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/files/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/files/model.js
 var require_model9 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/files/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/files/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/files/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/files/api.js
 var require_api9 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/files/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/files/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -42958,9 +42958,9 @@ var require_api9 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/files/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/files/index.js
 var require_files = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/files/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/files/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -42984,17 +42984,17 @@ var require_files = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/iam/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iam/model.js
 var require_model10 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/iam/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iam/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/iam/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iam/api.js
 var require_api10 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/iam/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iam/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -46098,9 +46098,9 @@ var require_api10 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/iam/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iam/index.js
 var require_iam2 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/iam/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iam/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -46124,17 +46124,17 @@ var require_iam2 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/iamv2/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iamv2/model.js
 var require_model11 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/iamv2/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iamv2/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/iamv2/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iamv2/api.js
 var require_api11 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/iamv2/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iamv2/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -46589,9 +46589,9 @@ var require_api11 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/iamv2/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iamv2/index.js
 var require_iamv2 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/iamv2/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/iamv2/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -46615,17 +46615,17 @@ var require_iamv2 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/jobs/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/jobs/model.js
 var require_model12 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/jobs/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/jobs/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/jobs/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/jobs/api.js
 var require_api12 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/jobs/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/jobs/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -48113,9 +48113,9 @@ var require_api12 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/jobs/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/jobs/index.js
 var require_jobs = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/jobs/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/jobs/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -48139,17 +48139,17 @@ var require_jobs = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/marketplace/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/marketplace/model.js
 var require_model13 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/marketplace/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/marketplace/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/marketplace/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/marketplace/api.js
 var require_api13 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/marketplace/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/marketplace/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -50666,9 +50666,9 @@ var require_api13 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/marketplace/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/marketplace/index.js
 var require_marketplace = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/marketplace/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/marketplace/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -50692,17 +50692,17 @@ var require_marketplace = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/ml/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/ml/model.js
 var require_model14 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/ml/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/ml/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/ml/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/ml/api.js
 var require_api14 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/ml/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/ml/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55520,9 +55520,9 @@ var require_api14 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/ml/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/ml/index.js
 var require_ml = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/ml/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/ml/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55546,17 +55546,17 @@ var require_ml = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/oauth2/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/oauth2/model.js
 var require_model15 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/oauth2/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/oauth2/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/oauth2/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/oauth2/api.js
 var require_api15 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/oauth2/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/oauth2/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57037,9 +57037,9 @@ var require_api15 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/oauth2/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/oauth2/index.js
 var require_oauth2 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/oauth2/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/oauth2/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57063,17 +57063,17 @@ var require_oauth2 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/pipelines/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/pipelines/model.js
 var require_model16 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/pipelines/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/pipelines/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/pipelines/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/pipelines/api.js
 var require_api16 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/pipelines/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/pipelines/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57974,9 +57974,9 @@ var require_api16 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/pipelines/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/pipelines/index.js
 var require_pipelines = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/pipelines/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/pipelines/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58000,17 +58000,17 @@ var require_pipelines = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/model.js
 var require_model17 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/api.js
 var require_api17 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58285,9 +58285,9 @@ var require_api17 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/index.js
 var require_qualitymonitorv2 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/qualitymonitorv2/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58311,17 +58311,17 @@ var require_qualitymonitorv2 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/serving/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/serving/model.js
 var require_model18 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/serving/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/serving/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/serving/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/serving/api.js
 var require_api18 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/serving/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/serving/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59586,9 +59586,9 @@ var require_api18 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/serving/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/serving/index.js
 var require_serving = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/serving/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/serving/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59612,17 +59612,17 @@ var require_serving = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/settings/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settings/model.js
 var require_model19 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/settings/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settings/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/settings/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settings/api.js
 var require_api19 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/settings/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settings/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -64956,9 +64956,9 @@ var require_api19 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/settings/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settings/index.js
 var require_settings = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/settings/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settings/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -64982,17 +64982,17 @@ var require_settings = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/model.js
 var require_model20 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/api.js
 var require_api20 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -65367,9 +65367,9 @@ var require_api20 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/index.js
 var require_settingsv2 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/settingsv2/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -65393,17 +65393,17 @@ var require_settingsv2 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/sharing/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sharing/model.js
 var require_model21 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/sharing/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sharing/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/sharing/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sharing/api.js
 var require_api21 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/sharing/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sharing/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -66831,9 +66831,9 @@ var require_api21 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/sharing/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sharing/index.js
 var require_sharing = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/sharing/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sharing/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -66857,17 +66857,17 @@ var require_sharing = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/sql/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sql/model.js
 var require_model22 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/sql/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sql/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/sql/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sql/api.js
 var require_api22 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/sql/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sql/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -70337,9 +70337,9 @@ var require_api22 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/sql/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sql/index.js
 var require_sql = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/sql/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/sql/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -70363,17 +70363,17 @@ var require_sql = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/tags/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/tags/model.js
 var require_model23 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/tags/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/tags/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/tags/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/tags/api.js
 var require_api23 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/tags/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/tags/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -70652,9 +70652,9 @@ var require_api23 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/tags/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/tags/index.js
 var require_tags = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/tags/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/tags/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -70678,17 +70678,17 @@ var require_tags = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/model.js
 var require_model24 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/api.js
 var require_api24 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -71566,9 +71566,9 @@ var require_api24 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/index.js
 var require_vectorsearch = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/vectorsearch/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -71592,17 +71592,17 @@ var require_vectorsearch = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/workspace/model.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/workspace/model.js
 var require_model25 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/workspace/model.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/workspace/model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/workspace/api.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/workspace/api.js
 var require_api25 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/workspace/api.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/workspace/api.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -73431,9 +73431,9 @@ var require_api25 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/apis/workspace/index.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/workspace/index.js
 var require_workspace = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/apis/workspace/index.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/apis/workspace/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -73457,9 +73457,9 @@ var require_workspace = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/mixins/compute.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/mixins/compute.js
 var require_compute2 = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/mixins/compute.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/mixins/compute.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -73820,9 +73820,9 @@ var require_compute2 = __commonJS({
   }
 });
 
-// node_modules/@databricks/sdk-experimental/dist/WorkspaceClient.js
+// ../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/WorkspaceClient.js
 var require_WorkspaceClient = __commonJS({
-  "node_modules/@databricks/sdk-experimental/dist/WorkspaceClient.js"(exports) {
+  "../../player-insights-agent/player-insights-agent/node_modules/@databricks/sdk-experimental/dist/WorkspaceClient.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m2, k, k2) {
       if (k2 === void 0) k2 = k;

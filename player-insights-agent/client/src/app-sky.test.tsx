@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import { AppSky } from './AppSky';
 import { OPENING_CONSTELLATION } from './constellation';
-import { SKY_DOCUMENT_SEED } from './StarField';
 
 const source = readFileSync(new URL('./AppSky.tsx', import.meta.url), 'utf8');
 const gate = readFileSync(new URL('./FirstOpenGate.tsx', import.meta.url), 'utf8');
@@ -23,16 +22,14 @@ describe('the dark-mode sky', () => {
   it('is decorative, static, and seated in the shell', () => {
     expect(layout).toContain('<AppSky />');
     expect(source).not.toContain('ast-anim');
-    expect(source).toContain('SKY_PAGE_ID');
-    expect(source).toContain('pageId={SKY_PAGE_ID}');
-    expect(source).not.toMatch(/\bseed=/);
+    expect(source).toContain('<AppTopology />');
     expect(code(gate)).not.toContain('StarField');
     expect(code(gate)).not.toContain('GateSky');
     expect(source).not.toContain('window.location');
     const markup = renderToStaticMarkup(<AppSky />);
     expect(markup).toContain('class="app-sky"');
     expect(markup).toContain('aria-hidden="true"');
-    expect(markup).toContain(`data-sky-seed="${SKY_DOCUMENT_SEED}"`);
+    expect(markup).not.toContain('data-sky-seed');
   });
 
   it('mounts one sky only after startup has handed the viewport to the app', () => {
@@ -49,11 +46,9 @@ describe('the dark-mode sky', () => {
 
     const markup = renderToStaticMarkup(<AppSky />);
     expect(markup).toContain('data-app-topology=""');
-    expect(markup.match(/data-sky-seed="([^"]+)"/)?.[1]).toBe(SKY_DOCUMENT_SEED);
     const field = readFileSync(new URL('./StarField.tsx', import.meta.url), 'utf8');
-    expect(field).toContain('useState(() => seed ?? SKY_DOCUMENT_SEED)');
-    expect(field).toContain('crypto.getRandomValues');
-    expect(field.replace(/\/\*[\s\S]*?\*\//g, ' ')).not.toMatch(/sessionStorage/);
+    expect(field).toContain('useMemo(() => buildAppTopology(), [])');
+    expect(field).not.toMatch(/crypto|getRandomValues|sessionStorage|Date\.now|performance\.now/);
   });
 
   it('hosts every page and login state beneath that one topology', () => {

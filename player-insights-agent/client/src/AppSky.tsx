@@ -10,8 +10,8 @@
  * remain the authority on whether the layer is painted; this component only
  * seats the field.
  */
-import { AppTopology, SKY_PAGE_ID } from './StarField';
+import { AppTopology } from './StarField';
 
 export function AppSky() {
-  return <AppTopology pageId={SKY_PAGE_ID} />;
+  return <AppTopology />;
 }

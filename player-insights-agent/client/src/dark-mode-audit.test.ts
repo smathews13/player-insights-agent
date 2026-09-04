@@ -208,7 +208,7 @@ describe('dark mode covers the shipped surfaces', () => {
 
   it('matches the interaction, chart, and constellation treatments', () => {
     expect(DARK).toMatch(/:focus-visible\s*\{[^}]*outline:\s*1px solid var\(--ast-ice-accent\)/);
-    expect(DARK).toMatch(/\.app-sky-line\s*\{[^}]*opacity:\s*0\.6/);
+    expect(DARK).toMatch(/\.app-sky-line\s*\{[^}]*opacity:\s*0\.32/);
     expect(source('StarField.tsx')).toContain('data-topology-glyph={node.glyph}');
     expect(DARK).toMatch(/\.ops-lat-bar-track\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*0\.08\)/);
     expect(DARK).toMatch(/\.ops-lat-bar-fill\s*\{[^}]*rgba\(143,\s*193,\s*232,\s*0\.75\)/);

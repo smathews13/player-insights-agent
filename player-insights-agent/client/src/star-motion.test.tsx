@@ -2,29 +2,29 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { OPENING_CONSTELLATION } from './constellation';
 import {
+  APP_TOPOLOGY_DOT_SIZE,
+  APP_TOPOLOGY_EDGE_INDEXES,
+  APP_TOPOLOGY_ICON_SIZE,
+  APP_TOPOLOGY_MAX_ACCENT_NODES,
+  APP_TOPOLOGY_MAX_NODES,
   AppTopology,
   buildAppTopology,
   connectorPhaseAt,
-  liveConnectorsAt,
-  SKY_ANCHOR_MIN_SECONDS,
   SKY_APPEAR_STEP,
   SKY_DRAW_HOLD_UNTIL,
+  SKY_DRAW_INK_UNTIL,
   SKY_DRAW_LIVE_UNTIL,
-  SKY_DRAW_MIN_SECONDS,
-  SKY_PAGE_ID,
+  SKY_DRAW_SECONDS,
+  SKY_NODE_MIN_SECONDS,
   topologyPointKey,
 } from './StarField';
 
 const CSS = readFileSync(new URL('./styles/star-motion.css', import.meta.url), 'utf8');
 const APPEARANCE = readFileSync(new URL('./styles/appearance-preferences.css', import.meta.url), 'utf8');
-const DARK = readFileSync(new URL('./styles/dark-mode.css', import.meta.url), 'utf8');
+const SOURCE = readFileSync(new URL('./StarField.tsx', import.meta.url), 'utf8');
 const HOME = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 const RAIL = readFileSync(new URL('./styles/rail.css', import.meta.url), 'utf8');
-const TOKENS = readFileSync(new URL('./styles/astrolabe-tokens.css', import.meta.url), 'utf8');
-const CONSTELLATION_CSS = readFileSync(new URL('./styles/constellation.css', import.meta.url), 'utf8');
-const AGENT_CONSTELLATION = readFileSync(new URL('./AgentConstellation.tsx', import.meta.url), 'utf8');
 
 function keyframes(name: string): string {
   const start = CSS.indexOf(`@keyframes ${name}`);
@@ -40,27 +40,31 @@ function keyframes(name: string): string {
   throw new Error(`Unclosed keyframes: ${name}`);
 }
 
-describe('the canonical app topology', () => {
-  it('uses the opening graph as one immutable geometry source', () => {
-    const alpha = buildAppTopology(SKY_PAGE_ID, 'alpha');
-    const beta = buildAppTopology(SKY_PAGE_ID, 'beta');
+describe('the stationary app topology', () => {
+  it('builds one deterministic, reduced-density graph', () => {
+    const first = buildAppTopology();
+    const second = buildAppTopology();
 
-    expect(alpha.nodes.map(({ x, y, glyph, size }) => ({ x, y, glyph, size }))).toEqual(
-      OPENING_CONSTELLATION.stars.map(({ x, y, glyph, size }) => ({ x, y, glyph, size }))
+    expect(first).toEqual(second);
+    expect(first.connectors).toHaveLength(APP_TOPOLOGY_EDGE_INDEXES.length);
+    expect(first.nodes.length).toBeLessThanOrEqual(APP_TOPOLOGY_MAX_NODES);
+    expect(first.nodes.length).toBeGreaterThan(12);
+
+    const accents = first.nodes.filter((node) => node.glyph !== 'dot');
+    expect(accents).toHaveLength(APP_TOPOLOGY_MAX_ACCENT_NODES);
+    expect(accents.map((node) => node.glyph)).toEqual(
+      expect.arrayContaining(['genie', 'unity-catalog', 'dpad', 'sparkle', 'cross'])
     );
-    expect(alpha.connectors.map(({ from, to }) => ({ from, to }))).toEqual(
-      OPENING_CONSTELLATION.hops.map(({ from, to }) => ({ from, to }))
-    );
-    expect(beta.nodes.map(({ x, y, glyph, size }) => ({ x, y, glyph, size }))).toEqual(
-      alpha.nodes.map(({ x, y, glyph, size }) => ({ x, y, glyph, size }))
-    );
-    expect(beta.connectors.map(({ from, to }) => ({ from, to }))).toEqual(
-      alpha.connectors.map(({ from, to }) => ({ from, to }))
-    );
+    expect(accents.every((node) => node.size === APP_TOPOLOGY_ICON_SIZE)).toBe(true);
+    expect(
+      first.nodes.filter((node) => node.glyph === 'dot').every((node) => node.size === APP_TOPOLOGY_DOT_SIZE)
+    ).toBe(true);
+    expect(APP_TOPOLOGY_ICON_SIZE).toBe(3);
+    expect(APP_TOPOLOGY_DOT_SIZE).toBe(1.5);
   });
 
-  it('maps both endpoints of every edge to an intentional node', () => {
-    const topology = buildAppTopology(SKY_PAGE_ID, 'joined');
+  it('maps every fixed edge endpoint to a rendered node', () => {
+    const topology = buildAppTopology();
     const nodes = new Set(topology.nodes.map((node) => topologyPointKey([node.x, node.y])));
     const endpoints = topology.connectors.flatMap((edge) => [topologyPointKey(edge.from), topologyPointKey(edge.to)]);
 
@@ -68,104 +72,101 @@ describe('the canonical app topology', () => {
     expect(new Set(endpoints)).toEqual(nodes);
   });
 
-  it('renders game, controller, and product marks as nodes in that graph', () => {
-    const markup = renderToStaticMarkup(<AppTopology pageId={SKY_PAGE_ID} seed="glyphs" />);
-    const glyphs = [...markup.matchAll(/data-topology-glyph="([^"]+)"/g)].map((match) => match[1]);
-
-    for (const glyph of ['cross', 'square', 'triangle', 'dpad', 'sparkle', 'genie', 'unity-catalog']) {
-      expect(glyphs, glyph).toContain(glyph);
-    }
-    expect(markup).toContain('data:image/svg+xml');
-    expect(markup).not.toContain('star-motion-faint');
-    expect(APPEARANCE).not.toContain('star-motion-faint');
-  });
-
-  it('puts edges and nodes under one transform and one cover viewBox', () => {
-    const markup = renderToStaticMarkup(<AppTopology pageId={SKY_PAGE_ID} seed="markup" />);
+  it('renders one viewBox and no transform on the coordinate or node groups', () => {
+    const markup = renderToStaticMarkup(<AppTopology />);
     expect(markup.match(/<svg\b/g)).toHaveLength(1);
     expect(markup).toContain('data-app-topology=""');
-    expect(markup).toContain(`viewBox="0 0 ${OPENING_CONSTELLATION.width} ${OPENING_CONSTELLATION.height}"`);
+    expect(markup).toContain('viewBox="0 0 1180 700"');
     expect(markup).toContain('preserveAspectRatio="xMidYMid slice"');
     expect(markup).toMatch(
-      /<g class="star-motion-drift star-motion-drift-anchor"[^>]*data-topology-transform=""[^>]*>[\s\S]*data-topology-edges=""[\s\S]*data-topology-nodes=""/
+      /<g data-topology-coordinate-space="">[\s\S]*data-topology-edges=""[\s\S]*data-topology-nodes=""/
     );
-    expect(markup).toContain('aria-hidden="true"');
-    expect(markup).toContain('focusable="false"');
-    expect(readFileSync(new URL('./StarField.tsx', import.meta.url), 'utf8')).toContain(
-      'useMemo(() => buildAppTopology(pageId, visitSeed), [pageId, visitSeed])'
-    );
+    expect(markup).not.toMatch(/data-topology-(?:coordinate-space|node)[^>]*transform=/);
+    expect(markup).not.toMatch(/style="[^"]*transform/);
+    const implementation = SOURCE.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(implementation).not.toMatch(/\btransform(?:Origin)?\b|translate\(|driftDelay|star-motion-drift/);
+    expect(SOURCE).toContain('useMemo(() => buildAppTopology(), [])');
   });
 
-  it('has no second page starfield, local idle topology, or disconnected dust', () => {
-    for (const source of [HOME, RAIL, TOKENS, CONSTELLATION_CSS, AGENT_CONSTELLATION]) {
-      expect(source).not.toContain('trace-idle-sky');
-      expect(source).not.toContain('ast-sky-spackle');
-      expect(source).not.toContain('ast-sky-dust');
-    }
+  it('keeps product and controller marks as small fixed graph nodes', () => {
+    const markup = renderToStaticMarkup(<AppTopology />);
+    const glyphs = [...markup.matchAll(/data-topology-glyph="([^"]+)"/g)].map((match) => match[1]);
+    expect(glyphs.filter((glyph) => glyph !== 'dot')).toHaveLength(APP_TOPOLOGY_MAX_ACCENT_NODES);
+    expect(markup).toContain('data:image/svg+xml');
+    expect(markup).toContain('data-topology-glyph="genie"');
+    expect(markup).toContain('data-topology-glyph="dpad"');
+  });
+
+  it('has no route-local decorative topology or texture', () => {
     expect(HOME).not.toContain('<ConstellationField');
-    expect(HOME).not.toContain('OPENING_CONSTELLATION');
-  });
-
-  it('pins one viewport without layout, scroll, seam, or pointer contribution', () => {
-    expect(CSS).toMatch(
-      /\.app-sky\[data-star-motion-field\]\s*\{[^}]*position:\s*fixed[^}]*width:\s*100vw[^}]*height:\s*100vh[^}]*overflow:\s*hidden[^}]*pointer-events:\s*none/s
-    );
-    expect(CSS).toMatch(/\.app-sky-host\s*\{[^}]*isolation:\s*isolate[^}]*min-height:\s*100vh/s);
-    expect(CSS).not.toMatch(/background-(?:size|position)/);
-  });
-
-  it('passes through uncovered dark regions while existing surfaces occlude it', () => {
-    expect(DARK).toMatch(/html\[data-theme='dark'\] \.trace-inspector\s*\{[^}]*background:\s*transparent/s);
-    expect(DARK).toMatch(
-      /html\[data-theme='dark'\] \.conversation-rail\s*\{[^}]*background:\s*var\(--ast-surface-primary\)/s
-    );
-    expect(DARK).toMatch(
-      /html\[data-theme='dark'\] \.app-select-content,[\s\S]*background:\s*var\(--ast-surface-menu\)/s
-    );
-  });
-
-  it('freezes the whole graph for reduced motion and the explicit animation setting', () => {
-    const reduced = CSS.slice(CSS.indexOf('@media (prefers-reduced-motion: reduce)'));
-    expect(reduced).toMatch(/\[data-star-motion='anchor'\]\s*\{[^}]*animation:\s*none[^}]*transform:\s*none/s);
-    expect(reduced).toMatch(/\.star-motion-draw\s*\{[^}]*animation:\s*none[^}]*stroke-dashoffset:\s*0/s);
-    expect(reduced).toMatch(/\.star-motion-drift\s*\{[^}]*animation:\s*none[^}]*transform:\s*translate\(0,\s*0\)/s);
-    expect(APPEARANCE).toMatch(
-      /data-animations='off'] \.app-sky\[data-star-motion-field] \*\s*\{[^}]*animation:\s*none !important[^}]*transform:\s*none/s
-    );
-    expect(APPEARANCE).toMatch(/data-background-graphics='off'] \.app-sky\s*\{[^}]*display:\s*none !important/s);
-    expect(CSS).toMatch(
-      /@media \(forced-colors: active\)\s*\{[\s\S]*\.app-sky\[data-star-motion-field\]\s*\{[^}]*display:\s*none/s
-    );
+    expect(HOME).not.toContain('trace-idle-sky');
+    expect(RAIL).not.toContain('trace-idle-sky');
+    expect(RAIL).not.toMatch(/--ast-sky-spackle|radial-gradient/);
   });
 });
 
-describe('topology motion schedule', () => {
-  it('uses one shared drift and compositor-safe pulse/draw properties', () => {
-    expect(CSS.match(/@keyframes\s+ast-(?:tw|drift|sky-draw)\b/g)).toHaveLength(3);
-    expect(CSS).not.toContain('@keyframes ast-drift2');
-    expect(CSS).not.toContain('@keyframes ast-tw2');
-    expect(CSS).not.toContain('will-change');
-    expect(keyframes('ast-drift')).toMatch(/translate\(0,\s*0\)[\s\S]*translate\(-14px,\s*8px\)/);
-    expect(keyframes('ast-tw')).toMatch(
-      /opacity:\s*0\.4[\s\S]*transform:\s*scale\(0\.75\)[\s\S]*opacity:\s*0\.85[\s\S]*transform:\s*scale\(1\.2\)/
-    );
-    expect(keyframes('ast-sky-draw')).toMatch(
-      /stroke-dashoffset:\s*1[\s\S]*stroke-dashoffset:\s*0[\s\S]*stroke-dashoffset:\s*1/
-    );
+describe('allowed topology animation', () => {
+  it('defines only a node fade and connector trace', () => {
+    expect([...CSS.matchAll(/@keyframes\s+([\w-]+)/g)].map((match) => match[1])).toEqual([
+      'ast-topology-blink',
+      'ast-sky-draw',
+    ]);
+
+    const blink = keyframes('ast-topology-blink');
+    const draw = keyframes('ast-sky-draw');
+    expect(blink).toMatch(/opacity:\s*0\.48[\s\S]*opacity:\s*0\.72/);
+    expect(blink).not.toMatch(/\b(?:transform|translate|rotate|left|top)\s*:/);
+    expect(draw).toMatch(/stroke-dashoffset:\s*1[\s\S]*stroke-dashoffset:\s*0[\s\S]*stroke-dashoffset:\s*1/);
+    expect(draw).not.toMatch(/\b(?:transform|translate|rotate|left|top)\s*:/);
+
+    expect([...CSS.matchAll(/animation-name:\s*([^;]+)/g)].map((match) => match[1])).toEqual([
+      'ast-topology-blink',
+      'ast-sky-draw',
+    ]);
+    expect(CSS).not.toMatch(/translate|rotate|transform-origin|transform-box/);
   });
 
-  it('keeps the slow add, hold, retract, and pulse contracts', () => {
-    expect(SKY_APPEAR_STEP).toBe(10);
-    expect(SKY_ANCHOR_MIN_SECONDS).toBe(24);
-    expect(SKY_DRAW_MIN_SECONDS).toBe(72);
-    expect(SKY_DRAW_HOLD_UNTIL).toBe(0.6);
+  it('traces infrequently and at subordinate opacity', () => {
+    const topology = buildAppTopology();
+    expect(SKY_APPEAR_STEP).toBe(18);
+    expect(SKY_DRAW_SECONDS).toBe(180);
+    expect(SKY_DRAW_INK_UNTIL).toBe(0.08);
+    expect(SKY_DRAW_HOLD_UNTIL).toBe(0.72);
     expect(SKY_DRAW_LIVE_UNTIL).toBe(0.8);
+    expect(SKY_NODE_MIN_SECONDS).toBe(36);
+    expect(topology.connectors.every((connector) => connector.duration === 180)).toBe(true);
+    expect(
+      topology.connectors
+        .slice(1)
+        .every((connector, index) => connector.delay - topology.connectors[index].delay === 18)
+    ).toBe(true);
+    expect(CSS).toMatch(/\.star-motion-draw\s*\{[^}]*opacity:\s*0\.28/s);
+    expect(connectorPhaseAt(topology.connectors[0], 0)).toBe('holding');
+    expect(connectorPhaseAt(topology.connectors[1], 0)).toBe('drawing');
+  });
 
-    const drawing = buildAppTopology(SKY_PAGE_ID, 'schedule');
-    expect(drawing.nodes.every((node) => node.duration >= SKY_ANCHOR_MIN_SECONDS)).toBe(true);
-    expect(drawing.connectors.every((edge) => edge.duration >= SKY_DRAW_MIN_SECONDS)).toBe(true);
-    expect(liveConnectorsAt(drawing, 0).length).toBeGreaterThan(0);
-    expect(liveConnectorsAt(drawing, 16).length).toBeGreaterThan(liveConnectorsAt(drawing, 0).length);
-    expect(drawing.connectors.some((edge) => connectorPhaseAt(edge, 60) === 'retracting')).toBe(true);
+  it('freezes visible nodes and completed edges for both motion controls', () => {
+    const reduced = CSS.slice(CSS.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(reduced).toMatch(/\[data-star-motion='anchor'\]\s*\{[^}]*animation:\s*none[^}]*opacity:\s*0\.62/s);
+    expect(reduced).toMatch(
+      /\.star-motion-draw\s*\{[^}]*animation:\s*none[^}]*stroke-dashoffset:\s*0[^}]*opacity:\s*0\.28/s
+    );
+    expect(reduced).not.toMatch(/transform|translate/);
+    expect(APPEARANCE).toMatch(
+      /data-animations='off'] \.app-sky\[data-star-motion-field] \*\s*\{[^}]*animation:\s*none !important/s
+    );
+    expect(APPEARANCE).toMatch(
+      /data-animations='off'] \.app-sky\[data-star-motion-field] \[data-star-motion='anchor'\]\s*\{[^}]*opacity:\s*0\.62/s
+    );
+    expect(APPEARANCE).toMatch(/data-background-graphics='off'] \.app-sky\s*\{[^}]*display:\s*none !important/s);
+  });
+
+  it('remains pointer-transparent and hidden in forced colors', () => {
+    expect(CSS).toMatch(
+      /\.app-sky\[data-star-motion-field\]\s*\{[^}]*position:\s*fixed[^}]*width:\s*100vw[^}]*height:\s*100vh[^}]*pointer-events:\s*none/s
+    );
+    expect(CSS).toMatch(
+      /@media \(forced-colors: active\)\s*\{[\s\S]*\.app-sky\[data-star-motion-field\]\s*\{[^}]*display:\s*none/s
+    );
   });
 });

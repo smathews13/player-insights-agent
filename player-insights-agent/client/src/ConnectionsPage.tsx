@@ -1118,6 +1118,7 @@ export function DeclaredTablesSection({
   tableConnections = [],
   requestedEntity,
   checkedAt = '',
+  readState = 'ready',
   storeAvailable = true,
   allowMutations = false,
   onChanged = () => {},
@@ -1127,6 +1128,7 @@ export function DeclaredTablesSection({
   tableConnections?: ConnectionEntry[];
   requestedEntity: string;
   checkedAt?: string;
+  readState?: 'loading' | 'ready' | 'unavailable' | 'not-connected';
   storeAvailable?: boolean;
   allowMutations?: boolean;
   onChanged?: () => void | Promise<void>;
@@ -1226,11 +1228,32 @@ export function DeclaredTablesSection({
       open={open}
       onToggle={() => setOpen((was) => !was)}
       summary="Unity Catalog scope"
-      action={addAction}
-      status={<ConnectionRemovalStatus notice={controller.removalNotice} />}
-      controls={<DeclaredTableControls filters={filters} catalogs={catalogs} schemas={schemas} onChange={setFilters} />}
+      action={readState === 'ready' ? addAction : null}
+      status={readState === 'ready' ? <ConnectionRemovalStatus notice={controller.removalNotice} /> : null}
+      controls={
+        readState === 'ready' ? (
+          <DeclaredTableControls filters={filters} catalogs={catalogs} schemas={schemas} onChange={setFilters} />
+        ) : null
+      }
     >
-      {adding ? (
+      {readState === 'loading' ? (
+        <PiaLoadingLabel
+          seat="compact"
+          label="Loading Unity Catalog scope"
+          className="connections-primary-loader-row"
+        />
+      ) : null}
+      {readState === 'unavailable' ? (
+        <p className="connections-table-empty" role="alert">
+          The Unity Catalog scope could not be loaded. Refresh to try again; no configured assets were removed.
+        </p>
+      ) : null}
+      {readState === 'not-connected' ? (
+        <p className="connections-table-empty">
+          This app release did not provide its configured Unity Catalog scope. No configured assets were removed.
+        </p>
+      ) : null}
+      {readState === 'ready' && adding ? (
         <UnityCatalogScopeExplorer
           dialogId={explorerId}
           busy={controller.busy}
@@ -1242,37 +1265,39 @@ export function DeclaredTablesSection({
           }}
         />
       ) : null}
-      {!storeAvailable && allowMutations ? (
+      {readState === 'ready' && !storeAvailable && allowMutations ? (
         <span className="plane-error">
           The connection store is not answering, so Unity Catalog resources cannot change.
         </span>
       ) : null}
-      <DeclaredTablesTable
-        tableChecks={tableChecks}
-        scopeChecks={scopeChecks}
-        tableConnections={controller.listed}
-        requestedEntity={requestedEntity}
-        checkedAt={checkedAt}
-        controlledFilters={filters}
-        onFiltersChange={setFilters}
-        showToolbar={false}
-        management={
-          allowMutations && storeAvailable
-            ? {
-                busy: controller.busy,
-                confirming: controller.confirming,
-                justAdded: controller.justAdded,
-                rowError: controller.rowError,
-                onConfirm: (id) => {
-                  controller.setRowError(null);
-                  controller.setConfirming(id);
-                },
-                onCancel: () => controller.setConfirming(''),
-                onRemove: (entry) => void controller.remove(entry),
-              }
-            : undefined
-        }
-      />
+      {readState === 'ready' ? (
+        <DeclaredTablesTable
+          tableChecks={tableChecks}
+          scopeChecks={scopeChecks}
+          tableConnections={controller.listed}
+          requestedEntity={requestedEntity}
+          checkedAt={checkedAt}
+          controlledFilters={filters}
+          onFiltersChange={setFilters}
+          showToolbar={false}
+          management={
+            allowMutations && storeAvailable
+              ? {
+                  busy: controller.busy,
+                  confirming: controller.confirming,
+                  justAdded: controller.justAdded,
+                  rowError: controller.rowError,
+                  onConfirm: (id) => {
+                    controller.setRowError(null);
+                    controller.setConfirming(id);
+                  },
+                  onCancel: () => controller.setConfirming(''),
+                  onRemove: (entry) => void controller.remove(entry),
+                }
+              : undefined
+          }
+        />
+      ) : null}
     </Disclosure>
   );
 }
@@ -2026,6 +2051,26 @@ export function ConnectionsPage() {
     [payload?.connections]
   );
   /**
+   * Do not turn an unsettled or stripped settings response into an empty scope.
+   *
+   * A source-only Git deploy can replace a target-built app.yaml with public
+   * placeholders. That is "not connected", not proof that somebody removed
+   * every table. Likewise, a failed settings read is unavailable rather than an
+   * empty success. Only a settled payload that carries scope evidence may render
+   * the ordinary empty-table branch.
+   */
+  const unityCatalogReadState = useMemo(() => {
+    if (!payload) {
+      return firstRun || session?.load?.settings === 'pending' ? ('loading' as const) : ('unavailable' as const);
+    }
+    const catalog = payload.resources.find((row) => row.resource.id === 'catalog')?.configured.trim() ?? '';
+    const schema = payload.resources.find((row) => row.resource.id === 'schema')?.configured.trim() ?? '';
+    if (!catalog && !schema && tableChecks.length === 0 && tableConnections.length === 0) {
+      return 'not-connected' as const;
+    }
+    return 'ready' as const;
+  }, [firstRun, payload, session?.load?.settings, tableChecks.length, tableConnections.length]);
+  /**
    * The blocked checks, collected into one panel block per remedy.
    *
    * Two passes: by cause, so twelve tables refused for one permission are one
@@ -2454,6 +2499,7 @@ export function ConnectionsPage() {
         tableConnections={tableConnections}
         requestedEntity={requestedEntity}
         checkedAt={lastCheckedAt}
+        readState={unityCatalogReadState}
         storeAvailable={payload?.storeAvailable ?? true}
         allowMutations={allowMutations}
         onChanged={async () => {

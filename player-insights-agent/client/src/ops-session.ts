@@ -57,6 +57,9 @@ const healthCheckFailures = new Map<string, string>();
 /** Latest request generation per block, so an older GET cannot overwrite a newer forced check. */
 const generations = new Map<string, number>();
 
+/** No Ops request may leave its block in a permanent loading state. */
+export const OPS_BLOCK_TIMEOUT_MS = 120_000;
+
 function nextGeneration(key: string): number {
   const next = (generations.get(key) ?? 0) + 1;
   generations.set(key, next);
@@ -135,10 +138,27 @@ export function forgetOpsSession(): void {
   listeners.clear();
 }
 
-async function readBlock<T>(url: string): Promise<T> {
-  const response = await fetch(url, { headers: { accept: 'application/json' } });
-  if (!response.ok) throw new Error(`The server answered ${response.status}.`);
-  return (await response.json()) as T;
+async function readBlock<T>(url: string, timeoutMs: number): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const request = fetch(url, {
+    headers: { accept: 'application/json' },
+    signal: controller.signal,
+  }).then(async (response) => {
+    if (!response.ok) throw new Error(`The server answered ${response.status}.`);
+    return (await response.json()) as T;
+  });
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`The read did not finish within ${Math.round(timeoutMs / 1000)} seconds.`));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([request, deadline]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /**
@@ -152,12 +172,16 @@ async function readBlock<T>(url: string): Promise<T> {
  * empties itself on a failed refresh has thrown away the last thing it knew,
  * at the moment somebody is trying to work out what changed.
  */
-export async function loadOpsBlock<T>(key: string, url: string): Promise<OpsBlockAnswer<T>> {
+export async function loadOpsBlock<T>(
+  key: string,
+  url: string,
+  timeoutMs = OPS_BLOCK_TIMEOUT_MS
+): Promise<OpsBlockAnswer<T>> {
   const existing = inflight.get(key);
   if (existing) return existing as Promise<OpsBlockAnswer<T>>;
   const generation = nextGeneration(key);
 
-  const work = readBlock<T>(url)
+  const work = readBlock<T>(url, timeoutMs)
     .then((payload): OpsBlockAnswer<T> => {
       const answer = { data: payload, failed: '' };
       if (generations.get(key) === generation) remembered.set(key, answer);

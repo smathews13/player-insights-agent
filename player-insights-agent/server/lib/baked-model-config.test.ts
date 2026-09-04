@@ -49,23 +49,37 @@ function serving(version = '39') {
   };
 }
 
+function implicitServing(version = '39') {
+  return {
+    config: {
+      served_entities: [
+        {
+          name: `agent_${version}`,
+          entity_name: 'a_catalog.a_schema.an_agent',
+          entity_version: version,
+        },
+      ],
+    },
+  };
+}
+
 function transport(over: Partial<{ runId: string; document: string; failRun: boolean }> = {}): BakedConfigTransport {
   const runId = over.runId ?? 'run-abc';
   const document = over.document ?? MLMODEL;
   return {
-    getJson: async (path, query = {}) => {
+    getJson: (path, query = {}) => {
       if (path.includes('/unity-catalog/models/') || path.includes('model-versions/get')) {
-        if (over.failRun) throw new Error('no version');
-        return { model_version: { run_id: runId } };
+        if (over.failRun) return Promise.reject(new Error('no version'));
+        return Promise.resolve({ model_version: { run_id: runId } });
       }
       if (path.includes('/mlflow/artifacts/get')) {
         expect(query.run_id).toBe(runId);
-        return { content: document };
+        return Promise.resolve({ content: document });
       }
       if (path.includes('/mlflow/artifacts/list')) {
-        return { files: [{ path: 'agent/MLmodel', is_dir: false }] };
+        return Promise.resolve({ files: [{ path: 'agent/MLmodel', is_dir: false }] });
       }
-      throw new Error(`unexpected path ${path}`);
+      return Promise.reject(new Error(`unexpected path ${path}`));
     },
   };
 }
@@ -131,6 +145,49 @@ describe('reading the served version as the app', () => {
     expect(byKey.llm_endpoint.value).toBe('databricks-claude-sonnet-4-6');
     expect(byKey.semantic_index.value).toBe('a_catalog.a_schema.semantic_layer_index');
     expect(byKey.declared_manifest.value).toHaveLength(12);
+  });
+
+  it('reads an MLflow 3 Logged Model behind the production implicit traffic shape', async () => {
+    const paths: string[] = [];
+    const entries = await readBakedModelConfig({
+      endpointName: 'an-endpoint',
+      readEndpoint: () => Promise.resolve(implicitServing()),
+      transport: {
+        getJson: (path) => {
+          paths.push(path);
+          if (path.includes('/unity-catalog/models/')) {
+            return Promise.resolve({
+              run_id: 'source-run',
+              source: 'models:/m-logged-model',
+            });
+          }
+          if (path === '/api/2.0/mlflow/logged-models/m-logged-model') {
+            return Promise.resolve({
+              model: {
+                info: {
+                  artifact_uri: 'dbfs:/databricks/mlflow-tracking/experiment-1/logged_models/m-logged-model/artifacts',
+                },
+              },
+            });
+          }
+          return Promise.reject(new Error(`unexpected path ${path}`));
+        },
+        downloadText: (path) => {
+          paths.push(path);
+          return Promise.resolve(MLMODEL);
+        },
+      },
+    });
+
+    const byKey = Object.fromEntries(entries.map((entry) => [entry.key, entry]));
+    expect(byKey.llm_endpoint.value).toBe('databricks-claude-sonnet-4-6');
+    expect(byKey.semantic_index.value).toBe('a_catalog.a_schema.semantic_layer_index');
+    expect(byKey.declared_manifest.value).toHaveLength(12);
+    expect(paths).toContain('/api/2.0/mlflow/logged-models/m-logged-model');
+    expect(paths).toContain(
+      '/WorkspaceInternal/Mlflow/Artifacts/experiment-1/LoggedModels/m-logged-model/artifacts/MLmodel'
+    );
+    expect(paths).not.toContain('/api/2.0/mlflow/artifacts/get');
   });
 
   it('returns nothing rather than throwing when the version cannot be read', async () => {

@@ -20,7 +20,11 @@ import {
   type BenchmarkAnswer,
   type BenchmarkRunnerDeps,
 } from './benchmark-runner';
-import { BUDGET_TRUNCATION_CODE, SUITE_CANCELLED_CODE, type BenchmarkRunMetrics } from '../../shared/benchmark-contract';
+import {
+  BUDGET_TRUNCATION_CODE,
+  SUITE_CANCELLED_CODE,
+  type BenchmarkRunMetrics,
+} from '../../shared/benchmark-contract';
 import { GROUNDEDNESS_FEEDBACK_NAME } from './mlflow-judges';
 
 // ---------------------------------------------------------------------------
@@ -39,7 +43,12 @@ class FakeStore {
   runs = new Map<string, StoredRun>();
   calls: { text: string; params: unknown[] }[] = [];
   suiteRows: Record<string, unknown>[] = [
-    { id: 'poc-benchmark', name: 'POC benchmark suite', description: 'd', cases_json: JSON.stringify([{ id: 'player-count' }, { id: 'access-boundary' }]) },
+    {
+      id: 'poc-benchmark',
+      name: 'POC benchmark suite',
+      description: 'd',
+      cases_json: JSON.stringify([{ id: 'player-count' }, { id: 'access-boundary' }]),
+    },
   ];
   failSuiteRead = false;
   failInsert = false;
@@ -85,7 +94,12 @@ class FakeStore {
       const email = params[0];
       const rows = [...this.runs.entries()]
         .filter(([, run]) => run.user_email === email && run.status === 'running')
-        .map(([id, run]) => ({ id, suite_id: run.suite_id, metrics_json: run.metrics_json, created_at: run.created_at }));
+        .map(([id, run]) => ({
+          id,
+          suite_id: run.suite_id,
+          metrics_json: run.metrics_json,
+          created_at: run.created_at,
+        }));
       return Promise.resolve({ rows });
     }
     throw new Error(`unexpected query: ${text}`);
@@ -264,13 +278,27 @@ describe('reading the served model version', () => {
     config: {
       traffic_config: {
         routes: [
-          { served_model_name: '<your_catalog>-<your_schema>-player_insights_agent_9', traffic_percentage: 100 },
-          { served_model_name: '<your_catalog>-<your_schema>-player_insights_agent_8', traffic_percentage: 0 },
+          {
+            served_model_name: '<your_catalog>-<your_schema>-player_insights_agent_9',
+            traffic_percentage: 100,
+          },
+          {
+            served_model_name: '<your_catalog>-<your_schema>-player_insights_agent_8',
+            traffic_percentage: 0,
+          },
         ],
       },
       served_entities: [
-        { name: '<your_catalog>-<your_schema>-player_insights_agent_9', entity_name: '<your_catalog>.<your_schema>.player_insights_agent', entity_version: '9' },
-        { name: '<your_catalog>-<your_schema>-player_insights_agent_8', entity_name: '<your_catalog>.<your_schema>.player_insights_agent', entity_version: '8' },
+        {
+          name: '<your_catalog>-<your_schema>-player_insights_agent_9',
+          entity_name: '<your_catalog>.<your_schema>.player_insights_agent',
+          entity_version: '9',
+        },
+        {
+          name: '<your_catalog>-<your_schema>-player_insights_agent_8',
+          entity_name: '<your_catalog>.<your_schema>.player_insights_agent',
+          entity_version: '8',
+        },
       ],
     },
   };
@@ -282,7 +310,11 @@ describe('reading the served model version', () => {
     // runner recorded "not determinate" against an endpoint sitting at 100% on
     // one version.
     const parsed = parseServedModel('player-insights-agent', liveShape);
-    expect(parsed).toMatchObject({ version: '9', determinate: true, entityName: '<your_catalog>.<your_schema>.player_insights_agent' });
+    expect(parsed).toMatchObject({
+      version: '9',
+      determinate: true,
+      entityName: '<your_catalog>.<your_schema>.player_insights_agent',
+    });
     expect(parsed.routes).toHaveLength(2);
     expect(parsed.note).toContain('version 9');
   });
@@ -297,11 +329,34 @@ describe('reading the served model version', () => {
     expect(parsed).toMatchObject({ version: '3', determinate: true });
   });
 
+  it('treats one served entity with no traffic rule as the implicit 100 percent route', () => {
+    const parsed = parseServedModel('ep', {
+      config: {
+        served_entities: [{ name: 'm_3', entity_name: 'cat.sch.m', entity_version: '3' }],
+      },
+    });
+    expect(parsed).toMatchObject({
+      entityName: 'cat.sch.m',
+      version: '3',
+      determinate: true,
+      routes: [],
+    });
+    expect(parsed.note).toContain('one served entity');
+  });
+
   it('refuses to attribute a split endpoint to one version', () => {
     const parsed = parseServedModel('ep', {
       config: {
-        traffic_config: { routes: [{ served_model_name: 'm_9', traffic_percentage: 70 }, { served_model_name: 'm_8', traffic_percentage: 30 }] },
-        served_entities: [{ name: 'm_9', entity_version: '9' }, { name: 'm_8', entity_version: '8' }],
+        traffic_config: {
+          routes: [
+            { served_model_name: 'm_9', traffic_percentage: 70 },
+            { served_model_name: 'm_8', traffic_percentage: 30 },
+          ],
+        },
+        served_entities: [
+          { name: 'm_9', entity_version: '9' },
+          { name: 'm_8', entity_version: '8' },
+        ],
       },
     });
     // Naming the majority route would be a guess presented as a measurement,
@@ -325,7 +380,8 @@ describe('reading the served model version', () => {
 
 describe('counting and denominators', () => {
   it('counts a suite out of the cases it started with, not the ones that worked', () => {
-    const counts = countOutcomes([
+    const counts = countOutcomes(
+      [
         { outcome: 'passed' } as never,
         { outcome: 'errored' } as never,
         { outcome: 'clarified' } as never,
@@ -337,16 +393,25 @@ describe('counting and denominators', () => {
   });
 
   it('calls a suite complete only when every case in it passed', () => {
-    expect(deriveStatus({ total: 6, attempted: 6, passed: 6, failed: 0, errored: 0, clarified: 0, unresolved: 0 })).toBe('complete');
+    expect(
+      deriveStatus({ total: 6, attempted: 6, passed: 6, failed: 0, errored: 0, clarified: 0, unresolved: 0 })
+    ).toBe('complete');
     // Five of six is partial. Scoring it out of five would be the substitution
     // this module exists to remove.
-    expect(deriveStatus({ total: 6, attempted: 5, passed: 5, failed: 0, errored: 1, clarified: 0, unresolved: 0 })).toBe('partial');
-    expect(deriveStatus({ total: 6, attempted: 6, passed: 0, failed: 6, errored: 0, clarified: 0, unresolved: 0 })).toBe('failed');
-    expect(deriveStatus({ total: 0, attempted: 0, passed: 0, failed: 0, errored: 0, clarified: 0, unresolved: 0 })).toBe('failed');
+    expect(
+      deriveStatus({ total: 6, attempted: 5, passed: 5, failed: 0, errored: 1, clarified: 0, unresolved: 0 })
+    ).toBe('partial');
+    expect(
+      deriveStatus({ total: 6, attempted: 6, passed: 0, failed: 6, errored: 0, clarified: 0, unresolved: 0 })
+    ).toBe('failed');
+    expect(
+      deriveStatus({ total: 0, attempted: 0, passed: 0, failed: 0, errored: 0, clarified: 0, unresolved: 0 })
+    ).toBe('failed');
   });
 
   it('excludes not-applicable and errored judgements from a rate’s denominator', () => {
-    const summary = summariseJudge([
+    const summary = summariseJudge(
+      [
         { name: 'groundedness', state: 'scored', value: 'yes' } as never,
         { name: 'groundedness', state: 'scored', value: 'no' } as never,
         { name: 'groundedness', state: 'not-applicable', value: null } as never,
@@ -361,7 +426,10 @@ describe('counting and denominators', () => {
   });
 
   it('reports no rate at all rather than zero when nothing was scored', () => {
-    const summary = summariseJudge([{ name: 'groundedness', state: 'errored', value: null } as never], GROUNDEDNESS_FEEDBACK_NAME);
+    const summary = summariseJudge(
+      [{ name: 'groundedness', state: 'errored', value: null } as never],
+      GROUNDEDNESS_FEEDBACK_NAME
+    );
     // Zero would read as "the agent failed every check". Null renders as absent.
     expect(summary.rate).toBeNull();
     expect(summary.scored).toBe(0);
@@ -373,8 +441,10 @@ describe('counting and denominators', () => {
 // ---------------------------------------------------------------------------
 
 describe('deciding a case', () => {
-  const scored = (value: 'yes' | 'no', name = 'groundedness') => ({ name, state: 'scored' as const, value, rationale: 'r' }) as never;
-  const errored = (name = 'groundedness') => ({ name, state: 'errored' as const, value: null, reason: 'unreachable' }) as never;
+  const scored = (value: 'yes' | 'no', name = 'groundedness') =>
+    ({ name, state: 'scored' as const, value, rationale: 'r' }) as never;
+  const errored = (name = 'groundedness') =>
+    ({ name, state: 'errored' as const, value: null, reason: 'unreachable' }) as never;
   const check = (passed: boolean) => ({ id: 'has-charts', label: 'Returned at least one chart', passed, detail: 'd' });
 
   it('passes only when every check held and every verdict was yes', () => {
@@ -424,13 +494,23 @@ describe('the document handed to the groundedness judge', () => {
   });
 
   it('is empty when the agent retrieved nothing, so the rubric can be skipped', () => {
-    const bare = makeAnswer({ sql: '', figures: [], sources: [], trace: { id: 't', totalMs: 1, toolCalls: 0, stages: [] } });
+    const bare = makeAnswer({
+      sql: '',
+      figures: [],
+      sources: [],
+      trace: { id: 't', totalMs: 1, toolCalls: 0, stages: [] },
+    });
     expect(buildRetrievalContext(bare).text).toBe('');
   });
 
   it('reports truncation rather than silently shortening the document', () => {
     const huge = makeAnswer({
-      trace: { id: 't', totalMs: 1, toolCalls: 0, stages: [{ id: 's', name: 'Data', kind: 'sql', status: 'complete', input: '', output: 'x'.repeat(20_000) }] },
+      trace: {
+        id: 't',
+        totalMs: 1,
+        toolCalls: 0,
+        stages: [{ id: 's', name: 'Data', kind: 'sql', status: 'complete', input: '', output: 'x'.repeat(20_000) }],
+      },
     });
     expect(buildRetrievalContext(huge).truncated).toBe(true);
   });
@@ -482,7 +562,8 @@ describe('running a suite', () => {
 
   it('passes the governance refusal on the guidelines judge alone, with the other two rubrics marked not applicable', async () => {
     const store = new FakeStore();
-    const started = await run(makeDeps(store, {
+    const started = await run(
+      makeDeps(store, {
         // A refusal: prose, no data, no figures, no chart.
         askAgent: () =>
           Promise.resolve<AgentTurn>({
@@ -528,7 +609,8 @@ describe('running a suite', () => {
   it('approves a plan and executes it, rather than measuring the planner', async () => {
     const store = new FakeStore();
     const seen: unknown[] = [];
-    const started = await run(makeDeps(store, {
+    const started = await run(
+      makeDeps(store, {
         askAgent: (request) => {
           seen.push(request);
           if (!request.approvedPlanId) return Promise.resolve<AgentTurn>({ type: 'plan', planId: 'plan-9' });
@@ -544,15 +626,24 @@ describe('running a suite', () => {
   it('gives each case its own conversation, so no case is answered with the previous one’s history', async () => {
     const store = new FakeStore();
     const conversations: string[] = [];
-    await run(makeDeps(store, { askAgent: (request) => { conversations.push(request.conversationId); return Promise.resolve<AgentTurn>({ type: 'answer', answer: makeAnswer() }); } }));
+    await run(
+      makeDeps(store, {
+        askAgent: (request) => {
+          conversations.push(request.conversationId);
+          return Promise.resolve<AgentTurn>({ type: 'answer', answer: makeAnswer() });
+        },
+      })
+    );
     expect(new Set(conversations).size).toBe(2);
     expect(conversations[0]).toContain('player-count');
   });
 
   it('reports a clarification as its own outcome rather than as a failure', async () => {
     const store = new FakeStore();
-    const started = await run(makeDeps(store, {
-        askAgent: () => Promise.resolve<AgentTurn>({ type: 'clarification', question: 'Which titles?', traceId: 'tr-c' }),
+    const started = await run(
+      makeDeps(store, {
+        askAgent: () =>
+          Promise.resolve<AgentTurn>({ type: 'clarification', question: 'Which titles?', traceId: 'tr-c' }),
       })
     );
     const metrics = store.metrics(started.body.id);
@@ -565,7 +656,8 @@ describe('running a suite', () => {
   it('keeps going after one case errors, and reports the error rather than hiding it', async () => {
     const store = new FakeStore();
     let call = 0;
-    const started = await run(makeDeps(store, {
+    const started = await run(
+      makeDeps(store, {
         askAgent: () => {
           call += 1;
           if (call === 1) return Promise.reject(new Error('endpoint returned 500'));
@@ -645,7 +737,9 @@ describe('running a suite', () => {
 
   it('abandons remaining cases when the suite runs out of time, and says so', async () => {
     const store = new FakeStore();
-    const started = await run(makeDeps(store, { suiteBudgetMs: 1, now: makeClock('2026-08-05T07:00:00.000Z', 60_000) }));
+    const started = await run(
+      makeDeps(store, { suiteBudgetMs: 1, now: makeClock('2026-08-05T07:00:00.000Z', 60_000) })
+    );
     const metrics = store.metrics(started.body.id);
     expect(metrics.cases.every((entry) => entry.outcome === 'errored')).toBe(true);
     expect(metrics.cases[0].errorStage).toBe('budget');
@@ -659,7 +753,9 @@ describe('running a suite', () => {
     // over those two and say nothing about having stopped — the numbers all true and
     // the denominator a lie, which is the exact shape this module exists to remove.
     const store = new FakeStore();
-    const started = await run(makeDeps(store, { suiteBudgetMs: 1, now: makeClock('2026-08-05T07:00:00.000Z', 60_000) }));
+    const started = await run(
+      makeDeps(store, { suiteBudgetMs: 1, now: makeClock('2026-08-05T07:00:00.000Z', 60_000) })
+    );
     const metrics = store.metrics(started.body.id);
 
     expect(metrics.truncation?.code).toBe(BUDGET_TRUNCATION_CODE);
@@ -698,7 +794,8 @@ describe('a suite that outlives the credential it started with', () => {
   it('refuses to start a suite its credential cannot cover, before anything is written', async () => {
     const store = new FakeStore();
     const askAgent = vi.fn();
-    const result = await startBenchmarkRun(makeDeps(store, {
+    const result = await startBenchmarkRun(
+      makeDeps(store, {
         identity: identity(expiringAfter(60_000)),
         suiteBudgetMs: 20 * 60_000,
         now: makeClock(startedAt, 0),
@@ -718,7 +815,8 @@ describe('a suite that outlives the credential it started with', () => {
 
   it('starts a suite whose credential outlasts the budget', async () => {
     const store = new FakeStore();
-    const started = await run(makeDeps(store, {
+    const started = await run(
+      makeDeps(store, {
         identity: identity(expiringAfter(60 * 60_000)),
         suiteBudgetMs: 20 * 60_000,
       })
@@ -731,7 +829,8 @@ describe('a suite that outlives the credential it started with', () => {
     // An opaque personal access token states no `exp`. Refusing on that would
     // take the page down in any workspace that issues them, on a check that
     // would have fired correctly zero times.
-    const started = await run(makeDeps(store, {
+    const started = await run(
+      makeDeps(store, {
         identity: identity({ expiresAtMs: null, unknownReason: 'the token is opaque rather than a JWT' }),
       })
     );
@@ -745,7 +844,8 @@ describe('a suite that outlives the credential it started with', () => {
   it('stops mid-suite when the endpoint stops accepting the credential, rather than finishing as the application', async () => {
     const store = new FakeStore();
     let call = 0;
-    const started = await run(makeDeps(store, {
+    const started = await run(
+      makeDeps(store, {
         identity: identity({ expiresAtMs: null, unknownReason: 'the token is opaque rather than a JWT' }),
         askAgent: () => {
           call += 1;
@@ -785,7 +885,12 @@ describe('a suite that outlives the credential it started with', () => {
 
 describe('a run the endpoint refuses', () => {
   function refusal(code: 'IDENTITY_REQUIRED' | 'USER_NOT_AUTHORIZED'): AgentTurn {
-    return { type: 'refused', code, message: 'The request could not be executed with your permissions.', detail: `refused with ${code}` };
+    return {
+      type: 'refused',
+      code,
+      message: 'The request could not be executed with your permissions.',
+      detail: `refused with ${code}`,
+    };
   }
 
   it('stops the whole suite when the refusal is about the run’s identity', async () => {
@@ -805,7 +910,8 @@ describe('a run the endpoint refuses', () => {
   it('keeps going when the refusal is about the data one question needed', async () => {
     const store = new FakeStore();
     let call = 0;
-    const started = await run(makeDeps(store, {
+    const started = await run(
+      makeDeps(store, {
         askAgent: () => {
           call += 1;
           // A reader who cannot see one of the tables the suite touches is an
@@ -976,7 +1082,12 @@ describe('the transport this runner is allowed to use', () => {
   });
 
   it('keeps its SQL where a schema check can find it', () => {
-    for (const statement of [BENCHMARK_SUITE_QUERY, BENCHMARK_RUN_INSERT, BENCHMARK_RUN_UPDATE, BENCHMARK_RUNNING_QUERY]) {
+    for (const statement of [
+      BENCHMARK_SUITE_QUERY,
+      BENCHMARK_RUN_INSERT,
+      BENCHMARK_RUN_UPDATE,
+      BENCHMARK_RUNNING_QUERY,
+    ]) {
       expect(statement).toContain('player_insights.');
     }
     // Only `benchmark_runs` is written. The two `benchmark_suites` rows survived

@@ -43,12 +43,7 @@ import {
 } from './benchmark-suite';
 import { withDeadline } from './deadline';
 import { scoreCase, type AnswerEnvelope, type CaseExpectations } from '../../shared/answer-scorers';
-import {
-  HELD_OUT_CASES,
-  HELD_OUT_SUITE_ID,
-  HELD_OUT_SUITE_NAME,
-  heldOutCase,
-} from '../../shared/held-out-suite';
+import { HELD_OUT_CASES, HELD_OUT_SUITE_ID, HELD_OUT_SUITE_NAME, heldOutCase } from '../../shared/held-out-suite';
 import { conversationFromTurnsOrPair } from '../../shared/eval-conversation';
 import { loadTurnsForQuestion } from './eval-conversation';
 import {
@@ -354,7 +349,8 @@ const STRUCTURAL_CHECKS: Record<
   },
 };
 
-export function evaluateStructuralChecks(ids: StructuralCheckId[],
+export function evaluateStructuralChecks(
+  ids: StructuralCheckId[],
   answer: BenchmarkAnswer
 ): BenchmarkStructuralCheck[] {
   return ids.map((id) => {
@@ -388,8 +384,7 @@ export function summariseJudge(judgements: BenchmarkJudgement[], name: JudgeName
 }
 
 export function countOutcomes(cases: BenchmarkCaseResult[], total: number): BenchmarkCounts {
-  const of = (outcome: BenchmarkCaseResult['outcome']) =>
-    cases.filter((result) => result.outcome === outcome).length;
+  const of = (outcome: BenchmarkCaseResult['outcome']) => cases.filter((result) => result.outcome === outcome).length;
   return {
     total,
     attempted: cases.filter((result) => result.outcome !== 'unresolved').length,
@@ -419,7 +414,8 @@ export function deriveStatus(counts: BenchmarkCounts): BenchmarkRunStatus {
 // Scoring one case
 // ---------------------------------------------------------------------------
 
-async function judgeCase(judge: JudgeConfig,
+async function judgeCase(
+  judge: JudgeConfig,
   resolved: ResolvedCase,
   question: string,
   answer: BenchmarkAnswer,
@@ -438,34 +434,34 @@ async function judgeCase(judge: JudgeConfig,
   if (!applicable.has(GROUNDEDNESS_FEEDBACK_NAME)) {
     skip(GROUNDEDNESS_FEEDBACK_NAME, 'This case does not apply the groundedness rubric.');
   } else if (!context.text.trim()) {
-    skip(GROUNDEDNESS_FEEDBACK_NAME,
+    skip(
+      GROUNDEDNESS_FEEDBACK_NAME,
       'The answer carried no retrieved context (no stage output, no SQL and no figures), so there is no ' +
         'document to check its claims against. Unscored rather than scored against an empty document.'
     );
   } else {
-    judgements.push(await runJudge(judge,
-        GROUNDEDNESS_FEEDBACK_NAME,
-        groundednessPrompt(question, response, context.text)
-      )
+    judgements.push(
+      await runJudge(judge, GROUNDEDNESS_FEEDBACK_NAME, groundednessPrompt(question, response, context.text))
     );
   }
 
   if (!applicable.has(RELEVANCE_TO_QUERY_ASSESSMENT_NAME)) {
     skip(RELEVANCE_TO_QUERY_ASSESSMENT_NAME, 'This case does not apply the relevance rubric.');
   } else {
-    judgements.push(await runJudge(judge,
-        RELEVANCE_TO_QUERY_ASSESSMENT_NAME,
-        relevanceToQueryPrompt(question, response)
-      )
+    judgements.push(
+      await runJudge(judge, RELEVANCE_TO_QUERY_ASSESSMENT_NAME, relevanceToQueryPrompt(question, response))
     );
   }
 
   if (!applicable.has(GUIDELINES_FEEDBACK_NAME) || resolved.guidelines.length === 0) {
-    skip(GUIDELINES_FEEDBACK_NAME,
+    skip(
+      GUIDELINES_FEEDBACK_NAME,
       'This case declares no guideline, so there is no stated expectation to assess it against.'
     );
   } else {
-    judgements.push(await runJudge(judge,
+    judgements.push(
+      await runJudge(
+        judge,
         GUIDELINES_FEEDBACK_NAME,
         guidelinesPrompt(resolved.guidelines, { request: question, response })
       )
@@ -645,8 +641,8 @@ export function judgedScores(caseId: string, judgements: BenchmarkJudgement[]): 
   const paired = abstain(
     other,
     held.expectations.is_refusal
-      ? "The correct behaviour on this case is to decline, so its labelled facts describe a refusal rather than " +
-        'an answer. Scored under refusal_quality instead.'
+      ? 'The correct behaviour on this case is to decline, so its labelled facts describe a refusal rather than ' +
+          'an answer. Scored under refusal_quality instead.'
       : 'This case does not ask for restricted data, so there is no refusal to judge.'
   );
 
@@ -657,7 +653,7 @@ export function judgedScores(caseId: string, judgements: BenchmarkJudgement[]): 
         scorerId,
         judgement?.state === 'errored'
           ? `The judge could not be reached, so this case is unscored rather than failed: ${judgement.reason}`
-          : 'No judgement was returned against this case\'s labelled facts.'
+          : "No judgement was returned against this case's labelled facts."
       ),
       paired,
     ];
@@ -745,7 +741,8 @@ export function aggregateScores(perCase: ScorecardValue[][]): ScorecardValue[] {
  * skipped and every judge errored, nothing was measured, and a pass would be an
  * assertion with nothing behind it.
  */
-export function decideOutcome(checks: BenchmarkStructuralCheck[],
+export function decideOutcome(
+  checks: BenchmarkStructuralCheck[],
   judgements: BenchmarkJudgement[]
 ): { outcome: 'passed' | 'failed' | 'errored'; errorStage: 'judge' | null; note: string } {
   const failedChecks = checks.filter((check) => !check.passed);
@@ -756,7 +753,9 @@ export function decideOutcome(checks: BenchmarkStructuralCheck[],
   if (failedChecks.length > 0 || saidNo.length > 0) {
     const reasons = [
       ...failedChecks.map((check) => `${check.label} failed: ${check.detail}`),
-      ...saidNo.map((judgement) => `the ${judgement.name} judge said no, ${judgement.rationale || 'no rationale given'}`),
+      ...saidNo.map(
+        (judgement) => `the ${judgement.name} judge said no, ${judgement.rationale || 'no rationale given'}`
+      ),
     ];
     return { outcome: 'failed', errorStage: null, note: `The agent answered, and ${reasons.join('; ')}.` };
   }
@@ -795,7 +794,8 @@ export function decideOutcome(checks: BenchmarkStructuralCheck[],
 // ---------------------------------------------------------------------------
 
 async function withTurnTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
-  return withDeadline(work,
+  return withDeadline(
+    work,
     ms,
     `The agent endpoint did not answer within ${ms} ms. The call was abandoned rather than cancelled, ` +
       'so it may still be running at the endpoint.'
@@ -840,10 +840,7 @@ interface CaseOutcome {
 /** A case result with the scorer set attached. See `ScoredCaseFields`. */
 export type ScoredCase = BenchmarkCaseResult & ScoredCaseFields;
 
-async function runCase(deps: BenchmarkRunnerDeps,
-  runId: string,
-  resolved: ResolvedCase
-): Promise<CaseOutcome> {
+async function runCase(deps: BenchmarkRunnerDeps, runId: string, resolved: ResolvedCase): Promise<CaseOutcome> {
   if (!resolved.question) return { result: unresolvedCase(resolved), fatal: null };
   const question = resolved.question;
   const now = deps.now ?? Date.now;
@@ -885,7 +882,8 @@ async function runCase(deps: BenchmarkRunnerDeps,
     // so the plan is approved and executed exactly as the ask route does.
     if (turn.type === 'plan') {
       turns = 2;
-      turn = await withTurnTimeout(deps.askAgent({
+      turn = await withTurnTimeout(
+        deps.askAgent({
           prompt: question,
           conversationId,
           approvedPlanId: turn.planId,
@@ -897,7 +895,8 @@ async function runCase(deps: BenchmarkRunnerDeps,
     if (turn.type === 'answer') answer = turn.answer;
     else if (turn.type === 'clarification') clarification = { question: turn.question, traceId: turn.traceId };
     else if (turn.type === 'refused') refusal = { code: turn.code, message: turn.message, detail: turn.detail };
-    else if (turn.type === 'plan') failure = `The agent proposed plan ${turn.planId} again after it was approved, so the case never ran.`;
+    else if (turn.type === 'plan')
+      failure = `The agent proposed plan ${turn.planId} again after it was approved, so the case never ran.`;
     else failure = turn.detail;
   } catch (error) {
     failure = (error as Error).message;
@@ -1051,7 +1050,11 @@ export function parseServedModel(endpointName: string, endpoint: unknown): Serve
   });
 
   const recordList = (value: unknown): Record<string, unknown>[] =>
-    Array.isArray(value) ? (value as unknown[]).filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object') : [];
+    Array.isArray(value)
+      ? (value as unknown[]).filter(
+          (item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object'
+        )
+      : [];
   const entities = [
     ...recordList(config.served_entities),
     ...recordList(config.servedEntities),
@@ -1059,6 +1062,29 @@ export function parseServedModel(endpointName: string, endpoint: unknown): Serve
   ];
 
   const live = routes.filter((route) => route.trafficPercentage > 0);
+  /*
+   * Databricks omits traffic_config when an endpoint has exactly one served
+   * entity. That is the implicit 100% case, not an indeterminate split. The
+   * previous reader required an explicit route and consequently hid the active
+   * MLflow version from both benchmark evidence and the configuration loader.
+   */
+  if (routes.length === 0 && entities.length === 1) {
+    const [entity] = entities;
+    const version = textOf(
+      entity.entity_version ?? entity.entityVersion ?? entity.model_version ?? entity.modelVersion
+    );
+    const entityName = textOf(entity.entity_name ?? entity.entityName ?? entity.model_name ?? entity.modelName);
+    if (version && entityName) {
+      return {
+        endpoint: endpointName,
+        entityName,
+        version,
+        determinate: true,
+        routes: [],
+        note: `The endpoint has one served entity, so this run is attributable to version ${version} of ${entityName}.`,
+      };
+    }
+  }
   if (live.length !== 1 || live[0].trafficPercentage !== 100) {
     return {
       endpoint: endpointName,
@@ -1075,7 +1101,9 @@ export function parseServedModel(endpointName: string, endpoint: unknown): Serve
   }
 
   const entity = entities.find((candidate) => textOf(candidate.name) === live[0].name);
-  const version = textOf(entity?.entity_version ?? entity?.entityVersion ?? entity?.model_version ?? entity?.modelVersion);
+  const version = textOf(
+    entity?.entity_version ?? entity?.entityVersion ?? entity?.model_version ?? entity?.modelVersion
+  );
   const entityName = textOf(entity?.entity_name ?? entity?.entityName ?? entity?.model_name ?? entity?.modelName);
   return {
     endpoint: endpointName,
@@ -1096,9 +1124,7 @@ export function executionIdentityOf(identity: RunIdentity): BenchmarkExecutionId
     email: identity.email,
     verified: identity.verified,
     credentialExpiresAt:
-      identity.lifetime.expiresAtMs === null
-        ? null
-        : new Date(identity.lifetime.expiresAtMs).toISOString(),
+      identity.lifetime.expiresAtMs === null ? null : new Date(identity.lifetime.expiresAtMs).toISOString(),
   };
 }
 
@@ -1218,7 +1244,8 @@ export function buildMetrics(input: {
 function heartbeatAge(metrics: unknown, nowMs: number): number | null {
   const record = parseJson(metrics);
   if (!record || typeof record !== 'object') return null;
-  const stamp = (record as { heartbeatAt?: unknown; startedAt?: unknown }).heartbeatAt ??
+  const stamp =
+    (record as { heartbeatAt?: unknown; startedAt?: unknown }).heartbeatAt ??
     (record as { startedAt?: unknown }).startedAt;
   if (typeof stamp !== 'string') return null;
   const at = Date.parse(stamp);
@@ -1268,7 +1295,8 @@ export async function sweepStaleRuns(deps: {
     try {
       await deps.store.query(BENCHMARK_RUN_UPDATE, [id, 'failed', JSON.stringify(patched)]);
       swept.push(id);
-      console.warn(`[benchmark] Run ${id} was left running with no heartbeat for ${Math.round(age / 1000)}s, which means the ` +
+      console.warn(
+        `[benchmark] Run ${id} was left running with no heartbeat for ${Math.round(age / 1000)}s, which means the ` +
           'process executing it stopped. Marked failed and interrupted rather than left in progress forever.'
       );
     } catch (error) {
@@ -1319,7 +1347,9 @@ async function isCancelRequested(store: BenchmarkStore, runId: string): Promise<
   try {
     const result = await store.query(BENCHMARK_RUN_METRICS_QUERY, [runId]);
     const metrics = parseJson(result.rows[0]?.metrics_json);
-    return Boolean(metrics && typeof metrics === 'object' && (metrics as { cancelRequested?: unknown }).cancelRequested === true);
+    return Boolean(
+      metrics && typeof metrics === 'object' && (metrics as { cancelRequested?: unknown }).cancelRequested === true
+    );
   } catch {
     return false;
   }
@@ -1330,7 +1360,11 @@ async function isCancelRequested(store: BenchmarkStore, runId: string): Promise<
 // ---------------------------------------------------------------------------
 
 export type StartBenchmarkResult =
-  | { status: 202; body: { id: string; suiteId: string; suiteName: string; runStatus: 'running'; total: number; poll: string }; completed: Promise<void> }
+  | {
+      status: 202;
+      body: { id: string; suiteId: string; suiteName: string; runStatus: 'running'; total: number; poll: string };
+      completed: Promise<void>;
+    }
   | {
       status: 400 | 401 | 409 | 503;
       body: { error: string; message: string; runId?: string };
@@ -1475,7 +1509,8 @@ export function resolveSuiteIdentity(requestedId: string): SuiteIdentity | null 
  * that it did: a benchmark that silently ran a different case list from the
  * one requested would be the same defect as the constants it replaces.
  */
-async function loadCases(store: BenchmarkStore,
+async function loadCases(
+  store: BenchmarkStore,
   suite: SuiteIdentity,
   requestedSuiteId: string
 ): Promise<{ cases: ResolvedCase[]; source: 'suite-row' | 'catalog-fallback'; suiteName: string }> {
@@ -1488,19 +1523,20 @@ async function loadCases(store: BenchmarkStore,
   const aliasIds = [...new Set([suite.id, requestedSuiteId])];
   try {
     const result = await store.query(BENCHMARK_SUITE_QUERY, [aliasIds]);
-    const preferred =
-      result.rows.find((row) => String(row.id) === suite.id) ?? result.rows[0];
+    const preferred = result.rows.find((row) => String(row.id) === suite.id) ?? result.rows[0];
     if (preferred) {
       const cases = resolveSuiteCases(parseJson(preferred.cases_json));
       if (cases.length > 0) {
         return { cases, source: 'suite-row', suiteName: suite.name };
       }
-      console.warn(`[benchmark] Suite row ${String(preferred.id)} holds no usable cases, so the server-side catalog is ` +
+      console.warn(
+        `[benchmark] Suite row ${String(preferred.id)} holds no usable cases, so the server-side catalog is ` +
           'being run instead. The run records this substitution.'
       );
     }
   } catch (error) {
-    console.warn('[benchmark] Suite definitions could not be read, so the server-side catalog is being run instead:',
+    console.warn(
+      '[benchmark] Suite definitions could not be read, so the server-side catalog is being run instead:',
       (error as Error).message
     );
   }
@@ -1617,7 +1653,8 @@ export async function startBenchmarkRun(deps: BenchmarkRunnerDeps): Promise<Star
       JSON.stringify(initial),
     ]);
   } catch (error) {
-    console.error('[benchmark] Refusing to start: the run row could not be written, so a suite would execute with nowhere ' +
+    console.error(
+      '[benchmark] Refusing to start: the run row could not be written, so a suite would execute with nowhere ' +
         'to record what it found:',
       (error as Error).message
     );
@@ -1632,7 +1669,8 @@ export async function startBenchmarkRun(deps: BenchmarkRunnerDeps): Promise<Star
     };
   }
 
-  console.log(`[benchmark] Run ${runId} started: ${cases.length} case(s) of ${suite.name}, judged by ` +
+  console.log(
+    `[benchmark] Run ${runId} started: ${cases.length} case(s) of ${suite.name}, judged by ` +
       `${deps.judge.judgeEndpoint} with MLflow ${MLFLOW_JUDGE_PROMPT_VERSION} prompts, against ` +
       `${servedModel.determinate ? `model version ${servedModel.version}` : 'an endpoint whose version is not determinate'}, ` +
       `executing as ${deps.identity.email} (${deps.identity.mode}). ${covered.note}`
@@ -1681,7 +1719,8 @@ async function resolveServedModel(deps: BenchmarkRunnerDeps): Promise<ServedMode
 // Executing a run
 // ---------------------------------------------------------------------------
 
-async function executeRun(deps: BenchmarkRunnerDeps,
+async function executeRun(
+  deps: BenchmarkRunnerDeps,
   context: {
     runId: string;
     suite: SuiteIdentity;
@@ -1732,7 +1771,8 @@ async function executeRun(deps: BenchmarkRunnerDeps,
       persistenceFailures += 1;
       // Loud, and with the payload, because this is the one failure mode where
       // the work was really done and the record of it is what went missing.
-      console.error(`[benchmark] Run ${context.runId} could not be updated after ${results.length} case(s): ` +
+      console.error(
+        `[benchmark] Run ${context.runId} could not be updated after ${results.length} case(s): ` +
           `${(error as Error).message}. Results so far, for recovery: ${JSON.stringify(metrics).slice(0, 4000)}`
       );
     }
@@ -1777,13 +1817,15 @@ async function executeRun(deps: BenchmarkRunnerDeps,
         unattempted: context.cases.length - index,
         detail: `the suite exceeded its ${minutes} minute budget after case ${index}`,
       };
-      abandonFrom(index,
+      abandonFrom(
+        index,
         'budget',
         `The suite exceeded its ${minutes} minute budget before this case ran.`,
         'The suite ran out of time before this case started, so it was not attempted. Counted as unscored, ' +
           'not as a pass and not dropped from the total.'
       );
-      console.warn(`[benchmark] Run ${context.runId} stopped after case ${index}/${context.cases.length}: ` +
+      console.warn(
+        `[benchmark] Run ${context.runId} stopped after case ${index}/${context.cases.length}: ` +
           `${minutes} minute budget exhausted. The remaining ${context.cases.length - index} case(s) were ` +
           'recorded as never attempted.'
       );
@@ -1803,7 +1845,8 @@ async function executeRun(deps: BenchmarkRunnerDeps,
         'The suite was cancelled before this case ran.',
         'Cancelled. This case was not attempted. Partial results from earlier cases stay on the run.'
       );
-      console.warn(`[benchmark] Run ${context.runId} cancelled after case ${index}/${context.cases.length}. ` +
+      console.warn(
+        `[benchmark] Run ${context.runId} cancelled after case ${index}/${context.cases.length}. ` +
           `${context.cases.length - index} case(s) were recorded as never attempted.`
       );
       break;
@@ -1812,7 +1855,8 @@ async function executeRun(deps: BenchmarkRunnerDeps,
     await persist('running', index, false);
     const { result, fatal } = await runCase(deps, context.runId, resolved);
     results.push(result);
-    console.log(`[benchmark] Run ${context.runId} case ${index + 1}/${context.cases.length} ` +
+    console.log(
+      `[benchmark] Run ${context.runId} case ${index + 1}/${context.cases.length} ` +
         `${result.caseId}: ${result.outcome}${result.durationMs === null ? '' : ` in ${result.durationMs} ms`}`
     );
     if (fatal) {
@@ -1822,14 +1866,16 @@ async function executeRun(deps: BenchmarkRunnerDeps,
         unattempted: context.cases.length - index - 1,
         detail: fatal.detail,
       };
-      abandonFrom(index + 1,
+      abandonFrom(
+        index + 1,
         'identity',
         fatal.code,
         `The suite stopped after case ${index + 1}: the endpoint refused the identity this run is ` +
           `executing under with ${fatal.code}, so no later case could have been answered either. ` +
           'Reported as never attempted rather than as failures of the agent.'
       );
-      console.warn(`[benchmark] Run ${context.runId} stopped after case ${index + 1}/${context.cases.length}: ` +
+      console.warn(
+        `[benchmark] Run ${context.runId} stopped after case ${index + 1}/${context.cases.length}: ` +
           `the endpoint refused ${deps.identity.email} with ${fatal.code}. ${fatal.detail} Nothing was ` +
           "retried as the app's service principal."
       );
@@ -1840,7 +1886,8 @@ async function executeRun(deps: BenchmarkRunnerDeps,
   const counts = countOutcomes(results, context.cases.length);
   const status = deriveStatus(counts);
   await persist(status, null, true);
-  console.log(`[benchmark] Run ${context.runId} ${status}: ${counts.passed} passed, ${counts.failed} failed, ` +
+  console.log(
+    `[benchmark] Run ${context.runId} ${status}: ${counts.passed} passed, ${counts.failed} failed, ` +
       `${counts.errored} errored, ${counts.clarified} clarified, ${counts.unresolved} unresolved, of ` +
       `${counts.total} case(s) in ${now() - context.startedAtMs} ms` +
       `${truncation ? `, cut short after ${truncation.fromCaseIndex} by ${truncation.code}` : ''}. ` +

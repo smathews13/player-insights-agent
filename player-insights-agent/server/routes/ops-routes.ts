@@ -58,8 +58,10 @@ import {
   noHistoryReason,
   offMeasurement,
   readTelemetryRows,
+  readTelemetryDestination,
   stateFromFailure,
   telemetrySchema,
+  type TelemetryDestinationReader,
   uncheckedMeasurement,
 } from '../lib/ops-telemetry';
 import { classifyDenial, accessDependenciesFrom, forwardedUserToken, UNKNOWN_PRINCIPAL } from './access-verification';
@@ -80,6 +82,7 @@ import { readCostBudgets } from '../lib/cost-budgets-store';
 import { sqlQueryTags } from '../lib/sql-query-tags';
 import { isDataContractFallback, listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
 import { PLAN_APPROVAL_MESSAGE, userEmail, type InsightsAppKit, type PreflightReport } from './insights-routes';
+import { checkExperimentAsApp } from '../lib/experiment-probe';
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
 import { ACTIVE_MINUTES_PER_DAY_QUERY } from '../lib/app-activity';
 import {
@@ -735,9 +738,21 @@ export function platformReadings(
  * write", which was never measured and is false -- appkit runs an exporter, and
  * `otel_spans` has been filling since 2026-08-16.
  */
-async function readAppMeasurement(req: Request, insightsHref: string): Promise<AppMeasurement> {
-  const schema = telemetrySchema();
-  if (!schema) return offMeasurement(insightsHref);
+async function readAppMeasurement(
+  req: Request,
+  insightsHref: string,
+  readDestination?: TelemetryDestinationReader
+): Promise<AppMeasurement> {
+  const destination = await readTelemetryDestination({ read: readDestination });
+  if (destination.state === 'disabled') return offMeasurement(insightsHref);
+  if (destination.state === 'unreadable') {
+    return {
+      ...offMeasurement(insightsHref),
+      telemetry: 'unreadable',
+      reason: destination.reason,
+    };
+  }
+  const schema = destination.schema;
 
   const table = logsTable(schema);
   const base = offMeasurement(insightsHref);
@@ -853,17 +868,20 @@ async function readDependencies(
       });
       if (listed.length > tables.length) tables = unionTableNames(tables, listed);
     }
-    const checks = await probeConnections({
-      configured,
-      tables,
-      host: host(),
-      token: executionToken(req),
-      principal: userEmail(req) || '',
-      fetchImpl: options.fetchImpl,
-      timeoutMs: options.timeoutMs,
-      signal: options.signal,
-      concurrency: options.concurrency,
-    });
+    const [checks, experiment] = await Promise.all([
+      probeConnections({
+        configured,
+        tables,
+        host: host(),
+        token: executionToken(req),
+        principal: userEmail(req) || '',
+        fetchImpl: options.fetchImpl,
+        timeoutMs: options.timeoutMs,
+        signal: options.signal,
+        concurrency: options.concurrency,
+      }),
+      checkExperimentAsApp(configured['experiment-id'] ?? ''),
+    ]);
     const checkedAt = new Date((options.clock ?? Date.now)()).toISOString();
     // Which of these probes has a row on Connections to land on. Built from the
     // same `resourceStates` list that page draws, so a resource renamed there
@@ -872,7 +890,7 @@ async function readDependencies(
     return {
       checkedAt,
       reason: '',
-      rows: checks.map((check) => {
+      rows: [...checks, experiment].map((check) => {
         const verdict = checkVerdict(check);
         return {
           id: check.id,
@@ -1536,6 +1554,8 @@ export interface OpsDeps {
   healthCheckTotalTimeoutMs?: number;
   /** Test seam for the persisted/control-plane app lifetime boundary. */
   readFirstAppDeployment?: () => Promise<{ deployedAt: string } | null>;
+  /** Test seam for the Apps control-plane telemetry destination. */
+  readTelemetryDestination?: TelemetryDestinationReader;
 }
 
 /**
@@ -1591,7 +1611,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         timeoutMs: forced ? PROBE_TIMEOUT_MS : undefined,
         signal: deadline,
       }),
-      readAppMeasurement(req, insightsHref).catch((error: Error) =>
+      readAppMeasurement(req, insightsHref, deps.readTelemetryDestination).catch((error: Error) =>
         uncheckedMeasurement(insightsHref, `reading it threw: ${error.message}.`)
       ),
       lakebaseReading(appkit),

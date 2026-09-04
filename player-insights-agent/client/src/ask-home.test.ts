@@ -605,9 +605,9 @@ describe('the two marks that sign a transcript', () => {
     // Every live, replayed, follow-up and plan-approval user turn reaches this one
     // role branch, so both current and replayed questions share this contract.
     expect(HOME_PAGE).toMatch(/message\.role === 'user'[\s\S]{0,260}<QuestionAttributionBubble/);
-    expect(body('.question-attribution-message')).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
-    expect(body('.question-attribution-message')).toMatch(/background:\s*var\(--ast-pane\)/);
-    expect(body('.question-attribution-message::after')).toMatch(/content:\s*''/);
+    expect(body('.question-attribution-surface')).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+    expect(body('.question-attribution-surface')).toMatch(/background:\s*var\(--ast-pane\)/);
+    expect(body('.question-attribution-message')).toMatch(/border:\s*0/);
     expect(body('.user-message')).not.toMatch(/gap:\s*[1-9]/);
     expect(body('.user-message .question-attribution-user')).toMatch(/max-width:\s*none/);
   });

@@ -53,7 +53,9 @@ import {
   readExporterRows,
   noHistoryReason,
   offMeasurement,
+  readTelemetryDestination,
   readTelemetryRows,
+  telemetryDestinationFromApp,
   telemetrySchema,
   uncheckedMeasurement,
   workspaceExporterReader,
@@ -70,7 +72,7 @@ afterEach(() => {
   statementRequest.mockReset();
 });
 
-describe('the destination is whatever the release put in the environment', () => {
+describe('the authoritative telemetry destination', () => {
   it('reads a catalog and schema straight through', () => {
     // The end of the chain the release builds: bundle variable, release script,
     // generated app.yaml, container environment, here. If this returns the value
@@ -96,6 +98,44 @@ describe('the destination is whatever the release put in the environment', () =>
     expect(telemetrySchema()).toEqual('');
     process.env[TELEMETRY_SCHEMA_ENV] = 'a_catalog.a_schema.a_table';
     expect(telemetrySchema()).toEqual('');
+  });
+
+  it('recovers a live destination from the Apps record after Deploy from Git blanks the artifact variable', async () => {
+    const destination = await readTelemetryDestination({
+      raw: '',
+      appName: 'the-app',
+      read: () =>
+        Promise.resolve({
+          telemetry_export_destinations: [
+            {
+              unity_catalog: {
+                logs_table: `${CONFIGURED}.otel_logs`,
+                metrics_table: `${CONFIGURED}.otel_metrics`,
+                traces_table: `${CONFIGURED}.otel_spans`,
+              },
+            },
+          ],
+        }),
+    });
+    expect(destination).toEqual({ state: 'configured', schema: CONFIGURED, reason: '' });
+  });
+
+  it('reports off only after the Apps record confirms there are no destinations', () => {
+    expect(telemetryDestinationFromApp({ telemetry_export_destinations: [] })).toEqual({
+      state: 'disabled',
+      schema: '',
+      reason: '',
+    });
+  });
+
+  it('keeps a failed Apps read unknown rather than turning it into off', async () => {
+    const destination = await readTelemetryDestination({
+      raw: '',
+      appName: 'the-app',
+      read: () => Promise.reject(new Error('control plane timed out')),
+    });
+    expect(destination.state).toBe('unreadable');
+    expect(destination.reason).toContain('control plane timed out');
   });
 });
 
@@ -130,10 +170,8 @@ describe('off is reported only when the variable is genuinely unset', () => {
     expect(measurement.table).toEqual('');
   });
 
-  it('says off when a block fails and nothing is configured', () => {
-    // The customer target, whose Ops page falls over for some unrelated reason.
-    // Off is still the truth about telemetry, so it is still what is reported.
-    expect(uncheckedMeasurement(HREF, 'the block failed.').telemetry).toEqual('not-enabled');
+  it('does not infer off when a block fails before configuration can be checked', () => {
+    expect(uncheckedMeasurement(HREF, 'the block failed.').telemetry).toEqual('unreadable');
   });
 
   it('does NOT say off when a block fails and a destination IS configured', () => {

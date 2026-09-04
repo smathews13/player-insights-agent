@@ -20,19 +20,23 @@ export function QuestionAttributionBubble({
 }) {
   return (
     <div className={`question-attribution-bubble${className ? ` ${className}` : ''}`}>
-      <Question
-        id={questionId}
-        className={`question-attribution-message${questionClassName ? ` ${questionClassName}` : ''}`}
-      >
-        {question}
-      </Question>
-      <UserDrilldownLink
-        identity={asker}
-        label="Asked by"
-        compact
-        className="question-attribution-user"
-        canOpen={canOpenUser}
-      />
+      <div className="question-attribution-surface">
+        <Question
+          id={questionId}
+          className={`question-attribution-message${questionClassName ? ` ${questionClassName}` : ''}`}
+        >
+          {question}
+        </Question>
+        <div className="question-attribution-meta">
+          <UserDrilldownLink
+            identity={asker}
+            label="Asked by"
+            compact
+            className="question-attribution-user"
+            canOpen={canOpenUser}
+          />
+        </div>
+      </div>
     </div>
   );
 }

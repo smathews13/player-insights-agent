@@ -214,12 +214,12 @@ html[data-animations='off'] .app-sky[data-star-motion-field] * {
 }
 
 html[data-animations='off'] .app-sky[data-star-motion-field] [data-star-motion='anchor'] {
-  opacity: 0.7;
+  opacity: 0.62;
 }
 
 html[data-animations='off'] .app-sky[data-star-motion-field] .star-motion-draw {
   stroke-dashoffset: 0;
-  opacity: 0.45;
+  opacity: 0.28;
 }
 
 html[data-animations='off'] .run-status.is-alive .run-status-dot {

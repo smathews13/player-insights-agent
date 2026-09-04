@@ -316,19 +316,19 @@ describe('constellation and chrome layers', () => {
   });
 
   it('keeps uncovered decoration unchanged while cards dim and foregrounds suppress it', () => {
-    expect(motion).toMatch(/\.app-topology-node\s*\{[^}]*opacity:\s*0\.7/s);
-    expect(bodyFor(dark, "html[data-theme='dark'] .app-sky-line")).toMatch(/opacity:\s*0\.6/);
+    expect(motion).toMatch(/\.app-topology-node\s*\{[^}]*opacity:\s*0\.62/s);
+    expect(bodyFor(dark, "html[data-theme='dark'] .app-sky-line")).toMatch(/opacity:\s*0\.32/);
     expect(source('StarField.tsx')).toContain('<StarGlyphShape star={node} />');
-    expect(motion).toMatch(/@keyframes ast-tw\s*\{[\s\S]*?50%\s*\{[^}]*opacity:\s*0\.85/);
-    expect(motion).toMatch(/@keyframes ast-sky-draw\s*\{[\s\S]*?opacity:\s*0\.45/);
+    expect(motion).toMatch(/@keyframes ast-topology-blink\s*\{[\s\S]*?50%\s*\{[^}]*opacity:\s*0\.72/);
+    expect(motion).toMatch(/@keyframes ast-sky-draw\s*\{[\s\S]*?opacity:\s*0\.28/);
     expect(astrolabe).not.toContain('--ast-sky-spackle');
 
-    const exposedIntersection = 1 - (1 - 0.85) ** 2;
+    const exposedIntersection = 1 - (1 - 0.72) ** 2;
     const coveredIntersection = exposedIntersection * (1 - tokenMix(astrolabe, '--ast-surface-primary') / 100);
     const coveredElevatedIntersection = exposedIntersection * (1 - tokenMix(astrolabe, '--ast-surface-elevated') / 100);
     const coveredMenuIntersection = exposedIntersection * (1 - tokenMix(astrolabe, '--ast-surface-menu') / 100);
     const coveredHeaderIntersection = exposedIntersection * (1 - tokenMix(astrolabe, '--ast-surface-table-head') / 100);
-    expect(exposedIntersection).toBeGreaterThan(0.95);
+    expect(exposedIntersection).toBeGreaterThan(0.9);
     expect(coveredIntersection).toBeLessThan(0.015);
     expect(coveredIntersection).toBeGreaterThan(0);
     expect(coveredElevatedIntersection).toBeLessThan(0.005);
@@ -339,10 +339,10 @@ describe('constellation and chrome layers', () => {
     expect(bodyFor(appearance, "html[data-background-graphics='off'] .app-sky")).toMatch(/display:\s*none !important/);
     expect(
       bodyFor(appearance, "html[data-animations='off'] .app-sky[data-star-motion-field] [data-star-motion='anchor']")
-    ).toMatch(/opacity:\s*0\.7/);
+    ).toMatch(/opacity:\s*0\.62/);
     expect(
       bodyFor(appearance, "html[data-animations='off'] .app-sky[data-star-motion-field] .star-motion-draw")
-    ).toMatch(/opacity:\s*0\.45/);
+    ).toMatch(/opacity:\s*0\.28/);
   });
 
   it('keeps decorative and backing layers out of pointer hit testing', () => {

@@ -156,6 +156,25 @@ describe('the first Ops visit fetches; a later visit does not', () => {
 
     expect(again).toEqual({ data: { tiles: 1 }, failed: 'the server is not answering' });
   });
+
+  it('settles a request that never answers instead of leaving Refreshing on screen forever', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => new Promise<Response>(() => {}))
+      );
+      const pending = loadOpsBlock('/api/ops/cost:current-month:2026-09', '/api/ops/cost', 50);
+      await vi.advanceTimersByTimeAsync(50);
+      const answer = await pending;
+
+      expect(answer.data).toBeNull();
+      expect(answer.failed).toContain('did not finish');
+      expect(recallOpsBlock('/api/ops/cost:current-month:2026-09')).toEqual(answer);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('the current-month identity a remount must reuse', () => {

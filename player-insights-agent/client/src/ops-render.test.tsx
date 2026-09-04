@@ -2711,13 +2711,13 @@ describe('the latency block', () => {
     expect(markup).not.toContain('data-testid="ops-latency"');
   });
 
-  it('renders a bare Latency heading with the grouped filters directly after it', () => {
+  it('names the independent latency source before the grouped filters', () => {
     const markup = markupOf(<LatencyBody block={block(latency())} />);
     const header = markup.slice(markup.indexOf('ops-block-head'), markup.indexOf('ops-block-body'));
 
     expect(text(header)).not.toContain('By route');
     expect(header).toMatch(
-      /<div class="ops-block-head-text"><span class="ops-block-title-group"><h3 id="ops-latency-heading">Latency<\/h3><\/span><div class="ops-latency-trend-filters" role="group" aria-label="Filter by trend">/
+      /<div class="ops-block-head-text"><span class="ops-block-title-group"><h3 id="ops-latency-heading">Latency<\/h3><\/span><span class="ops-block-meta">App-owned request timings · [^<]+<\/span><div class="ops-latency-trend-filters" role="group" aria-label="Filter by trend">/
     );
     expect(header).toContain('ops-latency-head-controls');
     expect(header).toContain('ops-latency-search');
