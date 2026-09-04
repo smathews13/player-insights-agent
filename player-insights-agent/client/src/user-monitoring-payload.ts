@@ -1,9 +1,5 @@
 import type { OpsCostPayload } from '../../shared/ops-contract';
-import {
-  organizationForEmail,
-  sanitizeOrganizationMappings,
-  type OrganizationFilterOption,
-} from '../../shared/organization-mapping';
+import { organizationForEmail, sanitizeOrganizationFilterOptions } from '../../shared/organization-mapping';
 import { USER_MONITORING_SCHEMA_REVISION, type UserMonitoringPayload } from '../../shared/user-monitoring-contract';
 import type { SpendByUserPayload } from '../../shared/user-spend-contract';
 
@@ -18,15 +14,16 @@ export function decodeUserMonitoringCostPayload(value: unknown): OpsCostPayload 
   const direct = value.schemaRevision === USER_MONITORING_SCHEMA_REVISION;
   const rawMonitoring = direct ? value : value.userMonitoring;
   if (!isRecord(rawMonitoring)) throw new Error('user_monitoring_payload_missing');
-  if (rawMonitoring.schemaRevision !== USER_MONITORING_SCHEMA_REVISION || !Array.isArray(rawMonitoring.users)) {
+  if (
+    rawMonitoring.schemaRevision !== USER_MONITORING_SCHEMA_REVISION ||
+    !Array.isArray(rawMonitoring.users) ||
+    !Array.isArray(rawMonitoring.organizations)
+  ) {
     throw new Error('user_monitoring_payload_stale');
   }
   const monitoring = rawMonitoring as unknown as UserMonitoringPayload;
-  const organizations = sanitizeOrganizationMappings(monitoring.organizations).map((organization) => {
-    const source = monitoring.organizations.find((candidate) => candidate.id === organization.id);
-    const count = source?.count;
-    return { ...organization, count: typeof count === 'number' && Number.isFinite(count) ? Math.max(0, count) : 0 };
-  }) as OrganizationFilterOption[];
+  const organizations = sanitizeOrganizationFilterOptions(monitoring.organizations);
+  if (organizations.length !== monitoring.organizations.length) throw new Error('user_monitoring_payload_stale');
   const users = monitoring.users
     .filter(
       (row) =>

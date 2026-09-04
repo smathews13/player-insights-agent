@@ -4,7 +4,7 @@ import type { OrganizationFilterOption, OrganizationMapping } from './organizati
 import type { Role } from './user-roster-contract';
 import type { UserSpendAmount, UserSpendQuality, UserSpendReconciliation } from './user-spend-contract';
 
-export const USER_MONITORING_SCHEMA_REVISION = 5;
+export const USER_MONITORING_SCHEMA_REVISION = 6;
 
 export interface UserMonitoringRow {
   email: string;

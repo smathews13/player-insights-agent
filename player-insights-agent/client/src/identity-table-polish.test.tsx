@@ -167,13 +167,14 @@ describe('Identity table polish', () => {
     );
   });
 
-  it('renders the official Databricks mark and a neutral fallback without hiding either full email', () => {
+  it('renders the official Databricks mark and a derived domain mark without hiding either full email', () => {
     const markup = roster();
     expect(markup).toContain('aria-label="Organization: Databricks"');
     expect(markup).toContain('data-organization-domain="databricks.com"');
     expect(markup).toContain(DATABRICKS_SYMBOL);
     expect(markup).toContain('aria-label="Organization: outside.example.invalid"');
-    expect(markup).toContain('lucide-building-2');
+    expect(markup).toContain('>EX</span>');
+    expect(markup).not.toContain('lucide-building-2');
     for (const entry of payload.entries) {
       expect(markup).toContain(`title="${entry.email}">${entry.email}</span>`);
       expect(markup).toContain(`aria-label="Copy email ${entry.email}"`);

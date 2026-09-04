@@ -224,6 +224,13 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).toContain('Projection breakdown');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain('ops-forecast-breakdown-chevron');
+    const trigger = markup.slice(
+      markup.indexOf('ops-forecast-breakdown-trigger'),
+      markup.indexOf('</button>', markup.indexOf('ops-forecast-breakdown-trigger'))
+    );
+    expect(trigger.indexOf('Projection breakdown')).toBeLessThan(trigger.indexOf('>Estimated<'));
+    expect(trigger.indexOf('>Estimated<')).toBeLessThan(trigger.indexOf('ops-forecast-breakdown-chevron'));
+    expect(trigger).not.toContain('ops-forecast-breakdown-actions');
     expect(markup).not.toContain('Projected cost breakdown by horizon');
     expect(markup).not.toContain('<th scope="row">App compute</th>');
     expect(markup).toContain('Measured app-compute daily billing rate, held fixed');

@@ -555,6 +555,16 @@
   padding: 12px 16px 16px;
   font-size: var(--text-base);
 }
+
+.ast-flick-row.connection-row-status-loader,
+.ast-flick-row.connection-detail-status-loader {
+  min-height: 0;
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  gap: 6px;
+}
 .lakebase-migration-status {
   display: flex;
   align-items: center;

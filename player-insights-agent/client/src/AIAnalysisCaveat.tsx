@@ -10,10 +10,10 @@ export const AI_ANALYSIS_CAVEAT = 'Astrolabe analysis. AI can make mistakes.';
  * the whole sentence in one text node makes its accessible text exactly the
  * shared copy, once.
  */
-export function AIAnalysisCaveat({ className = '' }: { className?: string }) {
+export function AIAnalysisCaveat({ className = '', showMark = true }: { className?: string; showMark?: boolean }) {
   return (
     <p className={className} data-ai-analysis-caveat="">
-      <AstrolabeMark size={14} />
+      {showMark ? <AstrolabeMark size={14} /> : null}
       <span>{AI_ANALYSIS_CAVEAT}</span>
     </p>
   );

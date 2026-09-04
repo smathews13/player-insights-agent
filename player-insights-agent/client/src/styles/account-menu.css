@@ -59,6 +59,14 @@
   height: 14px;
 }
 
+@media (forced-colors: active) {
+  .roster-organization-mark {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+}
+
 .account-menu-trigger {
   display: inline-flex;
   align-items: center;

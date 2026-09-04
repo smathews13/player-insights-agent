@@ -83,26 +83,28 @@ describe('the harness says it is ready before anybody has asked anything', () =>
     // question was already away -- which is the one moment the mark is no use.
     expect(HOME).not.toMatch(/\(loading \|\| runStopped \|\| answer\) && \(<div className="trace-summary"/);
     expect(HOME).toMatch(/\n {10}<div className="trace-summary">/);
-    expect(HOME).toMatch(/<\/section>\s*<aside className="trace-inspector"/);
+    expect(HOME).toContain('<aside className="trace-inspector"');
     // And it draws something in every state, including before the check lands.
     for (const readiness of ['checking', 'ready', 'unreachable', 'unchecked'] as const) {
-      expect(draw(idle(readiness)), readiness).toContain('class="run-status');
+      expect(draw(idle(readiness)), readiness).toContain(
+        readiness === 'checking' ? 'class="ast-flick-row run-status-loader' : 'class="ast-pill run-status'
+      );
     }
   });
 
-  it('says Endpoint reachable only when its metadata was visible', () => {
+  it('says Connected only when endpoint metadata was visible', () => {
     // Metadata visibility is deliberately narrower than query permission.
     expect(agentReadinessFrom(report({ status: 'ok' }))).toBe('ready');
     const pill = idle('ready');
-    expect(pill.label).toBe('Endpoint reachable');
+    expect(pill.label).toBe('Connected');
     expect(pill.tone).toBe('is-ready');
-    expect(draw(pill)).toContain('Endpoint reachable');
+    expect(draw(pill)).toContain('Connected');
   });
 
   it('does not call an endpoint that refused a green Ready', () => {
     expect(agentReadinessFrom(report({ status: 'failed' }))).toBe('unreachable');
     const pill = idle('unreachable');
-    expect(pill.label).toBe('Agent unreachable');
+    expect(pill.label).toBe('Disconnected');
     expect(pill.tone).toBe('is-failed');
     const markup = draw(pill);
     expect(markup).not.toContain('is-ready');
@@ -118,7 +120,8 @@ describe('the harness says it is ready before anybody has asked anything', () =>
     expect(agentReadinessFrom(null)).toBe('unchecked');
     expect(agentReadinessFrom({ error: 'preflight_unavailable' })).toBe('unchecked');
     const pill = idle('unchecked');
-    expect(pill.label).toBe('Agent not checked');
+    expect(pill.label).toBe('Disconnected');
+    expect(pill.tone).toBe('is-failed');
     expect(draw(pill)).not.toContain('is-ready');
   });
 
@@ -127,17 +130,18 @@ describe('the harness says it is ready before anybody has asked anything', () =>
     // one it used to skip: it said "Ready" from mount, which was a statement
     // about the browser having parsed the bundle.
     const pill = idle('checking');
-    expect(pill.label).toBe('Checking agent');
+    expect(pill.label).toBe('Checking agent connection');
     expect(pill.alive).toBe(false);
-    expect(draw(pill)).not.toContain('is-ready');
+    expect(draw(pill)).toContain('run-status-loader');
+    expect(draw(pill)).not.toContain('ast-pill run-status');
   });
 
   it('reads the endpoint rather than a literal, so the word cannot be right by luck', () => {
     // The failure this is against is a pill that says "Ready" because somebody
     // typed it in the branch. The label for the idle screen has to come from the
-    // reading, and the four readings have to produce four different pills.
+    // reading. Resolved failures deliberately collapse to one red word.
     const labels = (['checking', 'ready', 'unreachable', 'unchecked'] as const).map((state) => idle(state).label);
-    expect(new Set(labels).size).toBe(4);
+    expect(new Set(labels)).toEqual(new Set(['Checking agent connection', 'Connected', 'Disconnected']));
     expect(HOME).not.toMatch(/label: 'Ready'/);
     expect(HOME).toMatch(/readiness,/);
   });
@@ -405,7 +409,7 @@ describe('the pill under a reduced-motion preference, and to a screen reader', (
     // Nothing is lost by stopping it. The live pill counts its steps in words,
     // and the ready one is a word that only appears once an endpoint has
     // answered for it -- both are changes over time that need no motion.
-    expect(idle('ready').label).toBe('Endpoint reachable');
+    expect(idle('ready').label).toBe('Connected');
     expect(idle('checking').label).not.toBe(idle('ready').label);
   });
 

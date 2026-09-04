@@ -83,6 +83,20 @@ describe('billing attribution', () => {
     );
   });
 
+  it('clips a first deployment day at the exact successful deployment instant', () => {
+    const query = buildCostStatement(IDS, {
+      from: '2026-08-28',
+      to: '2026-08-31',
+      fromTimestamp: '2026-08-28T18:42:11.000Z',
+    });
+    expect(query?.statement.match(/u\.usage_start_time >= :from_instant/g)).toHaveLength(2);
+    expect(query?.parameters).toContainEqual({
+      name: 'from_instant',
+      value: '2026-08-28T18:42:11.000Z',
+      type: 'TIMESTAMP',
+    });
+  });
+
   it('does not call an endpoint range total per-token before apportioning it', () => {
     const endpoint = buildTiles(IDS, [
       {

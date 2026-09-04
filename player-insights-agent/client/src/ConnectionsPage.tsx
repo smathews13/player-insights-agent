@@ -92,11 +92,10 @@ import { NO_APP_FACTS } from '../../shared/app-facts';
 import { EntityHighlight, EntityParts, VisitInDatabricks } from './DataEntityLinks';
 import { entityRowProps, isRequestedEntity, useRequestedEntity } from './data-entity-state';
 import { entityRowId } from './data-entities';
-import { verdictBadgeVariant, type PreflightCheck } from './preflight';
+import { type PreflightCheck } from './preflight';
 // Refused, unreachable and not-checked-yet are three different next moves, and
 // the words for them are decided in one place so a row and the strip counting
 // the rows cannot disagree. See shared/check-verdict.ts.
-import { CHECK_VERDICT_LABEL } from '../../shared/check-verdict';
 // One mechanism runs the checks for the whole session, and both tabs read it.
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import { ConnectionRemovalStatus } from './ConnectionRemovalStatus';
@@ -1289,7 +1288,9 @@ function FixCause({ cause }: { cause: BlockCause }) {
 
             The word is the verdict rather than the status, so a refusal does not
             read "Not checked" over a call the workspace answered. */}
-        <Badge variant={verdictBadgeVariant(cause.verdict)}>{CHECK_VERDICT_LABEL[cause.verdict]}</Badge>
+        <Badge variant="destructive" aria-label={`${causeGroupHeadline(cause)} connection status: Disconnected`}>
+          Disconnected
+        </Badge>
         {/* ON THE SAME LINE AS THE OBJECT IT IS ABOUT, which is the whole of
             what a reader wants from a finding: what, and why. It was a
             paragraph of its own under the head, so every cause took two lines
@@ -1619,7 +1620,10 @@ export function ConnectionRow({
    * the value with loading copy would throw cached evidence away.
    */
   const restating = refreshing && status !== 'nothing-to-reach';
-  const primaryState = primaryConnectionState(status, resource.namesRemoteObject);
+  const primaryState = primaryConnectionState(status, resource.namesRemoteObject, restating);
+  const connectionDetails = restating
+    ? view.details.filter((detail) => !['Access', 'Connection', 'Status'].includes(detail.label))
+    : view.details;
 
   /**
    * Closed only when the server took it.
@@ -1721,6 +1725,9 @@ export function ConnectionRow({
 
       {open ? (
         <div className="connection-row-detail">
+          {restating ? (
+            <AstrolabeLoadingLabel label={`Checking ${resource.label}`} className="connection-detail-status-loader" />
+          ) : null}
           {resource.id === 'lakebase' && lakebaseMigration ? (
             <LakebaseMigrationPanel state={lakebaseMigration.state} onApply={lakebaseMigration.apply} />
           ) : null}
@@ -1742,9 +1749,9 @@ export function ConnectionRow({
                 </div>
               </div>
             </div>
-          ) : view.details.length > 0 ? (
+          ) : connectionDetails.length > 0 ? (
             <dl className="connection-details">
-              {view.details.map((detail) => (
+              {connectionDetails.map((detail) => (
                 <div className="connection-detail" key={`${detail.label}:${detail.value}`}>
                   <dt>{detail.label}</dt>
                   <dd title={detail.value}>{detail.value}</dd>
@@ -1852,6 +1859,10 @@ export function ConnectionLoadRow({ reading, state }: { reading: ConnectionReadi
         ) : (
           <div className="connection-row-load-error" role="alert">
             <CircleAlert className="size-4" aria-hidden="true" />
+            <span className="connection-row-label">{reading.resource.label}</span>
+            <Badge variant="destructive" aria-label={`${reading.resource.label} connection status: Disconnected`}>
+              Disconnected
+            </Badge>
             <span>{label}</span>
           </div>
         )}
@@ -2360,6 +2371,7 @@ export function ConnectionsPage() {
                   reading={reading}
                   foundationModel={foundationModel}
                   requested={requestedResource === reading.resource.id}
+                  refreshing={refreshing}
                   allowMutations={allowMutations}
                   onStaged={rereadSettings}
                 />

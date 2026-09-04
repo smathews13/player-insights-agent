@@ -270,6 +270,7 @@ describe('the ranged cost route', () => {
         now: () => Date.parse('2026-08-18T12:00:00Z'),
         fetchImpl,
         readAppBillingTag: () => Promise.resolve('matched'),
+        readFirstAppDeployment: () => Promise.resolve({ deployedAt: '2026-01-01T00:00:00Z' }),
         queryHistoryTransport: {
           listQueries: () =>
             Promise.resolve({
@@ -556,6 +557,7 @@ describe('the ranged cost route', () => {
         now: () => Date.parse('2026-08-18T12:00:00Z'),
         fetchImpl,
         readAppBillingTag: () => Promise.resolve('matched'),
+        readFirstAppDeployment: () => Promise.resolve({ deployedAt: '2026-01-01T00:00:00Z' }),
         queryHistoryTransport: { listQueries: () => Promise.resolve({ res: [] }) },
         readOrchestratorReport: () =>
           Promise.resolve({

@@ -43,6 +43,7 @@ import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
 import { ExperimentalBadge } from './ExperimentalBadge';
+import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
 import { Disclosure, PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
 import { ageAgo, checkedAgoLine } from './refresh-state';
@@ -322,11 +323,23 @@ function RecordedErrors({
  * the page it was drawn. The separator is drawn in CSS, so the text is the two
  * phrases and nothing a substring match has to step over.
  */
-function ResultPill({ pill }: { pill: HealthRow['pill'] }) {
+function ResultPill({ row, busy }: { row: HealthRow; busy: boolean }) {
+  if (busy) {
+    return (
+      <AstrolabeLoadingLabel
+        as="span"
+        announce={false}
+        className="ops-connection-status-loader"
+        label={`Checking ${row.label}`}
+      />
+    );
+  }
   return (
-    <span className={`${pill.tone} ops-platform-pill`}>
-      <span className="ops-platform-pill-label">{pill.label}</span>
-      <span className="ops-platform-pill-state">{pill.value}</span>
+    <span
+      className={`${row.pill.tone} ops-platform-pill`}
+      aria-label={`${row.label} connection status: ${row.pill.value}`}
+    >
+      <span className="ops-platform-pill-state">{row.pill.value}</span>
     </span>
   );
 }
@@ -483,7 +496,7 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                             row it is about. The words are the state; the class
                             only paints what they already said, so this reads the
                             same in monochrome and to a screen reader. */}
-                            <ResultPill pill={row.pill} />
+                            <ResultPill row={row} busy={block.busy} />
                           </td>
                           <td className="ops-col-when">
                             {row.lastCheckedAt ? (
@@ -751,18 +764,7 @@ export function CostResourceLine({ label, href }: { label: string; href: string 
       </span>
     );
   }
-  return (
-    <a
-      className="ops-cost-resource ops-tile-label-link"
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={`Open ${label} in Databricks`}
-    >
-      <span>{label}</span>
-      <ExternalLink className="ops-tile-label-open" aria-hidden="true" />
-    </a>
-  );
+  return <GenieDatabricksLink href={href} title={label} />;
 }
 
 /** Compatibility export for focused render tests; resource links no longer serve as card titles. */

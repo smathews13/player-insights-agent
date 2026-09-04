@@ -136,6 +136,8 @@ export interface CostIdentifiers {
 export interface CostRange {
   from: string;
   to: string;
+  /** Exact UTC lower bound when the first app month begins mid-day. */
+  fromTimestamp?: string;
 }
 
 /** Exact app-recorded calls for one configured resource in the selected range. */
@@ -395,6 +397,7 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
   };
   bind('from_day', range.from, 'DATE');
   bind('to_day', range.to, 'DATE');
+  if (range.fromTimestamp) bind('from_instant', range.fromTimestamp, 'TIMESTAMP');
   if (ids.workspaceId) bind('workspaceId', ids.workspaceId, 'STRING');
 
   for (const component of covered) {
@@ -477,6 +480,7 @@ ${branches.join('\n')}
   FROM system.billing.usage u
   WHERE u.usage_date >= GREATEST(:from_day, (SELECT source_from FROM deployment_start))
     AND u.usage_date <= :to_day
+    ${range.fromTimestamp ? 'AND u.usage_start_time >= :from_instant' : ''}
     AND u.workspace_id = :workspaceId
     AND u.billing_origin_product <> 'JOBS'
     AND (
@@ -679,6 +683,7 @@ SELECT
 FROM system.billing.usage u
 WHERE u.usage_date >= GREATEST(:from_day, (SELECT source_from FROM deployment_start))
   AND u.usage_date <= :to_day
+  ${range.fromTimestamp ? 'AND u.usage_start_time >= :from_instant' : ''}
   AND u.workspace_id = :workspaceId
   AND u.billing_origin_product <> 'JOBS'
   AND (${leakPredicate})

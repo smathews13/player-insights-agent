@@ -12,6 +12,10 @@ const BANNED = [
   'CONFIGURED',
   'not set',
   'Not checked',
+  'Reachable',
+  'Unreachable',
+  'READY',
+  'RUNNING',
   'Source: from the app container',
   'Deployment-owned',
   'New model version',
@@ -145,7 +149,7 @@ describe('canonical Connections resource views', () => {
       view.details.map((detail) => detail.label),
       id
     ).toContain(requiredLabel);
-    expect(view.status, id).toBe('Reachable');
+    expect(view.status, id).toBe('Connected');
   });
 
   it.each(
@@ -174,6 +178,26 @@ describe('canonical Connections resource views', () => {
     }
   });
 
+  it('replaces collapsed and expanded connection statuses with loaders during a refresh', () => {
+    const reading = fixture('sql-warehouse', 'match');
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <ConnectionRow
+          reading={reading}
+          tone="reachable"
+          saving={false}
+          refreshing
+          requested
+          onSave={() => Promise.resolve(true)}
+          onClear={() => Promise.resolve()}
+        />
+      </MemoryRouter>
+    );
+    expect(markup.match(/Checking SQL warehouse/g)).toHaveLength(2);
+    expect(markup).not.toContain('connection status:');
+    expect(markup).not.toMatch(/>(Connected|Disconnected|Reachable|Ready|Running|Not checked)</);
+  });
+
   it('renders an absent AI Gateway as one normal neutral row', () => {
     const reading = readConnection({ row: row('llm-gateway', 'observed-only'), check: undefined, findings: [] });
     reading.row.configured = '';
@@ -192,14 +216,14 @@ describe('canonical Connections resource views', () => {
       </MemoryRouter>
     );
     const readable = text(markup);
-    expect(view.status).toBe('Not connected');
-    expect(readable).toContain('AI Gateway Not connected');
+    expect(view.status).toBe('Disconnected');
+    expect(readable).toContain('AI Gateway Disconnected');
     expect(readable).toContain('can sit between the orchestrator and its foundation model');
     expect(readable).not.toMatch(/lock|dependency/i);
     for (const phrase of BANNED) expect(readable).not.toContain(phrase);
   });
 
-  it('keeps failed, refused and unavailable checks distinct from not connected', () => {
+  it('uses one disconnected status while detailed evidence keeps the failure reason', () => {
     const base = row('llm-gateway', 'match');
     const states: PreflightCheck[] = [
       { ...check('llm-gateway', 'match')!, status: 'failed' },
@@ -208,6 +232,6 @@ describe('canonical Connections resource views', () => {
     ];
     expect(
       states.map((entry) => connectionResourceView(readConnection({ row: base, check: entry, findings: [] })).status)
-    ).toEqual(['Blocked', 'Refused', 'Unreachable']);
+    ).toEqual(['Disconnected', 'Disconnected', 'Disconnected']);
   });
 });

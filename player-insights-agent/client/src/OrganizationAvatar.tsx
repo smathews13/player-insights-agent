@@ -6,8 +6,9 @@ import { ORGANIZATION_LOGOS } from './organization-logos';
  * The organization beside a roster identity.
  *
  * Canonical organizations use the local mark named by the shared manifest.
- * Configured organizations keep their supplied monogram; an unrecognized
- * domain gets a neutral organization glyph rather than an invented logo.
+ * Configured organizations keep their supplied monogram; an unrecognized full
+ * domain gets its stable derived monogram without claiming a company identity.
+ * Only an identity with no resolvable domain uses the neutral building glyph.
  */
 export function OrganizationAvatar({ organization }: { organization: OrganizationMapping }) {
   const logo = ORGANIZATION_LOGOS[organization.logoKey];

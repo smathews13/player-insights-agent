@@ -175,11 +175,11 @@ export function ProjectionBreakdown({
         aria-controls="ops-forecast-breakdown-table"
         onClick={onToggle}
       >
-        <span className="ops-forecast-breakdown-label">Projection breakdown</span>
-        <span className="ops-forecast-breakdown-actions">
+        <span className="ops-forecast-breakdown-label">
+          <span>Projection breakdown</span>
           <span className={astPill('neutral-outline', 'ops-pill')}>Estimated</span>
-          <ChevronRight className="ops-forecast-breakdown-chevron" aria-hidden="true" />
         </span>
+        <ChevronRight className="ops-forecast-breakdown-chevron" aria-hidden="true" />
       </button>
       {open ? (
         <div

@@ -13,7 +13,7 @@ import type {
 import type { Role } from '../../shared/user-roster-contract';
 import {
   organizationForEmail,
-  organizationsForEmails,
+  organizationOptionsForEmails,
   type OrganizationMapping,
 } from '../../shared/organization-mapping';
 import {
@@ -737,12 +737,11 @@ export function buildUserMonitoringPage(input: {
   const profiles = new Map(input.spend.users.map((profile) => [profile.email.toLowerCase(), profile]));
   const interactions = new Map((input.interactions ?? []).map((row) => [row.email.toLowerCase(), row]));
   const emails = [...input.roles.keys()];
-  const organizationOptions = organizationsForEmails(emails, input.organizationMappings);
   const selectedOrganizations = new Set(input.organizations ?? []);
   const search = (input.search ?? '').trim().toLowerCase().slice(0, 120);
 
   const unavailable: UserSpendAmount = { amount: null, quality: 'unavailable' };
-  const authorizedRows: UserMonitoringRow[] = emails
+  const rosterRows: UserMonitoringRow[] = emails
     .filter((email) => email.includes('@'))
     .map((email) => {
       const profile = profiles.get(email);
@@ -768,13 +767,24 @@ export function buildUserMonitoringPage(input: {
         spend: { usd, dbu },
         coverage: (input.unit === 'USD' ? usd : dbu).quality,
       };
-    })
-    .filter(
-      (row) =>
-        (!search || row.email.includes(search)) &&
-        (!input.role || row.role === input.role) &&
-        (selectedOrganizations.size === 0 || selectedOrganizations.has(row.organization.id))
-    );
+    });
+  const countedRows = rosterRows.filter(
+    (row) =>
+      (!search || row.email.includes(search)) &&
+      (!input.role || row.role === input.role) &&
+      (!input.persona || row.persona?.id === input.persona)
+  );
+  const organizationOptions = organizationOptionsForEmails(
+    emails,
+    countedRows.map((row) => row.email),
+    input.organizationMappings
+  );
+  const authorizedRows = rosterRows.filter(
+    (row) =>
+      (!search || row.email.includes(search)) &&
+      (!input.role || row.role === input.role) &&
+      (selectedOrganizations.size === 0 || selectedOrganizations.has(row.organization.id))
+  );
   const personaCounts = new Map<string, number>();
   for (const row of authorizedRows) {
     if (row.persona) personaCounts.set(row.persona.id, (personaCounts.get(row.persona.id) ?? 0) + 1);

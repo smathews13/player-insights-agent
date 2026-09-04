@@ -33,9 +33,13 @@
 
 .ops-page-controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: 1fr;
   align-items: stretch;
   gap: 12px;
+  width: min(100%, 50%);
+  min-width: 420px;
+  margin-left: auto;
 }
 
 .ops-stop-all,
@@ -581,21 +585,16 @@
   white-space: nowrap;
 }
 
-.ops-platform-pill-label {
-  color: inherit;
-  opacity: 0.85;
-}
-
-/* The separator is drawn rather than written, so the pill's text is the two
-   words and nothing a substring match has to step over. */
-.ops-platform-pill-state::before {
-  content: '\00b7';
-  margin-right: 4px;
-  opacity: 0.6;
-}
-
 .ops-platform-pill-state {
   font-weight: 500;
+}
+
+.ast-flick-row.ops-connection-status-loader {
+  min-height: 0;
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .ops-table {
@@ -647,10 +646,9 @@
    pills and the ages are the same size on every row, and a column that resizes
    with its longest value makes the table jump between reads.
 
-   Wider than the 150px a one-word result needed: the pill now carries the
-   resource's name as well as its state. */
+   Stable at the width needed by the longer binary result. */
 .ops-col-result {
-  width: 190px;
+  width: 150px;
 }
 
 td.ops-col-result .ops-platform-pill {
@@ -1777,10 +1775,11 @@ a.ops-cost-resource {
   outline-offset: 2px;
 }
 
-.ops-forecast-breakdown-actions {
+.ops-forecast-breakdown-label {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  min-width: 0;
 }
 
 .ops-forecast-breakdown-trigger .ops-pill {

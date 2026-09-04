@@ -124,17 +124,17 @@ export function appHealth(input: {
     const state = [serving?.app, serving?.compute].filter(Boolean).join(' \u00b7 ');
     return {
       state: 'not-working',
-      label: 'Not running',
+      label: 'Disconnected',
       note: state ? `The workspace reports the app as ${state}.` : 'The workspace reports the app as not running.',
     };
   }
   if (tone === 'reachable') {
-    return { state: 'working', label: 'Running', note: 'The workspace reports the app running on active compute.' };
+    return { state: 'working', label: 'Connected', note: 'The workspace reports the app running on active compute.' };
   }
   if (input.answered) {
     return {
       state: 'working',
-      label: 'Answering',
+      label: 'Connected',
       note: 'This app answered the read that drew this page.',
     };
   }
@@ -164,26 +164,26 @@ export function orchestratorHealth(input: {
   reported?: boolean;
 }): ArtifactHealth {
   if (input.status === 'reachable') {
-    return { state: 'working', label: 'Reachable', note: 'The serving endpoint was reached and it answered.' };
+    return { state: 'working', label: 'Connected', note: 'The serving endpoint was reached and it answered.' };
   }
   if (input.status === 'blocked') {
     return {
       state: 'not-working',
-      label: 'Blocked',
+      label: 'Disconnected',
       note: 'Something tried to reach the serving endpoint and could not.',
     };
   }
   if (input.status === 'unreachable') {
     return {
       state: 'not-working',
-      label: 'Unreachable',
+      label: 'Disconnected',
       note: 'The call to the serving endpoint did not complete.',
     };
   }
   if (input.status === 'refused') {
     return {
-      state: 'unclear',
-      label: 'Refused',
+      state: 'not-working',
+      label: 'Disconnected',
       note:
         'The workspace refused this call, so nothing was established about the endpoint itself. A refusal is ' +
         'answered by a permission rather than by trying again.',
@@ -192,7 +192,7 @@ export function orchestratorHealth(input: {
   if (input.reported) {
     return {
       state: 'working',
-      label: 'Answered',
+      label: 'Connected',
       note: 'The served model version reported its own configuration on this pass.',
     };
   }

@@ -318,7 +318,11 @@ export function CostTotalBudget() {
               onClick={() => api.apply('total')}
             />
             <span className="ops-app-budget-status">
-              <RecentMonthlySpend months={api.payload.recentMonthlySpend ?? []} unit={api.unit} />
+              <RecentMonthlySpend
+                months={api.payload.recentMonthlySpend ?? []}
+                unit={api.unit}
+                reason={api.payload.recentMonthlySpendReason}
+              />
               {notice || !api.readable ? (
                 <span className="ops-app-budget-save-status">
                   <BudgetSaveNotice notice={notice} readable={api.readable} state={state} />
@@ -575,8 +579,18 @@ export function SavedAppBudgetSummary({
   );
 }
 
-export function RecentMonthlySpend({ months, unit }: { months: readonly AppMonthlySpend[]; unit: CostBudgetUnit }) {
-  if (months.length === 0) return null;
+export function RecentMonthlySpend({
+  months,
+  unit,
+  reason,
+}: {
+  months: readonly AppMonthlySpend[];
+  unit: CostBudgetUnit;
+  reason?: string;
+}) {
+  if (months.length === 0) {
+    return reason ? <span className="ops-recent-monthly-spend-unavailable">{reason}</span> : null;
+  }
   const amount = (month: AppMonthlySpend) => {
     const value = unit === 'USD' ? month.amount : month.dbus;
     if (value === null || !Number.isFinite(value)) return '\u2014';

@@ -21,8 +21,18 @@
  */
 import { Check } from 'lucide-react';
 import { RUN_TONE_FAMILY, type RunStatus } from './run-status';
+import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
 
 export function RunStatusPill({ status, onDark = false }: { status: RunStatus; onDark?: boolean }) {
+  if (status.checkingConnection) {
+    return (
+      <AstrolabeLoadingLabel
+        as="span"
+        className={`run-status-loader${onDark ? ' run-status-loader--dark' : ''}`}
+        label={status.label}
+      />
+    );
+  }
   // `ast-pill` is the recipe, the family is the colour, and `run-status` is what
   // this seating adds to both: a dot in a fixed lane, a check in the same lane,
   // and the one animation the app runs on a chip. The tone class rides along

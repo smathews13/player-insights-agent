@@ -39,7 +39,7 @@
  * composing markup and the page cannot grow a second reading of it.
  */
 import { type PreflightCheck, type PreflightRemedy, type PreflightStatus } from './preflight';
-import { CHECK_VERDICT_LABEL, checkVerdict, countCheckVerdicts, type CheckVerdict } from '../../shared/check-verdict';
+import { checkVerdict, countCheckVerdicts, type CheckVerdict } from '../../shared/check-verdict';
 
 export interface CauseGroup {
   /** Stable across renders, and the React key for the group. */
@@ -354,8 +354,7 @@ export function rowStatusLine(check: PreflightCheck): string {
 export function declaredTablesAside(checks: readonly PreflightCheck[]): string {
   const counts = countCheckVerdicts(checks);
   const parts = [`${checks.length} ${checks.length === 1 ? 'table' : 'tables'} declared`];
-  for (const verdict of ['blocked', 'refused', 'unreachable', 'unasked'] as const) {
-    if (counts[verdict] > 0) parts.push(`${counts[verdict]} ${CHECK_VERDICT_LABEL[verdict].toLowerCase()}`);
-  }
+  const disconnected = counts.blocked + counts.refused + counts.unreachable + counts.unasked;
+  if (disconnected > 0) parts.push(`${disconnected} disconnected`);
   return parts.join(' \u00b7 ');
 }

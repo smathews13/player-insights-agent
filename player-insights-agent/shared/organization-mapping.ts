@@ -6,6 +6,7 @@ import {
 } from './organization-contract';
 
 export {
+  sanitizeOrganizationFilterOptions,
   sanitizeOrganizationMappings,
   type OrganizationFilterOption,
   type OrganizationLogoKey,
@@ -55,6 +56,20 @@ export function emailDomain(email: string): string {
   return at >= 0 ? normalizedOrganizationDomain(email.slice(at + 1)) : '';
 }
 
+/** Stable, privacy-safe mark for an unconfigured registrable-domain label. */
+export function organizationMonogramForDomain(domain: string): string {
+  const parts = normalizedOrganizationDomain(domain).split('.').filter(Boolean);
+  const label = parts.length > 1 ? parts[parts.length - 2] : (parts[0] ?? '');
+  const digitLeading = label.match(/^(\d+)[^a-z]*([a-z])/i);
+  if (digitLeading) return `${digitLeading[1]}${digitLeading[2]}`.slice(0, 4).toLocaleUpperCase();
+  const alpha = label.match(/[a-z]/i)?.[0] ?? '';
+  const digits = label.match(/\d+/)?.[0] ?? '';
+  if (alpha && digits) return `${alpha}${digits}`.slice(0, 4).toLocaleUpperCase();
+  const letters = label.match(/[a-z0-9]/gi) ?? [];
+  const tldInitial = parts[parts.length - 1]?.match(/[a-z0-9]/i)?.[0] ?? '';
+  return `${letters[0] ?? 'E'}${letters[1] ?? (tldInitial || 'X')}`.slice(0, 4).toLocaleUpperCase();
+}
+
 function unknownOrganization(domain: string): OrganizationMapping {
   const name = domain || 'External';
   return {
@@ -62,10 +77,10 @@ function unknownOrganization(domain: string): OrganizationMapping {
     domain,
     domainSuffixes: domain ? [domain] : [],
     name,
-    monogram: '•',
-    logoKey: 'fallback',
+    monogram: domain ? organizationMonogramForDomain(domain) : '•',
+    logoKey: domain ? 'monogram' : 'fallback',
     ariaLabel: `Organization: ${name}`,
-    fallback: 'building',
+    fallback: domain ? 'monogram' : 'building',
   };
 }
 
@@ -93,21 +108,37 @@ export function organizationForEmail(
   );
 }
 
+/**
+ * Every organization represented by the full roster, with counts from the
+ * roster slice surviving the other active facets. Zero-count options remain so
+ * a narrowed result never removes the control needed to switch organizations.
+ */
+export function organizationOptionsForEmails(
+  representedEmails: readonly string[],
+  countedEmails: readonly string[],
+  mappings: readonly OrganizationMapping[] = []
+): OrganizationFilterOption[] {
+  const represented = new Map<string, OrganizationFilterOption>();
+  for (const email of representedEmails) {
+    const organization = organizationForEmail(email, mappings);
+    if (!represented.has(organization.id)) represented.set(organization.id, { ...organization, count: 0 });
+  }
+  for (const email of countedEmails) {
+    const organization = organizationForEmail(email, mappings);
+    const current = represented.get(organization.id);
+    if (current) current.count += 1;
+  }
+  return [...represented.values()].sort(
+    (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)
+  );
+}
+
 /** Organizations represented by the supplied Identity-roster addresses only. */
 export function organizationsForEmails(
   emails: readonly string[],
   mappings: readonly OrganizationMapping[] = []
 ): OrganizationFilterOption[] {
-  const represented = new Map<string, OrganizationFilterOption>();
-  for (const email of emails) {
-    const organization = organizationForEmail(email, mappings);
-    const current = represented.get(organization.id);
-    if (current) current.count += 1;
-    else represented.set(organization.id, { ...organization, count: 1 });
-  }
-  return [...represented.values()].sort(
-    (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)
-  );
+  return organizationOptionsForEmails(emails, emails, mappings);
 }
 
 /** Domain suffixes for represented selected ids; invalid ids intentionally match nothing. */

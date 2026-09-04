@@ -12,10 +12,10 @@ function payload(revision = USER_MONITORING_SCHEMA_REVISION) {
     userMonitoring: {
       schemaRevision: revision,
       identityRevision: '2026-09-01T12:00:00Z',
-      organizations: [{ ...organizationForEmail('person@northwindgames.com'), count: 1 }],
+      organizations: [{ ...organizationForEmail('person@example.com'), count: 1 }],
       users: [
         {
-          email: 'active@north.northwindgames.com',
+          email: 'active@engineering.databricks.com',
           lastActive: '2026-09-01T12:00:00Z',
           questions: 4,
           coveredDays: 7,
@@ -44,26 +44,42 @@ describe('User Monitoring response decoding', () => {
   it('keeps valid timestamped rows and drops a malformed legacy row defensively', () => {
     const decoded = decodeUserMonitoringCostPayload(payload());
     expect(decoded.userMonitoring?.users.map((row) => row.email)).toEqual([
-      'active@north.northwindgames.com',
+      'active@engineering.databricks.com',
       'rostered-without-activity@example.test',
     ]);
   });
 
+  it('preserves canonical organization options and counts through the decoder', () => {
+    const value = payload();
+    value.userMonitoring.organizations = [{ ...organizationForEmail('person@example.com'), count: 4 }];
+    const decoded = decodeUserMonitoringCostPayload(value);
+    expect(decoded.userMonitoring?.organizations).toEqual([
+      expect.objectContaining({ id: 'databricks', name: 'Databricks', logoKey: 'databricks', count: 4 }),
+    ]);
+  });
+
+  it('rejects malformed organization facets instead of silently rendering All as zero', () => {
+    const value = payload();
+    value.userMonitoring.organizations = [{ ...organizationForEmail('person@example.com'), count: Number.NaN }];
+    expect(() => decodeUserMonitoringCostPayload(value)).toThrow('user_monitoring_payload_stale');
+  });
+
   it('re-derives the canonical organization when a cached row is decoded', () => {
     const cached = payload();
-    (cached.userMonitoring.users[0] as Record<string, unknown>).organization = organizationForEmail('spoof@2k.com');
+    (cached.userMonitoring.users[0] as Record<string, unknown>).organization =
+      organizationForEmail('spoof@studio2games.example');
     const decoded = decodeUserMonitoringCostPayload(cached);
     expect(decoded.userMonitoring?.users[0]?.organization).toMatchObject({
-      id: 'northwind-games',
-      name: 'Northwind Games',
-      logoKey: 'northwind',
+      id: 'databricks',
+      name: 'Databricks',
+      logoKey: 'databricks',
     });
   });
 
   it('accepts the fast endpoint direct payload without routing through Cost', () => {
     const direct = decodeUserMonitoringCostPayload(payload().userMonitoring);
     expect(direct.userMonitoring?.users.map((row) => row.email)).toEqual([
-      'active@north.northwindgames.com',
+      'active@engineering.databricks.com',
       'rostered-without-activity@example.test',
     ]);
     expect(MONITORING_SOURCE).toContain('`/api/monitoring/user-spend?${userBrowserParams.toString()}`');
@@ -77,5 +93,6 @@ describe('User Monitoring response decoding', () => {
     expect(MONITORING_SOURCE).toContain('panelCache.delete(scopedKey)');
     expect(MONITORING_SOURCE).toContain('decodeUserMonitoringCostPayload');
     expect(MONITORING_SOURCE).toContain('USER_MONITORING_SCHEMA_REVISION');
+    expect(MONITORING_SOURCE).toContain('cached.identityRevision !== identityRevision');
   });
 });

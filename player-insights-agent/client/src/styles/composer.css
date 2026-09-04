@@ -263,17 +263,12 @@
   background: transparent;
 }
 /* The caveat line takes the slack, which is what puts the submit button hard right
-   however many ghost controls are to its left.
-
-   A flex row rather than a plain run of text because it now leads with the mark:
-   the drawing is a block element (`.ast-mark`), so inline it would sit on the text
-   baseline and hang below it. The gap is the same 6px `.ai-note` sets under an
-   answer, which is the other place this sentence is said. */
+   however many ghost controls are to its left. The composer variant is text-only,
+   so it deliberately reserves no icon gap. */
 .composer-actions > .composer-ai-note {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 6px;
   font-size: 12px;
   color: var(--db-slate);
 }

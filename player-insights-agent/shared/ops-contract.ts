@@ -526,6 +526,8 @@ export interface OpsCostPayload {
   appSpend?: AppSpendSummary;
   /** The three most recent completed UTC calendar months, newest first. */
   recentMonthlySpend?: AppMonthlySpend[];
+  /** Why completed-month history is withheld when app lifetime cannot be proven. */
+  recentMonthlySpendReason?: string;
   /** Overall shared allowance plus exact, allocated, and unattributed instance reconciliation. */
   genieAccounting?: GenieAccounting | null;
   /** Convenience list for API consumers; absent only on legacy cached payloads. */

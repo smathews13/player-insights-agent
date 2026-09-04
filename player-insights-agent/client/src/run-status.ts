@@ -49,6 +49,8 @@ export interface RunStatus {
   tone: RunTone;
   /** Whether the dot may move. See the note above; it is not a restatement of the tone. */
   alive: boolean;
+  /** The idle connection check is active, so the UI renders a loader instead of a badge. */
+  checkingConnection?: boolean;
   /**
    * Whether the run reached its end, which is what earns the check.
    *
@@ -71,10 +73,16 @@ export interface RunStatus {
  * checked" -- rather than a second set invented here for the same facts.
  */
 const IDLE: Record<AgentReadiness, RunStatus> = {
-  checking: { label: 'Checking agent', tone: 'is-waiting', alive: false, finished: false },
-  ready: { label: 'Endpoint reachable', tone: 'is-ready', alive: false, finished: false },
-  unreachable: { label: 'Agent unreachable', tone: 'is-failed', alive: false, finished: false },
-  unchecked: { label: 'Agent not checked', tone: 'is-waiting', alive: false, finished: false },
+  checking: {
+    label: 'Checking agent connection',
+    tone: 'is-waiting',
+    alive: false,
+    checkingConnection: true,
+    finished: false,
+  },
+  ready: { label: 'Connected', tone: 'is-ready', alive: false, finished: false },
+  unreachable: { label: 'Disconnected', tone: 'is-failed', alive: false, finished: false },
+  unchecked: { label: 'Disconnected', tone: 'is-failed', alive: false, finished: false },
 };
 
 export function runStatusFor({

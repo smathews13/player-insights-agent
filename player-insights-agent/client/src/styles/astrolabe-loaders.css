@@ -465,6 +465,7 @@ html:not([data-theme='dark']) .ast-working .ast-mark--dark {
   display: flex;
   align-items: baseline;
   justify-content: center;
+  column-gap: 4px;
   font-size: var(--ast-fs-16);
   color: var(--ast-text);
 }

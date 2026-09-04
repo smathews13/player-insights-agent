@@ -1,7 +1,8 @@
 import type { ConnectionReading } from './connection-model';
 import type { PreflightCheck } from './preflight';
-import { checkVerdictLabel, formatCheckedAt } from './preflight';
+import { formatCheckedAt } from './preflight';
 import { contentAge } from './semantic-freshness';
+import { PRIMARY_CONNECTION_LABEL, primaryConnectionState } from './connection-status';
 
 export interface ConnectionDetail {
   label: string;
@@ -60,13 +61,9 @@ function add(details: ConnectionDetail[], label: string, value: unknown): void {
   }
 }
 
-function statusFor(reading: ConnectionReading, connected: boolean): string {
-  if (!connected) return 'Not connected';
-  if (!reading.check) return 'Check unavailable';
-  if (reading.check.status === 'unverified' && checkVerdictLabel(reading.check) === 'Not checked') {
-    return 'Check unavailable';
-  }
-  return checkVerdictLabel(reading.check);
+function statusFor(reading: ConnectionReading): string {
+  const state = primaryConnectionState(reading.status, reading.resource.namesRemoteObject);
+  return state === 'connected' ? PRIMARY_CONNECTION_LABEL.connected : PRIMARY_CONNECTION_LABEL.disconnected;
 }
 
 function activeIdentity(reading: ConnectionReading): string {
@@ -79,14 +76,10 @@ function activeIdentity(reading: ConnectionReading): string {
 
 function declaredAccess(checks: readonly PreflightCheck[]): string {
   if (checks.length === 0) return '';
-  const reachable = checks.filter((check) => check.status === 'ok').length;
-  const refused = checks.filter((check) => check.status === 'unverified' && check.stopped === 'refused').length;
-  const unavailable = checks.filter((check) => check.status === 'unverified' && check.stopped !== 'refused').length;
-  const blocked = checks.filter((check) => check.status === 'failed').length;
-  const parts = [`${reachable} of ${checks.length} reachable`];
-  if (blocked) parts.push(`${blocked} blocked`);
-  if (refused) parts.push(`${refused} refused`);
-  if (unavailable) parts.push(`${unavailable} unavailable`);
+  const connected = checks.filter((check) => check.status === 'ok').length;
+  const disconnected = checks.length - connected;
+  const parts = [`${connected} of ${checks.length} connected`];
+  if (disconnected) parts.push(`${disconnected} disconnected`);
   return parts.join(' · ');
 }
 
@@ -106,9 +99,9 @@ export function connectionResourceView(
   const identity = activeIdentity(reading);
   const connected = Boolean(identity);
   const displayName = clean(check?.display_name) || fact(check, 'display_name');
-  let displayIdentity = displayName || identity || 'Not connected';
+  let displayIdentity = displayName || identity || 'Disconnected';
   const secondaryIdentity = displayName && displayName !== identity ? identity : '';
-  const status = statusFor(reading, connected);
+  const status = statusFor(reading);
   const details: ConnectionDetail[] = [];
   const declaredNames = [...new Set((context.declaredNames ?? []).map(clean).filter(Boolean))];
   const tableChecks = context.tableChecks ?? [];
@@ -141,17 +134,14 @@ export function connectionResourceView(
       add(details, 'Endpoint', identity);
       add(details, 'Served model', fact(check, 'served_model'));
       add(details, 'Traffic', fact(check, 'traffic'));
-      add(details, 'Readiness', fact(check, 'readiness'));
       break;
     case 'llm-endpoint':
       add(details, 'Model endpoint', identity);
       add(details, 'Role', 'Answer generation');
-      add(details, 'Readiness', fact(check, 'readiness'));
       break;
     case 'judge-endpoint':
       add(details, 'Model endpoint', identity);
       add(details, 'Role', 'Benchmark scoring');
-      add(details, 'Readiness', fact(check, 'readiness'));
       break;
     case 'llm-gateway':
       add(details, 'Route', identity);
@@ -169,7 +159,6 @@ export function connectionResourceView(
       add(details, 'Warehouse ID', identity);
       add(details, 'Type', fact(check, 'warehouse_type'));
       add(details, 'Size', fact(check, 'cluster_size'));
-      add(details, 'Warehouse state', fact(check, 'state'));
       break;
     case 'catalog':
       add(details, 'Catalog', identity);
@@ -200,7 +189,6 @@ export function connectionResourceView(
       add(details, 'Endpoint', identity);
       add(details, 'Type', fact(check, 'endpoint_type'));
       add(details, 'Hosted index', context.hostedIndex);
-      add(details, 'Endpoint state', fact(check, 'state'));
       break;
     default:
       add(details, row.resource.label, identity);

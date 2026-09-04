@@ -55,7 +55,7 @@ import {
   type TelemetryState,
   type TrafficBar,
 } from '../../shared/ops-contract';
-import { CHECK_VERDICT_LABEL, type CheckVerdict } from '../../shared/check-verdict';
+import { PRIMARY_CONNECTION_LABEL, resolvedConnectionState } from './connection-status';
 
 const QUERY_HISTORY_REASON: Record<QueryHistoryCoverage['reasons'][number], string> = {
   'invalid-range': 'the requested dates were invalid',
@@ -742,27 +742,23 @@ export const RESULT_TONE: Record<DependencyResult, string> = {
   'not-checked': astPill('neutral-outline', 'ops-pill'),
 };
 
-const VERDICT_TONE: Record<CheckVerdict, string> = {
-  reachable: astPill('pos', 'ops-pill'),
-  blocked: astPill('neg', 'ops-pill'),
-  refused: astPill('warn', 'ops-pill'),
-  unreachable: astPill('neutral-outline', 'ops-pill'),
-  unasked: astPill('neutral-outline', 'ops-pill'),
-};
+const CONNECTION_TONE = {
+  connected: astPill('pos', 'ops-pill'),
+  disconnected: astPill('neg', 'ops-pill'),
+} as const;
 
 export function resultLabel(result: DependencyResult): string {
   return DEPENDENCY_RESULT_LABEL[result];
 }
 
 function dependencyPill(row: HealthDependency): HealthRow['pill'] {
-  if (row.verdict) {
-    return {
-      label: resourceWord(row),
-      value: CHECK_VERDICT_LABEL[row.verdict],
-      tone: VERDICT_TONE[row.verdict],
-    };
-  }
-  return { label: resourceWord(row), value: resultLabel(row.result), tone: RESULT_TONE[row.result] };
+  const connected = row.verdict ? row.verdict === 'reachable' : row.result === 'answered';
+  const state = connected ? 'connected' : 'disconnected';
+  return {
+    label: resourceWord(row),
+    value: PRIMARY_CONNECTION_LABEL[state],
+    tone: CONNECTION_TONE[state],
+  };
 }
 
 /**
@@ -774,11 +770,9 @@ function dependencyPill(row: HealthDependency): HealthRow['pill'] {
  * is not a second copy of its word, and the word it contradicted would be the
  * one somebody needed.
  */
-const PLATFORM_GOOD = /^(ready|running|available|online|connected)$/i;
-
 export function platformTone(reading: PlatformReading): string {
-  if (!reading.read || !reading.state) return astPill('neutral-outline', 'ops-pill');
-  return PLATFORM_GOOD.test(reading.state.trim()) ? astPill('pos', 'ops-pill') : astPill('warn', 'ops-pill');
+  const state = resolvedConnectionState(reading.read ? reading.state : '');
+  return CONNECTION_TONE[state];
 }
 
 /**
@@ -934,14 +928,14 @@ export function healthRows(
       name: row.name,
       connectionsId: row.connectionsId,
       lastCheckedAt: row.lastCheckedAt,
-      notes: noteFor(row.kind, row.result),
+      notes: (reading?.reason || row.reason || '').trim() || noteFor(row.kind, row.result),
       pill: reading
         ? {
             // The platform's own word wins where the platform gave one. It is a
             // reading of the endpoint's state rather than of whether a GET came
             // back, and it is the more specific of the two.
             label: reading.label,
-            value: reading.read && reading.state ? reading.state : 'Not checked',
+            value: PRIMARY_CONNECTION_LABEL[resolvedConnectionState(reading.read ? reading.state : '')],
             tone: platformTone(reading),
           }
         : dependencyPill(row),
@@ -960,10 +954,10 @@ export function healthRows(
         // The reading was taken on the same pass as the probes, so it is as old as
         // the check the band is dated by. Nothing here invents a fresher time.
         lastCheckedAt: payload.checkedAt ?? '',
-        notes: noteFor(reading.id, reading.read ? 'answered' : 'not-checked'),
+        notes: reading.reason.trim() || noteFor(reading.id, reading.read ? 'answered' : 'not-checked'),
         pill: {
           label: reading.label,
-          value: reading.read && reading.state ? reading.state : 'Not checked',
+          value: PRIMARY_CONNECTION_LABEL[resolvedConnectionState(reading.read ? reading.state : '')],
           tone: platformTone(reading),
         },
       })

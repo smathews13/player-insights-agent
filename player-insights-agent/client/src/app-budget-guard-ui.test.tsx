@@ -232,6 +232,19 @@ describe('app budget guard UI', () => {
     expect(renderToStaticMarkup(<SavedAppBudgetSummary savedBudget={null} unit="USD" status={null} />)).toBe('');
   });
 
+  it('withholds history with a concise reason when first deployment cannot be proven', () => {
+    const markup = renderToStaticMarkup(
+      <RecentMonthlySpend
+        months={[]}
+        unit="USD"
+        reason="Recent monthly spend is unavailable because the app’s first successful deployment could not be proven."
+      />
+    );
+    expect(markup).toContain('first successful deployment could not be proven');
+    expect(markup).not.toContain('Jun 2026');
+    expect(markup).not.toContain('$0.00');
+  });
+
   it.each([
     ['2026-02-01', '2026-02-28', '2026-02-14'],
     ['2028-02-01', '2028-02-29', '2028-02-14'],

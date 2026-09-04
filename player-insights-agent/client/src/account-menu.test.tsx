@@ -114,7 +114,8 @@ describe('account menu', () => {
 
     expect(identity.organizations).toBeUndefined();
     expect(markup).toContain('aria-label="Organization: unknown.example"');
-    expect(markup).toContain('lucide-building-2');
+    expect(markup).toContain('>UN</span>');
+    expect(markup).not.toContain('lucide-building-2');
     expect(markup).not.toContain('lucide-user-round');
     expect(markup).not.toContain('Unsafe');
     expect(markup).not.toContain('secret');
@@ -204,7 +205,7 @@ describe('account menu', () => {
     const role = markup.indexOf('Super admin');
     const name = markup.indexOf('jordan.lee</strong>');
     const address = markup.indexOf('jordan.lee@example.com');
-    expect(markup.indexOf('<svg')).toBeLessThan(role);
+    expect(markup.indexOf('data-organization-id="domain:example.com"')).toBeLessThan(role);
     expect(role).toBeLessThan(name);
     expect(name).toBeLessThan(address);
     expect(markup).not.toContain('account-menu-who');

@@ -41,6 +41,7 @@ import {
   readComponentRows,
   readResourceActivityRows,
   splitBillingRows,
+  type CostRange,
   type CostIdentifiers,
   type QuestionRunInput,
   type ResourceActivity,
@@ -149,11 +150,12 @@ import { opsCurrentMonthRange } from '../../shared/ops-contract';
 import { checkVerdict } from '../../shared/check-verdict';
 import { cachedLifetimeSpend, lifetimeSpendRange } from '../lib/ops-lifetime-spend';
 import {
-  buildRecentMonthlySpendStatement,
   cachedRecentMonthlySpend,
-  readRecentMonthlySpendRows,
+  readRecentMonthlySpend,
+  RECENT_MONTHLY_SPEND_UNAVAILABLE,
   recentMonthlySpendPlaceholders,
 } from '../lib/ops-monthly-spend';
+import { resolveFirstAppDeployment } from '../lib/app-deployment-lifetime';
 
 /* ── Shared plumbing ─────────────────────────────────────────────────────── */
 
@@ -1313,12 +1315,13 @@ export async function warehouseQueryAttribution(input: {
   host: string;
   token: string;
   warehouseId: string;
-  range: { from: string; to: string };
+  range: CostRange;
   transport?: WarehouseQueryHistoryTransport;
   signal?: AbortSignal;
   interactiveRuns?: readonly QuestionRunInput[];
 }): Promise<WarehouseQueryAttribution> {
-  const startTimeMs = Date.parse(`${input.range.from}T00:00:00Z`);
+  const exactStart = input.range.fromTimestamp ? Date.parse(input.range.fromTimestamp) : Number.NaN;
+  const startTimeMs = Number.isFinite(exactStart) ? exactStart : Date.parse(`${input.range.from}T00:00:00Z`);
   const endTimeMs = Date.parse(`${input.range.to}T00:00:00Z`) + 86_400_000 - 1;
   if (
     !input.host ||
@@ -1367,7 +1370,7 @@ export async function warehouseQueryAttribution(input: {
 async function readLifetimeSpendSnapshot(input: {
   appkit: InsightsAppKit;
   ids: CostIdentifiers;
-  range: { from: string; to: string };
+  range: CostRange;
   workspace: string;
   warehouse: string;
   token: string;
@@ -1386,7 +1389,8 @@ async function readLifetimeSpendSnapshot(input: {
   });
   if (!costOutcome.ok) throw new Error(costOutcome.message);
   const split = splitBillingRows(readComponentRows(costOutcome.rows));
-  const effectiveRange = {
+  const effectiveRange: CostRange = {
+    ...input.range,
     from: split.meta?.firstDay || input.range.from,
     to: input.range.to,
   };
@@ -1530,6 +1534,8 @@ export interface OpsDeps {
   scopeAppToken?: () => Promise<{ host: string; token: string }>;
   /** Test seam for the manual run's total deadline. */
   healthCheckTotalTimeoutMs?: number;
+  /** Test seam for the persisted/control-plane app lifetime boundary. */
+  readFirstAppDeployment?: () => Promise<{ deployedAt: string } | null>;
 }
 
 /**
@@ -1825,6 +1831,15 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         readReport: deps.readOrchestratorReport,
       });
       const ids = resolved.ids;
+      const firstDeployment = await (
+        deps.readFirstAppDeployment
+          ? deps.readFirstAppDeployment()
+          : resolveFirstAppDeployment({
+              store: appkit.lakebase,
+              appName: ids.appName,
+              workspaceId: ids.workspaceId,
+            })
+      ).catch(() => null);
       const activityRange = userBrowse ? range : spendWindow.range;
       const [
         storedBudgets,
@@ -1930,7 +1945,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         range,
         billingLagDays: null,
         readAt,
-        recentMonthlySpend: recentMonthlySpendPlaceholders(Date.parse(readAt)),
+        recentMonthlySpend: recentMonthlySpendPlaceholders(Date.parse(readAt), firstDeployment?.deployedAt),
+        recentMonthlySpendReason: firstDeployment ? '' : RECENT_MONTHLY_SPEND_UNAVAILABLE,
         genieAccounting: null,
         genieInstances: [],
         perQuestion: {
@@ -2045,7 +2061,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         const foundationStatement = interactiveComplete
           ? buildFoundationCostStatement(ids, range, questionRunsRead.runs)
           : null;
-        const recentMonthlyStatement = buildRecentMonthlySpendStatement(ids, Date.parse(readAt));
         const recentMonthlyKey = [
           userEmail(req).toLowerCase(),
           ids.workspaceId,
@@ -2054,6 +2069,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           ids.foundationModel,
           ids.warehouseId,
           ids.vectorEndpoint,
+          firstDeployment?.deployedAt ?? 'unproven',
           readAt.slice(0, 7),
         ].join('|');
         const [outcome, queryAttribution, genieOutcome, foundationOutcome, recentMonthlySpend] = await Promise.all([
@@ -2101,21 +2117,25 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
                     ? 'No configured foundation model is available.'
                     : 'Interactive Ask evidence is unavailable.'),
               }),
-          recentMonthlyStatement
-            ? cachedRecentMonthlySpend(recentMonthlyKey, Date.parse(readAt), async () => {
-                const recentOutcome = await runStatement({
-                  host: workspace,
-                  token,
-                  warehouseId: warehouse,
-                  statement: recentMonthlyStatement.statement,
-                  parameters: recentMonthlyStatement.parameters,
-                  fetchImpl: deps.fetchImpl,
-                });
-                return recentOutcome.ok
-                  ? readRecentMonthlySpendRows(recentOutcome.rows, Date.parse(readAt))
-                  : recentMonthlySpendPlaceholders(Date.parse(readAt));
-              })
-            : Promise.resolve(recentMonthlySpendPlaceholders(Date.parse(readAt))),
+          firstDeployment
+            ? cachedRecentMonthlySpend(recentMonthlyKey, Date.parse(readAt), () =>
+                readRecentMonthlySpend({
+                  now: Date.parse(readAt),
+                  firstDeployedAt: firstDeployment.deployedAt,
+                  read: (monthRange) =>
+                    readLifetimeSpendSnapshot({
+                      appkit,
+                      ids,
+                      range: monthRange,
+                      workspace,
+                      warehouse,
+                      token,
+                      fetchImpl: deps.fetchImpl,
+                      queryHistoryTransport: deps.queryHistoryTransport,
+                    }),
+                })
+              ).catch(() => recentMonthlySpendPlaceholders(Date.parse(readAt), firstDeployment.deployedAt))
+            : Promise.resolve([]),
         ]);
         const foundation = foundationOutcome.ok
           ? foundationCostTile(ids, readFoundationBillingRows(foundationOutcome.rows))

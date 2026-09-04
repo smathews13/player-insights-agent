@@ -2358,19 +2358,27 @@ function EmptyList({
 
 const PANEL_CACHE_MS = 60_000;
 const PANEL_CACHE_MAX = 80;
-const panelCache = new Map<string, { expiresAt: number; dataRevision: number; data: unknown }>();
+const panelCache = new Map<
+  string,
+  { expiresAt: number; dataRevision: number; identityRevision: string; data: unknown }
+>();
 
 function cachePanel(key: string, data: unknown): void {
+  const monitoring =
+    typeof data === 'object' && data !== null && 'userMonitoring' in data
+      ? (data as OpsCostPayload).userMonitoring
+      : null;
+  const identityRevision = typeof monitoring?.identityRevision === 'string' ? monitoring.identityRevision : '';
+  if (identityRevision) {
+    for (const [cachedKey, cached] of panelCache) {
+      if (cached.identityRevision && cached.identityRevision !== identityRevision) panelCache.delete(cachedKey);
+    }
+  }
   panelCache.delete(key);
   panelCache.set(key, {
     expiresAt: Date.now() + PANEL_CACHE_MS,
-    dataRevision:
-      typeof data === 'object' &&
-      data !== null &&
-      'userMonitoring' in data &&
-      typeof (data as OpsCostPayload).userMonitoring?.dataRevision === 'number'
-        ? (data as OpsCostPayload).userMonitoring!.dataRevision
-        : 0,
+    dataRevision: typeof monitoring?.dataRevision === 'number' ? monitoring.dataRevision : 0,
+    identityRevision,
     data,
   });
   while (panelCache.size > PANEL_CACHE_MAX) {

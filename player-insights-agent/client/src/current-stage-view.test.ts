@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { TraceStage } from './answer-shape';
 import { deriveCurrentStageView, PLANNING_STAGE_LABEL, WORKING_STAGE_LABEL } from './current-stage-view';
+import { partial } from './styles/stylesheet';
 
 function stage(overrides: Partial<TraceStage> & Pick<TraceStage, 'id'>): TraceStage {
   return {
@@ -147,5 +148,6 @@ describe('Ask uses the same view in both live status seats', () => {
     expect(home).toMatch(
       /<strong>\{currentStage\.label\}<\/strong>[\s\S]*?<span className="ast-sep" \/>[\s\S]*?<strong className="ast-num">\{elapsed\}<\/strong>/
     );
+    expect(partial('astrolabe-loaders.css')).toMatch(/\.ast-splash-copy\s*\{[^}]*column-gap:\s*4px/);
   });
 });

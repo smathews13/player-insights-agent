@@ -389,28 +389,14 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(ask).not.toContain('.prompt-grid');
   });
 
-  it('leads the composer caveat with the mark, in a row that can hold one', () => {
-    /*
-     * The caveat's first word is the agent's name, so the drawing belongs against
-     * it rather than somewhere else on the strip. The two assertions are a pair
-     * and neither is sufficient: `.ast-mark` is `display: block`, so the mark in
-     * an inline run of text would hang below the baseline it is supposed to sit
-     * on -- the markup needs the shared caveat to be a flex row, and that row is
-     * ALSO the flexible spacer that puts the submit button hard right, so `flex`
-     * has to survive whatever else is declared on it.
-     *
-     * The component owns the mark size. Nothing in the stylesheet resizes this
-     * seating, so the shared component and its painted result cannot disagree.
-     */
+  it('keeps the exact composer caveat without the stray product mark or its gap', () => {
     const home = withoutComments(HOME_PAGE);
-    expect(home).toContain('<AIAnalysisCaveat className="composer-ai-note" />');
+    expect(home).toContain('<AIAnalysisCaveat className="composer-ai-note" showMark={false} />');
     const caveat = body('.composer-actions > .composer-ai-note');
     expect(caveat).toMatch(/display:\s*flex/);
     expect(caveat).toMatch(/align-items:\s*center/);
     expect(caveat).toMatch(/flex:\s*1/);
-    expect(withoutComments(partial('composer.css'))).not.toMatch(
-      /\.composer-actions\s*>\s*\.composer-ai-note\s+\.ast-mark[^}]*(width|height)/
-    );
+    expect(caveat).not.toMatch(/\bgap\s*:/);
   });
 
   it('carries the agent’s mark on Ice, with no accent anywhere near it', () => {

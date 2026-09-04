@@ -71,6 +71,40 @@ import { checkVerdict, type CheckStop } from '../../shared/check-verdict';
 export type ConnectionStatus = 'reachable' | 'blocked' | 'refused' | 'unreachable' | 'not-checked' | 'nothing-to-reach';
 
 export type PrimaryConnectionState = 'connected' | 'disconnected' | 'loading' | 'not-applicable';
+export type ResolvedConnectionState = Extract<PrimaryConnectionState, 'connected' | 'disconnected'>;
+
+export const PRIMARY_CONNECTION_LABEL = {
+  connected: 'Connected',
+  disconnected: 'Disconnected',
+} as const;
+
+const CONNECTED_VERDICTS = new Set([
+  'answered',
+  'available',
+  'connected',
+  'healthy',
+  'ok',
+  'online',
+  'reachable',
+  'ready',
+  'running',
+  'working',
+]);
+
+/**
+ * Normalize a resolved platform verdict for a user-facing connection badge.
+ *
+ * Platform APIs use product-specific success words. The UI deliberately does
+ * not: once a check settles, every connection badge is binary. Unknown, empty,
+ * missing, refused, offline, and error words are all resolved failures.
+ */
+export function resolvedConnectionState(value: unknown): ResolvedConnectionState;
+export function resolvedConnectionState(value: unknown, pending: boolean): PrimaryConnectionState;
+export function resolvedConnectionState(value: unknown, pending = false): PrimaryConnectionState {
+  if (pending) return 'loading';
+  const normalized = typeof value === 'string' ? value.trim().toLocaleLowerCase() : '';
+  return CONNECTED_VERDICTS.has(normalized) ? 'connected' : 'disconnected';
+}
 
 /**
  * The binary status shown on a collapsed Connections row.
@@ -80,10 +114,14 @@ export type PrimaryConnectionState = 'connected' | 'disconnected' | 'loading' | 
  * optional remote is disconnected; local configuration values that name no
  * remote object have no connection badge at all.
  */
-export function primaryConnectionState(status: ConnectionStatus, namesRemoteObject: boolean): PrimaryConnectionState {
+export function primaryConnectionState(
+  status: ConnectionStatus,
+  namesRemoteObject: boolean,
+  pending = false
+): PrimaryConnectionState {
   if (!namesRemoteObject) return 'not-applicable';
+  if (pending) return 'loading';
   if (status === 'reachable') return 'connected';
-  if (status === 'not-checked') return 'loading';
   return 'disconnected';
 }
 

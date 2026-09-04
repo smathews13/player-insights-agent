@@ -3,6 +3,6 @@ import type { NodeReport } from './architecture';
 
 export const NODE_FAMILY: Record<NodeReport['tone'], AstPillFamily> = {
   connected: 'pos',
-  'not-connected': 'neg',
+  disconnected: 'neg',
   local: 'neutral-outline',
 };

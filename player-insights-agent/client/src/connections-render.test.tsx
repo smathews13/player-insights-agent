@@ -890,8 +890,7 @@ describe('one panel for the failures, not one panel per failure', () => {
       check('b', 'unverified', { label: 'B', detail: 'The same words.' }),
     ]);
     const readable = text(rendered);
-    expect(readable).toContain('Blocked');
-    expect(readable).toContain('Not checked');
+    expect(readable.match(/Disconnected/g)).toHaveLength(2);
     expect([...rendered.matchAll(/connections-fix-problem-head/g)]).toHaveLength(2);
   });
 
@@ -1138,7 +1137,7 @@ describe('optional permissions are not a thing to fix', () => {
     const head = /<div class="connections-fix-problem-head">(.*?)<\/div>/s.exec(rendered)?.[1] ?? '';
     expect(head).not.toBe('');
     expect(text(head)).toContain('Genie space');
-    expect(text(head)).toContain('Refused');
+    expect(text(head)).toContain('Disconnected');
     expect(text(head)).toContain('dashboards.genie');
   });
 
@@ -1442,7 +1441,7 @@ describe('a connection row', () => {
   it('does not render a resource with no configured value as a failure', () => {
     const rendered = text(renderRow('llm-gateway', { configured: '' }, { open: true }));
     expect(rendered).not.toMatch(/blocked/i);
-    expect(rendered).toContain('Not connected');
+    expect(rendered).toContain('Disconnected');
     expect(rendered).not.toMatch(/not set|nothing to reach|Not checked/i);
   });
 

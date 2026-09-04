@@ -442,7 +442,7 @@ describe('Settings → Identity', () => {
     expect(markup).toContain('Finance reporting');
     expect(markup).toContain('Read-only reporting');
     expect(markup).toContain('1 selected');
-    expect(markup).toContain('SP not connected');
+    expect(markup).toContain('Disconnected');
     expect(markup).toContain('Not synced');
     expect(markup).toContain('Complete these five steps in order');
     expect(markup).toContain('Create or select the service principal');
@@ -461,8 +461,20 @@ describe('Settings → Identity', () => {
     expect(markup).not.toMatch(/client secret|secret value input/i);
     expect(markup).toContain('aria-label="Edit Finance reporting"');
     expect(markup).toContain('aria-label="Remove Finance reporting"');
+    expect(markup).toContain('data-label="State"');
+    expect(markup).toContain('data-label="Actions"');
+    expect(markup).toContain('aria-controls="sp-setup-definition-1"');
+    expect(markup).toContain('aria-expanded="true"');
+    expect(markup).toContain('aria-labelledby="sp-setup-definition-1-title"');
+    expect(markup.match(/role="checkbox"/g) ?? []).toHaveLength(5);
+    expect(markup.match(/aria-readonly="true"/g) ?? []).toHaveLength(5);
+    expect(markup.match(/tabindex="0"/g) ?? []).toHaveLength(5);
+    expect(markup).toContain('aria-label="Create or select the service principal: not complete"');
     expect(markup).toContain('<th scope="col">Persona</th>');
     expect(markup).toContain('<th scope="col">Actions</th>');
+    expect(markup.indexOf('class="sp-definition-summary-row"')).toBeLessThan(
+      markup.indexOf('class="sp-definition-setup-row"')
+    );
   });
 
   it('uses exact green badge text only for persisted current evidence', () => {
@@ -502,7 +514,7 @@ describe('Settings → Identity', () => {
         onCheckDefinition={() => true}
       />
     );
-    expect(markup).toContain('ast-pill--pos sp-definition-state">SP connected</span>');
+    expect(markup).toContain('ast-pill--pos sp-definition-state">Connected</span>');
     expect(markup).toContain('ast-pill--pos sp-definition-state">Synced</span>');
     expect(markup).not.toContain('Finish service-principal setup');
     expect(markup).toContain('>Edit connection</button>');

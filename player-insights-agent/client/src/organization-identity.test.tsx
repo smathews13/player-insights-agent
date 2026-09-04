@@ -36,18 +36,22 @@ describe('organization identity assets', () => {
     }
   });
 
-  it('uses a neutral building fallback for an unknown domain', () => {
+  it('uses the same derived domain mark instead of a building across public-Git surfaces', () => {
     const markup = renderToStaticMarkup(
-      <OrganizationAvatar organization={organizationForEmail('reader@unknown.test')} />
+      <OrganizationAvatar organization={organizationForEmail('reader@studio2games.example')} />
     );
-    expect(markup).toContain('data-organization-id="domain:unknown.test"');
-    expect(markup).toContain('lucide-building-2');
+    expect(markup).toContain('data-organization-id="domain:studio2games.example"');
+    expect(markup).toContain('>S2</span>');
+    expect(markup).not.toContain('lucide-building-2');
     expect(markup).not.toContain('roster-organization-mark--branded');
   });
 
   it('keeps organization marks legible in both themes, compact density, and responsive controls', () => {
     expect(ACCOUNT_CSS).toMatch(/\.roster-organization-mark--branded[^}]*background:\s*var\(--card\)/s);
     expect(ACCOUNT_CSS).toMatch(/\.roster-organization-logo svg[^}]*color:\s*inherit/s);
+    expect(ACCOUNT_CSS).toMatch(
+      /@media \(forced-colors: active\)[\s\S]*\.roster-organization-mark[^}]*color:\s*CanvasText/s
+    );
     expect(MONITORING_CSS).toContain('.monitoring-organization-trigger');
     expect(RESPONSIVE_CSS).toMatch(/\.monitoring-organization-trigger[^}]*width:\s*100%/s);
     expect(DENSITY_CSS).toContain('.app-menu-option');
@@ -105,5 +109,15 @@ describe('User Monitoring organization multiselect', () => {
     ]);
     expect(renderToStaticMarkup(<>{options[1]?.content}</>)).toContain('data-organization-id="domain:studio.example"');
     expect(options[1]?.ariaLabel).toBe('Example Studio, 2 users');
+  });
+
+  it('renders an unconfigured digit-domain option with its stable mark and count', () => {
+    const options = organizationSelectOptions(organizationsForEmails(['one@studio2games.example']));
+    expect(options[0]).toMatchObject({
+      value: 'domain:studio2games.example',
+      label: 'studio2games.example',
+      count: 1,
+    });
+    expect(renderToStaticMarkup(<>{options[0]?.content}</>)).toContain('>S2</span>');
   });
 });

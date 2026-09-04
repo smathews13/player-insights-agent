@@ -42,6 +42,25 @@ html[data-density='compact'] .environment-list td {
   padding: var(--density-table-padding-block) var(--density-inline-padding);
 }
 
+html[data-density='compact'] .sp-definition-summary-row > td,
+html[data-density='compact'] .sp-definitions-table .sp-definition-setup-row > td {
+  height: auto;
+}
+
+html[data-density='compact'] .sp-definitions-table .sp-definition-setup-row > td {
+  padding: 10px 12px 12px;
+}
+
+html[data-density='compact'] .sp-connection-setup {
+  gap: 12px;
+  padding: 12px;
+}
+
+html[data-density='compact'] .sp-definition-status-actions [data-slot='button'],
+html[data-density='compact'] .sp-persona-builder-foot [data-slot='button'] {
+  min-height: 30px;
+}
+
 @media (max-width: 800px) {
   html[data-density='compact'] .settings-rail button {
     min-height: var(--density-row-height);

@@ -45,6 +45,7 @@ import { canCheckHealthResources } from '../../shared/user-roster-contract';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
 const OPS_STYLES = readFileSync(new URL('./styles/ops.css', import.meta.url), 'utf8');
+const RESPONSIVE_OPS_STYLES = readFileSync(new URL('./styles/responsive-ops.css', import.meta.url), 'utf8');
 const UNIT_CONTROL_SOURCE = readFileSync(new URL('./UnitSegmentedControl.tsx', import.meta.url), 'utf8');
 
 function text(markup: string): string {
@@ -113,9 +114,12 @@ describe('the admin cancellation control', () => {
     expect(toolbar).not.toContain('Check all resources');
     expect(toolbar).not.toContain('Check all scopes');
     expect(OPS_STYLES).toMatch(
-      /\.ops-page-controls\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+      /\.ops-page-controls\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)[^}]*grid-auto-rows:\s*1fr[^}]*width:\s*min\(100%,\s*50%\)[^}]*margin-left:\s*auto/
     );
     expect(OPS_STYLES).toMatch(/\.ops-stop-all,\s*\.ops-admin-action\s*\{[^}]*width:\s*100%[^}]*min-height:\s*46px/);
+    expect(RESPONSIVE_OPS_STYLES).toMatch(
+      /@media \(max-width:\s*800px\)[\s\S]*\.ops-page-controls\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0[^}]*margin-left:\s*0/
+    );
   });
 });
 
@@ -373,9 +377,72 @@ describe('the health block', () => {
 
   it('gives every dependency a result in words, not only a colour', () => {
     const markup = render(<HealthBody block={block(health())} />);
-    expect(markup).toContain('Reachable');
-    expect(markup).toContain('Not answering');
-    expect(markup).toContain('Not checked');
+    expect(markup).toContain('Connected');
+    expect(markup).toContain('Disconnected');
+    expect(markup).not.toMatch(/\b(Reachable|Unreachable|Ready|Running|Not checked)\b/);
+  });
+
+  it('covers every resource in the Ops Health table with one binary result badge', () => {
+    const resources = [
+      ['sql-warehouse', 'SQL warehouse'],
+      ['genie-space', 'Data Genie space'],
+      ['genie-space', 'Dictionary Genie space'],
+      ['catalog', 'Catalog'],
+      ['schema', 'Schema'],
+      ['serving-endpoint', 'Orchestrator serving endpoint'],
+      ['serving-endpoint', 'Foundation model'],
+      ['serving-endpoint', 'Benchmark judge model'],
+      ['vector-index', 'Vector Search index'],
+      ['vector-endpoint', 'Vector Search endpoint'],
+    ] as const;
+    const tables = Array.from({ length: 12 }, (_, index) => ({
+      id: `table:${index}`,
+      kind: 'table',
+      connectionsId: '',
+      label: `catalog.schema.table_${index}`,
+      name: `catalog.schema.table_${index}`,
+      result: 'answered' as const,
+      lastCheckedAt: '2026-08-15T12:00:00Z',
+      reason: '',
+    }));
+    const dependencies = [
+      ...resources.map(([kind, label], index) => ({
+        id: `resource:${index}`,
+        kind,
+        connectionsId: '',
+        label,
+        name: `${label}-id`,
+        result: 'answered' as const,
+        lastCheckedAt: '2026-08-15T12:00:00Z',
+        reason: '',
+      })),
+      ...tables,
+    ];
+    const markup = markupOf(
+      <HealthBody
+        block={block(
+          health({
+            dependencies,
+            platform: [
+              { id: 'app', label: 'App', state: 'RUNNING', read: true, rows: [], reason: '' },
+              { id: 'lakebase', label: 'Lakebase', state: 'ONLINE', read: true, rows: [], reason: '' },
+            ],
+          })
+        )}
+      />
+    );
+    const visible = text(markup);
+    for (const [, label] of resources) expect(visible, label).toContain(label);
+    for (const label of ['Declared tables · 12 tables', 'App', 'Lakebase']) expect(visible, label).toContain(label);
+    expect(markup.match(/ops-platform-pill-state">Connected/g)).toHaveLength(13);
+    expect(markup).not.toMatch(/ops-platform-pill-state">(Reachable|Unreachable|Ready|Running|Not checked)/);
+  });
+
+  it('shows only loaders while connection checks are active', () => {
+    const markup = markupOf(<HealthBody block={block(health(), { busy: true })} />);
+    expect(markup).toContain('ops-connection-status-loader');
+    expect(markup).not.toContain('ops-platform-pill-state');
+    expect(markup).not.toContain('connection status: Disconnected');
   });
 
   it('uses the canonical probe verdict when a fresh response distinguishes refusal from unavailability', () => {
@@ -383,9 +450,9 @@ describe('the health block', () => {
     const dependencies = payload.dependencies.map((row, index) =>
       index === 1 ? { ...row, verdict: 'refused' as const } : row
     );
-    const markup = render(<HealthBody block={block(health({ dependencies }))} />);
-    expect(markup).toContain('Genie space Refused');
-    expect(markup).not.toContain('Genie space Not checked');
+    const markup = markupOf(<HealthBody block={block(health({ dependencies }))} />);
+    expect(markup).toContain('aria-label="Genie space connection status: Disconnected"');
+    expect(text(markup)).not.toMatch(/\b(Refused|Not checked)\b/);
   });
 
   /**
@@ -410,23 +477,18 @@ describe('the health block', () => {
   it('states each resource once, in the Result column rather than in the band', () => {
     const markup = markupOf(<HealthBody block={block(health())} />);
 
-    // The readings, in the Result cells of the rows they are about.
-    expect(markup).toMatch(
-      /ops-col-result[^]*?ops-platform-pill-label">Serving endpoint<\/span><span class="ops-platform-pill-state">Ready</
-    );
-    expect(markup).toMatch(
-      /ops-col-result[^]*?ops-platform-pill-label">App<\/span><span class="ops-platform-pill-state">Running</
-    );
-    expect(markup).toMatch(
-      /ops-col-result[^]*?ops-platform-pill-label">Lakebase<\/span><span class="ops-platform-pill-state">Connected</
-    );
+    // Result badges carry only the binary result; the Resource column already
+    // names the thing the result belongs to.
+    expect(markup).toContain('aria-label="Orchestrator serving endpoint · a-model connection status: Connected"');
+    expect(markup).toContain('aria-label="App connection status: Connected"');
+    expect(markup).toContain('aria-label="Lakebase connection status: Connected"');
+    expect(markup).not.toContain('ops-platform-pill-label');
 
-    // And nowhere else. The band's own pill cluster is gone, so each of these
-    // words appears exactly as many times as there are rows carrying it.
+    // And nowhere else. The band's own pill cluster is gone.
     expect(markup).not.toContain('class="ops-platform"');
-    expect([...markup.matchAll(/>Running</g)]).toHaveLength(1);
-    expect([...markup.matchAll(/>Connected</g)]).toHaveLength(1);
-    expect([...markup.matchAll(/>Ready</g)]).toHaveLength(1);
+    expect([...markup.matchAll(/>Connected</g)]).toHaveLength(4);
+    expect([...markup.matchAll(/>Disconnected</g)]).toHaveLength(2);
+    expect(markup).not.toMatch(/>(Reachable|Unreachable|Ready|Running|Not checked)</);
   });
 
   /**
@@ -458,12 +520,9 @@ describe('the health block', () => {
       />
     );
 
-    // One "Ready", on the answer-path row. The judge states what its own probe
-    // established instead of borrowing the answer path's verdict.
-    expect([...markup.matchAll(/>Ready</g)]).toHaveLength(1);
-    expect(markup).toMatch(
-      /ops-platform-pill-label">Serving endpoint<\/span><span class="ops-platform-pill-state">Reachable</
-    );
+    expect(markup).toContain('aria-label="Orchestrator serving endpoint · a-model connection status: Connected"');
+    expect(markup).toContain('aria-label="Benchmark judge model · a-judge connection status: Connected"');
+    expect(markup).not.toMatch(/>(Reachable|Ready)</);
   });
 
   /**
@@ -474,7 +533,7 @@ describe('the health block', () => {
    */
   it('gives the app and Lakebase a row of their own, since no probe covers them', () => {
     const markup = render(<HealthBody block={block(health())} />);
-    expect(markup).toContain('App Running');
+    expect(markup).toContain('App Connected');
     expect(markup).toContain('Lakebase Connected');
   });
 
@@ -491,7 +550,7 @@ describe('the health block', () => {
       />
     );
     expect(markup).toContain('The dependency checks did not run');
-    expect(markup).toContain('App Running');
+    expect(markup).toContain('App Connected');
     expect(markup).toContain('Lakebase Connected');
   });
 
@@ -514,22 +573,18 @@ describe('the health block', () => {
         )}
       />
     );
-    // Not answering, and the reason a reader has to have in order to know whether
-    // to look at the pool or at a grant.
-    expect(markup).toContain('Lakebase Not answering');
-    expect(markup).toContain('Conversation state store');
+    expect(markup).toContain('Lakebase Disconnected');
+    expect(markup).toContain('permission denied for schema player_insights');
   });
 
-  it('renders a check that did not run as its own state rather than as a failure', () => {
-    const markup = render(<HealthBody block={block(health())} />);
-    // The vector index row was never checked. It must not be reported as a
-    // fault, which would send somebody to investigate a service that is fine.
-    expect(markup).toContain('Not checked');
-    expect(markup).not.toContain('Vector search index Did not answer');
+  it('renders a resolved check that did not run as disconnected', () => {
+    const markup = markupOf(<HealthBody block={block(health())} />);
+    expect(markup).toContain('aria-label="Vector search index connection status: Disconnected"');
+    expect(text(markup)).not.toContain('Vector search index Did not answer');
   });
 
   it("shows the probe's own reason rather than a rewritten one", () => {
-    expect(render(<HealthBody block={block(health())} />)).toContain('Natural-language data space');
+    expect(render(<HealthBody block={block(health())} />)).toContain('The space returned 403 for this user.');
   });
 
   /**
@@ -540,16 +595,13 @@ describe('the health block', () => {
    * two of those said the same thing on every check and the third was on screen
    * explaining a bug.
    */
-  it('says whose word each result is, in the pill rather than by its position', () => {
-    const markup = render(<HealthBody block={block(health())} />);
-    // The platform's readings, as states rather than prose.
-    expect(markup).toContain('Serving endpoint Ready');
-    expect(markup).toContain('App Running');
-    // The app's own probes, with their three states intact and each naming the
-    // resource it is about.
-    expect(markup).toContain('SQL warehouse Reachable');
-    expect(markup).toContain('Genie space Not answering');
-    expect(markup).toContain('Vector Search index Not checked');
+  it('uses one binary connection vocabulary for platform readings and probes', () => {
+    const markup = markupOf(<HealthBody block={block(health())} />);
+    expect(markup).toContain('aria-label="SQL warehouse connection status: Connected"');
+    expect(markup).toContain('aria-label="Genie space connection status: Disconnected"');
+    expect(markup).toContain('aria-label="Vector search index connection status: Disconnected"');
+    expect(markup).toContain('aria-label="App connection status: Connected"');
+    expect(text(markup)).not.toMatch(/\b(Reachable|Unreachable|Ready|Running|Not checked)\b/);
   });
 
   it('states a platform reading without explaining how it was taken', () => {
@@ -738,7 +790,7 @@ describe('the health block', () => {
   it("quotes the probe's own words rather than blending them into the page", () => {
     // Quoted so a reader can see where this app stops speaking and the platform
     // starts. The words themselves are never rewritten.
-    expect(render(<HealthBody block={block(health())} />)).toContain('Natural-language data space');
+    expect(render(<HealthBody block={block(health())} />)).toContain('The space returned 403 for this user.');
   });
 
   it('labels the final health column Notes', () => {
@@ -762,13 +814,15 @@ describe('the health block', () => {
    * not "Ready" would be the only element on the tab contradicting its own text.
    */
   it('paints a platform reading from its word rather than from its place', () => {
-    /** The tone class on the pill whose left half is this label. */
+    /** The tone class on the binary badge whose accessible name carries this row label. */
     const toneOf = (markup: string, label: string) =>
-      new RegExp(
-        `ast-pill--([a-z-]+) ops-pill ops-platform-pill"><span class="ops-platform-pill-label">${label}<`
-      ).exec(markup)?.[1] ?? '';
+      new RegExp(`ast-pill--([a-z-]+) ops-pill ops-platform-pill" aria-label="${label} connection status:`).exec(
+        markup
+      )?.[1] ?? '';
 
-    expect(toneOf(markupOf(<HealthBody block={block(health())} />), 'Serving endpoint')).toBe('pos');
+    expect(toneOf(markupOf(<HealthBody block={block(health())} />), 'Orchestrator serving endpoint · a-model')).toBe(
+      'pos'
+    );
 
     const middling = markupOf(
       <HealthBody
@@ -791,14 +845,14 @@ describe('the health block', () => {
     // Scoped to the pill carrying the platform's word: the rows around it paint an
     // answered probe with the same green, and an unscoped assertion would pass on
     // one of those instead.
-    expect(toneOf(middling, 'Serving endpoint')).toBe('warn');
+    expect(toneOf(middling, 'Orchestrator serving endpoint · a-model')).toBe('neg');
 
     const unread = markupOf(
       <HealthBody
         block={block(health({ platform: [{ id: 'app', label: 'App', state: '', read: false, rows: [], reason: '' }] }))}
       />
     );
-    expect(toneOf(unread, 'App')).toBe('neutral-outline');
+    expect(toneOf(unread, 'App')).toBe('neg');
   });
 
   /**
@@ -1436,14 +1490,16 @@ describe('the cost block', () => {
     expect(markup).not.toContain('ops-tile-formula');
   });
 
-  it('draws a tile title as a hyperlink with the Databricks mark when it has a URL', () => {
+  it('uses the shared Open in Databricks footer for every linked Cost resource', () => {
     const markup = markupOf(
       <CostTileTitle label="Serving endpoint" href="https://example-workspace.invalid/ml/endpoints/an-endpoint" />
     );
     expect(markup).toContain('href="https://example-workspace.invalid/ml/endpoints/an-endpoint"');
-    expect(markup).toContain('ops-tile-label-link');
+    expect(markup).toContain('ops-genie-open');
     expect(markup).toContain('lucide-external-link');
-    expect(markup).toContain('Open Serving endpoint in Databricks');
+    expect(text(markup)).toBe('Open in Databricks');
+    expect(markup).toContain('aria-label="Open Serving endpoint in Databricks (opens in a new tab)"');
+    expect(text(markup)).not.toContain('Serving endpoint');
   });
 
   it('leaves a title as plain text when there is no URL', () => {

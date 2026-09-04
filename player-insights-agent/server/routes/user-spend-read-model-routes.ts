@@ -3,7 +3,7 @@ import type { Application, Request, Response } from 'express';
 import { opsDayRange } from '../../shared/ops-contract';
 import {
   organizationForEmail,
-  organizationsForEmails,
+  organizationOptionsForEmails,
   organizationSuffixesForSelection,
   parseOrganizationMappings,
   type OrganizationFilterOption,
@@ -33,6 +33,7 @@ import {
 import { buildUserSpendMetrics } from '../lib/user-spend-metrics';
 import { invalidAdminEmail, seedRoles } from '../lib/admin-roles';
 import { everyKnownUser, readRosterForRequest } from '../lib/user-roster';
+import { listSpAssignments } from '../lib/sp-identity-store';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 
 export const USER_SPEND_RESPONSE_REVISION = 2;
@@ -384,11 +385,27 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       const manifest = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
       let organizations: OrganizationFilterOption[];
       try {
-        const roster = await readRosterForRequest(appkit.lakebase, req);
-        organizations = organizationsForEmails(
-          everyKnownUser({ seed: seedRoles(), stored: roster.rows }).map((entry) => entry.email),
-          manifest
+        const personaFilter = queryText(req, 'persona');
+        const [roster, assignments] = await Promise.all([
+          readRosterForRequest(appkit.lakebase, req),
+          personaFilter ? listSpAssignments(appkit) : Promise.resolve([]),
+        ]);
+        const entries = everyKnownUser({ seed: seedRoles(), stored: roster.rows });
+        const assignmentByEmail = new Map(
+          assignments.map((assignment) => [assignment.email.trim().toLowerCase(), assignment.personaId])
         );
+        const search = queryText(req, 'q').toLowerCase();
+        const role = queryText(req, 'role');
+        const representedEmails = entries.map((entry) => entry.email);
+        const countedEmails = entries
+          .filter(
+            (entry) =>
+              (!search || entry.email.toLowerCase().includes(search)) &&
+              (!role || entry.role === role) &&
+              (!personaFilter || assignmentByEmail.get(entry.email.toLowerCase()) === personaFilter)
+          )
+          .map((entry) => entry.email);
+        organizations = organizationOptionsForEmails(representedEmails, countedEmails, manifest);
       } catch {
         res.status(503).json({
           error: 'identity_roster_unavailable',

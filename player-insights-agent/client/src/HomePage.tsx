@@ -2834,18 +2834,10 @@ export function HomePage() {
                 {clearingDocs ? 'Clearing…' : `Clear docs (${attachments.length})`}
               </Button>
             )}
-            {/* The size and the colour are the strip's, in composer.css, rather
-                than utilities here: this span is also the flexible spacer that puts
-                the submit button hard right, and the two facts belong together.
-
-                The mark leads the caveat rather than sitting elsewhere on the strip
-                because the sentence names the agent in its first word, and the
-                drawing and the name it belongs to read as one thing only while they
-                are adjacent. Same seating as `.ai-note` under an answer, which is
-                the same sentence said about a result instead of about the field.
-                Decorative: the word "astrolabe" is right beside it, so a mark
-                announced again would be the name read twice. */}
-            <AIAnalysisCaveat className="composer-ai-note" />
+            {/* The composer keeps the shared caveat copy but not the product mark:
+                the footer already names Astrolabe and the extra icon competed with
+                Attach context. Answer surfaces retain the marked variant. */}
+            <AIAnalysisCaveat className="composer-ai-note" showMark={false} />
             {/* One control for one current action. While a question is active it
                 becomes Stop and remains pressable; Stop first records durable
                 cancellation and only then aborts this browser's stream. */}

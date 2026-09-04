@@ -133,8 +133,8 @@ describe('the sections the rows are grouped into', () => {
         )
       )
       .join('');
-    expect(text(rows)).toContain('Blocked');
-    expect(text(rows)).toContain('Reachable');
+    expect(text(rows)).toContain('Disconnected');
+    expect(text(rows)).toContain('Connected');
     expect(text(rows)).not.toContain('Not checked');
   });
 
@@ -317,7 +317,7 @@ describe('whether each build stamp names something that is working', () => {
       appServing: serving('RUNNING', 'ACTIVE'),
     });
     expect(app.health.state).toBe('working');
-    expect(app.health.label).toBe('Running');
+    expect(app.health.label).toBe('Connected');
     expect(app.tone).toBe('reachable');
   });
 
@@ -335,7 +335,7 @@ describe('whether each build stamp names something that is working', () => {
       appAnswered: true,
     });
     expect(app.health.state).toBe('not-working');
-    expect(app.health.label).toBe('Not running');
+    expect(app.health.label).toBe('Disconnected');
     expect(app.health.note).toContain('CRASHED');
     expect(app.tone).toBe('blocked');
   });
@@ -348,7 +348,7 @@ describe('whether each build stamp names something that is working', () => {
   it('falls back to the read this page made when the workspace said nothing', () => {
     const { app } = health({ appBuildSha: 'aaaaaaaa11', modelBuildSha: '', appAnswered: true });
     expect(app.health.state).toBe('working');
-    expect(app.health.label).toBe('Answering');
+    expect(app.health.label).toBe('Connected');
   });
 
   it('draws no verdict on an app nothing has reported and nothing has read', () => {
@@ -360,7 +360,7 @@ describe('whether each build stamp names something that is working', () => {
   it('is green on an orchestrator endpoint a check reached', () => {
     const { orchestrator } = health({ appBuildSha: '', modelBuildSha: 'bbbbbbbb22', orchestratorStatus: 'reachable' });
     expect(orchestrator.health.state).toBe('working');
-    expect(orchestrator.health.label).toBe('Reachable');
+    expect(orchestrator.health.label).toBe('Connected');
     expect(orchestrator.tone).toBe('reachable');
   });
 
@@ -382,10 +382,12 @@ describe('whether each build stamp names something that is working', () => {
    * it is not evidence the orchestrator is down. Red here sends a reader after a
    * service that is fine, which is the rule the row badges follow too.
    */
-  it('does not call a refused call a broken orchestrator', () => {
+  it('maps a refused connection check to disconnected while preserving the reason', () => {
     const { orchestrator } = health({ appBuildSha: '', modelBuildSha: 'bbbbbbbb22', orchestratorStatus: 'refused' });
-    expect(orchestrator.health.state).toBe('unclear');
-    expect(orchestrator.tone).toBe('drifted');
+    expect(orchestrator.health.state).toBe('not-working');
+    expect(orchestrator.health.label).toBe('Disconnected');
+    expect(orchestrator.health.note).toContain('workspace refused this call');
+    expect(orchestrator.tone).toBe('blocked');
   });
 
   /**
@@ -396,7 +398,7 @@ describe('whether each build stamp names something that is working', () => {
   it('counts the served version reporting its own configuration as working', () => {
     const { orchestrator } = health({ appBuildSha: '', modelBuildSha: 'bbbbbbbb22', orchestratorReported: true });
     expect(orchestrator.health.state).toBe('working');
-    expect(orchestrator.health.label).toBe('Answered');
+    expect(orchestrator.health.label).toBe('Connected');
   });
 
   it('draws no verdict on an orchestrator nothing asked about and nothing heard from', () => {
@@ -444,20 +446,20 @@ describe('the counts line, where the figures had to become tabular', () => {
    */
   it('sets the figures in mono and leaves the words alone', () => {
     const markup = renderToStaticMarkup(<ConnectionsCounts counts={{ ...NONE, reachable: 12, notChecked: 9 }} />);
-    expect(markup).toContain('<span class="ast-num">12</span> reachable');
+    expect(markup).toContain('<span class="ast-num">12</span> connected');
     expect(markup).not.toContain('not checked');
   });
 
   /** The tone stays on the pair, so a tinted count colours its number and its word. */
   it('tints the figure and the word together', () => {
     const markup = renderToStaticMarkup(<ConnectionsCounts counts={{ ...NONE, blocked: 2 }} />);
-    expect(markup).toMatch(/data-tone="blocked"><span class="ast-num">2<\/span> blocked/);
+    expect(markup).toMatch(/data-tone="blocked"><span class="ast-num">2<\/span> disconnected/);
   });
 
   /** And a zero still has no phrase at all, which is the line's oldest rule. */
   it('prints nothing for a count of nothing', () => {
     const markup = text(renderToStaticMarkup(<ConnectionsCounts counts={{ ...NONE, reachable: 3 }} />));
-    expect(markup).toBe('3 reachable');
+    expect(markup).toBe('3 connected');
   });
 });
 

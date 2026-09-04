@@ -111,3 +111,22 @@ export function sanitizeOrganizationMappings(value: unknown): OrganizationMappin
   const mappings = value.map(configuredOrganization);
   return mappings.every((mapping): mapping is OrganizationMapping => mapping !== null) ? mappings : [];
 }
+
+/**
+ * Trust-boundary decoder for represented organization options.
+ *
+ * Filter options intentionally add one field to the canonical mapping shape.
+ * Feeding them through `sanitizeOrganizationMappings` rejects that `count`
+ * field as unknown and silently empties the whole menu.
+ */
+export function sanitizeOrganizationFilterOptions(value: unknown): OrganizationFilterOption[] {
+  if (!Array.isArray(value) || value.length > 50) return [];
+  const options = value.map((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+    const { count, ...mapping } = entry as Record<string, unknown>;
+    const organization = configuredOrganization(mapping);
+    if (!organization || typeof count !== 'number' || !Number.isFinite(count)) return null;
+    return { ...organization, count: Math.max(0, Math.trunc(count)) };
+  });
+  return options.every((option): option is OrganizationFilterOption => option !== null) ? options : [];
+}

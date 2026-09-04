@@ -1,5 +1,7 @@
 import { DECLARED_TABLES_SECTION_ID } from './connections-view';
-import { healthRows, resourceWord, RESULT_TONE, type HealthRow } from './ops-view';
+import { astPill } from './astrolabe-pill';
+import { PRIMARY_CONNECTION_LABEL } from './connection-status';
+import { healthRows, resourceWord, type HealthRow } from './ops-view';
 import type { DependencyResult, HealthDependency, PlatformReading } from '../../shared/ops-contract';
 
 type HealthRowsPayload = {
@@ -31,7 +33,7 @@ export function healthRowsForDisplay(payload: HealthRowsPayload): HealthRow[] {
   if (tables.length === 0) return rows;
 
   const counts = {
-    reachable: tables.filter((row) => row.result === 'answered').length,
+    connected: tables.filter((row) => row.result === 'answered').length,
     unverified: tables.filter((row) => row.result === 'not-checked').length,
     failed: tables.filter((row) => row.result === 'did-not-answer').length,
   };
@@ -48,11 +50,11 @@ export function healthRowsForDisplay(payload: HealthRowsPayload): HealthRow[] {
       result === 'not-checked'
         ? ''
         : existing?.lastCheckedAt || tables.find((row) => row.lastCheckedAt)?.lastCheckedAt || '',
-    notes: `${counts.reachable} reachable \u00b7 ${counts.unverified} unverified \u00b7 ${counts.failed} failed`,
+    notes: `${counts.connected} connected \u00b7 ${counts.unverified} unverified \u00b7 ${counts.failed} failed`,
     pill: {
       label: resourceWord({ kind: 'manifest', label: 'Declared tables' }),
-      value: result === 'answered' ? 'Reachable' : result === 'did-not-answer' ? 'Failed' : 'Unverified',
-      tone: RESULT_TONE[result],
+      value: PRIMARY_CONNECTION_LABEL[result === 'answered' ? 'connected' : 'disconnected'],
+      tone: astPill(result === 'answered' ? 'pos' : 'neg', 'ops-pill'),
     },
   };
 

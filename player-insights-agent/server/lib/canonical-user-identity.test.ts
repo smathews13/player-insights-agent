@@ -9,14 +9,14 @@ function row(email: string, setAt = '2026-09-03T12:00:00.000Z'): StoredRole {
 describe('canonical signed-in identity', () => {
   it.each([
     ['employee@example.com', 'employee@example.com', 'employee'],
-    ['customer.admin@take2games.com', 'customer.admin@take2games.com', 'customer.admin'],
+    ['customer.admin@studio2games.example', 'customer.admin@studio2games.example', 'customer.admin'],
   ])('keeps the trusted complete forwarded address %s', (forwarded, canonicalEmail, displayName) => {
     expect(resolveCanonicalUserIdentity(forwarded, [])).toMatchObject({ canonicalEmail, displayName });
   });
 
   it('resolves a local part only through one unique Identity-roster address', () => {
-    expect(resolveCanonicalUserIdentity('customer.admin', [row('customer.admin@take2games.com')])).toMatchObject({
-      canonicalEmail: 'customer.admin@take2games.com',
+    expect(resolveCanonicalUserIdentity('customer.admin', [row('customer.admin@studio2games.example')])).toMatchObject({
+      canonicalEmail: 'customer.admin@studio2games.example',
       displayName: 'customer.admin',
     });
   });
@@ -25,7 +25,7 @@ describe('canonical signed-in identity', () => {
     expect(
       resolveCanonicalUserIdentity('shared.user', [
         row('shared.user@example.com'),
-        row('shared.user@take2games.com'),
+        row('shared.user@studio2games.example'),
       ]).canonicalEmail
     ).toBeNull();
     expect(
@@ -35,16 +35,16 @@ describe('canonical signed-in identity', () => {
 
   it('does not let roster data replace a complete proxy-authenticated address', () => {
     expect(
-      resolveCanonicalUserIdentity('employee@example.com', [row('employee@take2games.com')]).canonicalEmail
+      resolveCanonicalUserIdentity('employee@example.com', [row('employee@studio2games.example')]).canonicalEmail
     ).toBe('employee@example.com');
   });
 
   it('changes the revision when canonical roster evidence changes', () => {
     const before = resolveCanonicalUserIdentity('customer.admin', [
-      row('customer.admin@take2games.com'),
+      row('customer.admin@studio2games.example'),
     ]).identityRevision;
     const after = resolveCanonicalUserIdentity('customer.admin', [
-      row('customer.admin@take2games.com', '2026-09-03T13:00:00.000Z'),
+      row('customer.admin@studio2games.example', '2026-09-03T13:00:00.000Z'),
     ]).identityRevision;
     expect(after).not.toBe(before);
   });

@@ -253,7 +253,7 @@ describe('the declared-tables aside', () => {
    * checked, by their own verdict, because the call never reached the table --
    * were counted and labelled as blocked.
    */
-  it('counts what was refused apart from what was never checked', () => {
+  it('collapses every resolved non-success verdict into disconnected', () => {
     const aside = declaredTablesAside([
       check('a', { status: 'ok' }),
       check('b', { status: 'failed' }),
@@ -261,8 +261,8 @@ describe('the declared-tables aside', () => {
       check('d', { status: 'unverified' }),
     ]);
     expect(aside).toContain('4 tables declared');
-    expect(aside).toContain('1 blocked');
-    expect(aside).toContain('2 not checked');
+    expect(aside).toContain('3 disconnected');
+    expect(aside).not.toMatch(/blocked|refused|unreachable|not checked/i);
   });
 
   /** A zero never renders, here or on the summary line above it. */

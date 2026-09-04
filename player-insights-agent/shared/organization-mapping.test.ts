@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   ORGANIZATION_MANIFEST,
   organizationForEmail,
+  organizationMonogramForDomain,
+  organizationOptionsForEmails,
   organizationsForEmails,
   organizationSuffixesForSelection,
   parseOrganizationMappings,
+  sanitizeOrganizationFilterOptions,
 } from './organization-mapping';
 
 const mappings = parseOrganizationMappings(
@@ -42,16 +45,35 @@ describe('organization mapping', () => {
     expect(organizationForEmail(email, []).id).toBe(id);
   });
 
-  it('uses a neutral local fallback without inferring an affiliation', () => {
+  it('uses a domain-derived mark without inferring a legal affiliation', () => {
     expect(organizationForEmail('person@outside.test', mappings)).toMatchObject({
       id: 'domain:outside.test',
       domain: 'outside.test',
       name: 'outside.test',
-      logoKey: 'fallback',
-      fallback: 'building',
+      monogram: 'OU',
+      logoKey: 'monogram',
+      fallback: 'monogram',
     });
     expect(organizationForEmail('person@notexample.org', mappings).id).toBe('domain:notexample.org');
     expect(organizationForEmail('not-an-email', mappings).name).toBe('External');
+  });
+
+  it('derives compact digit-aware marks from neutral registrable labels', () => {
+    expect(organizationMonogramForDomain('studio2games.example')).toBe('S2');
+    expect(organizationMonogramForDomain('north.studio2games.example')).toBe('S2');
+    expect(organizationMonogramForDomain('2k.example')).toBe('Contoso');
+    expect(organizationMonogramForDomain('outside.test')).toBe('OU');
+  });
+
+  it('lets an explicit deployment overlay win over the derived mark', () => {
+    const configured = parseOrganizationMappings(
+      JSON.stringify([{ domain: 'studio2games.example', name: 'Configured Studio', monogram: 'CS' }])
+    );
+    expect(organizationForEmail('reader@north.studio2games.example', configured)).toMatchObject({
+      name: 'Configured Studio',
+      monogram: 'CS',
+      fallback: 'monogram',
+    });
   });
 
   it('fails closed on malformed configuration', () => {
@@ -80,5 +102,25 @@ describe('organization mapping', () => {
       'studio.example.org',
     ]);
     expect(organizationSuffixesForSelection(['not-in-roster'], represented)).toEqual(['__no_matching_organization__']);
+  });
+
+  it('always maps product-domain roster users and keeps zero-count facets available', () => {
+    const roster = [
+      'one@example.com',
+      'two@engineering.databricks.com',
+      'three@example.com',
+      'four@labs.databricks.com',
+    ];
+    expect(organizationsForEmails(roster)).toEqual([expect.objectContaining({ id: 'databricks', count: 4 })]);
+    expect(organizationOptionsForEmails(roster, [])).toEqual([expect.objectContaining({ id: 'databricks', count: 0 })]);
+  });
+
+  it('decodes counted filter options without weakening mapping validation', () => {
+    const option = { ...organizationsForEmails(['one@example.com'])[0], count: 4 };
+    expect(sanitizeOrganizationFilterOptions([option])).toEqual([
+      expect.objectContaining({ id: 'databricks', count: 4 }),
+    ]);
+    expect(sanitizeOrganizationFilterOptions([{ ...option, count: '4' }])).toEqual([]);
+    expect(sanitizeOrganizationFilterOptions([{ ...option, secret: 'not accepted' }])).toEqual([]);
   });
 });

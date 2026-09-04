@@ -11,6 +11,7 @@ import type { ConnectionReading } from './connection-model';
 import { AppSelect } from './AppSelect';
 import { BrandIcon } from './BrandIcon';
 import { Badge, Button, Input } from './ui';
+import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
 
 const CAPABILITIES: Array<[keyof AiGatewayCandidate['capabilities'], string]> = [
   ['rateLimits', 'Rate limits'],
@@ -61,12 +62,14 @@ export function AiGatewayConnection({
   foundationModel,
   allowMutations,
   requested,
+  refreshing = false,
   onStaged,
 }: {
   reading: ConnectionReading;
   foundationModel: string;
   allowMutations: boolean;
   requested: boolean;
+  refreshing?: boolean;
   onStaged: () => Promise<unknown>;
 }) {
   const [open, setOpen] = useState(requested);
@@ -124,13 +127,14 @@ export function AiGatewayConnection({
   );
   const staged = summary.staged;
   const configured = Boolean(summary.active.mode || staged);
+  const connected = reading.status === 'reachable';
   const collapsedValue = staged
     ? staged.mode
       ? candidate?.displayName || staged.model
       : 'Direct'
     : summary.active.mode
       ? candidate?.displayName || summary.active.model || summary.active.transport
-      : 'Not connected';
+      : 'Direct';
 
   const beginEdit = () => {
     const initial = staged ?? summary.active;
@@ -189,6 +193,22 @@ export function AiGatewayConnection({
             {collapsedValue}
           </span>
         </span>
+        {refreshing ? (
+          <AstrolabeLoadingLabel
+            as="span"
+            announce={false}
+            className="connection-row-status-loader"
+            label="Checking AI Gateway"
+          />
+        ) : (
+          <Badge
+            variant={connected ? 'secondary' : 'destructive'}
+            className="connection-row-state"
+            aria-label={`AI Gateway connection status: ${connected ? 'Connected' : 'Disconnected'}`}
+          >
+            {connected ? 'Connected' : 'Disconnected'}
+          </Badge>
+        )}
         {staged ? <span className="connection-row-state">Staged for agent release</span> : null}
         {allowMutations ? (
           <Pencil className="size-3.5 shrink-0 connection-row-affordance" data-affordance="write" />
@@ -197,6 +217,16 @@ export function AiGatewayConnection({
 
       {open ? (
         <div className="connection-row-detail">
+          {refreshing ? (
+            <AstrolabeLoadingLabel label="Checking AI Gateway" className="connection-detail-status-loader" />
+          ) : (
+            <dl className="connection-details">
+              <div className="connection-detail">
+                <dt>Connection</dt>
+                <dd>{connected ? 'Connected' : 'Disconnected'}</dd>
+              </div>
+            </dl>
+          )}
           <dl className="connection-details">
             <div className="connection-detail">
               <dt>Current transport</dt>

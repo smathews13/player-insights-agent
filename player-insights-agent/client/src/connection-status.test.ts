@@ -9,6 +9,7 @@ import {
   driftMarker,
   inUseSummary,
   primaryConnectionState,
+  resolvedConnectionState,
   visibleCounts,
   type ConnectionStatus,
 } from './connection-status';
@@ -20,8 +21,28 @@ describe('the row badge', () => {
     expect(primaryConnectionState('blocked', true)).toBe('disconnected');
     expect(primaryConnectionState('refused', true)).toBe('disconnected');
     expect(primaryConnectionState('unreachable', true)).toBe('disconnected');
-    expect(primaryConnectionState('not-checked', true)).toBe('loading');
+    expect(primaryConnectionState('not-checked', true)).toBe('disconnected');
+    expect(primaryConnectionState('reachable', true, true)).toBe('loading');
+    expect(primaryConnectionState('blocked', true, true)).toBe('loading');
     expect(primaryConnectionState('nothing-to-reach', false)).toBe('not-applicable');
+  });
+
+  it.each(['reachable', 'ready', 'running', 'connected', 'healthy', 'online'])(
+    'maps the resolved success verdict %s to connected',
+    (verdict) => {
+      expect(resolvedConnectionState(verdict)).toBe('connected');
+    }
+  );
+
+  it.each(['', 'missing', 'refused', 'offline', 'error', 'unreachable', 'not checked'])(
+    'maps the resolved failure verdict %s to disconnected',
+    (verdict) => {
+      expect(resolvedConnectionState(verdict)).toBe('disconnected');
+    }
+  );
+
+  it('uses loading only while a verdict is actively pending', () => {
+    expect(resolvedConnectionState('ready', true)).toBe('loading');
   });
   it('reads a passing check as reachable', () => {
     expect(connectionStatus({ check: { status: 'ok' }, hasRemoteEnd: true })).toBe('reachable');

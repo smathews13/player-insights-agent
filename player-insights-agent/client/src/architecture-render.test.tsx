@@ -279,11 +279,12 @@ describe('the page makes one cheap read of its own and delegates the expensive p
     expect(PAGE_SOURCE).not.toContain('const runChecks');
   });
 
-  it('shows every remote dependency as not connected before the first run has landed', () => {
+  it('shows loaders instead of false failures before the first run has landed', () => {
     const markup = pageMarkup();
-    expect([...text(markup).matchAll(/Not connected/g)]).toHaveLength(dependencyNodes().length * 2);
+    expect([...text(markup).matchAll(/Checking connection/g)]).toHaveLength(dependencyNodes().length);
+    expect(markup.match(/arch-node-status-loader/g)).toHaveLength(dependencyNodes().length);
     expect(markup).not.toContain('data-tone="connected"');
-    expect(markup.match(/data-tone="not-connected"/g)).toHaveLength(dependencyNodes().length * 2);
+    expect(markup).not.toContain('data-tone="disconnected"');
   });
 
   it('removes the summary KPI strip while keeping the loop inputs', () => {
@@ -303,8 +304,8 @@ describe('every card on the drawing reports the live reading and not a literal',
     // Each of these is asserted on the card itself rather than on the page, so a
     // status landing on the wrong node fails here.
     expect(text(card(markup, 'agent-endpoint'))).toContain('Connected');
-    expect(text(card(markup, 'genie-data'))).toContain('Not connected');
-    expect(text(card(markup, 'catalog'))).toContain('Not connected');
+    expect(text(card(markup, 'genie-data'))).toContain('Disconnected');
+    expect(text(card(markup, 'catalog'))).toContain('Disconnected');
     expect(text(card(markup, 'lakebase'))).toContain('Connected');
   });
 
@@ -364,9 +365,9 @@ describe('every card on the drawing reports the live reading and not a literal',
     // problem that does not exist.
     const model = card(canvasMarkup(), 'llm-endpoint');
 
-    expect(text(model)).toContain('Not connected');
+    expect(text(model)).toContain('Disconnected');
     expect(model).not.toContain('data-drift=');
-    expect(model).toContain('data-tone="not-connected"');
+    expect(model).toContain('data-tone="disconnected"');
     expect(model).not.toContain('arch-node-value');
   });
 
@@ -376,7 +377,7 @@ describe('every card on the drawing reports the live reading and not a literal',
 
       expect(text(local), id).toContain('Runs here');
       expect(text(local), id).not.toContain('Connected');
-      expect(text(local), id).not.toContain('Not connected');
+      expect(text(local), id).not.toContain('Disconnected');
     }
   });
 
@@ -447,9 +448,9 @@ describe('every card on the drawing reports the live reading and not a literal',
       const drawn = card(markup, node.id);
       expect(drawn.match(/arch-node-status/g), node.id).toHaveLength(1);
       const label = drawn.match(/arch-node-status"[^>]*>([^<]*)</)?.[1]?.trim();
-      expect(['Connected', 'Not connected'], node.id).toContain(label);
+      expect(['Connected', 'Disconnected'], node.id).toContain(label);
     }
-    expect(text(markup)).not.toMatch(/\b(Reachable|Blocked|Unreachable|Refused|Not checked)\b/);
+    expect(text(markup)).not.toMatch(/\b(Reachable|Blocked|Unreachable|Refused|Not checked|Ready|Running)\b/);
   });
 });
 
@@ -496,7 +497,7 @@ describe('the semantic lane draws the index and the endpoint separately', () => 
     const markup = canvasMarkup(lane('ok', 'failed'));
 
     expect(card(markup, 'semantic-index')).toContain('data-tone="connected"');
-    expect(card(markup, 'semantic-index-endpoint')).toContain('data-tone="not-connected"');
+    expect(card(markup, 'semantic-index-endpoint')).toContain('data-tone="disconnected"');
   });
 
   it('links the index to the index, and offers the endpoint no guessed link', () => {
@@ -516,7 +517,7 @@ describe('the semantic lane draws the index and the endpoint separately', () => 
     const equivalent = text(markup.slice(markup.indexOf('data-testid="architecture-equivalent"')));
 
     expect(equivalent).toContain('Vector Search index: Connected');
-    expect(equivalent).toContain('Vector Search endpoint: Not connected');
+    expect(equivalent).toContain('Vector Search endpoint: Disconnected');
     expect(equivalent).toContain('queries this searchable index by name');
     expect(equivalent).toContain('hosts the index and provides its serving compute');
     expect(equivalent).toContain('This is not query flow.');

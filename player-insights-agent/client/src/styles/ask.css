@@ -3,17 +3,17 @@
   /*
    * THE TRACK FILLS; THE CARDS CENTRE IN IT. Equal 340px rails leave a middle
    * column that is the leftover window, and that column is still 100% of the
-   * track — otherwise the composer, which is `position: fixed` off the same
-   * rails, would disagree with the transcript. The answer and working cards
+   * track — otherwise the normal-flow composer below it would disagree with
+   * the transcript. The answer and working cards
    * cap at `--conversation-measure` and sit in the middle of that track, so a
    * wide monitor gets modest gutters rather than an edge-to-edge slab, and a
    * laptop still fills the gap (the cap is wider than the leftover column).
    */
   max-width: none;
   width: 100%;
-  height: var(--workspace-pane-block-size);
-  min-height: var(--workspace-pane-block-size);
-  max-height: var(--workspace-pane-block-size);
+  height: var(--ask-pane-block-size);
+  min-height: var(--ask-pane-block-size);
+  max-height: var(--ask-pane-block-size);
   min-width: 0;
   box-sizing: border-box;
   position: relative;
@@ -44,7 +44,7 @@
 .ask-layout[data-transcript='active']
   .conversation-message:has(.answer-card):not(:has(~ .conversation-message))
   .answer-card {
-  min-height: calc(var(--workspace-pane-block-size) - 88px);
+  min-height: calc(var(--ask-pane-block-size) - 88px);
 }
 .message-pagination {
   display: flex;

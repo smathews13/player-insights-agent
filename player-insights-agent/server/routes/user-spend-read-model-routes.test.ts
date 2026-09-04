@@ -74,29 +74,42 @@ function routes(rows = [storedRow()], rosterRows = rows) {
             added_by: 'bootstrap',
             added_at: row.identity_updated_at,
           }))
-        : sql === READ_USER_SPEND_COMPONENTS_QUERY
-          ? [
-              {
-                component_id: 'genie:data',
-                label: 'Data Genie',
-                spend_usd: '0',
-                spend_dbu: '1.5',
-                spend_usd_quality: 'direct',
-                spend_dbu_quality: 'direct',
-                reason: '',
-              },
-            ]
-          : sql === READ_USER_SPEND_REFRESH_STATE_QUERY
+        : /SELECT email, persona_id, updated_at, updated_by/.test(sql)
+          ? rosterRows.flatMap((row) =>
+              row.persona_id
+                ? [
+                    {
+                      email: row.display_email,
+                      persona_id: row.persona_id,
+                      updated_at: row.identity_updated_at,
+                      updated_by: 'bootstrap',
+                    },
+                  ]
+                : []
+            )
+          : sql === READ_USER_SPEND_COMPONENTS_QUERY
             ? [
                 {
-                  refresh_status: 'ready',
-                  refresh_source_through: '2026-09-01T03:00:00Z',
-                  refresh_completed_at: '2026-09-01T04:00:00Z',
-                  billing_complete_through: '2026-08-31',
-                  identity_updated_at: '2026-09-01T03:30:00Z',
+                  component_id: 'genie:data',
+                  label: 'Data Genie',
+                  spend_usd: '0',
+                  spend_dbu: '1.5',
+                  spend_usd_quality: 'direct',
+                  spend_dbu_quality: 'direct',
+                  reason: '',
                 },
               ]
-            : rows,
+            : sql === READ_USER_SPEND_REFRESH_STATE_QUERY
+              ? [
+                  {
+                    refresh_status: 'ready',
+                    refresh_source_through: '2026-09-01T03:00:00Z',
+                    refresh_completed_at: '2026-09-01T04:00:00Z',
+                    billing_complete_through: '2026-08-31',
+                    identity_updated_at: '2026-09-01T03:30:00Z',
+                  },
+                ]
+              : rows,
     });
   });
   const appkit = {
@@ -151,7 +164,7 @@ describe('User Monitoring read-model routes', () => {
       } as unknown as Request,
       res
     );
-    expect(query).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenCalledTimes(3);
     const summary = calls.find((call) => call.sql === READ_USER_SPEND_SUMMARY_QUERY);
     expect(summary?.sql).not.toMatch(/system\.billing|sql\/history|\/api\/2\.0/i);
     expect(summary?.sql).toContain('FROM player_insights.admin_emails');
@@ -176,6 +189,41 @@ describe('User Monitoring read-model routes', () => {
           sourceThrough: '2026-09-01T03:00:00.000Z',
           isStale: false,
         }),
+      })
+    );
+  });
+
+  it('builds the Databricks facet from the full roster instead of the current page', async () => {
+    const rosterRows = [
+      storedRow({ display_email: 'one@example.com', total_users: '4' }),
+      storedRow({ display_email: 'two@engineering.databricks.com', total_users: '4' }),
+      storedRow({ display_email: 'three@example.com', total_users: '4' }),
+      storedRow({ display_email: 'four@labs.databricks.com', total_users: '4' }),
+    ];
+    const { handlers, calls } = routes([rosterRows[0]], rosterRows);
+    const res = response();
+    await handlers.get('/api/monitoring/user-spend')!(
+      {
+        query: {
+          from: '2026-08-25',
+          to: '2026-08-31',
+          organization: 'databricks',
+          pageSize: '1',
+        },
+        headers: { 'x-forwarded-email': 'admin@example.com' },
+        header: (name: string) => (name.toLowerCase() === 'x-forwarded-email' ? 'admin@example.com' : undefined),
+      } as unknown as Request,
+      res
+    );
+    const summary = calls.find((call) => call.sql === READ_USER_SPEND_SUMMARY_QUERY);
+    expect(summary?.params).toContainEqual(['databricks.com']);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        users: [expect.objectContaining({ email: 'one@example.com' })],
+        organizations: [
+          expect.objectContaining({ id: 'databricks', name: 'Databricks', logoKey: 'databricks', count: 4 }),
+        ],
+        pagination: expect.objectContaining({ pageSize: 1, hasMore: true }),
       })
     );
   });
@@ -257,8 +305,8 @@ describe('User Monitoring read-model routes', () => {
         users: [],
         pagination: expect.objectContaining({ total: 0 }),
         organizations: expect.arrayContaining([
-          expect.objectContaining({ id: 'domain:studio.example', count: 1 }),
-          expect.objectContaining({ id: 'domain:partner.example', count: 1 }),
+          expect.objectContaining({ id: 'domain:studio.example', count: 0 }),
+          expect.objectContaining({ id: 'domain:partner.example', count: 0 }),
         ]),
       })
     );

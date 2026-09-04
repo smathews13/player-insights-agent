@@ -84,6 +84,7 @@ import { useSessionChecks } from './session-checks';
 import { fetchWithTimeout } from './fetch-timeout';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
 import { entityHref } from './data-entities';
+import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
 
 interface ArchitecturePayload {
   workspaceHost: string;
@@ -124,7 +125,7 @@ const useCanvasLayoutEffect = typeof document === 'undefined' ? useEffect : useL
 
 /** Keep a diagram exception from replacing the whole Architecture tab. */
 class ArchitectureDiagramBoundary extends Component<
-  { byResource: ReadonlyMap<string, ConnectionReading>; children: ReactNode; now: number },
+  { byResource: ReadonlyMap<string, ConnectionReading>; checking: boolean; children: ReactNode; now: number },
   { failed: boolean }
 > {
   state = { failed: false };
@@ -148,10 +149,8 @@ class ArchitectureDiagramBoundary extends Component<
           </AlertDescription>
         </Alert>
         <ul className="arch-equivalent">
-          {describeArchitecture(this.props.byResource, this.props.now).map((line) => (
-            <li key={line}>
-              {line}
-            </li>
+          {describeArchitecture(this.props.byResource, this.props.now, this.props.checking).map((line) => (
+            <li key={line}>{line}</li>
           ))}
         </ul>
       </div>
@@ -231,6 +230,7 @@ function ArchitectureNodeCard({
   indexReading,
   payload,
   box,
+  checking,
   now,
 }: {
   activeBound: ChainBound | null;
@@ -247,6 +247,7 @@ function ArchitectureNodeCard({
   indexReading: ConnectionReading | undefined;
   payload: ArchitecturePayload | null;
   box: NodeBox;
+  checking: boolean;
   /** Read once per render by the page, so every card ages content off one clock. */
   now: number;
 }) {
@@ -272,9 +273,18 @@ function ArchitectureNodeCard({
         <span className="arch-node-label">{node.label}</span>
       </span>
       <span className="arch-node-pills">
-        <span className={astPill(NODE_FAMILY[report.tone], 'arch-node-status')} data-tone={report.tone}>
-          {report.label}
-        </span>
+        {checking && node.presence === 'connection' ? (
+          <AstrolabeLoadingLabel
+            as="span"
+            announce={false}
+            className="arch-node-status-loader"
+            label={`Checking ${node.label}`}
+          />
+        ) : (
+          <span className={astPill(NODE_FAMILY[report.tone], 'arch-node-status')} data-tone={report.tone}>
+            {report.label}
+          </span>
+        )}
         {reading && reading.marker !== 'none' ? (
           <span
             className={astPill(reading.marker === 'drift' ? 'warn' : 'neutral-outline', 'arch-node-drift')}
@@ -310,7 +320,8 @@ function ArchitectureNodeCard({
       data-testid={`arch-node-${node.id}`}
       data-node={node.id}
       data-accent={box.accent}
-      data-tone={report.tone}
+      data-tone={checking && node.presence === 'connection' ? undefined : report.tone}
+      data-checking={checking && node.presence === 'connection' ? 'true' : undefined}
       data-drift={reading && reading.marker !== 'none' ? reading.marker : undefined}
       data-control-bounds={controlBounds.join(' ') || undefined}
       data-control-active={selected ? 'true' : undefined}
@@ -321,7 +332,7 @@ function ArchitectureNodeCard({
         <Link
           className="arch-node-main"
           to={entityHref(node.resourceId)}
-          aria-label={`${nodeAccessibleName(node, reading, indexReading, now)}. Open on Connections.`}
+          aria-label={`${nodeAccessibleName(node, reading, indexReading, now, checking)}. Open on Connections.`}
         >
           {body}
         </Link>
@@ -378,6 +389,7 @@ const LEGEND: ReadonlyArray<{ accent: ArchitectureAccent; label: string }> = [
 export function ArchitectureCanvas({
   activeBound = null,
   byResource,
+  checking = false,
   payload,
   now,
 }: {
@@ -389,6 +401,8 @@ export function ArchitectureCanvas({
    */
   activeBound?: ChainBound | null;
   byResource: ReadonlyMap<string, ConnectionReading>;
+  /** While live checks are active, connection nodes show only their loader. */
+  checking?: boolean;
   payload: ArchitecturePayload | null;
   /**
    * The clock the content ages are computed against.
@@ -401,7 +415,7 @@ export function ArchitectureCanvas({
   now: number;
 }) {
   const edges = useMemo(() => drawnEdges(), []);
-  const description = useMemo(() => describeArchitecture(byResource, now), [byResource, now]);
+  const description = useMemo(() => describeArchitecture(byResource, now, checking), [byResource, checking, now]);
 
   /**
    * One fixed geometry and one measured number.
@@ -488,6 +502,7 @@ export function ArchitectureCanvas({
               <ArchitectureNodeCard
                 activeBound={activeBound}
                 box={box}
+                checking={checking}
                 indexReading={byResource.get('semantic-index')}
                 key={node.id}
                 node={node}
@@ -676,7 +691,7 @@ export function ArchitecturePage() {
    * pressed. That was the defect Sam reported: a tab that opens without
    * operational verdicts down its whole length reads as broken.
    */
-  const { session, running: checking, refresh } = useSessionChecks();
+  const { session, running: checking, firstLoad, refresh } = useSessionChecks();
   const settings = session?.settings ?? null;
   const report = session?.report ?? null;
   const checkError = session?.error ?? '';
@@ -815,10 +830,17 @@ export function ArchitecturePage() {
         />
         <ArchitectureDiagramBoundary
           byResource={byResource}
+          checking={checking || firstLoad}
           key={`${checkedAt}:${payload?.readAt ?? ''}`}
           now={now}
         >
-          <ArchitectureCanvas activeBound={shownBound} byResource={byResource} now={now} payload={payload} />
+          <ArchitectureCanvas
+            activeBound={shownBound}
+            byResource={byResource}
+            checking={checking || firstLoad}
+            now={now}
+            payload={payload}
+          />
         </ArchitectureDiagramBoundary>
       </section>
 

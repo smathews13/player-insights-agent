@@ -95,6 +95,15 @@ describe('the shared reader-facing AI caveat', () => {
     expect(visibleText(markup)).toBe(AI_ANALYSIS_CAVEAT);
   });
 
+  it('supports the text-only composer caveat without an icon or reserved element', () => {
+    const markup = renderToStaticMarkup(<AIAnalysisCaveat className="composer-ai-note" showMark={false} />);
+
+    expect(caveatTexts(markup)).toEqual([AI_ANALYSIS_CAVEAT]);
+    expect(markup).not.toContain('<svg');
+    expect(markup).not.toContain('ast-mark');
+    expect(visibleText(markup)).toBe(AI_ANALYSIS_CAVEAT);
+  });
+
   it('closes live, loaded, replayed, degraded, and Monitoring answers through AnswerCard', () => {
     const markup = renderToStaticMarkup(
       <AnswerCard

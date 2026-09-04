@@ -356,7 +356,7 @@ export interface NodeReport {
   /** The word on the badge. */
   label: string;
   /** Which visual treatment it takes. Not a colour; the stylesheet decides that. */
-  tone: 'connected' | 'not-connected' | 'local';
+  tone: 'connected' | 'disconnected' | 'local';
   /** The sentence behind the word, for the detail and for the text equivalent. */
   note: string;
 }
@@ -371,8 +371,8 @@ export interface NodeReport {
 function connectionReport(reading: ConnectionReading | undefined, note?: string): NodeReport {
   const connected = reading?.status === 'reachable';
   return {
-    label: connected ? 'Connected' : 'Not connected',
-    tone: connected ? 'connected' : 'not-connected',
+    label: connected ? 'Connected' : 'Disconnected',
+    tone: connected ? 'connected' : 'disconnected',
     note:
       note ??
       reading?.check?.detail?.trim() ??
@@ -570,8 +570,10 @@ export function nodeAccessibleName(
   node: ArchitectureNode,
   reading: ConnectionReading | undefined,
   indexReading?: ConnectionReading,
-  now: number = Date.now()
+  now: number = Date.now(),
+  checking = false
 ): string {
+  if (checking && node.presence === 'connection') return `${node.label}: Checking connection`;
   const report = nodeReport(node, reading, indexReading);
   const value = nodeValue(reading);
   const age = nodeContentAge(node, reading, now);
@@ -605,7 +607,8 @@ export function edgesFor(id: string): ArchitectureEdge[] {
  */
 export function describeArchitecture(
   readings: ReadonlyMap<string, ConnectionReading>,
-  now: number = Date.now()
+  now: number = Date.now(),
+  checking = false
 ): string[] {
   const lines: string[] = [];
   const index = readings.get('semantic-index');
@@ -614,7 +617,12 @@ export function describeArchitecture(
     const report = nodeReport(node, reading, index);
     const value = nodeValue(reading);
     const age = nodeContentAge(node, reading, now);
-    const parts = [`${node.label}: ${report.label}.`, node.role];
+    const parts = [
+      checking && node.presence === 'connection'
+        ? `${node.label}: Checking connection.`
+        : `${node.label}: ${report.label}.`,
+      node.role,
+    ];
     // The whole sentence rather than the pill's words. This list is the drawing
     // for anyone not looking at it, and "Stale, 5 d old" without the sentence
     // that says what stale means here is a pill read aloud, not a description.

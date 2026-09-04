@@ -106,8 +106,8 @@ describe('declared tables in the Health resource list', () => {
     expect(aggregates).toHaveLength(1);
     expect(aggregates[0]).toMatchObject({
       label: 'Declared tables \u00b7 12 tables',
-      notes: '12 reachable \u00b7 0 unverified \u00b7 0 failed',
-      pill: { label: 'Declared tables', value: 'Reachable' },
+      notes: '12 connected \u00b7 0 unverified \u00b7 0 failed',
+      pill: { label: 'Declared tables', value: 'Connected' },
     });
     expect(aggregates[0].pill.tone).toContain('ast-pill--pos');
 
@@ -116,7 +116,7 @@ describe('declared tables in the Health resource list', () => {
       label: 'Orchestrator serving endpoint \u00b7 player-insights-agent',
       name: 'player-insights-agent',
       connectionsId: 'agent-endpoint',
-      pill: { label: 'Serving endpoint', value: 'Reachable' },
+      pill: { label: 'Serving endpoint', value: 'Connected' },
     });
 
     const markup = renderHealth(payload);
@@ -136,10 +136,10 @@ describe('declared tables in the Health resource list', () => {
       (row) => row.id === 'declared-manifest'
     );
 
-    expect(aggregate.pill.value).toBe('Failed');
+    expect(aggregate.pill.value).toBe('Disconnected');
     expect(aggregate.pill.tone).toContain('ast-pill--neg');
     expect(aggregate.pill.tone).not.toContain('ast-pill--pos');
-    expect(aggregate.notes).toContain('9 reachable \u00b7 2 unverified \u00b7 1 failed');
+    expect(aggregate.notes).toContain('9 connected \u00b7 2 unverified \u00b7 1 failed');
     expect(aggregate.notes).not.toMatch(/tables?:|open|section|evidence|\.$/i);
   });
 
@@ -150,7 +150,7 @@ describe('declared tables in the Health resource list', () => {
     }
     const aggregate = rows.find((row) => row.id === 'declared-manifest');
     expect(aggregate?.label).toBe('Declared tables \u00b7 1 table');
-    expect(aggregate?.notes).toBe('1 reachable \u00b7 0 unverified \u00b7 0 failed');
+    expect(aggregate?.notes).toBe('1 connected \u00b7 0 unverified \u00b7 0 failed');
     expect(aggregate?.notes).not.toContain('1 table');
   });
 
@@ -181,7 +181,7 @@ describe('declared tables in the Health resource list', () => {
     expect(withoutRollup[0]).toMatchObject({
       id: 'declared-manifest',
       label: 'Declared tables \u00b7 2 tables',
-      pill: { value: 'Reachable' },
+      pill: { value: 'Connected' },
     });
   });
 });

@@ -468,6 +468,19 @@ a.arch-node-main:hover .arch-node-label {
   flex-wrap: wrap;
   gap: 4px;
 }
+
+.ast-flick-row.arch-node-status-loader {
+  min-height: 0;
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  gap: 6px;
+}
+
+.arch-node-status-loader .ast-flick-row-say {
+  font-size: var(--ast-fs-12);
+}
 /*
  * LAYOUT ONLY, and the layout delta here is one number: a node card is 250px
  * wide with up to three pills on it, so they take 6px of horizontal padding

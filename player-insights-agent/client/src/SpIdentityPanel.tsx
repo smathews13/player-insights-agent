@@ -1002,7 +1002,14 @@ function SpPersonaDefinitionTable({
   return (
     <>
       <div className="settings-table-frame sp-definitions-frame">
-        <table className="settings-data-table settings-actions-table sp-definitions-table">
+        <table className="settings-data-table sp-definitions-table">
+          <colgroup>
+            <col className="sp-definition-persona-column" />
+            <col className="sp-definition-purpose-column" />
+            <col className="sp-definition-permissions-column" />
+            <col className="sp-definition-state-column" />
+            <col className="sp-definition-actions-column" />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">Persona</th>
@@ -1020,27 +1027,33 @@ function SpPersonaDefinitionTable({
               const needsSetup = !connected || !synced;
               const connection = personas.find((persona) => persona.definitionId === definition.id) ?? null;
               const setupId = `sp-setup-${definition.id}`;
+              const setupVisible = needsSetup || expandedId === definition.id;
               return (
                 <Fragment key={definition.id}>
-                  <tr>
-                    <td className="sp-definition-name" title={definition.displayName}>
+                  <tr className="sp-definition-summary-row">
+                    <td className="sp-definition-name" data-label="Persona" title={definition.displayName}>
                       {definition.displayName}
                     </td>
-                    <td className="sp-definition-purpose" title={definition.description || undefined}>
+                    <td
+                      className="sp-definition-purpose"
+                      data-label="Purpose"
+                      title={definition.description || undefined}
+                    >
                       {definition.description || '—'}
                     </td>
                     <td
                       className="sp-definition-capabilities"
+                      data-label="Permissions"
                       title={[...(definition.grants ?? []).map(spGrantSummary), ...legacyFor(definition)].join('\n')}
                     >{`${(definition.grants?.length ?? 0) + legacyFor(definition).length} selected${
                       legacyFor(definition).length > 0 ? ` · ${legacyFor(definition).length} legacy permission` : ''
                     }`}</td>
-                    <td className="sp-definition-status">
+                    <td className="sp-definition-status" data-label="State">
                       <div className="sp-definition-status-badges">
                         <span
                           className={`ast-pill ${connected ? 'ast-pill--pos' : 'ast-pill--neg'} sp-definition-state`}
                         >
-                          {connected ? 'SP connected' : 'SP not connected'}
+                          {connected ? 'Connected' : 'Disconnected'}
                         </span>
                         <span className={`ast-pill ${synced ? 'ast-pill--pos' : 'ast-pill--neg'} sp-definition-state`}>
                           {synced ? 'Synced' : 'Not synced'}
@@ -1058,6 +1071,7 @@ function SpPersonaDefinitionTable({
                           size="sm"
                           disabled={busy || !onConnect}
                           aria-controls={setupId}
+                          aria-expanded={setupVisible}
                           onClick={() => setExpandedId((current) => (current === definition.id ? null : definition.id))}
                         >
                           {connection ? 'Edit connection' : 'Connect SP'}
@@ -1073,7 +1087,7 @@ function SpPersonaDefinitionTable({
                         </Button>
                       </div>
                     </td>
-                    <td className="sp-definition-actions">
+                    <td className="sp-definition-actions" data-label="Actions">
                       <Button
                         type="button"
                         variant="ghost"
@@ -1096,7 +1110,7 @@ function SpPersonaDefinitionTable({
                       </Button>
                     </td>
                   </tr>
-                  {needsSetup || expandedId === definition.id ? (
+                  {setupVisible ? (
                     <tr className="sp-definition-setup-row">
                       <td colSpan={5}>
                         <SpConnectionSetup
@@ -1154,7 +1168,14 @@ function SpConnectionSetup({
   const grants = definition.grants ?? [];
   const step = (complete: boolean, title: string, body: ReactNode, action?: ReactNode, testId?: string) => (
     <li className={`sp-setup-step${complete ? ' is-complete' : ''}`} data-testid={testId}>
-      <span className="sp-setup-step-marker" aria-hidden="true">
+      <span
+        className="sp-setup-step-marker"
+        role="checkbox"
+        aria-checked={complete}
+        aria-label={`${title}: ${complete ? 'complete' : 'not complete'}`}
+        aria-readonly="true"
+        tabIndex={0}
+      >
         {complete ? <Check size={14} strokeWidth={3} /> : null}
       </span>
       <div className="sp-setup-step-content">
@@ -1168,10 +1189,10 @@ function SpConnectionSetup({
   );
 
   return (
-    <div id={id} className="sp-connection-setup">
+    <div id={id} className="sp-connection-setup" aria-labelledby={`${id}-title`}>
       <div className="sp-connection-setup-header">
         <div>
-          <strong>Finish service-principal setup</strong>
+          <strong id={`${id}-title`}>Finish service-principal setup</strong>
           <p>Complete these five steps in order, then verify the connection and permissions.</p>
         </div>
         <span className="sp-connection-security-note">

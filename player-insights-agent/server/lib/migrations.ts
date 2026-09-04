@@ -20,6 +20,7 @@ import {
   USER_SPEND_HOURLY_REFRESH_TABLE,
   USER_SPEND_HOURLY_TABLE,
 } from './user-spend-hourly-read-model';
+import { APP_DEPLOYMENT_LIFETIME_DDL, APP_DEPLOYMENT_LIFETIME_TABLE } from './app-deployment-lifetime';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -975,6 +976,12 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
          ON ${APP_SCHEMA}.feedback (created_at DESC, id DESC)`,
     ],
     down: [`DROP INDEX IF EXISTS ${APP_SCHEMA}.feedback_created_id_idx`],
+  },
+  {
+    version: 38,
+    name: 'app deployment lifetime evidence',
+    statements: [APP_DEPLOYMENT_LIFETIME_DDL],
+    down: [`DROP TABLE IF EXISTS ${APP_DEPLOYMENT_LIFETIME_TABLE}`],
   },
 ];
 

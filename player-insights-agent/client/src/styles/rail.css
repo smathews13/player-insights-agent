@@ -3,6 +3,18 @@
 .ask-layout {
   display: grid;
   align-items: start;
+  /*
+   * Ask has to leave its composer in the first viewport. The normal composer
+   * is about 104px tall; this reserve also includes the 20px row gap and 20px
+   * of page-end breathing room. Run Explorer intentionally keeps its separate
+   * 760–1120px reading panes.
+   */
+  --ask-composer-block-reserve: 144px;
+  --ask-pane-block-size: clamp(
+    360px,
+    calc(100dvh - var(--app-header-h) - var(--ask-composer-block-reserve) - env(safe-area-inset-bottom, 0px)),
+    520px
+  );
   background-color: var(--ast-sky-fill);
   /*
    * THE SKY IS ONE FIELD, AND ITS RECIPE IS IN astrolabe-tokens.css.
@@ -92,9 +104,9 @@
 .ask-layout > .conversation-rail,
 .trace-inspector {
   position: static;
-  height: var(--workspace-pane-block-size);
-  min-height: var(--workspace-pane-block-size);
-  max-height: var(--workspace-pane-block-size);
+  height: var(--ask-pane-block-size);
+  min-height: var(--ask-pane-block-size);
+  max-height: var(--ask-pane-block-size);
   box-sizing: border-box;
   overscroll-behavior: contain;
   /* Solid, and no blur. Both columns were 70% white with a 14px backdrop blur, so
@@ -290,6 +302,16 @@
   gap: 5px;
   white-space: nowrap;
 }
+
+.ast-flick-row.run-status-loader {
+  min-height: 0;
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  gap: 6px;
+}
+
 .run-status-dot {
   width: 6px;
   height: 6px;

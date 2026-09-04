@@ -50,13 +50,32 @@ function render(mode: '' | 'mlflow' | 'openai', allowMutations = false): string 
 }
 
 describe('AI Gateway Connections row', () => {
-  it('keeps the empty state neutral in the normal resource list', () => {
+  it('reports an absent optional gateway as disconnected', () => {
     const markup = render('');
     const readable = text(markup);
-    expect(readable).toContain('AI Gateway Not connected');
+    expect(readable).toContain('AI Gateway Direct Disconnected');
+    expect(markup).toContain('aria-label="AI Gateway connection status: Disconnected"');
     expect(readable).toContain('Current transport Direct');
     expect(readable).toContain('Direct model traffic remains active');
     expect(readable).not.toMatch(/Not checked|Blocked|hard ceiling/);
+  });
+
+  it('uses loaders instead of a stale status while the connection is checking', () => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <AiGatewayConnection
+          reading={reading('mlflow')}
+          foundationModel="databricks-gpt-5"
+          allowMutations={false}
+          requested
+          refreshing
+          onStaged={() => Promise.resolve()}
+        />
+      </MemoryRouter>
+    );
+    expect(markup).toContain('Checking AI Gateway');
+    expect(markup).not.toContain('AI Gateway connection status:');
+    expect(markup).not.toMatch(/>(Connected|Disconnected)</);
   });
 
   it('shows the current transport and model without write controls for readers', () => {

@@ -18,23 +18,36 @@ function rule(source: string, selector: string): string {
   return source.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
 }
 
-describe('Ask and Run share taller desktop pane geometry', () => {
-  it('uses one viewport-aware 760–1120px token with 160px more preferred room', () => {
+describe('Ask and Run use page-specific desktop pane geometry', () => {
+  it('keeps Run Explorer on its dedicated 760–1120px reading panes', () => {
     expect(TOKENS).toMatch(
       /--workspace-pane-block-size:\s*clamp\(\s*760px,\s*calc\(100dvh - var\(--app-header-h\) \+ 160px - env\(safe-area-inset-bottom,\s*0px\)\),\s*1120px\s*\)/
     );
     expect(rule(RUNS, '.run-explorer')).toContain('--run-explorer-pane-block-size: var(--workspace-pane-block-size)');
   });
 
-  it('gives short and tall Ask content the exact same rail and center-pane height', () => {
+  it('caps Ask at 360–520px after reserving the normal-flow composer', () => {
+    const layout = rule(RAIL, '.ask-layout');
+    expect(layout).toContain('--ask-composer-block-reserve: 144px');
+    expect(layout).toMatch(
+      /--ask-pane-block-size:\s*clamp\(\s*360px,\s*calc\(\s*100dvh - var\(--app-header-h\) - var\(--ask-composer-block-reserve\) -\s*env\(safe-area-inset-bottom,\s*0px\)\s*\),\s*520px\s*\)/
+    );
+    expect(layout).not.toContain('--workspace-pane-block-size');
+  });
+
+  it('gives live and final Ask content the exact same rail and center-pane height', () => {
     const rail = rule(RAIL, '.ask-layout > .conversation-rail,\n.trace-inspector');
     const center = rule(ASK, '.conversation-main');
     for (const property of ['height', 'min-height', 'max-height']) {
-      expect(rail).toContain(`${property}: var(--workspace-pane-block-size)`);
-      expect(center).toContain(`${property}: var(--workspace-pane-block-size)`);
+      expect(rail).toContain(`${property}: var(--ask-pane-block-size)`);
+      expect(center).toContain(`${property}: var(--ask-pane-block-size)`);
     }
     expect(ASK).toMatch(
-      /\.ask-layout\[data-transcript='active'\] \.conversation-main > \.answer-card,[\s\S]*?min-height:\s*calc\(var\(--workspace-pane-block-size\) - 88px\)/
+      /\.ask-layout\[data-transcript='active'\] \.conversation-main > \.answer-card,[\s\S]*?min-height:\s*calc\(var\(--ask-pane-block-size\) - 88px\)/
+    );
+    expect(ASK).not.toContain('var(--workspace-pane-block-size)');
+    expect(RAIL).not.toMatch(
+      /\.ask-layout > \.conversation-rail,\s*\.trace-inspector\s*\{[^}]*var\(--workspace-pane-block-size\)/
     );
     expect(ASK).not.toMatch(
       /\.ask-layout\[data-transcript='active'\][^{]*\.answer-card\s*\{[^}]*(?:max-height|overflow-y)/
