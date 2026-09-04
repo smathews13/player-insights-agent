@@ -38,7 +38,13 @@ import {
 import { NotebookCard } from './NotebookCard';
 import { notebookPathView, persistNotebookPath } from './notebook-card-state';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
-import { isDuplicateConnection, normalizedConnectionValue } from './declared-connection-controller';
+import { ConnectionRemovalStatus } from './ConnectionRemovalStatus';
+import {
+  CONNECTION_REMOVAL_NOTICE_MS,
+  dismissConnectionRemovalNotice,
+  isDuplicateConnection,
+  normalizedConnectionValue,
+} from './declared-connection-controller';
 import {
   connectionValueError,
   createConnectionDeleteGate,
@@ -469,6 +475,49 @@ describe('the list of assets the agent may consider', () => {
     release();
     await expect(first).resolves.toBe('deleted');
     expect(gate.pending('roster-table')).toBe(false);
+  });
+
+  it('announces successful removal once with concise red-status semantics', () => {
+    const markup = renderToStaticMarkup(<ConnectionRemovalStatus notice={{ id: 1 }} />);
+    expect(markup).toContain('class="connection-removal-status"');
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('aria-live="polite"');
+    expect(markup).toContain('lucide-circle-minus');
+    expect(markup).toMatch(/<svg[^>]*aria-hidden="true"/);
+    expect(markup.match(/Connection removed/g)).toHaveLength(1);
+    expect(markup).not.toContain('Connection deleted.');
+  });
+
+  it('puts removal feedback directly after each relevant add action', () => {
+    expect(CARD_SOURCE).toMatch(
+      /className="plane-add-connection"[\s\S]*?\+ Add a new connection[\s\S]*?<\/button>\s*<ConnectionRemovalStatus notice=\{removalNotice\}/
+    );
+    expect(PAGE_SOURCE).toMatch(
+      /summary="Unity Catalog scope"[\s\S]*?action=\{addAction\}\s*status=\{<ConnectionRemovalStatus notice=\{controller\.removalNotice\}/
+    );
+    expect(PAGE_SOURCE).toMatch(/\{action\}\s*\{status\}[\s\S]*?connection-block-controls/);
+    expect(PAGE_SOURCE).not.toContain('className="plane-success"');
+    expect(CARD_SOURCE).not.toContain('className="plane-success"');
+  });
+
+  it('keeps failure actionable and never turns it into removed feedback', () => {
+    const remove = CONTROLLER_SOURCE.slice(
+      CONTROLLER_SOURCE.indexOf('async function remove('),
+      CONTROLLER_SOURCE.indexOf('\n  return {', CONTROLLER_SOURCE.indexOf('async function remove('))
+    );
+    const refusal = remove.slice(remove.indexOf('if (!result.ok)'), remove.indexOf('const expires'));
+    expect(refusal).toContain('setRowError({ id: entry.connection.id, detail: result.detail })');
+    expect(refusal).not.toContain('setRemovalNotice({');
+    expect(CARD_SOURCE).toMatch(/className="plane-error declared-connection-error" role="alert"/);
+  });
+
+  it('resets the removal timeout without letting an older deletion dismiss a newer one', () => {
+    const first = { id: 1 };
+    const second = { id: 2 };
+    expect(dismissConnectionRemovalNotice(second, first.id)).toBe(second);
+    expect(dismissConnectionRemovalNotice(second, second.id)).toBeNull();
+    expect(CONNECTION_REMOVAL_NOTICE_MS).toBe(5_000);
+    expect(CONTROLLER_SOURCE).toMatch(/return \(\) => window\.clearTimeout\(timeout\);[\s\S]*?\}, \[removalNotice\]\)/);
   });
 
   it('never claims the asset is granted, connected or accessible', () => {

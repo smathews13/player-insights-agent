@@ -15,7 +15,6 @@ import {
 import { BrandIcon } from './BrandIcon';
 import { browserAcknowledgementStore, type AcknowledgementStore } from './first-open';
 import { OrganizationAvatar } from './OrganizationAvatar';
-import { accountEscalationSlackHref } from './account-slack-links';
 import { RoleBadgePill } from './RoleBadge';
 import type { RoleState } from './role';
 import { Popover, PopoverContent, PopoverTrigger } from './ui';
@@ -133,6 +132,16 @@ export function AccountFeedbackChoices({
         </a>
       ) : null}
     </>
+  );
+}
+
+export function AccountEscalationChoice({ target }: { target: AccountFeedbackTargets['escalation'] }) {
+  if (!target) return null;
+  return (
+    <a href={target.url} target="_blank" rel="noopener noreferrer" aria-label={target.label} title={target.label}>
+      <span>Escalate to Super Admin</span>
+      <ShieldPlus aria-hidden="true" />
+    </a>
   );
 }
 
@@ -306,10 +315,7 @@ export function AccountMenuPanel({
             />
           </PopoverContent>
         </Popover>
-        <a href={accountEscalationSlackHref()} target="_blank" rel="noopener noreferrer">
-          <span>Escalate to Super Admin</span>
-          <ShieldPlus aria-hidden="true" />
-        </a>
+        <AccountEscalationChoice target={feedbackTargets.escalation} />
       </div>
       <div className="account-menu-group account-menu-leave">
         <a href="/api/account/apps">

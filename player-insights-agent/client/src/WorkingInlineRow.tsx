@@ -22,6 +22,7 @@ import { INLINE_WORKING_LABEL } from './working-animation';
 
 export function WorkingInlineRow({
   elapsed,
+  label = INLINE_WORKING_LABEL,
   className,
 }: {
   /**
@@ -30,12 +31,14 @@ export function WorkingInlineRow({
    * run started.
    */
   elapsed: string | null;
+  /** Shared current-stage label; defaults to the pre-stage planning copy. */
+  label?: string;
   className?: string;
 }) {
   return (
     <div className={`ast-flick-row ${className ?? ''}`.trim()}>
       <ConceptFlicker seat="inline" />
-      <span className="ast-flick-row-say">{INLINE_WORKING_LABEL}</span>
+      <span className="ast-flick-row-say">{label}</span>
       {/* Right-pinned and mono, per the spec. Mono because it changes in place
           every second: DM Sans digits are proportional, so a count set in it
           shifts its own right edge as it ticks. Absent rather than "0s" while

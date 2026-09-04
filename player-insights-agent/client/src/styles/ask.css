@@ -1,23 +1,5 @@
 .conversation-main {
-  /*
-   * First-paint fallback only. HomePage replaces this scoped value with the
-   * measured composer height before paint; spelling the ordinary rows as parts
-   * avoids turning another fixed total into the layout contract.
-   */
-  --composer-reserve: calc(54px + 49px + 20px + 16px);
-  /* 56px above the hero's chip, which is the design's, and --conversation-inset
-     either side -- the same token the fixed composer insets itself off, so the
-     transcript and the box that writes into it cannot drift apart. It was the
-     clamp written out here in full, which is why they could.
-
-     Below is the composer's own room, because it is `position: fixed` and
-     nothing in the scroll flow reserves space for it. It was a flat 180px, which
-     covers the composer at rest and not the composer holding an attachment chip
-     and a parse notice -- and the shortfall is invisible until it is an answer's
-     last rows under the box. `--composer-reserve` states the height once; see
-     tokens.css, and see the `scroll-padding` in base.css that reads the same
-     figure so a programmatic scroll stops where this padding ends. */
-  padding: 56px var(--conversation-inset) var(--composer-reserve);
+  padding: 56px var(--conversation-inset) 32px;
   /*
    * THE TRACK FILLS; THE CARDS CENTRE IN IT. Equal 340px rails leave a middle
    * column that is the leftover window, and that column is still 100% of the
@@ -29,15 +11,40 @@
    */
   max-width: none;
   width: 100%;
+  height: var(--workspace-pane-block-size);
+  min-height: var(--workspace-pane-block-size);
+  max-height: var(--workspace-pane-block-size);
   min-width: 0;
+  box-sizing: border-box;
   position: relative;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
   /* Was a translucent vertical gradient over a radial pool, both decorative and
      both gone: DuBois pages are a solid surface and the transcript's cards do the
      separating. */
   background: transparent;
 }
-.transcript-end {
-  scroll-margin-bottom: var(--composer-reserve);
+.ask-layout[data-transcript='empty'] .conversation-main {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding-bottom: 0;
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
+/*
+ * Short live and final cards still occupy the center pane's reading surface.
+ * Tall cards grow and are scrolled by `.conversation-main`; neither case gives
+ * the card its own vertical viewport.
+ */
+.ask-layout[data-transcript='active'] .conversation-main > .answer-card,
+.ask-layout[data-transcript='active']
+  .conversation-message:has(.answer-card):not(:has(~ .conversation-message))
+  .answer-card {
+  min-height: calc(var(--workspace-pane-block-size) - 88px);
 }
 .message-pagination {
   display: flex;

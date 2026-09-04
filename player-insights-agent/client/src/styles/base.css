@@ -221,8 +221,9 @@ html:not([data-theme='dark']) .app-sky {
   border-radius: var(--radius-sm);
   background: var(--background);
   color: var(--ast-text-long);
-  font-size: var(--text-sm);
+  font-size: var(--ast-fs-12);
   font-weight: 400;
+  line-height: 1.25;
   box-shadow: none;
   cursor: pointer;
   transition:
@@ -319,20 +320,27 @@ html:not([data-theme='dark']) .app-sky {
 }
 .app-menu-content {
   isolation: isolate;
-  max-width: min(32rem, calc(100vw - 24px));
+  max-width: min(24rem, calc(100vw - 24px));
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
   background: var(--background);
   background-image: none;
   color: var(--ast-text-long);
-  font-size: var(--text-sm);
+  font-size: var(--ast-fs-12);
+  line-height: 1.25;
   opacity: 1;
   backdrop-filter: none;
   box-shadow: var(--shadow-lg);
 }
 .app-select-content {
-  width: var(--radix-popover-trigger-width);
-  min-width: var(--radix-popover-trigger-width);
+  /*
+   * A filter's trigger is deliberately concise; its menu is not forced into
+   * that narrow measure. Give identifiers a useful reading width, never make
+   * the menu narrower than its trigger, and yield to the viewport at the edge.
+   */
+  width: min(max(var(--radix-popover-trigger-width), 18rem), 24rem, calc(100vw - 24px));
+  min-width: min(var(--radix-popover-trigger-width), calc(100vw - 24px));
+  max-width: min(24rem, calc(100vw - 24px));
   max-height: min(320px, var(--radix-popover-content-available-height));
   padding: 4px;
   overflow-y: auto;
@@ -353,11 +361,13 @@ html:not([data-theme='dark']) .app-sky {
   gap: 7px;
   width: 100%;
   min-width: 0;
-  min-height: 32px;
-  padding: 5px 7px;
+  min-height: 34px;
+  padding: 6px 9px;
   border: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  overflow-wrap: normal;
+  word-break: normal;
   border-radius: 2px;
   background: transparent;
   color: inherit;
@@ -398,9 +408,14 @@ html:not([data-theme='dark']) .app-sky {
 }
 .app-menu-option-label {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
 }
 .app-menu-option-count {
+  flex: none;
   color: var(--ast-text-secondary);
   font-variant-numeric: tabular-nums;
   font-weight: 500;

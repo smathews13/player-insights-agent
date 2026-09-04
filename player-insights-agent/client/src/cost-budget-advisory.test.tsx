@@ -8,7 +8,9 @@ import {
 describe('Cost and Gateway enforcement contracts', () => {
   it('keeps advisory behavior in the contract without visible advisory copy', () => {
     const source = readFileSync(new URL('./CostBudgets.tsx', import.meta.url), 'utf8');
-    expect(source).toContain('label="Monthly app budget"');
+    expect(source).toContain('label="App budget"');
+    expect(source).toContain('labelHidden');
+    expect(source).not.toContain('Month to date');
     expect(source).not.toMatch(/Advisory|advisory/);
     expect(ADVISORY_RESOURCE_BUDGET_ENFORCEMENT).toMatchObject({
       source: 'advisory-resource-budget',

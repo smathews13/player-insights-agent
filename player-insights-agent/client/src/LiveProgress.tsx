@@ -8,18 +8,17 @@
  *   evenly spread stages once a run passed four steps, so a twenty-one step run
  *   showed four of them and silently dropped seventeen: the opposite of what
  *   a live view is for.
- * - The list follows the newest step, since drawing all of them into a bounded
- *   box otherwise leaves the reader watching a stationary window while the run
- *   arrives below the fold. It stops following the moment they scroll up.
+ * - The list grows inside Ask's center scroll pane. It never creates a second
+ *   vertical viewport inside the live answer card.
  */
-import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { Badge } from './ui';
 
 import type { TraceStage } from './answer-shape';
 import { AstrolabeMark } from './AstrolabeMark';
 import { productForTool } from './brand-icons';
 import { BrandIcon } from './BrandIcon';
-import { buildLiveRun, nextFollowState, type LiveStep } from './live-progress';
+import { buildLiveRun, type LiveStep } from './live-progress';
 import { railTiming, stepNumber } from './agent-map';
 import { astPill } from './run-header';
 import { formatMs, toolNameFromId } from './trace-timeline';
@@ -164,39 +163,10 @@ export function LiveProgress({
 }) {
   const run = buildLiveRun({ openedAt, stages, question });
 
-  const list = useRef<HTMLOListElement | null>(null);
-  /**
-   * Whether the reader is still parked on the newest step.
-   *
-   * Sampled as they scroll rather than measured when a step lands: by then the
-   * container has already grown by the new row, so the gap to the bottom
-   * reports a reader who never moved as one who scrolled up.
-   */
-  const following = useRef(true);
-  const previousTop = useRef(0);
-
-  const onScroll = useCallback(() => {
-    const view = list.current;
-    if (!view) return;
-    following.current = nextFollowState({ view, previousTop: previousTop.current, following: following.current });
-    previousTop.current = view.scrollTop;
-  }, []);
-
-  // Keyed on the step count, not on `run`: the elapsed counter above re-renders
-  // this several times a second, and following on that would drag the container
-  // out from under anyone reading it rather than once per step, when there is
-  // something new to see.
-  useEffect(() => {
-    const view = list.current;
-    if (!view || !following.current) return;
-    const abrupt = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-    view.scrollTo({ top: view.scrollHeight, behavior: abrupt ? 'auto' : 'smooth' });
-  }, [run.steps.length]);
-
   return (
     <div className="live-progress">
       {run.steps.length > 0 && (
-        <ol className="live-steps" ref={list} onScroll={onScroll}>
+        <ol className="live-steps">
           {run.steps.map((step, index) => (
             <StepRow
               key={step.id}

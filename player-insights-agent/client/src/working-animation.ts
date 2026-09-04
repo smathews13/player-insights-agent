@@ -4,6 +4,7 @@
  * Apart from the components so that WorkingConstellation.tsx exports a component
  * and nothing else, which is what lets a fast refresh replace it in place.
  */
+import { PLANNING_STAGE_LABEL } from './current-stage-view';
 
 /** The two panels `loading-suite.md` gives the working state (`#5ar`, `#5br`). */
 export type WorkingSeat = 'splash' | 'card';
@@ -17,10 +18,10 @@ export type WorkingSeat = 'splash' | 'card';
  * is long and that nothing has hung, and saying it again in words is the
  * reassuring register the rest of the app no longer uses.
  */
-export const WORKING_LABEL = 'Planning out your answer';
+export const WORKING_LABEL = PLANNING_STAGE_LABEL;
 
 /** The Agent path repeats the exact pre-stage label until stage one lands. */
-export const INLINE_WORKING_LABEL = 'Planning out your answer';
+export const INLINE_WORKING_LABEL = PLANNING_STAGE_LABEL;
 
 /**
  * One assistant answer on screen is enough to seat the strip in the card.

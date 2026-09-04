@@ -31,6 +31,7 @@ import {
 } from './settings-save-state';
 import {
   BASE_SETTINGS_SECTIONS,
+  SETTINGS_SECTION_ICONS,
   availableSettingsSections,
   normalizeSettingsSection,
   type SettingsSection,
@@ -266,30 +267,37 @@ export function SettingsPage({
 
       <div className="settings-modal-body">
         <nav className="settings-rail" aria-label="Settings sections">
-          {sections.map((section) => (
-            <button
-              key={section.id}
-              type="button"
-              className={active === section.id ? 'active' : ''}
-              aria-current={active === section.id ? 'page' : undefined}
-              disabled={section.id !== active && dirtyCount > 0}
-              title={section.id !== active && dirtyCount > 0 ? 'Save or Cancel the current changes first' : undefined}
-              onClick={() => {
-                navigateSettingsSection(active, section.id, dirtyCount, {
-                  select: setActive,
-                  clearPaneDirty: () => {
-                    paneDirtyCountRef.current = 0;
-                    setPaneDirtyCount(0);
-                  },
-                  // A "Saved" from the pane being left must not be read as an
-                  // outcome for the one being opened.
-                  resetSaveState: () => setSaveState(SETTINGS_SAVE_IDLE),
-                });
-              }}
-            >
-              {section.label}
-            </button>
-          ))}
+          {sections.map((section) => {
+            const SectionIcon = SETTINGS_SECTION_ICONS[section.id];
+            return (
+              <button
+                key={section.id}
+                type="button"
+                className={active === section.id ? 'active' : ''}
+                aria-current={active === section.id ? 'page' : undefined}
+                disabled={section.id !== active && dirtyCount > 0}
+                title={section.id !== active && dirtyCount > 0 ? 'Save or Cancel the current changes first' : undefined}
+                onClick={() => {
+                  navigateSettingsSection(active, section.id, dirtyCount, {
+                    select: setActive,
+                    clearPaneDirty: () => {
+                      paneDirtyCountRef.current = 0;
+                      setPaneDirtyCount(0);
+                    },
+                    // A "Saved" from the pane being left must not be read as an
+                    // outcome for the one being opened.
+                    resetSaveState: () => setSaveState(SETTINGS_SAVE_IDLE),
+                  });
+                }}
+              >
+                <SectionIcon
+                  className={`settings-section-icon settings-section-icon--${section.id}`}
+                  aria-hidden="true"
+                />
+                <span className="settings-section-label">{section.label}</span>
+              </button>
+            );
+          })}
         </nav>
         <div className="settings-modal-content">
           <SettingsPaneBoundary key={active} section={active}>

@@ -14,10 +14,12 @@ describe('account feedback target loading', () => {
 
   it('passes an abort signal, validates the response, and caches the safe result', async () => {
     const direct = `slack://user?team=T${'1'.repeat(8)}&id=U${'4'.repeat(8)}`;
+    const search = `https://app.slack.com/client/T${'2'.repeat(8)}/search?q=Customer%20Admin`;
     const fetch = vi.fn().mockResolvedValue(
       json({
         github: { label: 'Untrusted label', url: 'https://example.com/not-used' },
-        slack: { label: 'Feedback contact', url: direct },
+        slack: { label: 'Message Maintainer in Slack', url: direct },
+        escalation: { label: 'Find Customer Admin in Slack', url: search },
       })
     );
     vi.stubGlobal('fetch', fetch);
@@ -36,7 +38,8 @@ describe('account feedback target loading', () => {
       label: 'GitHub issue',
       url: 'https://github.com/smathews13/astrolabe_public/issues/new',
     });
-    expect(first.slack).toEqual({ label: 'Feedback contact', url: direct });
+    expect(first.slack).toEqual({ label: 'Message Maintainer in Slack', url: direct });
+    expect(first.escalation).toEqual({ label: 'Find Customer Admin in Slack', url: search });
   });
 
   it('falls back to GitHub only when the endpoint returns an unsafe URL', async () => {
@@ -46,6 +49,7 @@ describe('account feedback target loading', () => {
     );
     const targets = await readAccountFeedbackTargets();
     expect(targets.slack).toBeNull();
+    expect(targets.escalation).toBeNull();
   });
 
   it('does not cache an aborted request', async () => {

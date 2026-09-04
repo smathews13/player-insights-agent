@@ -92,12 +92,14 @@ describe('public trace evidence and pre-stage copy', () => {
 
   it('uses the same exact planning phrase before stage one and keeps elapsed separate', () => {
     const labels = read('working-animation.ts');
-    expect(labels.match(/'Planning out your answer'/g)).toHaveLength(2);
+    const stageView = read('current-stage-view.ts');
+    expect(labels.match(/PLANNING_STAGE_LABEL/g)).toHaveLength(3);
+    expect(stageView).toContain("PLANNING_STAGE_LABEL = 'Planning out your answer'");
     expect(read('WorkingInlineRow.tsx')).toContain('ast-flick-row-count');
     expect(read('HomePage.tsx')).toMatch(
-      /<strong>\{WORKING_LABEL\}<\/strong>[\s\S]*?<strong className="ast-num">\{elapsed\}<\/strong>/
+      /<strong>\{currentStage\.label\}<\/strong>[\s\S]*?<strong className="ast-num">\{elapsed\}<\/strong>/
     );
-    expect(read('HomePage.tsx')).toContain('aria-label="Planning out your answer"');
+    expect(read('HomePage.tsx')).toContain('aria-label={currentStage.label}');
     expect(read('HomePage.tsx')).toMatch(/railStages\.length > 0[\s\S]*?<AgentPathConstellation/);
   });
 });

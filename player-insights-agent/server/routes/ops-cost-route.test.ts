@@ -311,6 +311,7 @@ describe('the ranged cost route', () => {
     );
     expect(payload.budgets).toEqual({ total: { USD: null, DBU: null }, resources: {} });
     expect(payload.budgetsReadable).toBe(true);
+    expect(payload.recentMonthlySpend?.map((month) => month.month)).toEqual(['2026-07', '2026-06', '2026-05']);
     expect(payload.honesty?.priceSource).toBe('list_prices');
     expect(payload.honesty?.contractRates).toBe('unavailable');
 

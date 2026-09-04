@@ -82,10 +82,9 @@ describe('streamed progress geometry', () => {
     expect(rule('.live-step-detail .semantic-sql-code--inline')).toMatch(/overflow-wrap:\s*anywhere/);
   });
 
-  it('reserves scrollbar width before overflow and stays full-width on mobile', () => {
-    expect(rule('.live-steps')).toMatch(/overflow-x:\s*hidden/);
-    expect(rule('.live-steps')).toMatch(/overflow-y:\s*auto/);
-    expect(rule('.live-steps')).toMatch(/scrollbar-gutter:\s*stable/);
+  it('delegates vertical scrolling to the full-width Ask pane on desktop and mobile', () => {
+    expect(rule('.live-steps')).toMatch(/overflow:\s*visible/);
+    expect(rule('.live-steps')).not.toMatch(/overflow-y:\s*(?:auto|scroll)|max-height|scrollbar-gutter/);
 
     const mobile = LIVE_CSS.slice(LIVE_CSS.indexOf('@container answer-card (max-width: 800px)'));
     expect(reservedWidth(320, progress(21))).toBe(320);
@@ -95,12 +94,12 @@ describe('streamed progress geometry', () => {
     );
   });
 
-  it('keeps centered splash seating and reduced-motion following behavior', () => {
+  it('keeps centered splash seating without an independent follow scroller', () => {
     expect(rule('.ast-splash-run')).toMatch(/align-self:\s*stretch/);
     expect(rule('.ast-splash-run')).toMatch(/width:\s*100%/);
     expect(rule('.ast-splash-run')).toMatch(/max-width:\s*100%/);
 
-    expect(PANEL).toContain("window.matchMedia?.('(prefers-reduced-motion: reduce)')");
-    expect(PANEL).toContain("behavior: abrupt ? 'auto' : 'smooth'");
+    expect(PANEL).not.toContain('scrollTo(');
+    expect(PANEL).not.toContain('onScroll=');
   });
 });

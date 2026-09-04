@@ -1,9 +1,8 @@
-/* The two column widths used to be declared here and are in tokens.css now, at the
-   handoff's 264px and 300px. They have to be readable from outside this grid: the
-   composer is `position: fixed` and insets itself off both, and the responsive
-   block narrows the rail by restating one of them. */
+/* The two column widths used to be declared here and are in tokens.css now. The
+   responsive block narrows the rail by restating one of them. */
 .ask-layout {
   display: grid;
+  align-items: start;
   background-color: var(--ast-sky-fill);
   /*
    * THE SKY IS ONE FIELD, AND ITS RECIPE IS IN astrolabe-tokens.css.
@@ -50,7 +49,7 @@
    * that the first nav tab begins on this rail's edge -- and the header is not
    * inside this grid, so it read the token rather than the override and got a
    * different width than the rail it was supposed to line up with. One
-   * declaration, three readers: this grid, the fixed composer, and the header.
+   * declaration, two readers: this grid and the header.
    *
    * Both are still flat, which was the other half of the original change. The
    * tokens were `clamp(220px, 15vw, 264px)` and `clamp(280px, 21vw, 300px)`, so
@@ -68,8 +67,20 @@
      which is the same 340px. */
   --conversation-width: var(--trace-width);
   grid-template-columns: var(--conversation-width) minmax(0, 1fr) var(--trace-width);
+  grid-template-rows: auto;
   min-height: calc(100vh - var(--app-header-h));
   width: 100%;
+}
+.ask-layout > .conversation-rail {
+  grid-column: 1;
+}
+.conversation-column {
+  grid-column: 2;
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 20px;
+  min-width: 0;
+  padding-bottom: 20px;
 }
 /*
  * THE HARNESS COLUMN STAYS. Idle Ask used to zero `--trace-width` and
@@ -78,11 +89,14 @@
  * whether a run is on screen — the idle branch draws the silhouette rather
  * than steps — but the track and the pane itself do not collapse.
  */
-.conversation-rail,
+.ask-layout > .conversation-rail,
 .trace-inspector {
-  position: sticky;
-  top: var(--app-header-h);
-  height: calc(100vh - var(--app-header-h));
+  position: static;
+  height: var(--workspace-pane-block-size);
+  min-height: var(--workspace-pane-block-size);
+  max-height: var(--workspace-pane-block-size);
+  box-sizing: border-box;
+  overscroll-behavior: contain;
   /* Solid, and no blur. Both columns were 70% white with a 14px backdrop blur, so
      the transcript scrolled visibly underneath them. */
   background: var(--background);
@@ -142,6 +156,7 @@
 /* 8px, because the inspector's head is a title with a pill beside it and then the
    run: three things that belong to each other, unlike the rail's three blocks. */
 .trace-inspector {
+  grid-column: 3;
   /* No hairline against the middle column. The navy panel is its own edge, and a
      translucent white rule on the dark sky read as a seam rather than a
      boundary. The column's width and the grid's gap are untouched: they are

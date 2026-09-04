@@ -393,51 +393,13 @@ describe('nextFollowState', () => {
   });
 });
 
-/**
- * The other half of the follow rule: how the panel wires the arithmetic up.
- *
- * Each of these is a whole rule of spec §1.4 that the tests above cannot see, and
- * each has a specific regression behind it. They are asserted against the source
- * because the alternative is a browser, and the brief for this work forbids one.
- */
-describe('the panel follows the newest step the way the spec says', () => {
-  it('samples the position as the reader scrolls, not when a step lands', () => {
-    // Measured on arrival, the container has already grown by the new row, so the
-    // gap to the bottom reports a reader who never moved as one who scrolled up.
-    expect(PANEL).toContain('onScroll={onScroll}');
-    expect(PANEL).toMatch(/following\.current = nextFollowState\(/);
-    expect(PANEL).toMatch(/previousTop\.current = view\.scrollTop/);
-  });
-
-  it('decides from the previous position, which is what makes an upward move the signal', () => {
-    // The smooth scroll fires the handler on every frame of its own animation and
-    // every frame but the last is short of the bottom, so position alone reported
-    // the reader as away exactly when steps land. Direction is the distinguisher.
-    expect(PANEL).toMatch(/previousTop: previousTop\.current/);
-  });
-
-  it('keys the effect on the step count rather than on the elapsed clock', () => {
-    // The counter above this panel re-renders it several times a second. Following
-    // on that drags the container out from under anyone reading it.
-    expect(PANEL).toMatch(/}, \[run\.steps\.length]\)/);
-  });
-
-  it('scrolls abruptly rather than smoothly when motion is not wanted', () => {
-    expect(PANEL).toContain("matchMedia?.('(prefers-reduced-motion: reduce)')");
-    expect(PANEL).toMatch(/behavior: abrupt \? 'auto' : 'smooth'/);
-  });
-
-  it('leaves the 48px threshold in the module, so both halves read the same number', () => {
-    // The component does not restate it. A second literal here is how the sampled
-    // decision and the effect that acts on it would come to disagree.
-    expect(PANEL).not.toMatch(/\b48\b/);
-    expect(isAtBottom({ scrollTop: 512, scrollHeight: 900, clientHeight: 340 })).toBe(true);
-    expect(isAtBottom({ scrollTop: 511, scrollHeight: 900, clientHeight: 340 })).toBe(false);
-  });
-
-  it('bounds the list so a long run cannot push the composer off the screen', () => {
-    expect(LIVE_CSS).toMatch(/\.live-steps \{[^}]*max-height: 340px/);
-    expect(LIVE_CSS).toMatch(/\.live-steps \{[^}]*overflow-y: auto/);
+describe('the live timeline delegates vertical scrolling to the Ask pane', () => {
+  it('does not create a nested list scroll owner or move it independently', () => {
+    expect(PANEL).not.toContain('onScroll={onScroll}');
+    expect(PANEL).not.toContain('scrollTo(');
+    expect(PANEL).not.toContain('useRef<HTMLOListElement');
+    expect(LIVE_CSS).toMatch(/\.live-steps \{[^}]*overflow: visible/);
+    expect(LIVE_CSS).not.toMatch(/\.live-steps \{[^}]*(?:max-height|overflow-y:\s*(?:auto|scroll))/);
   });
 });
 

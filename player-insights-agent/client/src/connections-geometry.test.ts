@@ -223,7 +223,9 @@ describe('the parts a reader has to be able to use', () => {
     expect(rule('.connections-table-query-controls')).toMatch(/flex:\s*1 1 auto/);
     expect(rule('.connections-table-query-controls')).toMatch(/justify-content:\s*flex-end/);
     expect(rule('.connections-table-query-controls')).toMatch(/margin-left:\s*auto/);
-    expect(BASE).toMatch(/\.app-select-content\s*\{[^}]*width:\s*var\(--radix-popover-trigger-width\)/);
+    expect(BASE).toMatch(
+      /\.app-select-content\s*\{[^}]*width:\s*min\(max\(var\(--radix-popover-trigger-width\), 18rem\), 24rem, calc\(100vw - 24px\)\)/
+    );
     expect(BASE).toMatch(/\[data-radix-popper-content-wrapper\]\s*\{[^}]*max-width:\s*calc\(100vw - 24px\)/);
     expect(rule('.connections-table-search')).toMatch(/position:\s*relative/);
     expect(rule('.connections-table-search')).toMatch(/width:\s*20rem/);
@@ -316,6 +318,23 @@ describe('the parts a reader has to be able to use', () => {
   it('sizes the trash mark inside the shared destructive button', () => {
     expect(rule('.plane-delete-connection svg')).toMatch(/width:\s*14px/);
     expect(rule('.plane-delete-connection svg')).toMatch(/height:\s*14px/);
+  });
+
+  it('keeps removal feedback compact, red, unboxed, and attached to the left action cluster', () => {
+    const status = rule('.connection-removal-status');
+    expect(status).toMatch(/display:\s*inline-flex/);
+    expect(status).toMatch(/color:\s*var\(--ast-neg-text\)/);
+    expect(status).toMatch(/font-size:\s*var\(--text-sm\)/);
+    expect(status).toMatch(/white-space:\s*nowrap/);
+    expect(status).not.toMatch(/background|border|padding/);
+    expect(rule('.connection-removal-status > svg')).toMatch(/width:\s*14px/);
+    expect(rule('.connection-removal-status > svg')).toMatch(/height:\s*14px/);
+    expect(rule('.connection-block-title-actions')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.plane-add-row')).toMatch(/flex-wrap:\s*wrap/);
+    expect(RESPONSIVE).toMatch(
+      /\.connection-block-title-actions\s*\{[^}]*flex-basis:\s*100%[\s\S]*?\.connection-block-controls\s*\{[^}]*width:\s*100%/
+    );
+    expect(CSS).not.toContain('.plane-success');
   });
 
   it('paints the affordance that leads somewhere in the action colour, and the padlock not at all', () => {

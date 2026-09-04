@@ -51,7 +51,7 @@ describe('app-wide dropdown recipe', () => {
   it('shows only the concise current value and keeps category in the accessible name', () => {
     const appSelect = source('AppSelect.tsx');
     expect(appSelect).toContain('app-select-trigger');
-    expect(appSelect).toContain('<span className="app-select-value">{optionContent(selected)}</span>');
+    expect(appSelect).toContain('<span className="app-select-value">{optionTextContent(selected)}</span>');
     expect(appSelect).toContain('aria-label={`${ariaLabel}: ${accessibleValue}`}');
     expect(appSelect).not.toContain('app-select-separator');
     expect(appSelect).not.toMatch(/Role\s*·|Persona\s*·|User\s*·/);
@@ -62,6 +62,7 @@ describe('app-wide dropdown recipe', () => {
   it('shares neutral, hover, open, focus, selected, and high-contrast states', () => {
     const css = style('base.css');
     expect(css).toMatch(/\.app-select-trigger \{[^}]*height: 32px/);
+    expect(css).toMatch(/\.app-select-trigger \{[^}]*font-size: var\(--ast-fs-12\)[^}]*line-height: 1\.25/s);
     expect(css).toMatch(/\.app-select-trigger \{[^}]*background: var\(--background\)/);
     expect(css).toMatch(/\.app-select-trigger \{[^}]*border: 1px solid var\(--ast-border-input\)/);
     expect(css).toMatch(/\.app-select-trigger:hover:not\(:disabled\)/);
@@ -72,6 +73,23 @@ describe('app-wide dropdown recipe', () => {
     expect(css).toMatch(/\.app-menu-check/);
     expect(css).toContain('@media (forced-colors: active)');
     expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+
+  it('keeps every shared option on one readable ellipsized line with its full label available', () => {
+    const appSelect = source('AppSelect.tsx');
+    const multiSelectMenu = source('AppMultiSelectMenu.tsx');
+    const css = style('base.css');
+    expect(appSelect).toContain('title={optionTitle(option)}');
+    expect(appSelect).toContain('aria-label={optionAccessibleValue(option)}');
+    expect(multiSelectMenu).toContain('title={option.title ?? option.label}');
+    expect(multiSelectMenu).toContain('aria-label={option.ariaLabel ?? option.label}');
+    expect(css).toMatch(
+      /\.app-menu-option \{[^}]*min-height: 34px[^}]*padding: 6px 9px[^}]*white-space: nowrap[^}]*overflow-wrap: normal[^}]*word-break: normal/s
+    );
+    expect(css).toMatch(
+      /\.app-menu-option-label \{[^}]*overflow: hidden[^}]*text-overflow: ellipsis[^}]*white-space: nowrap[^}]*word-break: normal/s
+    );
+    expect(css).not.toMatch(/\.app-menu-option(?:-label)?\s*\{[^}]*overflow-wrap:\s*anywhere/s);
   });
 
   it('puts Recent runs on the same opaque primitive', () => {
@@ -85,8 +103,9 @@ describe('app-wide dropdown recipe', () => {
   it('portals non-modal menus with bounded internal scrolling and no body lock', () => {
     const appSelect = source('AppSelect.tsx');
     const multiselect = source('AppMultiSelect.tsx');
+    const multiselectMenu = source('AppMultiSelectMenu.tsx');
     expect(appSelect).toContain('<PopoverContent');
-    expect(multiselect).toContain('<PopoverContent');
+    expect(multiselectMenu).toContain('<PopoverContent');
     expect(appSelect).not.toContain('document.body.style');
     expect(multiselect).not.toContain('document.body.style');
     const css = style('base.css');
@@ -94,15 +113,17 @@ describe('app-wide dropdown recipe', () => {
     expect(css).toMatch(/\[data-radix-popper-content-wrapper\] \{[^}]*min-width: 0 !important/s);
     expect(css).toMatch(/\[data-radix-popper-content-wrapper\] \{[^}]*max-width: calc\(100vw - 24px\) !important/s);
     expect(css).toMatch(
-      /\.app-select-content \{[^}]*width: var\(--radix-popover-trigger-width\)[^}]*overflow-y: auto[^}]*scrollbar-gutter: stable/s
+      /\.app-select-content \{[^}]*width:\s*min\(max\(var\(--radix-popover-trigger-width\), 18rem\), 24rem, calc\(100vw - 24px\)\)[^}]*overflow-y: auto[^}]*scrollbar-gutter: stable/s
     );
     expect(style('runs.css')).not.toContain('body[data-scroll-locked]');
     expect(style('connections.css')).not.toContain('body[data-scroll-locked]');
   });
 
   it('keeps arrows, typeahead, Escape, click-away, checks, and focus return', () => {
-    for (const name of ['AppSelect.tsx', 'AppMultiSelect.tsx']) {
-      const component = source(name);
+    for (const component of [
+      source('AppSelect.tsx'),
+      `${source('AppMultiSelect.tsx')}\n${source('AppMultiSelectMenu.tsx')}`,
+    ]) {
       expect(component).toContain("'ArrowDown', 'ArrowUp', 'Home', 'End'");
       expect(component).toContain('typeaheadRef');
       expect(component).toContain("event.key === 'Escape'");
@@ -111,6 +132,20 @@ describe('app-wide dropdown recipe', () => {
       expect(component).toContain('role="option"');
       expect(component).toContain('aria-selected=');
     }
+  });
+
+  it('keeps the Settings resource browser on the same one-line fit contract', () => {
+    const component = source('SpIdentityPanel.tsx');
+    const css = style('settings.css');
+    expect(component).toContain('title={`${resource.label} — ${resource.id}`}');
+    expect(component).toContain('aria-label={`${resource.label} — ${resource.id}`}');
+    expect(component).toContain('aria-pressed={selected?.type === resource.type && selected.id === resource.id}');
+    expect(css).toMatch(
+      /\.sp-resource-menu \{[^}]*width:\s*min\(max\(100%, 22rem\), 26\.25rem, calc\(100vw - 64px\)\)[^}]*scrollbar-gutter:\s*stable/s
+    );
+    expect(css).toMatch(
+      /\.sp-resource-option \{[^}]*min-height:\s*34px[^}]*font-size:\s*var\(--ast-fs-12\)[^}]*white-space:\s*nowrap[^}]*overflow-wrap:\s*normal[^}]*word-break:\s*normal/s
+    );
   });
 });
 

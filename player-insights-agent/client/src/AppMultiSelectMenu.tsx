@@ -98,9 +98,9 @@ export function AppMultiSelectMenu<T extends string>({
         type="button"
         role="option"
         tabIndex={focusedIndex === itemIndex ? 0 : -1}
-        aria-label={option.ariaLabel}
+        aria-label={option.ariaLabel ?? option.label}
         aria-selected={isSelected}
-        title={option.title}
+        title={option.title ?? option.label}
         data-highlighted={focusedIndex === itemIndex ? '' : undefined}
         data-state={isSelected ? 'checked' : 'unchecked'}
         className="app-menu-option"
@@ -146,7 +146,9 @@ export function AppMultiSelectMenu<T extends string>({
         type="button"
         role="option"
         tabIndex={focusedIndex === 0 ? 0 : -1}
+        aria-label={allLabel}
         aria-selected={selected.length === 0}
+        title={allLabel}
         data-highlighted={focusedIndex === 0 ? '' : undefined}
         data-state={selected.length === 0 ? 'checked' : 'unchecked'}
         className="app-menu-option"

@@ -20,6 +20,7 @@ import {
   TablesReadMost,
   UserMonitoringPanel,
 } from './MonitoringPage';
+import { profileAskedHeading } from './profile-heading';
 import { monitoringPageForOwner } from './monitoring-session';
 import { GRANTS_UNRESOLVED_LINE, LIVE_VERSUS_RECORDED } from './monitoring-view';
 import { NO_FILTERS, type MonitoringFilters } from './monitoring-filters';
@@ -1422,6 +1423,10 @@ describe('the User Monitoring browser', () => {
     expect(markup).not.toContain('Attribution coverage');
     expect(visible).not.toContain('Allocated');
     expect(markup).toContain('data-unit-segmented-control="true"');
+    expect(markup).toContain('data-role-state="admin"');
+    expect(markup).toContain('data-role-state="consumer"');
+    expect(MONITORING_SOURCE).not.toContain('{ROLE_WORD[row.role]}');
+    expect(markup).not.toContain('aria-live=');
     expect(markup.match(/class="time-range-segment unit-segmented-option"/g)).toHaveLength(2);
     expect(markup).not.toContain('monitoring-users-unit');
     expect(markup.indexOf('>Persona<')).toBeLessThan(markup.indexOf('>Activity<'));
@@ -1710,8 +1715,8 @@ describe('the per-user panel', () => {
     ]) {
       expect(rendered).not.toContain(banned);
     }
-    expect(markup.indexOf('user-profile-modal-spend')).toBeLessThan(markup.indexOf('What they asked'));
-    expect(markup.indexOf('What they asked')).toBeLessThan(markup.indexOf('user-profile-modal-kpi-grid'));
+    expect(markup.indexOf('user-profile-modal-spend')).toBeLessThan(markup.indexOf('WHAT FIRST ASKED'));
+    expect(markup.indexOf('WHAT FIRST ASKED')).toBeLessThan(markup.indexOf('user-profile-modal-kpi-grid'));
     expect(markup).not.toContain('user-profile-modal-spend-resource');
     expect(new Set(markup.match(/id="[^"]+"/g)).size).toBe(markup.match(/id="[^"]+"/g)?.length);
 
@@ -1748,7 +1753,7 @@ describe('the per-user panel', () => {
     );
     expect(text(hidden)).toContain('Total user spend Estimated Spend not available yet');
     expect(text(hidden).match(/Estimated/g)).toHaveLength(5);
-    expect(hidden.indexOf('user-profile-modal-spend"')).toBeLessThan(hidden.indexOf('What they asked'));
+    expect(hidden.indexOf('user-profile-modal-spend"')).toBeLessThan(hidden.indexOf('WHAT FIRST ASKED'));
 
     const loading = render(
       <PersonPanel
@@ -1899,8 +1904,11 @@ describe('the per-user panel', () => {
         />
       );
       expect(markup).toContain(`aria-label="Role: ${label}"`);
+      expect(markup).toContain(`data-role-state="${role}"`);
+      if (role === 'super_admin' || role === 'admin') expect(markup).toContain('<svg');
       expect(markup).toContain('aria-label="Persona: Business Analyst"');
       expect(markup).toContain('title="Business Analyst"');
+      expect(MONITORING_SOURCE).not.toContain('<RoleBadge state=');
     }
     for (const persona of [null, { id: 'none', name: 'No persona' }, { id: 'blank', name: '  ' }]) {
       const markup = render(
@@ -1915,6 +1923,27 @@ describe('the per-user panel', () => {
       expect(markup).not.toContain('user-profile-modal-persona');
       expect(markup).not.toContain('No persona');
     }
+  });
+
+  it('personalizes the asked heading from safe Unicode identity data with a fallback', () => {
+    expect(profileAskedHeading('Alex Taylor', 'alex.taylor@example.test')).toBe('WHAT ALEX ASKED');
+    expect(profileAskedHeading(null, 'jordan.lee@example.test')).toBe('WHAT JORDAN ASKED');
+    expect(profileAskedHeading('Élodie Durand', 'elodie@example.test')).toBe('WHAT ÉLODIE ASKED');
+    expect(profileAskedHeading('', 'unknown')).toBe('WHAT THIS USER ASKED');
+
+    const markup = render(
+      <PersonPanel
+        panel={panel({ displayName: 'Alex Taylor' })}
+        now={NOW}
+        rangeLabel="last 7 days"
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+      />
+    );
+    expect(markup).toContain('id="user-profile-asked-title"');
+    expect(markup).toContain('aria-labelledby="user-profile-asked-title"');
+    expect(markup).toContain('aria-label="WHAT ALEX ASKED, last 7 days"');
+    expect(text(markup)).toContain('WHAT ALEX ASKED last 7 days');
   });
 
   it('mounts person status and retry states before data arrives', () => {
@@ -2069,11 +2098,13 @@ describe('the per-user panel', () => {
       />
     );
 
-    expect(markup).toContain('class="identity-chip"');
+    expect(markup).toContain('class="identity-chip user-profile-modal-identity-chip"');
     expect(markup).toContain('data-organization-id="acme-interactive"');
     expect(markup).toContain('aria-label="Organization: Acme Interactive"');
     expect(markup).toContain('customer.admin@take2games.com');
-    expect(markup).toContain('user-profile-modal-organization');
+    expect(markup).toContain('user-profile-modal-identity-chip');
+    expect(markup).not.toContain('user-profile-modal-organization');
+    expect(occurrences(markup, 'Organization: Acme Interactive')).toBe(1);
     expect(markup).not.toContain('lucide-user-round');
     expect(markup).not.toContain('>FP<');
   });

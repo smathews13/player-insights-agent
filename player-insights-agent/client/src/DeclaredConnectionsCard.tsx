@@ -42,6 +42,7 @@ import type { ConnectionTypesResponse } from '../../shared/browse-contract';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
 import { Button } from './ui';
 import { useDeclaredConnectionController } from './declared-connection-controller';
+import { ConnectionRemovalStatus } from './ConnectionRemovalStatus';
 
 function ConnectionProvenance({ connection }: { connection: ConnectionEntry['connection'] }) {
   const created = connection.createdAt ? new Date(connection.createdAt) : null;
@@ -102,7 +103,7 @@ export function DeclaredConnectionsCard({
     setConfirming,
     rowError,
     setRowError,
-    successNotice,
+    removalNotice,
     add: addConnection,
     remove: removeConnection,
   } = controller;
@@ -225,12 +226,6 @@ export function DeclaredConnectionsCard({
           The store that holds this list is not answering, so nothing can be added or removed.
         </span>
       ) : null}
-      {successNotice ? (
-        <span className="plane-success" role="status">
-          {successNotice}
-        </span>
-      ) : null}
-
       {listed.length > 0 ? <p className="declared-connections-heading">User-added resources</p> : null}
       {listed.map((entry) => {
         const removed = entry.connection.state === 'withdrawn';
@@ -347,6 +342,7 @@ export function DeclaredConnectionsCard({
           >
             + Add a new connection
           </button>
+          <ConnectionRemovalStatus notice={removalNotice} />
         </div>
       ) : null}
 

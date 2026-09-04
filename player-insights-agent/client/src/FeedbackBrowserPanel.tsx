@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { Search, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 
 import type { MonitoringFeedbackPayload, MonitoringFeedbackRow } from '../../shared/monitoring-feedback-contract';
+import { isRole } from '../../shared/user-roster-contract';
 import type { RangeKey } from './time-range';
 import type { PanelLoadState } from './monitoring-detail-state';
 import type { FeedbackBrowserFilters } from './feedback-browser-session';
 import { monitoringQuestionRowHandlers } from './monitoring-row-activation';
-import { AppSelect } from './AppSelect';
+import { AppSelect, type AppSelectOption } from './AppSelect';
 import { AstrolabeMark } from './AstrolabeMark';
 import { Button, Input, Skeleton } from './ui';
 import { Dialog } from './Dialog';
 import { TimeRangeSegments } from './TimeRangeControl';
 import { UserDrilldownLink } from './UserDrilldownLink';
+import { RoleBadgePill } from './RoleBadge';
 
 const NO_FILTER = '__any__';
 const SEARCH_DELAY_MS = 250;
@@ -66,7 +68,7 @@ function FeedbackFilter({
 }: {
   label: string;
   value: string;
-  options: Array<{ value: string; label: string }>;
+  options: Array<AppSelectOption<string>>;
   onChange: (value: string) => void;
 }) {
   return (
@@ -161,7 +163,10 @@ function FeedbackTable({
                   <span className="monitoring-feedback-question">{row.question}</span>
                 </td>
                 <td data-label="User" title={row.userEmail}>
-                  <UserDrilldownLink identity={row.userEmail} compact canOpen showArrow />
+                  <span className="monitoring-feedback-user">
+                    <UserDrilldownLink identity={row.userEmail} compact canOpen showArrow />
+                    <RoleBadgePill state={row.role} />
+                  </span>
                 </td>
                 <td data-label="Feedback">
                   <FeedbackDirection direction={row.feedback} />
@@ -264,10 +269,21 @@ export function FeedbackBrowserPanel({
           <FeedbackFilter
             label="Role"
             value={filters.role}
-            options={(payload?.filters.roles ?? []).map((option) => ({
-              value: option.value,
-              label: `${option.label} (${option.count})`,
-            }))}
+            options={(payload?.filters.roles ?? []).map((option) => {
+              const role = isRole(option.value) ? option.value : null;
+              return {
+                value: option.value,
+                label: `${option.label} (${option.count})`,
+                content: role ? (
+                  <>
+                    <RoleBadgePill state={role} />
+                    <span className="monitoring-role-filter-count">({option.count})</span>
+                  </>
+                ) : (
+                  `${option.label} (${option.count})`
+                ),
+              };
+            })}
             onChange={(role) => onFilters({ ...filters, role })}
           />
           <FeedbackFilter

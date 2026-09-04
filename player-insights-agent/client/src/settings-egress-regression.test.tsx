@@ -16,12 +16,7 @@ function sectionIds(features: typeof NO_EXPERIMENTS): SettingsSection[] {
 
 function settings(features: typeof NO_EXPERIMENTS, initialSection: SettingsSection): string {
   return renderToStaticMarkup(
-    <SettingsPage
-      features={features}
-      initialSection={initialSection}
-      role={ADMIN}
-      setFeature={() => {}}
-    />
+    <SettingsPage features={features} initialSection={initialSection} role={ADMIN} setFeature={() => {}} />
   );
 }
 
@@ -62,7 +57,9 @@ describe('Experimental Egress controls availability', () => {
   it('renders a persisted enabled Egress item as a normal clickable destination', () => {
     const enabled = { ...NO_EXPERIMENTS, egressControls: true };
     const markup = settings(enabled, 'runtime');
-    const button = markup.match(/<button[^>]*>Egress controls<\/button>/)?.[0];
+    const button = (markup.match(/<button[\s\S]*?<\/button>/g) ?? []).find((candidate) =>
+      candidate.includes('class="settings-section-label">Egress controls</span>')
+    );
 
     expect(button).toBeDefined();
     expect(button).not.toContain('disabled');
@@ -74,7 +71,7 @@ describe('Experimental Egress controls availability', () => {
     expect(normalizeSettingsSection('egress', NO_EXPERIMENTS)).toBe('runtime');
 
     const markup = settings(NO_EXPERIMENTS, 'egress');
-    expect(markup).not.toContain('>Egress controls</button>');
+    expect(markup).not.toContain('class="settings-section-label">Egress controls</span>');
     expect(markup).toContain('<h3>Runtime</h3>');
     expect(markup).not.toContain('id="settings-egress-form"');
   });

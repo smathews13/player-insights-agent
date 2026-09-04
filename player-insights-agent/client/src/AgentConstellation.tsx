@@ -82,6 +82,7 @@ import { formatDuration } from './benchmark-format';
 import { formatMs } from './trace-timeline';
 import { EntityText } from './InlineEntityText';
 import { stageTableEntities, stageToolNames } from './live-progress';
+import type { CurrentStageView } from './current-stage-view';
 
 /**
  * A recoloured mark as a data URL, for the one seating that cannot inline it.
@@ -426,6 +427,7 @@ export function AgentPathConstellation({
   stages,
   activeIndex,
   elapsedMs,
+  currentStage,
   totalMs = null,
   thread = '',
   turn = 0,
@@ -435,6 +437,8 @@ export function AgentPathConstellation({
   activeIndex: number;
   /** How long that step has been going, from the caller's one clock. */
   elapsedMs: number | null;
+  /** The same current-stage view shown in Ask's center live header. */
+  currentStage?: CurrentStageView;
   /** The settled run's wall time, when the trace recorded one. */
   totalMs?: number | null;
   /**
@@ -645,9 +649,11 @@ export function AgentPathConstellation({
    * and a dark-mode reader come to be told different things about the step that
    * just landed.
    */
+  const sharedLabel =
+    currentStage && currentStage.index === shownIndex && currentStage.label ? currentStage.label : shown.name;
   const statusText =
     pinnedIndex !== -1 || current
-      ? `Step ${path.numbers[shownIndex].label} · ${shown.name}`
+      ? `Step ${path.numbers[shownIndex].label} · ${pinnedIndex === -1 ? sharedLabel : shown.name}`
       : ended === null
         ? `Step ${path.numbers[shownIndex].label} · ${shown.name}`
         : `Step ${path.numbers[endedAt].label} · ${ended.name} · ${

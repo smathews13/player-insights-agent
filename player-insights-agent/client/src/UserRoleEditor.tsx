@@ -40,7 +40,7 @@ import { isRole, type Role, type RosterPayload } from '../../shared/user-roster-
 import type { SpIdentityAdminPayload, SpPersona, SpPersonaConnectionWrite } from '../../shared/sp-identity';
 import { AppSelect } from './AppSelect';
 import { roleOptions } from './user-role-options';
-import { RoleBadge } from './RoleBadge';
+import { RoleBadgePill } from './RoleBadge';
 import { OrganizationAvatar } from './OrganizationAvatar';
 import { UserDrilldownLink } from './UserDrilldownLink';
 import { organizationForEmail } from '../../shared/organization-mapping';
@@ -109,11 +109,7 @@ function RoleControl({
   onChange: (entry: RosterEntry, role: Role) => void;
 }) {
   if (entry.assignable.length === 0) {
-    return entry.role === 'super_admin' ? (
-      <RoleBadge state="super_admin" />
-    ) : (
-      <span className="ast-pill ast-pill--neutral-outline roster-role-status">{roleWord(entry.role)}</span>
-    );
+    return <RoleBadgePill state={entry.role} />;
   }
   return (
     <AppSelect
@@ -122,7 +118,10 @@ function RoleControl({
       value={entry.role}
       disabled={busy}
       onValueChange={(role) => onChange(entry, role)}
-      options={roleOptions(entry)}
+      options={roleOptions(entry).map((option) => ({
+        ...option,
+        content: <RoleBadgePill state={option.value} />,
+      }))}
       className="roster-control roster-role-select"
     />
   );
@@ -223,7 +222,11 @@ export function RosterAddRow({
           value={role}
           disabled={busy}
           onValueChange={onRoleChange}
-          options={ADDABLE_ROLES.map((option) => ({ value: option, label: roleWord(option) }))}
+          options={ADDABLE_ROLES.map((option) => ({
+            value: option,
+            label: roleWord(option),
+            content: <RoleBadgePill state={option} />,
+          }))}
           className="roster-control roster-role-select"
         />
       </td>

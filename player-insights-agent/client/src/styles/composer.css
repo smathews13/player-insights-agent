@@ -1,31 +1,15 @@
 .composer {
-  position: fixed;
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  /* Off the rails' widths plus the transcript's own inset, all three as tokens.
-     The inset was written out as its clamp here and again in ask.css, so this box
-     and the column it writes into agreed only by both being retyped correctly. */
-  left: calc(var(--conversation-width) + var(--conversation-inset));
-  right: calc(var(--trace-width) + var(--conversation-inset));
-  /*
-   * Stretch between the two rails. A 720px cap centred in the leftover space
-   * made the composer a second island under the already-pinched answer card.
-   * `left` and `right` already clear the rails by the transcript inset; `none`
-   * lets those insets be the only gutters. The empty-state rule below puts the
-   * 720px back, so the hero and the first-ask box still share a centre line.
-   */
+  position: static;
+  width: calc(100% - 2 * var(--conversation-inset));
+  margin-inline: auto;
+  /* Stretch inside the center column with the same inset as the pane above.
+     The empty-state rule puts the 720px cap back so its hero and field share a
+     center line. */
   max-width: none;
-  z-index: 20;
   /*
    * The sky's pane, asked for explicitly, and THE ONE PLACE IN THE APP WHERE THIS
-   * TOKEN IS NOT FREE. Every other surface it paints has the sky behind it and
-   * nothing else, so the 6% coming through is stars. This one is fixed over the
-   * transcript, so on a long conversation the 6% is scrolling prose rather than
-   * sky, and prose moving faintly under a control is the frosted treatment this
-   * rule was once reverted for -- it was 96% white with a 40px drop shadow and a
-   * translucent halo. What is different now is that the halo and the shadow are
-   * gone and the strong border rung separates it, so the surface is honest even
-   * where what is behind it is not sky. If the moving text reads as a smudge, this
-   * is the declaration to put back to `var(--background)`, and only this one.
+   * TOKEN IS NOT FREE. The composer now follows the pane in normal flow, so its
+   * translucent sheet can only reveal the page sky, never moving answer prose.
    */
   background: var(--ast-pane);
   border: 1px solid var(--db-line-strong);
@@ -44,29 +28,18 @@
  * An empty transcript, where the composer is the page rather than a control over
  * it.
  *
- * `position: static` rather than a raised `top`, and that is the whole trick. The
- * form is already the last child of `.conversation-main`, so returning it to the
- * flow puts it directly under the hero -- and the hero is the only thing above it
- * when the transcript is empty. `max-width` and `margin-inline: auto` still hold,
- * so it keeps the same 720px measure, centred in the same column, and lands in the
- * same place a reader's eye already is.
+ * The form is the second row of `.conversation-column`, directly after the
+ * center pane. This rule only restores the hero's 720px measure.
  *
  * A `top` in the tens of vh was the alternative and it is the version that breaks:
  * the hero is a chip, a headline that wraps to two lines at some widths and one at
  * others, and any number chosen for it is wrong at some window height. Under the
  * headline is a relationship, not a coordinate.
  *
- * The 180px of bottom padding on the column goes with it -- that room exists only
- * because a fixed composer reserves no space in the scroll flow, and this one does.
+ * No bottom reserve is needed because the form occupies its own grid row.
  */
-.conversation-main.is-empty {
-  padding-bottom: 56px;
-}
-.conversation-main.is-empty .composer {
-  position: static;
+.ask-layout[data-transcript='empty'] .composer {
   max-width: 720px;
-  margin-inline: auto;
-  margin-top: 28px;
 }
 
 /* Typing a question is the app's main action, so the composer wears the action

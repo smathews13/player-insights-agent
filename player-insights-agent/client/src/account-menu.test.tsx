@@ -4,8 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { Identity } from './app-types';
 import { AccountMenu } from './AccountMenu';
 import { nextFeedbackItem } from './account-feedback-menu';
-import { AccountFeedbackChoices, AccountMenuPanel } from './AccountMenuPanel';
-import { accountEscalationSlackHref } from './account-slack-links';
+import { AccountEscalationChoice, AccountFeedbackChoices, AccountMenuPanel } from './AccountMenuPanel';
 import { identityFromResponse } from './app-state';
 import { DATABRICKS_SYMBOL } from './brand-icons';
 import { accountFeedbackTargets } from '../../shared/account-feedback';
@@ -128,7 +127,6 @@ describe('account menu', () => {
       'jordan.lee',
       'jordan.lee@example.com',
       'Report feedback',
-      'Escalate to Super Admin',
       'Back to Databricks Apps',
       'Sign out of Astrolabe',
     ];
@@ -137,10 +135,11 @@ describe('account menu', () => {
       expect(markup.indexOf(labels[index - 1])).toBeLessThan(markup.indexOf(labels[index]));
     }
     expect(markup).toContain('account-menu-signout-label');
+    expect(markup).not.toContain('Escalate to Super Admin');
     expect(markup).not.toMatch(/Slack[^<]*astrolabe|astrolabe[^<]*Slack/);
   });
 
-  it('makes feedback a disclosure and leaves the Super Admin escalation unchanged', () => {
+  it('keeps feedback a disclosure and renders escalation only from its distinct target', () => {
     const panel = renderToStaticMarkup(<AccountMenuPanel identity={IDENTITY} role="super_admin" onClose={() => {}} />);
     const feedback =
       panel.match(/<button[^>]*class="account-feedback-trigger[^"]*"[^>]*>[\s\S]*?<\/button>/)?.[0] ?? '';
@@ -148,8 +147,16 @@ describe('account menu', () => {
     expect(feedback).toContain('aria-expanded="false"');
     expect(feedback).toContain('Report feedback');
     expect(feedback).not.toContain('href=');
-    expect(accountEscalationSlackHref()).toBe('https://slack.com/app_redirect?team=T02EPKPG3&channel=U06BV72N4KY');
-    expect(panel).toContain(`href="${accountEscalationSlackHref().replaceAll('&', '&amp;')}"`);
+    expect(panel).not.toContain('Escalate to Super Admin');
+
+    const search = `https://app.slack.com/client/T${'2'.repeat(8)}/search?q=Customer%20Admin`;
+    const targets = accountFeedbackTargets(undefined, undefined, search, 'Find Customer Admin in Slack');
+    const escalation = renderToStaticMarkup(<AccountEscalationChoice target={targets.escalation} />);
+    expect(escalation).toContain('Escalate to Super Admin');
+    expect(escalation).toContain('aria-label="Find Customer Admin in Slack"');
+    expect(escalation).toContain('title="Find Customer Admin in Slack"');
+    expect(escalation).toContain(`href="${search}"`);
+    expect(escalation).not.toContain('GitHub issue');
   });
 
   it('offers GitHub alone until a deployment supplies a validated Slack target', () => {
@@ -162,14 +169,15 @@ describe('account menu', () => {
 
     const configured = accountFeedbackTargets(
       `https://app.slack.com/client/T${'1'.repeat(8)}/search?q=Feedback%20contact`,
-      'Find Feedback contact'
+      'Find Maintainer in Slack'
     );
     const markup = renderToStaticMarkup(<AccountFeedbackChoices targets={configured} />);
-    expect(markup.indexOf('GitHub issue')).toBeLessThan(markup.indexOf('Find Feedback contact'));
+    expect(markup.indexOf('GitHub issue')).toBeLessThan(markup.indexOf('Find Maintainer in Slack'));
     expect(markup.match(/target="_blank"/g)).toHaveLength(2);
     expect(markup.match(/rel="noopener noreferrer"/g)).toHaveLength(2);
     expect(markup).toContain('lucide-github');
     expect(markup).toContain('lucide-slack');
+    expect(markup).not.toContain('Escalate to Super Admin');
   });
 
   it('wraps arrow focus through both feedback choices', () => {

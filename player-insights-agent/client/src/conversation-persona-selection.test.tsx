@@ -189,7 +189,7 @@ describe('admin persona control', () => {
       <ConversationPersonaSelect personas={personas} total={3} selected={[]} onChange={() => undefined} />
     );
     expect(markup).toContain('aria-label="Filter conversations by persona: All personas"');
-    expect(markup).toContain(`title="${CONVERSATION_PERSONA_FILTER_RULE.replaceAll('’', '’')}"`);
+    expect(markup).toContain(`title="All personas — ${CONVERSATION_PERSONA_FILTER_RULE.replaceAll('’', '’')}"`);
     expect(markup).toContain(CONVERSATION_PERSONA_FILTER_RULE);
     expect(markup.toLowerCase()).not.toMatch(/no persona|unassigned|placeholder/);
   });

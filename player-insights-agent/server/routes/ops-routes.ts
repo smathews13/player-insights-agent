@@ -148,6 +148,12 @@ import type {
 import { opsCurrentMonthRange } from '../../shared/ops-contract';
 import { checkVerdict } from '../../shared/check-verdict';
 import { cachedLifetimeSpend, lifetimeSpendRange } from '../lib/ops-lifetime-spend';
+import {
+  buildRecentMonthlySpendStatement,
+  cachedRecentMonthlySpend,
+  readRecentMonthlySpendRows,
+  recentMonthlySpendPlaceholders,
+} from '../lib/ops-monthly-spend';
 
 /* ── Shared plumbing ─────────────────────────────────────────────────────── */
 
@@ -1924,6 +1930,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         range,
         billingLagDays: null,
         readAt,
+        recentMonthlySpend: recentMonthlySpendPlaceholders(Date.parse(readAt)),
         genieAccounting: null,
         genieInstances: [],
         perQuestion: {
@@ -2038,7 +2045,18 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         const foundationStatement = interactiveComplete
           ? buildFoundationCostStatement(ids, range, questionRunsRead.runs)
           : null;
-        const [outcome, queryAttribution, genieOutcome, foundationOutcome] = await Promise.all([
+        const recentMonthlyStatement = buildRecentMonthlySpendStatement(ids, Date.parse(readAt));
+        const recentMonthlyKey = [
+          userEmail(req).toLowerCase(),
+          ids.workspaceId,
+          ids.appName,
+          ids.endpointName,
+          ids.foundationModel,
+          ids.warehouseId,
+          ids.vectorEndpoint,
+          readAt.slice(0, 7),
+        ].join('|');
+        const [outcome, queryAttribution, genieOutcome, foundationOutcome, recentMonthlySpend] = await Promise.all([
           runStatement({
             host: workspace,
             token,
@@ -2083,6 +2101,21 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
                     ? 'No configured foundation model is available.'
                     : 'Interactive Ask evidence is unavailable.'),
               }),
+          recentMonthlyStatement
+            ? cachedRecentMonthlySpend(recentMonthlyKey, Date.parse(readAt), async () => {
+                const recentOutcome = await runStatement({
+                  host: workspace,
+                  token,
+                  warehouseId: warehouse,
+                  statement: recentMonthlyStatement.statement,
+                  parameters: recentMonthlyStatement.parameters,
+                  fetchImpl: deps.fetchImpl,
+                });
+                return recentOutcome.ok
+                  ? readRecentMonthlySpendRows(recentOutcome.rows, Date.parse(readAt))
+                  : recentMonthlySpendPlaceholders(Date.parse(readAt));
+              })
+            : Promise.resolve(recentMonthlySpendPlaceholders(Date.parse(readAt))),
         ]);
         const foundation = foundationOutcome.ok
           ? foundationCostTile(ids, readFoundationBillingRows(foundationOutcome.rows))
@@ -2116,6 +2149,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             const tiles = buildTiles(ids, [], queryAttribution, resourceActivity, null, genieReason);
             sendCost({
               ...empty,
+              recentMonthlySpend,
               state: 'no-grant',
               grant: billingGrant(userEmail(req) || UNKNOWN_PRINCIPAL),
               tiles,
@@ -2130,6 +2164,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           const tiles = buildTiles(ids, [], queryAttribution, resourceActivity, null, genieReason);
           sendCost({
             ...empty,
+            recentMonthlySpend,
             state: 'unreadable',
             tiles,
             genieAccounting: genieMonth,
@@ -2162,6 +2197,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               : 'No billing rows matched an exact tracked resource.';
           sendCost({
             ...empty,
+            recentMonthlySpend,
             state: 'no-rows',
             tiles,
             genieAccounting: genieMonth,
@@ -2375,6 +2411,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
         sendCost({
           ...empty,
+          recentMonthlySpend,
           state: 'ready',
           currency: currentCurrency,
           throughDay: currentThrough,

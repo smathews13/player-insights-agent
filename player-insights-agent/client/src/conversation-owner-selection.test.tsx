@@ -161,7 +161,7 @@ describe('the admin owner dropdown', () => {
     expect(BASE).toMatch(/\.app-multiselect-trigger \{[^}]*width:\s*100%/s);
     expect(BASE).toMatch(/\.app-select-value \{[^}]*text-overflow:\s*ellipsis/s);
     expect(BASE).toMatch(
-      /\.app-select-content \{[^}]*width:\s*var\(--radix-popover-trigger-width\)[^}]*min-width:\s*var\(--radix-popover-trigger-width\)/s
+      /\.app-select-content \{[^}]*width:\s*min\(max\(var\(--radix-popover-trigger-width\), 18rem\), 24rem, calc\(100vw - 24px\)\)[^}]*min-width:\s*min\(var\(--radix-popover-trigger-width\), calc\(100vw - 24px\)\)/s
     );
   });
 

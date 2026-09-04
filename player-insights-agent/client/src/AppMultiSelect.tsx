@@ -106,7 +106,7 @@ export function AppMultiSelect<T extends string>({
             aria-controls={menuId}
             aria-activedescendant={open ? `${optionId}-${focusedIndex}` : undefined}
             aria-describedby={description ? descriptionId : undefined}
-            title={description}
+            title={description ? `${summary} — ${description}` : summary}
             onKeyDown={(event) => {
               const typeaheadIndex = matchTypeahead(event.key);
               if (typeaheadIndex !== null) {

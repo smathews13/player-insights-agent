@@ -22,7 +22,7 @@ import {
   type CostBudgetUnit,
   type CostBudgets,
 } from '../../shared/cost-budgets';
-import type { CostTile, OpsCostPayload } from '../../shared/ops-contract';
+import type { AppMonthlySpend, CostTile, OpsCostPayload } from '../../shared/ops-contract';
 import { budgetFieldText } from './cost-budget-amount';
 import { COST_BUDGETS_UNREADABLE, loadCostBudgets, saveCostBudgets } from './cost-budgets-api';
 import { budgetHelper, budgetPlaceholder, costSpendSummary, resourceBudgetBaseline } from './cost-budget-view';
@@ -297,13 +297,13 @@ export function CostTotalBudget() {
   const budgetStatus = useAppBudgetStatus();
   const state = api.stateFor('total');
   const notice = costBudgetNotice(state);
-  const showStatus = hasCompleteBudgetMeasurement(budgetStatus);
   return (
     <div className="ops-cost-total">
       <CostBudgetField
         fieldKey="total"
-        label="Monthly app budget"
-        ariaLabel="Monthly app budget"
+        label="App budget"
+        labelHidden
+        ariaLabel="App budget"
         budget={api.budgets.total}
         unit={api.unit}
         observed={{ USD: null, DBU: null }}
@@ -317,15 +317,14 @@ export function CostTotalBudget() {
               disabled={api.applying || !api.dirtyFor('total') || !api.validFor('total')}
               onClick={() => api.apply('total')}
             />
-            {notice || !api.readable || showStatus ? (
-              <span className="ops-app-budget-status">
-                {notice || !api.readable ? (
+            <span className="ops-app-budget-status">
+              <RecentMonthlySpend months={api.payload.recentMonthlySpend ?? []} unit={api.unit} />
+              {notice || !api.readable ? (
+                <span className="ops-app-budget-save-status">
                   <BudgetSaveNotice notice={notice} readable={api.readable} state={state} />
-                ) : (
-                  <AppBudgetMeasurement status={budgetStatus} />
-                )}
-              </span>
-            ) : null}
+                </span>
+              ) : null}
+            </span>
           </>
         }
       />
@@ -495,29 +494,38 @@ export function monthlyBudgetProgress(
   const snapshot = display ?? legacy;
   if (snapshot?.amount === null || snapshot?.amount === undefined) return null;
   const difference = savedBudget - snapshot.amount;
-  const balance = `${Math.abs(difference).toFixed(2)} ${unit} ${difference < 0 ? 'over budget' : 'remaining'}`;
+  const formatted = (value: number) =>
+    value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const balance =
+    unit === 'USD'
+      ? difference < 0
+        ? `$${formatted(Math.abs(difference))} over $${formatted(savedBudget)} app budget`
+        : `$${formatted(difference)} of $${formatted(savedBudget)} app budget remaining`
+      : difference < 0
+        ? `${formatted(Math.abs(difference))} over ${formatted(savedBudget)} DBU app budget`
+        : `${formatted(difference)} of ${formatted(savedBudget)} DBU app budget remaining`;
   const spent = `${snapshot.amount.toFixed(2)} ${unit}`;
   const estimated = snapshot.coverage !== 'complete';
   if (snapshot.amount >= savedBudget) {
-    return { spent, balance, pace: 'Budget exceeded', tone: 'danger', estimated };
+    return { spent, balance, pace: '', tone: 'danger', estimated };
   }
 
   const start = dayNumber(status.monthStart);
   const through = dayNumber(snapshot.sourceThrough);
   const end = dayNumber(status.monthEnd);
   if (start === null || through === null || end === null || through < start || end < through) {
-    return { spent, balance, pace: 'Within budget', tone: 'normal', estimated };
+    return { spent, balance, pace: '', tone: 'normal', estimated };
   }
   const observedDays = through - start + 1;
   const dailyPace = observedDays > 0 ? snapshot.amount / observedDays : 0;
-  if (!(dailyPace > 0)) return { spent, balance, pace: 'Within budget', tone: 'normal', estimated };
+  if (!(dailyPace > 0)) return { spent, balance, pace: '', tone: 'normal', estimated };
   const daysToExceed = Math.ceil(difference / dailyPace);
   const crossing = daysToExceed <= end - through;
   return {
     spent,
     balance,
-    pace: crossing ? `Will exceed budget in ${daysToExceed} ${daysToExceed === 1 ? 'day' : 'days'}` : 'Within budget',
-    tone: crossing ? 'danger' : 'normal',
+    pace: crossing ? `Will exceed budget in ${daysToExceed} ${daysToExceed === 1 ? 'day' : 'days'}` : '',
+    tone: 'normal',
     estimated,
   };
 }
@@ -533,16 +541,12 @@ export function SavedAppBudgetSummary({
 }) {
   if (savedBudget === null) return null;
   const progress = monthlyBudgetProgress(status, savedBudget, unit);
-  const budget = `${savedBudget.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ${unit}`;
   return (
     <div
       className="ops-cost-summary-budget"
       role="status"
       aria-live="polite"
-      aria-label="Monthly app budget status"
+      aria-label="App budget status"
       title={
         progress?.estimated
           ? 'Based on available month-to-date billing; enforcement remains fail-open until coverage is complete.'
@@ -550,33 +554,55 @@ export function SavedAppBudgetSummary({
       }
     >
       {progress ? (
-        <>
-          <span className="ops-cost-summary-budget-item ops-cost-summary-budget-limit">
-            <span>Monthly app budget</span>
-            <strong className="ast-num">{budget}</strong>
-          </span>
-          <span className="ops-cost-summary-budget-outcome" data-budget-tone={progress.tone}>
-            <strong className="ast-num" aria-label={`Budget balance: ${progress.balance}`}>
-              {progress.balance}
-            </strong>
+        <span className="ops-cost-summary-budget-outcome" data-budget-tone={progress.tone}>
+          <strong className="ops-cost-summary-budget-line ast-num" aria-label={`Budget balance: ${progress.balance}`}>
+            {progress.tone === 'normal' ? <CheckCircle2 aria-hidden="true" /> : <CircleX aria-hidden="true" />}
+            {progress.balance}
+          </strong>
+          {progress.pace ? (
             <span className="ops-cost-summary-budget-status" aria-label={`Budget pacing: ${progress.pace}`}>
-              {progress.tone === 'normal' ? <CheckCircle2 aria-hidden="true" /> : <CircleX aria-hidden="true" />}
+              <CircleX aria-hidden="true" />
               {progress.pace}
             </span>
-          </span>
-        </>
+          ) : null}
+        </span>
       ) : (
-        <>
-          <span className="ops-cost-summary-budget-item">
-            <span>Monthly app budget</span>
-            <strong className="ast-num">{budget}</strong>
-          </span>
-          <span className="ops-cost-summary-budget-item ops-cost-summary-budget-unavailable">
-            Spend estimate unavailable
-          </span>
-        </>
+        <span className="ops-cost-summary-budget-item ops-cost-summary-budget-unavailable">
+          Spend estimate unavailable
+        </span>
       )}
     </div>
+  );
+}
+
+export function RecentMonthlySpend({ months, unit }: { months: readonly AppMonthlySpend[]; unit: CostBudgetUnit }) {
+  if (months.length === 0) return null;
+  const amount = (month: AppMonthlySpend) => {
+    const value = unit === 'USD' ? month.amount : month.dbus;
+    if (value === null || !Number.isFinite(value)) return '\u2014';
+    const formatted = value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return unit === 'USD' ? `$${formatted}` : `${formatted} DBU`;
+  };
+  const monthName = (month: string) => {
+    const parsed = new Date(`${month}-01T00:00:00Z`);
+    return Number.isFinite(parsed.getTime())
+      ? parsed.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+      : month;
+  };
+  return (
+    <span className="ops-recent-monthly-spend" aria-label="Recent monthly spend">
+      <span className="ops-recent-monthly-spend-heading">Recent monthly spend</span>
+      <span className="ops-recent-monthly-spend-list">
+        {months.slice(0, 3).map((month) => (
+          <span className="ops-recent-monthly-spend-row" key={month.month}>
+            <time className="ast-pill ast-pill--neutral" dateTime={`${month.month}-01`}>
+              {monthName(month.month)}
+            </time>
+            <strong className="ast-num">{amount(month)}</strong>
+          </span>
+        ))}
+      </span>
+    </span>
   );
 }
 
@@ -674,43 +700,10 @@ function CostResourceBudgetField({ tile }: { tile: CostTile }) {
   );
 }
 
-function hasCompleteBudgetMeasurement(
-  status: AppBudgetStatus | null
-): status is AppBudgetStatus & { measured: number; budget: number; unit: CostBudgetUnit; percent: number } {
-  return Boolean(
-    status &&
-      status.coverage === 'complete' &&
-      status.level !== 'unset' &&
-      status.level !== 'unavailable/partial' &&
-      status.measured !== null &&
-      status.budget !== null &&
-      status.unit !== null &&
-      status.percent !== null
-  );
-}
-
-export function AppBudgetMeasurement({ status }: { status: AppBudgetStatus | null }) {
-  if (!hasCompleteBudgetMeasurement(status)) return null;
-  const format = (value: number) =>
-    value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return (
-    <span className="ops-budget-compare">
-      Month to date{' '}
-      <span className="ast-num">
-        {format(status.measured)} {status.unit}
-      </span>{' '}
-      of{' '}
-      <span className="ast-num">
-        {format(status.budget)} {status.unit}
-      </span>{' '}
-      · <span className="ast-num">{status.percent.toFixed(2)}%</span>
-    </span>
-  );
-}
-
 function CostBudgetField({
   fieldKey,
   label,
+  labelHidden = false,
   ariaLabel,
   budget,
   unit,
@@ -722,6 +715,7 @@ function CostBudgetField({
 }: {
   fieldKey: string;
   label: string;
+  labelHidden?: boolean;
   ariaLabel: string;
   budget: CostBudget;
   unit: CostBudgetUnit;
@@ -748,7 +742,13 @@ function CostBudgetField({
   const inputId = `ops-budget-${fieldKey.replace(/[^a-z0-9]+/gi, '-')}`;
   const error = parsed.valid ? undefined : `Enter a number from 0 to ${COST_BUDGET_MAX.toLocaleString('en-US')}.`;
   return (
-    <TickerAssumptionField id={inputId} label={label} helper={helper ?? budgetHelper(observed, unit)} error={error}>
+    <TickerAssumptionField
+      id={inputId}
+      label={label}
+      labelHidden={labelHidden}
+      helper={helper ?? budgetHelper(observed, unit)}
+      error={error}
+    >
       <NumberTicker
         id={inputId}
         label={`${ariaLabel} in ${unit}`}

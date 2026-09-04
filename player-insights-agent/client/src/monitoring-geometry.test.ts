@@ -136,12 +136,24 @@ describe('Monitoring details open as centered modals, not side drawers', () => {
   });
 
   it('gives the user browser a wider shell and readable mobile rows', () => {
-    expect(CSS).toMatch(/\.monitoring-users-modal\s*\{\s*width:\s*min\(1080px/);
+    expect(CSS).toMatch(/\.monitoring-users-modal\s*\{\s*width:\s*min\(1160px/);
     expect(rule('.monitoring-user-row')).toMatch(/grid-template-columns/);
     const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 800px)'));
     expect(narrow).toMatch(/\.monitoring-users-columns\s*\{[^}]*display:\s*none/);
     expect(narrow).toMatch(/\.monitoring-user-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/);
     expect(CSS).not.toContain('.monitoring-user-coverage');
+  });
+
+  it('wraps filters and view controls as deliberate groups before compressing them', () => {
+    expect(rule('.monitoring-users-toolbar')).toMatch(/display:\s*grid/);
+    expect(rule('.monitoring-users-toolbar-filters,\n.monitoring-users-toolbar-view')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.monitoring-users-toolbar .monitoring-users-search')).toMatch(
+      /width:\s*clamp\(200px,\s*22vw,\s*240px\)/
+    );
+    expect(rule('.monitoring-users-role-trigger')).toMatch(/width:\s*120px/);
+    expect(rule('.monitoring-users-persona-trigger')).toMatch(/width:\s*136px/);
+    expect(rule('.monitoring-organization-trigger')).toMatch(/width:\s*176px/);
+    expect(CSS).toMatch(/\.monitoring-users-toolbar-view\s*\{\s*justify-content:\s*flex-end/);
   });
 
   it('uses one stable user-icon loader with static reduced-motion fallbacks', () => {
@@ -164,6 +176,16 @@ describe('the panel head and identity controls cannot be clipped', () => {
     expect(rule('.user-profile-modal-user')).toMatch(/min-width:\s*0/);
     expect(rule('.user-profile-modal-close,\n.user-profile-modal-back')).toMatch(/flex:\s*none/);
     expect(rule('.user-profile-modal-user .identity-chip')).toMatch(/max-width:\s*100%/);
+  });
+
+  it('makes the integrated profile identity and organization mark modestly compact', () => {
+    expect(rule('.user-profile-modal-identity-row .user-profile-modal-identity-chip')).toMatch(
+      /min-height:\s*27px[\s\S]*font-size:\s*var\(--ast-fs-12\)/
+    );
+    expect(
+      rule('.user-profile-modal-identity-row .user-profile-modal-identity-chip > .roster-organization-mark')
+    ).toMatch(/inline-size:\s*16px[\s\S]*block-size:\s*16px/);
+    expect(CSS).not.toContain('.user-profile-modal-organization {');
   });
 
   it('seats the compact blue back link at the true header origin', () => {

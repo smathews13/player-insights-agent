@@ -970,7 +970,7 @@
 }
 
 .roles-table .roster-control,
-.roles-table .roster-role-status {
+.roles-table .roster-role > .role-badge {
   margin: 0;
   vertical-align: middle;
 }
@@ -980,12 +980,6 @@
   border-color: var(--input);
   background: var(--roster-panel-surface);
   color: var(--foreground);
-}
-
-.roster-role-status {
-  min-height: 30px;
-  display: inline-flex;
-  align-items: center;
 }
 
 .roster-add-persona {
@@ -1015,10 +1009,6 @@
   color: var(--foreground);
   font-size: var(--text-sm);
   font-weight: 400;
-  white-space: nowrap;
-}
-
-.roster-role-status {
   white-space: nowrap;
 }
 
@@ -1248,6 +1238,11 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 .settings-rail button {
   width: 100%;
   padding: 7px 12px;
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -1257,8 +1252,38 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   cursor: pointer;
 }
 
+.settings-section-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: currentColor;
+  stroke-width: 1.75;
+}
+
+.settings-section-label {
+  min-width: 0;
+  color: currentColor;
+}
+
 .settings-rail button + button {
   margin-top: 2px;
+}
+
+.settings-rail button:hover:not(:disabled):not(.active) {
+  background: var(--db-hover-tint);
+  color: var(--foreground);
+}
+
+.settings-rail button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+  color: var(--foreground);
+}
+
+.settings-rail button:disabled {
+  color: var(--muted-foreground);
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .settings-rail button.active {
@@ -2708,9 +2733,10 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   z-index: 50;
   top: calc(100% + 4px);
   left: 0;
-  width: min(440px, calc(100vw - 64px));
+  width: min(max(100%, 22rem), 26.25rem, calc(100vw - 64px));
   max-height: 340px;
   overflow: auto;
+  scrollbar-gutter: stable;
   display: grid;
   gap: 6px;
   padding: 8px;
@@ -2743,27 +2769,47 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .sp-resource-option {
   min-width: 0;
-  display: grid;
-  gap: 1px;
-  padding: 6px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--foreground);
+  font-size: var(--ast-fs-12);
+  line-height: 1.25;
   text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  overflow-wrap: normal;
+  word-break: normal;
   cursor: pointer;
 }
 
 .sp-resource-option:hover,
-.sp-resource-option:focus-visible {
+.sp-resource-option:focus-visible,
+.sp-resource-option[aria-pressed='true'] {
   background: var(--accent);
   outline: none;
 }
 
+.sp-resource-option > span,
 .sp-resource-option code {
+  min-width: 0;
   overflow: hidden;
-  color: var(--muted-foreground);
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-resource-option > span {
+  flex: 1 1 auto;
+}
+
+.sp-resource-option code {
+  flex: 0 1 52%;
+  color: var(--muted-foreground);
 }
 
 .sp-manual-resource {

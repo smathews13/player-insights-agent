@@ -10,6 +10,9 @@ import { roleFrom, type RoleResolution } from './role';
 const NORMAL_IDENTITY = { signedInAs: '<your-username>', role: 'admin' };
 const FEATURES = { benchmarkLab: false, egressControls: true, forecasting: false, notebookAgentSync: false };
 const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
+const SETTINGS_RESPONSIVE_STYLES = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');
+const SETTINGS_DENSITY_STYLES = readFileSync(new URL('./styles/density-settings.css', import.meta.url), 'utf8');
+const SETTINGS_SECTIONS_SOURCE = readFileSync(new URL('./settings-sections.ts', import.meta.url), 'utf8');
 
 function render(
   section: 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental' = 'runtime',
@@ -39,10 +42,64 @@ describe('Settings modal', () => {
     expect(markup).not.toContain('Admin only');
     expect(markup).not.toContain('Enforced on the server');
     for (const label of ['Identity', 'Runtime', 'Environment', 'Appearance', 'Egress controls', 'Experimental']) {
-      expect(markup).toContain(`>${label}</button>`);
+      expect(markup).toContain(`>${label}</span>`);
     }
     expect(markup).not.toContain('>Roles</button>');
     expect(markup).not.toContain('>Benchmarking</button>');
+  });
+
+  it('renders each typed Settings icon before its visible tab label', () => {
+    const markup = render();
+    const nav = markup.slice(
+      markup.indexOf('<nav class="settings-rail"'),
+      markup.indexOf('</nav>', markup.indexOf('<nav class="settings-rail"'))
+    );
+    const buttons = nav.match(/<button[\s\S]*?<\/button>/g) ?? [];
+    const tabs = [
+      ['identity', 'lucide-badge-check', 'Identity'],
+      ['runtime', 'lucide-gauge', 'Runtime'],
+      ['environment', 'lucide-server-cog', 'Environment'],
+      ['appearance', 'lucide-palette', 'Appearance'],
+      ['egress', 'lucide-network', 'Egress controls'],
+      ['experimental', 'lucide-flask-conical', 'Experimental'],
+    ] as const;
+
+    expect(buttons).toHaveLength(tabs.length);
+    tabs.forEach(([section, iconClass, label], index) => {
+      const button = buttons[index] ?? '';
+      expect(button, label).toContain(iconClass);
+      expect(button, label).toContain(`settings-section-icon--${section}`);
+      expect(button, label).toContain('aria-hidden="true"');
+      expect(button, label).toContain(`class="settings-section-label">${label}</span>`);
+      expect(button.indexOf('settings-section-icon'), label).toBeLessThan(button.indexOf('settings-section-label'));
+    });
+
+    expect(SETTINGS_SECTIONS_SOURCE).toContain('satisfies Record<SettingsSection, LucideIcon>');
+  });
+
+  it('keeps icon geometry and color coupled to every rail interaction and narrow layout', () => {
+    expect(SETTINGS_STYLES).toMatch(
+      /\.settings-section-icon \{[^}]*width:\s*16px[^}]*height:\s*16px[^}]*color:\s*currentColor[^}]*stroke-width:\s*1\.75/s
+    );
+    expect(SETTINGS_STYLES).toMatch(
+      /\.settings-rail button \{[^}]*display:\s*inline-flex[^}]*align-items:\s*center[^}]*gap:\s*8px/s
+    );
+    expect(SETTINGS_STYLES).toMatch(
+      /\.settings-rail button:hover:not\(:disabled\):not\(\.active\) \{[^}]*color:\s*var\(--foreground\)/s
+    );
+    expect(SETTINGS_STYLES).toMatch(
+      /\.settings-rail button:focus-visible \{[^}]*outline:\s*2px solid var\(--ring\)[^}]*color:\s*var\(--foreground\)/s
+    );
+    expect(SETTINGS_STYLES).toMatch(/\.settings-rail button:disabled \{[^}]*color:\s*var\(--muted-foreground\)/s);
+    expect(SETTINGS_STYLES).toMatch(
+      /\.settings-rail button\.active \{[^}]*background:\s*var\(--card\)[^}]*color:\s*var\(--foreground\)/s
+    );
+    expect(SETTINGS_RESPONSIVE_STYLES).toMatch(
+      /@media \(max-width:\s*800px\)[\s\S]*?\.settings-rail \{[^}]*display:\s*flex[^}]*overflow-x:\s*auto[\s\S]*?\.settings-rail button \{[^}]*flex:\s*none[^}]*white-space:\s*nowrap/
+    );
+    expect(SETTINGS_DENSITY_STYLES).toMatch(
+      /html\[data-density='compact'\] \.settings-section-icon \{[^}]*width:\s*14px[^}]*height:\s*14px/
+    );
   });
 
   it('renders Runtime, Environment, Appearance and Egress as separate selected panes', () => {

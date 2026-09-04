@@ -26,7 +26,7 @@ describe('the demo workspace Settings shell feedback', () => {
         />
       );
       for (const label of ['Identity', 'Runtime', 'Environment', 'Appearance', 'Egress controls', 'Experimental']) {
-        expect(markup).toContain(`>${label}</button>`);
+        expect(markup).toContain(`class="settings-section-label">${label}</span>`);
       }
       expect(markup).not.toContain('>Roles</button>');
       expect(markup.match(/>Cancel<\/button>/g) ?? []).toHaveLength(1);
@@ -255,10 +255,10 @@ describe('the demo workspace Identity feedback', () => {
     );
   });
 
-  it('pins every row control to the same 30px geometry', () => {
+  it('pins editable controls and canonical role badges to compact row geometry', () => {
     expect(CSS).toMatch(/\.roster-control \{[^}]*height:\s*30px[^}]*align-items:\s*center/s);
     expect(CSS).toMatch(/\.roles-table td \{[^}]*height:\s*47px/s);
-    expect(CSS).toMatch(/\.roster-role-status \{[^}]*min-height:\s*30px[^}]*align-items:\s*center/s);
+    expect(CSS).toMatch(/\.roster-role > \.role-badge,[\s\S]*?min-height:\s*24px[^}]*white-space:\s*nowrap/s);
     expect(CSS).toMatch(/\.sp-personas-table td \{[^}]*height:\s*47px/s);
     expect(CSS).toMatch(/\.sp-personas-table \[data-slot='input'\] \{[^}]*height:\s*30px/s);
   });

@@ -31,7 +31,8 @@ function ScopeStatus({ status }: { status: OpsScopeStatus }) {
 export function CheckScopesButton({ busy, onClick }: { busy: boolean; onClick: () => void }) {
   return (
     <Button
-      variant="outline"
+      variant="default"
+      data-variant="default"
       size="sm"
       type="button"
       className="ops-scope-check-button"
@@ -39,7 +40,7 @@ export function CheckScopesButton({ busy, onClick }: { busy: boolean; onClick: (
       aria-busy={busy || undefined}
       onClick={onClick}
     >
-      {busy ? <AstrolabeLoadingLabel as="span" seat="button" announce={false} label="Checking…" /> : 'Check scopes'}
+      {busy ? <AstrolabeLoadingLabel as="span" seat="button" announce={false} label="Checking…" /> : 'Check all scopes'}
     </Button>
   );
 }

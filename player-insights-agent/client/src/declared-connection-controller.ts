@@ -13,6 +13,18 @@ import { isDeclaredTableConnection, orderConnections } from './declared-connecti
 import { beginConnectionMutation, commitConnectionAddition, commitConnectionDeletion } from './session-checks';
 
 const DELETE_TOMBSTONE_MS = 10_000;
+export const CONNECTION_REMOVAL_NOTICE_MS = 5_000;
+
+export interface ConnectionRemovalNotice {
+  id: number;
+}
+
+export function dismissConnectionRemovalNotice(
+  current: ConnectionRemovalNotice | null,
+  expectedId: number
+): ConnectionRemovalNotice | null {
+  return current?.id === expectedId ? null : current;
+}
 
 export function normalizedConnectionValue(value: string): string {
   return value
@@ -51,7 +63,8 @@ export function useDeclaredConnectionController({
   const [justAdded, setJustAdded] = useState('');
   const [confirming, setConfirming] = useState('');
   const [rowError, setRowError] = useState<{ id: string; detail: string } | null>(null);
-  const [successNotice, setSuccessNotice] = useState('');
+  const [removalNotice, setRemovalNotice] = useState<ConnectionRemovalNotice | null>(null);
+  const removalNoticeId = useRef(0);
   const deleteGate = useRef(createConnectionDeleteGate());
 
   useEffect(() => {
@@ -72,6 +85,16 @@ export function useDeclaredConnectionController({
     return () => window.clearTimeout(timeout);
   }, [deleteTombstones]);
 
+  useEffect(() => {
+    if (!removalNotice) return;
+    const expectedId = removalNotice.id;
+    const timeout = window.setTimeout(
+      () => setRemovalNotice((current) => dismissConnectionRemovalNotice(current, expectedId)),
+      CONNECTION_REMOVAL_NOTICE_MS
+    );
+    return () => window.clearTimeout(timeout);
+  }, [removalNotice]);
+
   const mergedById = new Map((entries ?? []).map((entry) => [entry.connection.id, entry]));
   for (const entry of instantEntries) mergedById.set(entry.connection.id, entry);
   const listed = orderConnections(
@@ -87,7 +110,7 @@ export function useDeclaredConnectionController({
     }
     setBusy(true);
     setRowError(null);
-    setSuccessNotice('');
+    setRemovalNotice(null);
     try {
       beginConnectionMutation();
       const result = await createDeclaredConnection(input);
@@ -115,7 +138,7 @@ export function useDeclaredConnectionController({
     }
     setBusy(true);
     setRowError(null);
-    setSuccessNotice('');
+    setRemovalNotice(null);
     try {
       beginConnectionMutation();
       const result = await createDeclaredConnectionsBatch(inputs);
@@ -126,9 +149,6 @@ export function useDeclaredConnectionController({
       });
       for (const entry of result.entries) commitConnectionAddition(entry);
       setJustAdded(result.entries[0]?.connection.id ?? '');
-      setSuccessNotice(
-        `${result.entries.length} ${result.entries.length === 1 ? 'Unity Catalog asset' : 'Unity Catalog assets'} added.`
-      );
       await onChanged();
       return result;
     } finally {
@@ -140,7 +160,7 @@ export function useDeclaredConnectionController({
     if (busy || deleteGate.current.pending(entry.connection.id)) return null;
     setBusy(true);
     setRowError(null);
-    setSuccessNotice('');
+    setRemovalNotice(null);
     try {
       const result = await deleteGate.current.run(entry.connection.id, async () => {
         beginConnectionMutation();
@@ -162,13 +182,7 @@ export function useDeclaredConnectionController({
       );
       commitConnectionDeletion(result.deletedIds);
       setConfirming('');
-      setSuccessNotice(
-        result.deletedCount === 1
-          ? 'Connection deleted.'
-          : `Connection deleted with ${result.deletedCount - 1} duplicate ${
-              result.deletedCount === 2 ? 'record' : 'records'
-            }.`
-      );
+      setRemovalNotice({ id: ++removalNoticeId.current });
       await onChanged();
       return result;
     } finally {
@@ -186,7 +200,7 @@ export function useDeclaredConnectionController({
     setConfirming,
     rowError,
     setRowError,
-    successNotice,
+    removalNotice,
     add,
     addBatch,
     remove,

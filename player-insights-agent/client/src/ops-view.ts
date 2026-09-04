@@ -1274,39 +1274,9 @@ export function trafficCaption(series: TrafficBar[], singular: string, plural: s
   return runs > 0 ? `${count(total)} ${noun} out of ${count(runs)} recorded runs.` : `${count(total)} ${noun}.`;
 }
 
-export function activeMinutesDisplay(payload: OpsTrafficPayload): { title: string; note: string } {
+export function activeMinutesDisplay(payload: OpsTrafficPayload): string {
   const total = (payload.activeMinutesPerDay ?? []).reduce((sum, day) => sum + day.count, 0);
-  const title = `Active app minutes · ${count(total)} total`;
-  const from = payload.activeMinutesRecordedFrom ?? '';
-  const through = payload.activeMinutesRecordedThrough ?? '';
-  if (!from) return { title, note: 'Recording starts with this release; no backfill.' };
-  const timeZone = payload.activeMinutesTimeZone || undefined;
-  const format = (value: string) => {
-    const at = new Date(value);
-    if (!Number.isFinite(at.getTime())) return value;
-    return at.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone,
-    });
-  };
-  const firstDay = payload.activeMinutesPerDay?.[0]?.day ?? '';
-  const dayParts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
-    .formatToParts(new Date(from))
-    .reduce<Record<string, string>>((parts, part) => ({ ...parts, [part.type]: part.value }), {});
-  const recordedStartDay = `${dayParts.year}-${dayParts.month}-${dayParts.day}`;
-  const prefix = firstDay && firstDay === recordedStartDay ? 'Estimated from data recorded since' : 'Recorded since';
-  return {
-    title,
-    note: `${prefix} ${format(from)}${through ? ` · latest ${format(through)}` : ''}`,
-  };
+  return `Active app minutes · ${count(total)} total`;
 }
 
 /* ── Latency ─────────────────────────────────────────────────────────────── */

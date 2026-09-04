@@ -398,6 +398,17 @@ export interface AppSpendSummary {
   currentMonth: AppSpendFigure;
 }
 
+/** One completed UTC calendar month's app-attributed billing total. */
+export interface AppMonthlySpend {
+  /** Calendar month as `YYYY-MM`. */
+  month: string;
+  /** USD total, null when the month has no authoritative priced rows. */
+  amount: number | null;
+  /** DBU total, null when the month has no authoritative DBU rows. */
+  dbus: number | null;
+  currency: string;
+}
+
 /** A missing grant, in the shape the app already uses for one. */
 export interface GrantRemedy {
   object: string;
@@ -513,6 +524,8 @@ export interface OpsCostPayload {
   tiles: CostTile[];
   /** Paid app-attributable summary; free Genie notional value is excluded from both figures. */
   appSpend?: AppSpendSummary;
+  /** The three most recent completed UTC calendar months, newest first. */
+  recentMonthlySpend?: AppMonthlySpend[];
   /** Overall shared allowance plus exact, allocated, and unattributed instance reconciliation. */
   genieAccounting?: GenieAccounting | null;
   /** Convenience list for API consumers; absent only on legacy cached payloads. */

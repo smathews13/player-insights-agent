@@ -42,7 +42,6 @@ import { ChevronLeft, ChevronRight, ExternalLink, Search, Users, X } from 'lucid
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
-import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
 import { ExperimentalBadge } from './ExperimentalBadge';
 import { Disclosure, PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
@@ -79,7 +78,7 @@ import {
   type HealthRow,
 } from './ops-view';
 import { healthConnectionsHref, healthRowsForDisplay } from './health-resource-view';
-import { useOpsBlock, useOpsHealthCheck, type OpsHealthCheckSession } from './ops-session';
+import { useOpsBlock } from './ops-session';
 import { useOpsScopeCheck } from './OpsScopeModal';
 import './styles/routes/ops.css';
 import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
@@ -332,37 +331,7 @@ function ResultPill({ pill }: { pill: HealthRow['pill'] }) {
   );
 }
 
-const NO_HEALTH_CHECK: OpsHealthCheckSession = { busy: false, failed: '', checkAll: () => {} };
-
-export function HealthCheckButton({ check }: { check: OpsHealthCheckSession }) {
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      type="button"
-      className="ops-health-check-button"
-      disabled={check.busy}
-      aria-busy={check.busy || undefined}
-      onClick={check.checkAll}
-    >
-      {check.busy ? (
-        <AstrolabeLoadingLabel as="span" seat="button" announce={false} label="Checking…" />
-      ) : (
-        'Check all resources'
-      )}
-    </Button>
-  );
-}
-
-export function HealthBody({
-  block,
-  check = NO_HEALTH_CHECK,
-  allowCheck = false,
-}: {
-  block: Block<OpsHealthPayload>;
-  check?: OpsHealthCheckSession;
-  allowCheck?: boolean;
-}) {
+export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
   const host = useWorkspaceHost();
   const payload = block.data;
   if (block.failed) {
@@ -388,7 +357,7 @@ export function HealthBody({
   const rows = healthRowsForDisplay(payload);
 
   return (
-    <section className="ops-block" aria-labelledby="ops-health-heading" aria-busy={check.busy || undefined}>
+    <section className="ops-block" aria-labelledby="ops-health-heading">
       <BlockHead
         id="ops-health-heading"
         title="Health"
@@ -398,8 +367,7 @@ export function HealthBody({
         meta={checkedAgoLine(payload?.checkedAt ?? '')}
         control={
           <div className="ops-health-head-controls">
-            {allowCheck ? <HealthCheckButton check={check} /> : null}
-            <RefreshButton busy={block.busy || check.busy} onRefresh={block.refresh} />
+            <RefreshButton busy={block.busy} onRefresh={block.refresh} />
           </div>
         }
       />
@@ -409,17 +377,6 @@ export function HealthBody({
           resource, in the row for that resource: see `healthRows`. */}
 
       <BlockBody>
-        {check.failed ? (
-          <div className="ops-health-check-error" role="alert">
-            <span>{check.failed}</span>
-            <button type="button" onClick={check.checkAll}>
-              Try again
-            </button>
-          </div>
-        ) : null}
-        <p className="sr-only" role="status" aria-live="polite">
-          {check.busy ? 'Checking all health resources.' : payload?.checkedAt ? checkedAgoLine(payload.checkedAt) : ''}
-        </p>
         {block.busy && !payload ? (
           <Skeleton className="ops-skeleton" />
         ) : (
@@ -749,8 +706,9 @@ function PrimaryCostCard({
   const product = productForCostTile(card.id);
   const object = tile ? costTileWorkspaceObject(tile) : null;
   const href = object ? databricksLink(host, object) : null;
+  const concise = card.id === 'foundation-model';
   return (
-    <article className="ops-tile ops-primary-cost-card">
+    <article className={`ops-tile ops-primary-cost-card${concise ? ' ops-primary-cost-card--concise' : ''}`}>
       <div className="ops-tile-head">
         <h4 className="ops-tile-label">
           {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
@@ -760,20 +718,20 @@ function PrimaryCostCard({
           <span className={astPill('neutral-outline', 'ops-pill ops-cost-status')}>{card.status}</span>
         ) : null}
       </div>
-      <p className="ops-tile-figure" title={card.detail || undefined}>
+      <p className="ops-tile-figure" title={!concise && card.detail ? card.detail : undefined}>
         <span className="ast-num">{card.amount}</span>
       </p>
-      <p className="ops-tile-basis">{card.basis}</p>
-      {/^Billing through \d{4}-\d{2}-\d{2}$/.test(card.evidence) ? (
+      {!concise ? <p className="ops-tile-basis">{card.basis}</p> : null}
+      {!concise && /^Billing through \d{4}-\d{2}-\d{2}$/.test(card.evidence) ? (
         <div className="ops-tile-evidence">
           <DateBadge
             value={dateOnlyBadgeValue(card.evidence.slice('Billing through '.length))}
             accessiblePrefix="Billing through"
           />
         </div>
-      ) : (
+      ) : !concise ? (
         <p className="ops-tile-evidence">{card.evidence || '\u00a0'}</p>
-      )}
+      ) : null}
       {card.resource ? <CostResourceLine label={card.resource} href={href} /> : null}
     </article>
   );
@@ -1015,12 +973,10 @@ function DailyBars({
   title,
   days,
   empty,
-  freshness = '',
 }: {
   title: string;
   days: Array<{ day: string; count: number }>;
   empty: string;
-  freshness?: string;
 }) {
   const busiest = days.reduce((high, day) => Math.max(high, day.count), 0);
   const valued = days.length <= DAY_VALUE_LIMIT;
@@ -1035,7 +991,6 @@ function DailyBars({
   return (
     <div className="ops-chart">
       <h4>{title}</h4>
-      {freshness ? <p className="ops-chart-freshness">{freshness}</p> : null}
       {days.length === 0 ? (
         <p className="ops-chart-empty">{empty}</p>
       ) : (
@@ -1467,7 +1422,7 @@ function LatencyRow({
 
 export function TrafficBody({ block }: { block: Block<OpsTrafficPayload> }) {
   const payload = block.data;
-  const activity = payload ? activeMinutesDisplay(payload) : { title: 'Active app minutes', note: '' };
+  const activity = payload ? activeMinutesDisplay(payload) : 'Active app minutes';
   const coverageCaption = (state: 'complete' | 'partial' | 'unavailable', complete: string): string =>
     state === 'complete' ? complete : state === 'partial' ? 'Estimated' : 'Unavailable';
 
@@ -1527,10 +1482,9 @@ export function TrafficBody({ block }: { block: Block<OpsTrafficPayload> }) {
                   empty="No distinct askers have been recorded."
                 />
                 <DailyBars
-                  title={activity.title}
+                  title={activity}
                   days={payload.activeMinutesPerDay ?? []}
                   empty="No recorded active app minutes yet. Recording starts with this release and does not backfill."
-                  freshness={activity.note}
                 />
               </div>
 
@@ -1714,11 +1668,6 @@ export function OpsPage() {
   // point of the arrangement. Retrospective blocks share one server-authoritative
   // calendar-month key; live Health remains independent.
   const health = useOpsBlock<OpsHealthPayload>('/api/ops/health', '');
-  const healthCheck = useOpsHealthCheck(
-    '/api/ops/health',
-    '/api/ops/health/check',
-    canCheckHealthResources(role.state)
-  );
   const cost = useOpsBlock<OpsCostPayload>('/api/ops/cost', '', monthKey);
   const traffic = useOpsBlock<OpsTrafficPayload>('/api/ops/traffic', '', monthKey);
   const latency = useOpsBlock<OpsLatencyPayload>('/api/ops/latency', '', monthKey);
@@ -1741,7 +1690,7 @@ export function OpsPage() {
 
       {/* Each measured block reads itself. Four read times on one page rather
           than one, because they were read at four different moments. */}
-      <HealthBody block={health} check={healthCheck} allowCheck={canCheckHealthResources(role.state)} />
+      <HealthBody block={health} />
       <CostBody
         block={cost}
         unit={costUnit}

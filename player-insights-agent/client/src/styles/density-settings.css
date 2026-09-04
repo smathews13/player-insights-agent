@@ -17,6 +17,11 @@ html[data-density='compact'] .runtime-answer-row {
   padding-block: var(--density-row-padding-block);
 }
 
+html[data-density='compact'] .settings-section-icon {
+  width: 14px;
+  height: 14px;
+}
+
 html[data-density='compact'] .settings-modal-header,
 html[data-density='compact'] .settings-modal-footer,
 html[data-density='compact'] .settings-modal-content {

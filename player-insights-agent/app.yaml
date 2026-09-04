@@ -148,13 +148,18 @@ env:
   # untracked deployment override, never in this published file.
   - name: PLAYER_INSIGHTS_ORGANIZATIONS
     value: ''
-  # Optional deployment-private Slack destination shown under Report feedback.
-  # Both values stay empty in authored and committed builds. A release may inject
-  # a validated direct profile, member deep link, or Slack search URL plus the
-  # exact plain-text label the operator wants readers to see.
+  # Optional deployment-private Slack destinations for account actions. Every
+  # value stays empty in authored and committed builds. A release may inject a
+  # validated direct profile or exact-name search URL plus bounded plain-text
+  # labels. Feedback is for the app maintainers; escalation is a distinct
+  # customer Super Admin route and never appears inside the feedback submenu.
   - name: PLAYER_INSIGHTS_FEEDBACK_SLACK_URL
     value: ''
   - name: PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL
+    value: ''
+  - name: PLAYER_INSIGHTS_ESCALATION_SLACK_URL
+    value: ''
+  - name: PLAYER_INSIGHTS_ESCALATION_SLACK_LABEL
     value: ''
   # Optional deployment override for example SP profiles. Empty uses the
   # customer-neutral defaults compiled into the server. A validated array or

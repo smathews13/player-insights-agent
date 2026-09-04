@@ -26,14 +26,12 @@
 }
 
 /*
- * The step list: one bounded, hairline-ruled scroller rather than a stack of
- * cards.
+ * The step list: one hairline-ruled document rather than a stack of cards.
  *
  * The rows used to be separate 10px cards with a gap between them, which at four
  * steps read as four unrelated objects. They are rows of one list, so they get one
- * frame and a rule between them. The height stays bounded at the ~340px the spec
- * names: a long run pushes the composer off the screen otherwise, and dropping
- * rows is the behaviour this panel replaced.
+ * frame and a rule between them. Ask's center pane is the vertical scroll owner;
+ * this list grows inside it so the live card never creates a nested viewport.
  */
 .live-steps {
   list-style: none;
@@ -46,12 +44,7 @@
   min-width: 0;
   border: 1px solid var(--db-line);
   border-radius: var(--radius-sm);
-  max-height: 340px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  /* Reserve the vertical scrollbar before the list needs it. The third stage
-     must not take width away from the first two when the scroller appears. */
-  scrollbar-gutter: stable;
+  overflow: visible;
 }
 
 .live-step {

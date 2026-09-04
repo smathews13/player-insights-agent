@@ -58,7 +58,8 @@ describe('Run Explorer filter geometry', () => {
     expect(rule(BASE, '[data-radix-popper-content-wrapper]')).toContain('z-index: var(--ast-layer-menu)');
     expect(rule(BASE, '[data-radix-popper-content-wrapper]')).toContain('max-width: calc(100vw - 24px)');
     const menu = rule(BASE, '.app-select-content');
-    expect(menu).toContain('width: var(--radix-popover-trigger-width)');
+    expect(menu).toContain('max(var(--radix-popover-trigger-width), 18rem)');
+    expect(menu).toContain('max-width: min(24rem, calc(100vw - 24px))');
     expect(menu).toContain('var(--radix-popover-content-available-height)');
   });
 

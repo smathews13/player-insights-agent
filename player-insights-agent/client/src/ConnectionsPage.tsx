@@ -99,6 +99,7 @@ import { verdictBadgeVariant, type PreflightCheck } from './preflight';
 import { CHECK_VERDICT_LABEL } from '../../shared/check-verdict';
 // One mechanism runs the checks for the whole session, and both tabs read it.
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
+import { ConnectionRemovalStatus } from './ConnectionRemovalStatus';
 import {
   DECLARED_TABLES_SECTION_ID,
   RESOURCE_PRODUCT,
@@ -374,6 +375,7 @@ function Disclosure({
   summary,
   aside,
   action,
+  status,
   controls,
   children,
 }: {
@@ -383,6 +385,7 @@ function Disclosure({
   summary: string;
   aside?: string;
   action?: React.ReactNode;
+  status?: React.ReactNode;
   controls?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -396,6 +399,7 @@ function Disclosure({
             {aside ? <span className="connection-block-aside">{aside}</span> : null}
           </button>
           {action}
+          {status}
         </div>
         {controls ? <div className="connection-block-controls">{controls}</div> : null}
       </div>
@@ -1208,6 +1212,7 @@ export function DeclaredTablesSection({
       onToggle={() => setOpen((was) => !was)}
       summary="Unity Catalog scope"
       action={addAction}
+      status={<ConnectionRemovalStatus notice={controller.removalNotice} />}
       controls={<DeclaredTableControls filters={filters} catalogs={catalogs} schemas={schemas} onChange={setFilters} />}
     >
       {adding ? (
@@ -1225,11 +1230,6 @@ export function DeclaredTablesSection({
       {!storeAvailable && allowMutations ? (
         <span className="plane-error">
           The connection store is not answering, so Unity Catalog resources cannot change.
-        </span>
-      ) : null}
-      {controller.successNotice ? (
-        <span className="plane-success" role="status">
-          {controller.successNotice}
         </span>
       ) : null}
       <DeclaredTablesTable

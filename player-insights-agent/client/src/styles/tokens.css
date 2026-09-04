@@ -263,6 +263,16 @@
   --app-header-content-h: 52px;
   --app-header-safe-top: env(safe-area-inset-top, 0px);
   --app-header-h: calc(var(--app-header-content-h) + var(--app-header-safe-top));
+  /*
+   * One desktop pane length for Ask and Run Explorer. The preferred size gives
+   * the reading surfaces another 160px beyond the first viewport while the
+   * existing 760–1120px bounds keep short and very tall displays controlled.
+   */
+  --workspace-pane-block-size: clamp(
+    760px,
+    calc(100dvh - var(--app-header-h) + 160px - env(safe-area-inset-bottom, 0px)),
+    1120px
+  );
 
   /* The header's horizontal inset, as a token because the brand column's
      width is arithmetic on it: the rail is measured from the window's edge and

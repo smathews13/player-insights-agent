@@ -1,5 +1,6 @@
 @media (max-width: 800px) {
   .ops-page-controls {
+    grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
   }
   .ops-admin-action,

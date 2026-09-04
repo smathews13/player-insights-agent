@@ -828,6 +828,8 @@
   display: flex;
   flex: 1 1 auto;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   min-width: 0;
 }
 .connection-block-title-actions > .connection-block-summary {
@@ -975,6 +977,22 @@
   outline: 2px solid var(--primary);
   outline-offset: 2px;
   box-shadow: none;
+}
+.connection-removal-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  color: var(--ast-neg-text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.connection-removal-status > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
 }
 .connections-scope-copy {
   margin: 0 16px 10px;
@@ -2258,12 +2276,6 @@
   font-size: var(--ast-fs-12);
   color: var(--ast-neg-text);
 }
-.plane-success {
-  display: block;
-  padding: 8px 16px;
-  color: var(--ast-pos-text);
-  font-size: var(--text-sm);
-}
 /* The confirmation a removal asks for, carrying what stops working. Warning
    rather than danger: nothing has happened yet, and the reader can still keep
    it. */
@@ -2459,6 +2471,8 @@ html[data-animations='off'] .asset-picker-spinner {
 .plane-add-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 10px 16px;

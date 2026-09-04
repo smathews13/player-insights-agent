@@ -385,6 +385,8 @@ export interface EffectiveGrant {
 
 export interface PersonPanelPayload {
   email: string;
+  /** Canonical profile name when available; older servers may return only email. */
+  displayName?: string | null;
   role: Role;
   persona: { id: string; name: string } | null;
   organization: OrganizationMapping;

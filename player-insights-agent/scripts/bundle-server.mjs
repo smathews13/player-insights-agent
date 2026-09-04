@@ -415,11 +415,14 @@ async function main() {
   // role.
   const adminEmails = (process.env.PLAYER_INSIGHTS_ADMIN_EMAILS ?? '').trim();
   const organizations = (process.env.PLAYER_INSIGHTS_ORGANIZATIONS ?? '').trim();
-  // Deployment-private feedback routing. Authored defaults are empty; a release
-  // may carry a validated Slack URL and its exact display label into generated
-  // app.yaml without compiling either value into publishable JavaScript.
+  // Deployment-private account routing. Authored defaults are empty; a release
+  // may carry validated maintainer-feedback and customer-escalation Slack
+  // targets into generated app.yaml without compiling people or team ids into
+  // publishable JavaScript.
   const feedbackSlackUrl = (process.env.PLAYER_INSIGHTS_FEEDBACK_SLACK_URL ?? '').trim();
   const feedbackSlackLabel = (process.env.PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL ?? '').trim();
+  const escalationSlackUrl = (process.env.PLAYER_INSIGHTS_ESCALATION_SLACK_URL ?? '').trim();
+  const escalationSlackLabel = (process.env.PLAYER_INSIGHTS_ESCALATION_SLACK_LABEL ?? '').trim();
   // Empty is intentional: the server bundle contains the validated public
   // defaults. A deployment-provided array or explicit replace/extend object is
   // carried into app.yaml and interpreted fail-closed by the server.
@@ -451,9 +454,9 @@ async function main() {
         '        afterwards with:  git restore -- ':(glob)*/build/deploy/app.yaml''
     );
   }
-  if (feedbackSlackUrl || feedbackSlackLabel) {
+  if (feedbackSlackUrl || feedbackSlackLabel || escalationSlackUrl || escalationSlackLabel) {
     console.log(
-      '\n  note  the generated build/deploy/app.yaml now carries deployment-private feedback routing.\n' +
+      '\n  note  the generated build/deploy/app.yaml now carries deployment-private account routing.\n' +
         '        DO NOT COMMIT IT. bundle/app-release.sh restores the tracked authored file on exit.'
     );
   }
@@ -551,6 +554,22 @@ async function main() {
         : []),
       ...(feedbackSlackLabel
         ? [{ name: 'PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL', value: `'${feedbackSlackLabel.replaceAll("'", "''")}'` }]
+        : []),
+      ...(escalationSlackUrl
+        ? [
+            {
+              name: 'PLAYER_INSIGHTS_ESCALATION_SLACK_URL',
+              value: `'${escalationSlackUrl.replaceAll("'", "''")}'`,
+            },
+          ]
+        : []),
+      ...(escalationSlackLabel
+        ? [
+            {
+              name: 'PLAYER_INSIGHTS_ESCALATION_SLACK_LABEL',
+              value: `'${escalationSlackLabel.replaceAll("'", "''")}'`,
+            },
+          ]
         : []),
       ...(personaTemplateOverride
         ? [{ name: 'PLAYER_INSIGHTS_PERSONA_TEMPLATES', value: `'${personaTemplateOverride.replaceAll("'", "''")}'` }]

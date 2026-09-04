@@ -147,7 +147,7 @@ import { AstrolabeMark } from './AstrolabeMark';
 import { ConversationRailRunStatus } from './ConversationRailRunStatus';
 import { ConceptFlicker } from './ConceptFlicker';
 import { WorkingInlineRow } from './WorkingInlineRow';
-import { elapsedSeconds, seatForTranscript, WORKING_LABEL } from './working-animation';
+import { elapsedSeconds, seatForTranscript } from './working-animation';
 import { ToolCallsLabel } from './ToolCallsLabel';
 import {
   normalizeAnswer,
@@ -163,11 +163,11 @@ import { ComposerBudgetStatus } from './ComposerBudgetStatus';
 import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { conversationAge } from './conversation-age';
 import { PlanCard } from './PlanCard';
-import { measureComposerClearance, observeComposerClearance } from './composer-clearance';
 import { AgentPathConstellation } from './AgentConstellation';
 import { ConstellationField } from './ConstellationField';
 import { OPENING_CONSTELLATION } from './constellation';
 import { StoredAnswerBoundary } from './StoredAnswerBoundary';
+import { deriveCurrentStageView } from './current-stage-view';
 import { useStartupReadiness } from './startup-readiness';
 import {
   preloadStoredAnswerRendererForHistory,
@@ -665,6 +665,11 @@ export function HomePage() {
         })
       : undefined
   );
+  const currentStage = deriveCurrentStageView({
+    stages: railStages,
+    runActive: loading || Boolean(displayedRunStopped),
+    hasFinalAnswer: Boolean(answer),
+  });
   /**
    * Which step is in progress, one-based, or 0 when the run has not said so.
    *
@@ -704,8 +709,7 @@ export function HomePage() {
    * made the path pop; AgentPathConstellation uses the absent clock to stop every
    * beat while retaining the final observed step.
    */
-  const railActiveIndex =
-    (loading || Boolean(displayedRunStopped)) && liveStages.length > 0 ? railStages.length - 1 : -1;
+  const railActiveIndex = (loading || Boolean(displayedRunStopped)) && liveStages.length > 0 ? currentStage.index : -1;
   /**
    * How long the step in progress has been going, for the one row that ticks.
    *
@@ -2410,38 +2414,15 @@ export function HomePage() {
   /*
    * Nothing has been asked yet, which is a layout as well as a state.
    *
-   * The hero and the composer both read it: on an empty transcript the composer
-   * leaves its fixed seat at the bottom of the window and sits in the flow under
-   * the headline, where the thing a reader has come to do is the thing in front of
-   * them. Once there is a transcript it goes back to the bottom, because then it
-   * is a control over a document rather than the document.
+   * The hero and the composer both read it: on an empty transcript the center
+   * pane returns to content height, so the in-flow composer follows the headline
+   * without an answer-sized blank region between them.
    *
-   * `loading` is in the test so the composer does not travel the height of the
-   * window between submitting the first question and the answer arriving. The
-   * first question is appended to `messages` immediately, so this goes false on
-   * the same render that draws the reader's own bubble.
+   * The first question is appended to `messages` immediately, so this goes false
+   * on the same render that draws the reader's own bubble and activates the
+   * shared-height scroll pane above the composer.
    */
   const transcriptEmpty = messages.length === 0 && !loading && !conversationLoading;
-
-  /*
-   * The fixed composer is not one height: attachments, extraction failures and
-   * the narrow run summary all add rows. Measure the element that is actually on
-   * screen and publish the clearance only to this Ask transcript. The observer
-   * utility also measures once immediately and falls back to DOM/viewport
-   * observation in browsers without ResizeObserver.
-   */
-  useLayoutEffect(() => {
-    const scope = conversationMainRef.current;
-    const composer = composerRef.current;
-    if (!scope || !composer) return;
-    return observeComposerClearance(scope, composer);
-  }, []);
-  useLayoutEffect(() => {
-    const scope = conversationMainRef.current;
-    const composer = composerRef.current;
-    if (!scope || !composer) return;
-    measureComposerClearance(scope, composer, window.innerHeight);
-  }, [transcriptEmpty]);
 
   /*
    * Whether the harness column is drawing a run, or the idle silhouette.
@@ -2454,7 +2435,12 @@ export function HomePage() {
   const inspectorIdle = railStages.length === 0 && !loading;
 
   return (
-    <div className="ask-layout" data-inspector={inspectorIdle ? 'idle' : 'run'}>
+    <div
+      className="ask-layout"
+      data-inspector={inspectorIdle ? 'idle' : 'run'}
+      data-transcript={transcriptEmpty ? 'empty' : 'active'}
+      data-stage-mode={currentStage.mode}
+    >
       <aside className="conversation-rail ast-surface-primary">{renderRail('rail')}</aside>
 
       {/* The sheet's trigger, drawn only below 800px, where the aside is not.
@@ -2483,148 +2469,151 @@ export function HomePage() {
         </SheetContent>
       </Sheet>
 
-      <section ref={conversationMainRef} className={`conversation-main${transcriptEmpty ? ' is-empty' : ''}`}>
-        {transcriptEmpty && (
-          <div className="ask-hero">
-            {/* The chip that introduces the agent, carrying the small cut of the
+      <div className="conversation-column">
+        <section ref={conversationMainRef} className={`conversation-main${transcriptEmpty ? ' is-empty' : ''}`}>
+          {transcriptEmpty && (
+            <div className="ask-hero">
+              {/* The chip that introduces the agent, carrying the small cut of the
                 mark on Ice. THE MARK IS THE AGENT (§1): the orange robot is
                 retired, and the figure a reader meets on an empty transcript is
                 now the same drawing as the app's own mark in the header and the
                 one the loaders flicker through. It is decorative, because the
                 words beside it are the label. */}
-            <div className="ask-hero-chip">
-              <span className="ask-hero-chip-mark">
-                <AstrolabeMark size={18} />
-              </span>
-              astrolabe player intelligence
-            </div>
-            <h2>What would you like to understand about your players?</h2>
-          </div>
-        )}
-
-        {!conversationLoading && (olderMessages.hasMore || olderMessagesLoading || olderMessagesError) ? (
-          <div className="message-pagination" aria-live="polite">
-            {olderMessages.hasMore ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                data-message-pagination="older"
-                disabled={olderMessagesLoading}
-                onClick={() => void loadOlderMessages()}
-              >
-                {olderMessagesLoading ? (
-                  <>
-                    <Loader2 className="animate-spin" aria-hidden="true" /> Loading older messages…
-                  </>
-                ) : (
-                  'Load older messages'
-                )}
-              </Button>
-            ) : null}
-            {olderMessagesError ? (
-              <p className="message-pagination-error" role="alert">
-                {olderMessagesError}
-              </p>
-            ) : olderMessagesLoading ? (
-              <span className="sr-only" role="status">
-                Loading older messages
-              </span>
-            ) : null}
-          </div>
-        ) : null}
-
-        {!conversationLoading &&
-          messages.map((message, index) => {
-            // The memoized parse, so the object handed to the cards below keeps
-            // its identity between renders and the charts are not rebuilt.
-            const response = parsedResponses.get(message.id);
-            // This answer's own feedback, looked up by the ANSWER's id rather
-            // than the message's -- they are not always the same value -- so no
-            // other answer's rating, comment or saved flag can appear here.
-            // Only an answer has one: a plan and a clarification are not turns
-            // anybody rates, and the two carry no id to rate them by.
-            const rated =
-              response && response.type !== 'plan' && response.type !== 'clarification'
-                ? feedback[response.id]
-                : undefined;
-            const entry = rated ?? emptyFeedback;
-            return (
-              <div
-                key={message.id}
-                id={`conversation-message-${message.id}`}
-                className="conversation-message"
-                tabIndex={-1}
-              >
-                <MessageItem
-                  message={message}
-                  response={response}
-                  asker={asker}
-                  canOpenUser={adminSharedRail}
-                  loading={loading}
-                  // A plan is answered by the user's approval, before the agent has
-                  // produced its next assistant message. Comparing only with the
-                  // last ASSISTANT row left the approved card interactive for the
-                  // entire continuation run: the approval row was below it, but
-                  // `lastAssistantIndex` still pointed at the plan itself.
-                  resolved={index < messages.length - 1}
-                  // How it was settled, which the row above cannot tell from the
-                  // row below being there: a plan is settled by approving it and
-                  // also by revising it away, and only one of those two ran
-                  // anything. The approval writes a known sentence as its user
-                  // turn -- here and on the server -- so the turn under the plan
-                  // is what says which happened.
-                  approved={messages[index + 1]?.content === PLAN_APPROVAL_LABEL}
-                  // The turn this answered, for the timeline's envelope row. Read
-                  // from the transcript rather than the trace, which does not
-                  // carry the prompt.
-                  question={index > 0 && messages[index - 1].role === 'user' ? messages[index - 1].content : ''}
-                  feedback={entry}
-                  // The last answer, as before, and also any answer that already
-                  // carries a rating. Only the last one offered the controls, so an
-                  // answer rated earlier in a thread came back with its rating
-                  // nowhere on screen -- indistinguishable from the rating having
-                  // been lost, which is what it was reported as.
-                  showFeedback={(index === lastAssistantIndex && !loading) || Boolean(entry.saved)}
-                  onAsk={askRow}
-                  onFeedbackChange={changeFeedback}
-                  onSaveFeedback={rateRow}
-                  processStages={
-                    index === lastAssistantIndex &&
-                    response &&
-                    response.type !== 'plan' &&
-                    response.type !== 'clarification' &&
-                    response.trace.stages.length === 0
-                      ? liveStages
-                      : undefined
-                  }
-                />
+              <div className="ask-hero-chip">
+                <span className="ask-hero-chip-mark">
+                  <AstrolabeMark size={18} />
+                </span>
+                astrolabe player intelligence
               </div>
-            );
-          })}
+              <h2>What would you like to understand about your players?</h2>
+            </div>
+          )}
 
-        {(loading || conversationLoading) && (
-          <Card className="answer-card">
-            <CardContent className={workingSeat === 'splash' ? 'ast-splash' : 'pt-6 space-y-5'}>
-              {/* The working animation is for a run that is actually running.
+          {!conversationLoading && (olderMessages.hasMore || olderMessagesLoading || olderMessagesError) ? (
+            <div className="message-pagination" aria-live="polite">
+              {olderMessages.hasMore ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-message-pagination="older"
+                  disabled={olderMessagesLoading}
+                  onClick={() => void loadOlderMessages()}
+                >
+                  {olderMessagesLoading ? (
+                    <>
+                      <Loader2 className="animate-spin" aria-hidden="true" /> Loading older messages…
+                    </>
+                  ) : (
+                    'Load older messages'
+                  )}
+                </Button>
+              ) : null}
+              {olderMessagesError ? (
+                <p className="message-pagination-error" role="alert">
+                  {olderMessagesError}
+                </p>
+              ) : olderMessagesLoading ? (
+                <span className="sr-only" role="status">
+                  Loading older messages
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!conversationLoading &&
+            messages.map((message, index) => {
+              // The memoized parse, so the object handed to the cards below keeps
+              // its identity between renders and the charts are not rebuilt.
+              const response = parsedResponses.get(message.id);
+              // This answer's own feedback, looked up by the ANSWER's id rather
+              // than the message's -- they are not always the same value -- so no
+              // other answer's rating, comment or saved flag can appear here.
+              // Only an answer has one: a plan and a clarification are not turns
+              // anybody rates, and the two carry no id to rate them by.
+              const rated =
+                response && response.type !== 'plan' && response.type !== 'clarification'
+                  ? feedback[response.id]
+                  : undefined;
+              const entry = rated ?? emptyFeedback;
+              return (
+                <div
+                  key={message.id}
+                  id={`conversation-message-${message.id}`}
+                  className="conversation-message"
+                  tabIndex={-1}
+                >
+                  <MessageItem
+                    message={message}
+                    response={response}
+                    asker={asker}
+                    canOpenUser={adminSharedRail}
+                    loading={loading}
+                    // A plan is answered by the user's approval, before the agent has
+                    // produced its next assistant message. Comparing only with the
+                    // last ASSISTANT row left the approved card interactive for the
+                    // entire continuation run: the approval row was below it, but
+                    // `lastAssistantIndex` still pointed at the plan itself.
+                    resolved={index < messages.length - 1}
+                    // How it was settled, which the row above cannot tell from the
+                    // row below being there: a plan is settled by approving it and
+                    // also by revising it away, and only one of those two ran
+                    // anything. The approval writes a known sentence as its user
+                    // turn -- here and on the server -- so the turn under the plan
+                    // is what says which happened.
+                    approved={messages[index + 1]?.content === PLAN_APPROVAL_LABEL}
+                    // The turn this answered, for the timeline's envelope row. Read
+                    // from the transcript rather than the trace, which does not
+                    // carry the prompt.
+                    question={index > 0 && messages[index - 1].role === 'user' ? messages[index - 1].content : ''}
+                    feedback={entry}
+                    // The last answer, as before, and also any answer that already
+                    // carries a rating. Only the last one offered the controls, so an
+                    // answer rated earlier in a thread came back with its rating
+                    // nowhere on screen -- indistinguishable from the rating having
+                    // been lost, which is what it was reported as.
+                    showFeedback={(index === lastAssistantIndex && !loading) || Boolean(entry.saved)}
+                    onAsk={askRow}
+                    onFeedbackChange={changeFeedback}
+                    onSaveFeedback={rateRow}
+                    processStages={
+                      index === lastAssistantIndex &&
+                      response &&
+                      response.type !== 'plan' &&
+                      response.type !== 'clarification' &&
+                      response.trace.stages.length === 0
+                        ? liveStages
+                        : undefined
+                    }
+                  />
+                </div>
+              );
+            })}
+
+          {(loading || conversationLoading) && (
+            <Card className="answer-card">
+              <CardContent className={workingSeat === 'splash' ? 'ast-splash' : 'pt-6 space-y-5'}>
+                {/* The working animation is for a run that is actually running.
                   Restoring a saved conversation from Lakebase is not the agent
                   working -- nothing is being asked and nothing is being read --
                   so that case keeps the still mark it always had. Miming a run
                   over a database read is the same invention as a progress bar
                   that fills on a timer. */}
-              {conversationLoading ? (
-                <div className="flex items-center gap-3">
-                  <div className="ask-loading-mark">
-                    <AstrolabeMark size={26} />
+                {conversationLoading ? (
+                  <div className="flex items-center gap-3">
+                    <div className="ask-loading-mark">
+                      <AstrolabeMark size={26} />
+                    </div>
+                    <div>
+                      <p className="font-medium">Loading conversation</p>
+                      <p className="text-sm text-muted-foreground">
+                        Restoring the saved answer and trace from Lakebase.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium">Loading conversation</p>
-                    <p className="text-sm text-muted-foreground">Restoring the saved answer and trace from Lakebase.</p>
-                  </div>
-                </div>
-              ) : workingSeat === 'splash' ? (
-                <>
-                  {/* `#17a`'s splash seating: 72px, centred, alone. It is the
+                ) : workingSeat === 'splash' ? (
+                  <>
+                    {/* `#17a`'s splash seating: 72px, centred, alone. It is the
                       splash's whole drawing rather than the narrow window's
                       alternative to `#5ar`'s panel, because the panel is a
                       520x220 sky above a two-line status and the wait it sat
@@ -2632,71 +2621,74 @@ export function HomePage() {
                       question and what the agent is doing now pushed both off
                       the fold. The mark cycling through its four concepts says
                       the same thing in a seventh of the height. */}
-                  <div className="ast-flick-splash">
-                    <ConceptFlicker seat="splash" />
-                  </div>
-                  {/* The count under the panel, which is where the splash puts
+                    <div className="ast-flick-splash">
+                      <ConceptFlicker seat="splash" />
+                    </div>
+                    {/* The count under the panel, which is where the splash puts
                       it: the panel's own status line says what the agent is
                       doing, and repeating the number inside it would put the
                       same figure on screen twice a few pixels apart. */}
-                  <div className="ast-splash-copy">
-                    <strong>{WORKING_LABEL}</strong>
-                    {elapsed ? (
-                      <>
-                        <span className="ast-sep" />
-                        <strong className="ast-num">{elapsed}</strong>
-                      </>
-                    ) : null}
-                  </div>
-                </>
-              ) : null}
-              {/* Still indeterminate, and still for the original reason: the run
+                    <div className="ast-splash-copy">
+                      <strong>{currentStage.label}</strong>
+                      {elapsed ? (
+                        <>
+                          <span className="ast-sep" />
+                          <strong className="ast-num">{elapsed}</strong>
+                        </>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <WorkingInlineRow elapsed={elapsed} label={currentStage.label} />
+                )}
+                {/* Still indeterminate, and still for the original reason: the run
                   reports each step on finishing it, so the client knows what has
                   happened but never how much is left -- the agent takes as many
                   steps as the question needs. A percentage would be the same
                   invention as the four hardcoded stage names this replaced, which
                   ticked to full in 2.6 seconds and froze for the remaining 23. */}
-              {!conversationLoading && <Progress value={null} aria-label="Planning out your answer" />}
-              {/* The run, said from what has been observed of it: the request
+                {!conversationLoading && <Progress value={null} aria-label={currentStage.label} />}
+                {/* The run, said from what has been observed of it: the request
                   going out, then each step with the arguments it was actually
                   given. The skeletons this replaces stood in for content that
                   was fourteen seconds away, under a sentence promising each
                   step "as it finishes" -- which is not what the endpoint does.
                   See live-progress.ts. */}
-              {conversationLoading ? (
-                <>
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-20 w-full" />
-                </>
-              ) : (
-                <div className={workingSeat === 'splash' ? 'ast-splash-run' : undefined}>
-                  <LiveProgress
-                    stages={liveStages}
-                    openedAt={streamOpenedAt}
-                    lastStageAt={lastStageAt}
-                    now={now}
-                    question={askedQuestion}
-                    elapsedMs={railElapsedMs}
-                  />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                {conversationLoading ? (
+                  <>
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-20 w-full" />
+                  </>
+                ) : (
+                  <div className={workingSeat === 'splash' ? 'ast-splash-run' : undefined}>
+                    <LiveProgress
+                      stages={liveStages}
+                      openedAt={streamOpenedAt}
+                      lastStageAt={lastStageAt}
+                      now={now}
+                      question={askedQuestion}
+                      elapsedMs={railElapsedMs}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-        {askUnavailable && <UnavailablePanel notice={askUnavailable} />}
-        {displayedStopNotice && (
-          <Alert>
-            <AlertDescription>{displayedStopNotice}</AlertDescription>
-          </Alert>
-        )}
-        {error && (
-          <Alert>
-            <CircleAlert />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        <div ref={transcriptEndRef} className="transcript-end" aria-hidden="true" />
+          {askUnavailable && <UnavailablePanel notice={askUnavailable} />}
+          {displayedStopNotice && (
+            <Alert>
+              <AlertDescription>{displayedStopNotice}</AlertDescription>
+            </Alert>
+          )}
+          {error && (
+            <Alert>
+              <CircleAlert />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <div ref={transcriptEndRef} className="transcript-end" aria-hidden="true" />
+        </section>
         <form
           ref={composerRef}
           className="composer"
@@ -2875,7 +2867,7 @@ export function HomePage() {
             </Button>
           </div>
         </form>
-      </section>
+      </div>
 
       <aside className="trace-inspector" ref={inspectorRef}>
         {/* Idle silhouette only. It used to unmount the moment the first step
@@ -2912,6 +2904,7 @@ export function HomePage() {
             stages={railStages}
             activeIndex={railActiveIndex}
             elapsedMs={railElapsedMs}
+            currentStage={currentStage}
             totalMs={answer?.trace.totalMs ?? asked?.trace.totalMs ?? null}
             thread={conversationId}
             turn={railTurn}
@@ -2932,7 +2925,7 @@ export function HomePage() {
                going and the pill above says the same; a third line naming the
                absence of steps is the list apologising for being empty. */
           <div className="trace-working">
-            <WorkingInlineRow elapsed={elapsed} />
+            <WorkingInlineRow elapsed={elapsed} label={currentStage.label} />
           </div>
         ) : null}
         {answer && (

@@ -736,6 +736,7 @@ export function ResourceBrowser({
         <summary
           className="sp-resource-trigger roster-control"
           aria-label={`Browse configured resources for permission ${index + 1}`}
+          title={selected ? `${selected.label} — ${selected.id}` : grant.resource || 'Browse configured resources'}
         >
           <FolderOpen className="size-3.5" aria-hidden="true" />
           {selected ? (
@@ -800,6 +801,9 @@ export function ResourceBrowser({
                   type="button"
                   key={`${resource.type}:${resource.id}`}
                   className="sp-resource-option"
+                  aria-pressed={selected?.type === resource.type && selected.id === resource.id}
+                  aria-label={`${resource.label} — ${resource.id}`}
+                  title={`${resource.label} — ${resource.id}`}
                   onClick={() => {
                     onPick(resource);
                     details.current?.removeAttribute('open');
@@ -1248,7 +1252,12 @@ function SpConnectionSetup({
               <div className="sp-connection-fields" data-testid="sp-connection-reference-fields">
                 <label className="runtime-field">
                   <span className="runtime-field-label">Application ID</span>
-                  <Input value={clientId} onChange={(event) => setClientId(event.target.value)} disabled={busy} required />
+                  <Input
+                    value={clientId}
+                    onChange={(event) => setClientId(event.target.value)}
+                    disabled={busy}
+                    required
+                  />
                   <span className="sp-connection-help">Service principal identifier.</span>
                 </label>
                 <label className="runtime-field">
@@ -1263,7 +1272,12 @@ function SpConnectionSetup({
                 </label>
                 <label className="runtime-field">
                   <span className="runtime-field-label">Secret key</span>
-                  <Input value={secretKey} onChange={(event) => setSecretKey(event.target.value)} disabled={busy} required />
+                  <Input
+                    value={secretKey}
+                    onChange={(event) => setSecretKey(event.target.value)}
+                    disabled={busy}
+                    required
+                  />
                   <span className="sp-connection-help">Key name only — never the value.</span>
                 </label>
               </div>

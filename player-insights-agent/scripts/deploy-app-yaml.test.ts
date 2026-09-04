@@ -13,6 +13,12 @@ const bundleServer = readFileSync(path.join(repoRoot, 'scripts', 'bundle-server.
 const appRelease = readFileSync(path.join(repoRoot, '..', 'bundle', 'app-release.sh'), 'utf8');
 const appSourceStaging = readFileSync(path.join(repoRoot, '..', 'bundle', 'app-source-staging.sh'), 'utf8');
 const defaultPersonaTemplates = readFileSync(path.join(repoRoot, 'shared', 'default-sp-persona-templates.ts'), 'utf8');
+const accountRoutingSources = [
+  authored,
+  bundleServer,
+  readFileSync(path.join(repoRoot, 'shared', 'account-feedback.ts'), 'utf8'),
+  readFileSync(path.join(repoRoot, 'client', 'src', 'AccountMenuPanel.tsx'), 'utf8'),
+];
 const idlePolicyDocuments = [
   readFileSync(path.join(repoRoot, '..', 'README.md'), 'utf8'),
   readFileSync(path.join(repoRoot, '..', 'mirror', 'public-README.md'), 'utf8'),
@@ -316,8 +322,13 @@ describe('every authored variable reaches the deploy target', () => {
     expect(generated.match(/name: PLAYER_INSIGHTS_ADMIN_EMAILS/g)).toHaveLength(1);
   });
 
-  it('keeps feedback routing deployment-only and carries explicit release values', () => {
-    for (const name of ['PLAYER_INSIGHTS_FEEDBACK_SLACK_URL', 'PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL']) {
+  it('keeps account routing deployment-only and carries explicit release values without swapping routes', () => {
+    for (const name of [
+      'PLAYER_INSIGHTS_FEEDBACK_SLACK_URL',
+      'PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL',
+      'PLAYER_INSIGHTS_ESCALATION_SLACK_URL',
+      'PLAYER_INSIGHTS_ESCALATION_SLACK_LABEL',
+    ]) {
       const localName = name.replace('PLAYER_INSIGHTS_', '');
       expect(envNames(authored)).toContain(name);
       expect(new RegExp(`- name: ${name}\\n\\s+value: '?([^'\\n]*)'?`).exec(authored)?.[1]).toBe('');
@@ -326,19 +337,38 @@ describe('every authored variable reaches the deploy target', () => {
       expect(appRelease).toContain(`${name}="$${localName}"`);
     }
 
-    const url = `https://app.slack.com/client/T${'1'.repeat(8)}/search?q=Feedback%20contact`;
+    const feedbackUrl = `slack://user?team=T${'1'.repeat(8)}&id=U${'2'.repeat(8)}`;
+    const escalationUrl = `https://app.slack.com/client/T${'3'.repeat(8)}/search?q=Customer%20Admin`;
     const generated = renderDeployAppYaml(authored, {
       ...DEPLOY_OVERRIDES,
       env: [
         ...DEPLOY_OVERRIDES.env,
-        { name: 'PLAYER_INSIGHTS_FEEDBACK_SLACK_URL', value: `'${url}'` },
-        { name: 'PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL', value: "'Feedback contact'" },
+        { name: 'PLAYER_INSIGHTS_FEEDBACK_SLACK_URL', value: `'${feedbackUrl}'` },
+        { name: 'PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL', value: "'Message Maintainer in Slack'" },
+        { name: 'PLAYER_INSIGHTS_ESCALATION_SLACK_URL', value: `'${escalationUrl}'` },
+        { name: 'PLAYER_INSIGHTS_ESCALATION_SLACK_LABEL', value: "'Find Customer Admin in Slack'" },
       ],
     });
-    expect(generated).toContain(`name: PLAYER_INSIGHTS_FEEDBACK_SLACK_URL\n    value: '${url}'`);
-    expect(generated).toContain("name: PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL\n    value: 'Feedback contact'");
+    expect(generated).toContain(`name: PLAYER_INSIGHTS_FEEDBACK_SLACK_URL\n    value: '${feedbackUrl}'`);
+    expect(generated).toContain("name: PLAYER_INSIGHTS_FEEDBACK_SLACK_LABEL\n    value: 'Message Maintainer in Slack'");
+    expect(generated).toContain(`name: PLAYER_INSIGHTS_ESCALATION_SLACK_URL\n    value: '${escalationUrl}'`);
+    expect(generated).toContain(
+      "name: PLAYER_INSIGHTS_ESCALATION_SLACK_LABEL\n    value: 'Find Customer Admin in Slack'"
+    );
+    expect(generated.indexOf(feedbackUrl)).toBeLessThan(generated.indexOf(escalationUrl));
     expect(appRelease).toContain('on_exit restore_deploy_app_yaml');
     expect(appRelease).toContain('git -C "$BUNDLE_ROOT" restore -- "$DEPLOY_APP_YAML_REL"');
+  });
+
+  it('keeps people, team ids, and member ids out of neutral build sources', () => {
+    const neutralBuildSource = [...accountRoutingSources, renderDeployAppYaml(authored, DEPLOY_OVERRIDES)].join('\n');
+    const privateValues = [
+      ['Named', 'Maintainer'].join(' '),
+      ['Customer', 'Administrator'].join(' '),
+      ['T00', 'PRIVATE'].join(''),
+      ['U00', 'PRIVATE'].join(''),
+    ];
+    for (const value of privateValues) expect(neutralBuildSource).not.toContain(value);
   });
 
   it('embeds public defaults in the server and carries only explicit deployment overrides in app.yaml', () => {

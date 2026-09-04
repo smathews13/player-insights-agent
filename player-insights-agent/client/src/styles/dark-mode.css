@@ -248,7 +248,7 @@ html[data-theme='dark'] .live-steps {
   border-color: var(--ast-border-input);
 }
 
-/* The composer occludes the transcript scrolling behind its fixed shell. */
+/* The in-flow composer uses the same opaque reading surface as the rail. */
 html[data-theme='dark'] .composer {
   background: var(--ast-surface-primary);
   background-image: none;

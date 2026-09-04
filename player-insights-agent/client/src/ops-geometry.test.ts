@@ -255,13 +255,14 @@ describe('the Cost budget layout', () => {
     );
   });
 
-  it('aligns the App ticker, Apply, and status on the same control-height rail', () => {
+  it('aligns the App ticker and Apply while allowing three history rows to grow', () => {
     expect(rule('.ops-cost-total .ops-ticker-input-row')).toMatch(/display:\s*grid/);
-    expect(rule('.ops-cost-total .ops-ticker-input-row')).toMatch(/align-items:\s*stretch/);
+    expect(rule('.ops-cost-total .ops-ticker-input-row')).toMatch(/align-items:\s*start/);
     expect(rule('.ops-ticker-input-row')).toMatch(/--ops-ticker-control-height:\s*36px/);
     expect(rule('.ops-number-ticker-wide input')).toMatch(/height:\s*var\(--ops-ticker-control-height,\s*36px\)/);
     expect(rule('.ops-cost-total .ops-budget-apply')).toMatch(/height:\s*var\(--ops-ticker-control-height\)/);
-    expect(rule('.ops-app-budget-status')).toMatch(/height:\s*var\(--ops-ticker-control-height\)/);
+    expect(rule('.ops-app-budget-status')).toMatch(/min-height:\s*0/);
+    expect(rule('.ops-recent-monthly-spend-list')).toMatch(/display:\s*grid/);
     expect(RESPONSIVE).toMatch(
       /@media \(max-width: 480px\)[\s\S]*\.ops-cost-total \.ops-ticker-input-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto/
     );
@@ -314,7 +315,7 @@ describe('the Cost card layout', () => {
     }
     expect(rule('.ops-cost-resource')).toMatch(/text-overflow:\s*ellipsis/);
     expect(rule('.ops-tile-evidence')).toMatch(/overflow-wrap:\s*anywhere/);
-    expect(rule('.ops-cost-summary-budget')).toMatch(/grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+    expect(rule('.ops-cost-summary-budget')).toMatch(/display:\s*block/);
     expect(rule('.ops-cost-summary-budget-item')).toMatch(/min-width:\s*0/);
     expect(rule('.ops-block-title-group')).toMatch(/white-space:\s*nowrap/);
   });

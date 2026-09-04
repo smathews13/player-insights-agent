@@ -152,6 +152,9 @@
   .monitoring-users-toolbar {
     top: -14px;
   }
+  .monitoring-users-toolbar-view {
+    justify-content: flex-start;
+  }
   .monitoring-feedback-table,
   .monitoring-feedback-table tbody,
   .monitoring-feedback-table tr,
@@ -222,8 +225,22 @@
   .monitoring-users-toolbar > * {
     width: 100%;
   }
+  .monitoring-users-toolbar-filters > *,
+  .monitoring-users-toolbar-filters .monitoring-users-search,
+  .monitoring-users-toolbar-filters [data-slot='select-trigger'] {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .monitoring-users-toolbar-view {
+    align-items: flex-start;
+  }
+  .monitoring-organization-select {
+    min-width: 0;
+  }
   .monitoring-organization-trigger {
     width: 100%;
+    min-width: 0;
     max-width: none;
   }
   .monitoring-users-toolbar .unit-segmented-control {

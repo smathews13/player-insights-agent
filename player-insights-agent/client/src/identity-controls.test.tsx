@@ -79,9 +79,34 @@ describe('Settings Identity controls', () => {
       />
     );
     expect(markup).toContain('aria-label="User role for admin@example.com: Admin"');
+    expect(markup).toContain('data-role-state="super_admin"');
+    expect(markup).not.toContain('aria-live=');
     expect(markup).toContain('aria-label="Persona for admin@example.com: No persona"');
     expect(markup).toContain('>Owner</span>');
     expect(markup).not.toContain('aria-label="Persona for owner@example.com');
+  });
+
+  it('renders every locked role cell with the canonical non-live badge', () => {
+    const payload = roster(
+      (['super_admin', 'admin', 'consumer'] as const).map((role) => ({
+        email: `${role}@example.com`,
+        role,
+        seedFloor: role,
+        setBy: '',
+        setAt: '',
+        isYou: false,
+        assignable: [],
+        canRemove: false,
+      }))
+    );
+    const markup = renderToStaticMarkup(
+      <RosterRows payload={payload} busy={false} manageHumanRoles={false} onChange={() => {}} onRemove={() => {}} />
+    );
+    for (const role of ['super_admin', 'admin', 'consumer']) {
+      expect(markup).toContain(`data-role-state="${role}"`);
+    }
+    expect(markup).not.toContain('roster-role-status');
+    expect(markup).not.toContain('aria-live=');
   });
 
   it('removes the empty add-user helper while preserving the field label and placeholder', () => {

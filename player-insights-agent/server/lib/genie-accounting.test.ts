@@ -129,6 +129,40 @@ describe('Genie billing classification', () => {
     expect(result.freeEquivalentUsd).toBeCloseTo(4.234);
   });
 
+  it('allows legitimate per-space charged spend to exceed free equivalent value', () => {
+    const result = classifyGenieAccounting(
+      [
+        row({
+          spaceId: 'space-data',
+          attributionMethod: 'query-history-exact',
+          dbus: 2.65,
+          freeEquivalentUsd: 0.53,
+        }),
+        row({
+          identity: 'service-principal-id',
+          identityKind: 'service_principal',
+          surface: 'GENIE_AGENTS',
+          skuName: 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_US_EAST_N_VIRGINIA',
+          spaceId: 'space-data',
+          attributionMethod: 'query-history-exact',
+          dbus: 21.55,
+          paidUsd: 4.31,
+          pricedRows: 1,
+        }),
+      ],
+      '2026-09-01',
+      SPACES
+    );
+    expect(result.instances?.[0]).toMatchObject({
+      freeEquivalentUsd: 0.53,
+      paidUsd: 4.31,
+      chargedEffectiveDbus: 21.55,
+      chargedRawEquivalentDbus: 16.1625,
+    });
+    expect(result.instances?.[0].sourceDbus).toBeCloseTo(24.2);
+    expect(result.reconciliation?.classificationDifferenceDbus).toBe(0);
+  });
+
   it('preserves missing comparable price as unavailable instead of zero', () => {
     const result = classifyGenieAccounting(
       [row({ spaceId: 'space-data', attributionMethod: 'query-history-exact', freeEquivalentUsd: null })],
@@ -364,6 +398,32 @@ describe('Genie billing classification', () => {
     expect(result.paidUsd).toBe(0);
     expect(result.pricingState).toBe('priced');
     expect(result.reconciliation?.classificationDifferenceDbus).toBe(0);
+  });
+
+  it('classifies every paid service-principal row as charged with no allowance or promotion', () => {
+    const result = classifyGenieAccounting(
+      [
+        row({
+          identity: 'service-principal-id',
+          identityKind: 'service_principal',
+          surface: 'GENIE_ONE',
+          skuName: 'ENTERPRISE_SERVERLESS_REAL_TIME_INFERENCE_US_EAST_N_VIRGINIA',
+          dbus: 10,
+          paidUsd: 2,
+          pricedRows: 1,
+        }),
+      ],
+      '2026-09-01'
+    );
+    expect(result).toMatchObject({
+      humanUsers: 0,
+      allowanceUsedDbus: 0,
+      promotionalDbus: 0,
+      chargedEffectiveDbus: 10,
+      chargedRawEquivalentDbus: 7.5,
+      paidUsd: 2,
+      unknownDbus: 0,
+    });
   });
 
   it('keeps free rows with unknown surface or identity in exact reconciliation', () => {

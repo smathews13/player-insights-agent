@@ -109,10 +109,11 @@ describe('the Ops catalog scope modal', () => {
   it('keeps button geometry stable and supports dark/light, density, and responsive layouts', () => {
     const idle = renderToStaticMarkup(<CheckScopesButton busy={false} onClick={() => {}} />);
     const busy = renderToStaticMarkup(<CheckScopesButton busy onClick={() => {}} />);
-    expect(idle).toContain('Check scopes');
+    expect(idle).toContain('Check all scopes');
+    expect(idle).toContain('data-variant="default"');
     expect(busy).toContain('Checking…');
     expect(busy).toContain('ast-flick-slot--button');
-    expect(STYLES).toMatch(/\.ops-scope-check-button\s*\{[^}]*width:\s*112px[^}]*min-width:\s*112px/);
+    expect(STYLES).toMatch(/\.ops-scope-check-button\s*\{[^}]*width:\s*132px[^}]*min-width:\s*132px/);
     expect(STYLES).toMatch(/\.ops-scope-status\[data-scope-status='in'\][^]*var\(--ast-pos-text\)/);
     expect(STYLES).toMatch(/\.ops-scope-status\[data-scope-status='out'\][^]*var\(--ast-neg-text\)/);
     expect(STYLES).toContain("data-scope-status='unavailable'");

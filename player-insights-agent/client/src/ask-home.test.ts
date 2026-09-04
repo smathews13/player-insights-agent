@@ -24,7 +24,6 @@ const STYLESHEET = stylesheet();
 const RESPONSIVE = partial('responsive.css');
 const RESPONSIVE_BASE = readFileSync(new URL('./styles/responsive.css', import.meta.url), 'utf8');
 const RAIL = partial('rail.css');
-const COMPOSER = partial('composer.css');
 const HOME_PAGE = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
 const OWNER_SELECT = [
   readFileSync(new URL('ConversationOwnerSelect.tsx', import.meta.url), 'utf8'),
@@ -38,7 +37,9 @@ describe('the harness column stays reserved when there is no run', () => {
     expect(withoutComments(RAIL)).not.toMatch(
       /\.ask-layout\[data-inspector=['"]idle['"]\]\s*\{[^}]*--trace-width:\s*0px/
     );
-    expect(withoutComments(COMPOSER)).toMatch(/right:\s*calc\(var\(--trace-width\)/);
+    expect(body('.ask-layout')).toMatch(
+      /grid-template-columns:\s*var\(--conversation-width\) minmax\(0,\s*1fr\) var\(--trace-width\)/
+    );
   });
 
   it('does not hide the inspector at idle', () => {
@@ -233,19 +234,14 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // by having been retyped identically. That is the failure --app-header-pad-x
     // was made a token to prevent, one page over.
     expect(partial('tokens.css')).toMatch(/--conversation-inset:\s*clamp\(/);
-    expect(body('.conversation-main')).toMatch(/padding:\s*56px var\(--conversation-inset\) var\(--composer-reserve\)/);
-    expect(body('.composer')).toMatch(/left:\s*calc\(var\(--conversation-width\) \+ var\(--conversation-inset\)\)/);
-    expect(body('.composer')).toMatch(/right:\s*calc\(var\(--trace-width\) \+ var\(--conversation-inset\)\)/);
-    // And the narrow band's restatement, which is where a second literal would
-    // most easily survive: the inspector is gone there, so only one of the two
-    // insets is arithmetic on a rail and the other is bare.
-    expect(atWidth(1180)).toMatch(/right:\s*var\(--conversation-inset\)/);
+    expect(body('.conversation-main')).toMatch(/padding:\s*56px var\(--conversation-inset\) 32px/);
+    expect(body('.composer')).toMatch(/width:\s*calc\(100% - 2 \* var\(--conversation-inset\)\)/);
     // No copy of the old literal left anywhere. A single survivor is worse than
     // none of this, because it would be the one rule that stopped moving.
     expect(withoutComments(STYLESHEET)).not.toMatch(/clamp\(28px,\s*3\.5vw,\s*64px\)/);
   });
 
-  it('reserves the measured composer room on the Ask transcript and its scroll target', () => {
+  it('keeps the composer after the independently scrolling Ask pane', () => {
     /*
      * The reported defect was that answer cards "clip behind various surfaces".
      * Nothing clipped. Two separate faults put an answer under a bar:
@@ -254,21 +250,18 @@ describe('the ask home is the geometry the mockup gives it', () => {
      * summary appears. ResizeObserver writes the rendered height to the page
      * scope; both transcript padding and the end-scroll target read that value.
      */
-    expect(HOME_PAGE).toContain('observeComposerClearance(scope, composer)');
-    expect(HOME_PAGE).toContain('measureComposerClearance(scope, composer, window.innerHeight)');
     expect(HOME_PAGE).toContain('ref={conversationMainRef}');
-    expect(body('.conversation-main')).toMatch(/--composer-reserve:\s*calc\(/);
-    expect(body('.conversation-main')).toMatch(/padding:\s*56px var\(--conversation-inset\) var\(--composer-reserve\)/);
-    expect(body('.transcript-end')).toMatch(/scroll-margin-bottom:\s*var\(--composer-reserve\)/);
-    expect(partial('tokens.css')).not.toContain('--composer-reserve');
-    expect(withoutComments(STYLESHEET)).not.toMatch(/--composer-reserve:\s*220px/);
+    expect(HOME_PAGE).toMatch(/className="conversation-column"[\s\S]*?<\/section>\s*<form/);
+    expect(body('.conversation-main')).toMatch(/overflow-y:\s*auto/);
+    expect(body('.conversation-column')).toMatch(/gap:\s*20px/);
+    expect(withoutComments(STYLESHEET)).not.toContain('--composer-reserve');
     // And the top half of the same fault: an answer is scrolled in with
     // `block: 'start'`, which aligns its top edge with a scrollport that begins
     // behind the 52px sticky header. Every answer opened with its provenance
     // chip and the first line of its takeaway covered by the nav tabs.
     expect(body('html')).toMatch(/scroll-padding-top:\s*var\(--app-header-h\)/);
     expect(HOME_PAGE).toContain("block: 'start'");
-    expect(atWidth(800)).toMatch(/padding:\s*24px 16px var\(--composer-reserve\)/);
+    expect(atWidth(800)).toMatch(/padding:\s*24px 16px 0/);
   });
 
   it('caps attachment growth in a labelled keyboard-scrollable region', () => {
@@ -280,9 +273,10 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(HOME_PAGE).toContain('aria-label={`Remove ${attachment.filename}`}');
   });
 
-  it('keeps the fixed composer above the mobile safe area', () => {
-    expect(body('.composer')).toMatch(/bottom:\s*calc\(20px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
-    expect(atWidth(800)).toMatch(/bottom:\s*calc\(12px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
+  it('keeps the composer in normal flow at every width', () => {
+    expect(body('.composer')).toMatch(/position:\s*static/);
+    expect(body('.composer')).not.toMatch(/\b(?:top|right|bottom|left|z-index|transform):/);
+    expect(atWidth(800)).not.toMatch(/\.composer\s*\{[^}]*(?:top|right|bottom|left|z-index|transform):/);
   });
 
   it('uses high-alpha semantic chrome without backdrop blur', () => {
@@ -367,8 +361,8 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // there — otherwise the first-ask box would become a second island.
     expect(body('.ask-hero')).toMatch(/max-width:\s*720px/);
     expect(body('.composer')).toMatch(/max-width:\s*none/);
-    expect(body('.conversation-main.is-empty .composer')).toMatch(/max-width:\s*720px/);
-    expect(body('.conversation-main.is-empty .composer')).toMatch(/margin-inline:\s*auto/);
+    expect(body(".ask-layout[data-transcript='empty'] .composer")).toMatch(/max-width:\s*720px/);
+    expect(body('.composer')).toMatch(/margin-inline:\s*auto/);
   });
 
   it('makes the empty state a headline followed by an in-flow composer, with no suggestion cards', () => {
@@ -387,9 +381,10 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(home).toContain('const transcriptEmpty = messages.length === 0 && !loading && !conversationLoading;');
     expect(home).toContain("className={`conversation-main${transcriptEmpty ? ' is-empty' : ''}`}");
     expect(home).toContain('{transcriptEmpty && (');
-    expect(body('.conversation-main.is-empty')).toMatch(/padding-bottom:\s*56px/);
-    expect(body('.conversation-main.is-empty .composer')).toMatch(/position:\s*static/);
-    expect(body('.conversation-main.is-empty .composer')).toMatch(/margin-top:\s*28px/);
+    expect(home).toContain('data-transcript={transcriptEmpty ?');
+    expect(body(".ask-layout[data-transcript='empty'] .conversation-main")).toMatch(/height:\s*auto/);
+    expect(body('.conversation-column')).toMatch(/gap:\s*20px/);
+    expect(body('.composer')).toMatch(/position:\s*static/);
     expect(home).not.toContain('prompt-grid');
     expect(ask).not.toContain('.prompt-grid');
   });
@@ -480,7 +475,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // bluer dark than `--ast-navy`, the ink. Sam asked for the dark chrome to stop
     // reading as black; the ink stayed where the design handoff put it.
     expect(inspector).toMatch(/background:\s*var\(--ast-sky-fill\)/);
-    expect(inspector).toMatch(/padding:\s*20px/);
+    expect(inspector).toMatch(/padding:\s*20px 12px 20px 20px/);
     expect(inspector).toMatch(/gap:\s*14px/);
     expect(inspector).not.toMatch(/background:\s*var\(--background\)/);
     // AND THE STAR FIELD, WHICH IS WHAT PAINTS THE IDLE PANEL. `.trace-empty` has
@@ -651,7 +646,7 @@ describe('the conversation owner filter stays compact', () => {
   it('overlays its options instead of pushing conversations down', () => {
     const menu = body('.app-select-content');
     expect(OWNER_SELECT).toContain('<PopoverContent');
-    expect(menu).toMatch(/width:\s*var\(--radix-popover-trigger-width\)/);
+    expect(menu).toMatch(/width:\s*min\(max\(var\(--radix-popover-trigger-width\), 18rem\), 24rem/);
     expect(menu).toMatch(/max-height:\s*min\(320px,\s*var\(--radix-popover-content-available-height\)\)/);
     expect(menu).toMatch(/overflow-y:\s*auto/);
     expect(menu).not.toMatch(/position:\s*absolute/);
@@ -766,8 +761,9 @@ describe('the inspector while a run is still going', () => {
     expect(HOME_PAGE).toMatch(/const liveAsk = useLiveAsk\(conversationId\);/);
     expect(HOME_PAGE).toMatch(/liveAsk\?\.inFlight \|\| isWorkingConversationRun\(activeConversationRun\)/);
     expect(HOME_PAGE).toMatch(
-      /\(loading \|\| Boolean\(displayedRunStopped\)\) && liveStages\.length > 0 \? railStages\.length - 1 : -1;/
+      /\(loading \|\| Boolean\(displayedRunStopped\)\) && liveStages\.length > 0 \? currentStage\.index : -1;/
     );
+    expect(HOME_PAGE).toContain('const currentStage = deriveCurrentStageView({');
     expect(HOME_PAGE).toMatch(
       /const stillInThisConversation = \(\) => activeConversationRef\.current === runConversationId;/
     );
@@ -973,8 +969,8 @@ describe('below 1180px the finished run is still reachable', () => {
   it('insets the composer off the rail it is beside rather than off a second guess at it', () => {
     // The rail narrows to 220px here and the composer's left inset was the literal
     // 250px, so the two disagreed by 30px and only one of them knew the width.
-    expect(NARROW).toMatch(/left:\s*calc\(var\(--conversation-width\)/);
-    expect(NARROW).not.toMatch(/left:\s*\d+px/);
+    expect(NARROW).not.toMatch(/\.composer\s*\{[^}]*(?:left|right|bottom):/);
+    expect(body('.composer')).toMatch(/position:\s*static/);
   });
 });
 

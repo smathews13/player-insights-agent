@@ -37,11 +37,7 @@
    * column. The narrow layout below removes this contract and returns both
    * panes to page flow.
    */
-  --run-explorer-pane-block-size: clamp(
-    760px,
-    calc(100dvh - var(--app-header-h) - 8px - env(safe-area-inset-bottom, 0px)),
-    1120px
-  );
+  --run-explorer-pane-block-size: var(--workspace-pane-block-size);
   /* Recorded result tables benefit from the available desktop width. The shell
      still contracts fluidly below this cap and the narrow breakpoint stacks the
      run list above the detail. */

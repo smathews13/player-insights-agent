@@ -1071,23 +1071,23 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   flex-wrap: wrap;
   gap: 6px;
 }
-.user-profile-modal-organization {
-  min-width: 0;
+.user-profile-modal-identity-row .user-profile-modal-identity-chip {
+  min-height: 27px;
   max-width: min(260px, 100%);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  padding: 0 8px;
+  gap: 5px;
+  font-size: var(--ast-fs-12);
 }
-.user-profile-modal-identity-row .identity-chip > .roster-organization-mark {
-  flex-basis: 18px;
-  width: 18px;
-  height: 18px;
+.user-profile-modal-identity-row .user-profile-modal-identity-chip > .roster-organization-mark {
+  flex-basis: 16px;
+  inline-size: 16px;
+  block-size: 16px;
   border: 0;
   background: transparent;
 }
-.user-profile-modal-identity-row .identity-chip .roster-organization-logo {
-  width: 18px;
-  height: 18px;
+.user-profile-modal-identity-row .user-profile-modal-identity-chip .roster-organization-logo {
+  inline-size: 16px;
+  block-size: 16px;
 }
 .user-profile-modal-persona {
   min-width: 0;
@@ -1468,7 +1468,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 
 /* ── The all-user browser, sharing the person modal foundation ─────────── */
 .monitoring-users-modal {
-  width: min(1080px, calc(100vw - 48px));
+  width: min(1160px, calc(100vw - 48px));
 }
 .monitoring-users-title {
   margin: 0;
@@ -1485,29 +1485,50 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   position: sticky;
   top: -16px;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   padding: 12px 0;
   background: var(--card);
 }
+.monitoring-users-toolbar-filters,
+.monitoring-users-toolbar-view {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.monitoring-users-toolbar-view {
+  justify-content: flex-end;
+}
 .monitoring-users-toolbar .monitoring-users-search {
-  flex: 1 1 210px;
-  width: clamp(180px, 24vw, 300px);
-  min-width: 180px;
-  max-width: 300px;
+  flex: 0 1 220px;
+  width: clamp(200px, 22vw, 240px);
+  min-width: 200px;
+  max-width: 240px;
   margin-left: 0;
 }
-.monitoring-users-toolbar [data-slot='select-trigger'] {
-  min-width: 132px;
+.monitoring-users-role-trigger {
+  width: 120px;
+  min-width: 120px;
+}
+.monitoring-users-persona-trigger {
+  width: 136px;
+  min-width: 136px;
+}
+.monitoring-users-role-trigger .app-select-value {
+  display: flex;
+  align-items: center;
 }
 .monitoring-organization-select {
-  min-width: 0;
+  flex: none;
+  min-width: 176px;
 }
 .monitoring-organization-trigger {
+  width: 176px;
   min-width: 176px;
-  max-width: 260px;
+  max-width: 176px;
 }
 .monitoring-organization-trigger .app-select-value {
   overflow: hidden;
@@ -1524,10 +1545,6 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 }
 [data-radix-popper-content-wrapper]:has(.monitoring-organization-menu) {
   z-index: 1100;
-}
-.monitoring-organization-menu {
-  width: var(--radix-popover-trigger-width);
-  min-width: var(--radix-popover-trigger-width);
 }
 .monitoring-organization-option-content {
   display: flex;
@@ -1571,7 +1588,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .monitoring-user-row {
   display: grid;
   grid-template-columns:
-    minmax(176px, 1.5fr) minmax(86px, 0.62fr) minmax(120px, 0.85fr) minmax(94px, 0.72fr)
+    minmax(176px, 1.5fr) minmax(112px, 0.68fr) minmax(120px, 0.85fr) minmax(94px, 0.72fr)
     minmax(104px, 0.72fr) minmax(104px, 0.75fr) 18px;
   align-items: center;
   gap: 10px;
@@ -1621,6 +1638,11 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .monitoring-user-identity .identity-chip {
   min-width: 0;
   max-width: 100%;
+}
+.monitoring-user-role {
+  min-width: 0;
+  display: flex;
+  align-items: center;
 }
 .monitoring-user-amount {
   text-align: right;
@@ -1764,6 +1786,18 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   font-size: var(--text-sm);
   font-weight: 600;
   white-space: nowrap;
+}
+.monitoring-feedback-user {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.monitoring-role-filter-count {
+  color: var(--ast-text-secondary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 .monitoring-feedback-direction > svg {
   width: 15px;

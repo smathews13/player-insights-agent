@@ -1,6 +1,17 @@
+import { BadgeCheck, FlaskConical, Gauge, Network, Palette, ServerCog, type LucideIcon } from 'lucide-react';
 import { showsEgressControls, type ExperimentalFeatures } from './experimental-features';
 
 export type SettingsSection = 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental';
+
+/** Every Settings destination owns one distinct, decorative navigation mark. */
+export const SETTINGS_SECTION_ICONS = {
+  identity: BadgeCheck,
+  runtime: Gauge,
+  environment: ServerCog,
+  appearance: Palette,
+  egress: Network,
+  experimental: FlaskConical,
+} satisfies Record<SettingsSection, LucideIcon>;
 
 export const BASE_SETTINGS_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'identity', label: 'Identity' },

@@ -561,7 +561,7 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(seed).toMatch(/color:\s*var\(--foreground\)/);
     // Immutable roles now use the shared neutral-outline status pill rather
     // than a private plaque with a second dark-mode recipe.
-    expect(source('UserRoleEditor.tsx')).toContain('className="ast-pill ast-pill--neutral-outline roster-role-status"');
+    expect(source('UserRoleEditor.tsx')).toContain('return <RoleBadgePill state={entry.role} />');
     expect(SETTINGS).not.toMatch(/\.roster-role-chip\s*\{/);
     expect(SETTINGS).not.toMatch(/\.roster-role-chip-super-admin\s*\{/);
     expect(DARK).not.toContain("html[data-theme='dark'] .roster-role-chip");

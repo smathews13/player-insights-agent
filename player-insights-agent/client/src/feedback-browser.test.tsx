@@ -88,11 +88,14 @@ const filters = {
   organization: '',
 };
 
-function panel(state: Parameters<typeof FeedbackBrowserPanel>[0]['state']) {
+function panel(
+  state: Parameters<typeof FeedbackBrowserPanel>[0]['state'],
+  activeFilters: Parameters<typeof FeedbackBrowserPanel>[0]['filters'] = filters
+) {
   return renderToStaticMarkup(
     <FeedbackBrowserPanel
       state={state}
-      filters={filters}
+      filters={activeFilters}
       range="7d"
       rangeLabel="7 days"
       page={0}
@@ -143,6 +146,9 @@ describe('feedback corpus modal', () => {
     expect(markup).toContain('lucide-thumbs-down');
     expect(markup).toContain('Open user overview for coach');
     expect(markup).toContain('aria-label="Open question details: Which players improved?"');
+    expect(markup).toContain('data-role-state="consumer"');
+    expect(markup).toContain('data-role-state="super_admin"');
+    expect(markup).not.toContain('aria-live=');
     expect(markup).not.toMatch(/star|spend|cost/i);
   });
 
@@ -153,6 +159,12 @@ describe('feedback corpus modal', () => {
     for (const label of ['feedback', 'user', 'role', 'persona', 'organization']) {
       expect(markup).toContain(`Filter feedback by ${label}`);
     }
+    const roleFiltered = panel(
+      { status: 'ready', key: 'feedback-role', requestId: 2, data: payload, error: null },
+      { ...filters, role: 'consumer' }
+    );
+    expect(roleFiltered).toContain('aria-label="Filter feedback by role: Consumer (1)"');
+    expect(roleFiltered).toContain('data-role-state="consumer"');
   });
 
   it('renders branded skeleton loading, concise error/retry, and the exact empty state', () => {

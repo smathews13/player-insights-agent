@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui';
 
@@ -7,6 +7,10 @@ export interface AppSelectOption<T extends string = string> {
   label: string;
   /** Canonical machine value shown with code typography after the friendly label. */
   code?: string;
+  /** Optional visual treatment; label remains the typeahead and accessible value. */
+  content?: ReactNode;
+  ariaLabel?: string;
+  title?: string;
   disabled?: boolean;
 }
 
@@ -58,7 +62,11 @@ export function AppSelect<T extends string>({
     0,
     options.findIndex((option) => option.value === selected?.value)
   );
-  const optionContent = (option: AppSelectOption<T> | undefined) =>
+  const optionAccessibleValue = (option: AppSelectOption<T> | undefined) =>
+    option ? (option.ariaLabel ?? `${option.label}${option.code ? ` — ${option.code}` : ''}`) : '';
+  const optionTitle = (option: AppSelectOption<T> | undefined) =>
+    option ? (option.title ?? `${option.label}${option.code ? ` — ${option.code}` : ''}`) : '';
+  const optionTextContent = (option: AppSelectOption<T> | undefined) =>
     option ? (
       <>
         <span>{option.label}</span>
@@ -70,7 +78,8 @@ export function AppSelect<T extends string>({
         ) : null}
       </>
     ) : null;
-  const accessibleValue = selected ? `${selected.label}${selected.code ? ` — ${selected.code}` : ''}` : '';
+  const optionContent = (option: AppSelectOption<T> | undefined) => option?.content ?? optionTextContent(option);
+  const accessibleValue = optionAccessibleValue(selected);
 
   useEffect(
     () => () => {
@@ -169,7 +178,7 @@ export function AppSelect<T extends string>({
           aria-controls={menuId}
           aria-activedescendant={open ? `${optionId}-${focusedIndex}` : undefined}
           aria-label={`${ariaLabel}: ${accessibleValue}`}
-          title={accessibleValue}
+          title={optionTitle(selected)}
           onKeyDown={(event) => {
             if (matchTypeahead(event.key)) {
               event.preventDefault();
@@ -188,7 +197,7 @@ export function AppSelect<T extends string>({
             setOpen(true);
           }}
         >
-          <span className="app-select-value">{optionContent(selected)}</span>
+          <span className="app-select-value">{optionTextContent(selected)}</span>
           <ChevronDown aria-hidden="true" />
         </button>
       </PopoverTrigger>
@@ -228,6 +237,8 @@ export function AppSelect<T extends string>({
             data-state={option.value === selected?.value ? 'checked' : 'unchecked'}
             disabled={option.disabled}
             aria-selected={option.value === selected?.value}
+            aria-label={optionAccessibleValue(option)}
+            title={optionTitle(option)}
             className="app-menu-option"
             onFocus={() => setFocusedIndex(index)}
             onMouseMove={() => setFocusedIndex(index)}

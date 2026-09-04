@@ -58,6 +58,7 @@ import { UserOrganizationSelect } from './UserOrganizationSelect';
 import type { Answer, FeedbackEntry } from './app-types';
 import { tokenTotalUsageView } from './token-usage-view';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
+import { profileAskedHeading } from './profile-heading';
 import {
   answerTimeTile,
   askedAtLabel,
@@ -1558,15 +1559,7 @@ function profilePersonaName(persona: { name: string } | null | undefined): strin
   return /^(no persona|none|unassigned|n\/a|null|unknown)$/i.test(name) ? '' : name;
 }
 
-function ProfileIdentityBadges({
-  role,
-  persona,
-  organization,
-}: {
-  role: Role;
-  persona: { name: string } | null | undefined;
-  organization: UserMonitoringRow['organization'];
-}) {
+function ProfileIdentityBadges({ role, persona }: { role: Role; persona: { name: string } | null | undefined }) {
   const personaName = profilePersonaName(persona);
   return (
     <div className="user-profile-modal-identity-badges">
@@ -1580,13 +1573,6 @@ function ProfileIdentityBadges({
           {personaName}
         </span>
       ) : null}
-      <span
-        className={astPill('neutral-outline', 'user-profile-modal-organization')}
-        title={organization.name}
-        aria-label={organization.ariaLabel}
-      >
-        {organization.name}
-      </span>
     </div>
   );
 }
@@ -1635,6 +1621,7 @@ export function PersonPanel({
   const outcomes = outcomeTile(panel.summary);
   const scopes = readScopes(panel);
   const cost = tokenCostTile(panel.tokenCostUsd);
+  const askedHeading = profileAskedHeading(panel.displayName, panel.email);
   return (
     <Dialog
       overlayClassName="user-profile-modal-overlay"
@@ -1657,10 +1644,11 @@ export function PersonPanel({
                 <UserIdentityChip
                   identity={panel.email}
                   showFullIdentity
+                  className="user-profile-modal-identity-chip"
                   icon={<OrganizationAvatar organization={panel.organization} />}
                 />
               </h3>
-              <ProfileIdentityBadges role={panel.role} persona={panel.persona} organization={panel.organization} />
+              <ProfileIdentityBadges role={panel.role} persona={panel.persona} />
             </div>
             <p id="user-profile-modal-description" className="user-profile-modal-description">
               {panel.firstSeen ? `First seen ${whenLabel(panel.firstSeen, now)}` : 'First seen not recorded'}
@@ -1677,8 +1665,12 @@ export function PersonPanel({
       <div className="user-profile-modal-body">
         <PersonSpend email={panel.email} state={spendState} unit={spendUnit} refreshing={spendRefreshing} />
         <section className="user-profile-modal-asked" aria-labelledby="user-profile-asked-title">
-          <h4 id="user-profile-asked-title" className="user-profile-modal-section-title">
-            What they asked <span className="user-profile-modal-range">{rangeLabel}</span>
+          <h4
+            id="user-profile-asked-title"
+            className="user-profile-modal-section-title"
+            aria-label={`${askedHeading}, ${rangeLabel}`}
+          >
+            {askedHeading} <span className="user-profile-modal-range">{rangeLabel}</span>
           </h4>
           <div className="user-profile-modal-kpi-grid">
             <div className="user-profile-modal-kpi">
@@ -1876,19 +1868,14 @@ export function PersonPanelShell({
                 <UserIdentityChip
                   identity={email}
                   showFullIdentity
+                  className="user-profile-modal-identity-chip"
                   icon={<OrganizationAvatar organization={identitySeed.organization} />}
                 />
               ) : (
                 localPart(email) || 'User activity'
               )}
             </h3>
-            {identitySeed ? (
-              <ProfileIdentityBadges
-                role={identitySeed.role}
-                persona={identitySeed.persona}
-                organization={identitySeed.organization}
-              />
-            ) : null}
+            {identitySeed ? <ProfileIdentityBadges role={identitySeed.role} persona={identitySeed.persona} /> : null}
           </div>
           <p id="user-profile-modal-description" className="sr-only">
             User activity and attributable spend
@@ -2011,60 +1998,70 @@ export function UserMonitoringPanel({
         }}
       >
         <div className="monitoring-users-toolbar">
-          <SearchBox
-            value={browser.search}
-            onChange={onSearch}
-            placeholder="Search users…"
-            ariaLabel="Search users by display name or email"
-            className="monitoring-users-search"
-          />
-          <AppSelect
-            label="Role"
-            ariaLabel="Filter users by role"
-            value={browser.role || NO_FILTER}
-            options={[
-              { value: NO_FILTER, label: 'All roles' },
-              { value: 'super_admin', label: 'Super admin' },
-              { value: 'admin', label: 'Admin' },
-              { value: 'consumer', label: 'Consumer' },
-            ]}
-            onValueChange={(role) => onRole(role === NO_FILTER ? '' : role)}
-            contentClassName="monitoring-users-filter-menu"
-          />
-          <AppSelect
-            label="Persona"
-            ariaLabel="Filter users by current persona"
-            value={browser.persona || NO_FILTER}
-            options={[
-              { value: NO_FILTER, label: 'All personas' },
-              ...(payload?.personas ?? []).map((persona) => ({
-                value: persona.id,
-                label: persona.name,
-              })),
-            ]}
-            onValueChange={(persona) => onPersona(persona === NO_FILTER ? '' : persona)}
-            contentClassName="monitoring-users-filter-menu"
-          />
-          <UserOrganizationSelect
-            organizations={payload?.organizations ?? []}
-            total={(payload?.organizations ?? []).reduce((sum, organization) => sum + organization.count, 0)}
-            selected={browser.organizations}
-            onChange={onOrganizations}
-          />
-          <TimeRangeSegments page="User Monitoring" value={browser.range} onChange={onRange} />
-          <UnitSegmentedControl
-            unit={browser.unit}
-            onChange={onUnit}
-            label="Spend unit"
-            ariaLabel="Per-user spend unit"
-            showLabel={false}
-          />
-          {changed ? (
-            <Button variant="ghost" size="sm" onClick={onClear}>
-              Clear filters
-            </Button>
-          ) : null}
-          {refreshing ? <span className="monitoring-users-refreshing">Refreshing…</span> : null}
+          <div className="monitoring-users-toolbar-filters">
+            <SearchBox
+              value={browser.search}
+              onChange={onSearch}
+              placeholder="Search users…"
+              ariaLabel="Search users by display name or email"
+              className="monitoring-users-search"
+            />
+            <AppSelect
+              label="Role"
+              ariaLabel="Filter users by role"
+              className="monitoring-users-role-trigger"
+              value={browser.role || NO_FILTER}
+              options={[
+                { value: NO_FILTER, label: 'All roles' },
+                {
+                  value: 'super_admin',
+                  label: 'Super admin',
+                  content: <RoleBadgePill state="super_admin" />,
+                },
+                { value: 'admin', label: 'Admin', content: <RoleBadgePill state="admin" /> },
+                { value: 'consumer', label: 'Consumer', content: <RoleBadgePill state="consumer" /> },
+              ]}
+              onValueChange={(role) => onRole(role === NO_FILTER ? '' : role)}
+              contentClassName="monitoring-users-filter-menu"
+            />
+            <AppSelect
+              label="Persona"
+              ariaLabel="Filter users by current persona"
+              className="monitoring-users-persona-trigger"
+              value={browser.persona || NO_FILTER}
+              options={[
+                { value: NO_FILTER, label: 'All personas' },
+                ...(payload?.personas ?? []).map((persona) => ({
+                  value: persona.id,
+                  label: persona.name,
+                })),
+              ]}
+              onValueChange={(persona) => onPersona(persona === NO_FILTER ? '' : persona)}
+              contentClassName="monitoring-users-filter-menu"
+            />
+            <UserOrganizationSelect
+              organizations={payload?.organizations ?? []}
+              total={(payload?.organizations ?? []).reduce((sum, organization) => sum + organization.count, 0)}
+              selected={browser.organizations}
+              onChange={onOrganizations}
+            />
+          </div>
+          <div className="monitoring-users-toolbar-view">
+            <TimeRangeSegments page="User Monitoring" value={browser.range} onChange={onRange} />
+            <UnitSegmentedControl
+              unit={browser.unit}
+              onChange={onUnit}
+              label="Spend unit"
+              ariaLabel="Per-user spend unit"
+              showLabel={false}
+            />
+            {changed ? (
+              <Button variant="ghost" size="sm" onClick={onClear}>
+                Clear filters
+              </Button>
+            ) : null}
+            {refreshing ? <span className="monitoring-users-refreshing">Refreshing…</span> : null}
+          </div>
         </div>
 
         {state.status === 'error' ? (
@@ -2113,9 +2110,9 @@ export function UserMonitoringPanel({
                       icon={<OrganizationAvatar organization={row.organization} />}
                     />
                   </span>
-                  <span>
+                  <span className="monitoring-user-role">
                     <span className="monitoring-users-mobile-label">Role</span>
-                    {ROLE_WORD[row.role]}
+                    <RoleBadgePill state={row.role} />
                   </span>
                   <span>
                     <span className="monitoring-users-mobile-label">Persona</span>
