@@ -18,6 +18,7 @@ import {
   rememberResolvedIdentity,
 } from './app-state';
 import type { Identity } from './app-types';
+import { PIA_LOADER_HALF_SECONDS, PIA_LOADER_STEP_SECONDS } from './pia-loader';
 import { StartupReadinessProvider } from './startup-readiness';
 import { focusAfterLogin } from './motion-transitions';
 
@@ -30,6 +31,7 @@ export type StartupPhase =
   | 'app-session-bootstrap'
   | 'access-bootstrap'
   | 'application-bootstrap'
+  | 'login-dwell'
   | 'access-decision'
   | 'first-open'
   | 'application-ready'
@@ -42,6 +44,7 @@ export interface StartupSnapshot {
   identityResolved: boolean;
   accessDecisionRequired: boolean;
   applicationReady: boolean;
+  loginDwellComplete: boolean;
   firstOpen: FirstOpenStage;
 }
 
@@ -60,6 +63,7 @@ export function startupPhase(snapshot: StartupSnapshot): StartupPhase {
   if (!snapshot.identityResolved) return 'access-bootstrap';
   if (snapshot.accessDecisionRequired) return 'access-decision';
   if (!snapshot.applicationReady) return 'application-bootstrap';
+  if (snapshot.firstOpen !== 'open' && !snapshot.loginDwellComplete) return 'login-dwell';
   if (snapshot.firstOpen !== 'open') return 'first-open';
   return 'application-ready';
 }
@@ -69,7 +73,8 @@ export function startupIsPending(phase: StartupPhase): boolean {
     phase === 'native-auth-pending' ||
     phase === 'app-session-bootstrap' ||
     phase === 'access-bootstrap' ||
-    phase === 'application-bootstrap'
+    phase === 'application-bootstrap' ||
+    phase === 'login-dwell'
   );
 }
 
@@ -133,6 +138,74 @@ export function startStartupActivity(
   return appSession === 'ready' ? start() : undefined;
 }
 
+/**
+ * The previous coherent loader window was one 3.2s D-pad/cluster phase. Extend
+ * it by at least two seconds and finish on the next 0.8s glyph beat, so the
+ * login panel cannot cut through the visible swap.
+ */
+export const STARTUP_LOGIN_PREVIOUS_MINIMUM_MS = PIA_LOADER_HALF_SECONDS * 1_000;
+export const STARTUP_LOGIN_REQUESTED_EXTENSION_MS = 2_000;
+export const STARTUP_LOGIN_BEAT_MS = PIA_LOADER_STEP_SECONDS * 1_000;
+export const STARTUP_LOGIN_MINIMUM_MS =
+  Math.ceil((STARTUP_LOGIN_PREVIOUS_MINIMUM_MS + STARTUP_LOGIN_REQUESTED_EXTENSION_MS) / STARTUP_LOGIN_BEAT_MS) *
+  STARTUP_LOGIN_BEAT_MS;
+
+interface StartupLoginDwellClock {
+  now(): number;
+  setTimeout(callback: () => void, delay: number): ReturnType<typeof globalThis.setTimeout>;
+  clearTimeout(timer: ReturnType<typeof globalThis.setTimeout>): void;
+}
+
+const startupLoginDwellClock: StartupLoginDwellClock = {
+  now: () => Date.now(),
+  setTimeout: (callback, delay) => globalThis.setTimeout(callback, delay),
+  clearTimeout: (timer) => globalThis.clearTimeout(timer),
+};
+
+export interface StartupLoginDwell {
+  start(): void;
+  dispose(): void;
+}
+
+/**
+ * One cancel-safe visual clock for the loader-to-login handoff.
+ *
+ * The caller starts session, identity, route, and readiness work independently;
+ * this clock owns no initialization. Repeated starts (including StrictMode
+ * effect replay) cannot create duplicate completion timers.
+ */
+export function createStartupLoginDwell(
+  visibleAt: number,
+  onComplete: () => void,
+  clock: StartupLoginDwellClock = startupLoginDwellClock
+): StartupLoginDwell {
+  let started = false;
+  let disposed = false;
+  let timer: ReturnType<typeof globalThis.setTimeout> | null = null;
+
+  const complete = () => {
+    timer = null;
+    if (disposed) return;
+    onComplete();
+  };
+
+  return {
+    start() {
+      if (started || disposed) return;
+      started = true;
+      const remaining = Math.max(0, STARTUP_LOGIN_MINIMUM_MS - (clock.now() - visibleAt));
+      if (remaining === 0) complete();
+      else timer = clock.setTimeout(complete, remaining);
+    },
+    dispose() {
+      disposed = true;
+      if (timer === null) return;
+      clock.clearTimeout(timer);
+      timer = null;
+    },
+  };
+}
+
 export function StartupBoundary({ children }: { children: ReactNode }) {
   const appSession = useAppSessionState();
   const [identity, setIdentity] = useState<Identity>(resolvingIdentity);
@@ -151,12 +224,24 @@ export function StartupBoundary({ children }: { children: ReactNode }) {
     []
   );
   const firstOpen = useFirstOpen(identity, applicationReady);
+  const [loaderVisibleAt] = useState(() => Date.now());
+  const loginDwellRequired = firstOpen.stage !== 'open';
+  const loginPathActive = loginDwellRequired && appSession !== 'timed-out' && appSession !== 'unavailable';
+  const [loginDwellComplete, setLoginDwellComplete] = useState(!loginDwellRequired);
 
   useEffect(() => {
     void bootstrapAppSession();
   }, []);
 
   useEffect(() => startStartupActivity(appSession), [appSession]);
+
+  useEffect(() => {
+    if (!loginPathActive) return;
+    if (loginDwellComplete) return;
+    const dwell = createStartupLoginDwell(loaderVisibleAt, () => setLoginDwellComplete(true));
+    dwell.start();
+    return () => dwell.dispose();
+  }, [loaderVisibleAt, loginDwellComplete, loginPathActive]);
 
   useEffect(() => {
     if (appSession !== 'ready') return;
@@ -204,6 +289,7 @@ export function StartupBoundary({ children }: { children: ReactNode }) {
     identityResolved,
     accessDecisionRequired,
     applicationReady,
+    loginDwellComplete,
     firstOpen: firstOpen.stage,
   };
   const phase = startupPhase(snapshot);

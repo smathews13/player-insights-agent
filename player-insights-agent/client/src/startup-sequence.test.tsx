@@ -6,6 +6,11 @@ import { AccessGate, type GateIdentity } from './AccessGate';
 import { FirstOpenGate } from './FirstOpenGate';
 import {
   StartupLoadingSurface,
+  STARTUP_LOGIN_BEAT_MS,
+  STARTUP_LOGIN_MINIMUM_MS,
+  STARTUP_LOGIN_PREVIOUS_MINIMUM_MS,
+  STARTUP_LOGIN_REQUESTED_EXTENSION_MS,
+  createStartupLoginDwell,
   startStartupActivity,
   startupCanMountApplication,
   startupPhase,
@@ -27,6 +32,7 @@ const base: StartupSnapshot = {
   identityResolved: false,
   accessDecisionRequired: false,
   applicationReady: false,
+  loginDwellComplete: false,
   firstOpen: 'pending',
 };
 
@@ -87,6 +93,7 @@ describe('authoritative startup sequence', () => {
         appSession: 'ready',
         identityResolved: true,
         applicationReady: true,
+        loginDwellComplete: true,
         firstOpen: 'gate',
       },
       {
@@ -95,6 +102,7 @@ describe('authoritative startup sequence', () => {
         appSession: 'ready',
         identityResolved: true,
         applicationReady: true,
+        loginDwellComplete: true,
         firstOpen: 'open',
       },
     ];
@@ -134,11 +142,104 @@ describe('authoritative startup sequence', () => {
       startupSurfaceOwner('app-session-bootstrap'),
       startupSurfaceOwner('access-bootstrap'),
       startupSurfaceOwner('application-bootstrap'),
+      startupSurfaceOwner('login-dwell'),
       startupSurfaceOwner('access-decision'),
       startupSurfaceOwner('first-open'),
       startupSurfaceOwner('application-ready'),
     ];
-    expect(owners).toEqual(['loader', 'loader', 'loader', 'loader', 'access-modal', 'first-open-modal', 'application']);
+    expect(owners).toEqual([
+      'loader',
+      'loader',
+      'loader',
+      'loader',
+      'loader',
+      'access-modal',
+      'first-open-modal',
+      'application',
+    ]);
+  });
+});
+
+describe('pre-login startup dwell', () => {
+  it('extends the previous minimum by two seconds, then lands on the next 0.8s loader beat', () => {
+    expect(STARTUP_LOGIN_PREVIOUS_MINIMUM_MS).toBe(3_200);
+    expect(STARTUP_LOGIN_REQUESTED_EXTENSION_MS).toBe(2_000);
+    expect(STARTUP_LOGIN_BEAT_MS).toBe(800);
+    expect(STARTUP_LOGIN_MINIMUM_MS).toBe(5_600);
+    expect(STARTUP_LOGIN_MINIMUM_MS).toBeGreaterThanOrEqual(
+      STARTUP_LOGIN_PREVIOUS_MINIMUM_MS + STARTUP_LOGIN_REQUESTED_EXTENSION_MS
+    );
+    expect(STARTUP_LOGIN_MINIMUM_MS % STARTUP_LOGIN_BEAT_MS).toBe(0);
+  });
+
+  it('does not present login before the minimum even when readiness finishes early', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const ready = vi.fn();
+    const dwell = createStartupLoginDwell(Date.now(), ready);
+    dwell.start();
+
+    const waiting: StartupSnapshot = {
+      ...base,
+      nativeAuthReturned: true,
+      appSession: 'ready',
+      identityResolved: true,
+      applicationReady: true,
+      loginDwellComplete: false,
+      firstOpen: 'gate',
+    };
+    expect(startupPhase(waiting)).toBe('login-dwell');
+    expect(startupSurfaceOwner(startupPhase(waiting))).toBe('loader');
+
+    vi.advanceTimersByTime(STARTUP_LOGIN_MINIMUM_MS - 1);
+    expect(ready).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(ready).toHaveBeenCalledOnce();
+    expect(startupPhase({ ...waiting, loginDwellComplete: true })).toBe('first-open');
+  });
+
+  it('keeps the loader naturally when application readiness takes longer', () => {
+    const afterMinimum: StartupSnapshot = {
+      ...base,
+      nativeAuthReturned: true,
+      appSession: 'ready',
+      identityResolved: true,
+      applicationReady: false,
+      loginDwellComplete: true,
+      firstOpen: 'gate',
+    };
+    expect(startupPhase(afterMinimum)).toBe('application-bootstrap');
+    expect(startupSurfaceOwner(startupPhase(afterMinimum))).toBe('loader');
+    expect(startupPhase({ ...afterMinimum, applicationReady: true })).toBe('first-open');
+  });
+
+  it('does not apply the login dwell to an acknowledged authenticated startup', () => {
+    const returning: StartupSnapshot = {
+      ...base,
+      nativeAuthReturned: true,
+      appSession: 'ready',
+      identityResolved: true,
+      applicationReady: true,
+      loginDwellComplete: false,
+      firstOpen: 'open',
+    };
+    expect(startupPhase(returning)).toBe('application-ready');
+    expect(startupSurfaceOwner(startupPhase(returning))).toBe('application');
+  });
+
+  it('cancels stale completion and never creates duplicate timers', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const ready = vi.fn();
+    const dwell = createStartupLoginDwell(Date.now(), ready);
+    dwell.start();
+    dwell.start();
+    expect(vi.getTimerCount()).toBe(1);
+
+    dwell.dispose();
+    expect(vi.getTimerCount()).toBe(0);
+    vi.runAllTimers();
+    expect(ready).not.toHaveBeenCalled();
   });
 });
 
@@ -150,6 +251,7 @@ describe('frame ownership', () => {
       'app-session-bootstrap',
       'access-bootstrap',
       'application-bootstrap',
+      'login-dwell',
     ] as const) {
       const markup = renderToStaticMarkup(<StartupLoadingSurface phase={phase} />);
       expect(markup.match(/data-startup-loader="pia-primary"/g)).toHaveLength(1);
