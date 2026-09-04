@@ -173,9 +173,10 @@ export function connectionResourceView(
       add(details, 'Access', declaredAccess(tableChecks) || status);
       break;
     case 'lakebase':
-      add(details, 'Endpoint', fact(check, 'endpoint') || identity);
+      add(details, 'Project', fact(check, 'project'));
       add(details, 'Branch', fact(check, 'branch'));
       add(details, 'Database', fact(check, 'database'));
+      add(details, 'Endpoint', fact(check, 'endpoint') || identity);
       add(details, 'Connection', status);
       break;
     case 'semantic-index':

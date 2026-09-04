@@ -43,23 +43,31 @@ import {
 } from '../lib/sp-identity-store';
 import { readRoster } from '../lib/user-roster';
 import { userEmail, type InsightsAppKit } from './insights-routes';
+import { deploymentOwnerEmail } from '../lib/app-deployment-lifetime';
 
-async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayload> {
+async function adminPayload(
+  appkit: InsightsAppKit,
+  readDeploymentOwner: () => Promise<string>
+): Promise<SpIdentityAdminPayload> {
   const templateConfig = configuredSpPersonaTemplates();
-  const [personas, rawDefinitions, statuses, assignments, rosterRead, grantResourceDiscovery] = await Promise.all([
-    listSpPersonas(appkit),
-    listSpPersonaDefinitions(appkit),
-    listSpPersonaStatuses(appkit),
-    listSpAssignments(appkit),
-    readRoster(appkit.lakebase).catch(() => ({ rows: [] as { email: string; role: string }[] })),
-    discoverSpGrantResources(appkit)
-      .then((resources) => ({ status: 'ready' as const, ...boundedSpGrantResources(resources), detail: '' }))
-      .catch((error) => ({
-        status: 'error' as const,
-        resources: [],
-        detail: `Configured resources could not be read: ${(error as Error).message}`,
-      })),
-  ]);
+  const [personas, rawDefinitions, statuses, assignments, rosterRead, grantResourceDiscovery, deploymentOwner] =
+    await Promise.all([
+      listSpPersonas(appkit),
+      listSpPersonaDefinitions(appkit),
+      listSpPersonaStatuses(appkit),
+      listSpAssignments(appkit),
+      readRoster(appkit.lakebase).catch(() => ({ rows: [] as { email: string; role: string }[] })),
+      discoverSpGrantResources(appkit)
+        .then((resources) => ({ status: 'ready' as const, ...boundedSpGrantResources(resources), detail: '' }))
+        .catch((error) => ({
+          status: 'error' as const,
+          resources: [],
+          detail: `Configured resources could not be read: ${(error as Error).message}`,
+        })),
+      readDeploymentOwner()
+        .then(normalizeAdminEmail)
+        .catch(() => ''),
+    ]);
   const personaByDefinition = new Map(
     personas.flatMap((persona) => (persona.definitionId ? [[persona.definitionId, persona] as const] : []))
   );
@@ -76,11 +84,13 @@ async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayl
   const roster: SpIdentityRosterRow[] = rosterRead.rows.map((row) => ({
     email: row.email,
     role: row.role,
-    personaId: row.role === 'super_admin' ? null : (assignedByEmail.get(row.email) ?? null),
+    isDeploymentOwner: Boolean(deploymentOwner) && row.email === deploymentOwner,
+    personaId: row.email === deploymentOwner ? null : (assignedByEmail.get(row.email) ?? null),
   }));
   for (const assignment of assignments) {
+    if (assignment.email === deploymentOwner) continue;
     if (roster.some((row) => row.email === assignment.email)) continue;
-    roster.push({ email: assignment.email, role: '', personaId: assignment.personaId });
+    roster.push({ email: assignment.email, role: '', isDeploymentOwner: false, personaId: assignment.personaId });
   }
   roster.sort((left, right) => left.email.localeCompare(right.email));
   return {
@@ -97,11 +107,15 @@ async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayl
   };
 }
 
-export function setupSpIdentityRoutes(appkit: InsightsAppKit): void {
+export function setupSpIdentityRoutes(
+  appkit: InsightsAppKit,
+  deps: { readDeploymentOwner?: () => Promise<string> } = {}
+): void {
+  const readDeploymentOwner = deps.readDeploymentOwner ?? (() => deploymentOwnerEmail(appkit.lakebase));
   appkit.server.extend((app) => {
     app.get('/api/admin/sp-identity', async (_req, res) => {
       try {
-        res.json(await adminPayload(appkit));
+        res.json(await adminPayload(appkit, readDeploymentOwner));
       } catch (error) {
         res.status(503).json({
           error: 'sp_identity_unreadable',
@@ -216,7 +230,7 @@ export function setupSpIdentityRoutes(appkit: InsightsAppKit): void {
           subject: definition.id,
           detail: `Updated the credential reference for ${definition.displayName}; connection and sync require a new check.`,
         });
-        res.json({ persona, payload: await adminPayload(appkit) });
+        res.json({ persona, payload: await adminPayload(appkit, readDeploymentOwner) });
       } catch {
         res.status(503).json({
           error: 'sp_identity_store_unavailable',
@@ -258,7 +272,7 @@ export function setupSpIdentityRoutes(appkit: InsightsAppKit): void {
             ? `Checked the connection and ${status.checks.length} configured permissions for ${definition.displayName}.`
             : `Checked the connection for ${definition.displayName}; token minting did not succeed.`,
         });
-        res.json({ payload: await adminPayload(appkit) });
+        res.json({ payload: await adminPayload(appkit, readDeploymentOwner) });
       } catch {
         res.status(503).json({
           error: 'sp_persona_status_unavailable',
@@ -379,11 +393,13 @@ export function setupSpIdentityRoutes(appkit: InsightsAppKit): void {
       const actor = userEmail(req);
       try {
         const email = normalizeAdminEmail(parsed.data.email);
-        const roster = await readRoster(appkit.lakebase);
-        if (roster.rows.some((row) => row.email === email && row.role === 'super_admin')) {
+        const deploymentOwner = await readDeploymentOwner()
+          .then(normalizeAdminEmail)
+          .catch(() => '');
+        if (deploymentOwner && email === deploymentOwner) {
           res.status(409).json({
-            error: 'immutable_super_admin_persona',
-            detail: 'A super admin always uses the Owner persona.',
+            error: 'immutable_deployment_owner_persona',
+            detail: 'The first app deployer keeps the read-only Owner marker.',
           });
           return;
         }
@@ -400,7 +416,7 @@ export function setupSpIdentityRoutes(appkit: InsightsAppKit): void {
             ? 'Assigned a service-principal persona to this person.'
             : 'This person again runs as themselves over OAuth.',
         });
-        res.json({ assignment, payload: await adminPayload(appkit) });
+        res.json({ assignment, payload: await adminPayload(appkit, readDeploymentOwner) });
       } catch (error) {
         res.status(503).json({
           error: 'sp_identity_store_unavailable',

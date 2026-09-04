@@ -363,9 +363,9 @@ export function roleChangeRefusal(input: {
     seedFloorFor(input.seed, target) === 'consumer' &&
     !input.stored.some((entry) => entry.email === target);
   if (desired === current && !createsConsumer) return 'already-holds';
-  // A deployment-seeded owner is canonical and cannot be lowered in Lakebase:
-  // the environment would restore the role on the next request. A promoted
-  // super admin is editable when another super admin remains.
+  // A deployment-seeded role is canonical and cannot be lowered in Lakebase:
+  // the environment would restore the role on the next request. This is role
+  // configuration only; deployment ownership is separate provenance.
   if (current === 'super_admin' && seedFloorFor(input.seed, target) === 'super_admin') {
     return 'immutable-super-admin';
   }
@@ -426,7 +426,8 @@ function leavesNoSuperAdmin(input: {
  * permission model was designed.
  */
 export const REFUSAL_DETAIL: Readonly<Record<RosterRefusal, string>> = {
-  'immutable-super-admin': 'Super admins are deployment owners and cannot be changed or removed here.',
+  'immutable-super-admin':
+    "That Super admin role is set in this deployment's configuration and cannot be changed or removed here.",
   'seed-floor': "That role is set in this deployment's configuration and cannot be lowered here. It can be raised.",
   'last-super-admin': 'That is the only super admin. Appoint another one first.',
   'not-found': 'That address is not on the roster.',
@@ -449,8 +450,10 @@ export function rosterPayload(input: {
   storedRosterReadable: boolean;
   roleColumnPresent: boolean;
   reader: string;
+  deploymentOwner?: string;
 }): RosterPayload {
   const you = normalizeAdminEmail(input.reader);
+  const deploymentOwner = normalizeAdminEmail(input.deploymentOwner ?? '');
   const superAdminCount = countSuperAdmins({ seed: input.seed, stored: input.stored });
   const adminCount = everyKnownUser({ seed: input.seed, stored: input.stored }).filter(
     (user) => user.role !== 'consumer'
@@ -461,6 +464,7 @@ export function rosterPayload(input: {
       const floor = seedFloorFor(input.seed, user.email);
       return {
         email: user.email,
+        isDeploymentOwner: Boolean(deploymentOwner) && user.email === deploymentOwner,
         role: user.role,
         seedFloor: floor,
         setBy: row?.setBy ?? '',

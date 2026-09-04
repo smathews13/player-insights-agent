@@ -265,6 +265,7 @@ export interface CostCardView {
   id: string;
   title: string;
   amount: string;
+  secondaryMetric: string;
   status: CostCardStatus;
   basis: string;
   evidence: string;
@@ -375,36 +376,8 @@ const PRIMARY_COST_ORDER = [
   'app-compute',
 ] as const;
 
-function tokenEvidence(tile: CostTile): string {
-  const tokens = tile.evidence?.tokens;
-  if (!tokens) return '';
-  const expectedRequests = tokens.coveredRequests + (tile.evidence?.missingEligibleRequests ?? 0);
-  const calls = `${count(tokens.coveredRequests)} of ${count(expectedRequests)} Ask model ${
-    expectedRequests === 1 ? 'call' : 'calls'
-  }`;
-  const coverage =
-    tile.evidence?.coverageComplete === false
-      ? `${count(tile.evidence.missingEligibleRequests ?? 0)} eligible Ask missing evidence`
-      : 'complete coverage';
-  if (tokens.total === null) return `${calls} · ${coverage}`;
-  const cache =
-    tokens.cachedRead === undefined && tokens.cacheWrite === undefined
-      ? 'Cache not reported'
-      : `${count(tokens.cachedRead ?? 0)} cached input`;
-  return `${calls} · ${count(tokens.input)} input · ${count(tokens.output)} output · ${count(
-    tokens.total
-  )} total · ${cache} · ${coverage}`;
-}
-
 function primaryEvidence(tile: CostTile, throughDay: string): string {
-  if (tile.id === 'foundation-model') return tokenEvidence(tile);
-  if (tile.id === 'serving-endpoint') {
-    const requests = tile.evidence?.interactiveRequests;
-    const covered = tile.evidence?.coveredRequests;
-    return requests === null || requests === undefined
-      ? ''
-      : `${count(covered ?? 0)} of ${count(requests)} interactive requests`;
-  }
+  if (tile.id === 'foundation-model' || tile.id === 'serving-endpoint') return '';
   if (tile.id === 'sql-warehouse') {
     const queries = tile.evidence?.astrolabeQueries;
     return queries === null || queries === undefined
@@ -417,9 +390,9 @@ function primaryEvidence(tile: CostTile, throughDay: string): string {
 }
 
 function primaryBasis(tile: CostTile): string {
-  if (tile.id === 'serving-endpoint') return 'Marginal interactive Ask';
-  if (tile.id === 'foundation-model') return 'Interactive Ask tokens';
-  if (tile.id === 'sql-warehouse') return 'Marginal Ask SQL';
+  if (tile.id === 'serving-endpoint') return 'Configured endpoint';
+  if (tile.id === 'foundation-model') return '';
+  if (tile.id === 'sql-warehouse') return 'App-attributed operations';
   return BASIS_LABEL[tile.basis] || 'Selected period';
 }
 
@@ -441,6 +414,12 @@ export function costCardView(
     id: tile.id,
     title: PRIMARY_COST_TITLES[tile.id] ?? tile.label,
     amount: view.figure || (partial ? 'Measured amount unavailable' : 'No measured amount'),
+    secondaryMetric:
+      tile.id === 'foundation-model'
+        ? tile.evidence?.tokens?.total === null || tile.evidence?.tokens?.total === undefined
+          ? '— total tokens'
+          : `${count(tile.evidence.tokens.total)} total tokens`
+        : '',
     status: 'Estimated',
     basis: primaryBasis(tile),
     evidence: primaryEvidence(tile, payload.throughDay),
@@ -454,7 +433,14 @@ function usableQuestionComponent(tile: CostTile | undefined, unit: CostBudgetUni
   if (unit === 'USD' && tile.pricing && tile.pricing.match !== 'priced' && tile.pricing.match !== 'none') {
     return null;
   }
-  const value = unit === 'DBU' ? tile.dbus : tile.amount;
+  const value =
+    tile.id === 'serving-endpoint'
+      ? unit === 'DBU'
+        ? tile.marginalDbus
+        : tile.marginalAmount
+      : unit === 'DBU'
+        ? tile.dbus
+        : tile.amount;
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
@@ -477,6 +463,7 @@ export function questionCostCardView(payload: OpsCostPayload, unit: CostBudgetUn
     id: 'average-cost-question',
     title: 'Average cost / question',
     amount: value === null ? 'No measured average' : costAmount(value, payload.currency, unit),
+    secondaryMetric: '',
     status: 'Estimated',
     basis: partial ? 'Available marginal components' : 'Marginal interactive Ask',
     evidence:
@@ -1077,7 +1064,7 @@ export function questionServingAverage(payload: OpsCostPayload, unit: CostBudget
   const legacy = payload.perQuestion.complete === undefined;
   const priced = (tile: CostTile | undefined) =>
     !tile?.pricing || tile.pricing.match === 'priced' || tile.pricing.match === 'none';
-  const servingAmount = unit === 'DBU' ? serving?.dbus : serving?.amount;
+  const servingAmount = unit === 'DBU' ? serving?.marginalDbus : serving?.marginalAmount;
   const foundationAmount = unit === 'DBU' ? foundation?.dbus : foundation?.amount;
   const sqlAmount = unit === 'DBU' ? sql?.dbus : sql?.amount;
   const usdUnavailable =

@@ -21,6 +21,7 @@ import {
   type ComponentRow,
   type CostIdentifiers,
 } from './ops-billing';
+import { appCostSummary } from '../../shared/app-cost-summary';
 
 const IDS: CostIdentifiers = {
   appName: 'player-insights',
@@ -175,10 +176,11 @@ describe('Vector Search measured-unit fixtures', () => {
       [{ tileId: 'vector-search', calls: 2, observedCalls: 10 }]
     ).find((tile) => tile.id === 'vector-search');
     expect(vector).toMatchObject({
-      amount: 6,
-      dbus: 5,
+      amount: 12,
+      dbus: 10,
       quality: 'rate',
       population: 'Hosting endpoint',
+      basis: 'total-in-range',
       attribution: 'deployment',
     });
     expect(vector?.note).toContain('endpoint hosts only the active index');
@@ -225,6 +227,44 @@ describe('Vector Search measured-unit fixtures', () => {
 });
 
 describe('price join golden outputs', () => {
+  it('keeps app compute as the exact period total instead of a one-day rate', () => {
+    const app = buildTiles(IDS, [
+      row({ component: 'app-compute', spend: 11.4, billedDays: 3, dbuRows: 1, dbuQuantity: 9 }),
+    ]).find((tile) => tile.id === 'app-compute');
+    expect(app).toMatchObject({
+      amount: 11.4,
+      dbus: 9,
+      basis: 'total-in-range',
+      attribution: 'deployment',
+    });
+  });
+
+  it('reconciles the displayed component totals to Total app spend exactly once', () => {
+    const tiles = buildTiles(
+      IDS,
+      [
+        row({ component: 'serving-endpoint', spend: 64, billedDays: 3 }),
+        row({ component: 'sql-warehouse', spend: 30, billedDays: 3 }),
+        row({ component: 'vector-search', spend: 12, billedDays: 3, dbuRows: 1, dbuQuantity: 10 }),
+        row({ component: 'app-compute', spend: 11.4, billedDays: 3, dbuRows: 1, dbuQuantity: 9 }),
+      ],
+      {
+        complete: true,
+        astrolabeQueries: 2,
+        totalQueries: 10,
+        astrolabeExecutionMs: 200,
+        totalExecutionMs: 1_000,
+        askRuns: [],
+        genieSpaces: [],
+      },
+      [{ tileId: 'vector-search', calls: 1, observedCalls: 1 }]
+    );
+    const componentTotal = tiles.reduce((sum, tile) => sum + (tile.amount ?? 0), 0);
+    const summary = appCostSummary({ range: RANGE, tiles, currency: 'USD' });
+    expect(summary.amount).toBe(componentTotal);
+    expect(summary.amount).toBeCloseTo(64 + 6 + 12 + 11.4, 8);
+  });
+
   it('emits exact components once and excludes shared meters without an attribution denominator', () => {
     const tiles = buildTiles(IDS, [
       row({ component: 'serving-endpoint', spend: 1, billedDays: 1 }),

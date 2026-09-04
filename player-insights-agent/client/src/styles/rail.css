@@ -3,14 +3,11 @@
 .ask-layout {
   display: grid;
   align-items: start;
-  /*
-   * Ask has to leave its composer in the first viewport. The normal composer
-   * is about 104px tall; this reserve also includes the 20px row gap and 20px
-   * of page-end breathing room. Run Explorer intentionally keeps its separate
-   * 760–1120px reading panes.
-   */
+  /* Only the no-evidence planning card is compact. The two side rails keep the
+     full workspace height independently, and every real-stage/final center
+     surface returns to natural page flow. */
   --ask-composer-block-reserve: 144px;
-  --ask-pane-block-size: clamp(
+  --ask-planning-pane-block-size: clamp(
     360px,
     calc(100dvh - var(--app-header-h) - var(--ask-composer-block-reserve) - env(safe-area-inset-bottom, 0px)),
     520px
@@ -104,9 +101,9 @@
 .ask-layout > .conversation-rail,
 .trace-inspector {
   position: static;
-  height: var(--ask-pane-block-size);
-  min-height: var(--ask-pane-block-size);
-  max-height: var(--ask-pane-block-size);
+  height: var(--workspace-pane-block-size);
+  min-height: var(--workspace-pane-block-size);
+  max-height: var(--workspace-pane-block-size);
   box-sizing: border-box;
   overscroll-behavior: contain;
   /* Solid, and no blur. Both columns were 70% white with a 14px backdrop blur, so

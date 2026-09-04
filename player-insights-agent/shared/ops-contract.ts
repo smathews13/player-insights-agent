@@ -192,12 +192,18 @@ export interface CostTile {
   quality: CostQuality;
   /** Spend, or null where it could not be sourced. */
   amount: number | null;
+  /** Request-active share used only for marginal efficiency metrics, never as the component total. */
+  marginalAmount?: number | null;
   /**
    * Attributable usage when every contributing billing row is measured in DBUs.
    * Null means the component cannot be compared with a DBU budget; dollars are
    * never converted into DBUs.
    */
   dbus?: number | null;
+  /** Request-active DBU share used only for marginal efficiency metrics. */
+  marginalDbus?: number | null;
+  /** Why the marginal share is unavailable while the component total may still be measured. */
+  marginalUnavailable?: string;
   /** Whether `amount` is the total over the range or a per-day rate. */
   basis: 'total-in-range' | 'per-day';
   /**

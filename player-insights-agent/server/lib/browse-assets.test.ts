@@ -22,6 +22,7 @@ import {
   matchesUnityCatalogSearch,
   normalizedUnityCatalogSearch,
   resetBrowsePageCache,
+  validateLakebaseDatabase,
   validateNotebookPath,
 } from './browse-assets';
 import { DISCOVERY_MAX_CONCURRENCY } from './discovery-control';
@@ -1047,6 +1048,32 @@ describe('Lakebase browse', () => {
     if (response.status === 'unavailable') {
       expect(response.scope).toBe('postgres');
     }
+  });
+
+  it('revalidates the exact selected database under the forwarded user token', async () => {
+    const name = 'projects/demo/branches/production/databases/databricks-postgres';
+    const valid = await validateLakebaseDatabase(name, {
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl: fetchFor({
+        [`/api/2.0/postgres/${name}`]: { status: 200, body: { name } },
+      }),
+    });
+    expect(valid).toEqual({ ok: true });
+
+    const missing = await validateLakebaseDatabase(name, {
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl: fetchFor({
+        [`/api/2.0/postgres/${name}`]: {
+          status: 404,
+          body: { error_code: 'RESOURCE_DOES_NOT_EXIST' },
+        },
+      }),
+    });
+    expect(missing).toMatchObject({ ok: false, status: 404 });
   });
 });
 

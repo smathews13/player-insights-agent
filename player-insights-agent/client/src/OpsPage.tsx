@@ -734,6 +734,7 @@ function PrimaryCostCard({
       <p className="ops-tile-figure" title={!concise && card.detail ? card.detail : undefined}>
         <span className="ast-num">{card.amount}</span>
       </p>
+      {card.secondaryMetric ? <p className="ops-tile-secondary">{card.secondaryMetric}</p> : null}
       {!concise ? <p className="ops-tile-basis">{card.basis}</p> : null}
       {!concise && /^Billing through \d{4}-\d{2}-\d{2}$/.test(card.evidence) ? (
         <div className="ops-tile-evidence">
@@ -805,8 +806,9 @@ function CostMethodology() {
           detail: 'Free usage consumes the user’s monthly allowance.',
         },
         {
-          label: 'Charged usage',
-          detail: 'Usage above allowance; this is what counts toward configured Genie budgets.',
+          label: 'Free and charged',
+          detail:
+            'Free is waived list-price value. Charged is usage actually billed after allowance and promotion rules. Either can be larger.',
         },
         {
           label: 'Service principals',
@@ -816,6 +818,10 @@ function CostMethodology() {
           label: 'Configured spaces',
           detail:
             'Data Genie and Dictionary Genie cards include only attributable configured-space usage; unrelated or unmatched workspace usage is excluded.',
+        },
+        {
+          label: 'Foundation tokens',
+          detail: 'Total tokens are provider-reported input plus output; cache-specific counts are not added again.',
         },
         {
           label: 'Billing freshness',

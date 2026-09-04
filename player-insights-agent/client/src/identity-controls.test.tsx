@@ -46,6 +46,7 @@ describe('Settings Identity controls', () => {
     const payload = roster([
       {
         email: 'owner@example.com',
+        isDeploymentOwner: true,
         role: 'super_admin',
         seedFloor: 'super_admin',
         setBy: '',
@@ -56,6 +57,7 @@ describe('Settings Identity controls', () => {
       },
       {
         email: 'admin@example.com',
+        isDeploymentOwner: false,
         role: 'admin',
         seedFloor: 'consumer',
         setBy: 'owner@example.com',
@@ -100,6 +102,7 @@ describe('Settings Identity controls', () => {
     const payload = roster(
       (['super_admin', 'admin', 'consumer'] as const).map((role) => ({
         email: `${role}@example.com`,
+        isDeploymentOwner: false,
         role,
         seedFloor: role,
         setBy: '',

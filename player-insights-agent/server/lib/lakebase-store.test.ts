@@ -100,6 +100,7 @@ afterEach(() => {
   // same kind of handle that created it.
   stopLakebaseWatchdog();
   vi.useRealTimers();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -314,6 +315,17 @@ describe('markResponse', () => {
 });
 
 describe('lakebaseStorageCheck', () => {
+  it('reports the active project and branch parsed from the injected endpoint', () => {
+    vi.stubEnv('LAKEBASE_ENDPOINT', 'projects/player-insights/branches/production/endpoints/primary');
+    vi.stubEnv('PGDATABASE', 'app');
+    expect(lakebaseStorageCheck().facts).toMatchObject({
+      project: 'projects/player-insights',
+      branch: 'projects/player-insights/branches/production',
+      database: 'app',
+      endpoint: 'projects/player-insights/branches/production/endpoints/primary',
+    });
+  });
+
   it('reports an unread store as unverified rather than healthy', () => {
     expect(lakebaseStorageCheck().status).toBe('unverified');
   });
@@ -350,7 +362,8 @@ describe('lakebaseStorageCheck', () => {
     // open question. Reported as "it returned stored records" until this was
     // fixed, because `unknown` shared a branch with `populated`.
     vi.useFakeTimers();
-    startLakebaseWatchdog(schemaReader(() => [{ conversations: null, messages: null, benchmark_runs: null }]),
+    startLakebaseWatchdog(
+      schemaReader(() => [{ conversations: null, messages: null, benchmark_runs: null }]),
       60_000
     );
     await vi.advanceTimersByTimeAsync(60_000);
@@ -397,12 +410,8 @@ describe('the watchdog probe', () => {
     // the DDL would otherwise turn every tick into a false outage. Checked
     // against the source rather than a copy of it. DDL uses ${APP_SCHEMA}.table.
     const ddl = readFileSync(new URL('../routes/insights-routes.ts', import.meta.url), 'utf8');
-    const created = [...ddl.matchAll(/CREATE TABLE IF NOT EXISTS \$\{APP_SCHEMA\}\.(\w+)/g)].map(
-      (match) => match[1],
-    );
-    const probed = [...WATCHDOG_PROBE_SQL.matchAll(new RegExp(`${APP_SCHEMA}\\.(\\w+)`, 'g'))].map(
-      (match) => match[1],
-    );
+    const created = [...ddl.matchAll(/CREATE TABLE IF NOT EXISTS \$\{APP_SCHEMA\}\.(\w+)/g)].map((match) => match[1]);
+    const probed = [...WATCHDOG_PROBE_SQL.matchAll(new RegExp(`${APP_SCHEMA}\\.(\\w+)`, 'g'))].map((match) => match[1]);
 
     expect(probed.length).toBeGreaterThan(0);
     expect(created).toEqual(expect.arrayContaining(probed));
@@ -438,7 +447,8 @@ describe('the watchdog probe', () => {
   it('reports recovery once the schema read itself succeeds again', async () => {
     vi.useFakeTimers();
     let granted = false;
-    startLakebaseWatchdog(schemaReader((sql) => {
+    startLakebaseWatchdog(
+      schemaReader((sql) => {
         if (!sql.includes('player_insights.')) return [{ '?column?': 1 }];
         return granted ? [{ conversations: 1 }] : permissionDenied();
       }),
@@ -487,7 +497,8 @@ describe('the watchdog probe', () => {
 
 describe('what counts as evidence of recovery', () => {
   it('does not let a bare connection check end an outage a schema read caused', async () => {
-    const failing = await readStored(schemaReader(() => permissionDenied()),
+    const failing = await readStored(
+      schemaReader(() => permissionDenied()),
       'GET /api/runs',
       'SELECT id FROM player_insights.messages'
     );
@@ -505,7 +516,8 @@ describe('what counts as evidence of recovery', () => {
   });
 
   it('turns that split into the remedy, rather than leaving it as an outage to wait out', async () => {
-    await readStored(schemaReader(() => permissionDenied()),
+    await readStored(
+      schemaReader(() => permissionDenied()),
       'GET /api/runs',
       'SELECT id FROM player_insights.messages'
     );

@@ -94,6 +94,11 @@ function interactiveRunId(row: QueryHistoryRow, runIds: ReadonlyMap<string, stri
   return '';
 }
 
+function isAppOperation(row: QueryHistoryRow): boolean {
+  const tags = parseQueryTags(row.query_tags);
+  return tags.get('application') === 'Astrolabe';
+}
+
 function genieSpaceId(row: QueryHistoryRow): string {
   if (!row.query_source || typeof row.query_source !== 'object') return '';
   const value = (row.query_source as Record<string, unknown>).genie_space_id;
@@ -251,7 +256,7 @@ export async function readWarehouseQueryAttribution(input: {
     // A generated statement belongs to its exact Genie space. Excluding it from
     // the Astrolabe bucket makes the two allocations mutually exclusive.
     const interactiveRun = !spaceId ? interactiveRunId(row, runIds) : '';
-    const astrolabe = Boolean(interactiveRun);
+    const astrolabe = !spaceId && isAppOperation(row);
     if (astrolabe) astrolabeQueries += 1;
     if (spaceId) {
       const current = genieSpaces.get(spaceId) ?? { queries: 0, executionMs: 0 };

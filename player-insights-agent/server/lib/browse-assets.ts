@@ -140,6 +140,8 @@ export interface BrowseCallOptions {
   page?: number;
   /** Override declared scopes for tests. Defaults to the container's list. */
   declaredScopes?: string[] | null;
+  /** Validation reads must not reuse an earlier metadata page. */
+  skipCache?: boolean;
 }
 
 type WorkspaceAnswer =
@@ -155,6 +157,7 @@ export function resetBrowsePageCache(): void {
 }
 
 function cacheKey(pathAndQuery: string, options: BrowseCallOptions): string {
+  if (options.skipCache) return '';
   const principal = options.principal?.trim().toLocaleLowerCase() ?? '';
   if (!principal) return '';
   const tokenHash = createHash('sha256').update(options.token).digest('base64url').slice(0, 16);
@@ -1098,6 +1101,78 @@ export async function listLakebaseDatabases(
     options,
     lakebaseDatabaseItems
   );
+}
+
+export type LakebaseDatabaseValidation = { ok: true } | { ok: false; status: 400 | 403 | 404 | 503; detail: string };
+
+/**
+ * Re-read an exact Lakebase database before a binding plan is staged.
+ *
+ * The picker list is useful evidence, but it may have been open while the
+ * resource was removed or the user's grant changed. This GET runs under the
+ * same forwarded user token immediately before the durable write. It proves
+ * visibility and existence only; app-SP ownership and migrations cannot be
+ * tested until Databricks Apps attaches the resource and restarts the pool.
+ */
+export async function validateLakebaseDatabase(
+  databaseInput: string,
+  options: BrowseCallOptions
+): Promise<LakebaseDatabaseValidation> {
+  const database = databaseInput.trim();
+  if (!/^projects\/[^/]+\/branches\/[^/]+\/databases\/[^/]+$/.test(database)) {
+    return {
+      ok: false,
+      status: 400,
+      detail: 'Choose a full Lakebase database name: projects/.../branches/.../databases/....',
+    };
+  }
+  if (!options.host || !options.token) {
+    return {
+      ok: false,
+      status: 403,
+      detail: 'The signed-in user context needed to validate this Lakebase database is unavailable.',
+    };
+  }
+  const scopePath = '/api/2.0/postgres/projects';
+  const blocked = browseBlockedByScope({
+    apiPath: scopePath,
+    token: options.token,
+    declaredScopes: options.declaredScopes,
+  });
+  if (blocked) {
+    return {
+      ok: false,
+      status: 403,
+      detail: `Your sign-in does not carry ${blocked}, so this Lakebase database cannot be validated.`,
+    };
+  }
+  const answer = await workspaceGet(`/api/2.0/postgres/${database}`, { ...options, skipCache: true });
+  if (answer.kind !== 'http') {
+    return {
+      ok: false,
+      status: 503,
+      detail:
+        answer.kind === 'timeout'
+          ? 'Lakebase validation timed out. Nothing was staged.'
+          : 'The workspace could not be reached to validate this Lakebase database. Nothing was staged.',
+    };
+  }
+  if (answer.status >= 200 && answer.status < 300) return { ok: true };
+  if (answer.status === 404 || text(answer.body.error_code) === 'RESOURCE_DOES_NOT_EXIST') {
+    return { ok: false, status: 404, detail: 'That Lakebase database no longer exists. Nothing was staged.' };
+  }
+  if (answer.status === 401 || answer.status === 403) {
+    return {
+      ok: false,
+      status: 403,
+      detail: 'Your sign-in may no longer read that Lakebase database. Nothing was staged.',
+    };
+  }
+  return {
+    ok: false,
+    status: 503,
+    detail: `The workspace refused Lakebase validation with HTTP ${answer.status}. Nothing was staged.`,
+  };
 }
 
 /**

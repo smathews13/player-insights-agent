@@ -1137,14 +1137,14 @@ const DESCRIPTIONS: Record<
     label: 'Vector Search',
     quality: 'rate',
     population: 'Hosting endpoint',
-    basis: 'per-day',
+    basis: 'total-in-range',
     variable: '',
   },
   'app-compute': {
     label: 'App compute',
-    quality: 'rate',
+    quality: 'real',
     population: 'This app',
-    basis: 'per-day',
+    basis: 'total-in-range',
     variable: 'DATABRICKS_APP_NAME',
   },
 };
@@ -1190,7 +1190,7 @@ export function buildTiles(
     const tile = componentTile(component, ids, byComponent, warehouseAttribution, resourceActivity);
     tiles.push(
       component === 'serving-endpoint' && marginal
-        ? marginalServingTile(tile, byComponent.get(component), marginal.interactive)
+        ? withMarginalServingEvidence(tile, byComponent.get(component), marginal.interactive)
         : tile
     );
     if (component === 'serving-endpoint') {
@@ -1240,7 +1240,7 @@ function validRunDurationMs(run: QuestionRunInput): number | null {
  * denominator. This is explicitly an estimate; an incomplete run/timing read is
  * withheld rather than widened back to the full endpoint meter.
  */
-function marginalServingTile(
+function withMarginalServingEvidence(
   full: CostTile,
   row: ComponentRow | undefined,
   interactive: { runs: readonly QuestionRunInput[]; complete: boolean }
@@ -1253,25 +1253,22 @@ function marginalServingTile(
   const factor = complete && billedMs > 0 ? Math.min(1, requestMs / billedMs) : null;
   const scale = (value: number | null | undefined) =>
     factor !== null && typeof value === 'number' && Number.isFinite(value) ? value * factor : null;
-  if (!row) return full;
+  if (!row)
+    return { ...full, marginalAmount: null, marginalDbus: null, marginalUnavailable: 'No endpoint billing row.' };
   return {
     ...full,
     label: 'Agent serving',
-    quality: factor === null ? 'unknown' : 'estimate',
-    population: 'Interactive Ask',
-    amount: scale(full.amount),
-    dbus: scale(full.dbus),
-    attribution: factor === null ? 'unavailable' : 'deployment',
-    unavailable:
+    population: 'Configured endpoint',
+    marginalAmount: scale(full.amount),
+    marginalDbus: scale(full.dbus),
+    marginalUnavailable:
       factor === null
         ? complete
           ? 'Marginal serving cost needs priced endpoint billing intervals.'
           : 'Interactive Ask timing coverage is incomplete; full endpoint uptime is excluded.'
         : '',
-    note: factor === null ? '' : 'Estimated marginal Ask',
     evidence: {
-      billingRows: null,
-      astrolabeQueries: null,
+      ...(full.evidence ?? { billingRows: null, astrolabeQueries: null }),
       interactiveRequests: interactive.runs.length,
       coveredRequests: covered.length,
     },

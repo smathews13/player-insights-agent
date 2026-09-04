@@ -20,10 +20,11 @@ function bodyFor(css: string, selector: string): string {
 const payload: RosterPayload = {
   entries: [
     {
-      email: '<your-username>',
+      email: 'fictional.deployer@example.com',
+      isDeploymentOwner: true,
       role: 'super_admin',
       seedFloor: 'super_admin',
-      setBy: '<your-username>',
+      setBy: 'fictional.deployer@example.com',
       setAt: '2026-08-19T00:00:00.000Z',
       isYou: true,
       assignable: [],
@@ -31,6 +32,7 @@ const payload: RosterPayload = {
     },
     {
       email: 'an.identity.with.a.deliberately.long.local.part@outside.example.invalid',
+      isDeploymentOwner: false,
       role: 'admin',
       seedFloor: 'consumer',
       setBy: 'a.deliberately.long.setter.address@another.example.invalid',
@@ -161,7 +163,7 @@ describe('Identity table polish', () => {
     expect(markup).toContain('data-role-state="super_admin"');
     expect(markup).toContain('Super admin');
     expect(markup).toContain('roster-owner-badge">Owner</span>');
-    expect(markup).not.toContain('aria-label="Remove <your-username>"');
+    expect(markup).not.toContain('aria-label="Remove fictional.deployer@example.com"');
     expect(CSS).toMatch(
       /\.roster-role > \.role-badge,\s*\.roster-owner-badge \{[^}]*max-width:\s*none[^}]*overflow:\s*visible[^}]*white-space:\s*nowrap/s
     );

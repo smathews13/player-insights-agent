@@ -26,7 +26,7 @@ function row(id: string, executionMs: number | null, application = '') {
 }
 
 describe('Ops Query History attribution', () => {
-  it('counts only completed-run Ask tags and excludes preflight, Ops, telemetry, benchmark, Genie, and unrelated SQL', async () => {
+  it('counts every app operation for component spend while keeping marginal Ask runs exact', async () => {
     const tagged = (id: string, surface: string, executionMs: number, extra: Record<string, unknown> = {}) => ({
       ...row(id, executionMs),
       query_tags: { application: 'Astrolabe', surface, run_id: 'run-1' },
@@ -53,8 +53,8 @@ describe('Ops Query History attribution', () => {
     });
     expect(result).toMatchObject({
       complete: true,
-      astrolabeQueries: 1,
-      astrolabeExecutionMs: 30,
+      astrolabeQueries: 5,
+      astrolabeExecutionMs: 486,
       totalQueries: 7,
       totalExecutionMs: 736,
       askRuns: [{ runId: 'run-1', executionMs: 30 }],

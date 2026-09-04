@@ -116,8 +116,8 @@ function foundation() {
   return foundationCostTile(IDS, result);
 }
 
-describe('Aug 26–Sep 1 marginal Ask audit fixture', () => {
-  it('never widens dedicated serving or broad SQL operations into visible Ask spend', () => {
+describe('Aug 26–Sep 1 component-total and marginal Ask audit fixture', () => {
+  it('shows the dedicated endpoint total while retaining its request-active share only for efficiency', () => {
     const interactive = runs();
     const tiles = buildTiles(
       IDS,
@@ -145,9 +145,10 @@ describe('Aug 26–Sep 1 marginal Ask audit fixture', () => {
 
     expect(tiles.find((tile) => tile.id === 'serving-endpoint')).toMatchObject({
       label: 'Agent serving',
-      amount: MARGINAL_SERVING,
-      population: 'Interactive Ask',
-      note: 'Estimated marginal Ask',
+      amount: FULL_SERVING,
+      marginalAmount: MARGINAL_SERVING,
+      population: 'Configured endpoint',
+      basis: 'total-in-range',
     });
     expect(tiles.find((tile) => tile.id === 'foundation-model')).toMatchObject({
       label: 'Foundation model tokens',
@@ -162,11 +163,11 @@ describe('Aug 26–Sep 1 marginal Ask audit fixture', () => {
     });
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.amount).toBeCloseTo(ASK_SQL, 9);
     expect(ASK_SQL).toBeCloseTo(6.69, 2);
-    expect(tiles.map((tile) => tile.amount)).not.toContain(FULL_SERVING);
+    expect(tiles.map((tile) => tile.amount)).toContain(FULL_SERVING);
     expect(tiles.map((tile) => tile.amount)).not.toContain(BROAD_APP_SQL);
 
     const summary = appCostSummary({ range: RANGE, tiles, currency: 'USD' });
-    expect(summary.amount).toBeCloseTo(MARGINAL_SERVING + 4.088699 + ASK_SQL, 9);
+    expect(summary.amount).toBeCloseTo(FULL_SERVING + 4.088699 + ASK_SQL, 9);
     expect(summary.amount).not.toBeCloseTo(FULL_SERVING + BROAD_APP_SQL, 2);
 
     const average = buildQuestionAttribution(interactive, tiles, 100, {
@@ -197,6 +198,18 @@ describe('Aug 26–Sep 1 marginal Ask audit fixture', () => {
       ['0', 'USD', '0', 'priced', '1', '0', '1', '0', '', '0', '0', '', '1', '0', '3', '0', '0', '0', '0'],
     ]);
     expect(foundationCostTile(IDS, zero)).toMatchObject({ amount: 0, dbus: 0, attribution: 'deployment' });
+  });
+
+  it('distinguishes unavailable token evidence from a provider-reported zero', () => {
+    const unavailable = readFoundationBillingRows([
+      ['1', 'USD', '1', 'priced', '1', '0', '1', '0', '', '0', '0', '', '1', '0', '1', '0', null, null, null, '1', '0'],
+    ]);
+    expect(foundationCostTile(IDS, unavailable).evidence?.tokens?.total).toBeNull();
+
+    const zero = readFoundationBillingRows([
+      ['0', 'USD', '0', 'priced', '1', '0', '1', '0', '', '0', '0', '', '1', '0', '1', '1', '0', '0', '0', '1', '1'],
+    ]);
+    expect(foundationCostTile(IDS, zero).evidence?.tokens?.total).toBe(0);
   });
 
   it('shows a measured lower bound when an eligible Ask lacks model evidence', () => {
@@ -309,6 +322,8 @@ describe('foundation billing query contract', () => {
     expect(built?.statement).not.toContain('COALESCE(all_weight, 0) = 0) > 0');
     expect(built?.statement).toContain("LIKE '%OUTPUT%'");
     expect(built?.statement).toContain("LIKE '%INPUT%'");
+    expect(built?.statement).toContain("LIKE '%CACHE%' THEN request.input_tokens");
+    expect(built?.statement).not.toContain("LIKE '%CACHE%READ%' THEN 0");
     expect(built?.statement).toContain("record_type ILIKE '%CORRECT%'");
     expect(built?.statement).toContain("REGEXP_REPLACE(LOWER(e.endpoint_name), '[^a-z0-9]', '')");
     expect(built?.statement).toContain('GROUP BY record_id');
@@ -318,5 +333,16 @@ describe('foundation billing query contract', () => {
     expect(built?.parameters.find((parameter) => parameter.name === 'interactive_runs_json')?.value).not.toContain(
       '@example.test'
     );
+  });
+
+  it('clips nested model requests and billing rows at the exact first deployment instant', () => {
+    const built = buildFoundationCostStatement(IDS, { ...RANGE, fromTimestamp: '2026-08-26T18:42:11.000Z' }, runs());
+    expect(built?.statement).toContain('u.request_time >= :from_instant');
+    expect(built?.statement).toContain('u.usage_start_time >= :from_instant');
+    expect(built?.parameters).toContainEqual({
+      name: 'from_instant',
+      value: '2026-08-26T18:42:11.000Z',
+      type: 'TIMESTAMP',
+    });
   });
 });

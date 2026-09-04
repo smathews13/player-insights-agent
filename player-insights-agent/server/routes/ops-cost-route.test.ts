@@ -626,16 +626,16 @@ describe('the ranged cost route', () => {
       resourceId: 'cat.schema.index',
       secondaryResourceId: 'vs-endpoint-from-connections',
       resourceKind: 'vector-index',
-      amount: 7,
+      amount: 14,
       quality: 'rate',
       unavailable: '',
       evidence: { billingRows: 2, activity: { calls: 5, observedCalls: 7, unit: 'queries' } },
     });
-    expect(vector?.dbus).toBe(3);
+    expect(vector?.dbus).toBe(6);
     expect(payload.tiles.find((tile) => tile.id === 'app-compute')).toMatchObject({
-      amount: 10.5,
-      dbus: 3.5,
-      basis: 'per-day',
+      amount: 21,
+      dbus: 7,
+      basis: 'total-in-range',
       resourceId: 'player-insights',
       attribution: 'deployment',
       unavailable: '',

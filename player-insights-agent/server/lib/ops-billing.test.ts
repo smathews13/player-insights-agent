@@ -389,7 +389,7 @@ describe('billing attribution', () => {
       undefined,
       [{ tileId: 'vector-search', calls: 1, observedCalls: 1 }]
     ).find((item) => item.id === 'vector-search');
-    expect(vector).toMatchObject({ amount: 7, dbus: 3, basis: 'per-day', attribution: 'deployment' });
+    expect(vector).toMatchObject({ amount: 14, dbus: 6, basis: 'total-in-range', attribution: 'deployment' });
   });
 
   it('does not combine mixed usage units into a DBU figure', () => {

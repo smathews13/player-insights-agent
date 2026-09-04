@@ -20,7 +20,12 @@ import {
   USER_SPEND_HOURLY_REFRESH_TABLE,
   USER_SPEND_HOURLY_TABLE,
 } from './user-spend-hourly-read-model';
-import { APP_DEPLOYMENT_LIFETIME_DDL, APP_DEPLOYMENT_LIFETIME_TABLE } from './app-deployment-lifetime';
+import {
+  ADD_FIRST_DEPLOYED_BY_STATEMENT,
+  APP_DEPLOYMENT_LIFETIME_DDL,
+  APP_DEPLOYMENT_LIFETIME_TABLE,
+} from './app-deployment-lifetime';
+import { LAKEBASE_BINDING_PLAN_DDL, LAKEBASE_BINDING_PLAN_TABLE } from './lakebase-binding-plan';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -982,6 +987,23 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     name: 'app deployment lifetime evidence',
     statements: [APP_DEPLOYMENT_LIFETIME_DDL],
     down: [`DROP TABLE IF EXISTS ${APP_DEPLOYMENT_LIFETIME_TABLE}`],
+  },
+  {
+    version: 39,
+    name: 'staged Lakebase binding plans',
+    /**
+     * A separate table keeps the desired App resource distinct from the pool
+     * this process is actually using. Revision fencing makes two open admin
+     * editors conflict instead of silently replacing one another.
+     */
+    statements: [LAKEBASE_BINDING_PLAN_DDL],
+    down: [`DROP TABLE IF EXISTS ${LAKEBASE_BINDING_PLAN_TABLE}`],
+  },
+  {
+    version: 40,
+    name: 'immutable first deployment owner',
+    statements: [ADD_FIRST_DEPLOYED_BY_STATEMENT],
+    down: [`ALTER TABLE ${APP_DEPLOYMENT_LIFETIME_TABLE} DROP COLUMN IF EXISTS first_deployed_by`],
   },
 ];
 

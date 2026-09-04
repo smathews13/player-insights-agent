@@ -223,6 +223,7 @@ describe('the payload decides what each row may do', () => {
       storedRosterReadable: true,
       roleColumnPresent: true,
       reader: DEPUTY,
+      deploymentOwner: DEPUTY,
     });
 
   it('lists everybody either half names, highest rank first', () => {
@@ -237,6 +238,28 @@ describe('the payload decides what each row may do', () => {
 
   it('marks the reader', () => {
     expect(payload().entries.find((entry) => entry.isYou)?.email).toBe(DEPUTY);
+  });
+
+  it('marks only the matching deployment owner independently of role', () => {
+    expect(
+      payload()
+        .entries.filter((entry) => entry.isDeploymentOwner)
+        .map((entry) => entry.email)
+    ).toEqual([DEPUTY]);
+    expect(payload().entries.find((entry) => entry.isDeploymentOwner)?.role).toBe('admin');
+    expect(payload().entries.find((entry) => entry.email === LEAD)?.isDeploymentOwner).toBe(false);
+  });
+
+  it('shows no owner when deployment evidence is unavailable', () => {
+    const withoutEvidence = rosterPayload({
+      seed: LEAD_SEEDED,
+      stored: [stored(DEPUTY, 'super_admin')],
+      storedRosterReadable: true,
+      roleColumnPresent: true,
+      reader: LEAD,
+      deploymentOwner: '',
+    });
+    expect(withoutEvidence.entries.filter((entry) => entry.isDeploymentOwner)).toEqual([]);
   });
 
   it('never offers a change the route would refuse', () => {

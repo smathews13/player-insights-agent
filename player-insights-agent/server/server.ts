@@ -38,6 +38,7 @@ createApp({
       { setupInsightsRoutes, MIGRATIONS },
       { setupSettingsRoutes },
       { setupLakebaseMigrationRoutes },
+      { setupLakebaseBindingRoutes },
       { setupAiGatewayRoutes },
       { setupBrowseRoutes },
       { setupArchitectureRoutes },
@@ -68,6 +69,7 @@ createApp({
       import('./routes/insights-routes'),
       import('./routes/settings-routes'),
       import('./routes/lakebase-migration-routes'),
+      import('./routes/lakebase-binding-routes'),
       import('./routes/ai-gateway-routes'),
       import('./routes/browse-routes'),
       import('./routes/architecture-routes'),
@@ -123,6 +125,10 @@ createApp({
     // This admin-only recovery route uses the same app pool and ordered registry
     // as boot, and waits for the background boot pass before reporting state.
     setupLakebaseMigrationRoutes(appkit, { migrations: MIGRATIONS, storeReady });
+    // Bundle-managed resource change only: this stages a desired Postgres
+    // binding and emits the exact resource-update/restart plan. It never swaps
+    // AppKit's startup-bound pool or reports the desired database as active.
+    setupLakebaseBindingRoutes(appkit);
     // Metadata-only AI Gateway discovery and atomic staging. Registered under
     // /api/admin so the existing fail-closed role middleware protects every
     // list, validation and write without a client-side role claim.

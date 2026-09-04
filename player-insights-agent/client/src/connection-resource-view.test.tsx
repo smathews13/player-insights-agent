@@ -79,7 +79,12 @@ function check(id: string, state: State): PreflightCheck | undefined {
         : id === 'sql-warehouse'
           ? { display_name: 'Analytics warehouse', state: 'RUNNING', warehouse_type: 'PRO', cluster_size: 'Small' }
           : id === 'lakebase'
-            ? { endpoint: name, database: 'app_db', branch: 'production' }
+            ? {
+                project: 'projects/player-insights',
+                branch: 'projects/player-insights/branches/production',
+                database: 'app_db',
+                endpoint: name,
+              }
             : id === 'semantic-index'
               ? { endpoint: 'semantic-vs', index_type: 'TRIGGERED' }
               : id === 'semantic-index-endpoint'
@@ -150,6 +155,17 @@ describe('canonical Connections resource views', () => {
       id
     ).toContain(requiredLabel);
     expect(view.status, id).toBe('Connected');
+  });
+
+  it('shows the current Lakebase project, branch, database, and endpoint without requiring an edit role', () => {
+    const view = connectionResourceView(fixture('lakebase', 'match'));
+    expect(Object.fromEntries(view.details.map((detail) => [detail.label, detail.value]))).toMatchObject({
+      Project: 'projects/player-insights',
+      Branch: 'projects/player-insights/branches/production',
+      Database: 'app_db',
+      Endpoint: 'lakebase-active',
+      Connection: 'Connected',
+    });
   });
 
   it.each(

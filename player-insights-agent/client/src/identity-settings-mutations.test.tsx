@@ -10,6 +10,7 @@ const ROSTER: RosterPayload = {
   entries: [
     {
       email: EMAIL,
+      isDeploymentOwner: false,
       role: 'consumer',
       seedFloor: 'consumer',
       setBy: 'owner@example.invalid',
@@ -38,7 +39,7 @@ const SP_PAYLOAD: SpIdentityAdminPayload = {
       updatedBy: 'owner@example.invalid',
     },
   ],
-  roster: [{ email: EMAIL, role: 'consumer', personaId: null }],
+  roster: [{ email: EMAIL, role: 'consumer', isDeploymentOwner: false, personaId: null }],
 };
 
 function json(body: unknown, status = 200): Response {

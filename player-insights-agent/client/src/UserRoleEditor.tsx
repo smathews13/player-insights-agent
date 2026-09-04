@@ -71,6 +71,7 @@ function rosterFromSpIdentity(payload: SpIdentityAdminPayload): RosterPayload {
   const entries = payload.roster.map((row) => ({
     email: row.email,
     role: isRole(row.role) ? row.role : ('consumer' as const),
+    isDeploymentOwner: row.isDeploymentOwner,
     seedFloor: 'consumer' as const,
     setBy: '',
     setAt: '',
@@ -133,16 +134,21 @@ function PersonaControl({
   personas,
   disabled,
   onChange,
-  owner = false,
+  isDeploymentOwner = false,
 }: {
   email: string;
   personaId: string | null;
   personas: SpPersona[];
   disabled: boolean;
   onChange?: (email: string, personaId: string | null) => void;
-  owner?: boolean;
+  isDeploymentOwner?: boolean;
 }) {
-  if (owner) return <span className="ast-pill roster-owner-badge">Owner</span>;
+  if (isDeploymentOwner)
+    return (
+      <span title="Owner: creator of this app's earliest successful deployment" className="ast-pill roster-owner-badge">
+        Owner
+      </span>
+    );
   const options = [
     { value: UNASSIGNED_PERSONA, label: 'No persona' },
     ...personas.map((persona) => ({ value: persona.id, label: persona.displayName })),
@@ -381,7 +387,7 @@ export function RosterRows({
                         personas={personas}
                         disabled={busy || personaDisabled}
                         onChange={onPersonaChange}
-                        owner={entry.role === 'super_admin'}
+                        isDeploymentOwner={entry.isDeploymentOwner}
                       />
                     </td>
                   ) : null}

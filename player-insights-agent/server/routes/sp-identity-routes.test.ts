@@ -38,8 +38,9 @@ describe('service-principal identity admin routes', () => {
     expect(source).not.toContain("app.put('/api/admin/sp-identity/mode'");
     expect(source).toContain("app.post('/api/admin/sp-identity/personas'");
     expect(source).toContain("app.put('/api/admin/sp-identity/assignments'");
-    expect(source).toContain("row.role === 'super_admin'");
-    expect(source).toContain("error: 'immutable_super_admin_persona'");
+    expect(source).toContain('email === deploymentOwner');
+    expect(source).toContain("error: 'immutable_deployment_owner_persona'");
+    expect(source).not.toContain("row.role === 'super_admin' ? null");
     expect(source).not.toMatch(/client_secret|secret_value|oauthSecret/);
     expect(Object.keys(SpPersonaWriteSchema.shape).sort()).toEqual([
       'clientId',

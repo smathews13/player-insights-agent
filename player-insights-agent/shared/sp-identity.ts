@@ -352,6 +352,8 @@ export interface SpIdentitySummary {
 export interface SpIdentityRosterRow {
   email: string;
   role: string;
+  /** Earliest successful app deployer; independent of role and persona assignment. */
+  isDeploymentOwner: boolean;
   personaId: string | null;
 }
 

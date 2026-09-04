@@ -10,19 +10,34 @@ export const APP_DEPLOYMENT_LIFETIME_DDL = `CREATE TABLE IF NOT EXISTS ${APP_DEP
   resolved_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )`;
 
-export const READ_APP_DEPLOYMENT_LIFETIME_QUERY = `SELECT first_deployed_at, evidence
+/**
+ * Version 40 extends the existing lifetime fact instead of creating a second
+ * deployment-owner table. `app_scope` is already the singleton key, so the
+ * database can hold zero or one owner identity for one app deployment.
+ */
+export const ADD_FIRST_DEPLOYED_BY_STATEMENT =
+  `ALTER TABLE ${APP_DEPLOYMENT_LIFETIME_TABLE} ` + `ADD COLUMN IF NOT EXISTS first_deployed_by TEXT`;
+
+export const READ_APP_DEPLOYMENT_LIFETIME_QUERY = `SELECT first_deployed_at, first_deployed_by, evidence
 FROM ${APP_DEPLOYMENT_LIFETIME_TABLE}
 WHERE app_scope = $1`;
 
 export const WRITE_APP_DEPLOYMENT_LIFETIME_QUERY = `INSERT INTO ${APP_DEPLOYMENT_LIFETIME_TABLE}
-  (app_scope, first_deployed_at, evidence, resolved_at)
-VALUES ($1, $2::timestamptz, $3, NOW())
+  (app_scope, first_deployed_at, evidence, first_deployed_by, resolved_at)
+VALUES ($1, $2::timestamptz, $3, NULLIF($4, ''), NOW())
 ON CONFLICT (app_scope) DO UPDATE SET
   first_deployed_at = LEAST(${APP_DEPLOYMENT_LIFETIME_TABLE}.first_deployed_at, EXCLUDED.first_deployed_at),
   evidence = CASE
-    WHEN ${APP_DEPLOYMENT_LIFETIME_TABLE}.evidence = 'apps_deployment_history'
-      THEN ${APP_DEPLOYMENT_LIFETIME_TABLE}.evidence
-    ELSE EXCLUDED.evidence
+    WHEN EXCLUDED.first_deployed_at < ${APP_DEPLOYMENT_LIFETIME_TABLE}.first_deployed_at
+      THEN EXCLUDED.evidence
+    ELSE ${APP_DEPLOYMENT_LIFETIME_TABLE}.evidence
+  END,
+  first_deployed_by = CASE
+    WHEN EXCLUDED.first_deployed_at < ${APP_DEPLOYMENT_LIFETIME_TABLE}.first_deployed_at
+      THEN EXCLUDED.first_deployed_by
+    WHEN EXCLUDED.first_deployed_at = ${APP_DEPLOYMENT_LIFETIME_TABLE}.first_deployed_at
+      THEN COALESCE(${APP_DEPLOYMENT_LIFETIME_TABLE}.first_deployed_by, EXCLUDED.first_deployed_by)
+    ELSE ${APP_DEPLOYMENT_LIFETIME_TABLE}.first_deployed_by
   END,
   resolved_at = NOW()`;
 
@@ -44,6 +59,8 @@ interface LakebaseStore {
 
 export interface FirstAppDeployment {
   deployedAt: string;
+  /** Normalized creator of the earliest successful Apps deployment, or empty when unprovable. */
+  deployedBy: string;
   evidence: 'apps_deployment_history' | 'durable_app_activity';
 }
 
@@ -69,18 +86,28 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-export function earliestSuccessfulDeployment(pages: readonly DeploymentHistoryPage[]): string {
-  return (
+function identity(value: unknown): string {
+  return text(value).toLocaleLowerCase();
+}
+
+export function earliestSuccessfulDeploymentRecord(pages: readonly DeploymentHistoryPage[]): FirstAppDeployment | null {
+  const earliest =
     pages
       .flatMap((page): unknown[] => (Array.isArray(page.app_deployments) ? (page.app_deployments as unknown[]) : []))
       .flatMap((raw) => {
         const deployment = object(raw);
         const state = text(object(deployment.status).state).toUpperCase();
-        const created = stamp(deployment.create_time);
-        return state === 'SUCCEEDED' && created ? [created] : [];
+        const deployedAt = stamp(deployment.create_time);
+        return state === 'SUCCEEDED' && deployedAt
+          ? [{ deployedAt, deployedBy: identity(deployment.creator), evidence: 'apps_deployment_history' as const }]
+          : [];
       })
-      .sort()[0] ?? ''
-  );
+      .sort((left, right) => left.deployedAt.localeCompare(right.deployedAt))[0] ?? null;
+  return earliest;
+}
+
+export function earliestSuccessfulDeployment(pages: readonly DeploymentHistoryPage[]): string {
+  return earliestSuccessfulDeploymentRecord(pages)?.deployedAt ?? '';
 }
 
 export const workspaceDeploymentHistoryReader: DeploymentHistoryReader = async (appName, pageToken) => {
@@ -104,7 +131,10 @@ export const workspaceGitAppSourceReader: AppSourceReader = async (appName) => {
     headers: new Headers({ Accept: 'application/json' }),
     raw: false,
   })) as Record<string, unknown>;
-  return Object.keys(object(object(response.active_deployment).git_source)).length > 0;
+  return (
+    Object.keys(object(response.git_repository)).length > 0 ||
+    Object.keys(object(object(response.active_deployment).git_source)).length > 0
+  );
 };
 
 async function readAllDeploymentHistory(
@@ -149,29 +179,36 @@ export function resolveFirstAppDeployment(input: {
   if (existing) return existing;
 
   const pending = (async (): Promise<FirstAppDeployment | null> => {
+    let found: FirstAppDeployment | null = null;
     try {
       const saved = await input.store.query(READ_APP_DEPLOYMENT_LIFETIME_QUERY, [scope]);
       const deployedAt = stamp(saved.rows[0]?.first_deployed_at);
+      const deployedBy = identity(saved.rows[0]?.first_deployed_by);
       const evidence = text(saved.rows[0]?.evidence);
       if (deployedAt && (evidence === 'apps_deployment_history' || evidence === 'durable_app_activity')) {
-        return { deployedAt, evidence };
+        const persisted: FirstAppDeployment = { deployedAt, deployedBy, evidence };
+        // A creator from complete Apps history is final. Old rows and activity
+        // fallbacks have no creator, so make one bounded history read to upgrade
+        // them rather than guessing from the roster or current deployer.
+        if (deployedBy && evidence === 'apps_deployment_history') return persisted;
+        found = persisted;
       }
     } catch {
       // A Git install may not have applied the additive migration yet. Continue
       // to the control plane, but do not claim the result is persisted.
     }
 
-    let found: FirstAppDeployment | null = null;
     let gitBacked = false;
     try {
       const pages = await readAllDeploymentHistory(appName, input.readHistory ?? workspaceDeploymentHistoryReader);
-      const deployedAt = earliestSuccessfulDeployment(pages);
-      if (deployedAt) found = { deployedAt, evidence: 'apps_deployment_history' };
+      const history = earliestSuccessfulDeploymentRecord(pages);
+      if (history && (!found || history.deployedAt < found.deployedAt)) found = history;
       gitBacked = pages.some((page) =>
         (Array.isArray(page.app_deployments) ? (page.app_deployments as unknown[]) : []).some(
           (raw) => Object.keys(object(object(raw).git_source)).length > 0
         )
       );
+      if (!gitBacked) gitBacked = await (input.readAppSource ?? workspaceGitAppSourceReader)(appName);
     } catch (error) {
       console.warn(`[ops] App deployment history could not be read: ${(error as Error).message}`);
       try {
@@ -181,11 +218,13 @@ export function resolveFirstAppDeployment(input: {
       }
     }
 
-    if (!found && gitBacked) {
+    if (gitBacked) {
       try {
         const activity = await input.store.query(FIRST_DURABLE_APP_ACTIVITY_QUERY);
         const deployedAt = stamp(activity.rows[0]?.first_active_at);
-        if (deployedAt) found = { deployedAt, evidence: 'durable_app_activity' };
+        if (deployedAt && (!found || deployedAt < found.deployedAt)) {
+          found = { deployedAt, deployedBy: '', evidence: 'durable_app_activity' };
+        }
       } catch {
         // No proof means no history. The caller renders the unavailable reason.
       }
@@ -193,7 +232,12 @@ export function resolveFirstAppDeployment(input: {
     if (!found) return null;
 
     try {
-      await input.store.query(WRITE_APP_DEPLOYMENT_LIFETIME_QUERY, [scope, found.deployedAt, found.evidence]);
+      await input.store.query(WRITE_APP_DEPLOYMENT_LIFETIME_QUERY, [
+        scope,
+        found.deployedAt,
+        found.evidence,
+        found.deployedBy,
+      ]);
     } catch (error) {
       console.warn(`[ops] First app deployment evidence could not be persisted: ${(error as Error).message}`);
     }
@@ -201,4 +245,17 @@ export function resolveFirstAppDeployment(input: {
   })();
   resolved.set(scope, pending);
   return pending;
+}
+
+/** Deployment Owner is provenance, not a role. Missing proof produces no owner. */
+export async function deploymentOwnerEmail(
+  store: LakebaseStore,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<string> {
+  const result = await resolveFirstAppDeployment({
+    store,
+    appName: env.DATABRICKS_APP_NAME ?? '',
+    workspaceId: env.DATABRICKS_WORKSPACE_ID ?? '',
+  });
+  return result?.deployedBy ?? '';
 }

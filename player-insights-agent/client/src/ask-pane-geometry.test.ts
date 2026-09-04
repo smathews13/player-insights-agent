@@ -9,6 +9,8 @@ const RAIL = partial('rail.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
 const ASK = partial('ask.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
 const COMPOSER = partial('composer.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
 const LIVE = partial('live.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+const CONSTELLATION = partial('constellation.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+const ANSWER_BODY = partial('answer-body.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
 const RESPONSIVE = partial('responsive.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
 const RESPONSIVE_RUNS = partial('responsive-runs.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
 const RUNS = partial('runs.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -26,41 +28,48 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     expect(rule(RUNS, '.run-explorer')).toContain('--run-explorer-pane-block-size: var(--workspace-pane-block-size)');
   });
 
-  it('caps Ask at 360–520px after reserving the normal-flow composer', () => {
+  it('keeps only the no-evidence planning center at 360–520px', () => {
     const layout = rule(RAIL, '.ask-layout');
     expect(layout).toContain('--ask-composer-block-reserve: 144px');
     expect(layout).toMatch(
-      /--ask-pane-block-size:\s*clamp\(\s*360px,\s*calc\(\s*100dvh - var\(--app-header-h\) - var\(--ask-composer-block-reserve\) -\s*env\(safe-area-inset-bottom,\s*0px\)\s*\),\s*520px\s*\)/
+      /--ask-planning-pane-block-size:\s*clamp\(\s*360px,\s*calc\(\s*100dvh - var\(--app-header-h\) - var\(--ask-composer-block-reserve\) -\s*env\(safe-area-inset-bottom,\s*0px\)\s*\),\s*520px\s*\)/
     );
-    expect(layout).not.toContain('--workspace-pane-block-size');
+    const planning = rule(ASK, ".ask-layout[data-transcript='active'][data-stage-mode='planning'] .conversation-main");
+    for (const property of ['height', 'min-height', 'max-height']) {
+      expect(planning).toContain(`${property}: var(--ask-planning-pane-block-size)`);
+    }
+    expect(planning).toContain('overflow-y: auto');
   });
 
-  it('gives live and final Ask content the exact same rail and center-pane height', () => {
-    const rail = rule(RAIL, '.ask-layout > .conversation-rail,\n.trace-inspector');
-    const center = rule(ASK, '.conversation-main');
+  it('restores independent full-height scroll owners for Conversations and Agent path', () => {
+    const sideRails = rule(RAIL, '.ask-layout > .conversation-rail,\n.trace-inspector');
     for (const property of ['height', 'min-height', 'max-height']) {
-      expect(rail).toContain(`${property}: var(--ask-pane-block-size)`);
-      expect(center).toContain(`${property}: var(--ask-pane-block-size)`);
+      expect(sideRails).toContain(`${property}: var(--workspace-pane-block-size)`);
     }
-    expect(ASK).toMatch(
-      /\.ask-layout\[data-transcript='active'\] \.conversation-main > \.answer-card,[\s\S]*?min-height:\s*calc\(var\(--ask-pane-block-size\) - 88px\)/
-    );
-    expect(ASK).not.toContain('var(--workspace-pane-block-size)');
-    expect(RAIL).not.toMatch(
-      /\.ask-layout > \.conversation-rail,\s*\.trace-inspector\s*\{[^}]*var\(--workspace-pane-block-size\)/
-    );
-    expect(ASK).not.toMatch(
-      /\.ask-layout\[data-transcript='active'\][^{]*\.answer-card\s*\{[^}]*(?:max-height|overflow-y)/
-    );
+    expect(sideRails).not.toContain('var(--ask-planning-pane-block-size)');
+    expect(RAIL).toMatch(/\n\.conversation-rail\s*\{[^}]*overflow-y:\s*auto/);
+    expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*overflow-y:\s*auto/);
     expect(rule(RAIL, '.ask-layout > .conversation-rail')).toMatch(/grid-column:\s*1/);
     expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*grid-column:\s*3/);
   });
 
-  it('makes only the two top-level panes vertical scroll owners with stable gutters', () => {
-    expect(RAIL).toMatch(/\n\.conversation-rail\s*\{[^}]*overflow-y:\s*auto/);
+  it('lets real timelines and final answers grow through normal page flow', () => {
     const center = rule(ASK, '.conversation-main');
-    expect(center).toMatch(/overflow-y:\s*auto/);
-    expect(center).toMatch(/scrollbar-gutter:\s*stable/);
+    expect(center).toContain('height: auto');
+    expect(center).toContain('min-height: calc(100dvh - var(--app-header-h))');
+    expect(center).toContain('max-height: none');
+    expect(center).toContain('overflow-y: visible');
+    expect(center).not.toContain('var(--ask-planning-pane-block-size)');
+    expect(ASK).toMatch(
+      /\.ask-layout\[data-transcript='active'\]:not\(\[data-stage-mode='planning'\]\)[\s\S]*?\.answer-card\s*\{[^}]*min-height:\s*calc\(100dvh - var\(--app-header-h\)\)[^}]*max-height:\s*none[^}]*overflow:\s*visible/
+    );
+    expect(rule(ANSWER_BODY, '.answer-card-content')).toMatch(/grid-auto-rows:\s*auto[\s\S]*overflow:\s*visible/);
+  });
+
+  it('keeps the graph intrinsic and delegates overflow to the one right-rail scroller', () => {
+    expect(rule(CONSTELLATION, '.ast-sky')).toMatch(/overflow:\s*clip[\s\S]*flex:\s*none/);
+    expect(rule(CONSTELLATION, '.ast-sky-canvas')).toMatch(/height:\s*auto[\s\S]*flex:\s*none/);
+    expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*overflow-y:\s*auto/);
     const live = rule(LIVE, '.live-steps');
     expect(live).toMatch(/overflow:\s*visible/);
     expect(live).not.toMatch(/overflow-y:\s*(?:auto|scroll)|max-height/);

@@ -6,6 +6,7 @@ const PAYLOAD: RosterPayload = {
   entries: [
     {
       email: 'analyst@example.invalid',
+      isDeploymentOwner: false,
       role: 'consumer',
       seedFloor: 'consumer',
       setBy: 'owner@example.invalid',

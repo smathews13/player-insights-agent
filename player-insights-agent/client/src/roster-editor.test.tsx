@@ -71,6 +71,7 @@ function text(markup: string): string {
 
 function entry(over: Partial<RosterEntry> & { email: string; role: Role }): RosterEntry {
   return {
+    isDeploymentOwner: false,
     seedFloor: 'consumer',
     setBy: LEAD,
     setAt: '2026-08-17T00:00:00.000Z',

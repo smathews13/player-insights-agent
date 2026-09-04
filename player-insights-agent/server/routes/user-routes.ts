@@ -61,6 +61,7 @@ import { runnerFor } from './admin-routes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import type { Request, Response } from 'express';
 import { parseOrganizationMappings } from '../../shared/organization-mapping';
+import { deploymentOwnerEmail } from '../lib/app-deployment-lifetime';
 
 const RoleBody = z.object({ role: z.string().trim().max(32) });
 const AddBody = RoleBody.extend({ email: z.string().trim().max(320) });
@@ -142,7 +143,8 @@ async function withdrawOnDemotion(input: {
   });
 }
 
-export function setupUserRoutes(appkit: InsightsAppKit) {
+export function setupUserRoutes(appkit: InsightsAppKit, deps: { readDeploymentOwner?: () => Promise<string> } = {}) {
+  const readDeploymentOwner = deps.readDeploymentOwner ?? (() => deploymentOwnerEmail(appkit.lakebase));
   appkit.server.extend((app) => {
     /**
      * The whole roster: everybody either half of the list knows, with the role each
@@ -156,13 +158,17 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
      * without waiting on a warehouse that may be cold.
      */
     app.get('/api/users', async (req, res) => {
-      const { rows, readable, roleColumnPresent } = await read(appkit.lakebase, req);
+      const [{ rows, readable, roleColumnPresent }, deploymentOwner] = await Promise.all([
+        read(appkit.lakebase, req),
+        readDeploymentOwner().catch(() => ''),
+      ]);
       const payload: RosterPayload = rosterPayload({
         seed: seedRoles(),
         stored: rows,
         storedRosterReadable: readable,
         roleColumnPresent,
         reader: userEmail(req),
+        deploymentOwner,
       });
       payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
       res.json(payload);
@@ -333,13 +339,17 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
     async function replyWithRoster(req: Request, res: Response, store: AdminStore, reader: string) {
       // Mutation replies may not degrade to the read route's seed-only payload.
       // A 200 here means Lakebase confirmed the exact row the browser will draw.
-      const after = await readRosterForRequest(store, req);
+      const [after, deploymentOwner] = await Promise.all([
+        readRosterForRequest(store, req),
+        readDeploymentOwner().catch(() => ''),
+      ]);
       const payload: RosterPayload = rosterPayload({
         seed: seedRoles(),
         stored: after.rows,
         storedRosterReadable: true,
         roleColumnPresent: after.roleColumnPresent,
         reader,
+        deploymentOwner,
       });
       payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
       res.json(payload);

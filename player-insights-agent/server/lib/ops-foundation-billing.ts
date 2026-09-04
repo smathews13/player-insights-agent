@@ -23,7 +23,7 @@ export interface FoundationBillingResult {
   excludedRequests: number;
   inputTokens: number;
   outputTokens: number;
-  totalTokens: number;
+  totalTokens: number | null;
   complete: boolean;
 }
 
@@ -87,6 +87,7 @@ raw_model_requests AS (
     AND REGEXP_REPLACE(LOWER(e.endpoint_name), '[^a-z0-9]', '') =
         REGEXP_REPLACE(LOWER(:foundationModel), '[^a-z0-9]', '')
     AND u.request_time >= CAST(:from_day AS DATE)
+    ${range.fromTimestamp ? 'AND u.request_time >= :from_instant' : ''}
     AND u.request_time < DATEADD(DAY, 1, CAST(:to_day AS DATE))
 ),
 model_requests AS (
@@ -166,6 +167,7 @@ billing AS (
   WHERE u.workspace_id = :workspaceId
     AND u.usage_date >= :from_day
     AND u.usage_date <= :to_day
+    ${range.fromTimestamp ? 'AND u.usage_start_time >= :from_instant' : ''}
     AND REGEXP_REPLACE(LOWER(u.usage_metadata.endpoint_name), '[^a-z0-9]', '') =
         REGEXP_REPLACE(LOWER(:foundationModel), '[^a-z0-9]', '')
     AND u.billing_origin_product IN ('MODEL_SERVING', 'AI_GATEWAY')
@@ -208,8 +210,7 @@ weighted AS (
     COUNT(request.request_id) AS requests,
     SUM(
       CASE
-        WHEN UPPER(billing.sku_name) LIKE '%CACHE%READ%' THEN 0
-        WHEN UPPER(billing.sku_name) LIKE '%CACHE%WRITE%' THEN 0
+        WHEN UPPER(billing.sku_name) LIKE '%CACHE%' THEN request.input_tokens
         WHEN UPPER(billing.sku_name) LIKE '%OUTPUT%' THEN request.output_tokens
         WHEN UPPER(billing.sku_name) LIKE '%INPUT%' THEN request.input_tokens
         ELSE request.input_tokens + request.output_tokens
@@ -218,8 +219,7 @@ weighted AS (
     SUM(
       CASE WHEN request.request_class IN ('ask-exact', 'ask-bounded') THEN
         CASE
-          WHEN UPPER(billing.sku_name) LIKE '%CACHE%READ%' THEN 0
-          WHEN UPPER(billing.sku_name) LIKE '%CACHE%WRITE%' THEN 0
+          WHEN UPPER(billing.sku_name) LIKE '%CACHE%' THEN request.input_tokens
           WHEN UPPER(billing.sku_name) LIKE '%OUTPUT%' THEN request.output_tokens
           WHEN UPPER(billing.sku_name) LIKE '%INPUT%' THEN request.input_tokens
           ELSE request.input_tokens + request.output_tokens
@@ -390,6 +390,7 @@ CROSS JOIN run_totals`;
     parameters: [
       { name: 'from_day', value: range.from, type: 'DATE' },
       { name: 'to_day', value: range.to, type: 'DATE' },
+      ...(range.fromTimestamp ? [{ name: 'from_instant', value: range.fromTimestamp, type: 'TIMESTAMP' }] : []),
       { name: 'workspaceId', value: ids.workspaceId, type: 'STRING' },
       { name: 'foundationModel', value: ids.foundationModel, type: 'STRING' },
       { name: 'agentEndpoint', value: ids.endpointName, type: 'STRING' },
@@ -474,7 +475,7 @@ export function readFoundationBillingRows(data: unknown): FoundationBillingResul
     excludedRequests: finite(excludedRequests),
     inputTokens: finite(inputTokens),
     outputTokens: finite(outputTokens),
-    totalTokens: finite(totalTokens),
+    totalTokens: optionalFinite(totalTokens),
     complete: priceComplete && runsWithEvidence === eligibleRuns && finite(missingEvidenceRequests) === 0,
   };
 }
@@ -531,7 +532,10 @@ export function foundationCostTile(
         ? {
             input: result.inputTokens,
             output: result.outputTokens,
-            total: result.totalTokens,
+            total:
+              result.totalTokens === null || (result.expectedRuns > 0 && result.coveredRuns === 0)
+                ? null
+                : result.totalTokens,
             requests: result.coveredRequests,
             coveredRequests: result.coveredRequests,
           }

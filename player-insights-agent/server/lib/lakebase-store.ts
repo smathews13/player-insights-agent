@@ -805,7 +805,11 @@ export function lakebaseStorageCheck(): PreflightCheck {
   const database = process.env.PGDATABASE ?? '(unset)';
   const endpoint = process.env.LAKEBASE_ENDPOINT ?? '';
   const name = endpoint || database;
+  const project = /^(projects\/[^/]+)/.exec(endpoint)?.[1] ?? '';
+  const branch = /^(projects\/[^/]+\/branches\/[^/]+)/.exec(endpoint)?.[1] ?? '';
   const facts = {
+    ...(project ? { project } : {}),
+    ...(branch ? { branch } : {}),
     ...(endpoint ? { endpoint } : {}),
     ...(database !== '(unset)' ? { database } : {}),
     schema: APP_SCHEMA,

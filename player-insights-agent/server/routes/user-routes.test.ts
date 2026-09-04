@@ -134,7 +134,7 @@ async function startApp(store: AdminStore) {
   // registering the routes first would serve the roster to everybody.
   app.use(requireAdmin(store, userEmail));
   app.use(requireSuperAdmin(store, userEmail));
-  setupUserRoutes(appkit as unknown as InsightsAppKit);
+  setupUserRoutes(appkit as unknown as InsightsAppKit, { readDeploymentOwner: () => Promise.resolve(LEAD) });
 
   server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server?.once('listening', resolve));
@@ -233,6 +233,7 @@ describe('the super admin reads the roster', () => {
       [DEPUTY, 'admin'],
       [ANALYST, 'consumer'],
     ]);
+    expect(payload.entries.filter((entry) => entry.isDeploymentOwner).map((entry) => entry.email)).toEqual([LEAD]);
     expect(payload.superAdminCount).toBe(1);
   });
 
@@ -358,6 +359,9 @@ describe('appointing an administrator', () => {
     const app = await startApp(store);
     expect((await app.add(LEAD, ANALYST, 'super_admin')).status).toBe(200);
     expect(store.rows.roster[0].role).toBe('super_admin');
+    const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
+    expect(payload.entries.filter((entry) => entry.role === 'super_admin')).toHaveLength(2);
+    expect(payload.entries.filter((entry) => entry.isDeploymentOwner).map((entry) => entry.email)).toEqual([LEAD]);
   });
 
   it('invalidates the request snapshot after mutation and reads back the new role', async () => {

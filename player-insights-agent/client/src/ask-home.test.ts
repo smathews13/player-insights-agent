@@ -241,7 +241,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(withoutComments(STYLESHEET)).not.toMatch(/clamp\(28px,\s*3\.5vw,\s*64px\)/);
   });
 
-  it('keeps the composer after the independently scrolling Ask pane', () => {
+  it('keeps the composer after the complete content-driven Ask surface', () => {
     /*
      * The reported defect was that answer cards "clip behind various surfaces".
      * Nothing clipped. Two separate faults put an answer under a bar:
@@ -252,7 +252,12 @@ describe('the ask home is the geometry the mockup gives it', () => {
      */
     expect(HOME_PAGE).toContain('ref={conversationMainRef}');
     expect(HOME_PAGE).toMatch(/className="conversation-column"[\s\S]*?<\/section>\s*<form/);
-    expect(body('.conversation-main')).toMatch(/overflow-y:\s*auto/);
+    expect(body('.conversation-main')).toMatch(/height:\s*auto/);
+    expect(body('.conversation-main')).toMatch(/max-height:\s*none/);
+    expect(body('.conversation-main')).toMatch(/overflow-y:\s*visible/);
+    expect(STYLESHEET).toMatch(
+      /\.ask-layout\[data-transcript='active'\]\[data-stage-mode='planning'\] \.conversation-main\s*\{[^}]*overflow-y:\s*auto/
+    );
     expect(body('.conversation-column')).toMatch(/gap:\s*20px/);
     expect(withoutComments(STYLESHEET)).not.toContain('--composer-reserve');
     // And the top half of the same fault: an answer is scrolled in with

@@ -69,6 +69,7 @@ describe('the demo workspace Identity feedback', () => {
     entries: [
       {
         email: 'long.identity.owner@example.invalid',
+        isDeploymentOwner: true,
         role: 'super_admin',
         seedFloor: 'super_admin',
         setBy: '',
@@ -98,7 +99,14 @@ describe('the demo workspace Identity feedback', () => {
       },
     ],
     assignments: [],
-    roster: [{ email: 'long.identity.owner@example.invalid', role: 'super_admin', personaId: null }],
+    roster: [
+      {
+        email: 'long.identity.owner@example.invalid',
+        role: 'super_admin',
+        isDeploymentOwner: true,
+        personaId: null,
+      },
+    ],
   };
 
   it('renders exactly two proper role tables with shared structure', () => {
@@ -162,7 +170,7 @@ describe('the demo workspace Identity feedback', () => {
     );
   });
 
-  it('shows Owner for the immutable super admin with no persona or action control', () => {
+  it('shows Owner only for the deployment owner with no persona selector', () => {
     const markup = renderToStaticMarkup(
       <RosterRows
         payload={humanRoles}
@@ -183,12 +191,86 @@ describe('the demo workspace Identity feedback', () => {
     expect(markup).not.toContain('roster-row-lock');
   });
 
+  it('shows exactly one Owner across the screenshot shape with several Super admins', () => {
+    const entries = [
+      humanRoles.entries[0],
+      ...['operations', 'platform', 'security'].map((name) => ({
+        ...humanRoles.entries[0],
+        email: `${name}@example.invalid`,
+        isDeploymentOwner: false,
+        seedFloor: 'consumer' as const,
+        assignable: ['admin' as const, 'consumer' as const],
+        canRemove: true,
+        isYou: false,
+      })),
+    ];
+    const markup = renderToStaticMarkup(
+      <RosterRows
+        payload={{ ...humanRoles, entries, superAdminCount: 4 }}
+        busy={false}
+        onChange={() => {}}
+        onRemove={() => {}}
+        personas={spRoles.personas}
+        personaByEmail={new Map(entries.map((entry) => [entry.email, null]))}
+        personaDisabled={false}
+        showPersona
+        onPersonaChange={() => {}}
+      />
+    );
+
+    expect(markup.match(/roster-owner-badge/g) ?? []).toHaveLength(1);
+    expect(markup).toContain('data-role-state="super_admin"');
+    for (const email of ['operations@example.invalid', 'platform@example.invalid', 'security@example.invalid']) {
+      expect(markup).toContain(`User role for ${email}: Super admin`);
+      expect(markup).toContain(`Persona for ${email}: No persona`);
+    }
+  });
+
+  it('keeps Owner after demotion and never transfers it when the owner row is absent', () => {
+    const demoted = {
+      ...humanRoles.entries[0],
+      role: 'admin' as const,
+      seedFloor: 'consumer' as const,
+      assignable: ['super_admin' as const, 'consumer' as const],
+      canRemove: true,
+    };
+    const peer = {
+      ...humanRoles.entries[0],
+      email: 'peer@example.invalid',
+      isDeploymentOwner: false,
+    };
+    const withDemotion = renderToStaticMarkup(
+      <RosterRows
+        payload={{ ...humanRoles, entries: [demoted, peer], superAdminCount: 1 }}
+        busy={false}
+        onChange={() => {}}
+        onRemove={() => {}}
+        showPersona
+      />
+    );
+    const withoutOwner = renderToStaticMarkup(
+      <RosterRows
+        payload={{ ...humanRoles, entries: [peer], superAdminCount: 1 }}
+        busy={false}
+        onChange={() => {}}
+        onRemove={() => {}}
+        showPersona
+      />
+    );
+
+    expect(withDemotion.match(/roster-owner-badge/g) ?? []).toHaveLength(1);
+    expect(withDemotion).toContain('User role for long.identity.owner@example.invalid: Admin');
+    expect(withoutOwner).not.toContain('roster-owner-badge');
+    expect(withoutOwner).toContain('Persona for peer@example.invalid: No persona');
+  });
+
   it('keeps an ordinary admin role and persona editable', () => {
     const admin = {
       ...humanRoles,
       entries: [
         {
           ...humanRoles.entries[0],
+          isDeploymentOwner: false,
           role: 'admin' as const,
           seedFloor: 'consumer' as const,
           assignable: ['consumer' as const],

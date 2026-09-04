@@ -123,6 +123,8 @@ export function canCheckHealthResources(role: string): boolean {
  */
 export interface RosterEntry {
   email: string;
+  /** Provenance marker for the earliest successful app deployer. Never a role or grant. */
+  isDeploymentOwner: boolean;
   role: Role;
   /** The floor deployment configuration sets. 'consumer' for anybody it does not name. */
   seedFloor: Role;

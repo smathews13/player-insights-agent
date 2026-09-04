@@ -11,17 +11,16 @@
    */
   max-width: none;
   width: 100%;
-  height: var(--ask-pane-block-size);
-  min-height: var(--ask-pane-block-size);
-  max-height: var(--ask-pane-block-size);
+  height: auto;
+  min-height: calc(100dvh - var(--app-header-h));
+  max-height: none;
   min-width: 0;
   box-sizing: border-box;
   position: relative;
   overflow-x: clip;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow-y: visible;
   overflow-anchor: none;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
   /* Was a translucent vertical gradient over a radial pool, both decorative and
      both gone: DuBois pages are a solid surface and the transcript's cards do the
      separating. */
@@ -36,15 +35,37 @@
   scrollbar-gutter: auto;
 }
 /*
- * Short live and final cards still occupy the center pane's reading surface.
- * Tall cards grow and are scrolled by `.conversation-main`; neither case gives
- * the card its own vertical viewport.
+ * Before the first real event, the small planning card leaves the composer in
+ * the first viewport. It is the only Ask center state with a bounded scroll
+ * owner. As soon as a stage or final answer exists, the base rule above takes
+ * over: the center grows with its card and the page reveals all of it.
  */
-.ask-layout[data-transcript='active'] .conversation-main > .answer-card,
-.ask-layout[data-transcript='active']
+.ask-layout[data-transcript='active'][data-stage-mode='planning'] .conversation-main {
+  height: var(--ask-planning-pane-block-size);
+  min-height: var(--ask-planning-pane-block-size);
+  max-height: var(--ask-planning-pane-block-size);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.ask-layout[data-transcript='active'][data-stage-mode='planning'] .conversation-main > .answer-card,
+.ask-layout[data-transcript='active'][data-stage-mode='planning']
   .conversation-message:has(.answer-card):not(:has(~ .conversation-message))
   .answer-card {
-  min-height: calc(var(--ask-pane-block-size) - 88px);
+  min-height: calc(var(--ask-planning-pane-block-size) - 88px);
+}
+/*
+ * A real timeline or final answer gets a full usable-viewport reading surface,
+ * but never a ceiling. Caveats, Run process and the card's closing border stay
+ * in normal flow, followed by the composer.
+ */
+.ask-layout[data-transcript='active']:not([data-stage-mode='planning']) .conversation-main > .answer-card,
+.ask-layout[data-transcript='active']:not([data-stage-mode='planning'])
+  .conversation-message:has(.answer-card):not(:has(~ .conversation-message))
+  .answer-card {
+  min-height: calc(100dvh - var(--app-header-h));
+  max-height: none;
+  overflow: visible;
 }
 .message-pagination {
   display: flex;

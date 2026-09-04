@@ -185,6 +185,7 @@ import {
 } from './UnityCatalogScopeExplorer';
 import { LakebaseMigrationPanel } from './LakebaseMigrationPanel';
 import { useLakebaseMigrationStatus, type LakebaseMigrationClientState } from './lakebase-migration-status';
+import { LakebaseBindingManager } from './LakebaseBindingManager';
 
 const NotebookAgentSyncPane = lazy(() =>
   import('./NotebookAgentSyncPane').then((loaded) => ({ default: loaded.NotebookAgentSyncPane }))
@@ -1603,7 +1604,9 @@ export function ConnectionRow({
     hostedIndex,
   });
   const picker = pickerForField(resource.id);
-  const canWrite = Boolean(allowMutations && row.editable && picker);
+  const lakebaseManaged = resource.id === 'lakebase';
+  const canWrite = Boolean(allowMutations && picker && (row.editable || lakebaseManaged));
+  const canWriteInline = canWrite && !lakebaseManaged;
   // Open on arrival when a link named this row. The collapsed line carries the
   // value and its verdict; the reason for either is inside, and somebody who
   // followed a link from a diagram came for the reason.
@@ -1731,6 +1734,12 @@ export function ConnectionRow({
           {resource.id === 'lakebase' && lakebaseMigration ? (
             <LakebaseMigrationPanel state={lakebaseMigration.state} onApply={lakebaseMigration.apply} />
           ) : null}
+          {lakebaseManaged ? (
+            <LakebaseBindingManager
+              key={lakebaseMigration?.state.value?.status ?? 'migration-unchecked'}
+              enabled={canWrite}
+            />
+          ) : null}
           {view.comparison ? (
             <div className="connection-drift">
               <p className="connection-drift-status">Drift · expected and observed resources differ</p>
@@ -1802,7 +1811,7 @@ export function ConnectionRow({
             );
           })}
 
-          {!editing && canWrite ? (
+          {!editing && canWriteInline ? (
             <div className="connection-row-tier-actions">
               <Button
                 variant="outline"
@@ -1817,7 +1826,7 @@ export function ConnectionRow({
             </div>
           ) : null}
 
-          {resource.id === 'shared-conversation-rail' && canWrite ? (
+          {resource.id === 'shared-conversation-rail' && canWriteInline ? (
             <p className="connection-row-tier-note connection-row-warning" role="alert">
               <strong>Widens tenancy.</strong> Setting this to true lets every signed-in user see everyone else&apos;s
               conversations on the rail. Writes (ask, delete, upload) stay owner-only, but conversation titles and

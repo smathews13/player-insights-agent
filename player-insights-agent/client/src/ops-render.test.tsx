@@ -114,7 +114,7 @@ describe('the admin cancellation control', () => {
     expect(toolbar).not.toContain('Check all resources');
     expect(toolbar).not.toContain('Check all scopes');
     expect(OPS_STYLES).toMatch(
-      /\.ops-page-controls\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)[^}]*grid-auto-rows:\s*1fr[^}]*width:\s*min\(100%,\s*50%\)[^}]*margin-left:\s*auto/
+      /\.ops-page-controls\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)[^}]*grid-auto-rows:\s*1fr[^}]*width:\s*100%/
     );
     expect(OPS_STYLES).toMatch(/\.ops-stop-all,\s*\.ops-admin-action\s*\{[^}]*width:\s*100%[^}]*min-height:\s*46px/);
     expect(RESPONSIVE_OPS_STYLES).toMatch(
@@ -1058,9 +1058,10 @@ describe('the cost block', () => {
       '150 DBU per identified human user each calendar month; resets on the first day of the month.',
       'Through Jan 31, 2027, Genie One and Genie Agents usage is promotional free and does not consume allowance.',
       'Free usage consumes the user’s monthly allowance.',
-      'Usage above allowance; this is what counts toward configured Genie budgets.',
+      'Free is waived list-price value. Charged is usage actually billed after allowance and promotion rules. Either can be larger.',
       'No free allowance.',
       'Data Genie and Dictionary Genie cards include only attributable configured-space usage; unrelated or unmatched workspace usage is excluded.',
+      'Total tokens are provider-reported input plus output; cache-specific counts are not added again.',
       'system.billing.usage is authoritative and can arrive hours after usage occurs.',
     ]) {
       expect(methodology).toContain(fact);
@@ -1193,13 +1194,13 @@ describe('the cost block', () => {
       },
     });
     const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('7.00 USD');
+    expect(markup).toContain('2.00 USD');
+    expect(markup).toContain('Available marginal components');
     expect(markup).not.toContain('Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks');
     expect(markup).not.toContain('token-apportioned');
     expect(markup).not.toContain('<table');
     expect(markup).not.toContain('Not knowable per question today');
     expect(markup).not.toContain('No run attribution key.');
-    expect(markup).not.toContain('2.00 USD');
   });
 
   it('renders a missing grant with the statement that fixes it', () => {
@@ -2180,9 +2181,11 @@ describe('the cost block', () => {
       primaryGrid.indexOf('ops-primary-cost-card--concise'),
       primaryGrid.indexOf('Ask SQL')
     );
-    expect(text(foundationCard)).toContain('Foundation model tokens Estimated 0.42 USD foundation-endpoint-id');
+    expect(text(foundationCard)).toContain(
+      'Foundation model tokens Estimated 0.42 USD 1,265,000 total tokens foundation-endpoint-id'
+    );
     expect(text(foundationCard)).not.toMatch(
-      /Interactive Ask tokens|Ask model calls|input|output|total|Cache|missing evidence/
+      /Interactive Ask tokens|Ask model calls|input|output|Cache|missing evidence/
     );
     expect(primaryGrid).not.toContain('Partial');
     expect(primaryGrid.match(/>Estimated</g)).toHaveLength(8);

@@ -32,8 +32,8 @@ const PAYLOAD: SpIdentityAdminPayload = {
     },
   ],
   roster: [
-    { email: 'ada@example.com', role: 'admin', personaId: 'persona-1' },
-    { email: 'ben@example.com', role: 'consumer', personaId: null },
+    { email: 'ada@example.com', role: 'admin', isDeploymentOwner: false, personaId: 'persona-1' },
+    { email: 'ben@example.com', role: 'consumer', isDeploymentOwner: false, personaId: null },
   ],
   grantResourceDiscovery: {
     status: 'ready',
