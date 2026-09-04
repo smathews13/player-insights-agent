@@ -134,27 +134,28 @@ describe('the word on the control is the same word everywhere', () => {
 });
 
 describe('what the control says while it is working', () => {
-  it('relabels itself, disables itself and spins', () => {
+  it('shows the canonical button loader and disables itself', () => {
     const busy = control({ busy: true, checkedAt: READ_AT, now: TWO_MIN_LATER });
 
     expect(busy).toContain(REFRESH_BUSY_LABEL);
-    expect(busy).not.toContain(`>${REFRESH_LABEL}<`);
     // Disabled so a second press cannot race the first: both reads land on the
     // same state, and the later answer used to be able to arrive first. The
     // attribute, not the word: the primitive's class list mentions `disabled:`
     // utilities in every state it has.
     expect(busy).toContain('disabled=""');
     expect(busy).toContain('aria-busy="true"');
-    expect(busy).toContain('refresh-spin');
+    expect(busy).toContain('data-busy="true"');
+    expect(busy).toContain('pia-loader-mark--button');
+    expect(busy).not.toContain('refresh-spin');
   });
 
-  it('is pressable and unspun the rest of the time', () => {
+  it('is pressable and visually idle the rest of the time', () => {
     const idle = control({ checkedAt: READ_AT, now: TWO_MIN_LATER });
 
     expect(idle).toContain(REFRESH_LABEL);
-    expect(idle).not.toContain(REFRESH_BUSY_LABEL);
     expect(idle).not.toContain('disabled=""');
     expect(idle).not.toContain('aria-busy');
+    expect(idle).toContain('data-busy="false"');
     expect(idle).not.toContain('refresh-spin');
   });
 
@@ -164,10 +165,12 @@ describe('what the control says while it is working', () => {
    * nothing else.
    */
   it('keeps the state readable with the animation switched off', () => {
-    const css = partial('page-shell.css');
+    const css = partial('pia-loader.css');
 
-    expect(css).toMatch(/@keyframes refresh-spin/);
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.refresh-spin \{\s*animation: none;/);
+    expect(css).not.toContain('@keyframes refresh-spin');
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.pia-loader-mark--button \.pia-loader__button[^}]*opacity:\s*1/
+    );
   });
 });
 
@@ -283,14 +286,13 @@ describe('when it was last read', () => {
 
 describe('the control for somebody who cannot see it', () => {
   /**
-   * The accessible name is the button's own text, so it reads as "Refreshing…"
-   * while it is working rather than as a name that has stopped being true. An
-   * `aria-label` would have frozen it at one of the two.
+   * The accessible action name stays stable while the live region announces
+   * progress separately.
    */
-  it('names itself from its own words, and hides the icon that would repeat them', () => {
+  it('keeps a stable action name and hides decorative motion', () => {
     const busy = control({ busy: true, checkedAt: READ_AT, now: TWO_MIN_LATER });
 
-    expect(busy).not.toContain('aria-label');
+    expect(busy).toContain('aria-label="Refresh"');
     expect(busy).toMatch(/aria-hidden="true"[^>]*>|<svg[^>]*aria-hidden="true"/);
     expect(text(busy)).toContain(REFRESH_BUSY_LABEL);
   });

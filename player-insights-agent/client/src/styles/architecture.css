@@ -469,7 +469,7 @@ a.arch-node-main:hover .arch-node-label {
   gap: 4px;
 }
 
-.pia-flick-row.arch-node-status-loader {
+.pia-loader.arch-node-status-loader {
   min-height: 0;
   width: fit-content;
   padding: 0;
@@ -478,7 +478,7 @@ a.arch-node-main:hover .arch-node-label {
   gap: 6px;
 }
 
-.arch-node-status-loader .pia-flick-row-say {
+.arch-node-status-loader .pia-loader__label {
   font-size: var(--ast-fs-12);
 }
 /*

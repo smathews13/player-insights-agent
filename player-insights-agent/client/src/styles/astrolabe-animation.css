@@ -10,24 +10,13 @@
  * easing stop and both translate distances are the reference's own. A paraphrase
  * of a timing function is a different animation, and these are not approximations
  * of an idea -- ast-pop's 1.25 overshoot at 12%, ast-concept's 2.5% rise,
- * ast-dot-run's colour handover between 46% and 54% -- they were drawn, and the
- * numbers are the drawing. astrolabe-keyframes.test.ts reads the reference off
+ * the values are the drawing. astrolabe-keyframes.test.ts reads the reference off
  * disk and fails if any declaration in this file differs from it, so a well-meant
  * tidy-up of a percentage does not get through.
  *
  * Only the whitespace differs: the reference has them minified on one line each
  * and prettier formats them out. The test normalises whitespace and compares the
  * declarations, which is the comparison that means anything.
- *
- * The two colour literals in ast-dot-run and ast-dot-run-sm are verbatim for the
- * same reason. Both are palette values -- #2272B4 is --db-blue-600 and
- * --ast-blue, #6FAEDD is --ast-blue-light -- checked rather than assumed, so
- * neither is a colour written past the token block even though it is written as a
- * hex.
- *
- * NOTHING IN THIS APP USES ANY OF THEM YET. The loaders that will are per-surface
- * work on files other people are editing. What lands here is the vocabulary and
- * the accessibility floor under it.
  *
  * ---- The accessibility rules, which are not optional ----
  *
@@ -47,81 +36,6 @@
  * to the tests of the components that seat these -- the way working-animation.test.ts
  * already does it for the animation the app has today.
  */
-
-/*
- * The running dots on the progress rail, and the same animation at the narrower
- * seating. The two differ only in the distance travelled, 203px against 110px,
- * which is the width of the rail each one runs along; that is why they are two
- * keyframes rather than one with a custom property, and why neither distance may
- * be rounded.
- *
- * The colour handover is the point of the animation: a dot leaves as the action
- * blue and arrives as its lighter form, so a rail of them reads as movement in one
- * direction even when a single dot is caught still.
- */
-@keyframes ast-dot-run {
-  0% {
-    transform: translateX(0);
-    opacity: 0;
-    background: #2272b4;
-  }
-  6% {
-    opacity: 1;
-  }
-  46% {
-    background: #2272b4;
-  }
-  54% {
-    background: #6faedd;
-  }
-  94% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(203px);
-    opacity: 0;
-    background: #6faedd;
-  }
-}
-
-@keyframes ast-dot-run-sm {
-  0% {
-    transform: translateX(0);
-    opacity: 0;
-    background: #2272b4;
-  }
-  6% {
-    opacity: 1;
-  }
-  46% {
-    background: #2272b4;
-  }
-  54% {
-    background: #6faedd;
-  }
-  94% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(110px);
-    opacity: 0;
-    background: #6faedd;
-  }
-}
-
-/* The mark's rotation, and the counter-rotation the reticle ring runs at so the
-   two rings do not read as one solid object turning. */
-@keyframes ast-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes ast-spin-rev {
-  to {
-    transform: rotate(-360deg);
-  }
-}
 
 /* A constellation star, breathing. 0.45 rather than 0 at the trough: a star that
    goes out has left the constellation. */
@@ -346,14 +260,6 @@
    * Restoring it to opacity 1 would stack four concept marks in a pile on the one
    * surface that never renders them.
    */
-
-  /* The running dots stop where they start rather than vanishing, so the rail is
-     still a rail. */
-  .ast-anim-dot-run,
-  .ast-anim-dot-run-sm {
-    opacity: 1;
-    transform: none;
-  }
 
   /* PIA loader still frames are owned by pia-loader.css. */
 }

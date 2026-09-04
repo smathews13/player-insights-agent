@@ -1425,7 +1425,7 @@ describe('the User Monitoring browser', () => {
     expect(markup).toContain('aria-label="Open ada.reader User Overview"');
   });
 
-  it('uses one centered users icon without fake rows before results arrive', () => {
+  it('uses one centered panel loader without fake rows before results arrive', () => {
     const markup = render(
       <UserMonitoringPanel
         state={beginPanelLoad<OpsCostPayload>('users', 1)}
@@ -1445,8 +1445,10 @@ describe('the User Monitoring browser', () => {
     );
     expect(markup).toContain('monitoring-users-loading');
     expect(text(markup)).toContain('Loading users');
-    expect(markup.match(/monitoring-users-loading-icon/g)).toHaveLength(1);
-    expect(markup).toContain('lucide-users');
+    expect(markup.match(/pia-loader-mark--panel/g)).toHaveLength(1);
+    expect(markup).toContain('width="112"');
+    expect(markup).not.toContain('monitoring-users-loading-icon');
+    expect(markup).not.toContain('lucide-users');
     expect(markup).not.toContain('monitoring-users-loading-list');
     expect(markup).not.toContain('monitoring-users-table-frame');
     expect(markup).not.toContain('data-slot="skeleton"');
@@ -1758,7 +1760,8 @@ describe('the per-user panel', () => {
     expect(text(loading)).toContain('Loading user spend');
     expect(text(loading).match(/Estimated/g)).toHaveLength(5);
     expect(loading.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(5);
-    expect(loading.match(/pia-flick-slot--inline/g)).toHaveLength(1);
+    expect(loading.match(/pia-flick-slot--compact/g)).toHaveLength(1);
+    expect(loading).toContain('pia-loader-mark--compact');
     expect(loading.match(/pia-loader__phase--(?:dpad|cluster)/g)).toHaveLength(2);
     expect(loading).toContain('pia-loader__center');
     expect(loading).not.toContain('lucide-wallet');
@@ -1871,7 +1874,7 @@ describe('the per-user panel', () => {
       expect(text(markup)).toContain(label);
     }
     expect(markup.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(5);
-    expect(markup.match(/pia-flick-slot--inline/g)).toHaveLength(1);
+    expect(markup.match(/pia-flick-slot--compact/g)).toHaveLength(1);
     expect(text(markup)).not.toContain('Refreshing');
     expect(text(markup)).not.toMatch(
       /week over week|month over month|comparable period|prior 7 days|prior matched month/i

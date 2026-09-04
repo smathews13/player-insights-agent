@@ -41,23 +41,18 @@ describe('Sam’s second feedback wave', () => {
     // surfaces to be a dark blue rather than a near-black, and pointing them at
     // their own token is what let the ink stay where the design put it.
     expect(rule(RAIL, '.ask-layout')).toContain('background-color: var(--ast-sky-fill)');
-    // The star field, which is `:root`'s recipe rather than four dots written out
-    // here: the agent map's band needs the same sky and is not a descendant of this
-    // grid, so an inherited property on the page could not have reached it.
-    expect(rule(RAIL, '.ask-layout')).toContain('background-image: var(--ast-sky-spackle)');
-    expect(ASTROLABE).toMatch(/--ast-sky-spackle:[\s\S]*?radial-gradient/);
+    // The app-wide SVG is the only decorative field. Route backgrounds only
+    // provide the semantic fill through which that topology is occluded.
+    expect(rule(RAIL, '.ask-layout')).not.toContain('background-image');
+    expect(ASTROLABE).not.toContain('--ast-sky-spackle');
     expect(ASTROLABE).toMatch(/--ast-sky-fill:\s*#16202e/);
-    // Six layers, because one dot per tile at one tile size is a visible lattice.
-    expect(ASTROLABE.match(/--ast-sky-spackle:([\s\S]*?);/)?.[1].match(/radial-gradient/g)).toHaveLength(6);
     expect(rule(ASK, '.conversation-main')).toContain('background: transparent');
     expect(rule(ASK, '.ask-hero h2')).toContain('color: var(--ast-white)');
     // The rail is chrome, on the header's own surface. It was navy with white ink
     // and read as a near-black column beside a white header. `--ast-white` is the
     // one light surface the bubble and the answer card now share with it.
-    const rail = rule(RAIL, '.conversation-rail');
-    expect(rail).toContain('background: var(--card)');
-    expect(rail).toContain('color: var(--foreground)');
-    expect(rail).not.toContain('--ast-navy');
+    expect(RAIL).toMatch(/(?:^|\n)\.conversation-rail\s*\{[^}]*background:\s*var\(--card\)/s);
+    expect(RAIL).toMatch(/(?:^|\n)\.conversation-rail\s*\{[^}]*color:\s*var\(--foreground\)/s);
   });
 
   it('widens result surfaces while wrapping them inside the workspace', () => {

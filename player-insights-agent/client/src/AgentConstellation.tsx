@@ -671,20 +671,6 @@ export function AgentPathConstellation({
           preserveAspectRatio="xMidYMin meet"
           fill="none"
         >
-          <g className="ast-sky-dust" aria-hidden="true">
-            {[
-              [36, 0.16],
-              [274, 0.23],
-              [65, 0.34],
-              [293, 0.45],
-              [29, 0.58],
-              [263, 0.66],
-              [77, 0.78],
-              [286, 0.88],
-            ].map(([x, fraction]) => (
-              <circle key={`${x}-${fraction}`} cx={x} cy={Math.round(path.height * fraction)} r="1.5" />
-            ))}
-          </g>
           <g className="ast-links">
             {path.links.map((link) => (
               <Link key={`${link.from}-${link.to}`} link={link} />

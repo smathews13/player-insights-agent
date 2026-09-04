@@ -1,44 +1,40 @@
 @keyframes pia-swap {
   0%,
+  2% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+
+  7% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+
+  10%,
   44% {
     opacity: 1;
     transform: scale(1);
   }
 
-  48% {
-    opacity: 0.72;
-    transform: scale(1.02);
-  }
-
-  50%,
-  94% {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-
-  98% {
-    opacity: 0.72;
-    transform: scale(1.02);
-  }
-
+  49%,
   100% {
-    opacity: 1;
-    transform: scale(1);
+    opacity: 0;
+    transform: scale(0.85);
   }
 }
 
 @keyframes pia-hl {
   0%,
-  1% {
+  3% {
     opacity: 0;
   }
 
-  3%,
-  10% {
+  8%,
+  20% {
     opacity: 1;
   }
 
-  12.5%,
+  28%,
   100% {
     opacity: 0;
   }
@@ -46,20 +42,14 @@
 
 @keyframes pia-btn-light {
   0%,
-  49% {
-    opacity: 0.68;
-    transform: scale(1);
-  }
-
-  52%,
-  60% {
+  16% {
     opacity: 1;
-    transform: scale(1.18);
+    transform: scale(1.25);
   }
 
-  62.5%,
+  24%,
   100% {
-    opacity: 0.68;
+    opacity: 0.3;
     transform: scale(1);
   }
 }
@@ -84,28 +74,53 @@
 .pia-loader {
   display: inline-flex;
   align-items: center;
+  max-width: 100%;
   color: var(--ast-text);
 }
 
-.pia-loader--panel {
+.pia-loader--panel,
+.pia-loader--compact {
   flex-direction: column;
   justify-content: center;
   gap: 14px;
 }
 
-.pia-loader--inline {
+.pia-loader--compact {
+  gap: 12px;
+}
+
+.pia-loader--inline,
+.pia-loader--button,
+.pia-loader--chip {
   gap: 8px;
+}
+
+.pia-loader--button,
+.pia-loader--chip {
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .pia-loader__label {
   font-family: var(--font-sans);
-  font-size: var(--ast-fs-12);
+  font-size: var(--ast-fs-13);
   font-weight: 500;
-  line-height: 1.2;
+  line-height: 1.3;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+
+.pia-loader--panel .pia-loader__label,
+.pia-loader--compact .pia-loader__label {
+  text-align: center;
 }
 
 .pia-loader-mark {
+  display: block;
+  flex: none;
   overflow: visible;
+  pointer-events: none;
 }
 
 .pia-flick-slot > .pia-loader-mark {
@@ -113,6 +128,7 @@
 }
 
 .pia-loader__phase {
+  opacity: 0;
   transform-origin: 32px 32px;
   animation: pia-swap 6.4s linear infinite;
 }
@@ -123,16 +139,24 @@
 
 .pia-loader__highlight {
   opacity: 0;
-  animation: pia-hl 6.4s linear infinite;
+  animation: pia-hl 3.2s linear infinite;
+}
+
+.pia-loader__tip-pills {
+  opacity: 0.4;
+}
+
+.pia-loader__engravings {
+  opacity: 0.35;
 }
 
 .pia-loader__button {
-  opacity: 0.68;
-  animation: pia-btn-light 6.4s linear infinite;
+  opacity: 0.3;
+  animation: pia-btn-light 3.2s linear infinite;
 }
 
 .pia-loader__diamond {
-  opacity: 0.9;
+  opacity: 0.6;
   animation: pia-dash 1.6s linear infinite;
 }
 
@@ -141,10 +165,55 @@
   animation: pia-center-pulse 3.2s ease-in-out infinite;
 }
 
-.pia-loader-mark--inline .pia-loader__highlight,
-.pia-loader-mark--inline .pia-loader__button,
-.pia-loader-mark--inline .pia-loader__diamond {
-  animation: none;
+.pia-loader-mark--button,
+.pia-loader-mark--chip {
+  min-width: 12px;
+  min-height: 12px;
+}
+
+.pia-button-state {
+  display: inline-grid;
+  align-items: center;
+  justify-items: center;
+}
+
+.pia-button-state__idle,
+.pia-button-state__busy {
+  grid-area: 1 / 1;
+}
+
+.pia-button-state__idle,
+.pia-button-state__busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pia-button-state[data-busy='true'] .pia-button-state__idle,
+.pia-button-state[data-busy='false'] .pia-button-state__busy {
+  visibility: hidden;
+}
+
+.pia-button-state[data-busy='false'] .pia-button-state__idle,
+.pia-button-state[data-busy='true'] .pia-button-state__busy {
+  visibility: visible;
+}
+
+@media (prefers-contrast: more) {
+  .pia-loader__label {
+    font-weight: 700;
+  }
+
+  .pia-loader-mark--light {
+    --pia-mark-ink: #11171c;
+    --pia-mark-accent: #2272b4;
+  }
+
+  .pia-loader-mark--dark,
+  .pia-loader-mark--mono {
+    --pia-mark-ink: #ffffff;
+    --pia-mark-accent: #b7d6ee;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -165,6 +234,12 @@
 
   .pia-loader__phase--dpad [data-pia-role='glyph'] {
     display: none;
+  }
+
+  .pia-loader-mark--button .pia-loader__button,
+  .pia-loader-mark--chip .pia-loader__button {
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -187,6 +262,12 @@ html[data-animations='off'] .pia-loader__phase--dpad [data-pia-role='glyph'] {
   display: none;
 }
 
+html[data-animations='off'] .pia-loader-mark--button .pia-loader__button,
+html[data-animations='off'] .pia-loader-mark--chip .pia-loader__button {
+  opacity: 1;
+  transform: none;
+}
+
 @media print {
   .pia-anim * {
     animation: none !important;
@@ -204,5 +285,11 @@ html[data-animations='off'] .pia-loader__phase--dpad [data-pia-role='glyph'] {
 
   .pia-loader__phase--dpad [data-pia-role='glyph'] {
     display: none;
+  }
+
+  .pia-loader-mark--button .pia-loader__button,
+  .pia-loader-mark--chip .pia-loader__button {
+    opacity: 1;
+    transform: none;
   }
 }

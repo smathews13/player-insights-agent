@@ -6,25 +6,35 @@
  */
 import { PiaLoaderMark } from './PiaLoader';
 import type { PiaMarkTone } from './PiaMark';
-import type { PiaLoaderSeat } from './pia-loader';
+import { PIA_LOADER_SIZES, type PiaLoaderSeat, type PiaLoaderVariant } from './pia-loader';
 
 const SEAT = {
-  splash: { size: 112, tone: 'light', detailed: true },
-  inline: { size: 20, tone: 'light', detailed: false },
-  button: { size: 14, tone: 'mono', detailed: false },
-  strip: { size: 18, tone: 'dark', detailed: false },
-  status: { size: 11, tone: 'dark', detailed: false },
-} as const satisfies Readonly<Record<PiaLoaderSeat, { size: number; tone: PiaMarkTone; detailed: boolean }>>;
+  splash: { variant: 'panel', tone: 'light' },
+  compact: { variant: 'compact', tone: 'light' },
+  inline: { variant: 'inline', tone: 'light' },
+  button: { variant: 'button', tone: 'dark' },
+  strip: { variant: 'compact', tone: 'dark' },
+  status: { variant: 'chip', tone: 'dark' },
+} as const satisfies Readonly<Record<PiaLoaderSeat, { variant: PiaLoaderVariant; tone: PiaMarkTone }>>;
 
-export function PiaFlicker({ seat, className }: { seat: PiaLoaderSeat; className?: string }) {
-  const { size, tone, detailed } = SEAT[seat];
+export function PiaFlicker({
+  seat,
+  tone: toneOverride,
+  className,
+}: {
+  seat: PiaLoaderSeat;
+  tone?: PiaMarkTone;
+  className?: string;
+}) {
+  const { variant, tone } = SEAT[seat];
+  const size = PIA_LOADER_SIZES[variant];
   return (
     <span
       className={`pia-flick-slot pia-flick-slot--${seat} ${className ?? ''}`.trim()}
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      <PiaLoaderMark size={size} tone={tone} detailed={detailed} />
+      <PiaLoaderMark variant={variant} tone={toneOverride ?? tone} />
     </span>
   );
 }

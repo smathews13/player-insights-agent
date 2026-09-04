@@ -66,6 +66,13 @@ html[data-theme='dark'] .ask-layout {
   background-image: none;
 }
 
+/* The harness is an uncovered region of the same page topology, not a second
+   navy canvas with its own constellation. Its live path remains foreground
+   information; only the decorative background passes through. */
+html[data-theme='dark'] .trace-inspector {
+  background: transparent;
+}
+
 /* Sticky chrome is the near-opaque plane above every route. The base rule owns
    its safe-area geometry and layer; dark mode only chooses semantic paint. */
 html[data-theme='dark'] .app-header {
@@ -608,13 +615,6 @@ html[data-theme='dark'] .app-sky-line {
   stroke: var(--ast-blue-on-dark);
   stroke-width: 1;
   opacity: 0.6;
-}
-
-html[data-theme='dark'] .app-sky-glyph {
-  stroke: var(--ast-blue-on-dark);
-  stroke-width: 1.6;
-  fill: none;
-  opacity: 0.55;
 }
 
 /*

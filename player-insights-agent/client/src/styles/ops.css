@@ -185,9 +185,9 @@
   flex-wrap: wrap;
 }
 
-.ops-scope-check-button .pia-flick-row,
-.ops-scope-pagination .pia-flick-row,
-.ops-scope-skeleton-row .pia-flick-row {
+.ops-scope-check-button .pia-loader,
+.ops-scope-pagination .pia-loader,
+.ops-scope-skeleton-row .pia-loader {
   min-height: 0;
   padding: 0;
   border: 0;
@@ -198,8 +198,8 @@
   overflow: hidden;
 }
 
-.ops-scope-check-button .pia-flick-row-say,
-.ops-scope-pagination .pia-flick-row-say {
+.ops-scope-check-button .pia-loader__label,
+.ops-scope-pagination .pia-loader__label {
   color: inherit;
   font: inherit;
   white-space: nowrap;

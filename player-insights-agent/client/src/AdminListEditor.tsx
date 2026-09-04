@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Copy, Trash2, UserPlus } from 'lucide-react';
 import { Button, Input } from './ui';
+import { PiaLoader } from './PiaLoader';
 import { addedOn, canSubmit, listSummary, originLabel, type AdminListEntry } from './admin-list';
 import { reportEgress } from './egress-policy';
 import type { AdminListPayload } from '../../shared/admin-contract';
@@ -220,7 +221,9 @@ export function AdminListEditor() {
 
   return (
     <div className="identity-table-content">
-      {loading ? <p className="admin-list-note">Reading the list.</p> : null}
+      {loading ? (
+        <PiaLoader variant="inline" label="Reading the administrator list" className="admin-list-note" />
+      ) : null}
 
       {error ? (
         <p className="admin-list-note admin-list-error">

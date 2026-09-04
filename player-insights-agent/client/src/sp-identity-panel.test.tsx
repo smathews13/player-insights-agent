@@ -133,7 +133,7 @@ describe('Settings → Identity', () => {
     });
     expect(empty).not.toContain(SP_IDENTITY_MINTING_UNAVAILABLE);
     expect(empty).toContain('No SP persona configurations yet.');
-    expect(empty).toContain('lucide-user-round');
+    expect(empty).toContain('pia-empty-mark');
     expect(empty).not.toContain('<th scope="col">Persona</th>');
     expect(empty).not.toContain('<th scope="col">Actions</th>');
     expect(empty).not.toContain('Who runs as which persona');

@@ -133,7 +133,8 @@ describe('Run Explorer Overview KPIs', () => {
       },
     });
     expect(markup.match(/disabled=""/g)).toHaveLength(2);
-    expect(markup).toContain('role="status">Saving…');
+    expect(markup).toContain('pia-loader-mark--inline');
+    expect(markup).toContain('Saving feedback');
   });
 
   it('keeps existing feedback read-only and attributes Run Explorer feedback to this viewer', () => {

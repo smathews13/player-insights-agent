@@ -680,7 +680,7 @@ export function UnityCatalogScopeExplorer({
                 });
             }}
           >
-            {submitting ? <PiaLoadingLabel as="span" announce={false} label="Saving" /> : 'Save'}
+            {submitting ? <PiaLoadingLabel as="span" seat="button" announce={false} label="Saving" /> : 'Save'}
           </Button>
         </footer>
       </div>

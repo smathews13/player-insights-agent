@@ -143,7 +143,7 @@ import {
 } from './active-conversation-runs';
 import { failedAskSettlement, settleAskDisplay, terminalSettlementForResponse } from './ask-terminal-state';
 import { PiaEmptyStateMark, PiaMark } from './PiaMark';
-import { PiaLoaderMark } from './PiaLoader';
+import { PiaBusyButtonContent, PiaLoaderMark } from './PiaLoader';
 import { ConversationRailRunStatus } from './ConversationRailRunStatus';
 import { PiaFlicker } from './PiaFlicker';
 import { WorkingInlineRow } from './WorkingInlineRow';
@@ -164,8 +164,6 @@ import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { conversationAge } from './conversation-age';
 import { PlanCard } from './PlanCard';
 import { AgentPathConstellation } from './AgentConstellation';
-import { ConstellationField } from './ConstellationField';
-import { OPENING_CONSTELLATION } from './constellation';
 import { StoredAnswerBoundary } from './StoredAnswerBoundary';
 import { deriveCurrentStageView } from './current-stage-view';
 import { useStartupReadiness } from './startup-readiness';
@@ -2306,8 +2304,13 @@ export function HomePage() {
                         className="conversation-confirm-delete"
                         onClick={() => void deleteConversation(conversation.id)}
                         disabled={deletingConversation !== null}
+                        aria-busy={deletingConversation === conversation.id || undefined}
                       >
-                        {deletingConversation === conversation.id ? 'Deleting…' : 'Delete'}
+                        <PiaBusyButtonContent
+                          busy={deletingConversation === conversation.id}
+                          label="Delete"
+                          busyLabel="Deleting"
+                        />
                       </button>
                     </div>
                   </div>
@@ -2497,15 +2500,15 @@ export function HomePage() {
                   size="sm"
                   data-message-pagination="older"
                   disabled={olderMessagesLoading}
+                  aria-busy={olderMessagesLoading || undefined}
                   onClick={() => void loadOlderMessages()}
                 >
-                  {olderMessagesLoading ? (
-                    <>
-                      <PiaFlicker seat="button" /> Loading older messages…
-                    </>
-                  ) : (
-                    'Load older messages'
-                  )}
+                  <PiaBusyButtonContent
+                    busy={olderMessagesLoading}
+                    label="Load older messages"
+                    busyLabel="Loading older messages"
+                    tone="light"
+                  />
                 </Button>
               ) : null}
               {olderMessagesError ? (
@@ -2592,16 +2595,12 @@ export function HomePage() {
           {(loading || conversationLoading) && (
             <Card className="answer-card">
               <CardContent className={workingSeat === 'splash' ? 'pia-splash' : 'pt-6 space-y-5'}>
-                {/* The working animation is for a run that is actually running.
-                  Restoring a saved conversation from Lakebase is not the agent
-                  working -- nothing is being asked and nothing is being read --
-                  so that case keeps the still mark it always had. Miming a run
-                  over a database read is the same invention as a progress bar
-                  that fills on a timer. */}
+                {/* Conversation recovery is real application work, so the compact
+                  loader reports it without borrowing the larger agent-run seat. */}
                 {conversationLoading ? (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3" role="status" aria-live="polite">
                     <div className="ask-loading-mark">
-                      <PiaLoaderMark size={26} />
+                      <PiaLoaderMark variant="compact" />
                     </div>
                     <div>
                       <p className="font-medium">Loading conversation</p>
@@ -2827,10 +2826,11 @@ export function HomePage() {
                 variant="ghost"
                 size="sm"
                 disabled={clearingDocs || loading || conversationLoading}
+                aria-busy={clearingDocs || undefined}
                 onClick={() => void clearDocs()}
               >
-                {clearingDocs ? <PiaFlicker seat="button" /> : <Trash2 />}
-                {clearingDocs ? 'Clearing…' : `Clear docs (${attachments.length})`}
+                {clearingDocs ? <PiaLoaderMark variant="button" tone="light" /> : <Trash2 className="size-4" />}
+                {`Clear docs (${attachments.length})`}
               </Button>
             )}
             {/* The composer keeps the shared caveat copy but not the product mark:
@@ -2851,7 +2851,10 @@ export function HomePage() {
                   'Stop'
                 )
               ) : parsing ? (
-                'Reading files…'
+                <>
+                  <PiaFlicker seat="button" />
+                  Reading files…
+                </>
               ) : (
                 'Ask Player Insights Agent'
               )}
@@ -2861,15 +2864,6 @@ export function HomePage() {
       </div>
 
       <aside className="trace-inspector" ref={inspectorRef}>
-        {/* Idle silhouette only. It used to unmount the moment the first step
-            landed, so the pane flipped to a different night. It stays in the
-            markup so that swap cannot return, but rail.css hides it once a run
-            is on — the opening drawing uses the same product marks as the live
-            path, and leaving it at 0.28 looked like a ghost copy of every
-            tool node. Decorative; the heading names the column. */}
-        <div className="trace-idle-sky" aria-hidden="true">
-          <ConstellationField shape={OPENING_CONSTELLATION} />
-        </div>
         {/* §4 names this column before it names what is in it: "LIVE AGENT
             HARNESS", then the run's pill, then the steps. The eyebrow is what
             the column IS and the heading is what the column HOLDS, which is why

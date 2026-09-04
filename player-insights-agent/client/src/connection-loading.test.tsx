@@ -133,21 +133,22 @@ describe('canonical PIA loading geometry', () => {
     expect(connections.match(/data-testid="connections-primary-loader"/g)).toHaveLength(1);
     expect(connections).not.toContain('<Skeleton');
     const markup = renderToStaticMarkup(<PiaLoadingLabel label="Loading connections" />);
-    expect(markup.match(/class="pia-flick-slot /g)).toHaveLength(1);
+    expect(markup.match(/pia-loader-mark--inline/g)).toHaveLength(1);
   });
 
   it('gives every resource a useful row-local loading label', () => {
     for (const resource of CONNECTED_RESOURCES) {
       const markup = renderToStaticMarkup(<ConnectionLoadRow reading={reading(resource.id)} state="loading" />);
       expect(markup).toContain(`Loading ${resource.label}`);
-      expect(markup.match(/class="pia-flick-slot /g)).toHaveLength(1);
+      expect(markup.match(/pia-loader-mark--inline/g)).toHaveLength(1);
     }
   });
 
   it('reserves height and clips labels without horizontal growth', () => {
-    expect(css).toMatch(/\.connections-primary-loader\s*\{[^}]*min-height:\s*58px[^}]*overflow:\s*hidden/s);
+    expect(css).toMatch(/\.connections-primary-loader\s*\{[^}]*min-height:\s*88px[^}]*overflow:\s*hidden/s);
+    expect(connections).toContain('<PiaLoadingLabel seat="compact" label="Loading connections"');
     expect(css).toMatch(
-      /\.pia-flick-row\.connection-row-loader\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*overflow:\s*hidden/s
+      /\.pia-loader\.connection-row-loader\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*overflow:\s*hidden/s
     );
     expect(css).toMatch(/\.connection-row-summary,[\s\S]*?min-height:\s*48px/);
   });

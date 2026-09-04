@@ -67,6 +67,7 @@ import { CONNECTED_RESOURCES } from '../../shared/deployment-config';
 import { IdentityCard } from './IdentityPanel';
 import { useDeploymentIdentity } from './identity-panel-state';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
+import { PiaLoaderMark } from './PiaLoader';
 import {
   connectionLoadErrorLabel,
   connectionPlaceholderReadings,
@@ -774,6 +775,8 @@ export function DeclaredTablesTable({
                     {pending ? (
                       <PiaLoadingLabel
                         as="span"
+                        seat="status"
+                        tone="light"
                         announce={false}
                         className="connections-table-status-loader"
                         label={`Checking ${entry.connection.label || entry.connection.value}`}
@@ -834,10 +837,15 @@ export function DeclaredTablesTable({
                             variant="destructive"
                             size="sm"
                             disabled={management.busy}
+                            aria-busy={management.busy || undefined}
                             onClick={() => management.onRemove(entry)}
                           >
-                            <Trash2 aria-hidden="true" />
-                            {management.busy ? 'Deleting\u2026' : DELETE_CONNECTION_LABEL}
+                            {management.busy ? (
+                              <PiaLoaderMark variant="button" tone="dark" />
+                            ) : (
+                              <Trash2 className="size-4" aria-hidden="true" />
+                            )}
+                            {DELETE_CONNECTION_LABEL}
                           </Button>
                           <Button variant="outline" size="sm" disabled={management.busy} onClick={management.onCancel}>
                             Keep
@@ -902,6 +910,8 @@ export function DeclaredTablesTable({
                       {declared?.pending ? (
                         <PiaLoadingLabel
                           as="span"
+                          seat="status"
+                          tone="light"
                           announce={false}
                           className="connections-table-status-loader"
                           label={`Checking ${check.label || check.name}`}
@@ -969,10 +979,15 @@ export function DeclaredTablesTable({
                               variant="destructive"
                               size="sm"
                               disabled={management.busy}
+                              aria-busy={management.busy || undefined}
                               onClick={() => management.onRemove(connection)}
                             >
-                              <Trash2 aria-hidden="true" />
-                              {management.busy ? 'Deleting\u2026' : DELETE_CONNECTION_LABEL}
+                              {management.busy ? (
+                                <PiaLoaderMark variant="button" tone="dark" />
+                              ) : (
+                                <Trash2 className="size-4" aria-hidden="true" />
+                              )}
+                              {DELETE_CONNECTION_LABEL}
                             </Button>
                             <Button
                               variant="outline"
@@ -1687,6 +1702,8 @@ export function ConnectionRow({
         {primaryState === 'loading' ? (
           <PiaLoadingLabel
             as="span"
+            seat="status"
+            tone="light"
             announce={false}
             className="connection-row-status-loader"
             label={`Checking ${resource.label}`}
@@ -2176,7 +2193,7 @@ export function ConnectionsPage() {
 
       {firstRun ? (
         <Card className="connections-primary-loader" data-testid="connections-primary-loader">
-          <PiaLoadingLabel label="Loading connections" className="connections-primary-loader-row" />
+          <PiaLoadingLabel seat="compact" label="Loading connections" className="connections-primary-loader-row" />
         </Card>
       ) : null}
 

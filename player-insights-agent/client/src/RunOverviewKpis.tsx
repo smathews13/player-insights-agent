@@ -11,6 +11,7 @@ import type { TokenReconciliation } from '../../shared/llm-token-usage';
 import type { FeedbackDirection } from '../../shared/feedback-direction';
 import { runTokenUsageView } from './token-usage-view';
 import { ToolCallsLabel } from './ToolCallsLabel';
+import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 
 const ABSENT = 'Not recorded';
 
@@ -184,16 +185,16 @@ export function RunOverviewKpis({
               >
                 <ThumbsDown aria-hidden="true" />
               </Button>
-              {feedbackControls.saving ? <small role="status">Saving…</small> : null}
+              {feedbackControls.saving ? <PiaLoader as="span" variant="inline" label="Saving feedback" /> : null}
             </div>
           ) : hasFeedback || feedbackControls?.saving || feedbackControls?.saved ? (
-            <small className="run-kpi-subtitle">
-              {feedbackControls?.saving
-                ? 'Saving…'
-                : feedbackControls?.saved
-                  ? `Saved · Submitted by ${feedbackSource}`
-                  : `Submitted by ${feedbackSource}`}
-            </small>
+            feedbackControls?.saving ? (
+              <PiaLoader as="span" variant="inline" label="Saving feedback" className="run-kpi-subtitle" />
+            ) : (
+              <small className="run-kpi-subtitle">
+                {feedbackControls?.saved ? `Saved · Submitted by ${feedbackSource}` : `Submitted by ${feedbackSource}`}
+              </small>
+            )
           ) : null}
           {feedbackControls?.open ? (
             <div className="run-kpi-feedback-comment">
@@ -208,9 +209,10 @@ export function RunOverviewKpis({
                 type="button"
                 size="sm"
                 disabled={feedbackControls.saving}
+                aria-busy={feedbackControls.saving || undefined}
                 onClick={feedbackControls.onSaveComment}
               >
-                {feedbackControls.saving ? 'Saving…' : 'Save feedback'}
+                <PiaBusyButtonContent busy={feedbackControls.saving} label="Save feedback" busyLabel="Saving" />
               </Button>
             </div>
           ) : null}

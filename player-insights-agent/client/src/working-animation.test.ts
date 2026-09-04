@@ -99,10 +99,10 @@ describe('which seating the loader takes', () => {
       HOME,
       INLINE_ROW,
       RESOURCE_TAGS,
-      readFileSync(new URL('WorkingConstellation.tsx', HERE), 'utf8'),
       readFileSync(new URL('AgentConstellation.tsx', HERE), 'utf8'),
+      readFileSync(new URL('MonitoringPage.tsx', HERE), 'utf8'),
     ].join('\n');
-    for (const seat of ['splash', 'inline', 'button', 'strip', 'status'] satisfies PiaLoaderSeat[]) {
+    for (const seat of ['splash', 'compact', 'inline', 'button', 'status'] satisfies PiaLoaderSeat[]) {
       expect(seated, `the ${seat} seating is drawn somewhere`).toContain(`seat="${seat}"`);
     }
   });
@@ -249,7 +249,7 @@ describe('the wait is counted, and never mimed', () => {
     // 342 units against a `0` at 656 -- so a counter set in it jitters by most
     // of a digit width as it ticks. `.ast-num` is the mono family.
     expect(HOME).toMatch(/className="ast-num"/);
-    expect(readFileSync(new URL('WorkingConstellation.tsx', HERE), 'utf8')).toMatch(/className="ast-num"/);
+    expect(INLINE_ROW).toMatch(/className="ast-num pia-flick-row-count"/);
   });
 });
 
@@ -376,12 +376,11 @@ describe('the loaders are decorative, and freeze when asked to', () => {
     // and quotes the attribute to do it -- so the file that reasoned itself into
     // compliance would be the one reported as having two live regions.
     const field = withoutComments(readFileSync(new URL('ConstellationField.tsx', HERE), 'utf8'));
-    const working = withoutComments(readFileSync(new URL('WorkingConstellation.tsx', HERE), 'utf8'));
+    const loader = withoutComments(readFileSync(new URL('PiaLoader.tsx', HERE), 'utf8'));
     const flicker = withoutComments(readFileSync(new URL('PiaFlicker.tsx', HERE), 'utf8'));
     expect(field).toMatch(/aria-hidden="true"/);
     expect(flicker).toMatch(/aria-hidden="true"/);
-    expect(working.match(/aria-live=/g) ?? []).toHaveLength(1);
-    expect(working).toMatch(/aria-live="polite"/);
+    expect(loader).toMatch(/aria-live=\{announce \? 'polite' : undefined\}/);
   });
 
   it('names its animations through the prefix the freeze covers', () => {

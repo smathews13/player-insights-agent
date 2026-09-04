@@ -217,10 +217,6 @@ html[data-animations='off'] .app-sky[data-star-motion-field] [data-star-motion='
   opacity: 0.7;
 }
 
-html[data-animations='off'] .app-sky[data-star-motion-field] .star-motion-faint {
-  opacity: 0.32;
-}
-
 html[data-animations='off'] .app-sky[data-star-motion-field] .star-motion-draw {
   stroke-dashoffset: 0;
   opacity: 0.45;
@@ -228,11 +224,6 @@ html[data-animations='off'] .app-sky[data-star-motion-field] .star-motion-draw {
 
 html[data-animations='off'] .run-status.is-alive .run-status-dot {
   animation: none;
-}
-
-html[data-animations='off'] .refresh-spin,
-html[data-animations='off'] .asset-picker-spinner {
-  animation: none !important;
 }
 
 html[data-animations='off'] [data-slot='progress'][data-state='indeterminate'] > [data-slot='progress-indicator'] {
@@ -263,12 +254,6 @@ html[data-animations='off'] .ast-anim-hold,
 html[data-animations='off'] .ast-anim-gate-in,
 html[data-animations='off'] .ast-anim-star-pulse,
 html[data-animations='off'] .ast-anim-center-pulse {
-  opacity: 1;
-  transform: none;
-}
-
-html[data-animations='off'] .ast-anim-dot-run,
-html[data-animations='off'] .ast-anim-dot-run-sm {
   opacity: 1;
   transform: none;
 }

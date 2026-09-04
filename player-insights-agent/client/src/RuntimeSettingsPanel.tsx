@@ -28,6 +28,7 @@ import {
 } from './settings-save-state';
 import { StateSwitch } from './StateSwitch';
 import { Input } from './ui';
+import { PiaLoader } from './PiaLoader';
 const FONT_FAMILY_OPTIONS: { value: FontFamilyId; label: string }[] = [
   { value: 'dm-sans', label: 'DM Sans' },
   { value: 'system', label: 'System' },
@@ -788,7 +789,7 @@ export function RuntimeSettingsPanel({
           </section>
         </>
       )}
-      {state === 'loading' ? <p className="settings-status">Loading settings.</p> : null}
+      {state === 'loading' ? <PiaLoader variant="inline" label="Loading settings" className="settings-status" /> : null}
       {state === 'saving' ? <p className="settings-status">Saving settings.</p> : null}
       {state === 'saved' ? (
         <p className="settings-status" role="status">

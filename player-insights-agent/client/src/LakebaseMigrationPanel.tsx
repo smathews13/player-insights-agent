@@ -59,7 +59,11 @@ export function LakebaseMigrationPanel({
           {state.error ? <p className="lakebase-migration-error">{state.error}</p> : null}
         </div>
         <Button disabled={applying || !value.canApply} onClick={onApply}>
-          {applying ? <PiaLoadingLabel as="span" announce={false} label="Updating Lakebase" /> : 'Update Lakebase'}
+          {applying ? (
+            <PiaLoadingLabel as="span" seat="button" announce={false} label="Updating Lakebase" />
+          ) : (
+            'Update Lakebase'
+          )}
         </Button>
       </div>
     );
@@ -83,7 +87,11 @@ export function LakebaseMigrationPanel({
       </div>
       {value.canApply ? (
         <Button disabled={applying} onClick={onApply}>
-          {applying ? <PiaLoadingLabel as="span" announce={false} label="Updating Lakebase" /> : 'Update Lakebase'}
+          {applying ? (
+            <PiaLoadingLabel as="span" seat="button" announce={false} label="Updating Lakebase" />
+          ) : (
+            'Update Lakebase'
+          )}
         </Button>
       ) : null}
     </div>

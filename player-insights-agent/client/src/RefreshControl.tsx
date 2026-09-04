@@ -15,6 +15,7 @@
  * read is in flight, and when the last one finished.
  */
 import { RefreshCw } from 'lucide-react';
+import { PiaLoaderMark } from './PiaLoader';
 import { Button } from './ui';
 import { REFRESH_BUSY_LABEL, REFRESH_LABEL, readAgo } from './refresh-state';
 
@@ -36,7 +37,8 @@ export interface RefreshButtonProps {
  * second, wordless copy of the button.
  */
 export function RefreshButton({ busy = false, onRefresh, className }: RefreshButtonProps) {
-  return (<Button
+  return (
+    <Button
       /*
        * FILLED BLUE, EVERYWHERE IT APPEARS. It was `outline`, which put the one
        * control on these pages that does anything in the quietest treatment the
@@ -56,9 +58,19 @@ export function RefreshButton({ busy = false, onRefresh, className }: RefreshBut
       // state, and the later answer used to be able to arrive first.
       disabled={busy}
       aria-busy={busy || undefined}
+      aria-label={REFRESH_LABEL}
     >
-      <RefreshCw className={busy ? 'size-3.5 refresh-spin' : 'size-3.5'} aria-hidden="true" />
-      {busy ? REFRESH_BUSY_LABEL : REFRESH_LABEL}
+      <span className="pia-button-state" data-busy={busy ? 'true' : 'false'} aria-hidden="true">
+        <span className="pia-button-state__idle">
+          <RefreshCw className="size-3.5" />
+          {REFRESH_LABEL}
+        </span>
+        <span className="pia-button-state__busy">
+          <PiaLoaderMark variant="button" tone="dark" />
+          <span>{REFRESH_BUSY_LABEL}</span>
+        </span>
+      </span>
+      <span className="sr-only">{REFRESH_LABEL}</span>
     </Button>
   );
 }
@@ -87,7 +99,8 @@ export interface RefreshControlProps extends RefreshButtonProps {
  */
 export function RefreshControl({ busy = false, checkedAt, now, onRefresh, className }: RefreshControlProps) {
   const line = readAgo(checkedAt, now);
-  return (<div className={className ? `refresh-control ${className}` : 'refresh-control'}>
+  return (
+    <div className={className ? `refresh-control ${className}` : 'refresh-control'}>
       <p className="refresh-control-when" aria-hidden="true">
         {line}
       </p>

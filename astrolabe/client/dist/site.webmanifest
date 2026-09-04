@@ -3,14 +3,16 @@
   "short_name": "PIA",
   "icons": [
     {
-      "src": "/favicon-192x192.png",
+      "src": "/pia-dpad-app-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/favicon-512x512.png",
+      "src": "/pia-dpad-app-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "theme_color": "#11171C",

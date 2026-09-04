@@ -316,15 +316,12 @@ describe('constellation and chrome layers', () => {
   });
 
   it('keeps uncovered decoration unchanged while cards dim and foregrounds suppress it', () => {
-    expect(motion).toMatch(/circle\.app-sky-glyph\s*\{[^}]*fill:\s*var\(--ast-white\)/s);
+    expect(motion).toMatch(/\.app-topology-node\s*\{[^}]*opacity:\s*0\.7/s);
     expect(bodyFor(dark, "html[data-theme='dark'] .app-sky-line")).toMatch(/opacity:\s*0\.6/);
-    expect(bodyFor(dark, "html[data-theme='dark'] .app-sky-glyph")).toMatch(
-      /stroke-width:\s*1\.6[\s\S]*opacity:\s*0\.55/
-    );
+    expect(source('StarField.tsx')).toContain('<StarGlyphShape star={node} />');
     expect(motion).toMatch(/@keyframes ast-tw\s*\{[\s\S]*?50%\s*\{[^}]*opacity:\s*0\.85/);
-    expect(motion).toMatch(/@keyframes ast-tw2\s*\{[\s\S]*?50%\s*\{[^}]*opacity:\s*0\.55/);
     expect(motion).toMatch(/@keyframes ast-sky-draw\s*\{[\s\S]*?opacity:\s*0\.45/);
-    expect(astrolabe).toMatch(/--ast-sky-spackle:[\s\S]*?rgba\(255,\s*255,\s*255,\s*0\.5\)/);
+    expect(astrolabe).not.toContain('--ast-sky-spackle');
 
     const exposedIntersection = 1 - (1 - 0.85) ** 2;
     const coveredIntersection = exposedIntersection * (1 - tokenMix(astrolabe, '--ast-surface-primary') / 100);
@@ -343,9 +340,6 @@ describe('constellation and chrome layers', () => {
     expect(
       bodyFor(appearance, "html[data-animations='off'] .app-sky[data-star-motion-field] [data-star-motion='anchor']")
     ).toMatch(/opacity:\s*0\.7/);
-    expect(
-      bodyFor(appearance, "html[data-animations='off'] .app-sky[data-star-motion-field] .star-motion-faint")
-    ).toMatch(/opacity:\s*0\.32/);
     expect(
       bodyFor(appearance, "html[data-animations='off'] .app-sky[data-star-motion-field] .star-motion-draw")
     ).toMatch(/opacity:\s*0\.45/);

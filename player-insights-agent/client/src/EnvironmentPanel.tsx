@@ -7,6 +7,7 @@ import { filterEnvironmentItems } from './environment-filter';
 import { environmentInfoFromResponse } from './environment-response';
 import { environmentTabKeyTarget, type EnvironmentTab } from './environment-tab-state';
 import { Badge, Button, Input } from './ui';
+import { PiaLoader } from './PiaLoader';
 
 type EnvironmentRow = EnvironmentVariable | EnvironmentPackage;
 
@@ -209,7 +210,9 @@ export function EnvironmentPanel({
         </>
       ) : null}
 
-      {state === 'loading' ? <p className="settings-status">Loading environment.</p> : null}
+      {state === 'loading' ? (
+        <PiaLoader variant="inline" label="Loading environment" className="settings-status" />
+      ) : null}
       {state === 'failed' ? (
         <p className="settings-status settings-error" role="alert">
           Runtime details are not available just now.

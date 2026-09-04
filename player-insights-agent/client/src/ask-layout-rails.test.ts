@@ -48,18 +48,14 @@ describe('idle Ask keeps the Agent path pane', () => {
     expect(RAIL).toMatch(/--trace-width:\s*340px/);
   });
 
-  it('fills idle Ask with the still constellation silhouette', () => {
-    expect(HOME).toContain("import { ConstellationField } from './ConstellationField'");
-    expect(HOME).toContain('OPENING_CONSTELLATION');
-    expect(HOME).toContain('className="trace-idle-sky"');
+  it('leaves idle Ask on the one app-wide topology', () => {
+    expect(HOME).not.toContain("import { ConstellationField } from './ConstellationField'");
+    expect(HOME).not.toContain('OPENING_CONSTELLATION');
+    expect(HOME).not.toContain('className="trace-idle-sky"');
     expect(HOME).not.toContain('No run yet');
-    expect(RAIL).toMatch(/\.trace-idle-sky\s*\{[^}]*z-index:\s*0/);
-    expect(RAIL).toMatch(/\.trace-idle-sky \[class\*='ast-anim-'\]\s*\{[^}]*animation:\s*none/);
   });
 
-  it('keeps the constellation layer behind the Agent path chrome', () => {
-    expect(RAIL).toMatch(/\.trace-idle-sky\s*\{[^}]*z-index:\s*0[^}]*pointer-events:\s*none/);
-    expect(RAIL).toMatch(/\.trace-idle-sky\s*\{[^}]*contain:\s*paint[^}]*opacity:\s*0\.28/);
+  it('keeps the Agent path chrome above the page topology', () => {
     expect(RAIL).toMatch(/\.trace-inspector\s*\{[^}]*overflow-x:\s*clip/);
     expect(RAIL).toMatch(
       /\.trace-head,\s*\.trace-title,\s*\.trace-working,\s*\.trace-inspector \.ast-sky,\s*\.trace-inspector \.trace-divider,\s*\.trace-inspector \.metric-row,\s*\.trace-inspector \.trace-explore\s*\{[^}]*z-index:\s*1/
@@ -67,11 +63,8 @@ describe('idle Ask keeps the Agent path pane', () => {
     expect(RAIL).toMatch(/\.trace-inspector\s*\{[^}]*isolation:\s*isolate/);
   });
 
-  it('takes the idle silhouette off the paint once a run is on', () => {
-    // The opening drawing uses the same product marks as the live path. Left
-    // at 0.28 under a growing numbered path it read as a ghost copy of every
-    // SQL / Genie node -- the doubled icons at step 15.
-    expect(RAIL).toMatch(/\.ask-layout\[data-inspector=['"]run['"]\]\s+\.trace-idle-sky\s*\{[^}]*display:\s*none/);
+  it('does not add route-local topology when a run starts', () => {
+    expect(RAIL).not.toContain('.trace-idle-sky');
   });
 
   it('reserves the inspector scrollbar so the first overflow cannot shove the path', () => {

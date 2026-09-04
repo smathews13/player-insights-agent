@@ -5,6 +5,8 @@
  * carry no labels, values, charts or table rows, so nothing can be mistaken for
  * data. The status is available to assistive technology in the same frame.
  */
+import { PiaLoader } from './PiaLoader';
+
 export function RouteSkeleton({ visible }: { visible: boolean }) {
   return (
     <div
@@ -13,9 +15,7 @@ export function RouteSkeleton({ visible }: { visible: boolean }) {
       aria-busy="true"
       aria-label="Loading view"
     >
-      <p className="sr-only" role="status" aria-live="polite">
-        Loading view
-      </p>
+      <PiaLoader variant="inline" label="Loading view" className="route-skeleton-status" />
       {visible ? (
         <div className="route-skeleton" aria-hidden="true">
           <div className="route-skeleton-heading" />

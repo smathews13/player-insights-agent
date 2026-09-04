@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { astPill } from './pia-pill';
 import { BenchButton, LabSurface } from './BenchmarkLabChrome';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { EntityText } from './DataEntityLinks';
 import {
   applyLabCandidate,
@@ -292,7 +293,7 @@ export function BenchmarkApplyStage({
           disabled={!canApply || applying}
           title={!canApply ? applyBlockedReason || undefined : undefined}
         >
-          {applying ? 'Applying…' : 'Apply candidate'}
+          <PiaBusyButtonContent busy={applying} label="Apply candidate" busyLabel="Applying" />
         </BenchButton>
         <BenchButton onClick={onViewRollback} title="Shows the restore path. Does not roll anything back.">
           View rollback path

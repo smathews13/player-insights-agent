@@ -31,6 +31,7 @@ import { ICON_FILES, INK, PLATE, iconPng, iconSvg } from './app-icons.mts';
 
 const PUBLIC_DIR = path.resolve(fileURLToPath(new URL('../client/public', import.meta.url)));
 const INDEX = path.resolve(fileURLToPath(new URL('../client/index.html', import.meta.url)));
+const CLIENT_DIST = path.resolve(fileURLToPath(new URL('../client/dist', import.meta.url)));
 
 /** `#rrggbb` as the three channels sharp hands back. */
 function rgb(hex: string): [number, number, number] {
@@ -71,6 +72,10 @@ describe('the icon set is the one the app’s markup asks for', () => {
     ]);
 
     expect([...asked].sort()).toEqual(Object.keys(ICON_FILES).sort());
+    expect(html).not.toMatch(/href="\/(?:favicon|apple-touch-icon)[^"]*"/);
+    expect(manifest.icons).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ src: expect.stringMatching(/^\/favicon-/) })])
+    );
   });
 
   it('names the app rather than the partner in the manifest and the title', async () => {
@@ -83,10 +88,27 @@ describe('the icon set is the one the app’s markup asks for', () => {
   });
 
   it('declares each size the file it points at is actually drawn at', async () => {
-    for (const [name, size] of Object.entries(ICON_FILES)) {
+    for (const [name, { size }] of Object.entries(ICON_FILES)) {
       const { width, height } = await decode(await committed(name));
       expect([name, width, height]).toEqual([name, size, size]);
     }
+  });
+
+  it('emits the exact icon declarations and files in the Vite production artifact', async () => {
+    const sourceHtml = await readFile(INDEX, 'utf8');
+    const deployedHtml = await readFile(path.join(CLIENT_DIST, 'index.html'), 'utf8');
+    const deployedManifest = JSON.parse(await readFile(path.join(CLIENT_DIST, 'site.webmanifest'), 'utf8'));
+
+    for (const name of Object.keys(ICON_FILES)) {
+      expect(await readFile(path.join(CLIENT_DIST, name)), name).toEqual(await committed(name));
+    }
+    for (const href of sourceHtml.matchAll(/href="(\/pia-dpad-[^"]+\.png)"/g)) {
+      expect(deployedHtml, href[1]).toContain(`href="${href[1]}"`);
+    }
+    expect(deployedManifest.icons).toEqual([
+      expect.objectContaining({ src: '/pia-dpad-app-192x192.png', type: 'image/png' }),
+      expect.objectContaining({ src: '/pia-dpad-app-512x512.png', type: 'image/png' }),
+    ]);
   });
 });
 
@@ -95,7 +117,7 @@ describe('every icon is the PIA D-pad on its plate, not a lettered tile', () => 
     // The discriminator against what was there before: the plate that read
     // "T2" was navy and white and carried no colour at all, so a blue centre
     // cannot be produced by any arrangement of two characters.
-    for (const [name, size] of Object.entries(ICON_FILES)) {
+    for (const [name, { size }] of Object.entries(ICON_FILES)) {
       const { raw } = await decode(await committed(name));
       const [red, green, blue, alpha] = pixel(raw, size, 0.5, 0.5);
 
@@ -109,7 +131,7 @@ describe('every icon is the PIA D-pad on its plate, not a lettered tile', () => 
   });
 
   it('sets the mark on the navy plate, with the plate’s corners cut', async () => {
-    for (const [name, size] of Object.entries(ICON_FILES)) {
+    for (const [name, { size }] of Object.entries(ICON_FILES)) {
       const { raw } = await decode(await committed(name));
 
       // Above the mark's rim and inside the plate.
@@ -123,23 +145,36 @@ describe('every icon is the PIA D-pad on its plate, not a lettered tile', () => 
     // Only above 32px. Below it the cross is two device pixels wide and every
     // one of them is antialiased against the plate, so a colour read there
     // measures the rasteriser rather than the drawing.
-    for (const [name, size] of Object.entries(ICON_FILES).filter(([, at]) => at >= 48)) {
+    for (const [name, { size }] of Object.entries(ICON_FILES).filter(([, spec]) => spec.size >= 48)) {
       const { raw } = await decode(await committed(name));
       // A third of the way down the vertical bar of the d-pad, on the centre line.
       expect(apart(pixel(raw, size, 0.5, 0.36).slice(0, 3), rgb(INK)), `${name} cross`).toBeLessThan(24);
     }
   });
 
-  it('uses the simplified cut below 24px and engraves larger icons', () => {
-    expect(iconSvg(16)).not.toContain('M32 12.5 L35.5 18.5 H28.5 Z');
-    expect(iconSvg(32)).toContain('M32 12.5 L35.5 18.5 H28.5 Z');
+  it('uses the static simplified D-pad for every tab density and engraves only large app seats', () => {
+    const faceGlyphs = ['M32 12.5 L35.5 18.5 H28.5 Z', 'cx="47.5"', 'M29.5 45.5 L34.5 50.5'];
+    for (const { size, cut } of Object.values(ICON_FILES).filter((spec) => spec.cut === 'simplified')) {
+      const svg = iconSvg(size, cut);
+      for (const glyph of faceGlyphs) expect(svg).not.toContain(glyph);
+      expect(svg).not.toMatch(/<animate|<set|<script/i);
+    }
+    expect(iconSvg(192, 'engraved')).toContain(faceGlyphs[0]);
+  });
+
+  it('encodes every committed browser icon as one static PNG frame', async () => {
+    for (const name of Object.keys(ICON_FILES)) {
+      const metadata = await sharp(await committed(name)).metadata();
+      expect(metadata.format, name).toBe('png');
+      expect(metadata.pages ?? 1, name).toBe(1);
+    }
   });
 });
 
 describe('the committed icons are what the mark’s own geometry produces', () => {
   it('matches a fresh render of pia-mark.ts at every size', async () => {
-    for (const [name, size] of Object.entries(ICON_FILES)) {
-      const [was, is] = await Promise.all([decode(await committed(name)), decode(await iconPng(size))]);
+    for (const [name, { size, cut }] of Object.entries(ICON_FILES)) {
+      const [was, is] = await Promise.all([decode(await committed(name)), decode(await iconPng(size, cut))]);
 
       expect([name, is.width, is.height]).toEqual([name, was.width, was.height]);
 

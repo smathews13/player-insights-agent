@@ -13,6 +13,7 @@ import type { ApplyPlan } from '../../shared/apply-declaration';
 import type { ModelReleaseRequest } from '../../shared/model-release';
 import type { NotebookPanel } from './connection-model';
 import { RefreshButton } from './RefreshControl';
+import { PiaLoader } from './PiaLoader';
 import { showsAdminSurfaces, useRole } from './role';
 import { Button } from './ui';
 import {
@@ -163,10 +164,10 @@ export function ApplyDeclarationCard({ notebook, onRefresh }: { notebook?: Noteb
 
       {error ? <p className="plane-card-error">{error}</p> : null}
 
-      {knobs.length === 0 ? (
-        <p className="plane-card-note">
-          {notes[0] ?? (busy ? 'Reading staged settings…' : 'Nothing waiting on a re-log.')}
-        </p>
+      {busy && knobs.length === 0 ? (
+        <PiaLoader variant="inline" label="Reading staged settings" className="plane-card-note" />
+      ) : knobs.length === 0 ? (
+        <p className="plane-card-note">{notes[0] ?? 'Nothing waiting on a re-log.'}</p>
       ) : (
         <ul className="plane-list">
           {knobs.map((knob) => (

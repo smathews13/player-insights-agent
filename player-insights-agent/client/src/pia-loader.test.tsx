@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
 import { PiaFlicker } from './PiaFlicker';
-import { PiaLoader, PiaLoaderMark } from './PiaLoader';
+import { PiaBusyButtonContent, PiaLoader, PiaLoaderMark } from './PiaLoader';
 import {
   PIA_LOADER_CYCLE_SECONDS,
   PIA_LOADER_GLYPH_ORDER,
@@ -27,36 +27,41 @@ describe('PIA D-pad and cluster loader contract', () => {
     expect(PIA_LOADER_CYCLE_SECONDS).toBe(6.4);
     expect(PIA_LOADER_HALF_SECONDS).toBe(3.2);
     expect(PIA_LOADER_GLYPH_ORDER).toEqual(['up', 'right', 'down', 'left']);
-    expect(PIA_LOADER_GLYPH_ORDER.map((_, index) => piaLoaderGlyphDelay(index))).toEqual([0, 0.8, 1.6, 2.4]);
+    expect(PIA_LOADER_GLYPH_ORDER.map((_, index) => piaLoaderGlyphDelay(index))).toEqual([-3.2, -2.4, -1.6, -0.8]);
     expect(CSS).toMatch(/\.pia-loader__phase\s*\{[^}]*animation:\s*pia-swap 6\.4s linear infinite/s);
     expect(CSS).toMatch(/\.pia-loader__phase--cluster\s*\{[^}]*animation-delay:\s*-3\.2s/s);
+    expect(CSS).toMatch(/\.pia-loader__highlight\s*\{[^}]*animation:\s*pia-hl 3\.2s linear infinite/s);
+    expect(CSS).toMatch(/\.pia-loader__button\s*\{[^}]*animation:\s*pia-btn-light 3\.2s linear infinite/s);
   });
 
-  it('crossfades the complete marks with a visible overlap and no center-dot-only frame', () => {
+  it('uses the specified fade/scale swap without dual marks above ten percent', () => {
     const swap = keyframes('pia-swap');
-    expect(swap).toMatch(/0%,\s*44%\s*\{[^}]*opacity:\s*1/s);
-    expect(swap).toMatch(/48%\s*\{[^}]*opacity:\s*0\.72/s);
-    expect(swap).toMatch(/50%,\s*94%\s*\{[^}]*opacity:\s*0/s);
-    expect(swap).toMatch(/98%\s*\{[^}]*opacity:\s*0\.72/s);
-    expect(swap).toMatch(/100%\s*\{[^}]*opacity:\s*1/s);
+    expect(swap).toMatch(/0%,\s*2%\s*\{[^}]*opacity:\s*0;[^}]*scale\(0\.82\)/s);
+    expect(swap).toMatch(/7%\s*\{[^}]*opacity:\s*1;[^}]*scale\(1\.06\)/s);
+    expect(swap).toMatch(/10%,\s*44%\s*\{[^}]*opacity:\s*1;[^}]*scale\(1\)/s);
+    expect(swap).toMatch(/49%,\s*100%\s*\{[^}]*opacity:\s*0;[^}]*scale\(0\.85\)/s);
   });
 
-  it('locks panel and inline seats to 112px and 20px', () => {
-    expect(PIA_LOADER_SIZES).toEqual({ panel: 112, inline: 20 });
+  it('locks every canonical seat to its specified geometry', () => {
+    expect(PIA_LOADER_SIZES).toEqual({ panel: 112, compact: 32, inline: 20, button: 16, chip: 16 });
     expect(renderToStaticMarkup(<PiaLoader variant="panel" />)).toContain('width="112"');
+    expect(renderToStaticMarkup(<PiaLoader variant="compact" />)).toContain('width="32"');
     expect(renderToStaticMarkup(<PiaLoader variant="inline" />)).toContain('width="20"');
+    expect(renderToStaticMarkup(<PiaLoader variant="button" />)).toContain('width="16"');
+    expect(renderToStaticMarkup(<PiaLoaderMark variant="button" size={12} />)).toContain('stroke-width="2"');
   });
 
   it('renders both marks around one persistent center dot', () => {
-    const markup = renderToStaticMarkup(<PiaLoaderMark size={112} detailed />);
+    const markup = renderToStaticMarkup(<PiaLoaderMark variant="panel" />);
     expect(markup).toContain('pia-loader__phase--dpad');
     expect(markup).toContain('pia-loader__phase--cluster');
     expect(markup.match(/pia-loader__center/g)).toHaveLength(1);
-    expect(markup.match(/pia-loader__highlight/g)).toHaveLength(4);
-    expect(markup.match(/pia-loader__button/g)).toHaveLength(4);
-    expect(markup.match(/animation-delay:(?:0|0\.8|1\.6|2\.4)s/g)).toHaveLength(8);
-    expect(CSS).toMatch(/\.pia-loader__button\s*\{[^}]*opacity:\s*0\.68[^}]*animation:\s*pia-btn-light 6\.4s/s);
-    expect(CSS).toMatch(/\.pia-loader__diamond\s*\{[^}]*opacity:\s*0\.9/s);
+    expect(markup.match(/pia-loader__highlight/g)).toHaveLength(8);
+    expect(markup.match(/class="pia-loader__button"/g)).toHaveLength(4);
+    expect(markup.match(/animation-delay:-(?:3\.2|2\.4|1\.6|0\.8)s/g)).toHaveLength(12);
+    expect(markup.match(/pia-loader__tip-pills/g)).toHaveLength(1);
+    expect(CSS).toMatch(/\.pia-loader__button\s*\{[^}]*opacity:\s*0\.3[^}]*animation:\s*pia-btn-light 3\.2s/s);
+    expect(CSS).toMatch(/\.pia-loader__diamond\s*\{[^}]*opacity:\s*0\.6/s);
   });
 
   it('keeps inline motion to two complete simplified marks and the center dot', () => {
@@ -67,15 +72,21 @@ describe('PIA D-pad and cluster loader contract', () => {
     expect(dpad).not.toContain('data-pia-role="glyph"');
     expect(markup).not.toContain('pia-loader__highlight');
     expect(markup).not.toContain('pia-loader__button');
-    expect(CSS).toContain('.pia-loader-mark--inline .pia-loader__diamond');
+    expect(markup).not.toContain('pia-loader__diamond');
   });
 
-  it('uses the same visible mark pair for startup, Ask, Benchmark, and every inline seat', () => {
-    for (const seat of ['splash', 'inline', 'button', 'strip', 'status'] as const) {
+  it('uses swaps for panel/compact/inline and a fixed clockwise cluster for controls', () => {
+    for (const seat of ['splash', 'compact', 'inline', 'strip'] as const) {
       const markup = renderToStaticMarkup(<PiaFlicker seat={seat} />);
       expect(markup, seat).toContain('pia-loader__phase--dpad');
       expect(markup, seat).toContain('pia-loader__phase--cluster');
       expect(markup, seat).toContain('pia-loader__center');
+    }
+    for (const seat of ['button', 'status'] as const) {
+      const markup = renderToStaticMarkup(<PiaFlicker seat={seat} />);
+      expect(markup, seat).toContain('pia-loader__button-cluster');
+      expect(markup, seat).not.toContain('pia-loader__phase');
+      expect(markup, seat).not.toContain('pia-loader__center');
     }
   });
 
@@ -86,6 +97,28 @@ describe('PIA D-pad and cluster loader contract', () => {
     expect(markup).toContain('aria-busy="true"');
     expect(markup).toContain('aria-hidden="true"');
     expect(markup).toContain('Querying player data...');
+  });
+
+  it('keeps button width and accessible name stable without an overlay', () => {
+    const idle = renderToStaticMarkup(<PiaBusyButtonContent busy={false} label="Save settings" busyLabel="Saving" />);
+    const busy = renderToStaticMarkup(<PiaBusyButtonContent busy label="Save settings" busyLabel="Saving" />);
+    for (const markup of [idle, busy]) {
+      expect(markup).toContain('pia-button-state__idle');
+      expect(markup).toContain('pia-button-state__busy');
+      expect(markup).toContain('Save settings');
+      expect(markup).toContain('pia-loader-mark--button');
+    }
+    expect(CSS).toMatch(/\.pia-button-state\s*\{[^}]*display:\s*inline-grid/s);
+    expect(CSS).toMatch(/\.pia-button-state__idle,[\s\S]*\.pia-button-state__busy\s*\{[^}]*grid-area:\s*1 \/ 1/s);
+    expect(CSS).toMatch(/\.pia-loader--button,[\s\S]*\.pia-loader--chip\s*\{[^}]*background:\s*transparent/s);
+  });
+
+  it('adapts to light, dark, and high-contrast surfaces', () => {
+    expect(CSS).toContain('.pia-loader-mark--light');
+    expect(CSS).toContain('.pia-loader-mark--dark');
+    expect(CSS).toContain('@media (prefers-contrast: more)');
+    expect(CSS).toContain('--pia-mark-ink: #11171c');
+    expect(CSS).toContain('--pia-mark-accent: #b7d6ee');
   });
 });
 

@@ -327,17 +327,17 @@
   align-items: center;
   justify-content: flex-start;
   justify-self: start;
-  gap: 8px;
+  gap: 10px;
 }
 .answer-card-mark {
   display: inline-flex;
-  width: 18px;
-  height: 18px;
+  width: 28px;
+  height: 28px;
   flex: none;
 }
 .answer-card-mark > svg {
-  width: 18px;
-  height: 18px;
+  width: 28px;
+  height: 28px;
 }
 /*
  * The provenance chip: where the figures under this takeaway came from.

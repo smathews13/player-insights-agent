@@ -1316,6 +1316,11 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   justify-self: start;
   gap: 8px;
 }
+.final-answer-mark {
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
 .final-answer-eyebrow {
   margin: 0;
   font-size: var(--text-xs);

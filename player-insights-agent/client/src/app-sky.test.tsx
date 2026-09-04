@@ -9,6 +9,9 @@ import { SKY_DOCUMENT_SEED } from './StarField';
 const source = readFileSync(new URL('./AppSky.tsx', import.meta.url), 'utf8');
 const gate = readFileSync(new URL('./FirstOpenGate.tsx', import.meta.url), 'utf8');
 const layout = readFileSync(new URL('./Layout.tsx', import.meta.url), 'utf8');
+const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
+const main = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
+const startup = readFileSync(new URL('./StartupBoundary.tsx', import.meta.url), 'utf8');
 const base = readFileSync(new URL('./styles/base.css', import.meta.url), 'utf8');
 const motion = readFileSync(new URL('./styles/star-motion.css', import.meta.url), 'utf8');
 
@@ -45,12 +48,23 @@ describe('the dark-mode sky', () => {
     expect(layoutCode.slice(frameAt)).not.toContain('<AppSky');
 
     const markup = renderToStaticMarkup(<AppSky />);
-    expect(markup).not.toContain('gate-star-motion');
+    expect(markup).toContain('data-app-topology=""');
     expect(markup.match(/data-sky-seed="([^"]+)"/)?.[1]).toBe(SKY_DOCUMENT_SEED);
     const field = readFileSync(new URL('./StarField.tsx', import.meta.url), 'utf8');
     expect(field).toContain('useState(() => seed ?? SKY_DOCUMENT_SEED)');
     expect(field).toContain('crypto.getRandomValues');
     expect(field.replace(/\/\*[\s\S]*?\*\//g, ' ')).not.toMatch(/sessionStorage/);
+  });
+
+  it('hosts every page and login state beneath that one topology', () => {
+    expect(app).toContain('element: <Layout />');
+    for (const path of ['/', '/runs', '/monitoring', '/ops', '/settings', '/connections', '/architecture']) {
+      expect(app, path).toContain(`path: '${path}'`);
+    }
+    expect(main).toContain('<StartupBoundary>');
+    expect(startup).toContain('firstOpen.gate');
+    expect(code(layout).match(/<AppSky \/>/g)).toHaveLength(1);
+    expect(code(gate)).not.toContain('AppSky');
   });
 
   it('draws stars and connectors in both thirds of the canvas', () => {
@@ -71,13 +85,11 @@ describe('the dark-mode sky', () => {
     expect(left.length).toBeGreaterThanOrEqual(6);
     expect(right.length).toBeGreaterThanOrEqual(6);
 
-    const glyphCircles = [...markup.matchAll(/<circle[^>]*class="app-sky-glyph"[^>]*cx="([^"]+)"/g)].map((match) =>
-      Number(match[1])
-    );
-    expect(glyphCircles.some((x) => x > (width * 2) / 3)).toBe(true);
+    const nodes = [...markup.matchAll(/data-topology-node="([\d.]+),[\d.]+"/g)].map((match) => Number(match[1]));
+    expect(nodes.some((x) => x > (width * 2) / 3)).toBe(true);
     // Kept inside the outer tenth so `xMidYMid slice` does not immediately crop
     // the only right-side glyph at common narrow aspect ratios.
-    expect(glyphCircles.some((x) => x > (width * 2) / 3 && x < width * 0.9)).toBe(true);
+    expect(nodes.some((x) => x > (width * 2) / 3 && x < width * 0.9)).toBe(true);
   });
 
   it('reserves the document scrollbar so a filter menu cannot shove the sky', () => {

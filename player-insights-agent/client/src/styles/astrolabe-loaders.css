@@ -325,103 +325,17 @@ html:not([data-theme='dark']) .first-open.on-sky {
   background: var(--ast-ice);
 }
 
-html:not([data-theme='dark']) .ast-opening-sky,
-html:not([data-theme='dark']) .ast-working .ast-constellation {
+html:not([data-theme='dark']) .ast-opening-sky {
   display: none;
 }
 
-html:not([data-theme='dark']) .ast-opening-wordmark,
-html:not([data-theme='dark']) .ast-working-say {
+html:not([data-theme='dark']) .ast-opening-wordmark {
   color: var(--ast-text);
 }
 
-html:not([data-theme='dark']) .ast-working-say .ast-sep::before {
-  color: var(--ast-text-secondary);
-}
-
-html:not([data-theme='dark']) .ast-opening .ast-mark--dark,
-html:not([data-theme='dark']) .ast-working .ast-mark--dark {
+html:not([data-theme='dark']) .ast-opening .ast-mark--dark {
   --ast-mark-ink: var(--ast-navy);
   --ast-mark-accent: var(--ast-blue);
-}
-
-/* ---- The working panels (#5ar, #5br) ----------------------------------- */
-
-/*
- * A navy field with the constellation drawn across it and the status sitting on
- * top. `overflow: hidden` is what lets the constellation be a fixed drawing in a
- * panel that may be narrower than it: the sky is cropped rather than squashed,
- * which is why the SVG asks for `xMidYMid slice`.
- */
-.ast-working {
-  position: relative;
-  /* Same surface token as every other dark panel; the drawing on top is its own
-     constellation, so this one takes the fill and not the field. */
-  background: var(--ast-sky-fill);
-  border-radius: var(--ast-radius-card);
-  overflow: hidden;
-}
-
-.ast-working--splash {
-  height: 220px;
-}
-
-.ast-working--card {
-  height: 56px;
-}
-
-/*
- * The mark and the status line, over the sky.
- *
- * Bottom left on the splash, which has room above it for the constellation to be
- * the panel's subject; vertically centred on the 56px strip, where there is only
- * one line's worth of room and the constellation is the background.
- */
-.ast-working-status {
-  position: absolute;
-  left: 16px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.ast-working--splash .ast-working-status {
-  bottom: 12px;
-}
-
-.ast-working--card .ast-working-status {
-  left: 14px;
-  top: 0;
-  bottom: 0;
-}
-
-/*
- * The one live region for the surface, and the visible label at the same time.
- *
- * White on navy at 12px/500, which is the reference's. Not the secondary
- * on-navy rung: this line is the whole of what a reader is told while they wait,
- * so it is the panel's foreground rather than a caption on it.
- */
-.ast-working-say {
-  display: inline-flex;
-  align-items: center;
-  color: var(--ast-white);
-  font-size: var(--ast-fs-12);
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-/* The separator between the label and the count, so " · " is generated rather
-   than typed into copy -- which is what makes "no em dashes" checkable. */
-.ast-working-say .ast-sep::before {
-  color: var(--ast-text-on-dark-secondary);
-}
-
-/* The count is mono because it changes in place every second. DM Sans digits are
-   proportional -- a `1` is 342 units against a `0` at 656 -- so a counter set in
-   it jitters by most of a digit width as it ticks. */
-.ast-working-say .ast-num {
-  font-size: var(--ast-fs-12);
 }
 
 /* ---- The splash's own card ---------------------------------------------- */

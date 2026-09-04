@@ -68,7 +68,7 @@ describe('egress records viewer states', () => {
 
   it.each([
     ['idle', null, '', 'View records'],
-    ['loading', null, '', 'Loading egress records.'],
+    ['loading', null, '', 'Loading egress records'],
     ['authorization', null, '', 'Administrator access is required'],
     ['error', null, 'The record read failed.', 'The record read failed.'],
   ] as const)('renders the %s state', (state, payload, error, expected) => {

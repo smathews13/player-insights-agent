@@ -200,26 +200,6 @@
   opacity: 0.6;
   cursor: default;
 }
-/* One turn per second, slow enough to read as "working" rather than as
-   "hurrying". The button's own icon, spun rather than swapped for a second
-   glyph, so nothing on it moves but the rotation. */
-.refresh-spin {
-  animation: refresh-spin 1s linear infinite;
-}
-@keyframes refresh-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-/* The app has four of these already; this matches them. The label changes and
-   the button disables itself, so nobody who cannot watch the rotation loses
-   anything by switching it off. */
-@media (prefers-reduced-motion: reduce) {
-  .refresh-spin {
-    animation: none;
-  }
-}
-
 /* ── Lazy route placeholder ───────────────────────────────────────────────
    The outer box is present from the first suspended frame, so the sticky
    header and content canvas keep their geometry. The shapes are deliberately
@@ -227,7 +207,11 @@
    heading and panel space without presenting invented labels, values or rows. */
 .route-skeleton-shell {
   min-height: calc(100vh - var(--app-header-h));
-  grid-template-rows: 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+}
+.route-skeleton-status {
+  justify-self: start;
 }
 .route-skeleton {
   display: grid;

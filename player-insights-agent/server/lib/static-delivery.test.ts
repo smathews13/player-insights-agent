@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import express from 'express';
+import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import { request } from 'node:http';
@@ -20,6 +21,8 @@ const require = createRequire(import.meta.url);
 const HASHED_JS = '/assets/app-ABCDEFGH.js';
 const UNHASHED_JS = '/assets/runtime.js';
 const FONT = '/fonts/DMSans-variable.woff2';
+const TAB_ICON = '/pia-dpad-tab-32x32.png';
+const TAB_ICON_BYTES = readFileSync(path.resolve(import.meta.dirname, '../../client/public/pia-dpad-tab-32x32.png'));
 const LARGE_JS = `globalThis.__asset = ${JSON.stringify('cacheable '.repeat(800))};`;
 const LARGE_HTML = `<!doctype html><html><body><main>${'shell '.repeat(800)}</main></body></html>`;
 
@@ -78,6 +81,7 @@ beforeAll(async () => {
     writeFile(path.join(temporary, HASHED_JS), LARGE_JS),
     writeFile(path.join(temporary, UNHASHED_JS), LARGE_JS),
     writeFile(path.join(temporary, FONT), Buffer.alloc(4096, 7)),
+    writeFile(path.join(temporary, TAB_ICON), TAB_ICON_BYTES),
   ]);
 
   const app = express();
@@ -144,6 +148,15 @@ describe('production static delivery', () => {
     expect(font.headers['content-encoding']).toBeUndefined();
     expect(font.headers['accept-ranges']).toBe('bytes');
     expect(font.headers.etag).toBeTruthy();
+  });
+
+  it('serves the root-relative static D-pad tab icon as PNG', async () => {
+    const icon = await read(TAB_ICON);
+
+    expect(icon.status).toBe(200);
+    expect(icon.headers['cache-control']).toBe(STABLE_ASSET_CACHE_CONTROL);
+    expect(icon.headers['content-type']).toBe('image/png');
+    expect(icon.body).toEqual(TAB_ICON_BYTES);
   });
 
   it('returns a real no-store miss for stale hashed URLs', async () => {

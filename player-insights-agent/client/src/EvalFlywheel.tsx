@@ -43,6 +43,7 @@ import {
 } from './ui';
 import { CircleAlert, Play, Plus, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { PiaFlicker } from './PiaFlicker';
+import { PiaLoader } from './PiaLoader';
 
 export type { ConnectedGenieSpace };
 export { connectedGenieSpaces };
@@ -729,7 +730,7 @@ export function EvalFlywheel({
               onClick={() => void loadCurateCandidates()}
               disabled={curateLoading}
             >
-              {curateLoading ? <PiaFlicker seat="button" /> : null}
+              {curateLoading ? <PiaFlicker seat="button" tone="light" /> : null}
               Pull questions from Ask and Monitoring
             </Button>
             <Button type="button" variant="outline" onClick={() => void alignGuidelines()} disabled={labeled === 0}>
@@ -738,7 +739,14 @@ export function EvalFlywheel({
             <Button type="button" variant="outline" onClick={() => void startReviewApp()}>
               Start Review App for SMEs
             </Button>
-            {datasetState === 'saving' ? <span className="settings-row-note">Saving…</span> : null}
+            {datasetState === 'saving' ? (
+              <PiaLoader
+                variant="inline"
+                label="Saving evaluation dataset"
+                className="settings-row-note"
+                announce={false}
+              />
+            ) : null}
           </div>
           {alignNote ? <p className="settings-row-note">{alignNote}</p> : null}
           {reviewNote ? <p className="settings-row-note">{reviewNote}</p> : null}

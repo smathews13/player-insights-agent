@@ -18,11 +18,11 @@
  * delivered artwork reaches the favicon by regenerating rather than by
  * somebody remembering that the favicon exists.
  *
- * The size decides the drawing, exactly as it does on screen: `piaMarkElements`
- * hands back the simplified cut below 24px, so the 16px tab icon drops the
- * engraved glyphs rather than rendering them as a grey smudge. It is asked for
- * the size the MARK is drawn at, not the size of
- * the tile it sits on, which is why MARK_SPAN is applied before the call.
+ * Browser-tab candidates are all drawn with the simplified cut. A 32px or 48px
+ * source bitmap is still painted into a roughly 16px browser-tab seat on a
+ * high-density display, so choosing the engraving from the source bitmap size
+ * makes the face glyphs collapse into a round controller button. Install and
+ * touch icons retain the canonical engraved cut at their much larger seats.
  *
  * WHY A PLATE AT ALL, given the delivered SVGs are ink on transparency. A tab
  * strip is a surface the app does not control and does not know the colour of.
@@ -44,24 +44,33 @@ import path from 'node:path';
 
 import sharp from 'sharp';
 
-import { PIA_MARK_VIEWBOX, piaMarkElements, type PiaMarkElement, type PiaMarkPaint } from '../client/src/pia-mark.ts';
+import {
+  PIA_DPAD_ENGRAVED,
+  PIA_DPAD_SIMPLIFIED,
+  PIA_MARK_VIEWBOX,
+  type PiaMarkElement,
+  type PiaMarkPaint,
+} from '../client/src/pia-mark.ts';
 
 /**
- * The six files, and the size each is drawn at.
+ * The six files, their raster dimensions, and the D-pad cut appropriate to
+ * their rendered seat.
  *
  * These names are resolved by client/index.html and client/public/site.webmanifest,
  * so the set is theirs rather than this script's: every one of them must exist
  * or a `<link>` resolves to nothing. app-icons.test.ts reads both files and
  * fails if this table and they disagree.
  */
-export const ICON_FILES: Readonly<Record<string, number>> = {
-  'favicon-16x16.png': 16,
-  'favicon-32x32.png': 32,
-  'favicon-48x48.png': 48,
-  'apple-touch-icon.png': 180,
-  'favicon-192x192.png': 192,
-  'favicon-512x512.png': 512,
-};
+export const ICON_FILES = {
+  'pia-dpad-tab-16x16.png': { size: 16, cut: 'simplified' },
+  'pia-dpad-tab-32x32.png': { size: 32, cut: 'simplified' },
+  'pia-dpad-tab-48x48.png': { size: 48, cut: 'simplified' },
+  'pia-dpad-apple-touch-180x180.png': { size: 180, cut: 'engraved' },
+  'pia-dpad-app-192x192.png': { size: 192, cut: 'engraved' },
+  'pia-dpad-app-512x512.png': { size: 512, cut: 'engraved' },
+} as const;
+
+export type IconCut = (typeof ICON_FILES)[keyof typeof ICON_FILES]['cut'];
 
 /** `--ast-navy`. The plate, and the surface the mark's `dark` seating is drawn for. */
 export const PLATE = '#11171c';
@@ -159,10 +168,9 @@ function element(shape: PiaMarkElement): string {
  * numbers in pia-mark.ts, which is what makes a diff of this readable
  * against the delivered file.
  */
-export function iconSvg(size: number): string {
-  const drawn = Math.round(size * MARK_SPAN);
+export function iconSvg(size: number, cut: IconCut = 'engraved'): string {
   const inset = (PIA_MARK_VIEWBOX * (1 - MARK_SPAN)) / 2;
-  const shapes = piaMarkElements(drawn, 'dpad').map(element).join('');
+  const shapes = (cut === 'simplified' ? PIA_DPAD_SIMPLIFIED : PIA_DPAD_ENGRAVED).map(element).join('');
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${PIA_MARK_VIEWBOX} ${PIA_MARK_VIEWBOX}" fill="none">`,
     `<rect width="${PIA_MARK_VIEWBOX}" height="${PIA_MARK_VIEWBOX}" rx="${PIA_MARK_VIEWBOX * PLATE_CORNER}" fill="${PLATE}" />`,
@@ -172,8 +180,8 @@ export function iconSvg(size: number): string {
 }
 
 /** The icon at one size, as PNG bytes. */
-export async function iconPng(size: number): Promise<Buffer> {
-  const svg = iconSvg(size).replace(
+export async function iconPng(size: number, cut: IconCut = 'engraved'): Promise<Buffer> {
+  const svg = iconSvg(size, cut).replace(
     `width="${size}" height="${size}"`,
     `width="${size * SUPERSAMPLE}" height="${size * SUPERSAMPLE}"`
   );
@@ -186,8 +194,8 @@ async function main(): Promise<number> {
   const flag = process.argv.indexOf('--out');
   const out = flag === -1 ? PUBLIC_DIR : path.resolve(process.argv[flag + 1]);
   await mkdir(out, { recursive: true });
-  for (const [name, size] of Object.entries(ICON_FILES)) {
-    const png = await iconPng(size);
+  for (const [name, spec] of Object.entries(ICON_FILES)) {
+    const png = await iconPng(spec.size, spec.cut);
     await writeFile(path.join(out, name), png);
     console.log(`${String(png.length).padStart(7)} bytes  ${name}`);
   }

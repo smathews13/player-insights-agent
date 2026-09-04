@@ -469,11 +469,8 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(inspector).toMatch(/padding:\s*20px 12px 20px 20px/);
     expect(inspector).toMatch(/gap:\s*14px/);
     expect(inspector).not.toMatch(/background:\s*var\(--background\)/);
-    // AND THE STAR FIELD, WHICH IS WHAT PAINTS THE IDLE PANEL. `.trace-empty` has
-    // no surface of its own, so a harness with no run in it is this element's
-    // background and nothing else -- it was flat while the field lived only on the
-    // page grid this column paints over.
-    expect(inspector).toMatch(/background-image:\s*var\(--ast-sky-spackle\)/);
+    // The only topology is the fixed app layer behind this panel.
+    expect(inspector).not.toMatch(/background-image|background-size|background-position/);
 
     const sky = body('.trace-inspector .ast-sky');
     // Transparent, so the column's one field runs behind the band rather than the
@@ -830,26 +827,15 @@ describe('the inspector while a run is still going', () => {
 });
 
 describe('the inspector with nothing in it', () => {
-  it('fills the idle pane with the still constellation, not AppKit Empty', () => {
-    expect(HOME_PAGE).toContain('className="trace-idle-sky"');
-    expect(HOME_PAGE).toContain('<ConstellationField shape={OPENING_CONSTELLATION} />');
+  it('uses the app topology instead of a second idle constellation', () => {
+    expect(HOME_PAGE).not.toContain('className="trace-idle-sky"');
+    expect(HOME_PAGE).not.toContain('<ConstellationField shape={OPENING_CONSTELLATION} />');
     expect(HOME_PAGE).not.toMatch(/<EmptyMedia/);
-    expect(withoutComments(RAIL)).toMatch(/\.trace-idle-sky\s*\{[^}]*z-index:\s*0/);
   });
 
-  it('keeps that sky mounted while a question is running', () => {
-    // The silhouette used to live in the empty-state branch, so the first
-    // step swapped it for the numbered path and the pane changed sky. It
-    // stays in the markup; rail.css hides it from paint once a run is on
-    // so the opening product marks cannot ghost under the live path.
-    const inspector = HOME_PAGE.slice(HOME_PAGE.indexOf('<aside className="trace-inspector"'));
-    const skyAt = inspector.indexOf('className="trace-idle-sky"');
-    const pathAt = inspector.indexOf('<AgentPathConstellation');
-    expect(skyAt).toBeGreaterThan(-1);
-    expect(skyAt).toBeLessThan(pathAt);
-    expect(withoutComments(RAIL)).toMatch(
-      /\.ask-layout\[data-inspector=['"]run['"]\]\s+\.trace-idle-sky\s*\{[^}]*display:\s*none/
-    );
+  it('does not mount or toggle route-local decorative topology', () => {
+    expect(HOME_PAGE).not.toContain('trace-idle-sky');
+    expect(withoutComments(RAIL)).not.toContain('trace-idle-sky');
   });
 
   it('scrolls the harness to its foot when the run finishes', () => {

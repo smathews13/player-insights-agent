@@ -55,6 +55,7 @@ import { runLabel } from './run-label';
 import { RunRatingBadge } from './RunRatingBadge';
 import { PiaEmptyStateMark } from './PiaMark';
 import { PiaFlicker } from './PiaFlicker';
+import { PiaLoader } from './PiaLoader';
 import { UserDrilldownLink } from './UserDrilldownLink';
 import type { Run } from './app-types';
 import { evalScorecard } from './eval-scorecard';
@@ -811,11 +812,13 @@ export function RecordedRuns({
             with it: a reader who has run the suite twice and sees three rows is
             looking at somebody else's run as well as their own. */}
         <CardDescription>
-          {runs === null
-            ? 'Reading stored benchmark runs…'
-            : runs.length === 0
-              ? 'No benchmark run has been recorded yet.'
-              : `Selecting a run drives every figure above. ${runs.length} stored ${runs.length === 1 ? 'run' : 'runs'}.`}
+          {runs === null ? (
+            <PiaLoader as="span" variant="inline" label="Reading stored benchmark runs" />
+          ) : runs.length === 0 ? (
+            'No benchmark run has been recorded yet.'
+          ) : (
+            `Selecting a run drives every figure above. ${runs.length} stored ${runs.length === 1 ? 'run' : 'runs'}.`
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>

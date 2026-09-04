@@ -96,8 +96,8 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(source('MonitoringPage.tsx')).toContain('contentClassName="user-profile-modal"');
     expect(source('AccountMenuPanel.tsx')).toContain('className="account-menu"');
     expect(source('App.tsx')).toContain('useRuntimeEntityStyles();');
-    expect(source('AppSky.tsx')).toContain('<StarField');
-    expect(source('StarField.tsx')).toContain('<circle');
+    expect(source('AppSky.tsx')).toContain('<AppTopology');
+    expect(source('StarField.tsx')).toContain('<StarGlyphShape');
     expect(SETTINGS).toMatch(/\.settings-modal-body\s*\{[^}]*grid-template-columns:\s*140px minmax\(0,\s*1fr\)/);
   });
 
@@ -209,7 +209,7 @@ describe('dark mode covers the shipped surfaces', () => {
   it('matches the interaction, chart, and constellation treatments', () => {
     expect(DARK).toMatch(/:focus-visible\s*\{[^}]*outline:\s*1px solid var\(--ast-ice-accent\)/);
     expect(DARK).toMatch(/\.app-sky-line\s*\{[^}]*opacity:\s*0\.6/);
-    expect(DARK).toMatch(/\.app-sky-glyph\s*\{[^}]*stroke-width:\s*1\.6[^}]*opacity:\s*0\.55/);
+    expect(source('StarField.tsx')).toContain('data-topology-glyph={node.glyph}');
     expect(DARK).toMatch(/\.ops-lat-bar-track\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*0\.08\)/);
     expect(DARK).toMatch(/\.ops-lat-bar-fill\s*\{[^}]*rgba\(143,\s*193,\s*232,\s*0\.75\)/);
     expect(DARK).toMatch(/\.arch-edge\s*\{[^}]*--ast-ice-accent[^}]*opacity:\s*0\.8/);

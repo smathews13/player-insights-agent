@@ -40,6 +40,7 @@ import {
 } from './ui';
 import { Check, ChevronDown, CircleAlert, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { AnswerEvidence } from './AnswerEvidence';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { PiaMark } from './PiaMark';
 import { AnswerProse, EntityText } from './DataEntityLinks';
 import { mentionedIdentifiers } from './data-entities';
@@ -231,8 +232,8 @@ export function AnswerCard({
       <CardHeader>
         <div className="answer-card-head">
           <div className="answer-card-identity">
-            <span className="answer-card-mark">
-              <PiaMark size={18} tone="dark" />
+            <span className="answer-card-mark" aria-hidden="true">
+              <PiaMark size={28} tone="light" />
             </span>
             <div className="answer-card-badges flex flex-wrap items-center gap-1.5">
               <Badge variant={badge.variant} className="provenance-chip" data-tone={badge.tone}>
@@ -494,8 +495,13 @@ export function AnswerCard({
                   placeholder="What could be better?"
                   aria-label="Tell us what could be better"
                 />
-                <Button size="sm" disabled={feedback.saving} onClick={() => void saveFeedback('down')}>
-                  {feedback.saving ? 'Saving…' : 'Save feedback'}
+                <Button
+                  size="sm"
+                  disabled={feedback.saving}
+                  aria-busy={feedback.saving || undefined}
+                  onClick={() => void saveFeedback('down')}
+                >
+                  <PiaBusyButtonContent busy={feedback.saving} label="Save feedback" busyLabel="Saving" />
                 </Button>
               </div>
             )}

@@ -31,6 +31,7 @@ import { useDeployment, useIdentity, useStorageHealth } from './app-state';
 import type { Identity } from './app-types';
 import { ASK_HOME_HREF, goToAskHome } from './ask-home-control';
 import { PiaLockup } from './PiaMark';
+import { PiaLoader } from './PiaLoader';
 import { BuiltOnDatabricks } from './BuiltOnDatabricks';
 import { DeploymentTimeChip } from './DeploymentTimeChip';
 import { RoleBadge } from './RoleBadge';
@@ -88,10 +89,12 @@ function SettingsFallback() {
       data-testid="settings-loading"
     >
       <section
-        className="settings-modal settings-page h-[min(760px,calc(100vh-48px))] w-[min(1040px,calc(100vw-48px))] rounded-lg border bg-background"
+        className="settings-modal settings-page settings-loading-seat h-[min(760px,calc(100vh-48px))] w-[min(1040px,calc(100vw-48px))] rounded-lg border bg-background"
         aria-busy="true"
         aria-label="Loading settings"
-      />
+      >
+        <PiaLoader variant="panel" label="Loading settings" announce={false} />
+      </section>
     </div>
   );
 }

@@ -17,20 +17,15 @@
   font-weight: 600;
 }
 
-.startup-loader .ast-mark--light {
-  --ast-mark-ink: var(--ast-white);
-  --ast-mark-accent: var(--ast-blue-on-dark);
-}
-
 .startup-loader strong {
-  margin-top: 4px;
+  margin-bottom: 4px;
   font-size: 19px;
 }
 
-.startup-loader > span:last-child {
-  color: var(--ast-text-on-dark-secondary);
-  font-size: 12px;
-  font-weight: 500;
+.settings-loading-seat {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
 }
 
 /*

@@ -11,6 +11,7 @@ import {
   useAppSessionState,
 } from './app-session';
 import { browserAcknowledgementStore, type AcknowledgementStore } from './first-open';
+import { PiaLoader } from './PiaLoader';
 
 export function returnToSignIn(
   options: {
@@ -87,7 +88,7 @@ export function AppSessionBoundary({ children }: { children: ReactNode }) {
     return (
       <main className="app-session-block" aria-busy="true" aria-label="Starting secure app session">
         <section className="app-session-card ast-login-panel" aria-busy="true">
-          <p>Starting secure app session…</p>
+          <PiaLoader variant="panel" label="Starting secure app session" />
         </section>
       </main>
     );

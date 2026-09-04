@@ -64,15 +64,12 @@
 .ast-sky {
   /* `--ast-sky-fill`, which is the dark surface rather than the ink: see the note
      in astrolabe-tokens.css for why those are two tokens and not one.
-     `background-color` rather than the shorthand, so the field below survives.
      Inside the live harness this whole rule is overridden to `transparent` by
      `.trace-inspector .ast-sky`, which is more specific -- the column paints one
      sky for the panel and the band sits in it. The agent-map band used to be
      the one leftover navy on a light page; light mode now hides `.ast-sky-map`
      so this fill is dark's only. */
   background-color: var(--ast-sky-fill);
-  background-image: var(--ast-sky-spackle);
-  background-size: var(--ast-sky-spackle-size);
   border-radius: var(--ast-radius-card);
   /* `clip` and not `hidden`: a clip region cannot be scrolled, so the defect the
      card grid was rebuilt twice to fix -- later steps parked off-screen behind a
@@ -225,11 +222,6 @@
   fill: color-mix(in srgb, var(--ast-blue-on-dark) 14%, transparent);
   stroke: color-mix(in srgb, var(--ast-blue-on-dark) 40%, transparent);
   stroke-width: 1;
-}
-
-.ast-sky-dust {
-  fill: var(--ast-white);
-  opacity: 0.3;
 }
 
 /*

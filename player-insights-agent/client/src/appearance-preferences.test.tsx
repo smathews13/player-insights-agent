@@ -18,6 +18,7 @@ const PANEL = readFileSync(new URL('./RuntimeSettingsPanel.tsx', import.meta.url
 const ROOT_RUNTIME = readFileSync(new URL('./runtime-entity-styles.ts', import.meta.url), 'utf8');
 const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 const ROOT_STYLES = readFileSync(new URL('./styles/appearance-preferences.css', import.meta.url), 'utf8');
+const LOADER_STYLES = readFileSync(new URL('./styles/pia-loader.css', import.meta.url), 'utf8');
 const DENSITY_STYLES = [
   ROOT_STYLES,
   ...['runs', 'monitoring', 'ops', 'connections', 'architecture', 'settings', 'benchmark'].map((route) =>
@@ -266,7 +267,7 @@ describe('Appearance preferences', () => {
     expect(ROOT_STYLES).toMatch(
       /data-animations='off'] \.run-status\.is-alive \.run-status-dot\s*\{[^}]*animation:\s*none/s
     );
-    expect(ROOT_STYLES).toMatch(/data-animations='off'] \.refresh-spin,[\s\S]*?animation:\s*none !important/s);
+    expect(LOADER_STYLES).toMatch(/data-animations='off'] \.pia-anim \*\s*\{[^}]*animation:\s*none !important/s);
     expect(ROOT_STYLES).toMatch(
       /data-animations='off'] \[data-slot='progress']\[data-state='indeterminate'][\s\S]*?animation:\s*none !important[\s\S]*?opacity:\s*0\.45/s
     );

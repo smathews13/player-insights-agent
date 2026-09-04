@@ -11,6 +11,7 @@ import type { ConnectionReading } from './connection-model';
 import { AppSelect } from './AppSelect';
 import { BrandIcon } from './BrandIcon';
 import { Badge, Button, Input } from './ui';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
 
 const CAPABILITIES: Array<[keyof AiGatewayCandidate['capabilities'], string]> = [
@@ -196,6 +197,8 @@ export function AiGatewayConnection({
         {refreshing ? (
           <PiaLoadingLabel
             as="span"
+            seat="status"
+            tone="light"
             announce={false}
             className="connection-row-status-loader"
             label="Checking AI Gateway"
@@ -335,8 +338,13 @@ export function AiGatewayConnection({
                 </p>
               ) : null}
               <div className="flex gap-2">
-                <Button size="sm" disabled={busy || !selected} onClick={() => void stage()}>
-                  {busy ? 'Validating…' : 'Stage for agent release'}
+                <Button
+                  size="sm"
+                  disabled={busy || !selected}
+                  aria-busy={busy || undefined}
+                  onClick={() => void stage()}
+                >
+                  <PiaBusyButtonContent busy={busy} label="Stage for agent release" busyLabel="Validating" />
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
                   Cancel

@@ -1,6 +1,7 @@
 import { CircleAlert } from 'lucide-react';
 
 import type { AppBudgetStatus } from '../../shared/app-budget-contract';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { Alert, AlertDescription, Button } from './ui';
 
 export function ComposerBudgetStatus({
@@ -31,8 +32,8 @@ export function ComposerBudgetStatus({
           admin ? (
             <>
               Monthly app budget reached.{' '}
-              <Button type="button" size="sm" disabled={busy} onClick={onApprove}>
-                {busy ? 'Approving…' : 'Approve continued usage'}
+              <Button type="button" size="sm" disabled={busy} aria-busy={busy || undefined} onClick={onApprove}>
+                <PiaBusyButtonContent busy={busy} label="Approve continued usage" busyLabel="Approving" />
               </Button>
             </>
           ) : (

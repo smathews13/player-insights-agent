@@ -139,9 +139,9 @@ describe('resource picker geometry', () => {
     expect(rule('.plane-field-select')).toMatch(/width:\s*min\(240px,\s*100%\)/);
   });
 
-  it('stops picker motion for both animation preferences', () => {
-    expect(CSS).toMatch(/data-animations='off'[\s\S]*\.asset-picker-spinner[\s\S]*animation:\s*none/);
-    expect(CSS).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.asset-picker-spinner[\s\S]*animation:\s*none/);
+  it('has no resource-picker spinner outside the canonical PIA loader', () => {
+    expect(CSS).not.toContain('asset-picker-spinner');
+    expect(CSS).not.toContain('asset-picker-spin');
   });
 });
 

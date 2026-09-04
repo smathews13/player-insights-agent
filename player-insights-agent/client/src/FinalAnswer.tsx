@@ -6,15 +6,15 @@
  * AnswerCard; this is the same evidence helpers with a header that is allowed
  * to say the run did not finish.
  *
- * THE BADGE IS THE FIRST THING IN THE CARD. "Live agent response" sits at the
- * true top-left. A mark beside or above it pushed the chip onto the next row
- * and made the card open with a star instead of with what the answer is.
+ * The static PIA mark signs the answer without implying that work is in flight.
+ * It shares the first row with the provenance chip and never animates.
  */
 import { Link } from 'react-router';
 import { Badge, Card, CardContent } from './ui';
 import { conversationHref } from './conversation-links';
 import { AnswerProse, EntityText } from './DataEntityLinks';
 import { AnswerEvidence } from './AnswerEvidence';
+import { PiaMark } from './PiaMark';
 import { SourcesModule } from './SourcesModule';
 import { mentionedIdentifiers } from './data-entities';
 import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './reader-facing-answer';
@@ -56,6 +56,7 @@ export function FinalAnswer({
     <Card className="final-answer" data-tone={honesty.tone}>
       <CardContent>
         <div className="final-answer-head">
+          <PiaMark size={28} tone="light" className="final-answer-mark" />
           <Badge variant="outline" className="provenance-chip" data-tone="live">
             Live agent response
           </Badge>

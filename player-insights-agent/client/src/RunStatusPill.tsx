@@ -28,6 +28,8 @@ export function RunStatusPill({ status, onDark = false }: { status: RunStatus; o
     return (
       <PiaLoadingLabel
         as="span"
+        seat="status"
+        tone={onDark ? 'dark' : 'light'}
         className={`run-status-loader${onDark ? ' run-status-loader--dark' : ''}`}
         label={status.label}
       />

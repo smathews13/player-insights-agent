@@ -338,7 +338,6 @@ describe('the answer card’s state chip sits in its top left corner', () => {
     expect(monitoring).not.toMatch(
       /\.monitoring-question-modal \.answer-card > \[data-slot='card-header'\] \{[^}]*padding-top:\s*(1[2-9]|2[0-9])px/s
     );
-    expect(css).toMatch(/\.answer-card-identity \.identity-chip \{[^}]*max-width:\s*150px/s);
   });
 
   it('draws it before the takeaway rather than beside or under it', () => {

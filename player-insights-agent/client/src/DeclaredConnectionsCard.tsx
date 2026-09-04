@@ -15,7 +15,7 @@
  * explicit that the stored connection is removed permanently.
  */
 import { useEffect, useId, useRef, useState } from 'react';
-import { LoaderCircle, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { BrandIcon } from './BrandIcon';
 import { VisitInDatabricks } from './DataEntityLinks';
@@ -37,6 +37,8 @@ import type { ConnectionEntry } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import { StatusBadge } from './StatusBadge';
 import { UserDrilldownLink } from './UserDrilldownLink';
+import { PiaLoadingLabel } from './PiaLoadingLabel';
+import { PiaBusyButtonContent, PiaLoaderMark } from './PiaLoader';
 import { connectionValueError, derivedConnectionKey } from './declared-connection-form';
 import type { ConnectionTypesResponse } from '../../shared/browse-contract';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
@@ -308,10 +310,15 @@ export function DeclaredConnectionsCard({
                     size="sm"
                     className="plane-delete-connection"
                     disabled={busy}
+                    aria-busy={busy || undefined}
                     onClick={() => void remove(entry)}
                   >
-                    <Trash2 aria-hidden="true" />
-                    {busy ? 'Deleting\u2026' : DELETE_CONNECTION_LABEL}
+                    {busy ? (
+                      <PiaLoaderMark variant="button" tone="dark" />
+                    ) : (
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    )}
+                    {DELETE_CONNECTION_LABEL}
                   </Button>
                   <Button variant="outline" size="sm" disabled={busy} onClick={() => setConfirming('')}>
                     Keep
@@ -371,10 +378,11 @@ export function DeclaredConnectionsCard({
             ) : typeDiscovery ? (
               <span className="plane-note">No resource categories returned visible items for your sign-in.</span>
             ) : (
-              <span className="plane-picker-discovery" role="status">
-                <LoaderCircle className="asset-picker-spinner" aria-hidden="true" />
-                Finding resources your sign-in can access…
-              </span>
+              <PiaLoadingLabel
+                as="span"
+                label="Finding resources your sign-in can access…"
+                className="plane-picker-discovery"
+              />
             )}
           </div>
 
@@ -406,10 +414,15 @@ export function DeclaredConnectionsCard({
               type="button"
               className="plane-button"
               disabled={Boolean(disabledReason)}
+              aria-busy={busy || undefined}
               aria-describedby={disabledReason ? `${formId}-add-reason` : undefined}
               onClick={() => void add()}
             >
-              {busy ? `Adding ${chosenKind.label.toLowerCase()}…` : `Add ${chosenKind.label.toLowerCase()}`}
+              <PiaBusyButtonContent
+                busy={busy}
+                label={`Add ${chosenKind.label.toLowerCase()}`}
+                busyLabel={`Adding ${chosenKind.label.toLowerCase()}`}
+              />
             </button>
             <button
               type="button"

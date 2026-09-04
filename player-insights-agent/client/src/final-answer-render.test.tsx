@@ -101,14 +101,15 @@ describe('the Overview Final Answer module', () => {
     expect(html).not.toContain('This question was not answered');
   });
 
-  it('puts Live agent response at the true top-left, not under a mark', () => {
+  it('pairs Live agent response with one polished static PIA mark', () => {
     const html = markup();
     const head = html.slice(html.indexOf('final-answer-head'), html.indexOf('final-answer-takeaway'));
     expect(head).toContain('Live agent response');
     expect(head).toContain('Partial answer');
     expect(head).toContain('data-tone="live"');
-    expect(head).not.toContain('final-answer-mark');
-    expect(head).not.toContain('<svg');
+    expect(head).toContain('final-answer-mark');
+    expect(head).toContain('width="28"');
+    expect(head).not.toContain('pia-anim');
     expect(html.indexOf('Live agent response')).toBeLessThan(html.indexOf('final-answer-takeaway'));
     const incomplete = markup({ truncated: false, caveats: [INCOMPLETE, IDENTITY] });
     expect(incomplete).toContain('Final answer');
@@ -233,11 +234,11 @@ describe('the Overview warning family', () => {
     expect(body).toMatch(/li\[data-surface='note'\] \{[^}]*--ast-text-secondary/s);
   });
 
-  it('pins the live badge at the start of the header row', () => {
+  it('pins the static mark and live badge at the start of the header row', () => {
     const css = partial('runs.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
     expect(css).toMatch(/\.final-answer-head \{[^}]*justify-self:\s*start/s);
     expect(css).toMatch(/\.final-answer-head \{[^}]*justify-content:\s*flex-start/s);
-    expect(css).not.toMatch(/\.final-answer-mark/);
+    expect(css).toMatch(/\.final-answer-mark\s*\{[^}]*width:\s*28px[^}]*height:\s*28px/s);
   });
 
   it('sits in the section corner with no padding gap under the KPI divider', () => {

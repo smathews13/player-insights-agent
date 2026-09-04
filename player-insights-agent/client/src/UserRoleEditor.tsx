@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Copy, Trash2, UserPlus } from 'lucide-react';
 import { Button, Input } from './ui';
+import { PiaLoader } from './PiaLoader';
 import { CopyableCommand } from './AdminListEditor';
 import {
   addDisabledReason,
@@ -548,7 +549,7 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
         <h4 id="human-roles-title" className="settings-section-title">
           Human roles and admins
         </h4>
-        {loading ? <p className="admin-list-note">Reading identity settings.</p> : null}
+        {loading ? <PiaLoader variant="inline" label="Reading identity settings" className="admin-list-note" /> : null}
         {error ? (
           <p className="admin-list-note admin-list-error">
             The roster could not be read. Nobody has lost a role. Reload the page.

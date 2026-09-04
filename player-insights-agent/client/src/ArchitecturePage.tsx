@@ -276,6 +276,7 @@ function ArchitectureNodeCard({
         {checking && node.presence === 'connection' ? (
           <PiaLoadingLabel
             as="span"
+            seat="status"
             announce={false}
             className="arch-node-status-loader"
             label={`Checking ${node.label}`}

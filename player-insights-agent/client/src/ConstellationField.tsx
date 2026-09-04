@@ -66,7 +66,11 @@ function starHref(glyph: StarGlyph): string | null {
   return `data:image/svg+xml,${encodeURIComponent(BRAND_THEME_MARKS.dark[product])}`;
 }
 
-function StarGlyphShape({ star }: { star: Star }) {
+/**
+ * The one renderer for a topology node, whether it is used by a compact
+ * progress constellation or by the viewport-wide ambient topology.
+ */
+export function StarGlyphShape({ star }: { star: Star }) {
   if (PRODUCT_GLYPHS.includes(star.glyph)) {
     const href = starHref(star.glyph);
     if (!href) return null;

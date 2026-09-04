@@ -29,7 +29,7 @@ import { budgetHelper, budgetPlaceholder, costSpendSummary, resourceBudgetBaseli
 import { NumberTicker, TickerAssumptionField, TickerAssumptionGrid, tickerNumber } from './NumberTicker';
 import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad, type SettingsSaveState } from './settings-save-state';
 import { Badge, Button, Progress } from './ui';
-import { PiaFlicker } from './PiaFlicker';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { dateOnlyBadgeValue, DateRangeBadges } from './DateBadge';
 import {
   approveContinuedUsage,
@@ -387,8 +387,14 @@ export function BudgetGuardStatus({ status, admin }: { status: AppBudgetStatus; 
         <p>{status.detail}</p>
       ) : null}
       {admin && status.level === 'approval-required' ? (
-        <Button type="button" size="sm" disabled={busy !== null} onClick={() => void action('approve')}>
-          {busy === 'approve' ? 'Approving…' : 'Approve continued usage'}
+        <Button
+          type="button"
+          size="sm"
+          disabled={busy !== null}
+          aria-busy={busy === 'approve' || undefined}
+          onClick={() => void action('approve')}
+        >
+          <PiaBusyButtonContent busy={busy === 'approve'} label="Approve continued usage" busyLabel="Approving" />
         </Button>
       ) : null}
       {admin && status.level === 'approved-overage' ? (
@@ -397,9 +403,10 @@ export function BudgetGuardStatus({ status, admin }: { status: AppBudgetStatus; 
           size="sm"
           variant="outline"
           disabled={busy !== null}
+          aria-busy={busy === 'revoke' || undefined}
           onClick={() => void action('revoke')}
         >
-          {busy === 'revoke' ? 'Revoking…' : 'Revoke approval'}
+          <PiaBusyButtonContent busy={busy === 'revoke'} label="Revoke approval" busyLabel="Revoking" tone="light" />
         </Button>
       ) : null}
       {failure ? (
@@ -818,7 +825,7 @@ export function CostBudgetApplyButton({
   onClick?: () => void;
 }) {
   const saving = state.kind === 'saving';
-  const text = saving ? 'Applying…' : state.kind === 'saved' ? 'Applied' : state.kind === 'failed' ? 'Retry' : label;
+  const text = state.kind === 'saved' ? 'Applied' : state.kind === 'failed' ? 'Retry' : label;
   const resourceButton = label === 'Apply resource budgets';
   return (
     <Button
@@ -832,8 +839,7 @@ export function CostBudgetApplyButton({
       aria-atomic="true"
       onClick={onClick}
     >
-      {saving ? <PiaFlicker seat="button" /> : null}
-      {text}
+      <PiaBusyButtonContent busy={saving} label={text} busyLabel="Applying" />
     </Button>
   );
 }

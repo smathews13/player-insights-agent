@@ -44,6 +44,7 @@ import { astPill } from './pia-pill';
 import { BrandIcon } from './BrandIcon';
 import { ExperimentalBadge } from './ExperimentalBadge';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { PiaEmptyStateMark } from './PiaMark';
 import { Disclosure, PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
@@ -329,6 +330,8 @@ function ResultPill({ row, busy }: { row: HealthRow; busy: boolean }) {
     return (
       <PiaLoadingLabel
         as="span"
+        seat="status"
+        tone="light"
         announce={false}
         className="ops-connection-status-loader"
         label={`Checking ${row.label}`}
@@ -1630,9 +1633,10 @@ export function StopAllActiveRuns() {
         data-variant="destructive"
         type="button"
         disabled={busy}
+        aria-busy={busy || undefined}
         onClick={() => void stop()}
       >
-        {busy ? 'Stopping…' : 'Stop all active runs'}
+        <PiaBusyButtonContent busy={busy} label="Stop all active runs" busyLabel="Stopping" />
       </Button>
       {result ? (
         <p role="status">

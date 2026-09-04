@@ -1136,7 +1136,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 }
 .user-profile-modal-state-action,
 .user-profile-modal-profile-loading {
-  min-height: 120px;
+  min-height: 180px;
   display: grid;
   align-content: center;
   justify-items: center;
@@ -1662,17 +1662,11 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 }
 .monitoring-users-loading {
   min-height: 180px;
-  display: inline-flex;
+  width: 100%;
   align-items: center;
   justify-content: center;
-  gap: 10px;
   color: var(--ast-text-long);
   font-size: var(--text-sm);
-}
-.monitoring-users-loading-icon {
-  width: 18px;
-  height: 18px;
-  flex: none;
 }
 .monitoring-users-refreshing {
   color: var(--ast-text-secondary);

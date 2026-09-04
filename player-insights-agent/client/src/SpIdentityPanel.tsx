@@ -77,6 +77,7 @@ import { AppSelect } from './AppSelect';
 import { CopyButton } from './StatusBadge';
 import { Button, Empty, EmptyHeader, EmptyMedia, EmptyTitle, Input, Textarea } from './ui';
 import { PiaEmptyStateMark } from './PiaMark';
+import { PiaLoader } from './PiaLoader';
 
 export type SpIdentityMutationError = {
   operation: 'definition-save' | 'definition-delete' | 'connection-save' | 'status-check' | 'rename';
@@ -762,7 +763,7 @@ export function ResourceBrowser({
               />
             </label>
           ) : null}
-          {loading ? <p role="status">Loading configured resources…</p> : null}
+          {loading ? <PiaLoader variant="inline" label="Loading configured resources" /> : null}
           {!loading && discovery?.status === 'error' ? (
             <div className="sp-resource-state" role="alert">
               <span>{discovery.detail || 'Configured resources could not be loaded.'}</span>
@@ -979,11 +980,7 @@ function SpPersonaDefinitionTable({
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   if (loading) {
-    return (
-      <p className="sp-resource-state" role="status">
-        Reading SP persona configurations…
-      </p>
-    );
+    return <PiaLoader variant="compact" label="Reading SP persona configurations" className="sp-resource-state" />;
   }
   if (definitions.length === 0) {
     return (

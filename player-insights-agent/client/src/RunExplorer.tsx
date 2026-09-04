@@ -59,6 +59,7 @@ import type { Conversation, Run } from './app-types';
 import { UserDrilldownLink } from './UserDrilldownLink';
 import { RunRatingBadge } from './RunRatingBadge';
 import { PiaEmptyStateMark } from './PiaMark';
+import { PiaLoader } from './PiaLoader';
 import { RunOverviewKpis } from './RunOverviewKpis';
 import {
   conversationFilterOptions,
@@ -477,7 +478,7 @@ export function RunExplorer() {
           <CardContent className="p-2">
             {loading ? (
               <div className="run-list-skeleton" aria-busy="true" role="status" aria-live="polite">
-                <span className="sr-only">Loading recent runs</span>
+                <PiaLoader variant="inline" label="Loading recent runs" announce={false} />
                 {[1, 2, 3].map((item) => (
                   <Skeleton key={item} className="h-24" aria-hidden="true" />
                 ))}
@@ -712,7 +713,7 @@ export function RunExplorer() {
 export function RunDetailSkeleton() {
   return (
     <div className="run-detail-skeleton" role="status" aria-live="polite">
-      <span className="sr-only">Loading run details</span>
+      <PiaLoader variant="compact" label="Loading run details" announce={false} />
       <div className="run-detail-skeleton-head" aria-hidden="true">
         <div>
           <Skeleton className="run-detail-skeleton-title" />

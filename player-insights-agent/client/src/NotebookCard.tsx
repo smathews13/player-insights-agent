@@ -21,6 +21,7 @@ import type { NotebookPanel } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import type { AssetPickerSpec } from './asset-picker';
 import { Button } from './ui';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { notebookPathView, persistNotebookPath } from './notebook-card-state';
 
 const NOTEBOOK_PICKER: AssetPickerSpec = {
@@ -191,9 +192,10 @@ function NotebookCardContent({
                       type="button"
                       className="plane-button-primary"
                       disabled={saving || draft === configuredPath}
+                      aria-busy={saving || undefined}
                       onClick={() => void saveNotebookPath()}
                     >
-                      {saving ? 'Saving…' : 'Save notebook'}
+                      <PiaBusyButtonContent busy={saving} label="Save notebook" busyLabel="Saving" />
                     </button>
                   </div>
                 ) : null}

@@ -116,7 +116,7 @@ function FeedbackRowsLoading() {
   return (
     <div className="monitoring-feedback-loading" role="status" aria-label="Loading submitted feedback">
       <div className="monitoring-feedback-loading-label">
-        <PiaLoaderMark size={18} className="monitoring-feedback-loading-mark" />
+        <PiaLoaderMark variant="inline" className="monitoring-feedback-loading-mark" />
         <span>Loading feedback</span>
       </div>
       <div className="monitoring-feedback-skeleton" aria-hidden="true">

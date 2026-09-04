@@ -15,24 +15,6 @@
   --ask-rail-block-size: calc(100dvh - var(--app-header-h) - env(safe-area-inset-bottom, 0px));
   background-color: var(--ast-sky-fill);
   /*
-   * THE SKY IS ONE FIELD, AND ITS RECIPE IS IN astrolabe-tokens.css.
-   *
-   * It was four fixed dots at percentages of this grid, written out here: four
-   * stars on a whole page, so the transcript sat on empty navy everywhere those
-   * four did not land, and the only spackled surface on the page was the harness
-   * band's own SVG dust -- eight circles inside `.ast-sky-canvas`, clipped to the
-   * drawing and clustered where the path is.
-   *
-   * `--ast-sky-spackle` replaces them with a repeating field, and it is a token
-   * rather than a declaration here because three surfaces need the same sky and
-   * two of them are in other files: this grid, the harness column below, and the
-   * agent map's band in constellation.css. The one that is NOT a descendant of
-   * this element is the map's, which is why the recipe is on `:root` and not on
-   * this rule.
-   */
-  background-image: var(--ast-sky-spackle);
-  background-size: var(--ast-sky-spackle-size);
-  /*
    * 264 / fluid / 340, and the asymmetry is the point rather than a slip.
    *
    * It was 264 both sides, which is the mockup's own grid, and the argument for it
@@ -202,21 +184,8 @@
    * the run is on, which is the opposite of holding an older step still.
    */
   overflow-anchor: none;
-  /* The idle silhouette is a layer inside this pane, not a sibling of the
-     page. Isolation keeps its z-index: 0 from escaping and painting over the
-     heading it is supposed to sit behind. */
   isolation: isolate;
   background: var(--ast-sky-fill);
-  /* The same sky, because this column is the same surface. The shorthand above
-     clears `background-image`, so these two follow it rather than precede it.
-     The band inside is `background: transparent` (below), so the field runs
-     behind the whole panel -- eyebrow, drawing and metrics -- rather than
-     stopping where the SVG's own dust does. THAT IS ALSO WHAT PAINTS THE IDLE
-     PANEL: `.trace-empty` is a centred column of type with no surface of its
-     own, so a harness with no run in it is this background and nothing else,
-     and before the field moved onto this element it was flat. */
-  background-image: var(--ast-sky-spackle);
-  background-size: var(--ast-sky-spackle-size);
   color: var(--ast-white);
 }
 /*
@@ -485,34 +454,6 @@
   line-height: 1.5;
   color: var(--ast-caption);
 }
-/*
- * Idle Ask: the same night-sky constellation as a live harness, held still.
- *
- * BACKGROUND OF THE PANE, not a sibling under the heading. The SVG is
- * `position: absolute; inset: 0` (astrolabe-loaders.css) and used to overflow
- * the leftover flex slot, so stars and hops painted over "Agent path", the
- * harness eyebrow, and the status pill — and, because this column is a
- * sticky stacking context, out across the Ask composer. Absolute fill +
- * z-index 0 puts the drawing behind that chrome; contain/clip keep it
- * inside this pane; opacity keeps it faint on idle Ask. A run hides this
- * layer (see the `data-inspector='run'` rule) so the opening product
- * marks cannot sit under the live path as ghost icons. Pointer-events
- * none keeps a live path's stars clickable. Frozen so idle Ask cannot
- * look like a run in flight.
- */
-.trace-idle-sky {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  contain: paint;
-  pointer-events: none;
-  opacity: 0.28;
-}
-.trace-idle-sky .ast-constellation {
-  width: 100%;
-  height: 100%;
-}
 .trace-head,
 .trace-title,
 .trace-working,
@@ -522,24 +463,6 @@
 .trace-inspector .trace-explore {
   position: relative;
   z-index: 1;
-}
-.ask-layout[data-inspector='run'] .trace-idle-sky {
-  /* Still in the markup, so the first step does not remount a different
-     night. Off the paint while the numbered path is up: the opening
-     silhouette carries the same product marks the live path draws, and
-     at 0.28 it read as a ghost copy of every SQL / Genie / Agents node. */
-  display: none;
-}
-.trace-idle-sky [class*='ast-anim-'] {
-  animation: none;
-}
-.trace-idle-sky .ast-anim-draw {
-  stroke-dashoffset: 0;
-  opacity: 1;
-}
-.trace-idle-sky .ast-anim-pop {
-  opacity: 1;
-  transform: none;
 }
 
 .trace-inspector .pia-flick-row {

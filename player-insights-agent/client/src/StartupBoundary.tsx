@@ -119,9 +119,8 @@ export function StartupLoadingSurface({ phase }: { phase: StartupPhase }) {
         {label}
       </p>
       <div className="startup-loader">
-        <PiaLoader variant="panel" label={null} announce={false} />
         <strong>Player Insights Agent</strong>
-        <span>{label}</span>
+        <PiaLoader variant="panel" tone="dark" label={label} announce={false} />
       </div>
     </main>
   );
@@ -224,7 +223,13 @@ export function StartupBoundary({ children }: { children: ReactNode }) {
 
   if (owner === 'session-timeout' || owner === 'session-error') {
     return (
-      <Suspense fallback={<main className="startup-surface" aria-busy="true" aria-label="Loading session recovery" />}>
+      <Suspense
+        fallback={
+          <main className="startup-surface" aria-busy="true" aria-label="Loading session recovery">
+            <PiaLoader variant="panel" tone="dark" label="Loading session recovery" announce={false} />
+          </main>
+        }
+      >
         <AppSessionRecovery state={owner === 'session-timeout' ? 'timed-out' : 'unavailable'} />
       </Suspense>
     );

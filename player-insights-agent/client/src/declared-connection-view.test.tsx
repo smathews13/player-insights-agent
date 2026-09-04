@@ -749,8 +749,8 @@ describe('every addable kind browses', () => {
   });
 
   it('shows the deterministic discovery loading state', () => {
-    expect(CARD_SOURCE).toContain('role="status"');
-    expect(CARD_SOURCE).toContain('asset-picker-spinner');
+    expect(CARD_SOURCE).toContain('<PiaLoadingLabel');
+    expect(CARD_SOURCE).not.toContain('asset-picker-spinner');
     expect(CARD_SOURCE).toContain('Finding resources your sign-in can access…');
   });
 

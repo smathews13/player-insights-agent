@@ -163,7 +163,7 @@ describe('the night sky belongs to dark mode alone', () => {
      */
     expect(rule(BASE, `html${NOT_DARK} .app-sky`)).toMatch(/display:\s*none/);
     expect(rule(DARK, "html[data-theme='dark'] .app-sky")).toMatch(/display:\s*block/);
-    expect(rule(STAR, `html${NOT_DARK} .app-sky.gate-star-motion`)).toMatch(/display:\s*none/);
+    expect(STAR).not.toContain('gate-star-motion');
   });
 
   it('decides that in the stylesheet rather than at render time', () => {
@@ -191,8 +191,8 @@ describe('the night sky belongs to dark mode alone', () => {
      * light half -- and that it is a FIELD rather than a fainter starfield, because
      * there is no daylight weight at which a star is not a star.
      */
-    expect(rule(RAIL, '.ask-layout')).toMatch(/background-image:\s*var\(--ast-sky-spackle\)/);
-    expect(rule(RAIL, '.trace-inspector')).toMatch(/background-image:\s*var\(--ast-sky-spackle\)/);
+    expect(rule(RAIL, '.ask-layout')).not.toMatch(/background-image|background-size|background-position/);
+    expect(rule(RAIL, '.trace-inspector')).not.toMatch(/background-image|background-size|background-position/);
 
     const layout = rule(RAIL, `html${NOT_DARK} .ask-layout`);
     expect(layout).toMatch(/background-color:\s*var\(--db-wash\)/);
@@ -282,7 +282,7 @@ describe('the light answer sits on high-alpha semantic glass', () => {
      */
     expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-pane:\s*var\(--ast-surface-primary\)/);
     expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-sky-fill:\s*var\(--ast-ice\)/);
-    expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-sky-spackle:\s*none/);
+    expect(TOKENS).not.toContain('--ast-sky-spackle');
     expect(rule(TOKENS, ':root')).toMatch(/--ast-pane:\s*var\(--ast-surface-primary\)/);
     expect(rule(TOKENS, ':root')).toMatch(
       /--ast-surface-primary:\s*color-mix\(in srgb,\s*var\(--ast-white\) 98\.5%,\s*transparent\)/
@@ -344,12 +344,10 @@ describe('one account of the run per theme, chosen in CSS', () => {
     expect(source('TraceDag.tsx')).toContain('className="agent-path"');
   });
 
-  it('drops the login sky and the working constellation in daylight', () => {
+  it('drops the login sky in daylight', () => {
     expect(rule(LOADERS, `html${NOT_DARK} .first-open.on-sky`)).toMatch(/background:\s*var\(--ast-ice\)/);
     expect(rule(LOADERS, `html${NOT_DARK} .ast-opening-wordmark`)).toMatch(/color:\s*var\(--ast-text\)/);
-    expect(rule(LOADERS, `html${NOT_DARK} .ast-working-say`)).toMatch(/color:\s*var\(--ast-text\)/);
     expect(rule(LOADERS, `html${NOT_DARK} .ast-opening-sky`)).toMatch(/display:\s*none/);
-    expect(rule(LOADERS, `html${NOT_DARK} .ast-working .ast-constellation`)).toMatch(/display:\s*none/);
   });
 
   it('writes every light rule in tokens rather than in colour', () => {
@@ -462,7 +460,6 @@ describe('the daylight list is the whole run, without a star in it', () => {
       'ast-star',
       'ast-link',
       'ast-anim',
-      'ast-sky-dust',
       'ast-sky-canvas',
       'ast-sky-num',
       '<image',
@@ -497,16 +494,17 @@ describe('the daylight list is the whole run, without a star in it', () => {
   it('leaves the dark band exactly as it was', () => {
     /*
      * The other half of the requirement. Nothing about the night sky changes: the
-     * dust, the connectors, the stars, the numbers and the named group are all
+     * connectors, stars, numbers and the named group are all
      * still drawn, and the list is a sibling of that band rather than anything
      * nested in it.
      */
     const markup = bandOf(inFlight, 5, 12_000);
     expect(markup).toContain('<div class="ast-sky ast-sky-path">');
     expect(markup).toContain('<svg role="group" aria-label="Agent steps"');
-    for (const part of ['ast-sky-dust', 'ast-links', 'ast-star-select', 'ast-sky-num', 'ast-star-ring']) {
+    for (const part of ['ast-links', 'ast-star-select', 'ast-sky-num', 'ast-star-ring']) {
       expect(markup, `the band lost ${part}`).toContain(part);
     }
+    expect(markup).not.toContain('ast-sky-dust');
     expect(markup).not.toContain('step-rail');
   });
 });

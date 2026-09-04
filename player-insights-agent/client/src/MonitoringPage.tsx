@@ -37,6 +37,7 @@ import { BrandIcon } from './BrandIcon';
 import { Button, Input, Skeleton } from './ui';
 import { AppSelect } from './AppSelect';
 import { PiaFlicker } from './PiaFlicker';
+import { PiaLoader } from './PiaLoader';
 import { PiaEmptyStateMark, PiaMark } from './PiaMark';
 import { showsAdminSurfaces, type AppOutletContext } from './role';
 import { PageHeading } from './page-chrome';
@@ -1297,7 +1298,7 @@ function LoadingSpendMetric({ label, animated = false }: { label: string; animat
       </div>
       <div className="user-profile-modal-spend-kpi-loading-body">
         {animated ? (
-          <PiaFlicker seat="inline" />
+          <PiaFlicker seat="compact" />
         ) : (
           <PiaMark size={16} className="user-profile-modal-spend-static-mark" />
         )}
@@ -1890,10 +1891,7 @@ export function PersonPanelShell({
             </Button>
           </div>
         ) : (
-          <div role="status" className="user-profile-modal-profile-loading">
-            <PiaFlicker seat="inline" />
-            <span>Loading user activity</span>
-          </div>
+          <PiaLoader variant="panel" label="Loading user activity" className="user-profile-modal-profile-loading" />
         )}
       </div>
     </Dialog>
@@ -2055,7 +2053,14 @@ export function UserMonitoringPanel({
                 Clear filters
               </Button>
             ) : null}
-            {refreshing ? <span className="monitoring-users-refreshing">Refreshing…</span> : null}
+            {refreshing ? (
+              <PiaLoader
+                variant="inline"
+                label="Refreshing users"
+                className="monitoring-users-refreshing"
+                announce={false}
+              />
+            ) : null}
           </div>
         </div>
 
@@ -2064,10 +2069,7 @@ export function UserMonitoringPanel({
             {state.error}
           </p>
         ) : state.status === 'loading' || state.status === 'idle' ? (
-          <div className="monitoring-users-loading" role="status">
-            <Users className="monitoring-users-loading-icon ast-anim-center-pulse" aria-hidden="true" />
-            <span>Loading users</span>
-          </div>
+          <PiaLoader variant="panel" label="Loading users" className="monitoring-users-loading" />
         ) : !payload ? (
           <p className="monitoring-users-state" role="status">
             User activity is available only when the server-authorized spend snapshot can be read.
