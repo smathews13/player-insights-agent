@@ -256,9 +256,9 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(body('.conversation-main')).toMatch(/max-height:\s*none/);
     expect(body('.conversation-main')).toMatch(/overflow-y:\s*visible/);
     expect(STYLESHEET).toMatch(
-      /\.ask-layout\[data-transcript='active'\]\[data-stage-mode='planning'\] \.conversation-main\s*\{[^}]*overflow-y:\s*auto/
+      /\.ask-layout\[data-center-state='working'\] \.conversation-main > \.answer-card\s*\{[^}]*overflow-y:\s*auto/
     );
-    expect(body('.conversation-column')).toMatch(/gap:\s*20px/);
+    expect(body('.conversation-column')).toMatch(/gap:\s*12px/);
     expect(withoutComments(STYLESHEET)).not.toContain('--composer-reserve');
     // And the top half of the same fault: an answer is scrolled in with
     // `block: 'start'`, which aligns its top edge with a scrollport that begins
@@ -388,7 +388,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(home).toContain('{transcriptEmpty && (');
     expect(home).toContain('data-transcript={transcriptEmpty ?');
     expect(body(".ask-layout[data-transcript='empty'] .conversation-main")).toMatch(/height:\s*auto/);
-    expect(body('.conversation-column')).toMatch(/gap:\s*20px/);
+    expect(body('.conversation-column')).toMatch(/gap:\s*12px/);
     expect(body('.composer')).toMatch(/position:\s*static/);
     expect(home).not.toContain('prompt-grid');
     expect(ask).not.toContain('.prompt-grid');
@@ -913,8 +913,9 @@ describe('below 800px the conversation rail is somewhere else, not gone', () => 
     // fix, four inches lower. `min-height: 0` is what lets a flex child shrink enough
     // to scroll at all.
     const sheeted = body('.conversation-rail.is-sheet');
-    expect(sheeted).toMatch(/overflow-y:\s*auto/);
+    expect(sheeted).toMatch(/overflow:\s*hidden/);
     expect(sheeted).toMatch(/min-height:\s*0/);
+    expect(body('.conversation-list')).toMatch(/overflow-y:\s*auto/);
   });
 
   it('dismisses the sheet on the actions that answer the question it was opened to ask', () => {

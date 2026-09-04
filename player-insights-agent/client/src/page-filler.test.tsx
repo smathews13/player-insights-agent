@@ -153,12 +153,12 @@ describe('no screen narrates under its own title', () => {
     expect(markup).not.toMatch(/<h2 id="settings-title">Settings<\/h2>\s*<p>/);
   });
 
-  it('gives Ops a bare title and the latency caption no window', () => {
+  it('gives Ops and Latency bare titles with no redundant caption', () => {
     // "By route, vs each route's prior half · [dates]" was three facts stacked
-    // over a table that states all three itself.
+    // over a table that states all three itself. None belongs beside Latency.
     const source = code('OpsPage.tsx');
     expect(source).toContain('<PageHeading title="Ops" />');
-    expect(source).toContain('meta="By route"');
+    expect(source).not.toContain('meta="By route"');
     expect(source).not.toContain('vs each route');
   });
 

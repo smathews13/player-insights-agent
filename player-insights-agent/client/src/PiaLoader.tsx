@@ -2,13 +2,12 @@ import type { CSSProperties } from 'react';
 
 import { PiaDrawing, PiaShape, type PiaMarkTone } from './PiaMark';
 import { PIA_CLUSTER_BODY, PIA_DPAD_ARMS, PIA_DPAD_CENTER, PIA_DPAD_GLYPHS, PIA_MARK_VIEWBOX } from './pia-mark';
-import { PIA_LOADER_HALF_SECONDS, PIA_LOADER_SIZES, piaLoaderGlyphDelay, type PiaLoaderVariant } from './pia-loader';
+import { PIA_LOADER_SIZES, piaLoaderGlyphDelay, type PiaLoaderVariant } from './pia-loader';
 
 const GLYPH_ORIGINS = ['32px 12px', '52px 32px', '32px 51.5px', '12.5px 32px'] as const;
 
 function animationDelay(index: number): CSSProperties {
-  const seconds = Math.round((-PIA_LOADER_HALF_SECONDS + piaLoaderGlyphDelay(index)) * 100) / 100;
-  return { animationDelay: `${seconds}s` };
+  return { animationDelay: `${piaLoaderGlyphDelay(index)}s` };
 }
 
 export function PiaLoaderMark({
@@ -34,9 +33,10 @@ export function PiaLoaderMark({
     >
       <g className="pia-loader__phase pia-loader__phase--dpad">
         <PiaDrawing elements={PIA_DPAD_ARMS} />
-        <PiaDrawing elements={PIA_DPAD_GLYPHS} />
-        {detailed
-          ? PIA_DPAD_GLYPHS.map((glyph, index) => (
+        {detailed ? (
+          <>
+            <PiaDrawing elements={PIA_DPAD_GLYPHS} />
+            {PIA_DPAD_GLYPHS.map((glyph, index) => (
               <PiaShape
                 element={glyph}
                 paintOverride="accent"
@@ -44,8 +44,9 @@ export function PiaLoaderMark({
                 key={`dpad-highlight-${JSON.stringify(glyph)}`}
                 style={animationDelay(index)}
               />
-            ))
-          : null}
+            ))}
+          </>
+        ) : null}
       </g>
       <g className="pia-loader__phase pia-loader__phase--cluster">
         {PIA_CLUSTER_BODY.map((glyph, index) => {

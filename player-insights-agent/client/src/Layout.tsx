@@ -342,7 +342,7 @@ export function HeaderBrand({
           onHome?.();
         }}
       >
-        <PiaLockup as="h1" seat="header" />
+        <PiaLockup as="h1" seat="header" name="acronym" tone="dark" />
       </Link>
       {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
       <span className="app-chrome-rule" aria-hidden="true" />

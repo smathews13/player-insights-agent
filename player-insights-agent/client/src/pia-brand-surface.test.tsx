@@ -30,7 +30,7 @@ function source(name: string): string {
 }
 
 describe('Player Insights Agent visible brand surfaces', () => {
-  it('uses the locked product name in title, manifest, header, startup, and AI caveat', () => {
+  it('uses the locked product identity in title, manifest, compact header, startup, and AI caveat', () => {
     const index = readFileSync(new URL('index.html', CLIENT), 'utf8');
     const manifest = JSON.parse(readFileSync(new URL('public/site.webmanifest', CLIENT), 'utf8')) as {
       name: string;
@@ -45,9 +45,14 @@ describe('Player Insights Agent visible brand surfaces', () => {
 
     expect(index).toContain('<title>Player Insights Agent</title>');
     expect(manifest).toMatchObject({ name: 'Player Insights Agent', short_name: 'PIA' });
-    expect(header).toContain('Player Insights');
-    expect(header).toContain('Agent');
+    expect(header).toContain('pia-lockup--header pia-lockup--acronym');
+    expect(header).toContain('PI<span class="pia-accent">A</span>');
     expect(header).toContain('data-pia-cut="simplified"');
+    expect(header).toContain('pia-mark--dark');
+    expect(header).toContain('pia-type--dark');
+    expect(header).not.toContain('pia-wordmark');
+    expect(header).not.toContain('pia-caption');
+    expect(header).not.toContain('pia-mark--cluster');
     expect(startup).toContain('Player Insights Agent');
     expect(startup).toContain('data-startup-loader="pia-primary"');
     expect(AI_ANALYSIS_CAVEAT).toBe('Player Insights Agent analysis. AI can make mistakes.');

@@ -152,7 +152,7 @@ function LockupName({ name, tone }: { name: PiaLockupName; tone: PiaMarkTone }) 
 
 export function PiaLockup({
   seat = 'header',
-  name = seat === 'compact' ? 'acronym' : seat === 'header' ? 'responsive' : 'full',
+  name = seat === 'compact' || seat === 'header' ? 'acronym' : 'full',
   tone = 'light',
   className,
   id,

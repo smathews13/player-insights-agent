@@ -148,6 +148,6 @@ describe('Ask uses the same view in both live status seats', () => {
     expect(home).toMatch(
       /<strong>\{currentStage\.label\}<\/strong>[\s\S]*?<span className="ast-sep" \/>[\s\S]*?<strong className="ast-num">\{elapsed\}<\/strong>/
     );
-    expect(partial('astrolabe-loaders.css')).toMatch(/\.ast-splash-copy\s*\{[^}]*column-gap:\s*4px/);
+    expect(partial('astrolabe-loaders.css')).toMatch(/\.pia-splash-copy\s*\{[^}]*column-gap:\s*4px/);
   });
 });

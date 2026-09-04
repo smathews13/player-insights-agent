@@ -21,6 +21,7 @@ import { partial, stylesheet } from './styles/stylesheet';
  */
 const CARD = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
 const CAVEATS = readFileSync(new URL('./KeepInMind.tsx', import.meta.url), 'utf8');
+const AI_CAVEAT = readFileSync(new URL('./AIAnalysisCaveat.tsx', import.meta.url), 'utf8');
 /**
  * The card's copy with its comments removed, for the assertions about what the
  * card may not SAY. The comments explain at length what a sentence used to claim
@@ -613,6 +614,12 @@ describe('the closing note and the feedback row', () => {
     // generic warning's accessible sentence.
     expect(CARD).toContain('<p className="data-access-note">{dataAccess}</p>');
     expect(CARD).toContain('<AIAnalysisCaveat className="ai-note" />');
+  });
+
+  it('keeps the caveat signed by PIA rather than a Genie product icon', () => {
+    expect(AI_CAVEAT).toContain("import { PiaMark } from './PiaMark'");
+    expect(AI_CAVEAT).toContain('<PiaMark size={14} />');
+    expect(AI_CAVEAT).not.toMatch(/BrandIcon|productForTool|Genie/);
   });
 
   it('takes the identity half of that disclosure from the run, not from a constant', () => {

@@ -2711,30 +2711,54 @@ describe('the latency block', () => {
     expect(markup).not.toContain('data-testid="ops-latency"');
   });
 
-  it('puts centered trend toggles and right-aligned search/Refresh in separate header groups', () => {
+  it('renders a bare Latency heading with the grouped filters directly after it', () => {
     const markup = markupOf(<LatencyBody block={block(latency())} />);
     const header = markup.slice(markup.indexOf('ops-block-head'), markup.indexOf('ops-block-body'));
 
+    expect(text(header)).not.toContain('By route');
+    expect(header).toMatch(
+      /<div class="ops-block-head-text"><span class="ops-block-title-group"><h3 id="ops-latency-heading">Latency<\/h3><\/span><div class="ops-latency-trend-filters" role="group" aria-label="Filter by trend">/
+    );
     expect(header).toContain('ops-latency-head-controls');
     expect(header).toContain('ops-latency-search');
-    expect(header).toContain('ops-latency-trend-filters');
     expect(header).toContain('Within baseline');
     expect(header).toContain('Outside baseline');
     expect(header).toContain('Refresh');
-    expect(header.indexOf('ops-block-head-text')).toBeLessThan(header.indexOf('ops-latency-trend-filters'));
-    expect(header.indexOf('ops-latency-trend-filters')).toBeLessThan(header.indexOf('ops-latency-head-controls'));
+  });
 
-    const css = readFileSync(new URL('./styles/ops.css', import.meta.url), 'utf8');
-    expect(css).toMatch(
-      /\.ops-latency-block \.ops-block-head\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\) auto minmax\(0,\s*1fr\);/
-    );
-    expect(css).toMatch(/\.ops-latency-trend-filters\s*\{[^}]*grid-column:\s*2;/);
-    expect(css).toMatch(
-      /\.ops-latency-block \.ops-latency-head-controls\s*\{[^}]*grid-column:\s*3;[^}]*justify-self:\s*end;/
-    );
-    expect(css).toMatch(
-      /@media \(max-width:\s*800px\)[\s\S]*?\.ops-latency-trend-filters\s*\{[^}]*grid-row:\s*2;[\s\S]*?\.ops-latency-block \.ops-latency-head-controls\s*\{[^}]*grid-row:\s*3;[^}]*width:\s*100%;/
-    );
+  it('keeps heading, baseline filters, search, and Refresh in exact DOM order', () => {
+    const markup = markupOf(<LatencyBody block={block(latency())} />);
+    const header = markup.slice(markup.indexOf('ops-block-head'), markup.indexOf('ops-block-body'));
+    const heading = header.indexOf('<h3 id="ops-latency-heading">Latency</h3>');
+    const filters = header.indexOf('ops-latency-trend-filters');
+    const within = header.indexOf('Within baseline');
+    const outside = header.indexOf('Outside baseline');
+    const controls = header.indexOf('ops-block-head-control');
+    const search = header.indexOf('ops-latency-search');
+    const refresh = header.indexOf('Refresh');
+
+    for (const position of [heading, filters, within, outside, controls, search, refresh]) {
+      expect(position).toBeGreaterThan(-1);
+    }
+    expect(heading).toBeLessThan(filters);
+    expect(filters).toBeLessThan(within);
+    expect(within).toBeLessThan(outside);
+    expect(outside).toBeLessThan(controls);
+    expect(controls).toBeLessThan(search);
+    expect(search).toBeLessThan(refresh);
+  });
+
+  it('keeps the filter group inside the left heading cluster, outside the right controls', () => {
+    const markup = markupOf(<LatencyBody block={block(latency())} />);
+    const header = markup.slice(markup.indexOf('ops-block-head'), markup.indexOf('ops-block-body'));
+    const leftCluster = header.match(
+      /<div class="ops-block-head-text">([\s\S]*?)<\/div><div class="ops-block-head-control">/
+    )?.[1];
+
+    expect(leftCluster).toBeDefined();
+    expect(leftCluster).toContain('ops-latency-trend-filters');
+    expect(leftCluster).not.toContain('ops-latency-head-controls');
+    expect(header.indexOf('ops-latency-trend-filters')).toBeLessThan(header.indexOf('ops-latency-head-controls'));
   });
 
   it('keeps baseline filter state semantic and disables both controls during refresh', () => {
@@ -2845,9 +2869,9 @@ describe('the latency block', () => {
     expect(markup).not.toContain('ops-skeleton');
   });
 
-  it('shows no date window in its subheader', () => {
+  it('shows no By route label or date window in its subheader', () => {
     const markup = markupOf(<LatencyBody block={block(latency())} />);
-    expect(text(markup)).toContain('By route');
+    expect(text(markup)).not.toContain('By route');
     expect(text(markup)).not.toContain('prior half');
     expect(text(markup)).not.toContain('Aug 16');
     expect(text(markup)).not.toContain('2026-08-16 19:30:59');

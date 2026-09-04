@@ -261,9 +261,12 @@ describe('the row is the run card, not a third style', () => {
     expect(partial('responsive.css')).toMatch(/@media \(max-width: 800px\)/);
   });
 
-  it('reserves the scrollbar a strip rather than letting it sit on the rows', () => {
+  it('reserves the list scrollbar without scrolling the header or filters', () => {
     const rail = body('.conversation-rail');
-    expect(rail).toMatch(/scrollbar-gutter:\s*stable/);
+    const list = body('.conversation-list');
+    expect(rail).toMatch(/overflow:\s*hidden/);
+    expect(list).toMatch(/overflow-y:\s*auto/);
+    expect(list).toMatch(/scrollbar-gutter:\s*stable/);
     // The reserve is paid for out of this edge's padding, so the rows are no
     // narrower than they were: 8px of padding plus the thin bar is the 16px of
     // clearance the other three sides have.

@@ -12,7 +12,7 @@
 
 .pia-mark--dark {
   --pia-mark-ink: var(--ast-white);
-  --pia-mark-accent: var(--ast-blue-on-dark);
+  --pia-mark-accent: var(--ast-ice-accent);
   --pia-mark-engraving: var(--ast-navy);
 }
 
@@ -54,7 +54,7 @@
 
 .pia-type--dark,
 .pia-type--mono {
-  color: var(--ast-ink-on-dark);
+  color: var(--ast-white);
 }
 
 .pia-type--light .pia-accent,
@@ -63,7 +63,7 @@
 }
 
 .pia-type--dark .pia-accent {
-  color: var(--ast-blue-on-dark);
+  color: var(--ast-ice-accent);
 }
 
 .pia-type--mono .pia-accent {
@@ -95,18 +95,18 @@
   opacity: 0.72;
 }
 
-html[data-theme='dark'] .app-header .pia-mark--light {
+html[data-theme='dark'] .pia-mark--light {
   --pia-mark-ink: var(--ast-white);
-  --pia-mark-accent: var(--ast-blue-on-dark);
+  --pia-mark-accent: var(--ast-ice-accent);
   --pia-mark-engraving: var(--ast-navy);
 }
 
-html[data-theme='dark'] .app-header .pia-type--light {
-  color: var(--ast-ink-on-dark);
+html[data-theme='dark'] .pia-type--light {
+  color: var(--ast-white);
 }
 
-html[data-theme='dark'] .app-header .pia-type--light .pia-accent {
-  color: var(--ast-blue-on-dark);
+html[data-theme='dark'] .pia-type--light .pia-accent {
+  color: var(--ast-ice-accent);
 }
 
 @media (max-width: 720px) {

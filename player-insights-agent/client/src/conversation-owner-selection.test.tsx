@@ -173,9 +173,10 @@ describe('the admin owner dropdown', () => {
   });
 
   it('escapes every clipping ancestor and stays above cards, sky, composer, and the mobile sheet', () => {
-    expect(CSS).toMatch(/\.conversation-rail \{[^}]*overflow-y:\s*auto/s);
+    expect(CSS).toMatch(/\.conversation-rail \{[^}]*overflow:\s*hidden/s);
+    expect(CSS).toMatch(/\.conversation-list \{[^}]*overflow-y:\s*auto/s);
     expect(CSS).toMatch(/\.rail-sheet \{[^}]*overflow:\s*hidden/s);
-    expect(CSS).toMatch(/\.conversation-rail\.is-sheet \{[^}]*overflow-y:\s*auto/s);
+    expect(CSS).toMatch(/\.conversation-rail\.is-sheet \{[^}]*overflow:\s*hidden/s);
     expect(MULTISELECT).toContain('<PopoverContent');
     expect(HOME).toContain('<SheetContent side="left" className="rail-sheet">');
     expect(HOME).toContain('<div className="conversation-rail is-sheet ast-surface-primary">');

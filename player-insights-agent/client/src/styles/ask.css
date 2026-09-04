@@ -35,36 +35,44 @@
   scrollbar-gutter: auto;
 }
 /*
- * Before the first real event, the small planning card leaves the composer in
- * the first viewport. It is the only Ask center state with a bounded scroll
- * owner. As soon as a stage or final answer exists, the base rule above takes
- * over: the center grows with its card and the page reveals all of it.
+ * The transcript owns no bottom reserve. Its next grid row is the composer, so
+ * the column gap below is the complete distance from the current card to the
+ * question module.
  */
-.ask-layout[data-transcript='active'][data-stage-mode='planning'] .conversation-main {
-  height: var(--ask-planning-pane-block-size);
-  min-height: var(--ask-planning-pane-block-size);
-  max-height: var(--ask-planning-pane-block-size);
+.ask-layout[data-transcript='active'] .conversation-main {
+  padding-bottom: 0;
+}
+/*
+ * Every in-flight state uses the same compact pane, including planning before
+ * the first event and searching/preparing/finding after events arrive. The
+ * working card itself is the one scroll owner, so a long timeline stays inside
+ * the bounded pane without turning the whole center track into a second
+ * viewport.
+ */
+.ask-layout[data-center-state='working'] .conversation-main {
+  min-height: 0;
+}
+.ask-layout[data-center-state='working'] .conversation-main > .answer-card {
+  height: auto;
+  min-height: var(--ask-active-card-min-block-size);
+  max-height: var(--ask-active-card-max-block-size);
+  margin-bottom: 0;
+  overflow-x: clip;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
-.ask-layout[data-transcript='active'][data-stage-mode='planning'] .conversation-main > .answer-card,
-.ask-layout[data-transcript='active'][data-stage-mode='planning']
-  .conversation-message:has(.answer-card):not(:has(~ .conversation-message))
-  .answer-card {
-  min-height: calc(var(--ask-planning-pane-block-size) - 88px);
-}
 /*
- * A real timeline or final answer gets a full usable-viewport reading surface,
- * but never a ceiling. Caveats, Run process and the card's closing border stay
- * in normal flow, followed by the composer.
+ * A completed answer alone gets the full usable-viewport reading surface.
+ * Caveats, Run process and the card's closing border stay in normal flow, with
+ * no ceiling, followed by the composer.
  */
-.ask-layout[data-transcript='active']:not([data-stage-mode='planning']) .conversation-main > .answer-card,
-.ask-layout[data-transcript='active']:not([data-stage-mode='planning'])
+.ask-layout[data-center-state='final']
   .conversation-message:has(.answer-card):not(:has(~ .conversation-message))
   .answer-card {
   min-height: calc(100dvh - var(--app-header-h));
   max-height: none;
+  margin-bottom: 0;
   overflow: visible;
 }
 .message-pagination {

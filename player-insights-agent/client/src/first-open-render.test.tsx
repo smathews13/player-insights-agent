@@ -32,9 +32,11 @@ import {
   skipFirstOpenChecks,
   type AcknowledgementStore,
 } from './first-open';
+import { partial } from './styles/stylesheet';
 
 const GATE = readFileSync(new URL('./FirstOpenGate.tsx', import.meta.url), 'utf8');
 const STATE = readFileSync(new URL('./first-open.ts', import.meta.url), 'utf8');
+const PIA_BRAND = partial('pia-brand.css');
 
 /** The app's very first paint, with the identity read still in flight. */
 function firstPaint(): string {
@@ -143,6 +145,18 @@ describe('all required scopes granted', () => {
     expect(markup).toContain('You are signing in as');
     expect(markup).toContain('jordan.lee@example.com');
     expect(markup).not.toContain('Questions run under this identity.');
+  });
+
+  it('draws the dark sign-in brand as one engraved white D-pad and the readable full wordmark', () => {
+    expect(markup).toContain('pia-lockup--hero pia-lockup--full fo-title');
+    expect(markup).toContain('pia-mark--dark pia-mark--dpad');
+    expect(markup).toContain('width="48"');
+    expect(markup).toContain('data-pia-cut="engraved"');
+    expect(markup).toContain('Player Insights <span class="pia-accent">Agent</span>');
+    expect(markup).not.toContain('pia-mark--cluster');
+    expect(PIA_BRAND).toMatch(/\.pia-mark--dark\s*\{[^}]*--pia-mark-ink:\s*var\(--ast-white\)/s);
+    expect(PIA_BRAND).toMatch(/\.pia-mark--dark\s*\{[^}]*--pia-mark-accent:\s*var\(--ast-ice-accent\)/s);
+    expect(PIA_BRAND).toMatch(/\.pia-type--dark,[\s\S]*?\{[^}]*color:\s*var\(--ast-white\)/);
   });
 
   it('carries the OAuth badge', () => {

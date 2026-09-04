@@ -195,6 +195,13 @@
     .answer-card {
     min-height: 280px;
   }
+  /* Mobile Ask remains one page scroller. The desktop live-card bound and its
+     gutter disappear with the side rails rather than creating a nested pane. */
+  .ask-layout[data-center-state='working'] .conversation-main > .answer-card {
+    max-height: none;
+    overflow: visible;
+    scrollbar-gutter: auto;
+  }
   .composer {
     width: calc(100% - 24px);
   }

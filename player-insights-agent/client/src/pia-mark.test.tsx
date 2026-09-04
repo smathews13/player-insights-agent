@@ -105,12 +105,14 @@ describe('wordmark, acronym, lockup, and empty-state primitives', () => {
     expect(acronym).toContain('PI<span class="pia-accent">A</span>');
   });
 
-  it('uses the simplified D-pad in the responsive header lockup', () => {
+  it('uses only the compact acronym and simplified D-pad in the header lockup', () => {
     const lockup = renderToStaticMarkup(<PiaLockup seat="header" tone="dark" />);
-    expect(lockup).toContain('pia-lockup--responsive');
+    expect(lockup).toContain('pia-lockup--acronym');
     expect(lockup).toContain('data-pia-cut="simplified"');
-    expect(lockup).toContain('pia-lockup__full');
-    expect(lockup).toContain('pia-lockup__acronym');
+    expect(lockup).toContain('width="15"');
+    expect(lockup).toContain('PI<span class="pia-accent">A</span>');
+    expect(lockup).not.toContain('pia-wordmark');
+    expect(lockup).not.toContain('pia-caption');
   });
 
   it('uses only the static cluster for the empty-state primitive', () => {
@@ -124,6 +126,10 @@ describe('wordmark, acronym, lockup, and empty-state primitives', () => {
     const css = partial('pia-brand.css');
     expect(css).toContain('.pia-mark--light');
     expect(css).toContain('.pia-mark--dark');
+    expect(css).toMatch(/\.pia-mark--dark\s*\{[^}]*--pia-mark-ink:\s*var\(--ast-white\)/s);
+    expect(css).toMatch(/\.pia-mark--dark\s*\{[^}]*--pia-mark-accent:\s*var\(--ast-ice-accent\)/s);
+    expect(css).toMatch(/\.pia-type--dark,[\s\S]*?\{[^}]*color:\s*var\(--ast-white\)/);
+    expect(css).toMatch(/\.pia-type--dark \.pia-accent\s*\{[^}]*color:\s*var\(--ast-ice-accent\)/s);
     expect(css).toContain('@media print');
     expect(css).toContain('@media (max-width: 720px)');
   });

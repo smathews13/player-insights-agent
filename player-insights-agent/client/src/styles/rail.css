@@ -3,15 +3,16 @@
 .ask-layout {
   display: grid;
   align-items: start;
-  /* Only the no-evidence planning card is compact. The two side rails keep the
-     full workspace height independently, and every real-stage/final center
-     surface returns to natural page flow. */
-  --ask-composer-block-reserve: 144px;
-  --ask-planning-pane-block-size: clamp(
-    360px,
-    calc(100dvh - var(--app-header-h) - var(--ask-composer-block-reserve) - env(safe-area-inset-bottom, 0px)),
-    520px
-  );
+  /*
+   * Live work is a compact card, not the completed answer's reading surface.
+   * The two bounds keep one or two events from opening a viewport-tall slab,
+   * while 60dvh leaves the normal-flow composer reachable on a short display.
+   */
+  --ask-active-card-min-block-size: min(360px, 60dvh);
+  --ask-active-card-max-block-size: min(520px, 60dvh);
+  /* Ask's left rail is a viewport tool. Run Explorer keeps the longer shared
+     workspace pane token, and the Agent path keeps it independently below. */
+  --ask-rail-block-size: calc(100dvh - var(--app-header-h) - env(safe-area-inset-bottom, 0px));
   background-color: var(--ast-sky-fill);
   /*
    * THE SKY IS ONE FIELD, AND ITS RECIPE IS IN astrolabe-tokens.css.
@@ -80,14 +81,11 @@
   min-height: calc(100vh - var(--app-header-h));
   width: 100%;
 }
-.ask-layout > .conversation-rail {
-  grid-column: 1;
-}
 .conversation-column {
   grid-column: 2;
   display: grid;
   grid-template-rows: auto auto;
-  gap: 20px;
+  gap: 12px;
   min-width: 0;
   padding-bottom: 20px;
 }
@@ -98,16 +96,19 @@
  * whether a run is on screen — the idle branch draws the silhouette rather
  * than steps — but the track and the pane itself do not collapse.
  */
-.ask-layout > .conversation-rail,
-.trace-inspector {
-  position: static;
-  height: var(--workspace-pane-block-size);
-  min-height: var(--workspace-pane-block-size);
-  max-height: var(--workspace-pane-block-size);
+.ask-layout > .conversation-rail {
+  grid-column: 1;
+  position: sticky;
+  top: var(--app-header-h);
+  align-self: start;
+  height: var(--ask-rail-block-size);
+  min-height: var(--ask-rail-block-size);
+  max-height: var(--ask-rail-block-size);
   box-sizing: border-box;
+  border-right: 1px solid var(--db-line);
+  border-bottom: 1px solid var(--db-line);
+  overflow: hidden;
   overscroll-behavior: contain;
-  /* Solid, and no blur. Both columns were 70% white with a 14px backdrop blur, so
-     the transcript scrolled visibly underneath them. */
   background: var(--background);
 }
 /* 16px on all four sides, and 16px between the button, the filter block and the
@@ -118,37 +119,14 @@
 .conversation-rail {
   container-name: conversation-rail;
   container-type: inline-size;
-  border-right: 1px solid var(--db-line);
   display: flex;
   flex-direction: column;
   gap: 16px;
-  /*
-   * 16px on three sides and 8px on the fourth, and the missing 8px is the
-   * scrollbar's.
-   *
-   * The bar was drawn over the rows: a heavy grey column sitting on top of the
-   * titles it was scrolling, because a scroll container with no gutter reserved
-   * paints the bar inside its own padding box. `scrollbar-gutter: stable` reserves
-   * that strip whether or not the rail currently overflows, so nothing under it
-   * ever moves and nothing is ever covered -- and the reserve is why the padding
-   * on this edge is halved rather than kept: 8px of padding plus an 8px thin bar
-   * is the same 16px of clearance the other three sides have, so the rows keep
-   * every pixel of width they had.
-   */
+  /* The list below reserves its own scrollbar strip. Eight pixels here plus
+     that strip keeps the cards clear of the rail's right edge while the fixed
+     controls above retain their full width. */
   padding: 16px 8px 16px 16px;
-  overflow-y: auto;
-  /*
-   * THE ONE SCROLLER IN THE APP THAT RESERVES ITS BAR A STRIP.
-   *
-   * Thin and hidden-until-hovered is every scroller's treatment now and lives on
-   * `*` in base.css -- this column is where that was worked out, and keeping a
-   * copy here would be a second place to be wrong about it. What stays is the
-   * reserve, which is this rail's alone: the gutter holds the strip whether or
-   * not the rail currently overflows, so the thumb appearing moves nothing and
-   * covers nothing. It is paid for out of the padding on this edge, which is why
-   * that edge is 8px where the other three are 16px.
-   */
-  scrollbar-gutter: stable;
+  overflow: hidden;
   /* THE RAIL IS THE HEADER'S SURFACE, not the Ask page's sky. It was 94% of the
      ink structure colour with white text on it, which put a near-black column
      under a white header and left the eyebrow, the filter chips and the cards'
@@ -162,10 +140,33 @@
   background: var(--card);
   color: var(--foreground);
 }
+.conversation-rail-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.conversation-list {
+  flex: 1;
+  min-height: 0;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Header, button and filters remain outside this one vertical scroll owner.
+     Reserving the gutter prevents the cards from shifting when the list first
+     exceeds the usable viewport. */
+  scrollbar-gutter: stable;
+}
 /* 8px, because the inspector's head is a title with a pill beside it and then the
    run: three things that belong to each other, unlike the rail's three blocks. */
 .trace-inspector {
   grid-column: 3;
+  position: static;
+  height: var(--workspace-pane-block-size);
+  min-height: var(--workspace-pane-block-size);
+  max-height: var(--workspace-pane-block-size);
+  box-sizing: border-box;
+  overscroll-behavior: contain;
   /* No hairline against the middle column. The navy panel is its own edge, and a
      translucent white rule on the dark sky read as a seam rather than a
      boundary. The column's width and the grid's gap are untouched: they are
@@ -675,7 +676,8 @@
   min-height: 0;
   height: auto;
   border-right: 0;
-  overflow-y: auto;
+  border-bottom: 0;
+  overflow: hidden;
 }
 /*
  * A row is the recorded-runs card from the Run Explorer, not a list line.

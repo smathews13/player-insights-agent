@@ -8,6 +8,7 @@ import type { TraceStage } from './answer-shape';
 import { partial } from './styles/stylesheet';
 
 const LIVE_CSS = partial('live.css');
+const ASK_CSS = partial('ask.css');
 const PANEL = readFileSync(new URL('./LiveProgress.tsx', import.meta.url), 'utf8');
 
 function rule(selector: string): string {
@@ -82,9 +83,12 @@ describe('streamed progress geometry', () => {
     expect(rule('.live-step-detail .semantic-sql-code--inline')).toMatch(/overflow-wrap:\s*anywhere/);
   });
 
-  it('delegates vertical scrolling to the full-width Ask pane on desktop and mobile', () => {
+  it('delegates vertical scrolling to the one bounded working-card pane', () => {
     expect(rule('.live-steps')).toMatch(/overflow:\s*visible/);
     expect(rule('.live-steps')).not.toMatch(/overflow-y:\s*(?:auto|scroll)|max-height|scrollbar-gutter/);
+    expect(ASK_CSS).toMatch(
+      /\.ask-layout\[data-center-state='working'\] \.conversation-main > \.answer-card\s*\{[^}]*max-height:\s*var\(--ask-active-card-max-block-size\)[^}]*overflow-y:\s*auto/
+    );
 
     const mobile = LIVE_CSS.slice(LIVE_CSS.indexOf('@container answer-card (max-width: 800px)'));
     expect(reservedWidth(320, progress(21))).toBe(320);

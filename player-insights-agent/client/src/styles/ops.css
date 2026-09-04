@@ -2278,9 +2278,9 @@ a.ops-bar-count:hover {
  * digits put the decimal point in a different place on every row. The route is
  * the one prose column and overrides both.
  */
-/* The right-hand search/refresh group occupies a true grid column. The trend
-   group is a separate centered column, so unequal title and search widths
-   cannot move it off the section's geometric midpoint. */
+/* Search and Refresh remain the header's right-hand working controls. The
+   baseline filters live with the title instead, so the heading and the two
+   choices read as one left-aligned cluster in DOM and visual order. */
 .ops-latency-head-controls {
   display: flex;
   align-items: center;
@@ -2292,12 +2292,11 @@ a.ops-bar-count:hover {
 }
 
 .ops-latency-trend-filters {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
+  flex-wrap: nowrap;
   gap: 6px;
-  justify-self: center;
-  grid-column: 2;
 }
 
 .ops-latency-trend-filter {
@@ -2310,6 +2309,7 @@ a.ops-bar-count:hover {
   font: inherit;
   line-height: 1;
   height: 32px;
+  width: 132px;
   box-sizing: border-box;
   align-items: center;
   transition:
@@ -2409,24 +2409,14 @@ a.ops-bar-count:hover {
   }
 }
 
-.ops-latency-block .ops-block-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-}
-
 .ops-latency-block .ops-block-head-text {
-  grid-column: 1;
-  justify-self: start;
+  flex: 1 1 auto;
 }
 
 .ops-latency-block .ops-block-head-control {
-  display: contents;
-}
-
-.ops-latency-block .ops-latency-head-controls {
-  grid-column: 3;
-  justify-self: end;
+  flex: 1 1 320px;
+  min-width: 0;
+  max-width: 25rem;
 }
 
 .ops-latency-search {
@@ -2462,26 +2452,15 @@ a.ops-bar-count:hover {
 }
 
 @media (max-width: 800px) {
-  .ops-latency-block .ops-block-head {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .ops-latency-block .ops-block-head-text {
-    grid-column: 1;
-    grid-row: 1;
+    flex: 1 1 100%;
   }
 
-  .ops-latency-trend-filters {
-    grid-column: 1;
-    grid-row: 2;
-    justify-self: center;
-  }
-
-  .ops-latency-block .ops-latency-head-controls {
-    grid-column: 1;
-    grid-row: 3;
-    justify-self: stretch;
+  .ops-latency-block .ops-block-head-control {
+    flex: 1 0 100%;
     width: 100%;
+    max-width: none;
+    margin-left: 0;
   }
 
   .ops-latency-block .ops-latency-search {

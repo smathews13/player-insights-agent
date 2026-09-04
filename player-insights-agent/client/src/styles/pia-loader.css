@@ -1,40 +1,44 @@
 @keyframes pia-swap {
   0%,
-  2% {
-    opacity: 0;
-    transform: scale(0.82);
-  }
-
-  7% {
-    opacity: 1;
-    transform: scale(1.06);
-  }
-
-  10%,
   44% {
     opacity: 1;
     transform: scale(1);
   }
 
-  49%,
-  100% {
+  48% {
+    opacity: 0.72;
+    transform: scale(1.02);
+  }
+
+  50%,
+  94% {
     opacity: 0;
-    transform: scale(0.85);
+    transform: scale(0.96);
+  }
+
+  98% {
+    opacity: 0.72;
+    transform: scale(1.02);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
 @keyframes pia-hl {
   0%,
-  3% {
+  1% {
     opacity: 0;
   }
 
-  8%,
-  20% {
+  3%,
+  10% {
     opacity: 1;
   }
 
-  28%,
+  12.5%,
   100% {
     opacity: 0;
   }
@@ -42,14 +46,20 @@
 
 @keyframes pia-btn-light {
   0%,
-  16% {
-    opacity: 1;
-    transform: scale(1.25);
+  49% {
+    opacity: 0.68;
+    transform: scale(1);
   }
 
-  24%,
+  52%,
+  60% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+
+  62.5%,
   100% {
-    opacity: 0.3;
+    opacity: 0.68;
     transform: scale(1);
   }
 }
@@ -113,15 +123,16 @@
 
 .pia-loader__highlight {
   opacity: 0;
-  animation: pia-hl 3.2s linear infinite;
+  animation: pia-hl 6.4s linear infinite;
 }
 
 .pia-loader__button {
-  opacity: 0.3;
-  animation: pia-btn-light 3.2s linear infinite;
+  opacity: 0.68;
+  animation: pia-btn-light 6.4s linear infinite;
 }
 
 .pia-loader__diamond {
+  opacity: 0.9;
   animation: pia-dash 1.6s linear infinite;
 }
 
@@ -152,7 +163,7 @@
     transform: none;
   }
 
-  .pia-loader__highlight {
+  .pia-loader__phase--dpad [data-pia-role='glyph'] {
     display: none;
   }
 }
@@ -172,7 +183,7 @@ html[data-animations='off'] .pia-loader__center {
   transform: none;
 }
 
-html[data-animations='off'] .pia-loader__highlight {
+html[data-animations='off'] .pia-loader__phase--dpad [data-pia-role='glyph'] {
   display: none;
 }
 
@@ -189,5 +200,9 @@ html[data-animations='off'] .pia-loader__highlight {
   .pia-loader__center {
     opacity: 1;
     transform: none;
+  }
+
+  .pia-loader__phase--dpad [data-pia-role='glyph'] {
+    display: none;
   }
 }

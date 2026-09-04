@@ -30,8 +30,9 @@
  *
  * The rows used to be separate 10px cards with a gap between them, which at four
  * steps read as four unrelated objects. They are rows of one list, so they get one
- * frame and a rule between them. Ask's center pane is the vertical scroll owner;
- * this list grows inside it so the live card never creates a nested viewport.
+ * frame and a rule between them. The bounded working answer card is the vertical
+ * scroll owner; this list grows inside that single pane and never creates a
+ * nested viewport of its own.
  */
 .live-steps {
   list-style: none;

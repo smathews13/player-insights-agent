@@ -1146,59 +1146,57 @@ export function LatencyBody({
       <BlockHead
         id="ops-latency-heading"
         title="Latency"
-        meta="By route"
         control={
-          <>
-            {canFilterTrend ? (
-              <div className="ops-latency-trend-filters" role="group" aria-label="Filter by trend">
+          <div className="ops-latency-head-controls">
+            <div className="run-search monitoring-search ops-latency-search">
+              <Search aria-hidden="true" />
+              <Input
+                type="search"
+                placeholder="Search routes or methods…"
+                aria-label="Search latency routes by route or method"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              {search !== '' ? (
                 <button
                   type="button"
-                  className={astPill('pos', 'ops-pill ops-latency-trend-filter')}
-                  aria-pressed={showWithin}
-                  aria-label="Show routes within baseline"
-                  disabled={block.busy}
-                  onClick={() => setShowWithin((on) => !on)}
+                  className="monitoring-search-clear"
+                  onClick={() => setSearch('')}
+                  aria-label="Clear the route search"
                 >
-                  Within baseline
+                  <X className="size-3" aria-hidden="true" />
                 </button>
-                <button
-                  type="button"
-                  className={astPill('neg', 'ops-pill ops-latency-trend-filter')}
-                  aria-pressed={showOutside}
-                  aria-label="Show routes outside baseline"
-                  disabled={block.busy}
-                  onClick={() => setShowOutside((on) => !on)}
-                >
-                  Outside baseline
-                </button>
-              </div>
-            ) : null}
-            <div className="ops-latency-head-controls">
-              <div className="run-search monitoring-search ops-latency-search">
-                <Search aria-hidden="true" />
-                <Input
-                  type="search"
-                  placeholder="Search routes or methods…"
-                  aria-label="Search latency routes by route or method"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-                {search !== '' ? (
-                  <button
-                    type="button"
-                    className="monitoring-search-clear"
-                    onClick={() => setSearch('')}
-                    aria-label="Clear the route search"
-                  >
-                    <X className="size-3" aria-hidden="true" />
-                  </button>
-                ) : null}
-              </div>
-              <RefreshButton busy={block.busy} onRefresh={block.refresh} />
+              ) : null}
             </div>
-          </>
+            <RefreshButton busy={block.busy} onRefresh={block.refresh} />
+          </div>
         }
-      />
+      >
+        {canFilterTrend ? (
+          <div className="ops-latency-trend-filters" role="group" aria-label="Filter by trend">
+            <button
+              type="button"
+              className={astPill('pos', 'ops-pill ops-latency-trend-filter')}
+              aria-pressed={showWithin}
+              aria-label="Show routes within baseline"
+              disabled={block.busy}
+              onClick={() => setShowWithin((on) => !on)}
+            >
+              Within baseline
+            </button>
+            <button
+              type="button"
+              className={astPill('neg', 'ops-pill ops-latency-trend-filter')}
+              aria-pressed={showOutside}
+              aria-label="Show routes outside baseline"
+              disabled={block.busy}
+              onClick={() => setShowOutside((on) => !on)}
+            >
+              Outside baseline
+            </button>
+          </div>
+        ) : null}
+      </BlockHead>
 
       {block.busy && !payload ? null : (
         <BlockBody className={!absence && payload && routes.length > 0 ? 'ops-block-body-flush' : ''}>

@@ -8,8 +8,8 @@
  *   evenly spread stages once a run passed four steps, so a twenty-one step run
  *   showed four of them and silently dropped seventeen: the opposite of what
  *   a live view is for.
- * - The list grows inside Ask's center scroll pane. It never creates a second
- *   vertical viewport inside the live answer card.
+ * - The list grows inside the bounded live answer card. It never creates a
+ *   second vertical viewport inside that pane.
  */
 import type { CSSProperties } from 'react';
 import { Badge } from './ui';

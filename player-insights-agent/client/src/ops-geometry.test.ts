@@ -44,6 +44,8 @@ describe('latency baseline filter states', () => {
     expect(control).toContain('background-color 120ms ease');
     expect(control).not.toContain('transition: all');
     expect(control).not.toMatch(/border-width/);
+    expect(control).toMatch(/width:\s*132px/);
+    expect(control).toMatch(/box-sizing:\s*border-box/);
 
     const within = rule(".ops-latency-trend-filter.ast-pill--pos[aria-pressed='false']");
     const outside = rule(".ops-latency-trend-filter.ast-pill--neg[aria-pressed='false']");
@@ -57,6 +59,9 @@ describe('latency baseline filter states', () => {
     expect(selectedWithin).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--ast-pos-border\)/);
     expect(selectedOutside).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--ast-neg-border\)/);
     expect(`${selectedWithin}${selectedOutside}`).toMatch(/font-weight:\s*700/);
+    expect(`${within}${outside}${selectedWithin}${selectedOutside}`).not.toMatch(
+      /(?:width|padding|margin|border-width|transform)\s*:/
+    );
     expect(RULES).toContain(".ops-latency-trend-filter[aria-pressed='true']::before");
     expect(RULES).toContain("content: '✓'");
     expect(RULES).toContain('.ops-latency-trend-filter:active:not(:disabled)');
@@ -194,17 +199,24 @@ describe('the figures line up', () => {
     expect(rule('.ops-latency-trend-filter::before')).toMatch(/position:\s*absolute/);
   });
 
-  it('geometrically centers TREND and keeps search/Refresh in a separate right column', () => {
-    expect(rule('.ops-latency-block .ops-block-head')).toMatch(
-      /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+minmax\(0,\s*1fr\)/
-    );
+  it('keeps Latency and its grouped filters in one wrapping left cluster', () => {
+    expect(rule('.ops-block-head')).toMatch(/display:\s*flex/);
+    expect(rule('.ops-block-head')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.ops-latency-block .ops-block-head-text')).toMatch(/flex:\s*1\s+1\s+auto/);
+    expect(rule('.ops-latency-trend-filters')).toMatch(/display:\s*inline-flex/);
+    expect(rule('.ops-latency-trend-filters')).toMatch(/flex:\s*0\s+0\s+auto/);
+    expect(rule('.ops-latency-trend-filters')).toMatch(/flex-wrap:\s*nowrap/);
     expect(rule('.ops-latency-head-controls')).toMatch(/flex-wrap:\s*nowrap/);
-    expect(rule('.ops-latency-trend-filters')).toMatch(/grid-column:\s*2/);
-    expect(rule('.ops-latency-trend-filters')).toMatch(/justify-self:\s*center/);
-    expect(rule('.ops-latency-block .ops-latency-head-controls')).toMatch(/grid-column:\s*3/);
-    expect(rule('.ops-latency-block .ops-latency-head-controls')).toMatch(/justify-self:\s*end/);
+    expect(RULES).not.toMatch(/\.ops-latency-(?:block|trend-filters)[^{]*\{[^}]*(?:grid-column|justify-self):/);
+  });
+
+  it('moves only search and Refresh to a full-width row at the narrow breakpoint', () => {
     expect(RULES).toMatch(
-      /@media \(max-width:\s*800px\)[\s\S]*?\.ops-latency-trend-filters\s*\{[^}]*grid-row:\s*2;[\s\S]*?\.ops-latency-block \.ops-latency-head-controls\s*\{[^}]*grid-row:\s*3;/
+      /@media \(max-width:\s*800px\)[\s\S]*?\.ops-latency-block \.ops-block-head-text\s*\{[^}]*flex:\s*1\s+1\s+100%;[^}]*\}[\s\S]*?\.ops-latency-block \.ops-block-head-control\s*\{[^}]*flex:\s*1\s+0\s+100%;[^}]*width:\s*100%;[^}]*max-width:\s*none;[^}]*margin-left:\s*0;/
+    );
+    expect(rule('.ops-latency-trend-filters')).toMatch(/flex-wrap:\s*nowrap/);
+    expect(RULES).not.toMatch(
+      /@media \(max-width:\s*800px\)[\s\S]*?\.ops-latency-trend-filters\s*\{[^}]*(?:width:\s*100%|flex-wrap:\s*wrap)/
     );
   });
 });

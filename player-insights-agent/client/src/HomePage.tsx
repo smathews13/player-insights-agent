@@ -2199,7 +2199,7 @@ export function HomePage() {
       >
         <Plus /> New conversation
       </Button>
-      <div>
+      <div className="conversation-rail-content">
         <p className="section-label">Conversations</p>
         {adminSharedRail && rail.owners.length > 0 ? (
           <div className="conversation-filter-row">
@@ -2229,114 +2229,115 @@ export function HomePage() {
             </Suspense>
           </div>
         ) : null}
-        {conversationLoading && conversations.length === 0 ? (
-          <div className="space-y-2">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </div>
-        ) : railAvailability?.origin ===
-          'unavailable' /* Checked before the empty state, and the order is the whole point.
-                 Both arrive here with no rows. `role="status"` because nobody
-                 is waiting on this the way they wait on an answer, but a reader
-                 who has just been told the rail is empty needs the correction. */ ? (
-          <p className="conversation-empty" role="status">
-            {railUnreadableNotice.heading}. {railUnreadableNotice.consequence}
-          </p>
-        ) : conversations.length === 0 ? (
-          <p className="conversation-empty">{railEmptyNotice(identity.sharedConversationRail)}</p>
-        ) : visibleEntries.length === 0 ? (
-          <p className="conversation-empty">No conversations match the selected owner and persona.</p>
-        ) : (
-          visibleEntries.map(({ conversation, owner, you }) => {
-            // What this conversation's latest answered turn recorded, or null
-            // when nothing is known about it. Absent is the normal state for a
-            // conversation nobody has asked anything yet.
-            // The scoped read first, because it is the richer of the two: it
-            // carries the reader's own rating, which the rail list cannot know.
-            // The rail list answers for every OTHER row, which is every row
-            // somebody else owns -- those used to draw no badge at all.
-            const fallbackSummary = runSummaries.get(conversation.id) ?? conversationRunSummary(conversation);
-            const trackedRun = activeConversationRuns.get(conversation.id) ?? null;
-            const streamedRun = readLiveAsk(conversation.id);
-            const conversationStages = streamedRun?.stages.length
-              ? streamedRun.stages
-              : replayedStages(trackedRun?.status ?? null);
-            const summary = trackedRun?.summary ?? fallbackSummary;
-            const duration = summary ? railDuration(summary.durationMs) : null;
-            // A run in flight belongs to the open conversation. Seat the same
-            // live pill as the agent-steps pane here, including its breathing
-            // dot, instead of leaving the row badged with its previous turn.
-            const runningConversation = conversationIsLive(
-              activeConversationRuns,
-              conversation.id,
-              Boolean(streamedRun?.inFlight)
-            );
-            return (
-              // Drawn from the entry rather than from the conversation, so the
-              // watermark below is the same answer to "whose is this" that the
-              // chips above were counted from. Reading `conversation.user_email`
-              // here again is how the two came apart.
-              // A row rather than a bare button, because the delete control is
-              // a second button and one cannot be nested inside the other.
-              // Selecting the conversation is still the whole of the first
-              // button, so the click target for the common action is unchanged.
-              conversation.id === pendingDelete ? (
-                <div
-                  key={conversation.id}
-                  className="conversation-row confirming ast-surface-primary"
-                  role="group"
-                  aria-label={`Delete ${conversation.title}?`}
-                >
-                  <p className="conversation-confirm-question">Delete this conversation?</p>
-                  <p className="conversation-confirm-detail">
-                    Its questions, answers and traces are removed too. This cannot be undone.
-                  </p>
-                  <div className="conversation-confirm-actions">
-                    <button
-                      type="button"
-                      className="conversation-confirm-cancel"
-                      onClick={() => setPendingDelete(null)}
-                      disabled={deletingConversation !== null}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="conversation-confirm-delete"
-                      onClick={() => void deleteConversation(conversation.id)}
-                      disabled={deletingConversation !== null}
-                    >
-                      {deletingConversation === conversation.id ? 'Deleting…' : 'Delete'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  key={conversation.id}
-                  className={`conversation-row ast-surface-primary ${conversation.id === conversationId ? 'active' : ''}`}
-                >
-                  <button
-                    type="button"
-                    className="conversation-item"
-                    aria-pressed={conversation.id === conversationId}
-                    disabled={conversationLoading}
-                    onMouseEnter={() => startStoredAnswerRendererPreload()}
-                    onFocus={() => startStoredAnswerRendererPreload()}
-                    // Pushes a history entry rather than loading directly, so Back
-                    // returns to the conversation the user came from. The effect
-                    // watching the URL does the loading.
-                    onClick={() => {
-                      startStoredAnswerRendererPreload();
-                      // Persist in the click itself, before React processes the
-                      // URL change, so an immediate tab switch cannot race the
-                      // effect that loads the thread.
-                      rememberSelectedConversation(conversation.id);
-                      setRailSheetOpen(false);
-                      setSearchParams({ c: conversation.id });
-                    }}
+        <div className="conversation-list">
+          {conversationLoading && conversations.length === 0 ? (
+            <div className="space-y-2">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          ) : railAvailability?.origin ===
+            'unavailable' /* Checked before the empty state, and the order is the whole point.
+                   Both arrive here with no rows. `role="status"` because nobody
+                   is waiting on this the way they wait on an answer, but a reader
+                   who has just been told the rail is empty needs the correction. */ ? (
+            <p className="conversation-empty" role="status">
+              {railUnreadableNotice.heading}. {railUnreadableNotice.consequence}
+            </p>
+          ) : conversations.length === 0 ? (
+            <p className="conversation-empty">{railEmptyNotice(identity.sharedConversationRail)}</p>
+          ) : visibleEntries.length === 0 ? (
+            <p className="conversation-empty">No conversations match the selected owner and persona.</p>
+          ) : (
+            visibleEntries.map(({ conversation, owner, you }) => {
+              // What this conversation's latest answered turn recorded, or null
+              // when nothing is known about it. Absent is the normal state for a
+              // conversation nobody has asked anything yet.
+              // The scoped read first, because it is the richer of the two: it
+              // carries the reader's own rating, which the rail list cannot know.
+              // The rail list answers for every OTHER row, which is every row
+              // somebody else owns -- those used to draw no badge at all.
+              const fallbackSummary = runSummaries.get(conversation.id) ?? conversationRunSummary(conversation);
+              const trackedRun = activeConversationRuns.get(conversation.id) ?? null;
+              const streamedRun = readLiveAsk(conversation.id);
+              const conversationStages = streamedRun?.stages.length
+                ? streamedRun.stages
+                : replayedStages(trackedRun?.status ?? null);
+              const summary = trackedRun?.summary ?? fallbackSummary;
+              const duration = summary ? railDuration(summary.durationMs) : null;
+              // A run in flight belongs to the open conversation. Seat the same
+              // live pill as the agent-steps pane here, including its breathing
+              // dot, instead of leaving the row badged with its previous turn.
+              const runningConversation = conversationIsLive(
+                activeConversationRuns,
+                conversation.id,
+                Boolean(streamedRun?.inFlight)
+              );
+              return (
+                // Drawn from the entry rather than from the conversation, so the
+                // watermark below is the same answer to "whose is this" that the
+                // chips above were counted from. Reading `conversation.user_email`
+                // here again is how the two came apart.
+                // A row rather than a bare button, because the delete control is
+                // a second button and one cannot be nested inside the other.
+                // Selecting the conversation is still the whole of the first
+                // button, so the click target for the common action is unchanged.
+                conversation.id === pendingDelete ? (
+                  <div
+                    key={conversation.id}
+                    className="conversation-row confirming ast-surface-primary"
+                    role="group"
+                    aria-label={`Delete ${conversation.title}?`}
                   >
-                    {/* The head line: what the latest turn did, and when the
+                    <p className="conversation-confirm-question">Delete this conversation?</p>
+                    <p className="conversation-confirm-detail">
+                      Its questions, answers and traces are removed too. This cannot be undone.
+                    </p>
+                    <div className="conversation-confirm-actions">
+                      <button
+                        type="button"
+                        className="conversation-confirm-cancel"
+                        onClick={() => setPendingDelete(null)}
+                        disabled={deletingConversation !== null}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="conversation-confirm-delete"
+                        onClick={() => void deleteConversation(conversation.id)}
+                        disabled={deletingConversation !== null}
+                      >
+                        {deletingConversation === conversation.id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    key={conversation.id}
+                    className={`conversation-row ast-surface-primary ${conversation.id === conversationId ? 'active' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      className="conversation-item"
+                      aria-pressed={conversation.id === conversationId}
+                      disabled={conversationLoading}
+                      onMouseEnter={() => startStoredAnswerRendererPreload()}
+                      onFocus={() => startStoredAnswerRendererPreload()}
+                      // Pushes a history entry rather than loading directly, so Back
+                      // returns to the conversation the user came from. The effect
+                      // watching the URL does the loading.
+                      onClick={() => {
+                        startStoredAnswerRendererPreload();
+                        // Persist in the click itself, before React processes the
+                        // URL change, so an immediate tab switch cannot race the
+                        // effect that loads the thread.
+                        rememberSelectedConversation(conversation.id);
+                        setRailSheetOpen(false);
+                        setSearchParams({ c: conversation.id });
+                      }}
+                    >
+                      {/* The head line: what the latest turn did, and when the
                         conversation was last touched. The same pair, in the same
                         places, as the recorded-runs card in the Run Explorer, which
                         is the list this rail is the other view of.
@@ -2346,67 +2347,68 @@ export function HomePage() {
                         and one whose turns belong to somebody else and were never
                         sent to this browser, both have no status to report, and the
                         line is then the date alone. */}
-                    <span className="conversation-item-head">
-                      <ConversationRailRunStatus
-                        run={trackedRun}
-                        stages={conversationStages}
-                        streamed={Boolean(streamedRun?.inFlight)}
-                        fallback={fallbackSummary}
-                      />
-                      <span className="conversation-age ast-num">{conversationAge(conversation.updated_at)}</span>
-                    </span>
-                    {/* The clamp is two lines, so a long label is cut on screen even
+                      <span className="conversation-item-head">
+                        <ConversationRailRunStatus
+                          run={trackedRun}
+                          stages={conversationStages}
+                          streamed={Boolean(streamedRun?.inFlight)}
+                          fallback={fallbackSummary}
+                        />
+                        <span className="conversation-age ast-num">{conversationAge(conversation.updated_at)}</span>
+                      </span>
+                      {/* The clamp is two lines, so a long label is cut on screen even
                         though the row now stores it whole. The tooltip is how a reader
                         gets the rest of it back without opening the conversation. */}
-                    <span
-                      className="conversation-title"
-                      id={railTitleId(conversation.id, scope)}
-                      title={conversation.title}
-                    >
-                      {conversation.title}
-                    </span>
-                    <span className="conversation-meta">
-                      {/* Wall time of that latest turn, when the trace recorded one.
+                      <span
+                        className="conversation-title"
+                        id={railTitleId(conversation.id, scope)}
+                        title={conversation.title}
+                      >
+                        {conversation.title}
+                      </span>
+                      <span className="conversation-meta">
+                        {/* Wall time of that latest turn, when the trace recorded one.
                           Absent rather than zero for a turn stored before it did. */}
-                      {duration && <span className="conversation-duration ast-num">{duration}</span>}
-                      {summary?.feedback ? (
-                        <Suspense fallback={null}>
-                          <RunRatingBadge feedback={summary.feedback} />
-                        </Suspense>
-                      ) : null}
-                    </span>
-                  </button>
-                  {adminSharedRail && owner ? (
-                    <Suspense fallback={null}>
-                      <UserDrilldownLink
-                        identity={owner}
-                        label="Asked by"
-                        compact
-                        className="conversation-owner"
-                        canOpen
-                      />
-                    </Suspense>
-                  ) : null}
-                  {you ? (
-                    <button
-                      type="button"
-                      className="conversation-delete"
-                      // Name says what it does, description says what it acts
-                      // on, and assistive tech announces them in that order.
-                      aria-label="Delete conversation"
-                      aria-describedby={railTitleId(conversation.id, scope)}
-                      title="Delete this conversation"
-                      disabled={runningConversation || conversationLoading}
-                      onClick={() => setPendingDelete(conversation.id)}
-                    >
-                      <Trash2 aria-hidden="true" />
+                        {duration && <span className="conversation-duration ast-num">{duration}</span>}
+                        {summary?.feedback ? (
+                          <Suspense fallback={null}>
+                            <RunRatingBadge feedback={summary.feedback} />
+                          </Suspense>
+                        ) : null}
+                      </span>
                     </button>
-                  ) : null}
-                </div>
-              )
-            );
-          })
-        )}
+                    {adminSharedRail && owner ? (
+                      <Suspense fallback={null}>
+                        <UserDrilldownLink
+                          identity={owner}
+                          label="Asked by"
+                          compact
+                          className="conversation-owner"
+                          canOpen
+                        />
+                      </Suspense>
+                    ) : null}
+                    {you ? (
+                      <button
+                        type="button"
+                        className="conversation-delete"
+                        // Name says what it does, description says what it acts
+                        // on, and assistive tech announces them in that order.
+                        aria-label="Delete conversation"
+                        aria-describedby={railTitleId(conversation.id, scope)}
+                        title="Delete this conversation"
+                        disabled={runningConversation || conversationLoading}
+                        onClick={() => setPendingDelete(conversation.id)}
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </button>
+                    ) : null}
+                  </div>
+                )
+              );
+            })
+          )}
+        </div>
       </div>
     </>
   );
@@ -2440,6 +2442,7 @@ export function HomePage() {
       data-inspector={inspectorIdle ? 'idle' : 'run'}
       data-transcript={transcriptEmpty ? 'empty' : 'active'}
       data-stage-mode={currentStage.mode}
+      data-center-state={loading ? 'working' : conversationLoading ? 'restoring' : answer ? 'final' : 'idle'}
     >
       <aside className="conversation-rail ast-surface-primary">{renderRail('rail')}</aside>
 

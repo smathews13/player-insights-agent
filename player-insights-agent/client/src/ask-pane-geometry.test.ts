@@ -28,40 +28,58 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     expect(rule(RUNS, '.run-explorer')).toContain('--run-explorer-pane-block-size: var(--workspace-pane-block-size)');
   });
 
-  it('keeps only the no-evidence planning center at 360–520px', () => {
+  it('keeps every active-loading card compact at 360–520px and at most 60dvh', () => {
     const layout = rule(RAIL, '.ask-layout');
-    expect(layout).toContain('--ask-composer-block-reserve: 144px');
-    expect(layout).toMatch(
-      /--ask-planning-pane-block-size:\s*clamp\(\s*360px,\s*calc\(\s*100dvh - var\(--app-header-h\) - var\(--ask-composer-block-reserve\) -\s*env\(safe-area-inset-bottom,\s*0px\)\s*\),\s*520px\s*\)/
-    );
-    const planning = rule(ASK, ".ask-layout[data-transcript='active'][data-stage-mode='planning'] .conversation-main");
-    for (const property of ['height', 'min-height', 'max-height']) {
-      expect(planning).toContain(`${property}: var(--ask-planning-pane-block-size)`);
-    }
-    expect(planning).toContain('overflow-y: auto');
+    expect(layout).toContain('--ask-active-card-min-block-size: min(360px, 60dvh)');
+    expect(layout).toContain('--ask-active-card-max-block-size: min(520px, 60dvh)');
+    const working = rule(ASK, ".ask-layout[data-center-state='working'] .conversation-main > .answer-card");
+    expect(working).toContain('height: auto');
+    expect(working).toContain('min-height: var(--ask-active-card-min-block-size)');
+    expect(working).toContain('max-height: var(--ask-active-card-max-block-size)');
+    expect(working).toContain('overflow-y: auto');
+    expect(working).toContain('scrollbar-gutter: stable');
+    expect(rule(ASK, ".ask-layout[data-center-state='working'] .conversation-main")).toContain('min-height: 0');
+    expect(HOME).toContain("data-center-state={loading ? 'working'");
   });
 
-  it('restores independent full-height scroll owners for Conversations and Agent path', () => {
-    const sideRails = rule(RAIL, '.ask-layout > .conversation-rail,\n.trace-inspector');
+  it('keeps the left rail viewport-tall with one scrolling list and visible controls', () => {
+    const left = rule(RAIL, '.ask-layout > .conversation-rail');
     for (const property of ['height', 'min-height', 'max-height']) {
-      expect(sideRails).toContain(`${property}: var(--workspace-pane-block-size)`);
+      expect(left).toContain(`${property}: var(--ask-rail-block-size)`);
     }
-    expect(sideRails).not.toContain('var(--ask-planning-pane-block-size)');
-    expect(RAIL).toMatch(/\n\.conversation-rail\s*\{[^}]*overflow-y:\s*auto/);
+    expect(left).toContain('position: sticky');
+    expect(left).toContain('overflow: hidden');
+    expect(left).toContain('border-bottom: 1px solid var(--db-line)');
+    expect(RAIL).toMatch(/\n\.conversation-rail\s*\{[^}]*overflow:\s*hidden/);
+    const list = rule(RAIL, '.conversation-list');
+    expect(list).toContain('min-height: 0');
+    expect(list).toContain('overflow-y: auto');
+    expect(list).toContain('scrollbar-gutter: stable');
+    expect(HOME).toMatch(
+      /className="conversation-rail-content"[\s\S]*?className="section-label"[\s\S]*?className="conversation-list"/
+    );
+  });
+
+  it('keeps Agent path tall and independently scrollable', () => {
+    const right = rule(RAIL, '.trace-inspector');
+    for (const property of ['height', 'min-height', 'max-height']) {
+      expect(right).toContain(`${property}: var(--workspace-pane-block-size)`);
+    }
+    expect(right).not.toContain('var(--ask-active-card');
     expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*overflow-y:\s*auto/);
     expect(rule(RAIL, '.ask-layout > .conversation-rail')).toMatch(/grid-column:\s*1/);
     expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*grid-column:\s*3/);
   });
 
-  it('lets real timelines and final answers grow through normal page flow', () => {
+  it('lets only final answers grow through normal page flow', () => {
     const center = rule(ASK, '.conversation-main');
     expect(center).toContain('height: auto');
     expect(center).toContain('min-height: calc(100dvh - var(--app-header-h))');
     expect(center).toContain('max-height: none');
     expect(center).toContain('overflow-y: visible');
-    expect(center).not.toContain('var(--ask-planning-pane-block-size)');
+    expect(center).not.toContain('var(--ask-active-card');
     expect(ASK).toMatch(
-      /\.ask-layout\[data-transcript='active'\]:not\(\[data-stage-mode='planning'\]\)[\s\S]*?\.answer-card\s*\{[^}]*min-height:\s*calc\(100dvh - var\(--app-header-h\)\)[^}]*max-height:\s*none[^}]*overflow:\s*visible/
+      /\.ask-layout\[data-center-state='final'\][\s\S]*?\.answer-card\s*\{[^}]*min-height:\s*calc\(100dvh - var\(--app-header-h\)\)[^}]*max-height:\s*none[^}]*overflow:\s*visible/
     );
     expect(rule(ANSWER_BODY, '.answer-card-content')).toMatch(/grid-auto-rows:\s*auto[\s\S]*overflow:\s*visible/);
   });
@@ -81,6 +99,9 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     );
     expect(RESPONSIVE).toMatch(
       /@media \(max-width: 800px\)[\s\S]*?\.ask-layout\[data-transcript='active'\][^{]*\.answer-card\s*\{[^}]*min-height:\s*280px/
+    );
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*?\.ask-layout\[data-center-state='working'\] \.conversation-main > \.answer-card\s*\{[^}]*max-height:\s*none[^}]*overflow:\s*visible/
     );
     expect(RESPONSIVE_RUNS).toMatch(
       /@media \(max-width: 960px\)[\s\S]*?\.run-list\s*\{[^}]*height:\s*auto[^}]*overflow:\s*visible/
@@ -102,8 +123,13 @@ describe('the Ask composer follows the answer pane in normal flow', () => {
     expect(rule(RAIL, '.conversation-column')).toMatch(/grid-template-rows:\s*auto auto/);
   });
 
-  it('keeps a deliberate positive gap and no second dead-space reserve', () => {
-    expect(rule(RAIL, '.conversation-column')).toMatch(/gap:\s*20px/);
+  it('keeps a 12px gap and no second dead-space reserve', () => {
+    expect(rule(RAIL, '.conversation-column')).toMatch(/gap:\s*12px/);
+    expect(rule(ASK, ".ask-layout[data-transcript='active'] .conversation-main")).toContain('padding-bottom: 0');
+    expect(rule(ASK, ".ask-layout[data-center-state='working'] .conversation-main > .answer-card")).toContain(
+      'margin-bottom: 0'
+    );
+    expect(ASK).toMatch(/\.ask-layout\[data-center-state='final'\][\s\S]*?\.answer-card\s*\{[^}]*margin-bottom:\s*0/);
     expect(ASK).not.toContain('--composer-reserve');
     expect(COMPOSER).not.toContain('--composer-reserve');
   });
