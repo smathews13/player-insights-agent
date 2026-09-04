@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Search, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { MessageSquareText, Search, ThumbsDown, ThumbsUp, X, type LucideIcon } from 'lucide-react';
 
 import type { MonitoringFeedbackPayload, MonitoringFeedbackRow } from '../../shared/monitoring-feedback-contract';
 import { isRole } from '../../shared/user-roster-contract';
@@ -15,6 +15,7 @@ import { Dialog } from './Dialog';
 import { TimeRangeSegments } from './TimeRangeControl';
 import { UserDrilldownLink } from './UserDrilldownLink';
 import { RoleBadgePill } from './RoleBadge';
+import { astPill } from './pia-pill';
 
 const NO_FILTER = '__any__';
 const SEARCH_DELAY_MS = 250;
@@ -82,6 +83,7 @@ function FeedbackFilter({
         ...options,
       ]}
       onValueChange={(next) => onChange(next === NO_FILTER ? '' : next)}
+      className={`monitoring-feedback-filter-trigger monitoring-feedback-filter-${label.toLowerCase()}`}
       contentClassName="monitoring-users-filter-menu"
     />
   );
@@ -126,6 +128,95 @@ function FeedbackRowsLoading() {
         ))}
       </div>
     </div>
+  );
+}
+
+function FeedbackKpi({
+  label,
+  value,
+  unavailable,
+  loading,
+  period,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  unavailable?: string;
+  loading: boolean;
+  period: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <div className="monitoring-feedback-kpi">
+      <div className="monitoring-feedback-kpi-head">
+        <span className="monitoring-feedback-kpi-label">
+          <Icon aria-hidden="true" />
+          {label}
+        </span>
+        <span className={astPill('neutral-outline', 'monitoring-period-badge')} aria-hidden="true">
+          {period}
+        </span>
+      </div>
+      {loading ? (
+        <Skeleton className="monitoring-feedback-kpi-skeleton" aria-label={`Loading ${label.toLowerCase()}`} />
+      ) : unavailable ? (
+        <p className="monitoring-feedback-kpi-unavailable">{unavailable}</p>
+      ) : (
+        <p className="monitoring-feedback-kpi-value ast-num">{value}</p>
+      )}
+    </div>
+  );
+}
+
+function FeedbackKpis({ state, period }: { state: PanelLoadState<MonitoringFeedbackPayload>; period: string }) {
+  const payload = state.status === 'ready' ? state.data : null;
+  const loading = state.status === 'idle' || state.status === 'loading';
+  const unavailable = state.status === 'error' ? 'Unavailable' : '';
+  const total = payload?.summary.total ?? 0;
+  const helpfulRate = total > 0 ? `${Math.round(((payload?.summary.helpful ?? 0) / total) * 100)}%` : '';
+  return (
+    <section className="monitoring-feedback-kpis" aria-label={`Feedback summary, ${period}`}>
+      <FeedbackKpi
+        label="Total feedback"
+        value={(payload?.summary.total ?? 0).toLocaleString()}
+        unavailable={unavailable}
+        loading={loading}
+        period={period}
+        icon={MessageSquareText}
+      />
+      <FeedbackKpi
+        label="Helpful"
+        value={(payload?.summary.helpful ?? 0).toLocaleString()}
+        unavailable={unavailable}
+        loading={loading}
+        period={period}
+        icon={ThumbsUp}
+      />
+      <FeedbackKpi
+        label="Not helpful"
+        value={(payload?.summary.notHelpful ?? 0).toLocaleString()}
+        unavailable={unavailable}
+        loading={loading}
+        period={period}
+        icon={ThumbsDown}
+      />
+      <FeedbackKpi
+        label="Helpful rate"
+        value={helpfulRate}
+        unavailable={unavailable || (payload && total === 0 ? 'No feedback' : '')}
+        loading={loading}
+        period={period}
+        icon={ThumbsUp}
+      />
+      <FeedbackKpi
+        label="Comments captured"
+        value={(payload?.summary.comments ?? 0).toLocaleString()}
+        unavailable={unavailable}
+        loading={loading}
+        period={period}
+        icon={MessageSquareText}
+      />
+    </section>
   );
 }
 
@@ -246,70 +337,77 @@ export function FeedbackBrowserPanel({
         </Button>
       </header>
       <div className="monitoring-users-body monitoring-feedback-body">
+        <FeedbackKpis state={state} period={rangeLabel} />
         <div className="monitoring-users-toolbar monitoring-feedback-toolbar">
-          <FeedbackSearch value={filters.search} onChange={(search) => onFilters({ ...filters, search })} />
-          <TimeRangeSegments page="Feedback" value={range} onChange={onRange} />
-          <FeedbackFilter
-            label="Feedback"
-            value={filters.feedback}
-            options={[
-              { value: 'up', label: 'Helpful' },
-              { value: 'down', label: 'Not helpful' },
-            ]}
-            onChange={(feedback) => onFilters({ ...filters, feedback: feedback as FeedbackBrowserFilters['feedback'] })}
-          />
-          <FeedbackFilter
-            label="User"
-            value={filters.user}
-            options={(payload?.filters.users ?? []).map((option) => ({
-              value: option.value,
-              label: `${option.label} (${option.count})`,
-            }))}
-            onChange={(user) => onFilters({ ...filters, user })}
-          />
-          <FeedbackFilter
-            label="Role"
-            value={filters.role}
-            options={(payload?.filters.roles ?? []).map((option) => {
-              const role = isRole(option.value) ? option.value : null;
-              return {
+          <div className="monitoring-feedback-toolbar-primary">
+            <FeedbackSearch value={filters.search} onChange={(search) => onFilters({ ...filters, search })} />
+            <TimeRangeSegments page="Feedback" value={range} onChange={onRange} />
+            {changed ? (
+              <Button variant="ghost" size="sm" onClick={onClear}>
+                Clear filters
+              </Button>
+            ) : null}
+          </div>
+          <div className="monitoring-feedback-filter-row">
+            <FeedbackFilter
+              label="Feedback"
+              value={filters.feedback}
+              options={[
+                { value: 'up', label: 'Helpful' },
+                { value: 'down', label: 'Not helpful' },
+              ]}
+              onChange={(feedback) =>
+                onFilters({ ...filters, feedback: feedback as FeedbackBrowserFilters['feedback'] })
+              }
+            />
+            <FeedbackFilter
+              label="User"
+              value={filters.user}
+              options={(payload?.filters.users ?? []).map((option) => ({
                 value: option.value,
                 label: `${option.label} (${option.count})`,
-                content: role ? (
-                  <>
-                    <RoleBadgePill state={role} />
-                    <span className="monitoring-role-filter-count">({option.count})</span>
-                  </>
-                ) : (
-                  `${option.label} (${option.count})`
-                ),
-              };
-            })}
-            onChange={(role) => onFilters({ ...filters, role })}
-          />
-          <FeedbackFilter
-            label="Persona"
-            value={filters.persona}
-            options={(payload?.filters.personas ?? []).map((option) => ({
-              value: option.value,
-              label: `${option.label} (${option.count})`,
-            }))}
-            onChange={(persona) => onFilters({ ...filters, persona })}
-          />
-          <FeedbackFilter
-            label="Organization"
-            value={filters.organization}
-            options={(payload?.filters.organizations ?? []).map((option) => ({
-              value: option.value,
-              label: `${option.label} (${option.count})`,
-            }))}
-            onChange={(organization) => onFilters({ ...filters, organization })}
-          />
-          {changed ? (
-            <Button variant="ghost" size="sm" onClick={onClear}>
-              Clear filters
-            </Button>
-          ) : null}
+              }))}
+              onChange={(user) => onFilters({ ...filters, user })}
+            />
+            <FeedbackFilter
+              label="Role"
+              value={filters.role}
+              options={(payload?.filters.roles ?? []).map((option) => {
+                const role = isRole(option.value) ? option.value : null;
+                return {
+                  value: option.value,
+                  label: `${option.label} (${option.count})`,
+                  content: role ? (
+                    <>
+                      <RoleBadgePill state={role} />
+                      <span className="monitoring-role-filter-count">({option.count})</span>
+                    </>
+                  ) : (
+                    `${option.label} (${option.count})`
+                  ),
+                };
+              })}
+              onChange={(role) => onFilters({ ...filters, role })}
+            />
+            <FeedbackFilter
+              label="Persona"
+              value={filters.persona}
+              options={(payload?.filters.personas ?? []).map((option) => ({
+                value: option.value,
+                label: `${option.label} (${option.count})`,
+              }))}
+              onChange={(persona) => onFilters({ ...filters, persona })}
+            />
+            <FeedbackFilter
+              label="Organization"
+              value={filters.organization}
+              options={(payload?.filters.organizations ?? []).map((option) => ({
+                value: option.value,
+                label: `${option.label} (${option.count})`,
+              }))}
+              onChange={(organization) => onFilters({ ...filters, organization })}
+            />
+          </div>
         </div>
 
         {state.status === 'error' ? (

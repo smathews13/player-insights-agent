@@ -223,6 +223,9 @@ export const MONITORING_FEEDBACK_QUERY = `
     SELECT COUNT(*)::int AS total_feedback,
            COUNT(*) FILTER (WHERE direction = 'up')::int AS helpful_feedback,
            COUNT(*) FILTER (WHERE direction = 'down')::int AS not_helpful_feedback,
+           COUNT(*) FILTER (
+             WHERE direction = 'down' AND comment IS NOT NULL AND btrim(comment) <> ''
+           )::int AS comments_captured,
            COALESCE(MAX(feedback_at)::text, '') || ':' || COUNT(*)::text AS data_revision
       FROM filtered
   ),
@@ -383,6 +386,7 @@ export function setupMonitoringFeedbackRoutes(
           total: integer(first.total_feedback),
           helpful: integer(first.helpful_feedback),
           notHelpful: integer(first.not_helpful_feedback),
+          comments: integer(first.comments_captured),
         },
         rows,
         filters: {

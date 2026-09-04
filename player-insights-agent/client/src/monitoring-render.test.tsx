@@ -1130,17 +1130,7 @@ describe('the detail modal', () => {
     expect(rendered).not.toMatch(/·\s*$/m);
   });
 
-  /**
-   * WHERE THE THREE ONWARD LINKS ARE, which is the whole of this claim.
-   *
-   * They were the last thing in the old drawer, under the answer, the timeline,
-   * the token count and the feedback -- so on a real run an admin scrolled a
-   * full answer and a ten-step trace before reaching the trace link they opened
-   * the question to follow. Asserted as an ORDERING rather than as presence,
-   * because every presence assertion in this file passed while they were at the
-   * bottom.
-   */
-  it('puts the three onward links at the top, above the answer and the trace', () => {
+  it('puts the attached user link and run actions above the answer and trace', () => {
     const markup = render(<QuestionDrawer detail={detail()} onClose={() => {}} canOpenUser />);
 
     const mlflow = markup.indexOf('Open the MLflow trace');
@@ -1148,20 +1138,20 @@ describe('the detail modal', () => {
     const person = markup.indexOf('aria-label="Open user overview for first.person"');
     expect(mlflow).toBeGreaterThan(-1);
 
-    // Still the same three, still in the same order across the row.
+    // The person is attached to the question; the two run actions follow below.
+    expect(person).toBeLessThan(mlflow);
     expect(mlflow).toBeLessThan(runs);
-    expect(runs).toBeLessThan(person);
 
-    // And all three above everything a reader would have had to scroll past.
-    expect(person).toBeLessThan(markup.indexOf('The leading title is ahead on daily active players.'));
-    expect(person).toBeLessThan(markup.indexOf('Run process'));
-    expect(person).toBeLessThan(markup.indexOf('1,200 tokens recorded on this run.'));
-    expect(person).toBeLessThan(markup.indexOf('Not helpful'));
+    // All three controls remain above everything a reader would scroll past.
+    expect(runs).toBeLessThan(markup.indexOf('The leading title is ahead on daily active players.'));
+    expect(runs).toBeLessThan(markup.indexOf('Run process'));
+    expect(runs).toBeLessThan(markup.indexOf('1,200 tokens recorded on this run.'));
+    expect(runs).toBeLessThan(markup.indexOf('Not helpful'));
   });
 
   it('keeps the links above the answer on a run that recorded no trace id', () => {
     // The MLflow link is absent rather than dead, and its absence must not drop
-    // the other two back under the answer.
+    // Run Explorer back under the answer.
     const rendered = text(
       render(<QuestionDrawer detail={detail({ mlflowUrl: null })} onClose={() => {}} canOpenUser />)
     );
@@ -1229,7 +1219,7 @@ describe('the detail modal', () => {
     );
 
     expect(rendered).not.toContain('Open the MLflow trace');
-    // The other two links are unaffected.
+    // The remaining run link and the attached asker are unaffected.
     expect(rendered).toContain('Open in Run Explorer');
     expect(rendered).toContain('first.person');
   });
@@ -1241,7 +1231,7 @@ describe('the detail modal', () => {
     );
     const rendered = text(markup);
     expect(markup).toContain('class="user-drilldown-link user-drilldown-link--chip"');
-    expect(markup).toContain('class="identity-chip identity-chip--compact"');
+    expect(markup).toContain('class="identity-chip identity-chip--compact question-attribution-user"');
     expect(markup).toContain('lucide-user-round');
     expect(markup).toContain('aria-label="Open user overview for <your-username>"');
     expect(markup).toContain('href="/monitoring?range=7d&amp;userSearch=sam&amp;who=<your-username>%40example.test"');
@@ -1253,7 +1243,7 @@ describe('the detail modal', () => {
     expect(rendered).not.toMatch(/see sam\.mathews|sam\.mathews['’]s? activity|this person['’]s activity/i);
   });
 
-  it('aligns and wraps the user badge beside Run Explorer without widening the modal', () => {
+  it('wraps the remaining run actions without widening the modal', () => {
     expect(MONITORING_CSS).toMatch(
       /\.monitoring-drawer-links\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*flex-wrap:\s*wrap[^}]*min-width:\s*0/s
     );
@@ -1265,7 +1255,7 @@ describe('the detail modal', () => {
       <QuestionDrawer detail={detail({ askedBy: '<your-username>@example.test' })} onClose={() => {}} canOpenUser={false} />
     );
 
-    expect(markup).toContain('class="identity-chip identity-chip--compact"');
+    expect(markup).toContain('class="identity-chip identity-chip--compact question-attribution-user"');
     expect(markup).not.toContain('aria-label="Open user overview for <your-username>"');
     expect(markup).not.toContain('who=<your-username>%40example.test');
   });

@@ -604,24 +604,15 @@ describe('the two marks that sign a transcript', () => {
     expect(body('.agent-avatar svg')).toMatch(/height:\s*32px/);
   });
 
-  it('outlines every reader question and leaves the full asker name visible', () => {
+  it('renders every reader question through the connected attribution bubble', () => {
     // Every live, replayed, follow-up and plan-approval user turn reaches this one
-    // role branch, so the class is the contract for all question surfaces.
-    expect(HOME_PAGE).toMatch(/message\.role === 'user'[\s\S]{0,180}className="user-bubble"/);
-    expect(body('.user-bubble')).toMatch(/border:\s*1px solid var\(--ast-blue-on-dark\)/);
-    // 8/8/2/8, per the handoff. It was 14/14/3/14, and a 14px bubble beside an 8px
-    // answer card reads as two different applications.
-    expect(body('.user-bubble')).toMatch(/border-radius:\s*8px 8px 2px 8px/);
-    // THE SKY'S PANE, which is the same token the answer card below it takes, and
-    // the two earlier surfaces here are worth keeping apart because they failed for
-    // different reasons. `rgba(245, 246, 248, 0.85)` was a light NEUTRAL: 15% of the
-    // navy through a grey fill is the mid-grey slab Sam reported, and the fault was
-    // the base colour as much as the alpha. Opaque `--ast-white` fixed the slab and
-    // caused the next report: an opaque bubble directly above a translucent card is
-    // what made the card read as grey. Pure white base, one shared alpha.
-    expect(body('.user-bubble')).toMatch(/background:\s*var\(--ast-pane\)/);
-    expect(body('.user-avatar')).toMatch(/max-width:\s*none/);
-    expect(body('.user-avatar .identity-chip-text')).toMatch(/overflow:\s*visible/);
+    // role branch, so both current and replayed questions share this contract.
+    expect(HOME_PAGE).toMatch(/message\.role === 'user'[\s\S]{0,260}<QuestionAttributionBubble/);
+    expect(body('.question-attribution-message')).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+    expect(body('.question-attribution-message')).toMatch(/background:\s*var\(--ast-pane\)/);
+    expect(body('.question-attribution-message::after')).toMatch(/content:\s*''/);
+    expect(body('.user-message')).not.toMatch(/gap:\s*[1-9]/);
+    expect(body('.user-message .question-attribution-user')).toMatch(/max-width:\s*none/);
   });
 });
 

@@ -21,7 +21,6 @@ import { partial, stylesheet } from './styles/stylesheet';
  */
 const CARD = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
 const CAVEATS = readFileSync(new URL('./KeepInMind.tsx', import.meta.url), 'utf8');
-const AI_CAVEAT = readFileSync(new URL('./AIAnalysisCaveat.tsx', import.meta.url), 'utf8');
 /**
  * The card's copy with its comments removed, for the assertions about what the
  * card may not SAY. The comments explain at length what a sentence used to claim
@@ -609,17 +608,9 @@ describe('the closing note and the feedback row', () => {
     expect(ruleFor(BODY_CSS, '.feedback > button {')).toContain('width: 30px');
   });
 
-  it('keeps data-access evidence separate from the shared AI caveat', () => {
-    // Load-bearing evidence still reaches the card, but no longer changes the
-    // generic warning's accessible sentence.
+  it('keeps data-access evidence without repeating the composer caveat', () => {
     expect(CARD).toContain('<p className="data-access-note">{dataAccess}</p>');
-    expect(CARD).toContain('<AIAnalysisCaveat className="ai-note" />');
-  });
-
-  it('keeps the caveat signed by PIA rather than a Genie product icon', () => {
-    expect(AI_CAVEAT).toContain("import { PiaMark } from './PiaMark'");
-    expect(AI_CAVEAT).toContain('<PiaMark size={14} />');
-    expect(AI_CAVEAT).not.toMatch(/BrandIcon|productForTool|Genie/);
+    expect(CARD).not.toContain('AIAnalysisCaveat');
   });
 
   it('takes the identity half of that disclosure from the run, not from a constant', () => {
@@ -633,7 +624,7 @@ describe('the closing note and the feedback row', () => {
     expect(PROSE).not.toMatch(/Data access executed by/i);
   });
 
-  it('ends the note after the caveat when the run recorded no identity', () => {
+  it('ends cleanly when the run recorded no identity', () => {
     // The footer used to close "The identity this data was read as is
     // unconfirmed." on every run whose identity was not recorded. It is gone
     // rather than reworded: a doubt printed under an answer is a claim about
@@ -645,9 +636,10 @@ describe('the closing note and the feedback row', () => {
     expect(PROSE).not.toMatch(/unconfirmed/i);
   });
 
-  it('sets the note at 12px in the secondary grey', () => {
-    expect(ruleFor(BODY_CSS, '.ai-note {')).toContain('font-size: var(--ast-fs-12)');
-    expect(ruleFor(BODY_CSS, '.ai-note {')).toContain('color: var(--ast-text-secondary)');
+  it('sets the access note at 12px and leaves no answer-caveat gap', () => {
+    expect(ruleFor(BODY_CSS, '.data-access-note {')).toContain('font-size: var(--ast-fs-12)');
+    expect(ruleFor(BODY_CSS, '.data-access-note {')).toContain('color: var(--ast-text-secondary)');
+    expect(BODY_CSS).not.toContain('.ai-note');
   });
 });
 

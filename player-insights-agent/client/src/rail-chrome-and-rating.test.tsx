@@ -36,6 +36,7 @@ const strip = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, ' ');
 const SHELL = strip(partial('shell.css'));
 const ACCOUNT = strip(partial('account-menu.css'));
 const ASK = strip(partial('ask.css'));
+const QUESTION_ATTRIBUTION = strip(partial('question-attribution.css'));
 const RAIL = partial('rail.css');
 const SETTINGS = strip(partial('settings.css'));
 const DARK = strip(partial('dark-mode.css'));
@@ -126,7 +127,7 @@ describe('the release badge and the two controls beside it', () => {
 
   it('answers the pointer with its own near-opaque identity lift', () => {
     expect(ACCOUNT).toMatch(
-      /\.account-menu-trigger\.identity-chip:hover,[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-chrome\) 96%,\s*var\(--ast-pos-text\)\)/
+      /\.account-menu-trigger\.identity-chip:hover,[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-chrome\) 94%,\s*var\(--ast-pos-text\)\)/
     );
     expect(SHELL).toMatch(
       /\.deployment-time-chip:hover,\s*\.deployment-time-chip:focus-visible \{\s*background: var\(--muted\)/
@@ -223,9 +224,10 @@ describe('the question staggered right of the answer', () => {
     expect(row).not.toContain('transform');
     expect(row).not.toContain('margin-right');
     expect(row).not.toContain('padding-right');
-    // The row still ends at the measure's right edge. The offset is the left
-    // inset, so a long prompt cannot begin where the answer begins.
-    expect(row).toMatch(/justify-content:\s*flex-end/);
+    // The row still ends at the measure's right edge. The shared connected
+    // bubble now owns the flex alignment, while this Ask-only row owns only the
+    // left inset.
+    expect(rule(QUESTION_ATTRIBUTION, '.question-attribution-bubble')).toMatch(/justify-content:\s*flex-end/);
   });
 
   it('gives the lane back where there is no harness column to lean toward', () => {
@@ -263,9 +265,9 @@ describe('the settings pane uses elevated semantic glass', () => {
 
   it('stays glass rather than becoming a slab', () => {
     expect(ASTROLABE).toMatch(
-      /--ast-surface-elevated:\s*color-mix\(in srgb,\s*var\(--ast-white\) 97%,\s*transparent\)/
+      /--ast-surface-elevated:\s*color-mix\(in srgb,\s*var\(--ast-white\) 99\.5%,\s*transparent\)/
     );
-    expect(ASTROLABE).toMatch(/--ast-surface-menu:\s*color-mix\(in srgb,\s*var\(--ast-white\) 98\.5%,\s*transparent\)/);
+    expect(ASTROLABE).toMatch(/--ast-surface-menu:\s*color-mix\(in srgb,\s*var\(--ast-white\) 100%,\s*transparent\)/);
   });
 
   it('gives none of that glass to a reader who asked for less transparency', () => {

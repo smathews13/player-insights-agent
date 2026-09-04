@@ -1,0 +1,64 @@
+/* Shared organization identity primitive. Its component is used only from
+   lazy account, Settings, Monitoring, and Connections surfaces, so the paint
+   follows that component instead of taxing Ask's initial stylesheet. */
+.roster-organization-mark {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  color: var(--ast-text-secondary);
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.roster-organization-mark--databricks {
+  border-color: color-mix(in srgb, var(--db-red-700) 28%, var(--border));
+  background: var(--card);
+  text-transform: none;
+}
+
+.roster-organization-mark--branded {
+  background: var(--card);
+  color: var(--foreground);
+  text-transform: none;
+}
+
+.roster-organization-logo,
+.roster-databricks-symbol {
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+}
+
+.roster-organization-logo svg,
+.roster-databricks-symbol svg,
+.roster-organization-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+.roster-organization-logo svg {
+  display: block;
+  color: inherit;
+}
+
+.roster-organization-fallback {
+  width: 14px;
+  height: 14px;
+}
+
+@media (forced-colors: active) {
+  .roster-organization-mark {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+}

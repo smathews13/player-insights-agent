@@ -154,19 +154,22 @@
   .mobile-identity {
     display: flex;
   }
-  /* With the chips gone the header has nothing left that can give: the lockup alone
-     is around 200px and, with the padding, the gear and the menu button, it
-     over-subscribes the 320px this document declares as its minimum. What went over
-     the edge was the menu button, which at that width is the only way to reach three
-     of the four pages. So the wordmark is what gives instead — it truncates, the
-     mark beside it still identifies the app, and the controls stay on screen. */
+  /* With the navigation and informational chrome moved into sheets, the approved
+     full-name lockup is the fixed primary item. At the 320px supported floor its
+     15px mark, 7px internal gap and 12.5px wordmark still fit beside the settings
+     and menu controls. Secondary chrome (the release chip above) gives before the
+     product name; the header never swaps back to the PIA abbreviation. */
   .app-header > .brand-lockup {
-    flex: 0 1 auto;
-    min-width: 0;
-    /* Hug is the phone used-width. On desktop the column is the rail so Ask
-       sits on the hairline; here the wordmark has to truncate, and a reserved
-       width would hold the column open against the menu button. */
+    flex: none;
+    min-width: max-content;
+    /* Hug is the phone used-width. On desktop the column is the rail so Ask sits
+       on the hairline; here the date and divider are gone, so the full lockup can
+       own exactly its approved width without reserving the desktop column. */
     width: auto;
+  }
+  .brand-lockup .pia-wordmark {
+    overflow: visible;
+    text-overflow: clip;
   }
   /* The divider between the lockup and the tabs goes with the tabs: below this
      width there is no row for it to separate the lockup from. */
@@ -268,7 +271,13 @@
   .app-header {
     --app-header-pad-x: 12px;
   }
-  .app-header .ast-wordmark {
+  /* The full product name remains the header identity on the narrowest supported
+     viewport. The acronym primitive still exists for genuinely compact surfaces,
+     but it is never the global-chrome fallback. */
+  .app-header .pia-lockup--header .pia-wordmark {
+    display: inline;
+  }
+  .app-header .pia-lockup--header .pia-acronym {
     display: none;
   }
   .message-pagination > button {

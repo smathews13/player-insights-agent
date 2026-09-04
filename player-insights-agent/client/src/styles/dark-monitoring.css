@@ -35,6 +35,9 @@ html[data-theme='dark'] .monitoring-users-header {
   backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
+html[data-theme='dark'] .monitoring-feedback-table th {
+  background: var(--ast-surface-solid);
+}
 html[data-theme='dark'] .monitoring-question-modal {
   background: var(--ast-surface-elevated);
   backdrop-filter: none;

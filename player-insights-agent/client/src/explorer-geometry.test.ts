@@ -84,7 +84,7 @@ describe('the Run Explorer’s two columns', () => {
     // Tabs plus the view they switch sit on one sheet. No hairline is what
     // made Overview, Agent map, Timeline and Details read as a square of
     // wash with only a line under the labels. Same family as the answer card.
-    const pane = rule(RUNS, '.run-detail');
+    const pane = [...RUNS.matchAll(/^\.run-detail \{([^}]*)\}/gm)].at(-1)?.[1] ?? '';
     expect(pane).toContain('border: 1px solid var(--ast-hairline)');
     expect(pane).toContain('border-radius: var(--ast-radius-card)');
     expect(pane).toContain('background: var(--ast-pane)');

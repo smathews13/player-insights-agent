@@ -121,15 +121,21 @@
    * gutters; these paints attenuate it only where a foreground surface exists.
    * Percentages are solid-content shares, deliberately ordered from nested
    * bands through reading paper, raised panels, floating menus, and chrome.
-   * None relies on backdrop blur and none is fully opaque.
+   *
+   * Reading paper retains a faint one-and-a-half percent of the sky. Temporary
+   * foregrounds and sticky chrome do not: a menu label, modal sentence, table
+   * heading, or scrolled row must never coincide with an ambient controller
+   * glyph. This is alpha occlusion only; no backdrop blur is used.
    */
   --ast-surface-solid: #181e23;
-  --ast-surface-muted: color-mix(in srgb, var(--ast-white) 92%, transparent);
-  --ast-surface-primary: color-mix(in srgb, var(--ast-white) 95%, transparent);
-  --ast-surface-elevated: color-mix(in srgb, var(--ast-white) 97%, transparent);
-  --ast-surface-menu: color-mix(in srgb, var(--ast-white) 98.5%, transparent);
-  --ast-surface-chrome: color-mix(in srgb, var(--ast-white) 99%, transparent);
-  --ast-overlay-occlusion: color-mix(in srgb, var(--ast-scrim) 78%, transparent);
+  --ast-surface-opaque: var(--ast-white);
+  --ast-surface-muted: color-mix(in srgb, var(--ast-white) 96%, transparent);
+  --ast-surface-primary: color-mix(in srgb, var(--ast-white) 98.5%, transparent);
+  --ast-surface-elevated: color-mix(in srgb, var(--ast-white) 99.5%, transparent);
+  --ast-surface-menu: color-mix(in srgb, var(--ast-white) 100%, transparent);
+  --ast-surface-chrome: color-mix(in srgb, var(--ast-white) 100%, transparent);
+  --ast-surface-table-head: color-mix(in srgb, var(--ast-white) 100%, transparent);
+  --ast-overlay-occlusion: color-mix(in srgb, var(--ast-scrim) 86%, transparent);
   --ast-scrim: #090e14; /* Settings overlay on the night sky */
   --ast-icon-tint: #b7d6ee; /* the light tint inside the recoloured product icons */
 
@@ -355,12 +361,14 @@
 }
 
 html[data-theme='dark'] {
-  --ast-surface-muted: color-mix(in srgb, var(--ast-surface-solid) 92%, transparent);
-  --ast-surface-primary: color-mix(in srgb, var(--ast-surface-solid) 95%, transparent);
-  --ast-surface-elevated: color-mix(in srgb, var(--ast-surface-solid) 97%, transparent);
-  --ast-surface-menu: color-mix(in srgb, var(--ast-surface-solid) 98.5%, transparent);
-  --ast-surface-chrome: color-mix(in srgb, var(--ast-navy) 99%, transparent);
-  --ast-overlay-occlusion: color-mix(in srgb, var(--ast-scrim) 84%, transparent);
+  --ast-surface-opaque: var(--ast-surface-solid);
+  --ast-surface-muted: color-mix(in srgb, var(--ast-surface-solid) 96%, transparent);
+  --ast-surface-primary: color-mix(in srgb, var(--ast-surface-solid) 98.5%, transparent);
+  --ast-surface-elevated: color-mix(in srgb, var(--ast-surface-solid) 99.5%, transparent);
+  --ast-surface-menu: color-mix(in srgb, var(--ast-surface-solid) 100%, transparent);
+  --ast-surface-chrome: color-mix(in srgb, var(--ast-navy) 100%, transparent);
+  --ast-surface-table-head: color-mix(in srgb, var(--ast-surface-solid) 100%, transparent);
+  --ast-overlay-occlusion: color-mix(in srgb, var(--ast-scrim) 90%, transparent);
   --ast-sky-fill: var(--ast-navy);
   --ast-pane: var(--ast-surface-primary);
   --ast-ice: rgba(255, 255, 255, 0.03);

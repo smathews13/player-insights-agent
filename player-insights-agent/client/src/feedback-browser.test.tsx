@@ -3,11 +3,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import type { MonitoringQuestionsPayload } from '../../shared/monitoring-contract';
-import type { MonitoringFeedbackPayload } from '../../shared/monitoring-feedback-contract';
+import {
+  MONITORING_FEEDBACK_SCHEMA_REVISION,
+  type MonitoringFeedbackPayload,
+} from '../../shared/monitoring-feedback-contract';
 import { FeedbackBrowserPanel } from './FeedbackBrowserPanel';
 import { SummaryStrip } from './MonitoringPage';
 
 const CSS = readFileSync(new URL('./styles/monitoring.css', import.meta.url), 'utf8');
+const RESPONSIVE = readFileSync(new URL('./styles/responsive-monitoring.css', import.meta.url), 'utf8');
 const DIALOG = readFileSync(new URL('./Dialog.tsx', import.meta.url), 'utf8');
 
 const monitoring: MonitoringQuestionsPayload = {
@@ -33,11 +37,11 @@ const monitoring: MonitoringQuestionsPayload = {
 };
 
 const payload: MonitoringFeedbackPayload = {
-  schemaRevision: 1,
+  schemaRevision: MONITORING_FEEDBACK_SCHEMA_REVISION,
   readAt: '2026-09-03T12:00:00Z',
   dataRevision: 'feedback-rev',
   identityRevision: 'identity-rev',
-  summary: { total: 2, helpful: 1, notHelpful: 1 },
+  summary: { total: 2, helpful: 1, notHelpful: 1, comments: 1 },
   rows: [
     {
       id: 'feedback-2',
@@ -144,6 +148,8 @@ describe('feedback corpus modal', () => {
     expect(markup).toContain('>—</span>');
     expect(markup).toContain('lucide-thumbs-up');
     expect(markup).toContain('lucide-thumbs-down');
+    expect(markup).toContain('Comments captured');
+    expect(markup).toContain('Helpful rate');
     expect(markup).toContain('Open user overview for coach');
     expect(markup).toContain('aria-label="Open question details: Which players improved?"');
     expect(markup).toContain('data-role-state="consumer"');
@@ -167,6 +173,26 @@ describe('feedback corpus modal', () => {
     expect(roleFiltered).toContain('data-role-state="consumer"');
   });
 
+  it('renders exact filtered KPIs with period badges and honest zero states', () => {
+    const markup = panel({ status: 'ready', key: 'feedback', requestId: 1, data: payload, error: null });
+    expect(markup.match(/monitoring-feedback-kpi(?: |")/g)).toHaveLength(5);
+    expect(markup.match(/monitoring-period-badge/g)).toHaveLength(5);
+    expect(markup).toContain('Total feedback');
+    expect(markup).toContain('Helpful rate');
+    expect(markup).toContain('>50%<');
+    expect(markup).toContain('Comments captured');
+
+    const zero = panel({
+      status: 'ready',
+      key: 'feedback-zero',
+      requestId: 2,
+      data: { ...payload, rows: [], summary: { total: 0, helpful: 0, notHelpful: 0, comments: 0 } },
+      error: null,
+    });
+    expect(zero).toContain('No feedback');
+    expect(zero).not.toContain('>0%<');
+  });
+
   it('renders branded skeleton loading, concise error/retry, and the exact empty state', () => {
     const loading = panel({ status: 'loading', key: 'feedback', requestId: 1, data: null, error: null });
     const error = panel({
@@ -180,20 +206,53 @@ describe('feedback corpus modal', () => {
       status: 'ready',
       key: 'feedback',
       requestId: 1,
-      data: { ...payload, rows: [], summary: { total: 0, helpful: 0, notHelpful: 0 } },
+      data: { ...payload, rows: [], summary: { total: 0, helpful: 0, notHelpful: 0, comments: 0 } },
       error: null,
     });
     expect(loading).toContain('pia-loader-mark');
     expect(loading).toContain('Loading feedback');
     expect(loading).toContain('data-slot="skeleton"');
+    expect(loading.match(/monitoring-feedback-kpi-skeleton/g)).toHaveLength(5);
     expect(error).toContain('role="alert"');
     expect(error).toContain('Retry');
+    expect(error.match(/>Unavailable</g)).toHaveLength(5);
     expect(empty).toContain('No feedback matches these filters');
   });
 
-  it('uses the shared body portal/focus trap and compensates for scrollbar removal', () => {
+  it('uses one compact desktop filter row and deliberate responsive reflow', () => {
+    const markup = panel({ status: 'ready', key: 'feedback', requestId: 1, data: payload, error: null });
+    const order = ['feedback', 'user', 'role', 'persona', 'organization'].map((name) =>
+      markup.indexOf(`monitoring-feedback-filter-${name}`)
+    );
+    expect(order).toEqual([...order].sort((left, right) => left - right));
+    expect(CSS).toMatch(/\.monitoring-feedback-filter-row\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:/s);
+    expect(CSS).toMatch(
+      /\.monitoring-feedback-filter-trigger\s*\{[^}]*height:\s*28px[^}]*font-size:\s*var\(--ast-fs-11\)/s
+    );
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*?\.monitoring-feedback-filter-row\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+    );
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 480px\)[\s\S]*?\.monitoring-feedback-filter-row\s*\{[^}]*minmax\(0,\s*1fr\)/
+    );
+  });
+
+  it('clips rows beneath one opaque sticky table header', () => {
+    expect(CSS).toMatch(
+      /\.monitoring-feedback-table-frame\s*\{[^}]*isolation:\s*isolate[^}]*overflow:\s*auto[^}]*border-radius:/s
+    );
+    expect(CSS).toMatch(
+      /\.monitoring-feedback-table th\s*\{[^}]*position:\s*sticky[^}]*top:\s*0[^}]*z-index:\s*2[^}]*background:\s*var\(--background\)/s
+    );
+    expect(CSS).toMatch(/\.monitoring-feedback-table\s*\{[^}]*border-collapse:\s*separate/s);
+  });
+
+  it('uses the shared body portal and one measured pre-paint scroll lock', () => {
     expect(DIALOG).toContain('createPortal(overlay, document.body)');
     expect(DIALOG).toContain('document.body.style.paddingRight');
+    expect(DIALOG).toContain('useLayoutEffect');
+    expect(DIALOG).toContain('document.documentElement.clientWidth - widthBeforeLock');
+    expect(DIALOG).toContain('queueMicrotask');
     expect(DIALOG).toContain('dialogTabTarget');
     expect(CSS).toMatch(/\.monitoring-feedback-modal\s*\{[^}]*width:/s);
   });

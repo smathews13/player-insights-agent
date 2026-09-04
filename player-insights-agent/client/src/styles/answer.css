@@ -329,12 +329,6 @@
   justify-self: start;
   gap: 8px;
 }
-/* Asked-by in this row is a compact chip, the same size as Live. A later
-   page rule that lifts the 150px cap would stretch it into a banner again. */
-.answer-card-identity .identity-chip {
-  flex: none;
-  max-width: 150px;
-}
 .answer-card-mark {
   display: inline-flex;
   width: 18px;

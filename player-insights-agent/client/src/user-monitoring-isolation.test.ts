@@ -46,7 +46,7 @@ describe('User Monitoring filter menus', () => {
     expect(CSS).toMatch(
       /\.monitoring-users-filter-menu\s*\{[^}]*max-height:[^;}]*var\(--radix-popover-content-available-height\)[^}]*overflow-y:\s*auto[^}]*scrollbar-gutter:\s*stable[^}]*background:\s*var\(--popover\)[^}]*opacity:\s*1/
     );
-    expect(BASE).toMatch(/\.app-menu-content\s*\{[^}]*background:\s*var\(--background\)[^}]*opacity:\s*1/s);
+    expect(BASE).toMatch(/\.app-menu-content\s*\{[^}]*background:\s*var\(--ast-surface-menu\)[^}]*opacity:\s*1/s);
     expect(CSS).toMatch(/\.user-profile-modal-overlay,[\s\S]*?z-index:\s*1000/);
   });
 });

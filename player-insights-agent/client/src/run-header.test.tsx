@@ -92,7 +92,7 @@ describe('the run header names the run without spelling it out', () => {
 
   it('uses the shared identity chip instead of plain text or initials', () => {
     const markup = header();
-    expect(markup).toContain('identity-chip identity-chip--compact run-detail-user');
+    expect(markup).toContain('identity-chip identity-chip--compact question-attribution-user');
     expect(markup).toContain('lucide-user-round');
     expect(markup).toContain('identity-chip-name">someone');
     expect(markup).not.toContain('>SO<');
@@ -109,8 +109,7 @@ describe('the run header names the run without spelling it out', () => {
   it('keeps an unrecorded identity plain instead of linking to an empty filter', () => {
     const markup = header({ run: run({ stakeholder: '' }) });
 
-    expect(markup).toContain('identity-chip identity-chip--compact run-detail-user');
-    expect(markup).not.toContain('run-detail-user-link');
+    expect(markup).toContain('identity-chip identity-chip--compact question-attribution-user');
     expect(markup).not.toContain('/monitoring?who=');
   });
 
@@ -187,7 +186,8 @@ describe('the run header is four objects, not one sentence', () => {
     const markup = header();
     expect(markup).toContain('class="run-detail-ident"');
     expect(markup).toContain('class="run-id-chip"');
-    expect(markup).toContain('identity-chip identity-chip--compact run-detail-user');
+    expect(markup).toContain('class="question-attribution-bubble run-question-attribution"');
+    expect(markup).toContain('identity-chip identity-chip--compact question-attribution-user');
     // The line they used to be: id, middot, person, middot, status, as one string.
     expect(markup).not.toMatch(/cafebabecafe[^<]*·[^<]*·/);
   });
@@ -223,7 +223,7 @@ describe('the run header is four objects, not one sentence', () => {
   });
 
   it('uses the shared hover and keyboard-focus contract', () => {
-    expect(SOURCE).toContain('UserDrilldownLink');
+    expect(SOURCE).toContain('QuestionAttributionBubble');
     expect(partial('shell.css')).toContain('.user-drilldown-link:focus-visible');
   });
 

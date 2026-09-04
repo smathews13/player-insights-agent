@@ -254,14 +254,9 @@ html:not([data-theme='dark']) .ask-hero h2 {
  * composer is directly under it. `.conversation-main.is-empty` in composer.css is
  * what brings it up there.
  */
-/* The bubble and the avatar that signs it, kept on one line and pushed right.
-   The 22px that used to be the bubble's own bottom margin lives here now, so the
-   avatar cannot sit outside the gap it creates. */
+/* Ask positions the shared question-attribution bubble in the transcript. The
+   shared component owns the connected border, tail, wrapping and identity link. */
 .user-message {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  gap: 8px;
   /*
    * THE QUESTION (AND ITS ASKED-BY CHIP) STARTS RIGHT OF THE ANSWER'S LEFT EDGE.
    *
@@ -285,15 +280,7 @@ html:not([data-theme='dark']) .ask-hero h2 {
   --question-stagger: clamp(72px, 14%, 180px);
 }
 .user-bubble {
-  width: fit-content;
   max-width: 80%;
-  padding: 10px 14px;
-  border: 1px solid var(--ast-blue-on-dark);
-  /* 8/8/2/8: the panel radius on three corners and a near-square notch on the one
-     that points at the avatar. It was 14/14/3/14, a fourth radius in a token block
-     that says in as many words that there is no third one, and the difference shows
-     -- a 14px bubble beside an 8px answer card reads as two different apps. */
-  border-radius: 8px 8px 2px 8px;
   /* Stated rather than inherited from --primary, which it used to be back when
      --primary was ink. The reader's own question is not an action, and a blue
      speech bubble on the right of the transcript reads as a button.
@@ -306,16 +293,14 @@ html:not([data-theme='dark']) .ask-hero h2 {
      fixed the slab and created the reason this file is being edited again: an
      opaque bubble directly above a translucent card is what made the card look
      grey. The base is pure white and the alpha is the token's. */
-  background: var(--ast-pane);
-  color: var(--foreground);
   /* The customer could select this text but saw no I-beam over it, so nothing
      said it was selectable. */
   cursor: text;
 }
-.user-avatar {
+.user-message .question-attribution-user {
   max-width: none;
 }
-.user-avatar .identity-chip-text {
+.user-message .question-attribution-user .identity-chip-text {
   overflow: visible;
   text-overflow: clip;
 }

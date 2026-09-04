@@ -21,11 +21,12 @@ function rule(source: string, selector: string): string {
 }
 
 describe('Ask and Run use page-specific desktop pane geometry', () => {
-  it('keeps Run Explorer on its dedicated 760–1120px reading panes', () => {
-    expect(TOKENS).toMatch(
-      /--workspace-pane-block-size:\s*clamp\(\s*760px,\s*calc\(100dvh - var\(--app-header-h\) \+ 160px - env\(safe-area-inset-bottom,\s*0px\)\),\s*1120px\s*\)/
+  it('gives Run Explorer taller viewport-fit reading panes without changing Ask', () => {
+    expect(rule(RUNS, '.run-explorer')).toMatch(
+      /--run-explorer-pane-block-size:\s*clamp\(\s*640px,\s*calc\(100dvh - var\(--app-header-h\) \+ 240px - env\(safe-area-inset-bottom,\s*0px\)\),\s*1240px\s*\)/
     );
-    expect(rule(RUNS, '.run-explorer')).toContain('--run-explorer-pane-block-size: var(--workspace-pane-block-size)');
+    expect(TOKENS).toContain('--workspace-pane-block-size: clamp(');
+    expect(rule(RUNS, '.run-explorer')).not.toContain('var(--workspace-pane-block-size)');
   });
 
   it('keeps every active-loading card compact at 360–520px and at most 60dvh', () => {

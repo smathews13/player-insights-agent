@@ -6,7 +6,6 @@ import { isVisibleInContainer, revealStepDetail, returnToSelectedStep, type Step
 const TRACE = readFileSync(new URL('./TraceDag.tsx', import.meta.url), 'utf8');
 const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
 const RUNS_CSS = readFileSync(new URL('./styles/runs.css', import.meta.url), 'utf8');
-const TOKENS_CSS = readFileSync(new URL('./styles/tokens.css', import.meta.url), 'utf8');
 const TRACE_CSS = readFileSync(new URL('./styles/trace.css', import.meta.url), 'utf8');
 const TIMELINE_CSS = readFileSync(new URL('./styles/timeline.css', import.meta.url), 'utf8');
 const RESPONSIVE_CSS = readFileSync(new URL('./styles/responsive-runs.css', import.meta.url), 'utf8');
@@ -285,9 +284,8 @@ describe('Run Explorer has two desktop scroll owners', () => {
     const root = RUNS_CSS.match(/\.run-explorer \{([^}]*)\}/)?.[1] ?? '';
     const layout = RUNS_CSS.match(/\.explorer-layout \{([^}]*)\}/)?.[1] ?? '';
     const sharedPanes = RUNS_CSS.match(/\.run-list,\s*\.run-detail \{([^}]*)\}/)?.[1] ?? '';
-    expect(root).toMatch(/--run-explorer-pane-block-size:\s*var\(--workspace-pane-block-size\)/);
-    expect(TOKENS_CSS).toMatch(
-      /--workspace-pane-block-size: clamp\(\s*760px,\s*calc\(100dvh - var\(--app-header-h\) \+ 160px - env\(safe-area-inset-bottom, 0px\)\),\s*1120px\s*\)/
+    expect(root).toMatch(
+      /--run-explorer-pane-block-size:\s*clamp\(\s*640px,\s*calc\(100dvh - var\(--app-header-h\) \+ 240px - env\(safe-area-inset-bottom, 0px\)\),\s*1240px\s*\)/
     );
     expect(root).toMatch(/height: auto/);
     expect(root).toMatch(/grid-template-rows: auto auto/);

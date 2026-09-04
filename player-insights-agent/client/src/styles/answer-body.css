@@ -540,18 +540,6 @@
 .saved svg {
   width: 14px;
 }
-.ai-note {
-  font-size: var(--ast-fs-12);
-  color: var(--ast-text-secondary);
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.ai-note svg {
-  width: 13px;
-  height: 13px;
-  flex: none;
-}
 .data-access-note {
   font-size: var(--ast-fs-12);
   color: var(--ast-text-secondary);

@@ -68,7 +68,7 @@ describe('app-wide dropdown recipe', () => {
     expect(css).toMatch(/\.app-select-trigger:hover:not\(:disabled\)/);
     expect(css).toMatch(/\.app-select-trigger\[data-state='open'\]/);
     expect(css).toMatch(/\.app-select-trigger:focus-visible \{/);
-    expect(css).toMatch(/\.app-menu-content \{[^}]*background: var\(--background\)/);
+    expect(css).toMatch(/\.app-menu-content \{[^}]*background: var\(--ast-surface-menu\)/);
     expect(css).toMatch(/\.app-menu-option\[data-state='checked'\]/);
     expect(css).toMatch(/\.app-menu-check/);
     expect(css).toContain('@media (forced-colors: active)');

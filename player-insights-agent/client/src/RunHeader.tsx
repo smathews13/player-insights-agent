@@ -29,12 +29,12 @@ import { astPill, shortRunId, statusFamily } from './run-header';
 import { runLabel } from './run-label';
 import { reportEgress } from './egress-policy';
 import type { Run } from './app-types';
-import { UserDrilldownLink } from './UserDrilldownLink';
 import { abbreviatedConversationId } from './display-id';
 import { CopyIdChip } from './CopyIdChip';
 import { RunHeaderLabelEditor } from './RunHeaderLabelEditor';
 import { RunRatingBadge } from './RunRatingBadge';
 import { ToolCallsLabel } from './ToolCallsLabel';
+import { QuestionAttributionBubble } from './QuestionAttributionBubble';
 import {
   persistRunLabels,
   railOutcomeValue,
@@ -94,7 +94,18 @@ export function RunHeader({
   return (
     <div className="run-detail-head">
       <div className="min-w-0">
-        <h3 className="run-detail-title">{run ? runLabel(run) : 'Select a run'}</h3>
+        {run ? (
+          <QuestionAttributionBubble
+            question={runLabel(run)}
+            asker={run.stakeholder}
+            canOpenUser={canOpenUser}
+            questionAs="h3"
+            className="run-question-attribution"
+            questionClassName="run-detail-title"
+          />
+        ) : (
+          <h3 className="run-detail-title">Select a run</h3>
+        )}
         {/* Only when there is a run to describe. With nothing selected this row
             used to carry "Pick a run from the list to inspect its trace." -- the
             same sentence the empty state below it prints, under a heading that
@@ -134,7 +145,6 @@ export function RunHeader({
             >
               <span className="run-id-short">{shortRunId(run.id)}</span>
             </CopyIdChip>
-            <UserDrilldownLink identity={run.stakeholder} compact className="run-detail-user" canOpen={canOpenUser} />
             {typeof toolCalls === 'number' && Number.isFinite(toolCalls) && (
               <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
                 <ToolCallsLabel>Tools</ToolCallsLabel> · <span className="ast-num">{toolCalls.toLocaleString()}</span>

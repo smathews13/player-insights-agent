@@ -1,6 +1,7 @@
 import { Building2 } from 'lucide-react';
 import type { OrganizationMapping } from '../../shared/organization-contract';
 import { ORGANIZATION_LOGOS } from './organization-logos';
+import './styles/organization-avatar.css';
 
 /**
  * The organization beside a roster identity.

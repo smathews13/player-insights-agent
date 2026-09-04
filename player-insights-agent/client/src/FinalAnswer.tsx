@@ -21,7 +21,6 @@ import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './re
 import { evidenceLinkedSourceNames } from './answer-table-origins';
 import type { Derivation } from './answer-shape';
 import type { Chart } from './AnswerCharts';
-import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 
 export function FinalAnswer({
@@ -89,7 +88,6 @@ export function FinalAnswer({
             Open full response →
           </Link>
         ) : null}
-        <AIAnalysisCaveat className="ai-note" />
       </CardContent>
     </Card>
   );

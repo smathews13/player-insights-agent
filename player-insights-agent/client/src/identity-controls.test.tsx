@@ -39,7 +39,7 @@ describe('Settings Identity controls', () => {
     expect(SELECT).toContain('<PopoverContent');
     expect(SELECT).toContain('onValueChange(option.value)');
     expect(BASE).toMatch(/\[data-radix-popper-content-wrapper\]\s*\{[^}]*z-index:\s*var\(--ast-layer-menu\)/s);
-    expect(BASE).toMatch(/\.app-menu-content\s*\{[^}]*background:\s*var\(--background\)/s);
+    expect(BASE).toMatch(/\.app-menu-content\s*\{[^}]*background:\s*var\(--ast-surface-menu\)/s);
   });
 
   it('renders editable role/persona selects for other roster users and locks only the canonical owner row', () => {

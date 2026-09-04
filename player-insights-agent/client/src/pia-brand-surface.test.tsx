@@ -7,6 +7,7 @@ import { AI_ANALYSIS_CAVEAT } from './AIAnalysisCaveat';
 import { SessionTimedOut, SessionUnavailable } from './AppSessionRecovery';
 import { HeaderBrand } from './Layout';
 import { StartupLoadingSurface } from './StartupBoundary';
+import { partial } from './styles/stylesheet';
 
 const CLIENT = new URL('../', import.meta.url);
 const SOURCE = new URL('./', import.meta.url);
@@ -30,7 +31,7 @@ function source(name: string): string {
 }
 
 describe('Player Insights Agent visible brand surfaces', () => {
-  it('uses the locked product identity in title, manifest, compact header, startup, and AI caveat', () => {
+  it('uses the locked product identity in title, manifest, full-name header, startup, and AI caveat', () => {
     const index = readFileSync(new URL('index.html', CLIENT), 'utf8');
     const manifest = JSON.parse(readFileSync(new URL('public/site.webmanifest', CLIENT), 'utf8')) as {
       name: string;
@@ -45,17 +46,49 @@ describe('Player Insights Agent visible brand surfaces', () => {
 
     expect(index).toContain('<title>Player Insights Agent</title>');
     expect(manifest).toMatchObject({ name: 'Player Insights Agent', short_name: 'PIA' });
-    expect(header).toContain('pia-lockup--header pia-lockup--acronym');
-    expect(header).toContain('PI<span class="pia-accent">A</span>');
+    expect(header).toContain('pia-lockup--header pia-lockup--full');
+    expect(header).toContain('Player Insights <span class="pia-accent">Agent</span>');
     expect(header).toContain('data-pia-cut="simplified"');
     expect(header).toContain('pia-mark--dark');
     expect(header).toContain('pia-type--dark');
-    expect(header).not.toContain('pia-wordmark');
+    expect(header).toContain('pia-wordmark');
+    expect(header).not.toContain('pia-acronym');
+    expect(header).not.toContain('>PI<span');
     expect(header).not.toContain('pia-caption');
     expect(header).not.toContain('pia-mark--cluster');
     expect(startup).toContain('Player Insights Agent');
     expect(startup).toContain('data-startup-loader="pia-primary"');
     expect(AI_ANALYSIS_CAVEAT).toBe('Player Insights Agent analysis. AI can make mistakes.');
+  });
+
+  it('keeps the dark header lockup white, ice-accented, and collision-safe at desktop and narrow widths', () => {
+    const brand = partial('pia-brand.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const shell = partial('shell.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const responsive = partial('responsive.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const collapsedStart = responsive.indexOf('@media (max-width: 1180px)');
+    const narrowStart = responsive.indexOf('@media (max-width: 800px)');
+    const phoneStart = responsive.indexOf('@media (max-width: 480px)');
+    const collapsed = responsive.slice(collapsedStart, narrowStart);
+    const narrow = responsive.slice(narrowStart, phoneStart);
+    const phone = responsive.slice(phoneStart);
+
+    expect(brand).toMatch(/\.pia-mark--dark\s*\{[^}]*--pia-mark-ink:\s*var\(--ast-white\)/s);
+    expect(brand).toMatch(/\.pia-type--dark,[^{]*\{[^}]*color:\s*var\(--ast-white\)/s);
+    expect(brand).toMatch(/\.pia-type--dark \.pia-accent\s*\{[^}]*color:\s*var\(--ast-ice-accent\)/s);
+
+    expect(shell).toMatch(
+      /\.brand-lockup\s*\{[^}]*width:\s*calc\(var\(--conversation-width\) - var\(--app-header-pad-x\)\)[^}]*max-width:\s*calc\(var\(--conversation-width\) - var\(--app-header-pad-x\)\)/s
+    );
+    expect(shell).toMatch(/\.brand-home\s*\{[^}]*flex:\s*none/s);
+    expect(shell).toMatch(/\.brand-lockup \.pia-lockup--header\s*\{[^}]*min-width:\s*max-content/s);
+
+    expect(collapsed).toMatch(/\.app-nav\s*\{[^}]*display:\s*none/s);
+    expect(collapsed).toMatch(/\.mobile-nav\s*\{[^}]*display:\s*block/s);
+    expect(narrow).toMatch(/\.brand-lockup \.deployment-time-chip\s*\{[^}]*display:\s*none/s);
+    expect(narrow).toMatch(/\.app-header > \.brand-lockup\s*\{[^}]*flex:\s*none[^}]*min-width:\s*max-content/s);
+    expect(narrow).toMatch(/\.brand-lockup \.pia-wordmark\s*\{[^}]*overflow:\s*visible[^}]*text-overflow:\s*clip/s);
+    expect(phone).toMatch(/\.app-header \.pia-lockup--header \.pia-wordmark\s*\{[^}]*display:\s*inline/s);
+    expect(phone).toMatch(/\.app-header \.pia-lockup--header \.pia-acronym\s*\{[^}]*display:\s*none/s);
   });
 
   it('uses Player Insights Agent on session recovery surfaces', () => {

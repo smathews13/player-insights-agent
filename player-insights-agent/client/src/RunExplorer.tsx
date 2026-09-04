@@ -81,7 +81,6 @@ import {
   rememberRunLabelOverride,
   type RunLabelOverride,
 } from './run-header-labels';
-import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { RunFeedbackWriter } from './run-feedback-writer';
 import type { FeedbackDirection } from '../../shared/feedback-direction';
 
@@ -654,19 +653,16 @@ export function RunExplorer() {
                       <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
                     ) : null}
                     {stages.length > 0 ? (
-                      <>
-                        <TraceDag
-                          stages={stages}
-                          activeIndex={-1}
-                          charts={runTrace?.charts}
-                          trace={runTrace?.trace}
-                          question={runTrace?.prompt ?? ''}
-                          verdict={answerVerdict}
-                          runStatus={displayed?.status}
-                          scrollContainerRef={workspaceScrollRef}
-                        />
-                        <AIAnalysisCaveat className="ai-note" />
-                      </>
+                      <TraceDag
+                        stages={stages}
+                        activeIndex={-1}
+                        charts={runTrace?.charts}
+                        trace={runTrace?.trace}
+                        question={runTrace?.prompt ?? ''}
+                        verdict={answerVerdict}
+                        runStatus={displayed?.status}
+                        scrollContainerRef={workspaceScrollRef}
+                      />
                     ) : (
                       <TraceUnavailable state={traceState} />
                     )}
@@ -677,16 +673,13 @@ export function RunExplorer() {
                     {/* The prompt, for the envelope row, which is the run's own
                     question here just as it is on the card. */}
                     {stages.length > 0 && runTrace?.trace ? (
-                      <>
-                        <TraceTimeline
-                          variant="explorer"
-                          trace={runTrace.trace}
-                          question={runTrace.prompt ?? ''}
-                          verdict={answerVerdict}
-                          scrollContainerRef={workspaceScrollRef}
-                        />
-                        <AIAnalysisCaveat className="ai-note" />
-                      </>
+                      <TraceTimeline
+                        variant="explorer"
+                        trace={runTrace.trace}
+                        question={runTrace.prompt ?? ''}
+                        verdict={answerVerdict}
+                        scrollContainerRef={workspaceScrollRef}
+                      />
                     ) : (
                       <TraceUnavailable state={traceState} />
                     )}

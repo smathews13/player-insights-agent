@@ -76,6 +76,9 @@ describe('Monitoring feedback SQL truth', () => {
     }
     expect(MONITORING_FEEDBACK_QUERY).toContain("CASE WHEN direction = 'down' THEN COALESCE(comment, '')");
     expect(MONITORING_FEEDBACK_QUERY).toContain('COUNT(*) FILTER');
+    expect(MONITORING_FEEDBACK_QUERY).toMatch(
+      /COUNT\(\*\) FILTER \(\s*WHERE direction = 'down' AND comment IS NOT NULL AND btrim\(comment\) <> ''\s*\)/
+    );
     expect(MONITORING_FEEDBACK_QUERY).toContain('FROM filtered');
   });
 
@@ -138,6 +141,7 @@ describe('Monitoring feedback route', () => {
             total_feedback: 1,
             helpful_feedback: 0,
             not_helpful_feedback: 1,
+            comments_captured: 1,
             data_revision: 'rev-1',
             identity_revision: 'identity-1',
             user_options: [],
@@ -219,7 +223,7 @@ describe('Monitoring feedback route', () => {
       'Approved the proposed analysis plan.',
     ]);
     expect(responseBody).toMatchObject({
-      summary: { total: 1, helpful: 0, notHelpful: 1 },
+      summary: { total: 1, helpful: 0, notHelpful: 1, comments: 1 },
       pagination: { total: 1 },
     });
   });

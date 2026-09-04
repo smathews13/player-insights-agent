@@ -244,7 +244,7 @@ describe('account menu', () => {
     expect(MENU_SOURCE).toContain('aria-controls={menuId}');
     expect(MENU_SOURCE).toContain('onOpenChange={setOpen}');
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-menu-trigger\.identity-chip:hover,\s*\.account-menu-trigger\.identity-chip:focus-visible\s*\{[^}]*border-color:\s*var\(--ast-pos-border\)[^}]*background:\s*color-mix\(in srgb,\s*var\(--background\) 94%,\s*var\(--ast-pos-text\)\)[^}]*color:\s*var\(--ast-pos-text\)/s
+      /\.account-menu-trigger\.identity-chip:hover,\s*\.account-menu-trigger\.identity-chip:focus-visible\s*\{[^}]*border-color:\s*var\(--ast-pos-border\)[^}]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-chrome\) 94%,\s*var\(--ast-pos-text\)\)[^}]*color:\s*var\(--ast-pos-text\)/s
     );
     expect(ACCOUNT_CSS).toMatch(
       /\.account-menu-trigger\.identity-chip:focus-visible\s*\{[^}]*outline:\s*none[^}]*box-shadow:\s*0 0 0 2px/
@@ -257,7 +257,7 @@ describe('account menu', () => {
 
   it('keeps the feedback disclosure and portaled choices opaque, distinct, and non-blue', () => {
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-feedback-menu\s*\{[^}]*z-index:\s*var\(--ast-layer-menu\)[^}]*background:\s*var\(--background\)[^}]*backdrop-filter:\s*none/s
+      /\.account-feedback-menu\s*\{[^}]*z-index:\s*var\(--ast-layer-menu\)[^}]*background:\s*var\(--ast-surface-menu\)[^}]*backdrop-filter:\s*none/s
     );
     expect(ACCOUNT_CSS).toMatch(
       /\.account-feedback-trigger:hover,[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--background\) 94%,\s*var\(--ast-pos-text\)\)/

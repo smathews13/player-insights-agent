@@ -1,4 +1,3 @@
-import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { AnswerCard } from './AnswerCard';
 import { AnswerProse } from './DataEntityLinks';
 import { Card, CardContent } from './ui';
@@ -38,7 +37,6 @@ export default function StoredAnswerRenderer({
       <Card className="answer-card">
         <CardContent className="pt-6 space-y-4">
           <AnswerProse text={displayedContent} sources={[]} preserveProse />
-          <AIAnalysisCaveat className="ai-note" />
         </CardContent>
       </Card>
     );

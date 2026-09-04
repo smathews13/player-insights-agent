@@ -15,7 +15,7 @@ import {
   toggleOrganizationSelection,
 } from './UserOrganizationSelect';
 
-const ACCOUNT_CSS = readFileSync(new URL('./styles/account-menu.css', import.meta.url), 'utf8');
+const ORGANIZATION_CSS = readFileSync(new URL('./styles/organization-avatar.css', import.meta.url), 'utf8');
 const MONITORING_CSS = readFileSync(new URL('./styles/monitoring.css', import.meta.url), 'utf8');
 const RESPONSIVE_CSS = readFileSync(new URL('./styles/responsive-monitoring.css', import.meta.url), 'utf8');
 const DENSITY_CSS = readFileSync(new URL('./styles/density-monitoring.css', import.meta.url), 'utf8');
@@ -47,9 +47,9 @@ describe('organization identity assets', () => {
   });
 
   it('keeps organization marks legible in both themes, compact density, and responsive controls', () => {
-    expect(ACCOUNT_CSS).toMatch(/\.roster-organization-mark--branded[^}]*background:\s*var\(--card\)/s);
-    expect(ACCOUNT_CSS).toMatch(/\.roster-organization-logo svg[^}]*color:\s*inherit/s);
-    expect(ACCOUNT_CSS).toMatch(
+    expect(ORGANIZATION_CSS).toMatch(/\.roster-organization-mark--branded[^}]*background:\s*var\(--card\)/s);
+    expect(ORGANIZATION_CSS).toMatch(/\.roster-organization-logo svg[^}]*color:\s*inherit/s);
+    expect(ORGANIZATION_CSS).toMatch(
       /@media \(forced-colors: active\)[\s\S]*\.roster-organization-mark[^}]*color:\s*CanvasText/s
     );
     expect(MONITORING_CSS).toContain('.monitoring-organization-trigger');

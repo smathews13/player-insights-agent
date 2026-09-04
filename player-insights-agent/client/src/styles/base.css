@@ -323,7 +323,7 @@ html:not([data-theme='dark']) .app-sky {
   max-width: min(24rem, calc(100vw - 24px));
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
-  background: var(--background);
+  background: var(--ast-surface-menu);
   background-image: none;
   color: var(--ast-text-long);
   font-size: var(--ast-fs-12);

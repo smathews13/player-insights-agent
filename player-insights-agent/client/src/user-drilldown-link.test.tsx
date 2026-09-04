@@ -60,7 +60,9 @@ describe('shared user drilldown links', () => {
     expect(new Set(USER_IDENTITY_SURFACES.map((surface) => surface.id)).size).toBe(USER_IDENTITY_SURFACES.length);
     for (const surface of USER_IDENTITY_SURFACES) {
       expect(surface.policy === 'drilldown' || Boolean(surface.reason)).toBe(true);
-      if (surface.policy === 'drilldown') expect(source(surface.file)).toContain('UserDrilldownLink');
+      if (surface.policy === 'drilldown') {
+        expect(source(surface.file)).toMatch(/UserDrilldownLink|QuestionAttributionBubble/);
+      }
     }
   });
 

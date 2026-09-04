@@ -137,25 +137,28 @@ describe('a Monitoring question opens as a centered modal over the list', () => 
 
     expect(markup).toContain('class="answer-card');
     expect(MONITORING).toContain('<AnswerCard');
-    expect(CARD).toContain('className="answer-card"');
+    expect(CARD).toMatch(/<Card className="answer-card(?:\s|")/);
     expect(MONITORING).not.toContain('showRunProcess={false}');
     expect(MONITORING).not.toContain('<TraceTimeline');
   });
 
-  it('seats Asked-by as a compact chip in the answer corner, not a banner above it', () => {
+  it('attaches Asked-by to the question before the answer card', () => {
     const markup = drawer();
     const rendered = text(markup);
     const cardAt = markup.indexOf('class="answer-card');
+    const questionAt = markup.indexOf('question-attribution-bubble');
     const chipAt = markup.indexOf('identity-chip-label');
     expect(cardAt).toBeGreaterThan(-1);
-    expect(chipAt).toBeGreaterThan(cardAt);
+    expect(questionAt).toBeGreaterThan(-1);
+    expect(questionAt).toBeLessThan(chipAt);
+    expect(chipAt).toBeLessThan(cardAt);
     expect(rendered).toContain('Asked by first.person');
-    expect(rendered.indexOf('Live agent response')).toBeLessThan(rendered.indexOf('Asked by first.person'));
     expect(rendered.indexOf('Asked by first.person')).toBeLessThan(
       rendered.indexOf('The leading title is ahead on daily active players.')
     );
-    expect(MONITORING).toContain('headerExtra=');
-    expect(CARD).toContain('headerExtra');
+    expect(MONITORING).toContain('<QuestionAttributionBubble');
+    expect(MONITORING).not.toContain('headerExtra={<UserIdentityChip');
+    expect(CARD).not.toContain('headerExtra');
   });
 
   it('does not keep the Monitoring-only What ran stack over the prose', () => {

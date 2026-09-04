@@ -880,6 +880,10 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .monitoring-drawer-head > div {
   min-width: 0;
 }
+.monitoring-question-attribution {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
 .monitoring-drawer-question {
   margin: 0;
   font-size: var(--text-h-section);
@@ -897,15 +901,6 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-}
-/*
- * Compact, always. `max-width: none` here grew Asked-by into a washed banner
- * across the modal. The chip now sits in the answer card's corner; when it
- * remains on this row (no card) it still wears the 150px compact cap.
- */
-.monitoring-drawer-meta-row .identity-chip {
-  flex: none;
-  max-width: 150px;
 }
 /*
  * Same corner stamp Ask restates on the transcript. The modal is not
@@ -1692,31 +1687,126 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   width: min(1220px, calc(100vw - 48px));
 }
 .monitoring-feedback-body {
+  display: flex;
+  flex-direction: column;
   overflow-x: hidden;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
 }
-.monitoring-feedback-toolbar {
-  align-items: stretch;
-}
-.monitoring-feedback-toolbar .monitoring-feedback-search {
-  flex: 1 1 300px;
-  width: min(100%, 420px);
-  min-width: 260px;
-  max-width: 420px;
-  margin-left: 0;
-}
-.monitoring-feedback-toolbar [data-slot='select-trigger'] {
-  min-width: 142px;
-}
-.monitoring-feedback-table-frame {
+.monitoring-feedback-kpis {
+  flex: none;
   min-width: 0;
-  overflow-x: auto;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.monitoring-feedback-kpi {
+  min-width: 0;
+  min-height: 62px;
+  padding: 8px 10px;
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
+  background: var(--card);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  align-content: start;
+  gap: 5px;
+}
+.monitoring-feedback-kpi-head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.monitoring-feedback-kpi-label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.monitoring-feedback-kpi-label > svg {
+  width: 13px;
+  height: 13px;
+}
+.monitoring-feedback-kpi-value,
+.monitoring-feedback-kpi-unavailable {
+  margin: 0;
+  align-self: end;
+}
+.monitoring-feedback-kpi-value {
+  font-size: var(--ast-fs-18);
+  font-weight: 700;
+}
+.monitoring-feedback-kpi-unavailable {
+  color: var(--ast-text-secondary);
+  font-size: var(--text-sm);
+}
+.monitoring-feedback-kpi-skeleton {
+  width: 56px;
+  height: 18px;
+  align-self: end;
+}
+.monitoring-feedback-toolbar {
+  position: relative;
+  top: auto;
+  flex: none;
+  gap: 6px;
+  padding: 0;
+}
+.monitoring-feedback-toolbar-primary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.monitoring-feedback-toolbar .monitoring-feedback-search {
+  flex: 1 1 260px;
+  width: min(100%, 360px);
+  min-width: 220px;
+  max-width: 360px;
+  margin-left: 0;
+}
+.monitoring-feedback-filter-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns:
+    minmax(112px, 0.75fr) minmax(150px, 1.15fr) minmax(112px, 0.8fr) minmax(138px, 1fr)
+    minmax(160px, 1.2fr);
+  gap: 8px;
+}
+.monitoring-feedback-filter-trigger {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding-right: 7px;
+  padding-left: 8px;
+  font-size: var(--ast-fs-11);
+}
+.monitoring-feedback-table-frame {
+  position: relative;
+  isolation: isolate;
+  flex: 1 1 260px;
+  min-width: 0;
+  min-height: 180px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+  background: var(--card);
 }
 .monitoring-feedback-table {
   width: 100%;
   min-width: 920px;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
 }
 .monitoring-feedback-table th,
@@ -1729,8 +1819,9 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .monitoring-feedback-table th {
   position: sticky;
   top: 0;
-  z-index: 1;
-  background: var(--ast-fill-band);
+  z-index: 2;
+  background: var(--background);
+  box-shadow: 0 1px 0 var(--ast-hairline);
   color: var(--ast-text-secondary);
   font-size: var(--text-xs);
   font-weight: 700;
@@ -1755,6 +1846,9 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 }
 .monitoring-feedback-table tbody tr:last-child td {
   border-bottom: 0;
+}
+.monitoring-feedback-body > .monitoring-users-pagination {
+  flex: none;
 }
 .monitoring-feedback-row {
   cursor: pointer;

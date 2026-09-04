@@ -168,7 +168,7 @@ describe('the admin owner dropdown', () => {
   it('resolves the menu surface to the opaque shared menu role in both themes', () => {
     expect(BASE).toMatch(/\.app-menu-content \{[^}]*isolation:\s*isolate[^}]*border:\s*1px solid/s);
     expect(BASE).toMatch(
-      /\.app-menu-content \{[^}]*background:\s*var\(--background\)[^}]*background-image:\s*none[^}]*opacity:\s*1[^}]*backdrop-filter:\s*none/s
+      /\.app-menu-content \{[^}]*background:\s*var\(--ast-surface-menu\)[^}]*background-image:\s*none[^}]*opacity:\s*1[^}]*backdrop-filter:\s*none/s
     );
   });
 

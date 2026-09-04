@@ -104,8 +104,8 @@ describe('dark mode covers the shipped surfaces', () => {
   it('keeps the spec paints centralized and exact', () => {
     expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--background:\s*var\(--ast-navy\)/);
     expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--card:\s*var\(--ast-surface-primary\)/);
-    expect(ASTROLABE).toMatch(/--ast-surface-primary:\s*color-mix\([^;]*95%,\s*transparent\)/);
-    expect(ASTROLABE).toMatch(/--ast-surface-menu:\s*color-mix\([^;]*98\.5%,\s*transparent\)/);
+    expect(ASTROLABE).toMatch(/--ast-surface-primary:\s*color-mix\([^;]*98\.5%,\s*transparent\)/);
+    expect(ASTROLABE).toMatch(/--ast-surface-menu:\s*color-mix\([^;]*100%,\s*transparent\)/);
     expect(ASTROLABE).toMatch(
       /html\[data-theme='dark'\][\s\S]*--ast-text-secondary:\s*rgba\(232,\s*237,\s*242,\s*0\.68\)/
     );
@@ -344,7 +344,7 @@ describe('dark mode covers the shipped surfaces', () => {
       expect(body, `${selector} still frosts the column`).toMatch(/backdrop-filter:\s*none/);
       expect(body, `${selector} still uses the lifted gray mix`).not.toMatch(/color-mix/);
     }
-    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--background\)/);
+    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--ast-surface-menu\)/);
     expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='select-content']")).toMatch(
       /background:\s*var\(--ast-surface-menu\)/
     );
@@ -416,8 +416,8 @@ describe('dark mode covers the shipped surfaces', () => {
      * panes remain in the frosted recipe tested below.
      */
     for (const [selector, role] of [
-      ['.account-menu', '--background'],
-      ['.app-menu-content', '--background'],
+      ['.account-menu', '--ast-surface-menu'],
+      ['.app-menu-content', '--ast-surface-menu'],
       ['.app-select-content', '--ast-surface-menu'],
       ["[data-slot='select-content']", '--ast-surface-menu'],
       ["[data-slot='dropdown-menu-content']", '--ast-surface-menu'],
@@ -437,8 +437,10 @@ describe('dark mode covers the shipped surfaces', () => {
     const darkTokens = TOKENS.split("html[data-theme='dark']")[1] ?? '';
     expect(darkTokens).toMatch(/--popover:\s*var\(--ast-surface-menu\)/);
     expect(darkTokens).not.toMatch(/--popover:\s*rgba\(255,\s*255,\s*255,\s*0\.07\)/);
-    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--background\)/);
-    expect(bodyFor(DARK, "html[data-theme='dark'] .app-menu-content")).toMatch(/background:\s*var\(--background\)/);
+    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--ast-surface-menu\)/);
+    expect(bodyFor(DARK, "html[data-theme='dark'] .app-menu-content")).toMatch(
+      /background:\s*var\(--ast-surface-menu\)/
+    );
   });
 
   it('keeps Settings on elevated glass without backdrop blur', () => {

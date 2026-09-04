@@ -30,14 +30,19 @@
    * One block-size contract for BOTH top-level panes.
    *
    * The pane starts after the app header, 56px page inset, title and 24px page
-   * gap. Subtracting the header and another 8px from one dynamic viewport makes
-   * its bottom land about 100px past the first fold on an ordinary desktop.
-   * 760px keeps a useful reading surface on shorter desktop windows; 1120px
-   * stops a very tall display turning either scroll owner into an unbounded
-   * column. The narrow layout below removes this contract and returns both
-   * panes to page flow.
+   * gap. Another 240px beyond the header-adjusted dynamic viewport gives both
+   * panes modestly more reading room than the old 160px allowance, while the
+   * 1240px ceiling stops a tall display turning either scroll owner into an
+   * unbounded column. The smaller 640px floor lets browser zoom and very short
+   * laptop windows contract sooner than the old 760px floor. The page remains
+   * in normal flow, so the pane cannot disappear behind later content. The
+   * narrow layout below removes this contract entirely.
    */
-  --run-explorer-pane-block-size: var(--workspace-pane-block-size);
+  --run-explorer-pane-block-size: clamp(
+    640px,
+    calc(100dvh - var(--app-header-h) + 240px - env(safe-area-inset-bottom, 0px)),
+    1240px
+  );
   /* Recorded result tables benefit from the available desktop width. The shell
      still contracts fluidly below this cap and the narrow breakpoint stacks the
      run list above the detail. */
@@ -809,7 +814,12 @@
   line-height: 1.35;
   text-wrap: pretty;
 }
-/* Who and what, under the prompt: the id chip, the person, the status pill. It
+/* The question and asker stay one connected object at the start of the header. */
+.run-question-attribution {
+  width: 100%;
+  justify-content: flex-start;
+}
+/* What identifies the run, under the prompt: the id chip and status pills. It
    wraps rather than truncating, because each part is now its own object and the
    one that would have fallen off the end is the status. */
 .run-detail-ident {
@@ -827,7 +837,6 @@
  */
 .run-detail-ident .run-context-badge,
 .run-detail-ident .run-id-chip,
-.run-detail-ident .identity-chip,
 .run-detail-ident .ast-pill {
   min-height: 24px;
   box-sizing: border-box;
@@ -949,13 +958,6 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   width: 13px;
   height: 13px;
   color: var(--db-slate-icon);
-}
-.run-detail-user {
-  font-weight: 500;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 /* The pill's glyph, which only the complete tone carries. Sized here because the
    pill is the run list's recipe and the icon is the header's addition to it. */

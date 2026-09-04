@@ -85,7 +85,7 @@ describe('Run Explorer filter geometry', () => {
   });
 
   it('gives the opaque shared menu distinct hover, selected, and disabled options', () => {
-    expect(rule(BASE, '.app-menu-content')).toContain('background: var(--background)');
+    expect(rule(BASE, '.app-menu-content')).toContain('background: var(--ast-surface-menu)');
     expect(rule(BASE, '.app-menu-option:is(:hover, :focus-visible),\n.app-menu-option[data-highlighted]')).toContain(
       'background: var(--db-hover-tint)'
     );

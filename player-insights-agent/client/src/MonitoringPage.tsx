@@ -48,6 +48,7 @@ import { normalizeAnswer, type WireAnswer } from './answer-shape';
 import { SourceEntityName, VisitInDatabricks } from './DataEntityLinks';
 import { UserIdentityChip } from './UserIdentityChip';
 import { UserDrilldownLink } from './UserDrilldownLink';
+import { QuestionAttributionBubble } from './QuestionAttributionBubble';
 import { UnitSegmentedControl } from './UnitSegmentedControl';
 import { RoleBadgePill } from './RoleBadge';
 import { EstimatedBadge } from './EstimatedBadge';
@@ -1016,9 +1017,15 @@ export function QuestionDrawer({
       onDismiss={onClose}
     >
       <div className="monitoring-drawer-head">
-        <h3 id="monitoring-question-title" className="monitoring-drawer-question">
-          {detail.question}
-        </h3>
+        <QuestionAttributionBubble
+          question={detail.question}
+          asker={detail.askedBy}
+          canOpenUser={canOpenUser}
+          questionAs="h3"
+          questionId="monitoring-question-title"
+          className="monitoring-question-attribution"
+          questionClassName="monitoring-drawer-question"
+        />
         <Button variant="outline" size="sm" className="monitoring-drawer-close" onClick={onClose}>
           <X className="size-3" aria-hidden="true" />
           <span className="sr-only">Close</span>
@@ -1033,14 +1040,9 @@ export function QuestionDrawer({
             Joined rather than concatenated because the third segment is absent on
             a run that recorded no identity, and a hardcoded separator would leave
             the line ending in a dangling middot. */}
-      {/* Asked-by is a compact corner chip on the answer card, the same
-            register as "Live agent response". It stays here only when there is
-            no card: a conditioned or failed run still has to name who asked.
-            It is identity context rather than a second link to the same profile;
-            the one user-overview control sits in the onward-actions row below.
-            The timestamp and grants stay a caption, not a second washed bar. */}
+      {/* The timestamp and grants stay a caption under the connected question
+            and asker surface instead of becoming a second washed bar. */}
       <div className="monitoring-drawer-meta-row">
-        {!answer ? <UserIdentityChip identity={detail.askedBy} label="Asked by" compact /> : null}
         <p className="monitoring-drawer-meta">
           {[askedAtLabel(detail.askedAt), askerGrantsLine(detail.execution, identityName(detail.askedBy))]
             .filter((segment): segment is string => Boolean(segment))
@@ -1050,8 +1052,9 @@ export function QuestionDrawer({
       <UsedThisRun used={detail.runtimeUsed ?? null} />
 
       <div className="monitoring-drawer-links">
-        {/* Keep the drilldown's onward actions near its heading, where they are
-              available before a long answer. The MLflow action remains absent
+        {/* Keep the run's onward actions near its heading, where they are
+              available before a long answer. User Monitoring is already linked
+              by the attached asker badge above. The MLflow action remains absent
               rather than dead when the run recorded no trace id. */}
         {detail.mlflowUrl ? (
           <a href={detail.mlflowUrl} target="_blank" rel="noreferrer">
@@ -1067,13 +1070,6 @@ export function QuestionDrawer({
             <ArrowUpRight className="monitoring-link-arrow size-3.5" aria-hidden="true" />
           </Link>
         ) : null}
-        {/* The shared identity chip is the whole control: one accessible name,
-              no nested button, and no possessive activity sentence. It writes the
-              canonical `who` URL as a normal router entry, so Back restores this
-              question and its filters. Unknown/system actors stay plain content,
-              and the explicit gate keeps the same chip non-interactive when the
-              reader cannot open User Monitoring. */}
-        <UserDrilldownLink identity={detail.askedBy} compact canOpen={canOpenUser} showArrow />
       </div>
 
       {detail.conditioning ? (
@@ -1099,7 +1095,6 @@ export function QuestionDrawer({
               ? undefined
               : tokensNote(detail.tokens)
           }
-          headerExtra={<UserIdentityChip identity={detail.askedBy} label="Asked by" compact />}
         />
       ) : (
         /* A refusal or a failure: the taxonomy's own sentence, with the code in

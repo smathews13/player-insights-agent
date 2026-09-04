@@ -87,6 +87,11 @@ describe('the client shell import graph', () => {
       "@import './styles/timeline.css'"
     );
     expect(source('TraceTimeline.tsx')).toContain("import './styles/timeline.css'");
+    expect(entry, 'account menu CSS stays behind its lazy shell control').not.toContain(
+      "@import './styles/account-menu.css'"
+    );
+    expect(source('AccountMenu.tsx')).toContain("import './styles/account-menu.css'");
+    expect(source('OrganizationAvatar.tsx')).toContain("import './styles/organization-avatar.css'");
     for (const answerOnly of ['answer-body.css', 'answer-charts.css']) {
       expect(entry, `${answerOnly} stays behind the lazy answer boundary`).not.toContain(
         `@import './styles/${answerOnly}'`

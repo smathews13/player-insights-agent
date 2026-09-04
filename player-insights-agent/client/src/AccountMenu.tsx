@@ -5,6 +5,7 @@ import { OrganizationAvatar } from './OrganizationAvatar';
 import type { RoleState } from './role';
 import { Popover, PopoverTrigger } from './ui';
 import { canonicalIdentityEmail, identityDisplayName } from './user-identity';
+import './styles/account-menu.css';
 
 const AccountMenuContent = lazy(() =>
   import('./AccountMenuPanel').then(({ AccountMenuContent: content }) => ({ default: content }))

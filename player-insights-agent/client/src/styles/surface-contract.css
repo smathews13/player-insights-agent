@@ -30,8 +30,28 @@
 }
 
 /*
+ * Column headings are foreground chrome even when their table is nested in a
+ * translucent card. Route styles still own spacing, borders, sticky position,
+ * and type; this shared last-in-cascade paint closes the transparent and muted
+ * header gaps across Answer, Run, Settings, Ops, Connections, and Monitoring.
+ */
+.ast-surface-table-head,
+thead th,
+[data-slot='table-head'] {
+  /*
+   * Route CSS is lazy and therefore lands after this eager contract. Several
+   * routes also select headers as `.route-table th`, which outranks a bare
+   * element selector. These paint-only declarations are important so load order
+   * cannot reopen the sky; no geometry or interaction property is locked here.
+   */
+  background-color: var(--ast-surface-table-head) !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+}
+
+/*
  * Dialog is the common body-portal foundation. Its foreground always occludes
- * the route at the elevated 97% rung. Ordinary dialog overlays dim the page so
+ * the route at the elevated 99.5% rung. Ordinary dialog overlays dim the page so
  * text and stars cannot remain legible through the modal. The first-open canvas
  * is the deliberate exception: its sky is a standalone branded opening.
  */
@@ -101,4 +121,48 @@
 .ast-dialog-overlay:not(.first-open) {
   background: var(--ast-overlay-occlusion);
   backdrop-filter: none;
+}
+
+/*
+ * Reduced transparency removes the final trace from ordinary cards as well as
+ * from raised surfaces. The theme-specific opaque token keeps daylight white
+ * and the night theme on its neutral panel fill without another selector list.
+ */
+@media (prefers-reduced-transparency: reduce) {
+  html:is(:not([data-theme='dark']), [data-theme='dark']) {
+    --ast-surface-muted: var(--ast-surface-opaque);
+    --ast-surface-primary: var(--ast-surface-opaque);
+    --ast-surface-elevated: var(--ast-surface-opaque);
+    --ast-surface-menu: var(--ast-surface-opaque);
+    --ast-surface-chrome: var(--ast-surface-opaque);
+    --ast-surface-table-head: var(--ast-surface-opaque);
+  }
+}
+
+/*
+ * High-contrast mode owns every foreground and edge color. Canvas prevents the
+ * decorative field from becoming accidental content when authored alpha is
+ * discarded by the forced palette.
+ */
+@media (forced-colors: active) {
+  .ast-surface-primary,
+  .ast-surface-elevated,
+  .ast-surface-menu,
+  .ast-surface-chrome,
+  .ast-dialog-panel,
+  .ast-login-panel,
+  .ast-surface-table-head,
+  thead th,
+  [data-slot='table-head'],
+  .app-header::before {
+    background: Canvas;
+    backdrop-filter: none;
+  }
+
+  .ast-surface-table-head,
+  thead th,
+  [data-slot='table-head'] {
+    background-color: Canvas !important;
+    background-image: none !important;
+  }
 }

@@ -58,10 +58,10 @@ describe('the header lockup is a home control', () => {
     expect(markup).not.toMatch(/<img\b/);
   });
 
-  it('wraps the exact compact dark lockup and does not replace it', () => {
+  it('wraps the exact full-name dark lockup and does not replace it', () => {
     expect(LAYOUT).toContain(`to={ASK_HOME_HREF}`);
     expect(LAYOUT).toContain('className="brand-home"');
-    expect(LAYOUT).toMatch(/<Link[\s\S]*?<PiaLockup as="h1" seat="header" name="acronym" tone="dark"/);
+    expect(LAYOUT).toMatch(/<Link[\s\S]*?<PiaLockup as="h1" seat="header" name="full" tone="dark"/);
     expect(LAYOUT).toContain('goToAskHome()');
   });
 

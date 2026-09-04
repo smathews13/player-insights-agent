@@ -134,7 +134,7 @@ const TRANSCRIPT_SOURCE = readFileSync(new URL('./HomePage.tsx', import.meta.url
  */
 describe('where the mark is used', () => {
   it('signs the user’s own messages with the shared identity chip', () => {
-    expect(TRANSCRIPT_SOURCE).toContain('<UserDrilldownLink');
+    expect(TRANSCRIPT_SOURCE).toContain('<QuestionAttributionBubble');
     expect(TRANSCRIPT_SOURCE).not.toContain('{asker.initials}');
   });
 
@@ -144,7 +144,9 @@ describe('where the mark is used', () => {
    * conversation rail's owner circle already does it.
    */
   it('puts the identity itself where it can be read', () => {
-    expect(TRANSCRIPT_SOURCE).toContain('label="Asked by"');
+    expect(readFileSync(new URL('./QuestionAttributionBubble.tsx', import.meta.url), 'utf8')).toContain(
+      'label="Asked by"'
+    );
   });
 
   it('leaves no initials implementation in the transcript or rail', () => {

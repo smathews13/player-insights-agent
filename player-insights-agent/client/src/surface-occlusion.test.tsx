@@ -35,31 +35,34 @@ describe('primary surface occlusion', () => {
   const tokens = partial('tokens.css');
   const contract = partial('surface-contract.css');
 
-  it('defines an ordered translucent glass hierarchy with AA text contrast', () => {
+  it('defines screenshot-safe glass with opaque foreground chrome and AA text contrast', () => {
     const muted = tokenMix(astrolabe, '--ast-surface-muted');
     const primary = tokenMix(astrolabe, '--ast-surface-primary');
     const elevated = tokenMix(astrolabe, '--ast-surface-elevated');
     const menu = tokenMix(astrolabe, '--ast-surface-menu');
     const chrome = tokenMix(astrolabe, '--ast-surface-chrome');
-    expect(muted).toBe(92);
-    expect(primary).toBe(95);
-    expect(elevated).toBe(97);
-    expect(menu).toBe(98.5);
-    expect(chrome).toBe(99);
+    const tableHead = tokenMix(astrolabe, '--ast-surface-table-head');
+    expect(muted).toBe(96);
+    expect(primary).toBe(98.5);
+    expect(elevated).toBe(99.5);
+    expect(menu).toBe(100);
+    expect(chrome).toBe(100);
+    expect(tableHead).toBe(100);
     expect(muted).toBeLessThan(primary);
     expect(primary).toBeLessThan(elevated);
     expect(elevated).toBeLessThan(menu);
-    expect(menu).toBeLessThan(chrome);
-    expect(chrome).toBeLessThan(100);
+    expect(menu).toBe(chrome);
+    expect(chrome).toBe(tableHead);
     expect(astrolabe).toContain('--ast-pane: var(--ast-surface-primary)');
 
     const darkAstrolabe = bodyFor(astrolabe, "html[data-theme='dark']");
     for (const [name, amount] of [
-      ['--ast-surface-muted', 92],
-      ['--ast-surface-primary', 95],
-      ['--ast-surface-elevated', 97],
-      ['--ast-surface-menu', 98.5],
-      ['--ast-surface-chrome', 99],
+      ['--ast-surface-muted', 96],
+      ['--ast-surface-primary', 98.5],
+      ['--ast-surface-elevated', 99.5],
+      ['--ast-surface-menu', 100],
+      ['--ast-surface-chrome', 100],
+      ['--ast-surface-table-head', 100],
     ] as const) {
       expect(tokenMix(darkAstrolabe, name), name).toBe(amount);
     }
@@ -80,12 +83,19 @@ describe('primary surface occlusion', () => {
       ['.ast-surface-menu', '--ast-surface-menu'],
       ['.ast-surface-chrome', '--ast-surface-chrome'],
       ['.ast-dialog-panel', '--ast-surface-elevated'],
+      ['.ast-surface-table-head', '--ast-surface-table-head'],
+      ['thead th', '--ast-surface-table-head'],
+      ["[data-slot='table-head']", '--ast-surface-table-head'],
     ] as const) {
       const body = bodyFor(contract, selector);
-      expect(body).toContain(`background-color: var(${role})`);
+      expect(body).toMatch(new RegExp(`background-color:\\s*var\\(${role}\\)(?:\\s*!important)?`));
       expect(body).toMatch(/backdrop-filter:\s*none/);
       expect(body).not.toMatch(/rgba|blur\(/);
     }
+    const tableHeadRule = bodyFor(contract, 'thead th');
+    expect(tableHeadRule).toMatch(/background-color:\s*var\(--ast-surface-table-head\)\s*!important/);
+    expect(tableHeadRule).toMatch(/background-image:\s*none\s*!important/);
+    expect(tableHeadRule).toMatch(/backdrop-filter:\s*none\s*!important/);
     const overlay = bodyFor(contract, '.ast-dialog-overlay:not(.first-open)');
     expect(overlay).toMatch(/background:\s*var\(--ast-overlay-occlusion\)/);
     expect(overlay).toMatch(/backdrop-filter:\s*none/);
@@ -106,6 +116,26 @@ describe('primary surface occlusion', () => {
     const home = source('HomePage.tsx');
     expect(home).toContain('conversation-rail ast-surface-primary');
     expect(home).toContain('conversation-row ast-surface-primary');
+  });
+
+  it('makes transparency and forced-color preferences fully occluding', () => {
+    const reduced = contract.match(/@media \(prefers-reduced-transparency: reduce\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    for (const name of [
+      '--ast-surface-muted',
+      '--ast-surface-primary',
+      '--ast-surface-elevated',
+      '--ast-surface-menu',
+      '--ast-surface-chrome',
+      '--ast-surface-table-head',
+    ]) {
+      expect(reduced, name).toContain(`${name}: var(--ast-surface-opaque)`);
+    }
+    const forced = contract.slice(contract.lastIndexOf('@media (forced-colors: active)'));
+    expect(forced).toContain('thead th');
+    expect(forced).toContain('.ast-dialog-panel');
+    expect(forced).toContain('.app-header::before');
+    expect(forced).toMatch(/background:\s*Canvas/);
+    expect(forced).toMatch(/backdrop-filter:\s*none/);
   });
 
   it('routes shipped reading surfaces through high-alpha semantic paint', () => {
@@ -130,19 +160,10 @@ describe('primary surface occlusion', () => {
 
   it('uses stronger paint for menus, pickers, dialogs, and portaled controls', () => {
     const base = partial('base.css');
-    expect(bodyFor(base, '.app-select-content')).toMatch(/background:\s*var\(--ast-surface-menu\)/);
+    expect(bodyFor(base, '.app-menu-content')).toMatch(/background:\s*var\(--ast-surface-menu\)/);
+    expect(bodyFor(base, '.app-menu-content')).toMatch(/backdrop-filter:\s*none/);
 
-    const rail = partial('rail.css');
-    expect(bodyFor(rail, '.conversation-owner-menu')).toMatch(
-      /background-color:\s*var\(--popover\)[\s\S]*backdrop-filter:\s*none/
-    );
-
-    const monitoring = partial('monitoring.css');
-    expect(bodyFor(monitoring, '.monitoring-chip-menu')).toMatch(/background:\s*var\(--ast-surface-menu\)/);
     const darkMonitoring = partial('dark-monitoring.css');
-    expect(bodyFor(darkMonitoring, "html[data-theme='dark'] .monitoring-chip-menu")).toMatch(
-      /background:\s*var\(--ast-surface-menu\)/
-    );
     expect(bodyFor(darkMonitoring, "html[data-theme='dark'] .user-profile-modal")).toMatch(
       /background:\s*var\(--ast-surface-elevated\)/
     );
@@ -294,7 +315,7 @@ describe('constellation and chrome layers', () => {
     expect(chromeTransmission).toBeLessThanOrEqual(0.00011);
   });
 
-  it('keeps exposed constellation intensity while surfaces cap covered intersections', () => {
+  it('keeps uncovered decoration unchanged while cards dim and foregrounds suppress it', () => {
     expect(motion).toMatch(/circle\.app-sky-glyph\s*\{[^}]*fill:\s*var\(--ast-white\)/s);
     expect(bodyFor(dark, "html[data-theme='dark'] .app-sky-line")).toMatch(/opacity:\s*0\.6/);
     expect(bodyFor(dark, "html[data-theme='dark'] .app-sky-glyph")).toMatch(
@@ -307,10 +328,15 @@ describe('constellation and chrome layers', () => {
 
     const exposedIntersection = 1 - (1 - 0.85) ** 2;
     const coveredIntersection = exposedIntersection * (1 - tokenMix(astrolabe, '--ast-surface-primary') / 100);
+    const coveredElevatedIntersection = exposedIntersection * (1 - tokenMix(astrolabe, '--ast-surface-elevated') / 100);
     const coveredMenuIntersection = exposedIntersection * (1 - tokenMix(astrolabe, '--ast-surface-menu') / 100);
+    const coveredHeaderIntersection = exposedIntersection * (1 - tokenMix(astrolabe, '--ast-surface-table-head') / 100);
     expect(exposedIntersection).toBeGreaterThan(0.95);
-    expect(coveredIntersection).toBeLessThan(0.05);
-    expect(coveredMenuIntersection).toBeLessThan(0.015);
+    expect(coveredIntersection).toBeLessThan(0.015);
+    expect(coveredIntersection).toBeGreaterThan(0);
+    expect(coveredElevatedIntersection).toBeLessThan(0.005);
+    expect(coveredMenuIntersection).toBe(0);
+    expect(coveredHeaderIntersection).toBe(0);
 
     const appearance = partial('appearance-preferences.css');
     expect(bodyFor(appearance, "html[data-background-graphics='off'] .app-sky")).toMatch(/display:\s*none !important/);
@@ -323,6 +349,13 @@ describe('constellation and chrome layers', () => {
     expect(
       bodyFor(appearance, "html[data-animations='off'] .app-sky[data-star-motion-field] .star-motion-draw")
     ).toMatch(/opacity:\s*0\.45/);
+  });
+
+  it('keeps decorative and backing layers out of pointer hit testing', () => {
+    expect(bodyFor(dark, '.app-sky')).toMatch(/pointer-events:\s*none/);
+    expect(bodyFor(shell, '.app-header::before')).toMatch(/pointer-events:\s*none/);
+    expect(bodyFor(shell, '.app-header::before')).toMatch(/z-index:\s*-1/);
+    expect(bodyFor(partial('surface-contract.css'), 'thead th')).not.toMatch(/pointer-events|position|z-index/);
   });
 
   it('gives every body-portal dialog a strong shared overlay and elevated panel', () => {

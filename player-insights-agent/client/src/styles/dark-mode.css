@@ -448,12 +448,12 @@ html[data-theme='dark'] [data-slot='popover-content'] {
   color: var(--foreground);
 }
 html[data-theme='dark'] .app-menu-content {
-  background: var(--background);
+  background: var(--ast-surface-menu);
   backdrop-filter: none;
 }
 
 html[data-theme='dark'] .account-menu {
-  background: var(--background);
+  background: var(--ast-surface-menu);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);

@@ -5,6 +5,9 @@ import { Dialog } from './Dialog';
 import { dialogKeyIntent, dialogTabTarget } from './dialog-state';
 
 const SOURCE = readFileSync(new URL('./Dialog.tsx', import.meta.url), 'utf8');
+const BASE_CSS = readFileSync(new URL('./styles/base.css', import.meta.url), 'utf8');
+const MONITORING_SOURCE = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
+const SELECT_SOURCE = readFileSync(new URL('./AppSelect.tsx', import.meta.url), 'utf8');
 
 function renderDialog(): string {
   return renderToStaticMarkup(
@@ -56,20 +59,26 @@ describe('Dialog', () => {
     expect(dialogTabTarget(controls, 'first', 'backward')).toBe('last');
   });
 
-  it('contains focus, hides the background, restores focus, and nests scroll locks', () => {
+  it('contains focus, hides the background, restores focus, and nests an idempotent scroll lock', () => {
     expect(SOURCE).toContain('target.focus()');
     expect(SOURCE).toContain("sibling.setAttribute('aria-hidden', 'true')");
     expect(SOURCE).toContain('sibling.inert = true');
+    expect(SOURCE).toContain('useLayoutEffect');
     expect(SOURCE).toContain("document.body.style.overflow = 'hidden'");
     expect(SOURCE).toContain('createPortal(overlay, document.body)');
-    expect(SOURCE).toContain('window.innerWidth - document.documentElement.clientWidth');
+    expect(SOURCE).toContain('const widthBeforeLock = document.documentElement.clientWidth');
+    expect(SOURCE).toContain('document.documentElement.clientWidth - widthBeforeLock');
     expect(SOURCE).toContain('document.body.style.paddingRight = savedBodyPaddingRight');
     expect(SOURCE).toContain('scrollLocks += 1');
+    expect(SOURCE).toContain('if (released) return false');
     expect(SOURCE).toContain('document.body.style.overflow = savedBodyOverflow');
     expect(SOURCE).toContain('savedScrollY = window.scrollY');
+    expect(SOURCE).toContain('window.scrollY !== savedScrollY');
     expect(SOURCE).toContain('window.scrollTo(savedScrollX, savedScrollY)');
     expect(SOURCE).toContain('restoreTo instanceof HTMLElement && restoreTo.isConnected');
     expect(SOURCE).toContain('restoreTo.focus()');
+    expect(SOURCE).toContain('queueMicrotask');
+    expect(SOURCE).toContain('if (!finalDialog || scrollLocks !== 0) return');
   });
 
   it('portals every dialog outside transformed page ancestors at every document scroll position', () => {
@@ -77,6 +86,27 @@ describe('Dialog', () => {
       expect(scrollY).toBeGreaterThanOrEqual(0);
       expect(SOURCE).toContain('createPortal(overlay, document.body)');
     }
+  });
+
+  it('keeps document geometry stable and gives scroll restoration one owner', () => {
+    expect(BASE_CSS).toMatch(/html\s*\{[^}]*scrollbar-gutter:\s*stable/s);
+    expect(SOURCE).toContain(
+      'const releasedWidth = Math.max(0, document.documentElement.clientWidth - widthBeforeLock)'
+    );
+    expect(SOURCE).toContain('if (releasedWidth > 0)');
+    expect(SOURCE).toContain('window.scrollY !== savedScrollY');
+    expect(
+      MONITORING_SOURCE.match(/closeUserMonitoring[\s\S]*?globalThis\.scrollTo\(\{ top: offset \}\)/)?.[0]
+    ).toBeTruthy();
+    expect(
+      MONITORING_SOURCE.match(/closeFeedbackBrowser[\s\S]*?globalThis\.scrollTo\(\{ top: offset \}\)/)?.[0]
+    ).toBeTruthy();
+  });
+
+  it('keeps ordinary portalled dropdowns non-modal without touching body overflow', () => {
+    expect(SELECT_SOURCE).toContain('<Popover');
+    expect(SELECT_SOURCE).not.toContain('body.style.overflow');
+    expect(SELECT_SOURCE).not.toContain('lockDocumentScroll');
   });
 
   it('keeps Escape and backdrop behavior under caller policy', () => {

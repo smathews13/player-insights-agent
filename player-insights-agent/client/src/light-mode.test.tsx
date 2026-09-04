@@ -285,7 +285,7 @@ describe('the light answer sits on high-alpha semantic glass', () => {
     expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-sky-spackle:\s*none/);
     expect(rule(TOKENS, ':root')).toMatch(/--ast-pane:\s*var\(--ast-surface-primary\)/);
     expect(rule(TOKENS, ':root')).toMatch(
-      /--ast-surface-primary:\s*color-mix\(in srgb,\s*var\(--ast-white\) 95%,\s*transparent\)/
+      /--ast-surface-primary:\s*color-mix\(in srgb,\s*var\(--ast-white\) 98\.5%,\s*transparent\)/
     );
     /* The card keeps reading the token -- answer.css is not ours to edit, and the
        point of doing this in a token is that it does not need to be. */
@@ -299,7 +299,7 @@ describe('the light answer sits on high-alpha semantic glass', () => {
        dark-mode.css, which is where that fallback belongs. */
     expect(rule(TOKENS, "html[data-theme='dark']")).toMatch(/--ast-pane:\s*var\(--ast-surface-primary\)/);
     expect(rule(TOKENS, "html[data-theme='dark']")).toMatch(
-      /--ast-surface-primary:\s*color-mix\(in srgb,\s*var\(--ast-surface-solid\) 95%,\s*transparent\)/
+      /--ast-surface-primary:\s*color-mix\(in srgb,\s*var\(--ast-surface-solid\) 98\.5%,\s*transparent\)/
     );
     expect(DARK).toMatch(/--ast-pane:\s*var\(--ast-surface-solid\)/);
   });

@@ -105,13 +105,14 @@ describe('wordmark, acronym, lockup, and empty-state primitives', () => {
     expect(acronym).toContain('PI<span class="pia-accent">A</span>');
   });
 
-  it('uses only the compact acronym and simplified D-pad in the header lockup', () => {
+  it('uses the full-name wordmark and simplified D-pad in the header lockup', () => {
     const lockup = renderToStaticMarkup(<PiaLockup seat="header" tone="dark" />);
-    expect(lockup).toContain('pia-lockup--acronym');
+    expect(lockup).toContain('pia-lockup--full');
     expect(lockup).toContain('data-pia-cut="simplified"');
     expect(lockup).toContain('width="15"');
-    expect(lockup).toContain('PI<span class="pia-accent">A</span>');
-    expect(lockup).not.toContain('pia-wordmark');
+    expect(lockup).toContain('Player Insights <span class="pia-accent">Agent</span>');
+    expect(lockup).toContain('pia-wordmark');
+    expect(lockup).not.toContain('pia-acronym');
     expect(lockup).not.toContain('pia-caption');
   });
 

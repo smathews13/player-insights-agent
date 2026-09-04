@@ -1,7 +1,7 @@
 import {
   createElement,
   useCallback,
-  useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -21,25 +21,39 @@ let savedBodyPaddingRight = '';
 let savedScrollX = 0;
 let savedScrollY = 0;
 
-function lockDocumentScroll(): () => void {
+function lockDocumentScroll(): () => boolean {
   if (scrollLocks === 0) {
     savedBodyOverflow = document.body.style.overflow;
     savedBodyPaddingRight = document.body.style.paddingRight;
     savedScrollX = window.scrollX;
     savedScrollY = window.scrollY;
-    const scrollbar = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+    const widthBeforeLock = document.documentElement.clientWidth;
     const currentPadding = Number.parseFloat(window.getComputedStyle(document.body).paddingRight) || 0;
-    if (scrollbar > 0) document.body.style.paddingRight = `${currentPadding + scrollbar}px`;
     document.body.style.overflow = 'hidden';
+    /*
+     * The root reserves its document scrollbar with `scrollbar-gutter: stable`,
+     * so modern browsers report no width change here and need no body padding.
+     * The measured fallback covers engines that ignore the gutter: compensate
+     * only for width that the lock actually released, never for the pre-lock
+     * scrollbar width (which would reserve the same strip twice).
+     */
+    const releasedWidth = Math.max(0, document.documentElement.clientWidth - widthBeforeLock);
+    if (releasedWidth > 0) document.body.style.paddingRight = `${currentPadding + releasedWidth}px`;
+    document.documentElement.dataset.astScrollLocked = '';
   }
   scrollLocks += 1;
+  let released = false;
   return () => {
-    scrollLocks -= 1;
+    if (released) return false;
+    released = true;
+    scrollLocks = Math.max(0, scrollLocks - 1);
     if (scrollLocks === 0) {
       document.body.style.overflow = savedBodyOverflow;
       document.body.style.paddingRight = savedBodyPaddingRight;
-      window.scrollTo(savedScrollX, savedScrollY);
+      delete document.documentElement.dataset.astScrollLocked;
+      return true;
     }
+    return false;
   };
 }
 
@@ -137,7 +151,7 @@ export function Dialog({
   const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const content = contentRef.current;
     if (!portalContainer || !content) return;
     const restoreTo = document.activeElement;
@@ -146,8 +160,19 @@ export function Dialog({
     (initialFocusRef?.current ?? content).focus();
     return () => {
       showOnlyDialog();
-      unlockScroll();
-      if (restoreTo instanceof HTMLElement && restoreTo.isConnected) restoreTo.focus();
+      const finalDialog = unlockScroll();
+      /*
+       * React may replace one dialog with another in the same commit. Deferring
+       * restoration lets the replacement acquire the shared lock first, which
+       * avoids a transient scrollbar, a route scroll, and a focus bounce.
+       */
+      queueMicrotask(() => {
+        if (!finalDialog || scrollLocks !== 0) return;
+        if (window.scrollX !== savedScrollX || window.scrollY !== savedScrollY) {
+          window.scrollTo(savedScrollX, savedScrollY);
+        }
+        if (restoreTo instanceof HTMLElement && restoreTo.isConnected) restoreTo.focus();
+      });
     };
   }, [initialFocusRef, portalContainer]);
 

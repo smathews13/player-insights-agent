@@ -50,7 +50,6 @@ import type { Answer, FeedbackEntry } from './app-types';
 import type { FeedbackDirection } from '../../shared/feedback-direction';
 import { StateSwitch } from './StateSwitch';
 import { SqlCodeBlocks } from './SqlPresentation';
-import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { readRunProcessPreference, writeRunProcessPreference } from './run-process-preference';
 import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 import { answerHasGeneratedSql } from './answer-sql';
@@ -85,7 +84,6 @@ export function AnswerCard({
   processStages,
   runProcessVariant = 'default',
   afterEvidence,
-  headerExtra,
 }: {
   answer: Answer;
   /**
@@ -148,12 +146,6 @@ export function AnswerCard({
    * modal's height-capped column. Ask does not pass one.
    */
   afterEvidence?: ReactNode;
-  /**
-   * A compact chip that belongs in the same top-left corner as "Live agent
-   * response". Monitoring passes Asked-by here so that name is a corner chip
-   * on the answer, not a washed bar above it. Ask does not pass one.
-   */
-  headerExtra?: ReactNode;
 }) {
   const readerAnswer = normalizeReaderAnswer(answer);
   const hasGeneratedSql = answerHasGeneratedSql(readerAnswer.sql);
@@ -246,7 +238,6 @@ export function AnswerCard({
               <Badge variant={badge.variant} className="provenance-chip" data-tone={badge.tone}>
                 {badge.label}
               </Badge>
-              {headerExtra}
               {honesty.tone === 'partial' && (
                 <Badge variant="outline" className="provenance-chip ast-pill ast-pill--warn">
                   {honesty.eyebrow}
@@ -531,11 +522,9 @@ export function AnswerCard({
             at all where nothing reported one: a run with no recorded identity
             is not a run to make any claim about, in either direction.
 
-            Kept on its own line because the generic AI caveat must contain only
-            its shared sentence; access provenance is evidence about this run,
-            not boilerplate about AI. */}
+            Kept on its own line because access provenance is evidence about
+            this run, not boilerplate about AI. */}
         {dataAccess ? <p className="data-access-note">{dataAccess}</p> : null}
-        <AIAnalysisCaveat className="ai-note" />
       </CardContent>
     </Card>
   );

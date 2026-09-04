@@ -194,12 +194,11 @@ import type {
 import type { FeedbackDirection } from '../../shared/feedback-direction';
 import { FeedbackWriteQueue } from './feedback-write-queue';
 import { notifyFeedbackChanged } from './feedback-events';
+import { QuestionAttributionBubble } from './QuestionAttributionBubble';
+import { UserDrilldownLink } from './UserDrilldownLink';
 
 const ConversationFilters = lazy(() =>
   import('./ConversationFilters').then(({ ConversationFilters: filters }) => ({ default: filters }))
-);
-const UserDrilldownLink = lazy(() =>
-  import('./UserDrilldownLink').then(({ UserDrilldownLink: link }) => ({ default: link }))
 );
 const RunRatingBadge = lazy(() => import('./RunRatingBadge').then(({ RunRatingBadge: badge }) => ({ default: badge })));
 
@@ -3056,12 +3055,13 @@ const MessageItem = memo(function MessageItem({
 }) {
   if (message.role === 'user') {
     return (
-      <div className="user-message">
-        <div className="user-bubble">{message.content}</div>
-        <Suspense fallback={null}>
-          <UserDrilldownLink identity={asker} label="Asked by" compact className="user-avatar" canOpen={canOpenUser} />
-        </Suspense>
-      </div>
+      <QuestionAttributionBubble
+        question={message.content}
+        asker={asker}
+        canOpenUser={canOpenUser}
+        className="user-message"
+        questionClassName="user-bubble"
+      />
     );
   }
   if (!response) {

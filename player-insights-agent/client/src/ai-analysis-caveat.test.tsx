@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { AIAnalysisCaveat, AI_ANALYSIS_CAVEAT } from './AIAnalysisCaveat';
 import { AnswerCard } from './AnswerCard';
 import { FinalAnswer } from './FinalAnswer';
+import StoredAnswerRenderer from './StoredAnswerRenderer';
 import type { Answer, FeedbackEntry } from './app-types';
 
 const OLD_ANSWER_CAVEAT = ['astrolabe analysis.', 'Verify material decisions against cited sources.'].join(' ');
@@ -85,7 +86,7 @@ function answer(): Answer {
   };
 }
 
-describe('the shared reader-facing AI caveat', () => {
+describe('the composer AI caveat', () => {
   it('has one exact sentence and one accessible reading of it', () => {
     expect(AI_ANALYSIS_CAVEAT).toBe('Player Insights Agent analysis. AI can make mistakes.');
     const markup = renderToStaticMarkup(<AIAnalysisCaveat className="ai-note" />);
@@ -104,10 +105,60 @@ describe('the shared reader-facing AI caveat', () => {
     expect(visibleText(markup)).toBe(AI_ANALYSIS_CAVEAT);
   });
 
-  it('closes live, loaded, replayed, degraded, and Monitoring answers through AnswerCard', () => {
+  it('appears exactly once on Ask while the answer keeps grants and feedback', () => {
+    const markup = renderToStaticMarkup(
+      <>
+        <AnswerCard
+          answer={answer()}
+          feedback={feedback}
+          onFeedbackChange={() => {}}
+          saveFeedback={async () => {}}
+          showFeedback
+        />
+        <AIAnalysisCaveat className="composer-ai-note" showMark={false} />
+      </>
+    );
+
+    expect(caveatTexts(markup)).toEqual([AI_ANALYSIS_CAVEAT]);
+    expect(markup).toContain('Data read under your own Unity Catalog grants.');
+    expect(markup).toContain('Was this answer useful?');
+    expect(markup).toContain('aria-label="Mark answer helpful"');
+    expect(markup).toContain('aria-label="Mark answer not helpful"');
+    expect(visibleText(markup)).toContain(
+      'Validation: Verify document-based claims against the attached reports before using them.'
+    );
+  });
+
+  it('omits the duplicate from current and Monitoring answers', () => {
     const markup = renderToStaticMarkup(
       <AnswerCard
         answer={answer()}
+        feedback={feedback}
+        onFeedbackChange={() => {}}
+        saveFeedback={async () => {}}
+        showFeedback
+      />
+    );
+
+    expect(caveatTexts(markup)).toEqual([]);
+    expect(markup).toContain('Data read under your own Unity Catalog grants.');
+    expect(markup).toContain('Was this answer useful?');
+  });
+
+  it('omits the duplicate from stored structured and raw answers', () => {
+    const structured = renderToStaticMarkup(
+      <StoredAnswerRenderer
+        answer={answer()}
+        rawContent=""
+        feedback={feedback}
+        onFeedbackChange={() => {}}
+        saveFeedback={async () => {}}
+        showFeedback
+      />
+    );
+    const raw = renderToStaticMarkup(
+      <StoredAnswerRenderer
+        rawContent="A stored fallback answer."
         feedback={feedback}
         onFeedbackChange={() => {}}
         saveFeedback={async () => {}}
@@ -115,15 +166,14 @@ describe('the shared reader-facing AI caveat', () => {
       />
     );
 
-    expect(caveatTexts(markup)).toEqual([AI_ANALYSIS_CAVEAT]);
-    expect(markup).toContain('Data read under your own Unity Catalog grants.');
-    expect(caveatTexts(markup)[0]).not.toMatch(/Unity Catalog|sources|model/i);
-    expect(visibleText(markup)).toContain(
-      'Validation: Verify document-based claims against the attached reports before using them.'
-    );
+    expect(caveatTexts(structured)).toEqual([]);
+    expect(caveatTexts(raw)).toEqual([]);
+    expect(structured).toContain('Data read under your own Unity Catalog grants.');
+    expect(structured).toContain('Was this answer useful?');
+    expect(visibleText(raw)).toContain('A stored fallback answer.');
   });
 
-  it('closes the Run Explorer final-answer rendering without changing evidence warnings', () => {
+  it('omits the duplicate from Run Explorer without changing evidence warnings', () => {
     const specificWarning =
       'The sources for this answer are incomplete: part of it came from a query whose tables could not be determined.';
     const markup = renderToStaticMarkup(
@@ -137,7 +187,7 @@ describe('the shared reader-facing AI caveat', () => {
       </MemoryRouter>
     );
 
-    expect(caveatTexts(markup)).toEqual([AI_ANALYSIS_CAVEAT]);
+    expect(caveatTexts(markup)).toEqual([]);
     expect(visibleText(markup)).toContain(specificWarning);
   });
 });
@@ -159,14 +209,26 @@ describe('AI caveat source invariants', () => {
     }
   });
 
-  it('routes every answer-bearing surface through the shared component', () => {
-    expect(sourceByName('AnswerCard.tsx')).toContain('<AIAnalysisCaveat');
-    expect(sourceByName('FinalAnswer.tsx')).toContain('<AIAnalysisCaveat');
+  it('keeps the disclosure in the composer and out of every answer host', () => {
     expect(sourceByName('HomePage.tsx').match(/<AIAnalysisCaveat/g)).toHaveLength(1);
-    expect(sourceByName('StoredAnswerRenderer.tsx')).toContain('<AIAnalysisCaveat');
+    expect(sourceByName('HomePage.tsx')).toContain(
+      '<AIAnalysisCaveat className="composer-ai-note" showMark={false} />'
+    );
+    for (const name of ['AnswerCard.tsx', 'FinalAnswer.tsx', 'StoredAnswerRenderer.tsx', 'RunExplorer.tsx']) {
+      expect(sourceByName(name), name).not.toContain('AIAnalysisCaveat');
+    }
     expect(sourceByName('MonitoringPage.tsx')).toContain('<AnswerCard');
     expect(sourceByName('RunExplorer.tsx')).toContain('<FinalAnswer');
-    expect(sourceByName('RunExplorer.tsx').match(/<AIAnalysisCaveat/g)).toHaveLength(2);
+  });
+
+  it('removes answer-footer icon spacing while keeping composer layout', () => {
+    const answerCss = readFileSync(join(ROOT, 'styles/answer-body.css'), 'utf8');
+    const composerCss = readFileSync(join(ROOT, 'styles/composer.css'), 'utf8');
+
+    expect(answerCss).not.toContain('.ai-note');
+    expect(composerCss).toMatch(
+      /\.composer-actions > \.composer-ai-note\s*\{[^}]*flex:\s*1[^}]*display:\s*flex[^}]*align-items:\s*center/s
+    );
   });
 
   it('does not introduce independent generic warnings in trace or Benchmark/Lab renderers', () => {

@@ -155,6 +155,23 @@
   .monitoring-users-toolbar-view {
     justify-content: flex-start;
   }
+  .monitoring-feedback-body {
+    overflow-y: auto;
+  }
+  .monitoring-feedback-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .monitoring-feedback-toolbar-primary {
+    flex-wrap: wrap;
+  }
+  .monitoring-feedback-filter-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .monitoring-feedback-table-frame {
+    flex: none;
+    min-height: 0;
+    overflow: visible;
+  }
   .monitoring-feedback-table,
   .monitoring-feedback-table tbody,
   .monitoring-feedback-table tr,
@@ -258,6 +275,13 @@
     width: 100%;
     min-width: 0;
     max-width: none;
+  }
+  .monitoring-feedback-filter-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .monitoring-feedback-toolbar-primary {
+    align-items: stretch;
+    flex-direction: column;
   }
   .monitoring-heading-period,
   .monitoring-heading-actions .refresh-control {

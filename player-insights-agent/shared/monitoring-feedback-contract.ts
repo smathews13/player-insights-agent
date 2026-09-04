@@ -1,6 +1,6 @@
 import type { Role } from './user-roster-contract';
 
-export const MONITORING_FEEDBACK_SCHEMA_REVISION = 1;
+export const MONITORING_FEEDBACK_SCHEMA_REVISION = 2;
 
 export type MonitoringFeedbackDirection = 'up' | 'down';
 
@@ -43,6 +43,8 @@ export interface MonitoringFeedbackPayload {
     total: number;
     helpful: number;
     notHelpful: number;
+    /** Submitted feedback rows carrying a non-empty written comment. */
+    comments: number;
   };
   rows: MonitoringFeedbackRow[];
   filters: {
