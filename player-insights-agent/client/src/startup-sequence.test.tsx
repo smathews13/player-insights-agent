@@ -16,7 +16,6 @@ import type { Identity } from './app-types';
 import { bootstrapAppSession, resetAppSessionForTests } from './app-session';
 import { forgetIdentityRequest, identityRequest } from './app-state';
 import { forgetFirstOpen } from './first-open';
-import { FLICKER_ORDER } from './astrolabe-mark';
 
 const startupSource = readFileSync(new URL('./StartupBoundary.tsx', import.meta.url), 'utf8');
 const mainSource = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
@@ -144,7 +143,7 @@ describe('authoritative startup sequence', () => {
 });
 
 describe('frame ownership', () => {
-  it('keeps one original Astrolabe flicker slot while startup status advances', () => {
+  it('keeps one PIA D-pad/cluster loader while startup status advances', () => {
     expect(startupSource.match(/<StartupLoadingSurface/g)).toHaveLength(1);
     for (const phase of [
       'native-auth-pending',
@@ -153,9 +152,11 @@ describe('frame ownership', () => {
       'application-bootstrap',
     ] as const) {
       const markup = renderToStaticMarkup(<StartupLoadingSurface phase={phase} />);
-      expect(markup.match(/data-startup-loader="astrolabe-primary"/g)).toHaveLength(1);
-      expect(markup.match(/class="ast-flick-slot /g)).toHaveLength(1);
-      expect(markup.match(/class="ast-mark /g)).toHaveLength(FLICKER_ORDER.length);
+      expect(markup.match(/data-startup-loader="pia-primary"/g)).toHaveLength(1);
+      expect(markup.match(/class="pia-loader /g)).toHaveLength(1);
+      expect(markup.match(/class="pia-loader-mark /g)).toHaveLength(1);
+      expect(markup.match(/pia-loader__phase--(?:dpad|cluster)/g)).toHaveLength(2);
+      expect(markup.match(/pia-loader__center/g)).toHaveLength(1);
     }
   });
 
@@ -164,7 +165,7 @@ describe('frame ownership', () => {
     const readiness = renderToStaticMarkup(<StartupLoadingSurface phase="application-bootstrap" />);
     expect(access).toContain('Checking access');
     expect(readiness).toContain('Preparing Ask');
-    expect(access.match(/class="ast-flick-slot /g)).toHaveLength(1);
+    expect(access.match(/class="pia-loader /g)).toHaveLength(1);
     expect(access).not.toMatch(/permission.*(?:spin|anim)/i);
   });
 
@@ -285,9 +286,10 @@ describe('StrictMode replay', () => {
   it('keeps a static essential startup indicator available when motion is suppressed', () => {
     const loader = renderToStaticMarkup(<StartupLoadingSurface phase="app-session-bootstrap" />);
     const firstOpen = renderToStaticMarkup(<FirstOpenGate identity={identity()} />);
-    expect(loader).toContain('data-ast-rest');
+    expect(loader).toContain('pia-loader__phase--dpad');
+    expect(loader).toContain('pia-loader__center');
     expect(loader).toContain('Starting secure app session');
     expect(firstOpen).not.toContain('ast-anim-');
-    expect(startupSource).toContain('ConceptFlicker');
+    expect(startupSource).toContain('PiaLoader');
   });
 });

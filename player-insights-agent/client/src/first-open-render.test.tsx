@@ -133,12 +133,12 @@ describe('all required scopes granted', () => {
   const markup = draw();
 
   it('names the app and the address the questions will run under', () => {
-    // The heading is the lockup now, and the app's name renders lowercase in it
-    // (§1). The old long name is gone from the card and from the app; the
+    // The heading is the full PIA lockup. The retired product name is gone from
+    // visible copy; the
     // Databricks logo above it is the platform's, and it is labelled so that the
     // card names both parties rather than only one.
-    expect(markup).toContain('astrolabe');
-    expect(markup).not.toContain('Player Insights Agent');
+    expect(text(markup)).toContain('Player Insights Agent');
+    expect(text(markup)).not.toContain('Astrolabe');
     expect(markup).toContain('aria-label="Databricks"');
     expect(markup).toContain('You are signing in as');
     expect(markup).toContain('jordan.lee@example.com');

@@ -1,5 +1,5 @@
 import { DECLARED_TABLES_SECTION_ID } from './connections-view';
-import { astPill } from './astrolabe-pill';
+import { astPill } from './pia-pill';
 import { PRIMARY_CONNECTION_LABEL } from './connection-status';
 import { healthRows, resourceWord, type HealthRow } from './ops-view';
 import type { DependencyResult, HealthDependency, PlatformReading } from '../../shared/ops-contract';

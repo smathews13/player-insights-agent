@@ -36,7 +36,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight, Search } from 'lucide-react';
 import { Button, Input } from './ui';
-import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
+import { PiaLoadingLabel } from './PiaLoadingLabel';
 import type { BrowseItem, BrowseResponse } from '../../shared/browse-contract';
 import {
   pickerForField,
@@ -360,7 +360,7 @@ export function AssetPickerPanel({
 
       {loading ? (
         <div data-testid="asset-picker-loading">
-          <AstrolabeLoadingLabel label="Finding resources your sign-in can access" className="asset-picker-loading" />
+          <PiaLoadingLabel label="Finding resources your sign-in can access" className="asset-picker-loading" />
         </div>
       ) : null}
 

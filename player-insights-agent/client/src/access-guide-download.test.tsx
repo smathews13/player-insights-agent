@@ -18,6 +18,7 @@ describe('Settings → Environment access guide', () => {
     const hidden = renderToStaticMarkup(<AccessGuideDownloadRow available={false} />);
     const shown = renderToStaticMarkup(<AccessGuideDownloadRow available={true} />);
 
+    expect(ACCESS_GUIDE_FILENAME).toBe('Player_Insights_Agent_Access_Patterns_v2.pdf');
     expect(hidden).toBe('');
     expect(shown).toContain('Access points and operating guide');
     expect(shown).toContain('Download PDF');

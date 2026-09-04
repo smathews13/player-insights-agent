@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { astPill } from './astrolabe-pill';
+import { astPill } from './pia-pill';
 import { BenchButton, LabSurface } from './BenchmarkLabChrome';
 import { EntityText } from './DataEntityLinks';
 import {

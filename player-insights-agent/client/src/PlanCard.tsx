@@ -25,7 +25,7 @@ import { PlanText } from './InlineEntityText';
 import { BrandIcon } from './BrandIcon';
 import { productForPlanKind } from './brand-icons';
 import { declaredColumns } from './data-entities';
-import { AstrolabeMark } from './AstrolabeMark';
+import { PiaMark } from './PiaMark';
 import { canSubmitRevision, planRevisionReducer, revisedRequest } from './plan-revision';
 import type { AnalysisPlan } from './app-types';
 
@@ -93,7 +93,7 @@ export function PlanCard({
               is has two louder statements of its own directly to the right: the
               badge, and a title reading "Proposed analysis plan". */}
           <div className="agent-avatar">
-            <AstrolabeMark size={32} />
+            <PiaMark size={32} />
           </div>
           {/* `min-w-0`, because a flex child's floor is its content and this
               plan's content is a fully-qualified table name with no spaces in

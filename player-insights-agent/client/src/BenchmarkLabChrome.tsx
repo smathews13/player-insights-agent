@@ -8,7 +8,7 @@
  */
 import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { AppSelect } from './AppSelect';
-import { astPill } from './astrolabe-pill';
+import { astPill } from './pia-pill';
 import { Lock } from 'lucide-react';
 import {
   GOVERNANCE_FACT,

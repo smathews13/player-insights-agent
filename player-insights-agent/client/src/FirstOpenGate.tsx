@@ -48,7 +48,7 @@ import { Check } from 'lucide-react';
 import { Button } from './ui';
 import { RefreshButton } from './RefreshControl';
 import type { Identity } from './app-types';
-import { AstrolabeLockup } from './AstrolabeMark';
+import { PiaLockup } from './PiaMark';
 import { UserIdentityChip } from './UserIdentityChip';
 import { DATABRICKS_LOGO, DATABRICKS_SYMBOL } from './brand-icons';
 // The same octocat the Connections tab links its repository with. One copy, so
@@ -271,7 +271,7 @@ export function FirstOpenPanel({
       dismissOnBackdrop={false}
     >
       {/* The order `login-gate.md` fixes: the Databricks logo, then the
-            astrolabe lockup, then identity, scopes, disclaimer, Continue. The
+            PIA lockup, then identity, scopes, disclaimer, Continue. The
             platform first and the app second, because the reader has just come
             through Databricks OAuth and this card is the app introducing itself
             on the other side of it. */}
@@ -280,7 +280,7 @@ export function FirstOpenPanel({
         {/* The lockup IS the heading, so the dialog takes its name from it.
               The old long app name that used to be set here renders nowhere in
               the app any more (§1). */}
-        <AstrolabeLockup as="h1" seat="gate" id="first-open-title" className="fo-title" />
+        <PiaLockup as="h1" seat="hero" id="first-open-title" className="fo-title" />
       </div>
 
       <section className="fo-box fo-identity" id="first-open-description">

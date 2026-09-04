@@ -40,7 +40,7 @@ function cost(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
         quality: 'estimate',
         amount: 7,
         basis: 'total-in-range',
-        population: 'Astrolabe query share',
+        population: 'PIA query share',
         attribution: 'deployment',
         unavailable: '',
         remedy: '',
@@ -360,10 +360,10 @@ describe('missing and excluded baselines', () => {
       ['vector-search', 3],
     ]);
     expect(baseline.exclusions.map((item) => item.component)).toEqual(
-      expect.arrayContaining(['Serving endpoint', 'Astrolabe SQL', 'Data Genie'])
+      expect.arrayContaining(['Serving endpoint', 'PIA SQL', 'Data Genie'])
     );
     expect(baseline.exclusions.map((item) => item.component)).not.toContain('App compute');
-    expect(baseline.exclusions.find((item) => item.component === 'Astrolabe SQL')?.reason).toContain(
+    expect(baseline.exclusions.find((item) => item.component === 'PIA SQL')?.reason).toContain(
       'Query History is incomplete'
     );
   });
@@ -380,7 +380,7 @@ describe('missing and excluded baselines', () => {
     expect(result.dailyQuestions).toBe(0);
     expect(result.components.find((component) => component.id === 'serving-endpoint')).toBeUndefined();
     expect(baseline.exclusions.map((item) => item.component)).toEqual(
-      expect.arrayContaining(['Serving endpoint', 'Astrolabe SQL'])
+      expect.arrayContaining(['Serving endpoint', 'PIA SQL'])
     );
   });
 

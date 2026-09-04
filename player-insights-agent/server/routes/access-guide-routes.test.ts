@@ -139,6 +139,7 @@ afterEach(async () => {
 
 describe('confidential access guide routes', () => {
   it('uses only the deploy asset in production and the tracked source in development', () => {
+    expect(ACCESS_GUIDE_FILENAME).toBe('Player_Insights_Agent_Access_Patterns_v2.pdf');
     expect(accessGuideAssetPath({ NODE_ENV: 'production' }, '/app')).toBe(
       path.join('/app', 'assets', ACCESS_GUIDE_FILENAME)
     );

@@ -22,7 +22,7 @@
  * Every drawing here is `aria-hidden` and the surface carries ONE
  * `aria-live="polite"` string, which is the visible status line (§5).
  */
-import { ConceptFlicker } from './ConceptFlicker';
+import { PiaFlicker } from './PiaFlicker';
 import { ConstellationField } from './ConstellationField';
 import { CARD_CONSTELLATION, SPLASH_CONSTELLATION } from './constellation';
 import { WORKING_LABEL, type WorkingSeat } from './working-animation';
@@ -55,7 +55,7 @@ export function WorkingConstellation({
       {/* Bottom left on the splash, vertically centred on the strip, which is
           what the two panels have room for. */}
       <div className="ast-working-status">
-        <ConceptFlicker seat="strip" />
+        <PiaFlicker seat="strip" />
         {/* The one live region for this surface. It is the visible label rather
             than a second string written for a screen reader, so what is read out
             and what is on screen cannot drift. */}

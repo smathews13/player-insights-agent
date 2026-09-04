@@ -189,7 +189,7 @@ env:
   # artifact customers deploy from Git, and that path has no bundle target from
   # which to resolve this value. Leaving it empty made a normal Git deployment
   # claim it needed no serving, SQL, or Genie scope at all. The ask-path scopes
-  # are not target-specific: every Astrolabe question needs them. Workspace read
+  # are not target-specific: every Player Insights Agent question needs them. Workspace read
   # and Lakebase are also requested so the Connections notebook and Lakebase
   # pickers can work after a Git deploy, but remain optional to the gate. Other
   # optional browse scopes stay out of this fallback.

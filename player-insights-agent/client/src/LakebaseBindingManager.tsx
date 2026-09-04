@@ -3,7 +3,7 @@ import { ExternalLink, Pencil, Save } from 'lucide-react';
 
 import { isLakebaseRedeployPlan, type LakebaseRedeployPlan } from '../../shared/lakebase-binding';
 import { AssetPickerField } from './AssetPicker';
-import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
+import { PiaLoadingLabel } from './PiaLoadingLabel';
 import { canStageLakebaseBinding, lakebaseBindingDraft } from './lakebase-binding-manager-state';
 import { Button } from './ui';
 
@@ -173,7 +173,7 @@ export function LakebaseBindingManager({ enabled }: LakebaseBindingManagerProps)
 
   if (!enabled) return null;
   if (!plan && !message) {
-    return <AstrolabeLoadingLabel label="Loading Lakebase binding" className="lakebase-binding-loading" />;
+    return <PiaLoadingLabel label="Loading Lakebase binding" className="lakebase-binding-loading" />;
   }
   if (!plan) {
     return (

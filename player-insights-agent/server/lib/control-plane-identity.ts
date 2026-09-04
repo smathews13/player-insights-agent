@@ -238,7 +238,7 @@ export async function readControlPlaneIdentityMetadata(
   return {
     user,
     app: {
-      displayName: 'Astrolabe',
+      displayName: 'Player Insights Agent',
       resourceName: appName,
       workspaceHost,
       workspaceId: app.workspaceId,

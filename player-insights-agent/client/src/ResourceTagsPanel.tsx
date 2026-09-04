@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- result parsing, status, and controls share one response contract */
 import { Fragment, useEffect, useState } from 'react';
-import { ConceptFlicker } from './ConceptFlicker';
+import { PiaFlicker } from './PiaFlicker';
 import { ExperimentalFeatureName } from './ExperimentalBadge';
 import { Button } from './ui';
 
@@ -178,7 +178,7 @@ export function ResourceTagResults({
 export function ResourceTagsApplyButton({ running, onClick }: { running: boolean; onClick?: () => void }) {
   return (
     <Button type="button" disabled={running} aria-busy={running} onClick={onClick}>
-      {running ? <ConceptFlicker seat="button" /> : null}
+      {running ? <PiaFlicker seat="button" /> : null}
       Apply tags
     </Button>
   );

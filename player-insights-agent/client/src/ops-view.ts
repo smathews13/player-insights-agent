@@ -25,7 +25,7 @@
  */
 // The one place a product is paired with its mark. Types only here; this module
 // decides WHICH product a row is about and never how the artwork is drawn.
-import { astPill } from './astrolabe-pill';
+import { astPill } from './pia-pill';
 import type { BrandProduct } from './brand-icons';
 import type { DatabricksObject } from '../../shared/databricks-links';
 import {

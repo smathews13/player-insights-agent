@@ -277,7 +277,7 @@ export const GENIE_SQL_NOT_COMPLETE =
 const TILED_PRODUCTS = new Set(['MODEL_SERVING', 'SQL', 'VECTOR_SEARCH', 'APPS']);
 const PRODUCT_REASONS: Record<string, string> = {
   MODEL_SERVING: 'Measured only when an exact tracked endpoint name matches; tag coverage is reported separately.',
-  SQL: 'Warehouse billing rows are allocated only by complete Astrolabe Query History execution-time share.',
+  SQL: 'Warehouse billing rows are allocated only by complete Player Insights Agent Query History execution-time share.',
   VECTOR_SEARCH: 'Exact endpoint billing is allocated with configured-index activity when the endpoint is shared.',
   APPS: 'Measured by exact app name. App tag presence is a separate organizational signal.',
   GENIE: GENIE_LLM_UNAVAILABLE,

@@ -95,9 +95,9 @@ describe('streamed progress geometry', () => {
   });
 
   it('keeps centered splash seating without an independent follow scroller', () => {
-    expect(rule('.ast-splash-run')).toMatch(/align-self:\s*stretch/);
-    expect(rule('.ast-splash-run')).toMatch(/width:\s*100%/);
-    expect(rule('.ast-splash-run')).toMatch(/max-width:\s*100%/);
+    expect(rule('.pia-splash-run')).toMatch(/align-self:\s*stretch/);
+    expect(rule('.pia-splash-run')).toMatch(/width:\s*100%/);
+    expect(rule('.pia-splash-run')).toMatch(/max-width:\s*100%/);
 
     expect(PANEL).not.toContain('scrollTo(');
     expect(PANEL).not.toContain('onScroll=');

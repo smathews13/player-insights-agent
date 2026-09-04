@@ -13,7 +13,7 @@ import {
 } from '../../shared/benchmark-lab-v3';
 import { POC_STARTER_QUESTIONS } from '../../shared/eval-dataset';
 import { AppSelect } from './AppSelect';
-import { astPill } from './astrolabe-pill';
+import { astPill } from './pia-pill';
 import { BenchButton, LabSurface } from './BenchmarkLabChrome';
 import type { EvaluationLabModel } from './use-evaluation-lab';
 

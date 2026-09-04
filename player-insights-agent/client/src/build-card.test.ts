@@ -268,7 +268,7 @@ describe('the right column: what it was built from', () => {
         kind: 'link',
         key: 'github',
         label: 'GitHub',
-        value: '<your-username>/astrolabe_public · main',
+        value: '<your-username>/player-insights-agent · main',
         href: PUBLIC_SOURCE_REPO_URL,
         mark: 'github',
         title: PUBLIC_SOURCE_REPO_URL,
@@ -285,7 +285,7 @@ describe('the right column: what it was built from', () => {
     const rows = sourceRows(facts());
     expect(rows.map((row) => row.key)).toEqual(['github']);
     // And says nothing about a branch, because an uploaded deploy establishes none.
-    expect(rows[0]).toMatchObject({ value: '<your-username>/astrolabe_public', href: PUBLIC_SOURCE_REPO_URL });
+    expect(rows[0]).toMatchObject({ value: '<your-username>/player-insights-agent', href: PUBLIC_SOURCE_REPO_URL });
   });
 
   /**

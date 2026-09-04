@@ -4418,7 +4418,7 @@ export function setupInsightsRoutes(
         actor,
         action: 'run-cancelled',
         subject: runIds.join(','),
-        detail: `${actor} stopped their own active Astrolabe run(s): ${runIds.join(', ')}.`,
+        detail: `${actor} stopped their own active Player Insights Agent run(s): ${runIds.join(', ')}.`,
       });
       res.json({
         targeted: runIds.length,
@@ -4478,7 +4478,7 @@ export function setupInsightsRoutes(
         actor,
         action: 'runs-cancelled',
         subject: 'active-astrolabe-runs',
-        detail: `${actor} stopped a one-time snapshot of ${runIds.length} active Astrolabe run(s).`,
+        detail: `${actor} stopped a one-time snapshot of ${runIds.length} active Player Insights Agent run(s).`,
       });
       res.json({
         targeted: runIds.length,

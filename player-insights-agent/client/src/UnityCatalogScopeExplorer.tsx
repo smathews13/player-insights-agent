@@ -2,7 +2,7 @@ import { Check, ChevronRight, Search, X } from 'lucide-react';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { BrowseItem, BrowseKind, BrowseResponse, UnityCatalogSearchResponse } from '../../shared/browse-contract';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
-import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
+import { PiaLoadingLabel } from './PiaLoadingLabel';
 import { BrowseGrantPrompt, mergeBrowseItems } from './AssetPicker';
 import { browseUrl, type PickerCursor } from './asset-picker';
 import { Dialog } from './Dialog';
@@ -384,7 +384,7 @@ function ExplorerLevel({
         </ul>
       ) : null}
       {state.status === 'loading' ? (
-        <AstrolabeLoadingLabel
+        <PiaLoadingLabel
           className="uc-explorer-loading"
           label={`Loading ${kind === 'tables' ? 'tables and views' : kind}`}
         />
@@ -501,7 +501,7 @@ function ExplorerSearchResults({
   return (
     <div className="uc-explorer-search-results" aria-live="polite">
       {result.status === 'loading' ? (
-        <AstrolabeLoadingLabel label="Searching catalogs, schemas, and tables" className="uc-explorer-loading" />
+        <PiaLoadingLabel label="Searching catalogs, schemas, and tables" className="uc-explorer-loading" />
       ) : null}
       {(['catalog', 'schema', 'table'] as const).map((resourceType) => {
         const group = items.filter((item) => item.resourceType === resourceType);
@@ -680,7 +680,7 @@ export function UnityCatalogScopeExplorer({
                 });
             }}
           >
-            {submitting ? <AstrolabeLoadingLabel as="span" announce={false} label="Saving" /> : 'Save'}
+            {submitting ? <PiaLoadingLabel as="span" announce={false} label="Saving" /> : 'Save'}
           </Button>
         </footer>
       </div>

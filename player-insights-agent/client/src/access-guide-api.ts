@@ -1,6 +1,6 @@
 export const ACCESS_GUIDE_DOWNLOAD_PATH = '/api/admin/access-guide';
 export const ACCESS_GUIDE_META_PATH = '/api/admin/access-guide/meta';
-export const ACCESS_GUIDE_FILENAME = 'Astrolabe_Access_Patterns_v2.pdf';
+export const ACCESS_GUIDE_FILENAME = 'Player_Insights_Agent_Access_Patterns_v2.pdf';
 
 export async function loadAccessGuideAvailability(fetchImpl: typeof fetch = fetch): Promise<boolean> {
   try {

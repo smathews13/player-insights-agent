@@ -185,9 +185,9 @@
   flex-wrap: wrap;
 }
 
-.ops-scope-check-button .ast-flick-row,
-.ops-scope-pagination .ast-flick-row,
-.ops-scope-skeleton-row .ast-flick-row {
+.ops-scope-check-button .pia-flick-row,
+.ops-scope-pagination .pia-flick-row,
+.ops-scope-skeleton-row .pia-flick-row {
   min-height: 0;
   padding: 0;
   border: 0;
@@ -198,8 +198,8 @@
   overflow: hidden;
 }
 
-.ops-scope-check-button .ast-flick-row-say,
-.ops-scope-pagination .ast-flick-row-say {
+.ops-scope-check-button .pia-flick-row-say,
+.ops-scope-pagination .pia-flick-row-say {
   color: inherit;
   font: inherit;
   white-space: nowrap;
@@ -589,7 +589,7 @@
   font-weight: 500;
 }
 
-.ast-flick-row.ops-connection-status-loader {
+.pia-flick-row.ops-connection-status-loader {
   min-height: 0;
   width: fit-content;
   padding: 0;

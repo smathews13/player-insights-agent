@@ -1,5 +1,5 @@
 /**
- * The four OAuth scopes every Astrolabe question path needs.
+ * The four OAuth scopes every Player Insights Agent question path needs.
  *
  * Kept separately from the deployment's broader declared list because the
  * one-click repair must add only the load-bearing set. Optional browse scopes
@@ -12,4 +12,3 @@ export const REQUIRED_USER_API_SCOPES = [
   'sql',
   'dashboards.genie',
 ] as const;
-

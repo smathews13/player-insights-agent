@@ -92,7 +92,7 @@ note "The App is bundle-owned; do not create it by hand or exclude it with --sel
 (cd "$BUNDLE_ROOT" && databricks "${ARGS[@]}")
 
 if [[ -n "$VECTOR_ENDPOINT" ]]; then
-  step "Applying the astrolabe resource tag"
+  step "Applying the legacy compatibility resource tag"
   (cd "$BUNDLE_ROOT/agent" \
     && DATABRICKS_CONFIG_PROFILE="$PROFILE" \
        uv run --python 3.13 python ../bundle/tag-resources.py --vector-endpoint "$VECTOR_ENDPOINT")

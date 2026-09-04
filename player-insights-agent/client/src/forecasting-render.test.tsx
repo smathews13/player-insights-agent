@@ -50,7 +50,7 @@ function cost(): OpsCostPayload {
         amount: 7,
         dbus: 3.5,
         basis: 'total-in-range',
-        population: 'Astrolabe query share',
+        population: 'PIA query share',
         attribution: 'deployment',
         unavailable: '',
         remedy: '',
@@ -318,7 +318,7 @@ describe('Forecasting visibility and placement', () => {
       /\.ops-forecast-breakdown th:not\(:first-child\),\s*\.ops-forecast-breakdown td\s*\{[^}]*font-variant-numeric:\s*tabular-nums/
     );
 
-    for (const component of ['Serving endpoint', 'Astrolabe SQL', 'App compute', 'Vector Search', 'Data Genie']) {
+    for (const component of ['Serving endpoint', 'PIA SQL', 'App compute', 'Vector Search', 'Data Genie']) {
       expect(breakdown).toContain(`<th scope="row">${component}</th>`);
     }
     expect(breakdown).not.toContain('Dictionary Genie');
@@ -327,7 +327,7 @@ describe('Forecasting visibility and placement', () => {
     expect(markup.match(/84\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
     expect(markup.match(/360\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
     expect(markup.match(/2,150\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
-    expect(breakdown.match(/<th scope="row">Astrolabe SQL<\/th>/g)).toHaveLength(1);
+    expect(breakdown.match(/<th scope="row">PIA SQL<\/th>/g)).toHaveLength(1);
   });
 
   it('uses the shared DBU selection for every projection without a currency conversion', () => {

@@ -13,11 +13,11 @@
  * interrupt the first every time the count ticked. The label is visible and the
  * pill is what speaks.
  *
- * The mark is decorative and `ConceptFlicker` marks it so. Under
- * `prefers-reduced-motion: reduce` the guard in astrolabe-animation.css leaves the
+ * The mark is decorative and `PiaFlicker` marks it so. Under
+ * `prefers-reduced-motion: reduce` the shared animation guard leaves the
  * d-pad still in the slot, so the row keeps a mark rather than emptying out.
  */
-import { ConceptFlicker } from './ConceptFlicker';
+import { PiaFlicker } from './PiaFlicker';
 import { INLINE_WORKING_LABEL } from './working-animation';
 
 export function WorkingInlineRow({
@@ -36,15 +36,15 @@ export function WorkingInlineRow({
   className?: string;
 }) {
   return (
-    <div className={`ast-flick-row ${className ?? ''}`.trim()}>
-      <ConceptFlicker seat="inline" />
-      <span className="ast-flick-row-say">{label}</span>
+    <div className={`pia-flick-row ${className ?? ''}`.trim()}>
+      <PiaFlicker seat="inline" />
+      <span className="pia-flick-row-say">{label}</span>
       {/* Right-pinned and mono, per the spec. Mono because it changes in place
           every second: DM Sans digits are proportional, so a count set in it
           shifts its own right edge as it ticks. Absent rather than "0s" while
           there is nothing to report, which is the same rule the panels follow --
           a number that appears at zero and corrects itself reads as a stutter. */}
-      {elapsed ? <span className="ast-num ast-flick-row-count">{elapsed}</span> : null}
+      {elapsed ? <span className="ast-num pia-flick-row-count">{elapsed}</span> : null}
     </div>
   );
 }

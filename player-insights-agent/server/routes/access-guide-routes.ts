@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { Response } from 'express';
 import type { InsightsAppKit } from './insights-routes';
 
-export const ACCESS_GUIDE_FILENAME = 'Astrolabe_Access_Patterns_v2.pdf';
+export const ACCESS_GUIDE_FILENAME = 'Player_Insights_Agent_Access_Patterns_v2.pdf';
 export const ACCESS_GUIDE_DOWNLOAD_PATH = '/api/admin/access-guide';
 export const ACCESS_GUIDE_META_PATH = '/api/admin/access-guide/meta';
 

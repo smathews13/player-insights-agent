@@ -1,4 +1,4 @@
-import type { AstPillFamily } from './astrolabe-pill';
+import type { AstPillFamily } from './pia-pill';
 import type { StatusTone } from './StatusBadge';
 
 export const BADGE_FAMILY: Record<StatusTone, AstPillFamily | 'plain'> = {

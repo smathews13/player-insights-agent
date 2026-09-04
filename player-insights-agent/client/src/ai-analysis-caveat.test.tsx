@@ -87,7 +87,7 @@ function answer(): Answer {
 
 describe('the shared reader-facing AI caveat', () => {
   it('has one exact sentence and one accessible reading of it', () => {
-    expect(AI_ANALYSIS_CAVEAT).toBe('Astrolabe analysis. AI can make mistakes.');
+    expect(AI_ANALYSIS_CAVEAT).toBe('Player Insights Agent analysis. AI can make mistakes.');
     const markup = renderToStaticMarkup(<AIAnalysisCaveat className="ai-note" />);
 
     expect(caveatTexts(markup)).toEqual([AI_ANALYSIS_CAVEAT]);
@@ -148,7 +148,7 @@ describe('AI caveat source invariants', () => {
 
   it('defines the sentence once and leaves no old generic wording in production source', () => {
     const declarations = sources.flatMap((file) =>
-      [...file.source.matchAll(/Astrolabe analysis\. AI can make mistakes\./g)].map(() => file.path)
+      [...file.source.matchAll(/Player Insights Agent analysis\. AI can make mistakes\./g)].map(() => file.path)
     );
 
     expect(declarations).toHaveLength(1);

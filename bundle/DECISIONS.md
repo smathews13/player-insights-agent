@@ -367,14 +367,14 @@ decision is for is the review comment "the guide asked for an icon here and ther
 isn't one" -- the answer is that the row it belongs to was never built, and
 building one to hold a logo is the mistake this records.
 
-### D15. App and workspace sessions are separate; Astrolabe adds an app-only idle control
+### D15. App and workspace sessions are separate; PIA adds an app-only idle control
 
 **Revised 2026-09-02.** Native Databricks App sessions are separate from
 workspace sessions, may persist or refresh for up to 24 hours, and do not
 support federated logout. Workspace logout therefore does not invalidate or
-prove the absence of an App session, and Astrolabe must not claim otherwise.
+prove the absence of an App session, and Player Insights Agent must not claim otherwise.
 
-Astrolabe now adds a compensating application session. A random opaque
+Player Insights Agent now adds a compensating application session. A random opaque
 per-browser identifier is held in a Secure, HttpOnly, SameSite cookie; Lakebase
 stores only its hash, normalized authenticated subject, deployment binding, and
 activity/expiry timestamps. Every protected API request checks that shared row.
@@ -395,8 +395,8 @@ unmounts the app and clears client caches.
 
 Strict immediate coordinated logout remains outside the native Apps contract.
 It requires a customer-controlled OIDC/gateway architecture that owns every
-participating session and provides federated logout. The Astrolabe timeout
-protects only Astrolabe's application layer.
+participating session and provides federated logout. The PIA timeout protects
+only Player Insights Agent's application layer.
 
 ### D16. Access boundaries fail closed and do not widen through a release
 
@@ -409,7 +409,7 @@ configured evaluation target shares conversation reads.
 
 The exact administrator prefixes, identity-optional diagnostics, app-session
 exemptions, and OAuth scope classifications live in source and are reproduced
-for operators in `docs/Astrolabe_Access_Guide.md`. Their consistency tests fail
+for operators in `docs/Player_Insights_Agent_Access_Guide.md`. Their consistency tests fail
 when the guide and source disagree. WAF, TLS, proxy CORS, proxy security
 headers, and token issuance policy are platform dependencies, not facts this
 repository certifies.

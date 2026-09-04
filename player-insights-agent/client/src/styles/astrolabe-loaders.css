@@ -59,25 +59,23 @@
 /* ---- The concept flicker (#17a) ---------------------------------------- */
 
 /*
- * One slot, four marks stacked in it, one visible at a time.
+ * One slot containing the shared PIA loader drawing.
  *
  * The slot is sized by the component because the size decides the drawing as
  * well as the box -- below 32px the mark drops its graduation ring -- so what is
  * left here is the stacking. `position: relative` on the slot and `inset: 0` on
- * every child is what makes four marks occupy one square instead of four.
+ * its child lets each named seating preserve its established footprint.
  */
-.ast-flick-slot {
+.pia-flick-slot {
   position: relative;
   display: inline-block;
   flex: none;
 }
 
-.ast-flick-slot > * {
+.pia-flick-slot > * {
   position: absolute;
   inset: 0;
-  /* Each starts invisible and `ast-flick` brings it in. Without this the four
-     marks are all drawn for the first frame, which is a pile. */
-  opacity: 0;
+  opacity: 1;
 }
 
 /*
@@ -89,7 +87,7 @@
  * `margin-left: auto` -- with the count absent the label must not recentre, and a
  * `space-between` row does exactly that.
  */
-.ast-flick-row {
+.pia-flick-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -99,7 +97,7 @@
   background: var(--card);
 }
 
-.ast-flick-row-say {
+.pia-flick-row-say {
   font-size: var(--ast-fs-13);
   font-weight: 500;
   color: var(--ast-text);
@@ -108,7 +106,7 @@
   min-width: 0;
 }
 
-.ast-flick-row-count {
+.pia-flick-row-count {
   margin-left: auto;
   flex: none;
   font-size: var(--ast-fs-12);
@@ -125,7 +123,7 @@
  * cycling through its four concepts is the same statement in a seventh of the
  * height, and it is the drawing the reader already met on the way in.
  */
-.ast-flick-splash {
+.pia-flick-splash {
   display: grid;
   place-items: center;
 }
@@ -443,7 +441,7 @@ html:not([data-theme='dark']) .ast-working .ast-mark--dark {
  * The gap stays the card rung rather than the panel's 24 -- three short lines
  * with a stanza between each read as three blocks.
  */
-.ast-splash {
+.pia-splash {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -457,11 +455,11 @@ html:not([data-theme='dark']) .ast-working .ast-mark--dark {
  * sliver under a 72px mark. 40 is a gutter a reader can see. Not the old 48
  * band of empty sky, and not the finished-card header — that stamp stays 8px.
  */
-.answer-card > [data-slot='card-content'].ast-splash {
+.answer-card > [data-slot='card-content'].pia-splash {
   padding-top: 40px;
 }
 
-.ast-splash-copy {
+.pia-splash-copy {
   display: flex;
   align-items: baseline;
   justify-content: center;
@@ -470,7 +468,7 @@ html:not([data-theme='dark']) .ast-working .ast-mark--dark {
   color: var(--ast-text);
 }
 
-.ast-splash-copy strong {
+.pia-splash-copy strong {
   font-weight: 700;
   line-height: 1.4;
 }
@@ -478,7 +476,7 @@ html:not([data-theme='dark']) .ast-working .ast-mark--dark {
 /* The bar keeps the app's own indeterminate sweep rather than the design's
    static segment: a bar frozen at 30% of its track is read as 30% done, which
    is the one claim this run cannot make. See composer.css. */
-.ast-splash [data-slot='progress'] {
+.pia-splash [data-slot='progress'] {
   width: 220px;
 }
 

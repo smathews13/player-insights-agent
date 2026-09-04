@@ -43,7 +43,7 @@ import {
   TabsTrigger,
 } from './ui';
 import { AppSelect } from './AppSelect';
-import { CircleAlert, Search, Workflow } from 'lucide-react';
+import { CircleAlert, Search } from 'lucide-react';
 import { ToolCallsLabel } from './ToolCallsLabel';
 import { readConversationList } from './initial-rail';
 import { RunDetails } from './RunDetails';
@@ -58,6 +58,7 @@ import { TraceTimeline } from './TraceTimeline';
 import type { Conversation, Run } from './app-types';
 import { UserDrilldownLink } from './UserDrilldownLink';
 import { RunRatingBadge } from './RunRatingBadge';
+import { PiaEmptyStateMark } from './PiaMark';
 import { RunOverviewKpis } from './RunOverviewKpis';
 import {
   conversationFilterOptions,
@@ -494,7 +495,7 @@ export function RunExplorer() {
               <Empty>
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
-                    <Workflow />
+                    <PiaEmptyStateMark size={32} />
                   </EmptyMedia>
                   <EmptyTitle>No runs yet</EmptyTitle>
                 </EmptyHeader>
@@ -503,7 +504,7 @@ export function RunExplorer() {
               <Empty>
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
-                    <Search />
+                    <PiaEmptyStateMark size={32} />
                   </EmptyMedia>
                   <EmptyTitle>No matching runs</EmptyTitle>
                 </EmptyHeader>
@@ -756,7 +757,7 @@ function RunDetailState({ title, description }: { title: string; description: st
     <Empty className="run-detail-state">
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <Workflow />
+          <PiaEmptyStateMark size={32} />
         </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>
@@ -849,7 +850,7 @@ function TraceUnavailable({ state }: { state: RunTraceState }) {
     <Empty>
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <Workflow />
+          <PiaEmptyStateMark size={32} />
         </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         {description ? <EmptyDescription>{description}</EmptyDescription> : null}

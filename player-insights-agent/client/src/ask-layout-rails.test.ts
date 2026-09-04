@@ -71,9 +71,7 @@ describe('idle Ask keeps the Agent path pane', () => {
     // The opening drawing uses the same product marks as the live path. Left
     // at 0.28 under a growing numbered path it read as a ghost copy of every
     // SQL / Genie node -- the doubled icons at step 15.
-    expect(RAIL).toMatch(
-      /\.ask-layout\[data-inspector=['"]run['"]\]\s+\.trace-idle-sky\s*\{[^}]*display:\s*none/
-    );
+    expect(RAIL).toMatch(/\.ask-layout\[data-inspector=['"]run['"]\]\s+\.trace-idle-sky\s*\{[^}]*display:\s*none/);
   });
 
   it('reserves the inspector scrollbar so the first overflow cannot shove the path', () => {
@@ -131,7 +129,7 @@ describe('live step rows carry the Agent path kind mark beside the number', () =
     expect(PANEL).toContain('live-step-icon step-rail-num ast-num');
     expect(PANEL).toContain("import { productForTool } from './brand-icons'");
     expect(PANEL).toContain('<BrandIcon product={product}');
-    expect(PANEL).toContain('<AstrolabeMark size={13} />');
+    expect(PANEL).toContain('<PiaMark size={13} />');
     expect(PANEL).toMatch(/live-step-kind[\s\S]*live-step-icon step-rail-num ast-num/);
     expect(LIVE).toMatch(/\.live-step-index\s*\{[^}]*flex-direction:\s*row/);
     expect(LIVE).not.toMatch(/\.live-step-index\s*\{[^}]*flex-direction:\s*column/);
@@ -150,6 +148,6 @@ describe('live step rows carry the Agent path kind mark beside the number', () =
     );
     expect(markup).toMatch(/live-step-kind[\s\S]*brand-icon/);
     expect(markup.match(/live-step-kind/g)).toHaveLength(2);
-    expect(markup).toContain('ast-mark');
+    expect(markup).toContain('pia-mark');
   });
 });

@@ -95,9 +95,10 @@
    they paint. The mark and the loaders are primitives rather than screens -- the
    mark is in the header, the gate, the hero chip and every loading seat -- so
    they win ties against the partials that merely place them. */
-@import './styles/astrolabe-mark.css';
 @import './styles/astrolabe-chrome.css';
 @import './styles/astrolabe-loaders.css';
+@import './styles/pia-brand.css';
+@import './styles/pia-loader.css';
 @import './styles/dark-mode.css';
 @import './styles/star-motion.css';
 /* High-alpha semantic surfaces and dialog occlusion sit after theme paint so

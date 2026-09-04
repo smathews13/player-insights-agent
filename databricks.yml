@@ -1,4 +1,4 @@
-# Astrolabe Databricks Asset Bundle.
+# Player Insights Agent Databricks Asset Bundle.
 # Variables without defaults are required deployment inputs.
 # The serving endpoint and app source tree are deployed separately.
 
@@ -143,7 +143,7 @@ variables:
     default: player-insights-agent
   app_description:
     description: App description shown in the workspace.
-    default: Astrolabe, governed player intelligence and repeatable benchmarking
+    default: Player Insights Agent, governed player intelligence and repeatable benchmarking
   shared_conversation_rail:
     description: >-
       Whether users can see shared conversations in the rail. Defaults to

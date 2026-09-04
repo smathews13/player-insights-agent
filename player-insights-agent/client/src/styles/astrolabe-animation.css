@@ -355,13 +355,5 @@
     transform: none;
   }
 
-  /* The flicker slots: one still mark, chosen by the markup. */
-  .ast-flick-slot > * {
-    opacity: 0;
-  }
-
-  .ast-flick-slot > [data-ast-rest] {
-    opacity: 1;
-    transform: none;
-  }
+  /* PIA loader still frames are owned by pia-loader.css. */
 }

@@ -291,7 +291,12 @@ async function requireVerifiedSession(
     return false;
   }
   if (!sessionId) {
-    refusal(res, 401, APP_SESSION_REQUIRED_CODE, 'Start a new Astrolabe app session from the application entry page.');
+    refusal(
+      res,
+      401,
+      APP_SESSION_REQUIRED_CODE,
+      'Start a new Player Insights Agent session from the application entry page.'
+    );
     return false;
   }
   const subject = subjectFor(req, controls);
@@ -325,7 +330,7 @@ async function requireVerifiedSession(
         res,
         401,
         APP_IDLE_TIMEOUT_CODE,
-        `This Astrolabe app session ended after ${config.minutes} minutes without explicit user activity.`
+        `This Player Insights Agent session ended after ${config.minutes} minutes without explicit user activity.`
       );
       return false;
     }
@@ -345,7 +350,7 @@ async function requireVerifiedSession(
       res,
       503,
       APP_SESSION_UNAVAILABLE_CODE,
-      'Astrolabe cannot verify app-session state, so protected data is unavailable.'
+      'Player Insights Agent cannot verify app-session state, so protected data is unavailable.'
     );
     return false;
   }
@@ -422,7 +427,7 @@ export function registerAppSessionControls(app: Application, controls: AppSessio
         res,
         503,
         APP_SESSION_UNAVAILABLE_CODE,
-        'Astrolabe cannot persist a new app session, so protected data remains unavailable.'
+        'Player Insights Agent cannot persist a new app session, so protected data remains unavailable.'
       );
     }
   });
@@ -467,7 +472,12 @@ export function registerAppSessionControls(app: Application, controls: AppSessio
       await refreshSession(controls.lakebase, binding, config.minutes);
       res.status(204).send();
     } catch {
-      refusal(res, 503, APP_SESSION_UNAVAILABLE_CODE, 'Astrolabe cannot verify or refresh app-session state.');
+      refusal(
+        res,
+        503,
+        APP_SESSION_UNAVAILABLE_CODE,
+        'Player Insights Agent cannot verify or refresh app-session state.'
+      );
     }
   });
 

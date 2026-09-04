@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { ChevronRight, CircleAlert, Copy, ExternalLink, ShieldCheck } from 'lucide-react';
 import { BrandIcon } from './BrandIcon';
+import { PiaEmptyStateMark } from './PiaMark';
 import { Alert, AlertDescription, Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from './ui';
 import { StateSwitch } from './StateSwitch';
 import { sqlStatements, truncatedId } from './step-results';
@@ -465,7 +466,7 @@ export function RunDetails({
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <ShieldCheck />
+              <PiaEmptyStateMark size={32} />
             </EmptyMedia>
             <EmptyTitle>Advanced details are hidden</EmptyTitle>
             {/* Names the control and where it is, which is now a place the reader

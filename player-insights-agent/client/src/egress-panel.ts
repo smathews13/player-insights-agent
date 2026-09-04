@@ -25,7 +25,7 @@ import {
   type TableClassification,
 } from '../../shared/egress-contract';
 
-/** The pill families the panel draws in, matching the astrolabe recipe names. */
+/** The semantic pill families the panel draws in. */
 export type PillTone = 'pos' | 'neg' | 'warn' | 'neutral' | 'info';
 
 export interface Pill {

@@ -394,7 +394,7 @@ export function deriveForecastBaseline(
     baseline.observed.sqlCostPerQuestion = sqlTotal / questionCount;
   } else {
     baseline.exclusions.push({
-      component: 'Astrolabe SQL',
+      component: 'PIA SQL',
       reason: !queryHistoryComplete
         ? 'Query History is incomplete, so attributed SQL spend is withheld.'
         : sqlTotal === null
@@ -506,7 +506,7 @@ export function calculateForecast(baseline: ForecastBaseline, assumptions: Forec
   if (baseline.observed.sqlCostPerQuestion !== null) {
     components.push({
       id: 'sql-warehouse',
-      label: baseline.marginalInteractive ? 'Ask SQL' : 'Astrolabe SQL',
+      label: baseline.marginalInteractive ? 'Ask SQL' : 'PIA SQL',
       dailyAmount: dailyQuestions * baseline.observed.sqlCostPerQuestion,
       formula: 'daily stored questions × observed attributed SQL cost/stored question',
       unavailable: '',

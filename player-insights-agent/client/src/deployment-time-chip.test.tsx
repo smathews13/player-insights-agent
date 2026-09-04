@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { DeploymentTimeChip } from './DeploymentTimeChip';
 import { deploymentLocalTime, deploymentTimeLabel, deploymentTimeTitle } from './deployment-time';
 import { HeaderBrand, IdentityChips } from './Layout';
-import { WORDMARK } from './astrolabe-mark';
+import { PIA_NAME } from './pia-mark';
 import type { Identity } from './app-types';
 import type { RoleResolution } from './role';
 import { partial } from './styles/stylesheet';
@@ -186,8 +186,8 @@ describe('where the header seats the release chip', () => {
       </MemoryRouter>
     );
 
-    expect(at(markup, WORDMARK)).toBeGreaterThan(-1);
-    expect(at(markup, WORDMARK)).toBeLessThan(at(markup, 'data-testid="deployment-time-chip"'));
+    expect(at(markup, PIA_NAME)).toBeGreaterThan(-1);
+    expect(at(markup, PIA_NAME)).toBeLessThan(at(markup, 'data-testid="deployment-time-chip"'));
     expect(at(markup, 'data-testid="deployment-time-chip"')).toBeLessThan(at(markup, 'app-chrome-rule'));
   });
 
@@ -214,7 +214,7 @@ describe('where the header seats the release chip', () => {
       </MemoryRouter>
     );
 
-    expect(markup).toContain(WORDMARK);
+    expect(markup).toContain(PIA_NAME);
     expect(markup).not.toContain('deployment-time-chip');
   });
 

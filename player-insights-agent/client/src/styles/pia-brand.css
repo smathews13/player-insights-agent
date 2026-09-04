@@ -1,0 +1,138 @@
+.pia-mark {
+  display: block;
+  flex: none;
+}
+
+.pia-mark--light,
+.pia-mark--print {
+  --pia-mark-ink: var(--ast-navy);
+  --pia-mark-accent: var(--ast-blue);
+  --pia-mark-engraving: var(--ast-white);
+}
+
+.pia-mark--dark {
+  --pia-mark-ink: var(--ast-white);
+  --pia-mark-accent: var(--ast-blue-on-dark);
+  --pia-mark-engraving: var(--ast-navy);
+}
+
+.pia-mark--mono {
+  --pia-mark-ink: var(--ast-white);
+  --pia-mark-accent: var(--ast-white);
+  --pia-mark-engraving: var(--ast-navy);
+}
+
+.pia-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pia-lockup-gap);
+  min-width: 0;
+  margin: 0;
+}
+
+.pia-wordmark,
+.pia-acronym {
+  font-family: var(--font-sans);
+  font-size: var(--pia-lockup-type, 12.5px);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pia-wordmark {
+  letter-spacing: -0.01em;
+}
+
+.pia-acronym {
+  letter-spacing: 0.02em;
+}
+
+.pia-type--light,
+.pia-type--print {
+  color: var(--ast-navy);
+}
+
+.pia-type--dark,
+.pia-type--mono {
+  color: var(--ast-ink-on-dark);
+}
+
+.pia-type--light .pia-accent,
+.pia-type--print .pia-accent {
+  color: var(--ast-blue);
+}
+
+.pia-type--dark .pia-accent {
+  color: var(--ast-blue-on-dark);
+}
+
+.pia-type--mono .pia-accent {
+  color: var(--ast-white);
+}
+
+.pia-caption {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: var(--ast-fs-11);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.245em;
+  text-transform: uppercase;
+  opacity: 0.62;
+}
+
+.pia-lockup__acronym {
+  display: none;
+}
+
+.pia-lockup--acronym .pia-lockup__acronym,
+.pia-lockup--responsive .pia-lockup__full,
+.pia-lockup--full .pia-lockup__full {
+  display: inline;
+}
+
+.pia-empty-mark {
+  opacity: 0.72;
+}
+
+html[data-theme='dark'] .app-header .pia-mark--light {
+  --pia-mark-ink: var(--ast-white);
+  --pia-mark-accent: var(--ast-blue-on-dark);
+  --pia-mark-engraving: var(--ast-navy);
+}
+
+html[data-theme='dark'] .app-header .pia-type--light {
+  color: var(--ast-ink-on-dark);
+}
+
+html[data-theme='dark'] .app-header .pia-type--light .pia-accent {
+  color: var(--ast-blue-on-dark);
+}
+
+@media (max-width: 720px) {
+  .pia-lockup--responsive .pia-lockup__full {
+    display: none;
+  }
+
+  .pia-lockup--responsive .pia-lockup__acronym {
+    display: inline;
+  }
+}
+
+@media print {
+  .pia-mark {
+    --pia-mark-ink: #11171c;
+    --pia-mark-accent: #2272b4;
+    --pia-mark-engraving: #ffffff;
+  }
+
+  .pia-wordmark,
+  .pia-acronym,
+  .pia-caption {
+    color: #11171c;
+  }
+
+  .pia-accent {
+    color: #2272b4;
+  }
+}

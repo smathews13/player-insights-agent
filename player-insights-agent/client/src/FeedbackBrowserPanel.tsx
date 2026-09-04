@@ -8,7 +8,8 @@ import type { PanelLoadState } from './monitoring-detail-state';
 import type { FeedbackBrowserFilters } from './feedback-browser-session';
 import { monitoringQuestionRowHandlers } from './monitoring-row-activation';
 import { AppSelect, type AppSelectOption } from './AppSelect';
-import { AstrolabeMark } from './AstrolabeMark';
+import { PiaLoaderMark } from './PiaLoader';
+import { PiaEmptyStateMark } from './PiaMark';
 import { Button, Input, Skeleton } from './ui';
 import { Dialog } from './Dialog';
 import { TimeRangeSegments } from './TimeRangeControl';
@@ -113,7 +114,7 @@ function FeedbackRowsLoading() {
   return (
     <div className="monitoring-feedback-loading" role="status" aria-label="Loading submitted feedback">
       <div className="monitoring-feedback-loading-label">
-        <AstrolabeMark size={18} ink="light" className="ast-anim-center-pulse" />
+        <PiaLoaderMark size={18} className="monitoring-feedback-loading-mark" />
         <span>Loading feedback</span>
       </div>
       <div className="monitoring-feedback-skeleton" aria-hidden="true">
@@ -321,9 +322,10 @@ export function FeedbackBrowserPanel({
         ) : state.status === 'loading' || state.status === 'idle' ? (
           <FeedbackRowsLoading />
         ) : payload && payload.rows.length === 0 ? (
-          <p className="monitoring-feedback-empty" role="status">
-            No feedback matches these filters
-          </p>
+          <div className="monitoring-feedback-empty" role="status">
+            <PiaEmptyStateMark size={32} />
+            <p>No feedback matches these filters</p>
+          </div>
         ) : payload ? (
           <FeedbackTable rows={payload.rows} onOpenQuestion={onOpenQuestion} />
         ) : null}

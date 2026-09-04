@@ -1,12 +1,12 @@
 <!-- markdownlint-disable MD033 -->
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/astrolabe-dpad-white.svg">
-    <source media="(prefers-color-scheme: light)" srcset="assets/astrolabe-dpad.svg">
-    <img src="assets/astrolabe-dpad.svg" alt="Astrolabe logo" width="112">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/pia-dpad-white.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/pia-dpad.svg">
+    <img src="assets/pia-dpad.svg" alt="Player Insights Agent logo" width="112">
   </picture>
   <br>
-  <h1>Astrolabe</h1>
+  <h1>Player Insights Agent</h1>
 </div>
 <!-- markdownlint-enable MD033 -->
 
@@ -16,8 +16,8 @@
 > **⚠️ Not Official Databricks Software**
 > This application is built and maintained by the Databricks field engineering team and is **not an official Databricks product**. It is not covered by Databricks Support SLAs. Your Databricks account team can help you deploy, configure, and troubleshoot this app as part of your engagement.
 
-Astrolabe is a governed analytics assistant for Databricks. A user asks a
-question in plain language; Astrolabe finds approved data, runs live queries,
+Player Insights Agent is a governed analytics assistant for Databricks. A user
+asks a question in plain language; PIA finds approved data, runs live queries,
 and returns an answer with figures, sources, SQL, caveats, and an MLflow trace.
 It is designed for analytical use cases where readers need to inspect how an
 answer was produced, not just read generated prose.
@@ -25,7 +25,7 @@ answer was produced, not just read generated prose.
 See the [API access guide](API_ACCESS.md) for the differences between
 Apps-hosted agent `/responses`, custom Databricks App `/api` routes, the
 Databricks OpenAI Client, and Model Serving `ai_query()`. It also states which
-Astrolabe surfaces are supported today.
+Player Insights Agent surfaces are supported today.
 
 ## Capabilities
 
@@ -70,8 +70,8 @@ You need:
 - a Databricks workspace with Apps, Model Serving, Unity Catalog, MLflow, Genie,
   Lakebase, and a Pro or Serverless SQL warehouse available;
 - the Databricks CLI authenticated to that workspace;
-- an existing Unity Catalog catalog for Astrolabe-owned objects;
-- one or more catalogs or schemas containing the governed data Astrolabe may
+- an existing Unity Catalog catalog for Player Insights Agent-owned objects;
+- one or more catalogs or schemas containing the governed data PIA may
   read;
 - an existing Lakebase project, branch, and database;
 - two curated Genie spaces: one for analytical data and one for data
@@ -89,8 +89,8 @@ query.
 Clone the public repository and authenticate:
 
 ```bash
-git clone https://github.com/smathews13/astrolabe_public.git
-cd astrolabe_public
+git clone https://github.com/smathews13/player-insights-agent.git
+cd player-insights-agent
 databricks auth login --profile "<profile>"
 ```
 
@@ -132,7 +132,7 @@ them. Do not use auto-approval for a first deployment. Detailed deployment,
 grant, recovery, and verification guidance is in
 [bundle/README.md](bundle/README.md).
 
-## Use Astrolabe
+## Use Player Insights Agent
 
 1. Share the Databricks App with its users.
 2. Grant those users access to the warehouse, both Genie spaces, and the
@@ -144,26 +144,26 @@ grant, recovery, and verification guidance is in
 5. Use **Run Explorer** for detailed timing and tool-call inspection.
 
 An answer can be complete, partial, a plan awaiting approval, or a clarification
-request. Astrolabe does not turn missing access or ambiguous data into a
+request. Player Insights Agent does not turn missing access or ambiguous data into a
 plausible number.
 
 ### Sign out and idle sessions
 
-Use **Sign out of Astrolabe** in the account menu when leaving the app. It ends
-Astrolabe's application session and opens the native same-origin App sign-out
+Use **Sign out of Player Insights Agent** in the account menu when leaving the
+app. It ends PIA's application session and opens the native same-origin App sign-out
 path. This is a partial logout: Databricks App and workspace sessions are
 separate, the native App session may persist or refresh for up to 24 hours, and
 federated logout is not supported. If the upstream workspace or identity
 provider session remains active, Databricks may authenticate you again without
 prompting. Workspace logout does not prove the App session ended.
 
-Astrolabe adds a server-enforced idle timeout for every protected API route. It
+Player Insights Agent adds a server-enforced idle timeout for every protected API route. It
 defaults to 120 minutes (2 hours) and can be configured with
 `PLAYER_INSIGHTS_IDLE_TIMEOUT_MINUTES` (`5`-`480`; only `disabled` turns it
 off). Background polling and programmatic events do not extend the timeout;
 trusted click, input, key, pointer, touch, wheel, and scroll interactions do. On
 expiry, the app stops polling, clears user-data caches, and requires sign-out
-before a new app session can start. This control protects only the Astrolabe
+before a new app session can start. This control protects only the PIA
 application layer; strict immediate coordinated logout requires a
 customer-controlled OIDC/gateway architecture.
 
@@ -172,12 +172,12 @@ customer-controlled OIDC/gateway architecture.
 For app-code-only updates, use **Deploy from Git** on the existing Databricks
 App:
 
-| Setting          | Value                                            |
-| ---------------- | ------------------------------------------------ |
-| Repository       | `https://github.com/smathews13/astrolabe_public` |
-| Provider         | GitHub                                           |
-| Branch           | `main`                                           |
-| Source code path | `astrolabe`                                      |
+| Setting          | Value                                                 |
+| ---------------- | ----------------------------------------------------- |
+| Repository       | `https://github.com/smathews13/player-insights-agent` |
+| Provider         | GitHub                                                |
+| Branch           | `main`                                                |
+| Source code path | `astrolabe`                                           |
 
 The public mirror publishes `astrolabe/` as a dependency-free app artifact with
 its runtime `app.yaml`. Do not leave the source path blank.
@@ -219,7 +219,8 @@ headers.
 
 ## Experimental status and limitations
 
-- Astrolabe is not a transactional system, an autonomous decision maker, or a
+- Player Insights Agent is not a transactional system, an autonomous decision
+  maker, or a
   replacement for data review.
 - Generated interpretation can be incomplete or wrong even when the underlying
   query succeeds. Validate important conclusions against the displayed SQL,

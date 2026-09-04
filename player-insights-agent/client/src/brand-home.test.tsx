@@ -38,7 +38,7 @@ function brandMarkup(initialEntry = '/runs'): string {
 }
 
 function homeHref(markup: string): string | null {
-  return markup.match(/<a[^>]*\bhref="([^"]*)"[^>]*>[\s\S]*?astrolabe/)?.[1] ?? null;
+  return markup.match(/<a[^>]*\bhref="([^"]*)"[^>]*>[\s\S]*?Player Insights/)?.[1] ?? null;
 }
 
 describe('the header lockup is a home control', () => {
@@ -46,9 +46,7 @@ describe('the header lockup is a home control', () => {
     for (const here of ['/runs', '/monitoring', '/ops', '/connections', '/architecture', '/?c=conv-open']) {
       const href = homeHref(brandMarkup(here));
       expect(href, `from ${here}`).toBe(ASK_HOME_HREF);
-      expect(new URL(href ?? '', 'https://player-insights.example').searchParams.has(CONVERSATION_PARAM)).toBe(
-        false
-      );
+      expect(new URL(href ?? '', 'https://player-insights.example').searchParams.has(CONVERSATION_PARAM)).toBe(false);
     }
   });
 
@@ -63,7 +61,7 @@ describe('the header lockup is a home control', () => {
   it('wraps the existing lockup and does not replace it', () => {
     expect(LAYOUT).toContain(`to={ASK_HOME_HREF}`);
     expect(LAYOUT).toContain('className="brand-home"');
-    expect(LAYOUT).toMatch(/<Link[\s\S]*?<AstrolabeLockup as="h1" seat="bar"/);
+    expect(LAYOUT).toMatch(/<Link[\s\S]*?<PiaLockup as="h1" seat="header"/);
     expect(LAYOUT).toContain('goToAskHome()');
   });
 
@@ -87,9 +85,7 @@ describe('the header lockup is a home control', () => {
   });
 
   it('strips link chrome without painting the mark', () => {
-    expect(SHELL).toMatch(
-      /\.brand-home\s*\{[^}]*text-decoration:\s*none[^}]*\}/
-    );
+    expect(SHELL).toMatch(/\.brand-home\s*\{[^}]*text-decoration:\s*none[^}]*\}/);
     expect(SHELL).toMatch(/\.brand-home\s*\{[^}]*color:\s*inherit/);
     expect(SHELL).not.toMatch(/\.brand-home[^{]*\{[^}]*background:/);
   });

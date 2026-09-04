@@ -769,7 +769,7 @@ fi
 step "Deploying version $MODEL_VERSION to $ENDPOINT"
 (cd "$BUNDLE_ROOT/agent" && uv run --python 3.13 python deploy_agent.py --model-version "$MODEL_VERSION")
 
-step "Applying the astrolabe resource tag"
+step "Applying the legacy compatibility resource tag"
 (cd "$BUNDLE_ROOT/agent" \
   && uv run --python 3.13 python ../bundle/tag-resources.py \
        --registered-model "$MODEL_NAME" \

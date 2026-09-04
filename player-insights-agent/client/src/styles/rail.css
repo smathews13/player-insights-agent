@@ -300,7 +300,7 @@
   white-space: nowrap;
 }
 
-.ast-flick-row.run-status-loader {
+.pia-flick-row.run-status-loader {
   min-height: 0;
   width: fit-content;
   padding: 0;
@@ -541,16 +541,16 @@
   transform: none;
 }
 
-.trace-inspector .ast-flick-row {
+.trace-inspector .pia-flick-row {
   border-color: rgba(255, 255, 255, 0.18);
   background: transparent;
 }
 
-.trace-inspector .ast-flick-row-say {
+.trace-inspector .pia-flick-row-say {
   color: var(--ast-white);
 }
 
-.trace-inspector .ast-flick-row-count {
+.trace-inspector .pia-flick-row-count {
   color: var(--ast-text-secondary);
 }
 
@@ -1124,14 +1124,14 @@ html:not([data-theme='dark']) .trace-inspector {
    the two drift apart. */
 html:not([data-theme='dark']) .trace-title,
 html:not([data-theme='dark']) .trace-inspector .metric-row strong,
-html:not([data-theme='dark']) .trace-inspector .ast-flick-row-say {
+html:not([data-theme='dark']) .trace-inspector .pia-flick-row-say {
   color: var(--ast-text);
 }
 
 /* The hairlines inside the column, which were white at 12% and 18% -- invisible on
    white. `--ast-hairline` is the app's one thin border and it is what every other
    card on a light page is bounded by. */
-html:not([data-theme='dark']) .trace-inspector .ast-flick-row,
+html:not([data-theme='dark']) .trace-inspector .pia-flick-row,
 html:not([data-theme='dark']) .trace-inspector .trace-divider {
   border-color: var(--ast-hairline);
 }

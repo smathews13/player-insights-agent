@@ -19,7 +19,7 @@ import { useState } from 'react';
 import { Copy } from 'lucide-react';
 import { reportEgress } from './egress-policy';
 
-import { astValueBadge } from './astrolabe-pill';
+import { astValueBadge } from './pia-pill';
 import { BADGE_FAMILY } from './status-badge-state';
 
 /**

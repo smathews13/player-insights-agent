@@ -3,12 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  connectionSubjects,
-  scopeForPath,
-  scopesProbesNeed,
-  tokenCarriesScope,
-} from './dependency-probes';
+import { connectionSubjects, scopeForPath, scopesProbesNeed, tokenCarriesScope } from './dependency-probes';
 import { OPTIONAL_USER_API_SCOPES, isOptionalUserApiScope } from '../../shared/optional-user-api-scopes';
 
 /**
@@ -36,7 +31,7 @@ import { OPTIONAL_USER_API_SCOPES, isOptionalUserApiScope } from '../../shared/o
 
 const REPO = join(__dirname, '..', '..', '..');
 const BUNDLE = join(REPO, 'databricks.yml');
-const ACCESS_GUIDE_PATH = join(REPO, 'docs', 'Astrolabe_Access_Guide.md');
+const ACCESS_GUIDE_PATH = join(REPO, 'docs', 'Player_Insights_Agent_Access_Guide.md');
 const ACCESS_GUIDE = existsSync(ACCESS_GUIDE_PATH) ? readFileSync(ACCESS_GUIDE_PATH, 'utf8') : null;
 
 function guideTextBlock(heading: string): string[] {
@@ -130,9 +125,7 @@ function defaultScopes(): string[] {
 function stagedScopes(target: string): string[] {
   const own = scopeBlock(target);
   if (own.length === 0) return defaultStagedScopes();
-  return own
-    .map((line) => /^\s*# - (\S+)\s*$/.exec(line)?.[1])
-    .filter((scope): scope is string => Boolean(scope));
+  return own.map((line) => /^\s*# - (\S+)\s*$/.exec(line)?.[1]).filter((scope): scope is string => Boolean(scope));
 }
 
 /** Commented-out `# - name` entries in the shared `app_user_api_scopes` default. */
@@ -166,9 +159,7 @@ describe('the scopes the bundle declares against the scopes the probes call with
     const declared = effectiveScopes('example');
     const staged = stagedScopes('example');
     const needed = scopesProbesNeed(SUBJECTS).filter(Boolean);
-    const unaccounted = needed.filter(
-      (scope) => !declared.includes(scope) && !staged.includes(scope),
-    );
+    const unaccounted = needed.filter((scope) => !declared.includes(scope) && !staged.includes(scope));
 
     // Named individually, because the failure message is the whole point: the
     // developer who trips this is adding a probe and has to be told which scope
@@ -255,13 +246,7 @@ describe('the scopes the bundle declares against the scopes the probes call with
     // specified scope workspace is not a valid scope". The accepted read name
     // is `workspace.workspace:read`. Twice now the OAuth family name has looked
     // like the answer, so the guard is a list rather than a fixed pair.
-    for (const rejected of [
-      'unity-catalog',
-      'vector-search',
-      'catalog',
-      'vectorsearch',
-      'workspace',
-    ]) {
+    for (const rejected of ['unity-catalog', 'vector-search', 'catalog', 'vectorsearch', 'workspace']) {
       expect(declared).not.toContain(rejected);
     }
   });
@@ -279,12 +264,8 @@ describe('the scopes the bundle declares against the scopes the probes call with
     expect(scopeForPath('/api/2.1/unity-catalog/catalogs/c')).toBe('catalog.catalogs:read');
     expect(scopeForPath('/api/2.1/unity-catalog/schemas/c.s')).toBe('catalog.schemas:read');
     expect(scopeForPath('/api/2.1/unity-catalog/tables/c.s.t')).toBe('catalog.tables:read');
-    expect(scopeForPath('/api/2.0/vector-search/indexes/c.s.i')).toBe(
-      'vectorsearch.vector-search-indexes:read',
-    );
-    expect(scopeForPath('/api/2.0/vector-search/endpoints/e')).toBe(
-      'vectorsearch.vector-search-endpoints:read',
-    );
+    expect(scopeForPath('/api/2.0/vector-search/indexes/c.s.i')).toBe('vectorsearch.vector-search-indexes:read');
+    expect(scopeForPath('/api/2.0/vector-search/endpoints/e')).toBe('vectorsearch.vector-search-endpoints:read');
 
     // Unmapped, on purpose. A probe added against either reports no scope and
     // fails the declaration test, which is the whole guard.
@@ -304,9 +285,7 @@ describe('the scopes the bundle declares against the scopes the probes call with
    */
   it('recognises the OAuth spelling of a scope on a forwarded token', () => {
     expect(tokenCarriesScope(['unity-catalog'], 'catalog.tables:read')).toBe(true);
-    expect(tokenCarriesScope(['vector-search'], 'vectorsearch.vector-search-indexes:read')).toBe(
-      true,
-    );
+    expect(tokenCarriesScope(['vector-search'], 'vectorsearch.vector-search-indexes:read')).toBe(true);
     expect(tokenCarriesScope(['catalog.tables:read'], 'catalog.tables:read')).toBe(true);
     expect(tokenCarriesScope(['workspace'], 'workspace.workspace:read')).toBe(true);
     expect(tokenCarriesScope(['all-apis'], 'catalog.tables:read')).toBe(true);
@@ -336,18 +315,12 @@ describe('the shared default every customer / T2 deployment inherits', () => {
     expect(guideTextBlock('Required Ask OAuth scopes (enforced)')).toEqual(
       defaultScopes().filter((scope) => !isOptionalUserApiScope(scope))
     );
-    expect(guideTextBlock('Optional browse OAuth scopes (enforced classification)')).toEqual(
-      OPTIONAL_USER_API_SCOPES
-    );
+    expect(guideTextBlock('Optional browse OAuth scopes (enforced classification)')).toEqual(OPTIONAL_USER_API_SCOPES);
   });
 
   it('requests the catalog browse scopes, not just example', () => {
     const declared = defaultScopes();
-    for (const scope of [
-      'catalog.catalogs:read',
-      'catalog.schemas:read',
-      'catalog.tables:read',
-    ]) {
+    for (const scope of ['catalog.catalogs:read', 'catalog.schemas:read', 'catalog.tables:read']) {
       expect(declared).toContain(scope);
     }
   });

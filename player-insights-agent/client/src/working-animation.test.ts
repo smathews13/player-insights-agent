@@ -11,7 +11,7 @@ import {
   type Constellation,
 } from './constellation';
 import { INLINE_WORKING_LABEL, WORKING_LABEL, elapsedSeconds, seatForTranscript } from './working-animation';
-import type { FlickerSeat } from './astrolabe-mark';
+import type { PiaLoaderSeat } from './pia-loader';
 
 /**
  * The working state, as the constellation loaders.
@@ -102,7 +102,7 @@ describe('which seating the loader takes', () => {
       readFileSync(new URL('WorkingConstellation.tsx', HERE), 'utf8'),
       readFileSync(new URL('AgentConstellation.tsx', HERE), 'utf8'),
     ].join('\n');
-    for (const seat of ['splash', 'inline', 'button', 'strip', 'status'] satisfies FlickerSeat[]) {
+    for (const seat of ['splash', 'inline', 'button', 'strip', 'status'] satisfies PiaLoaderSeat[]) {
       expect(seated, `the ${seat} seating is drawn somewhere`).toContain(`seat="${seat}"`);
     }
   });
@@ -119,9 +119,9 @@ describe('the inline row is the narrow seating, and says a real number', () => {
     // `margin-left: auto` rather than by `space-between` on the row: with no count
     // yet -- the first two seconds -- a `space-between` row would centre the label
     // and then shift it left when the number arrived.
-    expect(INLINE_ROW).toMatch(/className="ast-num ast-flick-row-count"/);
-    expect(body('.ast-flick-row-count', LOADERS)).toMatch(/margin-left:\s*auto/);
-    expect(body('.ast-flick-row', LOADERS)).not.toMatch(/justify-content/);
+    expect(INLINE_ROW).toMatch(/className="ast-num pia-flick-row-count"/);
+    expect(body('.pia-flick-row-count', LOADERS)).toMatch(/margin-left:\s*auto/);
+    expect(body('.pia-flick-row', LOADERS)).not.toMatch(/justify-content/);
   });
 
   it('does not add a second live region to a column that already has one', () => {
@@ -145,7 +145,7 @@ describe('the inline row is the narrow seating, and says a real number', () => {
     // names it: the strings below have to be absent from the MARKUP.
     const inspector = withoutComments(HOME.slice(HOME.indexOf('className="trace-inspector"')));
     expect(inspector).not.toMatch(/Loader2/);
-    expect(inspector).toMatch(/<WorkingInlineRow elapsed=\{elapsed\} \/>/);
+    expect(inspector).toMatch(/<WorkingInlineRow elapsed=\{elapsed\} label=\{currentStage\.label\} \/>/);
     // And the empty-state heading does not follow the loader in: a run that is
     // going does not need a line telling the reader there are no steps yet.
     expect(inspector).not.toMatch(/No steps yet/);
@@ -159,16 +159,16 @@ describe('the splash flicker is the splash’s drawing, not a second loader', ()
     // a transcript, and 220px of night sky between the question and the step
     // list pushed both off the fold. So the flicker is on by default and the
     // 480px query has nothing to say about either half.
-    expect(body('.ast-flick-splash', LOADERS)).toMatch(/display:\s*grid/);
-    expect(atWidth(480)).not.toMatch(/ast-flick-splash|ast-working/);
-    expect(HOME).toMatch(/<ConceptFlicker seat="splash" \/>/);
+    expect(body('.pia-flick-splash', LOADERS)).toMatch(/display:\s*grid/);
+    expect(atWidth(480)).not.toMatch(/pia-flick-splash|ast-working/);
+    expect(HOME).toMatch(/<PiaFlicker seat="splash" \/>/);
     expect(HOME).not.toMatch(/<WorkingConstellation seat="splash"/);
   });
 
   it('leaves the copy and the bar where they were', () => {
     // What changed is the drawing. A second copy of the count or the label at
     // any width would be the same figure on screen twice.
-    expect(atWidth(480)).not.toMatch(/ast-splash-copy|ast-splash-run/);
+    expect(atWidth(480)).not.toMatch(/pia-splash-copy|pia-splash-run/);
   });
 
   it('keeps the splash tight enough to read as part of the transcript', () => {
@@ -176,7 +176,7 @@ describe('the splash flicker is the splash’s drawing, not a second loader', ()
     // gone they are a third of a viewport of nothing above "Working on it". Top
     // lives on the more specific rule below, because answer.css zeros it here.
     // The gap ceiling is what the block may not reopen.
-    const splash = body('.ast-splash', LOADERS);
+    const splash = body('.pia-splash', LOADERS);
     expect(splash).toMatch(/padding:\s*0\s+24px\s+20px/);
     expect(Number(splash.match(/gap:\s*(\d+)px/)?.[1])).toBeLessThanOrEqual(16);
   });
@@ -189,7 +189,7 @@ describe('the splash flicker is the splash’s drawing, not a second loader', ()
     // visible band under a 72px mark; 48 was the empty-sky inset of the
     // retired panel. The finished header stays 8px — this class is only on
     // the working card, which has no CardHeader.
-    const splash = body(".answer-card > [data-slot='card-content'].ast-splash", LOADERS);
+    const splash = body(".answer-card > [data-slot='card-content'].pia-splash", LOADERS);
     const top = Number(splash.match(/padding-top:\s*(\d+)px/)?.[1]);
     expect(top).toBeGreaterThanOrEqual(40);
     expect(top).toBeLessThan(48);
@@ -377,7 +377,7 @@ describe('the loaders are decorative, and freeze when asked to', () => {
     // compliance would be the one reported as having two live regions.
     const field = withoutComments(readFileSync(new URL('ConstellationField.tsx', HERE), 'utf8'));
     const working = withoutComments(readFileSync(new URL('WorkingConstellation.tsx', HERE), 'utf8'));
-    const flicker = withoutComments(readFileSync(new URL('ConceptFlicker.tsx', HERE), 'utf8'));
+    const flicker = withoutComments(readFileSync(new URL('PiaFlicker.tsx', HERE), 'utf8'));
     expect(field).toMatch(/aria-hidden="true"/);
     expect(flicker).toMatch(/aria-hidden="true"/);
     expect(working.match(/aria-live=/g) ?? []).toHaveLength(1);
@@ -408,12 +408,12 @@ describe('the loaders are decorative, and freeze when asked to', () => {
     expect(OPENING_CONSTELLATION.loopSeconds).toBe(10);
   });
 
-  it('marks one mark of a flicker slot as the frozen frame', () => {
-    // CSS cannot choose between four stacked drawings, so the markup says which.
-    // A slot that marks none renders nothing frozen, which fails visibly rather
-    // than showing four marks in a pile.
-    expect(readFileSync(new URL('ConceptFlicker.tsx', HERE), 'utf8')).toMatch(/rest=\{concept === FLICKER_REST\}/);
-    expect(withoutComments(stylesheet())).toMatch(/\.ast-flick-slot > \[data-ast-rest\]/);
+  it('rests the PIA loader on one D-pad and its persistent center dot', () => {
+    const compatibility = readFileSync(new URL('PiaFlicker.tsx', HERE), 'utf8');
+    const piaLoader = withoutComments(partial('pia-loader.css'));
+    expect(compatibility).toContain('<PiaLoaderMark');
+    expect(piaLoader).toMatch(/\.pia-loader__phase--dpad,[\s\S]*\.pia-loader__center\s*\{[^}]*opacity:\s*1/);
+    expect(piaLoader).toMatch(/\.pia-loader__phase\s*\{[^}]*opacity:\s*0/);
   });
 });
 

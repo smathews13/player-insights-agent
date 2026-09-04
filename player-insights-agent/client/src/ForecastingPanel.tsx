@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { ExperimentalBadge } from './ExperimentalBadge';
-import { astPill } from './astrolabe-pill';
+import { astPill } from './pia-pill';
 import {
   calculateForecast,
   deriveForecastBaseline,

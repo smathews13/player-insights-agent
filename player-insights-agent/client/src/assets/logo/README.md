@@ -1,34 +1,32 @@
-# The astrolabe marks, and the recoloured product icons
+# Player Insights Agent marks and compatibility artwork
 
 Where these came from, what may be done to them, and the two things about them
 that are broken on arrival.
 
-Source: `docs/design-handoff-astrolabe/`, asset manifest in
-`astrolabe-rebuild-spec.md` §8. Nothing here is referenced by the app yet. This
-directory is the foundation pass putting the artwork in place, and the surfaces
-that consume it are later work.
+Source: the September 2026 PIA brand handoff. These assets are the live product
+identity used by the app header, opening surfaces, loaders, empty states, and
+generated app icons.
 
-## `astrolabe-*.svg`: our own mark
+## `pia-*.svg`: current product identity
 
-Ours, drawn for this app, so no third-party terms apply. Eight files: four
-concepts in two inks each. All are self-contained, `0 0 64 64`, ink `#11171C`
-with blue `#2272B4` on light and white with `#6FAEDD` on dark.
+The six PIA files are canonical 64-unit drawings from the September 2026
+brand handoff:
 
-| File | What it is |
-| --- | --- |
-| `astrolabe-dpad.svg` / `-white` | **The mark.** Ring, graduated reticle ring, d-pad cross, blue centre, four quadrant dots. Anchor `#16d`. |
-| `astrolabe-rete.svg` / `-white` | Concept archive. Used only by the flicker loaders and the opening sequence. |
-| `astrolabe-reticle.svg` / `-white` | Concept archive, same use. |
-| `astrolabe-horizon.svg` / `-white` | Concept archive, same use. |
+| File                                        | What it is                                                                              |
+| ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `pia-dpad.svg` / `pia-dpad-white.svg`       | Engraved primary D-pad for light/dark surfaces at 24px and above.                       |
+| `pia-dpad-sm.svg` / `pia-dpad-white-sm.svg` | Simplified D-pad, with no engravings, for every seat below 24px.                        |
+| `pia-cluster.svg` / `pia-cluster-white.svg` | Static secondary face-button cluster for loaders and empty states; never a header mark. |
 
-The d-pad is canonical and the other three are archive. `design-spec-master.md`
-§0 says this in its opening sentence and then names rete as canonical four
-sentences later; `astrolabe-rebuild-spec.md` §1 and §8 settle it for the d-pad,
-and that is what this table records. See `docs/design-handoff-astrolabe/AS-COMMITTED.md`.
+`pia-mark.ts` holds the matching typed geometry. `PiaMark` chooses the
+simplified cut from the rendered size, so callers cannot accidentally engrave
+a mark below the legibility floor. Print uses the light-surface cuts.
 
-Never redraw and never restroke. The small cut for chips at 13-30px is a
-different drawing of the same mark, specified in the rebuild spec §1. It drops
-the graduation ring and thickens the rim, and it is not one of these files.
+## Retired artwork
+
+The former ring/rete/reticle/horizon artwork was removed after the PIA surface
+sweep moved every runtime consumer to the six `pia-*` assets above. Do not
+restore those files or use their name as product branding.
 
 ## `theme/`: Databricks product icons, recoloured
 

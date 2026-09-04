@@ -66,7 +66,7 @@ import { RefreshButton, RefreshControl } from './RefreshControl';
 import { CONNECTED_RESOURCES } from '../../shared/deployment-config';
 import { IdentityCard } from './IdentityPanel';
 import { useDeploymentIdentity } from './identity-panel-state';
-import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
+import { PiaLoadingLabel } from './PiaLoadingLabel';
 import {
   connectionLoadErrorLabel,
   connectionPlaceholderReadings,
@@ -765,14 +765,14 @@ export function DeclaredTablesTable({
                           {type}
                         </Badge>
                         {entry.connection.origin === 'app'
-                          ? 'In scope · added in Astrolabe'
+                          ? 'In scope · added in Player Insights Agent'
                           : 'In scope · managed by deployment'}
                       </span>
                     </span>
                   </TableCell>
                   <TableCell>
                     {pending ? (
-                      <AstrolabeLoadingLabel
+                      <PiaLoadingLabel
                         as="span"
                         announce={false}
                         className="connections-table-status-loader"
@@ -887,7 +887,7 @@ export function DeclaredTablesTable({
                             {connection?.connection.note === 'asset-type:view' ? 'View' : 'Table'}
                           </Badge>
                           {connection?.connection.origin === 'app'
-                            ? 'In scope · added in Astrolabe'
+                            ? 'In scope · added in Player Insights Agent'
                             : 'In scope · managed by deployment'}
                         </span>
                       </span>
@@ -900,7 +900,7 @@ export function DeclaredTablesTable({
                 function so the two cannot disagree. */}
                     <TableCell>
                       {declared?.pending ? (
-                        <AstrolabeLoadingLabel
+                        <PiaLoadingLabel
                           as="span"
                           announce={false}
                           className="connections-table-status-loader"
@@ -1685,7 +1685,7 @@ export function ConnectionRow({
           ) : null}
         </span>
         {primaryState === 'loading' ? (
-          <AstrolabeLoadingLabel
+          <PiaLoadingLabel
             as="span"
             announce={false}
             className="connection-row-status-loader"
@@ -1729,7 +1729,7 @@ export function ConnectionRow({
       {open ? (
         <div className="connection-row-detail">
           {restating ? (
-            <AstrolabeLoadingLabel label={`Checking ${resource.label}`} className="connection-detail-status-loader" />
+            <PiaLoadingLabel label={`Checking ${resource.label}`} className="connection-detail-status-loader" />
           ) : null}
           {resource.id === 'lakebase' && lakebaseMigration ? (
             <LakebaseMigrationPanel state={lakebaseMigration.state} onApply={lakebaseMigration.apply} />
@@ -1864,7 +1864,7 @@ export function ConnectionLoadRow({ reading, state }: { reading: ConnectionReadi
       <div className="connection-row-summary">
         <span className="connection-row-loader-chevron" aria-hidden="true" />
         {state === 'loading' ? (
-          <AstrolabeLoadingLabel label={label} className="connection-row-loader" />
+          <PiaLoadingLabel label={label} className="connection-row-loader" />
         ) : (
           <div className="connection-row-load-error" role="alert">
             <CircleAlert className="size-4" aria-hidden="true" />
@@ -2176,7 +2176,7 @@ export function ConnectionsPage() {
 
       {firstRun ? (
         <Card className="connections-primary-loader" data-testid="connections-primary-loader">
-          <AstrolabeLoadingLabel label="Loading connections" className="connections-primary-loader-row" />
+          <PiaLoadingLabel label="Loading connections" className="connections-primary-loader-row" />
         </Card>
       ) : null}
 

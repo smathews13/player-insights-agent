@@ -4,7 +4,7 @@ import { clearActiveConversationRuns } from './active-conversation-runs';
 import { abortActiveAsksForSessionEnd } from './ask-cancellation';
 import { forgetChecks } from './check-session';
 import { resetEgressPolicy } from './egress-policy';
-import { browserAcknowledgementStore, signOutOfAstrolabe, type AcknowledgementStore } from './first-open';
+import { browserAcknowledgementStore, signOutOfPlayerInsightsAgent, type AcknowledgementStore } from './first-open';
 import { resetLiveAsks } from './live-ask';
 import { forgetMonitoringSession } from './monitoring-session';
 import { forgetOpsSession } from './ops-session';
@@ -78,7 +78,7 @@ function currentState(): AppSessionState {
  * are the stores that otherwise survive that unmount.
  */
 export function clearSensitiveClientState(store = browserAcknowledgementStore()): void {
-  signOutOfAstrolabe(store);
+  signOutOfPlayerInsightsAgent(store);
   clearSelectedConversation();
   abortActiveAsksForSessionEnd();
   clearActiveConversationRuns();

@@ -259,9 +259,14 @@ export function scopeRows(
 ): ScopeRow[] {
   const cleanScopes = (value: readonly unknown[] | null | undefined): string[] =>
     Array.isArray(value)
-      ? [...new Set(value.filter((scope): scope is string => typeof scope === 'string')
-          .map((scope) => scope.trim())
-          .filter(Boolean))]
+      ? [
+          ...new Set(
+            value
+              .filter((scope): scope is string => typeof scope === 'string')
+              .map((scope) => scope.trim())
+              .filter(Boolean)
+          ),
+        ]
       : [];
   const declaredList = cleanScopes(declared);
   const missingList = cleanScopes(missing);
@@ -608,13 +613,13 @@ export function forgetFirstOpen(): void {
 }
 
 /**
- * End this browser tab's Astrolabe session without touching Databricks sign-in.
+ * End this browser tab's Player Insights Agent session without touching Databricks sign-in.
  *
  * Both keys have to go before the page reloads: the acknowledgement decides
  * whether the login gate appears, and the outcome is evidence about the session
  * that just ended rather than the one about to begin.
  */
-export function signOutOfAstrolabe(store = browserAcknowledgementStore()): void {
+export function signOutOfPlayerInsightsAgent(store = browserAcknowledgementStore()): void {
   acknowledgedHere = false;
   if (!store?.removeItem) return;
   try {

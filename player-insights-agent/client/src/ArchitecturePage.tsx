@@ -38,7 +38,7 @@ import './styles/routes/architecture.css';
 import { Link } from 'react-router';
 import { Alert, AlertDescription } from './ui';
 import { CircleAlert, ExternalLink } from 'lucide-react';
-import { astPill } from './astrolabe-pill';
+import { astPill } from './pia-pill';
 import { BrandIcon } from './BrandIcon';
 // The word, the icon and the pending state, decided once for the whole app.
 import { RefreshControl } from './RefreshControl';
@@ -84,7 +84,7 @@ import { useSessionChecks } from './session-checks';
 import { fetchWithTimeout } from './fetch-timeout';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
 import { entityHref } from './data-entities';
-import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
+import { PiaLoadingLabel } from './PiaLoadingLabel';
 
 interface ArchitecturePayload {
   workspaceHost: string;
@@ -274,7 +274,7 @@ function ArchitectureNodeCard({
       </span>
       <span className="arch-node-pills">
         {checking && node.presence === 'connection' ? (
-          <AstrolabeLoadingLabel
+          <PiaLoadingLabel
             as="span"
             announce={false}
             className="arch-node-status-loader"

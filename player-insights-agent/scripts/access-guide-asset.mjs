@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-export const ACCESS_GUIDE_FILENAME = 'Astrolabe_Access_Patterns_v2.pdf';
+export const ACCESS_GUIDE_FILENAME = 'Player_Insights_Agent_Access_Patterns_v2.pdf';
 
 async function sourceFile(pathname) {
   try {

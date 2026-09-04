@@ -254,7 +254,7 @@ export async function bootstrapSeedRoles(
     const code = typeof rawCode === 'string' || typeof rawCode === 'number' ? String(rawCode) : 'unknown';
     console.error(
       `[admin] ROLE BOOTSTRAP SKIPPED: the Lakebase roster could not be read (code ${code}: ` +
-        `${(error as Error).message}). Astrolabe will keep serving with no stored roles available; ` +
+        `${(error as Error).message}). Player Insights Agent will keep serving with no stored roles available; ` +
         'Connections reports the storage problem. No configured role was written or retained, because ' +
         'an unreadable roster is not evidence that it is empty.'
     );

@@ -116,14 +116,14 @@ describe('Cost budget Apply copy', () => {
       renderToStaticMarkup(createElement(CostBudgetApplyButton, { state }));
     expect(markup(SETTINGS_SAVE_IDLE)).toContain('>Apply</button>');
     expect(markup({ kind: 'saving' })).toContain('Applying');
-    expect(markup({ kind: 'saving' })).toContain('ast-flick-slot--button');
+    expect(markup({ kind: 'saving' })).toContain('pia-flick-slot--button');
     expect(markup({ kind: 'saving' })).toContain('disabled');
     const saved = markup({ kind: 'saved' });
     expect(saved.match(/Applied/g)).toHaveLength(1);
     expect(saved).toContain('aria-live="polite"');
     expect(saved).toContain('aria-atomic="true"');
     expect(markup({ kind: 'failed', message: 'no' })).toContain('Retry');
-    expect(markup({ kind: 'failed', message: 'no' })).not.toContain('ast-flick-slot--button');
+    expect(markup({ kind: 'failed', message: 'no' })).not.toContain('pia-flick-slot--button');
   });
 
   it('renders failures without a duplicate saved status', () => {

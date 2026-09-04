@@ -135,7 +135,7 @@ function ExecutionValue({
     );
   }
   if (mode === 'app_service_principal') {
-    return <span>{identity.identityMetadata?.app.displayName || 'Astrolabe'} app</span>;
+    return <span>{visibleAppDisplayName(identity.identityMetadata?.app.displayName)} app</span>;
   }
   if (mode === 'assigned_service_principal') {
     return <span>{assignedPersona ? `Assigned persona · ${assignedPersona}` : 'Assigned persona'}</span>;
@@ -144,6 +144,12 @@ function ExecutionValue({
     return <span>{assignedPersona ? `Assigned persona · ${assignedPersona}` : 'Service principal'}</span>;
   }
   return <span>{mode ? mode.replaceAll('_', ' ') : 'Not reported'}</span>;
+}
+
+function visibleAppDisplayName(value?: string): string {
+  const displayName = value?.trim();
+  if (!displayName || /^astrolabe(?: application)?$/i.test(displayName)) return 'Player Insights Agent';
+  return displayName;
 }
 
 /**
@@ -194,7 +200,7 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
                   </Fact>
                 ) : null}
                 {identity?.role ? (
-                  <Fact label="Astrolabe role">
+                  <Fact label="Player Insights Agent role">
                     <RoleBadgePill state={identity.role} />
                   </Fact>
                 ) : null}
@@ -221,7 +227,7 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
               <h4 id="identity-app-heading">App</h4>
               <div className="identity-section-grid">
                 <Fact label="Display name">
-                  <span>{metadata?.app.displayName || 'Astrolabe'}</span>
+                  <span>{visibleAppDisplayName(metadata?.app.displayName)}</span>
                 </Fact>
                 {metadata?.app.resourceName ? (
                   <Fact label="Resource name">
@@ -253,8 +259,11 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
                   <>
                     {servicePrincipal.displayName ? (
                       <Fact label="Display name">
-                        <span className="identity-full-value" title={servicePrincipal.displayName}>
-                          {servicePrincipal.displayName}
+                        <span
+                          className="identity-full-value"
+                          title={visibleAppDisplayName(servicePrincipal.displayName)}
+                        >
+                          {visibleAppDisplayName(servicePrincipal.displayName)}
                         </span>
                       </Fact>
                     ) : null}

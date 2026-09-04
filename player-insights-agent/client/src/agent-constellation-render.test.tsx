@@ -154,12 +154,12 @@ describe('the bands expose only the controls they own (§5)', () => {
       stage({ id: 'step-1', name: 'Choosing the next step', status: 'running', duration: 0 })
     );
 
-    expect(
-      attrs(band(path(first, 0)), 'aria-label').filter((label) => label.startsWith('Select step '))
-    ).toHaveLength(1);
-    expect(
-      attrs(band(path(next, 1)), 'aria-label').filter((label) => label.startsWith('Select step '))
-    ).toHaveLength(2);
+    expect(attrs(band(path(first, 0)), 'aria-label').filter((label) => label.startsWith('Select step '))).toHaveLength(
+      1
+    );
+    expect(attrs(band(path(next, 1)), 'aria-label').filter((label) => label.startsWith('Select step '))).toHaveLength(
+      2
+    );
     expect(path(next, 1)).toContain('Step 02 · Choosing the next step');
     // The step arrives on both views or the theme decides what a reader is told.
     expect(attrs(rail(path(next, 1)), 'aria-label').filter((label) => label.startsWith('Select step '))).toHaveLength(
@@ -368,13 +368,11 @@ describe('what moves, and what stops moving (§5)', () => {
     expect(markup).not.toContain('ast-anim-center-pulse');
     expect(markup).not.toContain('ast-anim-star-pulse');
     expect(markup).not.toContain('ast-anim-draw');
-    expect(markup).not.toContain('ast-flick-slot');
+    expect(markup).not.toContain('pia-flick-slot');
   });
 
   it('keeps one star wrapper when a running frontier becomes an error', () => {
-    expect(PATH_SOURCE).toContain(
-      "className={beating && activeIndex === index ? 'ast-anim-center-pulse' : undefined}"
-    );
+    expect(PATH_SOURCE).toContain("className={beating && activeIndex === index ? 'ast-anim-center-pulse' : undefined}");
     expect(PATH_SOURCE).not.toMatch(/beating && activeIndex === index \? \(\s*<g/);
   });
 
@@ -858,13 +856,13 @@ describe('no orange, and no oat (§2)', () => {
 
 describe('the mark is the agent, and there is one of it (§1)', () => {
   it('draws the status mark from the shared file rather than from a second copy', () => {
-    expect(PATH_SOURCE).toContain("import { AstrolabeMark } from './AstrolabeMark'");
+    expect(PATH_SOURCE).toContain("import { PiaMark } from './PiaMark'");
     // 11 twice, on purpose: `size` picks the drawing as well as the box, and
     // `.ast-sky-status-mark svg` paints 11px. A seat that asks for one number
     // and is painted another gets the wrong cut of the mark stretched to the
     // right size -- nothing looks broken, the graduations are just missing or
     // crowded at a size they were not drawn for.
-    expect(PATH_SOURCE).toContain('<AstrolabeMark size={11} ink="dark" />');
+    expect(PATH_SOURCE).toContain('<PiaMark size={11} tone="dark" />');
     expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark \.brand-icon,[\s\S]*?width: 11px/);
     expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark \{[^}]*border: 1px solid/);
     // `dark` because the status line is on the navy band. The light cut's
@@ -883,13 +881,11 @@ describe('the mark is the agent, and there is one of it (§1)', () => {
      * A second cycle written into this file would pass a test that counted marks.
      */
     const running = path(inFlight, 5, 12_000);
-    expect(running).toContain('ast-flick-slot--status');
-    // Four stacked concepts, one class, four staggered delays -- ConceptFlicker's
-    // contract, checked here because this seat supplies the size it renders at.
-    expect([...running.matchAll(/ast-anim-flick/g)]).toHaveLength(4);
-    expect(running).toMatch(/animation-duration:\s*3\.2s/);
+    expect(running).toContain('pia-flick-slot--status');
+    expect([...running.matchAll(/pia-loader__phase--(?:dpad|cluster)/g)]).toHaveLength(2);
+    expect(running).toContain('pia-loader__center');
     // The seat's own number, painted at the number the slot has always painted.
-    expect(running).toMatch(/class="ast-flick-slot ast-flick-slot--status"[^>]*width:\s*11px/);
+    expect(running).toMatch(/class="pia-flick-slot pia-flick-slot--status"[^>]*width:\s*11px/);
   });
 
   it('freezes on the finished step’s real mark once the run stops', () => {
@@ -904,8 +900,8 @@ describe('the mark is the agent, and there is one of it (§1)', () => {
      * not the stage's own leftover status.
      */
     for (const markup of [path(finished, -1, null, 27_400), path(inFlight, -1)]) {
-      expect(markup).not.toContain('ast-flick-slot');
-      expect(markup).not.toContain('ast-anim-flick');
+      expect(markup).not.toContain('pia-flick-slot');
+      expect(markup).not.toContain('pia-loader__phase');
     }
     // And what it freezes on is the real thing: the last step of `finished` is a
     // Genie tool call, so the foot holds that product's mark rather than the
@@ -948,8 +944,8 @@ describe('the mark is the agent, and there is one of it (§1)', () => {
     const here = new URL('.', import.meta.url);
     const holders = readdirSync(here)
       .filter((name) => /\.tsx?$/.test(name) && !name.includes('.test.'))
-      .filter((name) => readFileSync(new URL(name, here), 'utf8').includes('cx: 41.5, cy: 22.5'));
-    expect(holders).toEqual(['astrolabe-mark.ts']);
+      .filter((name) => readFileSync(new URL(name, here), 'utf8').includes('export const PIA_DPAD_GLYPHS'));
+    expect(holders).toEqual(['pia-mark.ts']);
   });
 });
 

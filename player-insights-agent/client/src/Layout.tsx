@@ -30,7 +30,7 @@ import { formatCheckedAt } from './preflight';
 import { useDeployment, useIdentity, useStorageHealth } from './app-state';
 import type { Identity } from './app-types';
 import { ASK_HOME_HREF, goToAskHome } from './ask-home-control';
-import { AstrolabeLockup } from './AstrolabeMark';
+import { PiaLockup } from './PiaMark';
 import { BuiltOnDatabricks } from './BuiltOnDatabricks';
 import { DeploymentTimeChip } from './DeploymentTimeChip';
 import { RoleBadge } from './RoleBadge';
@@ -342,7 +342,7 @@ export function HeaderBrand({
           onHome?.();
         }}
       >
-        <AstrolabeLockup as="h1" seat="bar" />
+        <PiaLockup as="h1" seat="header" />
       </Link>
       {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
       <span className="app-chrome-rule" aria-hidden="true" />

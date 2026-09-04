@@ -183,7 +183,7 @@ describe('feedback corpus modal', () => {
       data: { ...payload, rows: [], summary: { total: 0, helpful: 0, notHelpful: 0 } },
       error: null,
     });
-    expect(loading).toContain('ast-mark');
+    expect(loading).toContain('pia-loader-mark');
     expect(loading).toContain('Loading feedback');
     expect(loading).toContain('data-slot="skeleton"');
     expect(error).toContain('role="alert"');

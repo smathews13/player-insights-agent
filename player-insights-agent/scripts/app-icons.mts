@@ -1,5 +1,5 @@
 /**
- * The app icons: the astrolabe mark, at every size a browser asks for.
+ * The app icons: the PIA simplified/engraved D-pad on its navy plate.
  *
  *     npx tsx scripts/app-icons.mts            # rewrite client/public
  *     npx tsx scripts/app-icons.mts --out /tmp # somewhere else, to compare
@@ -10,23 +10,23 @@
  * d-pad, and the tab was the last surface still naming the customer instead.
  *
  * DRAWN FROM THE APP'S OWN GEOMETRY, WHICH IS THE POINT OF THIS FILE EXISTING
- * AT ALL. Every coordinate comes from `markElements` in
- * client/src/astrolabe-mark.ts -- the same array the component renders, pinned
- * to the delivered SVGs by astrolabe-mark.test.ts. So "never redraw, never
+ * AT ALL. Every coordinate comes from `piaMarkElements` in
+ * client/src/pia-mark.ts -- the same array the component renders, pinned
+ * to the delivered PIA SVGs by pia-mark.test.tsx. So "never redraw, never
  * restroke" holds here by construction rather than by a second person's care:
  * there is no copy of the mark in this file to drift, and a change to the
  * delivered artwork reaches the favicon by regenerating rather than by
  * somebody remembering that the favicon exists.
  *
- * The size decides the drawing, exactly as it does on screen: `markElements`
- * hands back the small cut below 32px, so the 16px tab icon drops the
- * graduation ring and thickens the rim rather than rendering a 1.3-wide dash as
- * a grey smudge. It is asked for the size the MARK is drawn at, not the size of
+ * The size decides the drawing, exactly as it does on screen: `piaMarkElements`
+ * hands back the simplified cut below 24px, so the 16px tab icon drops the
+ * engraved glyphs rather than rendering them as a grey smudge. It is asked for
+ * the size the MARK is drawn at, not the size of
  * the tile it sits on, which is why MARK_SPAN is applied before the call.
  *
  * WHY A PLATE AT ALL, given the delivered SVGs are ink on transparency. A tab
  * strip is a surface the app does not control and does not know the colour of.
- * The navy plate is the mark's `dark` seating from astrolabe-mark.css --
+ * The navy plate is the mark's dark seating from pia-brand.css --
  * white structure, #6FAEDD accents -- which is a seating the design already
  * has, and it reads on a light strip and a dark one alike. Ink on transparency
  * reads on exactly one of them, and Chrome's dark chrome is the one it loses.
@@ -44,7 +44,7 @@ import path from 'node:path';
 
 import sharp from 'sharp';
 
-import { MARK_VIEWBOX, markElements, type MarkElement, type MarkPaint } from '../client/src/astrolabe-mark.ts';
+import { PIA_MARK_VIEWBOX, piaMarkElements, type PiaMarkElement, type PiaMarkPaint } from '../client/src/pia-mark.ts';
 
 /**
  * The six files, and the size each is drawn at.
@@ -66,9 +66,10 @@ export const ICON_FILES: Readonly<Record<string, number>> = {
 /** `--ast-navy`. The plate, and the surface the mark's `dark` seating is drawn for. */
 export const PLATE = '#11171c';
 
-/** `--ast-white` and `--ast-blue-on-dark`, which is `.ast-mark--dark` in astrolabe-mark.css. */
+/** The dark-surface PIA inks. Engravings cut back into the navy plate. */
 export const INK = '#ffffff';
 export const ACCENT = '#6faedd';
+export const ENGRAVING = PLATE;
 
 /**
  * The plate's corner, as a fraction of the tile.
@@ -101,13 +102,15 @@ export const MARK_SPAN = 0.84;
  */
 const SUPERSAMPLE = 4;
 
-function paint(which: MarkPaint | undefined): string | undefined {
+function paint(which: PiaMarkPaint | undefined): string | undefined {
   if (!which) return undefined;
-  return which === 'ink' ? INK : ACCENT;
+  if (which === 'ink') return INK;
+  if (which === 'accent') return ACCENT;
+  return ENGRAVING;
 }
 
-/** One element of the mark, as SVG. The dpad and its small cut are circles and rects only. */
-function element(shape: MarkElement): string {
+/** One element of the mark, as SVG. */
+function element(shape: PiaMarkElement): string {
   const attrs: string[] = [];
   const push = (name: string, value: string | number | undefined) => {
     if (value !== undefined) attrs.push(`${name}="${value}"`);
@@ -120,8 +123,7 @@ function element(shape: MarkElement): string {
     push('fill', paint(shape.fill) ?? 'none');
     push('stroke', paint(shape.stroke));
     push('stroke-width', shape.strokeWidth);
-    push('stroke-dasharray', shape.dash);
-    push('opacity', shape.opacity);
+    push('opacity', shape.opacity ?? (shape.stroke === 'engraving' ? 0.35 : undefined));
     return `<circle ${attrs.join(' ')} />`;
   }
 
@@ -131,14 +133,22 @@ function element(shape: MarkElement): string {
     push('width', shape.width);
     push('height', shape.height);
     push('rx', shape.rx);
-    push('fill', paint(shape.fill));
+    push('fill', paint(shape.fill) ?? 'none');
+    push('stroke', paint(shape.stroke));
+    push('stroke-width', shape.strokeWidth);
+    push('opacity', shape.opacity ?? (shape.stroke === 'engraving' ? 0.35 : undefined));
     return `<rect ${attrs.join(' ')} />`;
   }
 
-  // Paths and groups belong to the three archive concepts, which the flicker
-  // loaders seat and an app icon never does. Refusing is better than drawing
-  // half a mark if `markElements` is ever asked for one of them.
-  throw new Error(`the app icon draws the d-pad, which has no ${shape.kind} in it`);
+  push('d', shape.d);
+  push('fill', paint(shape.fill) ?? 'none');
+  push('stroke', paint(shape.stroke));
+  push('stroke-width', shape.strokeWidth);
+  push('stroke-dasharray', shape.dash);
+  push('stroke-linecap', shape.linecap);
+  push('stroke-linejoin', shape.linejoin);
+  push('opacity', shape.opacity ?? (shape.stroke === 'engraving' ? 0.35 : undefined));
+  return `<path ${attrs.join(' ')} />`;
 }
 
 /**
@@ -146,16 +156,16 @@ function element(shape: MarkElement): string {
  *
  * The mark keeps its own 64-unit grid and is placed by a transform, so nothing
  * here rescales a coordinate by hand -- the numbers in the output are the
- * numbers in astrolabe-mark.ts, which is what makes a diff of this readable
+ * numbers in pia-mark.ts, which is what makes a diff of this readable
  * against the delivered file.
  */
 export function iconSvg(size: number): string {
   const drawn = Math.round(size * MARK_SPAN);
-  const inset = (MARK_VIEWBOX * (1 - MARK_SPAN)) / 2;
-  const shapes = markElements(drawn, 'dpad').map(element).join('');
+  const inset = (PIA_MARK_VIEWBOX * (1 - MARK_SPAN)) / 2;
+  const shapes = piaMarkElements(drawn, 'dpad').map(element).join('');
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${MARK_VIEWBOX} ${MARK_VIEWBOX}" fill="none">`,
-    `<rect width="${MARK_VIEWBOX}" height="${MARK_VIEWBOX}" rx="${MARK_VIEWBOX * PLATE_CORNER}" fill="${PLATE}" />`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${PIA_MARK_VIEWBOX} ${PIA_MARK_VIEWBOX}" fill="none">`,
+    `<rect width="${PIA_MARK_VIEWBOX}" height="${PIA_MARK_VIEWBOX}" rx="${PIA_MARK_VIEWBOX * PLATE_CORNER}" fill="${PLATE}" />`,
     `<g transform="translate(${inset} ${inset}) scale(${MARK_SPAN})">${shapes}</g>`,
     '</svg>',
   ].join('');
@@ -167,10 +177,7 @@ export async function iconPng(size: number): Promise<Buffer> {
     `width="${size}" height="${size}"`,
     `width="${size * SUPERSAMPLE}" height="${size * SUPERSAMPLE}"`
   );
-  return sharp(Buffer.from(svg))
-    .resize(size, size, { kernel: 'lanczos3' })
-    .png({ compressionLevel: 9 })
-    .toBuffer();
+  return sharp(Buffer.from(svg)).resize(size, size, { kernel: 'lanczos3' }).png({ compressionLevel: 9 }).toBuffer();
 }
 
 const PUBLIC_DIR = path.resolve(fileURLToPath(new URL('../client/public', import.meta.url)));

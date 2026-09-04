@@ -92,7 +92,7 @@ export function resetActiveAsks(): void {
  */
 export function abortActiveAsksForSessionEnd(): void {
   for (const active of activeAsks.values()) {
-    active.controller.abort(new DOMException('Astrolabe app session ended', 'AbortError'));
+    active.controller.abort(new DOMException('Player Insights Agent session ended', 'AbortError'));
   }
   activeAsks.clear();
   announceActiveAskChange();

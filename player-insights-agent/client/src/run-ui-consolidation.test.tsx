@@ -95,7 +95,7 @@ describe('public trace evidence and pre-stage copy', () => {
     const stageView = read('current-stage-view.ts');
     expect(labels.match(/PLANNING_STAGE_LABEL/g)).toHaveLength(3);
     expect(stageView).toContain("PLANNING_STAGE_LABEL = 'Planning out your answer'");
-    expect(read('WorkingInlineRow.tsx')).toContain('ast-flick-row-count');
+    expect(read('WorkingInlineRow.tsx')).toContain('pia-flick-row-count');
     expect(read('HomePage.tsx')).toMatch(
       /<strong>\{currentStage\.label\}<\/strong>[\s\S]*?<strong className="ast-num">\{elapsed\}<\/strong>/
     );

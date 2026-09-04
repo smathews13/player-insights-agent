@@ -61,7 +61,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react';
 import { Badge, Button } from './ui';
 import { ArrowLeft, ChevronRight, Copy, Database, Search, Wrench } from 'lucide-react';
-import { AstrolabeMark } from './AstrolabeMark';
+import { PiaMark } from './PiaMark';
 import { AgentPathConstellation } from './AgentConstellation';
 import { AnswerCharts, type Chart } from './AnswerCharts';
 import { BrandIcon } from './BrandIcon';
@@ -223,7 +223,7 @@ function KindChip({ stage }: { stage: TraceStage }) {
   if (stage.kind === 'agent') {
     return (
       <span className="dag-chip agent">
-        <AstrolabeMark size={13} />
+        <PiaMark size={13} />
       </span>
     );
   }
@@ -268,7 +268,7 @@ function RailMark({ stage }: { stage: TraceStage }) {
   if (glyph === 'agent') {
     return (
       <span className="dag-mark agent">
-        <AstrolabeMark size={13} />
+        <PiaMark size={13} />
       </span>
     );
   }

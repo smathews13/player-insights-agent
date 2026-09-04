@@ -225,13 +225,13 @@ describe('the night sky belongs to dark mode alone', () => {
     for (const selector of [
       '.trace-title',
       '.trace-inspector .metric-row strong',
-      '.trace-inspector .ast-flick-row-say',
+      '.trace-inspector .pia-flick-row-say',
     ]) {
       expect(rule(RAIL, `html${NOT_DARK} ${selector}`), `${selector} is still on-dark ink`).toMatch(
         /color:\s*var\(--ast-text\)/
       );
     }
-    for (const selector of ['.trace-inspector .ast-flick-row', '.trace-inspector .trace-divider']) {
+    for (const selector of ['.trace-inspector .pia-flick-row', '.trace-inspector .trace-divider']) {
       expect(rule(RAIL, `html${NOT_DARK} ${selector}`), `${selector} keeps a white hairline`).toMatch(
         /var\(--ast-hairline\)/
       );

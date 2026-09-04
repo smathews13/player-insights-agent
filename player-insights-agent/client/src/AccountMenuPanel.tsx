@@ -330,7 +330,7 @@ export function AccountMenuPanel({
           }}
         >
           <LogOut aria-hidden="true" />
-          <span className="account-menu-signout-label">Sign out of Astrolabe</span>
+          <span className="account-menu-signout-label">Sign out of Player Insights Agent</span>
         </button>
       </div>
     </div>

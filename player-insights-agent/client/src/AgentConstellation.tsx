@@ -54,7 +54,7 @@
  * line rather than an undrawn one -- which is why the classes are used rather than
  * an inline `animation`.
  */
-import { AstrolabeMark } from './AstrolabeMark';
+import { PiaMark } from './PiaMark';
 import {
   buildMapConstellation,
   buildPathConstellation,
@@ -75,7 +75,7 @@ import {
   type BrandTone,
 } from './brand-icons';
 import { BrandIcon } from './BrandIcon';
-import { ConceptFlicker } from './ConceptFlicker';
+import { PiaFlicker } from './PiaFlicker';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { StageStatus, TraceStage } from './answer-shape';
 import { formatDuration } from './benchmark-format';
@@ -385,7 +385,7 @@ function StepRail({
                     {product !== null ? (
                       <BrandIcon product={product} size={12} />
                     ) : star.decision ? (
-                      <AstrolabeMark size={11} />
+                      <PiaMark size={11} />
                     ) : null}
                     {state !== '' && (
                       <span className={`step-rail-state ${railTone(stage.status, live)}`.trim()}>{state}</span>
@@ -755,7 +755,7 @@ export function AgentPathConstellation({
           running band the only thing on the surface not saying the run was going:
           lines drawing, star beating, ring breathing, and a still mark under them.
 
-          `ConceptFlicker` rather than a fifth thing that cycles: it is the app's
+          `PiaFlicker` rather than a fifth thing that cycles: it is the app's
           working loader, `ast-anim-flick` and the four concepts, and the reader
           has already met it on the splash and in the strip. A second cycle
           written here would drift from that one the first time either is retuned.
@@ -768,11 +768,11 @@ export function AgentPathConstellation({
         */}
           <span className="ast-sky-status-mark" aria-hidden="true">
             {flickering ? (
-              <ConceptFlicker seat="status" />
+              <PiaFlicker seat="status" />
             ) : shownProduct ? (
               <BrandIcon product={shownProduct} size={12} tone="dark" />
             ) : (
-              <AstrolabeMark size={11} ink="dark" />
+              <PiaMark size={11} tone="dark" />
             )}
           </span>
           <span className="ast-sky-status-text">{statusText}</span>

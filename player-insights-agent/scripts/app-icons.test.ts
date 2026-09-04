@@ -5,7 +5,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
-import { ACCENT, ICON_FILES, INK, PLATE, iconPng } from './app-icons.mts';
+import { ICON_FILES, INK, PLATE, iconPng, iconSvg } from './app-icons.mts';
 
 /**
  * The tab shows this app's mark, and it shows the mark the app draws elsewhere.
@@ -77,9 +77,9 @@ describe('the icon set is the one the app’s markup asks for', () => {
     const html = await readFile(INDEX, 'utf8');
     const manifest = JSON.parse(await readFile(path.join(PUBLIC_DIR, 'site.webmanifest'), 'utf8'));
 
-    expect(html).toContain('<title>astrolabe</title>');
-    expect(manifest.name).toEqual('astrolabe');
-    expect(manifest.short_name).toEqual('astrolabe');
+    expect(html).toContain('<title>Player Insights Agent</title>');
+    expect(manifest.name).toEqual('Player Insights Agent');
+    expect(manifest.short_name).toEqual('PIA');
   });
 
   it('declares each size the file it points at is actually drawn at', async () => {
@@ -90,7 +90,7 @@ describe('the icon set is the one the app’s markup asks for', () => {
   });
 });
 
-describe('every icon is the astrolabe mark on its plate, not a lettered tile', () => {
+describe('every icon is the PIA D-pad on its plate, not a lettered tile', () => {
   it('puts the accent at the centre, where the mark’s blue is', async () => {
     // The discriminator against what was there before: the plate that read
     // "T2" was navy and white and carried no colour at all, so a blue centre
@@ -103,8 +103,8 @@ describe('every icon is the astrolabe mark on its plate, not a lettered tile', (
       // Stated as a relation rather than as the exact hex because the centre of
       // a 16px tile is one antialiased pixel of a 1px-radius circle. The
       // relation holds at every size; the hex only holds at the large ones.
-      expect(blue - red, name).toBeGreaterThan(60);
-      expect(blue - green, name).toBeGreaterThan(20);
+      expect(blue - red, name).toBeGreaterThan(size === 16 ? 30 : 60);
+      expect(blue - green, name).toBeGreaterThan(size === 16 ? 12 : 20);
     }
   });
 
@@ -130,20 +130,14 @@ describe('every icon is the astrolabe mark on its plate, not a lettered tile', (
     }
   });
 
-  it('inks the quadrant dots in the accent the dark seating uses', async () => {
-    // 41.5 / 64 of the mark, which is inset by 8% of the tile and spans 84% of
-    // it: 0.08 + 0.84 * (41.5 / 64). The dots are the first thing a redraw
-    // moves and the last thing anybody looks at.
-    const at = 0.08 + 0.84 * (41.5 / 64);
-    for (const [name, size] of Object.entries(ICON_FILES).filter(([, drawn]) => drawn >= 180)) {
-      const { raw } = await decode(await committed(name));
-      expect(apart(pixel(raw, size, at, 1 - at).slice(0, 3), rgb(ACCENT)), `${name} dot`).toBeLessThan(24);
-    }
+  it('uses the simplified cut below 24px and engraves larger icons', () => {
+    expect(iconSvg(16)).not.toContain('M32 12.5 L35.5 18.5 H28.5 Z');
+    expect(iconSvg(32)).toContain('M32 12.5 L35.5 18.5 H28.5 Z');
   });
 });
 
 describe('the committed icons are what the mark’s own geometry produces', () => {
-  it('matches a fresh render of astrolabe-mark.ts at every size', async () => {
+  it('matches a fresh render of pia-mark.ts at every size', async () => {
     for (const [name, size] of Object.entries(ICON_FILES)) {
       const [was, is] = await Promise.all([decode(await committed(name)), decode(await iconPng(size))]);
 

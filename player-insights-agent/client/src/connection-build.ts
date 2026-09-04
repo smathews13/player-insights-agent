@@ -1,7 +1,7 @@
 /** The real build stamps shown for the app and orchestrator. */
 import { commitOf, SHORT_SHA_LENGTH } from '../../shared/build-stamps';
 import { endpointTone } from './build-card';
-import type { AstPillFamily } from './astrolabe-pill';
+import type { AstPillFamily } from './pia-pill';
 import type { ConnectionStatus } from './connection-status';
 import type { AppFacts } from '../../shared/app-facts';
 import type { StatusTone } from './StatusBadge';

@@ -250,12 +250,16 @@ describe('timeout boundary', () => {
 
     expect(markup).toContain('Session timed out');
     expect(markup).not.toContain('private conversation');
-    expect(markup).toContain('Your Astrolabe session ended after inactivity. Return to sign in to continue.');
+    expect(markup).toContain(
+      'Your Player Insights Agent session ended after inactivity. Return to sign in to continue.'
+    );
     expect(markup).toContain(`href="${NATIVE_APP_SIGN_OUT_PATH}"`);
     expect(markup).toContain('lucide-log-in');
     expect(markup).toContain('Return to sign in');
     expect(markup).toMatch(/<a[^>]*href="\/\.auth\/sign_out"[^>]*><svg[\s\S]*<\/svg>Return to sign in<\/a>/);
-    expect(markup).not.toMatch(/Sign out of Astrolabe|workspace session|identity-provider|authenticate you again/);
+    expect(markup).not.toMatch(
+      /Sign out of Player Insights Agent|workspace session|identity-provider|authenticate you again/
+    );
     expect(values.get(APP_SESSION_TIMEOUT_KEY)).toBe('true');
     expect(nativeFetch).toHaveBeenCalledTimes(1);
     const firstRequest = nativeFetch.mock.calls[0];
@@ -318,9 +322,12 @@ describe('timeout boundary', () => {
   });
 
   it('keeps upstream-session limits in security docs, not on the timeout card', () => {
-    const accessGuide = readFileSync(new URL('../../../docs/Astrolabe_Access_Guide.md', import.meta.url), 'utf8');
+    const accessGuide = readFileSync(
+      new URL('../../../docs/Player_Insights_Agent_Access_Guide.md', import.meta.url),
+      'utf8'
+    );
     const securitySpec = readFileSync(
-      new URL('../../../docs/Astrolabe_Security_Access_Specification.md', import.meta.url),
+      new URL('../../../docs/Player_Insights_Agent_Security_Access_Specification.md', import.meta.url),
       'utf8'
     );
     const accountMenu = readFileSync(new URL('./AccountMenuPanel.tsx', import.meta.url), 'utf8');
@@ -330,7 +337,7 @@ describe('timeout boundary', () => {
       expect(document).toMatch(/upstream(?: workspace or identity-provider| workspace\/IdP)? session/i);
       expect(document).toMatch(/authenticate (?:the user|you) again|authenticate the person again/i);
     }
-    expect(accountMenu).toContain('Sign out of Astrolabe');
+    expect(accountMenu).toContain('Sign out of Player Insights Agent');
     expect(accountMenu).not.toContain('App and workspace sessions are separate.');
     expect(accountMenu).not.toContain('What sign-out does');
     expect(accountMenu).not.toMatch(/Federated logout is not\s+supported/);

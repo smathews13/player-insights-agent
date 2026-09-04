@@ -112,7 +112,7 @@ describe('the Ops catalog scope modal', () => {
     expect(idle).toContain('Check all scopes');
     expect(idle).toContain('data-variant="default"');
     expect(busy).toContain('Checking…');
-    expect(busy).toContain('ast-flick-slot--button');
+    expect(busy).toContain('pia-flick-slot--button');
     expect(STYLES).toMatch(/\.ops-scope-check-button\s*\{[^}]*width:\s*132px[^}]*min-width:\s*132px/);
     expect(STYLES).toMatch(/\.ops-scope-status\[data-scope-status='in'\][^]*var\(--ast-pos-text\)/);
     expect(STYLES).toMatch(/\.ops-scope-status\[data-scope-status='out'\][^]*var\(--ast-neg-text\)/);

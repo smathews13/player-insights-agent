@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { CONNECTED_RESOURCES, connectedResource } from '../../shared/deployment-config';
-import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
+import { PiaLoadingLabel } from './PiaLoadingLabel';
 import type { CheckSession } from './check-session';
 import {
   connectionLoadErrorLabel,
@@ -120,44 +120,41 @@ describe('Connections first-load settlement', () => {
     const markup = renderToStaticMarkup(<ConnectionLoadRow reading={unresolved} state="error" />);
     expect(markup).toContain(connectionLoadErrorLabel(unresolved));
     expect(markup).toContain('Refresh to try again');
-    expect(markup).not.toContain('ast-flick-slot');
+    expect(markup).not.toContain('pia-flick-slot');
   });
 });
 
-describe('canonical Astrolabe loading geometry', () => {
+describe('canonical PIA loading geometry', () => {
   const connections = readFileSync(new URL('./ConnectionsPage.tsx', import.meta.url), 'utf8');
   const css = partial('connections.css');
-  const animation = partial('astrolabe-animation.css');
-  const appearance = partial('appearance-preferences.css');
+  const loader = partial('pia-loader.css');
 
   it('uses one stable primary loader and no generic skeleton bars', () => {
     expect(connections.match(/data-testid="connections-primary-loader"/g)).toHaveLength(1);
     expect(connections).not.toContain('<Skeleton');
-    const markup = renderToStaticMarkup(<AstrolabeLoadingLabel label="Loading connections" />);
-    expect(markup.match(/class="ast-flick-slot /g)).toHaveLength(1);
+    const markup = renderToStaticMarkup(<PiaLoadingLabel label="Loading connections" />);
+    expect(markup.match(/class="pia-flick-slot /g)).toHaveLength(1);
   });
 
   it('gives every resource a useful row-local loading label', () => {
     for (const resource of CONNECTED_RESOURCES) {
       const markup = renderToStaticMarkup(<ConnectionLoadRow reading={reading(resource.id)} state="loading" />);
       expect(markup).toContain(`Loading ${resource.label}`);
-      expect(markup.match(/class="ast-flick-slot /g)).toHaveLength(1);
+      expect(markup.match(/class="pia-flick-slot /g)).toHaveLength(1);
     }
   });
 
   it('reserves height and clips labels without horizontal growth', () => {
     expect(css).toMatch(/\.connections-primary-loader\s*\{[^}]*min-height:\s*58px[^}]*overflow:\s*hidden/s);
     expect(css).toMatch(
-      /\.ast-flick-row\.connection-row-loader\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*overflow:\s*hidden/s
+      /\.pia-flick-row\.connection-row-loader\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*overflow:\s*hidden/s
     );
     expect(css).toMatch(/\.connection-row-summary,[\s\S]*?min-height:\s*48px/);
   });
 
-  it('freezes on the static Astrolabe rest mark for both motion vetoes', () => {
-    const reduced = animation.slice(animation.indexOf('@media (prefers-reduced-motion: reduce)'));
-    expect(reduced).toMatch(/\.ast-flick-slot > \[data-ast-rest\]\s*\{[^}]*opacity:\s*1/s);
-    expect(appearance).toMatch(
-      /html\[data-animations='off'\] \.ast-flick-slot > \[data-ast-rest\]\s*\{[^}]*opacity:\s*1/s
-    );
+  it('freezes on the static PIA D-pad for both motion vetoes', () => {
+    const reduced = loader.slice(loader.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(reduced).toMatch(/\.pia-loader__phase--dpad,[\s\S]*?opacity:\s*1/s);
+    expect(loader).toMatch(/html\[data-animations='off'\] \.pia-loader__phase--dpad,[\s\S]*?opacity:\s*1/s);
   });
 });

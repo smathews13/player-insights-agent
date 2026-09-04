@@ -1,4 +1,4 @@
-export const ACCOUNT_FEEDBACK_GITHUB_URL = 'https://github.com/smathews13/astrolabe_public/issues/new';
+export const ACCOUNT_FEEDBACK_GITHUB_URL = 'https://github.com/smathews13/player-insights-agent/issues/new';
 export const ACCOUNT_FEEDBACK_DEFAULT_SLACK_LABEL = 'Message feedback maintainer in Slack';
 export const ACCOUNT_FEEDBACK_DEFAULT_SEARCH_LABEL = 'Find feedback maintainer in Slack';
 export const ACCOUNT_ESCALATION_DEFAULT_SLACK_LABEL = 'Open Super Admin escalation in Slack';

@@ -83,7 +83,7 @@ test('smoke test - Ask route reports a question it could not answer', async ({ p
   // reader now meets directly under the headline, which keeps this smoke on the
   // real submission path instead of depending on example content.
   await page.getByPlaceholder(/Ask about player behavior/).fill('Compare active players by title');
-  await page.getByRole('button', { name: 'Ask astrolabe' }).click();
+  await page.getByRole('button', { name: 'Ask Player Insights Agent' }).click();
 
   // What the reader is owed, in the order they read it: that the question went
   // unanswered, then that the blank space is not an answer.

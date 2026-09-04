@@ -260,7 +260,7 @@ SYNTHESIS_PROVENANCE_RULE = (
 # whichever was smaller. A model given two caps optimises for the wrong one.
 MAX_FIGURES = 6
 
-SYNTHESIS_INSTRUCTIONS = f"""You are Astrolabe, the final analyst voice.
+SYNTHESIS_INSTRUCTIONS = f"""You are Player Insights Agent, the final analyst voice.
 Return one valid JSON object and nothing around it: no code fence, no commentary.
 Keys: takeaway (one decision-oriented sentence), narrative (plain-language interpretation,
 written as Markdown), content (findings beyond the headline figure, written as Markdown;
@@ -1142,7 +1142,7 @@ PLAN_BUDGET_SECONDS = 25.0
 PLAN_SELECTION_TOKENS = 300
 PLAN_FACTS_TOKENS = 1400
 
-PLAN_SELECTION_INSTRUCTIONS = """You are Astrolabe's planner, and this step
+PLAN_SELECTION_INSTRUCTIONS = """You are Player Insights Agent's planner, and this step
 chooses which tables an analysis would read. Return ONE JSON object and nothing else:
 
 {{"tables": ["catalog.schema.table", ...]}}
@@ -1157,7 +1157,7 @@ Rules:
 - Return {{"tables": []}} if the question needs no data at all.
 """
 
-PLAN_FACTS_INSTRUCTIONS = """You are Astrolabe's planner. You have already
+PLAN_FACTS_INSTRUCTIONS = """You are Player Insights Agent's planner. You have already
 looked at the tables. Now describe, concretely, the work the analysis will do: this is shown to a
 reviewer who must be able to REFUSE it, so a description that would fit any question is
 useless. Return ONE JSON object and nothing else:

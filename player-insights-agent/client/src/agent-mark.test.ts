@@ -3,7 +3,7 @@ import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { GRADUATION_FLOOR } from './astrolabe-mark';
+import { PIA_SIMPLIFIED_CUTOFF } from './pia-mark';
 import { partial, stylesheet } from './styles/stylesheet';
 
 /**
@@ -190,7 +190,7 @@ describe('every seat draws the shared mark', () => {
       // question mark on a clarification -- which made it decoration rather than an
       // identity. What kind of turn it is, the badge beside it says.
       const seated = [...source!.matchAll(new RegExp(`className="${seat}"[^>]*>\\s*<([\\w-]+)`, 'g'))].map(
-        (match) => match[1],
+        (match) => match[1]
       );
       expect(seated.length).toBeGreaterThan(0);
       expect([...new Set(seated)]).toEqual(['PiaRobotMark']);
@@ -303,8 +303,8 @@ describe('the mark that replaced it', () => {
     // seats on this page and both draw the app's own mark now.
     const home = SOURCES.get('HomePage.tsx')!;
     expect(home).not.toContain('PiaRobotMark');
-    expect(home).toMatch(/className="ask-hero-chip-mark">\s*<AstrolabeMark size=\{18\} \/>/);
-    expect(home).toMatch(/className="agent-avatar">\s*<AstrolabeMark size=\{32\} \/>/);
+    expect(home).toMatch(/className="ask-hero-chip-mark">\s*<PiaEmptyStateMark size=\{18\} \/>/);
+    expect(home).toMatch(/className="agent-avatar">\s*<PiaMark size=\{32\} \/>/);
   });
 
   it('signs the answer card and the plan card with it too', () => {
@@ -314,10 +314,10 @@ describe('the mark that replaced it', () => {
     // glyph on a plan -- which made it decoration rather than an identity.
     const answer = SOURCES.get('AnswerCard.tsx')!;
     expect(answer).not.toContain('PiaRobotMark');
-    expect(answer).toMatch(/className="answer-card-mark">\s*<AstrolabeMark size=\{18\} ink="light" \/>/);
+    expect(answer).toMatch(/className="answer-card-mark">\s*<PiaMark size=\{18\} tone="dark" \/>/);
     const plan = SOURCES.get('PlanCard.tsx')!;
     expect(plan).not.toContain('PiaRobotMark');
-    expect(plan).toMatch(/className="agent-avatar">\s*<AstrolabeMark size=\{\d+\} \/>/);
+    expect(plan).toMatch(/className="agent-avatar">\s*<PiaMark size=\{\d+\} \/>/);
   });
 
   it('asks each avatar for the size that seat actually paints', () => {
@@ -332,15 +332,15 @@ describe('the mark that replaced it', () => {
     // three callers cannot drift apart in the direction where they still agree
     // on the number but no longer agree with the rule that paints them.
     const painted = Number(body('.agent-avatar svg').match(/width:\s*(\d+)px/)?.[1]);
-    expect(painted, 'the avatar states the width it paints').toBeGreaterThanOrEqual(GRADUATION_FLOOR);
+    expect(painted, 'the avatar states the width it paints').toBeGreaterThanOrEqual(PIA_SIMPLIFIED_CUTOFF);
     for (const file of ['PlanCard.tsx', 'HomePage.tsx']) {
-      const asked = [
-        ...SOURCES.get(file)!.matchAll(/className="agent-avatar">\s*<AstrolabeMark size=\{(\d+)\}/g),
-      ].map((match) => Number(match[1]));
+      const asked = [...SOURCES.get(file)!.matchAll(/className="agent-avatar">\s*<PiaMark size=\{(\d+)\}/g)].map(
+        (match) => Number(match[1])
+      );
       expect(asked.length, `${file} seats the mark in an avatar`).toBeGreaterThan(0);
       for (const size of asked) expect(size, `${file} asks the avatar for its painted size`).toBe(painted);
     }
-    expect(SOURCES.get('AnswerCard.tsx')).toContain('<AstrolabeMark size={18} ink="light" />');
+    expect(SOURCES.get('AnswerCard.tsx')).toContain('<PiaMark size={18} tone="dark" />');
   });
 
   it('sits the agent chip on Ice, which is what replaced oat', () => {
@@ -362,7 +362,7 @@ describe('the mark that replaced it', () => {
     expect(home).toMatch(/\{loading \? \([\s\S]{0,220}'Stop'/);
 
     const resourceTags = SOURCES.get('ResourceTagsPanel.tsx')!;
-    expect(resourceTags).toMatch(/\{running \? <ConceptFlicker seat="button" \/> : null\}/);
+    expect(resourceTags).toMatch(/\{running \? <PiaFlicker seat="button" \/> : null\}/);
   });
 });
 

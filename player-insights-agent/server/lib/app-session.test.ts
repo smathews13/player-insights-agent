@@ -22,7 +22,7 @@ import {
   type IdleTimeoutConfig,
 } from './app-session';
 
-const ACCESS_GUIDE_URL = new URL('../../../docs/Astrolabe_Access_Guide.md', import.meta.url);
+const ACCESS_GUIDE_URL = new URL('../../../docs/Player_Insights_Agent_Access_Guide.md', import.meta.url);
 const ACCESS_GUIDE = existsSync(ACCESS_GUIDE_URL) ? readFileSync(ACCESS_GUIDE_URL, 'utf8') : null;
 
 function guideTextBlock(heading: string): string[] {

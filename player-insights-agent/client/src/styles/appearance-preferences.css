@@ -273,15 +273,6 @@ html[data-animations='off'] .ast-anim-dot-run-sm {
   transform: none;
 }
 
-html[data-animations='off'] .ast-flick-slot > * {
-  opacity: 0;
-}
-
-html[data-animations='off'] .ast-flick-slot > [data-ast-rest] {
-  opacity: 1;
-  transform: none;
-}
-
 html[data-animations='off'] .startup-app-shell.is-covered.is-entering .app-frame,
 html[data-animations='off'] .startup-app-shell.is-first-reveal .app-frame,
 html[data-animations='off'] .first-open.is-leaving,

@@ -40,7 +40,7 @@ import {
 } from './ui';
 import { Check, ChevronDown, CircleAlert, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { AnswerEvidence } from './AnswerEvidence';
-import { AstrolabeMark } from './AstrolabeMark';
+import { PiaMark } from './PiaMark';
 import { AnswerProse, EntityText } from './DataEntityLinks';
 import { mentionedIdentifiers } from './data-entities';
 import { SourcesModule } from './SourcesModule';
@@ -240,7 +240,7 @@ export function AnswerCard({
         <div className="answer-card-head">
           <div className="answer-card-identity">
             <span className="answer-card-mark">
-              <AstrolabeMark size={18} ink="light" />
+              <PiaMark size={18} tone="dark" />
             </span>
             <div className="answer-card-badges flex flex-wrap items-center gap-1.5">
               <Badge variant={badge.variant} className="provenance-chip" data-tone={badge.tone}>

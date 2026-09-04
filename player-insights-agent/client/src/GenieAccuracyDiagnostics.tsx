@@ -1,4 +1,4 @@
-import { astPill } from './astrolabe-pill';
+import { astPill } from './pia-pill';
 import { AppSelect } from './AppSelect';
 import { BenchButton, GenieStatTiles, LabSurface } from './BenchmarkLabChrome';
 import { MATCHING_POLICY_REFERENCE, mlflowTraceHref } from '../../shared/benchmark-lab-v3';

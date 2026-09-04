@@ -36,7 +36,7 @@ describe('account feedback target loading', () => {
     expect(first).toBe(second);
     expect(first.github).toEqual({
       label: 'GitHub issue',
-      url: 'https://github.com/smathews13/astrolabe_public/issues/new',
+      url: 'https://github.com/smathews13/player-insights-agent/issues/new',
     });
     expect(first.slack).toEqual({ label: 'Message Maintainer in Slack', url: direct });
     expect(first.escalation).toEqual({ label: 'Find Customer Admin in Slack', url: search });

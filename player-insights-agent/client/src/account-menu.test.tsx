@@ -129,7 +129,7 @@ describe('account menu', () => {
       'jordan.lee@example.com',
       'Report feedback',
       'Back to Databricks Apps',
-      'Sign out of Astrolabe',
+      'Sign out of Player Insights Agent',
     ];
     for (const label of labels) expect(markup).toContain(label);
     for (let index = 1; index < labels.length; index += 1) {
@@ -163,7 +163,7 @@ describe('account menu', () => {
   it('offers GitHub alone until a deployment supplies a validated Slack target', () => {
     const githubOnly = renderToStaticMarkup(<AccountFeedbackChoices targets={accountFeedbackTargets()} />);
     expect(githubOnly).toContain('GitHub issue');
-    expect(githubOnly).toContain('https://github.com/smathews13/astrolabe_public/issues/new');
+    expect(githubOnly).toContain('https://github.com/smathews13/player-insights-agent/issues/new');
     expect(githubOnly.match(/target="_blank"/g)).toHaveLength(1);
     expect(githubOnly).toContain('lucide-github');
     expect(githubOnly).not.toContain('lucide-slack');
@@ -286,7 +286,7 @@ describe('account menu', () => {
 
   it('keeps sign-out concise without session explanations or disclosure UI', () => {
     const markup = renderToStaticMarkup(<AccountMenuPanel identity={IDENTITY} role="super_admin" onClose={() => {}} />);
-    expect(markup).toContain('Sign out of Astrolabe');
+    expect(markup).toContain('Sign out of Player Insights Agent');
     expect(markup).not.toContain('role="menu"');
     expect(markup).not.toContain('role="menuitem"');
     expect(markup).toContain('lucide-log-out');

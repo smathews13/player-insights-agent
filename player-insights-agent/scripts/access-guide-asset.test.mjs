@@ -6,11 +6,12 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ACCESS_GUIDE_FILENAME, copyAccessGuideAsset } from './access-guide-asset.mjs';
 
-const EXPECTED_SOURCE_SHA256 = 'a8b862e70b2eb2b60ae4255e0d16f68317fcc5739f127148198860dc5a40a8b9';
-const EXPECTED_SOURCE_BYTES = 542_752;
+const EXPECTED_SOURCE_SHA256 = '85c82898d728b26dba1b9305e27e78520987a13529bf86b1729c6873e924fba9';
+const EXPECTED_SOURCE_BYTES = 78_714;
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const source = path.join(repoRoot, 'docs', ACCESS_GUIDE_FILENAME);
 const deployed = path.join(repoRoot, 'build', 'deploy', 'assets', ACCESS_GUIDE_FILENAME);
+const publishExclusions = readFileSync(path.join(repoRoot, '..', 'mirror', 'publish-exclude.txt'), 'utf8');
 const temporary = [];
 
 function classifyAssetPair(sourceBytes, deployedBytes) {
@@ -62,7 +63,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'astrolabe-access-guide-'));
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'pia-access-guide-'));
   temporary.push(directory);
   const root = path.join(directory, 'app');
   const outDir = path.join(root, 'build', 'deploy');
@@ -141,11 +142,29 @@ describe('access guide deploy asset', () => {
     ).toThrow('deploy copy differs from its source');
   });
 
-  it('enforces the checkout contract without skipping either one-copy defect', () => {
-    const result = validateAssetPair({
-      sourceBytes: readOptional(source),
-      deployedBytes: readOptional(deployed),
-    });
-    expect(['both-absent', 'both-present']).toContain(result.state);
+  it('pins the confidential source and validates a generated deploy copy when present', () => {
+    const sourceBytes = readOptional(source);
+    const deployedBytes = readOptional(deployed);
+    expect(sourceBytes).toBeDefined();
+    if (deployedBytes === undefined) {
+      expect(createHash('sha256').update(sourceBytes).digest('hex')).toBe(EXPECTED_SOURCE_SHA256);
+      expect(sourceBytes.length).toBe(EXPECTED_SOURCE_BYTES);
+      return;
+    }
+    expect(validateAssetPair({ sourceBytes, deployedBytes })).toMatchObject({ state: 'both-present' });
+  });
+
+  it('keeps the renamed source, deploy copy, and generation inputs out of the public mirror', () => {
+    for (const pathname of [
+      'docs/Player_Insights_Agent_Access_Guide.md',
+      'docs/Player_Insights_Agent_Security_Access_Specification.md',
+      'docs/Player_Insights_Agent_SP_Self_Service_Plan.md',
+      'docs/player-insights-agent-access-guide.css',
+      `player-insights-agent/docs/${ACCESS_GUIDE_FILENAME}`,
+      `player-insights-agent/build/deploy/assets/${ACCESS_GUIDE_FILENAME}`,
+    ]) {
+      expect(publishExclusions).toContain(`${pathname}\n`);
+    }
+    expect(publishExclusions).not.toContain('Astrolabe_Access_Patterns_v2.pdf');
   });
 });

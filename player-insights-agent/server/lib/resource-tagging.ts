@@ -456,7 +456,7 @@ async function retryTransient<T>(
 function permissionResult(target0: ResourceTagTarget, error?: unknown): ResourceTagResult {
   const appIdentity = target0.identity === 'app-service-principal';
   const subject = appIdentity
-    ? `the Astrolabe app service principal CAN_MANAGE on AI Search endpoint “${target0.name}”`
+    ? `the Player Insights Agent service principal CAN_MANAGE on AI Search endpoint “${target0.name}”`
     : target0.kind === 'serving-endpoint'
       ? `CAN_MANAGE on serving endpoint “${target0.name}”`
       : target0.kind === 'sql-warehouse'

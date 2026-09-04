@@ -23,8 +23,8 @@ const idlePolicyDocuments = [
   readFileSync(path.join(repoRoot, '..', 'README.md'), 'utf8'),
   readFileSync(path.join(repoRoot, '..', 'mirror', 'public-README.md'), 'utf8'),
   readFileSync(path.join(repoRoot, '..', 'bundle', 'DECISIONS.md'), 'utf8'),
-  readFileSync(path.join(repoRoot, '..', 'docs', 'Astrolabe_Access_Guide.md'), 'utf8'),
-  readFileSync(path.join(repoRoot, '..', 'docs', 'Astrolabe_Security_Access_Specification.md'), 'utf8'),
+  readFileSync(path.join(repoRoot, '..', 'docs', 'Player_Insights_Agent_Access_Guide.md'), 'utf8'),
+  readFileSync(path.join(repoRoot, '..', 'docs', 'Player_Insights_Agent_Security_Access_Specification.md'), 'utf8'),
   authored,
   bundleYaml,
 ];

@@ -459,8 +459,8 @@ describe('a card says what kind of step, which step, and how long', () => {
     // orange robot among the things this design removes rather than restyles -- so
     // this chip is not the robot's chip restained, the figure in it is a different
     // figure. A robot here in any colour is the old identity still signing steps.
-    expect(SOURCE).toContain('<AstrolabeMark size={13} />');
-    expect(SOURCE).toContain("import { AstrolabeMark } from './AstrolabeMark'");
+    expect(SOURCE).toContain('<PiaMark size={13} />');
+    expect(SOURCE).toContain("import { PiaMark } from './PiaMark'");
     expect(SOURCE).not.toMatch(/PiaRobotMark/);
     // THE SIZE PROP AND THE PAINTED SIZE HAVE TO AGREE, and 13 is both here.
     // `markElements` picks the drawing from `size` as well as the box -- below
@@ -492,12 +492,12 @@ describe('a card says what kind of step, which step, and how long', () => {
     // copy rather than the one on main. A duplicate check written against the
     // duplicate passes and means nothing. The tell is now a quadrant dot out of
     // SMALL_CUT in `astrolabe-mark.ts`, which is where the numbers actually live.
-    const dot = 'cx: 41.5, cy: 22.5';
+    const dot = 'export const PIA_DPAD_GLYPHS';
     const dir = new URL('./', import.meta.url);
     const holders = readdirSync(dir)
       .filter((name) => /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name))
       .filter((name) => readFileSync(new URL(name, dir), 'utf8').includes(dot));
-    expect(holders).toEqual(['astrolabe-mark.ts']);
+    expect(holders).toEqual(['pia-mark.ts']);
   });
 
   it('reads which product ran from the shared map rather than from one of its own', () => {
@@ -1511,7 +1511,7 @@ describe('the narrow rail is one column of every step', () => {
     // `--light` is part of the claim rather than noise in it: the ink is a class
     // on the mark, so a seat that forgot to say which surface it is on renders
     // the navy-band cut on a white rail and this catches it.
-    expect(markup).toContain('class="ast-mark ast-mark--light"');
+    expect(markup).toContain('class="pia-mark pia-mark--light');
     expect(markup).not.toContain('pia-robot');
     expect(/^import \{[^}]*\} from 'lucide-react';$/m.exec(SOURCE)?.[0]).not.toMatch(/\bBot\b/);
     // No colour on the agent mark's own rule, at all. A `stroke` or a `color` here

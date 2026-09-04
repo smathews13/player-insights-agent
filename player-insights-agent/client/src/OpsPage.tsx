@@ -40,10 +40,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, ExternalLink, Search, Users, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
-import { astPill } from './astrolabe-pill';
+import { astPill } from './pia-pill';
 import { BrandIcon } from './BrandIcon';
 import { ExperimentalBadge } from './ExperimentalBadge';
-import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
+import { PiaLoadingLabel } from './PiaLoadingLabel';
+import { PiaEmptyStateMark } from './PiaMark';
 import { Disclosure, PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
 import { ageAgo, checkedAgoLine } from './refresh-state';
@@ -326,7 +327,7 @@ function RecordedErrors({
 function ResultPill({ row, busy }: { row: HealthRow; busy: boolean }) {
   if (busy) {
     return (
-      <AstrolabeLoadingLabel
+      <PiaLoadingLabel
         as="span"
         announce={false}
         className="ops-connection-status-loader"
@@ -1210,6 +1211,7 @@ export function LatencyBody({
                  A search or TREND pill has hidden rows; it has not made the
                  telemetry empty. */
                 <div className="monitoring-empty">
+                  <PiaEmptyStateMark size={32} className="monitoring-empty-mark" />
                   <p className="monitoring-empty-line">
                     {search.trim() ? `Nothing matches "${search.trim()}".` : 'Nothing matches the selected trend.'}
                   </p>
@@ -1595,7 +1597,7 @@ export function StopAllActiveRuns() {
   const [error, setError] = useState('');
 
   const stop = async () => {
-    const confirmed = window.confirm('Stop all active Astrolabe runs? No data or history is deleted.');
+    const confirmed = window.confirm('Stop all active Player Insights Agent runs? No data or history is deleted.');
     if (!confirmed) return;
     setBusy(true);
     setError('');

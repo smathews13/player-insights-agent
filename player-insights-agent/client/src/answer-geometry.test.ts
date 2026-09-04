@@ -83,7 +83,7 @@ describe('the answer and plan cards sit on the design’s scale, not the library
     // The light seating is navy on the daylight card and is remapped to white by
     // dark-mode.css. Asking for the dark seating here would make the mark white in
     // both themes and erase it from the light card.
-    expect(CARD).toContain('<AstrolabeMark size={18} ink="light" />');
+    expect(CARD).toContain('<PiaMark size={18} tone="dark" />');
     const mark = ruleFor(ANSWER_CSS, '.answer-card-mark {');
     expect(mark).toContain('width: 18px');
     expect(mark).toContain('height: 18px');

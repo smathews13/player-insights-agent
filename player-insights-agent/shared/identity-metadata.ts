@@ -18,7 +18,7 @@ export interface WorkspaceUserMetadata {
 
 export interface AppIdentityMetadata {
   /** Product-facing name, distinct from the deployment resource name. */
-  displayName: 'Astrolabe';
+  displayName: 'Player Insights Agent';
   /** DATABRICKS_APP_NAME, which Databricks Apps injects at runtime. */
   resourceName: string;
   /** Non-secret deployment context. */
@@ -59,7 +59,7 @@ export interface ControlPlaneIdentityMetadata {
 
 export const NO_CONTROL_PLANE_IDENTITY_METADATA: ControlPlaneIdentityMetadata = {
   user: { displayName: '', objectId: '', state: 'not_reported', readAt: '' },
-  app: { displayName: 'Astrolabe', resourceName: '', workspaceHost: '', workspaceId: '' },
+  app: { displayName: 'Player Insights Agent', resourceName: '', workspaceHost: '', workspaceId: '' },
   servicePrincipal: {
     displayName: '',
     applicationId: '',

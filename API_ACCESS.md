@@ -4,7 +4,7 @@
 
 **Document date:** 29 August 2026
 
-**Last verified:** 29 August 2026
+**Last verified:** 4 September 2026
 
 This guide separates the supported Databricks access patterns that are often
 grouped together as “OpenAI-compatible.” OpenAI compatibility describes a
@@ -27,11 +27,11 @@ route follows the Responses protocol; a custom app's `/api/<endpoint>` route is
 whatever its author implemented. A custom `/api` route is not automatically
 OpenAI-compatible.
 
-## Astrolabe today
+## PIA today
 
-> **Astrolabe does not currently publish a stable programmatic API.**
+> **Player Insights Agent does not currently publish a stable programmatic API.**
 
-- The Astrolabe Databricks App is a custom application and user interface. It
+- The Player Insights Agent Databricks App is a custom application and user interface. It
   serves authenticated `/api/*` routes and adds its own Lakebase-backed,
   per-browser session controls. It is not an Apps-hosted `AgentServer` and does
   not expose a `/responses` route.
@@ -39,7 +39,7 @@ OpenAI-compatible.
   internal browser-to-app contract, not a stable public integration surface. It
   coordinates application sessions, conversation ownership, persistence,
   approvals, cancellation, streaming progress, and response projection.
-- The Astrolabe agent is an MLflow `ResponsesAgent` hosted on Model Serving. Its
+- The PIA agent is an MLflow `ResponsesAgent` hosted on Model Serving. Its
   model contract accepts Responses input plus app-supplied `custom_inputs`.
   Current authorization requires a caller identity mode and expected principal,
   then verifies that principal against the identity observed by Model Serving.
@@ -47,9 +47,9 @@ OpenAI-compatible.
   runtime context where applicable.
 - Because that identity and orchestration contract is app-issued and is not
   established as a versioned public contract, direct Model Serving invocation
-  is not a supported public Astrolabe access path today. The simple
+  is not a supported public Player Insights Agent access path today. The simple
   `ai_query('<model-serving-endpoint>', question)` pattern does not provide the
-  required Astrolabe identity and application context and must not be used to
+  required Player Insights Agent identity and application context and must not be used to
   bypass the app.
 
 For a supported future integration, expose and test a versioned custom
@@ -174,7 +174,7 @@ structured value and how the return type is inferred. Inspect and honor that
 signature. For custom models without an inferable schema, supply `returnType`;
 for row-oriented production workloads, consider `failOnError => false`.
 
-This platform pattern is not an Astrolabe integration example. Astrolabe's
+This platform pattern is not a Player Insights Agent integration example. Player Insights Agent's
 current agent refuses requests that omit its required, verified identity
 context.
 

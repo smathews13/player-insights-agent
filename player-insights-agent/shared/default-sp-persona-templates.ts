@@ -50,7 +50,7 @@ const serving = single(
   'USE',
   'CAN QUERY',
   'Orchestrator serving endpoint',
-  'Astrolabe serving endpoint'
+  'Player Insights Agent serving endpoint'
 );
 const semanticIndex = single(
   'VECTOR_SEARCH_INDEX',
@@ -92,14 +92,14 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
     displayName: 'Business Analyst',
     roleSummary: 'Read-only analyst for governed performance and player investigation.',
     purpose:
-      'Investigate curated performance and player trends through Astrolabe without changing source data or administering platform resources.',
+      'Investigate curated performance and player trends through Player Insights Agent without changing source data or administering platform resources.',
     duties: [
       'Run governed analytical questions and validate results against curated tables.',
       'Use the Data Genie space for approved exploratory analysis.',
-      'Query the Astrolabe serving endpoint to obtain governed answers.',
+      'Query the Player Insights Agent serving endpoint to obtain governed answers.',
     ],
     dataBoundaries: [
-      'Only resources configured or declared by this Astrolabe deployment may be selected.',
+      'Only resources configured or declared by this Player Insights Agent deployment may be selected.',
       'Table access is limited to the exact curated performance and player-analysis tables in the product data contract.',
       'Metadata search is optional, read-only, and does not grant access to table rows.',
     ],
@@ -117,7 +117,7 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
       {
         id: 'least-privilege',
         label: 'least-privilege profile',
-        description: 'Read-only SQL, curated tables, Data Genie, and Astrolabe query access.',
+        description: 'Read-only SQL, curated tables, Data Genie, and Player Insights Agent query access.',
         leastPrivilege: true,
         grants: analystGrants,
       },
@@ -125,7 +125,7 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
         id: 'semantic-discovery',
         label: 'Add metadata search',
         description:
-          'Adds read-only Vector Search access so Astrolabe can find relevant table and column metadata; it does not grant access to table rows.',
+          'Adds read-only Vector Search access so Player Insights Agent can find relevant table and column metadata; it does not grant access to table rows.',
         leastPrivilege: false,
         grants: [...analystGrants, semanticIndex],
       },
@@ -136,14 +136,14 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
     displayName: 'Marketing Scientist',
     roleSummary: 'Read-only marketing scientist for governed audience, purchase, and player-profile analysis.',
     purpose:
-      'Analyze curated marketing, addressability, purchase, and player-profile data through Astrolabe without changing data or managing platform resources.',
+      'Analyze curated marketing, addressability, purchase, and player-profile data through Player Insights Agent without changing data or managing platform resources.',
     duties: [
       'Evaluate audience and campaign questions against approved curated data.',
       'Use Data Genie for analysis and Dictionary Genie for governed metric definitions.',
-      'Query the Astrolabe serving endpoint for evidence-backed responses.',
+      'Query the Player Insights Agent serving endpoint for evidence-backed responses.',
     ],
     dataBoundaries: [
-      'Only resources configured or declared by this Astrolabe deployment may be selected.',
+      'Only resources configured or declared by this Player Insights Agent deployment may be selected.',
       'Table access is limited to the exact audience, marketing, purchase, and player-profile tables in the product data contract.',
       'Metadata search is optional, read-only, and does not grant access to table rows.',
     ],
@@ -162,7 +162,7 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
         id: 'least-privilege',
         label: 'least-privilege profile',
         description:
-          'Read-only SQL, curated audience and marketing tables, both Genie spaces, and Astrolabe query access.',
+          'Read-only SQL, curated audience and marketing tables, both Genie spaces, and Player Insights Agent query access.',
         leastPrivilege: true,
         grants: marketingScientistGrants,
       },
@@ -170,7 +170,7 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
         id: 'semantic-discovery',
         label: 'Add metadata search',
         description:
-          'Adds read-only Vector Search access so Astrolabe can find relevant table and column metadata; it does not grant access to table rows.',
+          'Adds read-only Vector Search access so Player Insights Agent can find relevant table and column metadata; it does not grant access to table rows.',
         leastPrivilege: false,
         grants: [...marketingScientistGrants, semanticIndex],
       },

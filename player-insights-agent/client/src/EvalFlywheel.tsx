@@ -41,7 +41,8 @@ import {
   Input,
   Textarea,
 } from './ui';
-import { CircleAlert, Loader2, Play, Plus, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { CircleAlert, Play, Plus, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { PiaFlicker } from './PiaFlicker';
 
 export type { ConnectedGenieSpace };
 export { connectedGenieSpaces };
@@ -728,7 +729,7 @@ export function EvalFlywheel({
               onClick={() => void loadCurateCandidates()}
               disabled={curateLoading}
             >
-              {curateLoading ? <Loader2 className="animate-spin" /> : null}
+              {curateLoading ? <PiaFlicker seat="button" /> : null}
               Pull questions from Ask and Monitoring
             </Button>
             <Button type="button" variant="outline" onClick={() => void alignGuidelines()} disabled={labeled === 0}>
@@ -818,7 +819,7 @@ export function EvalFlywheel({
           )}
           <div className="eval-dataset-actions">
             <Button type="button" onClick={() => void runGenie()} disabled={genieRunning || !sqlReady || !spaceId}>
-              {genieRunning ? <Loader2 className="animate-spin" /> : <Play />}
+              {genieRunning ? <PiaFlicker seat="button" /> : <Play />}
               {genieRunning ? 'Asking Genie…' : 'Run Genie accuracy'}
             </Button>
             <Button
@@ -910,7 +911,7 @@ export function EvalFlywheel({
           </p>
           <div className="eval-dataset-actions">
             <Button type="button" onClick={() => void runAgent()} disabled={agentRunning || !agentReady}>
-              {agentRunning ? <Loader2 className="animate-spin" /> : <Play />}
+              {agentRunning ? <PiaFlicker seat="button" /> : <Play />}
               {agentRunning ? 'Starting…' : sides.length > 1 ? 'Run baseline and candidate' : 'Run agent judges'}
             </Button>
             <Button type="button" variant="outline" onClick={() => void scoreLastThread()} disabled={threadScoring}>

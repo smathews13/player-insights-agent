@@ -8,7 +8,7 @@ import type {
   OpsScopeStatus,
 } from '../../shared/ops-scope-contract';
 import { AppSelect } from './AppSelect';
-import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
+import { PiaLoadingLabel } from './PiaLoadingLabel';
 import { Dialog } from './Dialog';
 import { Button, Input } from './ui';
 
@@ -40,7 +40,7 @@ export function CheckScopesButton({ busy, onClick }: { busy: boolean; onClick: (
       aria-busy={busy || undefined}
       onClick={onClick}
     >
-      {busy ? <AstrolabeLoadingLabel as="span" seat="button" announce={false} label="Checking…" /> : 'Check all scopes'}
+      {busy ? <PiaLoadingLabel as="span" seat="button" announce={false} label="Checking…" /> : 'Check all scopes'}
     </Button>
   );
 }
@@ -63,7 +63,7 @@ function SkeletonRows() {
         <tr className="ops-scope-skeleton-row" key={index} aria-hidden="true">
           <td>
             {index === 0 ? (
-              <AstrolabeLoadingLabel as="span" seat="button" announce label="Checking…" />
+              <PiaLoadingLabel as="span" seat="button" announce label="Checking…" />
             ) : (
               <span className="ops-scope-skeleton-line" />
             )}
@@ -220,7 +220,7 @@ export function OpsScopeModal({
         {page?.nextCursor ? (
           <Button type="button" variant="outline" size="sm" disabled={loadingMore} onClick={onMore}>
             {loadingMore ? (
-              <AstrolabeLoadingLabel as="span" seat="button" announce={false} label="Checking…" />
+              <PiaLoadingLabel as="span" seat="button" announce={false} label="Checking…" />
             ) : (
               'More results'
             )}

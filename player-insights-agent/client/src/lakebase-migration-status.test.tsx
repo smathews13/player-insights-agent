@@ -191,7 +191,7 @@ describe('the Connections Lakebase migration detail', () => {
     );
     expect(text(loading)).toContain('Updating Lakebase');
     expect(loading).toContain('disabled=""');
-    expect(loading).toContain('ast-flick-row');
+    expect(loading).toContain('pia-flick-row');
 
     const success = text(
       renderToStaticMarkup(

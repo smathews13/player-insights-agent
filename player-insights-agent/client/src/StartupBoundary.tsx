@@ -2,7 +2,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ACCESS_GATE_ENABLED } from '../../shared/access-gate';
 import { AccessGate, gateIdentityFromResponse, requiresAccessDecision, type GateIdentity } from './AccessGate';
-import { ConceptFlicker } from './ConceptFlicker';
+import { PiaLoader } from './PiaLoader';
 import { useFirstOpen, type FirstOpenStage } from './FirstOpenGate';
 import {
   bootstrapAppSession,
@@ -111,16 +111,16 @@ export function StartupLoadingSurface({ phase }: { phase: StartupPhase }) {
     <main
       className="startup-surface"
       data-startup-phase={phase}
-      data-startup-loader="astrolabe-primary"
+      data-startup-loader="pia-primary"
       aria-busy="true"
       aria-label={label}
     >
       <p className="sr-only" role="status" aria-live="polite">
         {label}
       </p>
-      <div className="startup-loader" aria-hidden="true">
-        <ConceptFlicker seat="splash" />
-        <strong>astrolabe</strong>
+      <div className="startup-loader">
+        <PiaLoader variant="panel" label={null} announce={false} />
+        <strong>Player Insights Agent</strong>
         <span>{label}</span>
       </div>
     </main>

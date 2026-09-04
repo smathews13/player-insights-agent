@@ -113,8 +113,8 @@ describe('Resource Tags controls', () => {
     const idle = renderToStaticMarkup(<ResourceTagsApplyButton running={false} />);
     const busy = renderToStaticMarkup(<ResourceTagsApplyButton running={true} />);
     expect(idle).toContain('Apply tags');
-    expect(busy).toContain('ast-flick-slot--button');
-    expect(busy.indexOf('ast-flick-slot--button')).toBeLessThan(busy.indexOf('Apply tags'));
+    expect(busy).toContain('pia-flick-slot--button');
+    expect(busy.indexOf('pia-flick-slot--button')).toBeLessThan(busy.indexOf('Apply tags'));
   });
 
   it('reports supported failures and permissions without claiming success', () => {

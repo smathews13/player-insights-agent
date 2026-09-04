@@ -32,12 +32,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useOutletContext, useSearchParams } from 'react-router';
 import { ArrowLeft, ArrowUpRight, ChevronRight, Search, ThumbsDown, ThumbsUp, Users, X } from 'lucide-react';
-import { astPill, type AstPillFamily } from './astrolabe-pill';
+import { astPill, type AstPillFamily } from './pia-pill';
 import { BrandIcon } from './BrandIcon';
 import { Button, Input, Skeleton } from './ui';
 import { AppSelect } from './AppSelect';
-import { ConceptFlicker } from './ConceptFlicker';
-import { AstrolabeMark } from './AstrolabeMark';
+import { PiaFlicker } from './PiaFlicker';
+import { PiaEmptyStateMark, PiaMark } from './PiaMark';
 import { showsAdminSurfaces, type AppOutletContext } from './role';
 import { PageHeading } from './page-chrome';
 import { RefreshControl } from './RefreshControl';
@@ -1302,9 +1302,9 @@ function LoadingSpendMetric({ label, animated = false }: { label: string; animat
       </div>
       <div className="user-profile-modal-spend-kpi-loading-body">
         {animated ? (
-          <ConceptFlicker seat="inline" />
+          <PiaFlicker seat="inline" />
         ) : (
-          <AstrolabeMark size={16} ink="light" className="user-profile-modal-spend-static-mark" />
+          <PiaMark size={16} className="user-profile-modal-spend-static-mark" />
         )}
       </div>
     </div>
@@ -1896,7 +1896,7 @@ export function PersonPanelShell({
           </div>
         ) : (
           <div role="status" className="user-profile-modal-profile-loading">
-            <ConceptFlicker seat="inline" />
+            <PiaFlicker seat="inline" />
             <span>Loading user activity</span>
           </div>
         )}
@@ -2337,6 +2337,7 @@ function EmptyList({
       : copy.sentence;
   return (
     <div className="monitoring-empty">
+      <PiaEmptyStateMark size={32} className="monitoring-empty-mark" />
       <p className="monitoring-empty-line">{sentence}</p>
       <div className="monitoring-empty-actions">
         {copy.clearSearch ? (

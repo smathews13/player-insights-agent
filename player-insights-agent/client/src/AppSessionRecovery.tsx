@@ -36,7 +36,7 @@ export function SessionTimedOut() {
     <main className="app-session-block" role="alert" aria-labelledby="app-session-timeout-title">
       <section className="app-session-card ast-login-panel">
         <h1 id="app-session-timeout-title">Session timed out</h1>
-        <p>Your Astrolabe session ended after inactivity. Return to sign in to continue.</p>
+        <p>Your Player Insights Agent session ended after inactivity. Return to sign in to continue.</p>
         <a
           href={NATIVE_APP_SIGN_OUT_PATH}
           onClick={(event) => {
@@ -57,7 +57,7 @@ export function SessionUnavailable() {
     <main className="app-session-block" role="alert" aria-labelledby="app-session-unavailable-title">
       <section className="app-session-card ast-login-panel">
         <h1 id="app-session-unavailable-title">Session unavailable</h1>
-        <p>Astrolabe could not verify its server-side session, so no protected data was loaded.</p>
+        <p>Player Insights Agent could not verify its server-side session, so no protected data was loaded.</p>
         <button type="button" onClick={retryAppSessionBootstrap}>
           <RotateCcw aria-hidden="true" />
           Try again

@@ -10,7 +10,7 @@
  * THIS FILE PAINTS. It is the first astrolabe partial that does, so unlike
  * astrolabe-tokens.css and astrolabe-animation.css it has a cascade position to
  * lose, and it sits with the page partials in index.css rather than at the end
- * with them. It reads `--ast-*` only: there is no `--db-*` name below, which is
+ * with them. It reads only the app's current semantic token family, which is
  * deliberate and is the thing to preserve when the DuBois set is retired.
  *
  * NO GEOMETRY OF THE DRAWING IS HERE. Every coordinate is in
@@ -518,7 +518,7 @@ html:not([data-theme='dark']) .agent-path > .step-rail {
 .step-rail-pick:is(:hover, :focus-visible) {
   border-color: var(--ast-blue);
   border-left-color: var(--ast-blue);
-  background: var(--db-blue-faint);
+  background: var(--ast-ice);
   color: var(--ast-text);
 }
 .step-rail-pick:focus-visible {
@@ -596,7 +596,7 @@ html:not([data-theme='dark']) .agent-path > .step-rail {
 }
 
 .step-rail-meta .brand-icon,
-.step-rail-meta .ast-mark {
+.step-rail-meta .pia-mark {
   flex: none;
 }
 

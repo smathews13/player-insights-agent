@@ -9,7 +9,7 @@
 import { Link } from 'react-router';
 import { useState, useEffect, useCallback } from 'react';
 import './styles/routes/benchmark.css';
-import { astPill, type AstPillFamily } from './astrolabe-pill';
+import { astPill, type AstPillFamily } from './pia-pill';
 import { listAvailability, listUnreachable, type ListAvailability } from './list-availability';
 import { UnavailablePanel } from './UnavailablePanel';
 import { unavailableNotice } from './unavailable-copy';
@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from './ui';
-import { Check, FileSearch, FlaskConical, Info, Loader2, TriangleAlert, User } from 'lucide-react';
+import { Check, Info, TriangleAlert, User } from 'lucide-react';
 import {
   benchmarkCaseRows,
   benchmarkQualifications,
@@ -53,6 +53,8 @@ import { useRunTrace } from './app-state';
 import { conversationAge } from './conversation-age';
 import { runLabel } from './run-label';
 import { RunRatingBadge } from './RunRatingBadge';
+import { PiaEmptyStateMark } from './PiaMark';
+import { PiaFlicker } from './PiaFlicker';
 import { UserDrilldownLink } from './UserDrilldownLink';
 import type { Run } from './app-types';
 import { evalScorecard } from './eval-scorecard';
@@ -645,7 +647,7 @@ export function BenchmarkLab() {
 
             {lastRunId && !runError && (
               <Alert>
-                {summary.inProgress ? <Loader2 className="animate-spin" /> : <Check />}
+                {summary.inProgress ? <PiaFlicker seat="status" /> : <Check />}
                 <AlertDescription>
                   {summary.inProgress
                     ? 'Run started. A suite takes several minutes; this page is polling it and will report what it records.'
@@ -827,7 +829,7 @@ export function RecordedRuns({
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <FlaskConical />
+                <PiaEmptyStateMark size={32} />
               </EmptyMedia>
               <EmptyTitle>Nothing has been benchmarked yet</EmptyTitle>
               {/* Only ever reached when the store answered, because the
@@ -935,7 +937,7 @@ export function PerCaseResults({ rows, inProgress }: { rows: BenchmarkCaseRow[];
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <FileSearch />
+                <PiaEmptyStateMark size={32} />
               </EmptyMedia>
               <EmptyTitle>Not reported per case yet</EmptyTitle>
               {/* Which of the two reasons it is, because they are different facts:

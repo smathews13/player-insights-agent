@@ -18,7 +18,6 @@ import {
   RefreshCw,
   Search,
   Trash2,
-  UserRound,
 } from 'lucide-react';
 import {
   SP_GRANT_MATRIX,
@@ -77,6 +76,7 @@ import {
 import { AppSelect } from './AppSelect';
 import { CopyButton } from './StatusBadge';
 import { Button, Empty, EmptyHeader, EmptyMedia, EmptyTitle, Input, Textarea } from './ui';
+import { PiaEmptyStateMark } from './PiaMark';
 
 export type SpIdentityMutationError = {
   operation: 'definition-save' | 'definition-delete' | 'connection-save' | 'status-check' | 'rename';
@@ -990,7 +990,7 @@ function SpPersonaDefinitionTable({
       <Empty className="sp-persona-empty">
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            <UserRound aria-hidden="true" />
+            <PiaEmptyStateMark size={32} />
           </EmptyMedia>
           <EmptyTitle>No SP persona configurations yet.</EmptyTitle>
         </EmptyHeader>

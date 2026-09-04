@@ -1768,9 +1768,9 @@ describe('the per-user panel', () => {
     expect(text(loading)).toContain('Loading user spend');
     expect(text(loading).match(/Estimated/g)).toHaveLength(5);
     expect(loading.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(5);
-    expect(loading.match(/ast-flick-slot--inline/g)).toHaveLength(1);
-    expect(loading.match(/ast-anim-flick/g)).toHaveLength(4);
-    expect(loading).toContain('data-ast-rest');
+    expect(loading.match(/pia-flick-slot--inline/g)).toHaveLength(1);
+    expect(loading.match(/pia-loader__phase--(?:dpad|cluster)/g)).toHaveLength(2);
+    expect(loading).toContain('pia-loader__center');
     expect(loading).not.toContain('lucide-wallet');
     expect(loading).not.toContain('user-profile-modal-spend-loading-icon');
     expect(loading).not.toContain('skeleton');
@@ -1881,7 +1881,7 @@ describe('the per-user panel', () => {
       expect(text(markup)).toContain(label);
     }
     expect(markup.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(5);
-    expect(markup.match(/ast-flick-slot--inline/g)).toHaveLength(1);
+    expect(markup.match(/pia-flick-slot--inline/g)).toHaveLength(1);
     expect(text(markup)).not.toContain('Refreshing');
     expect(text(markup)).not.toMatch(
       /week over week|month over month|comparable period|prior 7 days|prior matched month/i

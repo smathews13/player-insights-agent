@@ -29,7 +29,7 @@ import { budgetHelper, budgetPlaceholder, costSpendSummary, resourceBudgetBaseli
 import { NumberTicker, TickerAssumptionField, TickerAssumptionGrid, tickerNumber } from './NumberTicker';
 import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad, type SettingsSaveState } from './settings-save-state';
 import { Badge, Button, Progress } from './ui';
-import { ConceptFlicker } from './ConceptFlicker';
+import { PiaFlicker } from './PiaFlicker';
 import { dateOnlyBadgeValue, DateRangeBadges } from './DateBadge';
 import {
   approveContinuedUsage,
@@ -832,7 +832,7 @@ export function CostBudgetApplyButton({
       aria-atomic="true"
       onClick={onClick}
     >
-      {saving ? <ConceptFlicker seat="button" /> : null}
+      {saving ? <PiaFlicker seat="button" /> : null}
       {text}
     </Button>
   );

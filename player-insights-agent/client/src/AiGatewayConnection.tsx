@@ -11,7 +11,7 @@ import type { ConnectionReading } from './connection-model';
 import { AppSelect } from './AppSelect';
 import { BrandIcon } from './BrandIcon';
 import { Badge, Button, Input } from './ui';
-import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
+import { PiaLoadingLabel } from './PiaLoadingLabel';
 
 const CAPABILITIES: Array<[keyof AiGatewayCandidate['capabilities'], string]> = [
   ['rateLimits', 'Rate limits'],
@@ -194,7 +194,7 @@ export function AiGatewayConnection({
           </span>
         </span>
         {refreshing ? (
-          <AstrolabeLoadingLabel
+          <PiaLoadingLabel
             as="span"
             announce={false}
             className="connection-row-status-loader"
@@ -218,7 +218,7 @@ export function AiGatewayConnection({
       {open ? (
         <div className="connection-row-detail">
           {refreshing ? (
-            <AstrolabeLoadingLabel label="Checking AI Gateway" className="connection-detail-status-loader" />
+            <PiaLoadingLabel label="Checking AI Gateway" className="connection-detail-status-loader" />
           ) : (
             <dl className="connection-details">
               <div className="connection-detail">

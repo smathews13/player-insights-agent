@@ -21,12 +21,12 @@
  */
 import { Check } from 'lucide-react';
 import { RUN_TONE_FAMILY, type RunStatus } from './run-status';
-import { AstrolabeLoadingLabel } from './AstrolabeLoadingLabel';
+import { PiaLoadingLabel } from './PiaLoadingLabel';
 
 export function RunStatusPill({ status, onDark = false }: { status: RunStatus; onDark?: boolean }) {
   if (status.checkingConnection) {
     return (
-      <AstrolabeLoadingLabel
+      <PiaLoadingLabel
         as="span"
         className={`run-status-loader${onDark ? ' run-status-loader--dark' : ''}`}
         label={status.label}

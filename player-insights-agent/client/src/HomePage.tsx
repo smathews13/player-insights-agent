@@ -72,7 +72,6 @@ import {
   CircleAlert,
   ExternalLink,
   FileText,
-  Loader2,
   MessagesSquare,
   Paperclip,
   Plus,
@@ -143,9 +142,10 @@ import {
   useActiveConversationRuns,
 } from './active-conversation-runs';
 import { failedAskSettlement, settleAskDisplay, terminalSettlementForResponse } from './ask-terminal-state';
-import { AstrolabeMark } from './AstrolabeMark';
+import { PiaEmptyStateMark, PiaMark } from './PiaMark';
+import { PiaLoaderMark } from './PiaLoader';
 import { ConversationRailRunStatus } from './ConversationRailRunStatus';
-import { ConceptFlicker } from './ConceptFlicker';
+import { PiaFlicker } from './PiaFlicker';
 import { WorkingInlineRow } from './WorkingInlineRow';
 import { elapsedSeconds, seatForTranscript } from './working-animation';
 import { ToolCallsLabel } from './ToolCallsLabel';
@@ -2473,17 +2473,14 @@ export function HomePage() {
         <section ref={conversationMainRef} className={`conversation-main${transcriptEmpty ? ' is-empty' : ''}`}>
           {transcriptEmpty && (
             <div className="ask-hero">
-              {/* The chip that introduces the agent, carrying the small cut of the
-                mark on Ice. THE MARK IS THE AGENT (§1): the orange robot is
-                retired, and the figure a reader meets on an empty transcript is
-                now the same drawing as the app's own mark in the header and the
-                one the loaders flicker through. It is decorative, because the
-                words beside it are the label. */}
+              {/* The chip that introduces the agent uses the static face-button
+                cluster reserved for empty states. It is decorative because the
+                adjacent words already name the product. */}
               <div className="ask-hero-chip">
                 <span className="ask-hero-chip-mark">
-                  <AstrolabeMark size={18} />
+                  <PiaEmptyStateMark size={18} />
                 </span>
-                astrolabe player intelligence
+                Player Insights Agent
               </div>
               <h2>What would you like to understand about your players?</h2>
             </div>
@@ -2502,7 +2499,7 @@ export function HomePage() {
                 >
                   {olderMessagesLoading ? (
                     <>
-                      <Loader2 className="animate-spin" aria-hidden="true" /> Loading older messages…
+                      <PiaFlicker seat="button" /> Loading older messages…
                     </>
                   ) : (
                     'Load older messages'
@@ -2592,7 +2589,7 @@ export function HomePage() {
 
           {(loading || conversationLoading) && (
             <Card className="answer-card">
-              <CardContent className={workingSeat === 'splash' ? 'ast-splash' : 'pt-6 space-y-5'}>
+              <CardContent className={workingSeat === 'splash' ? 'pia-splash' : 'pt-6 space-y-5'}>
                 {/* The working animation is for a run that is actually running.
                   Restoring a saved conversation from Lakebase is not the agent
                   working -- nothing is being asked and nothing is being read --
@@ -2602,7 +2599,7 @@ export function HomePage() {
                 {conversationLoading ? (
                   <div className="flex items-center gap-3">
                     <div className="ask-loading-mark">
-                      <AstrolabeMark size={26} />
+                      <PiaLoaderMark size={26} />
                     </div>
                     <div>
                       <p className="font-medium">Loading conversation</p>
@@ -2621,14 +2618,14 @@ export function HomePage() {
                       question and what the agent is doing now pushed both off
                       the fold. The mark cycling through its four concepts says
                       the same thing in a seventh of the height. */}
-                    <div className="ast-flick-splash">
-                      <ConceptFlicker seat="splash" />
+                    <div className="pia-flick-splash">
+                      <PiaFlicker seat="splash" />
                     </div>
                     {/* The count under the panel, which is where the splash puts
                       it: the panel's own status line says what the agent is
                       doing, and repeating the number inside it would put the
                       same figure on screen twice a few pixels apart. */}
-                    <div className="ast-splash-copy">
+                    <div className="pia-splash-copy">
                       <strong>{currentStage.label}</strong>
                       {elapsed ? (
                         <>
@@ -2660,7 +2657,7 @@ export function HomePage() {
                     <Skeleton className="h-20 w-full" />
                   </>
                 ) : (
-                  <div className={workingSeat === 'splash' ? 'ast-splash-run' : undefined}>
+                  <div className={workingSeat === 'splash' ? 'pia-splash-run' : undefined}>
                     <LiveProgress
                       stages={liveStages}
                       openedAt={streamOpenedAt}
@@ -2748,7 +2745,7 @@ export function HomePage() {
                   role={attachment.status === 'error' ? 'alert' : undefined}
                 >
                   {attachment.status === 'parsing' ? (
-                    <Loader2 className="size-4 animate-spin" />
+                    <PiaFlicker seat="button" />
                   ) : attachment.status === 'error' ? (
                     <CircleAlert className="size-4" />
                   ) : (
@@ -2818,7 +2815,7 @@ export function HomePage() {
               disabled={attachControl.disabled}
               onClick={() => fileInputRef.current?.click()}
             >
-              {attachControl.pending ? <Loader2 className="animate-spin" /> : <Paperclip />} {attachControl.label}
+              {attachControl.pending ? <PiaFlicker seat="button" /> : <Paperclip />} {attachControl.label}
             </Button>
             {attachments.length > 0 && ( // Separate from New conversation on purpose: dropping the documents
               // and dropping the thread are different intentions, and coupling them
@@ -2830,12 +2827,12 @@ export function HomePage() {
                 disabled={clearingDocs || loading || conversationLoading}
                 onClick={() => void clearDocs()}
               >
-                {clearingDocs ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                {clearingDocs ? <PiaFlicker seat="button" /> : <Trash2 />}
                 {clearingDocs ? 'Clearing…' : `Clear docs (${attachments.length})`}
               </Button>
             )}
             {/* The composer keeps the shared caveat copy but not the product mark:
-                the footer already names Astrolabe and the extra icon competed with
+                the footer already names Player Insights Agent and the extra icon competed with
                 Attach context. Answer surfaces retain the marked variant. */}
             <AIAnalysisCaveat className="composer-ai-note" showMark={false} />
             {/* One control for one current action. While a question is active it
@@ -2845,7 +2842,7 @@ export function HomePage() {
               {loading ? (
                 stopping ? (
                   <>
-                    <Loader2 className="animate-spin" />
+                    <PiaFlicker seat="button" />
                     Stopping…
                   </>
                 ) : (
@@ -2854,7 +2851,7 @@ export function HomePage() {
               ) : parsing ? (
                 'Reading files…'
               ) : (
-                'Ask astrolabe'
+                'Ask Player Insights Agent'
               )}
             </Button>
           </div>
@@ -3150,10 +3147,10 @@ function ClarificationCard({
           {/* The agent's mark, not a question mark: the same reasoning as the plan
               card. The badge beside it says whether the question is still open, and
               a mark that changes per turn stops being an identity.
-              The mark is the astrolabe now rather than the robot (§1), so a
+              The mark is the PIA D-pad now rather than the robot (§1), so a
               clarification is signed with the same drawing the header carries. */}
           <div className="agent-avatar">
-            <AstrolabeMark size={32} />
+            <PiaMark size={32} />
           </div>
           <div className="space-y-1">
             <Badge variant="outline">{resolved ? 'Question answered' : 'Needs one detail'}</Badge>

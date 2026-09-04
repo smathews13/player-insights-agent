@@ -16,7 +16,7 @@
  */
 import { useEffect, useState } from 'react';
 import { comparisonBadge, comparisonNote, EMPTY_SCOPES_LABEL, emptyScopesNote } from './declared-connection-view';
-import { astValueBadge, type AstPillFamily } from './astrolabe-pill';
+import { astValueBadge, type AstPillFamily } from './pia-pill';
 import type { NotebookPanel } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import type { AssetPickerSpec } from './asset-picker';

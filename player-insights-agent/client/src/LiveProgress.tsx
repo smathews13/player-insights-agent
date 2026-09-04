@@ -15,7 +15,7 @@ import type { CSSProperties } from 'react';
 import { Badge } from './ui';
 
 import type { TraceStage } from './answer-shape';
-import { AstrolabeMark } from './AstrolabeMark';
+import { PiaMark } from './PiaMark';
 import { productForTool } from './brand-icons';
 import { BrandIcon } from './BrandIcon';
 import { buildLiveRun, type LiveStep } from './live-progress';
@@ -45,7 +45,7 @@ function StepKindMark({ step }: { step: LiveStep }) {
   if (product) {
     return <BrandIcon product={product} size={14} labelled />;
   }
-  return <AstrolabeMark size={13} />;
+  return <PiaMark size={13} />;
 }
 
 function StepRow({

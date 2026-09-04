@@ -69,7 +69,7 @@ const IDENTITY: PanelIdentity = {
       readAt: '2026-08-31T17:00:00.000Z',
     },
     app: {
-      displayName: 'Astrolabe',
+      displayName: 'Player Insights Agent',
       resourceName: 'player-insights-agent',
       workspaceHost: 'https://dbc-example.cloud.databricks.com',
       workspaceId: '<workspace-id>',
@@ -140,12 +140,12 @@ describe('IdentityCard', () => {
       'Organization',
       'Example Sports',
       'OAuth',
-      'Astrolabe',
+      'Player Insights Agent',
       'player-insights-agent',
       'https://dbc-example.cloud.databricks.com',
       '<workspace-id>',
       'Execution',
-      'Astrolabe application',
+      'Player Insights Agent',
       'abcdefab-0000-4000-8000-000000000000',
       '9988776655443322',
       'M2M',
@@ -214,7 +214,7 @@ describe('IdentityCard', () => {
     expect(markup).toContain('data-role-state="super_admin"');
     expect(markup).toContain('aria-label="Role: Super admin"');
     expect(markup).toContain('lucide-shield-plus');
-    expect(textOf({ identity, failed: false })).toContain('Astrolabe role Super admin');
+    expect(textOf({ identity, failed: false })).toContain('Player Insights Agent role Super admin');
     expect(CONNECTIONS_CSS).toMatch(
       /\.deployment-card-identity \.role-badge \{[^}]*height:\s*24px[^}]*padding:\s*2px 8px[^}]*font-size:\s*12px[^}]*white-space:\s*nowrap/s
     );
@@ -299,7 +299,7 @@ describe('IdentityCard', () => {
         ...IDENTITY,
         identityMetadata: {
           user: { displayName: '', objectId: '', state: 'not_reported', readAt: '' },
-          app: { displayName: 'Astrolabe', resourceName: '', workspaceHost: '', workspaceId: '' },
+          app: { displayName: 'Player Insights Agent', resourceName: '', workspaceHost: '', workspaceId: '' },
           servicePrincipal: {
             displayName: 'Partial principal',
             applicationId: 'abcdefab-0000-4000-8000-000000000000',
@@ -382,7 +382,7 @@ describe('IdentityCard', () => {
       },
       failed: false,
     });
-    expect(text).toContain('Astrolabe role Super admin');
+    expect(text).toContain('Player Insights Agent role Super admin');
     expect(text).toContain('Execution Assigned persona · Finance analyst');
     expect(text).not.toContain('Execution boundary');
     expect(text).not.toContain('reads run as');
@@ -500,7 +500,7 @@ describe('execution responsibility', () => {
     };
     const text = textOf(read);
     const markup = renderToStaticMarkup(<IdentityCard read={read} />);
-    expect(text).toContain('Execution Astrolabe app');
+    expect(text).toContain('Execution Player Insights Agent app');
     expect(text).toContain('Service principal');
     expect(text).not.toMatch(/client secret|bearer|token/i);
     expect(markup.match(/data-testid="oauth-badge"/g)).toHaveLength(1);
