@@ -80,7 +80,7 @@ const payload: MonitoringFeedbackPayload = {
     personas: [{ value: 'coach', label: 'Coach', count: 1 }],
     organizations: [{ value: 'example.com', label: 'Example', count: 2 }],
   },
-  pagination: { pageSize: 25, total: 2, hasMore: false, nextCursor: null },
+  pagination: { pageSize: 5, total: 2, hasMore: false, nextCursor: null },
 };
 
 const filters = {
@@ -94,14 +94,16 @@ const filters = {
 
 function panel(
   state: Parameters<typeof FeedbackBrowserPanel>[0]['state'],
-  activeFilters: Parameters<typeof FeedbackBrowserPanel>[0]['filters'] = filters
+  activeFilters: Parameters<typeof FeedbackBrowserPanel>[0]['filters'] = filters,
+  range: Parameters<typeof FeedbackBrowserPanel>[0]['range'] = '7d',
+  rangeLabel = '7 days'
 ) {
   return renderToStaticMarkup(
     <FeedbackBrowserPanel
       state={state}
       filters={activeFilters}
-      range="7d"
-      rangeLabel="7 days"
+      range={range}
+      rangeLabel={rangeLabel}
       page={0}
       onClose={() => undefined}
       onFilters={() => undefined}
@@ -173,10 +175,21 @@ describe('feedback corpus modal', () => {
     expect(roleFiltered).toContain('data-role-state="consumer"');
   });
 
-  it('renders exact filtered KPIs with period badges and honest zero states', () => {
+  it('renders exact filtered KPIs with one shared dynamic period badge and honest zero states', () => {
     const markup = panel({ status: 'ready', key: 'feedback', requestId: 1, data: payload, error: null });
     expect(markup.match(/monitoring-feedback-kpi(?: |")/g)).toHaveLength(5);
-    expect(markup.match(/monitoring-period-badge/g)).toHaveLength(5);
+    expect(markup.match(/monitoring-feedback-period-badge/g)).toHaveLength(1);
+    expect(markup).not.toContain('monitoring-period-badge');
+    expect(markup).toContain('>7 days</span>');
+    const day = panel(
+      { status: 'ready', key: 'feedback-day', requestId: 2, data: payload, error: null },
+      filters,
+      '24h',
+      '24 hours'
+    );
+    expect(day.match(/monitoring-feedback-period-badge/g)).toHaveLength(1);
+    expect(day).toContain('>24 hours</span>');
+    expect(day).not.toContain('>7 days</span>');
     expect(markup).toContain('Total feedback');
     expect(markup).toContain('Helpful rate');
     expect(markup).toContain('>50%<');
@@ -225,16 +238,34 @@ describe('feedback corpus modal', () => {
       markup.indexOf(`monitoring-feedback-filter-${name}`)
     );
     expect(order).toEqual([...order].sort((left, right) => left - right));
-    expect(CSS).toMatch(/\.monitoring-feedback-filter-row\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:/s);
+    for (const label of ['feedback', 'user', 'role', 'persona', 'organization']) {
+      const title = label.charAt(0).toUpperCase() + label.slice(1);
+      expect(markup).toContain(`aria-label="Filter feedback by ${label}: ${title}"`);
+    }
     expect(CSS).toMatch(
-      /\.monitoring-feedback-filter-trigger\s*\{[^}]*height:\s*28px[^}]*font-size:\s*var\(--ast-fs-11\)/s
+      /\.monitoring-feedback-filter-row\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(5,\s*136px\)[^}]*justify-content:\s*start/s
+    );
+    expect(CSS).toMatch(
+      /\.monitoring-feedback-filter-trigger\s*\{[^}]*width:\s*136px[^}]*min-width:\s*136px[^}]*max-width:\s*136px[^}]*height:\s*32px/s
     );
     expect(RESPONSIVE).toMatch(
-      /@media \(max-width: 800px\)[\s\S]*?\.monitoring-feedback-filter-row\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+      /@media \(max-width: 800px\)[\s\S]*?\.monitoring-feedback-filter-row\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)[\s\S]*?\.monitoring-feedback-filter-trigger\s*\{[^}]*width:\s*100%[^}]*max-width:\s*none/
     );
     expect(RESPONSIVE).toMatch(
       /@media \(max-width: 480px\)[\s\S]*?\.monitoring-feedback-filter-row\s*\{[^}]*minmax\(0,\s*1fr\)/
     );
+  });
+
+  it('fits five one-line rows in a compact accessible table viewport', () => {
+    expect(CSS).toMatch(/\.monitoring-feedback-table-frame\s*\{[^}]*flex:\s*1 1 252px[^}]*min-height:\s*252px/s);
+    expect(CSS).toMatch(/\.monitoring-feedback-table td\s*\{[^}]*height:\s*44px/s);
+    expect(CSS).toMatch(
+      /\.monitoring-feedback-question,\s*\.monitoring-feedback-comment\s*\{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s
+    );
+    expect(CSS).toMatch(
+      /\.monitoring-feedback-user\s*\{[^}]*flex-wrap:\s*nowrap[^}]*overflow:\s*hidden[^}]*white-space:\s*nowrap/s
+    );
+    expect(CSS).toMatch(/\.monitoring-feedback-submitted\s*\{[^}]*white-space:\s*nowrap/s);
   });
 
   it('clips rows beneath one opaque sticky table header', () => {

@@ -558,7 +558,11 @@ describe('listSchemas and listTables drill-down', () => {
       '/api/2.1/unity-catalog/tables': {
         status: 200,
         body: {
-          tables: [{ full_name: 'main.analytics.players', name: 'players', table_type: 'MANAGED' }],
+          tables: [
+            { full_name: 'main.analytics.players', name: 'players', table_type: 'MANAGED' },
+            { full_name: 'main.analytics.player_view', name: 'player_view', table_type: 'VIEW' },
+            { full_name: 'main.analytics.legacy_asset', name: 'legacy_asset' },
+          ],
         },
       },
     });
@@ -592,8 +596,11 @@ describe('listSchemas and listTables drill-down', () => {
         id: 'main.analytics.players',
         label: 'players',
         secondary: 'MANAGED',
+        asset_type: 'table',
         expandable: false,
       });
+      expect(tables.items[1]).toMatchObject({ asset_type: 'view', secondary: 'VIEW' });
+      expect(tables.items[2]).not.toHaveProperty('asset_type');
     }
   });
 

@@ -90,10 +90,7 @@
     padding: 10px 14px;
   }
   .uc-explorer-search-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .uc-explorer-search-row > .connection-row-kind {
-    grid-column: 1 / -1;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
   .uc-explorer-row {
     grid-template-columns: 28px auto minmax(0, 1fr);

@@ -732,27 +732,29 @@ describe('every addable kind browses', () => {
     expect(CARD_SOURCE).not.toContain('showLabel=');
   });
 
-  it('requires user-scoped discovery and offers no typed identifier or display name', () => {
-    expect(CARD_SOURCE).toContain("fetch('/api/browse/connection-types', { signal: controller.signal })");
-    expect(CARD_SOURCE).toContain('controller.abort()');
-    expect(CARD_SOURCE).toMatch(/typeChoices\.length > 0 \? \([\s\S]*<AssetPicker/);
+  it('starts with no resource type and does not discover resources until one is selected', () => {
+    expect(CARD_SOURCE).toContain("useState<DeclaredResourceType | ''>('')");
+    expect(CARD_SOURCE).toContain("{ value: '', label: 'Choose resource type', disabled: true }");
+    expect(CARD_SOURCE).not.toContain('/api/browse/connection-types');
+    expect(CARD_SOURCE).toMatch(/chosenKind && picker \? \([\s\S]*<AssetPicker/);
     expect(CARD_SOURCE).not.toContain('Enter an identifier manually');
     expect(CARD_SOURCE).not.toContain('Display name (optional)');
     expect(CARD_SOURCE).not.toContain('Connection key');
     expect(CARD_SOURCE).not.toContain('<input');
   });
 
-  it('uses one ordinary Cancel action and keeps Add selection-gated', () => {
+  it('uses one ordinary Cancel action and a neutral selection-gated Add action', () => {
     expect(CARD_SOURCE.match(/>\s*Cancel\s*</g)).toHaveLength(1);
-    expect(CARD_SOURCE).toContain('disabled={Boolean(disabledReason)}');
-    expect(CARD_SOURCE).toContain('`Add ${chosenKind.label.toLowerCase()}`');
+    expect(CARD_SOURCE).toContain('disabled={!chosenKind || Boolean(disabledReason)}');
+    expect(CARD_SOURCE).toContain("chosenKind ? `Add ${chosenKind.label.toLowerCase()}` : 'Add connection'");
     expect(CARD_SOURCE).toMatch(/!value\.trim\(\)[\s\S]*Choose a warehouse first/);
   });
 
-  it('shows the deterministic discovery loading state', () => {
-    expect(CARD_SOURCE).toContain('<PiaLoadingLabel');
-    expect(CARD_SOURCE).not.toContain('asset-picker-spinner');
-    expect(CARD_SOURCE).toContain('Finding resources your sign-in can access…');
+  it('remounts discovery and clears stale selection, validation, search, paging, and errors on type switch', () => {
+    const typeSwitch = CARD_SOURCE.slice(CARD_SOURCE.indexOf('onValueChange={(next) => {'));
+    expect(typeSwitch).toMatch(/setKindChoice\(next\)[\s\S]*setLabel\(''\)[\s\S]*setValue\(''\)[\s\S]*setError\(''\)/);
+    expect(CARD_SOURCE).toContain('key={chosenKind.id}');
+    expect(CARD_SOURCE).not.toContain('typeDiscovery');
   });
 
   it('associates the disabled Add reason with the button that needs it', () => {

@@ -1,6 +1,8 @@
 import type { Role } from './user-roster-contract';
 
 export const MONITORING_FEEDBACK_SCHEMA_REVISION = 2;
+/** One modal page: five compact rows fit without crowding the normal viewport. */
+export const MONITORING_FEEDBACK_PAGE_SIZE = 5;
 
 export type MonitoringFeedbackDirection = 'up' | 'down';
 

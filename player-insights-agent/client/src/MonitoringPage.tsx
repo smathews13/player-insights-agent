@@ -1417,7 +1417,8 @@ export function PersonSpend({
     deriveUserTokenAverages({ totalTokens: null, coveredRuns: null, coveredQuestions: null });
   const costPerQuestion =
     authoritative?.costPerQuestion.state === 'value' ? authoritative.costPerQuestion : core.costPerQuestion;
-  const averageDaily = authoritative?.averageDaily.state === 'value' ? authoritative.averageDaily : core.averageDaily;
+  const averageDaily =
+    authoritative?.averageDaily.state === 'value' ? { ...authoritative.averageDaily, subtitle: '' } : core.averageDaily;
   const appShare =
     authoritative?.appShare ?? ({ value: null, state: 'unavailable', subtitle: 'No comparable app total' } as const);
   return (
@@ -2865,7 +2866,6 @@ export function MonitoringPage() {
     to: feedbackWindow.to,
     filters: feedbackBrowser.filters,
     cursor: feedbackCursor,
-    pageSize: 25,
   };
   const feedbackRequest = useFeedbackBrowser(
     feedbackRequestInput,

@@ -60,6 +60,8 @@ export interface BrowseItem {
   label: string;
   /** Extra context for the row, or '' when there is none. */
   secondary: string;
+  /** Unity Catalog table kind when the list API reported enough evidence to distinguish it. */
+  asset_type?: 'table' | 'view';
   /**
    * For notebooks: whether this row is a directory the picker may open next.
    * False for every other kind.

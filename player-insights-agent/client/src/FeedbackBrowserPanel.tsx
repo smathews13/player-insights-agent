@@ -78,10 +78,7 @@ function FeedbackFilter({
       label={label}
       ariaLabel={`Filter feedback by ${label.toLowerCase()}`}
       value={value || NO_FILTER}
-      options={[
-        { value: NO_FILTER, label: `All ${label.toLowerCase()}${label === 'Feedback' ? '' : 's'}` },
-        ...options,
-      ]}
+      options={[{ value: NO_FILTER, label }, ...options]}
       onValueChange={(next) => onChange(next === NO_FILTER ? '' : next)}
       className={`monitoring-feedback-filter-trigger monitoring-feedback-filter-${label.toLowerCase()}`}
       contentClassName="monitoring-users-filter-menu"
@@ -136,14 +133,12 @@ function FeedbackKpi({
   value,
   unavailable,
   loading,
-  period,
   icon: Icon,
 }: {
   label: string;
   value: string;
   unavailable?: string;
   loading: boolean;
-  period: string;
   icon: LucideIcon;
 }) {
   return (
@@ -152,9 +147,6 @@ function FeedbackKpi({
         <span className="monitoring-feedback-kpi-label">
           <Icon aria-hidden="true" />
           {label}
-        </span>
-        <span className={astPill('neutral-outline', 'monitoring-period-badge')} aria-hidden="true">
-          {period}
         </span>
       </div>
       {loading ? (
@@ -175,48 +167,48 @@ function FeedbackKpis({ state, period }: { state: PanelLoadState<MonitoringFeedb
   const total = payload?.summary.total ?? 0;
   const helpfulRate = total > 0 ? `${Math.round(((payload?.summary.helpful ?? 0) / total) * 100)}%` : '';
   return (
-    <section className="monitoring-feedback-kpis" aria-label={`Feedback summary, ${period}`}>
-      <FeedbackKpi
-        label="Total feedback"
-        value={(payload?.summary.total ?? 0).toLocaleString()}
-        unavailable={unavailable}
-        loading={loading}
-        period={period}
-        icon={MessageSquareText}
-      />
-      <FeedbackKpi
-        label="Helpful"
-        value={(payload?.summary.helpful ?? 0).toLocaleString()}
-        unavailable={unavailable}
-        loading={loading}
-        period={period}
-        icon={ThumbsUp}
-      />
-      <FeedbackKpi
-        label="Not helpful"
-        value={(payload?.summary.notHelpful ?? 0).toLocaleString()}
-        unavailable={unavailable}
-        loading={loading}
-        period={period}
-        icon={ThumbsDown}
-      />
-      <FeedbackKpi
-        label="Helpful rate"
-        value={helpfulRate}
-        unavailable={unavailable || (payload && total === 0 ? 'No feedback' : '')}
-        loading={loading}
-        period={period}
-        icon={ThumbsUp}
-      />
-      <FeedbackKpi
-        label="Comments captured"
-        value={(payload?.summary.comments ?? 0).toLocaleString()}
-        unavailable={unavailable}
-        loading={loading}
-        period={period}
-        icon={MessageSquareText}
-      />
-    </section>
+    <div className="monitoring-feedback-kpi-group">
+      <div className="monitoring-feedback-kpi-scope">
+        <span className={astPill('neutral-outline', 'monitoring-feedback-period-badge')}>{period}</span>
+      </div>
+      <section className="monitoring-feedback-kpis" aria-label={`Feedback summary, ${period}`}>
+        <FeedbackKpi
+          label="Total feedback"
+          value={(payload?.summary.total ?? 0).toLocaleString()}
+          unavailable={unavailable}
+          loading={loading}
+          icon={MessageSquareText}
+        />
+        <FeedbackKpi
+          label="Helpful"
+          value={(payload?.summary.helpful ?? 0).toLocaleString()}
+          unavailable={unavailable}
+          loading={loading}
+          icon={ThumbsUp}
+        />
+        <FeedbackKpi
+          label="Not helpful"
+          value={(payload?.summary.notHelpful ?? 0).toLocaleString()}
+          unavailable={unavailable}
+          loading={loading}
+          icon={ThumbsDown}
+        />
+        <FeedbackKpi
+          label="Helpful rate"
+          value={helpfulRate}
+          unavailable={unavailable || (payload && total === 0 ? 'No feedback' : '')}
+          loading={loading}
+          icon={ThumbsUp}
+        />
+        <FeedbackKpi
+          label="Comments captured"
+          value={(payload?.summary.comments ?? 0).toLocaleString()}
+          unavailable={unavailable}
+          loading={loading}
+          icon={MessageSquareText}
+        />
+      </section>
+    </div>
   );
 }
 

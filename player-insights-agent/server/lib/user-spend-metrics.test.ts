@@ -19,6 +19,7 @@ describe('user spend metrics', () => {
     });
     expect(metrics.costPerQuestion.value).toBe(5);
     expect(metrics.averageDaily.value).toBe(20);
+    expect(metrics.averageDaily.subtitle).toBe('');
     expect(metrics.appShare.value).toBe(20);
     expect(metrics.averageTokens).toEqual({
       totalTokens: 253_800,
@@ -55,6 +56,7 @@ describe('user spend metrics', () => {
     });
     expect(metrics.costPerQuestion.state).toBe('unavailable');
     expect(metrics.averageDaily.state).toBe('unavailable');
+    expect(metrics.averageDaily.subtitle).toBe('Average not available yet');
     expect(metrics.appShare.state).toBe('unavailable');
     expect(metrics.averageTokens?.perRun).toBe(0);
   });

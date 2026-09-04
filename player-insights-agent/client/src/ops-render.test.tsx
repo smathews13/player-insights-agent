@@ -352,6 +352,7 @@ describe('the Cost Tracking user-spend cross-link', () => {
     expect(markup).toContain('/monitoring?range=30d');
     expect(markup).toContain('users=1');
     expect(markup).toContain('userUnit=DBU');
+    expect(text(markup)).not.toMatch(/covered days?|days? covered|covered billing days?/i);
   });
 
   it('renders no user enumeration action when no admin-authorized link is supplied', () => {

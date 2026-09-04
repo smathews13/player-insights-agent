@@ -412,10 +412,12 @@ function tableItems(body: Record<string, unknown>) {
     const fullName = text(record.full_name) || text(record.name);
     if (!fullName) continue;
     const short = fullName.includes('.') ? fullName.split('.').pop()! : fullName;
+    const tableType = text(record.table_type);
     items.push({
       id: fullName,
       label: short,
-      secondary: text(record.table_type),
+      secondary: tableType,
+      ...(tableType ? { asset_type: /VIEW/i.test(tableType) ? ('view' as const) : ('table' as const) } : {}),
       expandable: false,
     });
   }

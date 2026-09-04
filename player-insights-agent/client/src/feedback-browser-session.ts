@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
+  MONITORING_FEEDBACK_PAGE_SIZE,
   MONITORING_FEEDBACK_SCHEMA_REVISION,
   type MonitoringFeedbackPayload,
 } from '../../shared/monitoring-feedback-contract';
@@ -22,7 +23,6 @@ export interface FeedbackBrowserRequest {
   to: string;
   filters: FeedbackBrowserFilters;
   cursor: string;
-  pageSize?: number;
 }
 
 type Listener = () => void;
@@ -52,7 +52,7 @@ export function feedbackBrowserRequestId(request: FeedbackBrowserRequest): strin
     persona: request.filters.persona,
     organization: request.filters.organization.trim().toLowerCase(),
     cursor: request.cursor,
-    pageSize: request.pageSize ?? 25,
+    pageSize: MONITORING_FEEDBACK_PAGE_SIZE,
   });
 }
 
@@ -60,7 +60,7 @@ export function feedbackBrowserUrl(request: FeedbackBrowserRequest): string {
   const params = new URLSearchParams({
     from: request.from,
     to: request.to,
-    limit: String(request.pageSize ?? 25),
+    limit: String(MONITORING_FEEDBACK_PAGE_SIZE),
   });
   if (request.cursor) params.set('cursor', request.cursor);
   if (request.filters.search) params.set('q', request.filters.search);

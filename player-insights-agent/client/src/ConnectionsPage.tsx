@@ -1169,7 +1169,7 @@ export function DeclaredTablesSection({
         kind: 'unity-catalog',
         resourceType: selection.resourceType,
         value: selection.value,
-        note: selection.assetType === 'view' ? 'asset-type:view' : '',
+        note: selection.assetType ? `asset-type:${selection.assetType}` : '',
       };
     });
     const result = await controller.addBatch(inputs, 'One of those assets is already in the Unity Catalog scope.');
@@ -1193,6 +1193,14 @@ export function DeclaredTablesSection({
       resourceType: entry.connection.resourceType as UnityCatalogScopeType,
       value: entry.connection.value,
       label: entry.connection.label || entry.connection.value.split('.').at(-1) || entry.connection.value,
+      assetType:
+        entry.connection.resourceType === 'table'
+          ? entry.connection.note === 'asset-type:view'
+            ? ('view' as const)
+            : entry.connection.note === 'asset-type:table'
+              ? ('table' as const)
+              : undefined
+          : undefined,
     }));
   for (const value of managedTableNames) {
     if (

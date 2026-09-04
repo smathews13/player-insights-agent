@@ -1,0 +1,1 @@
+import{I as e}from"./appkit-ui-C_v6H0cL.js";var t=e(`chevron-down`,[[`path`,{d:`m6 9 6 6 6-6`,key:`qrunsl`}]]);export{t};

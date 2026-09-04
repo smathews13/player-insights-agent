@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { MONITORING_FEEDBACK_PAGE_SIZE } from '../../shared/monitoring-feedback-contract';
 import { listenForFeedbackChanges, notifyFeedbackChanged, type FeedbackEventTarget } from './feedback-events';
 import { feedbackBrowserRequestId, feedbackBrowserUrl } from './feedback-browser-session';
 
@@ -16,7 +17,6 @@ const request = {
     organization: 'example.com',
   },
   cursor: 'opaque-page-two',
-  pageSize: 25,
 };
 
 describe('feedback browser session requests', () => {
@@ -26,6 +26,7 @@ describe('feedback browser session requests', () => {
     expect(id).toContain('missing detail');
     expect(id).toContain('coach@example.com');
     expect(id).toContain('opaque-page-two');
+    expect(id).toContain(`"pageSize":${MONITORING_FEEDBACK_PAGE_SIZE}`);
     expect(feedbackBrowserRequestId({ ...request, cursor: '' })).not.toBe(id);
     expect(feedbackBrowserRequestId({ ...request, filters: { ...request.filters, persona: 'analyst' } })).not.toBe(id);
   });
@@ -36,7 +37,7 @@ describe('feedback browser session requests', () => {
     for (const key of [
       'from=',
       'to=',
-      'limit=25',
+      `limit=${MONITORING_FEEDBACK_PAGE_SIZE}`,
       'cursor=',
       'q=',
       'feedback=down',

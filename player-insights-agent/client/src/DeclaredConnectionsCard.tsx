@@ -37,10 +37,8 @@ import type { ConnectionEntry } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import { StatusBadge } from './StatusBadge';
 import { UserDrilldownLink } from './UserDrilldownLink';
-import { PiaLoadingLabel } from './PiaLoadingLabel';
 import { PiaBusyButtonContent, PiaLoaderMark } from './PiaLoader';
 import { connectionValueError, derivedConnectionKey } from './declared-connection-form';
-import type { ConnectionTypesResponse } from '../../shared/browse-contract';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
 import { Button } from './ui';
 import { useDeclaredConnectionController } from './declared-connection-controller';
@@ -89,11 +87,9 @@ export function DeclaredConnectionsCard({
 }: DeclaredConnectionsCardProps) {
   const [adding, setAdding] = useState(false);
   const [label, setLabel] = useState('');
-  const [kindChoice, setKindChoice] = useState<DeclaredResourceType>(GENERIC_ADDABLE_KINDS[0].id);
+  const [kindChoice, setKindChoice] = useState<DeclaredResourceType | ''>('');
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
-  const [typeDiscovery, setTypeDiscovery] = useState<ConnectionTypesResponse | null>(null);
-  const [typeDiscoveryError, setTypeDiscoveryError] = useState('');
   const newRowRef = useRef<HTMLDivElement | null>(null);
   const formId = useId();
   const controller = useDeclaredConnectionController({ entries, onChanged });
@@ -110,70 +106,34 @@ export function DeclaredConnectionsCard({
     remove: removeConnection,
   } = controller;
 
-  useEffect(() => {
-    if (!adding || typeDiscovery || typeDiscoveryError) return;
-    let live = true;
-    const controller = new AbortController();
-    const timeout = window.setTimeout(
-      () => controller.abort(new DOMException('Resource discovery timed out', 'TimeoutError')),
-      15_000
-    );
-    fetch('/api/browse/connection-types', { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`the discovery endpoint answered ${response.status}`);
-        return response.json() as Promise<ConnectionTypesResponse>;
-      })
-      .then(
-        (response) => {
-          if (!live) return;
-          setTypeDiscovery(response);
-          const first = response.available.find((entry) =>
-            GENERIC_ADDABLE_KINDS.some((kind) => kind.id === entry.id)
-          )?.id;
-          if (first) setKindChoice(first);
-        },
-        (caught: unknown) => {
-          if (live) {
-            setTypeDiscoveryError(
-              (caught as Error)?.name === 'TimeoutError'
-                ? 'Resource discovery timed out.'
-                : (caught as Error).message || 'Resource types could not be listed.'
-            );
-          }
-        }
-      );
-    return () => {
-      live = false;
-      window.clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [adding, typeDiscovery, typeDiscoveryError]);
-
   const listed = controller.listed.filter((entry) => !isDeclaredUnityCatalogConnection(entry.connection));
-  const chosenKind = GENERIC_ADDABLE_KINDS.find((entry) => entry.id === kindChoice) ?? GENERIC_ADDABLE_KINDS[0];
-  const picker = ADD_CONNECTION_PICKERS[chosenKind.browse];
-  const discoveredIds = new Set(typeDiscovery?.available.map((entry) => entry.id) ?? []);
-  const typeChoices = GENERIC_ADDABLE_KINDS.filter((entry) => discoveredIds.has(entry.id));
-  const selectedId = derivedConnectionKey(
-    chosenKind.id,
-    value.trim(),
-    controller.listed.map((entry) => entry.connection.id)
-  );
+  const chosenKind = GENERIC_ADDABLE_KINDS.find((entry) => entry.id === kindChoice);
+  const picker = chosenKind ? ADD_CONNECTION_PICKERS[chosenKind.browse] : null;
+  const selectedId = chosenKind
+    ? derivedConnectionKey(
+        chosenKind.id,
+        value.trim(),
+        controller.listed.map((entry) => entry.connection.id)
+      )
+    : '';
   const connectionId = selectedId;
-  const valueError = connectionValueError(chosenKind.id, value);
-  const disabledReason = !storeAvailable
-    ? 'The connection store is not answering.'
-    : !value.trim()
-      ? kindChoice === 'sql-warehouse'
-        ? 'Choose a warehouse first.'
-        : `Choose a ${chosenKind.label.toLowerCase()} first.`
-      : valueError
-        ? valueError
-        : busy
-          ? 'Adding this connection.'
-          : '';
+  const valueError = chosenKind ? connectionValueError(chosenKind.id, value) : '';
+  const disabledReason = !chosenKind
+    ? ''
+    : !storeAvailable
+      ? 'The connection store is not answering.'
+      : !value.trim()
+        ? kindChoice === 'sql-warehouse'
+          ? 'Choose a warehouse first.'
+          : `Choose a ${chosenKind.label.toLowerCase()} first.`
+        : valueError
+          ? valueError
+          : busy
+            ? 'Adding this connection.'
+            : '';
 
   async function add() {
+    if (!chosenKind) return;
     setError('');
     const result = await addConnection({
       id: connectionId,
@@ -187,6 +147,7 @@ export function DeclaredConnectionsCard({
       return;
     }
     setLabel('');
+    setKindChoice('');
     setValue('');
     setAdding(false);
   }
@@ -344,7 +305,10 @@ export function DeclaredConnectionsCard({
             aria-controls={`${formId}-form`}
             onClick={() => {
               setError('');
-              setAdding((open) => !open);
+              setKindChoice('');
+              setLabel('');
+              setValue('');
+              setAdding(true);
             }}
           >
             + Add a new connection
@@ -359,34 +323,26 @@ export function DeclaredConnectionsCard({
             <label className="plane-field-label" id={`${formId}-type-label`}>
               Resource type
             </label>
-            {typeChoices.length > 0 ? (
-              <AppSelect
-                label="Resource type"
-                ariaLabel="Resource type"
-                value={kindChoice}
-                onValueChange={(next) => {
-                  setKindChoice(next);
-                  setLabel('');
-                  setValue('');
-                  setError('');
-                }}
-                options={typeChoices.map((entry) => ({ value: entry.id, label: entry.label }))}
-                className="plane-field-select"
-              />
-            ) : typeDiscoveryError ? (
-              <span className="plane-error">Resource types could not be listed: {typeDiscoveryError}</span>
-            ) : typeDiscovery ? (
-              <span className="plane-note">No resource categories returned visible items for your sign-in.</span>
-            ) : (
-              <PiaLoadingLabel
-                as="span"
-                label="Finding resources your sign-in can access…"
-                className="plane-picker-discovery"
-              />
-            )}
+            <AppSelect
+              label="Resource type"
+              ariaLabel="Resource type"
+              value={kindChoice}
+              disabled={busy}
+              onValueChange={(next) => {
+                setKindChoice(next);
+                setLabel('');
+                setValue('');
+                setError('');
+              }}
+              options={[
+                { value: '', label: 'Choose resource type', disabled: true },
+                ...GENERIC_ADDABLE_KINDS.map((entry) => ({ value: entry.id, label: entry.label })),
+              ]}
+              className="plane-field-select"
+            />
           </div>
 
-          {typeChoices.length > 0 ? (
+          {chosenKind && picker ? (
             <div className="plane-picker">
               <AssetPicker
                 key={chosenKind.id}
@@ -413,15 +369,15 @@ export function DeclaredConnectionsCard({
             <button
               type="button"
               className="plane-button"
-              disabled={Boolean(disabledReason)}
+              disabled={!chosenKind || Boolean(disabledReason)}
               aria-busy={busy || undefined}
               aria-describedby={disabledReason ? `${formId}-add-reason` : undefined}
               onClick={() => void add()}
             >
               <PiaBusyButtonContent
                 busy={busy}
-                label={`Add ${chosenKind.label.toLowerCase()}`}
-                busyLabel={`Adding ${chosenKind.label.toLowerCase()}`}
+                label={chosenKind ? `Add ${chosenKind.label.toLowerCase()}` : 'Add connection'}
+                busyLabel={chosenKind ? `Adding ${chosenKind.label.toLowerCase()}` : 'Adding connection'}
               />
             </button>
             <button
@@ -430,6 +386,9 @@ export function DeclaredConnectionsCard({
               disabled={busy}
               onClick={() => {
                 setAdding(false);
+                setKindChoice('');
+                setLabel('');
+                setValue('');
                 setError('');
               }}
             >

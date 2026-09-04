@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
+  UnityCatalogAssetSemantics,
   UnityCatalogScopeExplorer,
   toggledUnityCatalogSelection,
+  unityCatalogAvailabilityFromEvidence,
   unityCatalogExplorerValue,
   unityCatalogSelectionKey,
 } from './UnityCatalogScopeExplorer';
@@ -61,6 +63,32 @@ describe('the Unity Catalog scope explorer', () => {
     );
   });
 
+  it('derives UC availability from browse evidence, never from scope selection', () => {
+    const value = 'main.analytics.players';
+    expect(unityCatalogAvailabilityFromEvidence(value, [value], 'loading', true)).toBe('available');
+    expect(unityCatalogAvailabilityFromEvidence(value, [], 'ok', false)).toBe('unavailable');
+    expect(unityCatalogAvailabilityFromEvidence(value, [], 'ok', true)).toBe('unknown');
+    expect(unityCatalogAvailabilityFromEvidence(value, [], 'failed', false)).toBe('unknown');
+  });
+
+  it('renders table and view icons with accessible green and red UC badges', () => {
+    const available = renderToStaticMarkup(<UnityCatalogAssetSemantics assetType="table" availability="available" />);
+    const unavailable = renderToStaticMarkup(
+      <UnityCatalogAssetSemantics assetType="view" availability="unavailable" />
+    );
+    const unknown = renderToStaticMarkup(<UnityCatalogAssetSemantics availability="unknown" />);
+
+    expect(available).toContain('aria-label="Table"');
+    expect(available).toContain('ast-pill--pos');
+    expect(available).toContain('aria-label="Available in Unity Catalog"');
+    expect(unavailable).toContain('aria-label="View"');
+    expect(unavailable).toContain('ast-pill--neg');
+    expect(unavailable).toContain('aria-label="Not available in Unity Catalog"');
+    expect(unknown).toContain('aria-label="Table or view"');
+    expect(unknown).toContain('ast-pill--neutral-outline');
+    expect(unknown).not.toContain('ast-pill--neg');
+  });
+
   it('automatically advances bounded pages without exposing a manual paging action', () => {
     expect(SOURCE).toContain('while (!controller.signal.aborted)');
     expect(SOURCE).toContain('response.pagination.page >= response.pagination.page_limit');
@@ -86,5 +114,12 @@ describe('the Unity Catalog scope explorer', () => {
     expect(SOURCE).toContain('inferredDeclaredItems(kind, cursor, declared)');
     expect(SOURCE).toContain('...declared.filter((item) => localSearchMatch(item.value, query))');
     expect(SOURCE).toContain('More results may be available. Refine the search.');
+  });
+
+  it('does not reuse the Available scope checkbox as Unity Catalog status evidence', () => {
+    expect(SOURCE).toContain('unityCatalogAvailabilityFromEvidence(');
+    expect(SOURCE).toContain('visibleTableValues');
+    expect(SOURCE).not.toMatch(/availability=\{scopeState/);
+    expect(SOURCE).not.toMatch(/availability=\{selected/);
   });
 });

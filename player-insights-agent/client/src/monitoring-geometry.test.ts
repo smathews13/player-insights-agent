@@ -56,10 +56,15 @@ describe('the namespaced user profile cannot regress to overlapping layout', () 
 
   it('uses one scrolling body with max-content rows and non-shrinking KPI cards', () => {
     const body = rule('.user-profile-modal-body');
+    const spendGrid = rule('.user-profile-modal-spend-kpis');
+    const spendCard = rule('.user-profile-modal-spend-kpi');
     expect(body).toMatch(/overflow-y:\s*auto/);
     expect(body).toMatch(/overflow-x:\s*visible/);
     expect(body).toMatch(/grid-auto-flow:\s*row/);
     expect(body).toMatch(/grid-auto-rows:\s*max-content/);
+    expect(spendGrid).toMatch(/align-items:\s*stretch/);
+    expect(spendCard).toMatch(/align-content:\s*start/);
+    expect(spendCard).not.toMatch(/grid-template-rows|min-height/);
     expect(rule('.user-profile-modal-kpi')).toMatch(/min-height:\s*96px/);
     expect(rule('.user-profile-modal-spend')).not.toMatch(/min-height/);
     expect(rule('.user-profile-modal-spend-kpi-loading')).toMatch(/min-height:\s*92px/);

@@ -7,6 +7,7 @@ describe('core user spend metrics', () => {
     expect(metrics.costPerQuestion).toMatchObject({ state: 'value', value: 0.382 });
     expect(metrics.averageDaily.state).toBe('value');
     expect(metrics.averageDaily.value).toBeCloseTo(1.364285714, 8);
+    expect(metrics.averageDaily.subtitle).toBe('');
   });
 
   it('uses the same arithmetic for DBU and refuses zero denominators', () => {
@@ -16,11 +17,13 @@ describe('core user spend metrics', () => {
     const zero = deriveCoreUserSpendMetrics({ amount: 3.75, questions: 0, coveredDays: 0, unit: 'USD' });
     expect(zero.costPerQuestion.state).toBe('unavailable');
     expect(zero.averageDaily.state).toBe('unavailable');
+    expect(zero.averageDaily.subtitle).toBe('Average not available yet');
   });
 
   it('does not derive ratios without an attributable total', () => {
     const metrics = deriveCoreUserSpendMetrics({ amount: null, questions: 25, coveredDays: 7, unit: 'USD' });
     expect(metrics.costPerQuestion.state).toBe('unavailable');
     expect(metrics.averageDaily.state).toBe('unavailable');
+    expect(JSON.stringify(metrics)).not.toMatch(/covered days?|days? covered|covered billing days?/i);
   });
 });

@@ -78,15 +78,9 @@ export function deriveCoreUserSpendMetrics(input: CoreUserSpendMetricInput): {
         ? {
             value: amount / coveredDays,
             state: 'value',
-            subtitle: `${coveredDays.toLocaleString()} covered days`,
+            subtitle: '',
             estimated: input.estimated,
           }
-        : unavailable(
-            coveredDays === null
-              ? 'Covered days unavailable'
-              : coveredDays > 0
-                ? `${coveredDays.toLocaleString()} covered days`
-                : 'No covered billing days'
-          ),
+        : unavailable('Average not available yet'),
   };
 }

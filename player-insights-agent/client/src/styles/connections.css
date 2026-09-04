@@ -1258,6 +1258,38 @@
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-sm);
 }
+.uc-explorer-asset-semantics {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.uc-explorer-asset-icon {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  color: var(--ast-text-secondary);
+}
+.uc-explorer-asset-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.uc-explorer-uc-badge {
+  display: inline-flex;
+  min-width: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 1px 5px;
+  font-size: var(--ast-fs-11);
+  line-height: 1.2;
+}
+.uc-explorer-uc-badge svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2.5;
+}
 .uc-explorer-search-value {
   min-width: 0;
   overflow: hidden;

@@ -195,7 +195,7 @@ describe('Forecasting visibility and placement', () => {
     expect(markup).not.toContain('Baseline:');
     expect(markup).not.toContain('Source:');
     expect(markup).not.toContain('Assumption baselines');
-    expect(markup).not.toContain('complete days');
+    expect(markup).not.toMatch(/complete days|covered days?|days? covered|covered billing days?/i);
     expect(markup).toContain('Observed baseline');
     expect(markup).toContain('2026-08-08–2026-08-14 (current calendar month)');
     expect(markup).not.toContain('ops-period-pill');

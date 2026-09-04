@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Search, X } from 'lucide-react';
+import { Check, ChevronRight, PanelsTopLeft, Search, Table2, TableProperties, X } from 'lucide-react';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { BrowseItem, BrowseKind, BrowseResponse, UnityCatalogSearchResponse } from '../../shared/browse-contract';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
@@ -17,9 +17,62 @@ export interface UnityCatalogExplorerSelection {
   assetType?: 'table' | 'view';
 }
 
+export type UnityCatalogAvailability = 'available' | 'unavailable' | 'unknown';
+
 export interface UnityCatalogExplorerRowState {
   label: string;
   selectable: boolean;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- pure API-evidence interpretation shared with focused tests
+export function unityCatalogAvailabilityFromEvidence(
+  value: string,
+  visibleValues: readonly string[],
+  status: 'idle' | 'loading' | 'ok' | 'unavailable' | 'failed',
+  incomplete: boolean
+): UnityCatalogAvailability {
+  const normalized = value.trim().toLocaleLowerCase();
+  if (visibleValues.some((candidate) => candidate.trim().toLocaleLowerCase() === normalized)) return 'available';
+  return status === 'ok' && !incomplete ? 'unavailable' : 'unknown';
+}
+
+export function UnityCatalogAssetSemantics({
+  assetType,
+  availability,
+}: {
+  assetType?: 'table' | 'view';
+  availability: UnityCatalogAvailability;
+}) {
+  const AssetIcon = assetType === 'table' ? Table2 : assetType === 'view' ? PanelsTopLeft : TableProperties;
+  const assetLabel = assetType === 'table' ? 'Table' : assetType === 'view' ? 'View' : 'Table or view';
+  const availabilityLabel =
+    availability === 'available'
+      ? 'Available in Unity Catalog'
+      : availability === 'unavailable'
+        ? 'Not available in Unity Catalog'
+        : 'Unity Catalog availability not verified';
+  const tone = availability === 'available' ? 'pos' : availability === 'unavailable' ? 'neg' : 'neutral-outline';
+  return (
+    <>
+      <span className="uc-explorer-asset-icon" role="img" aria-label={assetLabel} title={assetLabel}>
+        <AssetIcon aria-hidden="true" />
+      </span>
+      <span
+        className={`ast-pill ast-pill--${tone} uc-explorer-uc-badge`}
+        aria-label={availabilityLabel}
+        title={availabilityLabel}
+      >
+        <span>UC</span>
+        {availability === 'available' ? (
+          <Check aria-hidden="true" />
+        ) : availability === 'unavailable' ? (
+          <X aria-hidden="true" />
+        ) : (
+          <span aria-hidden="true">?</span>
+        )}
+      </span>
+    </>
+  );
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- pure hierarchy identity shared with focused tests
@@ -86,6 +139,7 @@ function inferredDeclaredItems(
         id: selection.value,
         label: parts.slice(2).join('.'),
         secondary: selection.value,
+        asset_type: selection.assetType,
         expandable: false,
       });
     }
@@ -257,6 +311,7 @@ function ExplorerNode({
   declared,
   staged,
   scopeState,
+  availability,
   onToggle,
 }: {
   item: BrowseItem;
@@ -267,6 +322,7 @@ function ExplorerNode({
   declared: readonly UnityCatalogExplorerSelection[];
   staged: ReadonlySet<string>;
   scopeState: (resourceType: UnityCatalogScopeType, value: string) => UnityCatalogExplorerRowState;
+  availability: UnityCatalogAvailability;
   onToggle: (selection: UnityCatalogExplorerSelection) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -297,19 +353,23 @@ function ExplorerNode({
         ) : (
           <span className="uc-explorer-leaf-spacer" aria-hidden="true" />
         )}
-        <span className="connection-row-kind">
-          {resourceType === 'table' ? 'Table/view' : resourceType === 'schema' ? 'Schema' : 'Catalog'}
-        </span>
+        {resourceType === 'table' ? (
+          <span className="uc-explorer-asset-semantics">
+            <UnityCatalogAssetSemantics assetType={item.asset_type} availability={availability} />
+          </span>
+        ) : (
+          <span className="connection-row-kind">{resourceType === 'schema' ? 'Schema' : 'Catalog'}</span>
+        )}
         <span className="uc-explorer-name" title={value}>
           {item.label}
         </span>
-        {item.secondary ? <span className="uc-explorer-secondary">{item.secondary}</span> : null}
+        <span className="uc-explorer-secondary">{resourceType === 'table' ? '' : item.secondary}</span>
         <ExplorerChoice
           selection={{
             resourceType,
             value,
             label: item.label,
-            assetType: resourceType === 'table' ? (/view/i.test(item.secondary) ? 'view' : 'table') : undefined,
+            assetType: resourceType === 'table' ? item.asset_type : undefined,
           }}
           state={scopeState(resourceType, value)}
           selected={staged.has(unityCatalogSelectionKey({ resourceType, value }))}
@@ -362,6 +422,7 @@ function ExplorerLevel({
   if (!enabled) return null;
   const resourceType: UnityCatalogScopeType = kind === 'catalogs' ? 'catalog' : kind === 'schemas' ? 'schema' : 'table';
   const items = mergeBrowseItems(state.items, inferredDeclaredItems(kind, cursor, declared));
+  const visibleValues = state.items.map((item) => item.id);
 
   return (
     <div className="uc-explorer-level">
@@ -378,6 +439,16 @@ function ExplorerLevel({
               declared={declared}
               staged={staged}
               scopeState={scopeState}
+              availability={
+                resourceType === 'table'
+                  ? unityCatalogAvailabilityFromEvidence(
+                      unityCatalogExplorerValue(resourceType, item.id, catalog),
+                      visibleValues,
+                      state.status,
+                      state.incomplete
+                    )
+                  : 'unknown'
+              }
               onToggle={onToggle}
             />
           ))}
@@ -498,6 +569,7 @@ function ExplorerSearchResults({
       ])
     ).values(),
   ];
+  const visibleTableValues = result.items.filter((item) => item.resourceType === 'table').map((item) => item.value);
   return (
     <div className="uc-explorer-search-results" aria-live="polite">
       {result.status === 'loading' ? (
@@ -516,9 +588,21 @@ function ExplorerSearchResults({
             <ul>
               {group.map((selection) => (
                 <li className="uc-explorer-search-row" key={unityCatalogSelectionKey(selection)}>
-                  <span className="connection-row-kind">
-                    {resourceType === 'table' ? (selection.assetType === 'view' ? 'View' : 'Table') : resourceType}
-                  </span>
+                  {resourceType === 'table' ? (
+                    <span className="uc-explorer-asset-semantics">
+                      <UnityCatalogAssetSemantics
+                        assetType={selection.assetType}
+                        availability={unityCatalogAvailabilityFromEvidence(
+                          selection.value,
+                          visibleTableValues,
+                          result.status,
+                          result.more
+                        )}
+                      />
+                    </span>
+                  ) : (
+                    <span className="connection-row-kind">{resourceType}</span>
+                  )}
                   <span className="uc-explorer-search-value" title={selection.value}>
                     {selection.value}
                   </span>

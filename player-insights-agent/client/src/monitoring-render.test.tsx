@@ -1678,11 +1678,12 @@ describe('the per-user panel', () => {
     expect(rendered).toContain('Total user spend Estimated 12.50 USD');
     expect(rendered).toContain('Cost / question Estimated 2.50 USD 5 submitted questions');
     expect(rendered).toContain('Average tokens Estimated');
-    expect(rendered).toContain('Average daily spend Estimated 3.125 USD 4 covered days');
+    expect(rendered).toContain('Average daily spend Estimated 3.125 USD');
     expect(rendered).toContain('Share of app spend Estimated 25%');
     expect(rendered).not.toContain('of comparable app spend');
     expect(rendered.match(/Estimated/g)).toHaveLength(5);
-    expect(rendered).not.toMatch(/(?:submitted questions|\/ question|covered days|app spend) · Estimated/);
+    expect(rendered).not.toMatch(/covered days?|days? covered|covered billing days?/i);
+    expect(rendered).not.toMatch(/(?:submitted questions|\/ question|app spend) · Estimated/);
     expect(rendered).not.toMatch(/Week over week|Month over month|prior 7 days|prior matched month/i);
     expect(markup.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(5);
     const cardOrder = [
@@ -1693,6 +1694,8 @@ describe('the per-user panel', () => {
       'Share of app spend',
     ].map((label) => markup.indexOf(label));
     expect(cardOrder).toEqual([...cardOrder].sort((left, right) => left - right));
+    const averageDailyCard = markup.slice(cardOrder[3], cardOrder[4]);
+    expect(averageDailyCard).not.toContain('user-profile-modal-spend-kpi-subtitle');
     expect(rendered).not.toContain('6.25 DBU');
     for (const banned of [
       'Resource',
@@ -1726,7 +1729,8 @@ describe('the per-user panel', () => {
     const dbu = text(dbuMarkup);
     expect(dbu).toContain('Total user spend Estimated 6.25 DBU');
     expect(dbu).toContain('Cost / question Estimated Question count unavailable');
-    expect(dbu).toContain('Average daily spend Estimated Covered days unavailable');
+    expect(dbu).toContain('Average daily spend Estimated Average not available yet');
+    expect(dbu).not.toMatch(/covered days?|days? covered|covered billing days?/i);
     expect(dbu.match(/Estimated/g)).toHaveLength(5);
     expect(dbu).not.toContain('12.50 USD');
 
@@ -1784,6 +1788,7 @@ describe('the per-user panel', () => {
           )
         );
         expect(variant.match(/Estimated/g), `${rangeLabel} ${spendUnit}`).toHaveLength(5);
+        expect(variant, `${rangeLabel} ${spendUnit}`).not.toMatch(/covered days?|days? covered|covered billing days?/i);
       }
     }
   });
@@ -1830,7 +1835,8 @@ describe('the per-user panel', () => {
     const rendered = text(markup);
     expect(rendered).toContain('Total user spend Estimated 9.55 USD');
     expect(rendered).toContain('Cost / question Estimated 0.382 USD 25 submitted questions');
-    expect(rendered).toContain('Average daily spend Estimated 1.364 USD 7 covered days');
+    expect(rendered).toContain('Average daily spend Estimated 1.364 USD');
+    expect(rendered).not.toMatch(/covered days?|days? covered|covered billing days?/i);
     expect(rendered).toContain('Average tokens Estimated 84.6K / run 126.9K / question');
     expect(markup).toContain('253,800 tokens across 3 token-covered runs');
     expect(rendered).toContain('Share of app spend Estimated No comparable app total');

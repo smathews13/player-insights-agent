@@ -2,6 +2,7 @@ import type { Application, Request, Response } from 'express';
 
 import { APP_SCHEMA } from '../../shared/app-schema';
 import {
+  MONITORING_FEEDBACK_PAGE_SIZE,
   MONITORING_FEEDBACK_SCHEMA_REVISION,
   type MonitoringFeedbackOption,
   type MonitoringFeedbackPayload,
@@ -15,7 +16,6 @@ import { ROLE_COLUMN } from '../lib/user-roster';
 import { SP_ASSIGNMENTS_TABLE, SP_PERSONAS_TABLE } from '../lib/sp-identity-store';
 import { feedbackDirectionSql, PLAN_APPROVAL_MESSAGE, type InsightsAppKit } from './insights-routes';
 
-export const MONITORING_FEEDBACK_PAGE_SIZE = 25;
 export const MONITORING_FEEDBACK_PAGE_MAX = 100;
 export const MONITORING_FEEDBACK_SEARCH_MAX = 200;
 export const MONITORING_FEEDBACK_ROUTE = '/api/monitoring/feedback';

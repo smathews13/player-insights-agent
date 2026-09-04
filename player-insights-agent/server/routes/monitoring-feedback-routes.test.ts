@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 
+import { MONITORING_FEEDBACK_PAGE_SIZE } from '../../shared/monitoring-feedback-contract';
 import { isAdminRoute } from '../lib/admin-roles';
 import { LATER_MIGRATIONS } from '../lib/migrations';
 import {
@@ -34,6 +35,11 @@ describe('Monitoring feedback request bounds', () => {
     expect(parsed.to).toBe('2026-09-03T00:00:00.000Z');
     expect(parsed.limit).toBe(MONITORING_FEEDBACK_PAGE_MAX);
     expect(parsed.cursor).toEqual({ feedbackAt: '2026-09-02T10:00:00.000Z', id: 'feedback-9' });
+  });
+
+  it('defaults every feedback page to five rows', () => {
+    expect(MONITORING_FEEDBACK_PAGE_SIZE).toBe(5);
+    expect(monitoringFeedbackRequest(request()).limit).toBe(MONITORING_FEEDBACK_PAGE_SIZE);
   });
 
   it('refuses offsets, invalid cursors, unknown filters, and overlong search', () => {
@@ -211,7 +217,7 @@ describe('Monitoring feedback route', () => {
     expect(query.mock.calls[0]?.[1]).toEqual([
       '2026-09-01T00:00:00.000Z',
       '2026-09-03T00:00:00.000Z',
-      26,
+      MONITORING_FEEDBACK_PAGE_SIZE + 1,
       '',
       '',
       'detail',
