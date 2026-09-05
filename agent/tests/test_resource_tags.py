@@ -114,6 +114,18 @@ def test_vector_endpoint_tag_preserves_existing_tags() -> None:
     }
 
 
+def test_vector_endpoint_tag_skips_unsupported_api(capsys: Any) -> None:
+    client = workspace()
+
+    def unsupported(*_args: Any) -> None:
+        raise tag_resources.NotFound("Custom tags are not supported in AI Search")
+
+    client.vector_search_endpoints.update_endpoint_custom_tags = unsupported
+    tag_resources.tag_vector_endpoint(client, "vector-one")
+
+    assert "does not support custom tags; skipped" in capsys.readouterr().out
+
+
 def test_agent_release_tags_model_and_endpoint() -> None:
     deploy = (ROOT / "agent" / "deploy_agent.py").read_text()
     log = (ROOT / "agent" / "log_model.py").read_text()

@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import NotFound
 from databricks.sdk.service.postgres import FieldMask, Project, ProjectCustomTag, ProjectSpec
 from databricks.sdk.service.serving import EndpointTag
 from databricks.sdk.service.sql import EndpointTagPair, EndpointTags
@@ -69,7 +70,13 @@ def tag_serving_endpoint(workspace: WorkspaceClient, endpoint_name: str) -> None
 def tag_vector_endpoint(workspace: WorkspaceClient, endpoint_name: str) -> None:
     endpoint = workspace.vector_search_endpoints.get_endpoint(endpoint_name)
     tags = _merge(endpoint.custom_tags, CustomTag, tag_value=VECTOR_TAG_VALUE)
-    workspace.vector_search_endpoints.update_endpoint_custom_tags(endpoint_name, tags)
+    try:
+        workspace.vector_search_endpoints.update_endpoint_custom_tags(endpoint_name, tags)
+    except NotFound as error:
+        if "Custom tags are not supported in AI Search" not in str(error):
+            raise
+        print(f"AI Search endpoint {endpoint_name} does not support custom tags; skipped")
+        return
     print(f"tagged AI Search endpoint {endpoint_name}")
 
 
