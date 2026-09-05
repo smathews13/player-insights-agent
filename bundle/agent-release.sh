@@ -535,6 +535,29 @@ EOF
   exit 0
 fi
 
+# MLflow's SDK delegates profile authentication back to the CLI from inside the
+# uv subprocess. On OAuth profiles that forced refresh can fail while updating
+# the shared token cache even though `databricks auth token` succeeds immediately
+# before and after it. Mint once in this parent process and pass the short-lived
+# bearer through the standard SDK environment instead. The value is never
+# printed, persisted, or accepted from a release argument.
+WORKSPACE_HOST="$(bundle_json | python3 -c '
+import json,sys
+print((json.load(sys.stdin).get("workspace") or {}).get("host") or "")
+')"
+[[ -n "$WORKSPACE_HOST" ]] || die "The resolved bundle target has no workspace host."
+RELEASE_TOKEN_JSON="$(databricks auth token --profile "$PROFILE")" \
+  || die "Could not mint a short-lived OAuth token from profile '$PROFILE'.
+Run: databricks auth login --profile \"$PROFILE\""
+DATABRICKS_TOKEN="$(printf '%s' "$RELEASE_TOKEN_JSON" | python3 -c '
+import json,sys
+print(json.load(sys.stdin).get("access_token") or "")
+')"
+unset RELEASE_TOKEN_JSON
+[[ -n "$DATABRICKS_TOKEN" ]] || die "Profile '$PROFILE' returned no OAuth access token."
+export DATABRICKS_HOST="$WORKSPACE_HOST"
+export DATABRICKS_TOKEN
+
 LOG_SUMMARY=""
 if [[ "$SKIP_LOG" != true ]]; then
   step "Logging model"

@@ -147,6 +147,16 @@ STUB
 # here gets that far, because all of them are dry runs.
 cat >"$STUBS/uv" <<'STUB'
 #!/usr/bin/env bash
+if [[ "${EXPECT_APPLY_AUTH-false}" == true ]]; then
+  if [[ "${DATABRICKS_TOKEN-}" == fake-token \
+     && "${DATABRICKS_HOST-}" == https://fake-workspace.cloud.databricks.com ]]; then
+    printf 'standard-oauth-env\n' >"$AUTH_MARKER"
+  else
+    printf 'missing-oauth-env\n' >"$AUTH_MARKER"
+  fi
+  echo "intentional stop after checking MLflow subprocess auth" >&2
+  exit 1
+fi
 echo "stub uv should not have been reached: $*" >&2
 exit 1
 STUB
@@ -273,6 +283,16 @@ FAKE_APP_EXISTS=true FAKE_READER_STATUS=0 FAKE_SETTINGS_BODY="$NOTHING_SAVED" \
 expect_status 0 "$status" "the release proceeds"
 expect_text  "says it had nothing to disagree with"          "no outstanding intentions"
 expect_absent "nothing was refused"                          "REFUSED"
+
+echo
+echo "=== 8. apply passes one short-lived standard OAuth credential to MLflow ==="
+AUTH_MARKER="$OUT_DIR/apply-auth.marker" EXPECT_APPLY_AUTH=true FAKE_SETTINGS_BODY="$NOTHING_SAVED" \
+  run_release apply-auth --apply; status=$?
+expect_status nonzero "$status" "the harness stops after inspecting the MLflow subprocess"
+[[ "$(cat "$OUT_DIR/apply-auth.marker" 2>/dev/null || true)" == standard-oauth-env ]] \
+  && ok "MLflow received the resolved host and minted OAuth token" \
+  || bad "MLflow did not receive the standard OAuth environment"
+expect_absent "the short-lived token was never logged"       "fake-token"
 
 echo
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
