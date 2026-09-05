@@ -555,8 +555,6 @@ print(json.load(sys.stdin).get("access_token") or "")
 ')"
 unset RELEASE_TOKEN_JSON
 [[ -n "$DATABRICKS_TOKEN" ]] || die "Profile '$PROFILE' returned no OAuth access token."
-export DATABRICKS_HOST="$WORKSPACE_HOST"
-export DATABRICKS_TOKEN
 
 LOG_SUMMARY=""
 if [[ "$SKIP_LOG" != true ]]; then
@@ -572,7 +570,11 @@ if [[ "$SKIP_LOG" != true ]]; then
   LOG_STDOUT="$(mktemp "${TMPDIR:-/tmp}/pia-log-model.XXXXXX")"
   on_exit "rm -f '$LOG_STDOUT'"
   set +e
-  (cd "$BUNDLE_ROOT/agent" && uv run --python 3.13 python log_model.py "${LOG_ARGS[@]+"${LOG_ARGS[@]}"}" > "$LOG_STDOUT")
+  (
+    cd "$BUNDLE_ROOT/agent"
+    DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
+      uv run --python 3.13 python log_model.py "${LOG_ARGS[@]+"${LOG_ARGS[@]}"}" > "$LOG_STDOUT"
+  )
   LOG_STATUS=$?
   set -e
   LOG_SUMMARY="$(mktemp "${TMPDIR:-/tmp}/pia-log-summary.XXXXXX")"
@@ -699,11 +701,16 @@ Prune idle entities, then re-run:
 fi
 
 step "Deploying version $MODEL_VERSION to $ENDPOINT"
-(cd "$BUNDLE_ROOT/agent" && uv run --python 3.13 python deploy_agent.py --model-version "$MODEL_VERSION")
+(
+  cd "$BUNDLE_ROOT/agent"
+  DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
+    uv run --python 3.13 python deploy_agent.py --model-version "$MODEL_VERSION"
+)
 
 step "Applying the Player Insights Agent resource tag"
 (cd "$BUNDLE_ROOT/agent" \
-  && uv run --python 3.13 python ../bundle/tag-resources.py \
+  && DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
+     uv run --python 3.13 python ../bundle/tag-resources.py \
        --registered-model "$MODEL_NAME" \
        --serving-endpoint "$ENDPOINT")
 
@@ -774,9 +781,13 @@ $MODEL_VERSION can act as the person asking. A missing checker is not a pass:
   USER_AUTH_STATUS=0
   # Under the agent's environment: it reads the registered version's MLmodel with
   # MLflow's own reader rather than parsing YAML a second way.
-  (cd "$BUNDLE_ROOT/agent" && uv run --python 3.13 python "$USER_AUTH_CHECK" \
-    --logged "$LOG_SUMMARY" --registered \
-    --user-authorization "$USER_AUTHORIZATION") || USER_AUTH_STATUS=$?
+  (
+    cd "$BUNDLE_ROOT/agent"
+    DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
+      uv run --python 3.13 python "$USER_AUTH_CHECK" \
+        --logged "$LOG_SUMMARY" --registered \
+        --user-authorization "$USER_AUTHORIZATION"
+  ) || USER_AUTH_STATUS=$?
   case "$USER_AUTH_STATUS" in
     0) : ;;
     1)
