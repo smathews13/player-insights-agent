@@ -31,7 +31,16 @@ describe('the experiment is read as the application', () => {
   it('passes when the workspace answers, naming the experiment it found', () => {
     const check = experimentVerdict({
       experimentId: '<mlflow-experiment-id>',
-      read: { kind: 'ok', body: { experiment: { name: '/Shared/player-insights-agent', lifecycle_stage: 'active' } } },
+      read: {
+        kind: 'ok',
+        body: {
+          experiment: {
+            experiment_id: '<mlflow-experiment-id>',
+            name: '/Shared/player-insights-agent',
+            lifecycle_stage: 'active',
+          },
+        },
+      },
     });
 
     expect(check?.status).toBe('ok');
@@ -48,7 +57,7 @@ describe('the experiment is read as the application', () => {
    */
   it('says whose read it was, in every verdict', () => {
     const reads = [
-      { kind: 'ok' as const, body: {} },
+      { kind: 'ok' as const, body: { experiment: { experiment_id: 'e1' } } },
       { kind: 'refused' as const, status: 403, code: 'PERMISSION_DENIED', message: 'no' },
     ];
     for (const read of reads) {
@@ -98,7 +107,10 @@ describe('the experiment is read as the application', () => {
   it('fails on a deleted experiment, which answers 200 and accepts no runs', () => {
     const check = experimentVerdict({
       experimentId: 'e1',
-      read: { kind: 'ok', body: { experiment: { name: '/Shared/old', lifecycle_stage: 'deleted' } } },
+      read: {
+        kind: 'ok',
+        body: { experiment: { experiment_id: 'e1', name: '/Shared/old', lifecycle_stage: 'deleted' } },
+      },
     });
 
     expect(check?.status).toBe('failed');
@@ -115,7 +127,7 @@ describe('the experiment is read as the application', () => {
   it('passes when the workspace named no stage at all', () => {
     const check = experimentVerdict({
       experimentId: 'e1',
-      read: { kind: 'ok', body: { experiment: { name: '/Shared/live' } } },
+      read: { kind: 'ok', body: { experiment: { experiment_id: 'e1', name: '/Shared/live' } } },
     });
 
     expect(check?.status).toBe('ok');
@@ -131,6 +143,16 @@ describe('the experiment is read as the application', () => {
     expect(check?.error).toBe('socket hang up');
   });
 
+  it('requires the successful response to identify the configured experiment', () => {
+    expect(experimentVerdict({ experimentId: 'e1', read: { kind: 'ok', body: {} } }).status).toBe('unverified');
+    expect(
+      experimentVerdict({
+        experimentId: 'e1',
+        read: { kind: 'ok', body: { experiment: { experiment_id: 'e2', lifecycle_stage: 'active' } } },
+      }).status
+    ).toBe('failed');
+  });
+
   it('fails when no experiment is configured, because traces have no destination', () => {
     const check = experimentVerdict({ experimentId: '  ', read: { kind: 'ok', body: {} } });
     expect(check.status).toBe('failed');
@@ -139,7 +161,10 @@ describe('the experiment is read as the application', () => {
   });
 
   it('is keyed to the resource, so the row and the card find it', () => {
-    const check = experimentVerdict({ experimentId: 'e1', read: { kind: 'ok', body: {} } });
+    const check = experimentVerdict({
+      experimentId: 'e1',
+      read: { kind: 'ok', body: { experiment: { experiment_id: 'e1' } } },
+    });
     expect(check?.id).toBe('experiment-id');
     expect(check?.label).toBe('MLflow experiment');
     expect(check?.name).toBe('e1');

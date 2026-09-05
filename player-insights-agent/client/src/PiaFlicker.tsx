@@ -1,5 +1,6 @@
 /**
- * The PIA D-pad/face-button cycle in every compact legacy seating.
+ * The PIA loading mark in legacy seats: full choreography for splash,
+ * face-buttons-only motion for local seats, and the 16px control cluster.
  *
  * New panel and inline hosts should prefer `PiaLoader`; these named seats keep
  * established layout geometry while using the same PIA loader drawing.

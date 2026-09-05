@@ -51,6 +51,7 @@ import {
   ARCHITECTURE_NODES,
   describeArchitecture,
   drawnReadings,
+  experimentConnectionNeedsRefresh,
   nodeAccessibleName,
   nodeContentAge,
   nodeReport,
@@ -281,11 +282,11 @@ function ArchitectureNodeCard({
             className="arch-node-status-loader"
             label={`Checking ${node.label}`}
           />
-        ) : (
+        ) : report.label ? (
           <span className={astPill(NODE_FAMILY[report.tone], 'arch-node-status')} data-tone={report.tone}>
             {report.label}
           </span>
-        )}
+        ) : null}
         {reading && reading.marker !== 'none' ? (
           <span
             className={astPill(reading.marker === 'drift' ? 'warn' : 'neutral-outline', 'arch-node-drift')}
@@ -321,7 +322,7 @@ function ArchitectureNodeCard({
       data-testid={`arch-node-${node.id}`}
       data-node={node.id}
       data-accent={box.accent}
-      data-tone={checking && node.presence === 'connection' ? undefined : report.tone}
+      data-tone={(checking && node.presence === 'connection') || !report.label ? undefined : report.tone}
       data-checking={checking && node.presence === 'connection' ? 'true' : undefined}
       data-drift={reading && reading.marker !== 'none' ? reading.marker : undefined}
       data-control-bounds={controlBounds.join(' ') || undefined}
@@ -706,6 +707,7 @@ export function ArchitecturePage() {
    */
   const runtime = useLiveRuntimeSettings();
   const loop = runtime?.loop ?? null;
+  const reconciledExperimentMismatch = useRef('');
 
   // The cheap read, and the only one on mount. It costs the app container's own
   // configuration and no round trip to the workspace, which is what lets the
@@ -731,6 +733,26 @@ export function ArchitecturePage() {
       live = false;
     };
   }, []);
+
+  /**
+   * Reconcile a loaded tab after the app behind it was redeployed.
+   *
+   * Session checks intentionally survive route changes, but the browser can
+   * also stay loaded while Databricks replaces the app process. The cheap
+   * Architecture payload carries the newly recovered experiment id; when it
+   * disagrees with the remembered connection payload, re-run the shared checks
+   * once. This is the production failure from the screenshot: Ops had fresh
+   * green evidence while Architecture retained an older empty-id verdict.
+   */
+  useEffect(() => {
+    const current = settings?.resources.find((entry) => entry.resource.id === 'experiment-id')?.configured ?? '';
+    const authoritative = payload?.experimentId ?? '';
+    if (!experimentConnectionNeedsRefresh(authoritative, settings) || checking) return;
+    const mismatch = `${current}\u0000${authoritative}`;
+    if (reconciledExperimentMismatch.current === mismatch) return;
+    reconciledExperimentMismatch.current = mismatch;
+    void refresh();
+  }, [checking, payload?.experimentId, refresh, settings]);
 
   const checks = useMemo(() => report?.checks ?? [], [report]);
   const readings = useMemo(() => readConnections(settings, checks), [settings, checks]);

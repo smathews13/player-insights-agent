@@ -6,7 +6,12 @@ import { describe, expect, it } from 'vitest';
 
 import { ArchitectureCanvas, ArchitecturePage, ChainBoundTiles } from './ArchitecturePage';
 import { AGENT_CHAIN, ANSWER_CONTRACT, CHAIN_BOUND_LABEL, CHAIN_BOUNDS } from './agent-chain';
-import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES, dependencyNodes } from './architecture';
+import {
+  ARCHITECTURE_EDGES,
+  ARCHITECTURE_NODES,
+  dependencyNodes,
+  experimentConnectionNeedsRefresh,
+} from './architecture';
 import { ARCHITECTURE_CONTROL_SCOPES, nextActiveBound } from './architecture-control-scopes';
 import { BOTTOM_ROW_NODES, NODE_BOXES, drawnEdges, pathEnds } from './architecture-layout';
 import { readConnections, readingsById, type SettingsPayload } from './connection-model';
@@ -279,6 +284,13 @@ describe('the page makes one cheap read of its own and delegates the expensive p
     expect(PAGE_SOURCE).not.toContain('const runChecks');
   });
 
+  it('refreshes a remembered MLflow result when the live app reports a different recovered id', () => {
+    const { payload } = deployment();
+    expect(experimentConnectionNeedsRefresh('new-experiment', payload)).toBe(true);
+    expect(experimentConnectionNeedsRefresh('an-experiment', payload)).toBe(false);
+    expect(experimentConnectionNeedsRefresh('', payload)).toBe(false);
+  });
+
   it('shows loaders instead of false failures before the first run has landed', () => {
     const markup = pageMarkup();
     expect([...text(markup).matchAll(/Checking connection/g)]).toHaveLength(dependencyNodes().length);
@@ -305,7 +317,7 @@ describe('every card on the drawing reports the live reading and not a literal',
     // status landing on the wrong node fails here.
     expect(text(card(markup, 'agent-endpoint'))).toContain('Connected');
     expect(text(card(markup, 'genie-data'))).toContain('Disconnected');
-    expect(text(card(markup, 'catalog'))).toContain('Disconnected');
+    expect(text(card(markup, 'catalog'))).toContain('Not checked');
     expect(text(card(markup, 'lakebase'))).toContain('Connected');
   });
 
@@ -365,9 +377,10 @@ describe('every card on the drawing reports the live reading and not a literal',
     // problem that does not exist.
     const model = card(canvasMarkup(), 'llm-endpoint');
 
-    expect(text(model)).toContain('Disconnected');
+    expect(text(model)).toContain('Not checked');
     expect(model).not.toContain('data-drift=');
-    expect(model).toContain('data-tone="disconnected"');
+    expect(model).toContain('data-tone="neutral"');
+    expect(model).not.toContain('data-tone="disconnected"');
     expect(model).not.toContain('arch-node-value');
   });
 
@@ -375,7 +388,8 @@ describe('every card on the drawing reports the live reading and not a literal',
     for (const id of ['browser', 'app']) {
       const local = card(canvasMarkup(), id);
 
-      expect(text(local), id).toContain('Runs here');
+      expect(text(local), id).not.toContain('Runs here');
+      expect(local, id).not.toContain('arch-node-status');
       expect(text(local), id).not.toContain('Connected');
       expect(text(local), id).not.toContain('Disconnected');
     }
@@ -424,33 +438,32 @@ describe('every card on the drawing reports the live reading and not a literal',
     expect(ARCHITECTURE_NODES.every((node) => !/Mosaic/i.test(`${node.label} ${node.role}`))).toBe(true);
   });
 
-  it('states each status in words, never in colour alone', () => {
-    // Every card carries its status as text inside the pill. The accent on a
-    // card's edge says what KIND of thing it is and is never a status, so a reader
-    // who cannot distinguish the six accents loses nothing but decoration.
+  it('states every applicable status in words, never in colour alone', () => {
     const markup = canvasMarkup();
     for (const node of ARCHITECTURE_NODES) {
       const drawn = card(markup, node.id);
-      // The pill is there, in the app's one status recipe rather than in a rule
-      // this page wrote for itself.
+      if (node.presence === 'local') {
+        expect(drawn, node.id).not.toContain('arch-node-status');
+        continue;
+      }
       expect(drawn, node.id).toMatch(/class="ast-pill ast-pill--[a-z-]+ arch-node-status"/);
-      // And it has a WORD in it, which is the half of "never in colour alone"
-      // that a class name cannot carry. An empty pill would satisfy the line
-      // above and say nothing at all.
       const label = drawn.match(/arch-node-status"[^>]*>([^<]*)</)?.[1] ?? '';
       expect(label.trim(), node.id).not.toBe('');
     }
   });
 
-  it('renders exactly one binary connection badge on every remote node and nowhere uses legacy status copy', () => {
+  it('renders exactly one evidence-graded badge on every remote node', () => {
     const markup = canvasMarkup();
     for (const node of dependencyNodes()) {
       const drawn = card(markup, node.id);
       expect(drawn.match(/arch-node-status/g), node.id).toHaveLength(1);
       const label = drawn.match(/arch-node-status"[^>]*>([^<]*)</)?.[1]?.trim();
-      expect(['Connected', 'Disconnected'], node.id).toContain(label);
+      expect(
+        ['Connected', 'Disconnected', 'Unavailable', 'Not checked', 'Not configured', 'Unknown'],
+        node.id
+      ).toContain(label);
     }
-    expect(text(markup)).not.toMatch(/\b(Reachable|Blocked|Unreachable|Refused|Not checked|Ready|Running)\b/);
+    expect(text(markup)).not.toMatch(/\b(Reachable|Blocked|Unreachable|Refused|Ready|Running)\b/);
   });
 });
 

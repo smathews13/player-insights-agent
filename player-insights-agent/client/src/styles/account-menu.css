@@ -51,23 +51,11 @@
     0 0 0 2px color-mix(in srgb, var(--primary) 42%, transparent);
 }
 
-.account-menu-trigger.identity-chip:is(:hover, :focus-visible, [aria-expanded='true']) > .roster-organization-mark {
-  border-color: currentColor;
-  color: currentColor;
-}
-
 .account-menu-trigger > .roster-organization-mark {
   flex-basis: 14px;
   width: 14px;
   height: 14px;
-  border: 0;
-  background: transparent;
   font-size: 7px;
-}
-
-.account-menu-trigger .roster-organization-logo {
-  width: 14px;
-  height: 14px;
 }
 
 .account-menu-trigger .roster-organization-fallback {
@@ -129,11 +117,6 @@
   width: 28px;
   height: 28px;
   font-size: 10px;
-}
-
-.account-menu-principal > .roster-organization-mark .roster-organization-logo {
-  width: 22px;
-  height: 22px;
 }
 
 .account-menu-identity-copy {

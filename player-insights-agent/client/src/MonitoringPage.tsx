@@ -1898,7 +1898,7 @@ export function PersonPanelShell({
             </Button>
           </div>
         ) : (
-          <PiaLoader variant="panel" label="Loading user activity" className="user-profile-modal-profile-loading" />
+          <PiaLoader variant="compact" label="Loading user activity" className="user-profile-modal-profile-loading" />
         )}
       </div>
     </Dialog>
@@ -2076,7 +2076,7 @@ export function UserMonitoringPanel({
             {state.error}
           </p>
         ) : state.status === 'loading' || state.status === 'idle' ? (
-          <PiaLoader variant="panel" label="Loading users" className="monitoring-users-loading" />
+          <PiaLoader variant="compact" label="Loading users" className="monitoring-users-loading" />
         ) : !payload ? (
           <p className="monitoring-users-state" role="status">
             User activity is available only when the server-authorized spend snapshot can be read.

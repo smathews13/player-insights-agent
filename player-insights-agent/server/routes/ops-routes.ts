@@ -74,7 +74,13 @@ import {
   probeConnections,
   SERVING_ENDPOINT_KIND,
 } from '../lib/dependency-probes';
-import { appEnvironment, readStoredSettings, resourceStates, type ResourceState } from '../lib/app-settings';
+import {
+  appEnvironment,
+  readStoredSettings,
+  resolveExperimentConfiguration,
+  resourceStates,
+  type ResourceState,
+} from '../lib/app-settings';
 import { normalizeWorkspaceHost, workspaceAppsUrl } from '../../shared/databricks-links';
 import { readAppBillingTag } from '../lib/resource-tagging';
 import { readOrchestratorReport } from './settings-routes';
@@ -841,7 +847,11 @@ async function readDependencies(
       (options.readReport ?? readOrchestratorReport)(),
       readStoredSettings(appkit).catch(() => new Map()),
     ]);
-    const states = resourceStates({ report, environment: appEnvironment(), stored });
+    const experimentConfiguration = await resolveExperimentConfiguration(appkit, { stored });
+    const resolved = new Map([
+      ['experiment-id', { value: experimentConfiguration.id, source: experimentConfiguration.source }],
+    ]);
+    const states = resourceStates({ report, environment: appEnvironment(), stored, resolved });
     const configured = Object.fromEntries(states.map((state) => [state.resource.id, state.configured]));
     const configuration = report?.configuration ?? [];
     let tables = accessDependenciesFrom({ configuration, env: process.env }).tables;
@@ -868,7 +878,7 @@ async function readDependencies(
       });
       if (listed.length > tables.length) tables = unionTableNames(tables, listed);
     }
-    const [checks, experiment] = await Promise.all([
+    const [checks, experimentCheck] = await Promise.all([
       probeConnections({
         configured,
         tables,
@@ -890,7 +900,7 @@ async function readDependencies(
     return {
       checkedAt,
       reason: '',
-      rows: [...checks, experiment].map((check) => {
+      rows: [...checks, experimentCheck].map((check) => {
         const verdict = checkVerdict(check);
         return {
           id: check.id,

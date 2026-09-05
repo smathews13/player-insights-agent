@@ -14,27 +14,27 @@ import './styles/organization-avatar.css';
 export function OrganizationAvatar({ organization }: { organization: OrganizationMapping }) {
   const logo = ORGANIZATION_LOGOS[organization.logoKey];
   const unknown = organization.fallback === 'building';
+  const markClass = `roster-organization-mark roster-organization-mark--${
+    logo ? 'logo' : unknown ? 'fallback' : 'monogram'
+  }`;
+
+  const attributes = {
+    className: markClass,
+    role: 'img',
+    'aria-label': organization.ariaLabel,
+    title: organization.name,
+    'data-organization-id': organization.id,
+    'data-organization-domain': organization.domain || undefined,
+    'data-organization-mark': 'raw',
+  } as const;
+
+  if (logo) {
+    return <span {...attributes} dangerouslySetInnerHTML={{ __html: logo }} />;
+  }
 
   return (
-    <span
-      className={`roster-organization-mark${logo ? ' roster-organization-mark--branded' : ''}${
-        organization.logoKey === 'databricks' ? ' roster-organization-mark--databricks' : ''
-      }`}
-      role="img"
-      aria-label={organization.ariaLabel}
-      title={organization.name}
-      data-organization-id={organization.id}
-      data-organization-domain={organization.domain || undefined}
-    >
-      {logo ? (
-        <span
-          className={`roster-organization-logo${
-            organization.logoKey === 'databricks' ? ' roster-databricks-symbol' : ''
-          }`}
-          aria-hidden="true"
-          dangerouslySetInnerHTML={{ __html: logo }}
-        />
-      ) : unknown ? (
+    <span {...attributes}>
+      {unknown ? (
         <Building2 className="roster-organization-fallback" aria-hidden="true" />
       ) : (
         <span aria-hidden="true">{organization.monogram}</span>

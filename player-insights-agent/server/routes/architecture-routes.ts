@@ -20,7 +20,7 @@
  * blocks on exactly that.
  */
 import { appServicePrincipal } from './execution-identity';
-import { resolveExperimentId } from '../lib/app-settings';
+import { resolveExperimentConfiguration } from '../lib/app-settings';
 import { withDeadline } from '../lib/deadline';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import type { InsightsAppKit } from './insights-routes';
@@ -94,11 +94,12 @@ export const ARCHITECTURE_EXPERIMENT_TIMEOUT_MS = 2_000;
 
 async function architectureExperimentId(appkit: InsightsAppKit): Promise<string> {
   try {
-    return await withDeadline(
-      resolveExperimentId(appkit),
+    const configuration = await withDeadline(
+      resolveExperimentConfiguration(appkit),
       ARCHITECTURE_EXPERIMENT_TIMEOUT_MS,
-      `Experiment lookup did not answer within ${ARCHITECTURE_EXPERIMENT_TIMEOUT_MS} ms.`,
+      `Experiment lookup did not answer within ${ARCHITECTURE_EXPERIMENT_TIMEOUT_MS} ms.`
     );
+    return configuration.id;
   } catch {
     // This diagnostic route must still draw the map when Lakebase or MLflow is unavailable.
     return process.env.PLAYER_INSIGHTS_EXPERIMENT_ID?.trim() ?? '';

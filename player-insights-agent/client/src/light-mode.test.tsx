@@ -192,7 +192,8 @@ describe('the night sky belongs to dark mode alone', () => {
      * there is no daylight weight at which a star is not a star.
      */
     expect(rule(RAIL, '.ask-layout')).not.toMatch(/background-image|background-size|background-position/);
-    expect(rule(RAIL, '.trace-inspector')).not.toMatch(/background-image|background-size|background-position/);
+    expect(rule(RAIL, '.trace-inspector')).toMatch(/background-image:\s*none/);
+    expect(rule(RAIL, '.trace-inspector')).not.toMatch(/background-size|background-position/);
 
     const layout = rule(RAIL, `html${NOT_DARK} .ask-layout`);
     expect(layout).toMatch(/background-color:\s*var\(--db-wash\)/);
@@ -486,7 +487,9 @@ describe('the daylight list is the whole run, without a star in it', () => {
     const elapsed = '12s';
     const rail = railOf(inFlight, 5, 12_000);
     const band = bandOf(inFlight, 5, 12_000);
-    expect(rail).toContain(`<p class="sr-only" aria-live="polite">${sentence} · ${elapsed}</p>`);
+    expect(rail).toContain(
+      `<p class="sr-only" role="status" aria-live="polite" aria-atomic="true">${sentence} · ${elapsed}</p>`
+    );
     expect(band).toContain(`<span class="ast-sky-status-text">${sentence}</span>`);
     expect(band).toContain(`>${elapsed}</span>`);
   });

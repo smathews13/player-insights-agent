@@ -106,7 +106,7 @@ function fixture(): { payload: SettingsPayload; checks: PreflightCheck[] } {
 }
 
 describe('a node reports what the shared derivation says, and nothing else', () => {
-  it('maps the shared detailed status to Architecture’s binary operational state', () => {
+  it('maps the shared detailed status without upgrading unknown evidence to failure', () => {
     const { payload, checks } = fixture();
     const byResource = readingsById(readConnections(payload, checks));
 
@@ -122,7 +122,17 @@ describe('a node reports what the shared derivation says, and nothing else', () 
         hasRemoteEnd: hasRemoteEnd(reading.row, check),
       });
       expect(reading.status, node.id).toBe(expected);
-      expect(nodeReport(node, reading).label, node.id).toBe(expected === 'reachable' ? 'Connected' : 'Disconnected');
+      const label =
+        expected === 'reachable'
+          ? 'Connected'
+          : expected === 'blocked'
+            ? 'Disconnected'
+            : expected === 'refused' || expected === 'unreachable'
+              ? 'Unavailable'
+              : expected === 'nothing-to-reach'
+                ? 'Not configured'
+                : 'Not checked';
+      expect(nodeReport(node, reading).label, node.id).toBe(label);
     }
   });
 
@@ -188,10 +198,12 @@ describe('the page has no way to derive a status for itself', () => {
     expect(ARCHITECTURE_PAGE).toMatch(/readConnections/);
   });
 
-  it('owns exactly the two Architecture connection labels', () => {
+  it('owns settled and neutral Architecture connection labels', () => {
     expect(ARCHITECTURE_MODEL).toContain("'Connected'");
     expect(ARCHITECTURE_MODEL).toContain("'Disconnected'");
-    expect(ARCHITECTURE_MODEL).not.toMatch(/label:\s*'(Reachable|Blocked|Unreachable|Refused|Not checked)'/);
+    expect(ARCHITECTURE_MODEL).toContain("'Not checked'");
+    expect(ARCHITECTURE_MODEL).toContain("'Unavailable'");
+    expect(ARCHITECTURE_MODEL).not.toMatch(/label:\s*'(Reachable|Blocked|Unreachable|Refused)'/);
   });
 
   it('gives the Connections page no second derivation to drift from', () => {

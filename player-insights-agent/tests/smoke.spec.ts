@@ -207,7 +207,7 @@ test('plan approval flow re-posts the approved plan and keeps the full transcrip
   expect(askBodies[1]).toMatchObject({ approvedPlanId: 'plan-abc123', executePlan: true });
 
   // 4. The whole transcript stays on screen, not just the last pair.
-  await expect(page.locator('.user-bubble')).toHaveCount(2);
+  await expect(page.locator('.question-attribution-message')).toHaveCount(2);
   await expect(page.locator('.plan-card.resolved')).toBeVisible();
   await expect(page.getByText('Proposed analysis plan', { exact: true })).toBeVisible();
   await expect(page.getByText('Approved plan', { exact: true })).toBeVisible();

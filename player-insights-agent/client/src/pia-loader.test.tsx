@@ -65,22 +65,30 @@ describe('PIA D-pad and cluster loader contract', () => {
     expect(CSS).toMatch(/\.pia-loader__diamond\s*\{[^}]*opacity:\s*0\.6/s);
   });
 
-  it('keeps inline motion to two complete simplified marks and the center dot', () => {
-    const markup = renderToStaticMarkup(<PiaLoader variant="inline" />);
-    const dpad = markup.slice(markup.indexOf('pia-loader__phase--dpad'), markup.indexOf('pia-loader__phase--cluster'));
-    expect(markup).toContain('pia-loader-mark--inline');
-    expect(dpad).toContain('data-pia-role="arm"');
-    expect(dpad).not.toContain('data-pia-role="glyph"');
-    expect(markup).not.toContain('pia-loader__highlight');
-    expect(markup).not.toContain('pia-loader__button');
-    expect(markup).not.toContain('pia-loader__diamond');
+  it('uses face-buttons-only motion and the ice center for local loaders', () => {
+    for (const variant of ['compact', 'inline'] as const) {
+      const markup = renderToStaticMarkup(<PiaLoader variant={variant} />);
+      expect(markup, variant).toContain(`pia-loader-mark--${variant}`);
+      expect(markup, variant).toContain('pia-loader__face-cluster');
+      expect(markup.match(/class="pia-loader__button"/g), variant).toHaveLength(4);
+      expect(markup.match(/pia-loader__center/g), variant).toHaveLength(1);
+      expect(markup, variant).not.toContain('pia-loader__phase');
+      expect(markup, variant).not.toContain('data-pia-role="arm"');
+      expect(markup, variant).not.toContain('pia-loader__diamond');
+    }
   });
 
-  it('uses swaps for panel/compact/inline and a fixed clockwise cluster for controls', () => {
-    for (const seat of ['splash', 'compact', 'inline', 'strip'] as const) {
+  it('reserves the full swap for splash and uses clockwise face clusters elsewhere', () => {
+    for (const seat of ['splash'] as const) {
       const markup = renderToStaticMarkup(<PiaFlicker seat={seat} />);
       expect(markup, seat).toContain('pia-loader__phase--dpad');
       expect(markup, seat).toContain('pia-loader__phase--cluster');
+      expect(markup, seat).toContain('pia-loader__center');
+    }
+    for (const seat of ['compact', 'inline', 'strip'] as const) {
+      const markup = renderToStaticMarkup(<PiaFlicker seat={seat} />);
+      expect(markup, seat).toContain('pia-loader__face-cluster');
+      expect(markup, seat).not.toContain('pia-loader__phase');
       expect(markup, seat).toContain('pia-loader__center');
     }
     for (const seat of ['button', 'status'] as const) {
@@ -144,11 +152,14 @@ describe('motion accessibility', () => {
     expect(reduced).toMatch(/\.pia-anim \*\s*\{\s*animation:\s*none !important;/);
   });
 
-  it('rests on one simplified D-pad and the center dot instead of an empty frame or a pile', () => {
+  it('rests with every local face glyph and the center visible', () => {
     const reduced = CSS.slice(CSS.indexOf('@media (prefers-reduced-motion: reduce)'));
     expect(reduced).toMatch(/\.pia-loader__phase\s*\{[^}]*opacity:\s*0/s);
     expect(reduced).toMatch(/\.pia-loader__phase--dpad,[\s\S]*\.pia-loader__center\s*\{[^}]*opacity:\s*1/s);
     expect(reduced).toMatch(/\.pia-loader__phase--dpad \[data-pia-role='glyph'\]\s*\{[^}]*display:\s*none/s);
+    expect(reduced).toMatch(
+      /\.pia-loader-mark--compact \.pia-loader__button,[\s\S]*\.pia-loader-mark--inline \.pia-loader__button\s*\{[^}]*opacity:\s*1/s
+    );
   });
 
   it('honors the in-app animation toggle and print with the same static frame', () => {

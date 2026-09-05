@@ -375,7 +375,7 @@ describe('what moves, and what stops moving (§5)', () => {
     expect(markup).not.toContain('ast-anim-center-pulse');
     expect(markup).not.toContain('ast-anim-star-pulse');
     expect(markup).not.toContain('ast-anim-draw');
-    expect(markup).not.toContain('pia-flick-slot');
+    expect(markup).not.toContain('pia-loader-mark--button');
   });
 
   it('keeps one star wrapper when a running frontier becomes an error', () => {
@@ -735,7 +735,9 @@ describe('the column follows the step the band is marking', () => {
     const body = effectBody(PATH_SOURCE);
     expect(body).toContain('statusRef.current?.getBoundingClientRect().height');
     expect(body).toContain('view.bottom - reserve - FOLLOW_MARGIN');
-    expect(PATH_SOURCE).toContain('<p ref={statusRef} className="ast-sky-status" aria-live="polite">');
+    expect(PATH_SOURCE).toContain(
+      '<p ref={statusRef} className="ast-sky-status" role="status" aria-live="polite" aria-atomic="true">'
+    );
   });
 
   it('renders the same markup it always did, refs being nothing a reader sees', () => {
@@ -869,64 +871,94 @@ describe('the mark is the agent, and there is one of it (§1)', () => {
     // and is painted another gets the wrong cut of the mark stretched to the
     // right size -- nothing looks broken, the graduations are just missing or
     // crowded at a size they were not drawn for.
-    expect(PATH_SOURCE).toContain('<PiaAvatar size={11} tone="dark" />');
-    expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark \.brand-icon,[\s\S]*?width: 11px/);
-    expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark \{[^}]*border: 1px solid/);
+    expect(PATH_SOURCE).toContain('<PiaAvatar size={11} tone={tone} />');
+    expect(CONSTELLATION_CSS).toMatch(/\.agent-identity-mark svg \{[^}]*width: 11px/);
+    expect(CONSTELLATION_CSS).toMatch(/\.agent-identity-mark \{[^}]*border: 1px solid/);
     // `dark` because the status line is on the navy band. The light cut's
     // #2272B4 is 1.9:1 there and the accent dots read as a texture (§2).
   });
 
-  it('flickers the foot’s mark while the run is inside the step the line names', () => {
+  it('keeps the engraved identity beside the separate button loader while active', () => {
     /*
-     * THE REPORTED DEFECT: the one glyph on the foot of a running band was the
-     * only thing on the surface not saying the run was going -- lines drawing,
-     * star beating, ring breathing, and a still mark under all three.
+     * The identity cannot turn into activity: while the path draws, the static
+     * engraved D-pad stays visible and the canonical face buttons cycle in their
+     * own 16px seat.
      *
-     * Asserted as the shared loader rather than as four `<svg>`s: what makes this
-     * fixed is that the foot cycles THE SAME four concepts on THE SAME keyframes
-     * the splash and the strip cycle, so a retune of `ast-flick` moves all three.
-     * A second cycle written into this file would pass a test that counted marks.
+     * The wide swap variants would alternate a second D-pad against the identity,
+     * which is exactly the ambiguity this seating avoids.
      */
-    const running = path(inFlight, 5, 12_000);
-    expect(running).toContain('pia-flick-slot--status');
-    expect(running).toContain('pia-loader-mark--chip');
+    const running = band(path(inFlight, 5, 12_000));
+    expect(running).toContain('agent-activity-marks');
+    expect(running).toContain('agent-identity-mark');
+    expect(running).toContain('data-pia-cut="engraved"');
+    expect(running).toContain('data-pia-static="true"');
+    expect(running).toContain('pia-loader pia-loader--button');
+    expect(running).toContain('pia-loader-mark--button');
     expect([...running.matchAll(/class="pia-loader__button"/g)]).toHaveLength(4);
     expect(running).not.toContain('pia-loader__phase');
-    // Status uses the canonical chip geometry rather than stretching a smaller
-    // identity mark into the loader seat.
-    expect(PIA_LOADER_SIZES.chip).toBe(16);
-    expect(running).toMatch(/class="pia-flick-slot pia-flick-slot--status"[^>]*width:\s*16px/);
+    expect(running).not.toContain('pia-loader--panel');
+    expect(running).not.toContain('pia-loader--compact');
+    expect(PIA_LOADER_SIZES.button).toBe(16);
+    expect(running).toMatch(/pia-loader-mark--button[^>]*width="16" height="16"/);
+    expect(running.indexOf('agent-identity-mark')).toBeLessThan(running.indexOf('pia-loader--button'));
   });
 
-  it('freezes on the finished step’s real mark once the run stops', () => {
+  it('unmounts activity immediately but retains identity when the run stops', () => {
     /*
-     * The other half, and the half that would rot first: a loader still cycling
-     * over a settled run is the band saying the agent is still working, which is
-     * exactly the claim `inFlight` exists to stop the ring and the lines making.
-     *
      * `activeIndex` of -1 is the caller saying no step is in progress. A run whose
      * last step is `running` but which the caller has stopped reporting on is the
-     * same state and is checked too: the flicker follows the caller's statement,
+     * same state and is checked too: the loader follows the caller's statement,
      * not the stage's own leftover status.
      */
     for (const markup of [path(finished, -1, null, 27_400), path(inFlight, -1)]) {
-      expect(markup).not.toContain('pia-flick-slot');
+      expect(band(markup)).toContain('data-pia-static="true"');
+      expect(band(markup)).not.toContain('pia-loader-mark--button');
       expect(markup).not.toContain('pia-loader__phase');
     }
-    // And what it freezes on is the real thing: the last step of `finished` is a
-    // Genie tool call, so the foot holds that product's mark rather than the
-    // app's, which is the fallback for a step no product is behind.
-    expect(path(finished, -1, null, 27_400)).toContain('brand-icon');
   });
 
-  it('holds the real mark for a step the reader pinned, mid-run', () => {
+  it('shows identity without activity for a step the reader pinned, mid-run', () => {
     // A pin is the reader opening a settled step while the run goes on past it.
     // The line then names THAT step, so a loader beside it would be this band
     // claiming a finished step is happening -- the same substitution the ring
     // refuses. Read as source: the suite runs on `node` and a press cannot be
     // dispatched here, and the condition is the half that breaks.
     expect(PATH_SOURCE).toContain('const flickering = beating && pinnedIndex === -1;');
-    expect(PATH_SOURCE).toContain('{flickering ? (');
+    expect(PATH_SOURCE).toContain('<AgentActivityMarks busy={flickering} tone="dark" />');
+  });
+
+  it('reserves separate geometry without overlays or completion shift', () => {
+    expect(CONSTELLATION_CSS).toMatch(/\.agent-activity-marks \{[^}]*width: 42px[^}]*min-width: 42px/);
+    expect(CONSTELLATION_CSS).toMatch(/\.agent-busy-mark \{[^}]*width: 16px[^}]*height: 20px/);
+    const activityRules = CONSTELLATION_CSS.slice(CONSTELLATION_CSS.indexOf('.agent-activity-marks'));
+    expect(activityRules.slice(0, activityRules.indexOf('.ast-sky-status-text'))).not.toMatch(
+      /position:\s*(?:absolute|fixed)/
+    );
+  });
+
+  it('has one announced status and a non-announcing busy glyph', () => {
+    const running = band(path(inFlight, 5, 12_000));
+    expect(attrs(running, 'role').filter((role) => role === 'status')).toEqual(['status']);
+    expect(attrs(running, 'aria-live')).toEqual(['polite']);
+    expect(attrs(running, 'aria-atomic')).toEqual(['true']);
+    expect(attrs(running, 'aria-busy')).toEqual(['true']);
+    expect(running).not.toMatch(/pia-loader[^>]*role="status"/);
+
+    const complete = band(path(finished, -1, null, 27_400));
+    expect(attrs(complete, 'role').filter((role) => role === 'status')).toEqual(['status']);
+    expect(attrs(complete, 'aria-busy')).toEqual([]);
+  });
+
+  it('shows the same dual marks in the live daylight row and identity only when settled', () => {
+    const running = rail(path(inFlight, 5, 12_000));
+    expect(running).toContain('agent-activity-marks');
+    expect(running).toContain('data-pia-static="true"');
+    expect(running).toContain('pia-loader-mark--button');
+
+    const complete = rail(path(finished, -1, null, 27_400));
+    expect(complete).toContain('agent-activity-marks');
+    expect(complete).toContain('data-pia-static="true"');
+    expect(complete).not.toContain('pia-loader-mark--button');
   });
 
   it('leaves no robot anywhere on either band', () => {

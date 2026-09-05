@@ -148,6 +148,8 @@
   min-height: var(--workspace-pane-block-size);
   max-height: var(--workspace-pane-block-size);
   box-sizing: border-box;
+  border: 1px solid var(--ast-border-input);
+  border-radius: var(--ast-radius-card);
   overscroll-behavior: contain;
   /* No hairline against the middle column. The navy panel is its own edge, and a
      translucent white rule on the dark sky read as a seam rather than a
@@ -185,8 +187,26 @@
    */
   overflow-anchor: none;
   isolation: isolate;
-  background: var(--ast-sky-fill);
+  background: var(--ast-surface-primary);
+  background-image: none;
+  backdrop-filter: none;
   color: var(--ast-white);
+}
+
+/*
+ * The Agent path is a foreground pane, including in dark mode.
+ *
+ * dark-mode.css deliberately makes the Ask field transparent so the global
+ * topology can live in the open gutters. The pane must not inherit that choice:
+ * this more-specific surface declaration keeps the ambient lines behind the
+ * card while leaving the local Agent path SVG visible above its own background.
+ * It is one real element, not a pseudo-element or an overlay, so it cannot
+ * intercept controls or create a second scrolling layer.
+ */
+html[data-theme='dark'] .ask-layout > .trace-inspector {
+  background: var(--ast-surface-primary);
+  background-image: none;
+  backdrop-filter: none;
 }
 /*
  * The inspector's head: what this column is, and what the run is doing.
@@ -1109,4 +1129,12 @@ html:not([data-theme='dark']) .trace-inspector .run-status--dark.is-live {
   border-color: var(--ast-border-input);
   background: var(--ast-fill-band);
   color: var(--ast-neutral-text);
+}
+
+@media (forced-colors: active) {
+  .trace-inspector {
+    border-color: CanvasText;
+    background: Canvas;
+    backdrop-filter: none;
+  }
 }

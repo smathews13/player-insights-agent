@@ -237,7 +237,9 @@
   }
 
   .pia-loader-mark--button .pia-loader__button,
-  .pia-loader-mark--chip .pia-loader__button {
+  .pia-loader-mark--chip .pia-loader__button,
+  .pia-loader-mark--compact .pia-loader__button,
+  .pia-loader-mark--inline .pia-loader__button {
     opacity: 1;
     transform: none;
   }
@@ -263,7 +265,9 @@ html[data-animations='off'] .pia-loader__phase--dpad [data-pia-role='glyph'] {
 }
 
 html[data-animations='off'] .pia-loader-mark--button .pia-loader__button,
-html[data-animations='off'] .pia-loader-mark--chip .pia-loader__button {
+html[data-animations='off'] .pia-loader-mark--chip .pia-loader__button,
+html[data-animations='off'] .pia-loader-mark--compact .pia-loader__button,
+html[data-animations='off'] .pia-loader-mark--inline .pia-loader__button {
   opacity: 1;
   transform: none;
 }
@@ -288,7 +292,9 @@ html[data-animations='off'] .pia-loader-mark--chip .pia-loader__button {
   }
 
   .pia-loader-mark--button .pia-loader__button,
-  .pia-loader-mark--chip .pia-loader__button {
+  .pia-loader-mark--chip .pia-loader__button,
+  .pia-loader-mark--compact .pia-loader__button,
+  .pia-loader-mark--inline .pia-loader__button {
     opacity: 1;
     transform: none;
   }

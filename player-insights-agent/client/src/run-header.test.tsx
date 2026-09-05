@@ -93,9 +93,11 @@ describe('the run header names the run without spelling it out', () => {
   it('uses the organization-badged identity chip instead of plain text or initials', () => {
     const markup = header();
     expect(markup).toContain('identity-chip identity-chip--compact organization-user-badge question-attribution-user');
-    expect(markup).toContain('class="roster-organization-mark"');
+    expect(markup).toContain('roster-organization-mark--monogram');
+    expect(markup).toContain('data-organization-mark="raw"');
     expect(markup).toContain('data-organization-id="domain:example.com"');
     expect(markup).toContain('identity-chip-name">someone');
+    expect(markup.indexOf('data-organization-mark="raw"')).toBeLessThan(markup.indexOf('identity-chip-name'));
     expect(markup).not.toContain('Asked by');
     expect(markup).not.toContain('lucide-user-round');
     expect(markup).not.toContain('>SO<');

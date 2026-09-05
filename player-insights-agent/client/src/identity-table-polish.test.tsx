@@ -174,6 +174,9 @@ describe('Identity table polish', () => {
     expect(markup).toContain('aria-label="Organization: Databricks"');
     expect(markup).toContain('data-organization-domain="databricks.com"');
     expect(markup).toContain(DATABRICKS_SYMBOL);
+    expect(markup).toContain('data-organization-mark="raw"');
+    expect(markup).toMatch(/data-organization-id="databricks"[^>]*data-organization-mark="raw"[^>]*><svg/);
+    expect(markup).not.toContain('roster-organization-logo');
     expect(markup).toContain('aria-label="Organization: outside.example.invalid"');
     expect(markup).toContain('>EX</span>');
     expect(markup).not.toContain('lucide-building-2');

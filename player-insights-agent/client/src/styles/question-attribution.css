@@ -11,6 +11,25 @@
   justify-content: flex-end;
   min-width: 0;
   max-width: 100%;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/*
+ * This positioning host is deliberately not a glass surface. Keep global
+ * backing or decoration contracts from growing an opaque rectangle around the
+ * real rounded surface.
+ */
+.question-attribution-bubble::before,
+.question-attribution-bubble::after {
+  display: none;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  content: none;
 }
 
 .question-attribution-surface {
@@ -20,6 +39,7 @@
   align-items: stretch;
   min-width: 0;
   max-width: 100%;
+  overflow: visible;
   border: 1px solid var(--ast-border-input);
   border-radius: calc(var(--radius-md) * 2) calc(var(--radius-md) * 2) var(--radius-sm) calc(var(--radius-md) * 2);
   background: var(--ast-pane);
@@ -52,6 +72,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
+  box-shadow: none;
   color: inherit;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -64,6 +85,8 @@
   flex: none;
   min-width: 0;
   border-left: 1px solid var(--ast-border-input);
+  background: transparent;
+  box-shadow: none;
 }
 
 .question-attribution-meta > .user-drilldown-link {

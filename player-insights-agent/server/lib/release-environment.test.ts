@@ -32,6 +32,8 @@ describe('release runtime configuration persistence', () => {
       LAKEBASE_ENDPOINT: 'projects/example/branches/production',
       PLAYER_INSIGHTS_CATALOG: 'example_catalog',
       PLAYER_INSIGHTS_SCHEMA: 'player_data',
+      PLAYER_INSIGHTS_EXPERIMENT_ID: 'target-experiment-id',
+      PLAYER_INSIGHTS_EXPERIMENT_PATH: '/Shared/target-experiment',
       PLAYER_INSIGHTS_DATA_GENIE_ID: 'data-space',
       PLAYER_INSIGHTS_BUILD_SHA: 'new-build',
       PLAYER_INSIGHTS_ADMIN_EMAILS: 'admin@example.test',
@@ -44,6 +46,8 @@ describe('release runtime configuration persistence', () => {
     expect(recorded).toMatchObject({
       PLAYER_INSIGHTS_CATALOG: 'example_catalog',
       PLAYER_INSIGHTS_SCHEMA: 'player_data',
+      PLAYER_INSIGHTS_EXPERIMENT_ID: 'target-experiment-id',
+      PLAYER_INSIGHTS_EXPERIMENT_PATH: '/Shared/target-experiment',
       PLAYER_INSIGHTS_DATA_GENIE_ID: 'data-space',
     });
     expect(recorded).not.toHaveProperty('PLAYER_INSIGHTS_TARGET');
@@ -55,6 +59,8 @@ describe('release runtime configuration persistence', () => {
     const persisted: Partial<Record<ReleaseEnvironmentKey, string>> = {
       PLAYER_INSIGHTS_CATALOG: 'example_catalog',
       PLAYER_INSIGHTS_SCHEMA: 'player_data',
+      PLAYER_INSIGHTS_EXPERIMENT_ID: 'target-experiment-id',
+      PLAYER_INSIGHTS_EXPERIMENT_PATH: '/Shared/target-experiment',
       PLAYER_INSIGHTS_DATA_GENIE_ID: 'data-space',
       PLAYER_INSIGHTS_DICTIONARY_GENIE_ID: 'dictionary-space',
       PLAYER_INSIGHTS_USER_API_SCOPES: 'sql,dashboards.genie,catalog.tables:read',
@@ -64,6 +70,8 @@ describe('release runtime configuration persistence', () => {
       LAKEBASE_ENDPOINT: 'projects/example/branches/production',
       PLAYER_INSIGHTS_CATALOG: '',
       PLAYER_INSIGHTS_SCHEMA: '',
+      PLAYER_INSIGHTS_EXPERIMENT_ID: '',
+      PLAYER_INSIGHTS_EXPERIMENT_PATH: '/Shared/player-insights-agent',
       PLAYER_INSIGHTS_DATA_GENIE_ID: '',
       PLAYER_INSIGHTS_DICTIONARY_GENIE_ID: '',
       PLAYER_INSIGHTS_USER_API_SCOPES: 'sql',
@@ -71,7 +79,7 @@ describe('release runtime configuration persistence', () => {
       PLAYER_INSIGHTS_ADMIN_EMAILS: '',
     };
 
-    expect(await restoreReleaseEnvironment(readingStore(JSON.stringify(persisted)), env)).toBe(5);
+    expect(await restoreReleaseEnvironment(readingStore(JSON.stringify(persisted)), env)).toBe(7);
     const configuration = configurationForSettings(env, []);
     const manifest = configuration.find((entry) => entry.key === 'declared_manifest');
 
@@ -79,6 +87,8 @@ describe('release runtime configuration persistence', () => {
     expect(configuration.find((entry) => entry.key === 'schema')?.value).toBe('player_data');
     expect(configuration.find((entry) => entry.key === 'data_genie_space_id')?.value).toBe('data-space');
     expect(Array.isArray(manifest?.value) ? manifest.value.length : 0).toBeGreaterThan(0);
+    expect(env.PLAYER_INSIGHTS_EXPERIMENT_ID).toBe('target-experiment-id');
+    expect(env.PLAYER_INSIGHTS_EXPERIMENT_PATH).toBe('/Shared/target-experiment');
     expect(env.PLAYER_INSIGHTS_BUILD_SHA).toBe('new-git-build');
     expect(env.PLAYER_INSIGHTS_TARGET).toBe('');
     expect(env.PLAYER_INSIGHTS_ADMIN_EMAILS).toBe('');

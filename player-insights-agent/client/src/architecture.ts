@@ -37,7 +37,7 @@
  * text equivalent a screen reader gets.
  */
 import { contentAge, type ContentAge } from './semantic-freshness';
-import type { ConnectionReading } from './connection-model';
+import type { ConnectionReading, SettingsPayload } from './connection-model';
 import type { BrandProduct } from './brand-icons';
 
 /**
@@ -353,10 +353,10 @@ export const ARCHITECTURE_EDGES: readonly ArchitectureEdge[] = [
 
 /** What a node's badge says, and why. */
 export interface NodeReport {
-  /** The word on the badge. */
+  /** The word on the badge, or empty when this node needs no status badge. */
   label: string;
   /** Which visual treatment it takes. Not a colour; the stylesheet decides that. */
-  tone: 'connected' | 'disconnected' | 'local';
+  tone: 'connected' | 'disconnected' | 'neutral' | 'local';
   /** The sentence behind the word, for the detail and for the text equivalent. */
   note: string;
 }
@@ -364,21 +364,40 @@ export interface NodeReport {
 /**
  * Architecture deliberately compresses the detailed Connections verdicts into
  * one operational question: did the current probe establish a working remote
- * connection? Only a successful probe is green. Missing configuration, denial,
- * absence, timeout, an unavailable call, and a check that has not completed are
- * all red here. Connections retains the precise reason and remedy.
+ * connection? Only a successful probe is green, and only a settled failed probe
+ * is red. A refusal, timeout, unavailable call, missing check, or deliberately
+ * absent optional dependency stays neutral because none establishes that the
+ * remote object itself is disconnected.
  */
 function connectionReport(reading: ConnectionReading | undefined, note?: string): NodeReport {
-  const connected = reading?.status === 'reachable';
+  if (!reading || reading.status === 'not-checked') {
+    return {
+      label: 'Not checked',
+      tone: 'neutral',
+      note: note ?? reading?.check?.detail?.trim() ?? 'No completed check established a connection state.',
+    };
+  }
+  if (reading.status === 'reachable') {
+    return {
+      label: 'Connected',
+      tone: 'connected',
+      note: note ?? reading.check?.detail?.trim() ?? 'The current dependency probe succeeded.',
+    };
+  }
+  if (reading.status === 'blocked') {
+    return {
+      label: 'Disconnected',
+      tone: 'disconnected',
+      note: note ?? reading.check?.detail?.trim() ?? 'A completed dependency probe established a failed connection.',
+    };
+  }
   return {
-    label: connected ? 'Connected' : 'Disconnected',
-    tone: connected ? 'connected' : 'disconnected',
+    label: reading.status === 'nothing-to-reach' ? 'Not configured' : 'Unavailable',
+    tone: 'neutral',
     note:
       note ??
       reading?.check?.detail?.trim() ??
-      (connected
-        ? 'The current dependency probe succeeded.'
-        : 'The current dependency probe did not establish an operational connection.'),
+      'The current check did not establish whether the remote object is connected.',
   };
 }
 
@@ -431,7 +450,7 @@ export function nodeReport(
   indexReading?: ConnectionReading
 ): NodeReport {
   if (node.presence === 'local') {
-    return { label: 'Runs here', tone: 'local', note: LOCAL_NOTE };
+    return { label: '', tone: 'local', note: LOCAL_NOTE };
   }
   if (node.presence === 'unregistered') {
     return {
@@ -442,21 +461,25 @@ export function nodeReport(
   }
   if (node.id === 'semantic-index') {
     if (reading && !reading.summary.value) {
-      return connectionReport(
-        reading,
-        reading.row.configuredFrom !== '' ? SEMANTIC_INDEX_ABSENT : SEMANTIC_INDEX_UNREPORTED
-      );
+      const reported = reading.row.configuredFrom !== '';
+      return {
+        label: reported ? 'Not configured' : 'Unknown',
+        tone: 'neutral',
+        note: reported ? SEMANTIC_INDEX_ABSENT : SEMANTIC_INDEX_UNREPORTED,
+      };
     }
   }
   if (node.id === 'semantic-index-endpoint') {
     if (indexReading && !indexReading.summary.value) {
-      return connectionReport(
-        reading,
-        indexReading.row.configuredFrom !== '' ? SEMANTIC_ENDPOINT_NO_INDEX : SEMANTIC_ENDPOINT_UNREPORTED
-      );
+      const reported = indexReading.row.configuredFrom !== '';
+      return {
+        label: reported ? 'Not configured' : 'Unknown',
+        tone: 'neutral',
+        note: reported ? SEMANTIC_ENDPOINT_NO_INDEX : SEMANTIC_ENDPOINT_UNREPORTED,
+      };
     }
-    if (!reading?.check && indexReading && indexReading.status !== 'reachable') {
-      return connectionReport(reading, SEMANTIC_ENDPOINT_UNNAMED);
+    if (!reading?.check && indexReading?.check && indexReading.status !== 'reachable') {
+      return { label: 'Unavailable', tone: 'neutral', note: SEMANTIC_ENDPOINT_UNNAMED };
     }
   }
   return connectionReport(reading);
@@ -525,6 +548,17 @@ export function nodeValue(reading: ConnectionReading | undefined): { value: stri
   return reading.summary;
 }
 
+/** Whether the loaded tab remembers a different MLflow destination than the app now reports. */
+export function experimentConnectionNeedsRefresh(
+  experimentId: string,
+  settings: Pick<SettingsPayload, 'resources'> | null
+): boolean {
+  const authoritative = experimentId.trim();
+  if (!authoritative || !settings) return false;
+  const configured = settings.resources.find((entry) => entry.resource.id === 'experiment-id')?.configured ?? '';
+  return configured !== authoritative;
+}
+
 export function nodesInLane(lane: ArchitectureLane): ArchitectureNode[] {
   return ARCHITECTURE_NODES.filter((node) => node.lane === lane);
 }
@@ -577,7 +611,7 @@ export function nodeAccessibleName(
   const report = nodeReport(node, reading, indexReading);
   const value = nodeValue(reading);
   const age = nodeContentAge(node, reading, now);
-  const parts = [`${node.label}: ${report.label}`];
+  const parts = [report.label ? `${node.label}: ${report.label}` : node.label];
   // Second, ahead of the identifier, because it is the second thing the card
   // shows and a name announced before a warning buries the warning.
   if (age) parts.push(age.label);
@@ -620,7 +654,9 @@ export function describeArchitecture(
     const parts = [
       checking && node.presence === 'connection'
         ? `${node.label}: Checking connection.`
-        : `${node.label}: ${report.label}.`,
+        : report.label
+          ? `${node.label}: ${report.label}.`
+          : `${node.label}.`,
       node.role,
     ];
     // The whole sentence rather than the pill's words. This list is the drawing

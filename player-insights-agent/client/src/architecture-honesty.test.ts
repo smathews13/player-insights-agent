@@ -142,42 +142,90 @@ describe('nothing on the page is a figure that was not read', () => {
   });
 });
 
-describe('every remote node has one binary operational connection state', () => {
-  it('maps success to Connected and every other detailed outcome to Disconnected', () => {
+describe('remote node status confidence', () => {
+  it('uses green and red only for settled connection evidence', () => {
     const node = ARCHITECTURE_NODES.find((candidate) => candidate.id === 'sql-warehouse')!;
-    for (const [status, expected] of [
-      ['reachable', 'Connected'],
-      ['blocked', 'Disconnected'],
-      ['refused', 'Disconnected'],
-      ['unreachable', 'Disconnected'],
-      ['not-checked', 'Disconnected'],
-      ['nothing-to-reach', 'Disconnected'],
+    for (const [status, label, tone] of [
+      ['reachable', 'Connected', 'connected'],
+      ['blocked', 'Disconnected', 'disconnected'],
+      ['refused', 'Unavailable', 'neutral'],
+      ['unreachable', 'Unavailable', 'neutral'],
+      ['not-checked', 'Not checked', 'neutral'],
+      ['nothing-to-reach', 'Not configured', 'neutral'],
     ] as const) {
       const report = nodeReport(node, {
         status,
         marker: 'none',
         summary: { value: '', measured: false },
       } as never);
-      expect(report.label, status).toBe(expected);
-      expect(report.tone, status).toBe(expected === 'Connected' ? 'connected' : 'disconnected');
+      expect(report.label, status).toBe(label);
+      expect(report.tone, status).toBe(tone);
     }
   });
 
-  it('starts every remote dependency at Disconnected while the automatic run is pending', () => {
+  it('starts every remote dependency neutral while the automatic run is pending', () => {
     for (const node of ARCHITECTURE_NODES) {
       if (node.presence !== 'connection') continue;
       const report = nodeReport(node, undefined);
-      expect(report.tone, node.id).toBe('disconnected');
-      expect(report.label, node.id).toBe('Disconnected');
+      expect(report.tone, node.id).toBe('neutral');
+      expect(report.label, node.id).toBe('Not checked');
     }
   });
 
-  it('uses green and red only for the two connection states', () => {
+  it('maps indeterminate states to the neutral pill family', () => {
     expect(NODE_FAMILY).toEqual({
       connected: 'pos',
       disconnected: 'neg',
+      neutral: 'neutral-outline',
       local: 'neutral-outline',
     });
+  });
+});
+
+describe('MLflow experiment evidence states', () => {
+  const experiment = architectureNode('experiment-id')!;
+  const reading = (check?: Partial<PreflightCheck>) => {
+    const settings = payload([
+      row('experiment-id', {
+        configured: 'experiment',
+        configuredFrom: 'app-path',
+      }),
+    ]);
+    const checks = check
+      ? ([
+          {
+            id: 'experiment-id',
+            label: 'MLflow experiment',
+            kind: 'observability',
+            name: 'experiment',
+            detail: '',
+            error: '',
+            ...check,
+          },
+        ] as PreflightCheck[])
+      : [];
+    return readingsById(readConnections(settings, checks)).get('experiment-id');
+  };
+
+  it('shows connected only after a successful live read', () => {
+    expect(nodeReport(experiment, reading({ status: 'ok' }))).toMatchObject({
+      label: 'Connected',
+      tone: 'connected',
+    });
+  });
+
+  it('shows disconnected only after a settled failed read', () => {
+    expect(nodeReport(experiment, reading({ status: 'failed', error: 'not found' }))).toMatchObject({
+      label: 'Disconnected',
+      tone: 'disconnected',
+    });
+  });
+
+  it('keeps pending and unavailable reads neutral', () => {
+    expect(nodeReport(experiment, reading())).toMatchObject({ label: 'Not checked', tone: 'neutral' });
+    expect(
+      nodeReport(experiment, reading({ status: 'unverified', error: 'lookup timed out', stopped: 'unreachable' }))
+    ).toMatchObject({ label: 'Unavailable', tone: 'neutral' });
   });
 });
 
@@ -229,8 +277,8 @@ describe('the optional component reports which of its three states it is in', ()
   it('reads a release with no index as a deployment, not as a gap', () => {
     const report = nodeReport(node, indexReading({ configuredFrom: 'artifact' }));
     expect(report.note).toBe(SEMANTIC_INDEX_ABSENT);
-    expect(report.tone).toBe('disconnected');
-    expect(report.label).toBe('Disconnected');
+    expect(report.tone).toBe('neutral');
+    expect(report.label).toBe('Not configured');
     // The distinction this test exists for: not the sentence about being unable
     // to see, which was what every release used to get.
     expect(report.note).not.toMatch(/unknown|cannot see|does not report/i);
@@ -239,10 +287,9 @@ describe('the optional component reports which of its three states it is in', ()
   it('separates a version too old to report it from one that reported none', () => {
     const report = nodeReport(node, indexReading({ configuredFrom: '' }));
     expect(report.note).toBe(SEMANTIC_INDEX_UNREPORTED);
-    expect(report.tone).toBe('disconnected');
-    expect(report.label).toBe('Disconnected');
+    expect(report.tone).toBe('neutral');
+    expect(report.label).toBe('Unknown');
     expect(report.note).toMatch(/does not mean there is no index/);
-    expect(report.label).toBe('Disconnected');
   });
 
   it('shows the index it searches, graded like any other connection, when there is one', () => {
@@ -261,6 +308,7 @@ describe('the optional component reports which of its three states it is in', ()
       const report = nodeReport(ARCHITECTURE_NODES.find((node) => node.id === id)!, undefined);
       expect(report.tone).toBe('local');
       expect(report.note).toBe(LOCAL_NOTE);
+      expect(report.label).toBe('');
       expect(report.label).not.toMatch(/reachable/i);
     }
   });
@@ -346,8 +394,10 @@ describe('the semantic lane is two objects, and one can fail without the other',
     const { index, endpoint } = reports({ index: { configuredFrom: 'artifact' } });
     expect(index.note).toBe(SEMANTIC_INDEX_ABSENT);
     expect(endpoint.note).toBe(SEMANTIC_ENDPOINT_NO_INDEX);
-    expect(index.tone).toBe('disconnected');
-    expect(endpoint.tone).toBe('disconnected');
+    expect(index.tone).toBe('neutral');
+    expect(endpoint.tone).toBe('neutral');
+    expect(index.label).toBe('Not configured');
+    expect(endpoint.label).toBe('Not configured');
     // Not a fault on either card, and not a claim that a probe was refused.
     for (const report of [index, endpoint]) {
       expect(report.note).not.toMatch(/unknown|cannot see|does not report|refus/i);
@@ -358,18 +408,20 @@ describe('the semantic lane is two objects, and one can fail without the other',
     const { index, endpoint } = reports({ index: { configuredFrom: '' } });
     expect(index.note).toBe(SEMANTIC_INDEX_UNREPORTED);
     expect(endpoint.note).toBe(SEMANTIC_ENDPOINT_UNREPORTED);
-    expect(index.tone).toBe('disconnected');
-    expect(endpoint.tone).toBe('disconnected');
+    expect(index.tone).toBe('neutral');
+    expect(endpoint.tone).toBe('neutral');
+    expect(index.label).toBe('Unknown');
+    expect(endpoint.label).toBe('Unknown');
     expect(index.note).not.toBe(SEMANTIC_INDEX_ABSENT);
     expect(endpoint.note).not.toBe(SEMANTIC_ENDPOINT_NO_INDEX);
   });
 
-  it('keeps both remote semantic nodes red until successful probes land', () => {
+  it('keeps both remote semantic nodes neutral until successful probes land', () => {
     const { index, endpoint } = reports({ index: CONFIGURED });
-    expect(index.label).toBe('Disconnected');
-    expect(endpoint.label).toBe('Disconnected');
-    expect(index.tone).toBe('disconnected');
-    expect(endpoint.tone).toBe('disconnected');
+    expect(index.label).toBe('Not checked');
+    expect(endpoint.label).toBe('Not checked');
+    expect(index.tone).toBe('neutral');
+    expect(endpoint.tone).toBe('neutral');
   });
 
   it('grades each object on its own check once the checks have run', () => {
@@ -402,8 +454,8 @@ describe('the semantic lane is two objects, and one can fail without the other',
     // the same as nobody having pressed the button.
     const { index, endpoint } = reports({ index: CONFIGURED, checks: [check(INDEX, 'failed')] });
     expect(index.label).toBe('Disconnected');
-    expect(endpoint.label).toBe('Disconnected');
-    expect(endpoint.tone).toBe('disconnected');
+    expect(endpoint.label).toBe('Unavailable');
+    expect(endpoint.tone).toBe('neutral');
     expect(endpoint.note).toBe(SEMANTIC_ENDPOINT_UNNAMED);
   });
 
@@ -412,7 +464,7 @@ describe('the semantic lane is two objects, and one can fail without the other',
    * The index can be absent, unreported, pending, healthy, or failed without
    * creating a third connection state.
    */
-  it('keeps detailed index reasons while using one failed connection badge', () => {
+  it('keeps detailed index reasons while preserving confidence states', () => {
     const cases = [
       reports({ index: { configuredFrom: 'artifact' } }).index, // no index at all
       reports({ index: { configuredFrom: '' } }).index, // the version did not say
@@ -421,16 +473,16 @@ describe('the semantic lane is two objects, and one can fail without the other',
       reports({ index: CONFIGURED, checks: [check(INDEX, 'failed')] }).index,
     ];
     expect(cases.map((report) => report.label)).toEqual([
-      'Disconnected',
-      'Disconnected',
-      'Disconnected',
+      'Not configured',
+      'Unknown',
+      'Not checked',
       'Connected',
       'Disconnected',
     ]);
     expect(new Set(cases.map((report) => report.note)).size).toBeGreaterThan(2);
   });
 
-  it('keeps detailed endpoint reasons while using binary connection badges', () => {
+  it('keeps detailed endpoint reasons while preserving confidence states', () => {
     const online = [check(INDEX, 'ok', 'an_index')];
     const cases = [
       reports({ index: { configuredFrom: 'artifact' } }).endpoint, // nothing to serve
@@ -441,10 +493,10 @@ describe('the semantic lane is two objects, and one can fail without the other',
       reports({ index: CONFIGURED, checks: [...online, check(ENDPOINT, 'failed')] }).endpoint,
     ];
     expect(cases.map((report) => report.label)).toEqual([
-      'Disconnected',
-      'Disconnected',
-      'Disconnected',
-      'Disconnected',
+      'Not configured',
+      'Unknown',
+      'Not checked',
+      'Unavailable',
       'Connected',
       'Disconnected',
     ]);
@@ -723,13 +775,13 @@ describe('Architecture cannot know less about the semantic lane than Connections
       const readings = readingsById(readConnections(payload(rows), checks));
       for (const id of ['semantic-index', 'semantic-index-endpoint']) {
         const reading = readings.get(id)!;
-        expect(nodeReport(architectureNode(id)!, reading, readings.get('semantic-index')).label, id).toBe(
-          reading.status === 'reachable' ? 'Connected' : 'Disconnected'
-        );
+        const expected =
+          reading.status === 'reachable' ? 'Connected' : reading.status === 'blocked' ? 'Disconnected' : 'Not checked';
+        expect(nodeReport(architectureNode(id)!, reading, readings.get('semantic-index')).label, id).toBe(expected);
       }
     }
-    expect(nodeReport(architectureNode('semantic-index')!, undefined).label).toBe('Disconnected');
-    expect(nodeReport(architectureNode('semantic-index-endpoint')!, undefined).label).toBe('Disconnected');
+    expect(nodeReport(architectureNode('semantic-index')!, undefined).label).toBe('Not checked');
+    expect(nodeReport(architectureNode('semantic-index-endpoint')!, undefined).label).toBe('Not checked');
   });
 });
 
@@ -775,11 +827,21 @@ describe('nothing about this deployment is written down in source', () => {
 });
 
 describe('the diagram is not information only a sighted mouse user can get', () => {
+  it('omits the removed local badge copy from accessible names and equivalent text', () => {
+    const equivalent = describeArchitecture(new Map()).join(' ');
+    for (const id of ['browser', 'app']) {
+      const node = architectureNode(id)!;
+      expect(nodeAccessibleName(node, undefined)).not.toContain('Runs here');
+    }
+    expect(equivalent).not.toContain('Runs here');
+  });
+
   it('states every node and every edge in words', () => {
     const lines = describeArchitecture(new Map());
     for (const node of ARCHITECTURE_NODES) {
+      const prefix = node.presence === 'local' ? `${node.label}.` : `${node.label}:`;
       expect(
-        lines.some((line) => line.startsWith(`${node.label}:`)),
+        lines.some((line) => line.startsWith(prefix)),
         node.id
       ).toBe(true);
     }

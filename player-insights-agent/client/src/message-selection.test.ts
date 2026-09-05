@@ -42,14 +42,14 @@ describe('selection is styled per surface, because each inverts its own fill', (
    * stop matching the other the next time it does.
    */
   it('styles the user bubble and the answer card separately', () => {
-    expect(STYLESHEET).toContain('.user-bubble::selection');
+    expect(STYLESHEET).toContain('.question-attribution-message::selection');
     expect(STYLESHEET).toContain('.answer-card::selection');
   });
 
   it('reaches nested elements as well as the surface itself', () => {
     // `::selection` matches the element the selected text belongs to, so a
     // bubble whose content is wrapped in a span falls through without this.
-    expect(STYLESHEET).toContain('.user-bubble ::selection');
+    expect(STYLESHEET).toContain('.question-attribution-message ::selection');
     expect(STYLESHEET).toContain('.answer-card ::selection');
   });
 
@@ -58,7 +58,7 @@ describe('selection is styled per surface, because each inverts its own fill', (
    * reproduces the bug in a different colour, so both halves are required.
    */
   it('sets a foreground as well as a background on each surface', () => {
-    for (const selector of ['.user-bubble::selection', '.answer-card::selection']) {
+    for (const selector of ['.question-attribution-message::selection', '.answer-card::selection']) {
       const rule = ruleFor(selector);
       expect(rule, selector).toMatch(/background:/);
       expect(rule, selector).toMatch(/color:/);
@@ -70,8 +70,8 @@ describe('selection is styled per surface, because each inverts its own fill', (
     // while its fill was the darkest neutral in the app; the fill went to a light
     // near-opaque gray and the pair had to turn over with it, or the selection
     // would have been near-white on near-white -- the original bug, restaged.
-    expect(ruleFor('.user-bubble::selection')).toContain('var(--db-ink)');
-    expect(ruleFor('.user-bubble::selection')).toContain('#ffffff');
+    expect(ruleFor('.question-attribution-message::selection')).toContain('var(--db-ink)');
+    expect(ruleFor('.question-attribution-message::selection')).toContain('#ffffff');
     expect(ruleFor('.answer-card::selection')).toContain('var(--db-ink)');
     expect(ruleFor('.answer-card::selection')).toContain('#ffffff');
   });
@@ -79,7 +79,7 @@ describe('selection is styled per surface, because each inverts its own fill', (
 
 describe('the cursor says which text can be selected', () => {
   it('puts an I-beam over the question the user typed', () => {
-    expect(ruleFor('.user-bubble {')).toContain('cursor: text');
+    expect(ruleFor('.question-attribution-message {')).toContain('cursor: text');
   });
 
   it('puts one over the agent’s prose too', () => {

@@ -36,7 +36,7 @@ import {
   settingsPayload,
   writeStoredSetting,
 } from '../lib/app-settings';
-import { resolveExperimentId, resolveNotebookDeclaration } from '../lib/app-settings';
+import { resolveExperimentConfiguration, resolveExperimentId, resolveNotebookDeclaration } from '../lib/app-settings';
 import { recordAdminAction, requireAdmin } from '../lib/admin-roles';
 import { readAgentModel } from '../lib/agent-model';
 import { readAppFacts } from '../lib/app-metadata';
@@ -309,6 +309,8 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
     app.get('/api/settings', async (req, res) => {
       const { report, answered } = await readOrchestratorReport();
       const stored = await readStoredSettings(appkit);
+      const experiment = await resolveExperimentConfiguration(appkit, { stored });
+      const resolved = new Map([['experiment-id', { value: experiment.id, source: experiment.source }]]);
       const notebookSync = await notebookAgentSyncEnabled(appkit);
       const environment = appEnvironment();
       const payload = settingsPayload({
@@ -316,6 +318,7 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
         endpointAnswered: answered,
         environment,
         stored,
+        resolved,
         appBuildSha: appBuildSha(),
         appBuildAncestors: appBuildAncestors(),
         // Asked separately, because `readStoredSettings` degrades an outage to
@@ -330,10 +333,10 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
         // this payload too.
         app: await readAppFacts(),
       });
-      const states = resourceStates({ report, environment, stored });
+      const states = resourceStates({ report, environment, stored, resolved });
       res.json({
         ...payload,
-        checks: await readReachability(req, { report, environment, stored }),
+        checks: await readReachability(req, { report, environment, stored, resolved }),
         // Assembled here rather than inside `settingsPayload` for the reason that
         // function's own comment gives: it is pure, and both of these need a round
         // trip. The notebook read also needs the request, because it is made as the
@@ -1100,6 +1103,7 @@ async function readReachability(
     report: PreflightReport | null;
     environment: Record<string, string>;
     stored: Map<string, StoredSetting>;
+    resolved?: ReadonlyMap<string, { value: string; source: string }>;
   }
 ): Promise<PreflightCheck[]> {
   try {

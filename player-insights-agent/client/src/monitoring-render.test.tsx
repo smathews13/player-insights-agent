@@ -191,6 +191,8 @@ describe('who asked, in the list', () => {
 
     expect(markup).toContain('identity-chip identity-chip--compact organization-user-badge monitoring-asker-who');
     expect(markup).toContain('data-organization-id="domain:example.test"');
+    expect(markup).toContain('data-organization-mark="raw"');
+    expect(markup.indexOf('data-organization-mark="raw"')).toBeLessThan(markup.indexOf('identity-chip-name'));
     expect(markup).not.toContain('lucide-user-round');
     expect(markup).not.toContain('monitoring-initials');
     expect(markup).toContain('title="first.person@example.test · example.test"');
@@ -1427,6 +1429,10 @@ describe('the User Monitoring browser', () => {
     expect(visible).toContain('All organizations');
     expect(markup).toContain('aria-label="Filter users by organization: All organizations"');
     expect(markup).toContain('data-organization-id="northwind-games"');
+    expect(markup).toMatch(/data-organization-id="northwind-games"[^>]*data-organization-mark="raw"[^>]*><svg/);
+    expect(markup).toMatch(
+      /monitoring-user-identity[\s\S]*?data-organization-id="northwind-games"[\s\S]*?identity-chip-name">ada\.reader/
+    );
     expect(visible).toContain('–');
     expect(visible).not.toContain('Unavailable');
     expect(markup).not.toMatch(/>\s*Coverage\s*</);
@@ -1445,7 +1451,7 @@ describe('the User Monitoring browser', () => {
     expect(markup).toContain('aria-label="Open ada.reader User Overview"');
   });
 
-  it('uses one centered panel loader without fake rows before results arrive', () => {
+  it('uses one centered compact face loader without fake rows before results arrive', () => {
     const markup = render(
       <UserMonitoringPanel
         state={beginPanelLoad<OpsCostPayload>('users', 1)}
@@ -1465,8 +1471,10 @@ describe('the User Monitoring browser', () => {
     );
     expect(markup).toContain('monitoring-users-loading');
     expect(text(markup)).toContain('Loading users');
-    expect(markup.match(/pia-loader-mark--panel/g)).toHaveLength(1);
-    expect(markup).toContain('width="112"');
+    expect(markup.match(/pia-loader-mark--compact/g)).toHaveLength(1);
+    expect(markup).toContain('width="32"');
+    expect(markup).toContain('pia-loader__face-cluster');
+    expect(markup).not.toContain('pia-loader__phase--dpad');
     expect(markup).not.toContain('monitoring-users-loading-icon');
     expect(markup).not.toContain('lucide-users');
     expect(markup).not.toContain('monitoring-users-loading-list');
@@ -1786,7 +1794,8 @@ describe('the per-user panel', () => {
     expect(loading.match(/user-profile-modal-spend-kpi(?: |")/g)).toHaveLength(5);
     expect(loading.match(/pia-flick-slot--compact/g)).toHaveLength(1);
     expect(loading).toContain('pia-loader-mark--compact');
-    expect(loading.match(/pia-loader__phase--(?:dpad|cluster)/g)).toHaveLength(2);
+    expect(loading).toContain('pia-loader__face-cluster');
+    expect(loading).not.toContain('pia-loader__phase--dpad');
     expect(loading).toContain('pia-loader__center');
     expect(loading).not.toContain('lucide-wallet');
     expect(loading).not.toContain('user-profile-modal-spend-loading-icon');
@@ -2120,6 +2129,9 @@ describe('the per-user panel', () => {
     expect(markup).toContain('class="identity-chip user-profile-modal-identity-chip"');
     expect(markup).toContain('data-organization-id="acme-interactive"');
     expect(markup).toContain('aria-label="Organization: Acme Interactive"');
+    expect(markup).toMatch(/data-organization-id="acme-interactive"[^>]*data-organization-mark="raw"[^>]*><svg/);
+    expect(markup.indexOf('data-organization-mark="raw"')).toBeLessThan(markup.indexOf('identity-chip-name'));
+    expect(markup).not.toContain('roster-organization-logo');
     expect(markup).toContain('customer.admin@take2games.com');
     expect(markup).toContain('user-profile-modal-identity-chip');
     expect(markup).not.toContain('user-profile-modal-organization');

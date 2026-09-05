@@ -19,6 +19,7 @@ import {
   driftStatus,
   forgetResolvedExperimentIds,
   readStoredSettings,
+  resolveExperimentConfiguration,
   resolveExperimentId,
   resolveJudgeEndpoint,
   resourceStates,
@@ -1044,6 +1045,29 @@ describe('resolving the experiment id', () => {
 
     expect(value).toBe('987654');
     expect(calls).toEqual(['/Shared/player-insights-agent']);
+  });
+
+  it('reports the recovered path as the authoritative configured source', async () => {
+    process.env[PATH] = '/Shared/player-insights-agent';
+    const configuration = await resolveExperimentConfiguration(client([]), {
+      resolvePath: () => Promise.resolve('987654'),
+    });
+
+    expect(configuration).toEqual({
+      id: '987654',
+      path: '/Shared/player-insights-agent',
+      source: 'app-path',
+    });
+    const all = states({
+      report: report(),
+      environment: {},
+      stored: stored(),
+      resolved: new Map([['experiment-id', { value: configuration.id, source: configuration.source }]]),
+    });
+    expect(state(all, 'experiment-id')).toMatchObject({
+      configured: '987654',
+      configuredFrom: 'app-path',
+    });
   });
 
   it('resolves a path once and reuses the answer', async () => {

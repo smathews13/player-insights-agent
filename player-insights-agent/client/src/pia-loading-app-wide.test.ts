@@ -26,10 +26,10 @@ describe('app-wide PIA loading context map', () => {
     expect(read('HomePage.tsx')).toContain('<PiaFlicker seat="splash" />');
     expect(read('HomePage.tsx')).toContain('<WorkingInlineRow');
     expect(read('MonitoringPage.tsx')).toContain(
-      '<PiaLoader variant="panel" label="Loading user activity" className="user-profile-modal-profile-loading" />'
+      '<PiaLoader variant="compact" label="Loading user activity" className="user-profile-modal-profile-loading" />'
     );
     expect(read('MonitoringPage.tsx')).toContain(
-      '<PiaLoader variant="panel" label="Loading users" className="monitoring-users-loading" />'
+      '<PiaLoader variant="compact" label="Loading users" className="monitoring-users-loading" />'
     );
     expect(read('RunExplorer.tsx')).toContain('<PiaLoader variant="compact" label="Loading run details"');
     expect(read('ConnectionsPage.tsx')).toContain('<PiaLoadingLabel seat="compact" label="Loading connections"');
@@ -41,6 +41,37 @@ describe('app-wide PIA loading context map', () => {
     ]) {
       expect(read(settingsHost), settingsHost).toContain('PiaLoader');
     }
+  });
+
+  it('uses face-only compact marks for local pane and card loading', () => {
+    const localHosts = [
+      ['OpsPage.tsx', '<PiaLoader variant="compact" label="Loading spend and budgets"'],
+      ['OpsPage.tsx', '<PiaLoader variant="compact" label="Loading resource costs"'],
+      ['HomePage.tsx', '<PiaLoaderMark variant="compact" />'],
+      ['MonitoringPage.tsx', '<PiaFlicker seat="compact" />'],
+      ['MonitoringPage.tsx', '<PiaLoader variant="compact" label="Loading user activity"'],
+      ['MonitoringPage.tsx', '<PiaLoader variant="compact" label="Loading users"'],
+      ['ConnectionsPage.tsx', '<PiaLoadingLabel seat="compact" label="Loading connections"'],
+      ['SpIdentityPanel.tsx', '<PiaLoader variant="compact" label="Reading SP persona configurations"'],
+      ['RunExplorer.tsx', '<PiaLoader variant="compact" label="Loading run details"'],
+    ] as const;
+    for (const [host, loader] of localHosts) {
+      expect(read(host), host).toContain(loader);
+    }
+
+    const loader = read('PiaLoader.tsx');
+    expect(loader).toContain("const compactFace = variant === 'compact' || variant === 'inline'");
+    expect(loader).toContain('<CompactFaceMark />');
+    expect(loader).toContain('<SwapMark detailed />');
+  });
+
+  it('reserves full panel choreography for initialization contexts', () => {
+    const panelHosts = sourceFiles(new URL('.', ROOT).pathname)
+      .filter((path) => path.endsWith('.tsx'))
+      .filter((path) => readFileSync(path, 'utf8').includes('variant="panel"'))
+      .map((path) => path.slice(path.lastIndexOf('/') + 1))
+      .sort();
+    expect(panelHosts).toEqual(['AppSessionRecovery.tsx', 'Layout.tsx', 'StartupBoundary.tsx']);
   });
 
   it('uses a static engraved status mark for completed answers', () => {

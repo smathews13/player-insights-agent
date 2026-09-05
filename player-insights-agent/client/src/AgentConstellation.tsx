@@ -3,8 +3,8 @@
  *
  * `AgentPathConstellation` is `#18a`: the rail's run, vertical, connecting as it
  * happens. The line into the step in progress draws on a 2.2s loop, that step's
- * star pulses, and the mark on the foot's status line flickers through the four
- * concepts the app's other loaders flicker through; every other line is at rest.
+ * star pulses, and a 16px face-button loader runs beside the foot's persistent
+ * engraved D-pad identity; every other line is at rest.
  * IT STAYS UP AFTER THE RUN, at rest and with the ending named on its status
  * line, because the reader asked to keep looking at the drawing of the run they
  * just watched rather than have it substituted for a list the moment the answer
@@ -75,7 +75,7 @@ import {
   type BrandTone,
 } from './brand-icons';
 import { BrandIcon } from './BrandIcon';
-import { PiaFlicker } from './PiaFlicker';
+import { PiaLoader } from './PiaLoader';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { StageStatus, TraceStage } from './answer-shape';
 import { formatDuration } from './benchmark-format';
@@ -284,6 +284,29 @@ function railTime(stage: TraceStage, live: boolean, elapsedMs: number | null): s
 }
 
 /**
+ * The agent's persistent identity and its separate working signal.
+ *
+ * The engraved D-pad never swaps out: it identifies who owns the status line.
+ * While that line names the step currently being worked, the reserved sibling
+ * seat mounts the canonical 16px face-button loader. Keeping the seat present
+ * after the loader unmounts prevents the status text from shifting when a run
+ * completes or errors. The loader is decorative inside the line's single status
+ * region, but retains `aria-busy` so reduced motion still exposes busy state.
+ */
+function AgentActivityMarks({ busy, tone }: { busy: boolean; tone: BrandTone }) {
+  return (
+    <span className="agent-activity-marks">
+      <span className="agent-identity-mark" aria-hidden="true">
+        <PiaAvatar size={11} tone={tone} />
+      </span>
+      <span className="agent-busy-mark">
+        {busy ? <PiaLoader variant="button" tone={tone} label={null} announce={false} as="span" /> : null}
+      </span>
+    </span>
+  );
+}
+
+/**
  * The run as a list of steps on white, which is what light mode draws instead of
  * the sky.
  *
@@ -382,11 +405,13 @@ function StepRail({
                         band. Decorative, not labelled: the row already names the
                         step, and a product tooltip here leaked onto the compact
                         Run Explorer tiles that share this markup. */}
-                    {product !== null ? (
-                      <BrandIcon product={product} size={12} />
-                    ) : star.decision ? (
-                      <PiaAvatar size={11} />
-                    ) : null}
+                    {!selected &&
+                      (product !== null ? (
+                        <BrandIcon product={product} size={12} />
+                      ) : star.decision ? (
+                        <PiaAvatar size={11} />
+                      ) : null)}
+                    {selected ? <AgentActivityMarks busy={live} tone="light" /> : null}
                     {state !== '' && (
                       <span className={`step-rail-state ${railTone(stage.status, live)}`.trim()}>{state}</span>
                     )}
@@ -409,7 +434,7 @@ function StepRail({
         the other view's is inside a `display: none` subtree, which is out of the
         accessibility tree, so nothing announces twice.
       */}
-      <p className="sr-only" aria-live="polite">
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {statusDuration ? `${statusText} · ${statusDuration}` : statusText}
       </p>
     </div>
@@ -604,7 +629,6 @@ export function AgentPathConstellation({
   const beating = current?.status === 'running' && elapsedMs !== null;
   const path = buildPathConstellation(stages, beating ? activeIndex : -1, pathVariant(thread, turn));
   const currentStar = current ? path.stars[activeIndex] : null;
-  const shownProduct = shownIndex >= 0 ? starProduct(path.stars[shownIndex]?.tool ?? '') : null;
   const statusDuration = beating
     ? `${Math.max(0, Math.floor(elapsedMs / 1000))}s`
     : activeIndex === -1 && totalMs !== null
@@ -635,9 +659,9 @@ export function AgentPathConstellation({
    */
   const pin = (id: string) => setPinnedId((held) => (held === id ? null : id));
   /*
-   * Whether the foot's mark is a loader: the run is inside a step AND the line is
-   * following it. Derived here beside the rest of the band's state rather than
-   * inline in the markup, so the one condition is readable next to `beating`.
+   * Whether the foot adds its separate loader: the run is inside a step AND the
+   * line is following it. Derived here beside the rest of the band's state rather
+   * than inline in the markup, so the one condition is readable next to `beating`.
    */
   const flickering = beating && pinnedIndex === -1;
   /*
@@ -732,35 +756,27 @@ export function AgentPathConstellation({
         happening. The elapsed figure is the caller's measured elapsed in DM Mono,
         because it is a figure in a right-aligned meta slot.
       */}
-        <p ref={statusRef} className="ast-sky-status" aria-live="polite">
+        <p ref={statusRef} className="ast-sky-status" role="status" aria-live="polite" aria-atomic="true">
           {/*
-          THE SLOT FLICKERS WHILE THE STEP IT NAMES IS THE ONE BEING WORKED ON,
-          and holds the step's real mark the rest of the time.
+          THE ENGRAVED D-PAD STAYS WHILE THE STEP IT NAMES IS BEING WORKED ON,
+          and a separate face-button loader occupies the reserved sibling slot.
 
-          It was static in both states, which made the one glyph on the foot of a
-          running band the only thing on the surface not saying the run was going:
-          lines drawing, star beating, ring breathing, and a still mark under them.
+          Replacing the identity with a loader made the agent disappear exactly
+          while it worked. Mounting both without reserving the second slot moved
+          the step sentence when the run completed. One persistent identity and
+          one conditionally mounted loader in fixed geometry avoid both failures.
 
-          `PiaFlicker` rather than a fifth thing that cycles: it is the app's
-          working loader, `ast-anim-flick` and the four concepts, and the reader
-          has already met it on the splash and in the strip. A second cycle
-          written here would drift from that one the first time either is retuned.
+          `PiaLoader variant="button"` rather than the large swap loader: it is
+          the canonical 16px face-button cycle used by controls, with no D-pad
+          phase competing with the persistent identity.
 
           `flickering` is not `inFlight` alone, because the line does not always
           name the step the run is on. A pinned step is a settled step the reader
           opened, and a loader beside its name would be this band claiming that
           step is happening -- the same substitution the ring refuses two comments
-          up. Pinned, or run over: the real mark.
+          up. Pinned, or run over: identity only.
         */}
-          <span className="ast-sky-status-mark" aria-hidden="true">
-            {flickering ? (
-              <PiaFlicker seat="status" />
-            ) : shownProduct ? (
-              <BrandIcon product={shownProduct} size={12} tone="dark" />
-            ) : (
-              <PiaAvatar size={11} tone="dark" />
-            )}
-          </span>
+          <AgentActivityMarks busy={flickering} tone="dark" />
           <span className="ast-sky-status-text">{statusText}</span>
           {statusDuration && (
             <span

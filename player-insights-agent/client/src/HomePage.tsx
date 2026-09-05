@@ -3057,7 +3057,6 @@ const MessageItem = memo(function MessageItem({
         asker={asker}
         canOpenUser={canOpenUser}
         className="user-message"
-        questionClassName="user-bubble"
       />
     );
   }

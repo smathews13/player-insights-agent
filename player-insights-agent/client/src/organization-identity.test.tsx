@@ -18,6 +18,10 @@ import {
 } from './UserOrganizationSelect';
 
 const ORGANIZATION_CSS = readFileSync(new URL('./styles/organization-avatar.css', import.meta.url), 'utf8');
+const SHELL_CSS = readFileSync(new URL('./styles/shell.css', import.meta.url), 'utf8');
+const SETTINGS_CSS = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
+const ACCOUNT_CSS = readFileSync(new URL('./styles/account-menu.css', import.meta.url), 'utf8');
+const QUESTION_CSS = readFileSync(new URL('./styles/question-attribution.css', import.meta.url), 'utf8');
 const MONITORING_CSS = readFileSync(new URL('./styles/monitoring.css', import.meta.url), 'utf8');
 const RESPONSIVE_CSS = readFileSync(new URL('./styles/responsive-monitoring.css', import.meta.url), 'utf8');
 const DENSITY_CSS = readFileSync(new URL('./styles/density-monitoring.css', import.meta.url), 'utf8');
@@ -26,6 +30,26 @@ const MULTISELECT_SOURCE = [
   readFileSync(new URL('./AppMultiSelectMenu.tsx', import.meta.url), 'utf8'),
 ].join('\n');
 const ORGANIZATION_SELECT_SOURCE = readFileSync(new URL('./UserOrganizationSelect.tsx', import.meta.url), 'utf8');
+const HOST_SOURCE = {
+  account: [
+    readFileSync(new URL('./AccountMenu.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('./AccountMenuPanel.tsx', import.meta.url), 'utf8'),
+  ].join('\n'),
+  identity: [
+    readFileSync(new URL('./IdentityPanel.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8'),
+  ].join('\n'),
+  monitoring: readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8'),
+  question: readFileSync(new URL('./QuestionAttributionBubble.tsx', import.meta.url), 'utf8'),
+  rail: readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8'),
+  run: readFileSync(new URL('./RunHeader.tsx', import.meta.url), 'utf8'),
+};
+
+function rule(stylesheet: string, selector: string): string {
+  const start = stylesheet.indexOf(`${selector} {`);
+  expect(start, `${selector} exists`).toBeGreaterThan(-1);
+  return stylesheet.slice(start, stylesheet.indexOf('}', start));
+}
 
 describe('organization identity assets', () => {
   it('renders each canonical local mark with the manifest label and stable id', () => {
@@ -34,6 +58,10 @@ describe('organization identity assets', () => {
       expect(markup).toContain(`data-organization-id="${organization.id}"`);
       expect(markup).toContain(`aria-label="${organization.ariaLabel}"`);
       expect(markup).toContain(ORGANIZATION_LOGOS[organization.logoKey]);
+      expect(markup).toContain('data-organization-mark="raw"');
+      expect(markup).toMatch(/roster-organization-mark--logo[^>]*><svg/);
+      expect(markup).not.toContain('roster-organization-logo');
+      expect(markup).not.toContain('roster-databricks-symbol');
       expect(markup).not.toContain('lucide-user-round');
     }
   });
@@ -45,18 +73,54 @@ describe('organization identity assets', () => {
     expect(markup).toContain('data-organization-id="domain:studio2games.example"');
     expect(markup).toContain('>S2</span>');
     expect(markup).not.toContain('lucide-building-2');
-    expect(markup).not.toContain('roster-organization-mark--branded');
+    expect(markup).toContain('roster-organization-mark--monogram');
+    expect(markup).toContain('data-organization-mark="raw"');
   });
 
-  it('keeps organization marks legible in both themes, compact density, and responsive controls', () => {
-    expect(ORGANIZATION_CSS).toMatch(/\.roster-organization-mark--branded[^}]*background:\s*var\(--card\)/s);
-    expect(ORGANIZATION_CSS).toMatch(/\.roster-organization-logo svg[^}]*color:\s*inherit/s);
+  it('keeps every organization mark as an unframed transparent fixed icon box', () => {
+    const mark = rule(ORGANIZATION_CSS, '.roster-organization-mark');
+    expect(mark).toContain('width: 24px');
+    expect(mark).toContain('height: 24px');
+    expect(mark).toContain('padding: 0');
+    expect(mark).toContain('border: 0');
+    expect(mark).toContain('border-radius: 0');
+    expect(mark).toContain('background: transparent');
+    expect(mark).toContain('box-shadow: none');
+    expect(rule(ORGANIZATION_CSS, '.roster-organization-mark--logo > svg')).toMatch(
+      /width:\s*100%[\s\S]*height:\s*100%/
+    );
+    expect(ORGANIZATION_CSS).not.toContain('roster-organization-mark--branded');
+    expect(ORGANIZATION_CSS).not.toContain('roster-organization-mark--databricks');
+    expect(SETTINGS_CSS).not.toMatch(/\.roster-organization-mark(?:\s|,|\{)/);
     expect(ORGANIZATION_CSS).toMatch(
       /@media \(forced-colors: active\)[\s\S]*\.roster-organization-mark[^}]*color:\s*CanvasText/s
+    );
+    expect(ORGANIZATION_CSS).not.toMatch(
+      /@media \(forced-colors: active\)[\s\S]*\.roster-organization-mark[^}]*(?:background|border-color):/s
     );
     expect(MONITORING_CSS).toContain('.monitoring-organization-trigger');
     expect(RESPONSIVE_CSS).toMatch(/\.monitoring-organization-trigger[^}]*width:\s*100%/s);
     expect(DENSITY_CSS).toContain('.app-menu-option');
+  });
+
+  it('routes every identity host through the one raw organization mark primitive', () => {
+    expect(HOST_SOURCE.account.match(/<OrganizationAvatar/g)).toHaveLength(2);
+    expect(HOST_SOURCE.identity.match(/<OrganizationAvatar/g)).toHaveLength(2);
+    expect(HOST_SOURCE.monitoring).toMatch(/function AskerMark[\s\S]*?<OrganizationUserBadge/);
+    expect(HOST_SOURCE.monitoring.match(/icon=\{<OrganizationAvatar/g)).toHaveLength(3);
+    expect(HOST_SOURCE.rail).toMatch(/<OrganizationUserBadge[\s\S]*?className="conversation-owner"/);
+    expect(HOST_SOURCE.question).toContain('<OrganizationUserBadge');
+    expect(HOST_SOURCE.run).toContain('<QuestionAttributionBubble');
+  });
+
+  it('keeps the sole badge boundary outside the raw organization mark', () => {
+    expect(rule(SHELL_CSS, '.identity-chip')).toContain('border: 1px solid var(--db-line-strong)');
+    expect(rule(ACCOUNT_CSS, '.account-menu-trigger')).toContain('border: 1px solid var(--ast-border-input)');
+    expect(rule(QUESTION_CSS, '.question-attribution-surface')).toContain('border: 1px solid var(--ast-border-input)');
+    expect(rule(QUESTION_CSS, '.question-attribution-bubble .question-attribution-user.identity-chip')).toContain(
+      'border: 0'
+    );
+    expect(rule(ORGANIZATION_CSS, '.roster-organization-mark')).toContain('border: 0');
   });
 });
 
@@ -74,6 +138,9 @@ describe('organization user badges', () => {
     );
     expect(markup).toContain(`data-organization-id="${organizationId}"`);
     expect(markup).toContain(`>${handle}<`);
+    expect(markup).toMatch(/data-organization-mark="raw"[^>]*><svg/);
+    expect(markup.indexOf('data-organization-mark="raw"')).toBeLessThan(markup.indexOf('identity-chip-name'));
+    expect(markup.match(/data-organization-mark="raw"/g)).toHaveLength(1);
     expect(markup).toContain('identity-chip-link-arrow');
     expect(markup).not.toContain('Asked by');
     expect(markup).not.toContain('lucide-user-round');

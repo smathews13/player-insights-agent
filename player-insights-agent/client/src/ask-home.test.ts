@@ -460,17 +460,20 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(body('.trace-title')).toMatch(/font-size:\s*18px/);
   });
 
-  it('uses the entire harness rail as one navy panel', () => {
+  it('uses the entire harness rail as one occluding panel', () => {
     const inspector = body('.trace-inspector');
-    // `--ast-sky-fill`: the dark SURFACE token, which is a slightly lighter and
-    // bluer dark than `--ast-navy`, the ink. Sam asked for the dark chrome to stop
-    // reading as black; the ink stayed where the design handoff put it.
-    expect(inspector).toMatch(/background:\s*var\(--ast-sky-fill\)/);
+    // Primary surface paint suppresses the global decorative topology while the
+    // local path SVG remains visible inside this one card.
+    expect(inspector).toMatch(/background:\s*var\(--ast-surface-primary\)/);
+    expect(inspector).toMatch(/background-image:\s*none/);
+    expect(inspector).toMatch(/backdrop-filter:\s*none/);
+    expect(inspector).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+    expect(inspector).toMatch(/border-radius:\s*var\(--ast-radius-card\)/);
     expect(inspector).toMatch(/padding:\s*20px 12px 20px 20px/);
     expect(inspector).toMatch(/gap:\s*14px/);
     expect(inspector).not.toMatch(/background:\s*var\(--background\)/);
     // The only topology is the fixed app layer behind this panel.
-    expect(inspector).not.toMatch(/background-image|background-size|background-position/);
+    expect(inspector).not.toMatch(/background-size|background-position/);
 
     const sky = body('.trace-inspector .ast-sky');
     // Transparent, so the column's one field runs behind the band rather than the

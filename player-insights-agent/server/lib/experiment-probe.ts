@@ -156,9 +156,30 @@ export function experimentVerdict(input: {
     };
   }
 
+  const observedId = experimentIdOf(input.read.body);
   const observed = describes(input.read.body);
   const displayName = textOf(experimentOf(input.read.body).name);
   const stage = textOf(experimentOf(input.read.body).lifecycle_stage);
+  if (!observedId) {
+    return {
+      ...base,
+      display_name: displayName || undefined,
+      status: 'unverified',
+      detail:
+        'The workspace answered without an experiment identifier, so the configured trace destination was not verified.',
+      error: 'the experiment response did not identify an experiment',
+    };
+  }
+  if (observedId !== experimentId) {
+    return {
+      ...base,
+      display_name: displayName || undefined,
+      status: 'failed',
+      detail:
+        'The workspace returned a different experiment than the configured trace destination. The application cannot safely treat that response as connected.',
+      error: 'the experiment response did not match the configured identifier',
+    };
+  }
   if (stage && stage.toLowerCase() !== ACTIVE_STAGE) {
     return {
       ...base,

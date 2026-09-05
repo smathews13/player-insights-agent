@@ -7,8 +7,12 @@ import { QuestionAttributionBubble } from './QuestionAttributionBubble';
 const source = (file: string) => readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
 const CSS = source('styles/question-attribution.css');
 const ASK_CSS = source('styles/ask.css');
+const DARK_CSS = source('styles/dark-mode.css');
+const APPEARANCE_CSS = source('styles/appearance-preferences.css');
+const ANSWER_BODY_CSS = source('styles/answer-body.css');
 const MONITORING_CSS = source('styles/monitoring.css');
 const RUNS_CSS = source('styles/runs.css');
+const SHIPPED_CSS = [CSS, ASK_CSS, DARK_CSS, APPEARANCE_CSS, ANSWER_BODY_CSS, MONITORING_CSS, RUNS_CSS].join('\n');
 
 function rule(selector: string, stylesheet = CSS): string {
   const start = stylesheet.indexOf(`${selector} {`);
@@ -36,6 +40,8 @@ describe('the shared question attribution bubble', () => {
     expect(markup).toContain('class="question-attribution-meta"');
     expect(markup).toContain('identity-chip-name"><your-username>');
     expect(markup).toContain('data-organization-id="domain:example.test"');
+    expect(markup).toContain('data-organization-mark="raw"');
+    expect(markup.indexOf('data-organization-mark="raw"')).toBeLessThan(markup.indexOf('identity-chip-name'));
     expect(markup).not.toContain('lucide-user-round');
     expect(markup).not.toContain('Asked by');
     expect(markup).toContain('href="/monitoring?who=<your-username>%40example.test"');
@@ -49,15 +55,27 @@ describe('the shared question attribution bubble', () => {
     const group = rule('.question-attribution-bubble');
     const surface = rule('.question-attribution-surface');
     const tail = rule('.question-attribution-surface::after');
+    const hostPseudo = rule('.question-attribution-bubble::before,\n.question-attribution-bubble::after');
     const message = rule('.question-attribution-message');
     const meta = rule('.question-attribution-meta');
     const identity = rule('.question-attribution-bubble .question-attribution-user.identity-chip');
 
-    expect(group).not.toMatch(/\bborder(?:-radius)?\s*:/);
+    expect(group).toContain('overflow: visible');
+    expect(group).toContain('border: 0');
+    expect(group).toContain('border-radius: 0');
+    expect(group).toContain('background: transparent');
+    expect(group).toContain('box-shadow: none');
     expect(group).not.toMatch(/\bgap\s*:/);
+    expect(hostPseudo).toContain('display: none');
+    expect(hostPseudo).toContain('content: none');
+    expect(hostPseudo).toContain('background: none');
+    expect(hostPseudo).toContain('border: 0');
     expect(surface).toContain('border: 1px solid var(--ast-border-input)');
-    expect(surface).toContain('border-radius: calc(var(--radius-md) * 2) calc(var(--radius-md) * 2) var(--radius-sm)');
+    expect(surface).toContain(
+      'border-radius: calc(var(--radius-md) * 2) calc(var(--radius-md) * 2) var(--radius-sm) calc(var(--radius-md) * 2)'
+    );
     expect(surface).toContain('background: var(--ast-pane)');
+    expect(surface).toContain('overflow: visible');
     expect(tail).toContain("content: ''");
     expect(tail).toContain('right: 22px');
     expect(tail).toContain('bottom: -5px');
@@ -68,13 +86,30 @@ describe('the shared question attribution bubble', () => {
     expect(message).toContain('border: 0');
     expect(message).toContain('border-radius: 0');
     expect(message).toContain('background: transparent');
+    expect(message).toContain('box-shadow: none');
     expect(meta).toContain('border-left: 1px solid var(--ast-border-input)');
+    expect(meta).toContain('background: transparent');
+    expect(meta).toContain('box-shadow: none');
     expect(identity).toContain('border: 0');
     expect(identity).toContain('border-radius: 0');
     expect(identity).toContain('background: transparent');
-    expect((CSS.match(/\.question-attribution[^,{]*::after\s*\{/g) ?? []).length).toBe(1);
+    expect((CSS.match(/content:\s*''/g) ?? []).length).toBe(1);
     expect(CSS).not.toMatch(/question-attribution-(?:message|meta|user)[^,{]*(?::before|::after)/);
     expect(CSS).not.toMatch(/clip-path|margin-(?:left|top):\s*7px/);
+  });
+
+  it('cannot regain the legacy rectangular Ask backing through the later cascade', () => {
+    const home = source('HomePage.tsx');
+
+    expect(home).not.toContain('questionClassName="user-bubble"');
+    expect(SHIPPED_CSS).not.toContain('.user-bubble');
+    expect(ASK_CSS).toContain('.user-message .question-attribution-message');
+    const ordinaryDarkQuestionRules = [...DARK_CSS.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(
+      ([, selectors]) => selectors.includes('.question-attribution-message') && !selectors.includes('::selection')
+    );
+    expect(ordinaryDarkQuestionRules).toEqual([]);
+    expect(APPEARANCE_CSS).not.toMatch(/question-attribution-(?:bubble|message|meta|surface)/);
+    expect(ANSWER_BODY_CSS).not.toContain('.user-bubble');
   });
 
   it('wraps long questions and keeps a one-surface second row when narrow', () => {

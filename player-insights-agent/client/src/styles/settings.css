@@ -624,47 +624,6 @@
   color: var(--muted-foreground);
 }
 
-.roster-organization-mark {
-  flex: 0 0 24px;
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--muted);
-  color: var(--ast-text-secondary);
-  font-family: var(--font-sans);
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.roster-organization-mark--databricks {
-  border-color: color-mix(in srgb, var(--db-red-700) 28%, var(--border));
-  background: var(--card);
-  text-transform: none;
-}
-
-.roster-databricks-symbol {
-  width: 19px;
-  height: 19px;
-  display: grid;
-  place-items: center;
-}
-
-.roster-databricks-symbol svg,
-.roster-organization-fallback {
-  width: 100%;
-  height: 100%;
-}
-
-.roster-organization-fallback {
-  width: 14px;
-  height: 14px;
-}
-
 .roster-organization-name {
   color: var(--muted-foreground);
   font-family: var(--font-sans);

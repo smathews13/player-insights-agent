@@ -1077,12 +1077,6 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   flex-basis: 16px;
   inline-size: 16px;
   block-size: 16px;
-  border: 0;
-  background: transparent;
-}
-.user-profile-modal-identity-row .user-profile-modal-identity-chip .roster-organization-logo {
-  inline-size: 16px;
-  block-size: 16px;
 }
 .user-profile-modal-persona {
   min-width: 0;

@@ -40,10 +40,7 @@ export type ChangedBy =
  * this is the side that displays it: a second copy in Python would be a second
  * thing to keep in step for no reader's benefit.
  */
-export const CHANGED_BY: Record<
-  ChangedBy,
-  { label: string; note: string; appliesImmediately: boolean }
-> = {
+export const CHANGED_BY: Record<ChangedBy, { label: string; note: string; appliesImmediately: boolean }> = {
   'model-version': {
     label: 'New model version',
     note:
@@ -120,10 +117,10 @@ export interface ConnectedResource {
    * Whether this value names something outside the app that a check could ask.
    *
    * False for the deployment's own settings -- a token cap, two lists of catalog
-   * patterns, a Postgres schema name, a boolean -- and for the two objects
-   * nothing in this deployment can reach: the assets volume, which no runtime
-   * path opens and which the Apps API refuses to grant a scope for, and the
-   * MLflow experiment, which is a deep-link target rather than a dependency.
+   * patterns, a Postgres schema name, a boolean -- and for the assets volume,
+   * which no runtime path opens and which the Apps API refuses to grant a scope
+   * for. The MLflow experiment is a remote trace destination even though its
+   * probe runs as the app rather than through a forwarded user scope.
    *
    * IT DECIDES `Not checked` AGAINST `Nothing to reach`, and getting it from
    * `agentKey` was wrong. That field says who OWNS a value, not whether anything
@@ -231,8 +228,7 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     kind: 'genie-space',
     changedBy: 'model-version',
     arrivesBy: 'MLflow model_config, and a DatabricksGenieSpace resource on the same model version.',
-    bundleVariable:
-      'genie_dictionary_space_id, naming a space the bundle attaches to rather than creates',
+    bundleVariable: 'genie_dictionary_space_id, naming a space the bundle attaches to rather than creates',
     agentKey: 'dictionary_genie_space_id',
     appEnvVar: null,
     actualFromCheck: 'genie-dictionary',
@@ -455,10 +451,11 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     // server/lib/experiment-probe.ts, which carries the rejected names and says
     // in every verdict whose read it was.
     actualFromCheck: 'experiment-id',
-    // Still false: the check reports whether the experiment exists, and the value
-    // the app shows is the id it was configured with. There is no second reading
-    // of the id itself to compare the first with, so this must not invite one.
-    namesRemoteObject: false,
+    // A real remote destination. The app writes every trace there and probes it
+    // under its own identity, so filtering remote resources must keep this row.
+    // Marking it false dropped the successful check before Architecture derived
+    // its cards, leaving the node red while Ops showed the same experiment green.
+    namesRemoteObject: true,
     applyWith: 'Save it here, or set var.experiment_path and release the app.',
     stageable: false,
   },
@@ -515,8 +512,7 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     // existence would not.
     actualFromCheck: 'notebook-declaration',
     namesRemoteObject: true,
-    applyWith:
-      'Save it here, or set PLAYER_INSIGHTS_NOTEBOOK_DECLARATION before releasing the app.',
+    applyWith: 'Save it here, or set PLAYER_INSIGHTS_NOTEBOOK_DECLARATION before releasing the app.',
     // Not stageable, and the reason is the tier rather than an omission: staging is
     // for a value only a new model version can apply, and this one applies now.
     stageable: false,
@@ -548,13 +544,15 @@ export function connectedResource(id: string): ConnectedResource | undefined {
 }
 
 /** The ids a form on the settings page may write, and nothing else. */
-export const RUNTIME_EDITABLE_IDS = CONNECTED_RESOURCES.filter((resource) => resource.changedBy === 'app-runtime'
-).map((resource) => resource.id);
+export const RUNTIME_EDITABLE_IDS = CONNECTED_RESOURCES.filter((resource) => resource.changedBy === 'app-runtime').map(
+  (resource) => resource.id
+);
 
 /**
  * The ids the settings pane may record an intended value for.
  */
-export const STAGEABLE_IDS = CONNECTED_RESOURCES.filter((resource) => resource.stageable).map((resource) => resource.id
+export const STAGEABLE_IDS = CONNECTED_RESOURCES.filter((resource) => resource.stageable).map(
+  (resource) => resource.id
 );
 
 /** Whether a value saved for this id would take effect, or only be recorded. */

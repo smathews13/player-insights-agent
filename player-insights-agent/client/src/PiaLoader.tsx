@@ -99,6 +99,29 @@ function ButtonMark({ size }: { size: number }) {
   );
 }
 
+function CompactFaceMark() {
+  const clusterGlyphs = PIA_CLUSTER_BODY.filter((element) => element.role === 'glyph');
+  return (
+    <>
+      <g className="pia-loader__face-cluster">
+        {clusterGlyphs.map((glyph, index) => (
+          <g
+            className="pia-loader__button"
+            style={{
+              ...animationDelay(index),
+              transformOrigin: GLYPH_ORIGINS[index],
+            }}
+            key={`compact-face-${JSON.stringify(glyph)}`}
+          >
+            <PiaShape element={glyph} />
+          </g>
+        ))}
+      </g>
+      <PiaShape element={PIA_DPAD_CENTER} className="pia-loader__center" />
+    </>
+  );
+}
+
 export function PiaLoaderMark({
   variant = 'inline',
   size,
@@ -111,9 +134,8 @@ export function PiaLoaderMark({
   className?: string;
 }) {
   const resolvedSize = size ?? PIA_LOADER_SIZES[variant];
-  const swaps = variant === 'panel' || variant === 'compact' || variant === 'inline';
-  const detailed = variant === 'panel';
   const button = variant === 'button' || variant === 'chip';
+  const compactFace = variant === 'compact' || variant === 'inline';
   return (
     <svg
       className={`pia-loader-mark pia-loader-mark--${variant} pia-mark pia-mark--${tone} pia-anim ${className ?? ''}`.trim()}
@@ -124,7 +146,13 @@ export function PiaLoaderMark({
       aria-hidden="true"
       focusable="false"
     >
-      {swaps ? <SwapMark detailed={detailed} /> : <ButtonMark size={resolvedSize} />}
+      {variant === 'panel' ? (
+        <SwapMark detailed />
+      ) : compactFace ? (
+        <CompactFaceMark />
+      ) : (
+        <ButtonMark size={resolvedSize} />
+      )}
     </svg>
   );
 }

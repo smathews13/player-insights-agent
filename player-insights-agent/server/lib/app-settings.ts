@@ -243,39 +243,77 @@ export const EXPERIMENT_ID_CACHE_MAX_ENTRIES = 128;
 export const EXPERIMENT_ID_CACHE_TTL_MS = 60 * 60_000;
 const experimentIdByPath = new ExpiringLruCache<string>(EXPERIMENT_ID_CACHE_MAX_ENTRIES, EXPERIMENT_ID_CACHE_TTL_MS);
 
+export type ExperimentConfigurationSource = 'app-saved' | 'app-environment' | 'app-path' | 'unconfigured';
+
+/**
+ * The one recovered MLflow destination every app surface consumes.
+ *
+ * `PLAYER_INSIGHTS_EXPERIMENT_ID` is deliberately empty in the public Git
+ * artifact. Treating that authored placeholder as the configuration made
+ * Architecture probe an empty id while its own deep-link route successfully
+ * resolved `PLAYER_INSIGHTS_EXPERIMENT_PATH`. Carry both the resolved id and
+ * its source so Settings, Ops, Architecture, and trace links cannot each choose
+ * a different answer.
+ */
+export interface ExperimentConfiguration {
+  id: string;
+  path: string;
+  source: ExperimentConfigurationSource;
+}
+
 /** Forget resolved ids, so a test starts from a clean cache. Exported for tests. */
 export function forgetResolvedExperimentIds(): void {
   experimentIdByPath.clear();
 }
 
 /**
- * The MLflow experiment a stored trace id is deep-linked into.
+ * The MLflow experiment configuration in force.
  *
  * Three sources, most specific first. An admin's active override, then the id the
  * release resolved into the environment, then -- when no id was supplied -- the
  * workspace PATH resolved to an id at runtime. A "From Git" deploy never runs the
  * release that fills the id, so it ships only the stable path; this is what gives
- * it the deep link the release path has always had.
+ * it the same status check and deep link the release path has always had.
  */
+export async function resolveExperimentConfiguration(
+  client: LakebaseReader,
+  options: {
+    stored?: ReadonlyMap<string, StoredSetting>;
+    environment?: Record<string, string | undefined>;
+    resolvePath?: ExperimentIdResolver;
+    now?: number;
+  } = {}
+): Promise<ExperimentConfiguration> {
+  const environment = options.environment ?? process.env;
+  const stored = options.stored ?? (await readStoredSettings(client, { maxAgeMs: STORED_SETTINGS_TTL_MS }));
+  const saved = stored.get('experiment-id');
+  const path = environment.PLAYER_INSIGHTS_EXPERIMENT_PATH?.trim() ?? '';
+  if (saved?.intent === 'active' && saved.value) {
+    return { id: saved.value, path, source: 'app-saved' };
+  }
+
+  const fromEnv = environment.PLAYER_INSIGHTS_EXPERIMENT_ID?.trim();
+  if (fromEnv) return { id: fromEnv, path, source: 'app-environment' };
+
+  if (!path) return { id: '', path: '', source: 'unconfigured' };
+  const now = options.now ?? Date.now();
+  const cached = experimentIdByPath.get(path, now);
+  if (cached) return { id: cached, path, source: 'app-path' };
+  const resolved = (await (options.resolvePath ?? workspaceExperimentIdResolver)(path)).trim();
+  if (resolved) {
+    experimentIdByPath.set(path, resolved, now);
+    return { id: resolved, path, source: 'app-path' };
+  }
+  return { id: '', path, source: 'unconfigured' };
+}
+
+/** The id-only compatibility surface used by trace and Monitoring links. */
 export async function resolveExperimentId(
   client: LakebaseReader,
   resolvePath: ExperimentIdResolver = workspaceExperimentIdResolver,
   now = Date.now()
 ): Promise<string> {
-  const stored = await readStoredSettings(client, { maxAgeMs: STORED_SETTINGS_TTL_MS });
-  const saved = stored.get('experiment-id');
-  if (saved?.intent === 'active' && saved.value) return saved.value;
-
-  const fromEnv = process.env.PLAYER_INSIGHTS_EXPERIMENT_ID?.trim();
-  if (fromEnv) return fromEnv;
-
-  const path = process.env.PLAYER_INSIGHTS_EXPERIMENT_PATH?.trim();
-  if (!path) return '';
-  const cached = experimentIdByPath.get(path, now);
-  if (cached) return cached;
-  const resolved = (await resolvePath(path)).trim();
-  if (resolved) experimentIdByPath.set(path, resolved, now);
-  return resolved;
+  return (await resolveExperimentConfiguration(client, { resolvePath, now })).id;
 }
 
 /**
@@ -363,6 +401,11 @@ export interface ResourceState {
   editable: boolean;
 }
 
+export interface ResolvedRuntimeSetting {
+  value: string;
+  source: string;
+}
+
 /**
  * What the app does when its variable is unset.
  *
@@ -445,8 +488,10 @@ export function resourceStates(input: {
   report: PreflightReport | null;
   environment: Record<string, string>;
   stored: Map<string, StoredSetting>;
+  /** Runtime-resolved values whose source is more specific than a raw env read. */
+  resolved?: ReadonlyMap<string, ResolvedRuntimeSetting>;
 }): ResourceState[] {
-  const { report, environment, stored } = input;
+  const { report, environment, stored, resolved } = input;
   const byCheck = new Map((report?.checks ?? []).map((check) => [check.id, check]));
   const configuration = new Map((report?.configuration ?? []).map((entry) => [String(entry.key), entry]));
   const namespace = namespaceInUse(report?.checks ?? []);
@@ -486,6 +531,11 @@ export function resourceStates(input: {
         configured = saved.value;
         configuredFrom = 'app-saved';
       }
+    }
+    const runtime = resolved?.get(resource.id);
+    if (runtime?.value) {
+      configured = runtime.value;
+      configuredFrom = runtime.source;
     }
 
     // A check whose name is a table's full name, or the endpoint's own name, is
@@ -763,6 +813,7 @@ export function settingsPayload(input: {
   report: PreflightReport | null;
   environment: Record<string, string>;
   stored: Map<string, StoredSetting>;
+  resolved?: ReadonlyMap<string, ResolvedRuntimeSetting>;
   appBuildSha: string;
   appBuildAncestors?: readonly string[];
   storeAvailable: boolean;

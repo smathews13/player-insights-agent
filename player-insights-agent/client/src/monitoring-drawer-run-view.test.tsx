@@ -174,6 +174,12 @@ describe('a Monitoring question opens as a centered modal over the list', () => 
 });
 
 describe("the modal draws one run view, the card's own", () => {
+  it('does not show live Agent path activity on a historical completed run', () => {
+    const markup = drawer();
+    expect(markup).not.toContain('pia-loader-mark--button');
+    expect(markup).not.toContain('agent-activity-marks');
+  });
+
   it('draws a single Step timeline for a run that recorded steps', () => {
     expect(occurrences(text(drawer()), 'Step timeline')).toBe(1);
   });

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConversationOwnerSelect } from './ConversationOwnerSelect';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 import type { RailOwner } from './conversation-rail';
 import {
   CONVERSATION_OWNER_SELECTION_KEY,
@@ -155,6 +156,17 @@ describe('the admin owner dropdown', () => {
     expect(HOME).toContain('{owner ? (');
     expect(HOME).toContain('<OrganizationUserBadge');
     expect(HOME).toContain('canOpen={adminSharedRail}');
+  });
+
+  it('uses one outer rail badge around a raw organization mark', () => {
+    const markup = renderToStaticMarkup(
+      <OrganizationUserBadge identity="<your-username>" className="conversation-owner" />
+    );
+    expect(markup).toContain('organization-user-badge conversation-owner');
+    expect(markup).toMatch(/data-organization-id="databricks"[^>]*data-organization-mark="raw"[^>]*><svg/);
+    expect(markup.indexOf('data-organization-mark="raw"')).toBeLessThan(markup.indexOf('identity-chip-name'));
+    expect(markup.match(/data-organization-mark="raw"/g)).toHaveLength(1);
+    expect(markup).not.toContain('roster-organization-logo');
   });
 
   it('cannot widen or push the narrow rail', () => {

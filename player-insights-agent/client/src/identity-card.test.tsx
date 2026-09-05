@@ -192,6 +192,8 @@ describe('IdentityCard', () => {
     expect(textOf({ identity, failed: false })).toContain('Organization Databricks');
     expect(markup).toContain('data-organization-domain="databricks.com"');
     expect(markup).toContain('aria-label="Organization: Databricks"');
+    expect(markup).toMatch(/data-organization-id="databricks"[^>]*data-organization-mark="raw"[^>]*><svg/);
+    expect(markup).not.toContain('roster-organization-logo');
     expect(markup.match(new RegExp(DATABRICKS_SYMBOL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toHaveLength(2);
   });
 

@@ -77,7 +77,6 @@
 .answer-card [data-slot='card-content'],
 .answer-card [data-slot='card-description'],
 [data-slot='alert-description'],
-.user-bubble,
 /* The caveats, which are agent prose and hold table names longer than the
    footer is wide. The source rows are deliberately absent from this list: they
    ellipsise on one line instead, and carry the whole name in a tooltip. */

@@ -17,6 +17,7 @@ const RAIL = withoutComments(partial('rail.css'));
 const ASK = withoutComments(partial('ask.css'));
 const LIVE = withoutComments(partial('live.css'));
 const TOKENS = withoutComments(partial('tokens.css'));
+const ASTROLABE = withoutComments(partial('astrolabe-tokens.css'));
 const HOME = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
 const PANEL = readFileSync(new URL('LiveProgress.tsx', import.meta.url), 'utf8');
 
@@ -61,6 +62,46 @@ describe('idle Ask keeps the Agent path pane', () => {
       /\.trace-head,\s*\.trace-title,\s*\.trace-working,\s*\.trace-inspector \.ast-sky,\s*\.trace-inspector \.trace-divider,\s*\.trace-inspector \.metric-row,\s*\.trace-inspector \.trace-explore\s*\{[^}]*z-index:\s*1/
     );
     expect(RAIL).toMatch(/\.trace-inspector\s*\{[^}]*isolation:\s*isolate/);
+  });
+
+  it('restores one opaque card surface around the complete Agent path pane', () => {
+    const pane = /\.trace-inspector\s*\{([^}]*)\}/.exec(RAIL)?.[1] ?? '';
+    expect(pane).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+    expect(pane).toMatch(/border-radius:\s*var\(--ast-radius-card\)/);
+    expect(pane).toMatch(/background:\s*var\(--ast-surface-primary\)/);
+    expect(pane).toMatch(/background-image:\s*none/);
+    expect(pane).toMatch(/backdrop-filter:\s*none/);
+    expect(pane).toMatch(/padding:\s*20px 12px 20px 20px/);
+    expect(pane).toMatch(/box-sizing:\s*border-box/);
+
+    // The dark Ask field may expose global topology in gutters; the pane's more
+    // specific rule must keep that decoration behind this card.
+    expect(RAIL).toMatch(
+      /html\[data-theme='dark'\] \.ask-layout > \.trace-inspector\s*\{[^}]*background:\s*var\(--ast-surface-primary\)[^}]*background-image:\s*none[^}]*backdrop-filter:\s*none/
+    );
+    expect(ASTROLABE).toMatch(
+      /html\[data-theme='dark'\]\s*\{[^}]*--ast-surface-primary:\s*color-mix\(in srgb, var\(--ast-surface-solid\) 98\.5%, transparent\)/
+    );
+    expect(RAIL).not.toMatch(/\.trace-inspector::(?:before|after)/);
+  });
+
+  it('encloses the heading, local graph, summary, metrics, and action once', () => {
+    expect(HOME.match(/<aside className="trace-inspector"/g)).toHaveLength(1);
+    const open = HOME.indexOf('<aside className="trace-inspector"');
+    const close = HOME.indexOf('</aside>', open);
+    expect(open).toBeGreaterThan(-1);
+    expect(close).toBeGreaterThan(open);
+    const pane = HOME.slice(open, close);
+    for (const content of [
+      'className="trace-head"',
+      'className="trace-title"',
+      '<AgentPathConstellation',
+      'className="metric-row"',
+      'className="trace-explore w-full"',
+    ]) {
+      expect(pane, content).toContain(content);
+    }
+    expect(pane.match(/<AgentPathConstellation/g)).toHaveLength(1);
   });
 
   it('does not add route-local topology when a run starts', () => {

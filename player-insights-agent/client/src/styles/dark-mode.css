@@ -280,7 +280,6 @@ html[data-theme='dark'] .first-open:not(.on-sky) {
    tints because this parent has already attenuated the page sky. */
 html[data-theme='dark'] .answer-card,
 html[data-theme='dark'] .plan-card,
-html[data-theme='dark'] .user-bubble,
 html[data-theme='dark'] .first-open-card,
 html[data-theme='dark'] .access-gate-panel,
 html[data-theme='dark'] [data-slot='card'] {
@@ -624,8 +623,8 @@ html[data-theme='dark'] .app-sky-line {
  * ice accent with navy on it is the same relationship the light rule has, stated
  * for a page whose ink is already near-white.
  */
-html[data-theme='dark'] .user-bubble::selection,
-html[data-theme='dark'] .user-bubble ::selection,
+html[data-theme='dark'] .question-attribution-message::selection,
+html[data-theme='dark'] .question-attribution-message ::selection,
 html[data-theme='dark'] .answer-card::selection,
 html[data-theme='dark'] .answer-card ::selection,
 html[data-theme='dark'] .plan-card::selection,
@@ -793,7 +792,6 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .trace-inspector,
   html[data-theme='dark'] .answer-card,
   html[data-theme='dark'] .plan-card,
-  html[data-theme='dark'] .user-bubble,
   html[data-theme='dark'] .trace-dag.map .dag-detail,
   /* The tiles whose fills are written as literals above rather than taken from
      `--card`, so a reader who has asked for less transparency still gets the

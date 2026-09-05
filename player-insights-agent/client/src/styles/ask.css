@@ -284,23 +284,8 @@ html:not([data-theme='dark']) .ask-hero h2 {
 .conversation-main {
   --question-stagger: clamp(72px, 14%, 180px);
 }
-.user-bubble {
+.user-message .question-attribution-message {
   max-width: 80%;
-  /* Stated rather than inherited from --primary, which it used to be back when
-     --primary was ink. The reader's own question is not an action, and a blue
-     speech bubble on the right of the transcript reads as a button.
-
-     THE SURFACE IS `--ast-pane`, the sky's own sheet, which is what the answer
-     card below it is drawn on. Two earlier tries are worth keeping apart: this was
-     `rgba(245, 246, 248, 0.85)`, where a light NEUTRAL let the navy tint it and 15%
-     of the sky through a grey fill is a mid-grey slab -- the fault there was the
-     base colour and the alpha together. Then it was opaque `--ast-white`, which
-     fixed the slab and created the reason this file is being edited again: an
-     opaque bubble directly above a translucent card is what made the card look
-     grey. The base is pure white and the alpha is the token's. */
-  /* The customer could select this text but saw no I-beam over it, so nothing
-     said it was selectable. */
-  cursor: text;
 }
 .user-message .question-attribution-user {
   max-width: none;
@@ -348,8 +333,8 @@ html:not([data-theme='dark']) .ask-hero h2 {
  * element whose text is selected, and a bubble holding a nested span would
  * otherwise fall through to the default.
  */
-.user-bubble::selection,
-.user-bubble ::selection {
+.question-attribution-message::selection,
+.question-attribution-message ::selection {
   background: var(--db-ink);
   color: #ffffff;
 }

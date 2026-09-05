@@ -323,8 +323,17 @@
   padding: 0 20px 14px;
 }
 
-.ast-sky-status-mark {
+.agent-activity-marks {
   flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  width: 42px;
+  min-width: 42px;
+  height: 20px;
+}
+
+.agent-identity-mark {
   display: grid;
   place-items: center;
   width: 20px;
@@ -333,10 +342,27 @@
   border-radius: 50%;
 }
 
-.ast-sky-status-mark .brand-icon,
-.ast-sky-status-mark svg {
+.agent-identity-mark svg {
   width: 11px;
   height: 11px;
+}
+
+/*
+ * Reserved in both states so removing the loader cannot shift the step label.
+ * The loader itself is still conditionally unmounted the instant work stops.
+ */
+.agent-busy-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 20px;
+}
+
+.agent-busy-mark .pia-loader,
+.agent-busy-mark .pia-loader-mark {
+  width: 16px;
+  height: 16px;
 }
 
 .ast-sky-status-text {
@@ -592,6 +618,15 @@ html:not([data-theme='dark']) .agent-path > .step-rail {
   flex: none;
 }
 
+.step-rail-meta .agent-activity-marks {
+  margin-right: 2px;
+}
+
+.step-rail-meta .agent-identity-mark {
+  border-color: var(--ast-hairline);
+  background: var(--ast-white);
+}
+
 /*
  * What became of the step, where that is not simply "it finished".
  *
@@ -645,4 +680,11 @@ html:not([data-theme='dark']) .agent-path > .step-rail {
 .theme-icon svg {
   width: 100%;
   height: 100%;
+}
+
+@media (forced-colors: active) {
+  .agent-identity-mark {
+    border-color: CanvasText;
+    background: Canvas;
+  }
 }

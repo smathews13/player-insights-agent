@@ -112,8 +112,7 @@ html[data-density='compact']
   gap: var(--density-card-gap);
 }
 
-html[data-density='compact'] .attachment-chip,
-html[data-density='compact'] .user-bubble {
+html[data-density='compact'] .attachment-chip {
   padding-block: var(--density-row-padding-block);
 }
 

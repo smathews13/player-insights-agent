@@ -164,9 +164,9 @@ describe('Monitoring details open as centered modals, not side drawers', () => {
     expect(CSS).toMatch(/\.monitoring-users-toolbar-view\s*\{\s*justify-content:\s*flex-end/);
   });
 
-  it('uses one canonical panel loader with static reduced-motion fallbacks', () => {
+  it('uses one compact face loader with static reduced-motion fallbacks', () => {
     expect(rule('.monitoring-users-loading')).toMatch(/min-height:\s*180px/);
-    expect(PAGE).toMatch(/<PiaLoader variant="panel" label="Loading users" className="monitoring-users-loading" \/>/);
+    expect(PAGE).toMatch(/<PiaLoader variant="compact" label="Loading users" className="monitoring-users-loading" \/>/);
     expect(PIA_LOADER_SIZES.panel).toBe(112);
     expect(CSS).not.toContain('.monitoring-users-loading-icon');
     expect(CSS).not.toContain('.monitoring-users-loading-list');

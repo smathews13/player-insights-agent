@@ -179,6 +179,8 @@ describe('the agent map fits the page it is drawn on', () => {
     expect(markup.match(/class="dag-node/g)).toHaveLength(run.length);
     expect(markup).not.toContain('ast-sky-map');
     expect(markup).not.toContain('ast-sky-path');
+    expect(markup).not.toContain('agent-activity-marks');
+    expect(markup).not.toContain('pia-loader-mark--button');
   });
 
   it('lays the steps on a grid of four rather than sharing out each row’s slack', () => {

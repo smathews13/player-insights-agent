@@ -32,8 +32,10 @@ describe('account menu', () => {
     const panel = renderToStaticMarkup(<AccountMenuPanel identity={identity} role="super_admin" onClose={() => {}} />);
 
     for (const markup of [trigger, panel]) {
-      expect(markup).toContain('roster-organization-mark--databricks');
-      expect(markup).toContain('roster-databricks-symbol');
+      expect(markup).toContain('roster-organization-mark--logo');
+      expect(markup).toContain('data-organization-mark="raw"');
+      expect(markup).toMatch(/data-organization-mark="raw"[^>]*><svg/);
+      expect(markup).not.toContain('roster-organization-logo');
       expect(markup).toContain(DATABRICKS_SYMBOL);
       expect(markup).toContain('aria-label="Organization: Databricks"');
       expect(markup).not.toContain('lucide-user-round');
