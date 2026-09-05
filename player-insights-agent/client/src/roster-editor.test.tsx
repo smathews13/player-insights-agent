@@ -551,7 +551,8 @@ describe('the Add button', () => {
       </table>
     );
     expect(markup).toContain('aria-busy="true"');
-    expect(markup).toContain('Adding…');
+    expect(markup).toContain('Adding');
+    expect(markup).toContain('pia-loader-mark--button');
     expect(markup).toContain('disabled=""');
     expect(markup).toContain('type="email"');
     expect(markup).toContain('type="button"');

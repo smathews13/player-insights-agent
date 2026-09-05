@@ -14,7 +14,7 @@ import { Badge, Card, CardContent } from './ui';
 import { conversationHref } from './conversation-links';
 import { AnswerProse, EntityText } from './DataEntityLinks';
 import { AnswerEvidence } from './AnswerEvidence';
-import { PiaMark } from './PiaMark';
+import { PiaAvatar } from './PiaMark';
 import { SourcesModule } from './SourcesModule';
 import { mentionedIdentifiers } from './data-entities';
 import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './reader-facing-answer';
@@ -56,7 +56,7 @@ export function FinalAnswer({
     <Card className="final-answer" data-tone={honesty.tone}>
       <CardContent>
         <div className="final-answer-head">
-          <PiaMark size={28} tone="light" className="final-answer-mark" />
+          <PiaAvatar size={28} tone="light" className="final-answer-mark" />
           <Badge variant="outline" className="provenance-chip" data-tone="live">
             Live agent response
           </Badge>

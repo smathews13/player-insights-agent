@@ -530,12 +530,6 @@
   color: var(--muted-foreground);
   white-space: nowrap;
 }
-.connection-row-state[data-tone='reachable'] {
-  color: var(--ast-pos-text);
-}
-.connection-row-state[data-tone='blocked'] {
-  color: var(--ast-neg-text);
-}
 .connection-row-state[data-tone='drifted'] {
   color: var(--ast-warn-deep);
 }
@@ -1258,8 +1252,9 @@
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-sm);
 }
-.uc-explorer-asset-semantics {
+.uc-explorer-name-status {
   display: inline-flex;
+  min-width: 0;
   align-items: center;
   gap: 6px;
 }
@@ -1291,6 +1286,7 @@
   stroke-width: 2.5;
 }
 .uc-explorer-search-value {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1365,6 +1361,7 @@
   width: 28px;
 }
 .uc-explorer-name {
+  flex: 0 1 auto;
   min-width: 0;
   overflow-wrap: anywhere;
   font-family: var(--font-mono);
@@ -1489,6 +1486,18 @@
     outline-offset: -2px;
     color: HighlightText;
     background: Highlight;
+  }
+  .connections-page .connection-state-badge[data-connection-state='connected'],
+  .connections-page .uc-explorer-uc-badge.ast-pill--pos {
+    border-color: Highlight;
+    background: Canvas;
+    color: Highlight;
+  }
+  .connections-page .connection-state-badge[data-connection-state='disconnected'],
+  .connections-page .uc-explorer-uc-badge.ast-pill--neg {
+    border-color: Mark;
+    background: Mark;
+    color: MarkText;
   }
 }
 @media (prefers-reduced-motion: reduce) {

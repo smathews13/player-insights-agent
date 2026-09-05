@@ -2,7 +2,7 @@ import { CircleAlert } from 'lucide-react';
 
 import type { LakebaseMigrationReadiness } from '../../shared/lakebase-migrations';
 import type { LakebaseMigrationClientState } from './lakebase-migration-status';
-import { PiaLoadingLabel } from './PiaLoadingLabel';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { Badge, Button } from './ui';
 
 function safeFailure(value: LakebaseMigrationReadiness): string {
@@ -58,12 +58,8 @@ export function LakebaseMigrationPanel({
           <p>User spend tables and other app storage updates are pending.</p>
           {state.error ? <p className="lakebase-migration-error">{state.error}</p> : null}
         </div>
-        <Button disabled={applying || !value.canApply} onClick={onApply}>
-          {applying ? (
-            <PiaLoadingLabel as="span" seat="button" announce={false} label="Updating Lakebase" />
-          ) : (
-            'Update Lakebase'
-          )}
+        <Button disabled={applying || !value.canApply} aria-busy={applying || undefined} onClick={onApply}>
+          <PiaBusyButtonContent busy={applying} label="Update Lakebase" busyLabel="Updating Lakebase" />
         </Button>
       </div>
     );
@@ -86,12 +82,8 @@ export function LakebaseMigrationPanel({
         {value.action && value.action !== safeFailure(value) ? <p>{value.action}</p> : null}
       </div>
       {value.canApply ? (
-        <Button disabled={applying} onClick={onApply}>
-          {applying ? (
-            <PiaLoadingLabel as="span" seat="button" announce={false} label="Updating Lakebase" />
-          ) : (
-            'Update Lakebase'
-          )}
+        <Button disabled={applying} aria-busy={applying || undefined} onClick={onApply}>
+          <PiaBusyButtonContent busy={applying} label="Update Lakebase" busyLabel="Updating Lakebase" />
         </Button>
       ) : null}
     </div>

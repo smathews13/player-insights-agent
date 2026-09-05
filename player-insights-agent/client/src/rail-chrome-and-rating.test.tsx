@@ -127,7 +127,7 @@ describe('the release badge and the two controls beside it', () => {
 
   it('answers the pointer with its own near-opaque identity lift', () => {
     expect(ACCOUNT).toMatch(
-      /\.account-menu-trigger\.identity-chip:hover,[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-chrome\) 94%,\s*var\(--ast-pos-text\)\)/
+      /\.account-menu-trigger\.identity-chip:hover,[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-chrome\) 92%,\s*var\(--primary\)\)/
     );
     expect(SHELL).toMatch(
       /\.deployment-time-chip:hover,\s*\.deployment-time-chip:focus-visible \{\s*background: var\(--muted\)/

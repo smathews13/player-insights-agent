@@ -3,6 +3,12 @@
   flex: none;
 }
 
+.pia-avatar,
+.pia-avatar * {
+  animation: none;
+  transition: none;
+}
+
 .pia-mark--light,
 .pia-mark--print {
   --pia-mark-ink: var(--ast-navy);
@@ -107,6 +113,29 @@ html[data-theme='dark'] .pia-type--light {
 
 html[data-theme='dark'] .pia-type--light .pia-accent {
   color: var(--ast-ice-accent);
+}
+
+@media (prefers-contrast: more) {
+  .pia-avatar.pia-mark--light {
+    --pia-mark-ink: var(--foreground);
+    --pia-mark-accent: var(--primary);
+    --pia-mark-engraving: var(--background);
+  }
+
+  .pia-avatar.pia-mark--dark,
+  .pia-avatar.pia-mark--mono {
+    --pia-mark-ink: var(--ast-white);
+    --pia-mark-accent: var(--ast-ice-accent);
+    --pia-mark-engraving: var(--ast-navy);
+  }
+}
+
+@media (forced-colors: active) {
+  .pia-avatar {
+    --pia-mark-ink: CanvasText;
+    --pia-mark-accent: Highlight;
+    --pia-mark-engraving: Canvas;
+  }
 }
 
 @media (max-width: 720px) {

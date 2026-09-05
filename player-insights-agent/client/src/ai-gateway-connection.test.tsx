@@ -7,7 +7,7 @@ import { connectedResource } from '../../shared/deployment-config';
 import { AiGatewayCapabilityBadges, AiGatewayConnection } from './AiGatewayConnection';
 import { readConnection } from './connection-model';
 
-function reading(mode: '' | 'mlflow' | 'openai') {
+function reading(mode: '' | 'mlflow' | 'openai', connected = false) {
   return readConnection({
     row: {
       resource: connectedResource('llm-gateway')!,
@@ -22,7 +22,20 @@ function reading(mode: '' | 'mlflow' | 'openai') {
       changedByLabel: '',
       changedByNote: '',
     },
-    check: undefined,
+    check: connected
+      ? {
+          id: 'llm-gateway',
+          kind: 'dependency',
+          name: mode,
+          label: 'AI Gateway',
+          status: 'ok',
+          detail: 'The gateway answered.',
+          checked_with: 'fixture',
+          duration_ms: 1,
+          error: '',
+          remedy: null,
+        }
+      : undefined,
     findings: [],
   });
 }
@@ -35,11 +48,11 @@ function text(markup: string): string {
     .trim();
 }
 
-function render(mode: '' | 'mlflow' | 'openai', allowMutations = false): string {
+function render(mode: '' | 'mlflow' | 'openai', allowMutations = false, connected = false): string {
   return renderToStaticMarkup(
     <MemoryRouter>
       <AiGatewayConnection
-        reading={reading(mode)}
+        reading={reading(mode, connected)}
         foundationModel="databricks-gpt-5"
         allowMutations={allowMutations}
         requested
@@ -55,6 +68,9 @@ describe('AI Gateway Connections row', () => {
     const readable = text(markup);
     expect(readable).toContain('AI Gateway Direct Disconnected');
     expect(markup).toContain('aria-label="AI Gateway connection status: Disconnected"');
+    expect(markup).toContain('data-connection-state="disconnected"');
+    expect(markup).toContain('ast-pill--neg');
+    expect(markup).not.toContain('ast-pill--pos');
     expect(readable).toContain('Current transport Direct');
     expect(readable).toContain('Direct model traffic remains active');
     expect(readable).not.toMatch(/Not checked|Blocked|hard ceiling/);
@@ -79,9 +95,13 @@ describe('AI Gateway Connections row', () => {
   });
 
   it('shows the current transport and model without write controls for readers', () => {
-    const readable = text(render('mlflow'));
+    const markup = render('mlflow', false, true);
+    const readable = text(markup);
     expect(readable).toContain('Current transport MLflow');
     expect(readable).toContain('Active model databricks-gpt-5');
+    expect(markup).toContain('data-connection-state="connected"');
+    expect(markup).toContain('ast-pill--pos');
+    expect(markup).not.toContain('ast-pill--neg');
     expect(readable).not.toMatch(/\bConnect\b|\bChange\b|Stage for agent release/);
   });
 

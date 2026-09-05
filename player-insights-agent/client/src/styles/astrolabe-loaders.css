@@ -162,10 +162,6 @@
   stroke: var(--ast-blue-on-dark);
 }
 
-.ast-star-accent-fill {
-  fill: var(--ast-blue-on-dark);
-}
-
 /* ---- The opening sequence (#19a) --------------------------------------- */
 
 /*

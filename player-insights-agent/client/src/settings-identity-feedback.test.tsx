@@ -30,7 +30,7 @@ describe('the demo workspace Settings shell feedback', () => {
       }
       expect(markup).not.toContain('>Roles</button>');
       expect(markup.match(/>Cancel<\/button>/g) ?? []).toHaveLength(1);
-      expect(markup.match(/>Save<\/button>/g) ?? []).toHaveLength(1);
+      expect(markup.match(/class="sr-only">Save<\/span>/g) ?? []).toHaveLength(1);
       expect(markup.indexOf('settings-modal-footer')).toBeGreaterThan(markup.indexOf('settings-modal-content'));
     }
   });

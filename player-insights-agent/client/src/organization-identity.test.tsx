@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import {
   ORGANIZATION_MANIFEST,
@@ -8,6 +9,7 @@ import {
   parseOrganizationMappings,
 } from '../../shared/organization-mapping';
 import { OrganizationAvatar } from './OrganizationAvatar';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 import { ORGANIZATION_LOGOS } from './organization-logos';
 import {
   organizationSelectOptions,
@@ -55,6 +57,47 @@ describe('organization identity assets', () => {
     expect(MONITORING_CSS).toContain('.monitoring-organization-trigger');
     expect(RESPONSIVE_CSS).toMatch(/\.monitoring-organization-trigger[^}]*width:\s*100%/s);
     expect(DENSITY_CSS).toContain('.app-menu-option');
+  });
+});
+
+describe('organization user badges', () => {
+  it.each([
+    ['<your-username>', 'databricks', '<your-username>'],
+    ['producer@take2games.com', 'acme-interactive', 'producer'],
+    ['artist@2k.com', '2k', 'artist'],
+    ['designer@northwindgames.com', 'northwind-games', 'designer'],
+  ])('shows the canonical organization mark and user handle for %s', (email, organizationId, handle) => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <OrganizationUserBadge identity={email} canOpen showArrow />
+      </MemoryRouter>
+    );
+    expect(markup).toContain(`data-organization-id="${organizationId}"`);
+    expect(markup).toContain(`>${handle}<`);
+    expect(markup).toContain('identity-chip-link-arrow');
+    expect(markup).not.toContain('Asked by');
+    expect(markup).not.toContain('lucide-user-round');
+    expect(markup).not.toContain(`>${email}<`);
+  });
+
+  it('uses the stable unknown-domain monogram without inventing a brand', () => {
+    const markup = renderToStaticMarkup(<OrganizationUserBadge identity="reader@studio2games.example" />);
+    expect(markup).toContain('data-organization-id="domain:studio2games.example"');
+    expect(markup).toContain('>S2</span>');
+    expect(markup).toContain('>reader<');
+    expect(markup).not.toContain('lucide-user-round');
+  });
+
+  it('carries full user and organization detail in tooltip and accessible names', () => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <OrganizationUserBadge identity="producer@take2games.com" canOpen />
+      </MemoryRouter>
+    );
+    expect(markup).toContain('title="producer@take2games.com · Acme Interactive"');
+    expect(markup).toContain(
+      'aria-label="Open user overview for User producer@take2games.com; organization Acme Interactive"'
+    );
   });
 });
 

@@ -342,6 +342,19 @@ describe('the Cost Tracking user-spend action', () => {
   });
 });
 
+describe('the Cost Tracking loading panes', () => {
+  it('keeps two compact, independently visible seats without the retired giant loader', () => {
+    expect(rule('.ops-cost-loading')).toMatch(/display:\s*grid/);
+    expect(rule('.ops-cost-loading')).toMatch(/grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+    expect(rule('.ops-cost-loading-pane')).toMatch(/min-height:\s*72px/);
+    expect(rule('.ops-cost-loading-pane')).not.toMatch(/height:\s*8rem/);
+    expect(RULES).not.toContain('.ops-skeleton');
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width:\s*480px\)[\s\S]*?\.ops-cost-loading\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/
+    );
+  });
+});
+
 describe('nothing on this tab is louder than what it is reporting', () => {
   /**
    * NO ORANGE, which §2 states as a palette rule and this tab was breaking in one

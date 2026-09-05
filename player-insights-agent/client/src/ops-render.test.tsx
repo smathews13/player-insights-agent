@@ -39,7 +39,8 @@ import {
 import { CheckScopesButton } from './OpsScopeModal';
 import { perUserSpendHref } from './cost-user-monitoring-link';
 import { resourceBudgetLabel } from './CostBudgets';
-import { activeMinutesDisplay, queryHistoryCoverageDetail } from './ops-view';
+import { BRAND_THEME_MARKS } from './brand-icons';
+import { activeMinutesDisplay, productForCostTile, queryHistoryCoverageDetail } from './ops-view';
 import { REFRESH_LABEL } from './refresh-state';
 import { canCheckHealthResources } from '../../shared/user-roster-contract';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
@@ -106,7 +107,7 @@ describe('the admin cancellation control', () => {
     const admin = markupOf(<ScopeAdminControl action={<CheckScopesButton busy={false} onClick={() => {}} />} />);
     expect(admin).toContain('ADMIN');
     expect(admin).toContain('Compare user and app catalog access.');
-    expect(admin.match(/Check all scopes/g)).toHaveLength(1);
+    expect(admin.match(/class="sr-only">Check all scopes/g)).toHaveLength(1);
     expect(admin).toContain('ops-admin-action-scope');
     expect(admin).toContain('data-variant="default"');
     expect(admin).not.toContain('data-variant="destructive"');
@@ -114,9 +115,9 @@ describe('the admin cancellation control', () => {
     expect(toolbar).not.toContain('Check all resources');
     expect(toolbar).not.toContain('Check all scopes');
     expect(OPS_STYLES).toMatch(
-      /\.ops-page-controls\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)[^}]*grid-auto-rows:\s*1fr[^}]*width:\s*100%/
+      /\.ops-page-controls\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*fit-content\(18rem\)\)[^}]*grid-auto-rows:\s*1fr[^}]*width:\s*fit-content/
     );
-    expect(OPS_STYLES).toMatch(/\.ops-stop-all,\s*\.ops-admin-action\s*\{[^}]*width:\s*100%[^}]*min-height:\s*46px/);
+    expect(OPS_STYLES).toMatch(/\.ops-stop-all,\s*\.ops-admin-action\s*\{[^}]*width:\s*auto[^}]*min-height:\s*46px/);
     expect(RESPONSIVE_OPS_STYLES).toMatch(
       /@media \(max-width:\s*800px\)[\s\S]*\.ops-page-controls\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0[^}]*margin-left:\s*0/
     );
@@ -332,6 +333,20 @@ describe('one block failing', () => {
     const other = render(<TrafficBody block={block(traffic({ readAt: '2026-08-15T09:00:00Z' }))} />);
     expect(one).toMatch(/Read /);
     expect(other).toMatch(/Read /);
+  });
+});
+
+describe('Cost Tracking initial loading', () => {
+  it('gives the summary and resource panes their own compact loader', () => {
+    const markup = markupOf(<CostBody block={block<OpsCostPayload>(null, { busy: true })} />);
+    expect(markup).toContain('data-testid="ops-cost-pane-loaders"');
+    expect(markup.match(/ops-cost-loading-pane/g)).toHaveLength(2);
+    expect(markup.match(/pia-loader-mark--compact/g)).toHaveLength(2);
+    expect(markup).toContain('Loading spend and budgets');
+    expect(markup).toContain('Loading resource costs');
+    expect(markup).not.toContain('pia-loader-mark--panel');
+    expect(markup).not.toContain('Loading cost tracking');
+    expect(markup).not.toContain('ops-skeleton');
   });
 });
 
@@ -877,12 +892,12 @@ describe('the health block', () => {
   });
 
   /**
-   * A probe nobody has classified draws nothing, rather than a stand-in.
+   * A probe nobody has classified is still visibly a resource.
    *
-   * The wrong mark on a row that is failing sends a reader to the wrong
-   * service's console, which is worse than a row with no mark on it.
+   * The fallback is neutral rather than a guessed product mark, so a decoder
+   * change cannot silently create an icon-sized blank or misidentify a service.
    */
-  it('draws no mark for a probe kind it cannot name', () => {
+  it('draws a neutral resource mark for a probe kind it cannot name', () => {
     const markup = markupOf(
       <HealthBody
         block={block(
@@ -896,7 +911,9 @@ describe('the health block', () => {
       />
     );
     expect(markup).toContain('SQL warehouse');
-    expect(markup).not.toContain('ops-dependency-mark');
+    expect(markup).toContain('ops-dependency-mark');
+    expect(markup).toContain('lucide-box');
+    expect(markup).not.toContain('brand-icon');
   });
 });
 
@@ -1196,7 +1213,9 @@ describe('the cost block', () => {
     });
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('2.00 USD');
-    expect(markup).toContain('Available marginal components');
+    expect(markup).not.toContain('Available marginal components');
+    expect(markup).not.toContain('components ·');
+    expect(markup).not.toContain('completed Asks');
     expect(markup).not.toContain('Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks');
     expect(markup).not.toContain('token-apportioned');
     expect(markup).not.toContain('<table');
@@ -1335,6 +1354,21 @@ describe('the cost block', () => {
     expect(markup).not.toContain('At list price');
   });
 
+  it('removes non-actionable component-card filler', () => {
+    const markup = render(<CostBody block={block(cost())} />);
+    for (const filler of [
+      'Configured endpoint',
+      'App-attributed operations',
+      'complete history',
+      'Available marginal components',
+      'components ·',
+      'completed Asks',
+      'Selected period',
+    ]) {
+      expect(markup).not.toContain(filler);
+    }
+  });
+
   it('does not repeat the section experimental status on any Cost card', () => {
     const payload = cost();
     const markup = markupOf(<CostBody block={block(payload)} />);
@@ -1360,6 +1394,23 @@ describe('the cost block', () => {
     const markup = markupOf(<CostBody block={block(payload)} />);
     expect([...markup.matchAll(/ops-tile-mark/g)]).toHaveLength(5);
     expect(markup).toContain('--brand-icon-size:14px');
+    for (const id of ['serving-endpoint', 'foundation-model', 'sql-warehouse', 'vector-search', 'app-compute']) {
+      expect(markup).toContain(`data-cost-component="${id}"`);
+    }
+  });
+
+  it.each([
+    ['serving-endpoint', 'mosaic-ai'],
+    ['foundation-model', 'mosaic-ai'],
+    ['sql-warehouse', 'databricks-sql'],
+    ['app-compute', 'apps'],
+    ['vector-search', 'mosaic-ai'],
+    ['genie:data', 'genie'],
+    ['genie:dictionary', 'genie'],
+  ] as const)('uses the canonical %s product icon', (id, product) => {
+    expect(productForCostTile(id)).toBe(product);
+    expect(BRAND_THEME_MARKS.light[product]).toContain('<svg');
+    expect(BRAND_THEME_MARKS.dark[product]).toContain('<svg');
   });
 
   it('renders Data Genie, Dictionary Genie, Serving, and Vector Search separately with scoped counts', () => {
@@ -1459,7 +1510,7 @@ describe('the cost block', () => {
     expect(visible).not.toContain('Astrolabe query');
   });
 
-  it('shows only concise row-count evidence under a SQL estimate', () => {
+  it('removes query-history filler from a SQL estimate', () => {
     const payload = cost({
       tiles: [
         {
@@ -1484,7 +1535,7 @@ describe('the cost block', () => {
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('2.50 USD');
     expect(markup).toContain('Estimate');
-    expect(markup).toContain('2 Ask queries · complete history');
+    expect(markup).not.toContain('2 Ask queries · complete history');
     expect(markup).not.toMatch(/Astrolabe quer|warehouse quer/);
     expect(markup).not.toMatch(/ops-tile-evidence[^>]*>warehouse-1/);
     expect(markup).not.toContain('This must not render');
@@ -1502,6 +1553,9 @@ describe('the cost block', () => {
     expect(text(markup)).toBe('Open in Databricks');
     expect(markup).toContain('aria-label="Open Serving endpoint in Databricks (opens in a new tab)"');
     expect(text(markup)).not.toContain('Serving endpoint');
+    expect(OPS_STYLES).toMatch(/\.ops-tile\s*\{[^}]*display:\s*flex[^}]*flex-direction:\s*column/);
+    expect(OPS_STYLES).toMatch(/\.ops-primary-cost-card\s*\{[^}]*min-height:/);
+    expect(OPS_STYLES).toMatch(/\.ops-cost-card-footer\s*\{[^}]*min-height:[^}]*margin-top:\s*auto[^}]*padding-top:/);
   });
 
   it('leaves a title as plain text when there is no URL', () => {
@@ -1509,6 +1563,11 @@ describe('the cost block', () => {
     expect(markup).not.toContain('<a ');
     expect(markup).not.toContain('lucide-external-link');
     expect(markup).toContain('Genie');
+
+    const costMarkup = markupOf(<CostBody block={block(cost())} />);
+    const grid = costMarkup.slice(costMarkup.indexOf('cost-primary-grid'), costMarkup.indexOf('ops-cost-method'));
+    expect(grid).toContain('ops-cost-card-footer');
+    expect(grid).not.toContain('Open in Databricks');
   });
 
   it('sits the average in the same tile grid as the resource cards', () => {
@@ -1636,10 +1695,10 @@ describe('the cost block', () => {
     expect(text(markup)).toMatch(/monthly/i);
     expect(markup).toContain('400');
     expect(markup).toContain('40');
-    expect([...markup.matchAll(/>Apply<\/button>/g)]).toHaveLength(1);
-    expect([...markup.matchAll(/>Apply resource budgets<\/button>/g)]).toHaveLength(1);
-    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Apply<\/button>/);
-    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Apply resource budgets<\/button>/);
+    expect(markup.match(/class="sr-only">Apply<\/span>/g)).toHaveLength(1);
+    expect(markup.match(/class="sr-only">Apply resource budgets<\/span>/g)).toHaveLength(1);
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>[\s\S]*?class="sr-only">Apply<\/span>/);
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>[\s\S]*?class="sr-only">Apply resource budgets<\/span>/);
     expect(markup.indexOf('ops-cost-summary-grid')).toBeLessThan(markup.indexOf('ops-tiles'));
     expect(OPS_STYLES).toMatch(/\.ops-number-ticker-wide\s*\{[^}]*width:\s*min\(100%,\s*14rem\)/);
     expect(OPS_STYLES).toMatch(/\.ops-number-ticker\[data-prefix='true'\] input\s*\{[^}]*padding-left:\s*22px/);
@@ -1715,12 +1774,33 @@ describe('the cost block', () => {
     }
   });
 
-  it('replaces component Billing through prose with the shared date badge', () => {
-    const markup = markupOf(<CostBody block={block(cost({ throughDay: '2026-08-14' }))} />);
-    expect(markup).toContain('aria-label="Billing through: 2026-08-14"');
-    expect(markup).toContain('dateTime="2026-08-14"');
-    expect(markup).toContain('Aug 14, 2026');
-    expect(text(markup)).not.toContain('Billing through 2026-08-14');
+  it('shows a date range for multi-day cards and one badge without filler for one day', () => {
+    const ranged = markupOf(<CostBody block={block(cost())} />);
+    expect(ranged).toContain('aria-label="Cost period from 2026-08-08 through 2026-08-14"');
+    expect(ranged).toContain('Aug 8, 2026');
+    expect(ranged).toContain('Aug 14, 2026');
+
+    const oneDayMarkup = markupOf(
+      <CostBody
+        block={block(
+          cost({
+            throughDay: '2026-09-03',
+            range: { from: '2026-09-03', to: '2026-09-03' },
+          })
+        )}
+      />
+    );
+    const mark = oneDayMarkup.indexOf('data-cost-component="serving-endpoint"');
+    const oneDayCard = oneDayMarkup.slice(
+      oneDayMarkup.lastIndexOf('<article', mark),
+      oneDayMarkup.indexOf('</article>', mark)
+    );
+    expect(oneDayCard.match(/dateTime="2026-09-03"/g)).toHaveLength(1);
+    expect(oneDayCard).toContain('aria-label="Date: 2026-09-03"');
+    expect(oneDayCard).toContain('Sep 3, 2026');
+    expect(oneDayCard).not.toContain('date-range-separator');
+    expect(oneDayCard).not.toContain('Selected period');
+    expect(oneDayCard).not.toContain('Billing through');
   });
 
   it('uses resource-specific DBU placeholders and an unavailable state without converting dollars', () => {

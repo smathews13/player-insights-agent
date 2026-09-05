@@ -303,8 +303,8 @@ describe('the mark that replaced it', () => {
     // seats on this page and both draw the app's own mark now.
     const home = SOURCES.get('HomePage.tsx')!;
     expect(home).not.toContain('PiaRobotMark');
-    expect(home).toMatch(/className="ask-hero-chip-mark">\s*<PiaEmptyStateMark size=\{18\} \/>/);
-    expect(home).toMatch(/className="agent-avatar">\s*<PiaMark size=\{32\} \/>/);
+    expect(home).toMatch(/className="ask-hero-chip-mark">\s*<PiaAvatar size=\{24\} \/>/);
+    expect(home).toMatch(/className="agent-avatar">\s*<PiaAvatar size=\{32\} \/>/);
   });
 
   it('signs the answer card and the plan card with it too', () => {
@@ -314,10 +314,10 @@ describe('the mark that replaced it', () => {
     // glyph on a plan -- which made it decoration rather than an identity.
     const answer = SOURCES.get('AnswerCard.tsx')!;
     expect(answer).not.toContain('PiaRobotMark');
-    expect(answer).toMatch(/className="answer-card-mark">\s*<PiaMark size=\{18\} tone="dark" \/>/);
+    expect(answer).toMatch(/className="answer-card-mark"[^>]*>\s*<PiaAvatar size=\{28\} tone="light" \/>/);
     const plan = SOURCES.get('PlanCard.tsx')!;
     expect(plan).not.toContain('PiaRobotMark');
-    expect(plan).toMatch(/className="agent-avatar">\s*<PiaMark size=\{\d+\} \/>/);
+    expect(plan).toMatch(/className="agent-avatar">\s*<PiaAvatar size=\{\d+\} \/>/);
   });
 
   it('asks each avatar for the size that seat actually paints', () => {
@@ -334,13 +334,13 @@ describe('the mark that replaced it', () => {
     const painted = Number(body('.agent-avatar svg').match(/width:\s*(\d+)px/)?.[1]);
     expect(painted, 'the avatar states the width it paints').toBeGreaterThanOrEqual(PIA_SIMPLIFIED_CUTOFF);
     for (const file of ['PlanCard.tsx', 'HomePage.tsx']) {
-      const asked = [...SOURCES.get(file)!.matchAll(/className="agent-avatar">\s*<PiaMark size=\{(\d+)\}/g)].map(
+      const asked = [...SOURCES.get(file)!.matchAll(/className="agent-avatar">\s*<PiaAvatar size=\{(\d+)\}/g)].map(
         (match) => Number(match[1])
       );
       expect(asked.length, `${file} seats the mark in an avatar`).toBeGreaterThan(0);
       for (const size of asked) expect(size, `${file} asks the avatar for its painted size`).toBe(painted);
     }
-    expect(SOURCES.get('AnswerCard.tsx')).toContain('<PiaMark size={18} tone="dark" />');
+    expect(SOURCES.get('AnswerCard.tsx')).toContain('<PiaAvatar size={28} tone="light" />');
   });
 
   it('sits the agent chip on Ice, which is what replaced oat', () => {

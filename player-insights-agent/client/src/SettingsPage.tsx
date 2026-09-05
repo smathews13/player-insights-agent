@@ -22,7 +22,6 @@ import {
   SETTINGS_SAVE_IDLE,
   changedSettingKeys,
   navigateSettingsSection,
-  saveButtonLabel,
   saveInFlight,
   saveNotice,
   settingsSaveDisabled,
@@ -39,6 +38,7 @@ import {
 import { UserRoleEditor } from './UserRoleEditor';
 import { Button, Switch } from './ui';
 import { Dialog } from './Dialog';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { settingsDismissalAction } from './settings-dismissal';
 import { saveExperimentalSettings, type ExperimentalSettingsDocument } from './experimental-settings-api';
 
@@ -510,7 +510,7 @@ export function SettingsPage({
             }
             onClick={() => setPressed(true)}
           >
-            {saveButtonLabel(saveState)}
+            <PiaBusyButtonContent busy={saving} label="Save" busyLabel="Saving" />
           </Button>
         </div>
       </footer>

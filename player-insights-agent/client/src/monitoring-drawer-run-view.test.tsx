@@ -142,18 +142,19 @@ describe('a Monitoring question opens as a centered modal over the list', () => 
     expect(MONITORING).not.toContain('<TraceTimeline');
   });
 
-  it('attaches Asked-by to the question before the answer card', () => {
+  it('attaches the organization-marked user to the question before the answer card', () => {
     const markup = drawer();
     const rendered = text(markup);
     const cardAt = markup.indexOf('class="answer-card');
     const questionAt = markup.indexOf('question-attribution-bubble');
-    const chipAt = markup.indexOf('identity-chip-label');
+    const chipAt = markup.indexOf('identity-chip-name');
     expect(cardAt).toBeGreaterThan(-1);
     expect(questionAt).toBeGreaterThan(-1);
     expect(questionAt).toBeLessThan(chipAt);
     expect(chipAt).toBeLessThan(cardAt);
-    expect(rendered).toContain('Asked by first.person');
-    expect(rendered.indexOf('Asked by first.person')).toBeLessThan(
+    expect(rendered).toContain('first.person');
+    expect(rendered).not.toContain('Asked by');
+    expect(rendered.indexOf('first.person')).toBeLessThan(
       rendered.indexOf('The leading title is ahead on daily active players.')
     );
     expect(MONITORING).toContain('<QuestionAttributionBubble');
@@ -195,7 +196,9 @@ describe("the modal draws one run view, the card's own", () => {
     expect(rendered).toContain('1,200 tokens recorded on this run.');
     expect(rendered).toContain('Open the MLflow trace');
     expect(rendered).toContain('Open in Run Explorer');
-    expect(markup).toContain('aria-label="Open user overview for first.person"');
+    expect(markup).toContain(
+      'aria-label="Open user overview for User first.person@example.test; organization example.test"'
+    );
     expect(rendered.indexOf('Open the MLflow trace')).toBeLessThan(rendered.indexOf('Run process'));
     expect(rendered.indexOf('A narrative sentence.')).toBeLessThan(rendered.indexOf('Run process'));
     expect(markup).toMatch(

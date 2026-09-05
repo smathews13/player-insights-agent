@@ -69,6 +69,13 @@ export function DateRangeBadges({
   value: DateRangeValue;
   accessibleLabel?: string;
 }) {
+  if (value.start.dateTime === value.end.dateTime) {
+    return (
+      <span className="date-range-badges date-range-badges--single">
+        <DateBadge value={value.start} accessiblePrefix="Date" />
+      </span>
+    );
+  }
   return (
     <span className="date-range-badges" aria-label={accessibleLabel}>
       <DateBadge value={value.start} accessiblePrefix="Start date and time" />

@@ -186,14 +186,14 @@ function body(
 }
 
 describe('who asked, in the list', () => {
-  it('uses the shared identity chip and renders no initials circle', () => {
+  it('uses the shared organization user badge and renders no user silhouette', () => {
     const markup = body('ready');
 
-    expect(markup).toContain('identity-chip identity-chip--compact monitoring-asker-who');
-    expect(markup).toContain('lucide-user-round');
-    expect(markup).not.toContain('>FP<');
+    expect(markup).toContain('identity-chip identity-chip--compact organization-user-badge monitoring-asker-who');
+    expect(markup).toContain('data-organization-id="domain:example.test"');
+    expect(markup).not.toContain('lucide-user-round');
     expect(markup).not.toContain('monitoring-initials');
-    expect(markup).toContain('title="first.person@example.test"');
+    expect(markup).toContain('title="first.person@example.test · example.test"');
     expect(markup).toContain('first.person');
   });
 
@@ -914,7 +914,7 @@ describe('the question list', () => {
   it('puts the full address on the asker cell and shows the local part', () => {
     const markup = body('ready');
 
-    expect(markup).toContain('title="first.person@example.test"');
+    expect(markup).toContain('title="first.person@example.test · example.test"');
     expect(text(markup)).toContain('first.person');
   });
 
@@ -924,7 +924,9 @@ describe('the question list', () => {
     );
 
     expect(markup).toContain('class="user-drilldown-link user-drilldown-link--chip"');
-    expect(markup).toContain('aria-label="Open user overview for first.person"');
+    expect(markup).toContain(
+      'aria-label="Open user overview for User first.person@example.test; organization example.test"'
+    );
     expect(markup).toContain('identity-chip-link-arrow');
     expect(markup).not.toContain('monitoring-question-button');
     expect(markup).not.toContain('<button');
@@ -1111,7 +1113,8 @@ describe('the detail modal', () => {
   it('names who asked and whose grants the data was read under', () => {
     const rendered = text(render(<QuestionDrawer detail={detail()} onClose={() => {}} canOpenUser />));
 
-    expect(rendered).toContain('Asked by first.person');
+    expect(rendered).toContain('first.person');
+    expect(rendered).not.toContain('Asked by');
     expect(rendered).toContain("Data read under first.person's own Unity Catalog grants.");
   });
 
@@ -1126,7 +1129,8 @@ describe('the detail modal', () => {
     expect(rendered).not.toContain("first.person's own Unity Catalog grants");
     // Who asked and when still print, with the meta line ending on the stamp
     // rather than on the middot that used to join the third segment.
-    expect(rendered).toContain('Asked by first.person');
+    expect(rendered).toContain('first.person');
+    expect(rendered).not.toContain('Asked by');
     expect(rendered).not.toMatch(/·\s*$/m);
   });
 
@@ -1135,7 +1139,9 @@ describe('the detail modal', () => {
 
     const mlflow = markup.indexOf('Open the MLflow trace');
     const runs = markup.indexOf('Open in Run Explorer');
-    const person = markup.indexOf('aria-label="Open user overview for first.person"');
+    const person = markup.indexOf(
+      'aria-label="Open user overview for User first.person@example.test; organization example.test"'
+    );
     expect(mlflow).toBeGreaterThan(-1);
 
     // The person is attached to the question; the two run actions follow below.
@@ -1184,7 +1190,8 @@ describe('the detail modal', () => {
     // The answer body is gone.
     expect(rendered).not.toContain('The leading title is ahead on daily active players.');
     // The always-shown set is not.
-    expect(rendered).toContain('Asked by first.person');
+    expect(rendered).toContain('first.person');
+    expect(rendered).not.toContain('Asked by');
     expect(rendered).toContain("Data read under first.person's own Unity Catalog grants.");
     expect(rendered).toContain('1,200 tokens recorded on this run.');
     expect(rendered).toContain('Not helpful');
@@ -1231,11 +1238,21 @@ describe('the detail modal', () => {
     );
     const rendered = text(markup);
     expect(markup).toContain('class="user-drilldown-link user-drilldown-link--chip"');
-    expect(markup).toContain('class="identity-chip identity-chip--compact question-attribution-user"');
-    expect(markup).toContain('lucide-user-round');
-    expect(markup).toContain('aria-label="Open user overview for <your-username>"');
+    expect(markup).toContain(
+      'class="identity-chip identity-chip--compact organization-user-badge question-attribution-user"'
+    );
+    expect(markup).toContain('data-organization-id="domain:example.test"');
+    expect(markup).not.toContain('lucide-user-round');
+    expect(markup).toContain(
+      'aria-label="Open user overview for User <your-username>@example.test; organization example.test"'
+    );
     expect(markup).toContain('href="/monitoring?range=7d&amp;userSearch=sam&amp;who=<your-username>%40example.test"');
-    expect(occurrences(markup, 'aria-label="Open user overview for <your-username>"')).toBe(1);
+    expect(
+      occurrences(
+        markup,
+        'aria-label="Open user overview for User <your-username>@example.test; organization example.test"'
+      )
+    ).toBe(1);
     const overviewLink = markup.match(/<a[^>]*aria-label="Open user overview[^"]*"[^>]*>[\s\S]*?<\/a>/)?.[0] ?? '';
     expect(overviewLink).not.toContain('<button');
     expect(overviewLink.match(/<a /g)).toHaveLength(1);
@@ -1255,8 +1272,10 @@ describe('the detail modal', () => {
       <QuestionDrawer detail={detail({ askedBy: '<your-username>@example.test' })} onClose={() => {}} canOpenUser={false} />
     );
 
-    expect(markup).toContain('class="identity-chip identity-chip--compact question-attribution-user"');
-    expect(markup).not.toContain('aria-label="Open user overview for <your-username>"');
+    expect(markup).toContain(
+      'class="identity-chip identity-chip--compact organization-user-badge question-attribution-user"'
+    );
+    expect(markup).not.toContain('aria-label="Open user overview');
     expect(markup).not.toContain('who=<your-username>%40example.test');
   });
 
@@ -1279,8 +1298,9 @@ describe('the detail modal', () => {
 
     for (const state of [live, stored, replayed]) {
       const markup = render(<QuestionDrawer detail={state} onClose={() => {}} canOpenUser />);
-      expect(markup).toContain('aria-label="Open user overview for first.person"');
-      expect(occurrences(markup, 'aria-label="Open user overview for first.person"')).toBe(1);
+      const label = 'aria-label="Open user overview for User first.person@example.test; organization example.test"';
+      expect(markup).toContain(label);
+      expect(occurrences(markup, label)).toBe(1);
     }
   });
 

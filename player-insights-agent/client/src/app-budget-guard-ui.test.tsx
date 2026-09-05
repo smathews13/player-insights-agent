@@ -101,6 +101,7 @@ describe('app budget guard UI', () => {
     expect(partial).not.toContain('Within budget');
     expect(partial).toContain('lucide-circle-check');
     expect(partial).toContain('ops-cost-summary-budget-outcome');
+    expect(partial).toContain('data-budget-tone="normal"');
     expect(partial).not.toContain('Spent this calendar month');
     expect(partial).not.toMatch(/>Estimated</);
     expect(partial).toContain('enforcement remains fail-open until coverage is complete');
@@ -158,6 +159,16 @@ describe('app budget guard UI', () => {
     );
     expect(crossingMarkup).toContain('Will exceed budget in 8 days');
     expect(crossingMarkup).toContain('lucide-circle-x');
+    expect(crossingMarkup).toContain('ops-cost-summary-budget-outcome" data-budget-tone="normal"');
+    expect(crossingMarkup).toContain('ops-cost-summary-budget-status" data-budget-tone="danger"');
+    const styles = readFileSync(new URL('./styles/ops.css', import.meta.url), 'utf8');
+    expect(styles).toMatch(
+      /\.ops-cost-summary-budget-outcome\[data-budget-tone='normal'\]\s*\{[^}]*color:\s*var\(--ast-pos-text\)/
+    );
+    expect(styles).toMatch(
+      /\.ops-cost-summary-budget-status\[data-budget-tone='danger'\]\s*\{[^}]*color:\s*var\(--ast-neg-text\)/
+    );
+    expect(styles).toMatch(/@media \(forced-colors: active\)\s*\{[^}]*\.ops-cost-summary-budget-outcome/s);
     expect(
       monthlyBudgetProgress(
         status('below', {

@@ -232,14 +232,15 @@ describe('Identity table polish', () => {
     expect(enabled.match(/<td/g) ?? []).toHaveLength(5);
     expect(enabled).toContain('aria-label="Email address to put on the roster"');
     expect(enabled).toContain('aria-label="User role to give them: Admin"');
-    expect(enabled).toContain('Add</button>');
+    expect(enabled).toContain('class="sr-only">Add</span>');
     expect(enabled).toContain('roster-action-icon');
     expect(roster()).toContain('roster-control settings-destructive roster-action-button');
     expect(enabled).not.toMatch(/Add<\/button>.*disabled/);
     expect(enabled).toMatch(/focus-visible:[^"]+/);
     expect(disabled).toContain('disabled=""');
     expect(loading).toContain('aria-busy="true"');
-    expect(loading).toContain('Adding…');
+    expect(loading).toContain('Adding');
+    expect(loading).toContain('pia-loader-mark--button');
     expect(CSS).toMatch(
       /\.roles-table \.roster-action > \[data-slot='button'\]\.roster-action-button \{[^}]*width:\s*92px[^}]*min-width:\s*92px[^}]*max-width:\s*92px[^}]*height:\s*30px[^}]*padding:\s*0 9px[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*gap:\s*6px[^}]*text-align:\s*center/s
     );

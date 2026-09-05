@@ -19,6 +19,7 @@ import {
   type LabWorkspace,
   type PocContractView,
 } from '../../shared/benchmark-lab-v3';
+import { PiaBusyButtonContent } from './PiaLoader';
 
 export function GenieStatTiles({
   accuracy,
@@ -274,6 +275,7 @@ function DefaultJudgesStage({
   judges,
   runProgress,
   running,
+  activeSide,
   onRunBaseline,
   onRunCandidate,
   onCancel,
@@ -281,6 +283,7 @@ function DefaultJudgesStage({
   judges: readonly string[];
   runProgress: string | null;
   running: boolean;
+  activeSide?: 'baseline' | 'candidate' | null;
   onRunBaseline?: () => void;
   onRunCandidate?: () => void;
   onCancel?: () => void;
@@ -309,16 +312,28 @@ function DefaultJudgesStage({
           variant="primary"
           onClick={onRunBaseline}
           disabled={running || !onRunBaseline}
+          aria-busy={(running && activeSide === 'baseline') || undefined}
           title={!onRunBaseline ? UNWIRED_TITLE : undefined}
         >
-          {running ? 'Run in progress' : 'Run baseline'}
+          <PiaBusyButtonContent
+            busy={running && activeSide === 'baseline'}
+            label="Run baseline"
+            busyLabel="Running baseline"
+            tone="light"
+          />
         </BenchButton>
         <BenchButton
           onClick={onRunCandidate}
           disabled={running || !onRunCandidate}
+          aria-busy={(running && activeSide === 'candidate') || undefined}
           title={!onRunCandidate ? UNWIRED_TITLE : undefined}
         >
-          {running ? 'Run in progress' : 'Run candidate'}
+          <PiaBusyButtonContent
+            busy={running && activeSide === 'candidate'}
+            label="Run candidate"
+            busyLabel="Running candidate"
+            tone="light"
+          />
         </BenchButton>
         <UnwiredButton>Score one Ask session</UnwiredButton>
       </div>
@@ -556,6 +571,7 @@ export function BenchmarkLabChrome({
   judges,
   runProgress = null,
   running = false,
+  activeSide = null,
   onRunBaseline,
   onRunCandidate,
   onCancel,
@@ -569,6 +585,7 @@ export function BenchmarkLabChrome({
   judges: readonly string[];
   runProgress?: string | null;
   running?: boolean;
+  activeSide?: 'baseline' | 'candidate' | null;
   onRunBaseline?: () => void;
   onRunCandidate?: () => void;
   onCancel?: () => void;
@@ -616,6 +633,7 @@ export function BenchmarkLabChrome({
                 judges={judges}
                 runProgress={runProgress}
                 running={running}
+                activeSide={activeSide}
                 onRunBaseline={onRunBaseline}
                 onRunCandidate={onRunCandidate}
                 onCancel={onCancel}

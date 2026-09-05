@@ -25,6 +25,12 @@ export default defineConfig({
           // Settings and admin-only routes retain authoritative Zod validation,
           // but their shared validator must not be hoisted into eager Ask.
           if (id.includes('/node_modules/zod/')) return 'zod';
+          // Organization artwork is shared by eager account identity and lazy
+          // Monitoring/Settings routes. Keep it in one preload instead of
+          // inflating the budgeted Home entry with embedded SVG source.
+          if (id.includes('/client/src/organization-logos.ts') || id.includes('/client/src/assets/organization/')) {
+            return 'organization-logos';
+          }
         },
       },
     },

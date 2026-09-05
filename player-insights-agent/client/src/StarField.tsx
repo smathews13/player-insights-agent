@@ -49,7 +49,7 @@ const ACCENT_NODE_KEYS = new Set([
   topologyPointKey([330, 170]), // Genie
   topologyPointKey([1100, 190]), // Unity Catalog
   topologyPointKey([205, 650]), // controller D-pad
-  topologyPointKey([365, 610]), // game sparkle
+  topologyPointKey([365, 610]), // engraved D-pad replacing the legacy sparkle
   topologyPointKey([820, 250]), // game cross
 ]);
 
@@ -99,7 +99,7 @@ export function buildAppTopology(): AppTopologyDrawing {
       const accent = ACCENT_NODE_KEYS.has(topologyPointKey([node.x, node.y]));
       return {
         ...node,
-        glyph: accent ? node.glyph : 'dot',
+        glyph: accent ? (node.glyph === 'sparkle' ? 'dpad' : node.glyph) : 'dot',
         size: accent ? APP_TOPOLOGY_ICON_SIZE : APP_TOPOLOGY_DOT_SIZE,
         duration: SKY_NODE_MIN_SECONDS + (index % 4) * 6,
         delay: -(index % 6) * 3,

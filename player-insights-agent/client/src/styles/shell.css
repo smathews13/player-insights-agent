@@ -148,6 +148,8 @@
 .app-nav-tab svg {
   width: 14px;
   height: 14px;
+  color: inherit;
+  stroke: currentColor;
 }
 /* Tabs preview with type and their reserved underline only. A rectangular wash
    made the navigation read as a row of square buttons and fought the active
@@ -158,23 +160,40 @@
   background: transparent;
 }
 .app-nav-tab:focus-visible {
-  outline: none;
-  border-bottom-color: var(--db-blue-600);
+  outline: 2px solid var(--ring);
+  outline-offset: -3px;
+  border-bottom-color: transparent;
   background: transparent;
-  color: var(--db-blue-600);
+  color: var(--foreground);
 }
 /* Keyed on aria-current rather than on a class the router hands the callback,
    so the state a screen reader is told and the state that is painted are the
    same fact read twice rather than two facts that can drift. */
 .app-nav-tab[aria-current='page'] {
-  border-bottom-color: var(--db-blue-600);
-  color: var(--db-blue-600);
+  border-bottom-color: var(--primary);
+  color: var(--primary);
   font-weight: 500;
 }
 .app-nav-tab[aria-current='page']:is(:hover, :focus-visible) {
-  border-bottom-color: var(--db-blue-600);
+  border-bottom-color: var(--primary);
   background: transparent;
-  color: var(--db-blue-600);
+  color: var(--primary);
+}
+@media (forced-colors: active) {
+  .app-nav-tab:hover {
+    border-bottom-color: CanvasText;
+    color: CanvasText;
+  }
+  .app-nav-tab:focus-visible {
+    outline-color: Highlight;
+    border-bottom-color: transparent;
+    color: CanvasText;
+  }
+  .app-nav-tab[aria-current='page'],
+  .app-nav-tab[aria-current='page']:is(:hover, :focus-visible) {
+    border-bottom-color: Highlight;
+    color: Highlight;
+  }
 }
 /* Above the width where the nav collapses into the sheet, the hamburger is not
    drawn at all; responsive.css turns these two around at 1180px. */

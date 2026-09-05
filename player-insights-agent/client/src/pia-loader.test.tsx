@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { Save } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
@@ -100,13 +101,24 @@ describe('PIA D-pad and cluster loader contract', () => {
   });
 
   it('keeps button width and accessible name stable without an overlay', () => {
-    const idle = renderToStaticMarkup(<PiaBusyButtonContent busy={false} label="Save settings" busyLabel="Saving" />);
-    const busy = renderToStaticMarkup(<PiaBusyButtonContent busy label="Save settings" busyLabel="Saving" />);
+    const idle = renderToStaticMarkup(
+      <PiaBusyButtonContent
+        busy={false}
+        label="Save settings"
+        busyLabel="Saving"
+        icon={<Save data-testid="idle-icon" />}
+      />
+    );
+    const busy = renderToStaticMarkup(
+      <PiaBusyButtonContent busy label="Save settings" busyLabel="Saving" icon={<Save data-testid="idle-icon" />} />
+    );
     for (const markup of [idle, busy]) {
       expect(markup).toContain('pia-button-state__idle');
       expect(markup).toContain('pia-button-state__busy');
       expect(markup).toContain('Save settings');
       expect(markup).toContain('pia-loader-mark--button');
+      expect(markup).toContain('data-testid="idle-icon"');
+      expect(markup.match(/pia-button-state/g)).toHaveLength(3);
     }
     expect(CSS).toMatch(/\.pia-button-state\s*\{[^}]*display:\s*inline-grid/s);
     expect(CSS).toMatch(/\.pia-button-state__idle,[\s\S]*\.pia-button-state__busy\s*\{[^}]*grid-area:\s*1 \/ 1/s);

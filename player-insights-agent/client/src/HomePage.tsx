@@ -81,7 +81,7 @@ import {
   X,
 } from 'lucide-react';
 import { EntityText } from './InlineEntityText';
-import { attachControlState } from './attach-control';
+import { ATTACH_LABEL, attachControlState } from './attach-control';
 import { ANSWER_PARAM, CONVERSATION_PARAM, answerRowId } from './conversation-links';
 import { formatDuration } from './benchmark-format';
 import { conversationRunSummary, railDuration, type RailRunSummary } from './rail-run-summary';
@@ -142,7 +142,7 @@ import {
   useActiveConversationRuns,
 } from './active-conversation-runs';
 import { failedAskSettlement, settleAskDisplay, terminalSettlementForResponse } from './ask-terminal-state';
-import { PiaEmptyStateMark, PiaMark } from './PiaMark';
+import { PiaAvatar } from './PiaMark';
 import { PiaBusyButtonContent, PiaLoaderMark } from './PiaLoader';
 import { ConversationRailRunStatus } from './ConversationRailRunStatus';
 import { PiaFlicker } from './PiaFlicker';
@@ -193,7 +193,7 @@ import type { FeedbackDirection } from '../../shared/feedback-direction';
 import { FeedbackWriteQueue } from './feedback-write-queue';
 import { notifyFeedbackChanged } from './feedback-events';
 import { QuestionAttributionBubble } from './QuestionAttributionBubble';
-import { UserDrilldownLink } from './UserDrilldownLink';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 
 const ConversationFilters = lazy(() =>
   import('./ConversationFilters').then(({ ConversationFilters: filters }) => ({ default: filters }))
@@ -2379,16 +2379,15 @@ export function HomePage() {
                         ) : null}
                       </span>
                     </button>
-                    {adminSharedRail && owner ? (
-                      <Suspense fallback={null}>
-                        <UserDrilldownLink
-                          identity={owner}
-                          label="Asked by"
-                          compact
-                          className="conversation-owner"
-                          canOpen
-                        />
-                      </Suspense>
+                    {owner ? (
+                      <OrganizationUserBadge
+                        identity={owner}
+                        organization={you ? identity.organization : undefined}
+                        organizations={identity.organizations}
+                        className="conversation-owner"
+                        canOpen={adminSharedRail}
+                        showArrow={adminSharedRail}
+                      />
                     ) : null}
                     {you ? (
                       <button
@@ -2478,12 +2477,11 @@ export function HomePage() {
         <section ref={conversationMainRef} className={`conversation-main${transcriptEmpty ? ' is-empty' : ''}`}>
           {transcriptEmpty && (
             <div className="ask-hero">
-              {/* The chip that introduces the agent uses the static face-button
-                cluster reserved for empty states. It is decorative because the
-                adjacent words already name the product. */}
+              {/* The chip introduces the agent with the same engraved static
+                avatar used on every answer and agent-authored turn. */}
               <div className="ask-hero-chip">
                 <span className="ask-hero-chip-mark">
-                  <PiaEmptyStateMark size={18} />
+                  <PiaAvatar size={24} />
                 </span>
                 Player Insights Agent
               </div>
@@ -2816,7 +2814,13 @@ export function HomePage() {
               disabled={attachControl.disabled}
               onClick={() => fileInputRef.current?.click()}
             >
-              {attachControl.pending ? <PiaFlicker seat="button" /> : <Paperclip />} {attachControl.label}
+              <PiaBusyButtonContent
+                busy={attachControl.pending}
+                label={ATTACH_LABEL}
+                busyLabel={attachControl.label}
+                tone="light"
+                icon={<Paperclip />}
+              />
             </Button>
             {attachments.length > 0 && ( // Separate from New conversation on purpose: dropping the documents
               // and dropping the thread are different intentions, and coupling them
@@ -2829,8 +2833,13 @@ export function HomePage() {
                 aria-busy={clearingDocs || undefined}
                 onClick={() => void clearDocs()}
               >
-                {clearingDocs ? <PiaLoaderMark variant="button" tone="light" /> : <Trash2 className="size-4" />}
-                {`Clear docs (${attachments.length})`}
+                <PiaBusyButtonContent
+                  busy={clearingDocs}
+                  label={`Clear docs (${attachments.length})`}
+                  busyLabel="Clearing docs"
+                  tone="light"
+                  icon={<Trash2 className="size-4" />}
+                />
               </Button>
             )}
             {/* The composer keeps the shared caveat copy but not the product mark:
@@ -2840,21 +2849,15 @@ export function HomePage() {
             {/* One control for one current action. While a question is active it
                 becomes Stop and remains pressable; Stop first records durable
                 cancellation and only then aborts this browser's stream. */}
-            <Button type="submit" disabled={loading ? stopping : !canAsk}>
+            <Button type="submit" disabled={loading ? stopping : !canAsk} aria-busy={stopping || parsing || undefined}>
               {loading ? (
                 stopping ? (
-                  <>
-                    <PiaFlicker seat="button" />
-                    Stopping…
-                  </>
+                  <PiaBusyButtonContent busy label="Stop" busyLabel="Stopping" />
                 ) : (
                   'Stop'
                 )
               ) : parsing ? (
-                <>
-                  <PiaFlicker seat="button" />
-                  Reading files…
-                </>
+                <PiaBusyButtonContent busy label="Ask Player Insights Agent" busyLabel="Reading files" />
               ) : (
                 'Ask Player Insights Agent'
               )}
@@ -3147,7 +3150,7 @@ function ClarificationCard({
               The mark is the PIA D-pad now rather than the robot (§1), so a
               clarification is signed with the same drawing the header carries. */}
           <div className="agent-avatar">
-            <PiaMark size={32} />
+            <PiaAvatar size={32} />
           </div>
           <div className="space-y-1">
             <Badge variant="outline">{resolved ? 'Question answered' : 'Needs one detail'}</Badge>

@@ -30,7 +30,10 @@ const PUBLIC_PERSONAS = [
   },
 ];
 
-const PRIVATE_PERSONA_PATTERN = /northwind|take[-_ ]?two|2k[ _-]marketing[ _-]scientist/i;
+// Match the retired private persona identities, not unrelated organization
+// labels or logo keys that the account UI is allowed to render.
+const PRIVATE_PERSONA_PATTERN =
+  /northwind[-_ ]analyst|2k[-_ ]marketing[-_ ]scientist|take[-_ ]two[-_ ](?:analyst|marketing[-_ ]scientist)/i;
 
 function localModuleImports(file) {
   const source = readFileSync(file, 'utf8');

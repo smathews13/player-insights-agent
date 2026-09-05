@@ -18,6 +18,8 @@ export function UserIdentityChip({
   suffix,
   icon,
   showFullIdentity = false,
+  title,
+  ariaLabel,
 }: {
   identity: string | null | undefined;
   label?: string;
@@ -29,6 +31,10 @@ export function UserIdentityChip({
   icon?: ReactNode;
   /** Profile headers may show the full address; dense lists keep the local part. */
   showFullIdentity?: boolean;
+  /** Accessible hover detail when a surface combines person and organization. */
+  title?: string;
+  /** Complete accessible name when the visible compact label omits detail. */
+  ariaLabel?: string;
 }) {
   const value = identity?.trim() ?? '';
   const name = identityName(value);
@@ -36,7 +42,8 @@ export function UserIdentityChip({
     <span
       className={`identity-chip${compact ? ' identity-chip--compact' : ''}${className ? ` ${className}` : ''}`}
       data-testid={testId}
-      title={value || 'User identity not recorded'}
+      title={title ?? (value || 'User identity not recorded')}
+      aria-label={ariaLabel}
     >
       {icon ?? <UserRound className={compact ? 'size-3' : 'size-3.5'} aria-hidden="true" />}
       <span className="identity-chip-text">

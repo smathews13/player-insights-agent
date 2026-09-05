@@ -54,7 +54,7 @@
  * line rather than an undrawn one -- which is why the classes are used rather than
  * an inline `animation`.
  */
-import { PiaMark } from './PiaMark';
+import { PiaAvatar } from './PiaMark';
 import {
   buildMapConstellation,
   buildPathConstellation,
@@ -385,7 +385,7 @@ function StepRail({
                     {product !== null ? (
                       <BrandIcon product={product} size={12} />
                     ) : star.decision ? (
-                      <PiaMark size={11} />
+                      <PiaAvatar size={11} />
                     ) : null}
                     {state !== '' && (
                       <span className={`step-rail-state ${railTone(stage.status, live)}`.trim()}>{state}</span>
@@ -758,7 +758,7 @@ export function AgentPathConstellation({
             ) : shownProduct ? (
               <BrandIcon product={shownProduct} size={12} tone="dark" />
             ) : (
-              <PiaMark size={11} tone="dark" />
+              <PiaAvatar size={11} tone="dark" />
             )}
           </span>
           <span className="ast-sky-status-text">{statusText}</span>

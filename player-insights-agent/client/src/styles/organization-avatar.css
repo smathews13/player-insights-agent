@@ -55,6 +55,23 @@
   height: 14px;
 }
 
+.organization-user-badge > .roster-organization-mark {
+  flex-basis: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.organization-user-badge > .roster-organization-mark .roster-organization-logo,
+.organization-user-badge > .roster-organization-mark .roster-databricks-symbol {
+  width: 13px;
+  height: 13px;
+}
+
+.organization-user-badge > .roster-organization-mark .roster-organization-fallback {
+  width: 11px;
+  height: 11px;
+}
+
 @media (forced-colors: active) {
   .roster-organization-mark {
     border-color: CanvasText;

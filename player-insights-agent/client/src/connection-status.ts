@@ -78,6 +78,26 @@ export const PRIMARY_CONNECTION_LABEL = {
   disconnected: 'Disconnected',
 } as const;
 
+/**
+ * The one visual treatment for every settled connection status.
+ *
+ * Call sites choose a state, never a colour. This keeps catalog rows, ordinary
+ * resource rows, AI Gateway, load failures, and expanded details from drifting
+ * back to AppKit's neutral `secondary` badge for a successful connection.
+ */
+export const PRIMARY_CONNECTION_BADGE = {
+  connected: { label: PRIMARY_CONNECTION_LABEL.connected, family: 'pos' },
+  disconnected: { label: PRIMARY_CONNECTION_LABEL.disconnected, family: 'neg' },
+} as const;
+
+export function resolvedConnectionStateFromLabel(value: unknown): ResolvedConnectionState | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLocaleLowerCase();
+  if (normalized === 'connected') return 'connected';
+  if (normalized === 'disconnected' || normalized === 'not connected') return 'disconnected';
+  return null;
+}
+
 const CONNECTED_VERDICTS = new Set([
   'answered',
   'available',
@@ -191,7 +211,6 @@ export function connectionNote(input: {
 }
 
 export function connectionStatusVariant(status: ConnectionStatus) {
-  if (status === 'reachable') return 'secondary' as const;
   if (status === 'blocked') return 'destructive' as const;
   return 'outline' as const;
 }

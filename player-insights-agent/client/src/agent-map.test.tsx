@@ -459,8 +459,8 @@ describe('a card says what kind of step, which step, and how long', () => {
     // orange robot among the things this design removes rather than restyles -- so
     // this chip is not the robot's chip restained, the figure in it is a different
     // figure. A robot here in any colour is the old identity still signing steps.
-    expect(SOURCE).toContain('<PiaMark size={13} />');
-    expect(SOURCE).toContain("import { PiaMark } from './PiaMark'");
+    expect(SOURCE).toContain('<PiaAvatar size={13} />');
+    expect(SOURCE).toContain("import { PiaAvatar } from './PiaMark'");
     expect(SOURCE).not.toMatch(/PiaRobotMark/);
     // THE SIZE PROP AND THE PAINTED SIZE HAVE TO AGREE, and 13 is both here.
     // `markElements` picks the drawing from `size` as well as the box -- below
@@ -1511,7 +1511,7 @@ describe('the narrow rail is one column of every step', () => {
     // `--light` is part of the claim rather than noise in it: the ink is a class
     // on the mark, so a seat that forgot to say which surface it is on renders
     // the navy-band cut on a white rail and this catches it.
-    expect(markup).toContain('class="pia-mark pia-mark--light');
+    expect(markup).toContain('class="pia-mark pia-avatar pia-mark--light');
     expect(markup).not.toContain('pia-robot');
     expect(/^import \{[^}]*\} from 'lucide-react';$/m.exec(SOURCE)?.[0]).not.toMatch(/\bBot\b/);
     // No colour on the agent mark's own rule, at all. A `stroke` or a `color` here

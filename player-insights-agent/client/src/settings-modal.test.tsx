@@ -295,7 +295,7 @@ describe('Settings modal', () => {
     expect(off).not.toContain('Baseline vs candidate');
     expect(off).not.toContain('Eval set');
     expect(off).toContain('disabled=""');
-    expect(off).toContain('>Save</button>');
+    expect(off).toContain('class="sr-only">Save</span>');
 
     const on = renderToStaticMarkup(
       <SettingsPage
@@ -306,14 +306,14 @@ describe('Settings modal', () => {
       />
     );
     expect(on).toContain('MLflow experiment');
-    expect(on).toContain('>Save</button>');
+    expect(on).toContain('class="sr-only">Save</span>');
     expect(on).not.toContain('>Benchmarking</button>');
   });
 
   it('keeps one active-section Save and Cancel in the modal footer on every tab', () => {
     for (const section of ['runtime', 'appearance', 'experimental', 'identity', 'environment', 'egress'] as const) {
       const markup = render(section);
-      expect(markup.match(/>Save<\/button>/g) ?? []).toHaveLength(1);
+      expect(markup.match(/class="sr-only">Save<\/span>/g) ?? []).toHaveLength(1);
       expect(markup).toContain('>Cancel</button>');
     }
   });

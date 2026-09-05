@@ -15,6 +15,7 @@ import { POC_STARTER_QUESTIONS } from '../../shared/eval-dataset';
 import { AppSelect } from './AppSelect';
 import { astPill } from './pia-pill';
 import { BenchButton, LabSurface } from './BenchmarkLabChrome';
+import { PiaBusyButtonContent } from './PiaLoader';
 import type { EvaluationLabModel } from './use-evaluation-lab';
 
 const TAG_LABEL: Record<CaseTag, string> = {
@@ -169,17 +170,41 @@ export function EvaluationSet({ lab }: { lab: EvaluationLabModel }) {
             variant="primary"
             onClick={() => void lab.loadImportCandidates()}
             disabled={lab.busy === 'import'}
+            aria-busy={lab.busy === 'import' || undefined}
           >
-            Import from traces
+            <PiaBusyButtonContent
+              busy={lab.busy === 'import'}
+              label="Import from traces"
+              busyLabel="Importing traces"
+              tone="light"
+            />
           </BenchButton>
-          <BenchButton onClick={() => void lab.commitVersion()} disabled={lab.busy === 'version'}>
-            New dataset version
+          <BenchButton
+            onClick={() => void lab.commitVersion()}
+            disabled={lab.busy === 'version'}
+            aria-busy={lab.busy === 'version' || undefined}
+          >
+            <PiaBusyButtonContent
+              busy={lab.busy === 'version'}
+              label="New dataset version"
+              busyLabel="Saving version"
+              tone="light"
+            />
           </BenchButton>
           <BenchButton onClick={() => lab.setReviewerOnly(!lab.reviewerOnly)} aria-pressed={lab.reviewerOnly}>
             {lab.lab.reviewerQueue}
           </BenchButton>
-          <BenchButton onClick={() => void lab.previewAlign()} disabled={lab.busy === 'align'}>
-            Align guidelines from labels
+          <BenchButton
+            onClick={() => void lab.previewAlign()}
+            disabled={lab.busy === 'align'}
+            aria-busy={lab.busy === 'align' || undefined}
+          >
+            <PiaBusyButtonContent
+              busy={lab.busy === 'align'}
+              label="Align guidelines from labels"
+              busyLabel="Aligning guidelines"
+              tone="light"
+            />
           </BenchButton>
         </div>
       }
@@ -379,18 +404,55 @@ export function CurateStageControls({ lab }: { lab: EvaluationLabModel }) {
       <p className="bench-stage-counts ast-num">{lab.lab.stage01Fact}</p>
       <span className={astPill('neutral-outline', 'bench-chip ast-num')}>{lab.lab.reviewerQueue}</span>
       <div className="bench-btn-row">
-        <BenchButton variant="primary" onClick={() => void lab.loadImportCandidates()} disabled={lab.busy === 'import'}>
-          Import from Ask and Monitoring traces
+        <BenchButton
+          variant="primary"
+          onClick={() => void lab.loadImportCandidates()}
+          disabled={lab.busy === 'import'}
+          aria-busy={lab.busy === 'import' || undefined}
+        >
+          <PiaBusyButtonContent
+            busy={lab.busy === 'import'}
+            label="Import from Ask and Monitoring traces"
+            busyLabel="Importing traces"
+            tone="light"
+          />
         </BenchButton>
-        <BenchButton onClick={() => void lab.commitVersion()} disabled={lab.busy === 'version'}>
-          New dataset version
+        <BenchButton
+          onClick={() => void lab.commitVersion()}
+          disabled={lab.busy === 'version'}
+          aria-busy={lab.busy === 'version' || undefined}
+        >
+          <PiaBusyButtonContent
+            busy={lab.busy === 'version'}
+            label="New dataset version"
+            busyLabel="Saving version"
+            tone="light"
+          />
         </BenchButton>
-        <BenchButton onClick={() => void lab.assignSplit('held_out')} disabled={lab.busy === 'split'}>
-          Assign tuning / held-out split
+        <BenchButton
+          onClick={() => void lab.assignSplit('held_out')}
+          disabled={lab.busy === 'split'}
+          aria-busy={lab.busy === 'split' || undefined}
+        >
+          <PiaBusyButtonContent
+            busy={lab.busy === 'split'}
+            label="Assign tuning / held-out split"
+            busyLabel="Assigning split"
+            tone="light"
+          />
         </BenchButton>
         <BenchButton onClick={() => lab.setReviewerOnly(true)}>Open reviewer queue</BenchButton>
-        <BenchButton onClick={() => void lab.duplicateSelected()} disabled={lab.busy === 'duplicate'}>
-          Duplicate as edge case
+        <BenchButton
+          onClick={() => void lab.duplicateSelected()}
+          disabled={lab.busy === 'duplicate'}
+          aria-busy={lab.busy === 'duplicate' || undefined}
+        >
+          <PiaBusyButtonContent
+            busy={lab.busy === 'duplicate'}
+            label="Duplicate as edge case"
+            busyLabel="Duplicating case"
+            tone="light"
+          />
         </BenchButton>
       </div>
       {lab.notice ? <p className="bench-caption">{lab.notice}</p> : null}

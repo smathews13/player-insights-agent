@@ -41,7 +41,7 @@ import {
 import { Check, ChevronDown, CircleAlert, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { AnswerEvidence } from './AnswerEvidence';
 import { PiaBusyButtonContent } from './PiaLoader';
-import { PiaMark } from './PiaMark';
+import { PiaAvatar } from './PiaMark';
 import { AnswerProse, EntityText } from './DataEntityLinks';
 import { mentionedIdentifiers } from './data-entities';
 import { SourcesModule } from './SourcesModule';
@@ -233,7 +233,7 @@ export function AnswerCard({
         <div className="answer-card-head">
           <div className="answer-card-identity">
             <span className="answer-card-mark" aria-hidden="true">
-              <PiaMark size={28} tone="light" />
+              <PiaAvatar size={28} tone="light" />
             </span>
             <div className="answer-card-badges flex flex-wrap items-center gap-1.5">
               <Badge variant={badge.variant} className="provenance-chip" data-tone={badge.tone}>

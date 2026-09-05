@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Copy, Trash2, UserPlus } from 'lucide-react';
 import { Button, Input } from './ui';
-import { PiaLoader } from './PiaLoader';
+import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 import { addedOn, canSubmit, listSummary, originLabel, type AdminListEntry } from './admin-list';
 import { reportEgress } from './egress-policy';
 import type { AdminListPayload } from '../../shared/admin-contract';
@@ -67,11 +67,13 @@ export function CopyableCommand({ command, label }: { command: string; label: st
 export function AdminRows({
   payload,
   busy,
+  removing,
   onRemove,
   footer,
 }: {
   payload: AdminListPayload;
   busy: boolean;
+  removing?: string | null;
   onRemove: (entry: AdminListEntry) => void;
   footer?: ReactNode;
 }) {
@@ -122,10 +124,16 @@ export function AdminRows({
                       className="roster-control settings-destructive"
                       size="sm"
                       disabled={busy}
+                      aria-busy={removing === entry.email || undefined}
                       onClick={() => onRemove(entry)}
                       aria-label={`Remove ${entry.email}`}
                     >
-                      <Trash2 className="size-3.5" /> Remove
+                      <PiaBusyButtonContent
+                        busy={removing === entry.email}
+                        label="Remove"
+                        busyLabel="Removing"
+                        icon={<Trash2 className="size-3.5" />}
+                      />
                     </Button>
                   ) : null}
                 </td>
@@ -144,7 +152,7 @@ export function AdminListEditor() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [draft, setDraft] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<{ kind: 'add' | 'remove'; email: string } | null>(null);
   const [writeError, setWriteError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -175,7 +183,7 @@ export function AdminListEditor() {
 
   async function add() {
     const email = draft.trim();
-    setBusy(true);
+    setBusy({ kind: 'add', email });
     setWriteError('');
     setNotice('');
     try {
@@ -195,12 +203,12 @@ export function AdminListEditor() {
     } catch (cause) {
       setWriteError((cause as Error).message);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
   async function remove(entry: AdminListEntry) {
-    setBusy(true);
+    setBusy({ kind: 'remove', email: entry.email });
     setWriteError('');
     setNotice('');
     try {
@@ -215,7 +223,7 @@ export function AdminListEditor() {
     } catch (cause) {
       setWriteError((cause as Error).message);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -234,7 +242,8 @@ export function AdminListEditor() {
       {payload ? (
         <AdminRows
           payload={payload}
-          busy={busy}
+          busy={busy !== null}
+          removing={busy?.kind === 'remove' ? busy.email : null}
           onRemove={(entry) => void remove(entry)}
           footer={
             <tr className="roster-add-row">
@@ -255,10 +264,17 @@ export function AdminListEditor() {
                   variant="outline"
                   data-variant="outline"
                   className="roster-control"
-                  disabled={!canSubmit(draft, busy)}
+                  disabled={!canSubmit(draft, busy !== null)}
+                  aria-busy={busy?.kind === 'add' || undefined}
                   onClick={() => void add()}
                 >
-                  <UserPlus className="size-3.5" /> Add
+                  <PiaBusyButtonContent
+                    busy={busy?.kind === 'add'}
+                    label="Add"
+                    busyLabel="Adding"
+                    tone="light"
+                    icon={<UserPlus className="size-3.5" />}
+                  />
                 </Button>
               </td>
             </tr>

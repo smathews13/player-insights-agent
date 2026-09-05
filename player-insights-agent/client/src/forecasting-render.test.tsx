@@ -4,7 +4,7 @@ import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OpsCostPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 import { NO_EXPERIMENTS, type ExperimentalFeatures } from './experimental-features';
-import { calculateForecast, deriveForecastBaseline } from './forecast';
+import { calculateForecast, deriveForecastBaseline, type ForecastResult } from './forecast';
 import { ForecastingBody, ProjectionBreakdown } from './ForecastingPanel';
 import { OpsPage, type Block } from './OpsPage';
 import { autoLoadOpsBlock, forgetOpsSession, opsAutoLoadClaimed } from './ops-session';
@@ -318,16 +318,20 @@ describe('Forecasting visibility and placement', () => {
       /\.ops-forecast-breakdown th:not\(:first-child\),\s*\.ops-forecast-breakdown td\s*\{[^}]*font-variant-numeric:\s*tabular-nums/
     );
 
-    for (const component of ['Serving endpoint', 'PIA SQL', 'App compute', 'Vector Search', 'Data Genie']) {
-      expect(breakdown).toContain(`<th scope="row">${component}</th>`);
+    const componentIds = [...breakdown.matchAll(/data-cost-component="([^"]+)"/g)].map((match) => match[1]);
+    expect(componentIds).toEqual(['serving-endpoint', 'sql-warehouse', 'app-compute', 'vector-search', 'genie:data']);
+    for (const component of ['Agent serving', 'Ask SQL', 'App compute', 'Vector Search', 'Data Genie']) {
+      expect(breakdown).toContain(`<span>${component}</span>`);
     }
+    expect(breakdown.match(/ops-forecast-component-mark/g)).toHaveLength(5);
+    expect(breakdown).toContain('lucide-sigma');
     expect(breakdown).not.toContain('Dictionary Genie');
     expect(markup).not.toContain('Dictionary Genie pricing is unavailable.');
-    expect(breakdown).toContain('<th scope="row">Subtotal</th>');
+    expect(breakdown).toContain('<span>Subtotal</span>');
     expect(markup.match(/84\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
     expect(markup.match(/360\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
     expect(markup.match(/2,150\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
-    expect(breakdown.match(/<th scope="row">PIA SQL<\/th>/g)).toHaveLength(1);
+    expect(breakdown.match(/data-cost-component="sql-warehouse"/g)).toHaveLength(1);
   });
 
   it('uses the shared DBU selection for every projection without a currency conversion', () => {
@@ -340,6 +344,39 @@ describe('Forecasting visibility and placement', () => {
     expect(projection).toContain('DBU');
     expect(projection).not.toContain(' USD');
     expect(markup).not.toContain('USD conversion rate');
+  });
+
+  it('keeps every priced component icon aligned in canonical row order', () => {
+    const components = [
+      ['serving-endpoint', 'Agent serving'],
+      ['foundation-model', 'Foundation model tokens'],
+      ['sql-warehouse', 'Ask SQL'],
+      ['app-compute', 'App compute'],
+      ['vector-search', 'Vector Search'],
+      ['genie:data', 'Data Genie'],
+      ['genie:dictionary', 'Dictionary Genie'],
+    ].map(([id, label]) => ({ id, label, dailyAmount: 1, formula: '', unavailable: '' }));
+    const result: ForecastResult = {
+      dailyQuestions: 1,
+      dailyActiveMinutes: 1,
+      components,
+      horizons: [7, 30, 180].map((days) => ({
+        days,
+        label: `${days} days`,
+        total: components.length * days,
+        components: components.map(({ id, label }) => ({ id, label, amount: days, unavailable: '' })),
+      })),
+    };
+    const markup = renderToStaticMarkup(
+      <ProjectionBreakdown result={result} currency="USD" partial={false} open onToggle={() => {}} />
+    );
+    expect([...markup.matchAll(/data-cost-component="([^"]+)"/g)].map((match) => match[1])).toEqual(
+      components.map((component) => component.id)
+    );
+    expect(markup.match(/ops-forecast-component-mark/g)).toHaveLength(components.length);
+    expect(markup.match(/ops-forecast-component-mark"[^>]*aria-hidden="true"/g)).toHaveLength(components.length);
+    expect(OPS_CSS).toMatch(/\.ops-forecast-component\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/);
+    expect(OPS_CSS).toMatch(/\.ops-forecast-component-mark,[^}]*flex:\s*none/);
   });
 
   it('renders loading, unavailable, and partial states without inventing totals', () => {
@@ -399,7 +436,8 @@ describe('Forecasting visibility and placement', () => {
       <ProjectionBreakdown result={result} currency="USD" partial={false} open onToggle={() => {}} />
     );
     expect(markup).not.toContain('<th scope="row">App compute</th>');
-    expect(openBreakdown).toContain('<th scope="row">App compute</th>');
+    expect(openBreakdown).toContain('data-cost-component="app-compute"');
+    expect(openBreakdown).toContain('<span>App compute</span>');
     expect(markup).toContain('Measured app-compute daily billing rate, held fixed');
     expect(markup).not.toContain('Not included');
     expect(markup).not.toContain('Limits');

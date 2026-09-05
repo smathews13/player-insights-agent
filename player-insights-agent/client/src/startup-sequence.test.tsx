@@ -8,8 +8,6 @@ import {
   StartupLoadingSurface,
   STARTUP_LOGIN_BEAT_MS,
   STARTUP_LOGIN_MINIMUM_MS,
-  STARTUP_LOGIN_PREVIOUS_MINIMUM_MS,
-  STARTUP_LOGIN_REQUESTED_EXTENSION_MS,
   createStartupLoginDwell,
   startStartupActivity,
   startupCanMountApplication,
@@ -161,14 +159,9 @@ describe('authoritative startup sequence', () => {
 });
 
 describe('pre-login startup dwell', () => {
-  it('extends the previous minimum by two seconds, then lands on the next 0.8s loader beat', () => {
-    expect(STARTUP_LOGIN_PREVIOUS_MINIMUM_MS).toBe(3_200);
-    expect(STARTUP_LOGIN_REQUESTED_EXTENSION_MS).toBe(2_000);
+  it('uses the exact 4.0s minimum on the existing 0.8s loader beat', () => {
     expect(STARTUP_LOGIN_BEAT_MS).toBe(800);
-    expect(STARTUP_LOGIN_MINIMUM_MS).toBe(5_600);
-    expect(STARTUP_LOGIN_MINIMUM_MS).toBeGreaterThanOrEqual(
-      STARTUP_LOGIN_PREVIOUS_MINIMUM_MS + STARTUP_LOGIN_REQUESTED_EXTENSION_MS
-    );
+    expect(STARTUP_LOGIN_MINIMUM_MS).toBe(4_000);
     expect(STARTUP_LOGIN_MINIMUM_MS % STARTUP_LOGIN_BEAT_MS).toBe(0);
   });
 

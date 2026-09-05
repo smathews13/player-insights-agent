@@ -104,6 +104,8 @@ function LaneBlock({ title, metrics, extras }: { title: string; metrics: LaneMet
 export function BenchmarkJudgesStage({
   judges,
   running,
+  liveSide,
+  activeAction,
   progress,
   hasCandidate,
   threadNote,
@@ -116,6 +118,8 @@ export function BenchmarkJudgesStage({
   judges: readonly string[];
   needTags: { id: string; label: string }[];
   running: boolean;
+  liveSide?: SuiteSide | null;
+  activeAction?: 'score' | 'cancel' | 'retry' | null;
   progress: string | null;
   hasCandidate: boolean;
   threadNote: string | null;
@@ -149,13 +153,20 @@ export function BenchmarkJudgesStage({
           variant="primary"
           onClick={onRunBaseline}
           disabled={running}
+          aria-busy={(running && liveSide === 'baseline') || undefined}
           title={running ? 'A suite is already running.' : undefined}
         >
-          {running ? 'Run in progress' : 'Run baseline'}
+          <PiaBusyButtonContent
+            busy={running && liveSide === 'baseline'}
+            label="Run baseline"
+            busyLabel="Running baseline"
+            tone="light"
+          />
         </BenchButton>
         <BenchButton
           onClick={onRunCandidate}
           disabled={running || !hasCandidate}
+          aria-busy={(running && liveSide === 'candidate') || undefined}
           title={
             running
               ? 'A suite is already running.'
@@ -164,10 +175,25 @@ export function BenchmarkJudgesStage({
                 : undefined
           }
         >
-          {running ? 'Run in progress' : 'Run candidate'}
+          <PiaBusyButtonContent
+            busy={running && liveSide === 'candidate'}
+            label="Run candidate"
+            busyLabel="Running candidate"
+            tone="light"
+          />
         </BenchButton>
-        <BenchButton title="Scores every turn in the last Ask conversation" onClick={onScoreSession} disabled={running}>
-          Score one Ask session
+        <BenchButton
+          title="Scores every turn in the last Ask conversation"
+          onClick={onScoreSession}
+          disabled={running || activeAction === 'score'}
+          aria-busy={activeAction === 'score' || undefined}
+        >
+          <PiaBusyButtonContent
+            busy={activeAction === 'score'}
+            label="Score one Ask session"
+            busyLabel="Scoring session"
+            tone="light"
+          />
         </BenchButton>
       </div>
       {!hasCandidate ? (
@@ -177,17 +203,24 @@ export function BenchmarkJudgesStage({
         {progress ? <p className="bench-run-progress ast-num">{progress}</p> : null}
         <BenchButton
           onClick={onCancel}
-          disabled={!running}
+          disabled={!running || activeAction === 'cancel'}
+          aria-busy={activeAction === 'cancel' || undefined}
           title={!running ? 'Nothing is running to cancel.' : undefined}
         >
-          Cancel
+          <PiaBusyButtonContent busy={activeAction === 'cancel'} label="Cancel" busyLabel="Cancelling" tone="light" />
         </BenchButton>
         <BenchButton
           onClick={onRetryFailed}
           disabled={running}
+          aria-busy={activeAction === 'retry' || undefined}
           title={running ? 'A suite is already running.' : undefined}
         >
-          Retry failed cases
+          <PiaBusyButtonContent
+            busy={activeAction === 'retry'}
+            label="Retry failed cases"
+            busyLabel="Retrying failed cases"
+            tone="light"
+          />
         </BenchButton>
       </div>
       {threadNote ? <p className="bench-caption">{threadNote}</p> : null}
@@ -291,6 +324,7 @@ export function BenchmarkApplyStage({
           variant="primary"
           onClick={onApply}
           disabled={!canApply || applying}
+          aria-busy={applying || undefined}
           title={!canApply ? applyBlockedReason || undefined : undefined}
         >
           <PiaBusyButtonContent busy={applying} label="Apply candidate" busyLabel="Applying" />
@@ -582,6 +616,7 @@ export function useBenchmarkOps(input: {
   const [baselineTrace, setBaselineTrace] = useState<BakeOffTrace | null>(null);
   const [candidateTrace, setCandidateTrace] = useState<BakeOffTrace | null>(null);
   const [liveSide, setLiveSide] = useState<SuiteSide | null>(null);
+  const [judgeAction, setJudgeAction] = useState<'score' | 'cancel' | 'retry' | null>(null);
   const [threadNote, setThreadNote] = useState<string | null>(null);
   const [applyNote, setApplyNote] = useState<string | null>(null);
   const [failureNote, setFailureNote] = useState<string | null>(null);
@@ -732,6 +767,7 @@ export function useBenchmarkOps(input: {
       setThreadNote('No failed cases to retry on the last candidate run.');
       return;
     }
+    setJudgeAction('retry');
     setLiveSide(sides[1] ? 'candidate' : 'baseline');
     setThreadNote(RETRY_FAILED_NOTE);
     try {
@@ -740,6 +776,7 @@ export function useBenchmarkOps(input: {
       setThreadNote((error as Error).message);
     } finally {
       setLiveSide(null);
+      setJudgeAction(null);
     }
   };
   const cancelRun = async () => {
@@ -748,6 +785,7 @@ export function useBenchmarkOps(input: {
       setThreadNote('Name a running suite before cancelling.');
       return;
     }
+    setJudgeAction('cancel');
     try {
       const warning = await cancelJudgeRun(runId);
       setThreadNote(
@@ -757,9 +795,12 @@ export function useBenchmarkOps(input: {
       );
     } catch (error) {
       setThreadNote((error as Error).message);
+    } finally {
+      setJudgeAction(null);
     }
   };
   const scoreSession = async () => {
+    setJudgeAction('score');
     try {
       const scored = await scoreAskSession();
       setThreadNote(
@@ -769,6 +810,8 @@ export function useBenchmarkOps(input: {
       );
     } catch (error) {
       setThreadNote((error as Error).message);
+    } finally {
+      setJudgeAction(null);
     }
   };
 
@@ -906,6 +949,8 @@ export function useBenchmarkOps(input: {
     judges: [...input.settings.enabledJudges, ...extras.map((entry) => entry.name)],
     needTags,
     hasCandidate: sides.length > 1,
+    liveSide,
+    judgeAction,
     progress,
     threadNote,
     runBaseline,

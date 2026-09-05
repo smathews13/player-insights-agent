@@ -111,7 +111,7 @@ describe('the Ops catalog scope modal', () => {
     const busy = renderToStaticMarkup(<CheckScopesButton busy onClick={() => {}} />);
     expect(idle).toContain('Check all scopes');
     expect(idle).toContain('data-variant="default"');
-    expect(busy).toContain('Checking…');
+    expect(busy).toContain('Checking');
     expect(busy).toContain('pia-loader-mark--button');
     expect(busy).not.toContain('pia-loader__phase--dpad');
     expect(STYLES).toMatch(/\.ops-scope-check-button\s*\{[^}]*width:\s*132px[^}]*min-width:\s*132px/);

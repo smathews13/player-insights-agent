@@ -17,6 +17,10 @@ function sourceFiles(directory: string): string[] {
   });
 }
 
+function buttonBlocks(source: string): string[] {
+  return [...source.matchAll(/<(Button|BenchButton|button)\b[\s\S]*?<\/\1>/g)].map((match) => match[0]);
+}
+
 describe('app-wide PIA loading context map', () => {
   it('maps the major surfaces to the intended variants', () => {
     expect(read('HomePage.tsx')).toContain('<PiaFlicker seat="splash" />');
@@ -40,10 +44,24 @@ describe('app-wide PIA loading context map', () => {
   });
 
   it('uses a static engraved status mark for completed answers', () => {
-    expect(read('AnswerCard.tsx')).toContain('<PiaMark size={28} tone="light" />');
-    expect(read('FinalAnswer.tsx')).toContain('<PiaMark size={28} tone="light" className="final-answer-mark" />');
+    expect(read('AnswerCard.tsx')).toContain('<PiaAvatar size={28} tone="light" />');
+    expect(read('FinalAnswer.tsx')).toContain('<PiaAvatar size={28} tone="light" className="final-answer-mark" />');
     expect(read('AnswerCard.tsx')).not.toMatch(/answer-card-mark[\s\S]{0,120}PiaLoader/);
     expect(read('FinalAnswer.tsx')).not.toContain('PiaFlicker');
+  });
+
+  it('uses the canonical static avatar in representative PIA identity hosts', () => {
+    expect(read('HomePage.tsx')).toContain('<PiaAvatar size={24} />');
+    expect(read('HomePage.tsx')).toContain('<PiaAvatar size={32} />');
+    expect(read('PlanCard.tsx')).toContain('<PiaAvatar size={32} />');
+    expect(read('AIAnalysisCaveat.tsx')).toContain('<PiaAvatar size={14} />');
+    expect(read('Layout.tsx')).toContain('<PiaLockup as="h1" seat="header" name="full" tone="dark" />');
+    const runtime = sourceFiles(new URL('.', ROOT).pathname)
+      .filter((path) => path.endsWith('.tsx') && !path.endsWith('/PiaMark.tsx'))
+      .map((path) => readFileSync(path, 'utf8'))
+      .join('\n');
+    expect(runtime).not.toContain('<PiaMark');
+    expect(read('PiaLoader.tsx')).toContain('pia-loader-mark');
   });
 
   it('leaves no native spinner or retired ad hoc loader remnants', () => {
@@ -74,17 +92,52 @@ describe('app-wide PIA loading context map', () => {
 
   it('uses fixed-size in-button loaders with disabled busy semantics', () => {
     for (const host of [
+      'AccessGate.tsx',
+      'AdminListEditor.tsx',
       'AnswerCard.tsx',
+      'AssetPicker.tsx',
+      'BenchmarkLabChrome.tsx',
       'BenchmarkLabOps.tsx',
       'NotebookCard.tsx',
       'ComposerBudgetStatus.tsx',
+      'ConnectionsPage.tsx',
       'CostBudgets.tsx',
+      'DeclaredConnectionsCard.tsx',
+      'EvalFlywheel.tsx',
+      'EvaluationSet.tsx',
+      'FirstOpenGate.tsx',
+      'GenieAccuracyDiagnostics.tsx',
+      'HomePage.tsx',
+      'LakebaseBindingManager.tsx',
+      'LakebaseMigrationPanel.tsx',
       'OpsPage.tsx',
+      'OpsScopeModal.tsx',
+      'RefreshControl.tsx',
+      'ResourceTagsPanel.tsx',
+      'SettingsPage.tsx',
+      'UnityCatalogScopeExplorer.tsx',
+      'UserRoleEditor.tsx',
     ]) {
       expect(read(host), host).toContain('PiaBusyButtonContent');
       expect(read(host), host).toMatch(/disabled=\{[^}]+\}/);
     }
-    expect(read('UnityCatalogScopeExplorer.tsx')).toContain('seat="button"');
-    expect(read('LakebaseMigrationPanel.tsx')).toContain('seat="button"');
+  });
+
+  it('rejects noncanonical indicators and incomplete semantics inside busy buttons', () => {
+    const entries = sourceFiles(new URL('.', ROOT).pathname).flatMap((path) => {
+      const source = readFileSync(path, 'utf8');
+      return buttonBlocks(source).map((button) => ({ path, button }));
+    });
+    const busyButtons = entries.filter(({ button }) => button.slice(0, button.indexOf('>')).includes('aria-busy='));
+
+    expect(busyButtons.length).toBeGreaterThan(20);
+    for (const { path, button } of busyButtons) {
+      expect(button, path).toContain('PiaBusyButtonContent');
+      expect(button, path).toContain('disabled=');
+      expect(button, path).not.toMatch(
+        /PiaFlicker\s+seat="button"|PiaLoadingLabel[\s\S]*?seat="button"|PiaLoaderMark\s+variant="button"/
+      );
+      expect(button, path).not.toMatch(/\?\s*['"`][^'"`]*(?:…|\.\.\.)['"`]\s*:/);
+    }
   });
 });

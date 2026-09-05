@@ -687,6 +687,8 @@ export function BenchmarkLab() {
               judges={ops.judges}
               needTags={ops.needTags}
               running={running || suiteInProgress}
+              liveSide={ops.liveSide}
+              activeAction={ops.judgeAction}
               progress={ops.progress}
               hasCandidate={ops.hasCandidate}
               threadNote={ops.threadNote}

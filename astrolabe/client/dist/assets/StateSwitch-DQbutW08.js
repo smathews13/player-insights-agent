@@ -1,1 +1,0 @@
-import{r as e}from"./rolldown-runtime-DGruFWvd.js";import{W as t,t as n}from"./appkit-ui-C_v6H0cL.js";import{i as r}from"./ExperimentalBadge-G4fAbmbI.js";var i=e(t());function a({checked:e,className:t=``,...a}){return(0,i.jsxs)(`span`,{className:`state-switch ${t}`.trim(),children:[(0,i.jsx)(r,{on:e}),(0,i.jsx)(n,{checked:e,...a})]})}export{a as t};

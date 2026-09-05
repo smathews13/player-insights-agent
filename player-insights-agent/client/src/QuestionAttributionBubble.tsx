@@ -1,5 +1,5 @@
 import type { ElementType } from 'react';
-import { UserDrilldownLink } from './UserDrilldownLink';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 
 export function QuestionAttributionBubble({
   question,
@@ -28,12 +28,11 @@ export function QuestionAttributionBubble({
           {question}
         </Question>
         <div className="question-attribution-meta">
-          <UserDrilldownLink
+          <OrganizationUserBadge
             identity={asker}
-            label="Asked by"
-            compact
             className="question-attribution-user"
             canOpen={canOpenUser}
+            showArrow={canOpenUser}
           />
         </div>
       </div>

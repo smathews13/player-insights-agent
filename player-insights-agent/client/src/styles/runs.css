@@ -1057,10 +1057,11 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   color: var(--ast-text);
 }
 .run-detail [data-slot='tabs-trigger']:focus-visible {
-  outline: none;
-  border-bottom-color: var(--ast-blue);
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+  border-bottom-color: transparent;
   background: transparent;
-  color: var(--ast-blue);
+  color: var(--ast-text);
 }
 .run-detail [data-slot='tabs-trigger']:is(:disabled, [data-disabled]) {
   border-bottom-color: transparent;
@@ -1072,21 +1073,19 @@ button.run-context-badge:not(.conversation-context-badge):hover {
 /*
  * The view you are in: the one blue, on the type and on the 2px rule under it.
  *
- * `--ast-blue` rather than `--primary` because the two are the same value today
- * and only one of them is guaranteed to stay it. The tab row is the surface where
- * "which view am I in" is the entire question, so it reads the token that the
- * palette check covers.
+ * `--primary` is also the selected conversation's border. The tab row and rail
+ * therefore cannot drift into two different answers to "which item is open".
  */
 .run-detail [data-slot='tabs-trigger'][data-state='active'] {
-  border-bottom-color: var(--ast-blue);
+  border-bottom-color: var(--primary);
   background: transparent;
-  color: var(--ast-blue);
+  color: var(--primary);
   font-weight: 500;
 }
 .run-detail [data-slot='tabs-trigger'][data-state='active']:hover {
-  border-bottom-color: var(--ast-blue);
+  border-bottom-color: var(--primary);
   background: transparent;
-  color: var(--ast-blue);
+  color: var(--primary);
 }
 
 @media (forced-colors: active) {
@@ -1095,8 +1094,18 @@ button.run-context-badge:not(.conversation-context-badge):hover {
     scrollbar-color: CanvasText Canvas;
   }
   .run-list-filters [data-slot='select-trigger']:is(:hover, :focus-visible, [data-state='open']),
-  .run-detail [data-slot='tabs-trigger']:is(:hover, :focus-visible) {
+  .run-detail [data-slot='tabs-trigger'][data-state='inactive']:hover:not(:disabled):not([data-disabled]) {
     border-color: Highlight;
+    color: Highlight;
+  }
+  .run-detail [data-slot='tabs-trigger']:focus-visible {
+    outline-color: Highlight;
+    border-bottom-color: transparent;
+    color: CanvasText;
+  }
+  .run-detail [data-slot='tabs-trigger'][data-state='active'],
+  .run-detail [data-slot='tabs-trigger'][data-state='active']:hover {
+    border-bottom-color: Highlight;
     color: Highlight;
   }
   .run-filter-menu [data-slot='select-item']:is([data-highlighted], [data-state='checked']) {

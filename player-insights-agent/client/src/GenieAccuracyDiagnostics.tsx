@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { astPill } from './pia-pill';
 import { AppSelect } from './AppSelect';
 import { BenchButton, GenieStatTiles, LabSurface } from './BenchmarkLabChrome';
 import { MATCHING_POLICY_REFERENCE, mlflowTraceHref } from '../../shared/benchmark-lab-v3';
 import type { GenieAccuracyCaseView, GenieAccuracyRunView } from '../../shared/eval-genie-run';
 import type { EvaluationLabModel } from './use-evaluation-lab';
+import { PiaBusyButtonContent } from './PiaLoader';
 
 function formatSuiteDuration(startedAt: string, finishedAt: string): string {
   const ms = Date.parse(finishedAt) - Date.parse(startedAt);
@@ -150,6 +152,15 @@ export function GenieAccuracyDiagnostics({ lab }: { lab: EvaluationLabModel }) {
 
 export function GenieStageControls({ lab }: { lab: EvaluationLabModel }) {
   const gate = lab.lab.geniePlan.gateCopy;
+  const [requestedKind, setRequestedKind] = useState<'complete' | 'partial' | null>(null);
+  const run = async (kind: 'complete' | 'partial') => {
+    setRequestedKind(kind);
+    try {
+      await lab.runSuite(kind);
+    } finally {
+      setRequestedKind(null);
+    }
+  };
   return (
     <>
       <div className="bench-btn-row">
@@ -167,18 +178,30 @@ export function GenieStageControls({ lab }: { lab: EvaluationLabModel }) {
         )}
         <BenchButton
           variant="primary"
-          onClick={() => void lab.runSuite('complete')}
+          onClick={() => void run('complete')}
           disabled={lab.busy === 'genie' || !lab.spaceId}
+          aria-busy={requestedKind === 'complete' || undefined}
           title={!lab.spaceId ? 'Connect a Genie space on Connections first.' : undefined}
         >
-          {lab.busy === 'genie' ? 'Asking Genie' : 'Run complete suite'}
+          <PiaBusyButtonContent
+            busy={requestedKind === 'complete'}
+            label="Run complete suite"
+            busyLabel="Asking Genie"
+            tone="light"
+          />
         </BenchButton>
         <BenchButton
-          onClick={() => void lab.runSuite('partial')}
+          onClick={() => void run('partial')}
           disabled={lab.busy === 'genie' || !lab.spaceId}
+          aria-busy={requestedKind === 'partial' || undefined}
           title={!lab.spaceId ? 'Connect a Genie space on Connections first.' : undefined}
         >
-          Run partial suite
+          <PiaBusyButtonContent
+            busy={requestedKind === 'partial'}
+            label="Run partial suite"
+            busyLabel="Asking Genie"
+            tone="light"
+          />
         </BenchButton>
       </div>
       {gate ? <p className="bench-gate">{gate}</p> : null}

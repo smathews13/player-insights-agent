@@ -1,8 +1,9 @@
-import { Check, ChevronRight, PanelsTopLeft, Search, Table2, TableProperties, X } from 'lucide-react';
+import { Check, ChevronRight, Database, FolderTree, PanelsTopLeft, Search, Table2, X } from 'lucide-react';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { BrowseItem, BrowseKind, BrowseResponse, UnityCatalogSearchResponse } from '../../shared/browse-contract';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { BrowseGrantPrompt, mergeBrowseItems } from './AssetPicker';
 import { browseUrl, type PickerCursor } from './asset-picker';
 import { Dialog } from './Dialog';
@@ -33,18 +34,40 @@ export function unityCatalogAvailabilityFromEvidence(
 ): UnityCatalogAvailability {
   const normalized = value.trim().toLocaleLowerCase();
   if (visibleValues.some((candidate) => candidate.trim().toLocaleLowerCase() === normalized)) return 'available';
+  if (status === 'unavailable') return 'unavailable';
   return status === 'ok' && !incomplete ? 'unavailable' : 'unknown';
 }
 
 export function UnityCatalogAssetSemantics({
+  resourceType,
   assetType,
   availability,
+  name,
+  nameClassName = 'uc-explorer-name',
 }: {
+  resourceType: UnityCatalogScopeType;
   assetType?: 'table' | 'view';
   availability: UnityCatalogAvailability;
+  name: string;
+  nameClassName?: string;
 }) {
-  const AssetIcon = assetType === 'table' ? Table2 : assetType === 'view' ? PanelsTopLeft : TableProperties;
-  const assetLabel = assetType === 'table' ? 'Table' : assetType === 'view' ? 'View' : 'Table or view';
+  const resolvedType =
+    resourceType === 'catalog'
+      ? 'catalog'
+      : resourceType === 'schema'
+        ? 'schema'
+        : assetType === 'view'
+          ? 'view'
+          : 'table';
+  const AssetIcon =
+    resolvedType === 'catalog'
+      ? Database
+      : resolvedType === 'schema'
+        ? FolderTree
+        : resolvedType === 'view'
+          ? PanelsTopLeft
+          : Table2;
+  const assetLabel = `${resolvedType[0].toUpperCase()}${resolvedType.slice(1)}`;
   const availabilityLabel =
     availability === 'available'
       ? 'Available in Unity Catalog'
@@ -54,22 +77,34 @@ export function UnityCatalogAssetSemantics({
   const tone = availability === 'available' ? 'pos' : availability === 'unavailable' ? 'neg' : 'neutral-outline';
   return (
     <>
-      <span className="uc-explorer-asset-icon" role="img" aria-label={assetLabel} title={assetLabel}>
+      <span
+        className="uc-explorer-asset-icon"
+        data-uc-part="icon"
+        role="img"
+        aria-label={assetLabel}
+        title={assetLabel}
+      >
         <AssetIcon aria-hidden="true" />
       </span>
-      <span
-        className={`ast-pill ast-pill--${tone} uc-explorer-uc-badge`}
-        aria-label={availabilityLabel}
-        title={availabilityLabel}
-      >
-        <span>UC</span>
-        {availability === 'available' ? (
-          <Check aria-hidden="true" />
-        ) : availability === 'unavailable' ? (
-          <X aria-hidden="true" />
-        ) : (
-          <span aria-hidden="true">?</span>
-        )}
+      <span className="uc-explorer-name-status">
+        <span className={nameClassName} data-uc-part="name" title={name}>
+          {name}
+        </span>
+        <span
+          className={`ast-pill ast-pill--${tone} uc-explorer-uc-badge`}
+          data-uc-part="status"
+          aria-label={`${assetLabel}: ${availabilityLabel}`}
+          title={availabilityLabel}
+        >
+          <span>UC</span>
+          {availability === 'available' ? (
+            <Check aria-hidden="true" />
+          ) : availability === 'unavailable' ? (
+            <X aria-hidden="true" />
+          ) : (
+            <span aria-hidden="true">?</span>
+          )}
+        </span>
       </span>
     </>
   );
@@ -353,16 +388,12 @@ function ExplorerNode({
         ) : (
           <span className="uc-explorer-leaf-spacer" aria-hidden="true" />
         )}
-        {resourceType === 'table' ? (
-          <span className="uc-explorer-asset-semantics">
-            <UnityCatalogAssetSemantics assetType={item.asset_type} availability={availability} />
-          </span>
-        ) : (
-          <span className="connection-row-kind">{resourceType === 'schema' ? 'Schema' : 'Catalog'}</span>
-        )}
-        <span className="uc-explorer-name" title={value}>
-          {item.label}
-        </span>
+        <UnityCatalogAssetSemantics
+          resourceType={resourceType}
+          assetType={item.asset_type}
+          availability={availability}
+          name={item.label}
+        />
         <span className="uc-explorer-secondary">{resourceType === 'table' ? '' : item.secondary}</span>
         <ExplorerChoice
           selection={{
@@ -422,7 +453,7 @@ function ExplorerLevel({
   if (!enabled) return null;
   const resourceType: UnityCatalogScopeType = kind === 'catalogs' ? 'catalog' : kind === 'schemas' ? 'schema' : 'table';
   const items = mergeBrowseItems(state.items, inferredDeclaredItems(kind, cursor, declared));
-  const visibleValues = state.items.map((item) => item.id);
+  const visibleValues = state.items.map((item) => unityCatalogExplorerValue(resourceType, item.id, catalog));
 
   return (
     <div className="uc-explorer-level">
@@ -439,16 +470,12 @@ function ExplorerLevel({
               declared={declared}
               staged={staged}
               scopeState={scopeState}
-              availability={
-                resourceType === 'table'
-                  ? unityCatalogAvailabilityFromEvidence(
-                      unityCatalogExplorerValue(resourceType, item.id, catalog),
-                      visibleValues,
-                      state.status,
-                      state.incomplete
-                    )
-                  : 'unknown'
-              }
+              availability={unityCatalogAvailabilityFromEvidence(
+                unityCatalogExplorerValue(resourceType, item.id, catalog),
+                visibleValues,
+                state.status,
+                state.incomplete
+              )}
               onToggle={onToggle}
             />
           ))}
@@ -569,7 +596,6 @@ function ExplorerSearchResults({
       ])
     ).values(),
   ];
-  const visibleTableValues = result.items.filter((item) => item.resourceType === 'table').map((item) => item.value);
   return (
     <div className="uc-explorer-search-results" aria-live="polite">
       {result.status === 'loading' ? (
@@ -588,24 +614,18 @@ function ExplorerSearchResults({
             <ul>
               {group.map((selection) => (
                 <li className="uc-explorer-search-row" key={unityCatalogSelectionKey(selection)}>
-                  {resourceType === 'table' ? (
-                    <span className="uc-explorer-asset-semantics">
-                      <UnityCatalogAssetSemantics
-                        assetType={selection.assetType}
-                        availability={unityCatalogAvailabilityFromEvidence(
-                          selection.value,
-                          visibleTableValues,
-                          result.status,
-                          result.more
-                        )}
-                      />
-                    </span>
-                  ) : (
-                    <span className="connection-row-kind">{resourceType}</span>
-                  )}
-                  <span className="uc-explorer-search-value" title={selection.value}>
-                    {selection.value}
-                  </span>
+                  <UnityCatalogAssetSemantics
+                    resourceType={resourceType}
+                    assetType={selection.assetType}
+                    availability={unityCatalogAvailabilityFromEvidence(
+                      selection.value,
+                      result.items.filter((item) => item.resourceType === resourceType).map((item) => item.value),
+                      result.status,
+                      result.more
+                    )}
+                    name={selection.value}
+                    nameClassName="uc-explorer-search-value"
+                  />
                   <ExplorerChoice
                     selection={selection}
                     state={scopeState(selection.resourceType, selection.value)}
@@ -745,6 +765,7 @@ export function UnityCatalogScopeExplorer({
           <Button
             type="button"
             disabled={staged.size === 0 || submitting || busy}
+            aria-busy={submitting || undefined}
             onClick={() => {
               if (submitGate.current) return;
               submitGate.current = true;
@@ -764,7 +785,7 @@ export function UnityCatalogScopeExplorer({
                 });
             }}
           >
-            {submitting ? <PiaLoadingLabel as="span" seat="button" announce={false} label="Saving" /> : 'Save'}
+            <PiaBusyButtonContent busy={submitting} label="Save" busyLabel="Saving" />
           </Button>
         </footer>
       </div>

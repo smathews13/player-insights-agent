@@ -15,7 +15,7 @@
  * read is in flight, and when the last one finished.
  */
 import { RefreshCw } from 'lucide-react';
-import { PiaLoaderMark } from './PiaLoader';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { Button } from './ui';
 import { REFRESH_BUSY_LABEL, REFRESH_LABEL, readAgo } from './refresh-state';
 
@@ -60,17 +60,12 @@ export function RefreshButton({ busy = false, onRefresh, className }: RefreshBut
       aria-busy={busy || undefined}
       aria-label={REFRESH_LABEL}
     >
-      <span className="pia-button-state" data-busy={busy ? 'true' : 'false'} aria-hidden="true">
-        <span className="pia-button-state__idle">
-          <RefreshCw className="size-3.5" />
-          {REFRESH_LABEL}
-        </span>
-        <span className="pia-button-state__busy">
-          <PiaLoaderMark variant="button" tone="dark" />
-          <span>{REFRESH_BUSY_LABEL}</span>
-        </span>
-      </span>
-      <span className="sr-only">{REFRESH_LABEL}</span>
+      <PiaBusyButtonContent
+        busy={busy}
+        label={REFRESH_LABEL}
+        busyLabel={REFRESH_BUSY_LABEL}
+        icon={<RefreshCw className="size-3.5" />}
+      />
     </Button>
   );
 }

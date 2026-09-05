@@ -1,4 +1,4 @@
-import { PiaMark } from './PiaMark';
+import { PiaAvatar } from './PiaMark';
 
 /** The one reader-facing caveat used wherever Player Insights Agent presents AI analysis. */
 export const AI_ANALYSIS_CAVEAT = 'Player Insights Agent analysis. AI can make mistakes.';
@@ -13,7 +13,7 @@ export const AI_ANALYSIS_CAVEAT = 'Player Insights Agent analysis. AI can make m
 export function AIAnalysisCaveat({ className = '', showMark = true }: { className?: string; showMark?: boolean }) {
   return (
     <p className={className} data-ai-analysis-caveat="">
-      {showMark ? <PiaMark size={14} /> : null}
+      {showMark ? <PiaAvatar size={14} /> : null}
       <span>{AI_ANALYSIS_CAVEAT}</span>
     </p>
   );

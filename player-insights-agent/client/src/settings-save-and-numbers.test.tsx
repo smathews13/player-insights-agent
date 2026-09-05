@@ -131,7 +131,7 @@ describe('Save feedback', () => {
   it('draws the button in the footer, which does not scroll', () => {
     const markup = renderToStaticMarkup(<SettingsPage initialSection="runtime" />);
     expect(markup).toContain('settings-modal-footer');
-    expect(markup).toContain('>Save</button>');
+    expect(markup).toContain('class="sr-only">Save</span>');
     // Idle, so no outcome is claimed before anything has been pressed.
     expect(markup).not.toContain('settings-save-notice');
     expect(markup).not.toContain('Saved. The next ask uses these settings.');

@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 const PAGE_SOURCE = readFileSync(fileURLToPath(new URL('./ConnectionsPage.tsx', import.meta.url)), 'utf8');
 const CONNECTIONS_CSS = readFileSync(fileURLToPath(new URL('./styles/connections.css', import.meta.url)), 'utf8');
 const BASE_CSS = readFileSync(fileURLToPath(new URL('./styles/base.css', import.meta.url)), 'utf8');
+const ASTROLABE_CSS = readFileSync(fileURLToPath(new URL('./styles/astrolabe-tokens.css', import.meta.url)), 'utf8');
 
 import {
   BuildFactRow,
@@ -1206,6 +1207,18 @@ describe('a connection row', () => {
   const noop = () => Promise.resolve(true);
   const noopClear = () => Promise.resolve();
 
+  it('keeps success and danger semantic in light, dark, and forced-color themes', () => {
+    expect(ASTROLABE_CSS).toMatch(
+      /:root[\s\S]*--ast-pos-text:[^;]+;[\s\S]*--ast-pos-fill:[^;]+;[\s\S]*--ast-neg-text:[^;]+;[\s\S]*--ast-neg-fill:[^;]+;/
+    );
+    expect(ASTROLABE_CSS).toMatch(
+      /html\[data-theme='dark'\][\s\S]*--ast-pos-text:[^;]+;[\s\S]*--ast-pos-fill:[^;]+;[\s\S]*--ast-neg-text:[^;]+;[\s\S]*--ast-neg-fill:[^;]+;/
+    );
+    expect(CONNECTIONS_CSS).toMatch(
+      /@media \(forced-colors: active\)[\s\S]*connection-state-badge\[data-connection-state='connected'\][\s\S]*border-color:\s*Highlight[\s\S]*connection-state-badge\[data-connection-state='disconnected'\][\s\S]*background:\s*Mark/
+    );
+  });
+
   /**
    * `requested` is what a link from the Architecture diagram sets, and it is also
    * the only way to get an opened row out of a static render: the row keeps its own
@@ -1797,7 +1810,29 @@ describe('the Unity Catalog tables section', () => {
     expect(rendered).toContain('Permission not confirmed');
     expect(rendered).toContain('checked');
     expect(markup).toMatch(/title="Connection confirmed\. Schema has 17 columns\./);
+    expect(markup).toContain('data-connection-state="connected"');
+    expect(markup).toContain('data-connection-state="disconnected"');
+    expect(markup).toContain('ast-pill--pos');
+    expect(markup).toContain('ast-pill--neg');
     expect(rendered).not.toContain('@example.com');
+  });
+
+  it('uses authoritative catalog and schema checks for green and red scope-row badges', () => {
+    const markup = render(
+      <DeclaredTablesTable
+        tableChecks={[]}
+        tableConnections={[userCatalog, userSchema]}
+        scopeChecks={[
+          check('catalog:a-catalog', 'ok', { kind: 'catalog', name: 'a_catalog' }),
+          check('schema:a-schema', 'failed', { kind: 'schema', name: 'a_catalog.a_schema' }),
+        ]}
+        requestedEntity=""
+      />
+    );
+    expect(markup).toContain('aria-label="a_catalog connection status: Connected"');
+    expect(markup).toContain('aria-label="a_catalog.a_schema connection status: Disconnected"');
+    expect(markup).toMatch(/data-connection-state="connected"[^>]*|ast-pill--pos/);
+    expect(markup).toMatch(/data-connection-state="disconnected"[^>]*|ast-pill--neg/);
   });
 
   /**

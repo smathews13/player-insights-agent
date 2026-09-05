@@ -9,10 +9,12 @@ import { identityFromResponse } from './app-state';
 import { DATABRICKS_SYMBOL } from './brand-icons';
 import { accountFeedbackTargets } from '../../shared/account-feedback';
 import { organizationForEmail, parseOrganizationMappings } from '../../shared/organization-mapping';
+import { partial } from './styles/stylesheet';
 
 const MENU_SOURCE = readFileSync(new URL('./AccountMenu.tsx', import.meta.url), 'utf8');
 const PANEL_SOURCE = readFileSync(new URL('./AccountMenuPanel.tsx', import.meta.url), 'utf8');
 const ACCOUNT_CSS = readFileSync(new URL('./styles/account-menu.css', import.meta.url), 'utf8');
+const RAIL_CSS = partial('rail.css');
 
 const IDENTITY: Identity = {
   signedInAs: 'jordan.lee@example.com',
@@ -198,16 +200,21 @@ describe('account menu', () => {
    * responsive.css hides the cluster's informational members below 800px, so at
    * narrow widths this is the only place on the page the rank appears at all.
    */
-  it('stacks the reader’s rank, full name, and full address in reading order', () => {
+  it('keeps rank separate and places one organization mark directly with the named person', () => {
     const markup = renderToStaticMarkup(<AccountMenuPanel identity={IDENTITY} role="super_admin" onClose={() => {}} />);
     expect(markup).toContain('Super admin');
     expect(markup).toContain('data-role-state="super_admin"');
     const role = markup.indexOf('Super admin');
+    const organization = markup.indexOf('data-organization-id="domain:example.com"');
     const name = markup.indexOf('jordan.lee</strong>');
     const address = markup.indexOf('jordan.lee@example.com');
-    expect(markup.indexOf('data-organization-id="domain:example.com"')).toBeLessThan(role);
-    expect(role).toBeLessThan(name);
+    expect(role).toBeLessThan(organization);
+    expect(organization).toBeLessThan(name);
     expect(name).toBeLessThan(address);
+    expect(markup.match(/data-organization-id=/g)).toHaveLength(1);
+    expect(markup).toMatch(
+      /account-menu-principal[\s\S]*data-organization-id="domain:example\.com"[\s\S]*account-menu-name">jordan\.lee/
+    );
     expect(markup).not.toContain('account-menu-who');
     expect(markup).toContain('account-menu-name');
     expect(markup).toContain('account-menu-address');
@@ -238,34 +245,41 @@ describe('account menu', () => {
     expect(PANEL_SOURCE).toContain('onMouseLeave={scheduleFeedbackClose}');
   });
 
-  it('keeps native trigger semantics and gives hover, keyboard focus, and open distinct states', () => {
+  it('matches the selected conversation blue without borrowing ADAPT green', () => {
     expect(MENU_SOURCE).toContain('type="button"');
     expect(MENU_SOURCE).toContain('aria-expanded={open}');
     expect(MENU_SOURCE).toContain('aria-controls={menuId}');
     expect(MENU_SOURCE).toContain('onOpenChange={setOpen}');
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-menu-trigger\.identity-chip:hover,\s*\.account-menu-trigger\.identity-chip:focus-visible\s*\{[^}]*border-color:\s*var\(--ast-pos-border\)[^}]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-chrome\) 94%,\s*var\(--ast-pos-text\)\)[^}]*color:\s*var\(--ast-pos-text\)/s
+      /\.account-menu-trigger\.identity-chip:hover,\s*\.account-menu-trigger\.identity-chip:focus-visible\s*\{[^}]*border-color:\s*var\(--primary\)[^}]*background:\s*color-mix\(in srgb,\s*var\(--ast-surface-chrome\) 92%,\s*var\(--primary\)\)[^}]*color:\s*var\(--primary\)/s
     );
     expect(ACCOUNT_CSS).toMatch(
       /\.account-menu-trigger\.identity-chip:focus-visible\s*\{[^}]*outline:\s*none[^}]*box-shadow:\s*0 0 0 2px/
     );
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-menu-trigger\.identity-chip\[aria-expanded='true'\]\s*\{[^}]*background:\s*color-mix\(in srgb,\s*var\(--background\) 88%,\s*var\(--ast-pos-text\)\)[^}]*box-shadow:\s*inset 0 0 0 1px var\(--ast-pos-border\)/
+      /\.account-menu-trigger\.identity-chip\[aria-expanded='true'\]\s*\{[^}]*border-color:\s*var\(--primary\)[^}]*background:\s*color-mix\(in srgb,\s*var\(--background\) 88%,\s*var\(--primary\)\)[^}]*box-shadow:\s*inset 0 0 0 1px var\(--primary\)/
     );
-    expect(ACCOUNT_CSS).not.toMatch(/account-menu-trigger[^{]*\{[^}]*(?:--ast-blue|--primary)/s);
+    expect(ACCOUNT_CSS).toMatch(
+      /\.account-menu-trigger\.identity-chip\[aria-expanded='true'\]:focus-visible\s*\{[^}]*inset 0 0 0 1px var\(--primary\),[^}]*0 0 0 2px/s
+    );
+    expect(RAIL_CSS).toMatch(/\.conversation-row\.active\s*\{[^}]*border-color:\s*var\(--primary\)/s);
+    expect(ACCOUNT_CSS).not.toContain('--ast-pos-');
   });
 
-  it('keeps the feedback disclosure and portaled choices opaque, distinct, and non-blue', () => {
+  it('uses the same blue family for menu actions with a stronger keyboard focus ring', () => {
     expect(ACCOUNT_CSS).toMatch(
       /\.account-feedback-menu\s*\{[^}]*z-index:\s*var\(--ast-layer-menu\)[^}]*background:\s*var\(--ast-surface-menu\)[^}]*backdrop-filter:\s*none/s
     );
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-feedback-trigger:hover,[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--background\) 94%,\s*var\(--ast-pos-text\)\)/
+      /\.account-menu-group > button:hover,[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--background\) 92%,\s*var\(--primary\)\)[^}]*color:\s*var\(--primary\)/
     );
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-feedback-trigger\[aria-expanded='true'\]\s*\{[^}]*background:\s*color-mix\(in srgb,\s*var\(--background\) 88%,\s*var\(--ast-pos-text\)\)/
+      /\.account-menu-group > button:focus-visible,[\s\S]*outline:\s*2px solid var\(--primary\)[^}]*outline-offset:\s*-2px/
     );
-    expect(ACCOUNT_CSS).not.toMatch(/account-feedback-(?:trigger|menu)[^{]*\{[^}]*(?:--ast-blue|--primary)/s);
+    expect(ACCOUNT_CSS).toMatch(
+      /\.account-feedback-trigger\[aria-expanded='true'\]\s*\{[^}]*background:\s*color-mix\(in srgb,\s*var\(--background\) 88%,\s*var\(--primary\)\)[^}]*color:\s*var\(--primary\)/
+    );
+    expect(ACCOUNT_CSS).not.toMatch(/account-menu-group[^{}]*svg[^{}]*\{[^}]*(?:background|border-radius)/s);
   });
 
   it('uses the shared non-modal portal without changing body scroll width', () => {
@@ -312,7 +326,7 @@ describe('account menu', () => {
       /\.account-menu-trigger > \.roster-organization-mark \{[^}]*width:\s*14px[^}]*height:\s*14px/s
     );
     expect(ACCOUNT_CSS).toMatch(
-      /\.account-menu-identity > \.roster-organization-mark \{[^}]*width:\s*28px[^}]*height:\s*28px/s
+      /\.account-menu-principal > \.roster-organization-mark \{[^}]*width:\s*28px[^}]*height:\s*28px/s
     );
     expect(ACCOUNT_CSS).toContain('width: min(336px, calc(100vw - 24px))');
     expect(ACCOUNT_CSS).toMatch(/\.account-menu-name\s*\{[^}]*max-width:\s*100%[^}]*overflow-wrap:\s*anywhere/s);

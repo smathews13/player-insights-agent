@@ -2109,8 +2109,25 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   cursor: pointer;
 }
 
-.environment-tabs button.active {
+.environment-tabs button:hover:not(.active) {
+  background: transparent;
   color: var(--foreground);
+}
+
+.environment-tabs button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+  background: transparent;
+  color: var(--foreground);
+}
+
+.environment-tabs button.active {
+  color: var(--primary);
+}
+
+.environment-tabs button.active:is(:hover, :focus-visible) {
+  background: transparent;
+  color: var(--primary);
 }
 
 .environment-tabs button.active::after {
@@ -2121,6 +2138,20 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   height: 2px;
   background: var(--primary);
   content: '';
+}
+
+@media (forced-colors: active) {
+  .environment-tabs button:focus-visible {
+    outline-color: Highlight;
+    color: CanvasText;
+  }
+  .environment-tabs button.active,
+  .environment-tabs button.active:is(:hover, :focus-visible) {
+    color: Highlight;
+  }
+  .environment-tabs button.active::after {
+    background: Highlight;
+  }
 }
 
 .environment-tools {

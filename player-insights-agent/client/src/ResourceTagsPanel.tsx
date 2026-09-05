@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- result parsing, status, and controls share one response contract */
 import { Fragment, useEffect, useState } from 'react';
-import { PiaFlicker } from './PiaFlicker';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { ExperimentalFeatureName } from './ExperimentalBadge';
 import { Button } from './ui';
 
@@ -115,11 +115,23 @@ export function ResourceTagResults({
           <Button type="button" variant="outline" onClick={onToggle}>
             {hidden ? 'Show details' : 'Hide details'}
           </Button>
-          <Button type="button" variant="outline" disabled={running || clearing} onClick={onFullRecheck}>
-            Recheck all
+          <Button
+            type="button"
+            variant="outline"
+            disabled={running || clearing}
+            aria-busy={running || undefined}
+            onClick={onFullRecheck}
+          >
+            <PiaBusyButtonContent busy={running} label="Recheck all" busyLabel="Rechecking" tone="light" />
           </Button>
-          <Button type="button" variant="outline" disabled={running || clearing} onClick={onClear}>
-            {clearing ? 'Clearing…' : 'Clear results'}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={running || clearing}
+            aria-busy={clearing || undefined}
+            onClick={onClear}
+          >
+            <PiaBusyButtonContent busy={clearing} label="Clear results" busyLabel="Clearing" tone="light" />
           </Button>
         </div>
       </div>
@@ -177,9 +189,8 @@ export function ResourceTagResults({
 
 export function ResourceTagsApplyButton({ running, onClick }: { running: boolean; onClick?: () => void }) {
   return (
-    <Button type="button" disabled={running} aria-busy={running} onClick={onClick}>
-      {running ? <PiaFlicker seat="button" /> : null}
-      Apply tags
+    <Button type="button" disabled={running} aria-busy={running || undefined} onClick={onClick}>
+      <PiaBusyButtonContent busy={running} label="Apply tags" busyLabel="Applying tags" />
     </Button>
   );
 }

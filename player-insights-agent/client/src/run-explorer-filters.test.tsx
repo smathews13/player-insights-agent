@@ -151,8 +151,8 @@ describe('Run Explorer tab interaction states', () => {
     expect(hover).toContain('color: var(--ast-text)');
 
     const activeHover = rule(RUNS, ".run-detail [data-slot='tabs-trigger'][data-state='active']:hover");
-    expect(activeHover).toContain('border-bottom-color: var(--ast-blue)');
-    expect(activeHover).toContain('color: var(--ast-blue)');
+    expect(activeHover).toContain('border-bottom-color: var(--primary)');
+    expect(activeHover).toContain('color: var(--primary)');
     for (const state of [hover, activeHover]) {
       expect(state).not.toMatch(/(?:padding|margin|width|height|font-size|font-weight|border-width):/);
     }
@@ -160,8 +160,8 @@ describe('Run Explorer tab interaction states', () => {
 
   it('shows unclipped keyboard focus and leaves disabled tabs muted', () => {
     const focus = rule(RUNS, ".run-detail [data-slot='tabs-trigger']:focus-visible");
-    expect(focus).toContain('outline: none');
-    expect(focus).toContain('border-bottom-color: var(--ast-blue)');
+    expect(focus).toContain('outline: 2px solid var(--ring)');
+    expect(focus).toContain('border-bottom-color: transparent');
     expect(focus).toContain('background: transparent');
     const disabled = rule(RUNS, ".run-detail [data-slot='tabs-trigger']:is(:disabled, [data-disabled])");
     expect(disabled).toContain('cursor: not-allowed');

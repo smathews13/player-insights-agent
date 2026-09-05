@@ -18,7 +18,7 @@ import {
   rememberResolvedIdentity,
 } from './app-state';
 import type { Identity } from './app-types';
-import { PIA_LOADER_HALF_SECONDS, PIA_LOADER_STEP_SECONDS } from './pia-loader';
+import { PIA_LOADER_STEP_SECONDS } from './pia-loader';
 import { StartupReadinessProvider } from './startup-readiness';
 import { focusAfterLogin } from './motion-transitions';
 
@@ -138,17 +138,9 @@ export function startStartupActivity(
   return appSession === 'ready' ? start() : undefined;
 }
 
-/**
- * The previous coherent loader window was one 3.2s D-pad/cluster phase. Extend
- * it by at least two seconds and finish on the next 0.8s glyph beat, so the
- * login panel cannot cut through the visible swap.
- */
-export const STARTUP_LOGIN_PREVIOUS_MINIMUM_MS = PIA_LOADER_HALF_SECONDS * 1_000;
-export const STARTUP_LOGIN_REQUESTED_EXTENSION_MS = 2_000;
 export const STARTUP_LOGIN_BEAT_MS = PIA_LOADER_STEP_SECONDS * 1_000;
-export const STARTUP_LOGIN_MINIMUM_MS =
-  Math.ceil((STARTUP_LOGIN_PREVIOUS_MINIMUM_MS + STARTUP_LOGIN_REQUESTED_EXTENSION_MS) / STARTUP_LOGIN_BEAT_MS) *
-  STARTUP_LOGIN_BEAT_MS;
+/** Exact first-open loader dwell; 4.0s is already aligned to its 0.8s beat. */
+export const STARTUP_LOGIN_MINIMUM_MS = 4_000;
 
 interface StartupLoginDwellClock {
   now(): number;

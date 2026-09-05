@@ -13,6 +13,8 @@ import { SummaryStrip } from './MonitoringPage';
 const CSS = readFileSync(new URL('./styles/monitoring.css', import.meta.url), 'utf8');
 const RESPONSIVE = readFileSync(new URL('./styles/responsive-monitoring.css', import.meta.url), 'utf8');
 const DIALOG = readFileSync(new URL('./Dialog.tsx', import.meta.url), 'utf8');
+const PANEL_SOURCE = readFileSync(new URL('./FeedbackBrowserPanel.tsx', import.meta.url), 'utf8');
+const USER_LINK_SOURCE = readFileSync(new URL('./UserDrilldownLink.tsx', import.meta.url), 'utf8');
 
 const monitoring: MonitoringQuestionsPayload = {
   readState: 'ok',
@@ -139,12 +141,27 @@ describe('Monitoring feedback entry card', () => {
 });
 
 describe('feedback corpus modal', () => {
-  it('renders first-class rows, exact comments, thumbs, separate user links, and one-line headers', () => {
+  it('renders six ordered columns with Role separate from User', () => {
     const markup = panel({ status: 'ready', key: 'feedback', requestId: 1, data: payload, error: null });
+    const headers = ['Question', 'User', 'Role', 'Feedback', 'Comment', 'Submitted'];
+    const headerPositions = headers.map((header) => markup.indexOf(`>${header}</th>`));
+    const tbody = markup.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] ?? '';
+    const rows = tbody.match(/<tr[\s\S]*?<\/tr>/g) ?? [];
 
     expect(markup).toContain('2 total · 1 helpful · 1 not helpful');
-    for (const header of ['Question', 'User', 'Feedback', 'Comment', 'Submitted']) {
-      expect(markup).toContain(`>${header}</th>`);
+    expect(headerPositions.every((position) => position >= 0)).toBe(true);
+    expect(headerPositions).toEqual([...headerPositions].sort((left, right) => left - right));
+    expect(markup.match(/<th scope="col">/g)).toHaveLength(6);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.match(/<td /g)).toHaveLength(6);
+      expect([...row.matchAll(/data-label="([^"]+)"/g)].map((match) => match[1])).toEqual(headers);
+      const userCell = row.match(/<td data-label="User"[\s\S]*?<\/td>/)?.[0] ?? '';
+      const roleCell = row.match(/<td data-label="Role"[\s\S]*?<\/td>/)?.[0] ?? '';
+      expect(userCell).toContain('user-drilldown-link');
+      expect(userCell).not.toContain('data-role-state');
+      expect(roleCell).toContain('data-role-state');
+      expect(roleCell).not.toContain('user-drilldown-link');
     }
     expect(markup).toContain('The comparison was missing.');
     expect(markup).toContain('>—</span>');
@@ -156,8 +173,18 @@ describe('feedback corpus modal', () => {
     expect(markup).toContain('aria-label="Open question details: Which players improved?"');
     expect(markup).toContain('data-role-state="consumer"');
     expect(markup).toContain('data-role-state="super_admin"');
+    expect(markup).toContain('aria-label="Role: Consumer"');
+    expect(markup).toContain('aria-label="Role: Super admin"');
+    expect(markup).toContain('lucide-shield-plus');
+    expect(markup).toContain('data-label="Role" class="monitoring-feedback-role" title="Consumer"');
     expect(markup).not.toContain('aria-live=');
     expect(markup).not.toMatch(/star|spend|cost/i);
+  });
+
+  it('keeps row activation and username navigation isolated', () => {
+    expect(PANEL_SOURCE).toContain('const activation = monitoringQuestionRowHandlers(row, onOpenQuestion)');
+    expect(PANEL_SOURCE).toContain('<UserDrilldownLink identity={row.userEmail} compact canOpen showArrow />');
+    expect(USER_LINK_SOURCE.match(/onClick=\{\(event\) => event\.stopPropagation\(\)\}/g)).toHaveLength(2);
   });
 
   it('offers period, feedback, user, role, persona, organization, and search controls', () => {
@@ -265,7 +292,20 @@ describe('feedback corpus modal', () => {
     expect(CSS).toMatch(
       /\.monitoring-feedback-user\s*\{[^}]*flex-wrap:\s*nowrap[^}]*overflow:\s*hidden[^}]*white-space:\s*nowrap/s
     );
+    expect(CSS).toMatch(
+      /\.monitoring-feedback-role\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s
+    );
     expect(CSS).toMatch(/\.monitoring-feedback-submitted\s*\{[^}]*white-space:\s*nowrap/s);
+  });
+
+  it('gives Question the flexible width and preserves readable bounded columns', () => {
+    expect(CSS).toMatch(/\.monitoring-feedback-table\s*\{[^}]*min-width:\s*920px[^}]*table-layout:\s*fixed/s);
+    expect(CSS).toMatch(/\.monitoring-feedback-col-question\s*\{[^}]*width:\s*auto/s);
+    expect(CSS).toMatch(/\.monitoring-feedback-col-user\s*\{[^}]*width:\s*144px/s);
+    expect(CSS).toMatch(/\.monitoring-feedback-col-role\s*\{[^}]*width:\s*124px/s);
+    expect(CSS).toMatch(/\.monitoring-feedback-col-direction\s*\{[^}]*width:\s*112px/s);
+    expect(CSS).toMatch(/\.monitoring-feedback-col-comment\s*\{[^}]*width:\s*180px/s);
+    expect(CSS).toMatch(/\.monitoring-feedback-col-submitted\s*\{[^}]*width:\s*164px/s);
   });
 
   it('clips rows beneath one opaque sticky table header', () => {
@@ -276,6 +316,13 @@ describe('feedback corpus modal', () => {
       /\.monitoring-feedback-table th\s*\{[^}]*position:\s*sticky[^}]*top:\s*0[^}]*z-index:\s*2[^}]*background:\s*var\(--background\)/s
     );
     expect(CSS).toMatch(/\.monitoring-feedback-table\s*\{[^}]*border-collapse:\s*separate/s);
+  });
+
+  it('keeps all headers visible and scrolls the intact table on narrow viewports', () => {
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*?\.monitoring-feedback-table-frame\s*\{[^}]*min-height:\s*252px[^}]*overflow:\s*auto[^}]*\}[\s\S]*?\.monitoring-feedback-table\s*\{[^}]*min-width:\s*920px/s
+    );
+    expect(RESPONSIVE).not.toMatch(/\.monitoring-feedback-table thead\s*\{[^}]*display:\s*none/s);
   });
 
   it('uses the shared body portal and one measured pre-paint scroll lock', () => {

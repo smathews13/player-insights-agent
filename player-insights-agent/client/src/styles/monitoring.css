@@ -1824,6 +1824,29 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   border-spacing: 0;
   table-layout: fixed;
 }
+/*
+ * Five bounded columns leave Question all remaining width. At the modal's
+ * desktop measure that gives the question the largest track; below 920px the
+ * frame scrolls the intact six-column table instead of dropping a heading.
+ */
+.monitoring-feedback-col-question {
+  width: auto;
+}
+.monitoring-feedback-col-user {
+  width: 144px;
+}
+.monitoring-feedback-col-role {
+  width: 124px;
+}
+.monitoring-feedback-col-direction {
+  width: 112px;
+}
+.monitoring-feedback-col-comment {
+  width: 180px;
+}
+.monitoring-feedback-col-submitted {
+  width: 164px;
+}
 .monitoring-feedback-table th,
 .monitoring-feedback-table td {
   padding: 7px 10px;
@@ -1846,21 +1869,6 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   white-space: nowrap;
-}
-.monitoring-feedback-table th:nth-child(1) {
-  width: 31%;
-}
-.monitoring-feedback-table th:nth-child(2) {
-  width: 18%;
-}
-.monitoring-feedback-table th:nth-child(3) {
-  width: 14%;
-}
-.monitoring-feedback-table th:nth-child(4) {
-  width: 23%;
-}
-.monitoring-feedback-table th:nth-child(5) {
-  width: 14%;
 }
 .monitoring-feedback-table tbody tr:last-child td {
   border-bottom: 0;
@@ -1903,14 +1911,27 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 6px;
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .monitoring-feedback-user > .user-drilldown-link {
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
+}
+.monitoring-feedback-user .identity-chip {
+  width: 100%;
+}
+.monitoring-feedback-role {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.monitoring-feedback-role > .role-badge {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .monitoring-role-filter-count {
   color: var(--ast-text-secondary);

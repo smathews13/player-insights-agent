@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Copy, Trash2, UserPlus } from 'lucide-react';
 import { Button, Input } from './ui';
-import { PiaLoader } from './PiaLoader';
+import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 import { CopyableCommand } from './AdminListEditor';
 import {
   addDisabledReason,
@@ -247,11 +247,16 @@ export function RosterAddRow({
           disabled={Boolean(disabledReason)}
           title={disabledReason || `Add ${normalizeRosterEmail(draft)} as ${roleWord(role)}`}
           aria-describedby={descriptionId}
-          aria-busy={adding}
+          aria-busy={adding || undefined}
           onClick={onAdd}
         >
-          <UserPlus className="roster-action-icon" aria-hidden="true" />
-          {adding ? 'Adding…' : 'Add'}
+          <PiaBusyButtonContent
+            busy={adding}
+            label="Add"
+            busyLabel="Adding"
+            tone="light"
+            icon={<UserPlus className="roster-action-icon" aria-hidden="true" />}
+          />
         </Button>
       </td>
     </tr>

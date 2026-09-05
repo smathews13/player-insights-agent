@@ -6,20 +6,17 @@ const RESPONSIVE_OPS_STYLES = readFileSync(new URL('./styles/responsive-ops.css'
 const OPS_PAGE_SOURCE = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
 
 describe('Ops Admin control geometry', () => {
-  it('uses two equal full-content columns with equal-height bars on desktop', () => {
+  it('uses two capped content-width columns with equal-height bars on desktop', () => {
     expect(OPS_STYLES).toMatch(
-      /\.ops-page-controls\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)[^}]*grid-auto-rows:\s*1fr[^}]*width:\s*100%/
-    );
-    expect(OPS_STYLES).not.toMatch(
-      /\.ops-page-controls\s*\{[^}]*(?:width:\s*min\(100%,\s*50%\)|min-width:\s*420px|margin-left:\s*auto)/
+      /\.ops-page-controls\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*fit-content\(18rem\)\)[^}]*grid-auto-rows:\s*1fr[^}]*justify-content:\s*start[^}]*width:\s*fit-content[^}]*max-width:\s*100%/
     );
     expect(OPS_STYLES).toMatch(
-      /\.ops-stop-all,\s*\.ops-admin-action\s*\{[^}]*align-items:\s*center[^}]*padding:\s*6px 8px 6px 10px[^}]*border:\s*1px solid[^}]*border-radius:[^}]*width:\s*100%[^}]*min-height:\s*46px/
+      /\.ops-stop-all,\s*\.ops-admin-action\s*\{[^}]*align-items:\s*center[^}]*padding:\s*6px 8px 6px 10px[^}]*border:\s*1px solid[^}]*border-radius:[^}]*width:\s*auto[^}]*min-height:\s*46px/
     );
   });
 
-  it('pushes both actions to the same right inset', () => {
-    expect(OPS_STYLES).toMatch(
+  it('keeps content beside actions without spacer margins', () => {
+    expect(OPS_STYLES).not.toMatch(
       /\.ops-admin-action-scope \.ops-scope-check-button,\s*\.ops-stop-all \.ops-stop-all-button\s*\{[^}]*margin-left:\s*auto/
     );
     expect(OPS_PAGE_SOURCE).toMatch(
@@ -30,9 +27,12 @@ describe('Ops Admin control geometry', () => {
     );
   });
 
-  it('stacks both bars at the medium breakpoint', () => {
+  it('stacks capped bars at the medium breakpoint and fills only narrow screens', () => {
     expect(RESPONSIVE_OPS_STYLES).toMatch(
-      /@media \(max-width:\s*800px\)[\s\S]*?\.ops-page-controls\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)[^}]*width:\s*100%/
+      /@media \(max-width:\s*800px\)[\s\S]*?\.ops-page-controls\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*18rem\)[^}]*width:\s*fit-content[^}]*max-width:\s*100%/
+    );
+    expect(RESPONSIVE_OPS_STYLES).toMatch(
+      /@media \(max-width:\s*480px\)[\s\S]*?\.ops-page-controls,[\s\S]*?\.ops-stop-all\s*\{[^}]*width:\s*100%/
     );
   });
 });

@@ -138,14 +138,9 @@ describe('where the mark is used', () => {
     expect(TRANSCRIPT_SOURCE).not.toContain('{asker.initials}');
   });
 
-  /**
-   * The circle holds an abbreviation, which is not an answer to "whose is
-   * this". The identity goes to the title and to a screen reader, the way the
-   * conversation rail's owner circle already does it.
-   */
-  it('puts the identity itself where it can be read', () => {
+  it('pairs the visible user handle with the organization identity mark', () => {
     expect(readFileSync(new URL('./QuestionAttributionBubble.tsx', import.meta.url), 'utf8')).toContain(
-      'label="Asked by"'
+      '<OrganizationUserBadge'
     );
   });
 

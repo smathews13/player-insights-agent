@@ -224,11 +224,6 @@ html[data-theme='dark'] .role-badge[data-role-state='super_admin'] {
   color: var(--foreground);
 }
 
-html[data-theme='dark'] .app-nav-tab[aria-current='page'],
-html[data-theme='dark'] .app-nav-tab.active {
-  color: var(--ast-ice-accent);
-}
-
 /* The conversation rail is a reading surface. The trace inspector remains the
    deliberate decorative sky region beside it. */
 html[data-theme='dark'] .conversation-rail {

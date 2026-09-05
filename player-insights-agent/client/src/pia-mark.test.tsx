@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { PiaAcronym, PiaEmptyStateMark, PiaLockup, PiaMark, PiaWordmark } from './PiaMark';
+import { PiaAcronym, PiaAvatar, PiaEmptyStateMark, PiaLockup, PiaMark, PiaWordmark } from './PiaMark';
 import {
   PIA_CLUSTER,
   PIA_DPAD_ENGRAVED,
@@ -83,7 +83,7 @@ describe('typed PIA mark geometry', () => {
 
   it('exposes locked header, hero, and compact measurements', () => {
     expect(PIA_LOCKUP_SEATS).toEqual({
-      header: { mark: 15, type: 12.5, gap: 7 },
+      header: { mark: 24, type: 12.5, gap: 7 },
       hero: { mark: 48, type: 24, gap: 12 },
       compact: { mark: 40, type: 38, gap: 5 },
     });
@@ -95,7 +95,7 @@ describe('typed PIA mark geometry', () => {
   });
 });
 
-describe('wordmark, acronym, lockup, and empty-state primitives', () => {
+describe('wordmark, acronym, lockup, and static identity primitives', () => {
   it('accents Agent and the A without shortening the accessible name', () => {
     expect(renderToStaticMarkup(<PiaWordmark tone="dark" />)).toContain(
       'Player Insights <span class="pia-accent">Agent</span>'
@@ -105,15 +105,30 @@ describe('wordmark, acronym, lockup, and empty-state primitives', () => {
     expect(acronym).toContain('PI<span class="pia-accent">A</span>');
   });
 
-  it('uses the full-name wordmark and simplified D-pad in the header lockup', () => {
+  it('uses the full-name wordmark and legible engraved avatar in the header lockup', () => {
     const lockup = renderToStaticMarkup(<PiaLockup seat="header" tone="dark" />);
     expect(lockup).toContain('pia-lockup--full');
-    expect(lockup).toContain('data-pia-cut="simplified"');
-    expect(lockup).toContain('width="15"');
+    expect(lockup).toContain('data-pia-cut="engraved"');
+    expect(lockup).toContain('data-pia-static="true"');
+    expect(lockup).toContain('width="24"');
     expect(lockup).toContain('Player Insights <span class="pia-accent">Agent</span>');
     expect(lockup).toContain('pia-wordmark');
     expect(lockup).not.toContain('pia-acronym');
     expect(lockup).not.toContain('pia-caption');
+  });
+
+  it('keeps the complete engraved D-pad and ice center in every static avatar size', () => {
+    for (const size of [11, 14, 24, 32]) {
+      const avatar = renderToStaticMarkup(<PiaAvatar size={size} />);
+      expect(avatar).toContain('data-pia-cut="engraved"');
+      expect(avatar).toContain('data-pia-static="true"');
+      expect(avatar.match(/data-pia-role="arm"/g)).toHaveLength(2);
+      expect(avatar.match(/data-pia-role="glyph"/g)).toHaveLength(4);
+      expect(avatar.match(/data-pia-role="center"/g)).toHaveLength(1);
+      expect(avatar).toContain('fill="var(--pia-mark-accent)"');
+      expect(avatar).not.toContain('pia-anim');
+      expect(avatar).not.toMatch(/animation(?:-name)?:/);
+    }
   });
 
   it('uses only the static cluster for the empty-state primitive', () => {
@@ -127,11 +142,16 @@ describe('wordmark, acronym, lockup, and empty-state primitives', () => {
     const css = partial('pia-brand.css');
     expect(css).toContain('.pia-mark--light');
     expect(css).toContain('.pia-mark--dark');
+    expect(css).toMatch(/\.pia-avatar,\s*\.pia-avatar \*\s*\{[^}]*animation:\s*none[^}]*transition:\s*none/s);
     expect(css).toMatch(/\.pia-mark--dark\s*\{[^}]*--pia-mark-ink:\s*var\(--ast-white\)/s);
     expect(css).toMatch(/\.pia-mark--dark\s*\{[^}]*--pia-mark-accent:\s*var\(--ast-ice-accent\)/s);
     expect(css).toMatch(/\.pia-type--dark,[\s\S]*?\{[^}]*color:\s*var\(--ast-white\)/);
     expect(css).toMatch(/\.pia-type--dark \.pia-accent\s*\{[^}]*color:\s*var\(--ast-ice-accent\)/s);
     expect(css).toContain('@media print');
+    expect(css).toContain('@media (prefers-contrast: more)');
+    expect(css).toMatch(
+      /@media \(forced-colors:\s*active\)[\s\S]*\.pia-avatar\s*\{[^}]*--pia-mark-accent:\s*Highlight/s
+    );
     expect(css).toContain('@media (max-width: 720px)');
   });
 });

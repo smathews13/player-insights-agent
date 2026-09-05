@@ -170,7 +170,7 @@ describe('all required scopes granted', () => {
     expect(markup).not.toContain('>Not checked<');
     expect(markup).toContain('Optional scopes');
     expect(markup.match(/>Not requested</g)).toHaveLength(OPTIONAL_ROWS);
-    expect(markup.match(/>Request</g)).toHaveLength(OPTIONAL_ROWS);
+    expect(markup.match(/class="sr-only">Request</g)).toHaveLength(OPTIONAL_ROWS);
     expect(markup).toContain('postgres');
     /*
      * The rows carry names and verdicts, and NO row carries a description.

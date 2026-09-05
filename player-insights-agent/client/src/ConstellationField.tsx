@@ -26,6 +26,8 @@ import {
 } from './constellation';
 
 import { BRAND_THEME_MARKS, type BrandProduct } from './brand-icons';
+import { PiaDrawing } from './PiaMark';
+import { PIA_DPAD_ENGRAVED, PIA_MARK_VIEWBOX } from './pia-mark';
 
 /**
  * The recoloured product icons, which are the `dark` cut because every seating
@@ -67,6 +69,30 @@ function starHref(glyph: StarGlyph): string | null {
 }
 
 /**
+ * The static engraved identity mark in a constellation's own coordinate space.
+ * Its nested viewBox scales the canonical 64-unit geometry without rewriting
+ * any path, and its center remains exactly on the connector endpoint.
+ */
+function DpadStarShape({ star }: { star: Star }) {
+  return (
+    <svg
+      className="pia-mark pia-mark--dark ast-dpad-star"
+      data-pia-topology-mark=""
+      x={star.x - star.size}
+      y={star.y - star.size}
+      width={star.size * 2}
+      height={star.size * 2}
+      viewBox={`0 0 ${PIA_MARK_VIEWBOX} ${PIA_MARK_VIEWBOX}`}
+      aria-hidden="true"
+      focusable="false"
+      overflow="visible"
+    >
+      <PiaDrawing elements={PIA_DPAD_ENGRAVED} />
+    </svg>
+  );
+}
+
+/**
  * The one renderer for a topology node, whether it is used by a compact
  * progress constellation or by the viewport-wide ambient topology.
  */
@@ -81,15 +107,14 @@ export function StarGlyphShape({ star }: { star: Star }) {
   if (star.glyph === 'dot') {
     return <circle cx={star.x} cy={star.y} r={star.size} className="ast-star-ink" opacity={star.opacity} />;
   }
+  if (star.glyph === 'dpad' || star.glyph === 'sparkle') {
+    return <DpadStarShape star={star} />;
+  }
   const path = glyphPath(star);
   if (!path) return null;
   const accent = glyphTakesAccent(star.glyph);
-  // The filled glyph and the stroked ones. A sparkle is a mass; a cross, a
-  // square, a triangle and a d-pad cross are line drawings, and the stroke width
-  // scales with the glyph so a 4-unit cross in a 56px strip is not a hairline.
-  if (star.glyph === 'sparkle') {
-    return <path d={path} className="ast-star-accent-fill" />;
-  }
+  // The remaining game buttons are line drawings, and the stroke width scales
+  // with the glyph so a 4-unit cross in a 56px strip is not a hairline.
   return (
     <path
       d={path}

@@ -49,6 +49,7 @@ import { Button } from './ui';
 import { RefreshButton } from './RefreshControl';
 import type { Identity } from './app-types';
 import { PiaLockup } from './PiaMark';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { UserIdentityChip } from './UserIdentityChip';
 import { DATABRICKS_LOGO, DATABRICKS_SYMBOL } from './brand-icons';
 // The same octocat the Connections tab links its repository with. One copy, so
@@ -182,8 +183,13 @@ function ScopeSection({
                     className="fo-scope-request"
                     onClick={() => onRequestScope(scope.name)}
                     disabled={Boolean(requestingScope)}
+                    aria-busy={requestingScope === scope.name || undefined}
                   >
-                    {requestingScope === scope.name ? 'Requesting\u2026' : 'Request'}
+                    <PiaBusyButtonContent
+                      busy={requestingScope === scope.name}
+                      label="Request"
+                      busyLabel="Requesting"
+                    />
                   </Button>
                 ) : null}
               </span>
@@ -359,12 +365,26 @@ export function FirstOpenPanel({
               className="fo-continue"
               onClick={onAllowRequiredScopes}
               disabled={allowingRequiredScopes || scopeUpdateMessage?.kind === 'success'}
+              aria-busy={allowingRequiredScopes || undefined}
             >
-              {allowingRequiredScopes ? 'Adding access\u2026' : 'Allow serving, SQL, Genie, and workspace browsing'}
+              <PiaBusyButtonContent
+                busy={allowingRequiredScopes}
+                label="Allow serving, SQL, Genie, and workspace browsing"
+                busyLabel="Adding access"
+              />
             </Button>
           ) : (
-            <Button className="fo-continue" disabled={preparing || leaving} onClick={showSkip ? onSkip : onContinue}>
-              {preparing ? 'Preparing Ask\u2026' : showSkip ? SKIP_LABEL : CONTINUE_LABEL}
+            <Button
+              className="fo-continue"
+              disabled={preparing || leaving}
+              aria-busy={preparing || undefined}
+              onClick={showSkip ? onSkip : onContinue}
+            >
+              <PiaBusyButtonContent
+                busy={preparing}
+                label={showSkip ? SKIP_LABEL : CONTINUE_LABEL}
+                busyLabel="Preparing Ask"
+              />
             </Button>
           )}
           {showRefresh ? <RefreshButton onRefresh={onRefresh} className="fo-refresh" /> : null}

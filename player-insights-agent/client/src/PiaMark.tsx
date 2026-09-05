@@ -4,6 +4,7 @@ import {
   PIA_LOCKUP_SEATS,
   PIA_MARK_VIEWBOX,
   PIA_NAME,
+  PIA_DPAD_ENGRAVED,
   piaDpadCut,
   piaMarkElements,
   type PiaLockupName,
@@ -107,6 +108,46 @@ export function PiaMark({
   );
 }
 
+/**
+ * The canonical static Player Insights Agent identity.
+ *
+ * Unlike the responsive brand mark, an avatar always keeps all four engraved
+ * controller glyphs and the ice center, even in compact identity seats. Loading
+ * remains the separate animated PiaLoader primitive.
+ */
+export function PiaAvatar({
+  size,
+  tone = 'light',
+  className,
+  label,
+  style,
+}: {
+  size: number;
+  tone?: PiaMarkTone;
+  className?: string;
+  label?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <svg
+      className={`pia-mark pia-avatar pia-mark--${tone} pia-mark--dpad ${className ?? ''}`.trim()}
+      width={size}
+      height={size}
+      viewBox={`0 0 ${PIA_MARK_VIEWBOX} ${PIA_MARK_VIEWBOX}`}
+      fill="none"
+      role={label ? 'img' : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+      focusable="false"
+      style={style}
+      data-pia-cut="engraved"
+      data-pia-static="true"
+    >
+      <PiaDrawing elements={PIA_DPAD_ENGRAVED} />
+    </svg>
+  );
+}
+
 function wordmarkTone(tone: PiaMarkTone): string {
   return `pia-type--${tone}`;
 }
@@ -177,7 +218,7 @@ export function PiaLockup({
       className={`pia-lockup pia-lockup--${seat} pia-lockup--${name} ${className ?? ''}`.trim()}
       style={style}
     >
-      <PiaMark size={measurements.mark} tone={tone} />
+      <PiaAvatar size={measurements.mark} tone={tone} />
       <LockupName name={name} tone={tone} />
     </Tag>
   );

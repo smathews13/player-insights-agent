@@ -38,7 +38,7 @@ import { Button, Input, Skeleton } from './ui';
 import { AppSelect } from './AppSelect';
 import { PiaFlicker } from './PiaFlicker';
 import { PiaLoader } from './PiaLoader';
-import { PiaEmptyStateMark, PiaMark } from './PiaMark';
+import { PiaAvatar, PiaEmptyStateMark } from './PiaMark';
 import { showsAdminSurfaces, type AppOutletContext } from './role';
 import { PageHeading } from './page-chrome';
 import { RefreshControl } from './RefreshControl';
@@ -48,7 +48,7 @@ import { AnswerCard } from './AnswerCard';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
 import { SourceEntityName, VisitInDatabricks } from './DataEntityLinks';
 import { UserIdentityChip } from './UserIdentityChip';
-import { UserDrilldownLink } from './UserDrilldownLink';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 import { QuestionAttributionBubble } from './QuestionAttributionBubble';
 import { UnitSegmentedControl } from './UnitSegmentedControl';
 import { RoleBadgePill } from './RoleBadge';
@@ -651,8 +651,14 @@ function OutcomePill({ question }: { question: MonitoringQuestion }) {
 }
 
 function AskerMark({ email, onOpen }: { email: string; onOpen?: (email: string) => void }) {
-  if (!onOpen) return <UserIdentityChip identity={email} compact className="monitoring-asker-who" />;
-  return <UserDrilldownLink identity={email} compact className="monitoring-asker-who" canOpen showArrow />;
+  return (
+    <OrganizationUserBadge
+      identity={email}
+      className="monitoring-asker-who"
+      canOpen={Boolean(onOpen)}
+      showArrow={Boolean(onOpen)}
+    />
+  );
 }
 
 function FeedbackMark({ feedback }: { feedback: 'up' | 'down' | null | undefined }) {
@@ -708,7 +714,7 @@ function QuestionRow({
       </td>
       {/* The local part, with the full address on hover. A column of
           identical domains is a column of noise. */}
-      <td className="monitoring-asker" title={question.askedBy}>
+      <td className="monitoring-asker">
         <AskerMark email={question.askedBy} onOpen={onOpenPerson} />
       </td>
       <td className="monitoring-when">{whenLabel(question.askedAt, now)}</td>
@@ -871,7 +877,7 @@ export function QuestionList({
         <tr>
           <th scope="col">Question</th>
           <th scope="col" className="monitoring-col-asker">
-            Asked by
+            User
           </th>
           <th scope="col" className="monitoring-col-when">
             When
@@ -1300,7 +1306,7 @@ function LoadingSpendMetric({ label, animated = false }: { label: string; animat
         {animated ? (
           <PiaFlicker seat="compact" />
         ) : (
-          <PiaMark size={16} className="user-profile-modal-spend-static-mark" />
+          <PiaAvatar size={16} className="user-profile-modal-spend-static-mark" />
         )}
       </div>
     </div>

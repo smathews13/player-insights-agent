@@ -266,11 +266,12 @@ export function hopPath(hop: Hop): string {
 }
 
 /**
- * How a star is drawn, as a path or as a product icon.
+ * How a line-drawn game button is drawn.
  *
  * Every glyph is generated from its centre and its size rather than written out
  * per star, which is what lets one drawing serve the splash's 5-unit cross and
- * the strip's 4-unit one without the two being two drawings.
+ * the strip's 4-unit one without the two being two drawings. D-pad and legacy
+ * sparkle nodes use the canonical engraved PIA geometry in the renderer.
  */
 export function glyphPath(star: Star): string | null {
   const { x, y, size: r } = star;
@@ -279,15 +280,6 @@ export function glyphPath(star: Star): string | null {
       return `M${x - r} ${y - r}l${r * 2} ${r * 2}M${x + r} ${y - r}l${-r * 2} ${r * 2}`;
     case 'triangle':
       return `M${x} ${y - r}l${r} ${r * 1.8}h${-r * 2}z`;
-    case 'dpad':
-      return `M${x} ${y - r}v${r * 2}M${x - r} ${y}h${r * 2}`;
-    case 'sparkle': {
-      // A four-point star: a long axis of `r` and a waist at `r * 0.275`, which
-      // is the proportion the reference draws at both of its sizes.
-      const w = +(r * 0.275).toFixed(2);
-      const m = +(r * 0.725).toFixed(2);
-      return `M${x} ${y - r}l${w} ${m} ${m} ${w} ${-m} ${w} ${-w} ${m} ${-w} ${-m} ${-m} ${-w} ${m} ${-w}z`;
-    }
     default:
       return null;
   }
@@ -295,7 +287,7 @@ export function glyphPath(star: Star): string | null {
 
 /** Whether a glyph is drawn in the accent rather than in white. */
 export function glyphTakesAccent(glyph: StarGlyph): boolean {
-  return glyph === 'square' || glyph === 'dpad' || glyph === 'sparkle';
+  return glyph === 'square';
 }
 
 /**

@@ -49,7 +49,8 @@ async function loadPastTheAccessGate(page: Page) {
         decision: {
           mode: 'service-principal',
           decidedAt: '2026-08-05T14:25:55.204Z',
-          detail: 'The user chose service-principal mode at the gate: own access was not verified. Who runs questions is set by the deployment, not by this choice.',
+          detail:
+            'The user chose service-principal mode at the gate: own access was not verified. Who runs questions is set by the deployment, not by this choice.',
         },
         servingPrincipal: null,
       },
@@ -118,28 +119,24 @@ async function openRail(page: Page, onDelete?: (route: Route) => void, shared = 
   return rail;
 }
 
-test('watermarks each entry with who asked, without spelling out the address', async ({ page }) => {
+test('marks each user with their organization without spelling out the address', async ({ page }) => {
   const rail = await openRail(page);
 
   const spikes = rail.locator('.conversation-row', { hasText: 'activity spikes' });
   const watermark = spikes.locator('.conversation-owner');
 
   await expect(watermark).toBeVisible();
-  // Initials on the row, the address on hover. An address is 26 characters and
-  // the rail is 240px, so spelling it out would wrap over the title. The
-  // assertion is on the decorative span rather than the whole watermark,
-  // because the watermark also carries the screen-reader label asserted below.
-  // FA is the first letter of each dotted word in ASKED_BY_ANALYST's local part.
-  await expect(watermark.locator('[aria-hidden="true"]')).toHaveText('FA');
-  await expect(watermark).toHaveAttribute('title', `Asked by ${ASKED_BY_ANALYST}`);
-  // The initials are decorative; the address is what a screen reader gets.
-  await expect(spikes).toContainText(`Asked by ${ASKED_BY_ANALYST}`);
+  await expect(watermark.locator('.roster-organization-mark')).toContainText('EX');
+  await expect(watermark.locator('.identity-chip-name')).toHaveText('first.analyst');
+  await expect(watermark).toHaveAttribute('title', `${ASKED_BY_ANALYST} · example.invalid`);
+  await expect(watermark).not.toContainText('Asked by');
 
   // Two owners, two watermarks, which is the only thing that makes it useful.
   const sessions = rail.locator('.conversation-row', { hasText: 'active players' });
   const theirs = sessions.locator('.conversation-owner');
-  await expect(theirs.locator('[aria-hidden="true"]')).toHaveText('LD');
-  await expect(theirs).toHaveAttribute('title', `Asked by ${ASKED_BY_DEV}`);
+  await expect(theirs.locator('.roster-organization-mark')).toContainText('AP');
+  await expect(theirs.locator('.identity-chip-name')).toHaveText('local-development');
+  await expect(theirs).toHaveAttribute('title', `${ASKED_BY_DEV} · app.invalid`);
 });
 
 test('names the two controls in a row apart, so neither answers to the other', async ({ page }) => {
@@ -157,7 +154,8 @@ test('names the two controls in a row apart, so neither answers to the other', a
   // The action is the name; the conversation it acts on is the description, which
   // assistive tech announces after it.
   await expect(remove).toHaveAttribute('aria-describedby', 'rail-title-conv-spikes');
-  await expect(page.locator('#rail-title-conv-spikes')).toHaveText('Were there any activity spikes in the reporting window, and what drove them?'
+  await expect(page.locator('#rail-title-conv-spikes')).toHaveText(
+    'Were there any activity spikes in the reporting window, and what drove them?'
   );
 });
 
@@ -199,15 +197,17 @@ test('removes the entry once the delete is confirmed, and leaves its neighbour a
 });
 
 test('keeps the entry in the rail when the server refuses to delete it', async ({ page }) => {
-  const rail = await openRail(page, (route) =>
-    void route.fulfill({
-      status: 503,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        error: 'conversation_delete_failed',
-        message: 'This conversation could not be deleted right now. Nothing was removed. Try again shortly.',
-      }),
-    })
+  const rail = await openRail(
+    page,
+    (route) =>
+      void route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'conversation_delete_failed',
+          message: 'This conversation could not be deleted right now. Nothing was removed. Try again shortly.',
+        }),
+      })
   );
 
   const spikes = rail.locator('.conversation-row', { hasText: 'activity spikes' });
@@ -279,7 +279,7 @@ test('filters a rail by any of the people on it, several at a time', async ({ pa
   await expect(rail.locator('.conversation-row')).toHaveCount(2);
 });
 
-test('still offers the filter when every conversation is the same person\'s, which is the usual case', async ({
+test("still offers the filter when every conversation is the same person's, which is the usual case", async ({
   page,
 }) => {
   await page.route('**/api/identity', (route) =>

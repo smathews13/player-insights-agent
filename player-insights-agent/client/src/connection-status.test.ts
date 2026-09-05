@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CONNECTION_STATUS_LABEL,
   CONNECTION_STATUS_NOTE,
+  PRIMARY_CONNECTION_BADGE,
   connectionCounts,
   connectionStatus,
   connectionStatusVariant,
@@ -10,6 +11,7 @@ import {
   inUseSummary,
   primaryConnectionState,
   resolvedConnectionState,
+  resolvedConnectionStateFromLabel,
   visibleCounts,
   type ConnectionStatus,
 } from './connection-status';
@@ -44,6 +46,18 @@ describe('the row badge', () => {
   it('uses loading only while a verdict is actively pending', () => {
     expect(resolvedConnectionState('ready', true)).toBe('loading');
   });
+
+  it('centralizes explicit success and danger badge families', () => {
+    expect(PRIMARY_CONNECTION_BADGE).toEqual({
+      connected: { label: 'Connected', family: 'pos' },
+      disconnected: { label: 'Disconnected', family: 'neg' },
+    });
+    expect(resolvedConnectionStateFromLabel('Connected')).toBe('connected');
+    expect(resolvedConnectionStateFromLabel('Disconnected')).toBe('disconnected');
+    expect(resolvedConnectionStateFromLabel('Not connected')).toBe('disconnected');
+    expect(resolvedConnectionStateFromLabel('Checking')).toBeNull();
+  });
+
   it('reads a passing check as reachable', () => {
     expect(connectionStatus({ check: { status: 'ok' }, hasRemoteEnd: true })).toBe('reachable');
   });
@@ -142,12 +156,11 @@ describe('the row badge', () => {
     }
   });
 
-  // Only a failed probe earns the red. "Not checked" and "Nothing to reach" are
-  // absences of evidence, and painting an absence as a fault is how a page
-  // teaches people to ignore its red.
-  it('spends the destructive variant only on a check that failed', () => {
+  // The semantic family supplies success green. The AppKit base variant stays
+  // outline so it can never reintroduce a neutral settled-success fill.
+  it('reserves the destructive base variant for a failed check', () => {
     expect(connectionStatusVariant('blocked')).toBe('destructive');
-    expect(connectionStatusVariant('reachable')).toBe('secondary');
+    expect(connectionStatusVariant('reachable')).toBe('outline');
     expect(connectionStatusVariant('not-checked')).toBe('outline');
     expect(connectionStatusVariant('nothing-to-reach')).toBe('outline');
   });

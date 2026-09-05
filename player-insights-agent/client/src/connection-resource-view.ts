@@ -62,7 +62,7 @@ function add(details: ConnectionDetail[], label: string, value: unknown): void {
 }
 
 function statusFor(reading: ConnectionReading): string {
-  const state = primaryConnectionState(reading.status, reading.resource.namesRemoteObject);
+  const state = primaryConnectionState(reading.status, reading.resource.namesRemoteObject || Boolean(reading.check));
   return state === 'connected' ? PRIMARY_CONNECTION_LABEL.connected : PRIMARY_CONNECTION_LABEL.disconnected;
 }
 

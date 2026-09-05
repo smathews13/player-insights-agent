@@ -37,7 +37,7 @@ import type { ConnectionEntry } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import { StatusBadge } from './StatusBadge';
 import { UserDrilldownLink } from './UserDrilldownLink';
-import { PiaBusyButtonContent, PiaLoaderMark } from './PiaLoader';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { connectionValueError, derivedConnectionKey } from './declared-connection-form';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
 import { Button } from './ui';
@@ -274,12 +274,12 @@ export function DeclaredConnectionsCard({
                     aria-busy={busy || undefined}
                     onClick={() => void remove(entry)}
                   >
-                    {busy ? (
-                      <PiaLoaderMark variant="button" tone="dark" />
-                    ) : (
-                      <Trash2 className="size-4" aria-hidden="true" />
-                    )}
-                    {DELETE_CONNECTION_LABEL}
+                    <PiaBusyButtonContent
+                      busy={busy}
+                      label={DELETE_CONNECTION_LABEL}
+                      busyLabel="Deleting"
+                      icon={<Trash2 className="size-4" aria-hidden="true" />}
+                    />
                   </Button>
                   <Button variant="outline" size="sm" disabled={busy} onClick={() => setConfirming('')}>
                     Keep

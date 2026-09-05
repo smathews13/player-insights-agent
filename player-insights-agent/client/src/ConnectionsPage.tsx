@@ -67,7 +67,7 @@ import { CONNECTED_RESOURCES } from '../../shared/deployment-config';
 import { IdentityCard } from './IdentityPanel';
 import { useDeploymentIdentity } from './identity-panel-state';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
-import { PiaLoaderMark } from './PiaLoader';
+import { PiaBusyButtonContent } from './PiaLoader';
 import {
   connectionLoadErrorLabel,
   connectionPlaceholderReadings,
@@ -111,10 +111,12 @@ import { useSessionChecks } from './session-checks';
 import {
   DRIFT_MARKER_LABEL,
   primaryConnectionState,
+  resolvedConnectionStateFromLabel,
   truncateHead,
   visibleCounts,
   type ConnectionCounts,
 } from './connection-status';
+import { ConnectionStateBadge } from './ConnectionStateBadge';
 // One cause said once over every check that shares it, and one remedy said once
 // over every cause it clears. See connection-causes.ts for why the cause key is
 // a verdict, a sentence and a whole remedy rather than something looser.
@@ -754,6 +756,7 @@ export function DeclaredTablesTable({
               Boolean(tableRow?.pending) ||
               Boolean(scopeCheck?.status === 'unverified' && (!scopeCheck.stopped || scopeCheck.stopped === 'unasked'));
             const connected = scopeCheck ? scopeCheck.status === 'ok' : true;
+            const connectionState = connected ? 'connected' : 'disconnected';
             const confirmOpen = management?.confirming === entry.connection.id;
             return (
               <Fragment key={entry.connection.id}>
@@ -782,14 +785,7 @@ export function DeclaredTablesTable({
                         label={`Checking ${entry.connection.label || entry.connection.value}`}
                       />
                     ) : (
-                      <Badge
-                        variant={connected ? 'secondary' : 'destructive'}
-                        aria-label={`${entry.connection.value} connection status: ${
-                          connected ? 'Connected' : 'Disconnected'
-                        }`}
-                      >
-                        {connected ? 'Connected' : 'Disconnected'}
-                      </Badge>
+                      <ConnectionStateBadge state={connectionState} subject={entry.connection.value} />
                     )}
                   </TableCell>
                   <TableCell className="connections-table-detail">
@@ -840,12 +836,12 @@ export function DeclaredTablesTable({
                             aria-busy={management.busy || undefined}
                             onClick={() => management.onRemove(entry)}
                           >
-                            {management.busy ? (
-                              <PiaLoaderMark variant="button" tone="dark" />
-                            ) : (
-                              <Trash2 className="size-4" aria-hidden="true" />
-                            )}
-                            {DELETE_CONNECTION_LABEL}
+                            <PiaBusyButtonContent
+                              busy={management.busy}
+                              label={DELETE_CONNECTION_LABEL}
+                              busyLabel="Deleting"
+                              icon={<Trash2 className="size-4" aria-hidden="true" />}
+                            />
                           </Button>
                           <Button variant="outline" size="sm" disabled={management.busy} onClick={management.onCancel}>
                             Keep
@@ -917,14 +913,10 @@ export function DeclaredTablesTable({
                           label={`Checking ${check.label || check.name}`}
                         />
                       ) : (
-                        <Badge
-                          variant={check.status === 'ok' ? 'secondary' : 'destructive'}
-                          aria-label={`${check.label || check.name} connection status: ${
-                            check.status === 'ok' ? 'Connected' : 'Disconnected'
-                          }`}
-                        >
-                          {check.status === 'ok' ? 'Connected' : 'Disconnected'}
-                        </Badge>
+                        <ConnectionStateBadge
+                          state={check.status === 'ok' ? 'connected' : 'disconnected'}
+                          subject={check.label || check.name}
+                        />
                       )}
                     </TableCell>
                     {/* A STATUS, NOT AN ESSAY. This cell used to print the check's whole
@@ -982,12 +974,12 @@ export function DeclaredTablesTable({
                               aria-busy={management.busy || undefined}
                               onClick={() => management.onRemove(connection)}
                             >
-                              {management.busy ? (
-                                <PiaLoaderMark variant="button" tone="dark" />
-                              ) : (
-                                <Trash2 className="size-4" aria-hidden="true" />
-                              )}
-                              {DELETE_CONNECTION_LABEL}
+                              <PiaBusyButtonContent
+                                busy={management.busy}
+                                label={DELETE_CONNECTION_LABEL}
+                                busyLabel="Deleting"
+                                icon={<Trash2 className="size-4" aria-hidden="true" />}
+                              />
                             </Button>
                             <Button
                               variant="outline"
@@ -1337,9 +1329,7 @@ function FixCause({ cause }: { cause: BlockCause }) {
 
             The word is the verdict rather than the status, so a refusal does not
             read "Not checked" over a call the workspace answered. */}
-        <Badge variant="destructive" aria-label={`${causeGroupHeadline(cause)} connection status: Disconnected`}>
-          Disconnected
-        </Badge>
+        <ConnectionStateBadge state="disconnected" subject={causeGroupHeadline(cause)} />
         {/* ON THE SAME LINE AS THE OBJECT IT IS ABOUT, which is the whole of
             what a reader wants from a finding: what, and why. It was a
             paragraph of its own under the head, so every cause took two lines
@@ -1671,7 +1661,10 @@ export function ConnectionRow({
    * the value with loading copy would throw cached evidence away.
    */
   const restating = refreshing && status !== 'nothing-to-reach';
-  const primaryState = primaryConnectionState(status, resource.namesRemoteObject, restating);
+  // A probe is authoritative evidence that this row has a remote connection
+  // state even when the registry says its configured value is not a second
+  // identifier to compare (MLflow experiments are the important example).
+  const primaryState = primaryConnectionState(status, resource.namesRemoteObject || Boolean(check), restating);
   const connectionDetails = restating
     ? view.details.filter((detail) => !['Access', 'Connection', 'Status'].includes(detail.label))
     : view.details;
@@ -1742,15 +1735,7 @@ export function ConnectionRow({
             label={`Checking ${resource.label}`}
           />
         ) : primaryState === 'not-applicable' ? null : (
-          <Badge
-            variant={primaryState === 'connected' ? 'secondary' : 'destructive'}
-            className="connection-row-state"
-            aria-label={`${resource.label} connection status: ${
-              primaryState === 'connected' ? 'Connected' : 'Disconnected'
-            }`}
-          >
-            {primaryState === 'connected' ? 'Connected' : 'Disconnected'}
-          </Badge>
+          <ConnectionStateBadge state={primaryState} subject={resource.label} className="connection-row-state" />
         )}
         {/* Announced, not drawn. A row in the Drifted section is under a header
             that says so, and repeating it per row is what the chip did; the
@@ -1810,12 +1795,21 @@ export function ConnectionRow({
             </div>
           ) : connectionDetails.length > 0 ? (
             <dl className="connection-details">
-              {connectionDetails.map((detail) => (
-                <div className="connection-detail" key={`${detail.label}:${detail.value}`}>
-                  <dt>{detail.label}</dt>
-                  <dd title={detail.value}>{detail.value}</dd>
-                </div>
-              ))}
+              {connectionDetails.map((detail) => {
+                const detailState = resolvedConnectionStateFromLabel(detail.value);
+                return (
+                  <div className="connection-detail" key={`${detail.label}:${detail.value}`}>
+                    <dt>{detail.label}</dt>
+                    <dd title={detail.value}>
+                      {detailState ? (
+                        <ConnectionStateBadge state={detailState} subject={`${resource.label} ${detail.label}`} />
+                      ) : (
+                        detail.value
+                      )}
+                    </dd>
+                  </div>
+                );
+              })}
             </dl>
           ) : (
             <p className="connection-empty-detail">{view.description}</p>
@@ -1888,8 +1882,18 @@ export function ConnectionRow({
             <div className="connection-row-editor">
               <AssetPickerField field={resource.id} current={draft} catalog={catalogInUse} onPick={setDraft} />
               <div className="flex gap-2">
-                <Button size="sm" disabled={saving || !draft.trim()} onClick={() => void commit()}>
-                  <Save className="size-3.5" /> Save and apply
+                <Button
+                  size="sm"
+                  disabled={saving || !draft.trim()}
+                  aria-busy={saving || undefined}
+                  onClick={() => void commit()}
+                >
+                  <PiaBusyButtonContent
+                    busy={saving}
+                    label="Save and apply"
+                    busyLabel="Saving"
+                    icon={<Save className="size-3.5" />}
+                  />
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
                   Cancel
@@ -1919,9 +1923,7 @@ export function ConnectionLoadRow({ reading, state }: { reading: ConnectionReadi
           <div className="connection-row-load-error" role="alert">
             <CircleAlert className="size-4" aria-hidden="true" />
             <span className="connection-row-label">{reading.resource.label}</span>
-            <Badge variant="destructive" aria-label={`${reading.resource.label} connection status: Disconnected`}>
-              Disconnected
-            </Badge>
+            <ConnectionStateBadge state="disconnected" subject={reading.resource.label} />
             <span>{label}</span>
           </div>
         )}

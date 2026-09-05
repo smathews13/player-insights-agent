@@ -229,16 +229,20 @@ export function AccountMenuPanel({
   return (
     <div className="account-menu" aria-label="Account controls">
       <div className="account-menu-identity">
-        <OrganizationAvatar organization={organization} />
-        <span className="account-menu-identity-copy">
-          {/*
-            `RoleBadgePill` and not `RoleBadge` -- the second live region would
-            announce a lost role twice. See the note on the pill.
-          */}
-          <RoleBadgePill state={role} />
-          <strong className="account-menu-name">{name}</strong>
-          <span className="account-menu-address">{canonicalEmail}</span>
-        </span>
+        {/*
+          `RoleBadgePill` and not `RoleBadge` -- the second live region would
+          announce a lost role twice. See the note on the pill. It is deliberately
+          separate from the principal below: the organization mark identifies the
+          named person, not their permission level.
+        */}
+        <RoleBadgePill state={role} />
+        <div className="account-menu-principal">
+          <OrganizationAvatar organization={organization} />
+          <span className="account-menu-identity-copy">
+            <strong className="account-menu-name">{name}</strong>
+            <span className="account-menu-address">{canonicalEmail}</span>
+          </span>
+        </div>
       </div>
       <div className="account-menu-group">
         <Popover

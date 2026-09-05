@@ -8,6 +8,7 @@ import type {
   OpsScopeStatus,
 } from '../../shared/ops-scope-contract';
 import { AppSelect } from './AppSelect';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
 import { Dialog } from './Dialog';
 import { Button, Input } from './ui';
@@ -40,7 +41,7 @@ export function CheckScopesButton({ busy, onClick }: { busy: boolean; onClick: (
       aria-busy={busy || undefined}
       onClick={onClick}
     >
-      {busy ? <PiaLoadingLabel as="span" seat="button" announce={false} label="Checking…" /> : 'Check all scopes'}
+      <PiaBusyButtonContent busy={busy} label="Check all scopes" busyLabel="Checking" />
     </Button>
   );
 }
@@ -218,12 +219,15 @@ export function OpsScopeModal({
       <div className="ops-scope-pagination">
         <span>{rows.length.toLocaleString()} assets loaded</span>
         {page?.nextCursor ? (
-          <Button type="button" variant="outline" size="sm" disabled={loadingMore} onClick={onMore}>
-            {loadingMore ? (
-              <PiaLoadingLabel as="span" seat="button" announce={false} label="Checking…" />
-            ) : (
-              'More results'
-            )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={loadingMore}
+            aria-busy={loadingMore || undefined}
+            onClick={onMore}
+          >
+            <PiaBusyButtonContent busy={loadingMore} label="More results" busyLabel="Loading more" tone="light" />
           </Button>
         ) : null}
       </div>

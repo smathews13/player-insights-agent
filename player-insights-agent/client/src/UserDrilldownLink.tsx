@@ -23,6 +23,8 @@ export function UserDrilldownLink({
   showArrow = false,
   variant = 'chip',
   children,
+  icon,
+  ariaLabel,
 }: {
   identity: string | null | undefined;
   label?: string;
@@ -35,6 +37,10 @@ export function UserDrilldownLink({
   showArrow?: boolean;
   variant?: 'chip' | 'text';
   children?: ReactNode;
+  /** Stronger identity mark supplied by organization-aware surfaces. */
+  icon?: ReactNode;
+  /** Full accessible link label when the compact visual label omits detail. */
+  ariaLabel?: string;
 }) {
   const outletRole = useOptionalRole()?.state;
   const email = normalizedHumanEmail(identity);
@@ -46,6 +52,9 @@ export function UserDrilldownLink({
         label={label}
         compact={compact}
         className={className || undefined}
+        icon={icon}
+        title={title}
+        ariaLabel={allowed && email ? undefined : ariaLabel}
         suffix={
           showArrow && allowed && email ? (
             <ArrowUpRight className="identity-chip-link-arrow size-3" aria-hidden="true" />
@@ -60,7 +69,7 @@ export function UserDrilldownLink({
 
   if (!allowed || !email) return content;
   return (
-    <AuthorizedUserDrilldownLink email={email} variant={variant}>
+    <AuthorizedUserDrilldownLink email={email} variant={variant} ariaLabel={ariaLabel}>
       {content}
     </AuthorizedUserDrilldownLink>
   );
@@ -70,10 +79,12 @@ function AuthorizedUserDrilldownLink({
   email,
   variant,
   children,
+  ariaLabel,
 }: {
   email: string;
   variant: 'chip' | 'text';
   children: ReactNode;
+  ariaLabel?: string;
 }) {
   const inRouter = useInRouterContext();
   if (!inRouter) {
@@ -82,7 +93,7 @@ function AuthorizedUserDrilldownLink({
       <a
         href={href}
         className={`user-drilldown-link user-drilldown-link--${variant}`}
-        aria-label={`Open user overview for ${identityName(email)}`}
+        aria-label={ariaLabel ?? `Open user overview for ${identityName(email)}`}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={activateSpace}
       >
@@ -91,7 +102,7 @@ function AuthorizedUserDrilldownLink({
     );
   }
   return (
-    <RoutedUserDrilldownLink email={email} variant={variant}>
+    <RoutedUserDrilldownLink email={email} variant={variant} ariaLabel={ariaLabel}>
       {children}
     </RoutedUserDrilldownLink>
   );
@@ -101,10 +112,12 @@ function RoutedUserDrilldownLink({
   email,
   variant,
   children,
+  ariaLabel,
 }: {
   email: string;
   variant: 'chip' | 'text';
   children: ReactNode;
+  ariaLabel?: string;
 }) {
   const location = useLocation();
   const href = userOverviewHref(email, location.pathname === '/monitoring' ? location.search : '') ?? '/monitoring';
@@ -112,7 +125,7 @@ function RoutedUserDrilldownLink({
     <Link
       to={href}
       className={`user-drilldown-link user-drilldown-link--${variant}`}
-      aria-label={`Open user overview for ${identityName(email)}`}
+      aria-label={ariaLabel ?? `Open user overview for ${identityName(email)}`}
       onClick={(event) => event.stopPropagation()}
       onKeyDown={activateSpace}
     >

@@ -111,15 +111,16 @@ describe('Cost budget Apply copy', () => {
     });
   });
 
-  it('shows truthful per-button states and the Astrolabe flicker only while applying', () => {
+  it('shows truthful per-button states and the canonical button loader only while applying', () => {
     const markup = (state: Parameters<typeof CostBudgetApplyButton>[0]['state']) =>
       renderToStaticMarkup(createElement(CostBudgetApplyButton, { state }));
-    expect(markup(SETTINGS_SAVE_IDLE)).toContain('>Apply</button>');
+    expect(markup(SETTINGS_SAVE_IDLE)).toContain('class="sr-only">Apply</span>');
     expect(markup({ kind: 'saving' })).toContain('Applying');
-    expect(markup({ kind: 'saving' })).toContain('pia-flick-slot--button');
+    expect(markup({ kind: 'saving' })).toContain('pia-loader-mark--button');
+    expect(markup({ kind: 'saving' })).not.toContain('pia-loader__phase');
     expect(markup({ kind: 'saving' })).toContain('disabled');
     const saved = markup({ kind: 'saved' });
-    expect(saved.match(/Applied/g)).toHaveLength(1);
+    expect(saved).toContain('class="sr-only">Applied</span>');
     expect(saved).toContain('aria-live="polite"');
     expect(saved).toContain('aria-atomic="true"');
     expect(markup({ kind: 'failed', message: 'no' })).toContain('Retry');

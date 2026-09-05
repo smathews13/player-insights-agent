@@ -13,6 +13,7 @@ import { BrandIcon } from './BrandIcon';
 import { Badge, Button, Input } from './ui';
 import { PiaBusyButtonContent } from './PiaLoader';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
+import { ConnectionStateBadge } from './ConnectionStateBadge';
 
 const CAPABILITIES: Array<[keyof AiGatewayCandidate['capabilities'], string]> = [
   ['rateLimits', 'Rate limits'],
@@ -204,13 +205,11 @@ export function AiGatewayConnection({
             label="Checking AI Gateway"
           />
         ) : (
-          <Badge
-            variant={connected ? 'secondary' : 'destructive'}
+          <ConnectionStateBadge
+            state={connected ? 'connected' : 'disconnected'}
+            subject="AI Gateway"
             className="connection-row-state"
-            aria-label={`AI Gateway connection status: ${connected ? 'Connected' : 'Disconnected'}`}
-          >
-            {connected ? 'Connected' : 'Disconnected'}
-          </Badge>
+          />
         )}
         {staged ? <span className="connection-row-state">Staged for agent release</span> : null}
         {allowMutations ? (
@@ -226,7 +225,12 @@ export function AiGatewayConnection({
             <dl className="connection-details">
               <div className="connection-detail">
                 <dt>Connection</dt>
-                <dd>{connected ? 'Connected' : 'Disconnected'}</dd>
+                <dd>
+                  <ConnectionStateBadge
+                    state={connected ? 'connected' : 'disconnected'}
+                    subject="AI Gateway Connection"
+                  />
+                </dd>
               </div>
             </dl>
           )}

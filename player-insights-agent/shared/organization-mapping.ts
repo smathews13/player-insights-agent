@@ -16,9 +16,10 @@ export {
 /**
  * The canonical, stored organization manifest.
  *
- * Public source carries only the product organization. Customer and partner
- * identities arrive through `PLAYER_INSIGHTS_ORGANIZATIONS`, where longest-
- * suffix matching still lets each deployment add specific organizations.
+ * Root suffixes cover legitimate subdomains while longest-suffix matching lets
+ * a deployment add a more specific organization deliberately. These records
+ * are the one identity vocabulary used by the account and Monitoring surfaces,
+ * and by compact conversation attribution.
  */
 export const ORGANIZATION_MANIFEST: readonly OrganizationMapping[] = [
   {
@@ -29,6 +30,36 @@ export const ORGANIZATION_MANIFEST: readonly OrganizationMapping[] = [
     monogram: 'DB',
     logoKey: 'databricks',
     ariaLabel: 'Organization: Databricks',
+    fallback: 'monogram',
+  },
+  {
+    id: 'acme-interactive',
+    domain: 'take2games.com',
+    domainSuffixes: ['take2games.com'],
+    name: 'Acme Interactive',
+    monogram: 'T2',
+    logoKey: 'acme',
+    ariaLabel: 'Organization: Acme Interactive',
+    fallback: 'monogram',
+  },
+  {
+    id: '2k',
+    domain: '2k.com',
+    domainSuffixes: ['2k.com'],
+    name: 'Contoso',
+    monogram: 'Contoso',
+    logoKey: '2k',
+    ariaLabel: 'Organization: Contoso',
+    fallback: 'monogram',
+  },
+  {
+    id: 'northwind-games',
+    domain: 'northwindgames.com',
+    domainSuffixes: ['northwindgames.com', 'northwindnewengland.com', 'northwindlondon.com'],
+    name: 'Northwind Games',
+    monogram: 'R*',
+    logoKey: 'northwind',
+    ariaLabel: 'Organization: Northwind Games',
     fallback: 'monogram',
   },
 ] as const;

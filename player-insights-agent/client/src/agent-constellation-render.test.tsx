@@ -856,13 +856,13 @@ describe('no orange, and no oat (§2)', () => {
 
 describe('the mark is the agent, and there is one of it (§1)', () => {
   it('draws the status mark from the shared file rather than from a second copy', () => {
-    expect(PATH_SOURCE).toContain("import { PiaMark } from './PiaMark'");
+    expect(PATH_SOURCE).toContain("import { PiaAvatar } from './PiaMark'");
     // 11 twice, on purpose: `size` picks the drawing as well as the box, and
     // `.ast-sky-status-mark svg` paints 11px. A seat that asks for one number
     // and is painted another gets the wrong cut of the mark stretched to the
     // right size -- nothing looks broken, the graduations are just missing or
     // crowded at a size they were not drawn for.
-    expect(PATH_SOURCE).toContain('<PiaMark size={11} tone="dark" />');
+    expect(PATH_SOURCE).toContain('<PiaAvatar size={11} tone="dark" />');
     expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark \.brand-icon,[\s\S]*?width: 11px/);
     expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark \{[^}]*border: 1px solid/);
     // `dark` because the status line is on the navy band. The light cut's

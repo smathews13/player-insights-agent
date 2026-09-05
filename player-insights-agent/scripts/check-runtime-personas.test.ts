@@ -63,7 +63,7 @@ describe('reachable deploy runtime personas', () => {
     const directory = fixture();
     writeFileSync(
       path.join(directory, 'server.mjs'),
-      `import "./persona-route.mjs";\n${PERSONAS}\nconst privateOverlay = "acme";\n`
+      `import "./persona-route.mjs";\n${PERSONAS}\nconst privateOverlay = "northwind-analyst";\n`
     );
     writeFileSync(path.join(directory, 'persona-route.mjs'), PERSONAS);
 
@@ -77,5 +77,15 @@ describe('reachable deploy runtime personas', () => {
       ])
     );
     expect(result.findings.join('\n')).not.toContain(PERSONAS);
+  });
+
+  it('does not confuse organization identity artwork with a private persona', () => {
+    const directory = fixture();
+    writeFileSync(
+      path.join(directory, 'server.mjs'),
+      `${PERSONAS}\nconst organizationLogoKeys = ["acme", "2k", "northwind"];\n`
+    );
+
+    expect(validateRuntimePersonas(path.join(directory, 'server.mjs')).findings).toEqual([]);
   });
 });

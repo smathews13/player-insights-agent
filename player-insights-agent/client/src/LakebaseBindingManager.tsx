@@ -3,7 +3,7 @@ import { ExternalLink, Pencil, Save } from 'lucide-react';
 
 import { isLakebaseRedeployPlan, type LakebaseRedeployPlan } from '../../shared/lakebase-binding';
 import { AssetPickerField } from './AssetPicker';
-import { PiaLoaderMark } from './PiaLoader';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
 import { canStageLakebaseBinding, lakebaseBindingDraft } from './lakebase-binding-manager-state';
 import { Button } from './ui';
@@ -123,8 +123,12 @@ export function LakebaseBindingPanel({
           <AssetPickerField field="lakebase" current={draft} onPick={onDraft} />
           <div className="lakebase-binding-editor-actions">
             <Button disabled={saving || !canSave} aria-busy={saving || undefined} onClick={onSave}>
-              {saving ? <PiaLoaderMark variant="button" tone="dark" /> : <Save className="size-4" aria-hidden="true" />}
-              Save redeploy plan
+              <PiaBusyButtonContent
+                busy={saving}
+                label="Save redeploy plan"
+                busyLabel="Saving redeploy plan"
+                icon={<Save className="size-4" aria-hidden="true" />}
+              />
             </Button>
             <Button variant="outline" disabled={saving} onClick={onCancel}>
               Cancel

@@ -26,23 +26,34 @@
 
 .account-menu-trigger.identity-chip:hover,
 .account-menu-trigger.identity-chip:focus-visible {
-  border-color: var(--ast-pos-border);
-  background: color-mix(in srgb, var(--ast-surface-chrome) 94%, var(--ast-pos-text));
-  color: var(--ast-pos-text);
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--ast-surface-chrome) 92%, var(--primary));
+  color: var(--primary);
 }
 
 .account-menu-trigger.identity-chip:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ast-pos-text) 36%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 42%, transparent);
 }
 
-/* Open is a stronger version of hover, so the selected trigger remains obvious
-   while the near-opaque menu is present without becoming a blue tab. */
+/* The open account and the selected conversation are both the reader's current
+   context, so they use the same canonical selected blue. */
 .account-menu-trigger.identity-chip[aria-expanded='true'] {
-  border-color: var(--ast-pos-text);
-  background: color-mix(in srgb, var(--background) 88%, var(--ast-pos-text));
-  box-shadow: inset 0 0 0 1px var(--ast-pos-border);
-  color: var(--ast-pos-text);
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--background) 88%, var(--primary));
+  box-shadow: inset 0 0 0 1px var(--primary);
+  color: var(--primary);
+}
+
+.account-menu-trigger.identity-chip[aria-expanded='true']:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--primary),
+    0 0 0 2px color-mix(in srgb, var(--primary) 42%, transparent);
+}
+
+.account-menu-trigger.identity-chip:is(:hover, :focus-visible, [aria-expanded='true']) > .roster-organization-mark {
+  border-color: currentColor;
+  color: currentColor;
 }
 
 .account-menu-trigger > .roster-organization-mark {
@@ -98,21 +109,29 @@
 }
 
 .account-menu-identity {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  justify-items: start;
   min-width: 0;
-  gap: 10px;
+  gap: 9px;
   padding: 14px 18px;
 }
 
-.account-menu-identity > .roster-organization-mark {
+.account-menu-principal {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  min-width: 0;
+  gap: 10px;
+}
+
+.account-menu-principal > .roster-organization-mark {
   flex-basis: 28px;
   width: 28px;
   height: 28px;
   font-size: 10px;
 }
 
-.account-menu-identity > .roster-organization-mark .roster-organization-logo {
+.account-menu-principal > .roster-organization-mark .roster-organization-logo {
   width: 22px;
   height: 22px;
 }
@@ -125,7 +144,7 @@
   gap: 4px;
 }
 
-.account-menu-identity-copy > .role-badge {
+.account-menu-identity > .role-badge {
   width: max-content;
   max-width: 100%;
 }
@@ -178,11 +197,26 @@
 }
 
 .account-menu-group > button:hover,
-.account-menu-group > button:focus-visible,
 .account-menu-group > a:hover,
-.account-menu-group > a:focus-visible {
-  background: var(--muted);
+.account-feedback-menu > a:hover {
+  background: color-mix(in srgb, var(--background) 92%, var(--primary));
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 58%, transparent);
   outline: none;
+}
+
+.account-menu-group > button:focus-visible,
+.account-menu-group > a:focus-visible,
+.account-feedback-menu > a:focus-visible {
+  background: color-mix(in srgb, var(--background) 92%, var(--primary));
+  color: var(--primary);
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.account-menu-group > :is(button, a):is(:hover, :focus-visible) svg,
+.account-feedback-menu > a:is(:hover, :focus-visible) > svg {
+  color: currentColor;
 }
 
 .account-feedback-trigger {
@@ -198,18 +232,16 @@
     transform 140ms ease;
 }
 
-.account-feedback-trigger:hover,
-.account-feedback-trigger:focus-visible {
-  background: color-mix(in srgb, var(--background) 94%, var(--ast-pos-text));
-  box-shadow: inset 0 0 0 1px var(--ast-pos-border);
-  color: var(--ast-pos-text);
+.account-feedback-trigger:hover {
+  background: color-mix(in srgb, var(--background) 92%, var(--primary));
+  color: var(--primary);
   outline: none;
 }
 
 .account-feedback-trigger[aria-expanded='true'] {
-  background: color-mix(in srgb, var(--background) 88%, var(--ast-pos-text));
-  box-shadow: inset 0 0 0 1px var(--ast-pos-text);
-  color: var(--ast-pos-text);
+  background: color-mix(in srgb, var(--background) 88%, var(--primary));
+  box-shadow: inset 0 0 0 1px var(--primary);
+  color: var(--primary);
 }
 
 .account-feedback-trigger[aria-expanded='true'] > svg {
@@ -254,14 +286,6 @@
   height: 15px;
   flex: none;
   color: var(--db-slate-icon);
-}
-
-.account-feedback-menu > a:hover,
-.account-feedback-menu > a:focus-visible {
-  background: color-mix(in srgb, var(--background) 94%, var(--ast-pos-text));
-  box-shadow: inset 0 0 0 1px var(--ast-pos-border);
-  color: var(--ast-pos-text);
-  outline: none;
 }
 
 .account-menu-group:not(.account-menu-leave) > :is(button, a) > :last-child {
@@ -477,7 +501,8 @@
   }
 
   .account-feedback-trigger:is(:hover, :focus-visible, [aria-expanded='true']),
-  .account-feedback-menu > a:is(:hover, :focus-visible) {
+  .account-feedback-menu > a:is(:hover, :focus-visible),
+  .account-menu-group > :is(button, a):is(:hover, :focus-visible) {
     color: Highlight;
     outline: 2px solid Highlight;
     outline-offset: -2px;

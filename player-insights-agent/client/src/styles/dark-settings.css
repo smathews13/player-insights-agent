@@ -25,12 +25,6 @@ html[data-theme='dark'] .settings-footer-actions .settings-cancel:active:not(:di
   background: rgba(143, 193, 232, 0.16);
 }
 
-html[data-theme='dark'] .environment-tabs button.active {
-  color: var(--ast-ice-accent);
-}
-html[data-theme='dark'] .environment-tabs button.active::after {
-  background: var(--ast-ice-accent);
-}
 html[data-theme='dark'] .environment-list th {
   background: var(--muted);
   color: var(--ast-caption);

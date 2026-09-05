@@ -105,7 +105,9 @@ describe('the two rails share one width and the card sits in the middle', () => 
     );
   });
 
-  it('keeps the Asked by chip a compact pill, not a full-width slab', () => {
+  it('keeps the organization-marked user badge a compact one-line pill', () => {
+    expect(HOME).toContain('<OrganizationUserBadge');
+    expect(HOME).not.toContain('label="Asked by"');
     expect(RAIL).toMatch(/\.conversation-owner\s*\{[^}]*flex:\s*none[^}]*width:\s*auto/);
     expect(RAIL).not.toMatch(/\.conversation-owner\s*\{[^}]*width:\s*100%/);
     expect(RAIL).not.toMatch(/\.conversation-owner\s*\{[^}]*flex:\s*1/);
@@ -122,7 +124,7 @@ describe('live step rows carry the Agent path kind mark beside the number', () =
     expect(PANEL).toContain('live-step-icon step-rail-num ast-num');
     expect(PANEL).toContain("import { productForTool } from './brand-icons'");
     expect(PANEL).toContain('<BrandIcon product={product}');
-    expect(PANEL).toContain('<PiaMark size={13} />');
+    expect(PANEL).toContain('<PiaAvatar size={13} />');
     expect(PANEL).toMatch(/live-step-kind[\s\S]*live-step-icon step-rail-num ast-num/);
     expect(LIVE).toMatch(/\.live-step-index\s*\{[^}]*flex-direction:\s*row/);
     expect(LIVE).not.toMatch(/\.live-step-index\s*\{[^}]*flex-direction:\s*column/);

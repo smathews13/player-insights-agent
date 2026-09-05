@@ -43,6 +43,7 @@ import { Button, Input, Skeleton } from './ui';
 import { astPill } from './pia-pill';
 import { BrandIcon } from './BrandIcon';
 import { ExperimentalBadge } from './ExperimentalBadge';
+import { HealthResourceIcon } from './HealthResourceIcon';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
 import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 import { PiaEmptyStateMark } from './PiaMark';
@@ -72,7 +73,6 @@ import {
   p50BarWidths,
   primaryCostCardViews,
   productForCostTile,
-  productForProbe,
   splitMethod,
   telemetryNotice,
   WITHHELD,
@@ -87,7 +87,7 @@ import './styles/routes/ops.css';
 import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
 import { ForecastingBody } from './ForecastingPanel';
 import { MethodologySections, type MethodologyGroup } from './MethodologySection';
-import { dateOnlyBadgeValue, DateBadge } from './DateBadge';
+import { dateOnlyBadgeValue, DateRangeBadges } from './DateBadge';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
 import { canCheckHealthResources } from '../../shared/user-roster-contract';
 import { persistCostDisplayUnit, readCostDisplayUnit } from './cost-unit-preference';
@@ -275,12 +275,6 @@ function When({ at }: { at: string }) {
 
 /* ── Health ──────────────────────────────────────────────────────────────── */
 
-/** A dependency's product mark at table-row size, or nothing at all. */
-function probeMark(kind: string) {
-  const product = productForProbe(kind);
-  return product ? <BrandIcon product={product} size={16} className="ops-dependency-mark" /> : null;
-}
-
 /**
  * Recorded error lines under the health table, only while a current dependency
  * is not answering. Historical lines add no action to an all-green health view.
@@ -437,15 +431,12 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                         <tr key={row.id}>
                           <th scope="row">
                             <span className="ops-dependency">
-                              {/* The product's own mark, 16px, from the module that
-                              owns the artwork. Decorative: the name is right
-                              beside it, and a mark that announced itself would
-                              make a screen reader say the product twice. Drawn
-                              only where the probe's KIND is one we can name;
-                              null draws nothing rather than a stand-in, because
-                              the wrong mark on a failing row sends a reader to
-                              the wrong service's console. */}
-                              {probeMark(row.kind)}
+                              {/* Product marks stay canonical; configured table
+                              groups get a table glyph, and an unfamiliar wire
+                              kind gets a neutral resource glyph rather than an
+                              accidental blank. All are decorative because the
+                              accessible resource name is immediately beside it. */}
+                              <HealthResourceIcon kind={row.kind} />
                               {/* The row this dependency is documented on. Drawn only
                               where the server said there is one: some probes have
                               no Connections row, and a link to nothing looks like
@@ -632,7 +623,14 @@ export function CostBody({
 
       <BlockBody>
         {block.busy && !payload ? (
-          <PiaLoader variant="panel" label="Loading cost tracking" className="ops-skeleton" />
+          <div className="ops-cost-loading" data-testid="ops-cost-pane-loaders">
+            <div className="ops-cost-loading-pane">
+              <PiaLoader variant="compact" label="Loading spend and budgets" />
+            </div>
+            <div className="ops-cost-loading-pane">
+              <PiaLoader variant="compact" label="Loading resource costs" />
+            </div>
+          </div>
         ) : payload ? (
           <CostBudgetProvider payload={payload} tileIds={budgetTiles.map((tile) => tile.id)} unit={unit}>
             {replaceGrid && absent ? (
@@ -672,10 +670,17 @@ function CostCardGrid({
   const average = primary.at(-1);
   const componentCards = primary.slice(0, -1);
   const genie = genieCostCardViews(payload, unit);
+  const range = { from: payload.range.from, to: payload.throughDay || payload.range.to };
   return (
     <div className="ops-tiles" data-testid="cost-primary-grid">
       {componentCards.map((card) => (
-        <PrimaryCostCard key={card.id} card={card} tile={displayed.find((item) => item.id === card.id)} host={host} />
+        <PrimaryCostCard
+          key={card.id}
+          card={card}
+          tile={displayed.find((item) => item.id === card.id)}
+          host={host}
+          range={range}
+        />
       ))}
       {genie.map((card) => {
         const tile = displayed.find((item) => item.id === card.id);
@@ -686,7 +691,7 @@ function CostCardGrid({
         return (
           <article key={card.id} className="ops-tile ops-primary-cost-card ops-genie-card">
             <div className="ops-tile-head">
-              <h4 className="ops-tile-label">
+              <h4 className="ops-tile-label" data-cost-component={card.id}>
                 <BrandIcon product="genie" size={14} className="ops-tile-mark" />
                 <span className="ops-tile-label-text">{card.title}</span>
               </h4>
@@ -702,11 +707,13 @@ function CostCardGrid({
                 <dd className="ast-num">{card.charged}</dd>
               </div>
             </dl>
-            <GenieDatabricksLink href={href} title={card.title} />
+            <div className="ops-cost-card-footer">
+              <GenieDatabricksLink href={href} title={card.title} />
+            </div>
           </article>
         );
       })}
-      {average ? <PrimaryCostCard card={average} host={host} /> : null}
+      {average ? <PrimaryCostCard card={average} host={host} range={range} /> : null}
     </div>
   );
 }
@@ -715,10 +722,12 @@ function PrimaryCostCard({
   card,
   tile,
   host,
+  range,
 }: {
   card: ReturnType<typeof primaryCostCardViews>[number];
   tile?: OpsCostPayload['tiles'][number];
   host: string;
+  range: OpsCostPayload['range'];
 }) {
   const product = productForCostTile(card.id);
   const object = tile ? costTileWorkspaceObject(tile) : null;
@@ -727,7 +736,7 @@ function PrimaryCostCard({
   return (
     <article className={`ops-tile ops-primary-cost-card${concise ? ' ops-primary-cost-card--concise' : ''}`}>
       <div className="ops-tile-head">
-        <h4 className="ops-tile-label">
+        <h4 className="ops-tile-label" data-cost-component={card.id}>
           {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
           <span className="ops-tile-label-text">{card.title}</span>
         </h4>
@@ -739,18 +748,21 @@ function PrimaryCostCard({
         <span className="ast-num">{card.amount}</span>
       </p>
       {card.secondaryMetric ? <p className="ops-tile-secondary">{card.secondaryMetric}</p> : null}
-      {!concise ? <p className="ops-tile-basis">{card.basis}</p> : null}
-      {!concise && /^Billing through \d{4}-\d{2}-\d{2}$/.test(card.evidence) ? (
+      {!concise && card.basis ? <p className="ops-tile-basis">{card.basis}</p> : null}
+      {!concise ? (
         <div className="ops-tile-evidence">
-          <DateBadge
-            value={dateOnlyBadgeValue(card.evidence.slice('Billing through '.length))}
-            accessiblePrefix="Billing through"
+          <DateRangeBadges
+            accessibleLabel={`Cost period from ${range.from} through ${range.to}`}
+            value={{
+              start: dateOnlyBadgeValue(range.from),
+              end: dateOnlyBadgeValue(range.to),
+            }}
           />
         </div>
-      ) : !concise ? (
-        <p className="ops-tile-evidence">{card.evidence || '\u00a0'}</p>
       ) : null}
-      {card.resource ? <CostResourceLine label={card.resource} href={href} /> : null}
+      <div className="ops-cost-card-footer">
+        {card.resource ? <CostResourceLine label={card.resource} href={href} /> : null}
+      </div>
     </article>
   );
 }

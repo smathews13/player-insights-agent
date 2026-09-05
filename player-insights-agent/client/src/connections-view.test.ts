@@ -114,7 +114,7 @@ describe('the table column count', () => {
   it('prints that same count on the row and on the hover', () => {
     const copy = tableReachabilityCopy(twoCounts, '2026-08-26T16:28:00.000Z');
     expect(copy.row).toMatch(/^17 columns · checked /);
-    expect(copy.title).toMatch(/^Reachability confirmed\. Schema has 17 columns\./);
+    expect(copy.title).toMatch(/^Connection confirmed\. Schema has 17 columns\./);
     expect(copy.row).not.toMatch(/(?<!\d)7 columns/);
     expect(copy.title).not.toMatch(/(?<!\d)7 columns/);
   });

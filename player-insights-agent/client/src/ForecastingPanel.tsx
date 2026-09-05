@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Sigma } from 'lucide-react';
+import { BrandIcon } from './BrandIcon';
 import { ExperimentalBadge } from './ExperimentalBadge';
 import { astPill } from './pia-pill';
+import { costComponentLabel, productForCostTile } from './ops-view';
 import {
   calculateForecast,
   deriveForecastBaseline,
@@ -204,29 +206,44 @@ export function ProjectionBreakdown({
               </tr>
             </thead>
             <tbody>
-              {result.components.map((component) => (
-                <tr key={component.id}>
-                  <th scope="row">{component.label}</th>
-                  {result.horizons.map((horizon) => {
-                    const projected = horizon.components.find((item) => item.id === component.id)!;
-                    return (
-                      <td key={horizon.days}>
-                        {projected.amount === null ? (
-                          <span className="ops-when-absent" title={projected.unavailable}>
-                            Unavailable
-                          </span>
-                        ) : (
-                          <span className="ast-num">{money(projected.amount, currency)}</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+              {result.components.map((component) => {
+                const product = productForCostTile(component.id);
+                return (
+                  <tr key={component.id}>
+                    <th scope="row">
+                      <span className="ops-forecast-component" data-cost-component={component.id}>
+                        {product ? (
+                          <BrandIcon product={product} size={14} className="ops-forecast-component-mark" />
+                        ) : null}
+                        <span>{costComponentLabel(component.id, component.label)}</span>
+                      </span>
+                    </th>
+                    {result.horizons.map((horizon) => {
+                      const projected = horizon.components.find((item) => item.id === component.id)!;
+                      return (
+                        <td key={horizon.days}>
+                          {projected.amount === null ? (
+                            <span className="ops-when-absent" title={projected.unavailable}>
+                              Unavailable
+                            </span>
+                          ) : (
+                            <span className="ast-num">{money(projected.amount, currency)}</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr>
-                <th scope="row">{partial ? 'Subtotal' : 'Total'}</th>
+                <th scope="row">
+                  <span className="ops-forecast-component ops-forecast-component--total">
+                    <Sigma size={14} aria-hidden="true" />
+                    <span>{partial ? 'Subtotal' : 'Total'}</span>
+                  </span>
+                </th>
                 {result.horizons.map((horizon) => (
                   <td key={horizon.days}>
                     <span className="ast-num">{money(horizon.total!, currency)}</span>

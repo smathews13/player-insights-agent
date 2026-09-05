@@ -35,11 +35,17 @@
   scrollbar-gutter: auto;
 }
 /*
+ * An answer starts one page-spacing token below the chrome. The empty hero keeps
+ * the roomier 56px opening from the base rule, while current and stored turns use
+ * the same density-aware spacing rhythm as the rest of the app. This remains
+ * normal-flow padding, so the question cannot slide under the nav or either rail.
+ *
  * The transcript owns no bottom reserve. Its next grid row is the composer, so
  * the column gap below is the complete distance from the current card to the
  * question module.
  */
 .ask-layout[data-transcript='active'] .conversation-main {
+  padding-top: var(--density-page-gap);
   padding-bottom: 0;
 }
 /*
@@ -183,9 +189,8 @@
 /*
  * The chip that introduces the agent, on Ice.
  *
- * §1: "agent-decision chips carry the small cut (22px chip, #F0F6FB fill)". Ice
- * replaces the oat this wore, which is the app-wide swap rather than a decision
- * about this chip; §2 has no oat in it.
+ * The engraved avatar is large enough for all four controller glyphs to remain
+ * legible while the adjacent words carry the accessible product name.
  */
 .ask-hero-chip {
   display: inline-flex;
@@ -206,15 +211,15 @@
  * It was the orange robot -- the same drawing the retired loading scene lit up --
  * and before that a lucide sparkle in a filled orange square. §1 retires both:
  * the thing that answers and the thing you opened are one thing and were only
- * ever drawn as two. At 18px the mark is the small cut, without its graduation
- * ring, which is the drawing that survives being small.
+ * ever drawn as two. This is the complete engraved D-pad used by the header and
+ * answer surfaces, not an empty-state cluster or simplified plus.
  */
 .ask-hero-chip-mark {
   display: grid;
   place-items: center;
   flex: none;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
 }
 /* 32px is the design's hero size, flat rather than fluid: the column it sits in is
    already fluid between the two rails, and a headline that grew to 42px on a wide

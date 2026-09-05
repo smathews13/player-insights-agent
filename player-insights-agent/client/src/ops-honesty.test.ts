@@ -680,7 +680,7 @@ describe('approx average cost per question', () => {
       questionServingAverage(
         costPayload({
           tiles: [
-            tile({ id: 'serving-endpoint', quality: 'real', amount: 10 }),
+            tile({ id: 'serving-endpoint', quality: 'real', amount: 10, marginalAmount: 10 }),
             tile({
               id: 'sql-warehouse',
               quality: 'estimate',

@@ -1,4 +1,4 @@
-export type OrganizationLogoKey = 'databricks' | 'monogram' | 'fallback';
+export type OrganizationLogoKey = 'databricks' | 'acme' | '2k' | 'northwind' | 'monogram' | 'fallback';
 
 export interface OrganizationMapping {
   id: string;
@@ -26,7 +26,14 @@ const ORGANIZATION_KEYS = new Set<keyof OrganizationMapping>([
   'fallback',
 ]);
 const LEGACY_ORGANIZATION_KEYS = new Set(['domain', 'name', 'monogram']);
-const ORGANIZATION_LOGO_KEYS = new Set<OrganizationLogoKey>(['databricks', 'monogram', 'fallback']);
+const ORGANIZATION_LOGO_KEYS = new Set<OrganizationLogoKey>([
+  'databricks',
+  'acme',
+  '2k',
+  'northwind',
+  'monogram',
+  'fallback',
+]);
 
 export function normalizedOrganizationDomain(value: unknown): string {
   if (typeof value !== 'string') return '';

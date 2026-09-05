@@ -37,6 +37,7 @@ const RESOURCES = [
   ['lakebase', 'Database'],
   ['semantic-index', 'Index'],
   ['semantic-index-endpoint', 'Hosted index'],
+  ['experiment-id', 'MLflow experiment'],
 ] as const;
 
 type State = 'observed-only' | 'match' | 'mismatch' | 'partial' | 'unavailable';
@@ -155,6 +156,22 @@ describe('canonical Connections resource views', () => {
       id
     ).toContain(requiredLabel);
     expect(view.status, id).toBe('Connected');
+  });
+
+  it.each(RESOURCES)('%s uses the shared green success treatment for every settled connected badge', (id) => {
+    const markup = renderRow(id, 'match');
+    expect(markup, id).toContain('data-connection-state="connected"');
+    expect(markup, id).toContain('ast-pill--pos');
+    expect(markup, id).not.toContain('data-connection-state="disconnected"');
+    expect(markup, id).not.toContain('ast-pill--neg');
+  });
+
+  it.each(RESOURCES)('%s uses the shared red danger treatment without a contradictory success badge', (id) => {
+    const markup = renderRow(id, 'unavailable');
+    expect(markup, id).toContain('data-connection-state="disconnected"');
+    expect(markup, id).toContain('ast-pill--neg');
+    expect(markup, id).not.toContain('data-connection-state="connected"');
+    expect(markup, id).not.toContain('ast-pill--pos');
   });
 
   it('shows the current Lakebase project, branch, database, and endpoint without requiring an edit role', () => {

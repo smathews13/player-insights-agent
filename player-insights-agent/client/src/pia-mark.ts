@@ -2,8 +2,9 @@
  * Canonical Player Insights Agent mark geometry and lockup measurements.
  *
  * The six SVG assets in assets/logo are generated from these same coordinates.
- * A D-pad is engraved at 24px and above; smaller seats always use the simplified
- * cut because the four button glyphs do not survive below that size.
+ * The general-purpose mark is engraved at 24px and above; smaller diagram seats
+ * use the simplified cut. Identity avatars use the engraved geometry at every
+ * size through `PiaAvatar`.
  */
 
 export type PiaMarkKind = 'dpad' | 'cluster';
@@ -159,7 +160,7 @@ export const PIA_NAME = 'Player Insights Agent';
 export const PIA_ACRONYM = 'PIA';
 
 export const PIA_LOCKUP_SEATS = {
-  header: { mark: 15, type: 12.5, gap: 7 },
+  header: { mark: 24, type: 12.5, gap: 7 },
   hero: { mark: 48, type: 24, gap: 12 },
   compact: { mark: 40, type: 38, gap: 5 },
 } as const;

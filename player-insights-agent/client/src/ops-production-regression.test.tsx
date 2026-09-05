@@ -140,7 +140,8 @@ describe('production-shaped Ops regressions', () => {
 
   it('shows an explicit Cost loading state while the first slow billing read is pending', () => {
     const markup = render(<CostBody block={block<OpsCostPayload>(null, true)} />);
-    expect(markup).toContain('Loading cost tracking');
+    expect(markup).toContain('Loading spend and budgets');
+    expect(markup).toContain('Loading resource costs');
     expect(markup).toContain('aria-busy="true"');
   });
 });

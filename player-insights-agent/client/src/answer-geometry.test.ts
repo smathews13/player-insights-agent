@@ -79,14 +79,13 @@ describe('the answer and plan cards sit on the design’s scale, not the library
     expect(ruleFor(ANSWER_CSS, '.answer-card,')).toContain('gap: 14px');
   });
 
-  it('draws the answer mark at the compact 18px seating', () => {
-    // The light seating is navy on the daylight card and is remapped to white by
-    // dark-mode.css. Asking for the dark seating here would make the mark white in
-    // both themes and erase it from the light card.
-    expect(CARD).toContain('<PiaMark size={18} tone="dark" />');
+  it('draws the answer with the stable engraved 28px avatar', () => {
+    // The light seating is navy on the daylight card and remaps to white on the
+    // dark card, while the avatar keeps the engraved geometry in both themes.
+    expect(CARD).toContain('<PiaAvatar size={28} tone="light" />');
     const mark = ruleFor(ANSWER_CSS, '.answer-card-mark {');
-    expect(mark).toContain('width: 18px');
-    expect(mark).toContain('height: 18px');
+    expect(mark).toContain('width: 28px');
+    expect(mark).toContain('height: 28px');
     expect(CARD).not.toContain('className="agent-avatar"');
   });
 

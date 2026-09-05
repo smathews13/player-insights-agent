@@ -29,6 +29,27 @@ describe('organization mapping', () => {
         logoKey: 'databricks',
         fallback: 'monogram',
       },
+      {
+        id: 'acme-interactive',
+        name: 'Acme Interactive',
+        domain: 'take2games.com',
+        logoKey: 'acme',
+        fallback: 'monogram',
+      },
+      {
+        id: '2k',
+        name: 'Contoso',
+        domain: '2k.com',
+        logoKey: '2k',
+        fallback: 'monogram',
+      },
+      {
+        id: 'northwind-games',
+        name: 'Northwind Games',
+        domain: 'northwindgames.com',
+        logoKey: 'northwind',
+        fallback: 'monogram',
+      },
     ]);
     for (const organization of ORGANIZATION_MANIFEST) {
       expect(organization.domainSuffixes).toContain(organization.domain);
@@ -41,7 +62,13 @@ describe('organization mapping', () => {
     expect(organizationForEmail('a@team.example.org', mappings).name).toBe('Example Cooperative');
   });
 
-  it.each([['leader@labs.databricks.com', 'databricks']])('maps public product subdomains for %s', (email, id) => {
+  it.each([
+    ['leader@labs.databricks.com', 'databricks'],
+    ['producer@take2games.com', 'acme-interactive'],
+    ['artist@2k.com', '2k'],
+    ['designer@northwindgames.com', 'northwind-games'],
+    ['developer@northwindlondon.com', 'northwind-games'],
+  ])('maps canonical organization domains for %s', (email, id) => {
     expect(organizationForEmail(email, []).id).toBe(id);
   });
 

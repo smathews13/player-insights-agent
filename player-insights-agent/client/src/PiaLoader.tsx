@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 import { PiaDrawing, PiaShape, type PiaMarkTone } from './PiaMark';
 import { PIA_CLUSTER_BODY, PIA_DPAD_ARMS, PIA_DPAD_CENTER, PIA_DPAD_GLYPHS, PIA_MARK_VIEWBOX } from './pia-mark';
@@ -167,16 +167,21 @@ export function PiaBusyButtonContent({
   label,
   busyLabel = label,
   tone = 'dark',
+  icon,
 }: {
   busy: boolean;
   label: string;
   busyLabel?: string;
   tone?: PiaMarkTone;
+  icon?: ReactNode;
 }) {
   return (
     <>
       <span className="pia-button-state" data-busy={busy ? 'true' : 'false'} aria-hidden="true">
-        <span className="pia-button-state__idle">{label}</span>
+        <span className="pia-button-state__idle">
+          {icon}
+          <span>{label}</span>
+        </span>
         <span className="pia-button-state__busy">
           <PiaLoaderMark variant="button" tone={tone} />
           <span>{busyLabel}</span>

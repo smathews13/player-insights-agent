@@ -571,7 +571,11 @@ export function SavedAppBudgetSummary({
             {progress.balance}
           </strong>
           {progress.pace ? (
-            <span className="ops-cost-summary-budget-status" aria-label={`Budget pacing: ${progress.pace}`}>
+            <span
+              className="ops-cost-summary-budget-status"
+              data-budget-tone="danger"
+              aria-label={`Budget pacing: ${progress.pace}`}
+            >
               <CircleX aria-hidden="true" />
               {progress.pace}
             </span>

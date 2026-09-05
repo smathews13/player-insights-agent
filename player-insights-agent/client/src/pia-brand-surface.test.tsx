@@ -48,7 +48,9 @@ describe('Player Insights Agent visible brand surfaces', () => {
     expect(manifest).toMatchObject({ name: 'Player Insights Agent', short_name: 'PIA' });
     expect(header).toContain('pia-lockup--header pia-lockup--full');
     expect(header).toContain('Player Insights <span class="pia-accent">Agent</span>');
-    expect(header).toContain('data-pia-cut="simplified"');
+    expect(header).toContain('data-pia-cut="engraved"');
+    expect(header).toContain('data-pia-static="true"');
+    expect(header).toContain('width="24"');
     expect(header).toContain('pia-mark--dark');
     expect(header).toContain('pia-type--dark');
     expect(header).toContain('pia-wordmark');

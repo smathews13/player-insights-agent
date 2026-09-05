@@ -36,6 +36,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight, Search } from 'lucide-react';
 import { Button, Input } from './ui';
+import { PiaBusyButtonContent } from './PiaLoader';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
 import type { BrowseItem, BrowseResponse } from '../../shared/browse-contract';
 import {
@@ -465,10 +466,11 @@ export function AssetPickerPanel({
             variant="outline"
             size="sm"
             disabled={loadingMore}
+            aria-busy={loadingMore || undefined}
             aria-label={`Load more ${spec.title.toLowerCase()}`}
             onClick={onMore}
           >
-            {loadingMore ? 'Loading\u2026' : 'Load more'}
+            <PiaBusyButtonContent busy={loadingMore} label="Load more" busyLabel="Loading more" tone="light" />
           </Button>
         </div>
       ) : null}

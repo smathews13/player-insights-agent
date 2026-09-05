@@ -15,6 +15,7 @@ import { Dialog } from './Dialog';
 import { TimeRangeSegments } from './TimeRangeControl';
 import { UserDrilldownLink } from './UserDrilldownLink';
 import { RoleBadgePill } from './RoleBadge';
+import { badgeLabel } from './role';
 import { astPill } from './pia-pill';
 
 const NO_FILTER = '__any__';
@@ -222,10 +223,19 @@ function FeedbackTable({
   return (
     <div className="monitoring-feedback-table-frame">
       <table className="monitoring-feedback-table">
+        <colgroup>
+          <col className="monitoring-feedback-col-question" />
+          <col className="monitoring-feedback-col-user" />
+          <col className="monitoring-feedback-col-role" />
+          <col className="monitoring-feedback-col-direction" />
+          <col className="monitoring-feedback-col-comment" />
+          <col className="monitoring-feedback-col-submitted" />
+        </colgroup>
         <thead>
           <tr>
             <th scope="col">Question</th>
             <th scope="col">User</th>
+            <th scope="col">Role</th>
             <th scope="col">Feedback</th>
             <th scope="col">Comment</th>
             <th scope="col">Submitted</th>
@@ -249,8 +259,10 @@ function FeedbackTable({
                 <td data-label="User" title={row.userEmail}>
                   <span className="monitoring-feedback-user">
                     <UserDrilldownLink identity={row.userEmail} compact canOpen showArrow />
-                    <RoleBadgePill state={row.role} />
                   </span>
+                </td>
+                <td data-label="Role" className="monitoring-feedback-role" title={badgeLabel(row.role)}>
+                  <RoleBadgePill state={row.role} />
                 </td>
                 <td data-label="Feedback">
                   <FeedbackDirection direction={row.feedback} />

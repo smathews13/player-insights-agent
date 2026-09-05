@@ -42,8 +42,7 @@ import {
   Textarea,
 } from './ui';
 import { CircleAlert, Play, Plus, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
-import { PiaFlicker } from './PiaFlicker';
-import { PiaLoader } from './PiaLoader';
+import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 
 export type { ConnectedGenieSpace };
 export { connectedGenieSpaces };
@@ -128,6 +127,7 @@ export function EvalFlywheel({
   const [liveScores, setLiveScores] = useState<LiveTraceScore[]>([]);
   const [liveSampleRate, setLiveSampleRate] = useState(0.2);
   const [workspaceMonitor, setWorkspaceMonitor] = useState<WorkspaceMonitor | null>(null);
+  const [workspaceMonitorChecking, setWorkspaceMonitorChecking] = useState(false);
   const [liveMonitorNote, setLiveMonitorNote] = useState<string | null>(null);
   const [reviewNote, setReviewNote] = useState<string | null>(null);
   const [threadNote, setThreadNote] = useState<string | null>(null);
@@ -484,21 +484,28 @@ export function EvalFlywheel({
 
   const checkWorkspaceMonitoring = async () => {
     setLiveMonitorNote(null);
-    const response = await fetch('/api/admin/benchmarks/live-monitoring', { method: 'POST' });
-    const body = (await response.json().catch(() => null)) as {
-      workspace?: WorkspaceMonitor;
-      message?: unknown;
-    } | null;
-    if (!response.ok || !body?.workspace) {
-      setLiveMonitorNote(
-        typeof body?.message === 'string'
-          ? body.message
-          : 'Workspace monitoring could not be checked. Sampled Ask turns are still scored here.'
-      );
-      return;
+    setWorkspaceMonitorChecking(true);
+    try {
+      const response = await fetch('/api/admin/benchmarks/live-monitoring', { method: 'POST' });
+      const body = (await response.json().catch(() => null)) as {
+        workspace?: WorkspaceMonitor;
+        message?: unknown;
+      } | null;
+      if (!response.ok || !body?.workspace) {
+        setLiveMonitorNote(
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Workspace monitoring could not be checked. Sampled Ask turns are still scored here.'
+        );
+        return;
+      }
+      setWorkspaceMonitor(body.workspace);
+      setLiveMonitorNote(body.workspace.note);
+    } catch {
+      setLiveMonitorNote('Workspace monitoring could not be checked. Sampled Ask turns are still scored here.');
+    } finally {
+      setWorkspaceMonitorChecking(false);
     }
-    setWorkspaceMonitor(body.workspace);
-    setLiveMonitorNote(body.workspace.note);
   };
 
   const addCurated = async () => {
@@ -590,8 +597,19 @@ export function EvalFlywheel({
             </p>
           )}
           <div className="eval-dataset-actions">
-            <Button type="button" variant="outline" onClick={() => void checkWorkspaceMonitoring()}>
-              Check workspace monitoring
+            <Button
+              type="button"
+              variant="outline"
+              disabled={workspaceMonitorChecking}
+              aria-busy={workspaceMonitorChecking || undefined}
+              onClick={() => void checkWorkspaceMonitoring()}
+            >
+              <PiaBusyButtonContent
+                busy={workspaceMonitorChecking}
+                label="Check workspace monitoring"
+                busyLabel="Checking workspace monitoring"
+                tone="light"
+              />
             </Button>
           </div>
           {liveMonitorNote ? <p className="settings-row-note">{liveMonitorNote}</p> : null}
@@ -729,9 +747,14 @@ export function EvalFlywheel({
               variant="outline"
               onClick={() => void loadCurateCandidates()}
               disabled={curateLoading}
+              aria-busy={curateLoading || undefined}
             >
-              {curateLoading ? <PiaFlicker seat="button" tone="light" /> : null}
-              Pull questions from Ask and Monitoring
+              <PiaBusyButtonContent
+                busy={curateLoading}
+                label="Pull questions from Ask and Monitoring"
+                busyLabel="Pulling questions"
+                tone="light"
+              />
             </Button>
             <Button type="button" variant="outline" onClick={() => void alignGuidelines()} disabled={labeled === 0}>
               Align guidelines from labels
@@ -826,9 +849,18 @@ export function EvalFlywheel({
             </label>
           )}
           <div className="eval-dataset-actions">
-            <Button type="button" onClick={() => void runGenie()} disabled={genieRunning || !sqlReady || !spaceId}>
-              {genieRunning ? <PiaFlicker seat="button" /> : <Play />}
-              {genieRunning ? 'Asking Genie…' : 'Run Genie accuracy'}
+            <Button
+              type="button"
+              onClick={() => void runGenie()}
+              disabled={genieRunning || !sqlReady || !spaceId}
+              aria-busy={genieRunning || undefined}
+            >
+              <PiaBusyButtonContent
+                busy={genieRunning}
+                label="Run Genie accuracy"
+                busyLabel="Asking Genie"
+                icon={<Play />}
+              />
             </Button>
             <Button
               type="button"
@@ -918,12 +950,32 @@ export function EvalFlywheel({
             Results land in the recorded runs below.
           </p>
           <div className="eval-dataset-actions">
-            <Button type="button" onClick={() => void runAgent()} disabled={agentRunning || !agentReady}>
-              {agentRunning ? <PiaFlicker seat="button" /> : <Play />}
-              {agentRunning ? 'Starting…' : sides.length > 1 ? 'Run baseline and candidate' : 'Run agent judges'}
+            <Button
+              type="button"
+              onClick={() => void runAgent()}
+              disabled={agentRunning || !agentReady}
+              aria-busy={agentRunning || undefined}
+            >
+              <PiaBusyButtonContent
+                busy={agentRunning}
+                label={sides.length > 1 ? 'Run baseline and candidate' : 'Run agent judges'}
+                busyLabel="Starting agent run"
+                icon={<Play />}
+              />
             </Button>
-            <Button type="button" variant="outline" onClick={() => void scoreLastThread()} disabled={threadScoring}>
-              {threadScoring ? 'Scoring…' : 'Score last Ask thread'}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void scoreLastThread()}
+              disabled={threadScoring}
+              aria-busy={threadScoring || undefined}
+            >
+              <PiaBusyButtonContent
+                busy={threadScoring}
+                label="Score last Ask thread"
+                busyLabel="Scoring thread"
+                tone="light"
+              />
             </Button>
           </div>
           {threadNote ? <p className="settings-row-note">{threadNote}</p> : null}

@@ -368,6 +368,12 @@ const PRIMARY_COST_TITLES: Readonly<Record<string, string>> = {
   'app-compute': 'App compute',
 };
 
+export function costComponentLabel(id: string, fallback: string): string {
+  if (id === 'genie:data') return 'Data Genie';
+  if (id === 'genie:dictionary') return 'Dictionary Genie';
+  return PRIMARY_COST_TITLES[id] ?? fallback;
+}
+
 const PRIMARY_COST_ORDER = [
   'serving-endpoint',
   'foundation-model',
@@ -376,24 +382,8 @@ const PRIMARY_COST_ORDER = [
   'app-compute',
 ] as const;
 
-function primaryEvidence(tile: CostTile, throughDay: string): string {
-  if (tile.id === 'foundation-model' || tile.id === 'serving-endpoint') return '';
-  if (tile.id === 'sql-warehouse') {
-    const queries = tile.evidence?.astrolabeQueries;
-    return queries === null || queries === undefined
-      ? ''
-      : `${count(queries)} Ask ${queries === 1 ? 'query' : 'queries'} · ${
-          tile.evidence?.queryHistoryComplete === false ? 'incomplete' : 'complete'
-        } history`;
-  }
-  return throughDay ? `Billing through ${throughDay}` : '';
-}
-
 function primaryBasis(tile: CostTile): string {
-  if (tile.id === 'serving-endpoint') return 'Configured endpoint';
-  if (tile.id === 'foundation-model') return '';
-  if (tile.id === 'sql-warehouse') return 'App-attributed operations';
-  return BASIS_LABEL[tile.basis] || 'Selected period';
+  return BASIS_LABEL[tile.basis];
 }
 
 function isPartialFoundation(tile: CostTile): boolean {
@@ -412,7 +402,7 @@ export function costCardView(
   const partial = isPartialFoundation(tile);
   return {
     id: tile.id,
-    title: PRIMARY_COST_TITLES[tile.id] ?? tile.label,
+    title: costComponentLabel(tile.id, tile.label),
     amount: view.figure || (partial ? 'Measured amount unavailable' : 'No measured amount'),
     secondaryMetric:
       tile.id === 'foundation-model'
@@ -422,7 +412,7 @@ export function costCardView(
         : '',
     status: 'Estimated',
     basis: primaryBasis(tile),
-    evidence: primaryEvidence(tile, payload.throughDay),
+    evidence: '',
     detail: partial ? 'Some request or price coverage is incomplete.' : view.absence,
     resource: [tile.resourceId, tile.secondaryResourceId].filter(Boolean).join(' · '),
   };
@@ -465,13 +455,8 @@ export function questionCostCardView(payload: OpsCostPayload, unit: CostBudgetUn
     amount: value === null ? 'No measured average' : costAmount(value, payload.currency, unit),
     secondaryMetric: '',
     status: 'Estimated',
-    basis: partial ? 'Available marginal components' : 'Marginal interactive Ask',
-    evidence:
-      completed > 0
-        ? `${usable.length} of ${ids.length} components · ${count(completed)} completed ${
-            completed === 1 ? 'Ask' : 'Asks'
-          }`
-        : 'No completed interactive Asks',
+    basis: '',
+    evidence: '',
     detail:
       value === null
         ? 'No usable numerator and denominator were measured.'
@@ -766,7 +751,7 @@ export function platformTone(reading: PlatformReading): string {
  * What a resource is, in one short noun phrase, for the left half of its Result
  * pill.
  *
- * KEYED ON `kind` FOR THE REASON `productForProbe` IS. A probe's own `label`
+ * KEYED ON `kind` FOR THE SAME REASON THE HEALTH ICON MAP IS. A probe's own `label`
  * carries the configured identifier -- "Orchestrator serving endpoint ·
  * a-model-name" -- which is the right thing in the first column and far too long
  * to be half of a pill. The kind is the stable property, and a kind nobody has
@@ -953,44 +938,7 @@ export function healthRows(
   return [...probed, ...ownRows];
 }
 
-/* ── Which product a row or a tile is about ──────────────────────────────── */
-
-/**
- * The Databricks product behind a dependency probe, or null.
- *
- * KEYED ON `kind`, NEVER ON `id` OR ON THE LABEL. The ids vary with what a
- * deployment configures and the labels are the probe's own prose; the kind is on
- * the wire precisely because it is the stable one, and the Serving endpoint pill
- * has twice been keyed to a literal id and twice reported a healthy endpoint as
- * unchecked when that id was not among the rows. A mark keyed the same way would
- * fail the same way, more quietly: a missing icon looks like a design choice.
- *
- * Null is a real answer and its caller draws nothing. A mark is a claim about
- * which product a reader is looking at, and the wrong one on a row that is
- * failing sends them to the wrong service's console.
- */
-export function productForProbe(kind: string): BrandProduct | null {
-  return PROBE_PRODUCTS[kind] ?? null;
-}
-
-const PROBE_PRODUCTS: Record<string, BrandProduct> = {
-  'sql-warehouse': 'databricks-sql',
-  'genie-space': 'genie',
-  // The two rows the platform speaks for rather than the probes: the app itself,
-  // and the store it writes to. Keyed the same way as everything else, so the
-  // synthesised rows carry a mark like their neighbours instead of a blank.
-  app: 'apps',
-  lakebase: 'lakebase',
-  // The served model and the semantic index are both Mosaic AI, which is the
-  // handoff's pairing and the console's.
-  'serving-endpoint': 'mosaic-ai',
-  'vector-index': 'mosaic-ai',
-  'vector-endpoint': 'mosaic-ai',
-  // The three governed-object probes. One product, three grains.
-  catalog: 'unity-catalog',
-  schema: 'unity-catalog',
-  table: 'unity-catalog',
-};
+/* ── Which product a cost tile is about ─────────────────────────────────── */
 
 /**
  * The product behind a cost tile, or null.

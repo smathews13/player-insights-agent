@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
+import { OPENING_CONSTELLATION, glyphPath } from './constellation';
 import {
   APP_TOPOLOGY_DOT_SIZE,
   APP_TOPOLOGY_EDGE_INDEXES,
@@ -23,6 +24,7 @@ import {
 const CSS = readFileSync(new URL('./styles/star-motion.css', import.meta.url), 'utf8');
 const APPEARANCE = readFileSync(new URL('./styles/appearance-preferences.css', import.meta.url), 'utf8');
 const SOURCE = readFileSync(new URL('./StarField.tsx', import.meta.url), 'utf8');
+const LOADER_CSS = readFileSync(new URL('./styles/astrolabe-loaders.css', import.meta.url), 'utf8');
 const HOME = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 const RAIL = readFileSync(new URL('./styles/rail.css', import.meta.url), 'utf8');
 
@@ -51,10 +53,13 @@ describe('the stationary app topology', () => {
     expect(first.nodes.length).toBeGreaterThan(12);
 
     const accents = first.nodes.filter((node) => node.glyph !== 'dot');
+    const priorSparkles = OPENING_CONSTELLATION.stars.filter((node) => node.glyph === 'sparkle');
     expect(accents).toHaveLength(APP_TOPOLOGY_MAX_ACCENT_NODES);
     expect(accents.map((node) => node.glyph)).toEqual(
-      expect.arrayContaining(['genie', 'unity-catalog', 'dpad', 'sparkle', 'cross'])
+      expect.arrayContaining(['genie', 'unity-catalog', 'dpad', 'dpad', 'cross'])
     );
+    expect(accents).not.toEqual(expect.arrayContaining([expect.objectContaining({ glyph: 'sparkle' })]));
+    expect(first.nodes.filter((node) => node.glyph === 'dpad')).toHaveLength(priorSparkles.length + 1);
     expect(accents.every((node) => node.size === APP_TOPOLOGY_ICON_SIZE)).toBe(true);
     expect(
       first.nodes.filter((node) => node.glyph === 'dot').every((node) => node.size === APP_TOPOLOGY_DOT_SIZE)
@@ -74,9 +79,8 @@ describe('the stationary app topology', () => {
 
   it('renders one viewBox and no transform on the coordinate or node groups', () => {
     const markup = renderToStaticMarkup(<AppTopology />);
-    expect(markup.match(/<svg\b/g)).toHaveLength(1);
-    expect(markup).toContain('data-app-topology=""');
-    expect(markup).toContain('viewBox="0 0 1180 700"');
+    expect(markup.match(/data-app-topology=""/g)).toHaveLength(1);
+    expect(markup.match(/viewBox="0 0 1180 700"/g)).toHaveLength(1);
     expect(markup).toContain('preserveAspectRatio="xMidYMid slice"');
     expect(markup).toMatch(
       /<g data-topology-coordinate-space="">[\s\S]*data-topology-edges=""[\s\S]*data-topology-nodes=""/
@@ -95,6 +99,21 @@ describe('the stationary app topology', () => {
     expect(markup).toContain('data:image/svg+xml');
     expect(markup).toContain('data-topology-glyph="genie"');
     expect(markup).toContain('data-topology-glyph="dpad"');
+  });
+
+  it('replaces every generic sparkle with the canonical engraved D-pad geometry', () => {
+    const markup = renderToStaticMarkup(<AppTopology />);
+    expect(markup.match(/data-pia-topology-mark=""/g)).toHaveLength(2);
+    expect(markup.match(/data-pia-role="glyph"/g)).toHaveLength(8);
+    expect(markup.match(/data-pia-role="center"/g)).toHaveLength(2);
+    expect(markup).not.toContain('ast-star-accent-fill');
+    expect(LOADER_CSS).not.toContain('.ast-star-accent-fill');
+    expect(markup).not.toContain('data-topology-glyph="sparkle"');
+    expect(markup).toMatch(/ast-dpad-star[^>]*width="6"[^>]*height="6"[^>]*viewBox="0 0 64 64"/);
+    expect(markup).toMatch(/data-pia-topology-mark="" x="202" y="647" width="6" height="6"/);
+    expect(markup).toMatch(/data-pia-topology-mark="" x="362" y="607" width="6" height="6"/);
+    expect(glyphPath({ x: 10, y: 10, glyph: 'sparkle', delay: 0, size: 3 })).toBeNull();
+    expect(glyphPath({ x: 10, y: 10, glyph: 'dpad', delay: 0, size: 3 })).toBeNull();
   });
 
   it('has no route-local decorative topology or texture', () => {
