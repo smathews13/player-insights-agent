@@ -90,11 +90,14 @@ describe('the run header names the run without spelling it out', () => {
     expect(header()).toContain('aria-label="Copy the full run id"');
   });
 
-  it('uses the shared identity chip instead of plain text or initials', () => {
+  it('uses the organization-badged identity chip instead of plain text or initials', () => {
     const markup = header();
-    expect(markup).toContain('identity-chip identity-chip--compact question-attribution-user');
-    expect(markup).toContain('lucide-user-round');
+    expect(markup).toContain('identity-chip identity-chip--compact organization-user-badge question-attribution-user');
+    expect(markup).toContain('class="roster-organization-mark"');
+    expect(markup).toContain('data-organization-id="domain:example.com"');
     expect(markup).toContain('identity-chip-name">someone');
+    expect(markup).not.toContain('Asked by');
+    expect(markup).not.toContain('lucide-user-round');
     expect(markup).not.toContain('>SO<');
   });
 
@@ -109,7 +112,9 @@ describe('the run header names the run without spelling it out', () => {
   it('keeps an unrecorded identity plain instead of linking to an empty filter', () => {
     const markup = header({ run: run({ stakeholder: '' }) });
 
-    expect(markup).toContain('identity-chip identity-chip--compact question-attribution-user');
+    expect(markup).toContain('identity-chip identity-chip--compact organization-user-badge question-attribution-user');
+    expect(markup).toContain('data-organization-id="external"');
+    expect(markup).toContain('identity-chip-name">Unknown');
     expect(markup).not.toContain('/monitoring?who=');
   });
 
@@ -187,7 +192,7 @@ describe('the run header is four objects, not one sentence', () => {
     expect(markup).toContain('class="run-detail-ident"');
     expect(markup).toContain('class="run-id-chip"');
     expect(markup).toContain('class="question-attribution-bubble run-question-attribution"');
-    expect(markup).toContain('identity-chip identity-chip--compact question-attribution-user');
+    expect(markup).toContain('identity-chip identity-chip--compact organization-user-badge question-attribution-user');
     // The line they used to be: id, middot, person, middot, status, as one string.
     expect(markup).not.toMatch(/cafebabecafe[^<]*·[^<]*·/);
   });

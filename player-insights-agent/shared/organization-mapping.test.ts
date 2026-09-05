@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   ORGANIZATION_MANIFEST,
+  organizationDomainMatchesSuffixes,
   organizationForEmail,
+  organizationMappingsFromFilterOptions,
   organizationMonogramForDomain,
   organizationOptionsForEmails,
   organizationsForEmails,
+  organizationSuffixesForDomainSelection,
   organizationSuffixesForSelection,
   parseOrganizationMappings,
   sanitizeOrganizationFilterOptions,
@@ -16,6 +19,17 @@ const mappings = parseOrganizationMappings(
     { domain: 'studio.example.org', name: 'Example Studio', monogram: 'ES' },
   ])
 );
+const multiDomainOrganization = {
+  id: 'example-studio',
+  domain: 'studio.example',
+  domainSuffixes: ['studio.example', 'partner.example'],
+  name: 'Example Studio',
+  monogram: 'ES',
+  logoKey: 'monogram' as const,
+  ariaLabel: 'Organization: Example Studio',
+  fallback: 'monogram' as const,
+};
+const multiDomainMappings = parseOrganizationMappings(JSON.stringify([multiDomainOrganization]));
 
 describe('organization mapping', () => {
   it('stores canonical ids, suffixes, local logo keys, labels and safe fallbacks', () => {
@@ -60,6 +74,15 @@ describe('organization mapping', () => {
   it('matches domains case-insensitively and prefers the longest exact suffix', () => {
     expect(organizationForEmail('A@STUDIO.EXAMPLE.ORG', mappings).name).toBe('Example Studio');
     expect(organizationForEmail('a@team.example.org', mappings).name).toBe('Example Cooperative');
+  });
+
+  it('resolves a selected organization to every exact-boundary registered suffix', () => {
+    const suffixes = organizationSuffixesForDomainSelection('PARTNER.EXAMPLE.', multiDomainMappings);
+    expect(suffixes).toEqual(['studio.example', 'partner.example']);
+    expect(organizationDomainMatchesSuffixes('studio.example', suffixes)).toBe(true);
+    expect(organizationDomainMatchesSuffixes('north.partner.example', suffixes)).toBe(true);
+    expect(organizationDomainMatchesSuffixes('evil-studio.example', suffixes)).toBe(false);
+    expect(organizationDomainMatchesSuffixes('unrelated.example', suffixes)).toBe(false);
   });
 
   it.each([
@@ -149,5 +172,21 @@ describe('organization mapping', () => {
     ]);
     expect(sanitizeOrganizationFilterOptions([{ ...option, count: '4' }])).toEqual([]);
     expect(sanitizeOrganizationFilterOptions([{ ...option, secret: 'not accepted' }])).toEqual([]);
+    expect(sanitizeOrganizationFilterOptions([option, { ...option, id: 'unsafe', secret: 'not accepted' }])).toEqual([
+      expect.objectContaining({ id: 'databricks', count: 4 }),
+    ]);
+  });
+
+  it('projects only validated filter-option mapping fields for identity resolution', () => {
+    const option = { ...multiDomainOrganization, count: 2 };
+    expect(
+      organizationMappingsFromFilterOptions([
+        option,
+        { ...option, id: 'unsafe', name: 'Untrusted label', secret: 'not accepted' },
+      ])
+    ).toEqual([multiDomainOrganization]);
+    expect(organizationForEmail('reader@partner.example', organizationMappingsFromFilterOptions([option]))).toEqual(
+      multiDomainOrganization
+    );
   });
 });

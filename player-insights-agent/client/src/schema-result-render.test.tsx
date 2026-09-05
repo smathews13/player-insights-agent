@@ -170,6 +170,6 @@ describe('canonical describe-table schema results', () => {
     }
     expect(CSS).toMatch(/\.dag-schema-object \{[^}]*overflow-wrap: anywhere/s);
     expect(CSS).toMatch(/\.dag-schema-columns \{[^}]*table-layout: fixed/s);
-    expect(RESPONSIVE).toMatch(/@media \(max-width: 800px\)[\s\S]*\.dag-schema-columns td[\s\S]*display: block/);
+    expect(RESPONSIVE).toMatch(/@media \(max-width: 960px\)[\s\S]*\.dag-schema-columns td[\s\S]*display: block/);
   });
 });

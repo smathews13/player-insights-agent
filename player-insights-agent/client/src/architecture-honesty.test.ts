@@ -143,15 +143,15 @@ describe('nothing on the page is a figure that was not read', () => {
 });
 
 describe('every remote node has one binary operational connection state', () => {
-  it('maps success to Connected and every other detailed outcome to Not connected', () => {
+  it('maps success to Connected and every other detailed outcome to Disconnected', () => {
     const node = ARCHITECTURE_NODES.find((candidate) => candidate.id === 'sql-warehouse')!;
     for (const [status, expected] of [
       ['reachable', 'Connected'],
-      ['blocked', 'Not connected'],
-      ['refused', 'Not connected'],
-      ['unreachable', 'Not connected'],
-      ['not-checked', 'Not connected'],
-      ['nothing-to-reach', 'Not connected'],
+      ['blocked', 'Disconnected'],
+      ['refused', 'Disconnected'],
+      ['unreachable', 'Disconnected'],
+      ['not-checked', 'Disconnected'],
+      ['nothing-to-reach', 'Disconnected'],
     ] as const) {
       const report = nodeReport(node, {
         status,
@@ -159,23 +159,23 @@ describe('every remote node has one binary operational connection state', () => 
         summary: { value: '', measured: false },
       } as never);
       expect(report.label, status).toBe(expected);
-      expect(report.tone, status).toBe(expected === 'Connected' ? 'connected' : 'not-connected');
+      expect(report.tone, status).toBe(expected === 'Connected' ? 'connected' : 'disconnected');
     }
   });
 
-  it('starts every remote dependency at Not connected while the automatic run is pending', () => {
+  it('starts every remote dependency at Disconnected while the automatic run is pending', () => {
     for (const node of ARCHITECTURE_NODES) {
       if (node.presence !== 'connection') continue;
       const report = nodeReport(node, undefined);
-      expect(report.tone, node.id).toBe('not-connected');
-      expect(report.label, node.id).toBe('Not connected');
+      expect(report.tone, node.id).toBe('disconnected');
+      expect(report.label, node.id).toBe('Disconnected');
     }
   });
 
   it('uses green and red only for the two connection states', () => {
     expect(NODE_FAMILY).toEqual({
       connected: 'pos',
-      'not-connected': 'neg',
+      disconnected: 'neg',
       local: 'neutral-outline',
     });
   });
@@ -229,8 +229,8 @@ describe('the optional component reports which of its three states it is in', ()
   it('reads a release with no index as a deployment, not as a gap', () => {
     const report = nodeReport(node, indexReading({ configuredFrom: 'artifact' }));
     expect(report.note).toBe(SEMANTIC_INDEX_ABSENT);
-    expect(report.tone).toBe('not-connected');
-    expect(report.label).toBe('Not connected');
+    expect(report.tone).toBe('disconnected');
+    expect(report.label).toBe('Disconnected');
     // The distinction this test exists for: not the sentence about being unable
     // to see, which was what every release used to get.
     expect(report.note).not.toMatch(/unknown|cannot see|does not report/i);
@@ -239,10 +239,10 @@ describe('the optional component reports which of its three states it is in', ()
   it('separates a version too old to report it from one that reported none', () => {
     const report = nodeReport(node, indexReading({ configuredFrom: '' }));
     expect(report.note).toBe(SEMANTIC_INDEX_UNREPORTED);
-    expect(report.tone).toBe('not-connected');
-    expect(report.label).toBe('Not connected');
+    expect(report.tone).toBe('disconnected');
+    expect(report.label).toBe('Disconnected');
     expect(report.note).toMatch(/does not mean there is no index/);
-    expect(report.label).toBe('Not connected');
+    expect(report.label).toBe('Disconnected');
   });
 
   it('shows the index it searches, graded like any other connection, when there is one', () => {
@@ -346,8 +346,8 @@ describe('the semantic lane is two objects, and one can fail without the other',
     const { index, endpoint } = reports({ index: { configuredFrom: 'artifact' } });
     expect(index.note).toBe(SEMANTIC_INDEX_ABSENT);
     expect(endpoint.note).toBe(SEMANTIC_ENDPOINT_NO_INDEX);
-    expect(index.tone).toBe('not-connected');
-    expect(endpoint.tone).toBe('not-connected');
+    expect(index.tone).toBe('disconnected');
+    expect(endpoint.tone).toBe('disconnected');
     // Not a fault on either card, and not a claim that a probe was refused.
     for (const report of [index, endpoint]) {
       expect(report.note).not.toMatch(/unknown|cannot see|does not report|refus/i);
@@ -358,18 +358,18 @@ describe('the semantic lane is two objects, and one can fail without the other',
     const { index, endpoint } = reports({ index: { configuredFrom: '' } });
     expect(index.note).toBe(SEMANTIC_INDEX_UNREPORTED);
     expect(endpoint.note).toBe(SEMANTIC_ENDPOINT_UNREPORTED);
-    expect(index.tone).toBe('not-connected');
-    expect(endpoint.tone).toBe('not-connected');
+    expect(index.tone).toBe('disconnected');
+    expect(endpoint.tone).toBe('disconnected');
     expect(index.note).not.toBe(SEMANTIC_INDEX_ABSENT);
     expect(endpoint.note).not.toBe(SEMANTIC_ENDPOINT_NO_INDEX);
   });
 
   it('keeps both remote semantic nodes red until successful probes land', () => {
     const { index, endpoint } = reports({ index: CONFIGURED });
-    expect(index.label).toBe('Not connected');
-    expect(endpoint.label).toBe('Not connected');
-    expect(index.tone).toBe('not-connected');
-    expect(endpoint.tone).toBe('not-connected');
+    expect(index.label).toBe('Disconnected');
+    expect(endpoint.label).toBe('Disconnected');
+    expect(index.tone).toBe('disconnected');
+    expect(endpoint.tone).toBe('disconnected');
   });
 
   it('grades each object on its own check once the checks have run', () => {
@@ -391,9 +391,9 @@ describe('the semantic lane is two objects, and one can fail without the other',
       checks: [check(INDEX, 'ok', 'a_catalog.a_schema.an_index'), check(ENDPOINT, 'failed')],
     });
     expect(index.label).toBe('Connected');
-    expect(endpoint.label).toBe('Not connected');
+    expect(endpoint.label).toBe('Disconnected');
     expect(index.tone).toBe('connected');
-    expect(endpoint.tone).toBe('not-connected');
+    expect(endpoint.tone).toBe('disconnected');
   });
 
   it('does not blame the endpoint for an index that was refused', () => {
@@ -401,9 +401,9 @@ describe('the semantic lane is two objects, and one can fail without the other',
     // leaves the endpoint unasked -- which is not the same as unhealthy, and not
     // the same as nobody having pressed the button.
     const { index, endpoint } = reports({ index: CONFIGURED, checks: [check(INDEX, 'failed')] });
-    expect(index.label).toBe('Not connected');
-    expect(endpoint.label).toBe('Not connected');
-    expect(endpoint.tone).toBe('not-connected');
+    expect(index.label).toBe('Disconnected');
+    expect(endpoint.label).toBe('Disconnected');
+    expect(endpoint.tone).toBe('disconnected');
     expect(endpoint.note).toBe(SEMANTIC_ENDPOINT_UNNAMED);
   });
 
@@ -421,11 +421,11 @@ describe('the semantic lane is two objects, and one can fail without the other',
       reports({ index: CONFIGURED, checks: [check(INDEX, 'failed')] }).index,
     ];
     expect(cases.map((report) => report.label)).toEqual([
-      'Not connected',
-      'Not connected',
-      'Not connected',
+      'Disconnected',
+      'Disconnected',
+      'Disconnected',
       'Connected',
-      'Not connected',
+      'Disconnected',
     ]);
     expect(new Set(cases.map((report) => report.note)).size).toBeGreaterThan(2);
   });
@@ -441,12 +441,12 @@ describe('the semantic lane is two objects, and one can fail without the other',
       reports({ index: CONFIGURED, checks: [...online, check(ENDPOINT, 'failed')] }).endpoint,
     ];
     expect(cases.map((report) => report.label)).toEqual([
-      'Not connected',
-      'Not connected',
-      'Not connected',
-      'Not connected',
+      'Disconnected',
+      'Disconnected',
+      'Disconnected',
+      'Disconnected',
       'Connected',
-      'Not connected',
+      'Disconnected',
     ]);
     expect(new Set(cases.map((report) => report.note)).size).toBeGreaterThan(2);
   });
@@ -477,7 +477,7 @@ describe('the semantic lane is two objects, and one can fail without the other',
     expect(lines.some((line) => line.startsWith('Vector Search endpoint:'))).toBe(true);
     // And the two are graded differently in the words, not only in the pills.
     expect(lines.find((line) => line.startsWith('Vector Search index:'))).toContain('Connected');
-    expect(lines.find((line) => line.startsWith('Vector Search endpoint:'))).toContain('Not connected');
+    expect(lines.find((line) => line.startsWith('Vector Search endpoint:'))).toContain('Disconnected');
     expect(lines).toContain(
       'Vector Search endpoint and Vector Search index: The Vector Search endpoint hosts the index and provides its serving compute. This is not query flow.'
     );
@@ -724,12 +724,12 @@ describe('Architecture cannot know less about the semantic lane than Connections
       for (const id of ['semantic-index', 'semantic-index-endpoint']) {
         const reading = readings.get(id)!;
         expect(nodeReport(architectureNode(id)!, reading, readings.get('semantic-index')).label, id).toBe(
-          reading.status === 'reachable' ? 'Connected' : 'Not connected'
+          reading.status === 'reachable' ? 'Connected' : 'Disconnected'
         );
       }
     }
-    expect(nodeReport(architectureNode('semantic-index')!, undefined).label).toBe('Not connected');
-    expect(nodeReport(architectureNode('semantic-index-endpoint')!, undefined).label).toBe('Not connected');
+    expect(nodeReport(architectureNode('semantic-index')!, undefined).label).toBe('Disconnected');
+    expect(nodeReport(architectureNode('semantic-index-endpoint')!, undefined).label).toBe('Disconnected');
   });
 });
 

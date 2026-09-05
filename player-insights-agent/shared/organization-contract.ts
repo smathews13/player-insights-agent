@@ -95,6 +95,7 @@ function configuredOrganization(value: unknown): OrganizationMapping | null {
     !id ||
     suffixes.length === 0 ||
     suffixes.length > 30 ||
+    !suffixes.includes(domain) ||
     !logoKey ||
     candidate.ariaLabel !== `Organization: ${name}` ||
     (candidate.fallback !== 'building' && candidate.fallback !== 'monogram')
@@ -135,5 +136,27 @@ export function sanitizeOrganizationFilterOptions(value: unknown): OrganizationF
     if (!organization || typeof count !== 'number' || !Number.isFinite(count)) return null;
     return { ...organization, count: Math.max(0, Math.trunc(count)) };
   });
-  return options.every((option): option is OrganizationFilterOption => option !== null) ? options : [];
+  return options.filter((option): option is OrganizationFilterOption => option !== null);
+}
+
+/**
+ * Project represented filter options back across the mapping trust boundary.
+ *
+ * Only filter options that already passed the strict transport decoder are
+ * projected, and `count` is removed before the canonical mapping decoder runs.
+ */
+export function organizationMappingsFromFilterOptions(value: unknown): OrganizationMapping[] {
+  const mappings = sanitizeOrganizationFilterOptions(value).map(
+    ({ id, domain, domainSuffixes, name, monogram, logoKey, ariaLabel, fallback }) => ({
+      id,
+      domain,
+      domainSuffixes,
+      name,
+      monogram,
+      logoKey,
+      ariaLabel,
+      fallback,
+    })
+  );
+  return sanitizeOrganizationMappings(mappings);
 }

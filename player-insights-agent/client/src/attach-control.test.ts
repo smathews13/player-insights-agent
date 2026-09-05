@@ -86,12 +86,13 @@ describe('the composer wires the control to that one decision', () => {
     // Four expressions of one state. They were not previously four expressions of
     // anything -- there was no state -- and the failure this guards against is
     // one of them being computed separately later and drifting from the rest.
-    expect(HOME_PAGE).toContain("import { attachControlState } from './attach-control';");
+    expect(HOME_PAGE).toContain("import { ATTACH_LABEL, attachControlState } from './attach-control';");
     expect(HOME_PAGE).toMatch(/const attachControl = attachControlState\(\{\s*attaching,\s*asking: loading,/);
     expect(HOME_PAGE).toContain('aria-busy={attachControl.pending}');
     expect(HOME_PAGE).toContain('disabled={attachControl.disabled}');
-    expect(HOME_PAGE).toContain('{attachControl.pending ? <Loader2 className="animate-spin" /> : <Paperclip />}');
-    expect(HOME_PAGE).toContain('{attachControl.label}');
+    expect(HOME_PAGE).toMatch(
+      /<PiaBusyButtonContent\s+busy=\{attachControl\.pending\}\s+label=\{ATTACH_LABEL\}\s+busyLabel=\{attachControl\.label\}\s+tone="light"\s+icon=\{<Paperclip \/>\}/
+    );
   });
 
   it('raises the flag for the whole batch and lowers it in a finally', () => {
@@ -101,7 +102,7 @@ describe('the composer wires the control to that one decision', () => {
     // reloaded, which is a worse outcome than the missing feedback this fixed.
     const upload = HOME_PAGE.slice(
       HOME_PAGE.indexOf('async function uploadAttachments'),
-      HOME_PAGE.indexOf('async function removeAttachment'),
+      HOME_PAGE.indexOf('async function removeAttachment')
     );
     expect(upload).toContain('setAttaching(true);');
     expect(upload).toMatch(/\} finally \{[\s\S]*setAttaching\(false\);/);
@@ -186,7 +187,7 @@ describe('the four states the control is painted in', () => {
       ".composer-attach[aria-busy='true']:disabled",
     ]) {
       expect(body(selector), `${selector} paints only colour`).not.toMatch(
-        /padding|border-width|font-size|line-height|height|border:\s/,
+        /padding|border-width|font-size|line-height|height|border:\s/
       );
     }
   });

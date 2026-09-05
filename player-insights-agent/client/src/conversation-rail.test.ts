@@ -296,8 +296,11 @@ describe('the rail draws one answer to "whose is this", not two', () => {
     // Reading `conversation.user_email` again inside the row is how the rail and
     // its chips came to disagree in the first place.
     expect(HOME_PAGE).toMatch(/visibleEntries\.map\(\(\{ conversation, owner, you \}\)/);
-    expect(HOME_PAGE).toContain('{adminSharedRail && owner ? (');
-    expect(HOME_PAGE).toContain('<UserDrilldownLink');
+    expect(HOME_PAGE).toContain('{owner ? (');
+    expect(HOME_PAGE).toContain('<OrganizationUserBadge');
+    expect(HOME_PAGE).toContain('canOpen={adminSharedRail}');
+    expect(HOME_PAGE).toContain('showArrow={adminSharedRail}');
+    expect(HOME_PAGE).not.toContain('label="Asked by"');
     expect(HOME_PAGE).not.toMatch(/\{conversation\.user_email && \(/);
   });
 
@@ -312,6 +315,6 @@ describe('the rail draws one answer to "whose is this", not two', () => {
 
   it('filters on the normalised key, so a selection survives a change of case', () => {
     expect(HOME_PAGE).toContain('normalizeOwnerSelection(current, available)');
-    expect(HOME_PAGE).toMatch(/selected=\{activeOwnerFilters\}/);
+    expect(HOME_PAGE).toMatch(/selectedOwners=\{activeOwnerFilters\}/);
   });
 });

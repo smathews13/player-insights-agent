@@ -86,9 +86,15 @@ describe('the harness says it is ready before anybody has asked anything', () =>
     expect(HOME).toContain('<aside className="trace-inspector"');
     // And it draws something in every state, including before the check lands.
     for (const readiness of ['checking', 'ready', 'unreachable', 'unchecked'] as const) {
-      expect(draw(idle(readiness)), readiness).toContain(
-        readiness === 'checking' ? 'class="pia-flick-row run-status-loader' : 'class="ast-pill run-status'
+      const markup = draw(idle(readiness));
+      expect(markup, readiness).toContain(
+        readiness === 'checking' ? 'class="pia-loader pia-loader--chip run-status-loader' : 'class="ast-pill run-status'
       );
+      if (readiness === 'checking') {
+        expect(markup).toContain('pia-loader-mark--chip');
+        expect(markup).toContain('width="16"');
+        expect(markup).toContain('Checking agent connection');
+      }
     }
   });
 

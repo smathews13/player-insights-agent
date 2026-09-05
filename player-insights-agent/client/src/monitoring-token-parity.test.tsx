@@ -135,7 +135,10 @@ describe('Monitoring answer timeline and links', () => {
     const markup = render(<QuestionDrawer detail={detail()} onClose={() => {}} canOpenUser />);
     expect(markup.match(/monitoring-link-arrow size-3\.5/g)).toHaveLength(2);
     expect(markup.match(/lucide-arrow-up-right[^>]*aria-hidden="true"/g)).toHaveLength(3);
-    expect(markup).toMatch(/lucide-user-round[\s\S]*first\.person[\s\S]*identity-chip-link-arrow/);
+    expect(markup).toMatch(
+      /organization-user-badge[\s\S]*roster-organization-mark[\s\S]*first\.person[\s\S]*identity-chip-link-arrow/
+    );
+    expect(markup).not.toContain('Asked by');
     expect(markup).not.toContain('↗');
     expect(SHELL_CSS).toMatch(/\.identity-chip-text\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis/s);
     expect(SHELL_CSS).toMatch(/\.identity-chip > svg\s*\{[^}]*flex:\s*none/s);

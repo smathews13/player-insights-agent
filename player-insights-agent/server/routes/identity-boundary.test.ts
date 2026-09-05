@@ -346,7 +346,7 @@ describe('a deployed app with a forwarded identity', () => {
         signedInAs: 'customer.admin',
         canonicalEmail: 'customer.admin@take2games.com',
         displayName: 'customer.admin',
-        organization: { id: 'domain:take2games.com' },
+        organization: { id: 'acme-interactive' },
       });
       expect(body.identityRevision).toMatch(/^[a-f0-9]{24}$/);
     } finally {
@@ -424,7 +424,7 @@ describe('a deployed app with a forwarded identity', () => {
       expect(body.identityMetadata).toMatchObject({
         user: { displayName: 'the demo workspace Analyst', objectId: '1122334455667788', state: 'verified' },
         app: {
-          displayName: 'Astrolabe',
+          displayName: 'Player Insights Agent',
           resourceName: 'player-insights-agent',
           workspaceHost: process.env.DATABRICKS_HOST,
           workspaceId: '<workspace-id>',

@@ -191,7 +191,11 @@ describe('the Connections Lakebase migration detail', () => {
     );
     expect(text(loading)).toContain('Updating Lakebase');
     expect(loading).toContain('disabled=""');
-    expect(loading).toContain('pia-flick-row');
+    expect(loading).toContain('aria-busy="true"');
+    expect(loading).toContain('data-busy="true"');
+    expect(loading).toContain('pia-loader-mark--button');
+    expect(loading).toContain('width="16"');
+    expect(loading).toContain('<span class="sr-only">Update Lakebase</span>');
 
     const success = text(
       renderToStaticMarkup(

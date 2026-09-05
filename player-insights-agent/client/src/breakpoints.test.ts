@@ -25,8 +25,15 @@ const DECLARED = [1365, 1180, 800, 480];
 const ROUTE_EXCEPTIONS = new Map<string, number[]>([
   // Dense configured/measured pairs and settings dialogs need one local
   // single-column handoff before the app-wide 480px phone band.
-  ['connections.css', [720]],
-  ['settings.css', [720]],
+  // Connections also owns a 640px Lakebase editor handoff. It is component
+  // geometry and does not move the app shell or the connection-pair columns.
+  ['connections.css', [640, 720]],
+  // The responsive wordmark, Run Explorer split, and dense settings editors
+  // switch on the widths of their own fixed content rather than app navigation.
+  ['pia-brand.css', [720]],
+  ['responsive-runs.css', [960]],
+  ['settings.css', [900, 720]],
+  ['responsive-settings.css', [960, 640]],
   // The cost assumptions row and the four-segment Monitoring control are
   // component geometries, not navigation/layout breakpoints.
   ['ops.css', [640]],
@@ -52,7 +59,8 @@ describe('the app has one set of breakpoints', () => {
       const permitted = [...DECLARED, ...(ROUTE_EXCEPTIONS.get(name) ?? [])];
       const unsupported = found.filter((width) => !permitted.includes(width));
       if (unsupported.length > 0) stray.set(name, unsupported);
-      expect(found, `${name} keeps larger breakpoints before smaller ones`).toEqual([...found].sort((a, b) => b - a));
+      const appBands = found.filter((width) => DECLARED.includes(width));
+      expect(appBands, `${name} keeps shared app bands largest-first`).toEqual([...appBands].sort((a, b) => b - a));
     }
     expect([...stray]).toEqual([]);
     for (const [name, expected] of ROUTE_EXCEPTIONS) {
@@ -63,7 +71,8 @@ describe('the app has one set of breakpoints', () => {
   it('folds the ones that were measured against nothing into the declared bands', () => {
     // Connections had its own 640px query for the configured-beside-measured pair,
     // and Architecture had a 900px one for its paired columns and then a 1024px
-    // one for the graph. None of those numbers came from anywhere.
+    // one for the graph. The pair moved to the shared band; a later 640px query
+    // belongs only to the compact Lakebase editor.
     const connections = partial('responsive-connections.css');
     const architecture = partial('responsive-architecture.css');
     expect(connections).toMatch(
@@ -75,10 +84,15 @@ describe('the app has one set of breakpoints', () => {
     expect(architecture).toMatch(
       /@media \(max-width: 1180px\)[\s\S]*\.arch-rails\s*\{[^}]*grid-template-columns:\s*1fr/
     );
-    for (const name of ['connections.css', 'architecture.css']) {
-      expect(widthQueries(partial(name))).not.toContain(640);
-      expect(widthQueries(partial(name))).not.toContain(900);
-    }
+    const connectionPage = partial('connections.css');
+    const lakebaseCompact = connectionPage.slice(
+      connectionPage.indexOf('@media (max-width: 640px)'),
+      connectionPage.indexOf('@media (max-width: 800px)')
+    );
+    expect(lakebaseCompact).toContain('.lakebase-migration-status');
+    expect(lakebaseCompact).toContain('.lakebase-binding-details');
+    expect(lakebaseCompact).not.toContain('.connection-pair');
+    expect(widthQueries(partial('architecture.css'))).not.toContain(900);
   });
 });
 

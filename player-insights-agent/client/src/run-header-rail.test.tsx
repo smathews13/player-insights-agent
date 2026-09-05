@@ -63,12 +63,13 @@ function header(props: Partial<Parameters<typeof RunHeader>[0]> = {}): string {
 }
 
 describe('the run header rail chips are one height', () => {
-  it('grows outcome, tools and feedback to the identity chips rather than shrinking them', () => {
+  it('grows outcome, tools and feedback to the id metadata height', () => {
     const shared = rule(
-      '.run-detail-ident .run-context-badge,\n.run-detail-ident .run-id-chip,\n.run-detail-ident .identity-chip,\n.run-detail-ident .ast-pill'
+      '.run-detail-ident .run-context-badge,\n.run-detail-ident .run-id-chip,\n.run-detail-ident .ast-pill'
     );
     expect(shared).toContain('min-height: 24px');
     expect(shared).toContain('font-size: var(--text-sm)');
+    expect(shared).not.toContain('.identity-chip');
     expect(RUNS_CSS).toMatch(/\.run-detail-ident \.ast-pill \{\n {2}padding: 3px 8px;\n\}/);
     expect(rule('.run-context-badge')).toContain('padding: 3px 8px');
     expect(rule('.run-context-badge')).toContain('font-size: var(--text-sm)');
@@ -129,10 +130,10 @@ describe('only an administrator can edit the rail labels', () => {
   it('puts the pencil after every metadata, outcome, and feedback badge at rest', () => {
     const markup = header({ canEdit: true });
     const ordered = [
+      'organization-user-badge',
       'conversation-context-badge',
       'title="Run 1 in this conversation"',
       'run-id-chip',
-      'identity-chip',
       'tool-calls-label',
       'run-status-pill',
       'aria-label="No feedback"',

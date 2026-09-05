@@ -9,7 +9,11 @@ import {
   type MonitoringFeedbackRow,
 } from '../../shared/monitoring-feedback-contract';
 import { isRole, type Role } from '../../shared/user-roster-contract';
-import { organizationForEmail, parseOrganizationMappings } from '../../shared/organization-mapping';
+import {
+  organizationForEmail,
+  organizationSuffixesForDomainSelection,
+  parseOrganizationMappings,
+} from '../../shared/organization-mapping';
 import { ADDED_ADMINS_TABLE } from '../lib/admin-roles-schema';
 import { readStored, markResponse, noSubstitution } from '../lib/lakebase-store';
 import { ROLE_COLUMN } from '../lib/user-roster';
@@ -171,7 +175,7 @@ export const MONITORING_FEEDBACK_QUERY = `
            END AS user_role,
            assignment.persona_id,
            persona.display_name AS persona_name,
-           lower(split_part(f.user_email, '@', 2)) AS organization_domain,
+           lower(trim(both '.' from btrim(split_part(f.user_email, '@', 2)))) AS organization_domain,
            GREATEST(
              COALESCE(roster.added_at, 'epoch'::timestamptz),
              COALESCE(assignment.updated_at, 'epoch'::timestamptz),
@@ -217,7 +221,15 @@ export const MONITORING_FEEDBACK_QUERY = `
        AND ($8 = '' OR lower(feedback_user) = lower($8))
        AND ($9 = '' OR user_role = $9)
        AND ($10 = '' OR persona_id = $10)
-       AND ($11 = '' OR organization_domain = $11 OR organization_domain LIKE ('%.' || $11))
+       AND (
+         cardinality($11::text[]) = 0
+         OR EXISTS (
+           SELECT 1
+             FROM unnest($11::text[]) AS selected_organization(organization_suffix)
+            WHERE organization_domain = organization_suffix
+               OR organization_domain LIKE ('%.' || organization_suffix)
+         )
+       )
   ),
   totals AS (
     SELECT COUNT(*)::int AS total_feedback,
@@ -329,6 +341,8 @@ export function setupMonitoringFeedbackRoutes(
         res.status(400).json({ error: request.error });
         return;
       }
+      const organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
+      const organizationDomains = organizationSuffixesForDomainSelection(request.filters.organization, organizations);
       let disconnected = false;
       const onDisconnect = () => {
         disconnected = true;
@@ -346,7 +360,7 @@ export function setupMonitoringFeedbackRoutes(
         request.filters.user,
         request.filters.role,
         request.filters.persona,
-        request.filters.organization,
+        organizationDomains,
         PLAN_APPROVAL_MESSAGE,
       ]);
       req.off('aborted', onDisconnect);
@@ -360,12 +374,11 @@ export function setupMonitoringFeedbackRoutes(
       markResponse(res, noSubstitution());
       const first = stored.rows[0] ?? {};
       const rawRows = stored.rows
-        .map((row) => monitoringFeedbackRow(row))
+        .map((row) => monitoringFeedbackRow(row, organizations))
         .filter((row): row is MonitoringFeedbackRow => row !== null);
       const hasMore = rawRows.length > request.limit;
       const rows = rawRows.slice(0, request.limit);
       const last = hasMore ? rows[rows.length - 1] : null;
-      const organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
       const organizationOptions = new Map<string, MonitoringFeedbackOption>();
       for (const option of optionsFrom(first.organization_options, (value) => {
         const mapped = organizationForEmail(`person@${value}`, organizations);

@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MONITORING_FEEDBACK_PAGE_SIZE } from '../../shared/monitoring-feedback-contract';
+import { organizationDomainMatchesSuffixes } from '../../shared/organization-mapping';
 import { isAdminRoute } from '../lib/admin-roles';
 import { LATER_MIGRATIONS } from '../lib/migrations';
 import {
@@ -82,6 +83,10 @@ describe('Monitoring feedback SQL truth', () => {
     }
     expect(MONITORING_FEEDBACK_QUERY).toContain("CASE WHEN direction = 'down' THEN COALESCE(comment, '')");
     expect(MONITORING_FEEDBACK_QUERY).toContain('COUNT(*) FILTER');
+    expect(MONITORING_FEEDBACK_QUERY).toContain('cardinality($11::text[]) = 0');
+    expect(MONITORING_FEEDBACK_QUERY).toContain('unnest($11::text[])');
+    expect(MONITORING_FEEDBACK_QUERY).toContain('organization_domain = organization_suffix');
+    expect(MONITORING_FEEDBACK_QUERY).toContain("organization_domain LIKE ('%.' || organization_suffix)");
     expect(MONITORING_FEEDBACK_QUERY).toMatch(
       /COUNT\(\*\) FILTER \(\s*WHERE direction = 'down' AND comment IS NOT NULL AND btrim\(comment\) <> ''\s*\)/
     );
@@ -225,12 +230,118 @@ describe('Monitoring feedback route', () => {
       'person@example.com',
       'consumer',
       'finance',
-      'example.com',
+      ['example.com'],
       'Approved the proposed analysis plan.',
     ]);
     expect(responseBody).toMatchObject({
       summary: { total: 1, helpful: 0, notHelpful: 1, comments: 1 },
       pagination: { total: 1 },
     });
+  });
+
+  it('returns rows and KPIs for every registered organization suffix without nearby-domain leakage', async () => {
+    const previousMappings = process.env.PLAYER_INSIGHTS_ORGANIZATIONS;
+    process.env.PLAYER_INSIGHTS_ORGANIZATIONS = JSON.stringify([
+      {
+        id: 'example-studio',
+        domain: 'studio.example',
+        domainSuffixes: ['studio.example', 'partner.example'],
+        name: 'Example Studio',
+        monogram: 'ES',
+        logoKey: 'monogram',
+        ariaLabel: 'Organization: Example Studio',
+        fallback: 'monogram',
+      },
+    ]);
+    let handler: ((req: Request, res: Response) => Promise<void>) | undefined;
+    const corpus = [
+      { feedback_id: 'feedback-3', feedback_user: 'one@studio.example', direction: 'up' },
+      { feedback_id: 'feedback-2', feedback_user: 'two@partner.example', direction: 'down' },
+      { feedback_id: 'feedback-1', feedback_user: 'three@evil-studio.example', direction: 'up' },
+    ];
+    const query = vi.fn((_sql: string, params?: unknown[]) => {
+      const suffixes = Array.isArray(params?.[10]) ? (params[10] as string[]) : [];
+      const selected = corpus.filter((row) =>
+        organizationDomainMatchesSuffixes(row.feedback_user.split('@')[1] ?? '', suffixes)
+      );
+      const summary = {
+        total_feedback: selected.length,
+        helpful_feedback: selected.filter((row) => row.direction === 'up').length,
+        not_helpful_feedback: selected.filter((row) => row.direction === 'down').length,
+        comments_captured: selected.filter((row) => row.direction === 'down').length,
+        data_revision: 'rev-multi-domain',
+        identity_revision: 'identity-multi-domain',
+        user_options: [],
+        role_options: [],
+        persona_options: [],
+        organization_options: [],
+      };
+      return Promise.resolve({
+        rows: selected.map((row, index) => ({
+          ...summary,
+          ...row,
+          answer_id: `answer-${index}`,
+          feedback_at: `2026-09-02T10:0${index}:00Z`,
+          comment: row.direction === 'down' ? 'Needs more detail.' : null,
+          conversation_id: `conversation-${index}`,
+          question_id: `question-${index}`,
+          question: `Question ${index}`,
+          asked_at: `2026-09-02T09:0${index}:00Z`,
+          user_role: 'consumer',
+        })),
+      });
+    });
+    const appkit = {
+      lakebase: { query },
+      server: {
+        extend(register: (app: { get(path: string, route: typeof handler): void }) => void) {
+          register({
+            get(_path, route) {
+              handler = route;
+            },
+          });
+        },
+      },
+    } as never;
+    setupMonitoringFeedbackRoutes(appkit, { isAdminRoute, now: () => Date.parse('2026-09-03T00:00:00Z') });
+    let responseBody: unknown;
+    const body = vi.fn((value: unknown) => {
+      responseBody = value;
+    });
+    const req = {
+      query: {
+        from: '2026-09-01T00:00:00Z',
+        to: '2026-09-03T00:00:00Z',
+        organization: 'studio.example',
+      },
+      once: vi.fn(),
+      off: vi.fn(),
+    } as never;
+    const res = {
+      headersSent: false,
+      once: vi.fn(),
+      off: vi.fn(),
+      setHeader: vi.fn(),
+      json: body,
+      status: vi.fn(() => ({ json: body })),
+    } as never;
+
+    try {
+      await handler?.(req, res);
+    } finally {
+      if (previousMappings === undefined) delete process.env.PLAYER_INSIGHTS_ORGANIZATIONS;
+      else process.env.PLAYER_INSIGHTS_ORGANIZATIONS = previousMappings;
+    }
+
+    expect(query.mock.calls[0]?.[1]?.[10]).toEqual(['studio.example', 'partner.example']);
+    expect(responseBody).toMatchObject({
+      summary: { total: 2, helpful: 1, notHelpful: 1, comments: 1 },
+      pagination: { total: 2, hasMore: false },
+      rows: [
+        { userEmail: 'one@studio.example', organization: { domain: 'studio.example', name: 'Example Studio' } },
+        { userEmail: 'two@partner.example', organization: { domain: 'studio.example', name: 'Example Studio' } },
+      ],
+    });
+    expect(JSON.stringify(responseBody)).not.toContain('evil-studio.example');
   });
 });

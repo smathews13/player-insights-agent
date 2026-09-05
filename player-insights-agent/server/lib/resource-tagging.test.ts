@@ -321,7 +321,9 @@ describe('identity, permissions, and API paths', () => {
     });
     const vector = summary.results.find((item) => item.kind === 'vector-endpoint');
     expect(vector).toMatchObject({ status: 'permission-required', identity: 'app-service-principal' });
-    expect(vector?.nextAction).toContain('app service principal CAN_MANAGE');
+    expect(vector?.nextAction).toBe(
+      'Grant the Player Insights Agent service principal CAN_MANAGE on AI Search endpoint “vector-endpoint”.'
+    );
     expect(setVectorEndpointTags).toHaveBeenCalledTimes(1);
   });
 });

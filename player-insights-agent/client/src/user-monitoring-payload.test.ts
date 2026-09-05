@@ -1,10 +1,24 @@
 import { readFileSync } from 'node:fs';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { USER_MONITORING_SCHEMA_REVISION } from '../../shared/user-monitoring-contract';
 import { organizationForEmail } from '../../shared/organization-mapping';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 import { decodeUserMonitoringCostPayload } from './user-monitoring-payload';
 
 const MONITORING_SOURCE = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
+const CUSTOM_ORGANIZATION = {
+  id: 'custom-studio',
+  domain: 'studio.example',
+  domainSuffixes: ['studio.example', 'partner.example'],
+  name: 'Custom Studio',
+  monogram: 'CS',
+  logoKey: 'monogram' as const,
+  ariaLabel: 'Organization: Custom Studio',
+  fallback: 'monogram' as const,
+  count: 2,
+};
 
 function payload(revision = USER_MONITORING_SCHEMA_REVISION) {
   return {
@@ -58,6 +72,51 @@ describe('User Monitoring response decoding', () => {
     ]);
   });
 
+  it('uses counted deployment mappings for rows and profile badges across every registered domain', () => {
+    const value = payload();
+    value.userMonitoring.organizations = [CUSTOM_ORGANIZATION];
+    value.userMonitoring.users[0].email = 'artist@partner.example';
+
+    const decoded = decodeUserMonitoringCostPayload(value);
+    const row = decoded.userMonitoring?.users[0];
+    expect(row?.organization).toMatchObject({
+      id: 'custom-studio',
+      domain: 'studio.example',
+      domainSuffixes: ['studio.example', 'partner.example'],
+      name: 'Custom Studio',
+      logoKey: 'monogram',
+    });
+
+    const badge = renderToStaticMarkup(
+      createElement(OrganizationUserBadge, {
+        identity: row?.email,
+        organization: row?.organization,
+      })
+    );
+    expect(badge).toContain('data-organization-id="custom-studio"');
+    expect(badge).toContain('title="Custom Studio"');
+    expect(badge).toContain('>CS</span>');
+  });
+
+  it('drops a malformed option without discarding a valid deployment mapping', () => {
+    const value = payload();
+    value.userMonitoring.organizations = [CUSTOM_ORGANIZATION];
+    (value.userMonitoring.organizations as unknown[]).push({
+      ...CUSTOM_ORGANIZATION,
+      id: 'unsafe',
+      name: 'Untrusted',
+      secret: 'not accepted',
+    });
+    value.userMonitoring.users[0].email = 'artist@studio.example';
+
+    const decoded = decodeUserMonitoringCostPayload(value);
+    expect(decoded.userMonitoring?.organizations).toEqual([expect.objectContaining({ id: 'custom-studio', count: 2 })]);
+    expect(decoded.userMonitoring?.users[0]?.organization).toMatchObject({
+      id: 'custom-studio',
+      name: 'Custom Studio',
+    });
+  });
+
   it('rejects malformed organization facets instead of silently rendering All as zero', () => {
     const value = payload();
     value.userMonitoring.organizations = [{ ...organizationForEmail('person@example.com'), count: Number.NaN }];
@@ -74,6 +133,18 @@ describe('User Monitoring response decoding', () => {
       name: 'Databricks',
       logoKey: 'databricks',
     });
+  });
+
+  it.each([
+    ['person@example.com', 'databricks', 'Databricks', 'databricks'],
+    ['person@take2games.com', 'acme-interactive', 'Acme Interactive', 'acme'],
+    ['person@2k.com', '2k', 'Contoso', '2k'],
+    ['person@northwindlondon.com', 'northwind-games', 'Northwind Games', 'northwind'],
+  ])('preserves the canonical fallback for %s', (email, id, name, logoKey) => {
+    const value = payload();
+    value.userMonitoring.users[0].email = email;
+    const decoded = decodeUserMonitoringCostPayload(value);
+    expect(decoded.userMonitoring?.users[0]?.organization).toMatchObject({ id, name, logoKey });
   });
 
   it('accepts the fast endpoint direct payload without routing through Cost', () => {

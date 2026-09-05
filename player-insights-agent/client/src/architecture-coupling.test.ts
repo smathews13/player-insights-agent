@@ -122,7 +122,7 @@ describe('a node reports what the shared derivation says, and nothing else', () 
         hasRemoteEnd: hasRemoteEnd(reading.row, check),
       });
       expect(reading.status, node.id).toBe(expected);
-      expect(nodeReport(node, reading).label, node.id).toBe(expected === 'reachable' ? 'Connected' : 'Not connected');
+      expect(nodeReport(node, reading).label, node.id).toBe(expected === 'reachable' ? 'Connected' : 'Disconnected');
     }
   });
 
@@ -190,7 +190,7 @@ describe('the page has no way to derive a status for itself', () => {
 
   it('owns exactly the two Architecture connection labels', () => {
     expect(ARCHITECTURE_MODEL).toContain("'Connected'");
-    expect(ARCHITECTURE_MODEL).toContain("'Not connected'");
+    expect(ARCHITECTURE_MODEL).toContain("'Disconnected'");
     expect(ARCHITECTURE_MODEL).not.toMatch(/label:\s*'(Reachable|Blocked|Unreachable|Refused|Not checked)'/);
   });
 

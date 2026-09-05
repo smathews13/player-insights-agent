@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import { PIA_LOADER_SIZES } from './pia-loader';
 import { partial } from './styles/stylesheet';
 
 /**
@@ -21,6 +23,7 @@ import { partial } from './styles/stylesheet';
 
 const CSS = partial('monitoring.css');
 const RESPONSIVE = partial('responsive-monitoring.css');
+const PAGE = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
 
 /**
  * One rule's body, by exact selector, and a failure rather than an empty string
@@ -161,18 +164,17 @@ describe('Monitoring details open as centered modals, not side drawers', () => {
     expect(CSS).toMatch(/\.monitoring-users-toolbar-view\s*\{\s*justify-content:\s*flex-end/);
   });
 
-  it('uses one stable user-icon loader with static reduced-motion fallbacks', () => {
+  it('uses one canonical panel loader with static reduced-motion fallbacks', () => {
     expect(rule('.monitoring-users-loading')).toMatch(/min-height:\s*180px/);
-    expect(rule('.monitoring-users-loading-icon')).toMatch(/width:\s*18px/);
+    expect(PAGE).toMatch(/<PiaLoader variant="panel" label="Loading users" className="monitoring-users-loading" \/>/);
+    expect(PIA_LOADER_SIZES.panel).toBe(112);
+    expect(CSS).not.toContain('.monitoring-users-loading-icon');
     expect(CSS).not.toContain('.monitoring-users-loading-list');
-    const reduced = partial('astrolabe-animation.css').slice(
-      partial('astrolabe-animation.css').indexOf('@media (prefers-reduced-motion: reduce)')
-    );
-    expect(reduced).toMatch(/\[class\*='ast-anim-'\]\s*\{[^}]*animation:\s*none/);
-    expect(reduced).toMatch(/\.ast-anim-center-pulse\s*\{[^}]*transform:\s*none/);
-    expect(partial('appearance-preferences.css')).toMatch(
-      /data-animations='off'[\s\S]*\.ast-anim-center-pulse[\s\S]*transform:\s*none/
-    );
+    const loader = partial('pia-loader.css');
+    const reduced = loader.slice(loader.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(reduced).toMatch(/\.pia-anim \*\s*\{[^}]*animation:\s*none !important/);
+    expect(reduced).toMatch(/\.pia-loader__phase--dpad,[\s\S]*\.pia-loader__center\s*\{[^}]*opacity:\s*1/);
+    expect(loader).toMatch(/data-animations='off'[\s\S]*\.pia-loader__phase--dpad/);
   });
 });
 

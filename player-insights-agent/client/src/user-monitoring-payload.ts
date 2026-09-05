@@ -1,5 +1,9 @@
 import type { OpsCostPayload } from '../../shared/ops-contract';
-import { organizationForEmail, sanitizeOrganizationFilterOptions } from '../../shared/organization-mapping';
+import {
+  organizationForEmail,
+  organizationMappingsFromFilterOptions,
+  sanitizeOrganizationFilterOptions,
+} from '../../shared/organization-mapping';
 import { USER_MONITORING_SCHEMA_REVISION, type UserMonitoringPayload } from '../../shared/user-monitoring-contract';
 import type { SpendByUserPayload } from '../../shared/user-spend-contract';
 
@@ -23,7 +27,10 @@ export function decodeUserMonitoringCostPayload(value: unknown): OpsCostPayload 
   }
   const monitoring = rawMonitoring as unknown as UserMonitoringPayload;
   const organizations = sanitizeOrganizationFilterOptions(monitoring.organizations);
-  if (organizations.length !== monitoring.organizations.length) throw new Error('user_monitoring_payload_stale');
+  if (monitoring.organizations.length > 0 && organizations.length === 0) {
+    throw new Error('user_monitoring_payload_stale');
+  }
+  const organizationMappings = organizationMappingsFromFilterOptions(organizations);
   const users = monitoring.users
     .filter(
       (row) =>
@@ -34,7 +41,7 @@ export function decodeUserMonitoringCostPayload(value: unknown): OpsCostPayload 
         Number.isFinite(row.coveredDays) &&
         isRecord(row.tokenUsage)
     )
-    .map((row) => ({ ...row, organization: organizationForEmail(row.email, organizations) }));
+    .map((row) => ({ ...row, organization: organizationForEmail(row.email, organizationMappings) }));
   if (typeof monitoring.identityRevision !== 'string') throw new Error('user_monitoring_payload_stale');
   return {
     ...(direct ? ({ currency: 'USD' } as OpsCostPayload) : (value as unknown as OpsCostPayload)),

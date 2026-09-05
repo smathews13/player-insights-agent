@@ -358,11 +358,15 @@ describe('the mark that replaced it', () => {
     const home = SOURCES.get('HomePage.tsx')!;
     expect(home).not.toContain('<Sparkles />');
     expect(home).not.toMatch(/<ConceptFlicker seat="button" \/>/);
-    expect(home).toMatch(/<Button type="submit" disabled=\{loading \? stopping : !canAsk\}>/);
+    expect(home).toMatch(
+      /<Button type="submit" disabled=\{loading \? stopping : !canAsk\} aria-busy=\{stopping \|\| parsing \|\| undefined\}>/
+    );
     expect(home).toMatch(/\{loading \? \([\s\S]{0,220}'Stop'/);
 
     const resourceTags = SOURCES.get('ResourceTagsPanel.tsx')!;
-    expect(resourceTags).toMatch(/\{running \? <PiaFlicker seat="button" \/> : null\}/);
+    expect(resourceTags).toContain(
+      '<PiaBusyButtonContent busy={running} label="Apply tags" busyLabel="Applying tags" />'
+    );
   });
 });
 

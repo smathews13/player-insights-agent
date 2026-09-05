@@ -7,6 +7,7 @@ import { partial } from './styles/stylesheet';
 import { BRAND_PRODUCT_NAMES } from './brand-icons';
 import type { TraceStage } from './answer-shape';
 import { mergeLiveStage } from './live-progress';
+import { PIA_LOADER_SIZES } from './pia-loader';
 
 /**
  * What the two constellation bands are to a reader who is not looking at them.
@@ -30,6 +31,7 @@ import { mergeLiveStage } from './live-progress';
 const PATH_SOURCE = readFileSync(new URL('./AgentConstellation.tsx', import.meta.url), 'utf8');
 const CONSTELLATION_CSS = partial('constellation.css');
 const ANIMATION_CSS = partial('astrolabe-animation.css');
+const LOADER_CSS = partial('pia-loader.css');
 
 function stage(overrides: Partial<TraceStage> & Pick<TraceStage, 'id'>): TraceStage {
   return {
@@ -335,12 +337,17 @@ describe('what moves, and what stops moving (§5)', () => {
     expect(markup).not.toMatch(/style="[^"]*animation-name/);
     expect(markup).not.toMatch(/style="[^"]*animation:/);
     // Every inline animation property on the band is timing, and every element
-    // carrying one is also carrying a class the guard covers.
-    for (const [, declaration, element] of markup.matchAll(/style="([^"]*animation[^"]*)"|(<[^>]*animation[^>]*>)/g)) {
-      if (declaration) expect(declaration).toMatch(/^(animation-(duration|delay):[^;]*;?)+$/);
-      if (element) expect(element).toMatch(/class="[^"]*ast-anim-/);
+    // carrying one is covered by either the constellation or canonical-loader
+    // reduced-motion guard.
+    for (const [, element, declaration] of markup.matchAll(/(<[^>]*style="([^"]*animation[^"]*)"[^>]*>)/g)) {
+      expect(declaration).toMatch(/animation-(duration|delay):/);
+      expect(declaration).not.toMatch(/animation-name:|(?:^|;)\s*animation:/);
+      expect(element).toMatch(/class="[^"]*(?:ast-anim-|pia-loader__button)/);
     }
     expect(ANIMATION_CSS).toMatch(/\[class\*='ast-anim-'\] \{\n\s*animation: none !important;/);
+    expect(LOADER_CSS).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.pia-anim \* \{[^}]*animation: none !important;/
+    );
   });
 
   it('freezes the drawn line as drawn rather than as invisible', () => {
@@ -882,10 +889,13 @@ describe('the mark is the agent, and there is one of it (§1)', () => {
      */
     const running = path(inFlight, 5, 12_000);
     expect(running).toContain('pia-flick-slot--status');
-    expect([...running.matchAll(/pia-loader__phase--(?:dpad|cluster)/g)]).toHaveLength(2);
-    expect(running).toContain('pia-loader__center');
-    // The seat's own number, painted at the number the slot has always painted.
-    expect(running).toMatch(/class="pia-flick-slot pia-flick-slot--status"[^>]*width:\s*11px/);
+    expect(running).toContain('pia-loader-mark--chip');
+    expect([...running.matchAll(/class="pia-loader__button"/g)]).toHaveLength(4);
+    expect(running).not.toContain('pia-loader__phase');
+    // Status uses the canonical chip geometry rather than stretching a smaller
+    // identity mark into the loader seat.
+    expect(PIA_LOADER_SIZES.chip).toBe(16);
+    expect(running).toMatch(/class="pia-flick-slot pia-flick-slot--status"[^>]*width:\s*16px/);
   });
 
   it('freezes on the finished step’s real mark once the run stops', () => {

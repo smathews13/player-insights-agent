@@ -6,6 +6,7 @@ import {
 } from './organization-contract';
 
 export {
+  organizationMappingsFromFilterOptions,
   sanitizeOrganizationFilterOptions,
   sanitizeOrganizationMappings,
   type OrganizationFilterOption,
@@ -119,17 +120,27 @@ function suffixMatch(domain: string, suffix: string): boolean {
   return domain === suffix || domain.endsWith(`.${suffix}`);
 }
 
+/** Exact domain or dot-boundary suffix match after normalization. */
+export function organizationDomainMatchesSuffixes(domain: string, suffixes: readonly string[]): boolean {
+  const normalizedDomain = normalizedOrganizationDomain(domain);
+  if (!normalizedDomain) return false;
+  return suffixes.some((suffix) => {
+    const normalizedSuffix = normalizedOrganizationDomain(suffix);
+    return Boolean(normalizedSuffix) && suffixMatch(normalizedDomain, normalizedSuffix);
+  });
+}
+
 /**
  * Case-insensitive longest-suffix resolution.
  *
  * Unknown domains never inherit a nearby brand: only an exact suffix boundary
  * matches.
  */
-export function organizationForEmail(
-  email: string,
+export function organizationForDomain(
+  value: string,
   mappings: readonly OrganizationMapping[] = []
 ): OrganizationMapping {
-  const domain = emailDomain(email);
+  const domain = normalizedOrganizationDomain(value);
   const candidates = mergedOrganizationManifest(sanitizeOrganizationMappings(mappings)).flatMap((organization) =>
     organization.domainSuffixes.map((suffix) => ({ organization, suffix }))
   );
@@ -137,6 +148,13 @@ export function organizationForEmail(
   return (
     candidates.find((candidate) => suffixMatch(domain, candidate.suffix))?.organization ?? unknownOrganization(domain)
   );
+}
+
+export function organizationForEmail(
+  email: string,
+  mappings: readonly OrganizationMapping[] = []
+): OrganizationMapping {
+  return organizationForDomain(emailDomain(email), mappings);
 }
 
 /**
@@ -188,4 +206,20 @@ export function organizationSuffixesForSelection(
         .map(normalizedOrganizationDomain)
     ),
   ].filter(Boolean);
+}
+
+/**
+ * Full authoritative suffix set for Feedback's canonical-domain selection.
+ * Invalid non-empty values intentionally match nothing rather than disabling
+ * the filter.
+ */
+export function organizationSuffixesForDomainSelection(
+  selected: string,
+  mappings: readonly OrganizationMapping[] = []
+): string[] {
+  if (!selected.trim()) return [];
+  const domain = normalizedOrganizationDomain(selected);
+  if (!domain) return ['__no_matching_organization__'];
+  const organization = organizationForDomain(domain, mappings);
+  return [...new Set(organization.domainSuffixes.map(normalizedOrganizationDomain).filter(Boolean))];
 }

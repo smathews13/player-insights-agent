@@ -94,7 +94,7 @@ describe('Databricks control-plane identity metadata', () => {
         readAt: '1970-01-01T00:00:01.000Z',
       },
       app: {
-        displayName: 'Astrolabe',
+        displayName: 'Player Insights Agent',
         resourceName: INPUT.appName,
         workspaceHost: INPUT.workspaceHost,
         workspaceId: '<workspace-id>',

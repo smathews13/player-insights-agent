@@ -29,7 +29,7 @@ function withoutComments(source: string) {
 describe('the radius vocabulary', () => {
   it('declares exactly two radii in tokens.css', () => {
     const declared = [...withoutComments(partial('tokens.css')).matchAll(/(--radius-[\w-]+)\s*:/g)].map(
-      (match) => match[1],
+      (match) => match[1]
     );
     expect(declared.sort()).toEqual(['--radius-md', '--radius-sm']);
   });
@@ -40,7 +40,7 @@ describe('the radius vocabulary', () => {
     const undeclared = new Map<string, string[]>();
     for (const name of partialNames()) {
       const used = [...new Set(withoutComments(partial(name)).match(RADIUS_TOKENS) ?? [])].filter(
-        (token) => token !== '--radius-sm' && token !== '--radius-md',
+        (token) => token !== '--radius-sm' && token !== '--radius-md'
       );
       if (used.length > 0) undeclared.set(name, used);
     }
@@ -75,12 +75,8 @@ const SHAPES = new Set(['50%', '999px', '0']);
 const TWO_RADII = /^var\(--(?:radius-(?:sm|md)|ast-radius-(?:control|card))\)$/;
 
 const EXCEPTIONS: Record<string, { value: string; because: string }[]> = {
-  'ask.css': [
-    {
-      value: '8px 8px 2px 8px',
-      because: 'the panel radius on three corners and a near-square notch on the one pointing at the avatar',
-    },
-  ],
+  // ask.css had one: the old speech-bubble notch. Question attribution now uses
+  // one organization-badged surface, so that asymmetric corner is retired.
   // rail.css had one: the conversation row's literal 8px, which equalled
   // --radius-md and predated this system. The row is a card now and asks for the
   // token by name, so the exception is retired rather than carried.
@@ -119,12 +115,10 @@ describe('two radii, and the exceptions say why they are exceptions', () => {
   for (const name of OWNED) {
     it(`${name} writes every corner as a token, a shape, or a documented exception`, () => {
       const radii = [...withoutComments(partial(name)).matchAll(/border-radius:\s*([^;]+);/g)].map((match) =>
-        match[1].trim(),
+        match[1].trim()
       );
       const allowed = (EXCEPTIONS[name] ?? []).map((exception) => exception.value);
-      const stray = radii.filter(
-        (value) => !TWO_RADII.test(value) && !SHAPES.has(value) && !allowed.includes(value),
-      );
+      const stray = radii.filter((value) => !TWO_RADII.test(value) && !SHAPES.has(value) && !allowed.includes(value));
       expect(stray).toEqual([]);
       // And the exception list does not outlive the exceptions: an entry that no
       // longer matches anything is a comment claiming a decision nobody made.
