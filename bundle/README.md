@@ -207,6 +207,11 @@ The user-visible and operator-visible identity is one contract:
 - resource billing dimension: `system_billing=player-insights-agent`;
 - mutable Workspace staging directory: `player-insights-agent-src`.
 
+AI Search endpoint custom tags are the one platform-constrained exception:
+Vector Search rejects hyphens in tag values, so that endpoint uses the
+equivalent token `system_billing=player_insights_agent`. Other supported
+resource types keep the canonical slug value above.
+
 The existing `player_insights_*` bundle resource keys remain unchanged. They are
 non-user-facing state addresses, contain no retired brand, and are already bound
 to the live schema, volume, App, experiment, jobs, and AI Search resources.

@@ -110,7 +110,7 @@ def test_vector_endpoint_tag_preserves_existing_tags() -> None:
     _, tags = client.vector_search_endpoints.calls[0]
     assert pairs(tags) == {
         "owner": "team",
-        "system_billing": "player-insights-agent",
+        "system_billing": "player_insights_agent",
     }
 
 

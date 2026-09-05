@@ -17,18 +17,22 @@ from mlflow.tracking import MlflowClient
 PRODUCT_SLUG = "player-insights-agent"
 TAG_KEY = "system_billing"
 TAG_VALUE = PRODUCT_SLUG
+# Vector Search custom-tag values reject hyphens and other reserved characters.
+# Keep its constrained token canonical and unambiguous without weakening the
+# product slug used by every resource type that accepts it.
+VECTOR_TAG_VALUE = PRODUCT_SLUG.replace("-", "_")
 # Compatibility-only machine identity from releases before the canonical
 # system_billing dimension. It is removed on write and never shown to operators.
 RETIRED_TAG_KEYS = ("astrolabe",)
 
 
-def _merge(tags: Iterable[Any] | None, factory: Any) -> list[Any]:
+def _merge(tags: Iterable[Any] | None, factory: Any, *, tag_value: str = TAG_VALUE) -> list[Any]:
     values = {
         str(tag.key): str(tag.value or "")
         for tag in (tags or [])
         if getattr(tag, "key", None) and str(tag.key) not in RETIRED_TAG_KEYS
     }
-    values[TAG_KEY] = TAG_VALUE
+    values[TAG_KEY] = tag_value
     return [factory(key=key, value=value) for key, value in sorted(values.items())]
 
 
@@ -64,7 +68,7 @@ def tag_serving_endpoint(workspace: WorkspaceClient, endpoint_name: str) -> None
 
 def tag_vector_endpoint(workspace: WorkspaceClient, endpoint_name: str) -> None:
     endpoint = workspace.vector_search_endpoints.get_endpoint(endpoint_name)
-    tags = _merge(endpoint.custom_tags, CustomTag)
+    tags = _merge(endpoint.custom_tags, CustomTag, tag_value=VECTOR_TAG_VALUE)
     workspace.vector_search_endpoints.update_endpoint_custom_tags(endpoint_name, tags)
     print(f"tagged AI Search endpoint {endpoint_name}")
 
