@@ -7,7 +7,7 @@ resources:
       name: ${var.experiment_path}
       tags:
         - key: system_billing
-          value: "astrolabe"
+          value: ${var.product_slug}
       lifecycle:
         # Destroying the experiment permanently removes runs and traces.
         prevent_destroy: true

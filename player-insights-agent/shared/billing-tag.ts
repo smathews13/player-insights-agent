@@ -2,12 +2,10 @@
  * The billing tag this app writes onto resources it manages, and the predicate
  * Ops uses when it reads `system.billing.usage`.
  *
- * Key and value are this pair on purpose: an earlier revision used key
- * `astrolabe` / value `true`, which read as a flag rather than a billing
- * dimension. `system_billing=astrolabe` is what a person looking at usage rows
- * can match by eye.
+ * The canonical product slug is the dimension value so usage rows, bundle
+ * resources, and release tooling all identify the same product.
  */
-export const BILLING_TAG = { key: 'system_billing', value: 'astrolabe' } as const;
+export const BILLING_TAG = { key: 'system_billing', value: 'player-insights-agent' } as const;
 
 /** The retired key. Still stripped on write so a resource is not left with both. */
 export const RETIRED_BILLING_TAG_KEY = 'astrolabe';

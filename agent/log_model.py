@@ -451,7 +451,7 @@ print(
 # retried into duplicate versions. Deploy uses the version number, not the alias.
 client = MlflowClient(registry_uri="databricks-uc")
 try:
-    client.set_registered_model_tag(model_name, "astrolabe", "true")
+    client.set_registered_model_tag(model_name, "system_billing", "player-insights-agent")
     client.set_registered_model_alias(model_name, "prod", version)
 except Exception as error:  # noqa: BLE001 - the version exists; the alias is a signpost
     print(

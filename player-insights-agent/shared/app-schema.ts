@@ -16,13 +16,13 @@
  * collides with schemas created by older apps and leaves a new app principal
  * unable to use its own store. A source-only deploy has an empty
  * PLAYER_INSIGHTS_TARGET, so that one legacy authored value resolves to the
- * Astrolabe-owned default below. Bundle releases fill the target and therefore
- * keep their configured schema, including existing `player_insights` stores and
- * their role rows.
+ * canonical product-owned default below. Bundle releases fill the target and
+ * therefore keep their configured schema, including existing
+ * `player_insights` stores and their role rows.
  */
 
 /** The schema a direct Git deployment creates and owns. */
-export const DEFAULT_APP_SCHEMA = 'astrolabe';
+export const DEFAULT_APP_SCHEMA = 'player_insights_agent';
 
 /** The old authored Git fallback, still used by existing bundle targets. */
 export const LEGACY_APP_SCHEMA = 'player_insights';
@@ -43,7 +43,7 @@ export const LAKEBASE_ENDPOINT_ENV = 'LAKEBASE_ENDPOINT';
  * targets and local development keep their explicit or legacy schema.
  */
 export function resolveAppSchema(
-  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>
 ): string {
   const fromEnv = (env[APP_SCHEMA_ENV] ?? '').trim();
   const bundleTarget = (env[APP_TARGET_ENV] ?? '').trim();
@@ -73,7 +73,7 @@ const POSTGRES_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_$]*$/;
  *
  * A Git deployment replaces app.yaml, so it cannot carry a bundle target's
  * private schema value. The boot probe uses this setter after asking Postgres
- * which Astrolabe schema the unchanged app role already owns. Keeping the
+ * which app schema the unchanged app role already owns. Keeping the
  * mutation here preserves one validation boundary and one exported binding.
  */
 export function adoptAppSchema(schema: string): string {

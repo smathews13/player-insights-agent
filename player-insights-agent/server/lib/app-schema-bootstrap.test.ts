@@ -15,10 +15,7 @@ describe('Deploy-from-Git schema continuity', () => {
     const { preserveOwnedAppSchema } = await import('./app-schema-bootstrap');
     const schema = await preserveOwnedAppSchema({
       query: vi.fn().mockResolvedValue({
-        rows: [
-          { nspname: 'player_insights_greenfield' },
-          { nspname: 'astrolabe' },
-        ],
+        rows: [{ nspname: 'player_insights_greenfield' }, { nspname: 'astrolabe' }],
       }),
     });
     const { APP_SCHEMA } = await import('../../shared/app-schema');
@@ -27,7 +24,7 @@ describe('Deploy-from-Git schema continuity', () => {
     expect(APP_SCHEMA).toBe('player_insights_greenfield');
   });
 
-  it('uses astrolabe for a new Git app with no existing owned store', async () => {
+  it('uses the canonical schema for a new Git app with no existing owned store', async () => {
     vi.stubEnv('LAKEBASE_ENDPOINT', 'projects/example/branches/production');
     vi.stubEnv('PLAYER_INSIGHTS_TARGET', '');
     vi.stubEnv('PLAYER_INSIGHTS_APP_SCHEMA', 'player_insights');
@@ -38,6 +35,6 @@ describe('Deploy-from-Git schema continuity', () => {
       query: vi.fn().mockResolvedValue({ rows: [] }),
     });
 
-    expect(schema).toBe('astrolabe');
+    expect(schema).toBe('player_insights_agent');
   });
 });

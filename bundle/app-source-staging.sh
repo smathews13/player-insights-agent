@@ -40,8 +40,8 @@ validate_app_staging_path() {
 
   basename="${path##*/}"
   case "$basename" in
-    "$app_name-src"|"$app_name-real-src"|"$app_name-app-source") ;;
-    *) app_staging_error "basename '$basename' does not identify app '$app_name' with an approved source suffix" ;;
+    "$app_name-src") ;;
+    *) app_staging_error "basename '$basename' must be the canonical app staging path '$app_name-src'" ;;
   esac
 }
 

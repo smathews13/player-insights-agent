@@ -31,16 +31,20 @@ reject_path() {
 
 printf '\n==> staging path safety boundary\n'
 check "exact app staging path is accepted" validate_app_staging_path \
-  "/Workspace/Users/sam@example.com/player-insights-agent-real-src" \
+  "/Workspace/Users/sam@example.com/player-insights-agent-src" \
   "player-insights-agent" "sam@example.com"
 reject_path "empty path is refused" ""
 reject_path "filesystem root is refused" "/"
 reject_path "Workspace root is refused" "/Workspace"
 reject_path "actor home is refused" "/Workspace/Users/sam@example.com"
-reject_path "wrong actor is refused" "/Workspace/Users/other@example.com/player-insights-agent-real-src"
-reject_path "wrong app is refused" "/Workspace/Users/sam@example.com/other-app-real-src"
-reject_path "nested path is refused" "/Workspace/Users/sam@example.com/releases/player-insights-agent-real-src"
-reject_path "relative traversal is refused" "/Workspace/Users/sam@example.com/../player-insights-agent-real-src"
+reject_path "wrong actor is refused" "/Workspace/Users/other@example.com/player-insights-agent-src"
+reject_path "wrong app is refused" "/Workspace/Users/sam@example.com/other-app-src"
+reject_path "nested path is refused" "/Workspace/Users/sam@example.com/releases/player-insights-agent-src"
+reject_path "relative traversal is refused" "/Workspace/Users/sam@example.com/../player-insights-agent-src"
+reject_path "retired real-src variant is refused" \
+  "/Workspace/Users/sam@example.com/player-insights-agent-real-src"
+reject_path "retired app-source variant is refused" \
+  "/Workspace/Users/sam@example.com/player-insights-agent-app-source"
 
 MOCK_BIN="$WORK/bin"
 MOCK_REMOTE="$WORK/remote"
@@ -100,7 +104,7 @@ chmod +x "$MOCK_BIN/databricks"
 
 export PATH="$MOCK_BIN:$PATH"
 export MOCK_REMOTE MOCK_LOG
-export MOCK_SOURCE_PATH="/Workspace/Users/sam@example.com/player-insights-agent-real-src"
+export MOCK_SOURCE_PATH="/Workspace/Users/sam@example.com/player-insights-agent-src"
 export MOCK_DEPLOY_MARKER="$WORK/deployed"
 SOURCE="$WORK/source"
 mkdir -p "$SOURCE/client/dist/assets" "$MOCK_REMOTE/client/dist/assets"

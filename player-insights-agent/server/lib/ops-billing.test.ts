@@ -34,7 +34,7 @@ describe('billing attribution', () => {
     const query = buildCostStatement(IDS, RANGE);
 
     expect(BILLING_TAG_KEY).toBe('system_billing');
-    expect(query?.statement).toContain("u.custom_tags['system_billing'] = 'astrolabe'");
+    expect(query?.statement).toContain("u.custom_tags['system_billing'] = 'player-insights-agent'");
     expect(query?.statement).toContain(
       "WHEN u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :endpointName THEN 'serving-endpoint'"
     );
@@ -60,7 +60,7 @@ describe('billing attribution', () => {
   it('deduplicates tag and metadata overlap by billing record id before summing', () => {
     const statement = buildCostStatement(IDS, RANGE)!.statement;
     const spendInput = statement.slice(statement.indexOf('tagged AS ('), statement.indexOf('price_hits AS ('));
-    expect(spendInput).toContain("u.custom_tags['system_billing'] = 'astrolabe'");
+    expect(spendInput).toContain("u.custom_tags['system_billing'] = 'player-insights-agent'");
     expect(spendInput).toContain('OR (u.billing_origin_product');
     expect(statement).toContain('COALESCE(\n      CAST(u.record_id AS STRING)');
     expect(statement).toContain('GROUP BY record_id, usage_date');
@@ -134,7 +134,7 @@ describe('billing attribution', () => {
     const app = buildTiles({ ...IDS, appBillingTag: 'matched' }, []).find((tile) => tile.id === 'app-compute');
     expect(app?.amount).toBeNull();
     expect(app?.unavailable).toBe('No Apps billing rows matched this app.');
-    expect(app?.note).toContain('system_billing=astrolabe is on this app');
+    expect(app?.note).toContain('system_billing=player-insights-agent is on this app');
     expect(app?.unavailable).not.toContain('tag');
   });
 

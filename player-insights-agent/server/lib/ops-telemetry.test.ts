@@ -152,7 +152,7 @@ describe('the exporter count request', () => {
 
     const request = statementRequest.mock.calls[0]?.[0] as { payload?: Record<string, unknown> };
     expect(request.payload?.query_tags).toEqual([
-      { key: 'application', value: 'Astrolabe' },
+      { key: 'application', value: 'Player Insights Agent' },
       { key: 'surface', value: 'telemetry' },
       { key: 'tool', value: 'ops_telemetry' },
       { key: 'operation', value: 'exporter_read' },

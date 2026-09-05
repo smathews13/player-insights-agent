@@ -4446,7 +4446,7 @@ describe('the run ledger under POST /api/insights/ask', () => {
                     warehouse_id: 'warehouse-cancel-test',
                     executed_as_user_name: DEVELOPMENT_IDENTITY,
                     query_tags: {
-                      application: 'Astrolabe',
+                      application: 'Player Insights Agent',
                       run_id: run.run_id,
                       correlation_id: run.correlation_id,
                     },

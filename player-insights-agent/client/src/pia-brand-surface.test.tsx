@@ -45,7 +45,10 @@ describe('Player Insights Agent visible brand surfaces', () => {
     const startup = renderToStaticMarkup(<StartupLoadingSurface phase="application-bootstrap" />);
 
     expect(index).toContain('<title>Player Insights Agent</title>');
-    expect(manifest).toMatchObject({ name: 'Player Insights Agent', short_name: 'PIA' });
+    expect(manifest).toMatchObject({
+      name: 'Player Insights Agent',
+      short_name: 'Player Insights Agent',
+    });
     expect(header).toContain('pia-lockup--header pia-lockup--full');
     expect(header).toContain('Player Insights <span class="pia-accent">Agent</span>');
     expect(header).toContain('data-pia-cut="engraved"');

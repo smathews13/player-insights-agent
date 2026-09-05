@@ -124,7 +124,8 @@ export interface CostIdentifiers {
    */
   telemetryEnabled: boolean;
   /**
-   * Whether this app's own tag assignment is `system_billing=astrolabe`.
+   * Whether this app's own tag assignment is
+   * `system_billing=player-insights-agent`.
    *
    * Read from the Apps tag API, not from billed usage. Missing spend is not
    * evidence the tag is absent.

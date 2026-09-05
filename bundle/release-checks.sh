@@ -36,6 +36,9 @@ run_fast() {
   step "Release-critical public derivation leak canary"
   python3 "$ROOT/mirror/check-derived-tree.test.py"
 
+  step "Release-critical Player Insights Agent brand contract"
+  python3 "$HERE/brand-contract.test.py"
+
   step "Release-critical App staging cleanup safety"
   bash "$HERE/app-source-staging.test.sh"
 

@@ -6,7 +6,7 @@ afterEach(() => {
 });
 
 describe('a Lakebase-bound Deploy-from-Git process', () => {
-  it('creates and probes Astrolabe storage instead of the legacy schema', async () => {
+  it('creates and probes Player Insights Agent storage instead of the legacy schema', async () => {
     vi.stubEnv('LAKEBASE_ENDPOINT', 'projects/example/branches/production');
     vi.stubEnv('PLAYER_INSIGHTS_TARGET', '');
     vi.stubEnv('PLAYER_INSIGHTS_APP_SCHEMA', 'player_insights');
@@ -16,9 +16,9 @@ describe('a Lakebase-bound Deploy-from-Git process', () => {
     const { schemaStatements } = await import('../routes/insights-routes');
     const { WATCHDOG_PROBE_SQL } = await import('./lakebase-store');
 
-    expect(APP_SCHEMA).toBe('astrolabe');
-    expect(schemaStatements[0]).toBe('CREATE SCHEMA IF NOT EXISTS astrolabe');
-    expect(WATCHDOG_PROBE_SQL).toContain('astrolabe.conversations');
+    expect(APP_SCHEMA).toBe('player_insights_agent');
+    expect(schemaStatements[0]).toBe('CREATE SCHEMA IF NOT EXISTS player_insights_agent');
+    expect(WATCHDOG_PROBE_SQL).toContain('player_insights_agent.conversations');
     expect(WATCHDOG_PROBE_SQL).not.toContain('player_insights.');
   });
 });

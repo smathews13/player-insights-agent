@@ -1,4 +1,4 @@
-# Player Insights Agent Databricks Asset Bundle.
+# Player Insights Agent Declarative Automation Bundle.
 # Variables without defaults are required deployment inputs.
 # The serving endpoint and app source tree are deployed separately.
 
@@ -10,6 +10,18 @@ include:
 
 # Variables without a `default` are required.
 variables:
+  # Product branding. Keep display text and slug centralized so resource labels,
+  # tags, paths, and generated operator output cannot drift independently.
+  product_display_name:
+    description: Canonical product display name.
+    default: Player Insights Agent
+  product_slug:
+    description: Canonical product slug for Databricks resource names and paths.
+    default: player-insights-agent
+  product_model_name:
+    description: Canonical Unity Catalog object name for the registered agent model.
+    default: player_insights_agent
+
   # Deployment
   bundle_root_path:
     description: >-
@@ -37,7 +49,7 @@ variables:
     type: complex
   volume:
     description: Managed volume in the app schema for app-owned assets.
-    default: player_insights_assets
+    default: player_insights_agent_assets
   catalog_denylist:
     description: >-
       Comma-separated glob patterns for tables the agent must not declare.
@@ -68,7 +80,7 @@ variables:
     description: >-
       Agent serving endpoint name. Created by `databricks.agents.deploy()`, not
       by this bundle. Referenced here so the app resource can attach it.
-    default: player-insights-agent
+    default: ${var.product_slug}
   serving_rollbacks_kept:
     description: >-
       Number of idle endpoint versions to retain after a release. Defaults to
@@ -95,10 +107,10 @@ variables:
     default: ""
   model_name:
     description: Three-level UC name of the registered agent model.
-    default: ${var.app_catalog}.${var.app_schema}.player_insights_agent
+    default: ${var.app_catalog}.${var.app_schema}.${var.product_model_name}
   experiment_path:
     description: Workspace path of the MLflow experiment for agent runs and traces.
-    default: /Shared/player-insights-agent
+    default: /Shared/${var.product_slug}
   max_output_tokens:
     description: Agent max output tokens (PLAYER_INSIGHTS_MAX_OUTPUT_TOKENS).
     default: "4000"
@@ -140,10 +152,10 @@ variables:
   app_name:
     description: >-
       Databricks App name. <=26 chars, lowercase/digits/hyphens only.
-    default: player-insights-agent
+    default: ${var.product_slug}
   app_description:
     description: App description shown in the workspace.
-    default: Player Insights Agent, governed player intelligence and repeatable benchmarking
+    default: ${var.product_display_name}, governed player intelligence and repeatable benchmarking
   shared_conversation_rail:
     description: >-
       Whether users can see shared conversations in the rail. Defaults to
@@ -239,7 +251,7 @@ variables:
       Postgres schema the app creates and owns inside the existing database.
       Changing it requires an app release, grants on the new schema, and any
       required data migration.
-    default: player_insights
+    default: player_insights_agent
   app_idle_timeout_minutes:
     description: >-
       App-layer inactivity limit for protected API routes. Defaults to 120
@@ -289,10 +301,10 @@ targets:
     resources:
       jobs:
         player_insights_semantic_rebuild:
-          name: "[${bundle.target}] Player Insights semantic layer rebuild"
+          name: "[${bundle.target}] ${var.product_display_name} semantic layer rebuild"
           description: Rebuilds app-owned semantic metadata and syncs its index.
           tags:
-            system_billing: "astrolabe"
+            system_billing: ${var.product_slug}
           run_as:
             user_name: ${workspace.current_user.userName}
           parameters:

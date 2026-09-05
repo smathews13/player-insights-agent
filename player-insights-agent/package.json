@@ -40,7 +40,7 @@
   "keywords": [],
   "author": "",
   "license": "Unlicensed",
-  "description": "Player insights, multi-agent traces, and repeatable benchmarking",
+  "description": "Player Insights Agent with governed analytics, traces, and repeatable benchmarking",
   "dependencies": {
     "@databricks/appkit": "0.38.1",
     "@databricks/appkit-ui": "0.38.1",

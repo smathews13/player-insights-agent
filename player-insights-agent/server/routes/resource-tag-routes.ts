@@ -83,7 +83,7 @@ export function setupResourceTagRoutes(appkit: InsightsAppKit, dependencies: Res
         await recordAdminAction(appkit.lakebase, {
           actor: userEmail(req),
           action: 'resource-tags-applied',
-          subject: 'system_billing=astrolabe',
+          subject: 'system_billing=player-insights-agent',
           detail: summary.headline,
         });
         res.json(summary);

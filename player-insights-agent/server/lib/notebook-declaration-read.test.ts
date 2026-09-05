@@ -4,11 +4,7 @@
  * Every identifier is invented.
  */
 import { describe, expect, it, vi } from 'vitest';
-import {
-  declarationStatement,
-  isDeclarationLocation,
-  readPublishedDeclaration,
-} from './notebook-declaration-read';
+import { declarationStatement, isDeclarationLocation, readPublishedDeclaration } from './notebook-declaration-read';
 
 const LOCATION = 'customer_catalog.agent_config.declarations';
 const HOST = 'https://example-workspace.invalid';
@@ -109,7 +105,7 @@ describe('reading it as the person looking at the page', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer forwarded-user-token');
     const body = JSON.parse(typeof init.body === 'string' ? init.body : '') as Record<string, unknown>;
     expect(body.query_tags).toEqual([
-      { key: 'application', value: 'Astrolabe' },
+      { key: 'application', value: 'Player Insights Agent' },
       { key: 'surface', value: 'declaration' },
       { key: 'tool', value: 'notebook_declaration' },
       { key: 'operation', value: 'read' },
@@ -239,7 +235,8 @@ describe('reading it as the person looking at the page', () => {
       warehouseId: 'wh-1',
       host: HOST,
       token: 'token',
-      fetchImpl: (() => Promise.resolve(new Response('<html>gateway</html>', { status: 200 }))) as unknown as typeof fetch,
+      fetchImpl: (() =>
+        Promise.resolve(new Response('<html>gateway</html>', { status: 200 }))) as unknown as typeof fetch,
     });
     expect(result.failure).toBe('unavailable');
   });

@@ -15,7 +15,7 @@ import {
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { scopesFromToken } from '../routes/access-verification';
 
-export const ASTROLABE_TAG = BILLING_TAG;
+export const PLAYER_INSIGHTS_AGENT_TAG = BILLING_TAG;
 
 export type ResourceTagKind =
   | 'app'
@@ -321,7 +321,7 @@ export function resourceTagInventory(
 }
 
 function hasTag(tags: readonly KeyValueTag[]): boolean {
-  return tags.some((tag) => tag.key === ASTROLABE_TAG.key && tag.value === ASTROLABE_TAG.value);
+  return tags.some((tag) => tag.key === PLAYER_INSIGHTS_AGENT_TAG.key && tag.value === PLAYER_INSIGHTS_AGENT_TAG.value);
 }
 
 function hasRetiredTag(tags: readonly KeyValueTag[]): boolean {
@@ -330,8 +330,8 @@ function hasRetiredTag(tags: readonly KeyValueTag[]): boolean {
 
 function mergeTag(tags: readonly KeyValueTag[]): KeyValueTag[] {
   return [
-    ...tags.filter((tag) => tag.key !== ASTROLABE_TAG.key && tag.key !== RETIRED_BILLING_TAG_KEY),
-    { ...ASTROLABE_TAG },
+    ...tags.filter((tag) => tag.key !== PLAYER_INSIGHTS_AGENT_TAG.key && tag.key !== RETIRED_BILLING_TAG_KEY),
+    { ...PLAYER_INSIGHTS_AGENT_TAG },
   ];
 }
 
@@ -521,7 +521,7 @@ async function tagSupported(
       return { ...target0, status: 'already-correct', detail: tagStateDetail('already-correct') };
     await platform.patchServingTags(
       target0.name,
-      current ? [] : [{ ...ASTROLABE_TAG }],
+      current ? [] : [{ ...PLAYER_INSIGHTS_AGENT_TAG }],
       retired ? [RETIRED_BILLING_TAG_KEY] : [],
       signal
     );
@@ -915,7 +915,7 @@ export async function readAppBillingTag(
   const name = appName.trim();
   if (!name || !platform) return 'unverified';
   try {
-    return (await platform.getAppTag(name)) === ASTROLABE_TAG.value ? 'matched' : 'missing';
+    return (await platform.getAppTag(name)) === PLAYER_INSIGHTS_AGENT_TAG.value ? 'matched' : 'missing';
   } catch {
     return 'unverified';
   }

@@ -1,10 +1,11 @@
 /**
- * A bounded, query-scoped cancellation sweep for Astrolabe SQL.
+ * A bounded, query-scoped cancellation sweep for Player Insights Agent SQL.
  *
  * This module deliberately has no warehouse lifecycle operation. It reads Query
  * History, proves ownership from query tags and identity, and sends cancellation
  * only to Statement Execution's per-statement endpoint.
  */
+import { isPlayerInsightsAgentQueryTag } from './sql-query-tags';
 
 export const ACTIVE_QUERY_STATUSES = ['QUEUED', 'STARTED', 'COMPILING', 'COMPILED', 'RUNNING'] as const;
 export type ActiveQueryStatus = (typeof ACTIVE_QUERY_STATUSES)[number];
@@ -142,7 +143,7 @@ function sameEmail(left: string | undefined, right: string): boolean {
 
 function matchesScope(row: QueryHistoryRow, scope: WarehouseCancellationScope): boolean {
   const tags = parseQueryTags(row.query_tags);
-  if (tags.get('application') !== 'Astrolabe') return false;
+  if (!isPlayerInsightsAgentQueryTag(tags.get('application'))) return false;
   if (scope.mode === 'admin') return true;
 
   // Executed-as is authoritative when present. Falling back to user_name keeps

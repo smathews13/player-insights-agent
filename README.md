@@ -17,8 +17,9 @@
 > This application is built and maintained by the Databricks field engineering team and is **not an official Databricks product**. It is not covered by Databricks Support SLAs. Your Databricks account team can help you deploy, configure, and troubleshoot this app as part of your engagement.
 
 Player Insights Agent is a governed analytics assistant for Databricks. A user
-asks a question in plain language; PIA finds approved data, runs live queries,
-and returns an answer with figures, sources, SQL, caveats, and an MLflow trace.
+asks a question in plain language; Player Insights Agent finds approved data,
+runs live queries, and returns an answer with figures, sources, SQL, caveats,
+and an MLflow trace.
 It is designed for analytical use cases where readers need to inspect how an
 answer was produced, not just read generated prose.
 
@@ -57,7 +58,7 @@ Model Serving endpoint ───────▶ MLflow experiment
   └──▶ Vector Search (optional metadata index)
 ```
 
-The Databricks Asset Bundle creates the application-owned Unity Catalog
+The Databricks Declarative Automation Bundle creates the application-owned Unity Catalog
 objects, MLflow experiment, app resource, and supporting job definitions. It
 attaches to, rather than creates or owns, the SQL warehouse, Lakebase database,
 and Genie spaces. The model and app code are released separately after the
@@ -71,7 +72,7 @@ You need:
   Lakebase, and a Pro or Serverless SQL warehouse available;
 - the Databricks CLI authenticated to that workspace;
 - an existing Unity Catalog catalog for Player Insights Agent-owned objects;
-- one or more catalogs or schemas containing the governed data PIA may
+- one or more catalogs or schemas containing the governed data Player Insights Agent may
   read;
 - an existing Lakebase project, branch, and database;
 - two curated Genie spaces: one for analytical data and one for data
@@ -100,14 +101,14 @@ Create the git-ignored file
 ```json
 {
   "app_catalog": "<your_catalog>",
-  "app_schema": "astrolabe",
+  "app_schema": "player_insights_agent",
   "data_catalogs": ["<data_catalog>", "<data_catalog>.<restricted_schema>"],
   "warehouse_id": "<sql_warehouse_id>",
-  "app_source_code_path": "/Workspace/Users/<release-actor>/astrolabe-app-source",
+  "app_source_code_path": "/Workspace/Users/<release-actor>/player-insights-agent-src",
   "lakebase_project_id": "<lakebase_project_id>",
   "lakebase_branch_id": "production",
   "lakebase_database_id": "databricks-postgres",
-  "lakebase_app_schema": "astrolabe",
+  "lakebase_app_schema": "player_insights_agent",
   "genie_data_space_id": "<data_genie_space_id>",
   "genie_dictionary_space_id": "<dictionary_genie_space_id>",
   "admin_emails": "super:<initial_admin@example.com>"
@@ -150,7 +151,7 @@ plausible number.
 ### Sign out and idle sessions
 
 Use **Sign out of Player Insights Agent** in the account menu when leaving the
-app. It ends PIA's application session and opens the native same-origin App sign-out
+app. It ends Player Insights Agent's application session and opens the native same-origin App sign-out
 path. This is a partial logout: Databricks App and workspace sessions are
 separate, the native App session may persist or refresh for up to 24 hours, and
 federated logout is not supported. If the upstream workspace or identity
@@ -163,7 +164,7 @@ defaults to 120 minutes (2 hours) and can be configured with
 off). Background polling and programmatic events do not extend the timeout;
 trusted click, input, key, pointer, touch, wheel, and scroll interactions do. On
 expiry, the app stops polling, clears user-data caches, and requires sign-out
-before a new app session can start. This control protects only the PIA
+before a new app session can start. This control protects only the Player Insights Agent
 application layer; strict immediate coordinated logout requires a
 customer-controlled OIDC/gateway architecture.
 
@@ -177,10 +178,11 @@ App:
 | Repository       | `https://github.com/smathews13/player-insights-agent` |
 | Provider         | GitHub                                                |
 | Branch           | `main`                                                |
-| Source code path | `astrolabe`                                           |
+| Source code path | `player-insights-agent/build/deploy`                  |
 
-The public mirror publishes `astrolabe/` as a dependency-free app artifact with
-its runtime `app.yaml`. Do not leave the source path blank.
+The public mirror publishes `player-insights-agent/build/deploy/` as a
+dependency-free app artifact with its runtime `app.yaml`. Do not leave the
+source path blank.
 
 A Git deployment updates app code only. It does not reconcile bundle resources,
 change OAuth scopes or bindings, release a new model version, or change stored

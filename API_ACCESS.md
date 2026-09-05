@@ -14,12 +14,12 @@ protocol.
 
 ## Choose a method
 
-| Caller or workload | Method | Target |
-| --- | --- | --- |
-| Python application or notebook | Databricks OpenAI Client | A deployed agent; an Apps-hosted `ResponsesAgent` uses model `apps/<app-name>` |
-| Any HTTP-capable application | OpenAI-compatible REST | `POST /responses`, but only when an Apps-hosted `ResponsesAgent` or `AgentServer` exposes that route |
-| Any HTTP-capable application calling a custom Databricks App | App-defined REST | `GET` or `POST /api/<endpoint>` using the request and response contract defined by that app |
-| SQL pipeline, batch enrichment, or table query | SQL `ai_query()` | A model or agent hosted on a Model Serving endpoint in the same workspace |
+| Caller or workload                                           | Method                   | Target                                                                                               |
+| ------------------------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Python application or notebook                               | Databricks OpenAI Client | A deployed agent; an Apps-hosted `ResponsesAgent` uses model `apps/<app-name>`                       |
+| Any HTTP-capable application                                 | OpenAI-compatible REST   | `POST /responses`, but only when an Apps-hosted `ResponsesAgent` or `AgentServer` exposes that route |
+| Any HTTP-capable application calling a custom Databricks App | App-defined REST         | `GET` or `POST /api/<endpoint>` using the request and response contract defined by that app          |
+| SQL pipeline, batch enrichment, or table query               | SQL `ai_query()`         | A model or agent hosted on a Model Serving endpoint in the same workspace                            |
 
 These are three broad programmatic patterns: the Databricks client, REST, and
 SQL `ai_query()`. REST has two distinct surfaces. An Apps agent's `/responses`
@@ -27,7 +27,7 @@ route follows the Responses protocol; a custom app's `/api/<endpoint>` route is
 whatever its author implemented. A custom `/api` route is not automatically
 OpenAI-compatible.
 
-## PIA today
+## Player Insights Agent today
 
 > **Player Insights Agent does not currently publish a stable programmatic API.**
 
@@ -39,7 +39,7 @@ OpenAI-compatible.
   internal browser-to-app contract, not a stable public integration surface. It
   coordinates application sessions, conversation ownership, persistence,
   approvals, cancellation, streaming progress, and response projection.
-- The PIA agent is an MLflow `ResponsesAgent` hosted on Model Serving. Its
+- The Player Insights Agent model is an MLflow `ResponsesAgent` hosted on Model Serving. Its
   model contract accepts Responses input plus app-supplied `custom_inputs`.
   Current authorization requires a caller identity mode and expected principal,
   then verifies that principal against the identity observed by Model Serving.
@@ -212,11 +212,11 @@ behavior itself.
 
 ## Common 401, 403, and 404 causes
 
-| Status | Common causes |
-| --- | --- |
-| `401` | Missing, invalid, or expired OAuth token; token does not include the app's configured user-authorization scopes |
-| `403` | Caller lacks **CAN USE** on the app or **CAN QUERY** on the Model Serving endpoint; token scopes are insufficient; the app's own authorization rejected the operation |
-| `404` | Wrong app URL or workspace; app is not deployed or running; `/responses` was sent to a custom app that does not expose it; `/api/<endpoint>` is not implemented |
+| Status | Common causes                                                                                                                                                         |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `401`  | Missing, invalid, or expired OAuth token; token does not include the app's configured user-authorization scopes                                                       |
+| `403`  | Caller lacks **CAN USE** on the app or **CAN QUERY** on the Model Serving endpoint; token scopes are insufficient; the app's own authorization rejected the operation |
+| `404`  | Wrong app URL or workspace; app is not deployed or running; `/responses` was sent to a custom app that does not expose it; `/api/<endpoint>` is not implemented       |
 
 Using a PAT against an Apps-hosted agent can produce a redirect rather than a
 successful API response. Replace it with an OAuth token; do not follow the

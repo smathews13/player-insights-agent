@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { SQL_QUERY_TAG_LIMIT, SQL_QUERY_TAG_TEXT_LIMIT, safeSqlTagIdentifier, sqlQueryTags } from './sql-query-tags';
 
 describe('SQL query tags', () => {
-  it('returns stable Astrolabe attribution within Statement Execution limits', () => {
+  it('returns stable Player Insights Agent attribution within Statement Execution limits', () => {
     const tags = sqlQueryTags({
       surface: 'connections',
       tool: 'access_verification',
@@ -13,7 +13,7 @@ describe('SQL query tags', () => {
     });
 
     expect(tags).toEqual([
-      { key: 'application', value: 'Astrolabe' },
+      { key: 'application', value: 'Player Insights Agent' },
       { key: 'surface', value: 'connections' },
       { key: 'tool', value: 'access_verification' },
       { key: 'operation', value: 'preflight' },

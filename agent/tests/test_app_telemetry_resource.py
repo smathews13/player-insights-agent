@@ -112,7 +112,7 @@ def test_the_destinations_default_to_empty():
 
 
 def test_the_telemetry_schema_has_an_app_owned_default():
-    assert app_document()["variables"][SCHEMA_VAR]["default"] == "player_insights_telemetry"
+    assert app_document()["variables"][SCHEMA_VAR]["default"] == "player_insights_agent_telemetry"
 
 
 def test_no_telemetry_is_declared_at_the_top_level():
@@ -145,14 +145,10 @@ def test_a_target_declaring_destinations_adds_the_app_field():
     """Only opt-in targets should send the optional field to the Apps API."""
 
     for name, body in telemetry_targets():
-        app = (
-            body.get("resources", {})
-            .get("apps", {})
-            .get("player_insights_app", {})
+        app = body.get("resources", {}).get("apps", {}).get("player_insights_app", {})
+        assert app.get("telemetry_export_destinations") == ("${var." + DESTINATIONS_VAR + "}"), (
+            f"target {name!r} opts into telemetry but does not configure the App"
         )
-        assert app.get("telemetry_export_destinations") == (
-            "${var." + DESTINATIONS_VAR + "}"
-        ), f"target {name!r} opts into telemetry but does not configure the App"
 
 
 def test_telemetry_never_lands_in_the_agents_own_schema():
@@ -160,9 +156,7 @@ def test_telemetry_never_lands_in_the_agents_own_schema():
 
     for name, body in telemetry_targets():
         variables = target_variables(body)
-        schema = variables.get(
-            SCHEMA_VAR, app_document()["variables"][SCHEMA_VAR]["default"]
-        )
+        schema = variables.get(SCHEMA_VAR, app_document()["variables"][SCHEMA_VAR]["default"])
         assert schema != variables.get("app_schema"), (
             f"target {name!r} points app telemetry at the agent's own schema. The "
             "model's table manifest enumerates that schema, so the serving "
@@ -298,7 +292,5 @@ def test_a_telemetry_target_creates_the_schema_it_writes_into():
     schemas = (yaml.safe_load(TELEMETRY_RESOURCE.read_text()).get("resources") or {}).get(
         "schemas"
     ) or {}
-    declared = {
-        schema.get("name") for schema in schemas.values() if isinstance(schema, dict)
-    }
+    declared = {schema.get("name") for schema in schemas.values() if isinstance(schema, dict)}
     assert "${var." + SCHEMA_VAR + "}" in declared

@@ -55,7 +55,7 @@ set -e
 
 : >"$TMP/calls"
 : >"$TMP/tag-calls"
-PIA_CONFIRMED_NO_LIVE_DEPLOY=true run_wrapper --force-lock >/dev/null
+PLAYER_INSIGHTS_AGENT_CONFIRMED_NO_LIVE_DEPLOY=true run_wrapper --force-lock >/dev/null
 [[ "$(cat "$TMP/calls")" == "bundle deploy -t wrapper-test --profile test-profile --force-lock" ]]
 
 mkdir -p "$(dirname "$STATE")"

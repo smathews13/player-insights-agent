@@ -661,7 +661,7 @@ export type AdminAction =
   | 'connection-setting-cleared'
   /** An admin atomically staged a validated Gateway mode + model pair. */
   | 'ai-gateway-selection-staged'
-  /** An admin asked the app identity to backfill system_billing=astrolabe on managed resources. */
+  /** An admin asked the app identity to backfill the canonical Player Insights Agent tag. */
   | 'resource-tags-applied'
   /** An admin corrected a run’s outcome or rating on the Run Explorer rail. */
   | 'run-labels-updated'

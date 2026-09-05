@@ -118,7 +118,7 @@ describe('billing SQL contract', () => {
   });
 
   it('measures exact untagged resources, including the configured Vector Search endpoint', () => {
-    expect(query?.statement).toContain(`u.custom_tags['${BILLING_TAG_KEY}'] = 'astrolabe'`);
+    expect(query?.statement).toContain(`u.custom_tags['${BILLING_TAG_KEY}'] = 'player-insights-agent'`);
     expect(query?.statement).toContain(
       "u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint"
     );

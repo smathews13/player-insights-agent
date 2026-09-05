@@ -1691,7 +1691,7 @@ describe('running the statement as the user', () => {
     expect(body.warehouse_id).toBe('wh-1');
     expect(body.statement).toContain('WHERE 1=0');
     expect(body.query_tags).toEqual([
-      { key: 'application', value: 'Astrolabe' },
+      { key: 'application', value: 'Player Insights Agent' },
       { key: 'surface', value: 'connections' },
       { key: 'tool', value: 'access_verification' },
       { key: 'operation', value: 'preflight' },

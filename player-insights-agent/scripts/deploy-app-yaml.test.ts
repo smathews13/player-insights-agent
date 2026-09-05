@@ -114,7 +114,7 @@ describe('every authored variable reaches the deploy target', () => {
     expect(
       declaredScopes(generated),
       'A plain build produces build/deploy/app.yaml, which Deploy from Git runs. Leaving this ' +
-        'empty makes the login gate say Astrolabe needs no serving, SQL, or Genie scopes.'
+        'empty makes the login gate say Player Insights Agent needs no serving, SQL, or Genie scopes.'
     ).toEqual(GIT_DEPLOY_SCOPES);
   });
 

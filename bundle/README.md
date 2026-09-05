@@ -78,7 +78,8 @@ interrupted, first confirm no deploy is still running, then retry through the
 same wrapper with its guarded stale-lock override:
 
 ```bash
-PIA_CONFIRMED_NO_LIVE_DEPLOY=true TARGET=<target> PROFILE=<profile> \
+PLAYER_INSIGHTS_AGENT_CONFIRMED_NO_LIVE_DEPLOY=true \
+  TARGET=<target> PROFILE=<profile> \
   bash bundle/deploy.sh --force-lock
 ```
 
@@ -174,26 +175,86 @@ input fails validation when skipped; Genie sharing still requires review.
     --json '{"access_control_list":[{"user_name":"someone@example.com","permission_level":"CAN_RUN"}]}'
   ```
 
-  Do **not** grant the *serving-endpoint* principal `CAN RUN`: that was the old
+  Do **not** grant the _serving-endpoint_ principal `CAN RUN`: that was the old
   passthrough remedy, and under user authorization it grants nothing the caller
   needs.
 
 ## The scripts
 
-| Script | What it does |
-| --- | --- |
-| `agent-release.sh` | Log the model, deploy it to the serving endpoint, wait for the traffic switch, read back the served versions, then prune the entities the release superseded. `--no-prune` leaves them and reports what it would have removed. |
-| `prune-served-entities.py` | Remove idle served entities from the endpoint, keeping whatever holds traffic plus `var.serving_rollbacks_kept` rollbacks, which defaults to **none**, because the version a kept rollback reaches is the one released *before* the current fix. Run by `agent-release.sh`; also runnable alone. Reports by default, acts on `--apply`, exits 3 when there is something to prune and it was not asked to. Endpoint only: it has no code path that reaches the registry, so every version stays registered and can be served again with `deploy_agent.py --model-version N`. That is the rollback path, and it needs no idle entity held open for it. |
-| `app-release.sh` | Resolve the MLflow experiment id, build the dependency-free tree, gate on `app-db-grant.sh`, replace the validated mutable Workspace staging directory, upload, and deploy in explicit `SNAPSHOT` mode. The only way app code is pushed; `npm run deploy` is an alias for it. `--rollback-to <workspace-path>` is unchanged: it applies the same grant gate and snapshots a known-good source directory without rebuilding. |
-| `app-source-staging.sh` | Guard the one recursive source cleanup. The configured path must be an app-specific source directory directly below the current profile actor's `/Workspace/Users/<actor>/` home. It refuses roots, nesting, traversal, a different actor, or a different app, and verifies any active deployment uses a separate platform snapshot before cleanup. |
-| `app-db-grant.sh` | Resolve the app role, direct branch host, database, operator role and app schema from the target and live resources, then run `scripts/grant-app-db-access.mjs`. Called by every app release; runnable directly after Lakebase reattach without a full release. |
-| `app-spec.sh` | Emit the complete app spec for a target, generated from `bundle validate` so it can only carry that target's own values. Prints by default; `--apply` sends it and verifies what the API kept. Recovery only: the bundle owns this resource. Refuses to write on a host mismatch, a Lakebase project absent from the workspace, a serving endpoint that does not exist, a lost load-bearing `user_api_scopes` entry, or a `sql-warehouse` resource with no id. There is no `--allow-missing-endpoint`. |
-| `deploy.sh` | Run one complete interactive bundle deploy. Refuses `--auto-approve`, blocks stale local state that still owns Lakebase, and gates `--force-lock` on explicit confirmation that no deploy is live. It does not require `bundle plan`, which has crashed in affected CLI versions. |
+| Script                     | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-release.sh`         | Log the model, deploy it to the serving endpoint, wait for the traffic switch, read back the served versions, then prune the entities the release superseded. `--no-prune` leaves them and reports what it would have removed.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `prune-served-entities.py` | Remove idle served entities from the endpoint, keeping whatever holds traffic plus `var.serving_rollbacks_kept` rollbacks, which defaults to **none**, because the version a kept rollback reaches is the one released _before_ the current fix. Run by `agent-release.sh`; also runnable alone. Reports by default, acts on `--apply`, exits 3 when there is something to prune and it was not asked to. Endpoint only: it has no code path that reaches the registry, so every version stays registered and can be served again with `deploy_agent.py --model-version N`. That is the rollback path, and it needs no idle entity held open for it. |
+| `app-release.sh`           | Resolve the MLflow experiment id, build the dependency-free tree, gate on `app-db-grant.sh`, replace the validated mutable Workspace staging directory, upload, and deploy in explicit `SNAPSHOT` mode. The only way app code is pushed; `npm run deploy` is an alias for it. `--rollback-to <workspace-path>` is unchanged: it applies the same grant gate and snapshots a known-good source directory without rebuilding.                                                                                                                                                                                                                          |
+| `app-source-staging.sh`    | Guard the one recursive source cleanup. The configured path must be an app-specific source directory directly below the current profile actor's `/Workspace/Users/<actor>/` home. It refuses roots, nesting, traversal, a different actor, or a different app, and verifies any active deployment uses a separate platform snapshot before cleanup.                                                                                                                                                                                                                                                                                                  |
+| `app-db-grant.sh`          | Resolve the app role, direct branch host, database, operator role and app schema from the target and live resources, then run `scripts/grant-app-db-access.mjs`. Called by every app release; runnable directly after Lakebase reattach without a full release.                                                                                                                                                                                                                                                                                                                                                                                      |
+| `app-spec.sh`              | Emit the complete app spec for a target, generated from `bundle validate` so it can only carry that target's own values. Prints by default; `--apply` sends it and verifies what the API kept. Recovery only: the bundle owns this resource. Refuses to write on a host mismatch, a Lakebase project absent from the workspace, a serving endpoint that does not exist, a lost load-bearing `user_api_scopes` entry, or a `sql-warehouse` resource with no id. There is no `--allow-missing-endpoint`.                                                                                                                                               |
+| `deploy.sh`                | Run one complete interactive bundle deploy. Refuses `--auto-approve`, blocks stale local state that still owns Lakebase, and gates `--force-lock` on explicit confirmation that no deploy is live. It does not require `bundle plan`, which has crashed in affected CLI versions.                                                                                                                                                                                                                                                                                                                                                                    |
 
 Identity split (do not re-introduce an app-SP Unity Catalog data gate on release):
 
 - **Signed-in user**: governed UC / Genie / SQL reads (`execution_identity: user-authorization`).
 - **App service principal**: app-owned Lakebase operational storage and non-data control-plane work only. Lakebase grants are checked after app creation (`scripts/grant-app-db-access.mjs`, `/api/storage`, app-release ownership), not by asking UC what the SP can `SELECT` on customer catalogs.
+
+## Player Insights Agent brand and state identities
+
+The user-visible and operator-visible identity is one contract:
+
+- display name: `Player Insights Agent`;
+- bundle, App, serving endpoint, and path slug: `player-insights-agent`;
+- registered model object: `${app_catalog}.${app_schema}.player_insights_agent`;
+- MLflow experiment: `/Shared/player-insights-agent`;
+- resource billing dimension: `system_billing=player-insights-agent`;
+- mutable Workspace staging directory: `player-insights-agent-src`.
+
+The existing `player_insights_*` bundle resource keys remain unchanged. They are
+non-user-facing state addresses, contain no retired brand, and are already bound
+to the live schema, volume, App, experiment, jobs, and AI Search resources.
+Renaming them has no display benefit and would require an unbind/rebind window in
+which an interrupted migration leaves the bundle without ownership state.
+
+The `example` target also keeps `player_insights_assets`,
+`player_insights_telemetry`, and the Lakebase schema `player_insights` as
+target-only compatibility values. Those names identify existing data-bearing
+objects. New deployments receive the canonical
+`player_insights_agent_assets`, `player_insights_agent_telemetry`, and
+`player_insights_agent` defaults.
+
+### Branding rollout and rollback
+
+No resource key or live model/endpoint/experiment identity changes in this
+rollout. Before releasing, change the ignored example
+`app_source_code_path` override to the canonical
+`/Workspace/Users/<release-actor>/player-insights-agent-src`; retired staging
+suffixes are refused.
+
+Then use the normal coordinated sequence:
+
+```bash
+TARGET=example PROFILE='<your profile>' bash bundle/deploy.sh
+TARGET=example PROFILE='<your profile>' bundle/agent-release.sh --apply
+TARGET=example PROFILE='<your profile>' bundle/app-release.sh --apply
+```
+
+At the bundle confirmation, stop if the plan proposes a delete, replace, or a
+second App/model/experiment. The bundle step updates labels, comments, and tags;
+the agent release records the canonical tags on a new model version at the same
+registered model and endpoint; the app release moves query attribution and the
+manifest short name to the same brand.
+
+For model rollback, redeploy the prior registered version without logging a
+duplicate:
+
+```bash
+TARGET=example PROFILE='<your profile>' \
+  bundle/agent-release.sh --apply --skip-log --model-version <previous-version>
+```
+
+For app rollback, use `bundle/app-release.sh --apply --rollback-to
+<known-good-workspace-snapshot>`. Reverting source and rerunning the interactive
+bundle wrapper restores prior comments/tags if needed; it must still show no
+resource deletion or replacement. Lakebase data and the retained target-only
+schema/volume identities are unchanged in either direction.
 
 ## Before a later bundle reconciliation
 
@@ -224,7 +285,7 @@ canned representative data, and none of these fail loudly. Establish that:
 - both env-var-bearing app resources (`postgres` and `serving-endpoint`) are
   attached to the live app, and every `user_api_scopes` entry the bundle authors
   is in effect on it rather than merely declared. `databricks apps get
-  <app-name> -o json` reports the resources and scopes the platform actually
+<app-name> -o json` reports the resources and scopes the platform actually
   holds, which is the one place a lost attachment shows;
 - the serving endpoint exists and is reachable;
 - the app's Postgres role holds grants on the schema the app's own DDL creates;

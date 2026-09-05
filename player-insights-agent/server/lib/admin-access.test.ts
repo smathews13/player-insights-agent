@@ -49,9 +49,7 @@ function fakeStore() {
       }
       if (sql.startsWith(`DELETE FROM ${ADMIN_GRANTS_TABLE}`)) {
         const [email, object, privilege] = values;
-        const at = rows.findIndex(
-          (row) => row.email === email && row.object === object && row.privilege === privilege
-        );
+        const at = rows.findIndex((row) => row.email === email && row.object === object && row.privilege === privilege);
         if (at >= 0) rows.splice(at, 1);
         return Promise.resolve({ rows: [] as Record<string, unknown>[] });
       }
@@ -100,7 +98,7 @@ describe('the statement', () => {
     const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;
     const body = JSON.parse(typeof init.body === 'string' ? init.body : '') as Record<string, unknown>;
     expect(body.query_tags).toEqual([
-      { key: 'application', value: 'Astrolabe' },
+      { key: 'application', value: 'Player Insights Agent' },
       { key: 'surface', value: 'admin' },
       { key: 'tool', value: 'admin_access' },
       { key: 'operation', value: 'revoke' },

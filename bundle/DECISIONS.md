@@ -367,7 +367,7 @@ decision is for is the review comment "the guide asked for an icon here and ther
 isn't one" -- the answer is that the row it belongs to was never built, and
 building one to hold a logo is the mistake this records.
 
-### D15. App and workspace sessions are separate; PIA adds an app-only idle control
+### D15. App and workspace sessions are separate; Player Insights Agent adds an app-only idle control
 
 **Revised 2026-09-02.** Native Databricks App sessions are separate from
 workspace sessions, may persist or refresh for up to 24 hours, and do not
@@ -395,7 +395,7 @@ unmounts the app and clears client caches.
 
 Strict immediate coordinated logout remains outside the native Apps contract.
 It requires a customer-controlled OIDC/gateway architecture that owns every
-participating session and provides federated logout. The PIA timeout protects
+participating session and provides federated logout. The Player Insights Agent timeout protects
 only Player Insights Agent's application layer.
 
 ### D16. Access boundaries fail closed and do not widen through a release

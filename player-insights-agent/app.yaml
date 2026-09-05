@@ -16,7 +16,7 @@ env:
   - name: PLAYER_INSIGHTS_LLM_ENDPOINT
     value: ''
   # The warehouse the access gate probes as the signed-in user. This is the app's
-  # own warehouse, not the orchestrator's, which takes its warehouse from the
+  # own warehouse, not the served agent's, which takes its warehouse from the
   # model artifact. The two can differ, so a gate verdict covers the warehouse
   # named here and says nothing about the one an answer ran on. Unset, the gate
   # reports that it could not check rather than that access was refused.
@@ -60,7 +60,7 @@ env:
   - name: PLAYER_INSIGHTS_EXPERIMENT_PATH
     value: '/Shared/player-insights-agent'
   # The commit this build came from, so skew between the app and the
-  # orchestrator is readable rather than inferred. Empty on purpose: the value
+  # Player Insights Agent model is readable rather than inferred. Empty on purpose: the value
   # exists only at build time and scripts/bundle-server.mjs resolves it from git.
   # Empty means this build does not know its own commit, which a reader must
   # present as unknown rather than as agreement.

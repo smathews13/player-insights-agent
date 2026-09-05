@@ -278,7 +278,11 @@ describe('the ranged cost route', () => {
                 {
                   query_id: 'astrolabe-query-1',
                   warehouse_id: 'warehouse-1',
-                  query_tags: { application: 'Astrolabe', surface: 'benchmark', tool: 'genie_result' },
+                  query_tags: {
+                    application: 'Player Insights Agent',
+                    surface: 'benchmark',
+                    tool: 'genie_result',
+                  },
                   metrics: { execution_time_ms: 100 },
                 },
               ],

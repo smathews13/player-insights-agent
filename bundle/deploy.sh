@@ -7,7 +7,8 @@
 #
 # Usage:
 #   TARGET=<target> PROFILE=<profile> bash bundle/deploy.sh
-#   PIA_CONFIRMED_NO_LIVE_DEPLOY=true TARGET=<target> PROFILE=<profile> \
+#   PLAYER_INSIGHTS_AGENT_CONFIRMED_NO_LIVE_DEPLOY=true \
+#     TARGET=<target> PROFILE=<profile> \
 #     bash bundle/deploy.sh --force-lock
 
 set -euo pipefail
@@ -73,9 +74,9 @@ unbinding changes state without deleting the live Lakebase objects."
   fi
 fi
 
-if [[ "$FORCE_LOCK" == true && "${PIA_CONFIRMED_NO_LIVE_DEPLOY:-}" != true ]]; then
+if [[ "$FORCE_LOCK" == true && "${PLAYER_INSIGHTS_AGENT_CONFIRMED_NO_LIVE_DEPLOY:-}" != true ]]; then
   die "--force-lock is only for a stale lock after confirming no deploy is live.
-Confirm that first, then set PIA_CONFIRMED_NO_LIVE_DEPLOY=true and retry."
+Confirm that first, then set PLAYER_INSIGHTS_AGENT_CONFIRMED_NO_LIVE_DEPLOY=true and retry."
 fi
 
 resolve_profile
@@ -92,7 +93,7 @@ note "The App is bundle-owned; do not create it by hand or exclude it with --sel
 (cd "$BUNDLE_ROOT" && databricks "${ARGS[@]}")
 
 if [[ -n "$VECTOR_ENDPOINT" ]]; then
-  step "Applying the legacy compatibility resource tag"
+  step "Applying the Player Insights Agent resource tag"
   (cd "$BUNDLE_ROOT/agent" \
     && DATABRICKS_CONFIG_PROFILE="$PROFILE" \
        uv run --python 3.13 python ../bundle/tag-resources.py --vector-endpoint "$VECTOR_ENDPOINT")

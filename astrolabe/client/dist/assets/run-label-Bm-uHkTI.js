@@ -1,1 +1,0 @@
-function e(e){return e.prompt?.trim()||`Benchmark suite run`}export{e as t};

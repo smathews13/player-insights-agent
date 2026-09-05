@@ -12,7 +12,12 @@ describe('Genie result execution', () => {
     const table = tableFromStatementPayload({
       status: { state: 'SUCCEEDED' },
       manifest: { schema: { columns: [{ name: 'title' }, { name: 'active_players' }] } },
-      result: { data_array: [['halo', 10], ['destiny', 20]] },
+      result: {
+        data_array: [
+          ['halo', 10],
+          ['destiny', 20],
+        ],
+      },
     });
     expect(table?.rowCount).toBe(2);
     expect(table?.columns.map((entry) => entry.name)).toEqual(['title', 'active_players']);
@@ -42,7 +47,7 @@ describe('Genie result execution', () => {
     const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;
     const body = JSON.parse(typeof init.body === 'string' ? init.body : '') as Record<string, unknown>;
     expect(body.query_tags).toEqual([
-      { key: 'application', value: 'Astrolabe' },
+      { key: 'application', value: 'Player Insights Agent' },
       { key: 'surface', value: 'benchmark' },
       { key: 'tool', value: 'genie_result' },
       { key: 'operation', value: 'execute' },

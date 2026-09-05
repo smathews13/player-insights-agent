@@ -14,15 +14,19 @@ from databricks.sdk.service.sql import EndpointTagPair, EndpointTags
 from databricks.sdk.service.vectorsearch import CustomTag
 from mlflow.tracking import MlflowClient
 
-TAG_KEY = "astrolabe"
-TAG_VALUE = "true"
+PRODUCT_SLUG = "player-insights-agent"
+TAG_KEY = "system_billing"
+TAG_VALUE = PRODUCT_SLUG
+# Compatibility-only machine identity from releases before the canonical
+# system_billing dimension. It is removed on write and never shown to operators.
+RETIRED_TAG_KEYS = ("astrolabe",)
 
 
 def _merge(tags: Iterable[Any] | None, factory: Any) -> list[Any]:
     values = {
         str(tag.key): str(tag.value or "")
         for tag in (tags or [])
-        if getattr(tag, "key", None)
+        if getattr(tag, "key", None) and str(tag.key) not in RETIRED_TAG_KEYS
     }
     values[TAG_KEY] = TAG_VALUE
     return [factory(key=key, value=value) for key, value in sorted(values.items())]
@@ -53,6 +57,7 @@ def tag_serving_endpoint(workspace: WorkspaceClient, endpoint_name: str) -> None
     workspace.serving_endpoints.patch(
         endpoint_name,
         add_tags=[EndpointTag(key=TAG_KEY, value=TAG_VALUE)],
+        delete_tags=list(RETIRED_TAG_KEYS),
     )
     print(f"tagged serving endpoint {endpoint_name}")
 
@@ -65,9 +70,12 @@ def tag_vector_endpoint(workspace: WorkspaceClient, endpoint_name: str) -> None:
 
 
 def tag_registered_model(model_name: str) -> None:
-    MlflowClient(registry_uri="databricks-uc").set_registered_model_tag(
-        model_name, TAG_KEY, TAG_VALUE
-    )
+    client = MlflowClient(registry_uri="databricks-uc")
+    current = client.get_registered_model(model_name)
+    for key in RETIRED_TAG_KEYS:
+        if key in (current.tags or {}):
+            client.delete_registered_model_tag(model_name, key)
+    client.set_registered_model_tag(model_name, TAG_KEY, TAG_VALUE)
     print(f"tagged registered model {model_name}")
 
 

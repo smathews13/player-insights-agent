@@ -28,7 +28,7 @@ const summary: ResourceTagSummary = {
       support: 'supported',
       billingAttribution: true,
       status: 'tagged',
-      detail: 'Applied system_billing=astrolabe.',
+      detail: 'Applied system_billing=player-insights-agent.',
       nextAction: '',
     },
   ],

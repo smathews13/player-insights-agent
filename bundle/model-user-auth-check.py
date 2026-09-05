@@ -248,7 +248,7 @@ def main(argv: list[str]) -> int:
         "--auth-policy-json",
         metavar="PATH",
         default=None,
-        help="a JSON MLmodel fragment: {\"auth_policy\": {...}}. Needs no mlflow.",
+        help='a JSON MLmodel fragment: {"auth_policy": {...}}. Needs no mlflow.',
     )
     ap.add_argument(
         "--user-authorization",
@@ -363,7 +363,7 @@ def main(argv: list[str]) -> int:
         )
 
     # A user policy with nothing beside it leaves a bare `WorkspaceClient()` --
-    # which is what the orchestrator's own model calls use -- with nothing to
+    # which is what the served Player Insights Agent model calls use -- with nothing to
     # resolve. `agent/user_authorization.py` says the two halves must agree or the
     # endpoint cannot authenticate at all; this is that sentence, enforced.
     if has_user_policy and not (policy or {}).get("system_auth_policy"):

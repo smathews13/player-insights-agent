@@ -7,6 +7,6 @@ resources:
       schema_name: ${var.app_schema}
       name: ${var.volume}
       volume_type: MANAGED
-      comment: Raw snapshots.
+      comment: "${var.product_display_name} raw snapshots."
       lifecycle:
         prevent_destroy: true

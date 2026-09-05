@@ -43,7 +43,7 @@ describe('Resource Tags support matrix', () => {
   it('inventories every connected class and marks only billing-capable APIs supported', () => {
     const targets = resourceTagInventory({
       environment: {
-        DATABRICKS_APP_NAME: 'astrolabe',
+        DATABRICKS_APP_NAME: 'player-insights-agent',
         DATABRICKS_SERVING_ENDPOINT_NAME: 'agent-endpoint',
         DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse-1',
         PLAYER_INSIGHTS_EXPERIMENT_ID: 'experiment-1',
@@ -108,7 +108,7 @@ describe('coverage semantics', () => {
   it('excludes organizational metadata and unsupported resources from the primary denominator', async () => {
     const summary = await applyAstrolabeTags({
       environment: {
-        DATABRICKS_APP_NAME: 'astrolabe',
+        DATABRICKS_APP_NAME: 'player-insights-agent',
         DATABRICKS_SERVING_ENDPOINT_NAME: 'agent',
         DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse',
         PLAYER_INSIGHTS_EXPERIMENT_ID: 'experiment',
@@ -145,7 +145,7 @@ describe('coverage semantics', () => {
       report: null,
       token: TOKEN,
       platform: platform({
-        getServingTags: vi.fn(() => Promise.resolve([{ key: 'system_billing', value: 'astrolabe' }])),
+        getServingTags: vi.fn(() => Promise.resolve([{ key: 'system_billing', value: 'player-insights-agent' }])),
         patchServingTags,
         setWarehouseTags,
       }),
@@ -484,7 +484,11 @@ describe('bounded retries, isolation, and cancellation', () => {
 describe('organizational app tag diagnostics', () => {
   it('requires an explicit metadata reader and never treats absence as billing evidence', async () => {
     expect(await readAppBillingTag('app')).toBe('unverified');
-    expect(await readAppBillingTag('app', { getAppTag: vi.fn(() => Promise.resolve('astrolabe')) })).toBe('matched');
+    expect(
+      await readAppBillingTag('app', {
+        getAppTag: vi.fn(() => Promise.resolve('player-insights-agent')),
+      })
+    ).toBe('matched');
     expect(await readAppBillingTag('app', { getAppTag: vi.fn(() => Promise.resolve(null)) })).toBe('missing');
   });
 });

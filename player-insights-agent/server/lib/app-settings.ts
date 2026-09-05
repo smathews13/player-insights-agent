@@ -515,8 +515,8 @@ export function resourceStates(input: {
       configuredFrom = 'app-environment';
       if (resource.id === 'lakebase-schema') {
         // The runtime resolver deliberately remaps the old authored Git default
-        // to `astrolabe`; showing the raw env here would make Connections name a
-        // schema no query in this process uses.
+        // to the canonical app schema; showing the raw env here would make
+        // Connections name a schema no query in this process uses.
         configured = APP_SCHEMA;
       }
       if (!configured && resource.id in APP_DEFAULTS) {

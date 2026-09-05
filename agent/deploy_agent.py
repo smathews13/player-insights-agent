@@ -37,15 +37,13 @@ def main() -> None:
         raise ValueError("--endpoint-name or PLAYER_INSIGHTS_ENDPOINT is required")
     mlflow.set_tracking_uri("databricks")
     mlflow.set_registry_uri("databricks-uc")
-    mlflow.set_experiment(
-        os.getenv("PLAYER_INSIGHTS_EXPERIMENT", "/Shared/player-insights-agent")
-    )
+    mlflow.set_experiment(os.getenv("PLAYER_INSIGHTS_EXPERIMENT", "/Shared/player-insights-agent"))
     deployment = agents.deploy(
         model_name=args.model_name,
         model_version=str(args.model_version),
         endpoint_name=args.endpoint_name,
         tags={
-            "astrolabe": "true",
+            "system_billing": "player-insights-agent",
             "project": "player-insights-agent",
             "environment": args.environment or "unspecified",
         },

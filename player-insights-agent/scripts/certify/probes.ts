@@ -20,12 +20,7 @@
  */
 import type { CheckResult } from './certificate.ts';
 import { statusWithoutProbe, checkDefinition } from './catalogue.ts';
-import {
-  dirtyStamps,
-  unknownFields,
-  type ReleaseTuple,
-  type UserAuthPolicyState,
-} from './release-identity.ts';
+import { dirtyStamps, unknownFields, type ReleaseTuple, type UserAuthPolicyState } from './release-identity.ts';
 
 // --- The shapes we read, narrowed to the fields that decide something --------
 //
@@ -115,12 +110,7 @@ export interface OwnershipRun {
   output: string;
 }
 
-function result(
-  code: string,
-  status: CheckResult['status'],
-  detail: string,
-  evidenceRef?: string
-): CheckResult {
+function result(code: string, status: CheckResult['status'], detail: string, evidenceRef?: string): CheckResult {
   return { code, status, detail, durationMs: 0, ...(evidenceRef ? { evidenceRef } : {}) };
 }
 
@@ -183,11 +173,7 @@ export function probeBuildStamps(tuple: ReleaseTuple): CheckResult {
         'established. Absence is not cleanliness.'
     );
   }
-  return result(
-    'BUILD_STAMPS_REPRODUCIBLE',
-    'pass',
-    'Both artefacts carry a clean commit stamp.'
-  );
+  return result('BUILD_STAMPS_REPRODUCIBLE', 'pass', 'Both artefacts carry a clean commit stamp.');
 }
 
 export function probeBuildMatch(tuple: ReleaseTuple): CheckResult {
@@ -269,8 +255,7 @@ export function probeScopesAsAuthored(app: AppRecord | null, authored: string[] 
       extra.length > 0 ? `declared on the live app and not authored: ${extra.join(', ')}` : '',
     ]
       .filter(Boolean)
-      .join('; ') +
-      '. An `apps update` replaces the whole list, so this is how a scope goes missing.'
+      .join('; ') + '. An `apps update` replaces the whole list, so this is how a scope goes missing.'
   );
 }
 
@@ -310,11 +295,7 @@ export function probeScopesInEffect(app: AppRecord | null): CheckResult {
 export function probeOwnership(run: OwnershipRun | null): CheckResult {
   if (!run) return notObserved('POSTGRES_SCHEMA_OWNERSHIP', 'The ownership check was not run.');
   if (run.exitCode === 0) {
-    return result(
-      'POSTGRES_SCHEMA_OWNERSHIP',
-      'pass',
-      'The app owns its schema, so its boot DDL applies.'
-    );
+    return result('POSTGRES_SCHEMA_OWNERSHIP', 'pass', 'The app owns its schema, so its boot DDL applies.');
   }
   if (run.exitCode === 1) {
     return result(
@@ -405,9 +386,7 @@ export function probeServedVersion(endpoint: EndpointRecord | null): CheckResult
     'SERVED_VERSION_UNAMBIGUOUS',
     'fail',
     `Traffic is split across ${carrying.length} versions (` +
-      carrying
-        .map((route) => `${route.served_entity_name ?? '?'} ${route.traffic_percentage ?? 0}%`)
-        .join(', ') +
+      carrying.map((route) => `${route.served_entity_name ?? '?'} ${route.traffic_percentage ?? 0}%`).join(', ') +
       '). An observed answer cannot be attributed to a version, which makes every live check here ' +
       'ambiguous rather than merely uncertain.'
   );
@@ -430,10 +409,7 @@ export function manifestTables(version: ModelVersionRecord | null): string[] {
  * contract is the narrower list the Genie spaces curate, so a correct release
  * routinely declares more than the contract names.
  */
-export function probeManifestCoverage(
-  version: ModelVersionRecord | null,
-  expected: string[] | null
-): CheckResult {
+export function probeManifestCoverage(version: ModelVersionRecord | null, expected: string[] | null): CheckResult {
   if (!version) {
     return notObserved('MANIFEST_COVERS_DATA_CONTRACT', 'The served model version was not read.');
   }
@@ -486,10 +462,7 @@ export function loggedAuthPolicy(run: ModelRunRecord | null): UserAuthPolicyStat
 export const USER_AUTHORIZATION = 'user-authorization';
 export const SYSTEM_PASSTHROUGH = 'system-passthrough';
 
-export function probeDeclaredIdentity(
-  declared: string | null,
-  run: ModelRunRecord | null
-): CheckResult {
+export function probeDeclaredIdentity(declared: string | null, run: ModelRunRecord | null): CheckResult {
   const code = 'EXECUTION_IDENTITY_AS_DECLARED';
   if (!declared) {
     return notObserved(code, 'The bundle did not resolve var.execution_identity for this target.');
@@ -545,10 +518,7 @@ export function probeDeclaredIdentity(
  * which is a different thing from an app that sends nothing: the first is a
  * question nobody answered and the second is half of a working pair.
  */
-export function probeIdentityContract(
-  appSendsSignedInUser: boolean | null,
-  run: ModelRunRecord | null
-): CheckResult {
+export function probeIdentityContract(appSendsSignedInUser: boolean | null, run: ModelRunRecord | null): CheckResult {
   const code = 'IDENTITY_CONTRACT_PAIRED';
   if (appSendsSignedInUser === null) {
     return notObserved(
@@ -568,8 +538,7 @@ export function probeIdentityContract(
     return result(
       code,
       'pass',
-      'The app build asks to run as the signed-in user and the served version was logged to do ' +
-        'exactly that.'
+      'The app build asks to run as the signed-in user and the served version was logged to do ' + 'exactly that.'
     );
   }
   if (!appSendsSignedInUser && !versionRunsAsCaller) {
@@ -611,7 +580,7 @@ export function probeAgentEndpoint(preflight: PreflightRecord | null): CheckResu
       'AGENT_ENDPOINT_REACHABLE',
       'unknown',
       'The preflight response carried no agent-endpoint check, so whether the app can invoke the ' +
-        'orchestrator was not reported.'
+        'Player Insights Agent model was not reported.'
     );
   }
   if (check.status === 'ok') {
@@ -625,7 +594,7 @@ export function probeAgentEndpoint(preflight: PreflightRecord | null): CheckResu
   return result(
     'AGENT_ENDPOINT_REACHABLE',
     'fail',
-    `The app could not invoke the orchestrator. ${check.detail ?? ''}`.trim()
+    `The app could not invoke the Player Insights Agent model. ${check.detail ?? ''}`.trim()
   );
 }
 
@@ -645,7 +614,7 @@ export function probeDrift(settings: SettingsRecord | null): CheckResult {
     return result(
       'CONFIGURATION_DRIFT_CLEAR',
       'unknown',
-      'The orchestrator did not report its configuration, so what the running system used could ' +
+      'The Player Insights Agent model did not report its configuration, so what the running system used could ' +
         'not be compared with what it was configured with. No blocking finding is not the same as ' +
         'no drift.'
     );

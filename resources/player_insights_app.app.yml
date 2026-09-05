@@ -17,7 +17,7 @@ variables:
       The bundle creates it, but ingestion stays off while
       app_telemetry_destinations is empty. Keep telemetry outside
       ${var.app_schema}.
-    default: player_insights_telemetry
+    default: player_insights_agent_telemetry
   app_telemetry_destinations:
     description: >-
       OpenTelemetry export destinations. Defaults to an empty list, which

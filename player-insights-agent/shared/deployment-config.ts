@@ -5,13 +5,13 @@
  *   - App settings arrive as environment variables in the app container, written
  *     into the deployed app.yaml by scripts/deploy-app-yaml.mjs at release time.
  *     An app redeploy changes them.
- *   - Orchestrator settings are BAKED INTO THE MLFLOW MODEL ARTIFACT at log
+ *   - Player Insights Agent model settings are BAKED INTO THE MLFLOW MODEL ARTIFACT at log
  *     time, by `mlflow.pyfunc.log_model(model_config=...)`. Nothing the app can
- *     write reaches them. The Genie space ids and the catalog the orchestrator
+ *     write reaches them. The Genie space ids and the catalog the served agent
  *     actually uses live in that artifact, and only a new model version changes
  *     them.
  *
- * Nothing in the app can apply an orchestrator setting. The pane can STAGE one,
+ * Nothing in the app can apply a served-agent setting. The pane can STAGE one,
  * recording the value the deployer intends, and reports it as staged rather
  * than active until a model version carries it; `applyWith` is the command that
  * closes that gap. `stageable` and `changedBy` are separate fields so staging
@@ -46,7 +46,7 @@ export const CHANGED_BY: Record<ChangedBy, { label: string; note: string; applie
     note:
       'Baked into the MLflow model artifact when the agent was logged. No form can change it: the ' +
       'same values name the resources automatic authentication passthrough grants this version, so ' +
-      'a runtime override could aim the orchestrator at a warehouse it has no permission to use.',
+      'a runtime override could aim the served agent at a warehouse it has no permission to use.',
     appliesImmediately: false,
   },
   'app-redeploy': {
@@ -71,7 +71,7 @@ export const CHANGED_BY: Record<ChangedBy, { label: string; note: string; applie
   'agent-environment': {
     label: 'Not reachable in serving',
     note:
-      'Read from the orchestrator process environment, which a served entity does not inherit from ' +
+      'Read from the served agent process environment, which a served entity does not inherit from ' +
       'anything a deployer controls. Inside the endpoint it is always the compiled default.',
     appliesImmediately: false,
   },
@@ -100,7 +100,7 @@ export interface ConnectedResource {
   arrivesBy: string;
   /** The bundle variable a deployer sets, when there is one. */
   bundleVariable: string | null;
-  /** The `agent/config.py` field, when the orchestrator owns this value. */
+  /** The `agent/config.py` field, when the served agent owns this value. */
   agentKey: string | null;
   /** The app's environment variable, when the app owns this value. */
   appEnvVar: string | null;
@@ -124,7 +124,7 @@ export interface ConnectedResource {
    *
    * IT DECIDES `Not checked` AGAINST `Nothing to reach`, and getting it from
    * `agentKey` was wrong. That field says who OWNS a value, not whether anything
-   * is on the other end of it, so three orchestrator settings with no object
+   * is on the other end of it, so three served-agent settings with no object
    * anywhere -- the token cap and both catalog lists -- sat permanently under
    * "Not checked", which promises a verdict that no check could ever deliver.
    */
@@ -134,7 +134,7 @@ export interface ConnectedResource {
   /**
    * Whether the settings pane may record an intended value for it.
    *
-   * Staging is not applying. A staged orchestrator setting is reported as
+   * Staging is not applying. A staged served-agent setting is reported as
    * pending until a model version carries it.
    */
   stageable: boolean;
@@ -144,15 +144,15 @@ const AGENT_RELEASE = 'TARGET=<target> bundle/agent-release.sh --apply';
 const APP_RELEASE = 'TARGET=<target> bundle/app-release.sh --apply';
 
 /**
- * Every connection, orchestrator first because that is the half people are
+ * Every connection, served agent first because that is the half people are
  * surprised by.
  *
- * Derived from the code rather than from a description of it: the orchestrator
+ * Derived from the code rather than from a description of it: the served agent
  * entries are `config.py`'s `ENV_VARS` keys that name a resource, and the app
  * entries are exactly the variables `app.yaml` declares plus the two resources it
  * reads through `valueFrom`.
  *
- * One orchestrator entry is not an `ENV_VARS` key: the semantic index. It is
+ * One served-agent entry is not an `ENV_VARS` key: the semantic index. It is
  * resolved in `semantic_retrieval.py` rather than as a `Settings` field, and is
  * reported alongside the rest of the configuration. What matters here is that the
  * endpoint reports it, not where it lives in the agent.
@@ -160,7 +160,7 @@ const APP_RELEASE = 'TARGET=<target> bundle/app-release.sh --apply';
 export const CONNECTED_RESOURCES: ConnectedResource[] = [
   {
     id: 'agent-endpoint',
-    label: 'Orchestrator serving endpoint',
+    label: 'Player Insights Agent serving endpoint',
     kind: 'agent',
     changedBy: 'app-redeploy',
     arrivesBy:
@@ -360,7 +360,7 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     arrivesBy:
       'PLAYER_INSIGHTS_APP_SCHEMA, resolved from var.lakebase_app_schema at release time ' +
       '(a source-only Git deploy maps the legacy authored player_insights value to the app-owned ' +
-      'astrolabe schema). Created by the app on boot; bundle targets keep their configured schema.',
+      'player_insights_agent schema). Created by the app on boot; bundle targets keep their configured schema.',
     bundleVariable: 'lakebase_app_schema',
     agentKey: null,
     appEnvVar: 'PLAYER_INSIGHTS_APP_SCHEMA',
@@ -414,7 +414,7 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     changedBy: 'app-redeploy',
     arrivesBy:
       'Created by the bundle from var.semantic_index_endpoint. Nothing passes its name to the app or ' +
-      'to the orchestrator, so it is read back from the index, which reports the endpoint serving it.',
+      'to the served agent, so it is read back from the index, which reports the endpoint serving it.',
     bundleVariable: 'semantic_index_endpoint',
     agentKey: null,
     appEnvVar: 'PLAYER_INSIGHTS_SEMANTIC_ENDPOINT',
@@ -491,7 +491,7 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     // The one connection on this page whose value genuinely takes effect at once,
     // and it is worth being clear about what "takes effect" means for it: the app
     // reads the declaration this names on every settings read. It changes what this
-    // page COMPARES AGAINST. It does not change what the orchestrator may read,
+    // page COMPARES AGAINST. It does not change what the served agent may read,
     // because that list is baked into the model artifact -- see
     // shared/notebook-declaration.ts, which classifies every publishable key and
     // refuses the one that grants tables.

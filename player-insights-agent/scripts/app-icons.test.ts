@@ -84,7 +84,7 @@ describe('the icon set is the one the app’s markup asks for', () => {
 
     expect(html).toContain('<title>Player Insights Agent</title>');
     expect(manifest.name).toEqual('Player Insights Agent');
-    expect(manifest.short_name).toEqual('PIA');
+    expect(manifest.short_name).toEqual('Player Insights Agent');
   });
 
   it('declares each size the file it points at is actually drawn at', async () => {
@@ -112,7 +112,7 @@ describe('the icon set is the one the app’s markup asks for', () => {
   });
 });
 
-describe('every icon is the PIA D-pad on its plate, not a lettered tile', () => {
+describe('every icon is the Player Insights Agent D-pad on its plate, not a lettered tile', () => {
   it('puts the accent at the centre, where the mark’s blue is', async () => {
     // The discriminator against what was there before: the plate that read
     // "T2" was navy and white and carried no colour at all, so a blue centre

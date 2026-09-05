@@ -2241,7 +2241,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         if (split.components.length === 0 && (!split.meta || split.meta.billedDays === 0)) {
           const tiles = buildTiles(ids, [], queryAttribution, resourceActivity, genieAccounting, genieReason);
           const reason = unpropagated.length
-            ? 'Matching usage exists without the `system_billing=astrolabe` compatibility tag, but exact resource attribution remains available.'
+            ? 'Matching usage exists without the `system_billing=player-insights-agent` tag, but exact resource attribution remains available.'
             : delayed
               ? 'No exact tracked-resource billing rows yet. Later days may still be filling.'
               : 'No billing rows matched an exact tracked resource.';

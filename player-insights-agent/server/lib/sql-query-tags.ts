@@ -3,6 +3,13 @@ import { createHash } from 'node:crypto';
 /** Statement Execution accepts at most 20 tags with 128-character keys and values. */
 export const SQL_QUERY_TAG_LIMIT = 20;
 export const SQL_QUERY_TAG_TEXT_LIMIT = 128;
+export const PLAYER_INSIGHTS_AGENT_QUERY_TAG = 'Player Insights Agent';
+/** Historical Query History value accepted for continuity, never written. */
+export const RETIRED_QUERY_TAG = 'Astrolabe';
+
+export function isPlayerInsightsAgentQueryTag(value: string | undefined): boolean {
+  return value === PLAYER_INSIGHTS_AGENT_QUERY_TAG || value === RETIRED_QUERY_TAG;
+}
 
 export interface SqlQueryTag {
   key: string;
@@ -46,7 +53,7 @@ export function safeSqlTagIdentifier(value: string): string {
  */
 export function sqlQueryTags(input: SqlQueryAttribution & SqlQueryIdentifiers): SqlQueryTag[] {
   const tags: SqlQueryTag[] = [
-    { key: 'application', value: 'Astrolabe' },
+    { key: 'application', value: PLAYER_INSIGHTS_AGENT_QUERY_TAG },
     { key: 'surface', value: input.surface },
     { key: 'tool', value: input.tool },
     { key: 'operation', value: input.operation },

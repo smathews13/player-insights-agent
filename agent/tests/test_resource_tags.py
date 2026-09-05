@@ -6,9 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location(
-    "tag_resources", ROOT / "bundle" / "tag-resources.py"
-)
+SPEC = importlib.util.spec_from_file_location("tag_resources", ROOT / "bundle" / "tag-resources.py")
 assert SPEC and SPEC.loader
 tag_resources = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(tag_resources)
@@ -33,9 +31,7 @@ class API:
     def get_project(self, name: str) -> Any:
         return SimpleNamespace(
             spec=SimpleNamespace(
-                custom_tags=[
-                    tag_resources.ProjectCustomTag(key="owner", value="team")
-                ]
+                custom_tags=[tag_resources.ProjectCustomTag(key="owner", value="team")]
             )
         )
 
@@ -58,9 +54,7 @@ class API:
         self.calls.append((*args, kwargs))
 
     def get_endpoint(self, endpoint_name: str) -> Any:
-        return SimpleNamespace(
-            custom_tags=[tag_resources.CustomTag(key="owner", value="team")]
-        )
+        return SimpleNamespace(custom_tags=[tag_resources.CustomTag(key="owner", value="team")])
 
     def update_endpoint_custom_tags(self, *args: Any) -> None:
         self.calls.append(args)
@@ -84,7 +78,10 @@ def test_lakebase_tag_preserves_existing_tags() -> None:
     tag_resources.tag_lakebase(client, "project-one")
     _, project, mask = client.postgres.calls[0]
     assert mask.paths == ["spec.custom_tags"]
-    assert pairs(project.spec.custom_tags) == {"astrolabe": "true", "owner": "team"}
+    assert pairs(project.spec.custom_tags) == {
+        "owner": "team",
+        "system_billing": "player-insights-agent",
+    }
     assert client.postgres.wait.finished
 
 
@@ -93,32 +90,36 @@ def test_warehouse_tag_preserves_existing_tags_and_waits() -> None:
     tag_resources.tag_warehouse(client, "warehouse-one")
     _, kwargs = client.warehouses.calls[0]
     assert pairs(kwargs["tags"].custom_tags) == {
-        "astrolabe": "true",
         "owner": "team",
+        "system_billing": "player-insights-agent",
     }
     assert client.warehouses.wait.finished
 
 
-def test_serving_endpoint_adds_astrolabe_tag() -> None:
+def test_serving_endpoint_adds_player_insights_agent_tag() -> None:
     client = workspace()
     tag_resources.tag_serving_endpoint(client, "endpoint-one")
     _, kwargs = client.serving_endpoints.calls[0]
-    assert pairs(kwargs["add_tags"]) == {"astrolabe": "true"}
+    assert pairs(kwargs["add_tags"]) == {"system_billing": "player-insights-agent"}
+    assert kwargs["delete_tags"] == ["astrolabe"]
 
 
 def test_vector_endpoint_tag_preserves_existing_tags() -> None:
     client = workspace()
     tag_resources.tag_vector_endpoint(client, "vector-one")
     _, tags = client.vector_search_endpoints.calls[0]
-    assert pairs(tags) == {"astrolabe": "true", "owner": "team"}
+    assert pairs(tags) == {
+        "owner": "team",
+        "system_billing": "player-insights-agent",
+    }
 
 
 def test_agent_release_tags_model_and_endpoint() -> None:
     deploy = (ROOT / "agent" / "deploy_agent.py").read_text()
     log = (ROOT / "agent" / "log_model.py").read_text()
     release = (ROOT / "bundle" / "agent-release.sh").read_text()
-    assert '"astrolabe": "true"' in deploy
-    assert 'set_registered_model_tag(model_name, "astrolabe", "true")' in log
+    assert '"system_billing": "player-insights-agent"' in deploy
+    assert '"system_billing", "player-insights-agent"' in log
     assert '--registered-model "$MODEL_NAME"' in release
     assert '--serving-endpoint "$ENDPOINT"' in release
     assert 'default=os.getenv("PLAYER_INSIGHTS_ENDPOINT", "player-insights-agent")' not in deploy

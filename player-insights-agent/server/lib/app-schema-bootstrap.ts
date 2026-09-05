@@ -12,18 +12,18 @@ interface SchemaProbe {
 }
 
 /**
- * Find an existing Astrolabe store owned by the app's unchanged Postgres role.
+ * Find an existing Player Insights Agent store owned by the unchanged Postgres role.
  *
  * Deploy from Git replaces app.yaml but does not replace the App or its service
  * principal. A bundle-specific schema name therefore disappears from the
  * environment even though the same role still owns the same tables. Prefer the
- * oldest matching owned schema: if an earlier Git deploy already created the
- * public `astrolabe` fallback beside the real store, the original store is the
- * one whose history and role roster must survive.
+ * oldest matching owned schema: if an earlier Git deploy already created a
+ * fallback beside the real store, the original store is the one whose history
+ * and role roster must survive.
  */
 export async function preserveOwnedAppSchema(
   lakebase: SchemaProbe,
-  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>
 ): Promise<string> {
   const target = (env[APP_TARGET_ENV] ?? '').trim();
   const endpoint = (env[LAKEBASE_ENDPOINT_ENV] ?? '').trim();
@@ -49,14 +49,14 @@ export async function preserveOwnedAppSchema(
       const adopted = adoptAppSchema(existing);
       console.warn(
         `[lakebase] Deploy from Git preserved the app-owned ${adopted} schema discovered under ` +
-          'the unchanged service principal, so stored history and roles remain in use.',
+          'the unchanged service principal, so stored history and roles remain in use.'
       );
       return adopted;
     }
   } catch (error) {
     console.warn(
       '[lakebase] Could not discover an existing app-owned schema before startup; using the ' +
-        `${APP_SCHEMA} Git-deploy default. ${(error as Error).message}`,
+        `${APP_SCHEMA} Git-deploy default. ${(error as Error).message}`
     );
   }
   return APP_SCHEMA;

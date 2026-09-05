@@ -58,13 +58,7 @@ export type Observability =
    */
   | 'unbuilt';
 
-export type CheckLayer =
-  | 'identity'
-  | 'configuration'
-  | 'storage'
-  | 'evidence'
-  | 'transport'
-  | 'client';
+export type CheckLayer = 'identity' | 'configuration' | 'storage' | 'evidence' | 'transport' | 'client';
 
 export interface CheckDefinition {
   code: string;
@@ -113,7 +107,7 @@ export const CHECKS: CheckDefinition[] = [
   },
   {
     code: 'APP_MODEL_BUILD_MATCH',
-    title: 'App and orchestrator came from the same commit',
+    title: 'App and Player Insights Agent model came from the same commit',
     layer: 'configuration',
     // Advisory on purpose. The two deploy separately and a mismatch is the
     // normal state between releases; the app already reports it as a warning on
@@ -317,7 +311,7 @@ export const CHECKS: CheckDefinition[] = [
   // --- The live app, through its own public routes ---------------------------
   {
     code: 'AGENT_ENDPOINT_REACHABLE',
-    title: 'The app can invoke the orchestrator',
+    title: 'The app can invoke the Player Insights Agent model',
     layer: 'transport',
     severity: 'required',
     observability: 'api',
